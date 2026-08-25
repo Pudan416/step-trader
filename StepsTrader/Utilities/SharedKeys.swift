@@ -97,6 +97,10 @@ enum SharedKeys {
     /// re-rolling on every foreground within the same day.
     static let dailyRandomThemeLastRolledKey = "dailyRandomTheme_lastRolledKey_v1"
 
+    /// Comma-separated `ModernPaletteCategory` raw values. An empty string
+    /// means every category, which is the default.
+    static let modernPaletteCategories = "modernPaletteCategories_v1"
+
     static let canvasOverlayStyle = "canvasOverlayStyle_v1"
     static let canvasTexture = "canvasTexture_v1"
 

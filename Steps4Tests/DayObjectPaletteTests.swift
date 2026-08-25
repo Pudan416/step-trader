@@ -3,63 +3,404 @@ import XCTest
 @testable import Steps4
 
 final class DayObjectPaletteTests: XCTestCase {
-    func testDailyRadialFillUsesAStableSharedSubsetOfOneToThreePaletteColors() {
-        var reachedColorCounts = Set<Int>()
+    func testDailyPaletteSetUsesThreeDistinctAllowedCatalogEntries() {
+        let allowed: Set<ModernPaletteCategory> = [.pastel, .cold]
 
-        for index in 0..<2_048 {
-            let input = DayObjectSceneInput(
-                dayKey: "radial-fill-\(index)",
-                identity: "tester",
-                eventIDs: ["walk"],
-                motionEnergy: 0.55,
-                visualClarity: 0.55,
-                reduceMotion: false
+        for seed in UInt64(0)..<128 {
+            let paletteSet = DayObjectPaletteSet.make(
+                rootSeed: seed,
+                categories: allowed
             )
-            let scene = DayObjectScene.make(input: input)
-            let enriched = DayObjectScene.make(input: DayObjectSceneInput(
-                dayKey: input.dayKey,
-                identity: input.identity,
-                eventIDs: ["walk", "sleep", "read"],
-                motionEnergy: input.motionEnergy,
-                visualClarity: input.visualClarity,
-                reduceMotion: input.reduceMotion
-            ))
-            let radial = scene.radialFillStyle
+            let palettes = [
+                paletteSet.background,
+                paletteSet.primaryObjects,
+                paletteSet.secondaryObjects,
+            ]
 
-            XCTAssertEqual(enriched.radialFillStyle, radial, "day=\(index)")
-            XCTAssertTrue((1...3).contains(radial.colors.count), "day=\(index)")
-            XCTAssertEqual(radial.colors.count, scene.composition.fill.colorCount, "day=\(index)")
-            let visiblePaletteColors = scene.palette.colors.map {
-                $0.lightened(
-                    toMinimumContrast: 1.35,
-                    against: scene.palette.backgroundBase
-                ).linearRGB
-            }
-            XCTAssertTrue(
-                radial.colors.allSatisfy { visiblePaletteColors.contains($0) },
-                "day=\(index)"
+            XCTAssertEqual(Set(palettes.map(\.code)).count, 3, "seed=\(seed)")
+            XCTAssertTrue(palettes.allSatisfy { !$0.categories.isDisjoint(with: allowed) })
+            XCTAssertTrue(palettes.allSatisfy { $0.hexes.count == 4 })
+            XCTAssertEqual(
+                paletteSet,
+                DayObjectPaletteSet.make(rootSeed: seed, categories: allowed),
+                "seed=\(seed)"
             )
-            XCTAssertTrue(
-                radial.colors.allSatisfy {
-                    contrastRatio($0, scene.palette.backgroundBase) >= 1.35 - 0.000_001
-                },
-                "day=\(index)"
+        }
+    }
+
+    func testDailyPaletteSetTreatsEmptyCategorySelectionAsAllCategories() {
+        for seed in UInt64(0)..<32 {
+            XCTAssertEqual(
+                DayObjectPaletteSet.make(rootSeed: seed, categories: []),
+                DayObjectPaletteSet.make(
+                    rootSeed: seed,
+                    categories: ModernPaletteSelection.all
+                )
             )
-            XCTAssertTrue((0.48...1.28).contains(radial.radius), "day=\(index)")
-            XCTAssertTrue((0...0.82).contains(radial.focalDistance), "day=\(index)")
-            XCTAssertTrue((0..<(2 * Double.pi)).contains(radial.focalAngle), "day=\(index)")
-            XCTAssertTrue((-0.35...0.65).contains(radial.falloff), "day=\(index)")
-            XCTAssertTrue((0.28...1).contains(radial.mixing), "day=\(index)")
-            XCTAssertTrue((0...0.58).contains(radial.distortion), "day=\(index)")
-            XCTAssertTrue((-0.72...0.72).contains(radial.distortionShift), "day=\(index)")
-            XCTAssertTrue((2...12).contains(radial.distortionFrequency), "day=\(index)")
-            XCTAssertTrue((0..<(2 * Double.pi)).contains(radial.rotation), "day=\(index)")
-            XCTAssertTrue((-0.24...0.24).contains(radial.offset.x), "day=\(index)")
-            XCTAssertTrue((-0.24...0.24).contains(radial.offset.y), "day=\(index)")
-            reachedColorCounts.insert(radial.colors.count)
+        }
+    }
+
+    func testDailyPaletteSelectionStaysBoundedForTheFullCatalog() {
+        let startedAt = ProcessInfo.processInfo.systemUptime
+
+        for seed in UInt64(0)..<8 {
+            _ = DayObjectPaletteSet.make(
+                rootSeed: seed,
+                categories: ModernPaletteSelection.all
+            )
         }
 
+        XCTAssertLessThan(
+            ProcessInfo.processInfo.systemUptime - startedAt,
+            2,
+            "eight daily selections must not score every pair in the 340-palette catalog"
+        )
+    }
+
+    func testObjectPaletteAllocationUsesApprovedRatioAndUniqueSubsets() {
+        let expectedCounts = [
+            (primary: 1, secondary: 0),
+            (primary: 1, secondary: 1),
+            (primary: 2, secondary: 1),
+            (primary: 2, secondary: 2),
+            (primary: 3, secondary: 2),
+            (primary: 4, secondary: 2),
+            (primary: 4, secondary: 3),
+            (primary: 5, secondary: 3),
+            (primary: 5, secondary: 4),
+            (primary: 6, secondary: 4),
+        ]
+        let paletteSet = DayObjectPaletteSet.make(
+            rootSeed: 44,
+            categories: [.pastel, .cold, .warm]
+        )
+
+        for count in 1...10 {
+            let eventIDs = (0..<count).map { "event-\($0)" }
+            let assignments = DayObjectColorAllocator.assignments(
+                eventIDs: eventIDs,
+                rootSeed: 44,
+                paletteSet: paletteSet
+            )
+            let values = Array(assignments.values)
+            let primary = values.filter { $0.paletteSlot == .primary }.count
+            let secondary = values.filter { $0.paletteSlot == .secondary }.count
+            let subsetKeys = values.map {
+                "\($0.paletteSlot.rawValue):\($0.sourceIndices.sorted())"
+            }
+
+            XCTAssertEqual(assignments.count, count)
+            XCTAssertEqual(primary, expectedCounts[count - 1].primary, "count=\(count)")
+            XCTAssertEqual(secondary, expectedCounts[count - 1].secondary, "count=\(count)")
+            XCTAssertEqual(Set(subsetKeys).count, count, "count=\(count)")
+            XCTAssertTrue(values.allSatisfy { (1...3).contains($0.colors.count) })
+            XCTAssertTrue(values.allSatisfy { $0.colors.count == $0.sourceIndices.count })
+        }
+    }
+
+    func testArbitraryEventIDsStillReceiveSixFourUniqueColorAssignments() {
+        let eventIDs = [
+            "id-0x", "id-1x", "id-2x", "id-4x", "id-8x",
+            "id-9x", "id-10x", "id-16x", "id-24x", "id-58x",
+        ]
+        let paletteSet = DayObjectPaletteSet.make(
+            rootSeed: 44,
+            categories: [.pastel, .cold, .warm]
+        )
+
+        let assignments = DayObjectColorAllocator.assignments(
+            eventIDs: eventIDs,
+            rootSeed: 44,
+            paletteSet: paletteSet
+        )
+        let values = eventIDs.compactMap { assignments[$0] }
+        let uniqueSubsets = Set(values.map {
+            "\($0.paletteSlot.rawValue):\($0.sourceIndices.sorted())"
+        })
+
+        XCTAssertEqual(values.filter { $0.paletteSlot == .primary }.count, 6)
+        XCTAssertEqual(values.filter { $0.paletteSlot == .secondary }.count, 4)
+        XCTAssertEqual(uniqueSubsets.count, 10)
+    }
+
+    func testAssignedObjectColorsRemainReadableAgainstTheRenderedBackgroundPalette() {
+        for seed in UInt64(0)..<128 {
+            let paletteSet = DayObjectPaletteSet.make(
+                rootSeed: seed,
+                categories: ModernPaletteSelection.all
+            )
+            let renderedBackground = DayObjectPalette.make(
+                modernPalette: paletteSet.background
+            )
+            let backgroundColors = [renderedBackground.backgroundBase]
+                + renderedBackground.backgroundFields
+            let assignments = DayObjectColorAllocator.assignments(
+                eventIDs: (0..<10).map { "uuid-\($0)-x" },
+                rootSeed: seed,
+                paletteSet: paletteSet
+            )
+
+            for assignment in assignments.values {
+                for color in assignment.colors {
+                    XCTAssertGreaterThanOrEqual(
+                        backgroundColors.map {
+                            contrastRatio(color.linearRGB, $0)
+                        }.min() ?? 0,
+                        1.35 - 0.000_001,
+                        "seed=\(seed) color=\(color.sRGB) background=\(backgroundColors)"
+                    )
+                }
+            }
+        }
+    }
+
+    func testColorAssignmentsDoNotRerollWhenAnotherEventIsRemovedOrReordered() throws {
+        let paletteSet = DayObjectPaletteSet.make(
+            rootSeed: 73,
+            categories: [.pastel, .cold]
+        )
+        let full = DayObjectColorAllocator.assignments(
+            eventIDs: ["walk", "sleep", "read"],
+            rootSeed: 73,
+            paletteSet: paletteSet
+        )
+        let removed = DayObjectColorAllocator.assignments(
+            eventIDs: ["read", "walk"],
+            rootSeed: 73,
+            paletteSet: paletteSet
+        )
+
+        XCTAssertEqual(try XCTUnwrap(removed["walk"]), try XCTUnwrap(full["walk"]))
+        XCTAssertEqual(try XCTUnwrap(removed["read"]), try XCTUnwrap(full["read"]))
+    }
+
+    func testDailyVisualLanguageUsesCuratedMaterialDistribution() {
+        for seed in UInt64(0)..<128 {
+            let paletteSet = DayObjectPaletteSet.make(
+                rootSeed: seed,
+                categories: [.pastel, .cold, .warm]
+            )
+            let language = DayObjectVisualLanguage.make(
+                rootSeed: seed,
+                paletteSet: paletteSet
+            )
+
+            XCTAssertTrue((3...4).contains(language.enabledMaterials.count))
+            XCTAssertEqual(
+                Set(language.enabledMaterials).count,
+                language.enabledMaterials.count
+            )
+            XCTAssertTrue(language.enabledMaterials.contains(language.dominantMaterial))
+            XCTAssertEqual(language.grainIntensity, 0.05)
+
+            for count in 4...10 {
+                let ids = (0..<count).map { "event-\($0)" }
+                let appearances = language.appearances(
+                    eventIDs: ids,
+                    rootSeed: seed
+                )
+                let materials = appearances.values.map(\.material)
+                let dominantCount = materials.filter {
+                    $0 == language.dominantMaterial
+                }.count
+
+                XCTAssertGreaterThanOrEqual(
+                    Double(dominantCount) / Double(count),
+                    0.5,
+                    "seed=\(seed) count=\(count)"
+                )
+                XCTAssertLessThanOrEqual(
+                    Double(dominantCount) / Double(count),
+                    0.7,
+                    "seed=\(seed) count=\(count)"
+                )
+                XCTAssertTrue(materials.allSatisfy(language.enabledMaterials.contains))
+                if count >= 8 {
+                    XCTAssertGreaterThanOrEqual(Set(materials).count, 3)
+                }
+            }
+        }
+    }
+
+    func testArbitraryEventIDsStillUseTheDailyMaterialDistribution() {
+        let eventIDs = [
+            "id-0x", "id-1x", "id-2x", "id-4x", "id-8x",
+            "id-9x", "id-10x", "id-16x", "id-24x", "id-58x",
+        ]
+        let paletteSet = DayObjectPaletteSet.make(
+            rootSeed: 44,
+            categories: [.pastel, .cold, .warm]
+        )
+        let language = DayObjectVisualLanguage.make(
+            rootSeed: 44,
+            paletteSet: paletteSet
+        )
+        let materials = eventIDs.compactMap {
+            language.appearances(eventIDs: eventIDs, rootSeed: 44)[$0]?.material
+        }
+        let dominantCount = materials.filter { $0 == language.dominantMaterial }.count
+
+        XCTAssertTrue((5...7).contains(dominantCount))
+        XCTAssertGreaterThanOrEqual(Set(materials).count, 3)
+        XCTAssertTrue(materials.allSatisfy(language.enabledMaterials.contains))
+    }
+
+    func testPerEventAppearancesAreStableBoundedAndVisuallyReachable() {
+        var reachedMaterials = Set<DayObjectMaterialFamily>()
+        var reachedShapes = Set<DayObjectShape>()
+        var reachedColorCounts = Set<Int>()
+        var sawShiftedFocalCenter = false
+        var sawTransparentBody = false
+        var sawInnerGlow = false
+        var sawOuterGlow = false
+
+        for seed in UInt64(0)..<128 {
+            let paletteSet = DayObjectPaletteSet.make(
+                rootSeed: seed,
+                categories: ModernPaletteSelection.all
+            )
+            let language = DayObjectVisualLanguage.make(
+                rootSeed: seed,
+                paletteSet: paletteSet
+            )
+            let ids = (0..<10).map { "event-\($0)" }
+            let appearances = language.appearances(eventIDs: ids, rootSeed: seed)
+            let repeated = language.appearances(eventIDs: ids, rootSeed: seed)
+
+            XCTAssertEqual(appearances, repeated)
+            for appearance in appearances.values {
+                XCTAssertTrue((1...3).contains(appearance.colorAssignment.colors.count))
+                XCTAssertTrue((0.04...0.30).contains(appearance.distortion))
+                XCTAssertTrue((2...8).contains(appearance.distortionFrequency))
+                XCTAssertTrue((0...1).contains(appearance.localDepthSoftness))
+                XCTAssertTrue((0...1).contains(appearance.bodyOpacity))
+                XCTAssertTrue((0...1).contains(appearance.centerOpacity))
+                XCTAssertTrue((0...1).contains(appearance.rimOpacity))
+                if appearance.material == .glass {
+                    XCTAssertTrue((0.006...0.028).contains(appearance.refractionStrength))
+                } else {
+                    XCTAssertEqual(appearance.refractionStrength, 0)
+                }
+                if appearance.material == .membrane {
+                    XCTAssertTrue((2...3).contains(appearance.membraneLayerCount))
+                } else {
+                    XCTAssertEqual(appearance.membraneLayerCount, 1)
+                }
+
+                reachedMaterials.insert(appearance.material)
+                reachedShapes.insert(appearance.shape)
+                reachedColorCounts.insert(appearance.colorAssignment.colors.count)
+                sawShiftedFocalCenter = sawShiftedFocalCenter || appearance.focalDistance > 0.2
+                sawTransparentBody = sawTransparentBody || appearance.bodyOpacity < 0.5
+                sawInnerGlow = sawInnerGlow || appearance.innerGlow > 0.3
+                sawOuterGlow = sawOuterGlow || appearance.outerGlow > 0.15
+            }
+        }
+
+        XCTAssertEqual(reachedMaterials, Set(DayObjectMaterialFamily.allCases))
+        XCTAssertEqual(reachedShapes, Set(DayObjectShape.allCases))
         XCTAssertEqual(reachedColorCounts, [1, 2, 3])
+        XCTAssertTrue(sawShiftedFocalCenter)
+        XCTAssertTrue(sawTransparentBody)
+        XCTAssertTrue(sawInnerGlow)
+        XCTAssertTrue(sawOuterGlow)
+    }
+
+    func testModernCatalogContainsUniqueFourColorPalettes() {
+        let palettes = ModernPaletteCatalog.all
+
+        XCTAssertEqual(palettes.count, 340)
+        XCTAssertEqual(Set(palettes.map(\.code)).count, palettes.count)
+        XCTAssertTrue(palettes.allSatisfy { $0.hexes.count == 4 })
+        XCTAssertTrue(palettes.flatMap(\.hexes).allSatisfy {
+            $0.range(of: "^#[0-9A-F]{6}$", options: .regularExpression) != nil
+        })
+    }
+
+    func testModernCatalogCoversEverySelectableCategory() {
+        for category in ModernPaletteCategory.allCases {
+            XCTAssertFalse(
+                ModernPaletteCatalog.palettes(matching: [category]).isEmpty,
+                "missing \(category.rawValue) palettes"
+            )
+        }
+    }
+
+    func testModernCatalogTreatsNoFilterAsAllAndCombinesSelectedCategories() {
+        XCTAssertEqual(
+            ModernPaletteCatalog.palettes(matching: []),
+            ModernPaletteCatalog.all
+        )
+
+        let selected: Set<ModernPaletteCategory> = [.pastel, .neon]
+        let filtered = ModernPaletteCatalog.palettes(matching: selected)
+
+        XCTAssertFalse(filtered.isEmpty)
+        XCTAssertTrue(filtered.allSatisfy { !$0.categories.isDisjoint(with: selected) })
+        XCTAssertTrue(filtered.contains { $0.categories.contains(.pastel) })
+        XCTAssertTrue(filtered.contains { $0.categories.contains(.neon) })
+    }
+
+    func testDayObjectPaletteDrawsOnlyFromSelectedModernCategories() {
+        let selected: Set<ModernPaletteCategory> = [.neon]
+        let allowed = ModernPaletteCatalog.palettes(matching: selected).map { palette in
+            palette.hexes.map { DayObjectRGB(hex: $0) }
+        }
+
+        for seed in UInt64(0)..<512 {
+            let palette = DayObjectPalette.make(seed: seed, categories: selected)
+            XCTAssertTrue(allowed.contains(palette.colors), "seed=\(seed)")
+            XCTAssertEqual(
+                palette,
+                DayObjectPalette.make(seed: seed, categories: selected),
+                "seed=\(seed)"
+            )
+        }
+    }
+
+    func testModernCategorySelectionDefaultsToAllAndRoundTripsASubset() {
+        let all = Set(ModernPaletteCategory.allCases)
+        XCTAssertEqual(ModernPaletteSelection.decode(""), all)
+        XCTAssertEqual(ModernPaletteSelection.decode("unknown"), all)
+
+        let subset: Set<ModernPaletteCategory> = [.pastel, .warm, .winter]
+        XCTAssertEqual(
+            ModernPaletteSelection.decode(ModernPaletteSelection.encode(subset)),
+            subset
+        )
+        XCTAssertEqual(ModernPaletteSelection.encode(all), "")
+    }
+
+    func testModernCategorySelectionLeavesAllForOneTasteAndNeverBecomesEmpty() {
+        let all = Set(ModernPaletteCategory.allCases)
+        XCTAssertEqual(
+            ModernPaletteSelection.toggling(.neon, in: all),
+            [.neon]
+        )
+        XCTAssertEqual(
+            ModernPaletteSelection.toggling(.neon, in: [.neon]),
+            all
+        )
+    }
+
+    func testSceneUsesPaletteCategoriesFromItsInput() {
+        let selected: Set<ModernPaletteCategory> = [.winter]
+        let input = DayObjectSceneInput(
+            dayKey: "winter-scene",
+            identity: "tester",
+            eventIDs: ["walk"],
+            motionEnergy: 0.5,
+            visualClarity: 0.5,
+            reduceMotion: false,
+            paletteCategories: selected
+        )
+        let scene = DayObjectScene.make(input: input)
+        let allowed = ModernPaletteCatalog.palettes(matching: selected).map { palette in
+            palette.hexes.map { DayObjectRGB(hex: $0) }
+        }
+
+        XCTAssertTrue(allowed.contains(scene.palette.colors))
+        XCTAssertEqual(scene.input.paletteCategories, selected)
     }
 
     func testDailyMeshReachesEveryArchetypeAndBothMotionDirections() {
@@ -190,17 +531,9 @@ final class DayObjectPaletteTests: XCTestCase {
         }
     }
 
-    func testDailyMeshUsesOneCompleteFourColorApplicationPalette() {
-        let applicationPalettes: [[SIMD3<Float>]] = [
-            ["FFBF65", "FD8973", "003A6C", "002646"],
-            ["7FDBDA", "3A9FBF", "1A4B6E", "0B1E33"],
-            ["C4B5FD", "7C6FBF", "1F6E5C", "0F1B2D"],
-            ["EEDDC9", "C0AC98", "5E7282", "384856"],
-            ["EBBFC8", "B87A92", "4A3568", "181430"],
-            ["F07838", "D04428", "2E1858", "0C0A22"],
-            ["D0A440", "2898A8", "105868", "0A2832"],
-        ].map { palette in
-            palette.map { DayObjectRGB(hex: $0).linearRGB }
+    func testDailyMeshUsesOneCompleteFourColorModernPalette() {
+        let applicationPalettes = ModernPaletteCatalog.all.map { palette in
+            palette.hexes.map { DayObjectRGB(hex: $0).linearRGB }
         }
         var observedPaletteIndices = Set<Int>()
 
@@ -224,11 +557,7 @@ final class DayObjectPaletteTests: XCTestCase {
             XCTAssertEqual(uniforms.colorCount, 4, "seed=\(seed)")
         }
 
-        XCTAssertEqual(
-            observedPaletteIndices,
-            Set(applicationPalettes.indices),
-            "Daily selection must be able to reach every four-color application palette"
-        )
+        XCTAssertGreaterThan(observedPaletteIndices.count, 100)
     }
 
     func testMeshGradientUniformLayoutExactlyMatchesMetalABI() {

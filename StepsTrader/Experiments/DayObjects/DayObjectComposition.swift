@@ -72,6 +72,7 @@ enum DayObjectSpin: String, CaseIterable, Hashable {
 /// Daily, viewport-normalized placement constraints. The costly choice of
 /// focal/support regions is made once with the scene, not per pixel or frame.
 struct DayObjectCompositionPlan: Equatable {
+    private static let distributedPlacementCache = DayObjectRoutePlacementCache()
     let uiExclusionRegion: DayObjectNormalizedRect
     let negativeSpaceRegion: DayObjectNormalizedRect
     let targetNegativeSpaceFraction: Double
@@ -116,7 +117,10 @@ struct DayObjectCompositionPlan: Equatable {
             !negativeSpace.contains($0) && !uiExclusionRegion.contains($0)
         }
         let usable = candidates.isEmpty ? [SIMD2<Double>(0.5, 0.5)] : candidates
-        let routeCoordinates = stride(from: 0.05, through: 0.95, by: 0.10)
+        let routeCoordinates = [
+            0.08, 0.22, 0.25, 0.36, 0.375, 0.50,
+            0.625, 0.64, 0.75, 0.78, 0.92,
+        ]
         let routeCandidates = routeCoordinates.flatMap { y in
             routeCoordinates.map { x in SIMD2<Double>(x, y) }
         }.filter {
@@ -176,6 +180,25 @@ struct DayObjectCompositionPlan: Equatable {
             (0.5 - anchor.y) * span.y
         )
         return anchorPosition + rawPosition * 0.52
+    }
+
+    func encounterCenter(channel: Int, canvasAspect rawAspect: Double) -> SIMD2<Double> {
+        let span = canvasSpan(for: rawAspect)
+        // Each time-staggered pair meets inside one of the distributed lanes
+        // it already owns. A brief overlap therefore does not collapse the
+        // rest of the canvas into a single central pile.
+        let centers = [
+            SIMD2<Double>(0.50, 0.25),
+            SIMD2<Double>(0.32, 0.25),
+            SIMD2<Double>(0.32, 0.38),
+            SIMD2<Double>(0.68, 0.38),
+            SIMD2<Double>(0.68, 0.25),
+        ]
+        let normalized = centers[((channel % centers.count) + centers.count) % centers.count]
+        return SIMD2(
+            (normalized.x - 0.5) * span.x,
+            (0.5 - normalized.y) * span.y
+        )
     }
 
     /// Selects one time-independent route center for an actor, then deforms
@@ -281,6 +304,153 @@ struct DayObjectCompositionPlan: Equatable {
         }
         let motionScale = best.usableMotionClearance / maximumRawComponent
         return best.center + rawPosition * motionScale
+    }
+
+    func distributedRoutePosition(
+        sector: Int,
+        actorSeed: UInt64,
+        localPosition: SIMD2<Double>,
+        footprintReach rawFootprintReach: Double,
+        canvasAspect rawAspect: Double
+    ) -> SIMD2<Double> {
+        let span = canvasSpan(for: rawAspect)
+        let halfCanvas = span * 0.5
+        let footprintReach = rawFootprintReach.isFinite ? max(rawFootprintReach, 0) : 0
+        let minimum = -halfCanvas + SIMD2(repeating: footprintReach)
+        let maximum = halfCanvas - SIMD2(repeating: footprintReach)
+        guard minimum.x <= maximum.x, minimum.y <= maximum.y else { return .zero }
+
+        let normalizedSector = ((sector % 9) + 9) % 9
+        let column = normalizedSector % 3
+        let requestedRow = normalizedSector / 3
+        let usableBottom = min(uiExclusionRegion.minY, negativeSpaceRegion.minY)
+        let usableRows = usableBottom < 0.78 ? 2 : 3
+        let row = requestedRow % usableRows
+        let rowMinY = usableRows == 2
+            ? Double(row) / 3
+            : Double(row) * usableBottom / Double(usableRows)
+        let rowMaxY = usableRows == 2
+            ? (row == usableRows - 1 ? usableBottom : Double(row + 1) / 3)
+            : Double(row + 1) * usableBottom / Double(usableRows)
+        let preferred = SIMD2<Double>(
+            (Double(column) + 0.5) / 3,
+            (rowMinY + rowMaxY) * 0.5
+        )
+        let laneRegion = DayObjectNormalizedRect(
+            minX: Double(column) / 3,
+            minY: rowMinY,
+            maxX: Double(column + 1) / 3,
+            maxY: rowMaxY
+        )
+        let laneBounds = canvasBounds(for: laneRegion, span: span)
+        let usesDistributedLanes = uiExclusionRegion == .dayObjectsLabControls
+        let laneMinimum = usesDistributedLanes
+            ? laneBounds.minimum + SIMD2(repeating: 0.005)
+            : minimum
+        let laneMaximum = usesDistributedLanes
+            ? laneBounds.maximum - SIMD2(repeating: 0.005)
+            : maximum
+        let forbidden = [negativeSpaceRegion, uiExclusionRegion].map { region in
+            let bounds = canvasBounds(for: region, span: span)
+            return (
+                minimum: bounds.minimum - SIMD2(repeating: footprintReach),
+                maximum: bounds.maximum + SIMD2(repeating: footprintReach)
+            )
+        }
+        let key = DayObjectRoutePlacementKey(
+            sector: normalizedSector,
+            aspect: rawAspect,
+            footprintReach: footprintReach,
+            ui: uiExclusionRegion,
+            negative: negativeSpaceRegion
+        )
+        let selected = Self.distributedPlacementCache.value(for: key) {
+            var options = [DayObjectRoutePlacement]()
+            let allowedMinimum = SIMD2(
+                max(minimum.x, laneMinimum.x),
+                max(minimum.y, laneMinimum.y)
+            )
+            let allowedMaximum = SIMD2(
+                min(maximum.x, laneMaximum.x),
+                min(maximum.y, laneMaximum.y)
+            )
+            let preferredCenter = SIMD2<Double>(
+                (preferred.x - 0.5) * span.x,
+                (0.5 - preferred.y) * span.y
+            )
+            func clamped(_ point: SIMD2<Double>) -> SIMD2<Double> {
+                SIMD2(
+                    min(max(point.x, allowedMinimum.x), allowedMaximum.x),
+                    min(max(point.y, allowedMinimum.y), allowedMaximum.y)
+                )
+            }
+            var centers = [clamped(preferredCenter)]
+            for bounds in forbidden {
+                centers.append(clamped(SIMD2(bounds.minimum.x, preferredCenter.y)))
+                centers.append(clamped(SIMD2(bounds.maximum.x, preferredCenter.y)))
+                centers.append(clamped(SIMD2(preferredCenter.x, bounds.minimum.y)))
+                centers.append(clamped(SIMD2(preferredCenter.x, bounds.maximum.y)))
+            }
+            centers += routeAnchorCandidates.map { candidate in
+                SIMD2<Double>(
+                    (candidate.x - 0.5) * span.x,
+                    (0.5 - candidate.y) * span.y
+                )
+            }
+
+            for center in centers {
+                guard center.x >= minimum.x, center.x <= maximum.x,
+                      center.y >= minimum.y, center.y <= maximum.y,
+                      center.x >= laneMinimum.x, center.x <= laneMaximum.x,
+                      center.y >= laneMinimum.y, center.y <= laneMaximum.y,
+                      forbidden.allSatisfy({ !Self.contains(center, in: $0) }) else {
+                    continue
+                }
+                var clearance = min(
+                    center.x - minimum.x,
+                    maximum.x - center.x,
+                    center.y - minimum.y,
+                    maximum.y - center.y,
+                    center.x - laneMinimum.x,
+                    laneMaximum.x - center.x,
+                    center.y - laneMinimum.y,
+                    laneMaximum.y - center.y
+                )
+                for bounds in forbidden {
+                    let xDistance = center.x < bounds.minimum.x
+                        ? bounds.minimum.x - center.x
+                        : center.x > bounds.maximum.x ? center.x - bounds.maximum.x : 0
+                    let yDistance = center.y < bounds.minimum.y
+                        ? bounds.minimum.y - center.y
+                        : center.y > bounds.maximum.y ? center.y - bounds.maximum.y : 0
+                    clearance = min(clearance, max(xDistance, yDistance))
+                }
+                options.append(DayObjectRoutePlacement(
+                    center: center,
+                    clearance: max(clearance - 0.000_001, 0),
+                    preferredDistance: simd_distance_squared(center, preferredCenter)
+                ))
+            }
+            return options.min(by: { lhs, rhs in
+                let lhsUsable = lhs.clearance >= 0.055
+                let rhsUsable = rhs.clearance >= 0.055
+                if lhsUsable != rhsUsable { return lhsUsable }
+                if lhs.preferredDistance != rhs.preferredDistance {
+                    return lhs.preferredDistance < rhs.preferredDistance
+                }
+                return lhs.clearance > rhs.clearance
+            })
+        }
+        guard let selected else {
+            return constrainedPosition(
+                .zero,
+                footprintHalfExtents: SIMD2(repeating: footprintReach),
+                canvasAspect: rawAspect
+            )
+        }
+        _ = actorSeed
+        let motionScale = min(selected.clearance / 0.38, 1)
+        return selected.center + localPosition * motionScale
     }
 
     func constrainedPosition(
@@ -418,6 +588,67 @@ struct DayObjectCompositionPlan: Equatable {
         value = (value ^ (value >> 30)) &* 0xBF58_476D_1CE4_E5B9
         value = (value ^ (value >> 27)) &* 0x94D0_49BB_1331_11EB
         return value ^ (value >> 31)
+    }
+}
+
+private struct DayObjectRoutePlacementKey: Hashable {
+    let sector: Int
+    let aspect: UInt64
+    let footprintReach: UInt64
+    let uiMinX: UInt64
+    let uiMinY: UInt64
+    let uiMaxX: UInt64
+    let uiMaxY: UInt64
+    let negativeMinX: UInt64
+    let negativeMinY: UInt64
+    let negativeMaxX: UInt64
+    let negativeMaxY: UInt64
+
+    init(
+        sector: Int,
+        aspect: Double,
+        footprintReach: Double,
+        ui: DayObjectNormalizedRect,
+        negative: DayObjectNormalizedRect
+    ) {
+        self.sector = sector
+        self.aspect = aspect.bitPattern
+        self.footprintReach = footprintReach.bitPattern
+        uiMinX = ui.minX.bitPattern
+        uiMinY = ui.minY.bitPattern
+        uiMaxX = ui.maxX.bitPattern
+        uiMaxY = ui.maxY.bitPattern
+        negativeMinX = negative.minX.bitPattern
+        negativeMinY = negative.minY.bitPattern
+        negativeMaxX = negative.maxX.bitPattern
+        negativeMaxY = negative.maxY.bitPattern
+    }
+}
+
+private struct DayObjectRoutePlacement {
+    let center: SIMD2<Double>
+    let clearance: Double
+    let preferredDistance: Double
+}
+
+private final class DayObjectRoutePlacementCache {
+    private let lock = NSLock()
+    private var values = [DayObjectRoutePlacementKey: DayObjectRoutePlacement]()
+
+    func value(
+        for key: DayObjectRoutePlacementKey,
+        make: () -> DayObjectRoutePlacement?
+    ) -> DayObjectRoutePlacement? {
+        lock.lock()
+        let existing = values[key]
+        lock.unlock()
+        if let existing { return existing }
+
+        guard let generated = make() else { return nil }
+        lock.lock()
+        values[key] = generated
+        lock.unlock()
+        return generated
     }
 }
 

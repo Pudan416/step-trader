@@ -118,6 +118,7 @@ actor SupabaseSyncService {
         let userGradientStyle: String
         let userGradientPalette: String
         let dailyRandomThemeEnabled: Bool
+        let modernPaletteCategories: [String]
         let canvasOverlayStyle: String
         let allowedCanvasShapes: [String]
         let allowedCanvasFills: [String]
@@ -445,6 +446,11 @@ actor SupabaseSyncService {
                         userGradientStyle: std.string(forKey: SharedKeys.userGradientStyle) ?? GradientStyle.radial.rawValue,
                         userGradientPalette: std.string(forKey: SharedKeys.userGradientPalette) ?? GradientPalette.warmSunset.rawValue,
                         dailyRandomThemeEnabled: std.bool(forKey: SharedKeys.dailyRandomThemeEnabled),
+                        modernPaletteCategories: ModernPaletteCategory.allCases
+                            .filter(ModernPaletteSelection.decode(
+                                std.string(forKey: SharedKeys.modernPaletteCategories) ?? ""
+                            ).contains)
+                            .map(\.rawValue),
                         canvasOverlayStyle: g.string(forKey: SharedKeys.canvasOverlayStyle) ?? CanvasOverlayStyle.smudge.rawValue,
                         allowedCanvasShapes: CanvasShapeType.allowedByUser.map(\.rawValue),
                         allowedCanvasFills: TextureKind.allowedByUser.map(\.rawValue)
@@ -523,6 +529,7 @@ actor SupabaseSyncService {
                         userGradientStyle: prefs.userGradientStyle,
                         userGradientPalette: prefs.userGradientPalette,
                         dailyRandomThemeEnabled: prefs.dailyRandomThemeEnabled,
+                        modernPaletteCategories: prefs.modernPaletteCategories,
                         bodyCanvasShape: prefs.bodyCanvasShape,
                         mindCanvasShape: prefs.mindCanvasShape,
                         heartCanvasShape: prefs.heartCanvasShape,

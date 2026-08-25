@@ -40,6 +40,7 @@ enum PreferencesStore {
         var userGradientStyle: String
         var userGradientPalette: String
         var dailyRandomThemeEnabled: Bool
+        var modernPaletteCategories: [String] = []
         /// Legacy per-category shapes. Still restored during rollout because
         /// older builds sharing this App Group read them, and because they are
         /// what seeds `allowedCanvasShapes` on a device that has never had it.
@@ -91,6 +92,15 @@ enum PreferencesStore {
         standard.set(s.userGradientStyle, forKey: SharedKeys.userGradientStyle)
         standard.set(s.userGradientPalette, forKey: SharedKeys.userGradientPalette)
         standard.set(s.dailyRandomThemeEnabled, forKey: SharedKeys.dailyRandomThemeEnabled)
+        let modernCategories = Set(
+            s.modernPaletteCategories.compactMap(ModernPaletteCategory.init(rawValue:))
+        )
+        if !modernCategories.isEmpty {
+            standard.set(
+                ModernPaletteSelection.encode(modernCategories),
+                forKey: SharedKeys.modernPaletteCategories
+            )
+        }
         standard.set(s.bodyCanvasShape, forKey: SharedKeys.bodyCanvasShape)
         standard.set(s.mindCanvasShape, forKey: SharedKeys.mindCanvasShape)
         standard.set(s.heartCanvasShape, forKey: SharedKeys.heartCanvasShape)

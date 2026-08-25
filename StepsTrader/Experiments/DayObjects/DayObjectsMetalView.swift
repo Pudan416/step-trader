@@ -4,22 +4,17 @@ import SwiftUI
 struct DayObjectsMetalView: UIViewRepresentable {
     let scene: DayObjectScene
     let environment: DayObjectEnvironment
-    let digitalImpact: DayObjectDigitalImpact
     let isAnimating: Bool
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(
-            scene: scene,
-            environment: environment,
-            digitalImpact: digitalImpact
-        )
+        Coordinator(scene: scene, environment: environment)
     }
 
     func makeUIView(context: Context) -> MTKView {
         let renderer = context.coordinator.renderer
         let view = MTKView(frame: .zero, device: renderer?.device)
         view.delegate = renderer
-        view.preferredFramesPerSecond = 30
+        Self.configureAnimationFrameRate(view)
         DayObjectsRenderer.configureDisplay(view)
         view.framebufferOnly = true
         view.enableSetNeedsDisplay = !isAnimating
@@ -35,17 +30,17 @@ struct DayObjectsMetalView: UIViewRepresentable {
         return view
     }
 
+    static func configureAnimationFrameRate(_ view: MTKView) {
+        view.preferredFramesPerSecond = 60
+    }
+
     func updateUIView(_ uiView: MTKView, context: Context) {
         guard let renderer = context.coordinator.renderer else {
             uiView.isPaused = true
             return
         }
 
-        renderer.update(
-            scene: scene,
-            environment: environment,
-            digitalImpact: digitalImpact
-        )
+        renderer.update(scene: scene, environment: environment)
         renderer.setAnimating(isAnimating)
         uiView.enableSetNeedsDisplay = !isAnimating
         uiView.isPaused = !isAnimating
@@ -65,16 +60,8 @@ struct DayObjectsMetalView: UIViewRepresentable {
         let renderer: DayObjectsRenderer?
         weak var mtkView: MTKView?
 
-        init(
-            scene: DayObjectScene,
-            environment: DayObjectEnvironment,
-            digitalImpact: DayObjectDigitalImpact
-        ) {
-            renderer = DayObjectsRenderer.create(
-                scene: scene,
-                environment: environment,
-                digitalImpact: digitalImpact
-            )
+        init(scene: DayObjectScene, environment: DayObjectEnvironment) {
+            renderer = DayObjectsRenderer.create(scene: scene, environment: environment)
         }
     }
 }
