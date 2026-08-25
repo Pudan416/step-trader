@@ -555,6 +555,42 @@
     "Your day" : {
       "comment" : "Settings Your day card title\nSettings section title"
     },
+    "%@ hours" : {
+      "comment" : "Sleep goal picker accessibility value"
+    },
+    "%@ steps" : {
+      "comment" : "Daily steps goal picker accessibility value"
+    },
+    "Decrease daily steps goal by %@ steps" : {
+      "comment" : "Daily steps goal picker decrement button"
+    },
+    "Decrease new day hour" : {
+      "comment" : "Custom day boundary hour decrement button"
+    },
+    "Decrease new day minute" : {
+      "comment" : "Custom day boundary minute decrement button"
+    },
+    "Decrease sleep goal" : {
+      "comment" : "Sleep goal picker decrement button"
+    },
+    "Increase daily steps goal by %@ steps" : {
+      "comment" : "Daily steps goal picker increment button"
+    },
+    "Increase new day hour" : {
+      "comment" : "Custom day boundary hour increment button"
+    },
+    "Increase new day minute" : {
+      "comment" : "Custom day boundary minute increment button"
+    },
+    "Increase sleep goal" : {
+      "comment" : "Sleep goal picker increment button"
+    },
+    "New day hour" : {
+      "comment" : "Custom day boundary hour control"
+    },
+    "New day minute" : {
+      "comment" : "Custom day boundary minute control"
+    },
     "Back" : {
       "comment" : "SettingsComponents – back button label"
     },

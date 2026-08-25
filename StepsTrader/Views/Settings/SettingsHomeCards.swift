@@ -182,7 +182,9 @@ struct SettingsYourDayCardLabel: View {
             Text(SettingsLocalizedCasing.uppercase(label))
                 .font(.caption2.weight(.semibold))
                 .tracking(1.4)
-                .foregroundStyle(theme.adaptiveMutedText)
+                .foregroundStyle(
+                    theme.adaptivePrimaryText.opacity(SettingsCardAppearance.captionOpacity)
+                )
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -193,7 +195,9 @@ struct SettingsYourDayCardLabel: View {
             Text(SettingsLocalizedCasing.uppercase(label))
                 .font(.caption2.weight(.semibold))
                 .tracking(1.4)
-                .foregroundStyle(theme.adaptiveMutedText)
+                .foregroundStyle(
+                    theme.adaptivePrimaryText.opacity(SettingsCardAppearance.captionOpacity)
+                )
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
             Text(value)

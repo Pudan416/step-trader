@@ -66,8 +66,103 @@ struct SettingsYourDaySummary: Equatable {
 }
 
 enum SettingsGridLayout {
-    static func columnCount(for dynamicTypeSize: DynamicTypeSize) -> Int {
-        dynamicTypeSize.isAccessibilitySize ? 1 : 2
+    static let minimumCardWidth: CGFloat = 164
+    static let spacing: CGFloat = 12
+
+    static func columnCount(
+        for dynamicTypeSize: DynamicTypeSize,
+        availableWidth: CGFloat
+    ) -> Int {
+        guard !dynamicTypeSize.isAccessibilitySize else { return 1 }
+        let twoColumnWidth = minimumCardWidth * 2 + spacing
+        return availableWidth >= twoColumnWidth ? 2 : 1
+    }
+
+    static func cardWidth(availableWidth: CGFloat, columnCount: Int) -> CGFloat {
+        let count = max(columnCount, 1)
+        let totalSpacing = spacing * CGFloat(count - 1)
+        return max(0, (availableWidth - totalSpacing) / CGFloat(count))
+    }
+}
+
+enum SettingsCardAppearance {
+    /// A dark matte wash keeps card content independent of the animated palette.
+    static let surfaceOpacity = 0.70
+    static let captionOpacity = 0.78
+    static let outlineOpacity = 0.55
+}
+
+struct SettingsSRGBColor: Equatable {
+    let red: Double
+    let green: Double
+    let blue: Double
+
+    fileprivate func composited(
+        over background: SettingsSRGBColor,
+        opacity: Double
+    ) -> SettingsSRGBColor {
+        let alpha = min(max(opacity, 0), 1)
+        return SettingsSRGBColor(
+            red: red * alpha + background.red * (1 - alpha),
+            green: green * alpha + background.green * (1 - alpha),
+            blue: blue * alpha + background.blue * (1 - alpha)
+        )
+    }
+
+    fileprivate var relativeLuminance: Double {
+        func linearize(_ component: Double) -> Double {
+            let clamped = min(max(component, 0), 1)
+            return clamped <= 0.04045
+                ? clamped / 12.92
+                : pow((clamped + 0.055) / 1.055, 2.4)
+        }
+
+        return 0.2126 * linearize(red)
+            + 0.7152 * linearize(green)
+            + 0.0722 * linearize(blue)
+    }
+}
+
+enum SettingsCardContrast {
+    struct Measurement: Equatable {
+        let captionToSurface: Double
+        let outlineToSurface: Double
+        let surfaceToBackground: Double
+    }
+
+    /// Mirrors the concrete SwiftUI tokens used by `SettingsCardSurface` and
+    /// the small Your day captions. Measuring against white is deliberately
+    /// stricter than any single palette swatch and covers additive brightening.
+    static func measure(over background: SettingsSRGBColor) -> Measurement {
+        let black = SettingsSRGBColor(red: 0, green: 0, blue: 0)
+        let primaryText = SettingsSRGBColor(red: 0.95, green: 0.95, blue: 0.95)
+        let surface = black.composited(
+            over: background,
+            opacity: SettingsCardAppearance.surfaceOpacity
+        )
+        let caption = primaryText.composited(
+            over: surface,
+            opacity: SettingsCardAppearance.captionOpacity
+        )
+        let outline = primaryText.composited(
+            over: surface,
+            opacity: SettingsCardAppearance.outlineOpacity
+        )
+
+        return Measurement(
+            captionToSurface: contrastRatio(caption, surface),
+            outlineToSurface: contrastRatio(outline, surface),
+            surfaceToBackground: contrastRatio(surface, background)
+        )
+    }
+
+    private static func contrastRatio(
+        _ first: SettingsSRGBColor,
+        _ second: SettingsSRGBColor
+    ) -> Double {
+        let lighter = max(first.relativeLuminance, second.relativeLuminance)
+        let darker = min(first.relativeLuminance, second.relativeLuminance)
+        return (lighter + 0.05) / (darker + 0.05)
     }
 }
 

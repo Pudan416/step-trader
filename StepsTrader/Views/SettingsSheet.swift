@@ -33,6 +33,8 @@ struct SettingsSheet: View {
     /// standalone usage). The tab instance uses `featureTipRouteBinding` instead.
     @State private var localFeatureTipRoute: FeatureTipSettingsPage?
 
+    private let horizontalContentPadding: CGFloat = 24
+
     private var featureTipRoute: Binding<FeatureTipSettingsPage?> {
         featureTipRouteBinding ?? $localFeatureTipRoute
     }
@@ -54,150 +56,167 @@ struct SettingsSheet: View {
         )
     }
 
-    private var gridColumns: [GridItem] {
+    private func gridColumns(availableContentWidth: CGFloat) -> [GridItem] {
         Array(
-            repeating: GridItem(.flexible(), spacing: 12, alignment: .top),
-            count: SettingsGridLayout.columnCount(for: dynamicTypeSize)
+            repeating: GridItem(
+                .flexible(minimum: SettingsGridLayout.minimumCardWidth),
+                spacing: SettingsGridLayout.spacing,
+                alignment: .top
+            ),
+            count: SettingsGridLayout.columnCount(
+                for: dynamicTypeSize,
+                availableWidth: availableContentWidth
+            )
         )
     }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    Text(String(localized: "Settings", comment: "Settings page title"))
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
-                        .foregroundStyle(theme.adaptivePrimaryText)
-                        .padding(.top, 8)
+            GeometryReader { container in
+                let availableContentWidth = max(
+                    0,
+                    container.size.width - horizontalContentPadding * 2
+                )
 
-                    accountCard
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        Text(String(localized: "Settings", comment: "Settings page title"))
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .foregroundStyle(theme.adaptivePrimaryText)
+                            .padding(.top, 8)
 
-                    NavigationLink {
-                        SettingsEnergyPage(model: model)
-                    } label: {
-                        SettingsYourDayCardLabel(summary: yourDaySummary)
-                    }
-                    .buttonStyle(MattePressStyle())
-                    .accessibilityIdentifier("settings.yourDay")
+                        accountCard
 
-                    LazyVGrid(columns: gridColumns, spacing: 12) {
                         NavigationLink {
-                            SettingsAppearancePage(model: model)
+                            SettingsEnergyPage(model: model)
                         } label: {
-                            SettingsDestinationCardLabel(
-                                icon: "paintpalette",
-                                title: String(localized: "Appearance", comment: "Settings destination title")
-                            )
+                            SettingsYourDayCardLabel(summary: yourDaySummary)
                         }
                         .buttonStyle(MattePressStyle())
-                        .accessibilityIdentifier("settings.destination.appearance")
+                        .accessibilityIdentifier("settings.yourDay")
 
-                        NavigationLink {
-                            NotificationSettingsView(model: model)
-                        } label: {
-                            SettingsDestinationCardLabel(
-                                icon: "bell",
-                                title: String(localized: "Notifications", comment: "Settings destination title")
-                            )
+                        LazyVGrid(
+                            columns: gridColumns(availableContentWidth: availableContentWidth),
+                            spacing: SettingsGridLayout.spacing
+                        ) {
+                            NavigationLink {
+                                SettingsAppearancePage(model: model)
+                            } label: {
+                                SettingsDestinationCardLabel(
+                                    icon: "paintpalette",
+                                    title: String(localized: "Appearance", comment: "Settings destination title")
+                                )
+                            }
+                            .buttonStyle(MattePressStyle())
+                            .accessibilityIdentifier("settings.destination.appearance")
+
+                            NavigationLink {
+                                NotificationSettingsView(model: model)
+                            } label: {
+                                SettingsDestinationCardLabel(
+                                    icon: "bell",
+                                    title: String(localized: "Notifications", comment: "Settings destination title")
+                                )
+                            }
+                            .buttonStyle(MattePressStyle())
+                            .accessibilityIdentifier("settings.destination.notifications")
+
+                            NavigationLink {
+                                SettingsPermissionsPage(model: model)
+                            } label: {
+                                SettingsDestinationCardLabel(
+                                    icon: "lock.shield",
+                                    title: String(localized: "Permissions", comment: "Settings destination title"),
+                                    warningText: model.hasPermissionIssues
+                                        ? String(localized: "Action needed", comment: "Permissions warning label")
+                                        : nil
+                                )
+                            }
+                            .buttonStyle(MattePressStyle())
+                            .accessibilityIdentifier("settings.destination.permissions")
+
+                            NavigationLink {
+                                SettingsWidgetsWallpaperPage(model: model)
+                            } label: {
+                                SettingsDestinationCardLabel(
+                                    icon: "square.stack.3d.up",
+                                    title: String(localized: "Widgets & wallpaper", comment: "Settings destination title")
+                                )
+                            }
+                            .buttonStyle(MattePressStyle())
+                            .accessibilityIdentifier("settings.destination.widgetsWallpaper")
                         }
-                        .buttonStyle(MattePressStyle())
-                        .accessibilityIdentifier("settings.destination.notifications")
 
-                        NavigationLink {
-                            SettingsPermissionsPage(model: model)
-                        } label: {
-                            SettingsDestinationCardLabel(
-                                icon: "lock.shield",
-                                title: String(localized: "Permissions", comment: "Settings destination title"),
-                                warningText: model.hasPermissionIssues
-                                    ? String(localized: "Action needed", comment: "Permissions warning label")
-                                    : nil
-                            )
+                        SettingsInformationGroup {
+                            NavigationLink {
+                                ManualsPage(model: model)
+                            } label: {
+                                SettingsNavRow(
+                                    icon: "book",
+                                    title: String(localized: "Notes from Kosta", comment: "Settings destination title")
+                                )
+                                .frame(minHeight: 44)
+                            }
+                            .buttonStyle(MattePressStyle())
+                            .accessibilityIdentifier("settings.destination.notes")
+
+                            DetailDivider(inset: 50)
+
+                            NavigationLink {
+                                SettingsAboutPage(model: model)
+                            } label: {
+                                SettingsNavRow(
+                                    icon: "info.circle",
+                                    title: String(localized: "About", comment: "Settings destination title")
+                                )
+                                .frame(minHeight: 44)
+                            }
+                            .buttonStyle(MattePressStyle())
+                            .accessibilityIdentifier("settings.destination.about")
                         }
-                        .buttonStyle(MattePressStyle())
-                        .accessibilityIdentifier("settings.destination.permissions")
 
+                        #if DEBUG
                         NavigationLink {
-                            SettingsWidgetsWallpaperPage(model: model)
-                        } label: {
-                            SettingsDestinationCardLabel(
-                                icon: "square.stack.3d.up",
-                                title: String(localized: "Widgets & wallpaper", comment: "Settings destination title")
-                            )
-                        }
-                        .buttonStyle(MattePressStyle())
-                        .accessibilityIdentifier("settings.destination.widgetsWallpaper")
-                    }
-
-                    SettingsInformationGroup {
-                        NavigationLink {
-                            ManualsPage(model: model)
+                            SettingsDeveloperPage(model: model)
                         } label: {
                             SettingsNavRow(
-                                icon: "book",
-                                title: String(localized: "Notes from Kosta", comment: "Settings destination title")
+                                icon: "hammer",
+                                title: String(localized: "Developer", comment: "Settings developer destination")
                             )
                             .frame(minHeight: 44)
+                            .settingsCardSurface()
                         }
                         .buttonStyle(MattePressStyle())
-                        .accessibilityIdentifier("settings.destination.notes")
+                        .accessibilityIdentifier("settings.destination.developer")
+                        #endif
 
-                        DetailDivider(inset: 50)
-
-                        NavigationLink {
-                            SettingsAboutPage(model: model)
-                        } label: {
-                            SettingsNavRow(
-                                icon: "info.circle",
-                                title: String(localized: "About", comment: "Settings destination title")
-                            )
-                            .frame(minHeight: 44)
-                        }
-                        .buttonStyle(MattePressStyle())
-                        .accessibilityIdentifier("settings.destination.about")
+                        versionFooter
                     }
-
-                    #if DEBUG
-                    NavigationLink {
-                        SettingsDeveloperPage(model: model)
-                    } label: {
-                        SettingsNavRow(
-                            icon: "hammer",
-                            title: String(localized: "Developer", comment: "Settings developer destination")
-                        )
-                        .frame(minHeight: 44)
-                        .settingsCardSurface()
+                    .padding(.horizontal, horizontalContentPadding)
+                    .padding(.bottom, 96)
+                }
+                .energyGradientBackground(model: model, showGrain: false)
+                .overlay {
+                    // Subtle grain rendered ABOVE the rows so the plain-text
+                    // settings interior still has a tactile printed feel —
+                    // without darkening the underlying gradient.
+                    // Grain removed — textures only on canvas & feeds
+                }
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    Color.clear.frame(height: embeddedInTab ? topCardHeight : 0)
+                }
+                .toolbar(.hidden, for: .navigationBar)
+                .navigationDestination(item: featureTipRoute) { page in
+                    switch page {
+                    case .wallpaper:
+                        SettingsShortcutPage(model: model)
+                    case .widget:
+                        SettingsWidgetPage(model: model)
                     }
-                    .buttonStyle(MattePressStyle())
-                    .accessibilityIdentifier("settings.destination.developer")
-                    #endif
-
-                    versionFooter
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 96)
-            }
-            .energyGradientBackground(model: model, showGrain: false)
-            .overlay {
-                // Subtle grain rendered ABOVE the rows so the plain-text
-                // settings interior still has a tactile printed feel —
-                // without darkening the underlying gradient.
-                // Grain removed — textures only on canvas & feeds
-            }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                Color.clear.frame(height: embeddedInTab ? topCardHeight : 0)
-            }
-            .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(item: featureTipRoute) { page in
-                switch page {
-                case .wallpaper:
-                    SettingsShortcutPage(model: model)
-                case .widget:
-                    SettingsWidgetPage(model: model)
+                .sheet(isPresented: $showLogin) {
+                    LoginView(authService: authService)
                 }
-            }
-            .sheet(isPresented: $showLogin) {
-                LoginView(authService: authService)
             }
         }
     }

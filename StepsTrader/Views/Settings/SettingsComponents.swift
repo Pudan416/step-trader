@@ -280,10 +280,13 @@ struct SettingsCardSurface: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .background(theme.adaptivePrimaryText.opacity(0.055))
+            .background(Color.black.opacity(SettingsCardAppearance.surfaceOpacity))
             .overlay {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(theme.adaptivePrimaryText.opacity(0.16), lineWidth: 0.75)
+                    .strokeBorder(
+                        theme.adaptivePrimaryText.opacity(SettingsCardAppearance.outlineOpacity),
+                        lineWidth: 1
+                    )
             }
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }

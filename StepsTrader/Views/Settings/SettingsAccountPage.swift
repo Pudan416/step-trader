@@ -140,7 +140,10 @@ struct SettingsAccountPage: View {
             }
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(AppColors.brandAccent)
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
             .buttonStyle(MattePressStyle())
+            .accessibilityIdentifier("settings.account.editProfile")
         }
         .padding(.horizontal, 30)
     }
@@ -169,6 +172,7 @@ struct SettingsAccountPage: View {
         }
         .frame(width: 52, height: 52)
         .clipShape(Circle())
+        .accessibilityHidden(true)
     }
 
     private func accountSection<Content: View, Footer: View>(

@@ -67,10 +67,76 @@ final class SettingsHomePresentationTests: XCTestCase {
         )
     }
 
-    func testAccessibilityTypeUsesOneGridColumn() {
-        XCTAssertEqual(SettingsGridLayout.columnCount(for: .large), 2)
-        XCTAssertEqual(SettingsGridLayout.columnCount(for: .accessibility1), 1)
-        XCTAssertEqual(SettingsGridLayout.columnCount(for: .accessibility5), 1)
+    func testNormalIPhone17ContentWidthUsesTwoGridColumns() {
+        let contentWidth: CGFloat = 402 - (2 * 24)
+
+        XCTAssertEqual(
+            SettingsGridLayout.columnCount(
+                for: .large,
+                availableWidth: contentWidth
+            ),
+            2
+        )
+        XCTAssertGreaterThanOrEqual(
+            SettingsGridLayout.cardWidth(
+                availableWidth: contentWidth,
+                columnCount: 2
+            ),
+            SettingsGridLayout.minimumCardWidth
+        )
+    }
+
+    func testNarrowWidthCollapsesLongTitleCardsToOneReadableColumn() {
+        let narrowContentWidth: CGFloat = 375 - (2 * 24)
+
+        XCTAssertEqual(
+            SettingsGridLayout.columnCount(
+                for: .large,
+                availableWidth: narrowContentWidth
+            ),
+            1
+        )
+        XCTAssertEqual(
+            SettingsGridLayout.cardWidth(
+                availableWidth: narrowContentWidth,
+                columnCount: 1
+            ),
+            narrowContentWidth
+        )
+        XCTAssertGreaterThan(
+            SettingsGridLayout.cardWidth(
+                availableWidth: narrowContentWidth,
+                columnCount: 1
+            ),
+            SettingsGridLayout.minimumCardWidth
+        )
+    }
+
+    func testAccessibilityTypeUsesOneGridColumnAtWideWidth() {
+        XCTAssertEqual(
+            SettingsGridLayout.columnCount(
+                for: .accessibility1,
+                availableWidth: 1_000
+            ),
+            1
+        )
+        XCTAssertEqual(
+            SettingsGridLayout.columnCount(
+                for: .accessibility5,
+                availableWidth: 1_000
+            ),
+            1
+        )
+    }
+
+    func testCardPresentationTokensMeetWCAGAgainstWhiteWorstCaseBackground() {
+        let measurement = SettingsCardContrast.measure(
+            over: .init(red: 1, green: 1, blue: 1)
+        )
+
+        XCTAssertGreaterThanOrEqual(measurement.captionToSurface, 4.5)
+        XCTAssertGreaterThanOrEqual(measurement.outlineToSurface, 3.0)
+        XCTAssertGreaterThanOrEqual(measurement.surfaceToBackground, 3.0)
     }
 
     func testAccessibilityTypeStacksYourDayMetrics() {
