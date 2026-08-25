@@ -19,7 +19,7 @@ struct SettingsEnergyPage: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    DetailHeader(title: String(localized: "Limits", comment: "Settings section title"))
+                    DetailHeader(title: String(localized: "Your day", comment: "Settings section title"))
                         .padding(.horizontal, 16)
 
                     // MARK: - Steps
@@ -38,6 +38,8 @@ struct SettingsEnergyPage: View {
                             }
                     }
                     .padding(.horizontal, 16)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("settings.yourDay.steps")
 
                     DetailDivider().padding(.horizontal, 16)
 
@@ -57,6 +59,8 @@ struct SettingsEnergyPage: View {
                             }
                     }
                     .padding(.horizontal, 16)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("settings.yourDay.sleep")
 
                     DetailDivider().padding(.horizontal, 16)
 
@@ -83,6 +87,8 @@ struct SettingsEnergyPage: View {
                         }
                     }
                     .padding(.horizontal, 16)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("settings.yourDay.boundary")
 
                     SettingsFooter(text: String(localized: "Your canvas and colors reset at this time each day."))
                         .padding(.horizontal, 20)

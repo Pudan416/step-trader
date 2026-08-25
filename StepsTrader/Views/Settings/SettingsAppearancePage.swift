@@ -690,7 +690,7 @@ struct SettingsAppearancePage: View {
     // MARK: - Shared Helpers
 
     private func sectionLabel(_ text: String) -> some View {
-        Text(text.uppercased())
+        Text(SettingsLocalizedCasing.uppercase(text))
             .font(.caption2.weight(.semibold))
             .tracking(3)
             .foregroundStyle(theme.adaptiveMutedText)

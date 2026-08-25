@@ -134,6 +134,13 @@ struct StepsTraderApp: App {
                 for: AppModel.dayKey(for: Date.now)
             )
         }
+        if ProcessInfo.processInfo.arguments.contains("ui-testing-settings") {
+            let defaults = UserDefaults.stepsTrader()
+            defaults.set(10_000.0, forKey: SharedKeys.userStepsTarget)
+            defaults.set(8.0, forKey: SharedKeys.userSleepTarget)
+            defaults.set(0, forKey: SharedKeys.dayEndHour)
+            defaults.set(0, forKey: SharedKeys.dayEndMinute)
+        }
         _model = StateObject(wrappedValue: DIContainer.shared.makeAppModel())
 
         // Register the MetricKit subscriber early so diagnostics aggregated since

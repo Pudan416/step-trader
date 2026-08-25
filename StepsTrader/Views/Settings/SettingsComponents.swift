@@ -102,7 +102,7 @@ struct SettingsSectionLabel: View {
     @Environment(\.appTheme) private var theme
 
     var body: some View {
-        Text(text.uppercased())
+        Text(SettingsLocalizedCasing.uppercase(text))
             .font(.caption2.weight(.semibold))
             .tracking(3)
             .foregroundStyle(theme.adaptiveMutedText)
@@ -158,6 +158,7 @@ struct SettingsNavRow: View {
                 .font(.system(size: 15))
                 .foregroundStyle(theme.adaptiveSecondaryText)
                 .frame(width: 24)
+                .accessibilityHidden(true)
             Text(title)
                 .font(.subheadline)
                 .foregroundStyle(theme.adaptivePrimaryText)
@@ -170,6 +171,7 @@ struct SettingsNavRow: View {
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 13)
@@ -269,6 +271,29 @@ struct MattePressStyle: ButtonStyle {
             .opacity(configuration.isPressed ? 0.55 : 1.0)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
+}
+
+// MARK: - Card surface
+
+struct SettingsCardSurface: ViewModifier {
+    @Environment(\.appTheme) private var theme
+
+    func body(content: Content) -> some View {
+        content
+            .background(Color.black.opacity(SettingsCardAppearance.surfaceOpacity))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(
+                        theme.adaptivePrimaryText.opacity(SettingsCardAppearance.outlineOpacity),
+                        lineWidth: 1
+                    )
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+extension View {
+    func settingsCardSurface() -> some View { modifier(SettingsCardSurface()) }
 }
 
 // MARK: - Gradient preview config

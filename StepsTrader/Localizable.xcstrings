@@ -433,6 +433,164 @@
     "Auto-wallpaper" : {
 
     },
+    "Widgets & wallpaper" : {
+      "comment" : "Settings row and combined page title"
+    },
+    "%@ h" : {
+      "comment" : "Settings Your day – sleep target summary"
+    },
+    "%@ steps, %@ sleep, %@ new day" : {
+      "comment" : "Settings Your day card accessibility summary",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ steps, %2$@ sleep, %3$@ new day"
+          }
+        }
+      }
+    },
+    "(cleared)" : {
+      "comment" : "Cleared ShieldAction logs placeholder"
+    },
+    "(no logs yet)" : {
+      "comment" : "Empty ShieldAction logs placeholder"
+    },
+    "ACCOUNT" : {
+      "comment" : "Settings account section header"
+    },
+    "Account" : {
+      "comment" : "Settings account page title"
+    },
+    "All budgets cleared!" : {
+      "comment" : "Developer diagnostic success"
+    },
+    "Automatic sync" : {
+      "comment" : "Settings account sync status label"
+    },
+    "Automatic sync on" : {
+      "comment" : "Settings signed-in account card subtitle"
+    },
+    "Colors restored!" : {
+      "comment" : "Developer diagnostic success"
+    },
+    "Copied to clipboard!" : {
+      "comment" : "Developer diagnostic success"
+    },
+    "Copy Shield Diagnostics" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "DANGER ZONE" : {
+      "comment" : "Settings account section header"
+    },
+    "Delete account" : {
+      "comment" : "Settings account delete button"
+    },
+    "Display name" : {
+      "comment" : "Settings account profile label"
+    },
+    "Edit profile" : {
+      "comment" : "Settings account edit profile button"
+    },
+    "Feature tip flags cleared!" : {
+      "comment" : "Developer diagnostic success"
+    },
+    "Force Health Reset (New Day)" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "Goals & schedule" : {
+      "comment" : "Settings Your day card action"
+    },
+    "Health data refreshed!" : {
+      "comment" : "Developer diagnostic success"
+    },
+    "On" : {
+      "comment" : "Settings account sync status value"
+    },
+    "PROFILE" : {
+      "comment" : "Settings account section header"
+    },
+    "Preview Coach Marks" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "Preview Onboarding (Demo)" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "Preview Wallpaper Tip" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "Preview Widget Tip" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "Replay Onboarding (Live)" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "Reset All Usage Budgets" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "Reset Feature Tip Flags" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "Restore Colors to Max" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "SYNC" : {
+      "comment" : "Settings account section header"
+    },
+    "Settings and history sync automatically across your devices." : {
+      "comment" : "Settings account sync footer"
+    },
+    "Sign out" : {
+      "comment" : "Settings account sign-out button"
+    },
+    "Sync settings and history across devices" : {
+      "comment" : "Settings signed-out account card subtitle"
+    },
+    "User" : {
+      "comment" : "Settings account fallback name"
+    },
+    "View ShieldAction Logs" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "Your day" : {
+      "comment" : "Settings Your day card title\nSettings section title"
+    },
+    "%@ hours" : {
+      "comment" : "Sleep goal picker accessibility value"
+    },
+    "%@ steps" : {
+      "comment" : "Daily steps goal picker accessibility value"
+    },
+    "Decrease daily steps goal by %@ steps" : {
+      "comment" : "Daily steps goal picker decrement button"
+    },
+    "Decrease new day hour" : {
+      "comment" : "Custom day boundary hour decrement button"
+    },
+    "Decrease new day minute" : {
+      "comment" : "Custom day boundary minute decrement button"
+    },
+    "Decrease sleep goal" : {
+      "comment" : "Sleep goal picker decrement button"
+    },
+    "Increase daily steps goal by %@ steps" : {
+      "comment" : "Daily steps goal picker increment button"
+    },
+    "Increase new day hour" : {
+      "comment" : "Custom day boundary hour increment button"
+    },
+    "Increase new day minute" : {
+      "comment" : "Custom day boundary minute increment button"
+    },
+    "Increase sleep goal" : {
+      "comment" : "Sleep goal picker increment button"
+    },
+    "New day hour" : {
+      "comment" : "Custom day boundary hour control"
+    },
+    "New day minute" : {
+      "comment" : "Custom day boundary minute control"
+    },
     "Back" : {
       "comment" : "SettingsComponents – back button label"
     },

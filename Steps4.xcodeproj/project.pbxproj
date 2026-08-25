@@ -86,6 +86,7 @@
 		2061EB8A2F269CC7009FEC24 /* NotificationDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB882F269CC7009FEC24 /* NotificationDelegate.swift */; };
 		2061EB8C2F269CD5009FEC24 /* PayGateBackgroundStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB8B2F269CD5009FEC24 /* PayGateBackgroundStyle.swift */; };
 		2061EB8D2F269CE6009FEC24 /* ProfileEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB8E2F269CE6009FEC24 /* ProfileEditorView.swift */; };
+		A3C000020000000000000001 /* SettingsAccountPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C000010000000000000001 /* SettingsAccountPage.swift */; };
 		2061EB912F269CE6009FEC24 /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB922F269CE6009FEC24 /* ImagePicker.swift */; };
 		2061EB972F269CF7009FEC24 /* ManualsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB982F269CF7009FEC24 /* ManualsPage.swift */; };
 		2061EBA32F269D19009FEC24 /* AppSelectionComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EBA42F269D19009FEC24 /* AppSelectionComponents.swift */; };
@@ -163,8 +164,13 @@
 		20CC02032F86000000000003 /* SettingsEnergyPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01032F86000000000003 /* SettingsEnergyPage.swift */; };
 		20CC02042F86000000000004 /* SettingsShortcutPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01042F86000000000004 /* SettingsShortcutPage.swift */; };
 		20CC02052F86000000000005 /* SettingsWidgetPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01052F86000000000005 /* SettingsWidgetPage.swift */; };
+		20CC020E2F86000000000014 /* SettingsWidgetsWallpaperPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010E2F86000000000014 /* SettingsWidgetsWallpaperPage.swift */; };
+		20CC020F2F86000000000015 /* SettingsDeveloperPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010F2F86000000000015 /* SettingsDeveloperPage.swift */; };
+		20CC02102F86000000000016 /* SettingsHomeCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01102F86000000000016 /* SettingsHomeCards.swift */; };
 		20CC02062F86000000000006 /* SettingsAboutPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01062F86000000000006 /* SettingsAboutPage.swift */; };
 		20CC02072F86000000000007 /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01072F86000000000007 /* SettingsComponents.swift */; };
+		20CC020B2F86000000000011 /* SettingsHomePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010B2F86000000000011 /* SettingsHomePresentation.swift */; };
+		20CC020C2F86000000000012 /* SettingsHomePresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010C2F86000000000012 /* SettingsHomePresentationTests.swift */; };
 		20CC02082F86000000000008 /* SupabaseSyncDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01082F86000000000008 /* SupabaseSyncDTOs.swift */; };
 		20CC020A2F86000000000010 /* SettingsPermissionsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010A2F86000000000010 /* SettingsPermissionsPage.swift */; };
 		20DB000B2F85000000000002 /* DayBoundary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20DB000A2F85000000000001 /* DayBoundary.swift */; };
@@ -361,6 +367,7 @@
 		T1E5T5C22E71A18F00ABF5FA /* DailyEnergyLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */; };
 		T1E5T5E22E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */; };
 		CA51B0210000000000000021 /* CanvasSimplificationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0210000000000000021 /* CanvasSimplificationUITests.swift */; };
+		20CC020D2F86000000000013 /* SettingsRedesignUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010D2F86000000000013 /* SettingsRedesignUITests.swift */; };
 		WK000001AAAA000100000001 /* AppModel+WorkoutSuggestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = WK000001AAAA000100000002 /* AppModel+WorkoutSuggestions.swift */; };
 		WK000002AAAA000200000001 /* WorkoutSuggestionBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WK000002AAAA000200000002 /* WorkoutSuggestionBanner.swift */; };
 /* End PBXBuildFile section */
@@ -519,6 +526,7 @@
 		2061EB882F269CC7009FEC24 /* NotificationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationDelegate.swift; sourceTree = "<group>"; };
 		2061EB8B2F269CD5009FEC24 /* PayGateBackgroundStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayGateBackgroundStyle.swift; sourceTree = "<group>"; };
 		2061EB8E2F269CE6009FEC24 /* ProfileEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileEditorView.swift; sourceTree = "<group>"; };
+		A3C000010000000000000001 /* SettingsAccountPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAccountPage.swift; sourceTree = "<group>"; };
 		2061EB922F269CE6009FEC24 /* ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
 		2061EB982F269CF7009FEC24 /* ManualsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualsPage.swift; sourceTree = "<group>"; };
 		2061EBA42F269D19009FEC24 /* AppSelectionComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSelectionComponents.swift; sourceTree = "<group>"; };
@@ -583,8 +591,13 @@
 		20CC01032F86000000000003 /* SettingsEnergyPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsEnergyPage.swift; sourceTree = "<group>"; };
 		20CC01042F86000000000004 /* SettingsShortcutPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsShortcutPage.swift; sourceTree = "<group>"; };
 		20CC01052F86000000000005 /* SettingsWidgetPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWidgetPage.swift; sourceTree = "<group>"; };
+		20CC010E2F86000000000014 /* SettingsWidgetsWallpaperPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWidgetsWallpaperPage.swift; sourceTree = "<group>"; };
+		20CC010F2F86000000000015 /* SettingsDeveloperPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDeveloperPage.swift; sourceTree = "<group>"; };
+		20CC01102F86000000000016 /* SettingsHomeCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHomeCards.swift; sourceTree = "<group>"; };
 		20CC01062F86000000000006 /* SettingsAboutPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAboutPage.swift; sourceTree = "<group>"; };
 		20CC01072F86000000000007 /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
+		20CC010B2F86000000000011 /* SettingsHomePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHomePresentation.swift; sourceTree = "<group>"; };
+		20CC010C2F86000000000012 /* SettingsHomePresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHomePresentationTests.swift; sourceTree = "<group>"; };
 		20CC01082F86000000000008 /* SupabaseSyncDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseSyncDTOs.swift; sourceTree = "<group>"; };
 		20CC010A2F86000000000010 /* SettingsPermissionsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPermissionsPage.swift; sourceTree = "<group>"; };
 		20DB000A2F85000000000001 /* DayBoundary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayBoundary.swift; sourceTree = "<group>"; };
@@ -778,6 +791,7 @@
 		T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyEnergyLogicTests.swift; sourceTree = "<group>"; };
 		T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Steps4UITestsLaunchTests.swift; sourceTree = "<group>"; };
 		CA51F0210000000000000021 /* CanvasSimplificationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasSimplificationUITests.swift; sourceTree = "<group>"; };
+		20CC010D2F86000000000013 /* SettingsRedesignUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRedesignUITests.swift; sourceTree = "<group>"; };
 		WK000001AAAA000100000002 /* AppModel+WorkoutSuggestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+WorkoutSuggestions.swift"; sourceTree = "<group>"; };
 		WK000002AAAA000200000002 /* WorkoutSuggestionBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSuggestionBanner.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -1281,9 +1295,14 @@
 				20CC01032F86000000000003 /* SettingsEnergyPage.swift */,
 				20CC01042F86000000000004 /* SettingsShortcutPage.swift */,
 				20CC01052F86000000000005 /* SettingsWidgetPage.swift */,
+				20CC010E2F86000000000014 /* SettingsWidgetsWallpaperPage.swift */,
+				20CC010F2F86000000000015 /* SettingsDeveloperPage.swift */,
+				20CC01102F86000000000016 /* SettingsHomeCards.swift */,
 				20CC01062F86000000000006 /* SettingsAboutPage.swift */,
 				20CC010A2F86000000000010 /* SettingsPermissionsPage.swift */,
 				20CC01072F86000000000007 /* SettingsComponents.swift */,
+				20CC010B2F86000000000011 /* SettingsHomePresentation.swift */,
+				A3C000010000000000000001 /* SettingsAccountPage.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -1469,6 +1488,7 @@
 				UB53000053000053000000A1 /* UsageBudgetScheduleTests.swift */,
 				AL01000053000053000000A1 /* AuthSignInLoadingStateTests.swift */,
 				60OR0002300000000060OR0002 /* CanvasOverlayStyleTests.swift */,
+				20CC010C2F86000000000012 /* SettingsHomePresentationTests.swift */,
 			);
 			path = Steps4Tests;
 			sourceTree = "<group>";
@@ -1478,6 +1498,7 @@
 			children = (
 				T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */,
 				CA51F0210000000000000021 /* CanvasSimplificationUITests.swift */,
+				20CC010D2F86000000000013 /* SettingsRedesignUITests.swift */,
 				D0B10000000000000000000A /* DayObjectsLabUITests.swift */,
 			);
 			path = Steps4UITests;
@@ -1861,6 +1882,7 @@
 				70CM00023004000070CM0002 /* CoachMarkManager.swift in Sources */,
 				70CM00023004000070CM0003 /* CoachMarkOverlay.swift in Sources */,
 				2061EB8D2F269CE6009FEC24 /* ProfileEditorView.swift in Sources */,
+				A3C000020000000000000001 /* SettingsAccountPage.swift in Sources */,
 				2061EB912F269CE6009FEC24 /* ImagePicker.swift in Sources */,
 				2061F00A2F2803AC009FEC24 /* AppModel+AppSelection.swift in Sources */,
 				20GC00022F86100000000002 /* GlassCardModifier.swift in Sources */,
@@ -1992,6 +2014,8 @@
 				20CC02032F86000000000003 /* SettingsEnergyPage.swift in Sources */,
 				20CC02042F86000000000004 /* SettingsShortcutPage.swift in Sources */,
 				20CC02052F86000000000005 /* SettingsWidgetPage.swift in Sources */,
+				20CC020E2F86000000000014 /* SettingsWidgetsWallpaperPage.swift in Sources */,
+				20CC020F2F86000000000015 /* SettingsDeveloperPage.swift in Sources */,
 				20FE17A22F90000000000002 /* FeatureTipSheet.swift in Sources */,
 				20CC02062F86000000000006 /* SettingsAboutPage.swift in Sources */,
 				20C7E6142F8BF2A200BD06AA /* CanvasShapePreview.swift in Sources */,
@@ -2002,6 +2026,8 @@
 				80PV00023005000080PV0002 /* CanvasPosterView.swift in Sources */,
 				20CC020A2F86000000000010 /* SettingsPermissionsPage.swift in Sources */,
 				20CC02072F86000000000007 /* SettingsComponents.swift in Sources */,
+				20CC02102F86000000000016 /* SettingsHomeCards.swift in Sources */,
+				20CC020B2F86000000000011 /* SettingsHomePresentation.swift in Sources */,
 				20CC02082F86000000000008 /* SupabaseSyncDTOs.swift in Sources */,
 				20SS02012F87000000000001 /* SupabaseSyncService+Analytics.swift in Sources */,
 				20SS02022F87000000000002 /* SupabaseSyncService+Selections.swift in Sources */,
@@ -2126,6 +2152,7 @@
 				UB53000053000053000000B1 /* UsageBudgetScheduleTests.swift in Sources */,
 				AL01000053000053000000B1 /* AuthSignInLoadingStateTests.swift in Sources */,
 				60OR0001300000000060OR0001 /* CanvasOverlayStyleTests.swift in Sources */,
+				20CC020C2F86000000000012 /* SettingsHomePresentationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2135,6 +2162,7 @@
 			files = (
 				T1E5T5E22E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */,
 				CA51B0210000000000000021 /* CanvasSimplificationUITests.swift in Sources */,
+				20CC020D2F86000000000013 /* SettingsRedesignUITests.swift in Sources */,
 				D0B100000000000000000009 /* DayObjectsLabUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

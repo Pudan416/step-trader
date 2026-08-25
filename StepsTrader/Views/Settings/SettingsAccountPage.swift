@@ -1,0 +1,227 @@
+import SwiftUI
+
+struct SettingsAccountPage: View {
+    @ObservedObject var authService: AuthenticationService
+    @ObservedObject var model: AppModel
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.topCardHeight) private var topCardHeight
+    @Environment(\.appTheme) private var theme
+    @State private var showProfileEditor = false
+    @State private var showDeleteConfirmation = false
+    @State private var isDeleting = false
+    @State private var errorMessage: String?
+
+    private let coral = Color(red: 1, green: 0.47, blue: 0.40)
+
+    private var user: AppUser? { authService.currentUser }
+
+    var body: some View {
+        ZStack {
+            SettingsGradientBG(model: model)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 28) {
+                    DetailHeader(title: String(localized: "Account", comment: "Settings account page title"))
+                        .padding(.horizontal, 16)
+
+                    profileSummary
+
+                    accountSection(String(localized: "PROFILE", comment: "Settings account section header")) {
+                        DetailInfoRow(
+                            label: String(localized: "Display name", comment: "Settings account profile label"),
+                            value: user?.displayName ?? String(localized: "User", comment: "Settings account fallback name")
+                        )
+                        DetailDivider()
+                        DetailInfoRow(
+                            label: String(localized: "Email", comment: "Settings account profile label"),
+                            value: user?.email ?? String(localized: "—", comment: "Settings account unavailable email")
+                        )
+                    }
+
+                    accountSection(String(localized: "SYNC", comment: "Settings account section header")) {
+                        HStack {
+                            Text(String(localized: "Automatic sync", comment: "Settings account sync status label"))
+                                .font(.subheadline)
+                                .foregroundStyle(theme.adaptivePrimaryText)
+                            Spacer()
+                            Text(String(localized: "On", comment: "Settings account sync status value"))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(theme.adaptiveSecondaryText)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 13)
+                        .accessibilityIdentifier("settings.account.automaticSync")
+                    } footer: {
+                        SettingsFooter(text: String(localized: "Settings and history sync automatically across your devices.", comment: "Settings account sync footer"))
+                    }
+
+                    accountSection(String(localized: "ACCOUNT", comment: "Settings account section header")) {
+                        Button {
+                            authService.signOut()
+                            dismiss()
+                        } label: {
+                            accountActionLabel(String(localized: "Sign out", comment: "Settings account sign-out button"))
+                        }
+                        .buttonStyle(MattePressStyle())
+                        .disabled(isDeleting)
+                        .accessibilityIdentifier("settings.account.signOut")
+                    }
+
+                    accountSection(String(localized: "DANGER ZONE", comment: "Settings account section header")) {
+                        Button(role: .destructive) {
+                            showDeleteConfirmation = true
+                        } label: {
+                            HStack {
+                                if isDeleting {
+                                    ProgressView()
+                                } else {
+                                    Text(String(localized: "Delete account", comment: "Settings account delete button"))
+                                        .font(.subheadline.weight(.semibold))
+                                }
+                                Spacer()
+                            }
+                            .foregroundStyle(coral)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 13)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(MattePressStyle())
+                        .disabled(isDeleting)
+                        .accessibilityIdentifier("settings.account.delete")
+                    }
+                }
+                .padding(.bottom, 80)
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            Color.clear.frame(height: topCardHeight)
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .detailSwipeBack()
+        .sheet(isPresented: $showProfileEditor) {
+            ProfileEditorView(authService: authService)
+        }
+        .alert(String(localized: "Error", comment: "ProfileEditor – error alert title"), isPresented: .init(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) {
+            Button(String(localized: "OK", comment: "ProfileEditor – alert dismiss button")) {
+                errorMessage = nil
+            }
+        } message: {
+            Text(errorMessage ?? "")
+        }
+        .confirmationDialog(
+            String(localized: "Delete Account", comment: "ProfileEditor – delete confirmation title"),
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(String(localized: "Delete Account", comment: "ProfileEditor – delete confirmation title"), role: .destructive) {
+                Task { await performAccountDeletion() }
+            }
+            Button(String(localized: "Cancel", comment: "ProfileEditor – dismiss button"), role: .cancel) {}
+        } message: {
+            Text(String(localized: "This will permanently delete your account, profile, and all data. This action cannot be undone.", comment: "ProfileEditor – delete confirmation message"))
+        }
+    }
+
+    private var profileSummary: some View {
+        HStack(spacing: 14) {
+            accountAvatar
+
+            Text(user?.displayName ?? String(localized: "User", comment: "Settings account fallback name"))
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(theme.adaptivePrimaryText)
+
+            Spacer()
+
+            Button(String(localized: "Edit profile", comment: "Settings account edit profile button")) {
+                showProfileEditor = true
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(AppColors.brandAccent)
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
+            .buttonStyle(MattePressStyle())
+            .accessibilityIdentifier("settings.account.editProfile")
+        }
+        .padding(.horizontal, 30)
+    }
+
+    private var accountAvatar: some View {
+        Group {
+            if let data = user?.avatarData, let image = UIImage(data: data) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.purple.opacity(0.6), Color.blue.opacity(0.6)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                    Text(SettingsAccountPresentation.initials(for: user?.displayName ?? String(localized: "User", comment: "Settings account fallback name")))
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.white)
+                }
+            }
+        }
+        .frame(width: 52, height: 52)
+        .clipShape(Circle())
+        .accessibilityHidden(true)
+    }
+
+    private func accountSection<Content: View, Footer: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder footer: () -> Footer = { EmptyView() }
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SettingsSectionLabel(text: title)
+                .padding(.horizontal, 30)
+
+            VStack(spacing: 0) { content() }
+                .padding(.horizontal, 16)
+
+            footer()
+                .padding(.horizontal, 20)
+        }
+    }
+
+    private func accountActionLabel(_ title: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(theme.adaptivePrimaryText)
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 13)
+        .contentShape(Rectangle())
+    }
+
+    @MainActor
+    private func performAccountDeletion() async {
+        isDeleting = true
+        do {
+            try await authService.deleteAccount()
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+            isDeleting = false
+        }
+    }
+}
+
+#Preview {
+    NavigationStack {
+        SettingsAccountPage(
+            authService: AuthenticationService.shared,
+            model: DIContainer.shared.makeAppModel()
+        )
+    }
+}
