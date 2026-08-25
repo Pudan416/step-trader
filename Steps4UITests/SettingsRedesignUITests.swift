@@ -4,10 +4,17 @@ final class SettingsRedesignUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
     private func launchSettings() -> XCUIApplication {
+        launchSettings(contentSizeCategory: "UICTContentSizeCategoryL")
+    }
+
+    private func launchSettings(contentSizeCategory: String) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
             "ui-testing", "ui-testing-settings",
             "-AppleLanguages", "(en)", "-AppleLocale", "en_US"
+        ]
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", contentSizeCategory
         ]
         app.launch()
         XCTAssertTrue(app.buttons["tab_me"].waitForExistence(timeout: 10))
@@ -54,6 +61,19 @@ final class SettingsRedesignUITests: XCTestCase {
         ] {
             XCTAssertTrue(app.buttons[id].exists, "Missing Settings destination: \(id)")
         }
+    }
+
+    func testAccessibilityTypeKeepsDestinationCardsReadable() {
+        let app = launchSettings(contentSizeCategory: "UICTContentSizeCategoryAccessibilityM")
+        let appearance = app.buttons["settings.destination.appearance"]
+        let notifications = app.buttons["settings.destination.notifications"]
+
+        XCTAssertTrue(appearance.waitForExistence(timeout: 3))
+        XCTAssertTrue(notifications.exists)
+        XCTAssertEqual(appearance.frame.minX, notifications.frame.minX, accuracy: 2)
+        XCTAssertGreaterThan(notifications.frame.minY, appearance.frame.minY)
+        XCTAssertTrue(appearance.isHittable)
+        XCTAssertTrue(notifications.isHittable)
     }
 
     func testWidgetsAndWallpaperShareOneDetailPage() {

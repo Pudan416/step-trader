@@ -62,3 +62,15 @@ enum SettingsGridLayout {
         dynamicTypeSize.isAccessibilitySize ? 1 : 2
     }
 }
+
+enum SettingsYourDayLayout {
+    static func stacksMetrics(for dynamicTypeSize: DynamicTypeSize) -> Bool {
+        dynamicTypeSize.isAccessibilitySize
+    }
+}
+
+enum SettingsLocalizedCasing {
+    static func uppercase(_ value: String, locale: Locale = .current) -> String {
+        value.uppercased(with: locale)
+    }
+}

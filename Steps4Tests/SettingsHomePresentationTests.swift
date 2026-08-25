@@ -59,4 +59,16 @@ final class SettingsHomePresentationTests: XCTestCase {
         XCTAssertEqual(SettingsGridLayout.columnCount(for: .accessibility1), 1)
         XCTAssertEqual(SettingsGridLayout.columnCount(for: .accessibility5), 1)
     }
+
+    func testAccessibilityTypeStacksYourDayMetrics() {
+        XCTAssertFalse(SettingsYourDayLayout.stacksMetrics(for: .large))
+        XCTAssertTrue(SettingsYourDayLayout.stacksMetrics(for: .accessibility1))
+        XCTAssertTrue(SettingsYourDayLayout.stacksMetrics(for: .accessibility5))
+    }
+
+    func testSettingsCardCasingUsesTheCurrentLocaleRules() {
+        let turkish = Locale(identifier: "tr_TR")
+
+        XCTAssertEqual(SettingsLocalizedCasing.uppercase("izin", locale: turkish), "İZİN")
+    }
 }

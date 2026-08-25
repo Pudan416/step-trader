@@ -94,6 +94,7 @@ struct SettingsAccountCardLabel: View {
 struct SettingsYourDayCardLabel: View {
     let summary: SettingsYourDaySummary
     @Environment(\.appTheme) private var theme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var title: String {
         String(localized: "Your day", comment: "Settings Your day card title")
@@ -125,11 +126,7 @@ struct SettingsYourDayCardLabel: View {
                 .foregroundStyle(theme.adaptivePrimaryText)
                 .padding(.bottom, 24)
 
-            HStack(alignment: .top, spacing: 8) {
-                metric(value: summary.stepsText(), label: stepsLabel)
-                metric(value: summary.sleepText(), label: sleepLabel)
-                metric(value: summary.dayStartText(), label: newDayLabel)
-            }
+            metrics
 
             Spacer(minLength: 20)
 
@@ -159,19 +156,53 @@ struct SettingsYourDayCardLabel: View {
         .accessibilityValue(accessibilitySummary)
     }
 
+    @ViewBuilder
+    private var metrics: some View {
+        if SettingsYourDayLayout.stacksMetrics(for: dynamicTypeSize) {
+            VStack(spacing: 12) {
+                stackedMetric(value: summary.stepsText(), label: stepsLabel)
+                stackedMetric(value: summary.sleepText(), label: sleepLabel)
+                stackedMetric(value: summary.dayStartText(), label: newDayLabel)
+            }
+        } else {
+            HStack(alignment: .top, spacing: 8) {
+                metric(value: summary.stepsText(), label: stepsLabel)
+                metric(value: summary.sleepText(), label: sleepLabel)
+                metric(value: summary.dayStartText(), label: newDayLabel)
+            }
+        }
+    }
+
     private func metric(value: String, label: String) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(value)
                 .font(.headline.weight(.bold).monospacedDigit())
                 .foregroundStyle(theme.adaptivePrimaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            Text(label.uppercased())
+            Text(SettingsLocalizedCasing.uppercase(label))
                 .font(.caption2.weight(.semibold))
                 .tracking(1.4)
                 .foregroundStyle(theme.adaptiveMutedText)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func stackedMetric(value: String, label: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 16) {
+            Text(SettingsLocalizedCasing.uppercase(label))
+                .font(.caption2.weight(.semibold))
+                .tracking(1.4)
+                .foregroundStyle(theme.adaptiveMutedText)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            Text(value)
+                .font(.headline.weight(.bold).monospacedDigit())
+                .foregroundStyle(theme.adaptivePrimaryText)
+                .multilineTextAlignment(.trailing)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -191,7 +222,7 @@ struct SettingsDestinationCardLabel: View {
                 .accessibilityHidden(true)
 
             if let warningText {
-                Text(warningText.uppercased())
+                Text(SettingsLocalizedCasing.uppercase(warningText))
                     .font(.caption2.weight(.semibold))
                     .tracking(1.2)
                     .foregroundStyle(.orange)
