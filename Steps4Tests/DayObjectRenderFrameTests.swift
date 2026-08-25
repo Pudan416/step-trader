@@ -1783,7 +1783,21 @@ final class DayObjectRenderFrameTests: XCTestCase {
             try XCTUnwrap(ring.acquire())
         }
         XCTAssertEqual(Set(recycled.map(\.slot)), Set([0, 1, 2]))
+        let originalBySlot = Dictionary(uniqueKeysWithValues: leases.map {
+            ($0.slot, (ObjectIdentifier($0.poseBuffer), ObjectIdentifier($0.appearanceBuffer)))
+        })
+        for lease in recycled {
+            let original = try XCTUnwrap(originalBySlot[lease.slot])
+            XCTAssertEqual(ObjectIdentifier(lease.poseBuffer), original.0)
+            XCTAssertEqual(ObjectIdentifier(lease.appearanceBuffer), original.1)
+        }
         recycled.forEach(ring.abandon)
+
+        let abandoned = try XCTUnwrap(ring.acquire())
+        ring.abandon(abandoned)
+        let reacquired = try XCTUnwrap(ring.acquire())
+        XCTAssertEqual(reacquired.slot, abandoned.slot)
+        ring.abandon(reacquired)
     }
 
     func testRenderTargetPlanUsesBoundedHalfResolutionBackgroundAndFullSizeSceneTargets() {
