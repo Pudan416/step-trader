@@ -87,6 +87,14 @@ final class DayObjectsLabUITests: XCTestCase {
     }
 
     private func setHappenings(_ target: Int, on slider: XCUIElement) {
+        if target == 1 {
+            slider.adjust(toNormalizedSliderPosition: 0)
+            slider.swipeUp()
+            if Self.figureCount(from: slider.value) == 1 {
+                XCTAssertTrue(String(describing: slider.value).contains("1 · 1 figures"))
+                return
+            }
+        }
         var lower = 0.0
         var upper = 1.0
         var position = Double(target) / 10

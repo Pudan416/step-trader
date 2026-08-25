@@ -542,10 +542,6 @@ struct DayObjectRenderFrame: Equatable {
         shape.numericValue
     }
 
-    private static func numericFill(_ fill: DayObjectFill) -> UInt32 {
-        UInt32(DayObjectFill.allCases.firstIndex(of: fill) ?? 0)
-    }
-
     private static func stableUnit(_ seed: UInt64, salt: UInt64) -> Double {
         var value = seed ^ salt
         value &+= 0x9E37_79B9_7F4A_7C15

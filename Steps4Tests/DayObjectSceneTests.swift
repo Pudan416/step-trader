@@ -170,28 +170,25 @@ final class DayObjectCompositionTests: XCTestCase {
         XCTAssertEqual(reached, Set(DayObjectShape.allCases))
     }
 
-    func testShapeAndFillNumericValuesMatchMetalShaderABI() {
+    func testShapeAndAppearanceColorCountNumericValuesMatchMetalShaderABI() {
         let expectedShapes: [DayObjectShape: UInt32] = [
             .sphere: 0,
             .ellipse: 1,
             .lens: 2,
             .softBlob: 3,
         ]
-        let expectedFills: [DayObjectFill: UInt32] = [
-            .radialOne: 0,
-            .radialTwo: 1,
-            .radialThree: 2,
-        ]
+        let expectedColorCounts: Set<UInt32> = [1, 2, 3]
         let environment = DayObjectEnvironment(
             motionEnergy: 0.55,
             visualClarity: 0.55,
             reduceMotion: false
         )
         var observedShapes = [DayObjectShape: UInt32]()
-        var observedFills = [DayObjectFill: UInt32]()
+        var observedColorCounts = Set<UInt32>()
 
         for index in 0..<2_048
-        where observedShapes.count < expectedShapes.count || observedFills.count < expectedFills.count {
+        where observedShapes.count < expectedShapes.count
+            || observedColorCounts.count < expectedColorCounts.count {
             let scene = DayObjectScene.make(input: .init(
                 dayKey: "shape-abi-\(index)",
                 identity: "tester",
@@ -206,16 +203,17 @@ final class DayObjectCompositionTests: XCTestCase {
                 elapsed: 0,
                 insertions: [:]
             )
-            guard let gpuActor = frame.actors.first?.gpuActor else {
+            guard let actor = scene.actors.first,
+                  let renderActor = frame.actors.first else {
                 XCTFail("A one-event scene must provide an actor")
                 return
             }
-            observedShapes[scene.composition.shape] = gpuActor.shape
-            observedFills[scene.composition.fill] = gpuActor.fill
+            observedShapes[actor.appearance.shape] = renderActor.gpuActor.shape
+            observedColorCounts.insert(renderActor.gpuAppearance.metadata.y)
         }
 
         XCTAssertEqual(observedShapes, expectedShapes)
-        XCTAssertEqual(observedFills, expectedFills)
+        XCTAssertEqual(observedColorCounts, expectedColorCounts)
     }
 
     func testOrbShapeNumericValuesAreExplicitAndStable() {
