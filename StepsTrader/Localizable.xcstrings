@@ -405,6 +405,9 @@
     "App Default" : {
 
     },
+    "App settings" : {
+      "comment" : "Settings destination group title"
+    },
     "Appearance" : {
       "comment" : "Settings section title"
     },
@@ -542,6 +545,9 @@
     },
     "Sign out" : {
       "comment" : "Settings account sign-out button"
+    },
+    "Sync across devices" : {
+      "comment" : "Settings signed-out account card subtitle"
     },
     "Sync settings and history across devices" : {
       "comment" : "Settings signed-out account card subtitle"

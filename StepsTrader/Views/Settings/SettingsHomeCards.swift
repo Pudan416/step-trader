@@ -16,14 +16,14 @@ struct SettingsAccountCardLabel: View {
     private var subtitle: String {
         switch presentation {
         case .signedOut:
-            String(localized: "Sync settings and history across devices", comment: "Settings signed-out account card subtitle")
+            String(localized: "Sync across devices", comment: "Settings signed-out account card subtitle")
         case .signedIn:
             String(localized: "Automatic sync on", comment: "Settings signed-in account card subtitle")
         }
     }
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 14) {
             avatar
 
             VStack(alignment: .leading, spacing: 4) {
@@ -44,9 +44,9 @@ struct SettingsAccountCardLabel: View {
                 .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
                 .accessibilityHidden(true)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity, minHeight: 88, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, minHeight: 80, alignment: .leading)
         .contentShape(Rectangle())
         .settingsCardSurface()
         .accessibilityElement(children: .ignore)
@@ -62,10 +62,10 @@ struct SettingsAccountCardLabel: View {
                 Circle()
                     .fill(theme.adaptivePrimaryText.opacity(0.08))
                 Image(systemName: "apple.logo")
-                    .font(.system(size: 24, weight: .medium))
+                    .font(.system(size: 22, weight: .medium))
                     .foregroundStyle(theme.adaptivePrimaryText)
             }
-            .frame(width: 56, height: 56)
+            .frame(width: 48, height: 48)
             .accessibilityHidden(true)
 
         case let .signedIn(_, initials, avatarData):
@@ -73,7 +73,7 @@ struct SettingsAccountCardLabel: View {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 56, height: 56)
+                    .frame(width: 48, height: 48)
                     .clipShape(Circle())
                     .accessibilityHidden(true)
             } else {
@@ -84,7 +84,7 @@ struct SettingsAccountCardLabel: View {
                         .font(.headline.weight(.bold))
                         .foregroundStyle(theme.adaptivePrimaryText)
                 }
-                .frame(width: 56, height: 56)
+                .frame(width: 48, height: 48)
                 .accessibilityHidden(true)
             }
         }
@@ -124,11 +124,11 @@ struct SettingsYourDayCardLabel: View {
             Text(title)
                 .font(.title3.weight(.bold))
                 .foregroundStyle(theme.adaptivePrimaryText)
-                .padding(.bottom, 24)
+                .padding(.bottom, 18)
 
             metrics
 
-            Spacer(minLength: 20)
+            Spacer(minLength: 12)
 
             Rectangle()
                 .fill(theme.adaptiveDividerColor.opacity(0.6))
@@ -145,10 +145,10 @@ struct SettingsYourDayCardLabel: View {
                     .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
                     .accessibilityHidden(true)
             }
-            .padding(.top, 16)
+            .padding(.top, 14)
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, minHeight: 220, alignment: .leading)
+        .padding(18)
+        .frame(maxWidth: .infinity, minHeight: 184, alignment: .leading)
         .contentShape(Rectangle())
         .settingsCardSurface()
         .accessibilityElement(children: .ignore)
@@ -217,11 +217,11 @@ struct SettingsDestinationCardLabel: View {
     @Environment(\.appTheme) private var theme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 20, weight: .semibold))
+                .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(theme.adaptiveSecondaryText)
-                .frame(width: 38, height: 38)
+                .frame(width: 34, height: 34)
                 .background(theme.adaptivePrimaryText.opacity(0.07), in: Circle())
                 .accessibilityHidden(true)
 
@@ -235,20 +235,13 @@ struct SettingsDestinationCardLabel: View {
 
             Spacer(minLength: 4)
 
-            HStack(alignment: .bottom, spacing: 8) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(theme.adaptivePrimaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
-                    .accessibilityHidden(true)
-            }
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(theme.adaptivePrimaryText)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, minHeight: 132, alignment: .leading)
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
         .contentShape(Rectangle())
         .settingsCardSurface()
         .accessibilityElement(children: .ignore)

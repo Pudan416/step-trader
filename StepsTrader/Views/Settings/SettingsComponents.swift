@@ -282,13 +282,13 @@ struct SettingsCardSurface: ViewModifier {
         content
             .background(Color.black.opacity(SettingsCardAppearance.surfaceOpacity))
             .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .strokeBorder(
                         theme.adaptivePrimaryText.opacity(SettingsCardAppearance.outlineOpacity),
-                        lineWidth: 1
+                        lineWidth: 0.75
                     )
             }
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
