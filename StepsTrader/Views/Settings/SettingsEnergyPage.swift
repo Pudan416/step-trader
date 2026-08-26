@@ -121,17 +121,17 @@ struct SettingsEnergyPage: View {
     private func sectionHeader(icon: String, title: String, color: Color, value: String? = nil) -> some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.geist(size: 14, weight: .semibold))
                 .foregroundStyle(color)
                 .frame(width: 28, height: 28)
                 .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
             Text(title)
-                .font(.subheadline.weight(.semibold))
+                .font(.geist(.subheadline).weight(.semibold))
                 .foregroundStyle(theme.adaptivePrimaryText)
             Spacer()
             if let value {
                 Text(value)
-                    .font(.subheadline.weight(.bold).monospacedDigit())
+                    .font(.geist(.subheadline).weight(.bold).monospacedDigit())
                     .foregroundStyle(color)
             }
         }

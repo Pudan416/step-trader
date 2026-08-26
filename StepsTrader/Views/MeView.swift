@@ -11,8 +11,10 @@ struct MeView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.tabBarHeight) private var tabBarHeight
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
     @State private var pastDays: [String: PastDaySnapshot] = [:]
+    @State private var recentHealthByDay: [String: MeDayHealth] = [:]
     @State private var selectedPosterDayKey = AppModel.dayKey(for: .now)
     @State private var selectedDayKey: String? = nil
     @State private var showLogin = false
@@ -25,6 +27,8 @@ struct MeView: View {
     @State private var unlockRecords: [MePosterUnlockRecord] = []
     @State private var selectedPosterCanShare = false
     @State private var shareRequestID = 0
+    @State private var posterPagingDirection: MePosterPaging.Direction = .newer
+    @GestureState private var posterDragTranslation: CGFloat = 0
     @State private var loadTask: Task<Void, Never>?
     @State private var serverFetchTask: Task<Void, Never>?
 
@@ -110,18 +114,27 @@ struct MeView: View {
             greetingRow
                 .padding(.top, useTightMeLayout ? 14 : 22)
 
-            MeSelectedDayPoster(
-                model: model,
-                dayKey: selectedPosterDayKey,
-                snapshot: pastDays[selectedPosterDayKey],
-                unlockRecords: unlockRecords,
-                shareRequestID: shareRequestID,
-                onShareAvailabilityChange: { selectedPosterCanShare = $0 }
-            )
+            ZStack {
+                MeSelectedDayPoster(
+                    model: model,
+                    dayKey: selectedPosterDayKey,
+                    snapshot: pastDays[selectedPosterDayKey],
+                    health: recentHealthByDay[selectedPosterDayKey],
+                    unlockRecords: unlockRecords,
+                    shareRequestID: shareRequestID,
+                    onShareAvailabilityChange: { selectedPosterCanShare = $0 }
+                )
+                .id(selectedPosterDayKey)
+                .offset(x: posterDragTranslation)
+                .transition(posterPagingTransition)
+            }
+            .clipped()
             // Keep the seven-day gallery rail clear of the floating tab bar on
             // shorter iPhones. Because this is an inset rather than a fixed
             // width, the poster still grows naturally on Pro Max layouts.
             .padding(.horizontal, 21)
+            .contentShape(Rectangle())
+            .simultaneousGesture(posterPagingGesture)
 
             calendarSection
         }
@@ -131,16 +144,92 @@ struct MeView: View {
     private var calendarSection: some View {
         MeCalendarStrip(
             pastDays: pastDays,
+            recentHealthByDay: recentHealthByDay,
             selectedDayKey: selectedPosterDayKey,
             onSelect: { key in
-                selectedPosterCanShare = false
-                withAnimation(.easeInOut(duration: 0.24)) {
-                    selectedPosterDayKey = key
-                }
+                selectPosterDay(key)
             },
             posterCount: pastDays.count,
             onOpenArchive: { showFullCalendar = true }
         )
+    }
+
+    private var posterPagingGesture: some Gesture {
+        DragGesture(minimumDistance: 20)
+            .updating($posterDragTranslation) { value, translation, _ in
+                let horizontal = value.translation.width
+                let vertical = value.translation.height
+                guard abs(horizontal) > abs(vertical) else { return }
+                translation = MePosterPagingMotion.permittedDragTranslation(
+                    horizontal,
+                    from: selectedPosterDayKey,
+                    dayKeys: posterDayKeys,
+                    reduceMotion: reduceMotion
+                )
+            }
+            .onEnded { value in
+                let horizontal = value.predictedEndTranslation.width
+                let vertical = value.predictedEndTranslation.height
+                guard abs(horizontal) > abs(vertical), abs(horizontal) >= 44 else { return }
+
+                let direction: MePosterPaging.Direction = horizontal < 0 ? .newer : .older
+                guard let destination = MePosterPaging.destination(
+                    from: selectedPosterDayKey,
+                    direction: direction,
+                    dayKeys: posterDayKeys
+                ) else { return }
+                selectPosterDay(destination, direction: direction)
+            }
+    }
+
+    private var posterDayKeys: [String] {
+        cachedDayKeys.isEmpty ? Self.computeDayKeys() : cachedDayKeys
+    }
+
+    private var posterPagingTransition: AnyTransition {
+        let spec = MePosterPagingMotion.transition(
+            for: posterPagingDirection,
+            reduceMotion: reduceMotion
+        )
+        guard let insertion = spec.insertionEdge,
+              let removal = spec.removalEdge
+        else { return .opacity }
+
+        return .asymmetric(
+            insertion: .move(edge: swiftUIEdge(insertion)),
+            removal: .move(edge: swiftUIEdge(removal))
+        )
+    }
+
+    private func swiftUIEdge(_ edge: MePosterPagingMotion.HorizontalEdge) -> Edge {
+        switch edge {
+        case .leading: .leading
+        case .trailing: .trailing
+        }
+    }
+
+    private func selectPosterDay(
+        _ key: String,
+        direction explicitDirection: MePosterPaging.Direction? = nil
+    ) {
+        guard key != selectedPosterDayKey else { return }
+        let direction = explicitDirection ?? inferredPagingDirection(to: key)
+        let motion = MePosterPagingMotion.transition(
+            for: direction,
+            reduceMotion: reduceMotion
+        )
+        posterPagingDirection = direction
+        selectedPosterCanShare = false
+        withAnimation(.easeInOut(duration: motion.duration)) {
+            selectedPosterDayKey = key
+        }
+    }
+
+    private func inferredPagingDirection(to destination: String) -> MePosterPaging.Direction {
+        guard let currentIndex = posterDayKeys.firstIndex(of: selectedPosterDayKey),
+              let destinationIndex = posterDayKeys.firstIndex(of: destination)
+        else { return destination > selectedPosterDayKey ? .newer : .older }
+        return destinationIndex > currentIndex ? .newer : .older
     }
 
 
@@ -190,14 +279,14 @@ struct MeView: View {
         accessibilityIdentifier: String
     ) -> some View {
         // Digits line up column-wise; happening titles are prose and must not.
-        let valueFont = Font.system(useTightMeLayout ? .title3 : .title2, design: .rounded)
+        let valueFont = Font.geist(useTightMeLayout ? .title3 : .title2, design: .rounded)
             .weight(.semibold)
         let trendAccessibilityLabel = trend.map {
             $0 + ", " + String(localized: "vs last week", comment: "MeView – comparison period")
         }
         return HStack(alignment: .firstTextBaseline, spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 13))
+                .font(.geist(size: 13))
                 .foregroundStyle(theme.textSecondary)
                 .frame(width: 34, height: 34)
                 .background(theme.textPrimary.opacity(0.055), in: Circle())
@@ -208,7 +297,7 @@ struct MeView: View {
                     .foregroundStyle(theme.textPrimary)
                     .lineLimit(1)
                 Text(label)
-                    .font(.caption)
+                    .font(.geist(.caption))
                     .foregroundStyle(theme.textSecondary.opacity(0.6))
             }
 
@@ -216,11 +305,11 @@ struct MeView: View {
                 Spacer(minLength: 8)
                 VStack(alignment: .trailing, spacing: 1) {
                     Text(trend)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.geist(.subheadline).weight(.semibold))
                         .monospacedDigit()
                         .foregroundStyle(theme.accentColor.opacity(0.9))
                     Text(String(localized: "vs last week", comment: "MeView – comparison period"))
-                        .font(.caption2)
+                        .font(.geist(.caption2))
                         .foregroundStyle(theme.textSecondary.opacity(0.5))
                 }
             }
@@ -243,7 +332,7 @@ struct MeView: View {
 
     /// Greeting is the page anchor: muted salutation, bolder name. One clear focal point above the canvas.
     private var greetingFont: Font {
-        useTightMeLayout ? .headline : .title3
+        .geist(useTightMeLayout ? .headline : .title3)
     }
 
     private var greetingRow: some View {
@@ -266,7 +355,7 @@ struct MeView: View {
 
             Button { shareRequestID &+= 1 } label: {
                 Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 17, weight: .regular))
+                    .font(.geist(size: 17, weight: .regular))
                     .foregroundStyle(theme.textPrimary.opacity(0.7))
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
@@ -280,7 +369,7 @@ struct MeView: View {
             Button { onOpenSettings() } label: {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "gearshape")
-                        .font(.system(size: 18, weight: .regular))
+                        .font(.geist(size: 18, weight: .regular))
                         .foregroundStyle(theme.textPrimary.opacity(0.7))
                     // Same warning the Me tab icon carries — kept here so the
                     // trail from tab badge to the actual entry point is unbroken.
@@ -306,7 +395,7 @@ struct MeView: View {
     /// but renders without heavy tracking so it recedes behind the data.
     private func sectionHeader(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: useTightMeLayout ? 11 : 12, weight: .medium))
+            .font(.geist(size: useTightMeLayout ? 11 : 12, weight: .medium))
             .foregroundStyle(theme.textSecondary.opacity(0.55))
             .tracking(0.6)
     }
@@ -337,12 +426,15 @@ struct MeView: View {
         return VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(name)
-                    .font(useTightMeLayout ? .footnote : .subheadline)
+                    .font(.geist(useTightMeLayout ? .footnote : .subheadline))
                     .foregroundStyle(theme.textPrimary)
                     .lineLimit(1)
                 Spacer(minLength: 8)
                 Text(spentLabel)
-                    .font((useTightMeLayout ? Font.footnote : Font.subheadline).weight(.semibold))
+                    .font(
+                        Font.geist(useTightMeLayout ? .footnote : .subheadline)
+                            .weight(.semibold)
+                    )
                     .monospacedDigit()
                     .foregroundStyle(theme.textPrimary)
             }
@@ -432,6 +524,7 @@ struct MeView: View {
         serverFetchTask?.cancel()
 
         pastDays = model.loadPastDaySnapshots()
+        recentHealthByDay = pastDays.mapValues(MeDayHealth.init(snapshot:))
         rebuildWeekModel()
 
         loadTask = Task { @MainActor in
@@ -443,9 +536,11 @@ struct MeView: View {
                     Self.loadUnlockRecords()
                 )
             }.value
+            let healthData = await loadRecentHealth(dayKeys: cachedDayKeys)
             guard !Task.isCancelled else { return }
             cachedTxNames = paymentData.0
             unlockRecords = paymentData.1
+            recentHealthByDay.merge(healthData) { _, refreshed in refreshed }
             rebuildTopConsumers()
         }
 
@@ -462,6 +557,47 @@ struct MeView: View {
                 rebuildTopConsumers()
             }
         }
+    }
+
+    private func loadRecentHealth(dayKeys: [String]) async -> [String: MeDayHealth] {
+        let keys = dayKeys.isEmpty ? Self.computeDayKeys() : dayKeys
+        let todayKey = AppModel.dayKey(for: .now)
+        let boundary = AppModel.storedDayEnd()
+        let calendar = Calendar.current
+        var result: [String: MeDayHealth] = [:]
+
+        for key in keys {
+            guard !Task.isCancelled else { break }
+            if key == todayKey {
+                result[key] = MeDayHealth(
+                    steps: model.hasStepsData ? Int(model.stepsToday) : nil,
+                    sleepHours: model.hasSleepData ? model.dailySleepHours : nil
+                )
+                continue
+            }
+
+            guard let date = CachedFormatters.dayKey.date(from: key),
+                  let start = calendar.date(
+                    bySettingHour: boundary.hour,
+                    minute: boundary.minute,
+                    second: 0,
+                    of: date
+                  ),
+                  let end = calendar.date(byAdding: .day, value: 1, to: start)
+            else { continue }
+
+            async let stepsResult = try? model.healthKitService.fetchSteps(from: start, to: end)
+            async let sleepResult = try? model.healthKitService.fetchSleep(from: start, to: end)
+            let (steps, sleep) = await (stepsResult, sleepResult)
+
+            if steps != nil || sleep != nil {
+                result[key] = MeDayHealth(
+                    steps: steps.map { Int($0) },
+                    sleepHours: sleep
+                )
+            }
+        }
+        return result
     }
 
     private func rebuildTopConsumers() {

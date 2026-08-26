@@ -40,7 +40,7 @@ struct CanvasDayDetailSheet: View {
                         canvasSection(s)
                     } else {
                         Text(String(localized: "No data for this day."))
-                            .font(.subheadline)
+                            .font(.geist(.subheadline))
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .center)
                             .padding(.vertical, 40)
@@ -73,17 +73,17 @@ struct CanvasDayDetailSheet: View {
     private func canvasRow(title: String, ids: [String], color: Color) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.caption.weight(.semibold))
+                .font(.geist(.caption).weight(.semibold))
                 .foregroundStyle(color)
             if ids.isEmpty {
                 Text("—")
-                    .font(.subheadline)
+                    .font(.geist(.subheadline))
                     .foregroundStyle(.secondary)
             } else {
                 FlowLayout(spacing: 6) {
                     ForEach(ids, id: \.self) { id in
                         Text(model.resolveOptionTitle(for: id))
-                            .font(.caption)
+                            .font(.geist(.caption))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(Capsule().fill(color.opacity(0.15)))
@@ -97,14 +97,14 @@ struct CanvasDayDetailSheet: View {
     private func statCard(icon: String, value: String, label: String, color: Color) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.title2)
+                .font(.geist(.title2))
                 .foregroundStyle(color)
                 .frame(width: 32)
             VStack(alignment: .leading, spacing: 2) {
                 Text(value)
-                    .font(.headline.monospacedDigit())
+                    .font(.geist(.headline).monospacedDigit())
                 Text(label)
-                    .font(.caption)
+                    .font(.geist(.caption))
                     .foregroundStyle(.secondary)
             }
             Spacer()

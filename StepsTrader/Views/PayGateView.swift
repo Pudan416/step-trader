@@ -56,7 +56,7 @@ struct PayGateView: View {
                             model.dismissPayGate(reason: .userDismiss)
                         } label: {
                             Image(systemName: "xmark")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.geist(size: 13, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.4))
                                 .frame(width: 30, height: 30)
                                 .background(.white.opacity(0.08), in: Circle())
@@ -151,7 +151,7 @@ struct PayGateView: View {
                     .multilineTextAlignment(.center)
 
                 Text(group.name)
-                    .font(.subheadline)
+                    .font(.geist(.subheadline))
                     .foregroundStyle(PayGatePalette.textSecondary)
             }
             .opacity(appeared ? 1 : 0)
@@ -177,7 +177,7 @@ struct PayGateView: View {
                     .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: 6)
             } else if appTokens.isEmpty {
                 Image(systemName: "lock.fill")
-                    .font(.system(size: 32, weight: .regular))
+                    .font(.geist(size: 32, weight: .regular))
                     .foregroundStyle(PayGatePalette.accent)
             } else {
                 ForEach(Array(appTokens.enumerated()), id: \.offset) { index, token in
@@ -194,7 +194,7 @@ struct PayGateView: View {
         .frame(height: 100)
         #else
         Image(systemName: "lock.fill")
-            .font(.system(size: 36, weight: .regular))
+            .font(.geist(size: 36, weight: .regular))
             .foregroundStyle(PayGatePalette.accent)
         #endif
     }
@@ -217,11 +217,11 @@ struct PayGateView: View {
             // Balance
             HStack(spacing: 6) {
                 Text("\(balance)")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .font(.geist(size: 15, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(PayGatePalette.textPrimary)
                 Text(String(localized: "colors available", comment: "PayGate balance label"))
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.geist(size: 13, weight: .medium))
                     .foregroundStyle(PayGatePalette.textMuted)
             }
             .padding(.bottom, 16)
@@ -260,7 +260,7 @@ struct PayGateView: View {
                 }
             } label: {
                 Text(String(localized: "keep it closed", comment: "PayGate dismiss button"))
-                    .font(.subheadline.weight(.medium))
+                    .font(.geist(.subheadline).weight(.medium))
                     .foregroundStyle(PayGatePalette.textMuted)
                     .padding(.vertical, 14)
                     .frame(maxWidth: .infinity)
@@ -289,17 +289,17 @@ struct PayGateView: View {
         } label: {
             HStack {
                 Text(unlockLabel(window))
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .font(.geist(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(isDisabled ? PayGatePalette.textMuted : PayGatePalette.textPrimary)
 
                 Spacer()
 
                 Text("\(cost)")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .font(.geist(size: 16, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(isDisabled ? PayGatePalette.textMuted : PayGatePalette.accent)
                 Text(String(localized: "colors"))
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.geist(size: 13, weight: .medium))
                     .foregroundStyle(isDisabled ? PayGatePalette.textMuted : PayGatePalette.textSecondary)
             }
             .padding(.horizontal, 16)
@@ -324,10 +324,10 @@ struct PayGateView: View {
 
         HStack(spacing: 8) {
             Image(systemName: "clock")
-                .font(.system(size: 12, weight: .medium))
+                .font(.geist(size: 12, weight: .medium))
                 .foregroundStyle(PayGatePalette.accent.opacity(0.8))
             Text(text)
-                .font(.caption)
+                .font(.geist(.caption))
                 .foregroundStyle(PayGatePalette.textSecondary)
         }
     }

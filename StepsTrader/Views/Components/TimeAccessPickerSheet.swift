@@ -12,7 +12,7 @@ struct TimeAccessPickerSheet: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 12) {
                 Text(String(localized: "Choose app for \(appName)", comment: "TimeAccessPicker – title with app name"))
-                    .font(.headline)
+                    .font(.geist(.headline))
                     .padding(.horizontal)
 
                 #if canImport(FamilyControls)

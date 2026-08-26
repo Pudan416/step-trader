@@ -83,7 +83,7 @@ struct GenerativeSceneLabView: View {
                    readout: "\(Int(quality))", normalised: nil)
 
             Text("\(params.palette.name) · seed \(String(format: "%.4f", seed))")
-                .font(.caption2)
+                .font(.geist(.caption2))
                 .foregroundStyle(.white.opacity(0.5))
         }
         .padding(16)
@@ -104,13 +104,13 @@ struct GenerativeSceneLabView: View {
         VStack(spacing: 2) {
             HStack {
                 Text(title)
-                    .font(.caption)
+                    .font(.geist(.caption))
                 Spacer()
                 Text(readout)
-                    .font(.caption.monospacedDigit())
+                    .font(.geist(.caption).monospacedDigit())
                 if let normalised {
                     Text(String(format: "→ %.2f", normalised))
-                        .font(.caption2.monospacedDigit())
+                        .font(.geist(.caption2).monospacedDigit())
                         .foregroundStyle(.white.opacity(0.45))
                 }
             }

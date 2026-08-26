@@ -57,23 +57,23 @@ struct TicketTemplatePickerView: View {
                                     .strokeBorder(Color.primary.opacity(0.15), lineWidth: 1)
                                     .frame(width: 44, height: 44)
                                 Image(systemName: "plus")
-                                    .font(.system(size: 18, weight: .ultraLight))
+                                    .font(.geist(size: 18, weight: .ultraLight))
                                     .foregroundStyle(Color.primary.opacity(0.6))
                             }
                             
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(String(localized: "Custom Apps", comment: "TemplatePicker – custom apps option title"))
-                                    .font(.system(size: 15, weight: .regular, design: .rounded))
+                                    .font(.geist(size: 15, weight: .regular, design: .rounded))
                                     .foregroundStyle(.primary)
                                 Text(String(localized: "Choose your own apps", comment: "TemplatePicker – custom apps subtitle"))
-                                    .font(.system(size: 12, weight: .light, design: .rounded))
+                                    .font(.geist(size: 12, weight: .light, design: .rounded))
                                     .foregroundStyle(Color.primary.opacity(0.4))
                             }
                             
                             Spacer()
                             
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 12, weight: .ultraLight))
+                                .font(.geist(size: 12, weight: .ultraLight))
                                 .foregroundStyle(Color.primary.opacity(0.3))
                         }
                         .padding(.horizontal, 16)
@@ -87,13 +87,13 @@ struct TicketTemplatePickerView: View {
                     
                     VStack(alignment: .leading, spacing: 12) {
                         Text(String(localized: "Templates", comment: "TemplatePicker – section header"))
-                            .font(.system(size: 14, weight: .light, design: .rounded))
+                            .font(.geist(size: 14, weight: .light, design: .rounded))
                             .foregroundStyle(Color.primary.opacity(0.4))
                             .padding(.horizontal, 4)
                         
                         if availableTemplates.isEmpty {
                             Text(String(localized: "All templates in use", comment: "TemplatePicker – empty state when all used"))
-                                .font(.system(size: 13, weight: .light, design: .rounded))
+                                .font(.geist(size: 13, weight: .light, design: .rounded))
                                 .foregroundStyle(Color.primary.opacity(0.3))
                                 .padding(.vertical, 20)
                         } else {
@@ -142,13 +142,13 @@ struct TicketTemplatePickerView: View {
                             .clipShape(Circle())
                     } else {
                         Image(systemName: "app")
-                            .font(.system(size: 16, weight: .ultraLight))
+                            .font(.geist(size: 16, weight: .ultraLight))
                             .foregroundStyle(Color.primary.opacity(0.3))
                     }
                 }
 
                 Text(template.name)
-                    .font(.system(size: 11, weight: .light, design: .rounded))
+                    .font(.geist(size: 11, weight: .light, design: .rounded))
                     .foregroundStyle(Color.primary.opacity(0.7))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)

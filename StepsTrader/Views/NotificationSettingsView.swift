@@ -96,11 +96,11 @@ struct NotificationSettingsView: View {
 
                             HStack(spacing: 12) {
                                 Image(systemName: "clock")
-                                    .font(.system(size: 15))
+                                    .font(.geist(size: 15))
                                     .foregroundStyle(theme.adaptiveSecondaryText)
                                     .frame(width: 24)
                                 Text(String(localized: "Remind at"))
-                                    .font(.subheadline)
+                                    .font(.geist(.subheadline))
                                     .foregroundStyle(theme.adaptivePrimaryText)
                                 Spacer()
                                 DatePicker("", selection: canvasTimeBinding, displayedComponents: .hourAndMinute)
@@ -134,11 +134,11 @@ struct NotificationSettingsView: View {
 
                             HStack(spacing: 12) {
                                 Image(systemName: "hourglass")
-                                    .font(.system(size: 15))
+                                    .font(.geist(size: 15))
                                     .foregroundStyle(theme.adaptiveSecondaryText)
                                     .frame(width: 24)
                                 Text(String(localized: "Warn before reset"))
-                                    .font(.subheadline)
+                                    .font(.geist(.subheadline))
                                     .foregroundStyle(theme.adaptivePrimaryText)
                                 Spacer()
                                 Menu {
@@ -157,10 +157,10 @@ struct NotificationSettingsView: View {
                                 } label: {
                                     HStack(spacing: 4) {
                                         Text(dayResetWarningHours == 1 ? String(localized: "1 hour") : String(localized: "\(dayResetWarningHours) hours"))
-                                            .font(.subheadline)
+                                            .font(.geist(.subheadline))
                                             .foregroundStyle(theme.adaptiveSecondaryText)
                                         Image(systemName: "chevron.up.chevron.down")
-                                            .font(.caption2)
+                                            .font(.geist(.caption2))
                                             .foregroundStyle(theme.adaptiveMutedText)
                                     }
                                 }

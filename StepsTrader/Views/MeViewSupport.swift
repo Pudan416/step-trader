@@ -19,34 +19,44 @@ struct MePosterUnlockRecord: Codable, Equatable {
     let timestamp: Date
     let target: String
     let targetName: String?
+    let minutes: Int?
 
-    init(timestamp: Date, target: String, targetName: String?) {
+    init(timestamp: Date, target: String, targetName: String?, minutes: Int? = nil) {
         self.timestamp = timestamp
         self.target = target
         self.targetName = targetName
+        self.minutes = minutes
     }
 }
 
 struct MePosterUnlock: Equatable, Identifiable {
     let title: String
     let count: Int
+    let minutes: Int
 
     var id: String { title.localizedLowercase }
+
+    var posterLabel: String {
+        minutes > 0 ? "\(title) \(minutes) min" : "\(title) ×\(count)"
+    }
 }
 
 enum MePosterCanvasMode: Equatable {
     case liveToday
     case savedPast
+    case healthPast
     case emptyPast
 }
 
 enum MePosterPresentationPolicy {
     static func mode(
         isToday: Bool,
-        hasSavedElements: Bool
+        hasSavedElements: Bool,
+        hasHealthData: Bool = false
     ) -> MePosterCanvasMode {
         if isToday { return .liveToday }
-        return hasSavedElements ? .savedPast : .emptyPast
+        if hasSavedElements { return .savedPast }
+        return hasHealthData ? .healthPast : .emptyPast
     }
 
     static func canShare(
@@ -60,9 +70,137 @@ enum MePosterPresentationPolicy {
             return hasElements || hasStepsData || hasSleepData
         case .savedPast:
             return hasElements
+        case .healthPast:
+            return hasStepsData || hasSleepData
         case .emptyPast:
             return false
         }
+    }
+}
+
+enum MePosterPaging {
+    enum Direction: Equatable {
+        case older
+        case newer
+    }
+
+    static func destination(
+        from current: String,
+        direction: Direction,
+        dayKeys: [String]
+    ) -> String? {
+        guard let index = dayKeys.firstIndex(of: current) else { return nil }
+        let destinationIndex = direction == .newer ? index + 1 : index - 1
+        guard dayKeys.indices.contains(destinationIndex) else { return nil }
+        return dayKeys[destinationIndex]
+    }
+}
+
+enum MePosterPagingMotion {
+    enum HorizontalEdge: Equatable {
+        case leading
+        case trailing
+    }
+
+    struct TransitionSpec: Equatable {
+        let insertionEdge: HorizontalEdge?
+        let removalEdge: HorizontalEdge?
+        let duration: Double
+    }
+
+    static func transition(
+        for direction: MePosterPaging.Direction,
+        reduceMotion: Bool
+    ) -> TransitionSpec {
+        if reduceMotion {
+            return TransitionSpec(
+                insertionEdge: nil,
+                removalEdge: nil,
+                duration: 0.15
+            )
+        }
+
+        switch direction {
+        case .newer:
+            return TransitionSpec(
+                insertionEdge: .trailing,
+                removalEdge: .leading,
+                duration: 0.28
+            )
+        case .older:
+            return TransitionSpec(
+                insertionEdge: .leading,
+                removalEdge: .trailing,
+                duration: 0.28
+            )
+        }
+    }
+
+    static func permittedDragTranslation(
+        _ translation: CGFloat,
+        from current: String,
+        dayKeys: [String],
+        reduceMotion: Bool
+    ) -> CGFloat {
+        guard !reduceMotion, translation != 0 else { return 0 }
+        let direction: MePosterPaging.Direction = translation < 0 ? .newer : .older
+        guard MePosterPaging.destination(
+            from: current,
+            direction: direction,
+            dayKeys: dayKeys
+        ) != nil else { return 0 }
+        return translation
+    }
+}
+
+struct MeDayHealth: Equatable {
+    let steps: Int?
+    let sleepHours: Double?
+    let stepsTarget: Double
+    let sleepTargetHours: Double
+
+    var hasStepsData: Bool { steps != nil }
+    var hasSleepData: Bool { sleepHours != nil }
+    var hasAnyData: Bool { hasStepsData || hasSleepData }
+
+    var stepsPoints: Int {
+        normalizedPoints(
+            value: Double(steps ?? 0),
+            target: stepsTarget,
+            maximum: EnergyDefaults.stepsMaxPoints
+        )
+    }
+
+    var sleepPoints: Int {
+        normalizedPoints(
+            value: sleepHours ?? 0,
+            target: sleepTargetHours,
+            maximum: EnergyDefaults.sleepMaxPoints
+        )
+    }
+
+    init(
+        steps: Int?,
+        sleepHours: Double?,
+        stepsTarget: Double = EnergyDefaults.stepsTarget,
+        sleepTargetHours: Double = EnergyDefaults.sleepTargetHours
+    ) {
+        self.steps = steps
+        self.sleepHours = sleepHours
+        self.stepsTarget = stepsTarget
+        self.sleepTargetHours = sleepTargetHours
+    }
+
+    init(snapshot: PastDaySnapshot) {
+        steps = snapshot.steps
+        sleepHours = snapshot.sleepHours
+        stepsTarget = snapshot.stepsTarget
+        sleepTargetHours = snapshot.sleepTargetHours
+    }
+
+    private func normalizedPoints(value: Double, target: Double, maximum: Int) -> Int {
+        guard target > 0 else { return 0 }
+        return Int(min(max(value, 0), target) / target * Double(maximum))
     }
 }
 
@@ -75,6 +213,7 @@ enum MePosterEventLedger {
         calendar: Calendar = .current
     ) -> [MePosterUnlock] {
         var counts: [String: Int] = [:]
+        var minutes: [String: Int] = [:]
         var titles: [String: String] = [:]
         var order: [String] = []
 
@@ -99,17 +238,21 @@ enum MePosterEventLedger {
                 titles[identity] = resolvedTitle
             }
             counts[identity, default: 0] += 1
+            minutes[identity, default: 0] += max(0, record.minutes ?? 0)
         }
 
         return order.compactMap { identity in
             guard let title = titles[identity], let count = counts[identity] else { return nil }
-            return MePosterUnlock(title: title, count: count)
+            return MePosterUnlock(
+                title: title,
+                count: count,
+                minutes: minutes[identity] ?? 0
+            )
         }
     }
 
     static func displayEvents(
-        happeningTitles: [String],
-        unlocks: [MePosterUnlock]
+        happeningTitles: [String]
     ) -> [String] {
         var seen: Set<String> = []
         var events: [String] = []
@@ -121,9 +264,6 @@ enum MePosterEventLedger {
             events.append(title)
         }
 
-        events.append(contentsOf: unlocks.map { unlock in
-            "\(unlock.title) ×\(unlock.count)"
-        })
         return events
     }
 
@@ -136,6 +276,123 @@ enum MePosterEventLedger {
     }
 }
 
+enum MePosterRailLayout {
+    enum Role {
+        case metrics
+        case unlocks
+    }
+
+    enum TextAlignment: Equatable {
+        case leading
+        case trailing
+    }
+
+    struct Placement: Equatable {
+        let center: CGPoint
+        let railLength: CGFloat
+        let lineHeight: CGFloat
+        let textAlignment: TextAlignment
+
+        var rotatedFrame: CGRect {
+            CGRect(
+                x: center.x - lineHeight / 2,
+                y: center.y - railLength / 2,
+                width: lineHeight,
+                height: railLength
+            )
+        }
+    }
+
+    static func placement(
+        for role: Role,
+        ruleRight: CGFloat,
+        artworkTop: CGFloat,
+        artworkBottom: CGFloat,
+        railLength: CGFloat,
+        lineHeight: CGFloat
+    ) -> Placement {
+        let centerX = ruleRight - lineHeight / 2
+        switch role {
+        case .metrics:
+            return Placement(
+                center: CGPoint(
+                    x: centerX,
+                    y: artworkTop + railLength / 2
+                ),
+                railLength: railLength,
+                lineHeight: lineHeight,
+                textAlignment: .leading
+            )
+        case .unlocks:
+            return Placement(
+                center: CGPoint(
+                    x: centerX,
+                    y: artworkBottom - railLength / 2
+                ),
+                railLength: railLength,
+                lineHeight: lineHeight,
+                textAlignment: .trailing
+            )
+        }
+    }
+}
+
+enum MePosterHappeningsLayout {
+    private static func font(size: CGFloat) -> UIFont {
+        UIFont(name: "GeistMono-Medium", size: size)
+            ?? UIFont.monospacedSystemFont(ofSize: size, weight: .medium)
+    }
+
+    static func lineCount(
+        for text: String,
+        width: CGFloat,
+        fontSize: CGFloat
+    ) -> Int {
+        guard !text.isEmpty, width > 0, fontSize > 0 else { return 0 }
+        let font = font(size: fontSize)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byWordWrapping
+        let bounds = (text as NSString).boundingRect(
+            with: CGSize(width: width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [
+                .font: font,
+                .paragraphStyle: paragraph,
+            ],
+            context: nil
+        )
+        return max(1, Int(ceil(bounds.height / font.lineHeight - 0.01)))
+    }
+
+    static func fontSize(
+        for text: String,
+        width: CGFloat,
+        maximumSize: CGFloat,
+        maximumLines: Int
+    ) -> CGFloat {
+        guard !text.isEmpty, width > 0, maximumSize > 0, maximumLines > 0 else {
+            return maximumSize
+        }
+        guard lineCount(
+            for: text,
+            width: width,
+            fontSize: maximumSize
+        ) > maximumLines else { return maximumSize }
+
+        var lowerBound: CGFloat = 1
+        var upperBound = maximumSize
+        for _ in 0..<14 {
+            let candidate = (lowerBound + upperBound) / 2
+            if lineCount(for: text, width: width, fontSize: candidate) <= maximumLines {
+                lowerBound = candidate
+            } else {
+                upperBound = candidate
+            }
+        }
+        return floor(lowerBound * 100) / 100
+    }
+}
+
 /// The gallery sheet used both on Me and for its share export. The canvas is
 /// deliberately text-free; the day context lives in the paper margin.
 struct MeGalleryPoster<Content: View>: View {
@@ -143,6 +400,7 @@ struct MeGalleryPoster<Content: View>: View {
     let steps: Int?
     let sleepHours: Double?
     let events: [String]
+    let unlocks: [MePosterUnlock]
     let content: Content
 
     private let paper = Color(red: 0.969, green: 0.961, blue: 0.925)
@@ -152,12 +410,14 @@ struct MeGalleryPoster<Content: View>: View {
         steps: Int?,
         sleepHours: Double?,
         events: [String],
+        unlocks: [MePosterUnlock] = [],
         @ViewBuilder content: () -> Content
     ) {
         self.date = date
         self.steps = steps
         self.sleepHours = sleepHours
         self.events = events
+        self.unlocks = unlocks
         self.content = content()
     }
 
@@ -169,15 +429,39 @@ struct MeGalleryPoster<Content: View>: View {
             let scaleY = height / 842.0
             let ruleWidth = 527.02 * scaleX
             let ruleHeight = max(1, 3 * scaleY)
-            let ruleRight = (38.72 + 527.02) * scaleX
-            let artworkWidth = 472.286 * scaleX
-            let artworkHeight = 646.497 * scaleY
-            let artworkTop = 114.09 * scaleY
+            let ruleRight = 566.02 * scaleX
+            let artworkWidth = 482 * scaleX
+            let artworkHeight = 659 * scaleY
+            let artworkTop = 91 * scaleY
             let artworkBottom = artworkTop + artworkHeight
             let metricsLength = 245 * scaleY
             let metricsLineHeight = 15 * scaleX
+            let metricsPlacement = MePosterRailLayout.placement(
+                for: .metrics,
+                ruleRight: ruleRight,
+                artworkTop: artworkTop,
+                artworkBottom: artworkBottom,
+                railLength: metricsLength,
+                lineHeight: metricsLineHeight
+            )
+            let unlocksPlacement = MePosterRailLayout.placement(
+                for: .unlocks,
+                ruleRight: ruleRight,
+                artworkTop: artworkTop,
+                artworkBottom: artworkBottom,
+                railLength: metricsLength,
+                lineHeight: metricsLineHeight
+            )
             let footerTop = 781 * scaleY
             let footerHeight = height - footerTop
+            let happeningsText = events.joined(separator: " / ")
+            let happeningsWidth = width * 0.47
+            let happeningsFontSize = MePosterHappeningsLayout.fontSize(
+                for: happeningsText,
+                width: happeningsWidth,
+                maximumSize: width * 0.0175,
+                maximumLines: 3
+            )
 
             ZStack {
                 paper
@@ -189,12 +473,12 @@ struct MeGalleryPoster<Content: View>: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                     .frame(width: ruleWidth, height: 55 * scaleY, alignment: .leading)
-                    .position(x: width * 0.5, y: 77.5 * scaleY)
+                    .position(x: width * 0.5, y: 49.5 * scaleY)
 
                 Rectangle()
                     .fill(.black)
                     .frame(width: ruleWidth, height: ruleHeight)
-                    .position(x: width * 0.5, y: 104.6 * scaleY)
+                    .position(x: width * 0.5, y: 77 * scaleY)
 
                 content
                     .frame(width: artworkWidth, height: artworkHeight)
@@ -205,13 +489,23 @@ struct MeGalleryPoster<Content: View>: View {
                     .frame(
                         width: metricsLength,
                         height: metricsLineHeight,
-                        alignment: .trailing
+                        alignment: metricsPlacement.textAlignment == .leading
+                            ? .leading
+                            : .trailing
                     )
                     .rotationEffect(.degrees(90))
-                    .position(
-                        x: ruleRight - metricsLineHeight / 2,
-                        y: artworkBottom - metricsLength / 2
+                    .position(metricsPlacement.center)
+
+                unlocksLabel(fontSize: max(5, width * 0.019))
+                    .frame(
+                        width: metricsLength,
+                        height: metricsLineHeight,
+                        alignment: unlocksPlacement.textAlignment == .leading
+                            ? .leading
+                            : .trailing
                     )
+                    .rotationEffect(.degrees(90))
+                    .position(unlocksPlacement.center)
 
                 Rectangle()
                     .fill(.black)
@@ -231,14 +525,13 @@ struct MeGalleryPoster<Content: View>: View {
                     .position(x: width * 0.245, y: footerTop + footerHeight / 2)
 
                 if !events.isEmpty {
-                    Text(events.joined(separator: " / "))
-                        .font(.system(size: max(5, width * 0.0175), weight: .regular))
+                    Text(happeningsText)
+                        .font(.geistMono(size: happeningsFontSize, weight: .regular))
                         .foregroundStyle(.black.opacity(0.86))
                         .multilineTextAlignment(.leading)
                         .lineLimit(3)
-                        .minimumScaleFactor(0.72)
                         .frame(
-                            width: width * 0.47,
+                            width: happeningsWidth,
                             height: footerHeight,
                             alignment: .topLeading
                         )
@@ -254,6 +547,17 @@ struct MeGalleryPoster<Content: View>: View {
     }
 
     @ViewBuilder
+    private func unlocksLabel(fontSize: CGFloat) -> some View {
+        if !unlocks.isEmpty {
+            Text(unlocks.map(\.posterLabel).joined(separator: " / "))
+                .font(.geistMono(size: fontSize, weight: .regular, design: .monospaced))
+                .foregroundStyle(.black.opacity(0.9))
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+        }
+    }
+
+    @ViewBuilder
     private func metricsLabel(fontSize: CGFloat) -> some View {
         let parts = [
             steps.map { "\(formatCompactNumber($0)) steps" },
@@ -262,7 +566,7 @@ struct MeGalleryPoster<Content: View>: View {
 
         if !parts.isEmpty {
             Text(parts.joined(separator: " / "))
-                .font(.system(size: fontSize, weight: .medium))
+                .font(.geistMono(size: fontSize, weight: .medium))
                 .monospacedDigit()
                 .foregroundStyle(.black.opacity(0.9))
                 .lineLimit(1)
@@ -284,7 +588,10 @@ struct MeGalleryPoster<Content: View>: View {
             steps.map { "\($0) steps" },
             sleepHours.map { "\($0.formatted(.number.precision(.fractionLength(1)))) hours sleep" }
         ].compactMap { $0 }
-        return ([CachedFormatters.longDate.string(from: date)] + metricParts + events)
+        return ([CachedFormatters.longDate.string(from: date)]
+            + metricParts
+            + unlocks.map(\.posterLabel)
+            + events)
             .joined(separator: ", ")
     }
 }
@@ -293,6 +600,7 @@ struct MeSelectedDayPoster: View {
     @ObservedObject var model: AppModel
     let dayKey: String
     let snapshot: PastDaySnapshot?
+    let health: MeDayHealth?
     let unlockRecords: [MePosterUnlockRecord]
     let shareRequestID: Int
     let onShareAvailabilityChange: (Bool) -> Void
@@ -324,7 +632,10 @@ struct MeSelectedDayPoster: View {
     private var posterMode: MePosterCanvasMode {
         MePosterPresentationPolicy.mode(
             isToday: isToday,
-            hasSavedElements: dayCanvas?.elements.isEmpty == false
+            hasSavedElements: dayCanvas?.elements.isEmpty == false,
+            // A selected recent calendar day always owns a visual background.
+            // HealthKit values may arrive a moment after the poster itself.
+            hasHealthData: health?.hasAnyData == true || snapshot != nil || !isToday
         )
     }
 
@@ -335,18 +646,22 @@ struct MeSelectedDayPoster: View {
 
     private var displayedSteps: Int? {
         if isToday, model.hasStepsData { return Int(model.stepsToday) }
-        guard let snapshot else { return nil }
-        return snapshot.steps > 0 || dayCanvas?.resolvedHasStepsData == true
-            ? snapshot.steps
-            : nil
+        return health?.steps ?? snapshot?.steps
     }
 
     private var displayedSleep: Double? {
         if isToday, model.hasSleepData { return model.dailySleepHours }
-        guard let snapshot else { return nil }
-        return snapshot.sleepHours > 0 || dayCanvas?.resolvedHasSleepData == true
-            ? snapshot.sleepHours
-            : nil
+        return health?.sleepHours ?? snapshot?.sleepHours
+    }
+
+    private var displayedUnlocks: [MePosterUnlock] {
+        let boundary = AppModel.storedDayEnd()
+        return MePosterEventLedger.unlocks(
+            records: unlockRecords,
+            dayKey: dayKey,
+            dayEndHour: boundary.hour,
+            dayEndMinute: boundary.minute
+        )
     }
 
     private var displayEvents: [String] {
@@ -361,16 +676,8 @@ struct MeSelectedDayPoster: View {
             happeningTitles = snapshot?.happeningIds.map { model.resolveOptionTitle(for: $0) } ?? []
         }
 
-        let boundary = AppModel.storedDayEnd()
-        let unlocks = MePosterEventLedger.unlocks(
-            records: unlockRecords,
-            dayKey: dayKey,
-            dayEndHour: boundary.hour,
-            dayEndMinute: boundary.minute
-        )
         return MePosterEventLedger.displayEvents(
-            happeningTitles: happeningTitles,
-            unlocks: unlocks
+            happeningTitles: happeningTitles
         )
     }
 
@@ -378,8 +685,12 @@ struct MeSelectedDayPoster: View {
         MePosterPresentationPolicy.canShare(
             mode: posterMode,
             hasElements: dayCanvas?.elements.isEmpty == false,
-            hasStepsData: isToday ? model.hasStepsData : dayCanvas?.resolvedHasStepsData == true,
-            hasSleepData: isToday ? model.hasSleepData : dayCanvas?.resolvedHasSleepData == true
+            hasStepsData: isToday
+                ? model.hasStepsData
+                : health?.hasStepsData == true || dayCanvas?.resolvedHasStepsData == true,
+            hasSleepData: isToday
+                ? model.hasSleepData
+                : health?.hasSleepData == true || dayCanvas?.resolvedHasSleepData == true
         )
     }
 
@@ -388,12 +699,14 @@ struct MeSelectedDayPoster: View {
             date: displayDate,
             steps: displayedSteps,
             sleepHours: displayedSleep,
-            events: displayEvents
+            events: displayEvents,
+            unlocks: displayedUnlocks
         ) {
             canvasLayer(isOffscreenRender: false)
         }
         .shadow(color: .black.opacity(0.24), radius: 18, y: 10)
-        .animation(.easeInOut(duration: 0.24), value: dayKey)
+        .accessibilityIdentifier("me_selected_day_poster")
+        .accessibilityValue(dayKey)
         .task(id: dayKey) { await loadCanvas() }
         .onChange(of: canShare, initial: true) { _, available in
             onShareAvailabilityChange(available)
@@ -479,6 +792,19 @@ struct MeSelectedDayPoster: View {
                 }
             }
 
+        case .healthPast:
+            let resolvedHealth = health ?? snapshot.map(MeDayHealth.init(snapshot:))
+            EnergyGradientBackground(
+                stepsPoints: resolvedHealth?.stepsPoints ?? 0,
+                sleepPoints: resolvedHealth?.sleepPoints ?? 0,
+                hasStepsData: resolvedHealth?.hasStepsData == true,
+                hasSleepData: resolvedHealth?.hasSleepData == true,
+                showGrain: true,
+                gradientStyleOverride: liveGradientStyle,
+                gradientPaletteOverride: liveGradientPalette,
+                textureOverride: liveTextureRaw
+            )
+
         case .emptyPast:
             ZStack {
                 Color.black.opacity(0.12)
@@ -489,9 +815,9 @@ struct MeSelectedDayPoster: View {
                 } else {
                     VStack(spacing: 7) {
                         Image(systemName: "rectangle.portrait")
-                            .font(.title3.weight(.light))
+                            .font(.geist(.title3).weight(.light))
                         Text(String(localized: "No saved poster", comment: "Me poster – empty calendar day"))
-                            .font(.caption)
+                            .font(.geist(.caption))
                     }
                     .foregroundStyle(.black.opacity(0.42))
                 }
@@ -531,7 +857,8 @@ struct MeSelectedDayPoster: View {
             date: displayDate,
             steps: displayedSteps,
             sleepHours: displayedSleep,
-            events: displayEvents
+            events: displayEvents,
+            unlocks: displayedUnlocks
         ) {
             canvasLayer(isOffscreenRender: true)
         }
@@ -665,14 +992,14 @@ struct MeWeekHappeningsView: View {
             .id(figure)
 
             Text(title)
-                .font(.caption.weight(.medium))
+                .font(.geist(.caption).weight(.medium))
                 .foregroundStyle(theme.textPrimary.opacity(0.92))
                 .lineLimit(2)
                 .minimumScaleFactor(0.72)
                 .multilineTextAlignment(.center)
 
             Text(days)
-                .font(.caption2)
+                .font(.geist(.caption2))
                 .foregroundStyle(theme.textSecondary.opacity(0.52))
         }
         .accessibilityElement(children: .ignore)

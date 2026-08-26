@@ -58,7 +58,7 @@ struct CanvasAtmosphereLabView: View {
     private var controls: some View {
         VStack(spacing: 14) {
             Toggle("Atmosphere", isOn: $showsAtmosphere)
-                .font(.subheadline)
+                .font(.geist(.subheadline))
                 .foregroundStyle(.white)
 
             slider("Steps", value: $steps, range: 0...20_000, step: 100,
@@ -70,7 +70,7 @@ struct CanvasAtmosphereLabView: View {
                    derived: String(format: "focus %.2f", atmosphere.focus))
 
             Text("far \(Int(atmosphere.blurRadius(for: .far)))  ·  mid \(Int(atmosphere.blurRadius(for: .mid)))  ·  near \(Int(atmosphere.blurRadius(for: .near)))")
-                .font(.caption2.monospacedDigit())
+                .font(.geist(.caption2).monospacedDigit())
                 .foregroundStyle(.white.opacity(0.5))
         }
         .padding(16)
@@ -90,11 +90,11 @@ struct CanvasAtmosphereLabView: View {
     ) -> some View {
         VStack(spacing: 2) {
             HStack {
-                Text(title).font(.caption)
+                Text(title).font(.geist(.caption))
                 Spacer()
-                Text(readout).font(.caption.monospacedDigit())
+                Text(readout).font(.geist(.caption).monospacedDigit())
                 Text(derived)
-                    .font(.caption2.monospacedDigit())
+                    .font(.geist(.caption2).monospacedDigit())
                     .foregroundStyle(.white.opacity(0.45))
             }
             .foregroundStyle(.white.opacity(0.85))

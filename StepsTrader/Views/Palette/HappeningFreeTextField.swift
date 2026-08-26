@@ -36,7 +36,7 @@ struct HappeningCreatorPanel: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Add a happening")
-                    .font(.title3.weight(.semibold))
+                    .font(.geist(.title3).weight(.semibold))
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityHint("This will replace one of the 10 shown happenings.")
                     .accessibilitySortPriority(
@@ -47,7 +47,7 @@ struct HappeningCreatorPanel: View {
                     )
 
                 Text("This will replace one of the 10 shown happenings.")
-                    .font(.subheadline)
+                    .font(.geist(.subheadline))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityHidden(true)
@@ -133,7 +133,7 @@ struct HappeningCreatorPanel: View {
             create()
         } label: {
             Text("Add to palette")
-                .font(.body.weight(.semibold))
+                .font(.geist(.body).weight(.semibold))
                 .foregroundStyle(
                     trimmed.isEmpty
                         ? Color.primary.opacity(
@@ -192,7 +192,7 @@ struct HappeningFreeTextField: View {
             )
             .foregroundStyle(.secondary)
         )
-        .font(.system(size: 14, weight: .medium))
+        .font(.geist(size: 14, weight: .medium))
         .foregroundStyle(.primary)
         .multilineTextAlignment(.center)
         .happeningPanelTextFieldStyle()

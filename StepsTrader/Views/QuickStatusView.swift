@@ -15,14 +15,14 @@ struct QuickStatusView: View {
             VStack(spacing: 30) {
                 VStack(spacing: 16) {
                     Text("📊")
-                        .font(.appRounded(60))
+                        .font(.geist(60))
 
                     Text(String(localized: "Quick Status", comment: "QuickStatus – title"))
-                        .font(.largeTitle)
+                        .font(.geist(.largeTitle))
                         .bold()
 
                     Text(String(localized: "My progress overview", comment: "QuickStatus – subtitle"))
-                        .font(.title3)
+                        .font(.geist(.title3))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
@@ -30,10 +30,10 @@ struct QuickStatusView: View {
                 VStack(spacing: 20) {
                     HStack {
                         Text(String(localized: "Steps today:", comment: "QuickStatus – steps label"))
-                            .font(.title2)
+                            .font(.geist(.title2))
                         Spacer()
                         Text("\(Int(model.stepsToday))")
-                            .font(.title)
+                            .font(.geist(.title))
                             .bold()
                             .foregroundStyle(.green)
                     }
@@ -42,10 +42,10 @@ struct QuickStatusView: View {
 
                     HStack {
                         Text(String(localized: "Entry balance:", comment: "QuickStatus – balance label"))
-                            .font(.title2)
+                            .font(.geist(.title2))
                         Spacer()
                         Text(String(localized: "\(model.userEconomyStore.totalStepsBalance) steps", comment: "QuickStatus – balance value"))
-                            .font(.title)
+                            .font(.geist(.title))
                             .bold()
                             .foregroundStyle(
                                 model.userEconomyStore.totalStepsBalance >= model.userEconomyStore.entryCostSteps ? .green : .red)
@@ -61,7 +61,7 @@ struct QuickStatusView: View {
                 .frame(maxWidth: .infinity, minHeight: 50)
                 .background(Color.blue)
                 .foregroundStyle(.white)
-                .font(.headline)
+                .font(.geist(.headline))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal, 20)
                 .accessibilityLabel(String(localized: "Close quick status", comment: "QuickStatus – close VoiceOver label"))

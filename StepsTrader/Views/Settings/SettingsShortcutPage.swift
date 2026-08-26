@@ -29,15 +29,15 @@ struct SettingsShortcutPage: View {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(spacing: 10) {
                             Image(systemName: "sparkles")
-                                .font(.title3)
+                                .font(.geist(.title3))
                                 .foregroundStyle(AppColors.brandAccent)
                             Text(String(localized: "Auto-wallpaper"))
-                                .font(.subheadline.weight(.semibold))
+                                .font(.geist(.subheadline).weight(.semibold))
                                 .foregroundStyle(theme.adaptivePrimaryText)
                         }
 
                         Text(String(localized: "Set today's energy canvas as your Lock Screen wallpaper automatically each time you close the app."))
-                            .font(.subheadline)
+                            .font(.geist(.subheadline))
                             .foregroundStyle(theme.adaptiveSecondaryText)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -57,13 +57,13 @@ struct SettingsShortcutPage: View {
                             }
                             HStack(alignment: .top, spacing: 12) {
                                 Text(step.number)
-                                    .font(.caption.weight(.bold).monospacedDigit())
+                                    .font(.geist(.caption).weight(.bold).monospacedDigit())
                                     .foregroundStyle(AppColors.brandAccent)
                                     .frame(width: 20, height: 20)
                                     .background(Circle().fill(AppColors.brandAccent.opacity(0.15)))
 
                                 Text(step.text)
-                                    .font(.subheadline)
+                                    .font(.geist(.subheadline))
                                     .foregroundStyle(theme.adaptiveSecondaryText)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
@@ -79,9 +79,9 @@ struct SettingsShortcutPage: View {
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "square.and.arrow.down")
-                                .font(.subheadline.weight(.semibold))
+                                .font(.geist(.subheadline).weight(.semibold))
                             Text(String(localized: "Get Wallpaper Shortcut"))
-                                .font(.subheadline.weight(.semibold))
+                                .font(.geist(.subheadline).weight(.semibold))
                         }
                         .foregroundStyle(AppAccentInk.primary)
                         .frame(maxWidth: .infinity)

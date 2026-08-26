@@ -435,7 +435,7 @@ struct MainTabView: View {
                 } label: {
                     ZStack(alignment: .topTrailing) {
                         Image(systemName: tab.icon)
-                            .font(.system(size: 20, weight: .regular))
+                            .font(.geist(size: 20, weight: .regular))
                             .symbolRenderingMode(.monochrome)
                             .frame(width: 24, height: 24)
 

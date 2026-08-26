@@ -89,7 +89,7 @@ struct HappeningShapeField: View {
                     : .opacity.combined(with: .scale(scale: 0.86))
             )
             Text(happening.localizedTitle())
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .font(.geist(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(AppColors.Night.textPrimary)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)

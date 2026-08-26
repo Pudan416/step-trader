@@ -39,7 +39,7 @@ struct ActivitySuggestionBanner: View {
                         }
                     } label: {
                         Text(String(localized: "+\(suggestions.count - 1) more", comment: "ActivitySuggestionBanner – show more"))
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.geist(size: 11, weight: .semibold))
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
@@ -55,7 +55,7 @@ struct ActivitySuggestionBanner: View {
                         }
                     } label: {
                         Text(String(localized: "Dismiss all"))
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.geist(size: 11, weight: .medium))
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
@@ -72,18 +72,18 @@ struct ActivitySuggestionBanner: View {
     private func suggestionCard(_ suggestion: ActivitySuggestion) -> some View {
         HStack(spacing: 10) {
             Image(systemName: suggestion.icon)
-                .font(.system(size: 18))
+                .font(.geist(size: 18))
                 .foregroundStyle(theme.accentColor)
                 .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(suggestion.title)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .font(.geist(size: 14, weight: .semibold, design: .rounded))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
 
                 Text(suggestion.subtitle)
-                    .font(.system(size: 12))
+                    .font(.geist(size: 12))
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -99,7 +99,7 @@ struct ActivitySuggestionBanner: View {
                 acceptHapticTick &+= 1
             } label: {
                 Text(String(localized: "Add"))
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.geist(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(theme.accentColor)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
@@ -115,7 +115,7 @@ struct ActivitySuggestionBanner: View {
                 }
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.geist(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .frame(width: 32, height: 32)
                     .liquidGlassControl(in: Circle())

@@ -12,15 +12,15 @@ struct DetailHeader: View {
             Button { dismiss() } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "chevron.left")
-                        .font(.subheadline.weight(.semibold))
+                        .font(.geist(.subheadline).weight(.semibold))
                     Text(String(localized: "Back", comment: "SettingsComponents – back button label"))
-                        .font(.subheadline)
+                        .font(.geist(.subheadline))
                 }
                 .foregroundStyle(theme.adaptivePrimaryText)
             }
             Spacer()
             Text(title)
-                .font(.subheadline.weight(.semibold))
+                .font(.geist(.subheadline).weight(.semibold))
                 .foregroundStyle(theme.adaptivePrimaryText)
             Spacer()
             Color.clear.frame(width: 50, height: 1)
@@ -83,11 +83,11 @@ struct DetailInfoRow: View {
     var body: some View {
         HStack {
             Text(label)
-                .font(.subheadline)
+                .font(.geist(.subheadline))
                 .foregroundStyle(theme.adaptivePrimaryText)
             Spacer()
             Text(value)
-                .font(.subheadline)
+                .font(.geist(.subheadline))
                 .foregroundStyle(theme.adaptiveSecondaryText)
         }
         .padding(.horizontal, 14)
@@ -103,7 +103,7 @@ struct SettingsSectionLabel: View {
 
     var body: some View {
         Text(text.uppercased())
-            .font(.caption2.weight(.semibold))
+            .font(.geist(.caption2).weight(.semibold))
             .tracking(3)
             .foregroundStyle(theme.adaptiveMutedText)
     }
@@ -122,16 +122,16 @@ struct SettingsToggleRow: View {
         Toggle(isOn: $isOn) {
             HStack(spacing: 12) {
                 Image(systemName: icon)
-                    .font(.system(size: 15))
+                    .font(.geist(size: 15))
                     .foregroundStyle(theme.adaptiveSecondaryText)
                     .frame(width: 24)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.subheadline)
+                        .font(.geist(.subheadline))
                         .foregroundStyle(theme.adaptivePrimaryText)
                     if let subtitle {
                         Text(subtitle)
-                            .font(.caption)
+                            .font(.geist(.caption))
                             .foregroundStyle(theme.adaptiveSecondaryText)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -155,20 +155,20 @@ struct SettingsNavRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 15))
+                .font(.geist(size: 15))
                 .foregroundStyle(theme.adaptiveSecondaryText)
                 .frame(width: 24)
             Text(title)
-                .font(.subheadline)
+                .font(.geist(.subheadline))
                 .foregroundStyle(theme.adaptivePrimaryText)
             Spacer()
             if let value {
                 Text(value)
-                    .font(.subheadline)
+                    .font(.geist(.subheadline))
                     .foregroundStyle(theme.adaptiveSecondaryText)
             }
             Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.geist(size: 12, weight: .semibold))
                 .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
         }
         .padding(.horizontal, 14)
@@ -189,20 +189,20 @@ struct SettingsLinkRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 15))
+                .font(.geist(size: 15))
                 .foregroundStyle(theme.adaptiveSecondaryText)
                 .frame(width: 24)
             Text(title)
-                .font(.subheadline)
+                .font(.geist(.subheadline))
                 .foregroundStyle(theme.adaptivePrimaryText)
             Spacer()
             if let detail {
                 Text(detail)
-                    .font(.caption)
+                    .font(.geist(.caption))
                     .foregroundStyle(theme.adaptiveSecondaryText)
             }
             Image(systemName: trailingIcon)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.geist(size: 10, weight: .semibold))
                 .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
         }
         .padding(.horizontal, 14)
@@ -219,7 +219,7 @@ struct SettingsFooter: View {
 
     var body: some View {
         Text(text)
-            .font(.caption)
+            .font(.geist(.caption))
             .foregroundStyle(theme.adaptiveSecondaryText)
             .padding(.horizontal, 4)
     }

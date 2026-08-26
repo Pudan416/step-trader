@@ -124,7 +124,7 @@ struct CanvasFullBleedPoster<Content: View>: View {
                     sleepHours.map { "\($0.formatted(.number.precision(.fractionLength(1)))) h. sleep" }
                 ].compactMap { $0 }
                 Text(parts.joined(separator: " / "))
-                    .font(.system(size: fontSize, weight: .regular))
+                    .font(.geist(size: fontSize, weight: .regular))
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
                     .lineLimit(1)
@@ -137,7 +137,7 @@ struct CanvasFullBleedPoster<Content: View>: View {
                 ].compactMap { $0 }
                 if !parts.isEmpty {
                     Text(parts.joined(separator: " / "))
-                        .font(.system(size: fontSize, weight: .regular))
+                        .font(.geist(size: fontSize, weight: .regular))
                         .foregroundStyle(.white)
                         .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
                         .lineLimit(1)
@@ -151,12 +151,12 @@ struct CanvasFullBleedPoster<Content: View>: View {
     private func taglineView(fontSize: CGFloat) -> some View {
         VStack(alignment: .trailing, spacing: 1) {
             Text("«Nowhere» is an iOS app")
-                .font(.system(size: fontSize, weight: .regular))
+                .font(.geist(size: fontSize, weight: .regular))
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
                 .lineLimit(1)
             Text("by Kosta Pudan")
-                .font(.system(size: fontSize, weight: .medium, design: .rounded))
+                .font(.geist(size: fontSize, weight: .medium, design: .rounded))
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
                 .lineLimit(1)

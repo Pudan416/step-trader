@@ -60,17 +60,17 @@ struct CanvasEnergyStatusPill: View {
     private var numbers: some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             Text("\(status.remaining)")
-                .font(.system(size: 20, weight: .semibold))
+                .font(.geist(size: 20, weight: .semibold))
                 .monospacedDigit()
                 .foregroundStyle(AppColors.brandAccent)
 
             // Not localizable copy — a separator between two numbers.
             Text(verbatim: "/")
-                .font(.system(size: 17, weight: .medium))
+                .font(.geist(size: 17, weight: .medium))
                 .foregroundStyle(textPrimary.opacity(0.65))
 
             Text("\(status.earned)")
-                .font(.system(size: 17, weight: .semibold))
+                .font(.geist(size: 17, weight: .semibold))
                 .monospacedDigit()
                 .foregroundStyle(textPrimary)
 
@@ -79,7 +79,7 @@ struct CanvasEnergyStatusPill: View {
             // The day's ceiling. Static, and quieter than the two numbers that
             // move, so it reads as the scale rather than as a third reading.
             Text("\(status.maximum)")
-                .font(.system(size: 13, weight: .medium))
+                .font(.geist(size: 13, weight: .medium))
                 .monospacedDigit()
                 .foregroundStyle(textPrimary.opacity(0.45))
         }

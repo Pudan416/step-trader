@@ -125,7 +125,7 @@ struct FeedAddTileView: View {
                     .fill(Color.white.opacity(0.13))
                     .overlay(Circle().strokeBorder(.white.opacity(0.14), lineWidth: 0.5))
                 Image(systemName: "plus")
-                    .font(.system(size: 28, weight: .light))
+                    .font(.geist(size: 28, weight: .light))
                     .foregroundStyle(AppColors.Night.textPrimary)
             }
             .frame(width: FeedTileView.diameter, height: FeedTileView.diameter)
@@ -303,14 +303,14 @@ struct FeedRowView: View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 5) {
                 Text(displayName)
-                    .font(.system(size: 19, weight: .semibold, design: .rounded))
+                    .font(.geist(size: 19, weight: .semibold, design: .rounded))
                     .lineLimit(1)
 
                 HStack(spacing: 6) {
                     Image(systemName: remainingMinutes == nil ? "lock.fill" : "clock.fill")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.geist(size: 12, weight: .semibold))
                     Text(statusText)
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .font(.geist(size: 14, weight: .medium, design: .rounded))
                         .monospacedDigit()
                         .lineLimit(1)
                 }
@@ -342,7 +342,7 @@ struct FeedRowView: View {
             }
         } label: {
             Image(systemName: "ellipsis")
-                .font(.system(size: 15, weight: .bold))
+                .font(.geist(size: 15, weight: .bold))
                 .foregroundStyle(.white)
                 .frame(width: 44, height: 44)
                 .background(Circle().fill(.ultraThinMaterial))
@@ -391,9 +391,9 @@ struct FeedDurationSheet: View {
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(displayName)
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .font(.geist(size: 28, weight: .bold, design: .rounded))
                     Text(String(localized: "Choose how long to unlock"))
-                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                        .font(.geist(size: 15, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
 
@@ -429,10 +429,10 @@ struct FeedDurationSheet: View {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(window.displayName)
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .font(.geist(size: 18, weight: .semibold, design: .rounded))
                     if !canAfford {
                         Text(String(localized: "Not enough colors"))
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .font(.geist(size: 12, weight: .medium, design: .rounded))
                             .opacity(0.65)
                     }
                 }
@@ -444,7 +444,7 @@ struct FeedDurationSheet: View {
                     Text("\(cost)")
                         .monospacedDigit()
                 }
-                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .font(.geist(size: 16, weight: .bold, design: .rounded))
             }
             .foregroundStyle(canAfford ? Color.black.opacity(0.82) : Color.primary)
             .padding(.horizontal, 18)

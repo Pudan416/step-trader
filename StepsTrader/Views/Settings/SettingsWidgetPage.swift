@@ -68,7 +68,7 @@ struct SettingsWidgetPage: View {
                                         )
                                         .overlay {
                                             Image(systemName: "photo")
-                                                .font(.system(size: 14, weight: .light))
+                                                .font(.geist(size: 14, weight: .light))
                                                 .foregroundStyle(.white.opacity(0.5))
                                         }
                                 }
@@ -91,11 +91,11 @@ struct SettingsWidgetPage: View {
                     // MARK: - Configuration Hint
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: "hand.tap")
-                            .font(.system(size: 15))
+                            .font(.geist(size: 15))
                             .foregroundStyle(theme.adaptiveSecondaryText)
                             .frame(width: 24)
                         Text(String(localized: "Long-press the widget → Edit to choose which group to display."))
-                            .font(.caption)
+                            .font(.geist(.caption))
                             .foregroundStyle(theme.adaptiveSecondaryText)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -122,15 +122,15 @@ struct SettingsWidgetPage: View {
     private var wallpaperStatus: some View {
         if wallpaperThumbnail != nil {
             Label(String(localized: "Synced with wallpaper shortcut"), systemImage: "checkmark.circle.fill")
-                .font(.caption)
+                .font(.geist(.caption))
                 .foregroundStyle(.green)
         } else {
             VStack(alignment: .leading, spacing: 4) {
                 Label(String(localized: "Set up the wallpaper shortcut first"), systemImage: "arrow.right.circle")
-                    .font(.caption)
+                    .font(.geist(.caption))
                     .foregroundStyle(AppColors.brandAccent)
                 Text(String(localized: "Updates automatically each time the wallpaper shortcut runs."))
-                    .font(.caption2)
+                    .font(.geist(.caption2))
                     .foregroundStyle(theme.adaptiveSecondaryText)
             }
         }
@@ -165,7 +165,7 @@ struct SettingsWidgetPage: View {
                     }
 
                 Text(title)
-                    .font(.caption.weight(isSelected ? .semibold : .regular))
+                    .font(.geist(.caption).weight(isSelected ? .semibold : .regular))
                     .foregroundStyle(isSelected ? .primary : .secondary)
             }
         }

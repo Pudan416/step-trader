@@ -31,7 +31,7 @@ struct StepGoalDrumPicker: View {
                 )
 
                 Text(",")
-                    .font(.system(size: 24, weight: .medium, design: .rounded))
+                    .font(.geist(size: 24, weight: .medium, design: .rounded))
                     .foregroundStyle(theme.adaptiveMutedText)
                     .padding(.top, 16)
 
@@ -107,7 +107,7 @@ private struct DrumDigitColumn: View {
 
     private func digitTile(active: Bool) -> some View {
         Text("\(digit)")
-            .font(.system(size: active ? 30 : 26, weight: active ? .bold : .semibold, design: .rounded))
+            .font(.geist(size: active ? 30 : 26, weight: active ? .bold : .semibold, design: .rounded))
             .monospacedDigit()
             .foregroundStyle(active ? theme.adaptivePrimaryText : theme.adaptiveMutedText)
             .offset(y: active ? dragOffset : 0)
@@ -140,7 +140,7 @@ private struct DrumDigitColumn: View {
             lightHapticTick &+= 1
         } label: {
             Image(systemName: isUp ? "chevron.up" : "chevron.down")
-                .font(.system(size: 10, weight: .bold))
+                .font(.geist(size: 10, weight: .bold))
                 .foregroundStyle(canMove ? theme.adaptiveSecondaryText : theme.adaptiveMutedText.opacity(0.2))
                 .frame(width: 44, height: 24)
                 .contentShape(Rectangle())

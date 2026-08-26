@@ -38,7 +38,7 @@ struct CanvasEditingDock: View {
     private var doneControl: some View {
         Button(action: onDone) {
             Text(String(localized: "Done", comment: "Canvas editing – finish editing"))
-                .font(.system(size: 15, weight: .semibold))
+                .font(.geist(size: 15, weight: .semibold))
                 .foregroundStyle(ink)
                 .padding(.horizontal, 20)
                 .frame(minHeight: 44)
@@ -53,7 +53,7 @@ struct CanvasEditingDock: View {
     private var remixControl: some View {
         Button(action: onRemix) {
             Text(String(localized: "Remix", comment: "Canvas editing – restyle every element"))
-                .font(.system(size: 16, weight: .semibold))
+                .font(.geist(size: 16, weight: .semibold))
                 .foregroundStyle(AppAccentInk.primary)
                 .padding(.horizontal, 28)
                 .frame(minHeight: 56)
@@ -66,7 +66,7 @@ struct CanvasEditingDock: View {
 
     private var dragHint: some View {
         Text(String(localized: "Drag elements to move", comment: "Canvas editing – one-time coach text"))
-            .font(.system(size: 14, weight: .medium, design: .rounded))
+            .font(.geist(size: 14, weight: .medium, design: .rounded))
             .foregroundStyle(ink)
             .padding(.horizontal, 16)
             .padding(.vertical, 10)

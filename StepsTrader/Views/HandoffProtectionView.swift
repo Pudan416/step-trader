@@ -14,17 +14,17 @@ struct HandoffProtectionView: View {
             VStack(spacing: 30) {
                 VStack(spacing: 16) {
                     Text("🛡️")
-                        .font(.appRounded(60))
+                        .font(.geist(60))
                         .accessibilityHidden(true)
 
                     Text(String(localized: "Protection Screen"))
-                        .font(.largeTitle)
+                        .font(.geist(.largeTitle))
                         .bold()
                         .foregroundStyle(.white)
                         .accessibilityAddTraits(.isHeader)
 
                     Text(String(localized: "You're about to open \(token.targetAppName)"))
-                        .font(.title2)
+                        .font(.geist(.title2))
                         .foregroundStyle(.white.opacity(0.8))
                         .multilineTextAlignment(.center)
                 }
@@ -40,7 +40,7 @@ struct HandoffProtectionView: View {
                     }()
 
                     Text(String(localized: "Entries left today: \(opensLeftText)"))
-                        .font(.body)
+                        .font(.geist(.body))
                         .foregroundStyle(.white.opacity(0.7))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 20)
@@ -75,7 +75,7 @@ struct HandoffProtectionView: View {
         .frame(maxWidth: .infinity, minHeight: 50)
         .background(Color.gray.opacity(0.3))
         .foregroundStyle(.white)
-        .font(.headline)
+        .font(.geist(.headline))
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .accessibilityLabel(String(localized: "Cancel opening \(token.targetAppName)", comment: "Handoff – cancel button accessibility"))
     }
@@ -88,7 +88,7 @@ struct HandoffProtectionView: View {
         .frame(maxWidth: .infinity, minHeight: 50)
         .background(Color.blue)
         .foregroundStyle(.white)
-        .font(.headline)
+        .font(.geist(.headline))
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .accessibilityLabel(String(localized: "Open \(token.targetAppName)", comment: "Handoff – open button accessibility"))
         .accessibilityHint(String(localized: "Opens the app \(token.targetAppName) after confirming access", comment: "Handoff – open button accessibility hint"))

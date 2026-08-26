@@ -46,7 +46,7 @@ struct SettingsSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
                     Text(String(localized: "Settings", comment: "Settings page title"))
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .font(.geist(size: 28, weight: .bold, design: .rounded))
                         .foregroundStyle(theme.adaptivePrimaryText)
                         .padding(.top, 8)
 
@@ -146,7 +146,7 @@ struct SettingsSheet: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(header.uppercased())
-                .font(.caption2.weight(.semibold))
+                .font(.geist(.caption2).weight(.semibold))
                 .tracking(3)
                 .foregroundStyle(theme.adaptiveMutedText)
                 .padding(.leading, 2)
@@ -180,7 +180,7 @@ struct SettingsSheet: View {
                 Spacer()
                 if model.hasPermissionIssues {
                     Text(String(localized: "Action needed", comment: "Permissions warning label").uppercased())
-                        .font(.caption2.weight(.semibold))
+                        .font(.geist(.caption2).weight(.semibold))
                         .tracking(2)
                         .foregroundStyle(.orange)
                 }
@@ -214,20 +214,20 @@ struct SettingsSheet: View {
 
     private func rowIcon(_ name: String) -> some View {
         Image(systemName: name)
-            .font(.system(size: 15))
+            .font(.geist(size: 15))
             .foregroundStyle(theme.adaptiveSecondaryText)
             .frame(width: 24)
     }
 
     private func rowTitle(_ text: String) -> some View {
         Text(text)
-            .font(.subheadline)
+            .font(.geist(.subheadline))
             .foregroundStyle(theme.adaptivePrimaryText)
     }
 
     private var rowChevron: some View {
         Image(systemName: "chevron.right")
-            .font(.system(size: 12, weight: .semibold))
+            .font(.geist(size: 12, weight: .semibold))
             .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
     }
 
@@ -247,7 +247,7 @@ struct SettingsSheet: View {
                 HStack(spacing: 12) {
                     accountAvatar(user: user)
                     Text(user.displayName)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.geist(.subheadline).weight(.semibold))
                         .foregroundStyle(theme.adaptivePrimaryText)
                     Spacer()
                     rowChevron
@@ -260,11 +260,11 @@ struct SettingsSheet: View {
             Button { showLogin = true } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "apple.logo")
-                        .font(.system(size: 16))
+                        .font(.geist(size: 16))
                         .foregroundStyle(theme.adaptivePrimaryText)
                         .frame(width: 24)
                     Text(String(localized: "Sign in with Apple"))
-                        .font(.subheadline.weight(.medium))
+                        .font(.geist(.subheadline).weight(.medium))
                         .foregroundStyle(theme.adaptivePrimaryText)
                     Spacer()
                 }
@@ -288,11 +288,11 @@ struct SettingsSheet: View {
     private var versionFooter: some View {
         VStack(spacing: 4) {
             Text(String(localized: "You are not nowhere. You are now here.", comment: "App philosophy tagline"))
-                .font(.caption)
+                .font(.geist(.caption))
                 .italic()
                 .foregroundStyle(theme.adaptiveMutedText)
             Text("v\(appVersion) (\(buildNumber))")
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .font(.geist(size: 11, weight: .medium, design: .monospaced))
                 .foregroundStyle(theme.adaptiveMutedText.opacity(0.5))
         }
         .frame(maxWidth: .infinity)
@@ -352,7 +352,7 @@ struct SettingsSheet: View {
         .sheet(isPresented: $showShieldActionLogs) {
             NavigationStack {
                 List(shieldActionLogs, id: \.self) { log in
-                    Text(log).font(.caption2).textSelection(.enabled)
+                    Text(log).font(.geist(.caption2)).textSelection(.enabled)
                 }
                 .navigationTitle("ShieldAction Logs")
                 .navigationBarTitleDisplayMode(.inline)
@@ -535,12 +535,12 @@ struct SettingsSheet: View {
         HStack(spacing: 12) {
             rowIcon(icon)
             Text(text)
-                .font(.subheadline)
+                .font(.geist(.subheadline))
                 .foregroundStyle(highlight ? .green : theme.adaptivePrimaryText)
             Spacer()
             if let trailing {
                 Image(systemName: trailing)
-                    .font(.caption2)
+                    .font(.geist(.caption2))
                     .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
             }
         }
@@ -565,7 +565,7 @@ struct SettingsSheet: View {
                     .fill(theme.adaptivePrimaryText.opacity(0.08))
                     .frame(width: 40, height: 40)
                 Text(String(user.displayName.prefix(2)).uppercased())
-                    .font(.caption.weight(.bold))
+                    .font(.geist(.caption).weight(.bold))
                     .foregroundStyle(theme.adaptivePrimaryText)
             }
         }

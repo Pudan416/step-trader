@@ -4,6 +4,8 @@
 <dict>
 	<key>UIAppFonts</key>
 	<array>
+		<string>Geist-Medium.ttf</string>
+		<string>GeistMono-Medium.ttf</string>
 		<string>Unbounded[wght].ttf</string>
 		<string>Unbounded-Black.ttf</string>
 	</array>

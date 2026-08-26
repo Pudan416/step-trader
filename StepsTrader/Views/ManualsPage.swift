@@ -78,14 +78,14 @@ struct ManualsPage: View {
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(note.topic)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .font(.geist(size: 13, weight: .medium, design: .rounded))
                         .tracking(1.5)
                         .textCase(.uppercase)
                         .foregroundStyle(theme.textSecondary.opacity(0.5))
                         .padding(.bottom, 20)
 
                     Text(note.body)
-                        .font(.system(size: 20, weight: .light, design: .rounded))
+                        .font(.geist(size: 20, weight: .light, design: .rounded))
                         .italic()
                         .foregroundStyle(theme.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -130,9 +130,9 @@ struct ManualsPage: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "list.bullet")
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.geist(size: 13, weight: .medium))
                     Text(String(localized: "all", comment: "ManualsPage – filter showing all notes"))
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.geist(size: 13, weight: .medium))
 
                     if readTracker.unreadCount > 0 {
                         Circle()
@@ -179,11 +179,11 @@ struct AllNotesListView: View {
 
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(note.topic)
-                                        .font(.system(size: 15, weight: readTracker.isRead(note) ? .regular : .medium))
+                                        .font(.geist(size: 15, weight: readTracker.isRead(note) ? .regular : .medium))
                                         .foregroundStyle(.primary)
 
                                     Text(note.body)
-                                        .font(.system(size: 13, weight: .light))
+                                        .font(.geist(size: 13, weight: .light))
                                         .italic()
                                         .foregroundStyle(.secondary)
                                         .lineLimit(2)
@@ -192,7 +192,7 @@ struct AllNotesListView: View {
                                 Spacer(minLength: 0)
 
                                 Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .light))
+                                    .font(.geist(size: 12, weight: .light))
                                     .foregroundStyle(.secondary.opacity(0.4))
                             }
                             .padding(.horizontal, 16)
@@ -218,7 +218,7 @@ struct AllNotesListView: View {
                     Button(String(localized: "Done", comment: "ManualsPage – dismiss button")) {
                         dismiss()
                     }
-                    .font(.system(size: 15, weight: .regular))
+                    .font(.geist(size: 15, weight: .regular))
                 }
             }
         }

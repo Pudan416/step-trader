@@ -20,15 +20,15 @@ struct DayEndSettingsView: View {
                         Button { dismiss() } label: {
                             HStack(spacing: 4) {
                                 Image(systemName: "chevron.left")
-                                    .font(.subheadline.weight(.semibold))
+                                    .font(.geist(.subheadline).weight(.semibold))
                                 Text(String(localized: "Back"))
-                                    .font(.subheadline)
+                                    .font(.geist(.subheadline))
                             }
                             .foregroundStyle(.primary)
                         }
                         Spacer()
                         Text(String(localized: "Day Reset", comment: "Navigation title"))
-                            .font(.subheadline.weight(.semibold))
+                            .font(.geist(.subheadline).weight(.semibold))
                             .foregroundStyle(.primary)
                         Spacer()
                         Color.clear.frame(width: 50, height: 1)
@@ -39,12 +39,12 @@ struct DayEndSettingsView: View {
                     VStack(spacing: 10) {
                         HStack(spacing: 8) {
                             Image(systemName: "clock.arrow.circlepath")
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(.geist(size: 14, weight: .semibold))
                                 .foregroundStyle(Color.orange)
                                 .frame(width: 28, height: 28)
                                 .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
                             Text(String(localized: "Day Resets At"))
-                                .font(.subheadline.weight(.semibold))
+                                .font(.geist(.subheadline).weight(.semibold))
                                 .foregroundStyle(theme.adaptivePrimaryText)
                             Spacer()
                         }
@@ -60,7 +60,7 @@ struct DayEndSettingsView: View {
                     .glassCard()
 
                     Text(String(localized: "Your canvas and colors reset at this time each day."))
-                        .font(.caption)
+                        .font(.geist(.caption))
                         .foregroundStyle(theme.adaptiveSecondaryText)
                         .padding(.horizontal, 4)
                 }

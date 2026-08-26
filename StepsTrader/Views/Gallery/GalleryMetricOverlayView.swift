@@ -152,14 +152,14 @@ struct GalleryMetricOverlayView: View {
     private var header: some View {
         HStack(spacing: 10) {
             Text(overlayTitle(for: kind))
-                .font(.title3.weight(.semibold))
+                .font(.geist(.title3).weight(.semibold))
                 .foregroundStyle(.white)
             Spacer(minLength: 8)
             Button {
                 onClose()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.geist(size: 13, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.85))
                     .frame(width: 30, height: 30)
                     .background(.white.opacity(0.12), in: Circle())
@@ -179,13 +179,13 @@ struct GalleryMetricOverlayView: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 Text(explanation(for: kind))
-                    .font(.footnote)
+                    .font(.geist(.footnote))
                     .foregroundStyle(.white.opacity(0.8))
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(String(localized: "You can change your daily goals in Settings.",
                             comment: "MetricOverlay – where to adjust goals"))
-                    .font(.caption)
+                    .font(.geist(.caption))
                     .foregroundStyle(.white.opacity(0.55))
 
                 Link(destination: researchURL(for: kind)) {
@@ -194,7 +194,7 @@ struct GalleryMetricOverlayView: View {
                                     comment: "MetricOverlay – link to the source study"))
                         Image(systemName: "arrow.up.right")
                     }
-                    .font(.caption.weight(.semibold))
+                    .font(.geist(.caption).weight(.semibold))
                     .foregroundStyle(AppColors.brandAccent)
                 }
                 .accessibilityIdentifier("metric_research_link_\(kind.id)")
@@ -232,13 +232,13 @@ struct GalleryMetricOverlayView: View {
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("\(total)")
-                    .font(.title2.bold())
+                    .font(.geist(.title2).bold())
                 Text("/\(maxPts)")
-                    .font(.subheadline)
+                    .font(.geist(.subheadline))
                     .foregroundStyle(.secondary)
                 Spacer()
                 Text(String(localized: "colors", comment: "Category overlay – unit"))
-                    .font(.caption)
+                    .font(.geist(.caption))
                     .foregroundStyle(.secondary)
             }
 
@@ -257,13 +257,13 @@ struct GalleryMetricOverlayView: View {
 
             if titles.isEmpty {
                 Text(String(localized: "No happenings yet", comment: "Happenings overlay – empty hint"))
-                    .font(.caption)
+                    .font(.geist(.caption))
                     .foregroundStyle(.secondary)
             } else {
                 FlowLayout(spacing: 6) {
                     ForEach(titles, id: \.self) { title in
                         Text(title)
-                            .font(.caption.weight(.medium))
+                            .font(.geist(.caption).weight(.medium))
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
                             .background(Capsule().fill(accent.opacity(0.12)))
@@ -279,22 +279,22 @@ struct GalleryMetricOverlayView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(formatCompactNumber(Int(model.healthStore.stepsToday)))
-                        .font(.title2.bold())
+                        .font(.geist(.title2).bold())
                     Text(String(localized: "steps today"))
-                        .font(.caption)
+                        .font(.geist(.caption))
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("\(model.stepsPointsToday)/\(EnergyDefaults.stepsMaxPoints)")
-                        .font(.title3.bold())
+                        .font(.geist(.title3).bold())
                     Text(String(localized: "colors"))
-                        .font(.caption)
+                        .font(.geist(.caption))
                         .foregroundStyle(.secondary)
                 }
             }
             Text(String(localized: "Target: \(formatCompactNumber(Int(userStepsTarget))) steps"))
-                .font(.caption)
+                .font(.geist(.caption))
                 .foregroundStyle(.secondary)
         }
     }
@@ -304,35 +304,35 @@ struct GalleryMetricOverlayView: View {
             if model.isSleepAssumed {
                 HStack {
                     Text(String(localized: "Sleep: \(EnergyDefaults.assumedSleepPoints) colors", comment: "Sleep overlay – assumed sleep header"))
-                        .font(.title3.bold())
+                        .font(.geist(.title3).bold())
                     Spacer()
                     Image(systemName: "gift.fill")
                         .foregroundStyle(AppColors.brandAccent)
                 }
                 Text(String(localized: "sleep_assumed_message", comment: "Sleep overlay – warm message when no sleep data"))
-                    .font(.callout)
+                    .font(.geist(.callout))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("\(model.healthStore.dailySleepHours.formatted(.number.precision(.fractionLength(1))))h")
-                            .font(.title2.bold())
+                            .font(.geist(.title2).bold())
                         Text(String(localized: "hours slept"))
-                            .font(.caption)
+                            .font(.geist(.caption))
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 2) {
                         Text("\(model.sleepPointsToday)/\(EnergyDefaults.sleepMaxPoints)")
-                            .font(.title3.bold())
+                            .font(.geist(.title3).bold())
                         Text(String(localized: "colors"))
-                            .font(.caption)
+                            .font(.geist(.caption))
                             .foregroundStyle(.secondary)
                     }
                 }
                 Text(String(localized: "Target: \(userSleepTarget.formatted(.number.precision(.fractionLength(1))))h"))
-                    .font(.caption)
+                    .font(.geist(.caption))
                     .foregroundStyle(.secondary)
             }
         }
