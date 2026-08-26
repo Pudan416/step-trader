@@ -158,7 +158,7 @@ struct MeCalendarStrip: View {
                             onTap: { onSelect(key) }
                         )
                         .frame(width: tileWidth, height: tileHeight)
-                        .clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .id(key)
                     }
                 }
@@ -251,6 +251,8 @@ struct DayHistoryTile: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .buttonStyle(ScaleButtonStyle())
         .accessibilityIdentifier("me_calendar_day_\(dayKey)")
         .accessibilityLabel(accessibilityLabel)
@@ -381,6 +383,8 @@ struct DayHistoryTile: View {
 struct MeFullCalendarView: View {
     @ObservedObject var model: AppModel
     let pastDays: [String: PastDaySnapshot]
+    let recentHealthByDay: [String: MeDayHealth]
+    let unlockRecords: [MePosterUnlockRecord]
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
@@ -388,9 +392,16 @@ struct MeFullCalendarView: View {
     @State private var visibleMonth: Date
     @State private var selectedDayKey: String?
 
-    init(model: AppModel, pastDays: [String: PastDaySnapshot]) {
+    init(
+        model: AppModel,
+        pastDays: [String: PastDaySnapshot],
+        recentHealthByDay: [String: MeDayHealth] = [:],
+        unlockRecords: [MePosterUnlockRecord] = []
+    ) {
         self.model = model
         self.pastDays = pastDays
+        self.recentHealthByDay = recentHealthByDay
+        self.unlockRecords = unlockRecords
         let boundary = AppModel.storedDayEnd()
         _visibleMonth = State(initialValue: MeCalendarTimeline.logicalToday(
             dayEndHour: boundary.hour,
@@ -458,7 +469,13 @@ struct MeFullCalendarView: View {
             get: { selectedDayKey.map { MeDayKeyWrapper(key: $0) } },
             set: { selectedDayKey = $0?.key }
         )) { wrapper in
-            DayCanvasViewerView(model: model, dayKey: wrapper.key)
+            DayCanvasViewerView(
+                model: model,
+                dayKey: wrapper.key,
+                snapshot: pastDays[wrapper.key],
+                health: recentHealthByDay[wrapper.key],
+                unlockRecords: unlockRecords
+            )
         }
     }
 

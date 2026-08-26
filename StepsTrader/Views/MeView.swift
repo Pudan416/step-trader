@@ -26,9 +26,11 @@ struct MeView: View {
     @State private var cachedTxNames: [String: String] = [:]
     @State private var unlockRecords: [MePosterUnlockRecord] = []
     @State private var selectedPosterCanShare = false
+    @State private var posterShareAvailability: [String: Bool] = [:]
     @State private var shareRequestID = 0
-    @State private var posterPagingDirection: MePosterPaging.Direction = .newer
-    @GestureState private var posterDragTranslation: CGFloat = 0
+    @State private var shareRequestedDayKey: String?
+    @State private var posterCarouselWidth: CGFloat = 350
+    @State private var posterScrollDayKey: String? = AppModel.dayKey(for: .now)
     @State private var loadTask: Task<Void, Never>?
     @State private var serverFetchTask: Task<Void, Never>?
 
@@ -97,7 +99,9 @@ struct MeView: View {
             showProfileEditor: $showProfileEditor,
             showFullCalendar: $showFullCalendar,
             selectedDayKey: $selectedDayKey,
-            pastDays: pastDays
+            pastDays: pastDays,
+            recentHealthByDay: recentHealthByDay,
+            unlockRecords: unlockRecords
         )
     }
 
@@ -114,27 +118,7 @@ struct MeView: View {
             greetingRow
                 .padding(.top, useTightMeLayout ? 14 : 22)
 
-            ZStack {
-                MeSelectedDayPoster(
-                    model: model,
-                    dayKey: selectedPosterDayKey,
-                    snapshot: pastDays[selectedPosterDayKey],
-                    health: recentHealthByDay[selectedPosterDayKey],
-                    unlockRecords: unlockRecords,
-                    shareRequestID: shareRequestID,
-                    onShareAvailabilityChange: { selectedPosterCanShare = $0 }
-                )
-                .id(selectedPosterDayKey)
-                .offset(x: posterDragTranslation)
-                .transition(posterPagingTransition)
-            }
-            .clipped()
-            // Keep the seven-day gallery rail clear of the floating tab bar on
-            // shorter iPhones. Because this is an inset rather than a fixed
-            // width, the poster still grows naturally on Pro Max layouts.
-            .padding(.horizontal, 21)
-            .contentShape(Rectangle())
-            .simultaneousGesture(posterPagingGesture)
+            posterCarousel
 
             calendarSection
         }
@@ -154,82 +138,71 @@ struct MeView: View {
         )
     }
 
-    private var posterPagingGesture: some Gesture {
-        DragGesture(minimumDistance: 20)
-            .updating($posterDragTranslation) { value, translation, _ in
-                let horizontal = value.translation.width
-                let vertical = value.translation.height
-                guard abs(horizontal) > abs(vertical) else { return }
-                translation = MePosterPagingMotion.permittedDragTranslation(
-                    horizontal,
-                    from: selectedPosterDayKey,
-                    dayKeys: posterDayKeys,
-                    reduceMotion: reduceMotion
-                )
-            }
-            .onEnded { value in
-                let horizontal = value.predictedEndTranslation.width
-                let vertical = value.predictedEndTranslation.height
-                guard abs(horizontal) > abs(vertical), abs(horizontal) >= 44 else { return }
-
-                let direction: MePosterPaging.Direction = horizontal < 0 ? .newer : .older
-                guard let destination = MePosterPaging.destination(
-                    from: selectedPosterDayKey,
-                    direction: direction,
-                    dayKeys: posterDayKeys
-                ) else { return }
-                selectPosterDay(destination, direction: direction)
-            }
-    }
-
     private var posterDayKeys: [String] {
         cachedDayKeys.isEmpty ? Self.computeDayKeys() : cachedDayKeys
     }
 
-    private var posterPagingTransition: AnyTransition {
-        let spec = MePosterPagingMotion.transition(
-            for: posterPagingDirection,
-            reduceMotion: reduceMotion
-        )
-        guard let insertion = spec.insertionEdge,
-              let removal = spec.removalEdge
-        else { return .opacity }
+    private var posterCarousel: some View {
+        let cardWidth = max(1, posterCarouselWidth - 42)
+        let cardHeight = cardWidth * 842 / 604
 
-        return .asymmetric(
-            insertion: .move(edge: swiftUIEdge(insertion)),
-            removal: .move(edge: swiftUIEdge(removal))
-        )
-    }
-
-    private func swiftUIEdge(_ edge: MePosterPagingMotion.HorizontalEdge) -> Edge {
-        switch edge {
-        case .leading: .leading
-        case .trailing: .trailing
+        return ScrollView(.horizontal) {
+            LazyHStack(spacing: 12) {
+                ForEach(posterDayKeys, id: \.self) { key in
+                    MeSelectedDayPoster(
+                        model: model,
+                        dayKey: key,
+                        snapshot: pastDays[key],
+                        health: recentHealthByDay[key],
+                        unlockRecords: unlockRecords,
+                        shareRequestID: shareRequestID,
+                        handlesShareRequest: shareRequestedDayKey == key,
+                        onShareAvailabilityChange: { available in
+                            posterShareAvailability[key] = available
+                            if selectedPosterDayKey == key {
+                                selectedPosterCanShare = available
+                            }
+                        }
+                    )
+                    .frame(width: cardWidth, height: cardHeight)
+                    .id(key)
+                }
+            }
+            .scrollTargetLayout()
         }
-    }
-
-    private func selectPosterDay(
-        _ key: String,
-        direction explicitDirection: MePosterPaging.Direction? = nil
-    ) {
-        guard key != selectedPosterDayKey else { return }
-        let direction = explicitDirection ?? inferredPagingDirection(to: key)
-        let motion = MePosterPagingMotion.transition(
-            for: direction,
-            reduceMotion: reduceMotion
-        )
-        posterPagingDirection = direction
-        selectedPosterCanShare = false
-        withAnimation(.easeInOut(duration: motion.duration)) {
+        .contentMargins(.horizontal, 21, for: .scrollContent)
+        .scrollTargetBehavior(.viewAligned(limitBehavior: .always))
+        .scrollPosition(id: $posterScrollDayKey, anchor: .center)
+        .defaultScrollAnchor(.trailing)
+        .scrollIndicators(.hidden)
+        .frame(height: cardHeight)
+        .onChange(of: posterScrollDayKey) { _, key in
+            guard let key, posterDayKeys.contains(key) else { return }
             selectedPosterDayKey = key
+            selectedPosterCanShare = posterShareAvailability[key] ?? false
+        }
+        .onChange(of: selectedPosterDayKey) { _, key in
+            guard posterScrollDayKey != key else { return }
+            posterScrollDayKey = key
+        }
+        .onAppear {
+            posterScrollDayKey = selectedPosterDayKey
+        }
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.width
+        } action: { width in
+            guard width > 0 else { return }
+            posterCarouselWidth = width
         }
     }
 
-    private func inferredPagingDirection(to destination: String) -> MePosterPaging.Direction {
-        guard let currentIndex = posterDayKeys.firstIndex(of: selectedPosterDayKey),
-              let destinationIndex = posterDayKeys.firstIndex(of: destination)
-        else { return destination > selectedPosterDayKey ? .newer : .older }
-        return destinationIndex > currentIndex ? .newer : .older
+    private func selectPosterDay(_ key: String) {
+        guard key != selectedPosterDayKey else { return }
+        selectedPosterCanShare = posterShareAvailability[key] ?? false
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.32)) {
+            selectedPosterDayKey = key
+            posterScrollDayKey = key
+        }
     }
 
 
@@ -353,7 +326,10 @@ struct MeView: View {
 
             Spacer(minLength: 12)
 
-            Button { shareRequestID &+= 1 } label: {
+            Button {
+                shareRequestedDayKey = selectedPosterDayKey
+                shareRequestID &+= 1
+            } label: {
                 Image(systemName: "square.and.arrow.up")
                     .font(.geist(size: 17, weight: .regular))
                     .foregroundStyle(theme.textPrimary.opacity(0.7))

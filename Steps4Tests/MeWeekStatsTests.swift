@@ -105,57 +105,7 @@ final class MeWeekStatsTests: XCTestCase {
 
 final class MeCalendarTimelineTests: XCTestCase {
 
-    func testPagingMotionMovesNewerPosterInFromTrailingEdgeAndOlderFromLeadingEdge() {
-        XCTAssertEqual(
-            MePosterPagingMotion.transition(for: .newer, reduceMotion: false),
-            .init(insertionEdge: .trailing, removalEdge: .leading, duration: 0.28)
-        )
-        XCTAssertEqual(
-            MePosterPagingMotion.transition(for: .older, reduceMotion: false),
-            .init(insertionEdge: .leading, removalEdge: .trailing, duration: 0.28)
-        )
-    }
-
-    func testPagingMotionDoesNotDragPastNewestDay() {
-        let keys = ["2026-08-20", "2026-08-21", "2026-08-22"]
-
-        XCTAssertEqual(
-            MePosterPagingMotion.permittedDragTranslation(
-                -80,
-                from: "2026-08-22",
-                dayKeys: keys,
-                reduceMotion: false
-            ),
-            0
-        )
-        XCTAssertEqual(
-            MePosterPagingMotion.permittedDragTranslation(
-                80,
-                from: "2026-08-22",
-                dayKeys: keys,
-                reduceMotion: false
-            ),
-            80
-        )
-    }
-
-    func testPagingMotionDisablesSpatialMovementForReduceMotion() {
-        XCTAssertEqual(
-            MePosterPagingMotion.transition(for: .newer, reduceMotion: true),
-            .init(insertionEdge: nil, removalEdge: nil, duration: 0.15)
-        )
-        XCTAssertEqual(
-            MePosterPagingMotion.permittedDragTranslation(
-                80,
-                from: "2026-08-21",
-                dayKeys: ["2026-08-20", "2026-08-21", "2026-08-22"],
-                reduceMotion: true
-            ),
-            0
-        )
-    }
-
-    func testPosterRailAlignsMetricsToArtworkTopAndUnlocksToArtworkBottom() {
+    func testPosterRailAlignsMetricsToLeftArtworkTopAndUnlocksToRightArtworkBottom() {
         let metrics = MePosterRailLayout.placement(
             for: .metrics,
             ruleRight: 566.02,
@@ -174,41 +124,24 @@ final class MeCalendarTimelineTests: XCTestCase {
         )
 
         XCTAssertEqual(metrics.rotatedFrame.minY, 91, accuracy: 0.001)
-        XCTAssertEqual(metrics.rotatedFrame.maxX, 566.02, accuracy: 0.001)
+        XCTAssertLessThan(metrics.rotatedFrame.maxX, unlocks.rotatedFrame.minX)
         XCTAssertEqual(metrics.textAlignment, .leading)
         XCTAssertEqual(unlocks.rotatedFrame.maxY, 750, accuracy: 0.001)
         XCTAssertEqual(unlocks.rotatedFrame.maxX, 566.02, accuracy: 0.001)
         XCTAssertEqual(unlocks.textAlignment, .trailing)
     }
 
-    func testPosterPagingStopsAtNewestAndOldestRecentDay() {
-        let keys = ["2026-08-20", "2026-08-21", "2026-08-22"]
+    func testCanvasReloadIdentityChangesWhenRemoteSnapshotArrives() {
+        let initial = MePosterCanvasLoadID(
+            dayKey: "2026-08-22",
+            hasTrackedSnapshot: false
+        )
+        let recovered = MePosterCanvasLoadID(
+            dayKey: "2026-08-22",
+            hasTrackedSnapshot: true
+        )
 
-        XCTAssertNil(MePosterPaging.destination(
-            from: "2026-08-22",
-            direction: .newer,
-            dayKeys: keys
-        ))
-        XCTAssertNil(MePosterPaging.destination(
-            from: "2026-08-20",
-            direction: .older,
-            dayKeys: keys
-        ))
-    }
-
-    func testPosterPagingMovesOneCalendarDayInTheRequestedDirection() {
-        let keys = ["2026-08-20", "2026-08-21", "2026-08-22"]
-
-        XCTAssertEqual(MePosterPaging.destination(
-            from: "2026-08-21",
-            direction: .newer,
-            dayKeys: keys
-        ), "2026-08-22")
-        XCTAssertEqual(MePosterPaging.destination(
-            from: "2026-08-21",
-            direction: .older,
-            dayKeys: keys
-        ), "2026-08-20")
+        XCTAssertNotEqual(initial, recovered)
     }
 
     func testSevenCompactCalendarTilesNeverExceedTheirContainer() {
@@ -475,6 +408,33 @@ final class MePosterPresentationPolicyTests: XCTestCase {
             mode: .liveToday,
             hasElements: false,
             hasStepsData: true,
+            hasSleepData: false
+        ))
+    }
+
+    func testTodayCanShareItsCurrentCanvasBeforeAnyDataArrives() {
+        XCTAssertTrue(MePosterPresentationPolicy.canShare(
+            mode: .liveToday,
+            hasElements: false,
+            hasStepsData: false,
+            hasSleepData: false
+        ))
+    }
+
+    func testPersistedPastDayCanShareWhileItsCanvasIsStillLoading() {
+        XCTAssertTrue(MePosterPresentationPolicy.canShare(
+            mode: .savedPast,
+            hasElements: false,
+            hasStepsData: true,
+            hasSleepData: true
+        ))
+    }
+
+    func testNeutralPastDayBackgroundCanShareWhenHealthKitIsUnavailable() {
+        XCTAssertTrue(MePosterPresentationPolicy.canShare(
+            mode: .healthPast,
+            hasElements: false,
+            hasStepsData: false,
             hasSleepData: false
         ))
     }

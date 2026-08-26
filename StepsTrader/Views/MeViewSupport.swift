@@ -67,90 +67,26 @@ enum MePosterPresentationPolicy {
     ) -> Bool {
         switch mode {
         case .liveToday:
-            return hasElements || hasStepsData || hasSleepData
+            // Today's live canvas is meaningful even before the first HealthKit
+            // sample or happening arrives: it is the current state of the day.
+            return true
         case .savedPast:
-            return hasElements
+            // Keep the action stable while the persisted canvas is loading.
+            // The health background is itself a shareable daily poster.
+            return hasElements || hasStepsData || hasSleepData
         case .healthPast:
-            return hasStepsData || hasSleepData
+            // Recent calendar days always have a neutral energy background,
+            // including while HealthKit is unavailable in Simulator or denied.
+            return true
         case .emptyPast:
             return false
         }
     }
 }
 
-enum MePosterPaging {
-    enum Direction: Equatable {
-        case older
-        case newer
-    }
-
-    static func destination(
-        from current: String,
-        direction: Direction,
-        dayKeys: [String]
-    ) -> String? {
-        guard let index = dayKeys.firstIndex(of: current) else { return nil }
-        let destinationIndex = direction == .newer ? index + 1 : index - 1
-        guard dayKeys.indices.contains(destinationIndex) else { return nil }
-        return dayKeys[destinationIndex]
-    }
-}
-
-enum MePosterPagingMotion {
-    enum HorizontalEdge: Equatable {
-        case leading
-        case trailing
-    }
-
-    struct TransitionSpec: Equatable {
-        let insertionEdge: HorizontalEdge?
-        let removalEdge: HorizontalEdge?
-        let duration: Double
-    }
-
-    static func transition(
-        for direction: MePosterPaging.Direction,
-        reduceMotion: Bool
-    ) -> TransitionSpec {
-        if reduceMotion {
-            return TransitionSpec(
-                insertionEdge: nil,
-                removalEdge: nil,
-                duration: 0.15
-            )
-        }
-
-        switch direction {
-        case .newer:
-            return TransitionSpec(
-                insertionEdge: .trailing,
-                removalEdge: .leading,
-                duration: 0.28
-            )
-        case .older:
-            return TransitionSpec(
-                insertionEdge: .leading,
-                removalEdge: .trailing,
-                duration: 0.28
-            )
-        }
-    }
-
-    static func permittedDragTranslation(
-        _ translation: CGFloat,
-        from current: String,
-        dayKeys: [String],
-        reduceMotion: Bool
-    ) -> CGFloat {
-        guard !reduceMotion, translation != 0 else { return 0 }
-        let direction: MePosterPaging.Direction = translation < 0 ? .newer : .older
-        guard MePosterPaging.destination(
-            from: current,
-            direction: direction,
-            dayKeys: dayKeys
-        ) != nil else { return 0 }
-        return translation
-    }
+struct MePosterCanvasLoadID: Hashable {
+    let dayKey: String
+    let hasTrackedSnapshot: Bool
 }
 
 struct MeDayHealth: Equatable {
@@ -305,18 +241,18 @@ enum MePosterRailLayout {
 
     static func placement(
         for role: Role,
+        ruleLeft: CGFloat = 38.5,
         ruleRight: CGFloat,
         artworkTop: CGFloat,
         artworkBottom: CGFloat,
         railLength: CGFloat,
         lineHeight: CGFloat
     ) -> Placement {
-        let centerX = ruleRight - lineHeight / 2
         switch role {
         case .metrics:
             return Placement(
                 center: CGPoint(
-                    x: centerX,
+                    x: ruleLeft + lineHeight / 2,
                     y: artworkTop + railLength / 2
                 ),
                 railLength: railLength,
@@ -326,7 +262,7 @@ enum MePosterRailLayout {
         case .unlocks:
             return Placement(
                 center: CGPoint(
-                    x: centerX,
+                    x: ruleRight - lineHeight / 2,
                     y: artworkBottom - railLength / 2
                 ),
                 railLength: railLength,
@@ -429,6 +365,7 @@ struct MeGalleryPoster<Content: View>: View {
             let scaleY = height / 842.0
             let ruleWidth = 527.02 * scaleX
             let ruleHeight = max(1, 3 * scaleY)
+            let ruleLeft = 38.5 * scaleX
             let ruleRight = 566.02 * scaleX
             let artworkWidth = 482 * scaleX
             let artworkHeight = 659 * scaleY
@@ -438,6 +375,7 @@ struct MeGalleryPoster<Content: View>: View {
             let metricsLineHeight = 15 * scaleX
             let metricsPlacement = MePosterRailLayout.placement(
                 for: .metrics,
+                ruleLeft: ruleLeft,
                 ruleRight: ruleRight,
                 artworkTop: artworkTop,
                 artworkBottom: artworkBottom,
@@ -446,6 +384,7 @@ struct MeGalleryPoster<Content: View>: View {
             )
             let unlocksPlacement = MePosterRailLayout.placement(
                 for: .unlocks,
+                ruleLeft: ruleLeft,
                 ruleRight: ruleRight,
                 artworkTop: artworkTop,
                 artworkBottom: artworkBottom,
@@ -455,7 +394,7 @@ struct MeGalleryPoster<Content: View>: View {
             let footerTop = 781 * scaleY
             let footerHeight = height - footerTop
             let happeningsText = events.joined(separator: " / ")
-            let happeningsWidth = width * 0.47
+            let happeningsWidth = 344 * scaleX
             let happeningsFontSize = MePosterHappeningsLayout.fontSize(
                 for: happeningsText,
                 width: happeningsWidth,
@@ -496,7 +435,10 @@ struct MeGalleryPoster<Content: View>: View {
                     .rotationEffect(.degrees(90))
                     .position(metricsPlacement.center)
 
-                unlocksLabel(fontSize: max(5, width * 0.019))
+                unlocksLabel(
+                    fontSize: max(5, width * 0.019),
+                    availableWidth: metricsLength
+                )
                     .frame(
                         width: metricsLength,
                         height: metricsLineHeight,
@@ -528,14 +470,17 @@ struct MeGalleryPoster<Content: View>: View {
                     Text(happeningsText)
                         .font(.geistMono(size: happeningsFontSize, weight: .regular))
                         .foregroundStyle(.black.opacity(0.86))
-                        .multilineTextAlignment(.leading)
+                        .multilineTextAlignment(.trailing)
                         .lineLimit(3)
                         .frame(
                             width: happeningsWidth,
                             height: footerHeight,
-                            alignment: .topLeading
+                            alignment: .topTrailing
                         )
-                        .position(x: width * 0.70, y: footerTop + footerHeight / 2)
+                        .position(
+                            x: ruleRight - happeningsWidth / 2,
+                            y: footerTop + footerHeight / 2
+                        )
                 }
             }
             .frame(width: width, height: height)
@@ -547,13 +492,21 @@ struct MeGalleryPoster<Content: View>: View {
     }
 
     @ViewBuilder
-    private func unlocksLabel(fontSize: CGFloat) -> some View {
+    private func unlocksLabel(fontSize: CGFloat, availableWidth: CGFloat) -> some View {
         if !unlocks.isEmpty {
-            Text(unlocks.map(\.posterLabel).joined(separator: " / "))
-                .font(.geistMono(size: fontSize, weight: .regular, design: .monospaced))
+            let label = unlocks.map(\.posterLabel).joined(separator: " / ")
+            let fittedSize = MePosterHappeningsLayout.fontSize(
+                for: label,
+                width: availableWidth,
+                maximumSize: fontSize,
+                maximumLines: 1
+            )
+            Text(label)
+                .font(.geistMono(size: fittedSize, weight: .regular, design: .monospaced))
                 .foregroundStyle(.black.opacity(0.9))
                 .lineLimit(1)
-                .minimumScaleFactor(0.65)
+                .minimumScaleFactor(0.1)
+                .allowsTightening(true)
         }
     }
 
@@ -603,6 +556,7 @@ struct MeSelectedDayPoster: View {
     let health: MeDayHealth?
     let unlockRecords: [MePosterUnlockRecord]
     let shareRequestID: Int
+    var handlesShareRequest: Bool = true
     let onShareAvailabilityChange: (Bool) -> Void
 
     @Environment(\.appTheme) private var theme
@@ -687,10 +641,14 @@ struct MeSelectedDayPoster: View {
             hasElements: dayCanvas?.elements.isEmpty == false,
             hasStepsData: isToday
                 ? model.hasStepsData
-                : health?.hasStepsData == true || dayCanvas?.resolvedHasStepsData == true,
+                : health?.hasStepsData == true
+                    || snapshot != nil
+                    || dayCanvas?.resolvedHasStepsData == true,
             hasSleepData: isToday
                 ? model.hasSleepData
-                : health?.hasSleepData == true || dayCanvas?.resolvedHasSleepData == true
+                : health?.hasSleepData == true
+                    || snapshot != nil
+                    || dayCanvas?.resolvedHasSleepData == true
         )
     }
 
@@ -707,11 +665,15 @@ struct MeSelectedDayPoster: View {
         .shadow(color: .black.opacity(0.24), radius: 18, y: 10)
         .accessibilityIdentifier("me_selected_day_poster")
         .accessibilityValue(dayKey)
-        .task(id: dayKey) { await loadCanvas() }
+        .task(id: MePosterCanvasLoadID(
+            dayKey: dayKey,
+            hasTrackedSnapshot: snapshot != nil
+        )) { await loadCanvas() }
         .onChange(of: canShare, initial: true) { _, available in
             onShareAvailabilityChange(available)
         }
         .onChange(of: shareRequestID) { _, _ in
+            guard handlesShareRequest else { return }
             prepareShare()
         }
         .sheet(isPresented: $showShareSheet, onDismiss: { shareImage = nil }) {
@@ -829,7 +791,6 @@ struct MeSelectedDayPoster: View {
     private func loadCanvas() async {
         isLoading = true
         dayCanvas = nil
-        onShareAvailabilityChange(false)
 
         let key = dayKey
         var loaded = await Task.detached(priority: .userInitiated) {
@@ -1052,6 +1013,8 @@ struct MeSheetsModifier: ViewModifier {
     @Binding var showFullCalendar: Bool
     @Binding var selectedDayKey: String?
     let pastDays: [String: PastDaySnapshot]
+    let recentHealthByDay: [String: MeDayHealth]
+    let unlockRecords: [MePosterUnlockRecord]
 
     private var fullScreenDestination: Binding<MeFullScreenDestination?> {
         Binding(
@@ -1078,9 +1041,20 @@ struct MeSheetsModifier: ViewModifier {
             .fullScreenCover(item: fullScreenDestination) { destination in
                 switch destination {
                 case .calendar:
-                    MeFullCalendarView(model: model, pastDays: pastDays)
+                    MeFullCalendarView(
+                        model: model,
+                        pastDays: pastDays,
+                        recentHealthByDay: recentHealthByDay,
+                        unlockRecords: unlockRecords
+                    )
                 case .day(let key):
-                    DayCanvasViewerView(model: model, dayKey: key)
+                    DayCanvasViewerView(
+                        model: model,
+                        dayKey: key,
+                        snapshot: pastDays[key],
+                        health: recentHealthByDay[key],
+                        unlockRecords: unlockRecords
+                    )
                 }
             }
     }

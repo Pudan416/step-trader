@@ -185,7 +185,7 @@ final class AppTypographyTests: XCTestCase {
     }
 
     @MainActor
-    func testGalleryPosterPlacesMetricsAndUnlockMinutesInTheRightRail() throws {
+    func testGalleryPosterPlacesMetricsTopLeftAndUnlockMinutesBottomRight() throws {
         let image = try galleryPosterImage(
             steps: 12_345,
             sleepHours: 7.5,
@@ -196,7 +196,7 @@ final class AppTypographyTests: XCTestCase {
             ]
         )
         let attachment = XCTAttachment(image: image)
-        attachment.name = "me-poster-right-rail"
+        attachment.name = "me-poster-side-rails"
         attachment.lifetime = .keepAlways
         add(attachment)
         let cgImage = try XCTUnwrap(image.cgImage)
@@ -205,18 +205,17 @@ final class AppTypographyTests: XCTestCase {
             in: try XCTUnwrap(cgImage.cropping(to: CGRect(x: 0, y: 70, width: 604, height: 15)))
         ).offsetBy(dx: 0, dy: 70)
         let metrics = try darkPixelBounds(
-            in: try XCTUnwrap(cgImage.cropping(to: CGRect(x: 540, y: 90, width: 38, height: 300)))
-        ).offsetBy(dx: 540, dy: 90)
+            in: try XCTUnwrap(cgImage.cropping(to: CGRect(x: 25, y: 90, width: 38, height: 300)))
+        ).offsetBy(dx: 25, dy: 90)
         let unlocks = try darkPixelBounds(
             in: try XCTUnwrap(cgImage.cropping(to: CGRect(x: 540, y: 450, width: 38, height: 315)))
         ).offsetBy(dx: 540, dy: 450)
 
         XCTAssertGreaterThan(metrics.width, 0)
         XCTAssertGreaterThan(unlocks.width, 0)
-        XCTAssertLessThan(metrics.maxY, unlocks.minY)
         XCTAssertLessThanOrEqual(abs(metrics.minY - artwork.minY), 8)
         XCTAssertLessThanOrEqual(abs(unlocks.maxY - artwork.maxY), 8)
-        XCTAssertLessThanOrEqual(abs(metrics.maxX - topRule.maxX), 8)
+        XCTAssertLessThanOrEqual(abs(metrics.minX - topRule.minX), 8)
         XCTAssertLessThanOrEqual(abs(unlocks.maxX - topRule.maxX), 8)
     }
 
@@ -271,6 +270,32 @@ final class AppTypographyTests: XCTestCase {
                 fontSize: longSize
             ),
             3
+        )
+    }
+
+    func testPosterUnlockAppsShrinkUntilTheyFitOneLine() {
+        let apps = [
+            "Instagram 30 min", "Telegram 25 min", "YouTube 60 min",
+            "TikTok 20 min", "WhatsApp 15 min", "Reddit 10 min"
+        ].joined(separator: " / ")
+        let width: CGFloat = 245
+        let maximumSize: CGFloat = 11.5
+
+        let fittedSize = MePosterHappeningsLayout.fontSize(
+            for: apps,
+            width: width,
+            maximumSize: maximumSize,
+            maximumLines: 1
+        )
+
+        XCTAssertLessThan(fittedSize, maximumSize)
+        XCTAssertLessThanOrEqual(
+            MePosterHappeningsLayout.lineCount(
+                for: apps,
+                width: width,
+                fontSize: fittedSize
+            ),
+            1
         )
     }
 
