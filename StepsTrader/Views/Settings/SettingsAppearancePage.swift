@@ -348,7 +348,7 @@ struct SettingsAppearancePage: View {
             .scrollIndicators(.hidden)
 
             Text("Choose one or more styles for Day Objects. All styles are enabled by default.")
-                .font(.caption)
+                .font(.geist(.caption))
                 .foregroundStyle(theme.adaptiveMutedText)
                 .padding(.horizontal, 16)
         }
@@ -394,7 +394,7 @@ struct SettingsAppearancePage: View {
         HStack(spacing: 6) {
             if colors.isEmpty {
                 Image(systemName: "circle.grid.2x2.fill")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.geist(size: 10, weight: .semibold))
             } else {
                 HStack(spacing: -3) {
                     ForEach(Array(colors.prefix(4).enumerated()), id: \.offset) { _, hex in
@@ -407,11 +407,11 @@ struct SettingsAppearancePage: View {
             }
 
             Text(title)
-                .font(.system(size: 12, weight: isSelected ? .bold : .medium, design: .rounded))
+                .font(.geist(size: 12, weight: isSelected ? .bold : .medium, design: .rounded))
 
             if isSelected {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.geist(size: 9, weight: .bold))
             }
         }
         .foregroundStyle(isSelected ? AppColors.brandAccent : theme.adaptiveSecondaryText)

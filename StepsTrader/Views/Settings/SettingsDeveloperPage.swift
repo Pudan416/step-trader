@@ -100,7 +100,7 @@ struct SettingsDeveloperPage: View {
         .sheet(isPresented: $showShieldActionLogs) {
             NavigationStack {
                 List(shieldActionLogs, id: \.self) { log in
-                    Text(log).font(.caption2).textSelection(.enabled)
+                    Text(log).font(.geist(.caption2)).textSelection(.enabled)
                 }
                 .navigationTitle(String(localized: "ShieldAction Logs"))
                 .navigationBarTitleDisplayMode(.inline)
@@ -298,12 +298,12 @@ struct SettingsDeveloperPage: View {
         HStack(spacing: 12) {
             rowIcon(icon)
             Text(text)
-                .font(.subheadline)
+                .font(.geist(.subheadline))
                 .foregroundStyle(highlight ? .green : theme.adaptivePrimaryText)
             Spacer()
             if let trailing {
                 Image(systemName: trailing)
-                    .font(.caption2)
+                    .font(.geist(.caption2))
                     .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
             }
         }
@@ -313,7 +313,7 @@ struct SettingsDeveloperPage: View {
 
     private func rowIcon(_ name: String) -> some View {
         Image(systemName: name)
-            .font(.system(size: 15))
+            .font(.geist(size: 15))
             .foregroundStyle(theme.adaptiveSecondaryText)
             .frame(width: 24)
     }

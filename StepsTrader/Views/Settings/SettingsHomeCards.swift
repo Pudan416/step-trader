@@ -28,11 +28,11 @@ struct SettingsAccountCardLabel: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.geist(.subheadline).weight(.semibold))
                     .foregroundStyle(theme.adaptivePrimaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(subtitle)
-                    .font(.caption)
+                    .font(.geist(.caption))
                     .foregroundStyle(theme.adaptiveSecondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -40,7 +40,7 @@ struct SettingsAccountCardLabel: View {
             Spacer(minLength: 8)
 
             Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.geist(size: 12, weight: .semibold))
                 .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
                 .accessibilityHidden(true)
         }
@@ -62,7 +62,7 @@ struct SettingsAccountCardLabel: View {
                 Circle()
                     .fill(theme.adaptivePrimaryText.opacity(0.08))
                 Image(systemName: "apple.logo")
-                    .font(.system(size: 22, weight: .medium))
+                    .font(.geist(size: 22, weight: .medium))
                     .foregroundStyle(theme.adaptivePrimaryText)
             }
             .frame(width: 48, height: 48)
@@ -81,7 +81,7 @@ struct SettingsAccountCardLabel: View {
                     Circle()
                         .fill(theme.adaptivePrimaryText.opacity(0.08))
                     Text(initials)
-                        .font(.headline.weight(.bold))
+                        .font(.geist(.headline).weight(.bold))
                         .foregroundStyle(theme.adaptivePrimaryText)
                 }
                 .frame(width: 48, height: 48)
@@ -122,7 +122,7 @@ struct SettingsYourDayCardLabel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title)
-                .font(.title3.weight(.bold))
+                .font(.geist(.title3).weight(.bold))
                 .foregroundStyle(theme.adaptivePrimaryText)
                 .padding(.bottom, 18)
 
@@ -137,11 +137,11 @@ struct SettingsYourDayCardLabel: View {
 
             HStack {
                 Text(String(localized: "Goals & schedule", comment: "Settings Your day card action"))
-                    .font(.subheadline.weight(.semibold))
+                    .font(.geist(.subheadline).weight(.semibold))
                     .foregroundStyle(theme.adaptivePrimaryText)
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.geist(size: 12, weight: .semibold))
                     .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
                     .accessibilityHidden(true)
             }
@@ -176,11 +176,11 @@ struct SettingsYourDayCardLabel: View {
     private func metric(value: String, label: String) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(value)
-                .font(.headline.weight(.bold).monospacedDigit())
+                .font(.geist(.headline).weight(.bold).monospacedDigit())
                 .foregroundStyle(theme.adaptivePrimaryText)
                 .fixedSize(horizontal: false, vertical: true)
             Text(SettingsLocalizedCasing.uppercase(label))
-                .font(.caption2.weight(.semibold))
+                .font(.geist(.caption2).weight(.semibold))
                 .tracking(1.4)
                 .foregroundStyle(
                     theme.adaptivePrimaryText.opacity(SettingsCardAppearance.captionOpacity)
@@ -193,7 +193,7 @@ struct SettingsYourDayCardLabel: View {
     private func stackedMetric(value: String, label: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 16) {
             Text(SettingsLocalizedCasing.uppercase(label))
-                .font(.caption2.weight(.semibold))
+                .font(.geist(.caption2).weight(.semibold))
                 .tracking(1.4)
                 .foregroundStyle(
                     theme.adaptivePrimaryText.opacity(SettingsCardAppearance.captionOpacity)
@@ -201,7 +201,7 @@ struct SettingsYourDayCardLabel: View {
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
             Text(value)
-                .font(.headline.weight(.bold).monospacedDigit())
+                .font(.geist(.headline).weight(.bold).monospacedDigit())
                 .foregroundStyle(theme.adaptivePrimaryText)
                 .multilineTextAlignment(.trailing)
                 .fixedSize(horizontal: false, vertical: true)
@@ -219,7 +219,7 @@ struct SettingsDestinationCardLabel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 19, weight: .semibold))
+                .font(.geist(size: 19, weight: .semibold))
                 .foregroundStyle(theme.adaptiveSecondaryText)
                 .frame(width: 34, height: 34)
                 .background(theme.adaptivePrimaryText.opacity(0.07), in: Circle())
@@ -227,7 +227,7 @@ struct SettingsDestinationCardLabel: View {
 
             if let warningText {
                 Text(SettingsLocalizedCasing.uppercase(warningText))
-                    .font(.caption2.weight(.semibold))
+                    .font(.geist(.caption2).weight(.semibold))
                     .tracking(1.2)
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
@@ -236,7 +236,7 @@ struct SettingsDestinationCardLabel: View {
             Spacer(minLength: 4)
 
             Text(title)
-                .font(.subheadline.weight(.semibold))
+                .font(.geist(.subheadline).weight(.semibold))
                 .foregroundStyle(theme.adaptivePrimaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }

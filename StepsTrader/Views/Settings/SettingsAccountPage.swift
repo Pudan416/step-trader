@@ -41,11 +41,11 @@ struct SettingsAccountPage: View {
                     accountSection(String(localized: "SYNC", comment: "Settings account section header")) {
                         HStack {
                             Text(String(localized: "Automatic sync", comment: "Settings account sync status label"))
-                                .font(.subheadline)
+                                .font(.geist(.subheadline))
                                 .foregroundStyle(theme.adaptivePrimaryText)
                             Spacer()
                             Text(String(localized: "On", comment: "Settings account sync status value"))
-                                .font(.subheadline.weight(.semibold))
+                                .font(.geist(.subheadline).weight(.semibold))
                                 .foregroundStyle(theme.adaptiveSecondaryText)
                         }
                         .padding(.horizontal, 14)
@@ -76,7 +76,7 @@ struct SettingsAccountPage: View {
                                     ProgressView()
                                 } else {
                                     Text(String(localized: "Delete account", comment: "Settings account delete button"))
-                                        .font(.subheadline.weight(.semibold))
+                                        .font(.geist(.subheadline).weight(.semibold))
                                 }
                                 Spacer()
                             }
@@ -130,7 +130,7 @@ struct SettingsAccountPage: View {
             accountAvatar
 
             Text(user?.displayName ?? String(localized: "User", comment: "Settings account fallback name"))
-                .font(.title3.weight(.semibold))
+                .font(.geist(.title3).weight(.semibold))
                 .foregroundStyle(theme.adaptivePrimaryText)
 
             Spacer()
@@ -138,7 +138,7 @@ struct SettingsAccountPage: View {
             Button(String(localized: "Edit profile", comment: "Settings account edit profile button")) {
                 showProfileEditor = true
             }
-            .font(.subheadline.weight(.semibold))
+            .font(.geist(.subheadline).weight(.semibold))
             .foregroundStyle(AppColors.brandAccent)
             .frame(minWidth: 44, minHeight: 44)
             .contentShape(Rectangle())
@@ -165,7 +165,7 @@ struct SettingsAccountPage: View {
                             )
                         )
                     Text(SettingsAccountPresentation.initials(for: user?.displayName ?? String(localized: "User", comment: "Settings account fallback name")))
-                        .font(.subheadline.weight(.bold))
+                        .font(.geist(.subheadline).weight(.bold))
                         .foregroundStyle(.white)
                 }
             }
@@ -195,7 +195,7 @@ struct SettingsAccountPage: View {
     private func accountActionLabel(_ title: String) -> some View {
         HStack {
             Text(title)
-                .font(.subheadline.weight(.semibold))
+                .font(.geist(.subheadline).weight(.semibold))
                 .foregroundStyle(theme.adaptivePrimaryText)
             Spacer()
         }
