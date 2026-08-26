@@ -54,9 +54,9 @@ struct CanvasFullScreenDock<Share: View>: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 15, weight: .regular))
+                    .font(.geist(size: 15, weight: .regular))
                 Text(title)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.geist(size: 15, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
             }

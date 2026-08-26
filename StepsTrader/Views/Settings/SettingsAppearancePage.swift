@@ -99,19 +99,19 @@ struct SettingsAppearancePage: View {
     private var dailyRandomToggleRow: some View {
         HStack(spacing: 12) {
             Image(systemName: "shuffle")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.geist(size: 14, weight: .semibold))
                 .foregroundStyle(isDailyRandomActive ? AppColors.brandAccent : theme.adaptiveSecondaryText)
                 .frame(width: 28, height: 28)
                 .background(Circle().fill((isDailyRandomActive ? AppColors.brandAccent : theme.adaptiveSecondaryText).opacity(0.12)))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(String(localized: "Daily random theme"))
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .font(.geist(size: 14, weight: .semibold, design: .rounded))
                     .foregroundStyle(theme.adaptivePrimaryText)
                 Text(isDailyRandomActive
                      ? String(localized: "Randomizes color & gradient style each day.")
                      : String(localized: "A fresh palette + style every day."))
-                    .font(.system(size: 11))
+                    .font(.geist(size: 11))
                     .foregroundStyle(theme.adaptiveMutedText)
             }
 
@@ -140,16 +140,16 @@ struct SettingsAppearancePage: View {
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "dice")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.geist(size: 14, weight: .semibold))
                     .foregroundStyle(AppColors.brandAccent)
                     .frame(width: 28, height: 28)
                     .background(Circle().fill(AppColors.brandAccent.opacity(0.12)))
                 Text(String(localized: "Re-roll today's theme"))
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .font(.geist(size: 14, weight: .medium, design: .rounded))
                     .foregroundStyle(theme.adaptivePrimaryText)
                 Spacer()
                 Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.geist(size: 12, weight: .semibold))
                     .foregroundStyle(theme.adaptiveSecondaryText)
             }
             .padding(.horizontal, 14)
@@ -229,7 +229,7 @@ struct SettingsAppearancePage: View {
                         .frame(width: 54, height: 54)
 
                     Image(systemName: "checkmark")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.geist(size: 14, weight: .bold))
                         .foregroundStyle(.white)
                         .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
                 }
@@ -237,7 +237,7 @@ struct SettingsAppearancePage: View {
             .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isSelected)
 
             Text(scheme.displayName)
-                .font(.system(size: 10, weight: isSelected ? .bold : .medium))
+                .font(.geist(size: 10, weight: isSelected ? .bold : .medium))
                 .foregroundStyle(isSelected ? .primary : .secondary)
         }
         .accessibilityLabel(scheme.displayName)
@@ -286,7 +286,7 @@ struct SettingsAppearancePage: View {
                             }
 
                             Text(style.displayName)
-                                .font(.system(size: 10, weight: isSelected ? .bold : .medium))
+                                .font(.geist(size: 10, weight: isSelected ? .bold : .medium))
                                 .foregroundStyle(isSelected ? .primary : .secondary)
                                 .lineLimit(1)
                         }
@@ -449,7 +449,7 @@ struct SettingsAppearancePage: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Rich Canvas")
                     Text("Preview today's canvas with experimental figures")
-                        .font(.caption)
+                        .font(.geist(.caption))
                         .foregroundStyle(theme.adaptiveSecondaryText)
                 }
                 Spacer()
@@ -471,7 +471,7 @@ struct SettingsAppearancePage: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Generative Scene")
                     Text("Volumetric day scene prototype with live parameters")
-                        .font(.caption)
+                        .font(.geist(.caption))
                         .foregroundStyle(theme.adaptiveSecondaryText)
                 }
                 Spacer()
@@ -493,7 +493,7 @@ struct SettingsAppearancePage: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Atmosphere")
                     Text("Today's canvas with dust and depth of field")
-                        .font(.caption)
+                        .font(.geist(.caption))
                         .foregroundStyle(theme.adaptiveSecondaryText)
                 }
                 Spacer()
@@ -515,7 +515,7 @@ struct SettingsAppearancePage: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Day Rays")
                     Text("Generated ray fans — single day or a grid of seeds")
-                        .font(.caption)
+                        .font(.geist(.caption))
                         .foregroundStyle(theme.adaptiveSecondaryText)
                 }
                 Spacer()
@@ -537,7 +537,7 @@ struct SettingsAppearancePage: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Day Objects")
                     Text("Large radial-gradient orbs in seeded choreography")
-                        .font(.caption)
+                        .font(.geist(.caption))
                         .foregroundStyle(theme.adaptiveSecondaryText)
                 }
                 Spacer()
@@ -587,7 +587,7 @@ struct SettingsAppearancePage: View {
         } label: {
             VStack(spacing: 6) {
                 Image(systemName: fill.iconName)
-                    .font(.system(size: 20, weight: .medium))
+                    .font(.geist(size: 20, weight: .medium))
                     .frame(width: 52, height: 42)
                     .foregroundStyle(isSelected ? AppColors.brandAccent : theme.adaptiveSecondaryText)
                     .background(
@@ -602,7 +602,7 @@ struct SettingsAppearancePage: View {
                             )
                     }
                 Text(fill.displayName)
-                    .font(.system(size: 10, weight: isSelected ? .bold : .medium))
+                    .font(.geist(size: 10, weight: isSelected ? .bold : .medium))
                     .foregroundStyle(isSelected ? theme.adaptivePrimaryText : theme.adaptiveSecondaryText)
             }
         }
@@ -636,7 +636,7 @@ struct SettingsAppearancePage: View {
     private var shapeMultiSelectRow: some View {
         return HStack(spacing: 10) {
             Text("Shapes", comment: "Canvas shapes multi-select row label")
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .font(.geist(size: 13, weight: .semibold, design: .rounded))
                 .foregroundStyle(theme.adaptivePrimaryText)
                 .frame(width: 72, alignment: .leading)
 
@@ -783,7 +783,7 @@ struct SettingsAppearancePage: View {
                             .fill(theme.adaptivePrimaryText.opacity(0.06))
                             .frame(width: 56, height: 56)
                         Image(systemName: "circle.slash")
-                            .font(.system(size: 18, weight: .ultraLight))
+                            .font(.geist(size: 18, weight: .ultraLight))
                             .foregroundStyle(theme.adaptiveMutedText)
                     }
                 }
@@ -797,7 +797,7 @@ struct SettingsAppearancePage: View {
                 }
 
                 Text(texture.displayName)
-                    .font(.system(size: 9, weight: isSelected ? .bold : .medium))
+                    .font(.geist(size: 9, weight: isSelected ? .bold : .medium))
                     .foregroundStyle(isSelected ? .primary : .secondary)
                     .lineLimit(1)
             }
@@ -809,14 +809,14 @@ struct SettingsAppearancePage: View {
 
     private func sectionLabel(_ text: String) -> some View {
         Text(SettingsLocalizedCasing.uppercase(text))
-            .font(.caption2.weight(.semibold))
+            .font(.geist(.caption2).weight(.semibold))
             .tracking(3)
             .foregroundStyle(theme.adaptiveMutedText)
     }
 
     private var autoTag: some View {
         Text(String(localized: "auto", comment: "Inline tag — picker disabled because daily random is on"))
-            .font(.system(size: 10, weight: .heavy))
+            .font(.geist(size: 10, weight: .heavy))
             .tracking(0.6)
             .foregroundStyle(theme.adaptiveMutedText)
             .padding(.horizontal, 6)

@@ -43,12 +43,12 @@ struct SettingsAboutPage: View {
                             .foregroundStyle(theme.adaptivePrimaryText)
 
                         Text(String(localized: "You are not nowhere. You are now here.", comment: "App philosophy tagline"))
-                            .font(.subheadline)
+                            .font(.geist(.subheadline))
                             .foregroundStyle(theme.adaptiveSecondaryText)
                             .multilineTextAlignment(.center)
 
                         Text("v\(appVersion) (\(buildNumber))")
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .font(.geist(size: 11, weight: .medium, design: .monospaced))
                             .foregroundStyle(theme.adaptiveMutedText)
                     }
                     .frame(maxWidth: .infinity)

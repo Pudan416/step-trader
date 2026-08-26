@@ -252,7 +252,7 @@ struct StepsTraderApp: App {
                 appBody
                 #endif
             }
-            .fontDesign(.rounded)
+            .font(AppFonts.body)
         }
     }
 

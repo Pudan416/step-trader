@@ -38,7 +38,11 @@ final class Steps4UITestsLaunchTests: XCTestCase {
 
     func testMeKeepsRecentDaysAboveTabBar() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["ui-testing"]
+        app.launchArguments = [
+            "ui-testing",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryL",
+        ]
         app.launch()
 
         let meTab = app.buttons["tab_me"]
@@ -62,6 +66,42 @@ final class Steps4UITestsLaunchTests: XCTestCase {
             dayButtons.count,
             7,
             "The compact strip should expose only the latest seven days; older history belongs in All"
+        )
+        let dayFrames = (0..<dayButtons.count)
+            .map { dayButtons.element(boundBy: $0).frame }
+            .sorted { $0.minX < $1.minX }
+        attachScreenshot(named: "me-layout-before-overlap-check")
+        for (left, right) in zip(dayFrames, dayFrames.dropFirst()) {
+            XCTAssertLessThan(
+                left.midX,
+                right.midX,
+                "All seven calendar cards must retain distinct visual slots"
+            )
+        }
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(dayFrames.first).minX, app.frame.minX)
+        XCTAssertLessThanOrEqual(try XCTUnwrap(dayFrames.last).maxX, app.frame.maxX)
+
+        let poster = app.otherElements["me_selected_day_poster"]
+        XCTAssertTrue(poster.waitForExistence(timeout: 3))
+        let newestDay = try XCTUnwrap(poster.value as? String)
+
+        poster.swipeRight()
+        let movedToOlderDay = NSPredicate(format: "value != %@", newestDay)
+        expectation(for: movedToOlderDay, evaluatedWith: poster)
+        waitForExpectations(timeout: 3)
+        let olderDay = try XCTUnwrap(poster.value as? String)
+        XCTAssertNotEqual(olderDay, newestDay)
+
+        poster.swipeLeft()
+        let returnedToNewestDay = NSPredicate(format: "value == %@", newestDay)
+        expectation(for: returnedToNewestDay, evaluatedWith: poster)
+        waitForExpectations(timeout: 3)
+
+        poster.swipeLeft()
+        XCTAssertEqual(
+            poster.value as? String,
+            newestDay,
+            "Swiping toward a newer day must stop on today"
         )
         let visibleBottom = (0..<dayButtons.count)
             .map { dayButtons.element(boundBy: $0) }

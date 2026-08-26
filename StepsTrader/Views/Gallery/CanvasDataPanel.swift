@@ -296,15 +296,15 @@ struct CanvasDataPanel: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: row.systemImage)
-                    .font(.caption)
+                    .font(.geist(.caption))
                 Text(row.title)
-                    .font(.caption.weight(.semibold))
+                    .font(.geist(.caption).weight(.semibold))
                 Spacer(minLength: 8)
                 Text("\(row.value)/\(row.maxValue)")
-                    .font(.caption.weight(.semibold))
+                    .font(.geist(.caption).weight(.semibold))
                     .monospacedDigit()
                 Image(systemName: selectedKind == row.kind ? "chevron.up" : "chevron.down")
-                    .font(.caption2.weight(.semibold))
+                    .font(.geist(.caption2).weight(.semibold))
                     .foregroundStyle(ink.opacity(0.65))
             }
             .foregroundStyle(ink)
@@ -341,7 +341,7 @@ struct CanvasDataPanel: View {
     private func metricDisclosure(for kind: MetricOverlayKind) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(CanvasMetricDisclosure.explanation(for: kind))
-                .font(.footnote)
+                .font(.geist(.footnote))
                 .foregroundStyle(ink.opacity(0.78))
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -350,7 +350,7 @@ struct CanvasDataPanel: View {
                     Text(String(localized: "Why this matters", comment: "Canvas metric disclosure – research link"))
                     Image(systemName: "arrow.up.right")
                 }
-                .font(.caption.weight(.medium))
+                .font(.geist(.caption).weight(.medium))
                 .foregroundStyle(AppColors.brandAccent)
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 .contentShape(Rectangle())

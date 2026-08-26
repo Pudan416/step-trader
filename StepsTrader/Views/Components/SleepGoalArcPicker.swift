@@ -46,7 +46,7 @@ struct DayResetTimePicker: View {
             )
 
             Text(":")
-                .font(.system(size: 44, weight: .semibold, design: .rounded))
+                .font(.geist(size: 44, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white.opacity(0.35))
                 .offset(y: -2)
                 .accessibilityHidden(true)
@@ -160,7 +160,7 @@ private struct FlipClockPanel: View {
                     .frame(height: 1)
 
                 Text(displayText)
-                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                    .font(.geist(size: 48, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(.white)
                     .contentTransition(.numericText())
@@ -207,7 +207,7 @@ private struct FlipClockPanel: View {
             if up { onIncrement() } else { onDecrement() }
         } label: {
             Image(systemName: up ? "chevron.up" : "chevron.down")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.geist(size: 12, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.35))
                 .frame(width: tileWidth, height: 44)
                 .contentShape(Rectangle())
@@ -256,13 +256,13 @@ struct SleepDurationStepper: View {
 
             VStack(spacing: 1) {
                 Text(formattedHours)
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .font(.geist(size: 34, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(theme.adaptivePrimaryText)
                     .contentTransition(.numericText())
                     .animation(.snappy(duration: 0.15), value: hours)
                 Text(String(localized: "hours"))
-                    .font(.caption.weight(.medium))
+                    .font(.geist(.caption).weight(.medium))
                     .foregroundStyle(theme.adaptiveSecondaryText)
             }
             .frame(minWidth: 80)
@@ -316,7 +316,7 @@ struct SleepDurationStepper: View {
     ) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 15, weight: .bold))
+                .font(.geist(size: 15, weight: .bold))
                 .foregroundStyle(enabled ? theme.adaptivePrimaryText : theme.adaptiveMutedText.opacity(0.3))
                 .frame(width: 48, height: 48)
                 .background(

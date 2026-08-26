@@ -171,7 +171,7 @@ struct DayObjectsLabView: View {
 
             if !showsGrid {
                 Text(languageSummary)
-                    .font(.caption2.monospaced())
+                    .font(.geist(.caption2).monospaced())
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.white.opacity(0.6))
                     .accessibilityIdentifier("dayObjects.language")
@@ -247,10 +247,10 @@ struct DayObjectsLabView: View {
         VStack(spacing: 2) {
             HStack {
                 Text(title)
-                    .font(.caption)
+                    .font(.geist(.caption))
                 Spacer()
                 Text(readout)
-                    .font(.caption.monospacedDigit())
+                    .font(.geist(.caption).monospacedDigit())
             }
             .foregroundStyle(.white.opacity(0.85))
 

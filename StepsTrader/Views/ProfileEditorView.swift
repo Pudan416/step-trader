@@ -43,7 +43,7 @@ struct ProfileEditorView: View {
                                         .frame(width: 96, height: 96)
                                     
                                     Text(String((authService.currentUser?.displayName ?? "U").prefix(2)).uppercased())
-                                        .font(.title2.weight(.bold))
+                                        .font(.geist(.title2).weight(.bold))
                                         .foregroundStyle(.white)
                                 }
                                 
@@ -52,7 +52,7 @@ struct ProfileEditorView: View {
                                     .frame(width: 30, height: 30)
                                     .overlay(
                                         Image(systemName: "camera.fill")
-                                            .font(.appRounded(14))
+                                            .font(.geist(14))
                                             .foregroundStyle(.white)
                                     )
                                     .offset(x: 34, y: 34)

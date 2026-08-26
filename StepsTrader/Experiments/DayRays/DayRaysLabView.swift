@@ -103,9 +103,9 @@ struct DayRaysLabView: View {
 
             VStack(spacing: 2) {
                 HStack {
-                    Text("Happenings").font(.caption)
+                    Text("Happenings").font(.geist(.caption))
                     Spacer()
-                    Text("\(Int(happenings))").font(.caption.monospacedDigit())
+                    Text("\(Int(happenings))").font(.geist(.caption).monospacedDigit())
                 }
                 .foregroundStyle(.white.opacity(0.85))
                 Slider(value: $happenings, in: 0...10, step: 1)
@@ -113,7 +113,7 @@ struct DayRaysLabView: View {
 
             if !showsGrid {
                 Text(composition.summary)
-                    .font(.caption2.monospaced())
+                    .font(.geist(.caption2).monospaced())
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.white.opacity(0.6))
             }

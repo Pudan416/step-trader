@@ -53,7 +53,7 @@ struct AppSelectionSheet: View {
 
                 if let validationMessage {
                     Text(validationMessage)
-                        .font(.subheadline)
+                        .font(.geist(.subheadline))
                         .foregroundStyle(.red)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 20)

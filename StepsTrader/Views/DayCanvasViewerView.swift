@@ -124,10 +124,10 @@ struct DayCanvasViewerView: View {
     private var emptyCanvasPlaceholder: some View {
         VStack(spacing: 12) {
             Image(systemName: "calendar.badge.exclamationmark")
-                .font(.system(size: 44, weight: .ultraLight))
+                .font(.geist(size: 44, weight: .ultraLight))
                 .foregroundStyle(theme.adaptiveMutedText)
             Text(String(localized: "No data for this day.", comment: "DayCanvasViewer – empty state"))
-                .font(.appRounded(20, weight: .semibold, relativeTo: .title3))
+                .font(.geist(20, weight: .semibold, relativeTo: .title3))
                 .foregroundStyle(theme.adaptiveMutedText)
                 .multilineTextAlignment(.center)
         }
@@ -193,9 +193,9 @@ struct DayCanvasViewerView: View {
                 } label: {
                     HStack(spacing: 5) {
                         Image(systemName: style.iconName)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.geist(size: 12, weight: .medium))
                         Text(style.displayName)
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.geist(size: 11, weight: .semibold))
                     }
                     .foregroundStyle(posterStyle == style ? .white : theme.adaptivePrimaryText)
                     .padding(.horizontal, 12)
@@ -221,7 +221,7 @@ struct DayCanvasViewerView: View {
                 dismiss()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.geist(size: 13, weight: .bold))
                     .foregroundStyle(theme.adaptivePrimaryText)
                     .frame(width: 40, height: 40)
                     .background(.ultraThinMaterial, in: Circle())
@@ -236,7 +236,7 @@ struct DayCanvasViewerView: View {
                     Task { await prepareAndShare() }
                 } label: {
                     Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 16, weight: .regular))
+                        .font(.geist(size: 16, weight: .regular))
                         .foregroundStyle(theme.adaptivePrimaryText)
                         .frame(width: 40, height: 40)
                         .background(.ultraThinMaterial, in: Circle())

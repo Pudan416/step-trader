@@ -81,7 +81,7 @@ struct SettingsSheet: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         Text(String(localized: "Settings", comment: "Settings page title"))
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .font(.geist(size: 28, weight: .bold, design: .rounded))
                             .foregroundStyle(theme.adaptivePrimaryText)
                             .padding(.top, 8)
 
@@ -262,11 +262,11 @@ struct SettingsSheet: View {
     private var versionFooter: some View {
         VStack(spacing: 4) {
             Text(String(localized: "You are not nowhere. You are now here.", comment: "App philosophy tagline"))
-                .font(.caption)
+                .font(.geist(.caption))
                 .italic()
                 .foregroundStyle(theme.adaptiveMutedText)
             Text("v\(appVersion) (\(buildNumber))")
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .font(.geist(size: 11, weight: .medium, design: .monospaced))
                 .foregroundStyle(theme.adaptiveMutedText.opacity(0.5))
         }
         .frame(maxWidth: .infinity)

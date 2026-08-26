@@ -368,7 +368,7 @@ private struct HappeningFieldLayoutDebugPreview: View {
 
                 ForEach(Array(layout.labelFrames.enumerated()), id: \.offset) { index, frame in
                     Text("\(index + 1)")
-                        .font(.caption.weight(.bold))
+                        .font(.geist(.caption).weight(.bold))
                         .frame(width: frame.width, height: frame.height)
                         .background(.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
                         .overlay { RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.8)) }
@@ -387,7 +387,7 @@ private struct HappeningFieldLayoutDebugPreview: View {
         .clipShape(RoundedRectangle(cornerRadius: 20))
         .overlay(alignment: .topLeading) {
             Text("\(count) remaining")
-                .font(.caption.weight(.semibold))
+                .font(.geist(.caption).weight(.semibold))
                 .padding(8)
         }
     }

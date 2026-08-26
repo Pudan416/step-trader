@@ -143,13 +143,13 @@ struct SettingsPermissionsPage: View {
         HStack(spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
-                .font(.title3)
+                .font(.geist(.title3))
             VStack(alignment: .leading, spacing: 2) {
                 Text(String(localized: "Some permissions are missing", comment: "Permissions – missing banner title"))
-                    .font(.subheadline.weight(.semibold))
+                    .font(.geist(.subheadline).weight(.semibold))
                     .foregroundStyle(theme.adaptivePrimaryText)
                 Text(String(localized: "\(missingPermissionCount) of 3 not granted", comment: "Permissions – missing count"))
-                    .font(.caption)
+                    .font(.geist(.caption))
                     .foregroundStyle(theme.adaptiveSecondaryText)
             }
             Spacer()
@@ -173,16 +173,16 @@ struct SettingsPermissionsPage: View {
         }) {
             HStack(spacing: 12) {
                 Image(systemName: icon)
-                    .font(.system(size: 15))
+                    .font(.geist(size: 15))
                     .foregroundStyle(isGranted ? .green : .orange)
                     .frame(width: 24)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.subheadline)
+                        .font(.geist(.subheadline))
                         .foregroundStyle(theme.adaptivePrimaryText)
                     Text(subtitle)
-                        .font(.caption)
+                        .font(.geist(.caption))
                         .foregroundStyle(theme.adaptiveSecondaryText)
                 }
 
@@ -190,7 +190,7 @@ struct SettingsPermissionsPage: View {
 
                 if !isAvailable {
                     Text(String(localized: "N/A", comment: "Permission – not available badge"))
-                        .font(.caption2.weight(.medium))
+                        .font(.geist(.caption2).weight(.medium))
                         .foregroundStyle(theme.adaptiveMutedText)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
@@ -198,10 +198,10 @@ struct SettingsPermissionsPage: View {
                 } else if isGranted {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
-                        .font(.system(size: 18))
+                        .font(.geist(size: 18))
                 } else {
                     Text(String(localized: "Enable", comment: "Permission – enable button"))
-                        .font(.caption.weight(.semibold))
+                        .font(.geist(.caption).weight(.semibold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)

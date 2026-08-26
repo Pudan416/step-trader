@@ -175,6 +175,20 @@ final class HealthActivitySuggestionTests: XCTestCase {
 
 final class SleepIntervalMergingTests: XCTestCase {
 
+    func testOnlyCurrentStepQueriesMayReadOrReplaceTheLiveCache() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+        XCTAssertTrue(HealthKitService.shouldUseLiveStepCache(queryEnd: now, now: now))
+        XCTAssertTrue(HealthKitService.shouldUseLiveStepCache(
+            queryEnd: now.addingTimeInterval(-60),
+            now: now
+        ))
+        XCTAssertFalse(HealthKitService.shouldUseLiveStepCache(
+            queryEnd: now.addingTimeInterval(-86_400),
+            now: now
+        ))
+    }
+
     private func date(_ hour: Int, _ minute: Int = 0) -> Date {
         var comps = DateComponents()
         comps.year = 2026

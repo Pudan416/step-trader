@@ -78,7 +78,7 @@ struct AppsPageSimplified: View {
                 VStack(spacing: 0) {
                     HStack {
                         Text(String(localized: "Feeds"))
-                            .font(.system(size: 30, weight: .bold, design: .rounded))
+                            .font(.geist(size: 30, weight: .bold, design: .rounded))
                             .foregroundStyle(buttonTint)
 
                         Spacer(minLength: 16)
@@ -87,7 +87,7 @@ struct AppsPageSimplified: View {
                             attemptCreateGroup()
                         } label: {
                             Image(systemName: "plus")
-                                .font(.system(size: 17, weight: .regular))
+                                .font(.geist(size: 17, weight: .regular))
                                 .foregroundStyle(buttonTint)
                                 .frame(width: 44, height: 44)
                                 .liquidGlassControl(in: Circle())
@@ -296,23 +296,23 @@ struct AppsPageSimplified: View {
     private var emptyState: some View {
         VStack(spacing: 16) {
             Image(systemName: "rectangle.stack.badge.plus")
-                .font(.system(size: 34, weight: .light))
+                .font(.geist(size: 34, weight: .light))
                 .foregroundStyle(AppColors.brandAccent)
                 .frame(width: 72, height: 72)
                 .background(Circle().fill(Color.white.opacity(0.1)))
 
             VStack(spacing: 6) {
                 Text(String(localized: "No feeds yet"))
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .font(.geist(size: 20, weight: .semibold, design: .rounded))
                 Text(String(localized: "Add an app to unlock it with your colors"))
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .font(.geist(size: 14, weight: .medium, design: .rounded))
                     .foregroundStyle(buttonTint.opacity(0.68))
                     .multilineTextAlignment(.center)
             }
 
             Button(action: attemptCreateGroup) {
                 Label(String(localized: "Add a feed"), systemImage: "plus")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .font(.geist(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color.black.opacity(0.82))
                     .padding(.horizontal, 22)
                     .frame(height: 50)

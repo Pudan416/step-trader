@@ -60,12 +60,12 @@ struct GradientPreviewSheet: View {
             VStack(spacing: 0) {
                 HStack {
                     Text(config.style.displayName)
-                        .font(.headline.weight(.semibold))
+                        .font(.geist(.headline).weight(.semibold))
                         .foregroundStyle(.white)
                     Spacer()
                     Button { dismiss() } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.title2)
+                            .font(.geist(.title2))
                             .symbolRenderingMode(.hierarchical)
                             .foregroundStyle(.white.opacity(0.7))
                     }
@@ -110,7 +110,7 @@ struct GradientPreviewSheet: View {
                                 }
 
                                 Text(state.label)
-                                    .font(.system(size: 10, weight: selectedState == index ? .bold : .medium))
+                                    .font(.geist(size: 10, weight: selectedState == index ? .bold : .medium))
                                     .foregroundStyle(selectedState == index ? .white : .white.opacity(0.5))
                             }
                         }
@@ -123,7 +123,7 @@ struct GradientPreviewSheet: View {
                     onApply()
                 } label: {
                     Text(String(localized: "Apply", comment: "GradientPreview – apply gradient button"))
-                        .font(.subheadline.weight(.semibold))
+                        .font(.geist(.subheadline).weight(.semibold))
                         .foregroundStyle(.black)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)

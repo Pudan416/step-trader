@@ -45,10 +45,10 @@ struct SettingsWallpaperControls: View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 12) {
                 Label(String(localized: "Auto-wallpaper"), systemImage: "sparkles")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.geist(.subheadline).weight(.semibold))
                     .foregroundStyle(theme.adaptivePrimaryText)
                 Text(String(localized: "Set today's energy canvas as your Lock Screen wallpaper automatically each time you close the app."))
-                    .font(.subheadline)
+                    .font(.geist(.subheadline))
                     .foregroundStyle(theme.adaptiveSecondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -59,12 +59,12 @@ struct SettingsWallpaperControls: View {
                     if index > 0 { DetailDivider() }
                     HStack(alignment: .top, spacing: 12) {
                         Text(step.number)
-                            .font(.caption.weight(.bold).monospacedDigit())
+                            .font(.geist(.caption).weight(.bold).monospacedDigit())
                             .foregroundStyle(AppColors.brandAccent)
                             .frame(width: 20, height: 20)
                             .background(Circle().fill(AppColors.brandAccent.opacity(0.15)))
                         Text(step.text)
-                            .font(.subheadline)
+                            .font(.geist(.subheadline))
                             .foregroundStyle(theme.adaptiveSecondaryText)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -73,7 +73,7 @@ struct SettingsWallpaperControls: View {
             }
             Button { openURL(shortcutURL) } label: {
                 Label(String(localized: "Get Wallpaper Shortcut"), systemImage: "square.and.arrow.down")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.geist(.subheadline).weight(.semibold))
                     .foregroundStyle(AppAccentInk.primary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)

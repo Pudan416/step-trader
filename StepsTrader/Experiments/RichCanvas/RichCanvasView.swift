@@ -298,7 +298,7 @@ struct RichCanvasHUD: View {
                         )
                     }
                 }
-                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .font(.geist(size: 10, weight: .medium, design: .monospaced))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)

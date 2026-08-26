@@ -81,14 +81,30 @@ enum MeCalendarTimeline {
     }
 }
 
+enum MeCalendarTileLayout {
+    static func tileWidth(
+        containerWidth: CGFloat,
+        count: Int,
+        spacing: CGFloat,
+        displayScale: CGFloat = 3
+    ) -> CGFloat {
+        guard count > 0 else { return 0 }
+        let gaps = spacing * CGFloat(max(0, count - 1))
+        let rawWidth = max(0, (containerWidth - gaps) / CGFloat(count))
+        let scale = max(1, displayScale)
+        return floor(rawWidth * scale) / scale
+    }
+}
+
 // MARK: - Me calendar
 //
 // A chronological seven-day strip: older days are on the left and today is
 // on the right. Earlier saved posters belong to the full archive calendar.
-// Tapping any of the seven days selects it in the large poster above, including
-// honest empty days that have no saved canvas.
+// Tapping any of the seven days selects its health background or saved canvas
+// in the large poster above.
 struct MeCalendarStrip: View {
     let pastDays: [String: PastDaySnapshot]
+    let recentHealthByDay: [String: MeDayHealth]
     let selectedDayKey: String
     let onSelect: (String) -> Void
     let posterCount: Int
@@ -96,8 +112,9 @@ struct MeCalendarStrip: View {
 
     @Environment(\.appTheme) private var theme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.displayScale) private var displayScale
 
-    private static let tileSpacing: CGFloat = 6
+    private static let tileSpacing: CGFloat = 4
     private static let compactTileHeight: CGFloat = 76
     private static let accessibleTileSize = CGSize(width: 64, height: 96)
 
@@ -124,36 +141,32 @@ struct MeCalendarStrip: View {
                 .zIndex(1)
 
             GeometryReader { geometry in
-                let fittedWidth = floor(
-                    (geometry.size.width - Self.tileSpacing * 6) / 7
+                let tileWidth = MeCalendarTileLayout.tileWidth(
+                    containerWidth: geometry.size.width,
+                    count: keys.count,
+                    spacing: Self.tileSpacing,
+                    displayScale: displayScale
                 )
-                let tileWidth = dynamicTypeSize >= .accessibility1
-                    ? Self.accessibleTileSize.width
-                    // Keep every day a valid touch target. Seven tiles still
-                    // fit on current full-width iPhones; very narrow layouts
-                    // may reveal the last tile with a tiny horizontal scroll.
-                    : max(44, fittedWidth)
 
-                ScrollView(.horizontal) {
-                    LazyHStack(spacing: Self.tileSpacing) {
-                        ForEach(keys, id: \.self) { key in
-                            DayHistoryTile(
-                                dayKey: key,
-                                snapshot: pastDays[key],
-                                isSelected: key == selectedDayKey,
-                                onTap: { onSelect(key) }
-                            )
-                            .frame(width: tileWidth, height: tileHeight)
-                            .id(key)
-                        }
+                HStack(spacing: Self.tileSpacing) {
+                    ForEach(keys, id: \.self) { key in
+                        DayHistoryTile(
+                            dayKey: key,
+                            snapshot: pastDays[key],
+                            health: recentHealthByDay[key],
+                            isSelected: key == selectedDayKey,
+                            onTap: { onSelect(key) }
+                        )
+                        .frame(width: tileWidth, height: tileHeight)
+                        .clipped()
+                        .id(key)
                     }
-                    .scrollTargetLayout()
                 }
-                .scrollIndicators(.hidden)
-                .scrollTargetBehavior(.viewAligned)
+                .frame(width: geometry.size.width, alignment: .leading)
             }
             .frame(height: tileHeight)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -175,7 +188,7 @@ struct MeCalendarStrip: View {
 
     private var recentDaysTitle: some View {
         Text(String(localized: "LAST 7 CALENDAR DAYS", comment: "MeView – recent calendar section header"))
-            .font(.caption.weight(.medium))
+            .font(.geist(.caption).weight(.medium))
             .foregroundStyle(theme.textSecondary.opacity(0.72))
             .tracking(1.1)
     }
@@ -185,9 +198,9 @@ struct MeCalendarStrip: View {
             HStack(spacing: 4) {
                 Text(String(localized: "Archive · \(posterCount)", comment: "Me archive – compact saved-poster count"))
                 Image(systemName: "chevron.right")
-                    .font(.caption2.weight(.semibold))
+                    .font(.geist(.caption2).weight(.semibold))
             }
-            .font(.subheadline.weight(.medium))
+            .font(.geist(.subheadline).weight(.medium))
             .foregroundStyle(AppColors.brandAccent)
             .frame(minHeight: 44)
             .contentShape(Rectangle())
@@ -208,6 +221,7 @@ struct MeCalendarStrip: View {
 struct DayHistoryTile: View {
     let dayKey: String
     let snapshot: PastDaySnapshot?
+    let health: MeDayHealth?
     let isSelected: Bool
     let onTap: () -> Void
 
@@ -215,7 +229,6 @@ struct DayHistoryTile: View {
 
     @State private var thumbnail: UIImage?
     @State private var hasLoaded = false
-    @State private var isEmptyDay = false
 
     private var date: Date {
         CachedFormatters.dayKey.date(from: dayKey) ?? Date.now
@@ -235,26 +248,33 @@ struct DayHistoryTile: View {
     var body: some View {
         Button(action: onTap) {
             tileBody
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .buttonStyle(ScaleButtonStyle())
         .accessibilityIdentifier("me_calendar_day_\(dayKey)")
         .accessibilityLabel(accessibilityLabel)
     }
 
     private var tileBody: some View {
-        ZStack {
+        let resolvedHealth = health
+            ?? snapshot.map(MeDayHealth.init(snapshot:))
+            ?? MeDayHealth(steps: nil, sleepHours: nil)
+
+        return ZStack {
             if let thumbnail {
                 Image(uiImage: thumbnail)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-            } else if isEmptyDay {
-                // The tile came from a Photos-style grid on a light settings
-                // background. On Me it sits on the dark energy gradient, where
-                // fixed light greys read as punched-out white blocks — so the
-                // placeholders and the border come from the theme instead.
-                theme.textPrimary.opacity(0.06)
             } else {
-                theme.textPrimary.opacity(0.10)
+                EnergyGradientBackground(
+                    stepsPoints: resolvedHealth.stepsPoints,
+                    sleepPoints: resolvedHealth.sleepPoints,
+                    hasStepsData: resolvedHealth.hasStepsData,
+                    hasSleepData: resolvedHealth.hasSleepData,
+                    showGrain: true
+                )
+                .allowsHitTesting(false)
             }
 
             LinearGradient(
@@ -265,7 +285,7 @@ struct DayHistoryTile: View {
 
             VStack(spacing: 4) {
                 Text(weekdayLabel)
-                    .font(.caption2.weight(isSelected ? .bold : .medium))
+                    .font(.geist(.caption2).weight(isSelected ? .bold : .medium))
                     .foregroundStyle(isSelected ? AppColors.brandAccent : theme.textPrimary.opacity(0.75))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -276,6 +296,8 @@ struct DayHistoryTile: View {
                     .font(.unbounded(18, weight: .medium, relativeTo: .title3))
                     .fontDesign(nil)
                     .foregroundStyle(isSelected ? AppColors.brandAccent : theme.textPrimary.opacity(0.9))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.62)
             }
             .padding(.horizontal, 5)
             .padding(.vertical, 7)
@@ -300,6 +322,13 @@ struct DayHistoryTile: View {
     private var accessibilityLabel: String {
         let dayName = localizedShortWeekday
         let monthDay = CachedFormatters.monthDay.string(from: date)
+        if let health {
+            let details = [
+                health.steps.map { "\($0) steps" },
+                health.sleepHours.map { "\($0.formatted(.number.precision(.fractionLength(1)))) hours sleep" }
+            ].compactMap { $0 }.joined(separator: ", ")
+            return "\(dayName), \(monthDay), \(details)"
+        }
         if let snap = snapshot {
             return String(localized: "\(dayName), \(monthDay), \(snap.inkEarned) colors earned", comment: "Me calendar – tile a11y, with data")
         }
@@ -329,7 +358,6 @@ struct DayHistoryTile: View {
         }
 
         guard let canvas, !canvas.elements.isEmpty else {
-            await MainActor.run { isEmptyDay = true }
             return
         }
 
@@ -438,10 +466,10 @@ struct MeFullCalendarView: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(String(localized: "Calendar", comment: "Full calendar – title"))
-                    .font(.title2.weight(.semibold))
+                    .font(.geist(.title2).weight(.semibold))
                     .foregroundStyle(theme.textPrimary)
                 Text(String(localized: "\(pastDays.count) days tracked", comment: "Full calendar – tracked count"))
-                    .font(.caption)
+                    .font(.geist(.caption))
                     .foregroundStyle(theme.textSecondary.opacity(0.6))
             }
 
@@ -451,7 +479,7 @@ struct MeFullCalendarView: View {
                 visibleMonth = logicalToday
             } label: {
                 Text(String(localized: "Today", comment: "Full calendar – jump to today"))
-                    .font(.subheadline.weight(.semibold))
+                    .font(.geist(.subheadline).weight(.semibold))
                     .foregroundStyle(theme.textPrimary.opacity(0.9))
                     .padding(.horizontal, 12)
                     .frame(minHeight: 44)
@@ -461,7 +489,7 @@ struct MeFullCalendarView: View {
 
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.geist(size: 14, weight: .semibold))
                     .foregroundStyle(theme.textPrimary.opacity(0.9))
                     .frame(width: 44, height: 44)
                     .background(.ultraThinMaterial, in: Circle())
@@ -483,7 +511,7 @@ struct MeFullCalendarView: View {
             Spacer()
 
             Text(visibleMonth.formatted(.dateTime.month(.wide).year()))
-                .font(.headline)
+                .font(.geist(.headline))
                 .foregroundStyle(theme.textPrimary)
                 .contentTransition(.numericText())
 
@@ -508,7 +536,7 @@ struct MeFullCalendarView: View {
         ) {
             ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
                 Text(symbol.uppercased())
-                    .font(.caption2.weight(.medium))
+                    .font(.geist(.caption2).weight(.medium))
                     .foregroundStyle(theme.textSecondary.opacity(0.5))
                     .frame(maxWidth: .infinity)
             }
@@ -596,6 +624,7 @@ struct MeFullCalendarView: View {
 #Preview {
     MeCalendarStrip(
         pastDays: [:],
+        recentHealthByDay: [:],
         selectedDayKey: AppModel.dayKey(for: .now),
         onSelect: { _ in },
         posterCount: 0,

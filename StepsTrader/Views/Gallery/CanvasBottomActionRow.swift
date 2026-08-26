@@ -65,7 +65,7 @@ struct CanvasBottomActionRow: View {
     private var fullScreenControl: some View {
         Button(action: onFullScreen) {
             Image(systemName: "arrow.up.left.and.arrow.down.right")
-                .font(.system(size: 20, weight: .regular))
+                .font(.geist(size: 20, weight: .regular))
                 .foregroundStyle(ink)
                 .frame(width: 48, height: 48)
                 // Outline, not glass: the canvas is the subject here, and a
@@ -89,7 +89,7 @@ struct CanvasBottomActionRow: View {
     private var addControl: some View {
         Button(action: onAdd) {
             Image(systemName: "plus")
-                .font(.system(size: 22, weight: .regular))
+                .font(.geist(size: 22, weight: .regular))
                 .foregroundStyle(AppAccentInk.primary)
                 .frame(width: 52, height: 52)
                 .background(AppColors.brandAccent, in: Circle())

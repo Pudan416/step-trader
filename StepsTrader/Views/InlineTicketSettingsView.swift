@@ -56,11 +56,11 @@ struct InlineTicketSettingsView: View {
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "trash")
-                        .font(.body)
+                        .font(.geist(.body))
                         .foregroundStyle(.red)
                         .frame(width: 24)
                     Text(String(localized: "Delete"))
-                        .font(.subheadline.weight(.medium))
+                        .font(.geist(.subheadline).weight(.medium))
                         .foregroundStyle(.red)
                     Spacer()
                 }
@@ -84,21 +84,21 @@ struct InlineTicketSettingsView: View {
     private func rowButtonLabel(icon: String, title: String, showChevron: Bool, expanded: Bool, surface: Color, separator: Color) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.body)
+                .font(.geist(.body))
                 .foregroundStyle(.primary)
                 .frame(width: 24)
             Text(title)
-                .font(.subheadline.weight(.medium))
+                .font(.geist(.subheadline).weight(.medium))
                 .foregroundStyle(.primary)
             Spacer()
             if showChevron {
                 Image(systemName: "chevron.down")
-                    .font(.caption.weight(.semibold))
+                    .font(.geist(.caption).weight(.semibold))
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(expanded ? 180 : 0))
             } else {
                 Image(systemName: "chevron.right")
-                    .font(.caption)
+                    .font(.geist(.caption))
                     .foregroundStyle(.tertiary)
             }
         }
@@ -118,13 +118,13 @@ struct InlineTicketSettingsView: View {
     private var inlineIntervalsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(String(localized: "Time options"))
-                .font(.subheadline.weight(.semibold))
+                .font(.geist(.subheadline).weight(.semibold))
                 .foregroundStyle(.primary)
 
             ForEach(intervals, id: \.self) { interval in
                 HStack {
                     Text(interval.displayName)
-                        .font(.subheadline)
+                        .font(.geist(.subheadline))
                         .foregroundStyle(.primary)
                     Spacer()
                     Toggle("", isOn: Binding(
@@ -162,14 +162,14 @@ struct InlineTicketSettingsView: View {
             let budget = model.unspentUsageBudgetMatchingShield(for: group.id)
             HStack(spacing: 12) {
                 Image(systemName: "lock.open.fill")
-                    .font(.title2)
+                    .font(.geist(.title2))
                     .foregroundStyle(accent)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(String(localized: "Open", comment: "Unlock status label"))
-                        .font(.headline)
+                        .font(.geist(.headline))
                         .foregroundStyle(.primary)
                     Text(String(localized: "\(budget) min remaining"))
-                        .font(.caption)
+                        .font(.geist(.caption))
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -187,7 +187,7 @@ struct InlineTicketSettingsView: View {
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 Text(String(localized: "Spend colors on", comment: "Unlock section header"))
-                    .font(.caption.weight(.semibold))
+                    .font(.geist(.caption).weight(.semibold))
                     .foregroundStyle(.secondary)
                 ForEach(intervals, id: \.self) { interval in
                     if group.enabledIntervals.contains(interval) {
@@ -215,17 +215,17 @@ struct InlineTicketSettingsView: View {
         } label: {
             HStack(spacing: 12) {
                 Text(timeLabel)
-                    .font(.headline)
+                    .font(.geist(.headline))
                     .foregroundStyle(canAfford ? Color.primary : Color.primary.opacity(0.5))
 
                 Spacer()
 
                 HStack(spacing: 4) {
                     Text("\(cost)")
-                        .font(.headline)
+                        .font(.geist(.headline))
                         .monospacedDigit()
                     Text(String(localized: "colors"))
-                        .font(.subheadline)
+                        .font(.geist(.subheadline))
                 }
                 .foregroundStyle(canAfford ? Color.primary : Color.primary.opacity(0.5))
             }

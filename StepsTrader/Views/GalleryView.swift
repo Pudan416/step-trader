@@ -965,7 +965,7 @@ struct GalleryView: View {
                         .tint(buttonColor)
                 } else {
                     Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 22, weight: .regular))
+                        .font(.geist(size: 22, weight: .regular))
                         .symbolRenderingMode(.hierarchical)
                         .foregroundStyle(buttonColor)
                 }
@@ -1029,20 +1029,20 @@ struct GalleryView: View {
                         .fill(buttonColor.opacity(0.08))
                         .frame(width: 40, height: 40)
                     Image(systemName: "lock.screen")
-                        .font(.system(size: 18, weight: .medium))
+                        .font(.geist(size: 18, weight: .medium))
                         .foregroundStyle(buttonColor.opacity(0.8))
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(String(localized: "Set this canvas as your wallpaper", comment: "Wide canvas – wallpaper prompt"))
-                        .font(.subheadline.weight(.semibold))
+                        .font(.geist(.subheadline).weight(.semibold))
                         .foregroundStyle(buttonColor)
                     Text(String(localized: "Your clock and widgets will overlay this canvas", comment: "Wide canvas – wallpaper prompt subtitle"))
-                        .font(.caption.weight(.medium))
+                        .font(.geist(.caption).weight(.medium))
                         .foregroundStyle(buttonColor.opacity(0.75))
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.geist(size: 13, weight: .semibold))
                     .foregroundStyle(buttonColor.opacity(0.55))
             }
             .padding(.horizontal, 16)
@@ -1062,7 +1062,7 @@ struct GalleryView: View {
     /// `RadialHoldMenu` so the user understands where to tap.
     private var addActivityHint: some View {
         Text(activeHintWindow.prompt)
-            .font(.system(size: 14, weight: .medium, design: .rounded))
+            .font(.geist(size: 14, weight: .medium, design: .rounded))
             .foregroundStyle(labelColor)
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -1082,7 +1082,7 @@ struct GalleryView: View {
 
             if isCanvasEmpty {
                 Text(String(localized: "Today is uncolored", comment: "Canvas empty state hint"))
-                    .font(.subheadline.weight(.medium))
+                    .font(.geist(.subheadline).weight(.medium))
                     .foregroundStyle(labelColor.opacity(0.65))
                     .contrastingOnGlass()
             }
@@ -1101,7 +1101,7 @@ struct GalleryView: View {
                         mediumHapticTick &+= 1
                     } label: {
                         Text(routine.name)
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .font(.geist(size: 13, weight: .medium, design: .rounded))
                             .foregroundStyle(labelColor)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)

@@ -253,11 +253,9 @@ enum HappeningFieldLabelTypography {
     }
 
     static func scaledUIFont(for dynamicTypeSize: DynamicTypeSize) -> UIFont {
-        let base = UIFont.systemFont(ofSize: pointSize, weight: .semibold)
-        let descriptor = base.fontDescriptor.withDesign(.rounded) ?? base.fontDescriptor
-        let roundedBase = UIFont(descriptor: descriptor, size: pointSize)
-        return UIFontMetrics(forTextStyle: .footnote).scaledFont(
-            for: roundedBase,
+        AppTypography.scaledUIFont(
+            size: pointSize,
+            relativeTo: .footnote,
             compatibleWith: UITraitCollection(
                 preferredContentSizeCategory: contentSizeCategory(for: dynamicTypeSize)
             )

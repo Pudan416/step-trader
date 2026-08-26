@@ -105,6 +105,125 @@ final class MeWeekStatsTests: XCTestCase {
 
 final class MeCalendarTimelineTests: XCTestCase {
 
+    func testPagingMotionMovesNewerPosterInFromTrailingEdgeAndOlderFromLeadingEdge() {
+        XCTAssertEqual(
+            MePosterPagingMotion.transition(for: .newer, reduceMotion: false),
+            .init(insertionEdge: .trailing, removalEdge: .leading, duration: 0.28)
+        )
+        XCTAssertEqual(
+            MePosterPagingMotion.transition(for: .older, reduceMotion: false),
+            .init(insertionEdge: .leading, removalEdge: .trailing, duration: 0.28)
+        )
+    }
+
+    func testPagingMotionDoesNotDragPastNewestDay() {
+        let keys = ["2026-08-20", "2026-08-21", "2026-08-22"]
+
+        XCTAssertEqual(
+            MePosterPagingMotion.permittedDragTranslation(
+                -80,
+                from: "2026-08-22",
+                dayKeys: keys,
+                reduceMotion: false
+            ),
+            0
+        )
+        XCTAssertEqual(
+            MePosterPagingMotion.permittedDragTranslation(
+                80,
+                from: "2026-08-22",
+                dayKeys: keys,
+                reduceMotion: false
+            ),
+            80
+        )
+    }
+
+    func testPagingMotionDisablesSpatialMovementForReduceMotion() {
+        XCTAssertEqual(
+            MePosterPagingMotion.transition(for: .newer, reduceMotion: true),
+            .init(insertionEdge: nil, removalEdge: nil, duration: 0.15)
+        )
+        XCTAssertEqual(
+            MePosterPagingMotion.permittedDragTranslation(
+                80,
+                from: "2026-08-21",
+                dayKeys: ["2026-08-20", "2026-08-21", "2026-08-22"],
+                reduceMotion: true
+            ),
+            0
+        )
+    }
+
+    func testPosterRailAlignsMetricsToArtworkTopAndUnlocksToArtworkBottom() {
+        let metrics = MePosterRailLayout.placement(
+            for: .metrics,
+            ruleRight: 566.02,
+            artworkTop: 91,
+            artworkBottom: 750,
+            railLength: 245,
+            lineHeight: 15
+        )
+        let unlocks = MePosterRailLayout.placement(
+            for: .unlocks,
+            ruleRight: 566.02,
+            artworkTop: 91,
+            artworkBottom: 750,
+            railLength: 245,
+            lineHeight: 15
+        )
+
+        XCTAssertEqual(metrics.rotatedFrame.minY, 91, accuracy: 0.001)
+        XCTAssertEqual(metrics.rotatedFrame.maxX, 566.02, accuracy: 0.001)
+        XCTAssertEqual(metrics.textAlignment, .leading)
+        XCTAssertEqual(unlocks.rotatedFrame.maxY, 750, accuracy: 0.001)
+        XCTAssertEqual(unlocks.rotatedFrame.maxX, 566.02, accuracy: 0.001)
+        XCTAssertEqual(unlocks.textAlignment, .trailing)
+    }
+
+    func testPosterPagingStopsAtNewestAndOldestRecentDay() {
+        let keys = ["2026-08-20", "2026-08-21", "2026-08-22"]
+
+        XCTAssertNil(MePosterPaging.destination(
+            from: "2026-08-22",
+            direction: .newer,
+            dayKeys: keys
+        ))
+        XCTAssertNil(MePosterPaging.destination(
+            from: "2026-08-20",
+            direction: .older,
+            dayKeys: keys
+        ))
+    }
+
+    func testPosterPagingMovesOneCalendarDayInTheRequestedDirection() {
+        let keys = ["2026-08-20", "2026-08-21", "2026-08-22"]
+
+        XCTAssertEqual(MePosterPaging.destination(
+            from: "2026-08-21",
+            direction: .newer,
+            dayKeys: keys
+        ), "2026-08-22")
+        XCTAssertEqual(MePosterPaging.destination(
+            from: "2026-08-21",
+            direction: .older,
+            dayKeys: keys
+        ), "2026-08-20")
+    }
+
+    func testSevenCompactCalendarTilesNeverExceedTheirContainer() {
+        let width = MeCalendarTileLayout.tileWidth(
+            containerWidth: 320,
+            count: 7,
+            spacing: 4,
+            displayScale: 3
+        )
+
+        XCTAssertLessThanOrEqual(width * 7 + 4 * 6, 320.001)
+        XCTAssertGreaterThan(width, 0)
+        XCTAssertEqual((width * 3).rounded(), width * 3)
+    }
+
     func testTimelineShowsSevenConsecutiveDaysEndingTodayWhenHistoryIsShort() throws {
         let calendar = makeCalendar()
         let today = try XCTUnwrap(calendar.date(from: DateComponents(
@@ -227,22 +346,26 @@ final class MePosterEventLedgerTests: XCTestCase {
             MePosterUnlockRecord(
                 timestamp: try date(2026, 8, 20, 8, calendar: calendar),
                 target: "group_instagram",
-                targetName: "Instagram"
+                targetName: "Instagram",
+                minutes: 10
             ),
             MePosterUnlockRecord(
                 timestamp: try date(2026, 8, 20, 21, calendar: calendar),
                 target: "group_instagram",
-                targetName: "Instagram"
+                targetName: "Instagram",
+                minutes: 20
             ),
             MePosterUnlockRecord(
                 timestamp: try date(2026, 8, 21, 1, calendar: calendar),
                 target: "group_telegram",
-                targetName: "Telegram"
+                targetName: "Telegram",
+                minutes: 15
             ),
             MePosterUnlockRecord(
                 timestamp: try date(2026, 8, 21, 6, calendar: calendar),
                 target: "group_instagram",
-                targetName: "Instagram"
+                targetName: "Instagram",
+                minutes: 60
             )
         ]
 
@@ -255,36 +378,29 @@ final class MePosterEventLedgerTests: XCTestCase {
         )
 
         XCTAssertEqual(unlocks, [
-            .init(title: "Instagram", count: 2),
-            .init(title: "Telegram", count: 1)
+            .init(title: "Instagram", count: 2, minutes: 30),
+            .init(title: "Telegram", count: 1, minutes: 15)
         ])
     }
 
-    func testDisplayEventsUseSentenceCaseDeduplicateHappeningsAndAppendUnlockCounts() {
+    func testDisplayEventsUseSentenceCaseAndDoNotMixUnlocksIntoHappenings() {
         let events = MePosterEventLedger.displayEvents(
-            happeningTitles: ["WALK", "READ", "WALK", "TIME OUTSIDE"],
-            unlocks: [
-                .init(title: "Instagram", count: 3),
-                .init(title: "Telegram", count: 1)
-            ]
+            happeningTitles: ["WALK", "READ", "WALK", "TIME OUTSIDE"]
         )
 
         XCTAssertEqual(events, [
             "Walk",
             "Read",
-            "Time outside",
-            "Instagram ×3",
-            "Telegram ×1"
+            "Time outside"
         ])
     }
 
     func testDisplayEventsPreserveIntentionalMixedCaseNames() {
         let events = MePosterEventLedger.displayEvents(
-            happeningTitles: ["Call iPhone repair", "Read"],
-            unlocks: [.init(title: "YouTube", count: 2)]
+            happeningTitles: ["Call iPhone repair", "Read"]
         )
 
-        XCTAssertEqual(events, ["Call iPhone repair", "Read", "YouTube ×2"])
+        XCTAssertEqual(events, ["Call iPhone repair", "Read"])
     }
 
     private func makeCalendar() -> Calendar {
@@ -326,9 +442,21 @@ final class MePosterPresentationPolicyTests: XCTestCase {
         XCTAssertEqual(
             MePosterPresentationPolicy.mode(
                 isToday: false,
-                hasSavedElements: false
+                hasSavedElements: false,
+                hasHealthData: false
             ),
             .emptyPast
+        )
+    }
+
+    func testPastDayWithHealthDataUsesItsEnergyBackgroundWithoutSavedElements() {
+        XCTAssertEqual(
+            MePosterPresentationPolicy.mode(
+                isToday: false,
+                hasSavedElements: false,
+                hasHealthData: true
+            ),
+            .healthPast
         )
     }
 

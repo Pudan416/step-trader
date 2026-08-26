@@ -86,7 +86,7 @@ struct RichCanvasLabView: View {
                 lightHapticTick &+= 1
             } label: {
                 Label("Shuffle", systemImage: "shuffle")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.geist(.subheadline).weight(.semibold))
                     .foregroundStyle(AppAccentInk.primary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
