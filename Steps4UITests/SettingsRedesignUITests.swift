@@ -188,6 +188,25 @@ final class SettingsRedesignUITests: XCTestCase {
         }
     }
 
+    func testCompactHomeKeepsTheHierarchyScannable() {
+        let app = launchSettings()
+        let account = app.buttons["settings.account"]
+        let yourDay = app.buttons["settings.yourDay"]
+        let appearance = app.buttons["settings.destination.appearance"]
+        let appSettingsSection = app.staticTexts["settings.appSettings.section"]
+
+        XCTAssertTrue(account.waitForExistence(timeout: 3))
+        XCTAssertTrue(yourDay.exists)
+        XCTAssertTrue(appearance.exists)
+        XCTAssertTrue(appSettingsSection.exists)
+
+        XCTAssertGreaterThanOrEqual(account.frame.height, 76)
+        XCTAssertLessThanOrEqual(account.frame.height, 82)
+        XCTAssertGreaterThan(yourDay.frame.height, account.frame.height)
+        XCTAssertLessThanOrEqual(yourDay.frame.height, 188)
+        XCTAssertLessThanOrEqual(appearance.frame.height, 114)
+    }
+
     func testAccessibilityTypeKeepsDestinationCardsReadable() {
         let app = launchSettings(contentSizeCategory: "UICTContentSizeCategoryAccessibilityM")
         let appearance = app.buttons["settings.destination.appearance"]
@@ -205,7 +224,7 @@ final class SettingsRedesignUITests: XCTestCase {
         XCTAssertTrue(widgets.waitForExistence(timeout: 3))
         XCTAssertEqual(widgets.label, "Widgets & wallpaper")
         XCTAssertGreaterThan(widgets.frame.width, 250)
-        XCTAssertGreaterThanOrEqual(widgets.frame.height, 132)
+        XCTAssertGreaterThanOrEqual(widgets.frame.height, 112)
     }
 
     func testGridUsesMeasuredDeviceWidth() {
@@ -215,7 +234,7 @@ final class SettingsRedesignUITests: XCTestCase {
 
         XCTAssertTrue(appearance.waitForExistence(timeout: 3))
         XCTAssertTrue(notifications.exists)
-        let minimumTwoColumnAppWidth: CGFloat = (2 * 164) + 12 + (2 * 24)
+        let minimumTwoColumnAppWidth: CGFloat = (2 * 164) + 12 + (2 * 20)
         if app.frame.width < minimumTwoColumnAppWidth {
             XCTAssertEqual(appearance.frame.minX, notifications.frame.minX, accuracy: 2)
             XCTAssertGreaterThan(notifications.frame.minY, appearance.frame.minY)

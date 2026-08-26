@@ -89,7 +89,7 @@ enum SettingsCardAppearance {
     /// A dark matte wash keeps card content independent of the animated palette.
     static let surfaceOpacity = 0.70
     static let captionOpacity = 0.78
-    static let outlineOpacity = 0.55
+    static let outlineOpacity = 0.47
 }
 
 struct SettingsSRGBColor: Equatable {

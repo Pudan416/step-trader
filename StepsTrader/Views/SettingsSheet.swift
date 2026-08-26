@@ -33,7 +33,7 @@ struct SettingsSheet: View {
     /// standalone usage). The tab instance uses `featureTipRouteBinding` instead.
     @State private var localFeatureTipRoute: FeatureTipSettingsPage?
 
-    private let horizontalContentPadding: CGFloat = 24
+    private let horizontalContentPadding: CGFloat = 20
 
     private var featureTipRoute: Binding<FeatureTipSettingsPage?> {
         featureTipRouteBinding ?? $localFeatureTipRoute
@@ -85,66 +85,75 @@ struct SettingsSheet: View {
                             .foregroundStyle(theme.adaptivePrimaryText)
                             .padding(.top, 8)
 
-                        accountCard
+                        VStack(spacing: 16) {
+                            accountCard
 
-                        NavigationLink {
-                            SettingsEnergyPage(model: model)
-                        } label: {
-                            SettingsYourDayCardLabel(summary: yourDaySummary)
+                            NavigationLink {
+                                SettingsEnergyPage(model: model)
+                            } label: {
+                                SettingsYourDayCardLabel(summary: yourDaySummary)
+                            }
+                            .buttonStyle(MattePressStyle())
+                            .accessibilityIdentifier("settings.yourDay")
                         }
-                        .buttonStyle(MattePressStyle())
-                        .accessibilityIdentifier("settings.yourDay")
 
-                        LazyVGrid(
-                            columns: gridColumns(availableContentWidth: availableContentWidth),
-                            spacing: SettingsGridLayout.spacing
-                        ) {
-                            NavigationLink {
-                                SettingsAppearancePage(model: model)
-                            } label: {
-                                SettingsDestinationCardLabel(
-                                    icon: "paintpalette",
-                                    title: String(localized: "Appearance", comment: "Settings destination title")
-                                )
-                            }
-                            .buttonStyle(MattePressStyle())
-                            .accessibilityIdentifier("settings.destination.appearance")
+                        VStack(alignment: .leading, spacing: 12) {
+                            SettingsSectionLabel(
+                                text: String(localized: "App settings", comment: "Settings destination group title")
+                            )
+                            .accessibilityIdentifier("settings.appSettings.section")
 
-                            NavigationLink {
-                                NotificationSettingsView(model: model)
-                            } label: {
-                                SettingsDestinationCardLabel(
-                                    icon: "bell",
-                                    title: String(localized: "Notifications", comment: "Settings destination title")
-                                )
-                            }
-                            .buttonStyle(MattePressStyle())
-                            .accessibilityIdentifier("settings.destination.notifications")
+                            LazyVGrid(
+                                columns: gridColumns(availableContentWidth: availableContentWidth),
+                                spacing: SettingsGridLayout.spacing
+                            ) {
+                                NavigationLink {
+                                    SettingsAppearancePage(model: model)
+                                } label: {
+                                    SettingsDestinationCardLabel(
+                                        icon: "paintpalette",
+                                        title: String(localized: "Appearance", comment: "Settings destination title")
+                                    )
+                                }
+                                .buttonStyle(MattePressStyle())
+                                .accessibilityIdentifier("settings.destination.appearance")
 
-                            NavigationLink {
-                                SettingsPermissionsPage(model: model)
-                            } label: {
-                                SettingsDestinationCardLabel(
-                                    icon: "lock.shield",
-                                    title: String(localized: "Permissions", comment: "Settings destination title"),
-                                    warningText: model.hasPermissionIssues
-                                        ? String(localized: "Action needed", comment: "Permissions warning label")
-                                        : nil
-                                )
-                            }
-                            .buttonStyle(MattePressStyle())
-                            .accessibilityIdentifier("settings.destination.permissions")
+                                NavigationLink {
+                                    NotificationSettingsView(model: model)
+                                } label: {
+                                    SettingsDestinationCardLabel(
+                                        icon: "bell",
+                                        title: String(localized: "Notifications", comment: "Settings destination title")
+                                    )
+                                }
+                                .buttonStyle(MattePressStyle())
+                                .accessibilityIdentifier("settings.destination.notifications")
 
-                            NavigationLink {
-                                SettingsWidgetsWallpaperPage(model: model)
-                            } label: {
-                                SettingsDestinationCardLabel(
-                                    icon: "square.stack.3d.up",
-                                    title: String(localized: "Widgets & wallpaper", comment: "Settings destination title")
-                                )
+                                NavigationLink {
+                                    SettingsPermissionsPage(model: model)
+                                } label: {
+                                    SettingsDestinationCardLabel(
+                                        icon: "lock.shield",
+                                        title: String(localized: "Permissions", comment: "Settings destination title"),
+                                        warningText: model.hasPermissionIssues
+                                            ? String(localized: "Action needed", comment: "Permissions warning label")
+                                            : nil
+                                    )
+                                }
+                                .buttonStyle(MattePressStyle())
+                                .accessibilityIdentifier("settings.destination.permissions")
+
+                                NavigationLink {
+                                    SettingsWidgetsWallpaperPage(model: model)
+                                } label: {
+                                    SettingsDestinationCardLabel(
+                                        icon: "square.stack.3d.up",
+                                        title: String(localized: "Widgets & wallpaper", comment: "Settings destination title")
+                                    )
+                                }
+                                .buttonStyle(MattePressStyle())
+                                .accessibilityIdentifier("settings.destination.widgetsWallpaper")
                             }
-                            .buttonStyle(MattePressStyle())
-                            .accessibilityIdentifier("settings.destination.widgetsWallpaper")
                         }
 
                         SettingsInformationGroup {
