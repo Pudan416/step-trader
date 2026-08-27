@@ -201,30 +201,36 @@ struct DayObjectGPUActor: Equatable {
 /// Stable material data uploaded once per rendered actor record.
 struct DayObjectGPUAppearance: Equatable {
     static let metalAlignment = 16
-    static let metalStride = 160
+    static let metalStride = 176
 
     let color0: SIMD4<Float>
     let color1: SIMD4<Float>
     let color2: SIMD4<Float>
     let radial0: SIMD4<Float>
     let radial1: SIMD4<Float>
+    let radial2: SIMD4<Float>
+    let field: SIMD4<Float>
     let optical0: SIMD4<Float>
     let optical1: SIMD4<Float>
-    let membrane: SIMD4<Float>
     let light: SIMD4<Float>
     let metadata: SIMD4<UInt32>
+
+    // Source compatibility for older focused tests. This is computed and does
+    // not participate in the Metal ABI.
+    var membrane: SIMD4<Float> { .zero }
 
     static let fallback = DayObjectGPUAppearance(
         color0: SIMD4(1, 1, 1, 1),
         color1: SIMD4(1, 1, 1, 1),
         color2: SIMD4(1, 1, 1, 1),
-        radial0: SIMD4(0, 0, 1, 0),
-        radial1: SIMD4(0.7, 0, 0, 2),
+        radial0: SIMD4(0, 0, 1, 0.36),
+        radial1: SIMD4(0.24, -0.16, 0.68, 0.42),
+        radial2: SIMD4(0, 0, 0.42, 0.72),
+        field: SIMD4(0, 1, 0, 0),
         optical0: SIMD4(0, 0, 1, 1),
         optical1: SIMD4(0.1, 0, 0, 0),
-        membrane: .zero,
-        light: SIMD4(0.7, 0, 0, 0),
-        metadata: SIMD4(DayObjectMaterialFamily.satin.rawValue, 1, 1, 0)
+        light: SIMD4(0.7, 1, 0.42, 0),
+        metadata: SIMD4(DayObjectMaterialFamily.softVolume.rawValue, 1, 2, 0)
     )
 
     init(
@@ -237,14 +243,20 @@ struct DayObjectGPUAppearance: Equatable {
         let colorCount = colors.count
         let fallbackColor = colors.last ?? SIMD4<Float>(1, 1, 1, 1)
         while colors.count < 3 { colors.append(fallbackColor) }
-        let radial0 = SIMD4(
-            Float(appearance.focalDistance), Float(appearance.focalAngle),
-            Float(appearance.radius), Float(appearance.falloff)
-        )
-        let radial1 = SIMD4(
-            Float(appearance.mixing), Float(appearance.distortion),
-            Float(appearance.distortionShift), Float(appearance.distortionFrequency)
-        )
+        let paddedLayers = Array(appearance.layers.prefix(3))
+        func radialDescriptor(at index: Int) -> SIMD4<Float> {
+            guard paddedLayers.indices.contains(index) else {
+                return SIMD4(0, 0, 0.42, 0.72)
+            }
+            let layer = paddedLayers[index]
+            return SIMD4(
+                Float(layer.focalOffset.x), Float(layer.focalOffset.y),
+                Float(layer.radius), Float(layer.softness)
+            )
+        }
+        let layerOpacities = (0..<3).map { index -> Float in
+            paddedLayers.indices.contains(index) ? Float(paddedLayers[index].opacity) : 0
+        }
         let optical0 = SIMD4(
             Float(appearance.innerGlow), Float(appearance.outerGlow),
             Float(appearance.bodyOpacity), Float(appearance.centerOpacity)
@@ -253,47 +265,51 @@ struct DayObjectGPUAppearance: Equatable {
             Float(appearance.rimOpacity), Float(appearance.refractionStrength),
             Float(appearance.refractionAngle), Float(appearance.localDepthSoftness)
         )
-        let membrane = SIMD4(
-            Float(appearance.membraneOffsets.x), Float(appearance.membraneOffsets.y),
-            0, 0
+        let field = SIMD4(
+            Float(appearance.distortion), Float(appearance.distortionFrequency),
+            Float(appearance.distortionPhase), Float(appearance.localDepthSoftness)
         )
-        let light = SIMD4(Float(appearance.lightResponse), 0, 0, 0)
+        let light = SIMD4(
+            Float(appearance.lightResponse),
+            layerOpacities[0], layerOpacities[1], layerOpacities[2]
+        )
         let requestedMaterial = materialRawValue ?? appearance.material.rawValue
-        let material = DayObjectMaterialFamily(rawValue: requestedMaterial) ?? .satin
+        let material = DayObjectMaterialFamily(rawValue: requestedMaterial) ?? .softVolume
         self.init(
             color0: colors[0], color1: colors[1], color2: colors[2],
-            radial0: radial0, radial1: radial1,
+            radial0: radialDescriptor(at: 0),
+            radial1: radialDescriptor(at: 1),
+            radial2: radialDescriptor(at: 2),
+            field: field,
             optical0: optical0, optical1: optical1,
-            membrane: membrane, light: light,
+            light: light,
             metadata: SIMD4(
                 material.rawValue,
                 UInt32(min(max(colorCount, 1), 3)),
-                UInt32(min(max(appearance.membraneLayerCount, 1), 3)),
-                0
+                UInt32(min(max(paddedLayers.count, 1), 3)),
+                appearance.mutationRole.rawValue
             )
         )
     }
 
     init(
         color0: SIMD4<Float>, color1: SIMD4<Float>, color2: SIMD4<Float>,
-        radial0: SIMD4<Float>, radial1: SIMD4<Float>, optical0: SIMD4<Float>,
-        optical1: SIMD4<Float>, membrane: SIMD4<Float>, light: SIMD4<Float>,
+        radial0: SIMD4<Float>, radial1: SIMD4<Float>, radial2: SIMD4<Float>,
+        field: SIMD4<Float>, optical0: SIMD4<Float>, optical1: SIMD4<Float>,
+        light: SIMD4<Float>,
         metadata: SIMD4<UInt32>
     ) {
         self.color0 = Self.clampedColor(color0)
         self.color1 = Self.clampedColor(color1)
         self.color2 = Self.clampedColor(color2)
-        self.radial0 = SIMD4(
-            Self.bounded(radial0.x, 0...0.95),
-            Self.bounded(radial0.y, -2 * .pi...2 * .pi),
-            Self.bounded(radial0.z, 0.05...2),
-            Self.bounded(radial0.w, -0.5...0.8)
-        )
-        self.radial1 = SIMD4(
-            Self.bounded(radial1.x, 0...1),
-            Self.bounded(radial1.y, 0...0.7),
-            Self.bounded(radial1.z, -1...1),
-            Self.bounded(radial1.w, 2...12)
+        self.radial0 = Self.radialDescriptor(radial0)
+        self.radial1 = Self.radialDescriptor(radial1)
+        self.radial2 = Self.radialDescriptor(radial2)
+        self.field = SIMD4(
+            Self.bounded(field.x, 0...0.18),
+            Self.bounded(field.y, 0.8...4),
+            Self.bounded(field.z, -2 * .pi...2 * .pi),
+            Self.bounded(field.w, 0...1)
         )
         self.optical0 = Self.clampedColor(optical0)
         self.optical1 = SIMD4(
@@ -302,24 +318,66 @@ struct DayObjectGPUAppearance: Equatable {
             Self.bounded(optical1.z, -2 * .pi...2 * .pi),
             Self.bounded(optical1.w, 0...1)
         )
-        self.membrane = SIMD4(
-            Self.bounded(membrane.x, -0.2...0.2),
-            Self.bounded(membrane.y, -0.2...0.2),
-            Self.bounded(membrane.z, -0.2...0.2),
-            Self.bounded(membrane.w, -0.2...0.2)
-        )
         self.light = SIMD4(
             Self.bounded(light.x, 0...1),
-            Self.bounded(light.y, -1...1),
-            Self.bounded(light.z, -1...1),
-            Self.bounded(light.w, -1...1)
+            Self.bounded(light.y, 0...1),
+            Self.bounded(light.z, 0...1),
+            Self.bounded(light.w, 0...1)
         )
-        let material = DayObjectMaterialFamily(rawValue: metadata.x) ?? .satin
+        let material = DayObjectMaterialFamily(rawValue: metadata.x) ?? .softVolume
         self.metadata = SIMD4(
             material.rawValue,
             min(max(metadata.y, 1), 3),
             min(max(metadata.z, 1), 3),
-            metadata.w
+            min(metadata.w, UInt32(DayObjectMutationRole.allCases.count - 1))
+        )
+    }
+
+    /// Compatibility initializer for the previous two-vector radial ABI.
+    init(
+        color0: SIMD4<Float>, color1: SIMD4<Float>, color2: SIMD4<Float>,
+        radial0 legacyRadial: SIMD4<Float>, radial1 legacyField: SIMD4<Float>,
+        optical0: SIMD4<Float>, optical1: SIMD4<Float>, membrane: SIMD4<Float>,
+        light: SIMD4<Float>, metadata: SIMD4<UInt32>
+    ) {
+        let distance = Self.bounded(legacyRadial.x, 0...0.68)
+        let angle = Self.bounded(legacyRadial.y, -2 * .pi...2 * .pi)
+        let focus = SIMD2<Float>(cos(angle), sin(angle)) * distance
+        let radius = Self.bounded(legacyRadial.z, 0.42...1.18)
+        let softness = Self.bounded(legacyRadial.w + 0.24, 0.12...0.72)
+        let secondFocus = focus + SIMD2(membrane.x, membrane.y)
+        self.init(
+            color0: color0,
+            color1: color1,
+            color2: color2,
+            radial0: SIMD4(focus.x, focus.y, radius, softness),
+            radial1: SIMD4(
+                secondFocus.x, secondFocus.y,
+                max(radius * 0.72, 0.42), min(softness + 0.10, 0.72)
+            ),
+            radial2: SIMD4(-focus.x * 0.55, -focus.y * 0.55, 0.52, 0.48),
+            field: SIMD4(
+                legacyField.y, legacyField.w, legacyField.z * .pi,
+                optical1.w
+            ),
+            optical0: optical0,
+            optical1: optical1,
+            light: SIMD4(light.x, legacyField.x, legacyField.x * 0.65, 0.32),
+            metadata: metadata
+        )
+    }
+
+    private static func radialDescriptor(_ value: SIMD4<Float>) -> SIMD4<Float> {
+        let finiteFocus = SIMD2(
+            value.x.isFinite ? value.x : 0,
+            value.y.isFinite ? value.y : 0
+        )
+        let focusLength = simd_length(finiteFocus)
+        let focus = focusLength > 0.68 ? finiteFocus / focusLength * 0.68 : finiteFocus
+        return SIMD4(
+            focus.x, focus.y,
+            bounded(value.z, 0.42...1.18),
+            bounded(value.w, 0.12...0.72)
         )
     }
 
