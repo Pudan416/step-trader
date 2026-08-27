@@ -412,18 +412,58 @@ struct MeView: View {
             sectionHeader(String(localized: "COLORS SPENT THIS WEEK", comment: "MeView – connected apps section header"))
 
             VStack(alignment: .leading, spacing: useTightMeLayout ? 10 : 12) {
-                ForEach(Array(apps.enumerated()), id: \.offset) { _, app in
-                    appBarRow(name: app.name, spent: app.spent, maxSpent: maxSpent)
+                ForEach(Array(apps.enumerated()), id: \.offset) { index, app in
+                    appResourceRow(
+                        name: app.name,
+                        spent: app.spent,
+                        maxSpent: maxSpent,
+                        variant: index
+                    )
                 }
             }
         }
     }
 
-    private func appBarRow(name: String, spent: Int, maxSpent: Int) -> some View {
-        // Minimum fraction so even tiny values are visible as a hint, not invisible.
-        let fraction = max(0.04, CGFloat(spent) / CGFloat(maxSpent))
+    private func appResourceRow(
+        name: String,
+        spent: Int,
+        maxSpent: Int,
+        variant: Int
+    ) -> some View {
+        let fraction = MeConnectedAppFill.fraction(
+            spent: spent,
+            maximumSpent: maxSpent
+        )
         let spentLabel = String(localized: "\(spent) colors", comment: "MeView – per-app color spend")
-        return VStack(alignment: .leading, spacing: 4) {
+        let shape = ResourcePebbleShape(variant: variant)
+
+        return ZStack {
+            shape
+                .fill(.ultraThinMaterial)
+                .overlay(shape.fill(Color.black.opacity(0.14)))
+
+            GeometryReader { geometry in
+                HStack(spacing: 0) {
+                    ResourceGradientFill()
+                        .frame(width: geometry.size.width * fraction)
+                    Spacer(minLength: 0)
+                }
+            }
+            .clipShape(shape)
+            .accessibilityHidden(true)
+
+            LinearGradient(
+                stops: [
+                    .init(color: .black.opacity(0.26), location: 0),
+                    .init(color: .black.opacity(0.08), location: 0.62),
+                    .init(color: .clear, location: 1),
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .clipShape(shape)
+            .allowsHitTesting(false)
+
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(name)
                     .font(.geist(useTightMeLayout ? .footnote : .subheadline))
@@ -438,18 +478,10 @@ struct MeView: View {
                     .monospacedDigit()
                     .foregroundStyle(theme.textPrimary)
             }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(theme.textPrimary.opacity(0.08))
-                    Capsule()
-                        .fill(theme.accentColor.opacity(0.75))
-                        .frame(width: geo.size.width * fraction)
-                }
-            }
-            .frame(height: 4)
-            .accessibilityHidden(true)  // bar is decorative; the row already announces name + spend
+            .padding(.horizontal, 16)
         }
+        .frame(height: useTightMeLayout ? 54 : 62)
+        .overlay(shape.stroke(theme.textPrimary.opacity(0.14), lineWidth: 0.75))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(name), \(spentLabel)")
     }

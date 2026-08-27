@@ -17,6 +17,16 @@ enum AppColors {
     /// reordering. The 8-char parser in `Color(hex:)` (CanvasElement.swift)
     /// expects ARGB.
     static let goldFallbackHex = "#FFD369"
+
+    /// The shared resource/canvas palette from NOWHERE · COLOR SYSTEM 2.0.
+    /// Resource fills use the navy as their radial origin and expand through
+    /// copper into amber; the colors are semantic, not per-app decoration.
+    enum LivingCanvas {
+        static let night = Color(red: 0x00/255, green: 0x26/255, blue: 0x46/255)   // #002646
+        static let navy = Color(red: 0x00/255, green: 0x3A/255, blue: 0x6C/255)    // #003A6C
+        static let copper = Color(red: 0xE4/255, green: 0x8A/255, blue: 0x3A/255)  // #E48A3A
+        static let amber = Color(red: 0xFF/255, green: 0xBF/255, blue: 0x65/255)   // #FFBF65
+    }
     
     // MARK: - Night Theme
     // Night and screens. Same yellow accent, different context.

@@ -794,6 +794,77 @@ extension View {
     }
 }
 
+// MARK: - Resource fill language
+
+/// The shared remaining/consumed-resource fill used on Feeds and Me.
+///
+/// The radial origin stays pinned to the top-leading corner. Callers size this
+/// view to the visible resource share, so a shrinking fill keeps the complete
+/// navy-to-copper-to-amber composition instead of collapsing into a flat color.
+struct ResourceGradientFill: View {
+    var body: some View {
+        GeometryReader { geometry in
+            let radius = max(geometry.size.width, geometry.size.height)
+            RadialGradient(
+                stops: [
+                    .init(color: AppColors.LivingCanvas.navy, location: 0),
+                    .init(color: AppColors.LivingCanvas.night, location: 0.28),
+                    .init(color: AppColors.LivingCanvas.copper, location: 0.72),
+                    .init(color: AppColors.LivingCanvas.amber, location: 1),
+                ],
+                center: .topLeading,
+                startRadius: 0,
+                endRadius: max(radius, 1)
+            )
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// Compact, softly asymmetric resource block. Three restrained variants keep
+/// repeated rows from reading like a stack of identical rounded rectangles.
+struct ResourcePebbleShape: Shape {
+    let variant: Int
+
+    func path(in rect: CGRect) -> Path {
+        let cap = rect.height / 2
+        let radii: (topLeading: CGFloat, topTrailing: CGFloat, bottomTrailing: CGFloat, bottomLeading: CGFloat)
+        switch abs(variant) % 3 {
+        case 1:
+            radii = (cap * 0.72, cap * 0.98, cap * 0.76, cap * 0.92)
+        case 2:
+            radii = (cap * 0.96, cap * 0.74, cap * 0.94, cap * 0.70)
+        default:
+            radii = (cap * 0.90, cap * 0.72, cap * 0.96, cap * 0.78)
+        }
+
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + radii.topLeading, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX - radii.topTrailing, y: rect.minY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX, y: rect.minY + radii.topTrailing),
+            control: CGPoint(x: rect.maxX, y: rect.minY)
+        )
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - radii.bottomTrailing))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX - radii.bottomTrailing, y: rect.maxY),
+            control: CGPoint(x: rect.maxX, y: rect.maxY)
+        )
+        path.addLine(to: CGPoint(x: rect.minX + radii.bottomLeading, y: rect.maxY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.minX, y: rect.maxY - radii.bottomLeading),
+            control: CGPoint(x: rect.minX, y: rect.maxY)
+        )
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + radii.topLeading))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.minX + radii.topLeading, y: rect.minY),
+            control: CGPoint(x: rect.minX, y: rect.minY)
+        )
+        path.closeSubpath()
+        return path
+    }
+}
+
 // MARK: - Previews (4 required states)
 
 #Preview("A) No Data") {

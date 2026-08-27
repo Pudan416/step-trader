@@ -12,6 +12,17 @@ struct MeDayKeyWrapper: Identifiable {
     var id: String { key }
 }
 
+/// Converts weekly app spend into the share of a Me resource block that is
+/// visibly filled. Keeping the normalization outside the view makes the same
+/// clamp rules apply at every Dynamic Type size and prevents geometry from
+/// producing negative or over-wide fills.
+enum MeConnectedAppFill {
+    static func fraction(spent: Int, maximumSpent: Int) -> Double {
+        guard spent > 0, maximumSpent > 0 else { return 0 }
+        return min(1, max(0, Double(spent) / Double(maximumSpent)))
+    }
+}
+
 /// The small, privacy-safe piece of the payment log that the Me poster needs.
 /// One record means one successful access purchase through Nowhere; it does not
 /// claim that the underlying app was launched or how long it was used.
