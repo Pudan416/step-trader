@@ -18,19 +18,7 @@ enum DayObjectActorGeometry {
     static let trailSigmaSupport = 3.2
 
     static func aspectRatio(for actor: DayObjectActor) -> Double {
-        let range = actor.elongation.aspectRange
-        return range.lowerBound
-            + (range.upperBound - range.lowerBound)
-                * stableUnit(actor.seed, salt: 0x9E37_79B9_7F4A_7C15)
-    }
-
-    private static func stableUnit(_ seed: UInt64, salt: UInt64) -> Double {
-        var value = seed ^ salt
-        value &+= 0x9E37_79B9_7F4A_7C15
-        value = (value ^ (value >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        value = (value ^ (value >> 27)) &* 0x94D0_49BB_1331_11EB
-        value ^= value >> 31
-        return Double(value >> 11) / Double(UInt64(1) << 53)
+        min(max(actor.appearance.elongation, 0.95), 1.05)
     }
 }
 
@@ -135,7 +123,14 @@ struct DayObjectChoreographyScore: Equatable {
         let aspect = rawAspect.isFinite && rawAspect > 0 ? rawAspect : 1
         let depth = depthValue(for: actor, at: time)
         let baseScale = renderDiameter(for: actor, compositionPlan: compositionPlan)
-        let scale = baseScale * (0.75 + 0.50 * depth)
+        let depthScale = 0.62 + 0.76 * depth
+        let breathing = 1 + 0.035 * sin(
+            2 * Double.pi * (
+                time / actor.depthSchedule.period
+                    + actor.phaseOffset / (2 * Double.pi)
+            )
+        )
+        let scale = baseScale * depthScale * breathing
         let trailReach = 0.008
         let rawTangent = routeTangent(for: actor, at: time)
         let halfSize = SIMD2<Double>(
@@ -191,14 +186,14 @@ struct DayObjectChoreographyScore: Equatable {
             tangent: tangent,
             rotation: rotation,
             scale: scale,
-            opacity: 0.62 + 0.38 * depth,
+            opacity: 0.48 + 0.52 * depth,
             depth: depth,
             depthBand: min(max(Int(depth * 4), 0), 3),
             // Distant actors lose high-frequency definition while near actors
             // remain crisp. The per-material softness is added in the shader.
-            localDepthSoftness: 0.008 + 0.18 * (1 - depth),
+            localDepthSoftness: 0.018 + 0.24 * pow(1 - depth, 1.25),
             materialPhase: normalizedPhase(
-                actor.appearance.radialPhase + time / 120
+                actor.appearance.radialPhase + time / 150
             ),
             intentionalCropFraction: 0,
             bodyRadius: bodyRadius,
@@ -223,7 +218,7 @@ struct DayObjectChoreographyScore: Equatable {
         if let compositionPlan {
             let planningReach = planningReach(
                 for: actor,
-                diameter: renderDiameter(for: actor, compositionPlan: compositionPlan) * 1.25
+                diameter: renderDiameter(for: actor, compositionPlan: compositionPlan) * 1.43
             )
             let base = compositionPlan.distributedRoutePosition(
                 sector: actor.route.sector,
@@ -349,8 +344,15 @@ struct DayObjectChoreographyScore: Equatable {
         compositionPlan: DayObjectCompositionPlan?
     ) -> Double {
         let depth = depthValue(for: actor, at: time)
+        let breathing = 1 + 0.035 * sin(
+            2 * Double.pi * (
+                time / actor.depthSchedule.period
+                    + actor.phaseOffset / (2 * Double.pi)
+            )
+        )
         let diameter = renderDiameter(for: actor, compositionPlan: compositionPlan)
-            * (0.75 + 0.50 * depth)
+            * (0.62 + 0.76 * depth)
+            * breathing
         let halfSize = SIMD2<Double>(
             diameter * 0.5,
             diameter * 0.5 * DayObjectActorGeometry.aspectRatio(for: actor)
@@ -382,7 +384,7 @@ struct DayObjectChoreographyScore: Equatable {
     ) -> Double {
         let diameter = baseDiameter(for: actor)
         guard compositionPlan?.usesFullCanvas == true else {
-            return min(diameter, 0.13)
+            return min(diameter, 0.112)
         }
         return diameter
     }

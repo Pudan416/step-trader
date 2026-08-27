@@ -143,7 +143,15 @@ final class DayObjectRenderFrameTests: XCTestCase {
     }
 
     func testRepresentativeSceneUsesApprovedOrbScaleHierarchy() {
-        let scene = fixtureScene(ids: (0..<8).map { "orb-\($0)" })
+        let scene = DayObjectScene.make(input: .init(
+            dayKey: "2026-08-20",
+            identity: "tester",
+            eventIDs: (0..<8).map { "orb-\($0)" },
+            motionEnergy: 0.55,
+            visualClarity: 0.55,
+            reduceMotion: false,
+            canvasCoverage: .fullCanvas
+        ))
         let environment = DayObjectEnvironment(
             motionEnergy: 1,
             visualClarity: 1,
@@ -158,8 +166,11 @@ final class DayObjectRenderFrameTests: XCTestCase {
                 insertions: [:]
             )
             let diameters = frame.actors.map { Double($0.halfSize.x * 2) }
-            XCTAssertGreaterThan((diameters.max() ?? 0) - (diameters.min() ?? 0), 0.025)
-            XCTAssertTrue(diameters.allSatisfy { (0.12...0.25).contains($0) }, "elapsed=\(elapsed) \(diameters)")
+            XCTAssertGreaterThan((diameters.max() ?? 0) - (diameters.min() ?? 0), 0.08)
+            XCTAssertTrue(
+                diameters.allSatisfy { (0.045...0.49).contains($0) },
+                "elapsed=\(elapsed) \(diameters)"
+            )
         }
     }
 

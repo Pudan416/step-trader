@@ -247,7 +247,7 @@ struct DayObjectMotionPlan: Equatable {
         let points = rawPoints.map { $0 * extentScale }
         return DayObjectRoute(
             controlPoints: points,
-            period: 45 + 75 * stableUnit(seed, salt: 0xF6BB_4B60_9FBC_CEAE),
+            period: 70 + 110 * stableUnit(seed, salt: 0xF6BB_4B60_9FBC_CEAE),
             phase: stableUnit(seed, salt: 0x2D7E_9E3B_0912_1F40),
             direction: direction,
             sector: sector

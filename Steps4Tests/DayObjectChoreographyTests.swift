@@ -25,7 +25,7 @@ final class DayObjectChoreographyTests: XCTestCase {
 
                 for route in plan.routes.values {
                     XCTAssertTrue((4...6).contains(route.controlPoints.count))
-                    XCTAssertTrue((45...120).contains(route.period))
+                    XCTAssertTrue((70...180).contains(route.period))
                     XCTAssertTrue(route.direction == -1 || route.direction == 1)
                     XCTAssertTrue((0..<9).contains(route.sector))
                     let xs = route.controlPoints.map(\.x)
@@ -243,6 +243,66 @@ final class DayObjectChoreographyTests: XCTestCase {
             )
             XCTAssertLessThan(abs(after.depth - before.depth), 0.001)
             XCTAssertLessThan(abs(after.materialPhase - before.materialPhase), 0.001)
+        }
+    }
+
+    func testSizeBandsAndDepthCreateAVisibleHierarchy() {
+        let scene = DayObjectScene.make(input: fixtureInput(seed: 27, count: 10))
+        let poses = scene.actors.map { actor in
+            (
+                actor,
+                scene.score.pose(
+                    for: actor,
+                    at: 31,
+                    canvasAspect: 1,
+                    compositionPlan: scene.compositionPlan
+                )
+            )
+        }
+        let near = poses.max { $0.1.depth < $1.1.depth }!
+        let far = poses.min { $0.1.depth < $1.1.depth }!
+
+        XCTAssertGreaterThan(near.1.scale, far.1.scale)
+        XCTAssertLessThan(near.1.localDepthSoftness, far.1.localDepthSoftness)
+        XCTAssertGreaterThan(near.1.opacity, far.1.opacity)
+        XCTAssertGreaterThan(
+            poses.map(\.1.scale).max()! / poses.map(\.1.scale).min()!,
+            1.8
+        )
+    }
+
+    func testDepthBreathingRemainsContinuousAtItsLoopBoundary() {
+        let scene = DayObjectScene.make(input: fixtureInput(seed: 33, count: 10))
+        for actor in scene.actors {
+            let period = actor.depthSchedule.period
+            let before = scene.score.pose(
+                for: actor,
+                at: period - 0.001,
+                canvasAspect: 1,
+                compositionPlan: scene.compositionPlan
+            )
+            let after = scene.score.pose(
+                for: actor,
+                at: 0.001,
+                canvasAspect: 1,
+                compositionPlan: scene.compositionPlan
+            )
+            XCTAssertLessThan(abs(before.scale - after.scale), 0.003)
+            XCTAssertLessThan(
+                abs(before.localDepthSoftness - after.localDepthSoftness),
+                0.003
+            )
+        }
+    }
+
+    func testActorGeometryUsesTheInheritedDailyElongation() {
+        let scene = DayObjectScene.make(input: fixtureInput(seed: 41, count: 10))
+        for actor in scene.actors {
+            XCTAssertEqual(
+                DayObjectActorGeometry.aspectRatio(for: actor),
+                min(max(actor.appearance.elongation, 0.95), 1.05),
+                accuracy: 0.000_001
+            )
         }
     }
 
