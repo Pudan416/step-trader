@@ -103,6 +103,34 @@ final class MeWeekStatsTests: XCTestCase {
     }
 }
 
+final class MeConnectedAppFillTests: XCTestCase {
+
+    func testLargestWeeklySpendFillsTheWholeBlock() {
+        XCTAssertEqual(
+            MeConnectedAppFill.fraction(spent: 24, maximumSpent: 24),
+            1,
+            accuracy: 0.0001
+        )
+    }
+
+    func testHalfTheLargestWeeklySpendFillsHalfTheBlock() {
+        XCTAssertEqual(
+            MeConnectedAppFill.fraction(spent: 12, maximumSpent: 24),
+            0.5,
+            accuracy: 0.0001
+        )
+    }
+
+    func testMissingOrInvalidSpendProducesNoFill() {
+        XCTAssertEqual(MeConnectedAppFill.fraction(spent: 0, maximumSpent: 24), 0)
+        XCTAssertEqual(MeConnectedAppFill.fraction(spent: 12, maximumSpent: 0), 0)
+    }
+
+    func testSpendCannotOverfillTheBlock() {
+        XCTAssertEqual(MeConnectedAppFill.fraction(spent: 30, maximumSpent: 24), 1)
+    }
+}
+
 final class MeCalendarTimelineTests: XCTestCase {
 
     func testPosterRailAlignsMetricsToLeftArtworkTopAndUnlocksToRightArtworkBottom() {

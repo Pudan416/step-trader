@@ -207,8 +207,8 @@ struct FeedTicketShape: Shape {
 
 /// One feed ticket carries both the action and the timer. A locked ticket opens
 /// the duration picker; an active one opens its app. No social-network artwork
-/// is repeated here — the app name is the identifier, and the yellow body is
-/// reserved for the one thing unique to this screen: remaining access.
+/// is repeated here — the app name is the identifier, and the shared canvas
+/// gradient expresses the one thing unique to this screen: remaining access.
 struct FeedRowView: View {
     let group: TicketGroup
     let accessState: FeedRowAccessState
@@ -265,20 +265,21 @@ struct FeedRowView: View {
 
     private func ticketBody(fillWidth: CGFloat) -> some View {
         ZStack(alignment: .leading) {
-            Color.black.opacity(0.27)
-
             Rectangle()
-                .fill(AppColors.brandAccent.opacity(0.86))
-                .frame(width: fillWidth)
+                .fill(.ultraThinMaterial)
+                .overlay(Color.black.opacity(0.16))
+
+            ResourceGradientFill()
+                .frame(width: max(0, fillWidth))
                 .frame(maxHeight: .infinity)
 
             // A permanent scrim keeps one text colour readable at every fill
             // fraction. No word changes colour when the timer crosses it.
             LinearGradient(
                 stops: [
-                    .init(color: .black.opacity(0.24), location: 0),
-                    .init(color: .black.opacity(0.12), location: 0.62),
-                    .init(color: .black.opacity(0.28), location: 1),
+                    .init(color: .black.opacity(0.30), location: 0),
+                    .init(color: .black.opacity(0.12), location: 0.58),
+                    .init(color: .clear, location: 0.84),
                 ],
                 startPoint: .leading,
                 endPoint: .trailing

@@ -37,6 +37,8 @@ struct AppsPageSimplified: View {
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.tabBarHeight) private var tabBarHeight
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
     @State private var selection = FamilyActivitySelection()
     @State private var showPicker = false
     @State private var selectedGroupId: TicketGroupId? = nil
@@ -70,11 +72,6 @@ struct AppsPageSimplified: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                // The canvas stays edge to edge behind the rows and tab bar;
-                // the feeds are controls on the artwork, not a card within it.
-                FeedsCanvasBackground()
-                    .zIndex(-1)
-
                 VStack(spacing: 0) {
                     HStack {
                         Text(String(localized: "Feeds"))
@@ -110,16 +107,12 @@ struct AppsPageSimplified: View {
                 }
                 .zIndex(0)
 
-                Image("grain (small)")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-                    .opacity(0.28)
-                    .blendMode(.overlay)
-                    .zIndex(10)
+                if !reduceTransparency {
+                    TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+                        .zIndex(10)
+                }
             }
             .energyGradientBackground(model: model, showGrain: false)
             .background(Color.clear)
