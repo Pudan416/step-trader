@@ -268,7 +268,7 @@ struct DayObjectMotionPlan: Equatable {
     ) -> Int {
         if let suffix = numericSuffix(eventID) {
             if family == .softEncounters {
-                let encounterSectors = [1, 1, 0, 2, 3, 4, 5, 0, 2, 3]
+                let encounterSectors = [0, 2, 3, 5, 6, 8, 1, 7, 4, 0]
                 return encounterSectors[suffix % encounterSectors.count]
             }
             return (suffix * 5 + 1) % 9

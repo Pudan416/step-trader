@@ -7,7 +7,8 @@ final class DayObjectChoreographyTests: XCTestCase {
         DayObjectSceneInput(
             dayKey: "fixture-\(seed)", identity: "tester",
             eventIDs: (0..<count).map { "event-\($0)" },
-            motionEnergy: 0.55, visualClarity: 0.55, reduceMotion: false
+            motionEnergy: 0.55, visualClarity: 0.55, reduceMotion: false,
+            canvasCoverage: .fullCanvas
         )
     }
 
@@ -43,12 +44,13 @@ final class DayObjectChoreographyTests: XCTestCase {
         XCTAssertEqual(reachedFamilies, Set(DayObjectChoreographyFamily.allCases))
     }
 
-    func testEightToTenOrbsOccupyAtLeastFiveCanvasSectors() {
+    func testEightToTenOrbsReachAtLeastSixCanvasSectorsAcrossMotionSample() {
         for seed in UInt64(0)..<64 {
             for count in 8...10 {
                 let scene = DayObjectScene.make(input: fixtureInput(seed: seed, count: count))
-                for elapsed in [0.0, 19.0, 43.0] {
-                    let sectors = Set(scene.actors.map { actor in
+                var sectors = Set<Int>()
+                for elapsed in [0.0, 19.0, 43.0, 71.0, 97.0] {
+                    sectors.formUnion(scene.actors.map { actor in
                         let pose = scene.score.pose(
                             for: actor,
                             at: elapsed,
@@ -59,14 +61,37 @@ final class DayObjectChoreographyTests: XCTestCase {
                         let row = min(max(Int((0.5 - pose.position.y) * 3), 0), 2)
                         return row * 3 + column
                     })
-                    guard sectors.count >= 5 else {
-                        XCTFail(
-                            "seed=\(seed) count=\(count) elapsed=\(elapsed) sectors=\(sectors) "
-                                + "poses=\(scene.actors.map { scene.score.pose(for: $0, at: elapsed, canvasAspect: 1, compositionPlan: scene.compositionPlan).position })"
+                }
+                XCTAssertGreaterThanOrEqual(
+                    sectors.count,
+                    6,
+                    "seed=\(seed) count=\(count) sectors=\(sectors)"
+                )
+            }
+        }
+    }
+
+    func testSixOrMoreActorsReachEveryVerticalThird() {
+        for seed in UInt64(0)..<64 {
+            for count in 6...10 {
+                let scene = DayObjectScene.make(input: fixtureInput(seed: seed, count: count))
+                var thirds = Set<Int>()
+                for time in stride(from: 0.0, through: 90.0, by: 15.0) {
+                    for actor in scene.actors {
+                        let pose = scene.score.pose(
+                            for: actor,
+                            at: time,
+                            canvasAspect: 1,
+                            compositionPlan: scene.compositionPlan
                         )
-                        return
+                        thirds.insert(min(max(Int((0.5 - pose.position.y) * 3), 0), 2))
                     }
                 }
+                XCTAssertEqual(
+                    thirds,
+                    Set([0, 1, 2]),
+                    "seed=\(seed) count=\(count)"
+                )
             }
         }
     }
@@ -249,11 +274,12 @@ final class DayObjectChoreographyTests: XCTestCase {
         XCTAssertEqual(horizontal.axisAlignedHalfExtents.y, 0.1084, accuracy: 0.000_001)
     }
 
-    func testDailyPlanKeepsApprovedNegativeSpace() {
+    func testFullCanvasPlanDoesNotReserveAnUpperOrLowerStrip() {
         for seed in UInt64(0)..<64 {
             let plan = DayObjectScene.make(input: fixtureInput(seed: seed, count: 10)).compositionPlan
-            XCTAssertTrue((0.35...0.55).contains(plan.targetNegativeSpaceFraction))
-            XCTAssertTrue((0.35...0.55).contains(plan.negativeSpaceRegion.area))
+            XCTAssertEqual(plan.targetNegativeSpaceFraction, 0)
+            XCTAssertEqual(plan.negativeSpaceRegion.area, 0)
+            XCTAssertTrue(plan.usesFullCanvas)
         }
     }
 

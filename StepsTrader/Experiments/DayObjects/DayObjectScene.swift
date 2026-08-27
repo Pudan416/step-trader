@@ -50,7 +50,8 @@ struct DayObjectScene: Equatable {
         )
         let compositionPlan = DayObjectCompositionPlan.make(
             seed: rootSeed,
-            uiExclusionRegion: input.uiExclusionRegion
+            uiExclusionRegion: input.uiExclusionRegion,
+            canvasCoverage: input.canvasCoverage
         )
         let paletteSet = DayObjectPaletteSet.make(
             rootSeed: rootSeed,
@@ -116,6 +117,7 @@ struct DayObjectScene: Equatable {
             visualClarity: normalizedUnitValue(input.visualClarity),
             reduceMotion: input.reduceMotion,
             uiExclusionRegion: input.uiExclusionRegion,
+            canvasCoverage: input.canvasCoverage,
             paletteCategories: input.paletteCategories
         )
     }
@@ -157,6 +159,18 @@ struct DayObjectScene: Equatable {
 
         let role = pick(DayObjectActorRole.allCases, domain: "role")
         let depthBand = pick([0, 1, 2, 3], domain: "depth")
+        let sizeOrdinal: Int = {
+            let digits = id.eventID.reversed().prefix { $0.isNumber }.reversed()
+            if !digits.isEmpty, let ordinal = Int(String(digits)) { return ordinal % 10 }
+            var rng = SeededRNG.derived(from: seed, domain: "sizeBand")
+            return rng.nextInt(in: 0...9)
+        }()
+        let sizeBand: DayObjectSizeBand
+        switch sizeOrdinal {
+        case 0, 5: sizeBand = .focal
+        case 1, 3, 6, 8: sizeBand = .support
+        default: sizeBand = .satellite
+        }
 
         return DayObjectActor(
             id: id,
@@ -168,7 +182,7 @@ struct DayObjectScene: Equatable {
             role: role,
             shape: appearance.shape,
             elongation: .round,
-            sizeBand: pick(DayObjectSizeBand.allCases, domain: "sizeBand"),
+            sizeBand: sizeBand,
             fill: composition.fill,
             trajectory: composition.trajectory,
             spin: composition.spin,

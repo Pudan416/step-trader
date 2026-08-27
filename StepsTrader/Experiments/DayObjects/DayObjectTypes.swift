@@ -14,6 +14,8 @@ struct DayObjectNormalizedRect: Equatable {
         maxY: 1
     )
 
+    static let empty = DayObjectNormalizedRect(minX: 0, minY: 0, maxX: 0, maxY: 0)
+
     init(minX: Double, minY: Double, maxX: Double, maxY: Double) {
         let finiteMinX = minX.isFinite ? minX : 0
         let finiteMinY = minY.isFinite ? minY : 0
@@ -34,13 +36,26 @@ struct DayObjectNormalizedRect: Equatable {
     }
 
     func contains(_ point: SIMD2<Double>) -> Bool {
-        point.x >= minX && point.x <= maxX
+        area > 0
+            && point.x >= minX && point.x <= maxX
             && point.y >= minY && point.y <= maxY
     }
 
     func intersects(_ other: DayObjectNormalizedRect) -> Bool {
         minX < other.maxX && maxX > other.minX
             && minY < other.maxY && maxY > other.minY
+    }
+}
+
+enum DayObjectCanvasCoverage: Equatable {
+    case fullCanvas
+    case excluding(DayObjectNormalizedRect)
+
+    var exclusionRegion: DayObjectNormalizedRect {
+        switch self {
+        case .fullCanvas: .empty
+        case .excluding(let region): region
+        }
     }
 }
 
@@ -51,6 +66,7 @@ struct DayObjectSceneInput: Equatable {
     let motionEnergy: Double
     let visualClarity: Double
     let reduceMotion: Bool
+    let canvasCoverage: DayObjectCanvasCoverage
     let uiExclusionRegion: DayObjectNormalizedRect
     let paletteCategories: Set<ModernPaletteCategory>
 
@@ -62,6 +78,7 @@ struct DayObjectSceneInput: Equatable {
         visualClarity: Double,
         reduceMotion: Bool,
         uiExclusionRegion: DayObjectNormalizedRect = .dayObjectsLabControls,
+        canvasCoverage: DayObjectCanvasCoverage? = nil,
         paletteCategories: Set<ModernPaletteCategory> = []
     ) {
         self.dayKey = dayKey
@@ -70,7 +87,9 @@ struct DayObjectSceneInput: Equatable {
         self.motionEnergy = motionEnergy
         self.visualClarity = visualClarity
         self.reduceMotion = reduceMotion
-        self.uiExclusionRegion = uiExclusionRegion
+        let resolvedCoverage = canvasCoverage ?? .excluding(uiExclusionRegion)
+        self.canvasCoverage = resolvedCoverage
+        self.uiExclusionRegion = resolvedCoverage.exclusionRegion
         self.paletteCategories = paletteCategories
     }
 }

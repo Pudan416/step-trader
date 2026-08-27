@@ -7,6 +7,7 @@ import SwiftUI
 /// field. The grid intentionally freezes fifteen renderers at once.
 struct DayObjectsLabView: View {
     static let uiExclusionRegion = DayObjectNormalizedRect.dayObjectsLabControls
+    static let canvasCoverage = DayObjectCanvasCoverage.fullCanvas
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(SharedKeys.modernPaletteCategories) private var modernPaletteCategoriesRaw = ""
@@ -288,7 +289,7 @@ struct DayObjectsLabView: View {
             motionEnergy: motionEnergy,
             visualClarity: visualClarity,
             reduceMotion: reduceMotion,
-            uiExclusionRegion: Self.uiExclusionRegion,
+            canvasCoverage: Self.canvasCoverage,
             paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw)
         )
     }

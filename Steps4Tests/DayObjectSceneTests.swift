@@ -139,6 +139,22 @@ final class DayObjectSceneTests: XCTestCase {
         XCTAssertEqual(scene.input.uiExclusionRegion, custom)
         XCTAssertEqual(scene.compositionPlan.uiExclusionRegion, custom)
     }
+
+    func testLabUsesFullCanvasCoverageInsteadOfBottomControlExclusion() {
+        XCTAssertEqual(DayObjectsLabView.canvasCoverage, .fullCanvas)
+        let scene = DayObjectScene.make(input: .init(
+            dayKey: "2026-08-20",
+            identity: "day-objects-lab",
+            eventIDs: (0..<10).map { "event-\($0)" },
+            motionEnergy: 0.55,
+            visualClarity: 0.55,
+            reduceMotion: false,
+            canvasCoverage: .fullCanvas
+        ))
+
+        XCTAssertEqual(scene.input.canvasCoverage, .fullCanvas)
+        XCTAssertEqual(scene.compositionPlan.uiExclusionRegion.area, 0)
+    }
 }
 
 final class DayObjectCompositionTests: XCTestCase {
@@ -147,8 +163,9 @@ final class DayObjectCompositionTests: XCTestCase {
     }
 
     func testRestingSizeBandsUseApprovedDiameterRanges() {
-        XCTAssertEqual(DayObjectSizeBand.support.diameterRange, 0.14...0.21)
-        XCTAssertEqual(DayObjectSizeBand.satellite.diameterRange, 0.08...0.13)
+        XCTAssertEqual(DayObjectSizeBand.focal.diameterRange, 0.24...0.34)
+        XCTAssertEqual(DayObjectSizeBand.support.diameterRange, 0.15...0.23)
+        XCTAssertEqual(DayObjectSizeBand.satellite.diameterRange, 0.08...0.14)
     }
 
     func testOrbElongationNeverProducesThinLegacyParticles() {

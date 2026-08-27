@@ -31,15 +31,26 @@ enum DayObjectElongation: String, CaseIterable, Hashable {
 }
 
 enum DayObjectSizeBand: String, CaseIterable, Hashable {
+    case focal
     case support
     case satellite
 
     var diameterRange: ClosedRange<Double> {
         switch self {
-        case .support: 0.14...0.21
-        case .satellite: 0.08...0.13
+        case .focal: 0.24...0.34
+        case .support: 0.15...0.23
+        case .satellite: 0.08...0.14
         }
     }
+}
+
+enum DayObjectCompositionArchetype: UInt32, CaseIterable, Equatable {
+    case distributedField
+    case diagonalCurrent
+    case edgeMigration
+    case focalPair
+    case depthConstellation
+    case crossingCurrents
 }
 
 enum DayObjectFill: String, CaseIterable, Hashable {
@@ -76,6 +87,8 @@ struct DayObjectCompositionPlan: Equatable {
     let uiExclusionRegion: DayObjectNormalizedRect
     let negativeSpaceRegion: DayObjectNormalizedRect
     let targetNegativeSpaceFraction: Double
+    let archetype: DayObjectCompositionArchetype
+    let usesFullCanvas: Bool
 
     private let focalAnchor: SIMD2<Double>
     private let supportAnchor: SIMD2<Double>
@@ -86,11 +99,17 @@ struct DayObjectCompositionPlan: Equatable {
 
     static func make(
         seed: UInt64,
-        uiExclusionRegion: DayObjectNormalizedRect
+        uiExclusionRegion: DayObjectNormalizedRect,
+        canvasCoverage: DayObjectCanvasCoverage = .excluding(.dayObjectsLabControls)
     ) -> DayObjectCompositionPlan {
-        let target = 0.35 + 0.20 * stableUnit(seed, salt: 0x6A09_E667_F3BC_C909)
+        let usesFullCanvas = canvasCoverage == .fullCanvas
+        let target = usesFullCanvas
+            ? 0
+            : 0.35 + 0.20 * stableUnit(seed, salt: 0x6A09_E667_F3BC_C909)
         let negativeSpace: DayObjectNormalizedRect
-        if (0.35...0.55).contains(uiExclusionRegion.area) {
+        if usesFullCanvas {
+            negativeSpace = .empty
+        } else if (0.35...0.55).contains(uiExclusionRegion.area) {
             negativeSpace = uiExclusionRegion
         } else if mixed(seed ^ 0xBB67_AE85_84CA_A73B).isMultiple(of: 2) {
             negativeSpace = DayObjectNormalizedRect(
@@ -144,6 +163,11 @@ struct DayObjectCompositionPlan: Equatable {
             uiExclusionRegion: uiExclusionRegion,
             negativeSpaceRegion: negativeSpace,
             targetNegativeSpaceFraction: target,
+            archetype: DayObjectCompositionArchetype.allCases[
+                Int(mixed(seed ^ 0x510E_527F_ADE6_82D1)
+                    % UInt64(DayObjectCompositionArchetype.allCases.count))
+            ],
+            usesFullCanvas: usesFullCanvas,
             focalAnchor: focal,
             supportAnchor: support,
             bridgeAnchor: bridge,
@@ -221,7 +245,7 @@ struct DayObjectCompositionPlan: Equatable {
         let maximum = halfCanvas - SIMD2(repeating: footprintReach)
         guard minimum.x <= maximum.x, minimum.y <= maximum.y else { return .zero }
 
-        let forbidden = [negativeSpaceRegion, uiExclusionRegion].map { region in
+        let forbidden = [negativeSpaceRegion, uiExclusionRegion].filter { $0.area > 0 }.map { region in
             let bounds = canvasBounds(for: region, span: span)
             return (
                 minimum: bounds.minimum - SIMD2(repeating: footprintReach),
@@ -323,8 +347,10 @@ struct DayObjectCompositionPlan: Equatable {
         let normalizedSector = ((sector % 9) + 9) % 9
         let column = normalizedSector % 3
         let requestedRow = normalizedSector / 3
-        let usableBottom = min(uiExclusionRegion.minY, negativeSpaceRegion.minY)
-        let usableRows = usableBottom < 0.78 ? 2 : 3
+        let usableBottom = usesFullCanvas
+            ? 1
+            : min(uiExclusionRegion.minY, negativeSpaceRegion.minY)
+        let usableRows = usesFullCanvas ? 3 : (usableBottom < 0.78 ? 2 : 3)
         let row = requestedRow % usableRows
         let rowMinY = usableRows == 2
             ? Double(row) / 3
@@ -343,14 +369,15 @@ struct DayObjectCompositionPlan: Equatable {
             maxY: rowMaxY
         )
         let laneBounds = canvasBounds(for: laneRegion, span: span)
-        let usesDistributedLanes = uiExclusionRegion == .dayObjectsLabControls
+        let usesDistributedLanes = usesFullCanvas
+            || uiExclusionRegion == .dayObjectsLabControls
         let laneMinimum = usesDistributedLanes
             ? laneBounds.minimum + SIMD2(repeating: 0.005)
             : minimum
         let laneMaximum = usesDistributedLanes
             ? laneBounds.maximum - SIMD2(repeating: 0.005)
             : maximum
-        let forbidden = [negativeSpaceRegion, uiExclusionRegion].map { region in
+        let forbidden = [negativeSpaceRegion, uiExclusionRegion].filter { $0.area > 0 }.map { region in
             let bounds = canvasBounds(for: region, span: span)
             return (
                 minimum: bounds.minimum - SIMD2(repeating: footprintReach),
@@ -470,7 +497,7 @@ struct DayObjectCompositionPlan: Equatable {
         // Daily anchors avoid these regions in the common case. This bounded
         // finite candidate projection is a final conservative constraint for
         // large/rotated footprints, not a global or per-pixel optimization.
-        let forbidden = [negativeSpaceRegion, uiExclusionRegion].map { region in
+        let forbidden = [negativeSpaceRegion, uiExclusionRegion].filter { $0.area > 0 }.map { region in
             let bounds = canvasBounds(for: region, span: span)
             return (
                 minimum: bounds.minimum - footprintHalfExtents,
@@ -548,6 +575,7 @@ struct DayObjectCompositionPlan: Equatable {
         footprintHalfExtents: SIMD2<Double>,
         canvasAspect: Double
     ) -> Bool {
+        guard region.area > 0 else { return false }
         let span = canvasSpan(for: canvasAspect)
         let bounds = canvasBounds(for: region, span: span)
         return position.x - footprintHalfExtents.x < bounds.maximum.x

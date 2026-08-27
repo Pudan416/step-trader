@@ -232,8 +232,7 @@ struct DayObjectChoreographyScore: Equatable {
                 footprintReach: planningReach,
                 canvasAspect: canvasAspect
             )
-            guard family == .softEncounters,
-                  compositionPlan.uiExclusionRegion == .dayObjectsLabControls else {
+            guard family == .softEncounters else {
                 return base
             }
             let envelope = encounterEnvelope(for: actor.encounter, at: time)
@@ -338,7 +337,10 @@ struct DayObjectChoreographyScore: Equatable {
     }
 
     private func baseDiameter(for actor: DayObjectActor) -> Double {
-        0.16 + 0.035 * stableUnit(actor.seed, salt: 0xA409_3822_299F_31D0)
+        let range = actor.sizeBand.diameterRange
+        return range.lowerBound
+            + (range.upperBound - range.lowerBound)
+                * stableUnit(actor.seed, salt: 0xA409_3822_299F_31D0)
     }
 
     private func encounterBodyRadius(
@@ -379,11 +381,10 @@ struct DayObjectChoreographyScore: Equatable {
         compositionPlan: DayObjectCompositionPlan?
     ) -> Double {
         let diameter = baseDiameter(for: actor)
-        guard let compositionPlan,
-              compositionPlan.uiExclusionRegion != .dayObjectsLabControls else {
-            return diameter
+        guard compositionPlan?.usesFullCanvas == true else {
+            return min(diameter, 0.13)
         }
-        return min(diameter, 0.13)
+        return diameter
     }
 
     private func planningReach(for actor: DayObjectActor, diameter: Double) -> Double {
