@@ -1,4 +1,5 @@
 import Metal
+import simd
 import XCTest
 @testable import Steps4
 
@@ -174,7 +175,7 @@ final class DayObjectPaletteTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(removed["read"]), try XCTUnwrap(full["read"]))
     }
 
-    func testDailyVisualLanguageUsesCuratedMaterialDistribution() {
+    func testDailyVisualLanguageUsesOneFamilyAndOnlyRelatedMutations() {
         for seed in UInt64(0)..<128 {
             let paletteSet = DayObjectPaletteSet.make(
                 rootSeed: seed,
@@ -185,44 +186,36 @@ final class DayObjectPaletteTests: XCTestCase {
                 paletteSet: paletteSet
             )
 
-            XCTAssertTrue((3...4).contains(language.enabledMaterials.count))
-            XCTAssertEqual(
-                Set(language.enabledMaterials).count,
-                language.enabledMaterials.count
-            )
-            XCTAssertTrue(language.enabledMaterials.contains(language.dominantMaterial))
             XCTAssertEqual(language.grainIntensity, 0.05)
+            XCTAssertEqual(language.maximumElongation, 0.05)
 
-            for count in 4...10 {
+            for count in 1...10 {
                 let ids = (0..<count).map { "event-\($0)" }
                 let appearances = language.appearances(
                     eventIDs: ids,
                     rootSeed: seed
                 )
-                let materials = appearances.values.map(\.material)
-                let dominantCount = materials.filter {
-                    $0 == language.dominantMaterial
-                }.count
-
-                XCTAssertGreaterThanOrEqual(
-                    Double(dominantCount) / Double(count),
-                    0.5,
-                    "seed=\(seed) count=\(count)"
-                )
+                XCTAssertTrue(appearances.values.allSatisfy {
+                    $0.material == language.family
+                        && $0.shape == language.baseShape
+                        && abs($0.elongation - language.baseElongation)
+                            <= language.maximumElongation + 0.000_001
+                })
                 XCTAssertLessThanOrEqual(
-                    Double(dominantCount) / Double(count),
-                    0.7,
+                    appearances.values.filter { $0.mutationRole == .accent }.count,
+                    3,
                     "seed=\(seed) count=\(count)"
                 )
-                XCTAssertTrue(materials.allSatisfy(language.enabledMaterials.contains))
-                if count >= 8 {
-                    XCTAssertGreaterThanOrEqual(Set(materials).count, 3)
-                }
+                XCTAssertGreaterThanOrEqual(
+                    appearances.values.filter { $0.mutationRole != .accent }.count,
+                    max(1, Int(ceil(Double(count) * 0.7))),
+                    "seed=\(seed) count=\(count)"
+                )
             }
         }
     }
 
-    func testArbitraryEventIDsStillUseTheDailyMaterialDistribution() {
+    func testArbitraryEventIDsStillUseTheDailyFamilyAndMutationBudget() {
         let eventIDs = [
             "id-0x", "id-1x", "id-2x", "id-4x", "id-8x",
             "id-9x", "id-10x", "id-16x", "id-24x", "id-58x",
@@ -235,14 +228,31 @@ final class DayObjectPaletteTests: XCTestCase {
             rootSeed: 44,
             paletteSet: paletteSet
         )
-        let materials = eventIDs.compactMap {
-            language.appearances(eventIDs: eventIDs, rootSeed: 44)[$0]?.material
-        }
-        let dominantCount = materials.filter { $0 == language.dominantMaterial }.count
+        let appearances = language.appearances(eventIDs: eventIDs, rootSeed: 44)
 
-        XCTAssertTrue((5...7).contains(dominantCount))
-        XCTAssertGreaterThanOrEqual(Set(materials).count, 3)
-        XCTAssertTrue(materials.allSatisfy(language.enabledMaterials.contains))
+        XCTAssertTrue(appearances.values.allSatisfy { $0.material == language.family })
+        XCTAssertLessThanOrEqual(
+            appearances.values.filter { $0.mutationRole == .accent }.count,
+            3
+        )
+    }
+
+    func testExistingAppearanceDoesNotChangeWhenLaterHappeningIsAdded() throws {
+        let paletteSet = DayObjectPaletteSet.make(
+            rootSeed: 71,
+            categories: [.pastel, .cold]
+        )
+        let language = DayObjectVisualLanguage.make(
+            rootSeed: 71,
+            paletteSet: paletteSet
+        )
+        let one = language.appearances(eventIDs: ["walk"], rootSeed: 71)
+        let ten = language.appearances(
+            eventIDs: ["walk"] + (1..<10).map { "event-\($0)" },
+            rootSeed: 71
+        )
+
+        XCTAssertEqual(try XCTUnwrap(one["walk"]), try XCTUnwrap(ten["walk"]))
     }
 
     func testPerEventAppearancesAreStableBoundedAndVisuallyReachable() {
@@ -270,27 +280,30 @@ final class DayObjectPaletteTests: XCTestCase {
             XCTAssertEqual(appearances, repeated)
             for appearance in appearances.values {
                 XCTAssertTrue((1...3).contains(appearance.colorAssignment.colors.count))
-                XCTAssertTrue((0.04...0.30).contains(appearance.distortion))
-                XCTAssertTrue((2...8).contains(appearance.distortionFrequency))
+                XCTAssertTrue((0...0.18).contains(appearance.distortion))
+                XCTAssertTrue((0.8...4).contains(appearance.distortionFrequency))
                 XCTAssertTrue((0...1).contains(appearance.localDepthSoftness))
                 XCTAssertTrue((0...1).contains(appearance.bodyOpacity))
                 XCTAssertTrue((0...1).contains(appearance.centerOpacity))
                 XCTAssertTrue((0...1).contains(appearance.rimOpacity))
-                if appearance.material == .glass {
+                XCTAssertTrue((1...3).contains(appearance.layers.count))
+                XCTAssertTrue(appearance.layers.allSatisfy {
+                    simd_length($0.focalOffset) <= 0.68 + 0.000_001
+                        && (0.42...1.18).contains($0.radius)
+                        && (0.12...0.48).contains($0.softness)
+                        && (0.18...1).contains($0.opacity)
+                })
+                if appearance.material == .livingGlass {
                     XCTAssertTrue((0.006...0.028).contains(appearance.refractionStrength))
                 } else {
                     XCTAssertEqual(appearance.refractionStrength, 0)
-                }
-                if appearance.material == .membrane {
-                    XCTAssertTrue((2...3).contains(appearance.membraneLayerCount))
-                } else {
-                    XCTAssertEqual(appearance.membraneLayerCount, 1)
                 }
 
                 reachedMaterials.insert(appearance.material)
                 reachedShapes.insert(appearance.shape)
                 reachedColorCounts.insert(appearance.colorAssignment.colors.count)
-                sawShiftedFocalCenter = sawShiftedFocalCenter || appearance.focalDistance > 0.2
+                sawShiftedFocalCenter = sawShiftedFocalCenter
+                    || appearance.layers.contains { simd_length($0.focalOffset) > 0.2 }
                 sawTransparentBody = sawTransparentBody || appearance.bodyOpacity < 0.5
                 sawInnerGlow = sawInnerGlow || appearance.innerGlow > 0.3
                 sawOuterGlow = sawOuterGlow || appearance.outerGlow > 0.15
@@ -298,7 +311,7 @@ final class DayObjectPaletteTests: XCTestCase {
         }
 
         XCTAssertEqual(reachedMaterials, Set(DayObjectMaterialFamily.allCases))
-        XCTAssertEqual(reachedShapes, Set(DayObjectShape.allCases))
+        XCTAssertEqual(reachedShapes, Set([.sphere, .softBlob]))
         XCTAssertEqual(reachedColorCounts, [1, 2, 3])
         XCTAssertTrue(sawShiftedFocalCenter)
         XCTAssertTrue(sawTransparentBody)
