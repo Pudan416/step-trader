@@ -122,13 +122,43 @@ final class FeedRowModelTests: XCTestCase {
 
     // MARK: - Ticket shape
 
-    func testTicketShapeCarvesSpaceForTheTrailingMenu() {
+    func testTicketShapeUsesAFullHeightRoundedCap() {
         let bounds = CGRect(x: 0, y: 0, width: 320, height: 82)
         let path = FeedTicketShape().path(in: bounds)
 
-        XCTAssertTrue(path.contains(CGPoint(x: 258, y: 41)), "The timer body must remain tappable before the notch")
-        XCTAssertFalse(path.contains(CGPoint(x: 300, y: 41)), "The trailing menu needs a concave cutout")
-        XCTAssertTrue(path.contains(CGPoint(x: 300, y: 12)), "Only the middle of the trailing edge should be cut out")
+        XCTAssertFalse(
+            path.contains(CGPoint(x: 10, y: 10)),
+            "A full-height cap must cut farther into the corner than the old rounded rectangle"
+        )
+        XCTAssertTrue(path.contains(CGPoint(x: 4, y: 41)))
     }
 
+    func testTicketShapeKeepsTheTrailingMenuInsideTheCard() {
+        let bounds = CGRect(x: 0, y: 0, width: 320, height: 82)
+        let path = FeedTicketShape().path(in: bounds)
+
+        XCTAssertTrue(
+            path.contains(CGPoint(x: 300, y: 41)),
+            "The reference uses an inset menu inside a continuous rounded card, not a cutout"
+        )
+    }
+
+}
+
+final class ResourceGradientLayoutTests: XCTestCase {
+
+    func testDarkSideSpansTheWholeLeadingEdge() {
+        let layout = ResourceGradientLayout.make(in: CGSize(width: 180, height: 82))
+
+        XCTAssertGreaterThan(layout.progress(at: CGPoint(x: 0, y: 0)), 0.95)
+        XCTAssertGreaterThan(layout.progress(at: CGPoint(x: 0, y: 41)), 0.95)
+        XCTAssertGreaterThan(layout.progress(at: CGPoint(x: 0, y: 82)), 0.95)
+    }
+
+    func testCircularGradientTravelsFromRightToLeft() {
+        let layout = ResourceGradientLayout.make(in: CGSize(width: 180, height: 82))
+
+        XCTAssertLessThan(layout.progress(at: CGPoint(x: 180, y: 41)), 0.35)
+        XCTAssertGreaterThan(layout.progress(at: CGPoint(x: 0, y: 41)), 0.95)
+    }
 }

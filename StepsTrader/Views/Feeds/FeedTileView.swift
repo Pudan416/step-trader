@@ -153,55 +153,14 @@ struct FeedPlaceholderTileView: View {
 
 // MARK: - Row timer design
 
-/// An asymmetric ticket with a concave trailing edge for the management menu.
-/// The shape is deliberately more expressive than a rounded rectangle, while
-/// remaining stable when a progress fill is clipped through it.
+/// A full-height continuous capsule. The management menu sits inside the
+/// trailing cap, matching the approved reference instead of cutting a notch
+/// out of the card.
 struct FeedTicketShape: Shape {
     func path(in rect: CGRect) -> Path {
         guard rect.width > 0, rect.height > 0 else { return Path() }
-
-        let leadingRadius = min(28, rect.height / 2)
-        let trailingRadius = min(18, rect.height / 2)
-        let notchHalfHeight = min(26, rect.height * 0.32)
-        let notchDepth = min(42, rect.width * 0.18)
-        let notchTop = rect.midY - notchHalfHeight
-        let notchBottom = rect.midY + notchHalfHeight
-
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX + leadingRadius, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX - trailingRadius, y: rect.minY))
-        path.addQuadCurve(
-            to: CGPoint(x: rect.maxX, y: rect.minY + trailingRadius),
-            control: CGPoint(x: rect.maxX, y: rect.minY)
-        )
-        path.addLine(to: CGPoint(x: rect.maxX, y: notchTop))
-        path.addCurve(
-            to: CGPoint(x: rect.maxX - notchDepth, y: rect.midY),
-            control1: CGPoint(x: rect.maxX, y: notchTop + notchHalfHeight * 0.55),
-            control2: CGPoint(x: rect.maxX - notchDepth, y: rect.midY - notchHalfHeight * 0.55)
-        )
-        path.addCurve(
-            to: CGPoint(x: rect.maxX, y: notchBottom),
-            control1: CGPoint(x: rect.maxX - notchDepth, y: rect.midY + notchHalfHeight * 0.55),
-            control2: CGPoint(x: rect.maxX, y: notchBottom - notchHalfHeight * 0.55)
-        )
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - trailingRadius))
-        path.addQuadCurve(
-            to: CGPoint(x: rect.maxX - trailingRadius, y: rect.maxY),
-            control: CGPoint(x: rect.maxX, y: rect.maxY)
-        )
-        path.addLine(to: CGPoint(x: rect.minX + leadingRadius, y: rect.maxY))
-        path.addQuadCurve(
-            to: CGPoint(x: rect.minX, y: rect.maxY - leadingRadius),
-            control: CGPoint(x: rect.minX, y: rect.maxY)
-        )
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + leadingRadius))
-        path.addQuadCurve(
-            to: CGPoint(x: rect.minX + leadingRadius, y: rect.minY),
-            control: CGPoint(x: rect.minX, y: rect.minY)
-        )
-        path.closeSubpath()
-        return path
+        return RoundedRectangle(cornerRadius: rect.height / 2, style: .continuous)
+            .path(in: rect)
     }
 }
 
@@ -256,7 +215,7 @@ struct FeedRowView: View {
         ZStack(alignment: .trailing) {
             ticketBody(fillWidth: fillWidth)
             optionsMenu
-                .offset(x: 1)
+                .padding(.trailing, 12)
         }
         // Usage is metered in whole-minute observations. Let the row step
         // with that source of truth instead of inventing a smooth timer.
@@ -322,7 +281,7 @@ struct FeedRowView: View {
         }
         .foregroundStyle(.white)
         .padding(.leading, 22)
-        .padding(.trailing, 68)
+        .padding(.trailing, 82)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
@@ -342,14 +301,21 @@ struct FeedRowView: View {
                 Label(String(localized: "Delete"), systemImage: "trash")
             }
         } label: {
-            Image(systemName: "ellipsis")
-                .font(.geist(size: 15, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 44, height: 44)
-                .background(Circle().fill(.ultraThinMaterial))
-                .overlay(Circle().stroke(Color.white.opacity(0.18), lineWidth: 0.75))
-                .shadow(color: .black.opacity(0.16), radius: 10, y: 3)
-                .contentShape(Circle())
+            HStack(spacing: 4) {
+                ForEach(0..<3, id: \.self) { _ in
+                    Circle()
+                        .fill(Color.white.opacity(0.94))
+                        .frame(width: 4, height: 4)
+                }
+            }
+            .frame(width: 56, height: 56)
+            .background(
+                Circle()
+                    .fill(.ultraThinMaterial)
+                    .overlay(Circle().fill(Color.black.opacity(0.12)))
+            )
+            .overlay(Circle().stroke(Color.white.opacity(0.22), lineWidth: 0.75))
+            .contentShape(Circle())
         }
         .accessibilityLabel(String(localized: "Feed options"))
     }

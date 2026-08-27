@@ -796,25 +796,51 @@ extension View {
 
 // MARK: - Resource fill language
 
-/// The shared remaining/consumed-resource fill used on Feeds and Me.
-///
-/// The radial origin stays pinned to the top-leading corner. Callers size this
-/// view to the visible resource share, so a shrinking fill keeps the complete
-/// navy-to-copper-to-amber composition instead of collapsing into a flat color.
+/// Circular-gradient geometry shared by the renderer and its behavior tests.
+/// The origin sits just beyond the trailing midpoint, which makes the visible
+/// arcs travel horizontally while keeping the whole leading edge dark.
+struct ResourceGradientLayout {
+    let center: CGPoint
+    let unitCenter: UnitPoint
+    let endRadius: CGFloat
+
+    static func make(in size: CGSize) -> Self {
+        guard size.width > 0, size.height > 0 else {
+            return Self(center: .zero, unitCenter: .center, endRadius: 1)
+        }
+
+        let center = CGPoint(x: size.width * 1.25, y: size.height / 2)
+        return Self(
+            center: center,
+            unitCenter: UnitPoint(x: center.x / size.width, y: 0.5),
+            endRadius: hypot(center.x, size.height / 2)
+        )
+    }
+
+    func progress(at point: CGPoint) -> CGFloat {
+        min(1, max(0, hypot(point.x - center.x, point.y - center.y) / endRadius))
+    }
+}
+
+/// The shared remaining/consumed-resource fill used on Feeds and Me. Callers
+/// size this view to the visible resource share, so a shrinking fill
+/// recalculates the complete right-to-left circular composition instead of
+/// cropping a gradient made for the full card.
 struct ResourceGradientFill: View {
     var body: some View {
         GeometryReader { geometry in
-            let radius = max(geometry.size.width, geometry.size.height)
+            let layout = ResourceGradientLayout.make(in: geometry.size)
             RadialGradient(
                 stops: [
-                    .init(color: AppColors.LivingCanvas.navy, location: 0),
-                    .init(color: AppColors.LivingCanvas.night, location: 0.28),
-                    .init(color: AppColors.LivingCanvas.copper, location: 0.72),
-                    .init(color: AppColors.LivingCanvas.amber, location: 1),
+                    .init(color: AppColors.LivingCanvas.amber, location: 0.08),
+                    .init(color: AppColors.LivingCanvas.copper, location: 0.42),
+                    .init(color: AppColors.LivingCanvas.night, location: 0.70),
+                    .init(color: AppColors.LivingCanvas.navy, location: 0.86),
+                    .init(color: AppColors.LivingCanvas.navy, location: 1),
                 ],
-                center: .topLeading,
+                center: layout.unitCenter,
                 startRadius: 0,
-                endRadius: max(radius, 1)
+                endRadius: layout.endRadius
             )
         }
         .allowsHitTesting(false)
