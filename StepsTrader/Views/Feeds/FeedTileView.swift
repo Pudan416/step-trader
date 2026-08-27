@@ -217,9 +217,6 @@ struct FeedRowView: View {
             optionsMenu
                 .padding(.trailing, 12)
         }
-        // Usage is metered in whole-minute observations. Let the row step
-        // with that source of truth instead of inventing a smooth timer.
-        .animation(nil, value: fillFraction)
     }
 
     private func ticketBody(fillWidth: CGFloat) -> some View {
@@ -337,53 +334,24 @@ struct FeedRowView: View {
     }
 }
 
-/// Compact purchase sheet used only for a locked row. It disappears after a
-/// successful purchase; the row then becomes the persistent timer and action.
-struct FeedDurationSheet: View {
+/// Compact unlock controls disclosed directly beneath a locked feed. The
+/// parent owns expansion so all rows move as one scrollable layout.
+struct FeedInlineDurationOptions: View {
     @ObservedObject var model: AppModel
     let group: TicketGroup
     let onPurchased: () -> Void
 
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.appTheme) private var theme
-    @State private var isPurchasing = false
-
-    private var displayName: String {
-        group.templateApp.map { TargetResolver.displayName(for: $0) }
-            ?? (group.name.isEmpty ? String(localized: "Feed") : group.name)
-    }
+    @State private var purchasingWindow: AccessWindow?
 
     var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(displayName)
-                        .font(.geist(size: 28, weight: .bold, design: .rounded))
-                    Text(String(localized: "Choose how long to unlock"))
-                        .font(.geist(size: 15, weight: .medium, design: .rounded))
-                        .foregroundStyle(.secondary)
-                }
-
-                VStack(spacing: 10) {
-                    ForEach(AccessWindow.allCases.filter(group.enabledIntervals.contains), id: \.self) { window in
-                        durationButton(window)
-                    }
-                }
-
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 12)
-            .background(theme.backgroundColor.ignoresSafeArea())
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "Cancel")) { dismiss() }
-                }
+        HStack(spacing: 8) {
+            ForEach(AccessWindow.allCases.filter(group.enabledIntervals.contains), id: \.self) { window in
+                durationButton(window)
             }
         }
-        .presentationDetents([.medium])
-        .presentationDragIndicator(.visible)
-        .interactiveDismissDisabled(isPurchasing)
+        .padding(.horizontal, 4)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(String(localized: "Choose how long to unlock"))
     }
 
     private func durationButton(_ window: AccessWindow) -> some View {
@@ -393,58 +361,57 @@ struct FeedDurationSheet: View {
         return Button {
             purchase(window: window, cost: cost)
         } label: {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(window.displayName)
-                        .font(.geist(size: 18, weight: .semibold, design: .rounded))
-                    if !canAfford {
-                        Text(String(localized: "Not enough colors"))
-                            .font(.geist(size: 12, weight: .medium, design: .rounded))
-                            .opacity(0.65)
-                    }
-                }
-
-                Spacer()
-
+            VStack(spacing: 5) {
+                Text(window.displayName)
+                    .font(.geist(size: 14, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
                 HStack(spacing: 6) {
                     Image(systemName: "drop.fill")
                     Text("\(cost)")
                         .monospacedDigit()
                 }
-                .font(.geist(size: 16, weight: .bold, design: .rounded))
+                .font(.geist(size: 13, weight: .bold, design: .rounded))
+                .opacity(0.72)
             }
-            .foregroundStyle(canAfford ? Color.black.opacity(0.82) : Color.primary)
-            .padding(.horizontal, 18)
             .frame(maxWidth: .infinity)
-            .frame(height: 64)
+            .frame(height: 58)
+            .foregroundStyle(.white)
             .background {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(canAfford ? AppColors.brandAccent : Color.primary.opacity(0.08))
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .overlay(Color.black.opacity(canAfford ? 0.13 : 0.22))
             }
             .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(canAfford ? 0.05 : 0.1), lineWidth: 0.75)
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(
+                        canAfford ? AppColors.brandAccent.opacity(0.48) : Color.white.opacity(0.12),
+                        lineWidth: 0.75
+                    )
             }
         }
         .buttonStyle(.plain)
-        .disabled(!canAfford || isPurchasing)
-        .opacity((!canAfford || isPurchasing) ? 0.55 : 1)
+        .disabled(!canAfford || purchasingWindow != nil)
+        .opacity((!canAfford || purchasingWindow != nil) ? 0.55 : 1)
+        .accessibilityHint(
+            canAfford
+                ? String(localized: "Double tap to unlock")
+                : String(localized: "Not enough colors")
+        )
     }
 
     private func purchase(window: AccessWindow, cost: Int) {
-        guard !isPurchasing else { return }
-        isPurchasing = true
+        guard purchasingWindow == nil else { return }
+        purchasingWindow = window
         Task { @MainActor in
             await model.handlePayGatePaymentForGroup(
                 groupId: group.id,
                 window: window,
                 costOverride: cost
             )
-            isPurchasing = false
+            purchasingWindow = nil
 
             guard model.unspentUsageBudgetMatchingShield(for: group.id) > 0 else { return }
             onPurchased()
-            dismiss()
         }
     }
 }

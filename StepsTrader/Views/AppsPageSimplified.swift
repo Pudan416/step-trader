@@ -8,6 +8,17 @@ struct TicketGroupId: Identifiable {
     let id: String
 }
 
+private struct FeedUnlockOptionsBottomPreferenceKey: PreferenceKey {
+    static var defaultValue: [String: CGFloat] = [:]
+
+    static func reduce(
+        value: inout [String: CGFloat],
+        nextValue: () -> [String: CGFloat]
+    ) {
+        value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
+    }
+}
+
 /// Single accent for primary actions (Create Ticket, unlock). Rest uses system colors.
 enum TicketsPalette {
     // Accent yellow: #FFD369
@@ -44,7 +55,8 @@ struct AppsPageSimplified: View {
     @State private var selectedGroupId: TicketGroupId? = nil
     @State private var showTemplatePicker = false
     @State private var expandedSheetGroupId: TicketGroupId? = nil
-    @State private var unlockSheetGroupId: TicketGroupId? = nil
+    @State private var inlineExpansion = FeedInlineExpansion()
+    @State private var autoScrolledTargetID: String?
     /// Unspent minutes per group id, for groups whose window is open.
     ///
     /// One poll for the whole page. Every row reads this same observation, and
@@ -120,15 +132,6 @@ struct AppsPageSimplified: View {
                 Color.clear.frame(height: topCardHeight)
             }
             .toolbar(.hidden, for: .navigationBar)
-            .sheet(item: $unlockSheetGroupId) { groupId in
-                if let group = model.blockingStore.ticketGroups.first(where: { $0.id == groupId.id }) {
-                    FeedDurationSheet(
-                        model: model,
-                        group: group,
-                        onPurchased: refreshUsageBudgets
-                    )
-                }
-            }
             .sheet(item: $expandedSheetGroupId, onDismiss: {
                 if showPickerAfterDismiss {
                     showPickerAfterDismiss = false
@@ -252,38 +255,97 @@ struct AppsPageSimplified: View {
     // MARK: - Feed rows
 
     private var feedsList: some View {
-        ScrollView {
-            LazyVStack(spacing: 12) {
-                ForEach(visibleGroups) { group in
-                    let state = FeedRowModel.accessState(
-                        remainingMinutes: unspentMinutes[group.id] ?? 0,
-                        initialMinutes: initialMinutes[group.id] ?? 0
-                    )
-                    let canOpen = group.templateApp.map {
-                        TargetResolver.canOpen(bundleId: $0)
-                    } ?? false
+        GeometryReader { viewport in
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(visibleGroups) { group in
+                            let state = FeedRowModel.accessState(
+                                remainingMinutes: unspentMinutes[group.id] ?? 0,
+                                initialMinutes: initialMinutes[group.id] ?? 0
+                            )
+                            let canOpen = group.templateApp.map {
+                                TargetResolver.canOpen(bundleId: $0)
+                            } ?? false
 
-                    FeedRowView(
-                        group: group,
-                        accessState: state,
-                        canOpen: canOpen,
-                        onTap: { handleRowTap(group: group, state: state, canOpen: canOpen) },
-                        onSettings: {
-                            expandedSheetGroupId = TicketGroupId(id: group.id)
-                        },
-                        onDelete: {
-                            groupIdToDelete = group.id
+                            VStack(spacing: 9) {
+                                FeedRowView(
+                                    group: group,
+                                    accessState: state,
+                                    canOpen: canOpen,
+                                    onTap: { handleRowTap(group: group, state: state, canOpen: canOpen) },
+                                    onSettings: {
+                                        expandedSheetGroupId = TicketGroupId(id: group.id)
+                                    },
+                                    onDelete: {
+                                        groupIdToDelete = group.id
+                                    }
+                                )
+                                #if DEBUG
+                                .modifier(FirstFeedAnchor(groupId: group.id, firstId: visibleGroups.first?.id))
+                                #endif
+
+                                if inlineExpansion.expandedGroupID == group.id, state == .locked {
+                                    FeedInlineDurationOptions(
+                                        model: model,
+                                        group: group,
+                                        onPurchased: {
+                                            completeInlinePurchase(groupID: group.id)
+                                        }
+                                    )
+                                    .id("\(group.id)-unlock-options")
+                                    .background {
+                                        GeometryReader { optionsGeometry in
+                                            Color.clear.preference(
+                                                key: FeedUnlockOptionsBottomPreferenceKey.self,
+                                                value: [
+                                                    group.id: optionsGeometry.frame(
+                                                        in: .named(FeedInlineLayout.coordinateSpaceName)
+                                                    ).maxY
+                                                ]
+                                            )
+                                        }
+                                    }
+                                    .transition(.opacity.combined(with: .move(edge: .top)))
+                                }
+                            }
                         }
-                    )
-                    #if DEBUG
-                    .modifier(FirstFeedAnchor(groupId: group.id, firstId: visibleGroups.first?.id))
-                    #endif
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 20)
+                }
+                .coordinateSpace(name: FeedInlineLayout.coordinateSpaceName)
+                .safeAreaPadding(
+                    .bottom,
+                    max(tabBarHeight, 50) + FeedInlineLayout.tabBarClearance
+                )
+                .scrollIndicators(.hidden)
+                .onPreferenceChange(FeedUnlockOptionsBottomPreferenceKey.self) { optionBottoms in
+                    guard
+                        let groupID = inlineExpansion.expandedGroupID,
+                        let targetID = inlineExpansion.scrollTargetID,
+                        autoScrolledTargetID != targetID,
+                        let optionsBottom = optionBottoms[groupID],
+                        FeedInlineLayout.needsAutoScroll(
+                            optionsBottom: optionsBottom,
+                            viewportHeight: viewport.size.height,
+                            tabBarHeight: max(tabBarHeight, 50)
+                        )
+                    else { return }
+
+                    Task { @MainActor in
+                        autoScrolledTargetID = targetID
+                        withAnimation(feedExpansionAnimation) {
+                            proxy.scrollTo(targetID, anchor: .bottom)
+                        }
+                    }
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, max(tabBarHeight, 50) + 28)
         }
-        .scrollIndicators(.hidden)
+    }
+
+    private var feedExpansionAnimation: Animation {
+        .snappy(duration: 0.42, extraBounce: 0.04)
     }
 
     private var emptyState: some View {
@@ -373,7 +435,10 @@ struct AppsPageSimplified: View {
     ) {
         switch FeedRowModel.tapAction(for: state, canOpen: canOpen) {
         case .chooseDuration:
-            unlockSheetGroupId = TicketGroupId(id: group.id)
+            withAnimation(feedExpansionAnimation) {
+                autoScrolledTargetID = nil
+                inlineExpansion = inlineExpansion.toggling(groupID: group.id)
+            }
         case .openApp:
             if let bundleId = group.templateApp {
                 AppLauncher.open(bundleId: bundleId)
@@ -394,8 +459,16 @@ struct AppsPageSimplified: View {
 
     private func deleteAndCleanup(_ groupId: String) {
         if expandedSheetGroupId?.id == groupId { expandedSheetGroupId = nil }
-        if unlockSheetGroupId?.id == groupId { unlockSheetGroupId = nil }
+        inlineExpansion = inlineExpansion.collapsing(groupID: groupId)
         model.deleteTicketGroup(groupId)
+    }
+
+    private func completeInlinePurchase(groupID: String) {
+        withAnimation(feedExpansionAnimation) {
+            refreshUsageBudgets()
+            autoScrolledTargetID = nil
+            inlineExpansion = inlineExpansion.collapsing(groupID: groupID)
+        }
     }
 }
 

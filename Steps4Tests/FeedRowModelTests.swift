@@ -162,3 +162,52 @@ final class ResourceGradientLayoutTests: XCTestCase {
         XCTAssertGreaterThan(layout.progress(at: CGPoint(x: 0, y: 41)), 0.95)
     }
 }
+
+final class FeedInlineExpansionTests: XCTestCase {
+
+    func testTappingALockedGroupExpandsItsUnlockOptionsAndRequestsScroll() {
+        let result = FeedInlineExpansion().toggling(groupID: "instagram")
+
+        XCTAssertEqual(result.expandedGroupID, "instagram")
+        XCTAssertEqual(result.scrollTargetID, "instagram-unlock-options")
+    }
+
+    func testTappingAnotherGroupMovesTheExpansion() {
+        let current = FeedInlineExpansion(expandedGroupID: "instagram")
+
+        let result = current.toggling(groupID: "youtube")
+
+        XCTAssertEqual(result.expandedGroupID, "youtube")
+        XCTAssertEqual(result.scrollTargetID, "youtube-unlock-options")
+    }
+
+    func testTappingTheExpandedGroupCollapsesIt() {
+        let current = FeedInlineExpansion(expandedGroupID: "instagram")
+
+        XCTAssertEqual(current.toggling(groupID: "instagram"), FeedInlineExpansion())
+    }
+
+    func testSuccessfulPurchaseCollapsesOnlyThePurchasedGroup() {
+        let current = FeedInlineExpansion(expandedGroupID: "instagram")
+
+        XCTAssertEqual(current.collapsing(groupID: "youtube"), current)
+        XCTAssertEqual(current.collapsing(groupID: "instagram"), FeedInlineExpansion())
+    }
+
+    func testAutoScrollOnlyStartsWhenOptionsReachTheTabBar() {
+        XCTAssertFalse(
+            FeedInlineLayout.needsAutoScroll(
+                optionsBottom: 450,
+                viewportHeight: 640,
+                tabBarHeight: 90
+            )
+        )
+        XCTAssertTrue(
+            FeedInlineLayout.needsAutoScroll(
+                optionsBottom: 550,
+                viewportHeight: 640,
+                tabBarHeight: 90
+            )
+        )
+    }
+}

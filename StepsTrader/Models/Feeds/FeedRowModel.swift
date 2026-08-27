@@ -31,6 +31,41 @@ enum FeedRowTapAction: Equatable, Sendable {
     case openSettings
 }
 
+/// Single-open disclosure state for the inline unlock controls on Feeds.
+struct FeedInlineExpansion: Equatable, Sendable {
+    private(set) var expandedGroupID: String?
+
+    init(expandedGroupID: String? = nil) {
+        self.expandedGroupID = expandedGroupID
+    }
+
+    var scrollTargetID: String? {
+        expandedGroupID.map { "\($0)-unlock-options" }
+    }
+
+    func toggling(groupID: String) -> Self {
+        Self(expandedGroupID: expandedGroupID == groupID ? nil : groupID)
+    }
+
+    func collapsing(groupID: String) -> Self {
+        guard expandedGroupID == groupID else { return self }
+        return Self()
+    }
+}
+
+enum FeedInlineLayout {
+    static let coordinateSpaceName = "feeds-scroll-viewport"
+    static let tabBarClearance: CGFloat = 16
+
+    static func needsAutoScroll(
+        optionsBottom: CGFloat,
+        viewportHeight: CGFloat,
+        tabBarHeight: CGFloat
+    ) -> Bool {
+        optionsBottom > viewportHeight - tabBarHeight - tabBarClearance
+    }
+}
+
 enum FeedRowModel {
 
     /// Overlapping icons beyond this add noise without adding information.
