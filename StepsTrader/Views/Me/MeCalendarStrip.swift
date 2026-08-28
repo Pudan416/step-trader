@@ -164,15 +164,32 @@ struct MeCalendarStrip: View {
 
                 HStack(spacing: Self.tileSpacing) {
                     ForEach(keys, id: \.self) { key in
+                        let isSelected = key == selectedDayKey
+                        let shape = RoundedRectangle(
+                            cornerRadius: 8,
+                            style: .continuous
+                        )
+                        let border = MeCalendarTileBorderStyle.metrics(
+                            isSelected: isSelected
+                        )
+
                         DayHistoryTile(
                             dayKey: key,
                             snapshot: pastDays[key],
                             health: recentHealthByDay[key],
-                            isSelected: key == selectedDayKey,
+                            isSelected: isSelected,
                             onTap: { onSelect(key) }
                         )
                         .frame(width: tileWidth, height: tileHeight)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .clipShape(shape)
+                        .overlay {
+                            shape.strokeBorder(
+                                isSelected
+                                    ? AppColors.brandAccent.opacity(border.opacity)
+                                    : theme.textPrimary.opacity(border.opacity),
+                                lineWidth: border.lineWidth
+                            )
+                        }
                         .id(key)
                     }
                 }
@@ -261,7 +278,6 @@ struct DayHistoryTile: View {
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
-        let border = MeCalendarTileBorderStyle.metrics(isSelected: isSelected)
 
         return Button(action: onTap) {
             tileBody
@@ -270,14 +286,6 @@ struct DayHistoryTile: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(shape)
         .clipShape(shape)
-        .overlay {
-            shape.strokeBorder(
-                isSelected
-                    ? AppColors.brandAccent.opacity(border.opacity)
-                    : theme.textPrimary.opacity(border.opacity),
-                lineWidth: border.lineWidth
-            )
-        }
         .buttonStyle(ScaleButtonStyle())
         .accessibilityIdentifier("me_calendar_day_\(dayKey)")
         .accessibilityLabel(accessibilityLabel)

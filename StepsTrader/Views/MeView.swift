@@ -30,7 +30,6 @@ struct MeView: View {
     @State private var shareRequestID = 0
     @State private var shareRequestedDayKey: String?
     @State private var posterCarouselWidth: CGFloat = 350
-    @State private var posterScrollDayKey: String? = AppModel.dayKey(for: .now)
     @State private var loadTask: Task<Void, Never>?
     @State private var serverFetchTask: Task<Void, Never>?
 
@@ -147,55 +146,42 @@ struct MeView: View {
             viewportWidth: posterCarouselWidth
         )
 
-        return ScrollView(.horizontal) {
-            LazyHStack(spacing: sizing.pageSpacing) {
-                ForEach(posterDayKeys, id: \.self) { key in
-                    MeSelectedDayPoster(
-                        model: model,
-                        dayKey: key,
-                        snapshot: pastDays[key],
-                        health: recentHealthByDay[key],
-                        unlockRecords: unlockRecords,
-                        shareRequestID: shareRequestID,
-                        handlesShareRequest: shareRequestedDayKey == key,
-                        onShareAvailabilityChange: { available in
-                            posterShareAvailability[key] = available
-                            if selectedPosterDayKey == key {
-                                selectedPosterCanShare = available
-                            }
+        return TabView(selection: $selectedPosterDayKey) {
+            ForEach(posterDayKeys, id: \.self) { key in
+                MeSelectedDayPoster(
+                    model: model,
+                    dayKey: key,
+                    snapshot: pastDays[key],
+                    health: recentHealthByDay[key],
+                    unlockRecords: unlockRecords,
+                    shareRequestID: shareRequestID,
+                    handlesShareRequest: shareRequestedDayKey == key,
+                    onShareAvailabilityChange: { available in
+                        posterShareAvailability[key] = available
+                        if selectedPosterDayKey == key {
+                            selectedPosterCanShare = available
                         }
-                    )
-                    .frame(
-                        width: sizing.posterWidth,
-                        height: sizing.posterHeight
-                    )
-                    .frame(
-                        width: sizing.pageWidth,
-                        height: sizing.posterHeight
-                    )
-                    .id(key)
-                }
+                    }
+                )
+                .frame(
+                    width: sizing.posterWidth,
+                    height: sizing.posterHeight
+                )
+                .frame(
+                    width: sizing.pageWidth,
+                    height: sizing.posterHeight
+                )
+                .clipped()
+                .tag(key)
             }
-            .scrollTargetLayout()
         }
-        .scrollTargetBehavior(.viewAligned(limitBehavior: .always))
-        .scrollPosition(id: $posterScrollDayKey, anchor: .center)
-        .defaultScrollAnchor(.trailing)
-        .scrollIndicators(.hidden)
+        .tabViewStyle(.page(indexDisplayMode: .never))
         .frame(height: sizing.posterHeight)
+        .clipped()
         .accessibilityIdentifier("me_poster_carousel")
         .accessibilityValue(selectedPosterDayKey)
-        .onChange(of: posterScrollDayKey) { _, key in
-            guard let key, posterDayKeys.contains(key) else { return }
-            selectedPosterDayKey = key
-            selectedPosterCanShare = posterShareAvailability[key] ?? false
-        }
         .onChange(of: selectedPosterDayKey) { _, key in
-            guard posterScrollDayKey != key else { return }
-            posterScrollDayKey = key
-        }
-        .onAppear {
-            posterScrollDayKey = selectedPosterDayKey
+            selectedPosterCanShare = posterShareAvailability[key] ?? false
         }
         .onGeometryChange(for: CGFloat.self) { proxy in
             proxy.size.width
@@ -210,7 +196,6 @@ struct MeView: View {
         selectedPosterCanShare = posterShareAvailability[key] ?? false
         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.32)) {
             selectedPosterDayKey = key
-            posterScrollDayKey = key
         }
     }
 

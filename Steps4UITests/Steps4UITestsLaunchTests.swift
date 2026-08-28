@@ -122,6 +122,51 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         attachScreenshot(named: "me-layout")
     }
 
+    func testTappingCalendarDayCentersTheWholeSelectedPoster() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["ui-testing"]
+        app.launch()
+
+        let meTab = app.buttons["tab_me"]
+        XCTAssertTrue(meTab.waitForExistence(timeout: 8))
+        meTab.tap()
+
+        let dayButtons = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'me_calendar_day_'")
+        )
+        XCTAssertEqual(dayButtons.count, 7)
+        let targetDay = dayButtons.allElementsBoundByAccessibilityElement
+            .sorted { $0.frame.minX < $1.frame.minX }[3]
+        let targetKey = targetDay.identifier.replacingOccurrences(
+            of: "me_calendar_day_",
+            with: ""
+        )
+
+        targetDay.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+
+        let carousel = app.descendants(matching: .any)["me_poster_carousel"]
+        let selectedValue = NSPredicate(format: "value == %@", targetKey)
+        expectation(for: selectedValue, evaluatedWith: carousel)
+        waitForExpectations(timeout: 3)
+
+        let selectedPoster = app.otherElements.matching(
+            NSPredicate(
+                format: "identifier == 'me_selected_day_poster' AND value == %@",
+                targetKey
+            )
+        ).firstMatch
+        XCTAssertTrue(selectedPoster.waitForExistence(timeout: 3))
+        XCTAssertEqual(
+            selectedPoster.frame.midX,
+            carousel.frame.midX,
+            accuracy: 2,
+            "Calendar selection must settle on one centered poster, not between two pages"
+        )
+        XCTAssertGreaterThanOrEqual(selectedPoster.frame.minX, carousel.frame.minX)
+        XCTAssertLessThanOrEqual(selectedPoster.frame.maxX, carousel.frame.maxX)
+        attachScreenshot(named: "me-calendar-selection-centered")
+    }
+
     func testMeArchiveActionLivesInTheRecentDaysHeader() throws {
         let app = XCUIApplication()
         app.launchArguments = ["ui-testing"]
