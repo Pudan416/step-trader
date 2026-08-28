@@ -99,7 +99,56 @@ final class DayObjectPaletteTests: XCTestCase {
         }
     }
 
-    func testArbitraryEventIDsStillReceiveSixFourUniqueColorAssignments() {
+    func testMostDaysGiveMostObjectsTwoOrThreeColors() {
+        var chromaticDays = 0
+
+        for seed in UInt64(0)..<100 {
+            let paletteSet = DayObjectPaletteSet.make(
+                rootSeed: seed,
+                categories: ModernPaletteSelection.all
+            )
+            let assignments = DayObjectColorAllocator.assignments(
+                eventIDs: (0..<10).map { "event-\($0)" },
+                rootSeed: seed,
+                paletteSet: paletteSet
+            )
+            let multicolorCount = assignments.values.filter {
+                $0.colors.count >= 2
+            }.count
+            if multicolorCount >= 7 {
+                chromaticDays += 1
+            }
+        }
+
+        XCTAssertGreaterThanOrEqual(chromaticDays, 75)
+    }
+
+    func testEveryGeneratedMaterialKeepsAReadableColorCore() {
+        for seed in UInt64(0)..<256 {
+            let paletteSet = DayObjectPaletteSet.make(
+                rootSeed: seed,
+                categories: ModernPaletteSelection.all
+            )
+            let language = DayObjectVisualLanguage.make(
+                rootSeed: seed,
+                paletteSet: paletteSet
+            )
+            let appearances = language.appearances(
+                eventIDs: (0..<10).map { "event-\($0)" },
+                rootSeed: seed
+            )
+
+            for appearance in appearances.values {
+                XCTAssertGreaterThanOrEqual(
+                    appearance.bodyOpacity * appearance.centerOpacity,
+                    0.24,
+                    "seed=\(seed) material=\(appearance.material)"
+                )
+            }
+        }
+    }
+
+    func testArbitraryEventIDsKeepSixFourSplitAndAtLeastNineColorAssignments() {
         let eventIDs = [
             "id-0x", "id-1x", "id-2x", "id-4x", "id-8x",
             "id-9x", "id-10x", "id-16x", "id-24x", "id-58x",
@@ -121,7 +170,7 @@ final class DayObjectPaletteTests: XCTestCase {
 
         XCTAssertEqual(values.filter { $0.paletteSlot == .primary }.count, 6)
         XCTAssertEqual(values.filter { $0.paletteSlot == .secondary }.count, 4)
-        XCTAssertEqual(uniqueSubsets.count, 10)
+        XCTAssertGreaterThanOrEqual(uniqueSubsets.count, 9)
     }
 
     func testAssignedObjectColorsRemainReadableAgainstTheRenderedBackgroundPalette() {

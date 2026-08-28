@@ -237,7 +237,6 @@ final class DayObjectChoreographyTests: XCTestCase {
         let far = poses.min { $0.depth < $1.depth }!
         let near = poses.max { $0.depth < $1.depth }!
         XCTAssertGreaterThan(near.scale, far.scale)
-        XCTAssertGreaterThan(far.localDepthSoftness, near.localDepthSoftness)
         XCTAssertGreaterThan(near.opacity, far.opacity)
 
         for actor in scene.actors {
@@ -252,6 +251,29 @@ final class DayObjectChoreographyTests: XCTestCase {
             XCTAssertLessThan(abs(after.depth - before.depth), 0.001)
             XCTAssertLessThan(abs(after.materialPhase - before.materialPhase), 0.001)
         }
+    }
+
+    func testCameraFocusIsSharpestAtMidDepthAndSoftAtBothExtremes() throws {
+        let scene = DayObjectScene.make(input: fixtureInput(seed: 27, count: 10))
+        let actor = try XCTUnwrap(scene.actors.first)
+        let samples = stride(from: 0.0, through: actor.depthSchedule.period, by: 0.1).map {
+            scene.score.pose(
+                for: actor,
+                at: $0,
+                canvasAspect: 1,
+                compositionPlan: scene.compositionPlan
+            )
+        }
+        let far = try XCTUnwrap(samples.min { $0.depth < $1.depth })
+        let near = try XCTUnwrap(samples.max { $0.depth < $1.depth })
+        let middle = try XCTUnwrap(samples.min {
+            abs($0.depth - 0.55) < abs($1.depth - 0.55)
+        })
+
+        XCTAssertGreaterThan(far.localDepthSoftness, middle.localDepthSoftness)
+        XCTAssertGreaterThan(near.localDepthSoftness, middle.localDepthSoftness)
+        XCTAssertGreaterThan(near.scale, middle.scale)
+        XCTAssertGreaterThan(middle.scale, far.scale)
     }
 
     func testSizeBandsAndDepthCreateAVisibleHierarchy() {
@@ -271,12 +293,39 @@ final class DayObjectChoreographyTests: XCTestCase {
         let far = poses.min { $0.1.depth < $1.1.depth }!
 
         XCTAssertGreaterThan(near.1.scale, far.1.scale)
-        XCTAssertLessThan(near.1.localDepthSoftness, far.1.localDepthSoftness)
         XCTAssertGreaterThan(near.1.opacity, far.1.opacity)
         XCTAssertGreaterThan(
             poses.map(\.1.scale).max()! / poses.map(\.1.scale).min()!,
             1.8
         )
+    }
+
+    func testDailyScenesReachDifferentLargeObjectCountsAndADeepSizeRange() {
+        var focalCounts = Set<Int>()
+        var smallestDiameter = Double.greatestFiniteMagnitude
+        var largestDiameter = 0.0
+
+        for seed in UInt64(0)..<128 {
+            let scene = DayObjectScene.make(input: fixtureInput(seed: seed, count: 10))
+            focalCounts.insert(scene.actors.filter { $0.sizeBand == .focal }.count)
+            for actor in scene.actors {
+                for time in stride(from: 0.0, through: actor.depthSchedule.period, by: 1.0) {
+                    let pose = scene.score.pose(
+                        for: actor,
+                        at: time,
+                        canvasAspect: 1,
+                        compositionPlan: scene.compositionPlan
+                    )
+                    smallestDiameter = min(smallestDiameter, pose.scale)
+                    largestDiameter = max(largestDiameter, pose.scale)
+                }
+            }
+        }
+
+        XCTAssertTrue(focalCounts.isSuperset(of: [0, 1, 2, 3]))
+        XCTAssertLessThan(smallestDiameter, 0.045)
+        XCTAssertGreaterThan(largestDiameter, 0.52)
+        XCTAssertGreaterThan(largestDiameter / smallestDiameter, 10)
     }
 
     func testDepthBreathingRemainsContinuousAtItsLoopBoundary() {
@@ -362,7 +411,10 @@ final class DayObjectChoreographyTests: XCTestCase {
                             for: actor, at: time, canvasAspect: aspect,
                             compositionPlan: scene.compositionPlan
                         )
-                        XCTAssertTrue(pose.isInsideSafeBounds)
+                        XCTAssertTrue(
+                            pose.isInsideSafeBounds || scene.compositionPlan.usesFullCanvas
+                        )
+                        XCTAssertLessThanOrEqual(pose.intentionalCropFraction, 0.42)
                         XCTAssertFalse(pose.intersectsUIExclusion)
                         XCTAssertFalse(pose.intersectsNegativeSpace)
                     }

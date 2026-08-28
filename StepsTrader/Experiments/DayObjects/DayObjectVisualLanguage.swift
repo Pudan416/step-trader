@@ -241,7 +241,7 @@ struct DayObjectVisualLanguage: Equatable {
             )
         case .livingGlass:
             OpticalRanges(
-                bodyOpacity: 0.22...0.52, centerOpacity: 0.12...0.38,
+                bodyOpacity: 0.44...0.68, centerOpacity: 0.56...0.82,
                 rimOpacity: 0.24...0.56, innerGlow: 0.03...0.16,
                 outerGlow: 0.04...0.16, depthSoftness: 0.08...0.28
             )
@@ -253,13 +253,13 @@ struct DayObjectVisualLanguage: Equatable {
             )
         case .atmosphericOrb:
             OpticalRanges(
-                bodyOpacity: 0.38...0.72, centerOpacity: 0.34...0.70,
+                bodyOpacity: 0.50...0.78, centerOpacity: 0.50...0.78,
                 rimOpacity: 0.10...0.30, innerGlow: 0.10...0.30,
                 outerGlow: 0.06...0.22, depthSoftness: 0.18...0.36
             )
         case .layeredMembrane:
             OpticalRanges(
-                bodyOpacity: 0.34...0.66, centerOpacity: 0.30...0.64,
+                bodyOpacity: 0.48...0.72, centerOpacity: 0.50...0.78,
                 rimOpacity: 0.16...0.42, innerGlow: 0.08...0.26,
                 outerGlow: 0.04...0.18, depthSoftness: 0.08...0.28
             )

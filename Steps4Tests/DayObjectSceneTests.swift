@@ -163,9 +163,9 @@ final class DayObjectCompositionTests: XCTestCase {
     }
 
     func testRestingSizeBandsUseApprovedDiameterRanges() {
-        XCTAssertEqual(DayObjectSizeBand.focal.diameterRange, 0.24...0.34)
-        XCTAssertEqual(DayObjectSizeBand.support.diameterRange, 0.15...0.23)
-        XCTAssertEqual(DayObjectSizeBand.satellite.diameterRange, 0.08...0.14)
+        XCTAssertEqual(DayObjectSizeBand.focal.diameterRange, 0.28...0.42)
+        XCTAssertEqual(DayObjectSizeBand.support.diameterRange, 0.15...0.26)
+        XCTAssertEqual(DayObjectSizeBand.satellite.diameterRange, 0.065...0.13)
     }
 
     func testOrbElongationNeverProducesThinLegacyParticles() {

@@ -218,8 +218,13 @@ enum DayObjectColorAllocator {
         .primary, .secondary, .primary, .secondary, .primary,
     ]
 
-    private static let sourceSubsets: [[Int]] = [
+    private static let restrainedSubsets: [[Int]] = [
         [0], [1], [2], [3],
+        [0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3],
+        [0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3],
+    ]
+
+    private static let chromaticSubsets: [[Int]] = [
         [0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3],
         [0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3],
     ]
@@ -231,8 +236,15 @@ enum DayObjectColorAllocator {
     ) -> [String: DayObjectColorAssignment] {
         var seen = Set<String>()
         let uniqueIDs = Array(eventIDs.filter { seen.insert($0).inserted }.prefix(10))
-        let primarySubsets = shuffledSubsets(rootSeed: rootSeed, primary: true)
-        let secondarySubsets = shuffledSubsets(rootSeed: rootSeed, primary: false)
+        let sourceSubsets = isChromaticDay(rootSeed: rootSeed)
+            ? chromaticSubsets
+            : restrainedSubsets
+        let primarySubsets = shuffledSubsets(
+            sourceSubsets, rootSeed: rootSeed, primary: true
+        )
+        let secondarySubsets = shuffledSubsets(
+            sourceSubsets, rootSeed: rootSeed, primary: false
+        )
         let renderedBackground = DayObjectPalette.make(modernPalette: paletteSet.background)
         let brightestBackground = ([renderedBackground.backgroundBase]
             + renderedBackground.backgroundFields).max {
@@ -240,10 +252,10 @@ enum DayObjectColorAllocator {
             } ?? renderedBackground.backgroundBase
         let primaryColors = paletteSet.primaryObjects.hexes
             .map(DayObjectRGB.init(hex:))
-            .map { $0.lightened(toMinimumContrast: 1.35, against: brightestBackground) }
+            .map { $0.lightened(toMinimumContrast: 1.55, against: brightestBackground) }
         let secondaryColors = paletteSet.secondaryObjects.hexes
             .map(DayObjectRGB.init(hex:))
-            .map { $0.lightened(toMinimumContrast: 1.35, against: brightestBackground) }
+            .map { $0.lightened(toMinimumContrast: 1.55, against: brightestBackground) }
         var result = [String: DayObjectColorAssignment]()
 
         let records = uniqueIDs.map { eventID in
@@ -304,32 +316,12 @@ enum DayObjectColorAllocator {
     private static func uniqueSubsetIndices(
         for records: [(eventID: String, stable: (patternIndex: Int, subsetIndex: Int))],
         subsetCount: Int,
-        rootSeed: UInt64
+        rootSeed _: UInt64
     ) -> [String: Int] {
         guard subsetCount > 0 else { return [:] }
-        let preferredCounts = Dictionary(grouping: records) {
-            $0.stable.subsetIndex % subsetCount
-        }.mapValues(\.count)
-        let ordered = records.sorted { lhs, rhs in
-            let lhsPreferred = lhs.stable.subsetIndex % subsetCount
-            let rhsPreferred = rhs.stable.subsetIndex % subsetCount
-            let lhsCount = preferredCounts[lhsPreferred, default: 0]
-            let rhsCount = preferredCounts[rhsPreferred, default: 0]
-            if lhsCount != rhsCount { return lhsCount < rhsCount }
-            return stablePriority(lhs.eventID, rootSeed: rootSeed)
-                < stablePriority(rhs.eventID, rootSeed: rootSeed)
-        }
-        var used = Set<Int>()
-        var result = [String: Int]()
-        for record in ordered {
-            let preferred = record.stable.subsetIndex % subsetCount
-            let selected = (0..<subsetCount).lazy
-                .map { (preferred + $0) % subsetCount }
-                .first { !used.contains($0) } ?? preferred
-            used.insert(selected)
-            result[record.eventID] = selected
-        }
-        return result
+        return Dictionary(uniqueKeysWithValues: records.map {
+            ($0.eventID, $0.stable.subsetIndex % subsetCount)
+        })
     }
 
     private static func stablePriority(_ eventID: String, rootSeed: UInt64) -> UInt64 {
@@ -361,11 +353,12 @@ enum DayObjectColorAllocator {
         hash ^= hash >> 29
         return (
             Int(hash % UInt64(palettePattern.count)),
-            Int((hash / UInt64(palettePattern.count)) % UInt64(sourceSubsets.count))
+            Int((hash / UInt64(palettePattern.count)) % UInt64(restrainedSubsets.count))
         )
     }
 
     private static func shuffledSubsets(
+        _ sourceSubsets: [[Int]],
         rootSeed: UInt64,
         primary: Bool
     ) -> [[Int]] {
@@ -380,5 +373,9 @@ enum DayObjectColorAllocator {
             }
         }
         return result
+    }
+
+    private static func isChromaticDay(rootSeed: UInt64) -> Bool {
+        rootSeed % 5 != 0
     }
 }

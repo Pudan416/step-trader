@@ -165,12 +165,7 @@ struct DayObjectScene: Equatable {
             var rng = SeededRNG.derived(from: seed, domain: "sizeBand")
             return rng.nextInt(in: 0...9)
         }()
-        let sizeBand: DayObjectSizeBand
-        switch sizeOrdinal {
-        case 0, 5: sizeBand = .focal
-        case 1, 3, 6, 8: sizeBand = .support
-        default: sizeBand = .satellite
-        }
+        let sizeBand = composition.sizeComposition.band(for: sizeOrdinal)
 
         return DayObjectActor(
             id: id,

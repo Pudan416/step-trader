@@ -166,9 +166,9 @@ final class DayObjectRenderFrameTests: XCTestCase {
                 insertions: [:]
             )
             let diameters = frame.actors.map { Double($0.halfSize.x * 2) }
-            XCTAssertGreaterThan((diameters.max() ?? 0) - (diameters.min() ?? 0), 0.08)
+            XCTAssertGreaterThan((diameters.max() ?? 0) - (diameters.min() ?? 0), 0.16)
             XCTAssertTrue(
-                diameters.allSatisfy { (0.045...0.49).contains($0) },
+                diameters.allSatisfy { (0.035...0.64).contains($0) },
                 "elapsed=\(elapsed) \(diameters)"
             )
         }

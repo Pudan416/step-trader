@@ -37,9 +37,33 @@ enum DayObjectSizeBand: String, CaseIterable, Hashable {
 
     var diameterRange: ClosedRange<Double> {
         switch self {
-        case .focal: 0.24...0.34
-        case .support: 0.15...0.23
-        case .satellite: 0.08...0.14
+        case .focal: 0.28...0.42
+        case .support: 0.15...0.26
+        case .satellite: 0.065...0.13
+        }
+    }
+}
+
+enum DayObjectSizeComposition: UInt32, CaseIterable, Equatable {
+    case constellation
+    case nearField
+    case balanced
+    case foregroundCluster
+
+    func band(for ordinal: Int) -> DayObjectSizeBand {
+        let slot = ((ordinal % 10) + 10) % 10
+        switch self {
+        case .constellation:
+            return [1, 3, 5, 7, 9].contains(slot) ? .support : .satellite
+        case .nearField:
+            if slot == 2 { return .focal }
+            return [0, 4, 7].contains(slot) ? .support : .satellite
+        case .balanced:
+            if [0, 5].contains(slot) { return .focal }
+            return [1, 3, 6, 8].contains(slot) ? .support : .satellite
+        case .foregroundCluster:
+            if [0, 4, 7].contains(slot) { return .focal }
+            return [2, 6, 9].contains(slot) ? .support : .satellite
         }
     }
 }
@@ -687,6 +711,7 @@ struct DayObjectComposition: Equatable {
     let fill: DayObjectFill
     let trajectory: DayObjectTrajectory
     let spin: DayObjectSpin
+    let sizeComposition: DayObjectSizeComposition
     let flockSize: Int
 
     static let maxObjects = DayObjectScene.maxActors
@@ -710,6 +735,10 @@ struct DayObjectComposition: Equatable {
             fill: pick(DayObjectFill.allCases, domain: "fill"),
             trajectory: pick(DayObjectTrajectory.allCases, domain: "trajectory"),
             spin: pick(DayObjectSpin.allCases, domain: "spin"),
+            sizeComposition: pick(
+                DayObjectSizeComposition.allCases,
+                domain: "sizeComposition"
+            ),
             flockSize: 1
         )
     }

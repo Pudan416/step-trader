@@ -163,6 +163,14 @@ struct DayObjectChoreographyScore: Equatable {
             : SIMD2<Double>(0.5, 0.5 / aspect)
         let inside = abs(position.x) + footprint.axisAlignedHalfExtents.x <= halfCanvas.x + 0.000_000_1
             && abs(position.y) + footprint.axisAlignedHalfExtents.y <= halfCanvas.y + 0.000_000_1
+        let overflow = SIMD2(
+            max(abs(position.x) + footprint.axisAlignedHalfExtents.x - halfCanvas.x, 0),
+            max(abs(position.y) + footprint.axisAlignedHalfExtents.y - halfCanvas.y, 0)
+        )
+        let cropFraction = max(
+            overflow.x / max(footprint.axisAlignedHalfExtents.x * 2, 0.000_001),
+            overflow.y / max(footprint.axisAlignedHalfExtents.y * 2, 0.000_001)
+        )
         let intersectsUI = compositionPlan?.intersectsUIExclusion(
             position: position,
             footprintHalfExtents: footprint.axisAlignedHalfExtents,
@@ -186,16 +194,17 @@ struct DayObjectChoreographyScore: Equatable {
             tangent: tangent,
             rotation: rotation,
             scale: scale,
-            opacity: 0.48 + 0.52 * depth,
+            opacity: 0.58 + 0.42 * depth,
             depth: depth,
             depthBand: min(max(Int(depth * 4), 0), 3),
-            // Distant actors lose high-frequency definition while near actors
-            // remain crisp. The per-material softness is added in the shader.
-            localDepthSoftness: 0.018 + 0.24 * pow(1 - depth, 1.25),
+            // A camera-like focus plane keeps middle-distance actors sharp;
+            // distant and extremely near actors lose high-frequency detail.
+            // The per-material softness is added in the shader.
+            localDepthSoftness: cameraSoftness(for: depth),
             materialPhase: normalizedPhase(
                 actor.appearance.radialPhase + time / 150
             ),
-            intentionalCropFraction: 0,
+            intentionalCropFraction: min(max(cropFraction, 0), 1),
             bodyRadius: bodyRadius,
             trailReach: trailReach,
             footprintHalfExtents: footprint.axisAlignedHalfExtents,
@@ -216,9 +225,16 @@ struct DayObjectChoreographyScore: Equatable {
         compositionPlan: DayObjectCompositionPlan?
     ) -> SIMD2<Double> {
         if let compositionPlan {
+            let requestedPlanningDiameter = renderDiameter(
+                for: actor,
+                compositionPlan: compositionPlan
+            ) * 1.43
+            let planningDiameter = compositionPlan.usesFullCanvas
+                ? min(requestedPlanningDiameter, 0.16)
+                : requestedPlanningDiameter
             let planningReach = planningReach(
                 for: actor,
-                diameter: renderDiameter(for: actor, compositionPlan: compositionPlan) * 1.43
+                diameter: planningDiameter
             )
             let base = compositionPlan.distributedRoutePosition(
                 sector: actor.route.sector,
@@ -371,6 +387,15 @@ struct DayObjectChoreographyScore: Equatable {
         let schedule = actor.depthSchedule
         let phase = 2 * Double.pi * (time / schedule.period + schedule.phase)
         return min(max(schedule.baseDepth + schedule.amplitude * cos(phase), 0), 1)
+    }
+
+    private func cameraSoftness(for depth: Double) -> Double {
+        let focusDepth = 0.55
+        let farDistance = max((focusDepth - depth) / focusDepth, 0)
+        let nearDistance = max((depth - focusDepth) / (1 - focusDepth), 0)
+        return 0.018
+            + 0.30 * pow(farDistance, 1.35)
+            + 0.34 * pow(nearDistance, 1.50)
     }
 
     private func normalizedPhase(_ value: Double) -> Double {
