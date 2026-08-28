@@ -159,7 +159,8 @@ struct FeedPlaceholderTileView: View {
 struct FeedTicketShape: Shape {
     func path(in rect: CGRect) -> Path {
         guard rect.width > 0, rect.height > 0 else { return Path() }
-        return RoundedRectangle(cornerRadius: rect.height / 2, style: .continuous)
+        let cornerRadius = min(rect.height / 2, FeedCardLayout.collapsedHeight / 2)
+        return RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .path(in: rect)
     }
 }
@@ -167,16 +168,17 @@ struct FeedTicketShape: Shape {
 /// One feed ticket carries both the action and the timer. A locked ticket opens
 /// the duration picker; an active one opens its app. No social-network artwork
 /// is repeated here — the app name is the identifier, and the shared canvas
-/// gradient expresses the one thing unique to this screen: remaining access.
+/// gradient expresses remaining access while locked cards disclose choices inline.
 struct FeedRowView: View {
+    @ObservedObject var model: AppModel
     let group: TicketGroup
     let accessState: FeedRowAccessState
     let canOpen: Bool
+    let showsUnlockOptions: Bool
     let onTap: () -> Void
     let onSettings: () -> Void
     let onDelete: () -> Void
-
-    private let rowHeight: CGFloat = 82
+    let onPurchased: () -> Void
 
     private var fillFraction: Double {
         if case .active(_, let fraction) = accessState { return fraction }
@@ -195,14 +197,7 @@ struct FeedRowView: View {
 
     var body: some View {
         rowGeometry
-            .frame(height: rowHeight)
-            .accessibilityElement(children: .ignore)
-            .accessibilityAddTraits(.isButton)
-            .accessibilityLabel(accessibilityLabel)
-            .accessibilityHint(accessibilityHint)
-            .accessibilityAction(.default, onTap)
-            .accessibilityAction(named: String(localized: "Settings"), onSettings)
-            .accessibilityAction(named: String(localized: "Delete"), onDelete)
+            .frame(height: FeedCardLayout.height(showsUnlockOptions: showsUnlockOptions))
     }
 
     private var rowGeometry: some View {
@@ -212,10 +207,14 @@ struct FeedRowView: View {
     }
 
     private func rowSurface(fillWidth: CGFloat) -> some View {
-        ZStack(alignment: .trailing) {
+        ZStack(alignment: .topTrailing) {
             ticketBody(fillWidth: fillWidth)
             optionsMenu
                 .padding(.trailing, 12)
+                .padding(
+                    .top,
+                    (FeedCardLayout.collapsedHeight - FeedCardLayout.optionsControlDiameter) / 2
+                )
         }
     }
 
@@ -242,11 +241,28 @@ struct FeedRowView: View {
             )
             .allowsHitTesting(false)
 
-            Button(action: onTap) {
-                rowContent
-                    .contentShape(FeedTicketShape())
+            VStack(spacing: 0) {
+                Button(action: onTap) {
+                    rowContent
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .frame(height: FeedCardLayout.collapsedHeight)
+                .accessibilityLabel(accessibilityLabel)
+                .accessibilityHint(accessibilityHint)
+                .accessibilityAction(named: String(localized: "Settings"), onSettings)
+                .accessibilityAction(named: String(localized: "Delete"), onDelete)
+
+                if showsUnlockOptions {
+                    FeedInlineDurationOptions(
+                        model: model,
+                        group: group,
+                        onPurchased: onPurchased
+                    )
+                    .frame(height: FeedCardLayout.unlockOptionsHeight)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
             }
-            .buttonStyle(.plain)
         }
         .clipShape(FeedTicketShape())
         .overlay {
@@ -278,7 +294,7 @@ struct FeedRowView: View {
         }
         .foregroundStyle(.white)
         .padding(.leading, 22)
-        .padding(.trailing, 82)
+        .padding(.trailing, 68)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
@@ -305,7 +321,10 @@ struct FeedRowView: View {
                         .frame(width: 4, height: 4)
                 }
             }
-            .frame(width: 56, height: 56)
+            .frame(
+                width: FeedCardLayout.optionsControlDiameter,
+                height: FeedCardLayout.optionsControlDiameter
+            )
             .background(
                 Circle()
                     .fill(.ultraThinMaterial)
@@ -334,8 +353,7 @@ struct FeedRowView: View {
     }
 }
 
-/// Compact unlock controls disclosed directly beneath a locked feed. The
-/// parent owns expansion so all rows move as one scrollable layout.
+/// Horizontal unlock choices living inside the expanded feed surface.
 struct FeedInlineDurationOptions: View {
     @ObservedObject var model: AppModel
     let group: TicketGroup
@@ -343,13 +361,30 @@ struct FeedInlineDurationOptions: View {
 
     @State private var purchasingWindow: AccessWindow?
 
+    private var windows: [AccessWindow] {
+        AccessWindow.allCases.filter(group.enabledIntervals.contains)
+    }
+
     var body: some View {
-        HStack(spacing: 8) {
-            ForEach(AccessWindow.allCases.filter(group.enabledIntervals.contains), id: \.self) { window in
+        HStack(spacing: 0) {
+            ForEach(Array(windows.enumerated()), id: \.element) { index, window in
+                if index > 0 {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.13))
+                        .frame(width: 0.75, height: 24)
+                        .accessibilityHidden(true)
+                }
                 durationButton(window)
             }
         }
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 14)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.white.opacity(0.13))
+                .frame(height: 0.75)
+                .padding(.horizontal, 18)
+                .accessibilityHidden(true)
+        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(String(localized: "Choose how long to unlock"))
     }
@@ -361,37 +396,45 @@ struct FeedInlineDurationOptions: View {
         return Button {
             purchase(window: window, cost: cost)
         } label: {
-            VStack(spacing: 5) {
+            HStack(spacing: 4) {
                 Text(window.displayName)
-                    .font(.geist(size: 14, weight: .semibold, design: .rounded))
+                    .font(.geist(size: 12, weight: .semibold, design: .rounded))
                     .lineLimit(1)
-                HStack(spacing: 6) {
-                    Image(systemName: "drop.fill")
-                    Text("\(cost)")
-                        .monospacedDigit()
+                    .minimumScaleFactor(0.8)
+
+                Spacer(minLength: 3)
+
+                Group {
+                    if purchasingWindow == window {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .tint(AppColors.brandAccent)
+                    } else {
+                        Text(FeedCardLayout.priceLabel(cost: cost))
+                            .font(.geist(size: 11, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                    }
                 }
-                .font(.geist(size: 13, weight: .bold, design: .rounded))
-                .opacity(0.72)
+                .foregroundStyle(canAfford ? AppColors.brandAccent : Color.white.opacity(0.58))
+                .padding(.horizontal, 6)
+                .frame(minWidth: 34, minHeight: 24)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(AppColors.brandAccent.opacity(canAfford ? 0.14 : 0.06))
+                )
             }
+            .padding(.horizontal, 7)
             .frame(maxWidth: .infinity)
-            .frame(height: 58)
+            .frame(minHeight: 44)
             .foregroundStyle(.white)
-            .background {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .overlay(Color.black.opacity(canAfford ? 0.13 : 0.22))
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(
-                        canAfford ? AppColors.brandAccent.opacity(0.48) : Color.white.opacity(0.12),
-                        lineWidth: 0.75
-                    )
-            }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!canAfford || purchasingWindow != nil)
         .opacity((!canAfford || purchasingWindow != nil) ? 0.55 : 1)
+        .accessibilityLabel(
+            String(localized: "\(window.displayName), \(cost) colors")
+        )
         .accessibilityHint(
             canAfford
                 ? String(localized: "Double tap to unlock")

@@ -66,6 +66,21 @@ enum FeedInlineLayout {
     }
 }
 
+enum FeedCardLayout {
+    static let collapsedHeight: CGFloat = 82
+    static let unlockOptionsHeight: CGFloat = 56
+    static let addControlDiameter: CGFloat = 44
+    static let optionsControlDiameter: CGFloat = 44
+
+    static func height(showsUnlockOptions: Bool) -> CGFloat {
+        collapsedHeight + (showsUnlockOptions ? unlockOptionsHeight : 0)
+    }
+
+    static func priceLabel(cost: Int) -> String {
+        "− \(cost)"
+    }
+}
+
 enum FeedRowModel {
 
     /// Overlapping icons beyond this add noise without adding information.

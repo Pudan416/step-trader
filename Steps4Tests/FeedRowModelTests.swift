@@ -211,3 +211,25 @@ final class FeedInlineExpansionTests: XCTestCase {
         )
     }
 }
+
+final class FeedCardLayoutTests: XCTestCase {
+
+    func testExpandedCardAddsRoomForUnlockOptionsInsideItsSurface() {
+        let collapsed = FeedCardLayout.height(showsUnlockOptions: false)
+        let expanded = FeedCardLayout.height(showsUnlockOptions: true)
+
+        XCTAssertGreaterThan(expanded - collapsed, 44)
+    }
+
+    func testUnlockCostReadsAsAPriceOnTheOppositeSide() {
+        XCTAssertEqual(FeedCardLayout.priceLabel(cost: 30), "− 30")
+    }
+
+    func testCircularFeedControlsShareTheMinimumTouchTarget() {
+        XCTAssertEqual(
+            FeedCardLayout.addControlDiameter,
+            FeedCardLayout.optionsControlDiameter
+        )
+        XCTAssertGreaterThanOrEqual(FeedCardLayout.addControlDiameter, 44)
+    }
+}

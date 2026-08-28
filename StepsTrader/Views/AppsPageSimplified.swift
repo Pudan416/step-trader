@@ -98,7 +98,10 @@ struct AppsPageSimplified: View {
                             Image(systemName: "plus")
                                 .font(.geist(size: 17, weight: .regular))
                                 .foregroundStyle(buttonTint)
-                                .frame(width: 44, height: 44)
+                                .frame(
+                                    width: FeedCardLayout.addControlDiameter,
+                                    height: FeedCardLayout.addControlDiameter
+                                )
                                 .liquidGlassControl(in: Circle())
                         }
                         #if DEBUG
@@ -268,47 +271,44 @@ struct AppsPageSimplified: View {
                                 TargetResolver.canOpen(bundleId: $0)
                             } ?? false
 
-                            VStack(spacing: 9) {
-                                FeedRowView(
-                                    group: group,
-                                    accessState: state,
-                                    canOpen: canOpen,
-                                    onTap: { handleRowTap(group: group, state: state, canOpen: canOpen) },
-                                    onSettings: {
-                                        expandedSheetGroupId = TicketGroupId(id: group.id)
-                                    },
-                                    onDelete: {
-                                        groupIdToDelete = group.id
-                                    }
-                                )
-                                #if DEBUG
-                                .modifier(FirstFeedAnchor(groupId: group.id, firstId: visibleGroups.first?.id))
-                                #endif
+                            let showsUnlockOptions = inlineExpansion.expandedGroupID == group.id
+                                && state == .locked
 
-                                if inlineExpansion.expandedGroupID == group.id, state == .locked {
-                                    FeedInlineDurationOptions(
-                                        model: model,
-                                        group: group,
-                                        onPurchased: {
-                                            completeInlinePurchase(groupID: group.id)
-                                        }
-                                    )
-                                    .id("\(group.id)-unlock-options")
-                                    .background {
-                                        GeometryReader { optionsGeometry in
-                                            Color.clear.preference(
-                                                key: FeedUnlockOptionsBottomPreferenceKey.self,
-                                                value: [
-                                                    group.id: optionsGeometry.frame(
-                                                        in: .named(FeedInlineLayout.coordinateSpaceName)
-                                                    ).maxY
-                                                ]
-                                            )
-                                        }
+                            FeedRowView(
+                                model: model,
+                                group: group,
+                                accessState: state,
+                                canOpen: canOpen,
+                                showsUnlockOptions: showsUnlockOptions,
+                                onTap: { handleRowTap(group: group, state: state, canOpen: canOpen) },
+                                onSettings: {
+                                    expandedSheetGroupId = TicketGroupId(id: group.id)
+                                },
+                                onDelete: {
+                                    groupIdToDelete = group.id
+                                },
+                                onPurchased: {
+                                    completeInlinePurchase(groupID: group.id)
+                                }
+                            )
+                            .id("\(group.id)-unlock-options")
+                            .background {
+                                if showsUnlockOptions {
+                                    GeometryReader { cardGeometry in
+                                        Color.clear.preference(
+                                            key: FeedUnlockOptionsBottomPreferenceKey.self,
+                                            value: [
+                                                group.id: cardGeometry.frame(
+                                                    in: .named(FeedInlineLayout.coordinateSpaceName)
+                                                ).maxY
+                                            ]
+                                        )
                                     }
-                                    .transition(.opacity.combined(with: .move(edge: .top)))
                                 }
                             }
+                            #if DEBUG
+                            .modifier(FirstFeedAnchor(groupId: group.id, firstId: visibleGroups.first?.id))
+                            #endif
                         }
                     }
                     .padding(.horizontal, 20)
