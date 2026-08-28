@@ -143,11 +143,12 @@ struct MeView: View {
     }
 
     private var posterCarousel: some View {
-        let cardWidth = max(1, posterCarouselWidth - 42)
-        let cardHeight = cardWidth * 842 / 604
+        let sizing = MePosterCarouselLayout.sizing(
+            viewportWidth: posterCarouselWidth
+        )
 
         return ScrollView(.horizontal) {
-            LazyHStack(spacing: 12) {
+            LazyHStack(spacing: sizing.pageSpacing) {
                 ForEach(posterDayKeys, id: \.self) { key in
                     MeSelectedDayPoster(
                         model: model,
@@ -164,18 +165,26 @@ struct MeView: View {
                             }
                         }
                     )
-                    .frame(width: cardWidth, height: cardHeight)
+                    .frame(
+                        width: sizing.posterWidth,
+                        height: sizing.posterHeight
+                    )
+                    .frame(
+                        width: sizing.pageWidth,
+                        height: sizing.posterHeight
+                    )
                     .id(key)
                 }
             }
             .scrollTargetLayout()
         }
-        .contentMargins(.horizontal, 21, for: .scrollContent)
         .scrollTargetBehavior(.viewAligned(limitBehavior: .always))
         .scrollPosition(id: $posterScrollDayKey, anchor: .center)
         .defaultScrollAnchor(.trailing)
         .scrollIndicators(.hidden)
-        .frame(height: cardHeight)
+        .frame(height: sizing.posterHeight)
+        .accessibilityIdentifier("me_poster_carousel")
+        .accessibilityValue(selectedPosterDayKey)
         .onChange(of: posterScrollDayKey) { _, key in
             guard let key, posterDayKeys.contains(key) else { return }
             selectedPosterDayKey = key

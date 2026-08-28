@@ -12,6 +12,27 @@ struct MeDayKeyWrapper: Identifiable {
     var id: String { key }
 }
 
+struct MePosterCarouselSizing: Equatable {
+    let pageWidth: CGFloat
+    let posterWidth: CGFloat
+    let posterHeight: CGFloat
+    let pageSpacing: CGFloat
+    let outerContentInset: CGFloat
+}
+
+enum MePosterCarouselLayout {
+    static func sizing(viewportWidth: CGFloat) -> MePosterCarouselSizing {
+        let posterWidth = max(1, viewportWidth - 42)
+        return MePosterCarouselSizing(
+            pageWidth: max(1, viewportWidth),
+            posterWidth: posterWidth,
+            posterHeight: posterWidth * 842 / 604,
+            pageSpacing: 0,
+            outerContentInset: 0
+        )
+    }
+}
+
 /// Converts weekly app spend into the share of a Me resource block that is
 /// visibly filled. Keeping the normalization outside the view makes the same
 /// clamp rules apply at every Dynamic Type size and prevents geometry from

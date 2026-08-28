@@ -96,6 +96,20 @@ enum MeCalendarTileLayout {
     }
 }
 
+struct MeCalendarTileBorderMetrics: Equatable {
+    let lineWidth: CGFloat
+    let opacity: Double
+}
+
+enum MeCalendarTileBorderStyle {
+    static func metrics(isSelected: Bool) -> MeCalendarTileBorderMetrics {
+        MeCalendarTileBorderMetrics(
+            lineWidth: isSelected ? 1.5 : 1,
+            opacity: isSelected ? 0.95 : 0.24
+        )
+    }
+}
+
 // MARK: - Me calendar
 //
 // A chronological seven-day strip: older days are on the left and today is
@@ -246,13 +260,24 @@ struct DayHistoryTile: View {
     }
 
     var body: some View {
-        Button(action: onTap) {
+        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+        let border = MeCalendarTileBorderStyle.metrics(isSelected: isSelected)
+
+        return Button(action: onTap) {
             tileBody
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(shape)
+        .clipShape(shape)
+        .overlay {
+            shape.strokeBorder(
+                isSelected
+                    ? AppColors.brandAccent.opacity(border.opacity)
+                    : theme.textPrimary.opacity(border.opacity),
+                lineWidth: border.lineWidth
+            )
+        }
         .buttonStyle(ScaleButtonStyle())
         .accessibilityIdentifier("me_calendar_day_\(dayKey)")
         .accessibilityLabel(accessibilityLabel)
@@ -305,15 +330,6 @@ struct DayHistoryTile: View {
             .padding(.vertical, 7)
         }
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(
-                    isSelected
-                        ? AppColors.brandAccent.opacity(0.95)
-                        : theme.stroke.opacity(theme.strokeOpacity * 0.5),
-                    lineWidth: isSelected ? 1.5 : 0.5
-                )
-        )
         .task {
             guard !hasLoaded else { return }
             hasLoaded = true

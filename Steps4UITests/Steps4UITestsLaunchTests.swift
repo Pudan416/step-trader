@@ -81,25 +81,25 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(try XCTUnwrap(dayFrames.first).minX, app.frame.minX)
         XCTAssertLessThanOrEqual(try XCTUnwrap(dayFrames.last).maxX, app.frame.maxX)
 
-        let poster = app.otherElements["me_selected_day_poster"]
-        XCTAssertTrue(poster.waitForExistence(timeout: 3))
-        let newestDay = try XCTUnwrap(poster.value as? String)
+        let posterCarousel = app.descendants(matching: .any)["me_poster_carousel"]
+        XCTAssertTrue(posterCarousel.waitForExistence(timeout: 3))
+        let newestDay = try XCTUnwrap(posterCarousel.value as? String)
 
-        poster.swipeRight()
+        posterCarousel.swipeRight()
         let movedToOlderDay = NSPredicate(format: "value != %@", newestDay)
-        expectation(for: movedToOlderDay, evaluatedWith: poster)
+        expectation(for: movedToOlderDay, evaluatedWith: posterCarousel)
         waitForExpectations(timeout: 3)
-        let olderDay = try XCTUnwrap(poster.value as? String)
+        let olderDay = try XCTUnwrap(posterCarousel.value as? String)
         XCTAssertNotEqual(olderDay, newestDay)
 
-        poster.swipeLeft()
+        posterCarousel.swipeLeft()
         let returnedToNewestDay = NSPredicate(format: "value == %@", newestDay)
-        expectation(for: returnedToNewestDay, evaluatedWith: poster)
+        expectation(for: returnedToNewestDay, evaluatedWith: posterCarousel)
         waitForExpectations(timeout: 3)
 
-        poster.swipeLeft()
+        posterCarousel.swipeLeft()
         XCTAssertEqual(
-            poster.value as? String,
+            posterCarousel.value as? String,
             newestDay,
             "Swiping toward a newer day must stop on today"
         )

@@ -133,6 +133,23 @@ final class MeConnectedAppFillTests: XCTestCase {
 
 final class MeCalendarTimelineTests: XCTestCase {
 
+    func testPosterCarouselHidesAdjacentPagesUntilTheUserScrolls() {
+        let viewportWidth: CGFloat = 393
+        let sizing = MePosterCarouselLayout.sizing(viewportWidth: viewportWidth)
+
+        XCTAssertEqual(sizing.pageWidth, viewportWidth)
+        XCTAssertEqual(sizing.outerContentInset, 0)
+        XCTAssertEqual(sizing.pageSpacing, 0)
+        XCTAssertLessThan(sizing.posterWidth, sizing.pageWidth)
+    }
+
+    func testEveryUnselectedCalendarTileKeepsADiscernibleFullBorder() {
+        let metrics = MeCalendarTileBorderStyle.metrics(isSelected: false)
+
+        XCTAssertGreaterThanOrEqual(metrics.lineWidth, 1)
+        XCTAssertGreaterThanOrEqual(metrics.opacity, 0.18)
+    }
+
     func testPosterRailAlignsMetricsToLeftArtworkTopAndUnlocksToRightArtworkBottom() {
         let metrics = MePosterRailLayout.placement(
             for: .metrics,
