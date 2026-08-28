@@ -22,10 +22,13 @@ final class DayObjectsLabUITests: XCTestCase {
         let language = app.staticTexts["dayObjects.language"]
         XCTAssertTrue(language.waitForExistence(timeout: 5))
         let initialLanguage = String(describing: language.value)
-        XCTAssertTrue(initialLanguage.contains(" · "))
-        XCTAssertEqual(initialLanguage.split(separator: "/").count, 3)
+        assertLanguageSummary(initialLanguage, expectedActorCount: 8)
 
         setHappenings(10, on: happeningsSlider)
+        assertLanguageSummary(
+            String(describing: language.value),
+            expectedActorCount: 10
+        )
         XCTAssertTrue(app.otherElements["dayObjects.canvas"].exists)
 
         Thread.sleep(forTimeInterval: 1.5)
@@ -36,6 +39,10 @@ final class DayObjectsLabUITests: XCTestCase {
 
         for count in [7, 4, 1] {
             setHappenings(count, on: happeningsSlider)
+            assertLanguageSummary(
+                String(describing: language.value),
+                expectedActorCount: count
+            )
         }
 
         setHappenings(0, on: happeningsSlider)
@@ -162,5 +169,27 @@ final class DayObjectsLabUITests: XCTestCase {
         String(describing: accessibilityValue ?? "")
             .split(whereSeparator: { !$0.isNumber })
             .compactMap { Int($0) }
+    }
+
+    private func assertLanguageSummary(
+        _ summary: String,
+        expectedActorCount: Int
+    ) {
+        XCTAssertTrue(summary.contains("family="), summary)
+        XCTAssertTrue(summary.contains("mutations="), summary)
+        XCTAssertTrue(summary.contains("motion="), summary)
+        XCTAssertTrue(summary.contains("palettes="), summary)
+        let mutationText = summary
+            .components(separatedBy: "mutations=").dropFirst().first?
+            .split(separator: " ").first
+            .map(String.init) ?? ""
+        let mutationCounts = mutationText
+            .split(separator: "/")
+            .compactMap { Int($0) }
+        XCTAssertEqual(mutationCounts.count, 3, summary)
+        XCTAssertEqual(mutationCounts.reduce(0, +), expectedActorCount, summary)
+        let paletteText = summary
+            .components(separatedBy: "palettes=").dropFirst().first ?? ""
+        XCTAssertEqual(paletteText.split(separator: "/").count, 3, summary)
     }
 }

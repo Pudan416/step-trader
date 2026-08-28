@@ -49,16 +49,21 @@ struct DayObjectsLabView: View {
     }
 
     private var languageSummary: String {
-        let family = String(describing: currentScene.motionPlan.family)
-        let materials = currentScene.visualLanguage.enabledMaterials
-            .map { String(describing: $0) }
-            .joined(separator: ",")
+        let mutationCounts = Dictionary(
+            grouping: currentScene.actors,
+            by: { $0.appearance.mutationRole }
+        ).mapValues(\.count)
         let palettes = [
             currentScene.paletteSet.background.code,
             currentScene.paletteSet.primaryObjects.code,
             currentScene.paletteSet.secondaryObjects.code,
         ].joined(separator: "/")
-        return "\(family) · \(materials) · \(palettes)"
+        return "family=\(currentScene.visualLanguage.family) "
+            + "mutations=\(mutationCounts[.base, default: 0])/"
+            + "\(mutationCounts[.soft, default: 0])/"
+            + "\(mutationCounts[.accent, default: 0]) "
+            + "motion=\(currentScene.motionPlan.family) "
+            + "palettes=\(palettes)"
     }
 
     var body: some View {

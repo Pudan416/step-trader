@@ -1102,6 +1102,162 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertLessThanOrEqual(drawable.maximumDifference(from: SIMD3<UInt8>(118, 188, 231)), 2)
     }
 
+    func testFiveDayFullCanvasSandboxInspectionStates() throws {
+        let width = 120
+        let height = 260
+        let aspect = Double(width) / Double(height)
+        let times = [0.0, 31.0, 73.0]
+        let harness = try PostRenderHarness(width: width, height: height)
+
+        for day in 22...26 {
+            let dayKey = "2026-08-\(day)"
+            let scene = DayObjectScene.make(input: .init(
+                dayKey: dayKey,
+                identity: "day-objects-lab",
+                eventIDs: (0..<10).map { "lab-event-\($0)" },
+                motionEnergy: 0.55,
+                visualClarity: 0.95,
+                reduceMotion: false,
+                canvasCoverage: .fullCanvas
+            ))
+            XCTAssertTrue(scene.compositionPlan.usesFullCanvas)
+
+            let emptyByTime = try Dictionary(uniqueKeysWithValues: times.map { elapsed in
+                (
+                    elapsed,
+                    try harness.render(
+                        scene: scene,
+                        clarity: 0.95,
+                        elapsed: elapsed,
+                        motionEnergy: 0.55,
+                        actorLimit: 0
+                    )
+                )
+            })
+
+            for actorCount in [1, 4, 7, 10] {
+                var occupiedThirds = Set<Int>()
+                var occupiedSectors = Set<Int>()
+                var diameters = [Double]()
+                var focalDisplacements = [Double]()
+                var lowerThirdCoverages = [Double]()
+                var captures = [PostPixelCapture]()
+
+                for elapsed in times {
+                    let result = try harness.render(
+                        scene: scene,
+                        clarity: 0.95,
+                        elapsed: elapsed,
+                        motionEnergy: 0.55,
+                        actorLimit: actorCount
+                    )
+                    let empty = try XCTUnwrap(emptyByTime[elapsed])
+                    let actorDifference = result.noGrain.difference(from: empty.noGrain)
+                    let environment = DayObjectEnvironment(
+                        motionEnergy: 0.55,
+                        visualClarity: 0.95,
+                        reduceMotion: false
+                    )
+                    let frame = DayObjectRenderFrame.make(
+                        scene: scene,
+                        environment: environment,
+                        elapsed: elapsed,
+                        insertions: [:],
+                        canvasAspect: aspect
+                    )
+                    let records = Array(frame.actors.prefix(actorCount))
+                    let actorsByID = Dictionary(
+                        uniqueKeysWithValues: scene.actors.map { ($0.id, $0) }
+                    )
+
+                    for record in records {
+                        guard let actor = actorsByID[record.actorID] else { continue }
+                        let pose = scene.score.pose(
+                            for: actor,
+                            at: frame.choreographyTime,
+                            canvasAspect: aspect,
+                            compositionPlan: scene.compositionPlan
+                        )
+                        let span = aspect >= 1
+                            ? SIMD2<Double>(aspect, 1)
+                            : SIMD2<Double>(1, 1 / aspect)
+                        let normalized = SIMD2<Double>(
+                            pose.position.x / span.x + 0.5,
+                            0.5 - pose.position.y / span.y
+                        )
+                        let column = min(max(Int(normalized.x * 3), 0), 2)
+                        let row = min(max(Int(normalized.y * 3), 0), 2)
+                        occupiedThirds.insert(row)
+                        occupiedSectors.insert(row * 3 + column)
+                        diameters.append(Double(record.halfSize.x * 2))
+                        focalDisplacements.append(
+                            actor.appearance.layers
+                                .map { simd_length($0.focalOffset) }
+                                .max() ?? 0
+                        )
+                    }
+
+                    let lowerStart = actorDifference.height * 2 / 3
+                    let lowerPixels = max(
+                        (actorDifference.height - lowerStart) * actorDifference.width,
+                        1
+                    )
+                    var changedLowerPixels = 0
+                    for y in lowerStart..<actorDifference.height {
+                        for x in 0..<actorDifference.width
+                        where abs(actorDifference[x, y]) > 0.000_01 {
+                            changedLowerPixels += 1
+                        }
+                    }
+                    lowerThirdCoverages.append(
+                        Double(changedLowerPixels) / Double(lowerPixels)
+                    )
+                    captures.append(result.output)
+
+                    let attachment = XCTAttachment(
+                        data: try result.output.pngData(),
+                        uniformTypeIdentifier: UTType.png.identifier
+                    )
+                    attachment.name = "circle-dna-\(dayKey)-a\(actorCount)-t\(Int(elapsed))"
+                    attachment.lifetime = .keepAlways
+                    add(attachment)
+                }
+
+                XCTAssertEqual(captures.count, times.count)
+                XCTAssertGreaterThan(diameters.max() ?? 0, diameters.min() ?? 0)
+                XCTAssertGreaterThan(focalDisplacements.max() ?? 0, 0.08)
+                XCTAssertGreaterThan(
+                    captures[0].meanAbsoluteDifference(from: captures[1]),
+                    0.000_01
+                )
+                XCTAssertGreaterThan(
+                    captures[1].meanAbsoluteDifference(from: captures[2]),
+                    0.000_01
+                )
+                if actorCount >= 6 {
+                    XCTAssertEqual(occupiedThirds, Set([0, 1, 2]), dayKey)
+                    XCTAssertGreaterThan(lowerThirdCoverages.max() ?? 0, 0.001, dayKey)
+                }
+                if actorCount >= 8 {
+                    XCTAssertGreaterThanOrEqual(occupiedSectors.count, 6, dayKey)
+                    XCTAssertGreaterThan(
+                        (diameters.max() ?? 0) / max(diameters.min() ?? 1, 0.000_001),
+                        1.8,
+                        dayKey
+                    )
+                }
+
+                print(
+                    "CIRCLE_DNA_SANDBOX day=\(dayKey) actors=\(actorCount) "
+                        + "thirds=\(occupiedThirds.sorted()) sectors=\(occupiedSectors.sorted()) "
+                        + "diameter=\(diameters.min() ?? 0)...\(diameters.max() ?? 0) "
+                        + "focal=\(focalDisplacements.max() ?? 0) "
+                        + "lowerCoverage=\(lowerThirdCoverages)"
+                )
+            }
+        }
+    }
+
     func testInsertionAndRemovalTriptychsMatchCommittedPerceptualSignatures() throws {
         let base = fixtureScene(ids: ["a", "b", "c", "d"])
         let expanded = fixtureScene(ids: ["a", "b", "c", "d", "e"])
