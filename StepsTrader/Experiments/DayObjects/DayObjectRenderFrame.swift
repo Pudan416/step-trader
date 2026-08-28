@@ -201,7 +201,7 @@ struct DayObjectGPUActor: Equatable {
 /// Stable material data uploaded once per rendered actor record.
 struct DayObjectGPUAppearance: Equatable {
     static let metalAlignment = 16
-    static let metalStride = 176
+    static let metalStride = 208
 
     let color0: SIMD4<Float>
     let color1: SIMD4<Float>
@@ -213,6 +213,8 @@ struct DayObjectGPUAppearance: Equatable {
     let optical0: SIMD4<Float>
     let optical1: SIMD4<Float>
     let light: SIMD4<Float>
+    let recipe0: SIMD4<Float>
+    let recipe1: SIMD4<Float>
     let metadata: SIMD4<UInt32>
 
     // Source compatibility for older focused tests. This is computed and does
@@ -230,7 +232,9 @@ struct DayObjectGPUAppearance: Equatable {
         optical0: SIMD4(0, 0, 1, 1),
         optical1: SIMD4(0.1, 0, 0, 0),
         light: SIMD4(0.7, 1, 0.42, 0),
-        metadata: SIMD4(DayObjectMaterialFamily.softVolume.rawValue, 1, 2, 0)
+        metadata: SIMD4(DayObjectMaterialFamily.gradient.rawValue, 1, 2, 0),
+        recipe0: SIMD4(0.34, 0.68, 0.04, 0.72),
+        recipe1: .zero
     )
 
     init(
@@ -267,14 +271,29 @@ struct DayObjectGPUAppearance: Equatable {
         )
         let field = SIMD4(
             Float(appearance.distortion), Float(appearance.distortionFrequency),
-            Float(appearance.distortionPhase), Float(appearance.localDepthSoftness)
+            Float(appearance.distortionPhase), Float(appearance.edgeSoftness)
         )
         let light = SIMD4(
             Float(appearance.lightResponse),
             layerOpacities[0], layerOpacities[1], layerOpacities[2]
         )
         let requestedMaterial = materialRawValue ?? appearance.material.rawValue
-        let material = DayObjectMaterialFamily(rawValue: requestedMaterial) ?? .softVolume
+        let material = DayObjectMaterialFamily(rawValue: requestedMaterial) ?? .gradient
+        let recipe1: SIMD4<Float>
+        switch material {
+        case .outline:
+            recipe1 = SIMD4(
+                Float(appearance.outlineCount), Float(appearance.outlineWidth),
+                Float(appearance.outlineSpacing), Float(appearance.outlineWobble)
+            )
+        case .counterform:
+            recipe1 = SIMD4(
+                Float(appearance.counterformRadius), Float(appearance.counterformSoftness),
+                Float(appearance.coronaWidth), Float(appearance.coronaIntensity)
+            )
+        default:
+            recipe1 = .zero
+        }
         self.init(
             color0: colors[0], color1: colors[1], color2: colors[2],
             radial0: radialDescriptor(at: 0),
@@ -288,7 +307,14 @@ struct DayObjectGPUAppearance: Equatable {
                 UInt32(min(max(colorCount, 1), 3)),
                 UInt32(min(max(paddedLayers.count, 1), 3)),
                 appearance.mutationRole.rawValue
-            )
+            ),
+            recipe0: SIMD4(
+                Float(appearance.colorStopLocations.x),
+                Float(appearance.colorStopLocations.y),
+                Float(appearance.edgeSoftness),
+                Float(appearance.minimumOpacity)
+            ),
+            recipe1: recipe1
         )
     }
 
@@ -297,7 +323,9 @@ struct DayObjectGPUAppearance: Equatable {
         radial0: SIMD4<Float>, radial1: SIMD4<Float>, radial2: SIMD4<Float>,
         field: SIMD4<Float>, optical0: SIMD4<Float>, optical1: SIMD4<Float>,
         light: SIMD4<Float>,
-        metadata: SIMD4<UInt32>
+        metadata: SIMD4<UInt32>,
+        recipe0: SIMD4<Float> = SIMD4(0.34, 0.68, 0.04, 0.72),
+        recipe1: SIMD4<Float> = .zero
     ) {
         self.color0 = Self.clampedColor(color0)
         self.color1 = Self.clampedColor(color1)
@@ -324,7 +352,31 @@ struct DayObjectGPUAppearance: Equatable {
             Self.bounded(light.z, 0...1),
             Self.bounded(light.w, 0...1)
         )
-        let material = DayObjectMaterialFamily(rawValue: metadata.x) ?? .softVolume
+        self.recipe0 = SIMD4(
+            Self.bounded(recipe0.x, 0.18...0.72),
+            Self.bounded(recipe0.y, 0.42...0.90),
+            Self.bounded(recipe0.z, 0...0.42),
+            Self.bounded(recipe0.w, 0.58...0.92)
+        )
+        let material = DayObjectMaterialFamily(rawValue: metadata.x) ?? .gradient
+        switch material {
+        case .outline:
+            self.recipe1 = SIMD4(
+                Float(min(max(Int(recipe1.x.rounded()), 1), 3)),
+                Self.bounded(recipe1.y, 0.012...0.075),
+                Self.bounded(recipe1.z, 0.02...0.09),
+                Self.bounded(recipe1.w, 0.01...0.08)
+            )
+        case .counterform:
+            self.recipe1 = SIMD4(
+                Self.bounded(recipe1.x, 0.44...0.62),
+                Self.bounded(recipe1.y, 0.01...0.08),
+                Self.bounded(recipe1.z, 0.14...0.34),
+                Self.bounded(recipe1.w, 0.58...0.98)
+            )
+        default:
+            self.recipe1 = .zero
+        }
         self.metadata = SIMD4(
             material.rawValue,
             min(max(metadata.y, 1), 3),

@@ -1800,10 +1800,10 @@ final class DayObjectRenderFrameTests: XCTestCase {
 
     func testGPUAppearanceHasStableExplicitMetalLayout() {
         XCTAssertEqual(DayObjectGPUAppearance.metalAlignment, 16)
-        XCTAssertEqual(DayObjectGPUAppearance.metalStride, 176)
+        XCTAssertEqual(DayObjectGPUAppearance.metalStride, 208)
         XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.alignment, 16)
-        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.size, 176)
-        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.stride, 176)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.size, 208)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.stride, 208)
         XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.color0), 0)
         XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.color1), 16)
         XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.color2), 32)
@@ -1814,7 +1814,53 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.optical0), 112)
         XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.optical1), 128)
         XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.light), 144)
-        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.metadata), 160)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.recipe0), 160)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.recipe1), 176)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.metadata), 192)
+    }
+
+    func testGPUAppearancePacksOutlineAndCounterformRecipes() throws {
+        var outlineAppearance: DayObjectGPUAppearance?
+        var counterformAppearance: DayObjectGPUAppearance?
+
+        for seed in UInt64(0)..<4_096
+        where outlineAppearance == nil || counterformAppearance == nil {
+            let paletteSet = DayObjectPaletteSet.make(
+                rootSeed: seed,
+                categories: ModernPaletteSelection.all
+            )
+            let language = DayObjectVisualLanguage.make(
+                rootSeed: seed,
+                paletteSet: paletteSet
+            )
+            let source = try XCTUnwrap(
+                language.appearances(eventIDs: ["event-0"], rootSeed: seed)["event-0"]
+            )
+            let packed = DayObjectGPUAppearance(appearance: source)
+            if language.family == .outline { outlineAppearance = packed }
+            if language.family == .counterform { counterformAppearance = packed }
+        }
+
+        let outline = try XCTUnwrap(outlineAppearance)
+        XCTAssertEqual(outline.metadata.x, DayObjectMaterialFamily.outline.rawValue)
+        XCTAssertTrue((1...3).contains(Int(outline.recipe1.x.rounded())))
+        XCTAssertTrue((0.012...0.075).contains(outline.recipe1.y))
+        XCTAssertTrue((0.02...0.09).contains(outline.recipe1.z))
+        XCTAssertTrue((0.01...0.08).contains(outline.recipe1.w))
+
+        let counterform = try XCTUnwrap(counterformAppearance)
+        XCTAssertEqual(counterform.metadata.x, DayObjectMaterialFamily.counterform.rawValue)
+        XCTAssertTrue((0.44...0.62).contains(counterform.recipe1.x))
+        XCTAssertTrue((0.01...0.08).contains(counterform.recipe1.y))
+        XCTAssertTrue((0.14...0.34).contains(counterform.recipe1.z))
+        XCTAssertTrue((0.58...0.98).contains(counterform.recipe1.w))
+
+        for appearance in [outline, counterform] {
+            XCTAssertTrue((0.18..<0.90).contains(appearance.recipe0.x))
+            XCTAssertGreaterThan(appearance.recipe0.y, appearance.recipe0.x)
+            XCTAssertLessThanOrEqual(appearance.recipe0.y, 0.90)
+            XCTAssertGreaterThanOrEqual(appearance.recipe0.w, 0.58)
+        }
     }
 
     func testPoseAndAppearanceUploadsClampNonFiniteAndUnsupportedValues() {
@@ -2020,17 +2066,18 @@ final class DayObjectRenderFrameTests: XCTestCase {
             localDepthSoftness: 0
         )
         let appearance = DayObjectGPUAppearance(
-            color0: SIMD4(0.03, 0.04, 0.06, 1),
-            color1: SIMD4(1, 0.96, 0.82, 1),
+            color0: SIMD4(1, 0.96, 0.82, 1),
+            color1: SIMD4(0.03, 0.04, 0.06, 1),
             color2: SIMD4(0.03, 0.04, 0.06, 1),
-            radial0: SIMD4(-0.12, 0, 0.72, 0.34),
-            radial1: SIMD4(0.48, 0, 0.48, 0.24),
-            radial2: SIMD4(0, 0, 0.42, 0.72),
+            radial0: SIMD4(-0.32, 0, 0.90, 0.10),
+            radial1: SIMD4(0.18, 0.12, 0.48, 0.24),
+            radial2: SIMD4(0.08, -0.18, 0.42, 0.24),
             field: SIMD4(0, 1, 0, 0),
             optical0: SIMD4(0, 0, 1, 1),
             optical1: SIMD4(0, 0, 0, 0),
-            light: SIMD4(0, 0.18, 1, 0),
-            metadata: SIMD4(DayObjectMaterialFamily.softVolume.rawValue, 2, 2, 0)
+            light: SIMD4(0, 0, 0, 0),
+            metadata: SIMD4(DayObjectMaterialFamily.gradient.rawValue, 3, 3, 0),
+            recipe0: SIMD4(0.38, 0.68, 0.04, 0.72)
         )
         let capture = try harness.render(
             actor: actor,
@@ -2045,7 +2092,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         )
     }
 
-    func testAllFiveInheritedOrbMaterialsHaveDistinctApprovedResponses() throws {
+    func testAllHTMLCircleRecipesHaveDistinctApprovedResponses() throws {
         let harness = try ActorRenderHarness(width: 160, height: 160)
         let actor = DayObjectGPUActor(
             position: .zero,
@@ -2060,17 +2107,29 @@ final class DayObjectRenderFrameTests: XCTestCase {
             localDepthSoftness: 0.02
         )
         func appearance(_ material: DayObjectMaterialFamily) -> DayObjectGPUAppearance {
-            DayObjectGPUAppearance(
+            let structuralParameters: SIMD4<Float>
+            switch material {
+            case .outline:
+                structuralParameters = SIMD4(2, 0.045, 0.07, 0.025)
+            case .counterform:
+                structuralParameters = SIMD4(0.52, 0.04, 0.22, 0.86)
+            default:
+                structuralParameters = .zero
+            }
+            return DayObjectGPUAppearance(
                 color0: SIMD4(0.95, 0.12, 0.22, 1),
                 color1: SIMD4(0.10, 0.75, 0.95, 1),
                 color2: SIMD4(0.75, 0.20, 0.95, 1),
-                radial0: SIMD4(0.24, 0.7, 0.95, 0.05),
-                radial1: SIMD4(0.78, 0.16, 0.12, 5),
+                radial0: SIMD4(0.18, -0.12, 0.95, 0.10),
+                radial1: SIMD4(-0.24, 0.18, 0.68, 0.18),
+                radial2: SIMD4(0.12, 0.22, 0.48, 0.20),
+                field: SIMD4(0.04, 2.4, 0.3, 0.05),
                 optical0: SIMD4(0.68, 0.28, 0.82, 0.75),
                 optical1: SIMD4(0.62, 0.025, 1.2, 0.08),
-                membrane: SIMD4(0.08, 0.055, 0, 0),
-                light: SIMD4(0.85, 0, 0, 0),
-                metadata: SIMD4(material.rawValue, 3, 3, 0)
+                light: SIMD4(0.85, 1, 0.72, 0.46),
+                metadata: SIMD4(material.rawValue, 3, 3, 0),
+                recipe0: SIMD4(0.32, 0.68, 0.05, 0.72),
+                recipe1: structuralParameters
             )
         }
 
@@ -2085,34 +2144,38 @@ final class DayObjectRenderFrameTests: XCTestCase {
         let rim = (x: 128, y: 80)
         let outside = (x: 134, y: 80)
 
-        XCTAssertEqual(captures.count, 5)
+        XCTAssertEqual(captures.count, 9)
         XCTAssertGreaterThan(
-            try XCTUnwrap(captures[.softVolume])[center.x, center.y],
+            try XCTUnwrap(captures[.gradient])[center.x, center.y],
             0.45
         )
         XCTAssertGreaterThan(
-            try XCTUnwrap(captures[.innerLight]).luminance(x: center.x, y: center.y),
-            try XCTUnwrap(captures[.innerLight]).luminance(x: rim.x, y: rim.y)
+            try XCTUnwrap(captures[.luminous]).luminance(x: center.x, y: center.y),
+            try XCTUnwrap(captures[.luminous]).luminance(x: rim.x, y: rim.y)
         )
         XCTAssertGreaterThan(
-            try XCTUnwrap(captures[.atmosphericOrb])[outside.x, outside.y],
-            try XCTUnwrap(captures[.softVolume])[outside.x, outside.y]
+            try XCTUnwrap(captures[.mist])[outside.x, outside.y],
+            try XCTUnwrap(captures[.gradient])[outside.x, outside.y]
         )
+        XCTAssertLessThan(try XCTUnwrap(captures[.outline])[center.x, center.y], 0.08)
+        XCTAssertGreaterThan(try XCTUnwrap(captures[.outline])[rim.x, rim.y], 0.35)
+        XCTAssertLessThan(try XCTUnwrap(captures[.counterform])[center.x, center.y], 0.10)
+        XCTAssertGreaterThan(try XCTUnwrap(captures[.counterform])[105, 80], 0.35)
         XCTAssertGreaterThan(
-            try XCTUnwrap(captures[.layeredMembrane]).meanAbsoluteRGBDifference(
-                from: try XCTUnwrap(captures[.softVolume])
+            try XCTUnwrap(captures[.sphere]).meanAbsoluteRGBDifference(
+                from: try XCTUnwrap(captures[.solid])
             ),
             0.005
         )
 
         let glassDark = try harness.render(
             actor: actor,
-            appearance: appearance(.livingGlass),
+            appearance: appearance(.glass),
             backgroundColor: SIMD3(0.02, 0.04, 0.08)
         )
         let glassLight = try harness.render(
             actor: actor,
-            appearance: appearance(.livingGlass),
+            appearance: appearance(.glass),
             backgroundColor: SIMD3(0.65, 0.85, 0.95)
         )
         XCTAssertGreaterThan(glassDark.meanAbsoluteRGBDifference(from: glassLight), 0.02)
@@ -2120,6 +2183,151 @@ final class DayObjectRenderFrameTests: XCTestCase {
         for capture in captures.values {
             XCTAssertTrue(capture.isFinitePremultiplied)
         }
+    }
+
+    func testGradientRecipeIsCircularAroundItsShiftedFocus() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero, direction: SIMD2(1, 0), halfSize: SIMD2(0.35, 0.35),
+            opacity: 1, trailLength: 0, shape: 0, appearanceIndex: 0,
+            depth: 0.5, materialPhase: 0, localDepthSoftness: 0
+        )
+        let appearance = DayObjectGPUAppearance(
+            color0: SIMD4(0.95, 0.10, 0.18, 1),
+            color1: SIMD4(0.10, 0.85, 0.35, 1),
+            color2: SIMD4(0.12, 0.24, 0.98, 1),
+            radial0: SIMD4(0.25, 0, 1, 0.10),
+            radial1: SIMD4(-0.38, 0.22, 0.68, 0.18),
+            radial2: SIMD4(0.18, -0.42, 0.50, 0.16),
+            field: SIMD4(0, 1, 0, 0.04),
+            optical0: SIMD4(0, 0, 0.92, 0.92),
+            optical1: .zero,
+            light: SIMD4(0, 1, 1, 1),
+            metadata: SIMD4(DayObjectMaterialFamily.gradient.rawValue, 3, 3, 0),
+            recipe0: SIMD4(0.34, 0.70, 0.04, 0.72)
+        )
+
+        let capture = try harness.render(
+            actor: actor,
+            appearance: appearance,
+            backgroundColor: .zero
+        )
+        let horizontal = capture.color(x: 114, y: 80)
+        let vertical = capture.color(x: 94, y: 100)
+        let difference = abs(horizontal.x - vertical.x)
+            + abs(horizontal.y - vertical.y)
+            + abs(horizontal.z - vertical.z)
+
+        XCTAssertLessThan(
+            difference,
+            0.16,
+            "Equal radii around the shifted center must not split into pyramidal color lobes"
+        )
+    }
+
+    func testOutlineRecipeRendersContoursInsteadOfAFilledDisc() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero, direction: SIMD2(1, 0), halfSize: SIMD2(0.32, 0.32),
+            opacity: 1, trailLength: 0, shape: 0, appearanceIndex: 0,
+            depth: 0.5, materialPhase: 0.17, localDepthSoftness: 0
+        )
+        let appearance = DayObjectGPUAppearance(
+            color0: SIMD4(0.96, 0.18, 0.38, 1),
+            color1: SIMD4(0.18, 0.88, 0.96, 1),
+            color2: SIMD4(0.82, 0.30, 0.98, 1),
+            radial0: SIMD4(0.08, -0.05, 1, 0.12),
+            radial1: SIMD4(-0.12, 0.08, 0.72, 0.20),
+            radial2: SIMD4(0.16, 0.10, 0.52, 0.18),
+            field: SIMD4(0.02, 2, 0, 0.05),
+            optical0: SIMD4(0.12, 0.10, 0.92, 0.92),
+            optical1: SIMD4(0.90, 0, 0, 0.04),
+            light: SIMD4(0.4, 1, 0.7, 0.4),
+            metadata: SIMD4(DayObjectMaterialFamily.outline.rawValue, 3, 3, 0),
+            recipe0: SIMD4(0.32, 0.68, 0.05, 0.72),
+            recipe1: SIMD4(2, 0.045, 0.07, 0.025)
+        )
+
+        let capture = try harness.render(
+            actor: actor,
+            appearance: appearance,
+            backgroundColor: .zero
+        )
+
+        XCTAssertLessThan(capture[80, 80], 0.08)
+        XCTAssertGreaterThan(capture[128, 80], 0.42)
+        XCTAssertGreaterThanOrEqual(capture.horizontalAlphaPeakCount(y: 80), 4)
+    }
+
+    func testCounterformRecipeCutsTheCenterAndDrawsACorona() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero, direction: SIMD2(1, 0), halfSize: SIMD2(0.32, 0.32),
+            opacity: 1, trailLength: 0, shape: 0, appearanceIndex: 0,
+            depth: 0.5, materialPhase: 0.21, localDepthSoftness: 0
+        )
+        let appearance = DayObjectGPUAppearance(
+            color0: SIMD4(0.98, 0.24, 0.12, 1),
+            color1: SIMD4(0.18, 0.82, 0.98, 1),
+            color2: SIMD4(0.88, 0.30, 0.94, 1),
+            radial0: SIMD4(0, 0, 1, 0.14),
+            radial1: SIMD4(0.18, -0.12, 0.70, 0.18),
+            radial2: SIMD4(0, 0, 0.50, 0.20),
+            field: SIMD4(0.02, 2, 0, 0.18),
+            optical0: SIMD4(0.30, 0.28, 0.90, 0.90),
+            optical1: SIMD4(0.75, 0, 0, 0.04),
+            light: SIMD4(0.6, 1, 0.7, 0.4),
+            metadata: SIMD4(DayObjectMaterialFamily.counterform.rawValue, 3, 3, 0),
+            recipe0: SIMD4(0.34, 0.70, 0.18, 0.72),
+            recipe1: SIMD4(0.52, 0.04, 0.22, 0.86)
+        )
+
+        let capture = try harness.render(
+            actor: actor,
+            appearance: appearance,
+            backgroundColor: .zero
+        )
+
+        XCTAssertLessThan(capture[80, 80], 0.10)
+        XCTAssertGreaterThan(capture[107, 80], 0.46)
+        XCTAssertGreaterThan(capture[120, 80], 0.42)
+    }
+
+    func testGlassRecipeKeepsAVisibleCoreAtItsFarthestSteadyDepth() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero, direction: SIMD2(1, 0), halfSize: SIMD2(0.30, 0.30),
+            opacity: 0.58, trailLength: 0, shape: 0, appearanceIndex: 0,
+            depth: 0, materialPhase: 0, localDepthSoftness: 0.10
+        )
+        let appearance = DayObjectGPUAppearance(
+            color0: SIMD4(0.90, 0.16, 0.32, 1),
+            color1: SIMD4(0.10, 0.74, 0.98, 1),
+            color2: SIMD4(0.82, 0.32, 0.96, 1),
+            radial0: SIMD4(0.16, -0.12, 1, 0.14),
+            radial1: SIMD4(-0.18, 0.10, 0.68, 0.18),
+            radial2: SIMD4(0.08, 0.20, 0.48, 0.20),
+            field: SIMD4(0.02, 2, 0, 0.06),
+            optical0: SIMD4(0.12, 0.12, 0.62, 0.68),
+            optical1: SIMD4(0.42, 0.02, 0, 0.12),
+            light: SIMD4(0.5, 1, 0.6, 0.3),
+            metadata: SIMD4(DayObjectMaterialFamily.glass.rawValue, 3, 3, 0),
+            recipe0: SIMD4(0.34, 0.68, 0.06, 0.62)
+        )
+
+        let capture = try harness.render(
+            actor: actor,
+            appearance: appearance,
+            backgroundColor: SIMD3(0.95, 0.92, 0.90)
+        )
+
+        XCTAssertGreaterThanOrEqual(capture[80, 80], 0.56)
+        let centerColor = capture.color(x: 80, y: 80)
+        XCTAssertGreaterThan(
+            abs(centerColor.x - 0.95) + abs(centerColor.y - 0.92) + abs(centerColor.z - 0.90),
+            0.16,
+            "Glass must keep direct palette tint instead of disappearing into the background"
+        )
     }
 
     func testGlassSamplesBackgroundAtItsUnmirroredScreenPosition() throws {
@@ -2199,7 +2407,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
             appearance: appearance(centerOpacity: 0.18, localSoftness: 0),
             backgroundColor: .zero
         )
-        XCTAssertGreaterThan(opaqueCenter[80, 80], translucentCenter[80, 80] + 0.35)
+        XCTAssertGreaterThan(opaqueCenter[80, 80], translucentCenter[80, 80] + 0.20)
 
         let soft = try harness.render(
             actor: actor,
@@ -4023,20 +4231,20 @@ private enum DayObjectsPerceptualBaselines {
             name: "light-phone-portrait", dayKey: "2026-08-20",
             categories: [.pastel, .spring], width: 180, height: 390,
             signature: DayObjectsPerceptualSignature(
-                meanRGB: SIMD3(0.5183883, 0.5086006, 0.6407307),
-                meanLuminance: 0.5202213,
-                luminanceDeviation: 0.0649909,
-                lowLuminance: 0.4568941,
-                highLuminance: 0.5924409,
-                edgeEnergy: 0.0088163,
-                colorfulness: 0.1698285,
+                meanRGB: SIMD3(0.52087497, 0.50961275, 0.64562216),
+                meanLuminance: 0.52182698,
+                luminanceDeviation: 0.05932905,
+                lowLuminance: 0.46149243,
+                highLuminance: 0.59398242,
+                edgeEnergy: 0.00846268,
+                colorfulness: 0.16791070,
                 coarseLuminance: [
-                    0.4942517, 0.5450598, 0.5988947, 0.5586715,
-                    0.4988796, 0.5144441, 0.5350221, 0.4737174,
-                    0.5531461, 0.5377368, 0.5113993, 0.4856490,
+                    0.48012660, 0.53996706, 0.57603132, 0.56118711,
+                    0.49837675, 0.51641615, 0.53493346, 0.46695413,
+                    0.55314608, 0.53773679, 0.51139925, 0.48564902,
                 ],
-                actorInkFraction: 0.0520228,
-                actorEnergy: 0.0010010,
+                actorInkFraction: 0.05958689,
+                actorEnergy: 0.00529430,
                 borderActorPeak: 0,
                 negativeSpaceActorPeak: 0,
                 exclusionActorPeak: 0
@@ -4046,20 +4254,20 @@ private enum DayObjectsPerceptualBaselines {
             name: "light-tablet-landscape", dayKey: "2026-08-20",
             categories: [.pastel, .spring], width: 256, height: 192,
             signature: DayObjectsPerceptualSignature(
-                meanRGB: SIMD3(0.4991386, 0.4964518, 0.6324761),
-                meanLuminance: 0.5068440,
-                luminanceDeviation: 0.0679545,
-                lowLuminance: 0.4331538,
-                highLuminance: 0.5879910,
-                edgeEnergy: 0.0090844,
-                colorfulness: 0.1814979,
+                meanRGB: SIMD3(0.50255711, 0.49570026, 0.63915784),
+                meanLuminance: 0.50751567,
+                luminanceDeviation: 0.05979513,
+                lowLuminance: 0.43799805,
+                highLuminance: 0.58708672,
+                edgeEnergy: 0.00885708,
+                colorfulness: 0.18145776,
                 coarseLuminance: [
-                    0.4910597, 0.5043067, 0.4993783, 0.4998961,
-                    0.4893879, 0.5024732, 0.5306789, 0.4664551,
-                    0.5437303, 0.5456533, 0.5449267, 0.4641819,
+                    0.47866842, 0.51384770, 0.53216098, 0.48886080,
+                    0.48845475, 0.50223890, 0.53746349, 0.45000074,
+                    0.54373032, 0.54565328, 0.54492674, 0.46418186,
                 ],
-                actorInkFraction: 0.0797119,
-                actorEnergy: 0.0019474,
+                actorInkFraction: 0.08628337,
+                actorEnergy: 0.00655188,
                 borderActorPeak: 0,
                 negativeSpaceActorPeak: 0,
                 exclusionActorPeak: 0
@@ -4069,20 +4277,20 @@ private enum DayObjectsPerceptualBaselines {
             name: "dark-phone-portrait", dayKey: "2026-08-21",
             categories: [.winter, .cold], width: 180, height: 390,
             signature: DayObjectsPerceptualSignature(
-                meanRGB: SIMD3(0.2404825, 0.4057196, 0.4531206),
-                meanLuminance: 0.3740125,
-                luminanceDeviation: 0.1233268,
-                lowLuminance: 0.2413224,
-                highLuminance: 0.5403749,
-                edgeEnergy: 0.0087783,
-                colorfulness: 0.2127364,
+                meanRGB: SIMD3(0.24567215, 0.41338184, 0.45988343),
+                meanLuminance: 0.38108417,
+                luminanceDeviation: 0.11836123,
+                lowLuminance: 0.26525651,
+                highLuminance: 0.54206528,
+                edgeEnergy: 0.00906805,
+                colorfulness: 0.21508838,
                 coarseLuminance: [
-                    0.3407489, 0.3121618, 0.3186058, 0.2855657,
-                    0.4817068, 0.3303118, 0.3184443, 0.3668930,
-                    0.6074127, 0.4632007, 0.3255350, 0.3375635,
+                    0.33711656, 0.35118810, 0.33838456, 0.30688756,
+                    0.49328450, 0.34426819, 0.31492384, 0.35324485,
+                    0.60741273, 0.46320073, 0.32553495, 0.33756349,
                 ],
-                actorInkFraction: 0.0531197,
-                actorEnergy: 0.0010507,
+                actorInkFraction: 0.06484330,
+                actorEnergy: 0.00753984,
                 borderActorPeak: 0,
                 negativeSpaceActorPeak: 0,
                 exclusionActorPeak: 0
@@ -4092,20 +4300,20 @@ private enum DayObjectsPerceptualBaselines {
             name: "dark-tablet-landscape", dayKey: "2026-08-21",
             categories: [.winter, .cold], width: 256, height: 192,
             signature: DayObjectsPerceptualSignature(
-                meanRGB: SIMD3(0.2502728, 0.4242505, 0.4652733),
-                meanLuminance: 0.3902247,
-                luminanceDeviation: 0.1402171,
-                lowLuminance: 0.2306888,
-                highLuminance: 0.6235974,
-                edgeEnergy: 0.0090794,
-                colorfulness: 0.2151856,
+                meanRGB: SIMD3(0.25799003, 0.43578718, 0.47590647),
+                meanLuminance: 0.40088412,
+                luminanceDeviation: 0.13240509,
+                lowLuminance: 0.25516587,
+                highLuminance: 0.62208691,
+                edgeEnergy: 0.00950106,
+                colorfulness: 0.21986032,
                 coarseLuminance: [
-                    0.3873397, 0.3619840, 0.2985057, 0.2967454,
-                    0.4603450, 0.3297570, 0.2707241, 0.4062641,
-                    0.6870215, 0.4681436, 0.3538793, 0.3619868,
+                    0.37885050, 0.39908867, 0.34540799, 0.30676566,
+                    0.48822281, 0.34583329, 0.28477538, 0.39063390,
+                    0.68702154, 0.46814357, 0.35387929, 0.36198683,
                 ],
-                actorInkFraction: 0.0833333,
-                actorEnergy: 0.0014407,
+                actorInkFraction: 0.09568278,
+                actorEnergy: 0.01069006,
                 borderActorPeak: 0,
                 negativeSpaceActorPeak: 0,
                 exclusionActorPeak: 0
@@ -4116,39 +4324,39 @@ private enum DayObjectsPerceptualBaselines {
     static let transitionSignatures = [
         DayObjectsTransitionPerceptualSignature(
             name: "insertion-before", renderedActorCount: 4,
-            affectedEnergy: 0, meanLuminance: 0.5385323, edgeEnergy: 0.0077557
+            affectedEnergy: 0, meanLuminance: 0.54374254, edgeEnergy: 0.00751654
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "insertion-during", renderedActorCount: 5,
-            affectedEnergy: 0, meanLuminance: 0.5381732, edgeEnergy: 0.0077274
+            affectedEnergy: 0, meanLuminance: 0.54348660, edgeEnergy: 0.00748289
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "insertion-after", renderedActorCount: 5,
-            affectedEnergy: 0.0001188, meanLuminance: 0.5352046, edgeEnergy: 0.0077548
+            affectedEnergy: 0.00062779, meanLuminance: 0.54238499, edgeEnergy: 0.00749185
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "removal-before", renderedActorCount: 5,
-            affectedEnergy: 0.0000585, meanLuminance: 0.5218322, edgeEnergy: 0.0077268
+            affectedEnergy: 0.00075859, meanLuminance: 0.53039970, edgeEnergy: 0.00741160
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "removal-during", renderedActorCount: 5,
-            affectedEnergy: 0.0000164, meanLuminance: 0.5221745, edgeEnergy: 0.0076985
+            affectedEnergy: 0.00054829, meanLuminance: 0.52924617, edgeEnergy: 0.00741549
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "removal-after", renderedActorCount: 4,
-            affectedEnergy: 0, meanLuminance: 0.5209207, edgeEnergy: 0.0076698
+            affectedEnergy: 0, meanLuminance: 0.52766296, edgeEnergy: 0.00738246
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "capped-replacement-before", renderedActorCount: 10,
-            affectedEnergy: 0, meanLuminance: 0.4994210, edgeEnergy: 0.0077897
+            affectedEnergy: 0, meanLuminance: 0.50822471, edgeEnergy: 0.00765185
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "capped-replacement-during", renderedActorCount: 10,
-            affectedEnergy: 0.0000196, meanLuminance: 0.4989645, edgeEnergy: 0.0078191
+            affectedEnergy: 0.00025949, meanLuminance: 0.50727208, edgeEnergy: 0.00768517
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "capped-replacement-after", renderedActorCount: 10,
-            affectedEnergy: 0.0000139, meanLuminance: 0.4962758, edgeEnergy: 0.0078178
+            affectedEnergy: 0.00007606, meanLuminance: 0.50483752, edgeEnergy: 0.00766775
         ),
     ]
 

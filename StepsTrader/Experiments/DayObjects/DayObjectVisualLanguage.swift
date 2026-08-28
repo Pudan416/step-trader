@@ -1,22 +1,31 @@
 import Foundation
 import simd
 
-/// One coherent optical universe is selected for a whole day. The legacy
-/// aliases keep older fixtures source-compatible while they migrate to the
-/// five approved circle families.
+/// One coherent optical universe is selected for a whole day. These cases are
+/// the Metal equivalents of the recipes in random-gradient-circle.html.
 enum DayObjectMaterialFamily: UInt32, CaseIterable, Equatable {
-    case softVolume
-    case livingGlass
-    case innerLight
-    case atmosphericOrb
-    case layeredMembrane
+    case gradient
+    case solid
+    case sphere
+    case glass
+    case mist
+    case halo
+    case luminous
+    case outline
+    case counterform
 
-    static let satin = softVolume
-    static let glass = livingGlass
-    static let innerGlow = innerLight
-    static let rimGlow = innerLight
-    static let spectral = atmosphericOrb
-    static let membrane = layeredMembrane
+    // Compatibility names for older fixtures while the rendering tests move
+    // to the HTML recipe vocabulary.
+    static let softVolume = gradient
+    static let livingGlass = glass
+    static let innerLight = luminous
+    static let atmosphericOrb = mist
+    static let layeredMembrane = gradient
+    static let satin = gradient
+    static let innerGlow = luminous
+    static let rimGlow = halo
+    static let spectral = mist
+    static let membrane = gradient
 }
 
 enum DayObjectMutationRole: UInt32, CaseIterable, Equatable {
@@ -39,6 +48,17 @@ struct DayObjectAppearance: Equatable {
     let shape: DayObjectShape
     let elongation: Double
     let layers: [DayObjectRadialLayer]
+    let colorStopLocations: SIMD2<Double>
+    let edgeSoftness: Double
+    let minimumOpacity: Double
+    let outlineCount: Int
+    let outlineWidth: Double
+    let outlineSpacing: Double
+    let outlineWobble: Double
+    let counterformRadius: Double
+    let counterformSoftness: Double
+    let coronaWidth: Double
+    let coronaIntensity: Double
 
     // Compatibility fields consumed by the current GPU upload. The layered
     // renderer replaces these with the complete array in the Metal task.
@@ -84,15 +104,20 @@ struct DayObjectVisualLanguage: Equatable {
         paletteSet: DayObjectPaletteSet
     ) -> DayObjectVisualLanguage {
         var rng = SeededRNG.derived(from: rootSeed, domain: "dailyVisualLanguage")
-        let family = DayObjectMaterialFamily.allCases[
-            rng.nextInt(in: 0...(DayObjectMaterialFamily.allCases.count - 1))
+        // Gradient appears twice in the HTML STYLE_RECIPES table and remains
+        // intentionally twice as likely as each specialist recipe.
+        let weightedRecipes: [DayObjectMaterialFamily] = [
+            .gradient, .gradient, .solid, .sphere, .glass,
+            .mist, .halo, .luminous, .outline, .counterform,
         ]
-        let circleShapes: [DayObjectShape] = [.sphere, .softBlob]
+        let family = weightedRecipes[
+            rng.nextInt(in: 0...(weightedRecipes.count - 1))
+        ]
         let lightAngle = rng.nextDouble(in: 0...(2 * Double.pi))
         return DayObjectVisualLanguage(
             paletteSet: paletteSet,
             family: family,
-            baseShape: circleShapes[rng.nextInt(in: 0...(circleShapes.count - 1))],
+            baseShape: .sphere,
             baseElongation: 1,
             maximumElongation: 0.05,
             accentShare: rng.nextDouble(in: 0.15...0.30),
@@ -135,7 +160,7 @@ struct DayObjectVisualLanguage: Equatable {
     ) -> DayObjectAppearance {
         let seed = eventSeed(rootSeed: rootSeed, eventID: eventID)
         var rng = SeededRNG.derived(from: seed, domain: "appearance")
-        let layerCount = family == .softVolume && mutationRole == .base
+        let layerCount = family == .gradient && mutationRole == .base
             ? 2
             : rng.nextInt(in: 2...3)
         let layers = (0..<layerCount).map { index in
@@ -152,6 +177,31 @@ struct DayObjectVisualLanguage: Equatable {
             )
         }
         let primaryLayer = layers[0]
+        let firstStop = rng.nextDouble(in: 0.22...0.48)
+        let secondStop = rng.nextDouble(in: max(firstStop + 0.16, 0.58)...0.88)
+        let edgeSoftness: Double = switch family {
+        case .solid, .gradient, .glass: rng.nextDouble(in: 0...0.08)
+        case .sphere: rng.nextDouble(in: 0.03...0.12)
+        case .outline: rng.nextDouble(in: 0.02...0.10)
+        case .mist, .halo, .luminous, .counterform:
+            rng.nextDouble(in: 0.16...0.42)
+        }
+        let outlineCount = family == .outline ? rng.nextInt(in: 1...3) : 0
+        let outlineWidth = family == .outline ? rng.nextDouble(in: 0.012...0.075) : 0
+        let outlineSpacing = family == .outline ? rng.nextDouble(in: 0.02...0.09) : 0
+        let outlineWobble = family == .outline ? rng.nextDouble(in: 0.01...0.08) : 0
+        let counterformRadius = family == .counterform
+            ? rng.nextDouble(in: 0.44...0.62)
+            : 0
+        let counterformSoftness = family == .counterform
+            ? rng.nextDouble(in: 0.01...0.08)
+            : 0
+        let coronaWidth = family == .counterform
+            ? rng.nextDouble(in: 0.14...0.34)
+            : 0
+        let coronaIntensity = family == .counterform
+            ? rng.nextDouble(in: 0.58...0.98)
+            : 0
         let elongationScale: Double
         switch mutationRole {
         case .base: elongationScale = 0.35
@@ -165,7 +215,7 @@ struct DayObjectVisualLanguage: Equatable {
         let accentBoost = mutationRole == .accent ? 1.12 : 1
         let innerGlow = min(rng.nextDouble(in: optical.innerGlow) * accentBoost, 1)
         let outerGlow = min(rng.nextDouble(in: optical.outerGlow) * accentBoost, 1)
-        let refractionStrength = family == .livingGlass
+        let refractionStrength = family == .glass
             ? rng.nextDouble(in: 0.006...0.028)
             : 0
 
@@ -176,6 +226,17 @@ struct DayObjectVisualLanguage: Equatable {
             shape: baseShape,
             elongation: elongation,
             layers: layers,
+            colorStopLocations: SIMD2(firstStop, secondStop),
+            edgeSoftness: edgeSoftness,
+            minimumOpacity: minimumOpacity(for: family),
+            outlineCount: outlineCount,
+            outlineWidth: outlineWidth,
+            outlineSpacing: outlineSpacing,
+            outlineWobble: outlineWobble,
+            counterformRadius: counterformRadius,
+            counterformSoftness: counterformSoftness,
+            coronaWidth: coronaWidth,
+            coronaIntensity: coronaIntensity,
             focalDistance: simd_length(primaryLayer.focalOffset),
             focalAngle: atan2(primaryLayer.focalOffset.y, primaryLayer.focalOffset.x),
             radius: primaryLayer.radius,
@@ -233,36 +294,74 @@ struct DayObjectVisualLanguage: Equatable {
 
     private func opticalRanges(for family: DayObjectMaterialFamily) -> OpticalRanges {
         switch family {
-        case .softVolume:
+        case .gradient:
             OpticalRanges(
                 bodyOpacity: 0.78...0.96, centerOpacity: 0.72...0.95,
                 rimOpacity: 0.08...0.22, innerGlow: 0.06...0.20,
                 outerGlow: 0.01...0.08, depthSoftness: 0.04...0.18
             )
-        case .livingGlass:
+        case .solid:
             OpticalRanges(
-                bodyOpacity: 0.44...0.68, centerOpacity: 0.56...0.82,
+                bodyOpacity: 0.92...1, centerOpacity: 0.92...1,
+                rimOpacity: 0.04...0.12, innerGlow: 0.03...0.12,
+                outerGlow: 0.01...0.05, depthSoftness: 0.02...0.10
+            )
+        case .sphere:
+            OpticalRanges(
+                bodyOpacity: 0.84...1, centerOpacity: 0.80...1,
+                rimOpacity: 0.18...0.38, innerGlow: 0.12...0.32,
+                outerGlow: 0.02...0.10, depthSoftness: 0.03...0.15
+            )
+        case .glass:
+            OpticalRanges(
+                bodyOpacity: 0.62...0.82, centerOpacity: 0.68...0.88,
                 rimOpacity: 0.24...0.56, innerGlow: 0.03...0.16,
                 outerGlow: 0.04...0.16, depthSoftness: 0.08...0.28
             )
-        case .innerLight:
+        case .mist:
             OpticalRanges(
-                bodyOpacity: 0.58...0.86, centerOpacity: 0.64...0.94,
-                rimOpacity: 0.06...0.20, innerGlow: 0.34...0.72,
-                outerGlow: 0.03...0.14, depthSoftness: 0.06...0.24
+                bodyOpacity: 0.60...0.82, centerOpacity: 0.64...0.88,
+                rimOpacity: 0.08...0.22, innerGlow: 0.10...0.30,
+                outerGlow: 0.08...0.24, depthSoftness: 0.14...0.32
             )
-        case .atmosphericOrb:
+        case .halo:
             OpticalRanges(
-                bodyOpacity: 0.50...0.78, centerOpacity: 0.50...0.78,
-                rimOpacity: 0.10...0.30, innerGlow: 0.10...0.30,
-                outerGlow: 0.06...0.22, depthSoftness: 0.18...0.36
+                bodyOpacity: 0.66...0.88, centerOpacity: 0.70...0.94,
+                rimOpacity: 0.18...0.42, innerGlow: 0.18...0.46,
+                outerGlow: 0.28...0.58, depthSoftness: 0.08...0.24
             )
-        case .layeredMembrane:
+        case .luminous:
             OpticalRanges(
-                bodyOpacity: 0.48...0.72, centerOpacity: 0.50...0.78,
-                rimOpacity: 0.16...0.42, innerGlow: 0.08...0.26,
-                outerGlow: 0.04...0.18, depthSoftness: 0.08...0.28
+                bodyOpacity: 0.68...0.92, centerOpacity: 0.78...1,
+                rimOpacity: 0.10...0.28, innerGlow: 0.42...0.78,
+                outerGlow: 0.12...0.34, depthSoftness: 0.06...0.22
             )
+        case .outline:
+            OpticalRanges(
+                bodyOpacity: 0.78...1, centerOpacity: 0.78...1,
+                rimOpacity: 0.60...1, innerGlow: 0.08...0.24,
+                outerGlow: 0.08...0.24, depthSoftness: 0.04...0.18
+            )
+        case .counterform:
+            OpticalRanges(
+                bodyOpacity: 0.76...0.96, centerOpacity: 0.78...1,
+                rimOpacity: 0.48...0.88, innerGlow: 0.18...0.48,
+                outerGlow: 0.16...0.42, depthSoftness: 0.06...0.22
+            )
+        }
+    }
+
+    private func minimumOpacity(for family: DayObjectMaterialFamily) -> Double {
+        switch family {
+        case .gradient: 0.72
+        case .solid: 0.88
+        case .sphere: 0.82
+        case .glass: 0.62
+        case .mist: 0.58
+        case .halo: 0.64
+        case .luminous: 0.68
+        case .outline: 0.72
+        case .counterform: 0.72
         }
     }
 

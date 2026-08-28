@@ -264,6 +264,83 @@ final class DayObjectPaletteTests: XCTestCase {
         }
     }
 
+    func testDailyVisualLanguageReachesEveryHTMLCircleRecipe() {
+        var reached = Set<DayObjectMaterialFamily>()
+
+        for seed in UInt64(0)..<2_048 {
+            let paletteSet = DayObjectPaletteSet.make(
+                rootSeed: seed,
+                categories: ModernPaletteSelection.all
+            )
+            reached.insert(
+                DayObjectVisualLanguage.make(
+                    rootSeed: seed,
+                    paletteSet: paletteSet
+                ).family
+            )
+        }
+
+        XCTAssertEqual(
+            DayObjectMaterialFamily.allCases.count,
+            9,
+            "The Metal catalog must expose all nine distinct HTML recipes"
+        )
+        XCTAssertEqual(reached, Set(DayObjectMaterialFamily.allCases))
+    }
+
+    func testHTMLCircleRecipesEmitTheirStructuralParameters() {
+        var checked = Set<DayObjectMaterialFamily>()
+
+        for seed in UInt64(0)..<4_096 where checked.count < 9 {
+            let paletteSet = DayObjectPaletteSet.make(
+                rootSeed: seed,
+                categories: ModernPaletteSelection.all
+            )
+            let language = DayObjectVisualLanguage.make(
+                rootSeed: seed,
+                paletteSet: paletteSet
+            )
+            let appearances = language.appearances(
+                eventIDs: (0..<10).map { "event-\($0)" },
+                rootSeed: seed
+            ).values
+
+            XCTAssertTrue(appearances.allSatisfy { $0.material == language.family })
+            XCTAssertTrue(appearances.allSatisfy {
+                $0.colorStopLocations.x >= 0.18
+                    && $0.colorStopLocations.x < $0.colorStopLocations.y
+                    && $0.colorStopLocations.y <= 0.90
+            })
+            XCTAssertTrue(appearances.allSatisfy { $0.minimumOpacity >= 0.58 })
+
+            if language.family == .outline {
+                XCTAssertTrue(appearances.allSatisfy {
+                    (1...3).contains($0.outlineCount)
+                        && (0.012...0.075).contains($0.outlineWidth)
+                        && (0.02...0.09).contains($0.outlineSpacing)
+                        && (0.01...0.08).contains($0.outlineWobble)
+                })
+            } else {
+                XCTAssertTrue(appearances.allSatisfy { $0.outlineCount == 0 })
+            }
+
+            if language.family == .counterform {
+                XCTAssertTrue(appearances.allSatisfy {
+                    (0.44...0.62).contains($0.counterformRadius)
+                        && (0.01...0.08).contains($0.counterformSoftness)
+                        && (0.14...0.34).contains($0.coronaWidth)
+                        && (0.58...0.98).contains($0.coronaIntensity)
+                })
+            } else {
+                XCTAssertTrue(appearances.allSatisfy { $0.counterformRadius == 0 })
+            }
+
+            checked.insert(language.family)
+        }
+
+        XCTAssertEqual(checked, Set(DayObjectMaterialFamily.allCases))
+    }
+
     func testArbitraryEventIDsStillUseTheDailyFamilyAndMutationBudget() {
         let eventIDs = [
             "id-0x", "id-1x", "id-2x", "id-4x", "id-8x",
@@ -309,7 +386,7 @@ final class DayObjectPaletteTests: XCTestCase {
         var reachedShapes = Set<DayObjectShape>()
         var reachedColorCounts = Set<Int>()
         var sawShiftedFocalCenter = false
-        var sawTransparentBody = false
+        var sawTranslucentBody = false
         var sawInnerGlow = false
         var sawOuterGlow = false
 
@@ -353,17 +430,17 @@ final class DayObjectPaletteTests: XCTestCase {
                 reachedColorCounts.insert(appearance.colorAssignment.colors.count)
                 sawShiftedFocalCenter = sawShiftedFocalCenter
                     || appearance.layers.contains { simd_length($0.focalOffset) > 0.2 }
-                sawTransparentBody = sawTransparentBody || appearance.bodyOpacity < 0.5
+                sawTranslucentBody = sawTranslucentBody || appearance.bodyOpacity < 0.75
                 sawInnerGlow = sawInnerGlow || appearance.innerGlow > 0.3
                 sawOuterGlow = sawOuterGlow || appearance.outerGlow > 0.15
             }
         }
 
         XCTAssertEqual(reachedMaterials, Set(DayObjectMaterialFamily.allCases))
-        XCTAssertEqual(reachedShapes, Set([.sphere, .softBlob]))
+        XCTAssertEqual(reachedShapes, Set([.sphere]))
         XCTAssertEqual(reachedColorCounts, [1, 2, 3])
         XCTAssertTrue(sawShiftedFocalCenter)
-        XCTAssertTrue(sawTransparentBody)
+        XCTAssertTrue(sawTranslucentBody)
         XCTAssertTrue(sawInnerGlow)
         XCTAssertTrue(sawOuterGlow)
     }
