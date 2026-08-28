@@ -212,11 +212,11 @@ struct DayObjectCompositionPlan: Equatable {
         // it already owns. A brief overlap therefore does not collapse the
         // rest of the canvas into a single central pile.
         let centers = [
-            SIMD2<Double>(0.50, 0.25),
-            SIMD2<Double>(0.32, 0.25),
-            SIMD2<Double>(0.32, 0.38),
-            SIMD2<Double>(0.68, 0.38),
-            SIMD2<Double>(0.68, 0.25),
+            SIMD2<Double>(0.50, 0.35),
+            SIMD2<Double>(0.50, 0.50),
+            SIMD2<Double>(0.50, 0.65),
+            SIMD2<Double>(0.50, 0.40),
+            SIMD2<Double>(0.50, 0.60),
         ]
         let normalized = centers[((channel % centers.count) + centers.count) % centers.count]
         return SIMD2(

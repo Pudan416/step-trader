@@ -250,7 +250,7 @@ struct DayObjectChoreographyScore: Equatable {
             ) + SIMD2(cos(memberAngle), sin(memberAngle)) * ringRadius
             let target = compositionPlan.constrainedPosition(
                 rawTarget,
-                footprintHalfExtents: SIMD2(repeating: planningReach),
+                footprintHalfExtents: SIMD2(repeating: bodyRadius + 0.002),
                 canvasAspect: canvasAspect
             )
             return base + (target - base) * envelope

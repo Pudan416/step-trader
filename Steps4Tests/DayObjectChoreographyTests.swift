@@ -183,34 +183,42 @@ final class DayObjectChoreographyTests: XCTestCase {
                 && Dictionary(grouping: scene.actors, by: { $0.encounter.channel })
                     .values.contains { $0.count >= 2 }
         })
-        let group = try XCTUnwrap(
-            Dictionary(grouping: scene.actors, by: { $0.encounter.channel })
-                .values.first { $0.count >= 2 }
-        )
-        let orderedGroup = group.sorted {
-            $0.encounter.memberOrdinal < $1.encounter.memberOrdinal
-        }
-        let lhsActor = orderedGroup[0]
-        let rhsActor = orderedGroup[1]
-        let encounter = lhsActor.encounter
-        let midpoint = (encounter.phase + encounter.durationFraction * 0.5) * 90
-        let lhs = scene.score.pose(
-            for: lhsActor, at: midpoint, canvasAspect: 1,
-            compositionPlan: scene.compositionPlan
-        )
-        let rhs = scene.score.pose(
-            for: rhsActor, at: midpoint, canvasAspect: 1,
-            compositionPlan: scene.compositionPlan
-        )
-        let overlap = max(
-            0,
-            1 - simd_distance(lhs.position, rhs.position)
-                / max(lhs.bodyRadius + rhs.bodyRadius, 0.000_001)
-        )
+        let groups = Dictionary(grouping: scene.actors, by: { $0.encounter.channel })
+            .filter { $0.value.count >= 2 }
+            .sorted { $0.key < $1.key }
+        XCTAssertFalse(groups.isEmpty)
 
-        XCTAssertEqual(lhsActor.encounter.phase, rhsActor.encounter.phase)
-        XCTAssertEqual(lhsActor.encounter.overlapFraction, rhsActor.encounter.overlapFraction)
-        XCTAssertEqual(overlap, encounter.overlapFraction, accuracy: 0.10)
+        for (channel, group) in groups {
+            let orderedGroup = group.sorted {
+                $0.encounter.memberOrdinal < $1.encounter.memberOrdinal
+            }
+            let lhsActor = orderedGroup[0]
+            let rhsActor = orderedGroup[1]
+            let encounter = lhsActor.encounter
+            let midpoint = (encounter.phase + encounter.durationFraction * 0.5) * 90
+            let lhs = scene.score.pose(
+                for: lhsActor, at: midpoint, canvasAspect: 1,
+                compositionPlan: scene.compositionPlan
+            )
+            let rhs = scene.score.pose(
+                for: rhsActor, at: midpoint, canvasAspect: 1,
+                compositionPlan: scene.compositionPlan
+            )
+            let overlap = max(
+                0,
+                1 - simd_distance(lhs.position, rhs.position)
+                    / max(lhs.bodyRadius + rhs.bodyRadius, 0.000_001)
+            )
+
+            XCTAssertEqual(lhsActor.encounter.phase, rhsActor.encounter.phase)
+            XCTAssertEqual(lhsActor.encounter.overlapFraction, rhsActor.encounter.overlapFraction)
+            XCTAssertEqual(
+                overlap,
+                encounter.overlapFraction,
+                accuracy: 0.10,
+                "channel=\(channel)"
+            )
+        }
     }
 
     func testDepthSchedulesAreContinuousAndMapNearMidFarAppearance() {
