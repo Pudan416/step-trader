@@ -777,9 +777,9 @@ struct GalleryView: View {
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
 
-                if !model._pendingActivitySuggestions.isEmpty && !presentation.isWideCanvas {
+                if !model.pendingActivitySuggestions.isEmpty && !presentation.isWideCanvas {
                     ActivitySuggestionBanner(
-                        suggestions: model._pendingActivitySuggestions,
+                        suggestions: model.pendingActivitySuggestions,
                         onAccept: { suggestion in
                             guard let optionId = model.acceptActivitySuggestion(suggestion) else {
                                 return
@@ -788,9 +788,6 @@ struct GalleryView: View {
                         },
                         onDismiss: { suggestion in
                             model.dismissActivitySuggestion(suggestion)
-                        },
-                        onDismissAll: {
-                            model.dismissAllActivitySuggestions()
                         }
                     )
                     .background(
@@ -848,7 +845,7 @@ struct GalleryView: View {
     /// pill at the top — but it must still stop short of the row's own hit
     /// height at the bottom, so this remains the lower bound of its budget.
     private var dataPanelBottomClearance: CGFloat {
-        let suggestionClearance = model._pendingActivitySuggestions.isEmpty
+        let suggestionClearance = model.pendingActivitySuggestions.isEmpty
             ? 0
             : suggestionBannerHeight + 14
         return bottomControlsPadding + 72 + suggestionClearance

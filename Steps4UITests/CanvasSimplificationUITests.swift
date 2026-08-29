@@ -8,14 +8,14 @@ final class CanvasSimplificationUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    private func launchCanvas() -> XCUIApplication {
+    private func launchCanvas(additionalArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
             "ui-testing",
             "ui-testing-task7",
             "-AppleLanguages", "(en)",
             "-AppleLocale", "en_US",
-        ]
+        ] + additionalArguments
         app.launch()
         XCTAssertTrue(app.buttons["canvas_add_button"].waitForExistence(timeout: 12))
         return app
@@ -107,6 +107,21 @@ final class CanvasSimplificationUITests: XCTestCase {
         let geometry = "suggestion=\(suggestion.frame), tab=\(tabBar.frame), gap=\(gap)"
         XCTAssertGreaterThanOrEqual(gap, 8, geometry)
         XCTAssertLessThanOrEqual(gap, 18, geometry)
+    }
+
+    func testActivitySuggestionsFormACompactTwoLayerStack() {
+        let app = launchCanvas(additionalArguments: ["ui-testing-suggestion-stack"])
+        let front = app.descendants(matching: .any)["canvas_activity_suggestion_front"]
+        let back = app.descendants(matching: .any)["canvas_activity_suggestion_back"]
+
+        XCTAssertTrue(front.waitForExistence(timeout: 5))
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
+        XCTAssertLessThan(back.frame.maxY, front.frame.maxY)
+        XCTAssertLessThan(back.frame.width, front.frame.width)
+        XCTAssertFalse(app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS[c] 'more'")
+        ).firstMatch.exists)
+        XCTAssertFalse(app.buttons["Dismiss all"].exists)
     }
 
     func testPullingTheEnergyPillOpensAndBottomHandleClosesWithoutMovingThePill() {

@@ -40,6 +40,7 @@ extension AppModel {
             assetVariant: nil
         )
         todayAdditions.append(entry)
+        removeSatisfiedActivitySuggestions()
         if recordUse { happeningStore.recordUse(id: id, at: date) }
         recalculateDailyEnergy()
         persistTodayAdditions()
