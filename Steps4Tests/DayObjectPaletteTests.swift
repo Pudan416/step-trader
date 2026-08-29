@@ -716,6 +716,116 @@ final class DayObjectPaletteTests: XCTestCase {
         }
     }
 
+    func testSeparatedProductionPalettesKeepEachColorVisibleAcrossArchetypes() throws {
+        let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        let commandQueue = try XCTUnwrap(device.makeCommandQueue())
+        let library = try XCTUnwrap(device.makeDefaultLibrary())
+        let vertexFunction = try XCTUnwrap(library.makeFunction(name: "dayObjectsFullscreenVertex"))
+        let fragmentFunction = try XCTUnwrap(library.makeFunction(name: "dayObjectsMeshGradientFragment"))
+        let descriptor = MTLRenderPipelineDescriptor()
+        descriptor.vertexFunction = vertexFunction
+        descriptor.fragmentFunction = fragmentFunction
+        descriptor.colorAttachments[0].pixelFormat = .rgba16Float
+        let pipeline = try device.makeRenderPipelineState(descriptor: descriptor)
+        let plan = DayObjectsRenderTargetPlan(drawableWidth: 80, drawableHeight: 60)
+        // Nearest-palette coverage is meaningful only when catalog colors are
+        // sufficiently distinct. These are real production palettes with a
+        // minimum linear-RGB pair distance above 0.50, one for each family.
+        let productionSamples: [(archetype: DayObjectMeshGradientArchetype, paletteCode: String)] = [
+            (.drift, "211951836fff15f5baf0f3ff"),
+            (.orbit, "001bb70046ffff8040f5f1dc"),
+            (.tide, "211951836fff15f5baf0f3ff"),
+            (.islands, "211951836fff15f5baf0f3ff"),
+            (.bloom, "211951836fff15f5baf0f3ff"),
+        ]
+        XCTAssertEqual(
+            Set(productionSamples.map(\.archetype)),
+            Set(DayObjectMeshGradientArchetype.allCases)
+        )
+        var minimumCoverage = 1.0
+        var minimumDetail = ""
+        for sample in productionSamples {
+            let productionPalette = try XCTUnwrap(
+                ModernPaletteCatalog.all.first { $0.code == sample.paletteCode }
+            )
+            let colors = productionPalette.hexes.map { DayObjectRGB(hex: $0).linearRGB }
+            let separation = minimumPairwiseRGBDistance(colors)
+            XCTAssertGreaterThan(
+                separation,
+                0.50,
+                "palette=\(productionPalette.code) must remain spatially unambiguous"
+            )
+            let style = productionCoverageStyle(colors: colors, archetype: sample.archetype)
+            let pixels = try renderMeshGradient(
+                style: style,
+                elapsedTime: 0,
+                plan: plan,
+                device: device,
+                commandQueue: commandQueue,
+                pipeline: pipeline
+            )
+            let coverage = paletteCoverage(pixels: pixels, palette: style.colors)
+            guard let leastCoveredIndex = coverage.indices.min(by: {
+                coverage[$0] < coverage[$1]
+            }) else {
+                XCTFail("palette coverage requires four colors")
+                continue
+            }
+            let leastCoverage = coverage[leastCoveredIndex]
+            if leastCoverage < minimumCoverage {
+                minimumCoverage = leastCoverage
+                minimumDetail = "palette=\(productionPalette.code) archetype=\(sample.archetype) color=\(leastCoveredIndex) coverage=\(coverage)"
+            }
+            XCTAssertTrue(
+                coverage.allSatisfy { $0 > 0.02 },
+                "palette=\(productionPalette.code) archetype=\(sample.archetype) coverage=\(coverage)"
+            )
+        }
+        XCTAssertGreaterThan(minimumCoverage, 0.02, minimumDetail)
+    }
+
+    func testEveryMeshNodeHasVisibleBasisSupportAcrossArchetypes() throws {
+        let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        let commandQueue = try XCTUnwrap(device.makeCommandQueue())
+        let library = try XCTUnwrap(device.makeDefaultLibrary())
+        let vertexFunction = try XCTUnwrap(library.makeFunction(name: "dayObjectsFullscreenVertex"))
+        let fragmentFunction = try XCTUnwrap(library.makeFunction(name: "dayObjectsMeshGradientFragment"))
+        let descriptor = MTLRenderPipelineDescriptor()
+        descriptor.vertexFunction = vertexFunction
+        descriptor.fragmentFunction = fragmentFunction
+        descriptor.colorAttachments[0].pixelFormat = .rgba16Float
+        let pipeline = try device.makeRenderPipelineState(descriptor: descriptor)
+        let plan = DayObjectsRenderTargetPlan(drawableWidth: 80, drawableHeight: 60)
+
+        var minimumVisibleShare = 1.0
+        var minimumDetail = ""
+        for archetype in DayObjectMeshGradientArchetype.allCases {
+            for nodeIndex in 0..<4 {
+                var colors = Array(repeating: SIMD3<Float>(repeating: 0), count: 4)
+                colors[nodeIndex] = SIMD3<Float>(repeating: 1)
+                let pixels = try renderMeshGradient(
+                    style: productionCoverageStyle(colors: colors, archetype: archetype),
+                    elapsedTime: 0,
+                    plan: plan,
+                    device: device,
+                    commandQueue: commandQueue,
+                    pipeline: pipeline
+                )
+                let visibleShare = brightPixelCoverage(pixels: pixels, minimumLuminance: 0.12)
+                if visibleShare < minimumVisibleShare {
+                    minimumVisibleShare = visibleShare
+                    minimumDetail = "archetype=\(archetype) node=\(nodeIndex) visibleShare=\(visibleShare)"
+                }
+                XCTAssertGreaterThan(
+                    visibleShare,
+                    0.02,
+                    "archetype=\(archetype) node=\(nodeIndex) visibleShare=\(visibleShare)"
+                )
+            }
+        }
+        XCTAssertGreaterThan(minimumVisibleShare, 0.02, minimumDetail)
+    }
+
     func testDailyMeshUsesOneCompleteFourColorModernPalette() {
         let applicationPalettes = ModernPaletteCatalog.all.map { palette in
             palette.hexes.map { DayObjectRGB(hex: $0).linearRGB }
@@ -1045,5 +1155,62 @@ final class DayObjectPaletteTests: XCTestCase {
         }
         let total = Double(max(counts.reduce(0, +), 1))
         return counts.map { Double($0) / total }
+    }
+
+    private func brightPixelCoverage(
+        pixels: [UInt16],
+        minimumLuminance: Float
+    ) -> Double {
+        var brightCount = 0
+        var pixelCount = 0
+        for index in stride(from: 0, to: pixels.count, by: 4) {
+            let red = Float(Float16(bitPattern: pixels[index]))
+            let green = Float(Float16(bitPattern: pixels[index + 1]))
+            let blue = Float(Float16(bitPattern: pixels[index + 2]))
+            let luminance = red * 0.2126 + green * 0.7152 + blue * 0.0722
+            if luminance > minimumLuminance {
+                brightCount += 1
+            }
+            pixelCount += 1
+        }
+        return Double(brightCount) / Double(max(pixelCount, 1))
+    }
+
+    private func productionCoverageStyle(
+        colors: [SIMD3<Float>],
+        archetype: DayObjectMeshGradientArchetype
+    ) -> DayObjectMeshGradientStyle {
+        let parameters: (distortion: Double, swirl: Double, speed: Double, scale: Double)
+        switch archetype {
+        case .drift:
+            parameters = (0.16, 0.00, 0.065, 1.05)
+        case .orbit:
+            parameters = (0.30, 0.24, 0.065, 1.05)
+        case .tide:
+            parameters = (0.30, 0.00, 0.060, 1.05)
+        case .islands:
+            parameters = (0.18, 0.00, 0.075, 1.05)
+        case .bloom:
+            parameters = (0.26, 0.00, 0.055, 1.05)
+        }
+        return DayObjectMeshGradientStyle(
+            colors: colors,
+            archetype: archetype,
+            offset: SIMD2(0.08, -0.06),
+            distortion: parameters.distortion,
+            swirl: parameters.swirl,
+            speed: parameters.speed,
+            scale: parameters.scale,
+            phase: 1.25,
+            motionDirection: -1
+        )
+    }
+
+    private func minimumPairwiseRGBDistance(_ colors: [SIMD3<Float>]) -> Float {
+        colors.indices.flatMap { lhs in
+            colors.indices.filter { $0 < lhs }.map { rhs in
+                simd_distance(colors[lhs], colors[rhs])
+            }
+        }.min() ?? 0
     }
 }
