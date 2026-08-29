@@ -12,6 +12,32 @@ final class DayObjectChoreographyTests: XCTestCase {
         )
     }
 
+    func testDailyPresetCatalogIsDeterministicAndReachesAllTenPresets() {
+        var reached = Set<DayObjectChoreographyPreset>()
+        for seed in UInt64(0)..<2_048 {
+            let first = DayObjectChoreographyConfiguration.make(seed: seed)
+            XCTAssertEqual(first, DayObjectChoreographyConfiguration.make(seed: seed))
+            XCTAssertEqual(first.slots.map(\.ordinal), Array(0..<10))
+            XCTAssertEqual(Set(first.slots.map(\.ordinal)).count, 10)
+            reached.insert(first.preset)
+        }
+        XCTAssertEqual(reached, Set(DayObjectChoreographyPreset.allCases))
+    }
+
+    func testEventSeedAlwaysReturnsTheSameStableSlot() {
+        let configuration = DayObjectChoreographyConfiguration.make(seed: 77)
+        let ids = (0..<10).map { "event-\($0)" }
+        let before = Dictionary(uniqueKeysWithValues: ids.map {
+            ($0, configuration.slot(eventID: $0, rootSeed: 77))
+        })
+        for retained in ids.dropFirst().dropLast() {
+            XCTAssertEqual(
+                before[retained],
+                configuration.slot(eventID: retained, rootSeed: 77)
+            )
+        }
+    }
+
     func testDailyMotionPlansUseSlowWideStableRoutesAndBothDirections() {
         var reachedFamilies = Set<DayObjectChoreographyFamily>()
 
