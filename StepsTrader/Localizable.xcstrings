@@ -2927,13 +2927,16 @@
       "comment" : "Full calendar – tracked day"
     },
     "Try Again" : {
-      "comment" : "Health permission retry action"
+      "comment" : "Permission retry action"
     },
     "Turn movement into energy" : {
 
     },
     "Turn off \"Ask Before Running\"" : {
 
+    },
+    "Unavailable" : {
+      "comment" : "Permission unavailable status"
     },
     "Unlimited" : {
 
@@ -2994,6 +2997,15 @@
     },
     "Warn before reset" : {
 
+    },
+    "We couldn't allow notifications." : {
+      "comment" : "Notification permission failure message"
+    },
+    "We couldn't allow Screen Time access." : {
+      "comment" : "Screen Time permission failure message"
+    },
+    "We couldn't check Health access." : {
+      "comment" : "Health permission failure message"
     },
     "we read steps, sleep, and workouts. nothing else." : {
 

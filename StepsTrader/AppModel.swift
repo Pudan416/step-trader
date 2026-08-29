@@ -524,7 +524,7 @@ final class AppModel: ObservableObject {
             needsHealthKitAuthorization = true
             do {
                 try await blockingStore.requestAuthorization()
-                await requestNotificationPermission()
+                try await requestNotificationPermission()
             } catch {
                 AppLogger.app.debug("Bootstrap permission request failed: \(error.localizedDescription)")
             }
@@ -614,10 +614,17 @@ final class AppModel: ObservableObject {
 
 // MARK: - Permissions helpers
 extension AppModel {
-    func requestNotificationPermission() async {
-        do { try await notificationService.requestPermission() }
-        catch { AppLogger.app.debug("Notification permission failed: \(error.localizedDescription)") }
-        await refreshNotificationAuthorizationStatus()
+    func requestNotificationPermission() async throws {
+        do {
+            try await notificationService.requestPermission()
+            await refreshNotificationAuthorizationStatus()
+        } catch {
+            AppLogger.notifications.error(
+                "Notification permission failed: \(error.localizedDescription)"
+            )
+            await refreshNotificationAuthorizationStatus()
+            throw error
+        }
     }
 
     func refreshNotificationAuthorizationStatus() async {

@@ -43,4 +43,29 @@ final class SettingsPermissionPresentationTests: XCTestCase {
                 .contributesToWarning
         )
     }
+
+    func testUnavailableStatusUsesExplicitUnavailableCopy() {
+        XCTAssertEqual(SettingsPermissionStatus.unavailable.displayText, "Unavailable")
+    }
+
+    func testHealthFailureUsesStableCopyAndRecoveryActions() {
+        let failure = SettingsPermissionFailurePresentation.health
+
+        XCTAssertEqual(failure.message, "We couldn't check Health access.")
+        XCTAssertEqual(failure.actions, [.tryAgain, .openSettings])
+    }
+
+    func testNotificationFailureUsesStableCopyAndRecoveryActions() {
+        let failure = SettingsPermissionFailurePresentation.notifications
+
+        XCTAssertEqual(failure.message, "We couldn't allow notifications.")
+        XCTAssertEqual(failure.actions, [.tryAgain, .openSettings])
+    }
+
+    func testScreenTimeFailureUsesStableCopyAndRecoveryActions() {
+        let failure = SettingsPermissionFailurePresentation.screenTime
+
+        XCTAssertEqual(failure.message, "We couldn't allow Screen Time access.")
+        XCTAssertEqual(failure.actions, [.tryAgain, .openSettings])
+    }
 }

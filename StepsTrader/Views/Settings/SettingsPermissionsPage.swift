@@ -10,7 +10,7 @@ struct SettingsPermissionsPage: View {
     @Environment(\.appTheme) private var theme
     @Environment(\.scenePhase) private var scenePhase
 
-    @State private var healthAuthorizationError: String?
+    @State private var permissionFailure: SettingsPermissionFailurePresentation?
 
     private var isHealthKitAvailable: Bool {
         HKHealthStore.isHealthDataAvailable()
@@ -86,9 +86,9 @@ struct SettingsPermissionsPage: View {
                             onFix: requestHealthAuthorization
                         )
 
-                        if let healthAuthorizationError {
+                        if let failure = permissionFailure(for: .health) {
                             DetailDivider()
-                            healthErrorRow(message: healthAuthorizationError)
+                            permissionFailureRow(failure)
                         }
 
                         DetailDivider()
@@ -99,16 +99,13 @@ struct SettingsPermissionsPage: View {
                             subtitle: String(localized: "App blocking & limits", comment: "Permission row – Family Controls detail"),
                             presentation: screenTimePresentation,
                             actionTitle: String(localized: "Allow access", comment: "Screen Time permission action"),
-                            onFix: {
-                                Task {
-                                    do {
-                                        try await model.blockingStore.requestAuthorization()
-                                    } catch {
-                                        openAppSettings()
-                                    }
-                                }
-                            }
+                            onFix: requestScreenTimeAuthorization
                         )
+
+                        if let failure = permissionFailure(for: .screenTime) {
+                            DetailDivider()
+                            permissionFailureRow(failure)
+                        }
 
                         DetailDivider()
 
@@ -120,6 +117,11 @@ struct SettingsPermissionsPage: View {
                             actionTitle: notificationActionTitle,
                             onFix: handleNotificationAction
                         )
+
+                        if let failure = permissionFailure(for: .notifications) {
+                            DetailDivider()
+                            permissionFailureRow(failure)
+                        }
                     }
                     .padding(.horizontal, 16)
 
@@ -190,7 +192,7 @@ struct SettingsPermissionsPage: View {
             Spacer(minLength: 12)
 
             VStack(alignment: .trailing, spacing: 5) {
-                Text(statusText(for: presentation.status))
+                Text(presentation.status.displayText)
                     .font(.geist(.caption).weight(.semibold))
                     .foregroundStyle(permissionColor(for: presentation))
                     .multilineTextAlignment(.trailing)
@@ -241,25 +243,6 @@ struct SettingsPermissionsPage: View {
         }
     }
 
-    private func statusText(for status: SettingsPermissionStatus) -> String {
-        switch status {
-        case .connected:
-            String(localized: "Connected", comment: "Permission status")
-        case .checkAccess:
-            String(localized: "Check access", comment: "Permission status")
-        case .unavailable:
-            String(localized: "N/A", comment: "Permission – not available badge")
-        case .allowed:
-            String(localized: "Allowed", comment: "Notification permission status")
-        case .notRequested:
-            String(localized: "Not requested", comment: "Notification permission status")
-        case .offInSystemSettings:
-            String(localized: "Off in System Settings", comment: "Notification permission status")
-        case .actionNeeded:
-            String(localized: "Action needed", comment: "Permission status")
-        }
-    }
-
     private func permissionColor(
         for presentation: SettingsPermissionPresentation
     ) -> Color {
@@ -275,7 +258,7 @@ struct SettingsPermissionsPage: View {
 
     private func requestHealthAuthorization() {
         Task {
-            healthAuthorizationError = nil
+            clearPermissionFailure(for: .health)
             do {
                 try await model.healthStore.requestAuthorization()
                 await model.refreshStepsIfAuthorized()
@@ -284,7 +267,21 @@ struct SettingsPermissionsPage: View {
                 AppLogger.healthKit.error(
                     "Permission page auth failed: \(error.localizedDescription)"
                 )
-                healthAuthorizationError = error.localizedDescription
+                permissionFailure = .health
+            }
+        }
+    }
+
+    private func requestScreenTimeAuthorization() {
+        Task {
+            clearPermissionFailure(for: .screenTime)
+            do {
+                try await model.blockingStore.requestAuthorization()
+            } catch {
+                AppLogger.familyControls.error(
+                    "Permission page authorization failed: \(error.localizedDescription)"
+                )
+                permissionFailure = .screenTime
             }
         }
     }
@@ -292,7 +289,7 @@ struct SettingsPermissionsPage: View {
     private func handleNotificationAction() {
         switch notificationPresentation.action {
         case .requestPermission:
-            Task { await model.requestNotificationPermission() }
+            requestNotificationAuthorization()
         case .openSystemSettings, .checkAccess:
             openAppSettings()
         case nil:
@@ -300,28 +297,75 @@ struct SettingsPermissionsPage: View {
         }
     }
 
-    private func healthErrorRow(message: String) -> some View {
+    private func permissionFailure(
+        for permission: SettingsPermissionKind
+    ) -> SettingsPermissionFailurePresentation? {
+        guard permissionFailure?.permission == permission else { return nil }
+        return permissionFailure
+    }
+
+    private func clearPermissionFailure(for permission: SettingsPermissionKind) {
+        guard permissionFailure?.permission == permission else { return }
+        permissionFailure = nil
+    }
+
+    private func retry(_ permission: SettingsPermissionKind) {
+        switch permission {
+        case .health:
+            requestHealthAuthorization()
+        case .notifications:
+            requestNotificationAuthorization()
+        case .screenTime:
+            requestScreenTimeAuthorization()
+        }
+    }
+
+    private func permissionFailureRow(
+        _ failure: SettingsPermissionFailurePresentation
+    ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(String(localized: "Health access couldn't be checked", comment: "Health permission error title"))
+            Text(failure.message)
                 .font(.geist(.subheadline).weight(.semibold))
                 .foregroundStyle(theme.adaptivePrimaryText)
-            Text(message)
-                .font(.geist(.caption))
-                .foregroundStyle(theme.adaptiveSecondaryText)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 12) {
-                Button(String(localized: "Try Again", comment: "Health permission retry action")) {
-                    requestHealthAuthorization()
+                if failure.actions.contains(.tryAgain) {
+                    Button(String(localized: "Try Again", comment: "Permission retry action")) {
+                        retry(failure.permission)
+                    }
                 }
-                Button(String(localized: "Open Settings", comment: "Permission recovery action")) {
-                    openAppSettings()
+                if failure.actions.contains(.openSettings) {
+                    Button(String(localized: "Open Settings", comment: "Permission recovery action")) {
+                        openAppSettings()
+                    }
                 }
             }
             .font(.geist(.caption).weight(.semibold))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .accessibilityIdentifier("settings.permissions.health.error")
+        .accessibilityIdentifier(permissionFailureIdentifier(for: failure.permission))
+    }
+
+    private func requestNotificationAuthorization() {
+        Task {
+            clearPermissionFailure(for: .notifications)
+            do {
+                try await model.requestNotificationPermission()
+            } catch {
+                permissionFailure = .notifications
+            }
+        }
+    }
+
+    private func permissionFailureIdentifier(
+        for permission: SettingsPermissionKind
+    ) -> String {
+        switch permission {
+        case .health: "settings.permissions.health.error"
+        case .notifications: "settings.permissions.notifications.error"
+        case .screenTime: "settings.permissions.screenTime.error"
+        }
     }
 
 }

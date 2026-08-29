@@ -28,6 +28,8 @@ struct NotificationSettingsView: View {
     @AppStorage(SharedKeys.dayResetWarningHours, store: UserDefaults.stepsTrader())
     private var dayResetWarningHours: Int = 1
 
+    @State private var notificationFailure: SettingsPermissionFailurePresentation?
+
     private var usesDeniedNotificationsFixture: Bool {
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
@@ -93,7 +95,7 @@ struct NotificationSettingsView: View {
 
                                 Spacer(minLength: 12)
 
-                                Text(notificationStatusText)
+                                Text(notificationPresentation.status.displayText)
                                     .font(.geist(.caption).weight(.semibold))
                                     .foregroundStyle(notificationStatusColor)
                                     .multilineTextAlignment(.trailing)
@@ -112,6 +114,11 @@ struct NotificationSettingsView: View {
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 13)
                                 .contentShape(Rectangle())
+                            }
+
+                            if let notificationFailure {
+                                DetailDivider()
+                                permissionFailureRow(notificationFailure)
                             }
                         }
                         .accessibilityElement(children: .contain)
@@ -267,25 +274,6 @@ struct NotificationSettingsView: View {
             .scheduleDayResetWarning(dayEndHour: model.dayEndHour, dayEndMinute: model.dayEndMinute)
     }
 
-    private var notificationStatusText: String {
-        switch notificationPresentation.status {
-        case .allowed:
-            String(localized: "Allowed", comment: "Notification permission status")
-        case .notRequested:
-            String(localized: "Not requested", comment: "Notification permission status")
-        case .offInSystemSettings:
-            String(localized: "Off in System Settings", comment: "Notification permission status")
-        case .checkAccess:
-            String(localized: "Check access", comment: "Notification permission status")
-        case .connected:
-            String(localized: "Connected", comment: "Permission status")
-        case .unavailable:
-            String(localized: "N/A", comment: "Permission – not available badge")
-        case .actionNeeded:
-            String(localized: "Action needed", comment: "Permission status")
-        }
-    }
-
     private var notificationActionTitle: String? {
         switch notificationPresentation.action {
         case .requestPermission:
@@ -311,10 +299,7 @@ struct NotificationSettingsView: View {
     private func handleNotificationAction() {
         switch notificationPresentation.action {
         case .requestPermission:
-            Task {
-                await model.requestNotificationPermission()
-                await refreshNotificationStatus()
-            }
+            requestNotificationAuthorization()
         case .openSystemSettings, .checkAccess:
             openAppSettings()
         case nil:
@@ -328,6 +313,46 @@ struct NotificationSettingsView: View {
             return
         }
         await model.refreshNotificationAuthorizationStatus()
+    }
+
+    private func requestNotificationAuthorization() {
+        Task {
+            notificationFailure = nil
+            do {
+                try await model.requestNotificationPermission()
+                await refreshNotificationStatus()
+            } catch {
+                notificationFailure = .notifications
+            }
+        }
+    }
+
+    private func permissionFailureRow(
+        _ failure: SettingsPermissionFailurePresentation
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(failure.message)
+                .font(.geist(.subheadline).weight(.semibold))
+                .foregroundStyle(theme.adaptivePrimaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 12) {
+                if failure.actions.contains(.tryAgain) {
+                    Button(String(localized: "Try Again", comment: "Permission retry action")) {
+                        requestNotificationAuthorization()
+                    }
+                }
+                if failure.actions.contains(.openSettings) {
+                    Button(String(localized: "Open Settings", comment: "Permission recovery action")) {
+                        openAppSettings()
+                    }
+                }
+            }
+            .font(.geist(.caption).weight(.semibold))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .accessibilityIdentifier("settings.notifications.permission.error")
     }
 
     private func openAppSettings() {
