@@ -1,9 +1,11 @@
 import SwiftUI
+import UIKit
 
 struct NotificationSettingsView: View {
     @ObservedObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
+    @Environment(\.scenePhase) private var scenePhase
 
     @AppStorage(SharedKeys.notifyOneMinBefore, store: UserDefaults.stepsTrader())
     private var oneMinBefore: Bool = true
@@ -25,6 +27,28 @@ struct NotificationSettingsView: View {
 
     @AppStorage(SharedKeys.dayResetWarningHours, store: UserDefaults.stepsTrader())
     private var dayResetWarningHours: Int = 1
+
+    private var usesDeniedNotificationsFixture: Bool {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains("ui-testing")
+            && arguments.contains("ui-testing-notifications-denied")
+        #else
+        false
+        #endif
+    }
+
+    private var notificationPresentation: SettingsPermissionPresentation {
+        SettingsPermissionPresentation.notifications(
+            status: usesDeniedNotificationsFixture
+                ? .denied
+                : model.notificationAuthorizationStatus
+        )
+    }
+
+    private var notificationDeliveryIsUnavailable: Bool {
+        notificationPresentation.status != .allowed
+    }
 
     private var canvasTimeBinding: Binding<Date> {
         Binding<Date>(
@@ -49,6 +73,56 @@ struct NotificationSettingsView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+                    // MARK: - System Authorization
+                    VStack(alignment: .leading, spacing: 8) {
+                        SettingsGroupedSurface {
+                            SettingsSectionLabel(text: String(localized: "Notification access", comment: "Notification authorization section header"))
+                                .padding(.horizontal, 14)
+                                .padding(.bottom, 8)
+
+                            HStack(spacing: 12) {
+                                Image(systemName: "bell.badge")
+                                    .font(.geist(size: 15))
+                                    .foregroundStyle(notificationStatusColor)
+                                    .frame(width: 24)
+                                    .accessibilityHidden(true)
+
+                                Text(String(localized: "System notifications", comment: "Notification authorization row title"))
+                                    .font(.geist(.subheadline))
+                                    .foregroundStyle(theme.adaptivePrimaryText)
+
+                                Spacer(minLength: 12)
+
+                                Text(notificationStatusText)
+                                    .font(.geist(.caption).weight(.semibold))
+                                    .foregroundStyle(notificationStatusColor)
+                                    .multilineTextAlignment(.trailing)
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 13)
+
+                            if let actionTitle = notificationActionTitle {
+                                DetailDivider()
+
+                                Button(actionTitle) {
+                                    handleNotificationAction()
+                                }
+                                .font(.geist(.subheadline).weight(.semibold))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 13)
+                                .contentShape(Rectangle())
+                            }
+                        }
+                        .accessibilityElement(children: .contain)
+                        .accessibilityIdentifier("settings.notifications.authorization")
+
+                        if notificationDeliveryIsUnavailable {
+                            SettingsFooter(text: String(localized: "Reminders will not be delivered until notifications are allowed.", comment: "Notifications unavailable footer"))
+                        }
+                    }
+                    .padding(.horizontal, 16)
+
                     // MARK: - Access Window
                     SettingsGroupedSurface {
                         SettingsSectionLabel(text: String(localized: "Access window", comment: "Notification section header"))
@@ -57,7 +131,7 @@ struct NotificationSettingsView: View {
 
                         SettingsToggleRow(
                             icon: "timer",
-                            title: String(localized: "1 min before time is over"),
+                            title: String(localized: "1 minute before access ends", comment: "Notification preference for access ending soon"),
                             isOn: $oneMinBefore
                         )
 
@@ -65,7 +139,7 @@ struct NotificationSettingsView: View {
 
                         SettingsToggleRow(
                             icon: "clock.badge.exclamationmark",
-                            title: String(localized: "When the timer is over"),
+                            title: String(localized: "When access ends", comment: "Notification preference for access ending"),
                             isOn: $timerOver
                         )
                     }
@@ -90,19 +164,22 @@ struct NotificationSettingsView: View {
                         if canvasReminder {
                             DetailDivider()
 
-                            HStack(spacing: 12) {
-                                Image(systemName: "clock")
-                                    .font(.geist(size: 15))
-                                    .foregroundStyle(theme.adaptiveSecondaryText)
-                                    .frame(width: 24)
-                                Text(String(localized: "Remind at"))
-                                    .font(.geist(.subheadline))
-                                    .foregroundStyle(theme.adaptivePrimaryText)
-                                Spacer()
-                                DatePicker("", selection: canvasTimeBinding, displayedComponents: .hourAndMinute)
-                                    .labelsHidden()
-                                    .tint(AppColors.brandAccent)
+                            DatePicker(
+                                selection: canvasTimeBinding,
+                                displayedComponents: .hourAndMinute
+                            ) {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "clock")
+                                        .font(.geist(size: 15))
+                                        .foregroundStyle(theme.adaptiveSecondaryText)
+                                        .frame(width: 24)
+                                        .accessibilityHidden(true)
+                                    Text(String(localized: "Remind at", comment: "Canvas reminder time label"))
+                                        .font(.geist(.subheadline))
+                                        .foregroundStyle(theme.adaptivePrimaryText)
+                                }
                             }
+                            .tint(AppColors.brandAccent)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 10)
                         }
@@ -170,6 +247,13 @@ struct NotificationSettingsView: View {
         }
         .overlay { }
         .settingsDetailPage(title: String(localized: "Notifications", comment: "Navigation title"))
+        .task {
+            await refreshNotificationStatus()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { await refreshNotificationStatus() }
+        }
     }
 
     // MARK: - Reschedule helpers
@@ -181,6 +265,74 @@ struct NotificationSettingsView: View {
     private func rescheduleDayReset() {
         (model.notificationService as? NotificationManager)?
             .scheduleDayResetWarning(dayEndHour: model.dayEndHour, dayEndMinute: model.dayEndMinute)
+    }
+
+    private var notificationStatusText: String {
+        switch notificationPresentation.status {
+        case .allowed:
+            String(localized: "Allowed", comment: "Notification permission status")
+        case .notRequested:
+            String(localized: "Not requested", comment: "Notification permission status")
+        case .offInSystemSettings:
+            String(localized: "Off in System Settings", comment: "Notification permission status")
+        case .checkAccess:
+            String(localized: "Check access", comment: "Notification permission status")
+        case .connected:
+            String(localized: "Connected", comment: "Permission status")
+        case .unavailable:
+            String(localized: "N/A", comment: "Permission – not available badge")
+        case .actionNeeded:
+            String(localized: "Action needed", comment: "Permission status")
+        }
+    }
+
+    private var notificationActionTitle: String? {
+        switch notificationPresentation.action {
+        case .requestPermission:
+            String(localized: "Allow notifications", comment: "Notification permission action")
+        case .openSystemSettings, .checkAccess:
+            String(localized: "Open Settings", comment: "Permission recovery action")
+        case nil:
+            nil
+        }
+    }
+
+    private var notificationStatusColor: Color {
+        switch notificationPresentation.status {
+        case .allowed, .connected:
+            .green
+        case .notRequested, .offInSystemSettings, .actionNeeded:
+            .orange
+        case .checkAccess, .unavailable:
+            theme.adaptiveMutedText
+        }
+    }
+
+    private func handleNotificationAction() {
+        switch notificationPresentation.action {
+        case .requestPermission:
+            Task {
+                await model.requestNotificationPermission()
+                await refreshNotificationStatus()
+            }
+        case .openSystemSettings, .checkAccess:
+            openAppSettings()
+        case nil:
+            break
+        }
+    }
+
+    private func refreshNotificationStatus() async {
+        if usesDeniedNotificationsFixture {
+            model.notificationAuthorizationStatus = .denied
+            return
+        }
+        await model.refreshNotificationAuthorizationStatus()
+    }
+
+    private func openAppSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
     }
 }
 

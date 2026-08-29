@@ -8,38 +8,61 @@ import FamilyControls
 struct SettingsPermissionsPage: View {
     @ObservedObject var model: AppModel
     @Environment(\.appTheme) private var theme
+    @Environment(\.scenePhase) private var scenePhase
 
-    @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
+    @State private var healthAuthorizationError: String?
 
     private var isHealthKitAvailable: Bool {
         HKHealthStore.isHealthDataAvailable()
     }
 
-    /// HealthKit hides read-permission status — `hasStepsData` becomes `true` even
-    /// when the user denied read access (fetch returns 0, no error). Use actual
-    /// non-zero data as the verification signal for the permissions badge.
-    private var healthVerified: Bool {
-        model.stepsToday > 0 || model.dailySleepHours > 0
+    private var usesSuccessfulZeroHealthFixture: Bool {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains("ui-testing")
+            && arguments.contains("ui-testing-health-zero-success")
+        #else
+        false
+        #endif
     }
 
-    private var hasHealthData: Bool {
-        model.hasStepsData || model.hasSleepData
+    private var usesDeniedNotificationsFixture: Bool {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains("ui-testing")
+            && arguments.contains("ui-testing-notifications-denied")
+        #else
+        false
+        #endif
     }
 
-    private var isFamilyControlsAuthorized: Bool {
-        model.blockingStore.isAuthorized
+    private var healthPresentation: SettingsPermissionPresentation {
+        SettingsPermissionPresentation.health(
+            isAvailable: isHealthKitAvailable,
+            hasReturnedData: usesSuccessfulZeroHealthFixture
+                || model.hasStepsData
+                || model.hasSleepData
+        )
     }
 
-    private var isNotificationsGranted: Bool {
-        notificationStatus == .authorized
+    private var screenTimePresentation: SettingsPermissionPresentation {
+        SettingsPermissionPresentation.screenTime(
+            isAuthorized: model.blockingStore.isAuthorized
+        )
+    }
+
+    private var notificationPresentation: SettingsPermissionPresentation {
+        SettingsPermissionPresentation.notifications(
+            status: usesDeniedNotificationsFixture
+                ? .denied
+                : model.notificationAuthorizationStatus
+        )
     }
 
     private var missingPermissionCount: Int {
-        var count = 0
-        if !healthVerified { count += 1 }
-        if !isFamilyControlsAuthorized { count += 1 }
-        if !isNotificationsGranted { count += 1 }
-        return count
+        [healthPresentation, screenTimePresentation, notificationPresentation]
+            .filter(\.contributesToWarning)
+            .count
     }
 
     var body: some View {
@@ -58,20 +81,15 @@ struct SettingsPermissionsPage: View {
                             icon: "heart.fill",
                             title: String(localized: "Health", comment: "Permission row – HealthKit"),
                             subtitle: String(localized: "Steps, sleep, workouts", comment: "Permission row – HealthKit detail"),
-                            isGranted: healthVerified,
-                            isAvailable: isHealthKitAvailable,
-                            alwaysTappable: true,
-                            onFix: {
-                                Task {
-                                    do {
-                                        try await model.healthStore.requestAuthorization()
-                                        await model.refreshStepsIfAuthorized()
-                                    } catch {
-                                        AppLogger.healthKit.error("Permission page auth failed: \(error.localizedDescription)")
-                                    }
-                                }
-                            }
+                            presentation: healthPresentation,
+                            actionTitle: String(localized: "Check access", comment: "Health permission action"),
+                            onFix: requestHealthAuthorization
                         )
+
+                        if let healthAuthorizationError {
+                            DetailDivider()
+                            healthErrorRow(message: healthAuthorizationError)
+                        }
 
                         DetailDivider()
 
@@ -79,8 +97,8 @@ struct SettingsPermissionsPage: View {
                             icon: "hourglass",
                             title: String(localized: "Screen Time", comment: "Permission row – Family Controls"),
                             subtitle: String(localized: "App blocking & limits", comment: "Permission row – Family Controls detail"),
-                            isGranted: isFamilyControlsAuthorized,
-                            isAvailable: true,
+                            presentation: screenTimePresentation,
+                            actionTitle: String(localized: "Allow access", comment: "Screen Time permission action"),
                             onFix: {
                                 Task {
                                     do {
@@ -98,20 +116,9 @@ struct SettingsPermissionsPage: View {
                             icon: "bell.fill",
                             title: String(localized: "Notifications", comment: "Permission row – Notifications"),
                             subtitle: String(localized: "Timers, reminders, alerts", comment: "Permission row – Notifications detail"),
-                            isGranted: isNotificationsGranted,
-                            isAvailable: true,
-                            onFix: {
-                                Task {
-                                    let center = UNUserNotificationCenter.current()
-                                    let settings = await center.notificationSettings()
-                                    if settings.authorizationStatus == .denied {
-                                        openAppSettings()
-                                    } else {
-                                        await model.requestNotificationPermission()
-                                        await refreshNotificationStatus()
-                                    }
-                                }
-                            }
+                            presentation: notificationPresentation,
+                            actionTitle: notificationActionTitle,
+                            onFix: handleNotificationAction
                         )
                     }
                     .padding(.horizontal, 16)
@@ -125,7 +132,12 @@ struct SettingsPermissionsPage: View {
         .overlay { }
         .settingsDetailPage(title: String(localized: "Permissions", comment: "Permissions page title"))
         .task {
+            seedSuccessfulZeroHealthFixtureIfNeeded()
             await refreshNotificationStatus()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { await refreshNotificationStatus() }
         }
     }
 
@@ -155,71 +167,161 @@ struct SettingsPermissionsPage: View {
         icon: String,
         title: String,
         subtitle: String,
-        isGranted: Bool,
-        isAvailable: Bool,
-        alwaysTappable: Bool = false,
+        presentation: SettingsPermissionPresentation,
+        actionTitle: String?,
         onFix: @escaping () -> Void
     ) -> some View {
-        Button(action: {
-            onFix()
-        }) {
-            HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.geist(size: 15))
-                    .foregroundStyle(isGranted ? .green : .orange)
-                    .frame(width: 24)
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.geist(size: 15))
+                .foregroundStyle(permissionColor(for: presentation))
+                .frame(width: 24)
+                .accessibilityHidden(true)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.geist(.subheadline))
-                        .foregroundStyle(theme.adaptivePrimaryText)
-                    Text(subtitle)
-                        .font(.geist(.caption))
-                        .foregroundStyle(theme.adaptiveSecondaryText)
-                }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.geist(.subheadline))
+                    .foregroundStyle(theme.adaptivePrimaryText)
+                Text(subtitle)
+                    .font(.geist(.caption))
+                    .foregroundStyle(theme.adaptiveSecondaryText)
+            }
 
-                Spacer()
+            Spacer(minLength: 12)
 
-                if !isAvailable {
-                    Text(String(localized: "N/A", comment: "Permission – not available badge"))
-                        .font(.geist(.caption2).weight(.medium))
-                        .foregroundStyle(theme.adaptiveMutedText)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Capsule().fill(theme.adaptiveMutedText.opacity(0.12)))
-                } else if isGranted {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                        .font(.geist(size: 18))
-                } else {
-                    Text(String(localized: "Enable", comment: "Permission – enable button"))
+            VStack(alignment: .trailing, spacing: 5) {
+                Text(statusText(for: presentation.status))
+                    .font(.geist(.caption).weight(.semibold))
+                    .foregroundStyle(permissionColor(for: presentation))
+                    .multilineTextAlignment(.trailing)
+
+                if presentation.action != nil, let actionTitle {
+                    Button(actionTitle, action: onFix)
                         .font(.geist(.caption).weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Capsule().fill(.orange))
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 13)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(MattePressStyle())
-        .disabled(!isAvailable || (!alwaysTappable && isGranted))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 13)
     }
 
     // MARK: - Helpers
 
     private func refreshNotificationStatus() async {
-        let settings = await UNUserNotificationCenter.current().notificationSettings()
-        await MainActor.run {
-            notificationStatus = settings.authorizationStatus
+        if usesDeniedNotificationsFixture {
+            model.notificationAuthorizationStatus = .denied
+            return
         }
+        await model.refreshNotificationAuthorizationStatus()
+    }
+
+    private func seedSuccessfulZeroHealthFixtureIfNeeded() {
+        guard usesSuccessfulZeroHealthFixture else { return }
+        model.healthStore.stepsToday = 0
+        model.healthStore.hasStepsData = true
     }
 
     private func openAppSettings() {
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         UIApplication.shared.open(url)
+    }
+
+    private var notificationActionTitle: String? {
+        switch notificationPresentation.action {
+        case .requestPermission:
+            String(localized: "Allow notifications", comment: "Notification permission action")
+        case .openSystemSettings:
+            String(localized: "Open Settings", comment: "Permission recovery action")
+        case .checkAccess:
+            String(localized: "Check access", comment: "Permission check action")
+        case nil:
+            nil
+        }
+    }
+
+    private func statusText(for status: SettingsPermissionStatus) -> String {
+        switch status {
+        case .connected:
+            String(localized: "Connected", comment: "Permission status")
+        case .checkAccess:
+            String(localized: "Check access", comment: "Permission status")
+        case .unavailable:
+            String(localized: "N/A", comment: "Permission – not available badge")
+        case .allowed:
+            String(localized: "Allowed", comment: "Notification permission status")
+        case .notRequested:
+            String(localized: "Not requested", comment: "Notification permission status")
+        case .offInSystemSettings:
+            String(localized: "Off in System Settings", comment: "Notification permission status")
+        case .actionNeeded:
+            String(localized: "Action needed", comment: "Permission status")
+        }
+    }
+
+    private func permissionColor(
+        for presentation: SettingsPermissionPresentation
+    ) -> Color {
+        switch presentation.status {
+        case .connected, .allowed:
+            .green
+        case .unavailable, .checkAccess:
+            theme.adaptiveMutedText
+        case .notRequested, .offInSystemSettings, .actionNeeded:
+            .orange
+        }
+    }
+
+    private func requestHealthAuthorization() {
+        Task {
+            healthAuthorizationError = nil
+            do {
+                try await model.healthStore.requestAuthorization()
+                await model.refreshStepsIfAuthorized()
+                await model.refreshSleepIfAuthorized()
+            } catch {
+                AppLogger.healthKit.error(
+                    "Permission page auth failed: \(error.localizedDescription)"
+                )
+                healthAuthorizationError = error.localizedDescription
+            }
+        }
+    }
+
+    private func handleNotificationAction() {
+        switch notificationPresentation.action {
+        case .requestPermission:
+            Task { await model.requestNotificationPermission() }
+        case .openSystemSettings, .checkAccess:
+            openAppSettings()
+        case nil:
+            break
+        }
+    }
+
+    private func healthErrorRow(message: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(String(localized: "Health access couldn't be checked", comment: "Health permission error title"))
+                .font(.geist(.subheadline).weight(.semibold))
+                .foregroundStyle(theme.adaptivePrimaryText)
+            Text(message)
+                .font(.geist(.caption))
+                .foregroundStyle(theme.adaptiveSecondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 12) {
+                Button(String(localized: "Try Again", comment: "Health permission retry action")) {
+                    requestHealthAuthorization()
+                }
+                Button(String(localized: "Open Settings", comment: "Permission recovery action")) {
+                    openAppSettings()
+                }
+            }
+            .font(.geist(.caption).weight(.semibold))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .accessibilityIdentifier("settings.permissions.health.error")
     }
 
 }

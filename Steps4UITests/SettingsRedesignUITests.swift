@@ -3,19 +3,24 @@ import XCTest
 final class SettingsRedesignUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
-    private func launchSettings() -> XCUIApplication {
-        launchSettings(contentSizeCategory: "UICTContentSizeCategoryL")
+    private func launchSettings(extraArguments: [String] = []) -> XCUIApplication {
+        launchSettings(
+            contentSizeCategory: "UICTContentSizeCategoryL",
+            extraArguments: extraArguments
+        )
     }
 
     private func launchSettings(
         contentSizeCategory: String,
-        seedSettings: Bool = true
+        seedSettings: Bool = true,
+        extraArguments: [String] = []
     ) -> XCUIApplication {
         let app = XCUIApplication()
         launchSettings(
             app,
             contentSizeCategory: contentSizeCategory,
-            seedSettings: seedSettings
+            seedSettings: seedSettings,
+            extraArguments: extraArguments
         )
         return app
     }
@@ -23,12 +28,14 @@ final class SettingsRedesignUITests: XCTestCase {
     private func launchSettings(
         _ app: XCUIApplication,
         contentSizeCategory: String = "UICTContentSizeCategoryL",
-        seedSettings: Bool
+        seedSettings: Bool,
+        extraArguments: [String] = []
     ) {
         app.launchArguments = ["ui-testing"]
         if seedSettings {
             app.launchArguments.append("ui-testing-settings")
         }
+        app.launchArguments.append(contentsOf: extraArguments)
         app.launchArguments += [
             "-AppleLanguages", "(en)", "-AppleLocale", "en_US",
             "-UIPreferredContentSizeCategoryName", contentSizeCategory,
@@ -95,6 +102,20 @@ final class SettingsRedesignUITests: XCTestCase {
         app.buttons["settings.destination.notifications"].tap()
         XCTAssertTrue(app.otherElements["settings.detail.background"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.otherElements["settings.notifications.accessWindow"].exists)
+    }
+
+    func testZeroHealthDataDoesNotProduceUrgentWarning() {
+        let app = launchSettings(extraArguments: ["ui-testing-health-zero-success"])
+        app.buttons["settings.destination.permissions"].tap()
+        XCTAssertTrue(app.staticTexts["Connected"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.staticTexts["Health not granted"].exists)
+    }
+
+    func testDeniedNotificationsShowSystemRecoveryAction() {
+        let app = launchSettings(extraArguments: ["ui-testing-notifications-denied"])
+        app.buttons["settings.destination.notifications"].tap()
+        XCTAssertTrue(app.staticTexts["Off in System Settings"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Open Settings"].exists)
     }
 
     func testYourDayEditorsExposeContextualSemanticsAndMinimumHitTargets() {
