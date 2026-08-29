@@ -716,6 +716,57 @@ final class DayObjectPaletteTests: XCTestCase {
         }
     }
 
+    func testEveryMeshArchetypeMovesContinuouslyWithoutFlashing() throws {
+        let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        let commandQueue = try XCTUnwrap(device.makeCommandQueue())
+        let library = try XCTUnwrap(device.makeDefaultLibrary())
+        let vertexFunction = try XCTUnwrap(library.makeFunction(name: "dayObjectsFullscreenVertex"))
+        let fragmentFunction = try XCTUnwrap(library.makeFunction(name: "dayObjectsMeshGradientFragment"))
+        let descriptor = MTLRenderPipelineDescriptor()
+        descriptor.vertexFunction = vertexFunction
+        descriptor.fragmentFunction = fragmentFunction
+        descriptor.colorAttachments[0].pixelFormat = .rgba16Float
+        let pipeline = try device.makeRenderPipelineState(descriptor: descriptor)
+        let plan = DayObjectsRenderTargetPlan(drawableWidth: 80, drawableHeight: 60)
+        let colors = ["000000", "ff0000", "ffff00", "00ffff"].map {
+            DayObjectRGB(hex: $0).linearRGB
+        }
+
+        for archetype in DayObjectMeshGradientArchetype.allCases {
+            let style = productionCoverageStyle(colors: colors, archetype: archetype)
+            let first = try renderMeshGradient(
+                style: style,
+                elapsedTime: 0,
+                plan: plan,
+                device: device,
+                commandQueue: commandQueue,
+                pipeline: pipeline
+            )
+            let nextFrame = try renderMeshGradient(
+                style: style,
+                elapsedTime: 1.0 / 30.0,
+                plan: plan,
+                device: device,
+                commandQueue: commandQueue,
+                pipeline: pipeline
+            )
+            let later = try renderMeshGradient(
+                style: style,
+                elapsedTime: 12,
+                plan: plan,
+                device: device,
+                commandQueue: commandQueue,
+                pipeline: pipeline
+            )
+            let shortDelta = meanAbsoluteRGBDifference(first, nextFrame)
+            let longDelta = meanAbsoluteRGBDifference(first, later)
+
+            XCTAssertLessThan(shortDelta, 0.0025, "\(archetype) flashes between frames")
+            XCTAssertGreaterThan(longDelta, 0.004, "\(archetype) appears static")
+            XCTAssertLessThan(longDelta, 0.20, "\(archetype) changes too abruptly")
+        }
+    }
+
     func testSeparatedProductionPalettesKeepEachColorVisibleAcrossArchetypes() throws {
         let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
         let commandQueue = try XCTUnwrap(device.makeCommandQueue())
