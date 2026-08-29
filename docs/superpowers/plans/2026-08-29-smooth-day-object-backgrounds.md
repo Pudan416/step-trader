@@ -251,7 +251,7 @@ git commit -m "test: lock smooth moving Day Object backgrounds"
 
 - [ ] **Step 2: Export and inspect the actual new renders before editing baselines**
 
-  Export the kept PNG attachments for `light-phone-portrait` and every failing insertion/removal triptych phase. Provide absolute artifact paths and a contact sheet. Stop with `NEEDS_CONTEXT` before changing golden values so the controller can inspect the images and authorize the update.
+  Export the kept PNG attachments for every fixture or transition phase that fails at the current HEAD. The published `4e1ac4d7` evidence named `light-phone-portrait`, while the completed broad-field branch run reported all four light/dark phone/tablet fixtures plus insertion/removal triptychs; trust the current targeted reproduction and export every failing current attachment. Provide absolute artifact paths and contact sheets. Stop with `NEEDS_CONTEXT` before changing golden values so the controller can inspect the images and authorize the update.
 
   The visual gate requires broad continuous background fields, visible actors, expected actor counts, no hard rings/stripes/seams, no UI-exclusion intrusion, and transitions whose changed area corresponds to the inserted/removed actor.
 
