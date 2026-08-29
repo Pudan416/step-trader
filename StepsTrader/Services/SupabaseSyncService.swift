@@ -487,6 +487,7 @@ actor SupabaseSyncService {
         if let additions = await loadOptionEntriesFromServer(dayKey: today), !additions.isEmpty {
             await MainActor.run {
                 model.todayAdditions = additions
+                model.removeSatisfiedActivitySuggestions()
                 model.persistDailyEnergyState()
             }
             didRestore = true

@@ -15,6 +15,7 @@ final class ConfigurableHealthKitMock: HealthKitServiceProtocol {
     var observerStarted = false
     var observerStopped = false
     var workoutsToReturn: [DetectedWorkout] = []
+    var mindfulMinutesToReturn: Double = 0
     var workoutFetchCount = 0
     private var observerHandler: ((Double) -> Void)?
 
@@ -50,7 +51,9 @@ final class ConfigurableHealthKitMock: HealthKitServiceProtocol {
         return workoutsToReturn
     }
 
-    func fetchMindfulMinutes(from: Date, to: Date) async throws -> Double { 0 }
+    func fetchMindfulMinutes(from: Date, to: Date) async throws -> Double {
+        mindfulMinutesToReturn
+    }
 
     func stopObservingSteps() {
         observerStopped = true
@@ -69,6 +72,20 @@ final class ConfigurableHealthKitMock: HealthKitServiceProtocol {
 
 @MainActor
 final class HealthActivitySuggestionTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        let defaults = UserDefaults.stepsTrader()
+        defaults.removeObject(forKey: SharedKeys.todayAdditions)
+        defaults.removeObject(forKey: "dismissedSuggestionIds_v1")
+    }
+
+    override func tearDown() {
+        let defaults = UserDefaults.stepsTrader()
+        defaults.removeObject(forKey: SharedKeys.todayAdditions)
+        defaults.removeObject(forKey: "dismissedSuggestionIds_v1")
+        super.tearDown()
+    }
+
     func testHealthWorkoutTypesHaveDistinctStableActivitiesAndCorrectNames() {
         let cases: [(HKWorkoutActivityType, String)] = [
             (.walking, "Walking"),
@@ -168,6 +185,147 @@ final class HealthActivitySuggestionTests: XCTestCase {
             "Yoga"
         )
         XCTAssertTrue(model.selectedPaletteHappeningIDs().contains("health_workout_57"))
+    }
+
+    func testRefreshDoesNotSuggestHealthWalkingWhenWalkIsAlreadyOnCanvas() async {
+        let healthKit = ConfigurableHealthKitMock()
+        healthKit.workoutsToReturn = [
+            DetectedWorkout(
+                id: UUID(),
+                activityType: HKWorkoutActivityType.walking.rawValue,
+                startDate: Date.now.addingTimeInterval(-1_800),
+                endDate: Date.now,
+                durationMinutes: 30,
+                caloriesBurned: nil,
+                distance: nil
+            )
+        ]
+        let model = makeModel(healthKit: healthKit)
+        model.todayAdditions = [todayEntry(optionId: "happening_walk")]
+
+        await model.refreshActivitySuggestions()
+
+        XCTAssertFalse(model.pendingActivitySuggestions.contains { suggestion in
+            if case .workout = suggestion.source { return true }
+            return false
+        })
+    }
+
+    func testRefreshDoesNotSuggestSpecificWorkoutWhenGenericWorkoutIsAlreadyOnCanvas() async {
+        let healthKit = ConfigurableHealthKitMock()
+        healthKit.workoutsToReturn = [
+            DetectedWorkout(
+                id: UUID(),
+                activityType: HKWorkoutActivityType.yoga.rawValue,
+                startDate: Date.now.addingTimeInterval(-1_800),
+                endDate: Date.now,
+                durationMinutes: 30,
+                caloriesBurned: nil,
+                distance: nil
+            )
+        ]
+        let model = makeModel(healthKit: healthKit)
+        model.todayAdditions = [todayEntry(optionId: "happening_workout")]
+
+        await model.refreshActivitySuggestions()
+
+        XCTAssertFalse(model.pendingActivitySuggestions.contains { suggestion in
+            if case .workout = suggestion.source { return true }
+            return false
+        })
+    }
+
+    func testRefreshDoesNotSuggestRestingWhenSleepIsAlreadyOnCanvas() async {
+        let model = makeModel()
+        model.todayAdditions = [todayEntry(optionId: "happening_slept_well")]
+
+        await model.refreshActivitySuggestions()
+
+        XCTAssertFalse(model.pendingActivitySuggestions.contains { $0.id == "morning_resting" })
+    }
+
+    func testRefreshDoesNotSuggestMindfulSessionWhenIntentionalRestIsAlreadyOnCanvas() async {
+        let healthKit = ConfigurableHealthKitMock()
+        healthKit.mindfulMinutesToReturn = 12
+        let model = makeModel(healthKit: healthKit)
+        model.todayAdditions = [todayEntry(optionId: "happening_did_nothing")]
+
+        await model.refreshActivitySuggestions()
+
+        XCTAssertFalse(model.pendingActivitySuggestions.contains { suggestion in
+            if case .mindfulSession = suggestion.source { return true }
+            return false
+        })
+    }
+
+    func testAddingMatchingHappeningRemovesAnAlreadyVisibleSuggestion() {
+        let model = makeModel()
+        model.pendingActivitySuggestions = [.fromMorningResting()]
+
+        let result = model.addHappening(
+            id: "happening_slept_well",
+            colorHex: "#AABBCC"
+        )
+
+        XCTAssertNotNil(result)
+        XCTAssertTrue(model.pendingActivitySuggestions.isEmpty)
+    }
+
+    func testSyncedMatchingHappeningHidesAnAlreadyVisibleSuggestion() {
+        let model = makeModel()
+        model.pendingActivitySuggestions = [.fromMorningResting()]
+
+        model.todayAdditions = [todayEntry(optionId: "happening_slept_well")]
+
+        XCTAssertTrue(model.pendingActivitySuggestions.isEmpty)
+    }
+
+    func testConcreteHealthActivityPrecedesGenericMorningSuggestion() async throws {
+        let healthKit = ConfigurableHealthKitMock()
+        healthKit.workoutsToReturn = [
+            DetectedWorkout(
+                id: UUID(),
+                activityType: HKWorkoutActivityType.running.rawValue,
+                startDate: Date.now.addingTimeInterval(-1_800),
+                endDate: Date.now,
+                durationMinutes: 30,
+                caloriesBurned: nil,
+                distance: nil
+            )
+        ]
+        let model = makeModel(healthKit: healthKit)
+
+        await model.refreshActivitySuggestions()
+
+        let first = try XCTUnwrap(model.pendingActivitySuggestions.first)
+        if case .workout = first.source {
+            // Expected: a concrete detected event leads the visual stack.
+        } else {
+            XCTFail("Expected the concrete HealthKit workout to be first")
+        }
+    }
+
+    private func makeModel(
+        healthKit: ConfigurableHealthKitMock = ConfigurableHealthKitMock()
+    ) -> AppModel {
+        AppModel(
+            healthKitService: healthKit,
+            familyControlsService: MockFamilyControlsService(),
+            notificationService: MockNotificationService(),
+            budgetEngine: MockBudgetEngine(),
+            subscriptionStore: SubscriptionStore()
+        )
+    }
+
+    private func todayEntry(optionId: String) -> OptionEntry {
+        OptionEntry(
+            id: UUID().uuidString,
+            dayKey: AppModel.dayKey(for: .now),
+            optionId: optionId,
+            colorHex: "#AABBCC",
+            timestamp: .now,
+            assetVariant: nil
+        )
     }
 }
 
