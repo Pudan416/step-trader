@@ -6,6 +6,9 @@ struct InlineTicketSettingsView: View {
     @Binding var group: TicketGroup
     let onEditApps: () -> Void
     var onAfterDelete: (() -> Void)? = nil
+    var onDelete: ((String) -> Void)? = nil
+    var onUpdateGroup: ((TicketGroup) -> Void)? = nil
+    var isUsageBudgetActive: ((String) -> Bool)? = nil
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isUnlocking = false
@@ -141,7 +144,11 @@ struct InlineTicketSettingsView: View {
                         } else if group.enabledIntervals.count > 1 {
                             group.enabledIntervals.remove(interval)
                         }
-                        model.updateTicketGroup(group)
+                        if let onUpdateGroup {
+                            onUpdateGroup(group)
+                        } else {
+                            model.updateTicketGroup(group)
+                        }
                     }
                 ))
                 .font(.geist(.subheadline))
@@ -163,13 +170,17 @@ struct InlineTicketSettingsView: View {
 
     private func confirmDelete() {
         let groupId = group.id
-        model.deleteTicketGroup(groupId)
-        onAfterDelete?()
+        if let onDelete {
+            onDelete(groupId)
+        } else {
+            model.deleteTicketGroup(groupId)
+            onAfterDelete?()
+        }
     }
 
     @ViewBuilder
     private var unlockButtonsSection: some View {
-        if model.isGroupUsageBudgetActive(group.id) {
+        if (isUsageBudgetActive ?? model.isGroupUsageBudgetActive)(group.id) {
             // Same accessor the Feeds surface uses: the wall-clock-floored one
             // reports time already spent when the phone merely sat idle.
             let budget = model.unspentUsageBudgetMatchingShield(for: group.id)

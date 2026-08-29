@@ -125,6 +125,7 @@ struct StepsTraderApp: App {
 
     init() {
         let processArguments = ProcessInfo.processInfo.arguments
+        let usesTicketSettingsFixture = processArguments.contains("ui-testing-ticket-settings")
 
         if processArguments.contains("ui-testing-me-static-poster") {
             let dayKey = AppModel.dayKey(for: Date.now)
@@ -181,18 +182,6 @@ struct StepsTraderApp: App {
             defaults.set(0, forKey: SharedKeys.dayEndHour)
             defaults.set(0, forKey: SharedKeys.dayEndMinute)
         }
-        #if DEBUG
-        if processArguments.contains("ui-testing-ticket-settings") {
-            let fixture = TicketGroup(
-                id: "ui-testing-study",
-                name: "Study",
-                settings: AppUnlockSettings(entryCostSteps: 10, dayPassCostSteps: 100)
-            )
-            if let data = try? JSONEncoder().encode([fixture]) {
-                UserDefaults.stepsTrader().set(data, forKey: SharedKeys.ticketGroups)
-            }
-        }
-        #endif
         _model = StateObject(wrappedValue: DIContainer.shared.makeAppModel())
 
         // Register the MetricKit subscriber early so diagnostics aggregated since
@@ -208,13 +197,15 @@ struct StepsTraderApp: App {
         // background→foreground cycles and triggered `requestReview()` early.
         // Use UserDefaults directly because @AppStorage wrappers are not safe
         // to mutate before the View graph is materialized.
-        let standardDefaults = UserDefaults.standard
-        let nextLaunchCount = standardDefaults.integer(forKey: "appLaunchCount") + 1
-        standardDefaults.set(nextLaunchCount, forKey: "appLaunchCount")
+        if !usesTicketSettingsFixture {
+            let standardDefaults = UserDefaults.standard
+            let nextLaunchCount = standardDefaults.integer(forKey: "appLaunchCount") + 1
+            standardDefaults.set(nextLaunchCount, forKey: "appLaunchCount")
 
-        // Mirror theme to app-group so the wallpaper Shortcut intent can read it reliably.
-        let themeRaw = UserDefaults.standard.string(forKey: "appTheme") ?? AppTheme.night.rawValue
-        UserDefaults(suiteName: SharedKeys.appGroupId)?.set(themeRaw, forKey: "appTheme")
+            // Mirror theme to app-group so the wallpaper Shortcut intent can read it reliably.
+            let themeRaw = UserDefaults.standard.string(forKey: "appTheme") ?? AppTheme.night.rawValue
+            UserDefaults(suiteName: SharedKeys.appGroupId)?.set(themeRaw, forKey: "appTheme")
+        }
 
         // NOTE: UINavigationBar / UITabBar appearance proxies were previously
         // installed here in init(). They have been moved to `installLegacyBarAppearances()`
@@ -295,7 +286,9 @@ struct StepsTraderApp: App {
                 // straight from launch. Driving the settings path with synthetic
                 // taps is unreliable enough that verifying a shader visually
                 // otherwise costs more than building it.
-                if let lab = ExperimentalLabRoute.current {
+                if ProcessInfo.processInfo.arguments.contains("ui-testing-ticket-settings") {
+                    TicketSettingsUITestFixtureView(model: model)
+                } else if let lab = ExperimentalLabRoute.current {
                     NavigationStack { lab.view }
                 } else {
                     appBody
@@ -747,6 +740,47 @@ struct StepsTraderApp: App {
     }
 
 }
+
+#if DEBUG
+private struct TicketSettingsUITestFixtureView: View {
+    @ObservedObject var model: AppModel
+    @State private var group = TicketGroup(
+        id: "ui-testing-study",
+        name: "Study",
+        settings: AppUnlockSettings(entryCostSteps: 10, dayPassCostSteps: 100),
+        enabledIntervals: []
+    )
+    @State private var showsSettings = false
+    @State private var isDeleted = false
+
+    var body: some View {
+        Button(String(localized: "Feeds")) {
+            guard !isDeleted else { return }
+            showsSettings = true
+        }
+        .accessibilityIdentifier("tab_feeds")
+        .sheet(isPresented: $showsSettings) {
+            NavigationStack {
+                InlineTicketSettingsView(
+                    model: model,
+                    group: $group,
+                    onEditApps: {},
+                    onAfterDelete: {},
+                    onDelete: { _ in
+                        isDeleted = true
+                        showsSettings = false
+                    },
+                    onUpdateGroup: { updated in group = updated },
+                    isUsageBudgetActive: { _ in false }
+                )
+                .padding()
+                .navigationTitle(String(localized: "Study"))
+                .navigationBarTitleDisplayMode(.inline)
+            }
+        }
+    }
+}
+#endif
 
 private extension StepsTraderApp {
     var currentTheme: AppTheme {

@@ -131,13 +131,14 @@ final class SettingsRedesignUITests: XCTestCase {
         let app = launchTicketSettings()
 
         app.buttons["settings.feed.delete"].tap()
-        XCTAssertTrue(app.sheets["Delete Study?"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.buttons["Cancel"].exists)
+        let confirmation = app.sheets["Delete Study?"]
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["Delete Feed"].exists)
 
-        app.buttons["Cancel"].tap()
+        app.otherElements["dismiss popup"].tap()
 
-        XCTAssertTrue(app.staticTexts["Study"].exists)
+        XCTAssertFalse(confirmation.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.navigationBars["Study"].exists)
     }
 
     func testConfirmingFeedDeletionRemovesSeededFeed() {
