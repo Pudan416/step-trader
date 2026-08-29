@@ -37,6 +37,55 @@ final class DayObjectChoreographyTests: XCTestCase {
         return result
     }
 
+    private func scenes(
+        for preset: DayObjectChoreographyPreset,
+        eventIDs: [String],
+        sampleCount: Int = 3,
+        matching topology: (DayObjectChoreographyTopology) -> Bool = { _ in true }
+    ) -> [DayObjectScene] {
+        var result = [DayObjectScene]()
+        for seed in UInt64(0)..<8_192 where result.count < sampleCount {
+            let source = DayObjectScene.make(input: fixtureInput(seed: seed, count: 0))
+            guard source.motionPlan.preset == preset,
+                  topology(source.choreographyConfiguration.topology) else { continue }
+            result.append(rebuiltScene(from: source, eventIDs: eventIDs))
+        }
+        XCTAssertEqual(result.count, sampleCount, "preset=\(preset)")
+        return result
+    }
+
+    private func rebuiltScene(
+        from source: DayObjectScene,
+        eventIDs: [String]
+    ) -> DayObjectScene {
+        let input = source.input
+        return DayObjectScene.make(input: DayObjectSceneInput(
+            dayKey: input.dayKey,
+            identity: input.identity,
+            eventIDs: eventIDs,
+            motionEnergy: input.motionEnergy,
+            visualClarity: input.visualClarity,
+            reduceMotion: input.reduceMotion,
+            uiExclusionRegion: input.uiExclusionRegion,
+            canvasCoverage: input.canvasCoverage,
+            paletteCategories: input.paletteCategories
+        ))
+    }
+
+    private func arbitraryIDsSharingCanonicalSlot(
+        in configuration: DayObjectChoreographyConfiguration,
+        rootSeed: UInt64
+    ) -> [String] {
+        var firstIDByOrdinal = [Int: String]()
+        for index in 0..<1_000 {
+            let eventID = "uuid-like-\(index)-x"
+            let ordinal = configuration.slot(eventID: eventID, rootSeed: rootSeed).ordinal
+            if let first = firstIDByOrdinal[ordinal] { return [first, eventID] }
+            firstIDByOrdinal[ordinal] = eventID
+        }
+        return []
+    }
+
     private func pose(
         _ actor: DayObjectActor,
         in scene: DayObjectScene,
@@ -194,7 +243,7 @@ final class DayObjectChoreographyTests: XCTestCase {
         XCTAssertEqual(first, configuration.slot(eventID: "event--1", rootSeed: 77))
     }
 
-    func testArbitraryEventIDCollisionsKeepDistinctStablePhaseOffsets() throws {
+    func testArbitraryEventIDCollisionsKeepStableTopologyPhase() throws {
         let configuration = DayObjectChoreographyConfiguration.make(seed: 77)
         var idsBySlot = [Int: [String]]()
         for index in 0..<1_000 {
@@ -207,9 +256,188 @@ final class DayObjectChoreographyTests: XCTestCase {
         let rhs = configuration.slot(eventID: collision[1], rootSeed: 77)
 
         XCTAssertEqual(lhs.ordinal, rhs.ordinal)
-        XCTAssertNotEqual(lhs.phase, rhs.phase)
+        XCTAssertEqual(lhs.phase, rhs.phase)
         XCTAssertEqual(lhs, configuration.slot(eventID: collision[0], rootSeed: 77))
         XCTAssertEqual(rhs, configuration.slot(eventID: collision[1], rootSeed: 77))
+    }
+
+    /// Mutation covered: setting the actor-local identity phase to zero in any
+    /// route branch makes at least one production route or pose assertion fail.
+    func testArbitraryIDsSharingCanonicalSlotKeepDistinctProductionPoses() throws {
+        let configuration = DayObjectChoreographyConfiguration.make(seed: 77)
+        XCTAssertEqual(configuration.preset, .radialBloom)
+        let regressionIDs = ["uuid-like-0-x", "uuid-like-2-x"]
+        XCTAssertEqual(
+            configuration.slot(eventID: regressionIDs[0], rootSeed: 77).ordinal,
+            configuration.slot(eventID: regressionIDs[1], rootSeed: 77).ordinal
+        )
+        let regressionPlan = DayObjectMotionPlan.make(
+            configuration: configuration,
+            rootSeed: 77,
+            eventIDs: regressionIDs
+        )
+        XCTAssertNotEqual(regressionPlan.routes[regressionIDs[0]], regressionPlan.routes[regressionIDs[1]])
+
+        for preset in DayObjectChoreographyPreset.allCases {
+            for source in scenes(for: preset, eventIDs: [], sampleCount: 2) {
+                let ids = try XCTUnwrap(arbitraryIDsSharingCanonicalSlot(
+                    in: source.choreographyConfiguration,
+                    rootSeed: source.rootSeed
+                ))
+                let scene = rebuiltScene(from: source, eventIDs: ids)
+                XCTAssertEqual(
+                    scene.actors[0].choreographySlot.ordinal,
+                    scene.actors[1].choreographySlot.ordinal,
+                    "preset=\(preset) ids=\(ids)"
+                )
+                XCTAssertNotEqual(
+                    scene.actors[0].route,
+                    scene.actors[1].route,
+                    "preset=\(preset) ids=\(ids)"
+                )
+                for time in [0.0, scene.score.duration * 0.23, scene.score.duration * 0.71] {
+                    XCTAssertGreaterThan(
+                        simd_distance(
+                            pose(scene.actors[0], in: scene, at: time).position,
+                            pose(scene.actors[1], in: scene, at: time).position
+                        ),
+                        0.000_001,
+                        "preset=\(preset) time=\(time) ids=\(ids)"
+                    )
+                }
+            }
+        }
+    }
+
+    func testSparseDoubleOrbitAdmitsSeparatedRingsBeforeAdjacentGeometry() {
+        let ids = (0..<5).map { "event-\($0)" }
+        for source in scenes(for: .doubleOrbit, eventIDs: ids) {
+            let center = canvasPoint(source.choreographyConfiguration.center)
+            for count in [1, 2, 3, 5] {
+                let scene = rebuiltScene(from: source, eventIDs: Array(ids.prefix(count)))
+                let positions = scene.actors.map { pose($0, in: scene, at: 0).position }
+                let radials = positions.map { $0 - center }
+                XCTAssertTrue(radials.allSatisfy { simd_length($0).isFinite })
+                if count >= 2 {
+                    XCTAssertGreaterThan(
+                        abs(simd_length(radials[0]) - simd_length(radials[1])),
+                        0.055,
+                        "count=\(count)"
+                    )
+                    let angle = acos(min(max(
+                        simd_dot(radials[0], radials[1])
+                            / (simd_length(radials[0]) * simd_length(radials[1])),
+                        -1
+                    ), 1))
+                    XCTAssertGreaterThan(angle, 1.0, "count=\(count)")
+                }
+                if count >= 3 {
+                    let angles = radials.map { atan2($0.y, $0.x) }
+                    let separations = angles.enumerated().flatMap { index, angle in
+                        angles.dropFirst(index + 1).map {
+                            min(wrappedPositiveAngle($0 - angle), wrappedPositiveAngle(angle - $0))
+                        }
+                    }
+                    XCTAssertGreaterThan(separations.min() ?? 0, 0.65, "count=\(count)")
+                }
+            }
+        }
+    }
+
+    func testSparseWaveRibbonAdmitsCenterAndOpposedPositionsBeforeAdjacentPoints() {
+        let ids = (0..<5).map { "event-\($0)" }
+        for ribbonCount in 1...2 {
+            for source in scenes(
+                for: .waveRibbon,
+                eventIDs: ids,
+                matching: { topology in
+                    if case .waveRibbon(_, let count) = topology { return count == ribbonCount }
+                    return false
+                }
+            ) {
+                let tangent = SIMD2(
+                    cos(source.choreographyConfiguration.orientation),
+                    sin(source.choreographyConfiguration.orientation)
+                )
+                let center = canvasPoint(source.choreographyConfiguration.center)
+                for count in [1, 2, 3, 5] {
+                    let scene = rebuiltScene(from: source, eventIDs: Array(ids.prefix(count)))
+                    let longitudinal = scene.actors.map {
+                        simd_dot(pose($0, in: scene, at: 0).position - center, tangent)
+                    }
+                    if ribbonCount == 1 {
+                        XCTAssertLessThan(abs(longitudinal[0]), 0.06, "count=\(count)")
+                        if count >= 2 {
+                            XCTAssertGreaterThan(abs(longitudinal[1]), 0.20, "count=\(count)")
+                        }
+                        if count >= 3 {
+                            XCTAssertLessThan(longitudinal.min() ?? 0, -0.20, "count=\(count)")
+                            XCTAssertGreaterThan(longitudinal.max() ?? 0, 0.20, "count=\(count)")
+                        }
+                    } else if count >= 2 {
+                        XCTAssertNotEqual(
+                            scene.actors[0].choreographySlot.group,
+                            scene.actors[1].choreographySlot.group,
+                            "count=\(count)"
+                        )
+                        XCTAssertGreaterThan(
+                            abs(longitudinal[0] - longitudinal[1]),
+                            0.18,
+                            "count=\(count)"
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    func testSparseSpiralProcessionAdmitsInnerMiddleAndOuterRolesEarly() {
+        let ids = (0..<5).map { "event-\($0)" }
+        for source in scenes(for: .spiralProcession, eventIDs: ids) {
+            let center = canvasPoint(source.choreographyConfiguration.center)
+            for count in [1, 2, 3, 5] {
+                let scene = rebuiltScene(from: source, eventIDs: Array(ids.prefix(count)))
+                let radii = scene.actors.map {
+                    simd_distance(pose($0, in: scene, at: 0).position, center)
+                }
+                XCTAssertLessThan(radii.min() ?? .greatestFiniteMagnitude, 0.075, "count=\(count)")
+                if count >= 2 {
+                    XCTAssertTrue(radii.contains { (0.10...0.15).contains($0) }, "count=\(count)")
+                }
+                if count >= 3 {
+                    XCTAssertGreaterThan(radii.max() ?? 0, 0.16, "count=\(count)")
+                }
+            }
+        }
+    }
+
+    func testSparseAdmissionKeepsArbitraryRetainedSlotsAndRoutesWhenRebuilt() {
+        let retainedIDs = ["retained-alpha", "retained-beta", "retained-gamma"]
+        for preset in [DayObjectChoreographyPreset.doubleOrbit, .waveRibbon, .spiralProcession] {
+            for source in scenes(for: preset, eventIDs: [], sampleCount: 2) {
+                let before = rebuiltScene(from: source, eventIDs: retainedIDs)
+                let added = rebuiltScene(
+                    from: source,
+                    eventIDs: ["new-leading"] + retainedIDs + ["new-trailing"]
+                )
+                let removed = rebuiltScene(from: source, eventIDs: [retainedIDs[0], retainedIDs[2]])
+                let reordered = rebuiltScene(from: source, eventIDs: Array(retainedIDs.reversed()))
+
+                for actor in before.actors {
+                    let afterAdding = added.actors.first { $0.id == actor.id }
+                    let afterReordering = reordered.actors.first { $0.id == actor.id }
+                    XCTAssertEqual(afterAdding?.choreographySlot, actor.choreographySlot)
+                    XCTAssertEqual(afterAdding?.route, actor.route)
+                    XCTAssertEqual(afterReordering?.choreographySlot, actor.choreographySlot)
+                    XCTAssertEqual(afterReordering?.route, actor.route)
+                }
+                for actor in before.actors where actor.eventID != retainedIDs[1] {
+                    let afterRemoving = removed.actors.first { $0.id == actor.id }
+                    XCTAssertEqual(afterRemoving?.choreographySlot, actor.choreographySlot)
+                    XCTAssertEqual(afterRemoving?.route, actor.route)
+                }
+            }
+        }
     }
 
     func testExplicitConfigurationProducesDeterministicSlowRoutesAndDepthProfiles() {
@@ -433,7 +661,9 @@ final class DayObjectChoreographyTests: XCTestCase {
         for scene in try scenes(for: .spiralProcession, count: 10) {
             let center = canvasPoint(scene.choreographyConfiguration.center)
             for time in stride(from: 0.0, through: scene.score.duration, by: 12.0) {
-                let positions = scene.actors.map { pose($0, in: scene, at: time).position }
+                let positions = scene.actors
+                    .sorted { $0.choreographySlot.ordinal < $1.choreographySlot.ordinal }
+                    .map { pose($0, in: scene, at: time).position }
                 let radii = positions.map { simd_distance($0, center) }
                 XCTAssertTrue(zip(radii, radii.dropFirst()).allSatisfy { $0 < $1 })
                 let angles = positions.map { atan2(($0 - center).y, ($0 - center).x) }

@@ -73,7 +73,10 @@ struct DayObjectChoreographySlot: Equatable {
     let group: Int
     /// The preset's real normalized canvas anchor, not a generic placement sector.
     let anchor: SIMD2<Double>
+    /// The canonical geometry phase owned by the preset topology.
     let phase: Double
+    /// A stable arbitrary-event offset that advances only this actor along its route.
+    let identityPhase: Double
     let direction: Double
     let speedRatio: Double
     let sizeRole: DayObjectSizeRole
@@ -205,16 +208,16 @@ struct DayObjectChoreographyConfiguration: Equatable {
 
     func slot(eventID: String, rootSeed: UInt64) -> DayObjectChoreographySlot {
         let event = stableEventHash(eventID, rootSeed: rootSeed)
-        if let numericOrdinal = event.numericOrdinal {
-            return slots[numericOrdinal % 10]
-        }
-        let slot = slots[Int(event.hash % 10)]
-        let offset = Double(event.hash >> 11) / Double(UInt64(1) << 53) * 0.08
+        let admissionOrdinal = event.numericOrdinal ?? Int(event.hash % 10)
+        let slot = slots[Self.admissionToGeometryOrdinals(for: topology)[admissionOrdinal % 10]]
+        let identityPhase = event.numericOrdinal.map { _ in 0 }
+            ?? Double(event.hash >> 11) / Double(UInt64(1) << 53) * 0.08
         return DayObjectChoreographySlot(
             ordinal: slot.ordinal,
             group: slot.group,
             anchor: slot.anchor,
-            phase: Self.normalizedPhase(slot.phase + offset),
+            phase: slot.phase,
+            identityPhase: identityPhase,
             direction: slot.direction,
             speedRatio: slot.speedRatio,
             sizeRole: slot.sizeRole,
@@ -253,6 +256,23 @@ struct DayObjectChoreographyConfiguration: Equatable {
 
     private static let balancedAngles = [0, 5, 2, 7, 1, 6, 4, 9, 3, 8]
 
+    private static func admissionToGeometryOrdinals(
+        for topology: DayObjectChoreographyTopology
+    ) -> [Int] {
+        switch topology {
+        case .doubleOrbit:
+            [0, 3, 4, 7, 8, 1, 6, 9, 2, 5]
+        case .waveRibbon(_, let ribbonCount) where ribbonCount == 1:
+            [4, 0, 9, 5, 3, 6, 2, 7, 1, 8]
+        case .waveRibbon:
+            [4, 1, 8, 5, 0, 9, 2, 7, 6, 3]
+        case .spiralProcession:
+            [0, 5, 9, 3, 7, 1, 6, 4, 8, 2]
+        default:
+            Array(0..<10)
+        }
+    }
+
     private static func makeSlots(
         preset _: DayObjectChoreographyPreset,
         topology: DayObjectChoreographyTopology,
@@ -282,6 +302,7 @@ struct DayObjectChoreographyConfiguration: Equatable {
                 group: group,
                 anchor: normalizedAnchor(local, rotation: rotation),
                 phase: normalizedPhase(phase),
+                identityPhase: 0,
                 direction: direction,
                 speedRatio: speedRatio,
                 sizeRole: sizeRole,

@@ -117,6 +117,7 @@ struct DayObjectMotionPlan: Equatable {
         let points: [SIMD2<Double>]
         let phase: Double
         let period: Double
+        let identityPhase = slot.identityPhase
 
         switch configuration.topology {
         case .circularChoir:
@@ -124,14 +125,14 @@ struct DayObjectMotionPlan: Equatable {
             points = sampled(count: count) { progress in
                 center + rotated(radial, by: 2 * .pi * progress)
             }
-            phase = 0
+            phase = identityPhase
             period = configuration.loopDuration
         case .doubleOrbit:
             let radial = anchor - center
             points = sampled(count: count) { progress in
                 center + rotated(radial, by: 2 * .pi * progress)
             }
-            phase = 0
+            phase = identityPhase
             period = min(max(configuration.loopDuration / slot.speedRatio, 90), 220)
         case .radialBloom:
             let radial = anchor - center
@@ -139,14 +140,14 @@ struct DayObjectMotionPlan: Equatable {
                 let opening = 1 + 0.16 * sin(2 * .pi * progress)
                 return center + rotated(radial * opening, by: 2 * .pi * progress)
             }
-            phase = 0
+            phase = identityPhase
             period = configuration.loopDuration
         case .breathingGrid:
             points = sampled(count: count) { progress in
                 let angle = 2 * Double.pi * (progress + slot.phase)
                 return anchor + SIMD2(0.010 * sin(angle), 0.007 * sin(2 * angle))
             }
-            phase = 0
+            phase = identityPhase
             period = configuration.loopDuration
         case .waveRibbon:
             let tangent = SIMD2(
@@ -158,7 +159,7 @@ struct DayObjectMotionPlan: Equatable {
                 return anchor + normal * (0.045 * sin(wave))
                     + tangent * (0.007 * cos(wave))
             }
-            phase = 0
+            phase = identityPhase
             period = configuration.loopDuration
         case .spiralProcession:
             let radial = anchor - center
@@ -166,7 +167,7 @@ struct DayObjectMotionPlan: Equatable {
                 let opening = 1 + 0.10 * sin(2 * .pi * progress)
                 return center + rotated(radial * opening, by: 2 * .pi * progress)
             }
-            phase = 0
+            phase = identityPhase
             period = configuration.loopDuration
         case .eclipseStack:
             let members = configuration.slots
@@ -187,7 +188,7 @@ struct DayObjectMotionPlan: Equatable {
                 return groupCenter + normal * lane + tangent * (amplitude * sin(angle))
                     + normal * (0.012 * sin(2 * angle))
             }
-            phase = 0
+            phase = identityPhase
             period = configuration.loopDuration
         case .crossCurrents(let crossingAngle, _):
             let axis = slot.group == 0
@@ -200,7 +201,7 @@ struct DayObjectMotionPlan: Equatable {
                 return center + tangent * (0.24 * cos(angle))
                     + normal * (0.035 * sin(angle))
             }
-            phase = slot.phase
+            phase = normalizedPhase(slot.phase + identityPhase)
             period = min(max(configuration.loopDuration / slot.speedRatio, 90), 220)
         case .constellation:
             let members = configuration.slots.filter { $0.group == slot.group }
@@ -214,7 +215,7 @@ struct DayObjectMotionPlan: Equatable {
                 let localRotation = 0.16 * sin(angle)
                 return groupCenter + drift + rotated(memberOffset, by: localRotation)
             }
-            phase = 0
+            phase = identityPhase
             period = configuration.loopDuration * (0.96 + 0.025 * Double(slot.group))
         case .depthField:
             let xAmplitude = 0.10 + 0.06 * stableUnit(seed, salt: 0xC0AC_29B7_C97C_50DD)
@@ -227,7 +228,7 @@ struct DayObjectMotionPlan: Equatable {
                     yAmplitude * sin(2 * angle + 0.7)
                 )
             }
-            phase = 0
+            phase = identityPhase
             period = 110 + 105 * stableUnit(seed, salt: 0xF6BB_4B60_9FBC_CEAE)
         }
 
