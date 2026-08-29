@@ -38,6 +38,32 @@ final class DayObjectChoreographyTests: XCTestCase {
         }
     }
 
+    func testNegativeNumericLookingEventIDUsesAStableArbitrarySlot() {
+        let configuration = DayObjectChoreographyConfiguration.make(seed: 77)
+        let first = configuration.slot(eventID: "event--1", rootSeed: 77)
+
+        XCTAssertTrue((0..<10).contains(first.ordinal))
+        XCTAssertEqual(first, configuration.slot(eventID: "event--1", rootSeed: 77))
+    }
+
+    func testArbitraryEventIDCollisionsKeepDistinctStablePhaseOffsets() throws {
+        let configuration = DayObjectChoreographyConfiguration.make(seed: 77)
+        var idsBySlot = [Int: [String]]()
+        for index in 0..<1_000 {
+            let eventID = "uuid-like-\(index)-x"
+            let slot = configuration.slot(eventID: eventID, rootSeed: 77)
+            idsBySlot[slot.ordinal, default: []].append(eventID)
+        }
+        let collision = try XCTUnwrap(idsBySlot.values.first { $0.count >= 2 })
+        let lhs = configuration.slot(eventID: collision[0], rootSeed: 77)
+        let rhs = configuration.slot(eventID: collision[1], rootSeed: 77)
+
+        XCTAssertEqual(lhs.ordinal, rhs.ordinal)
+        XCTAssertNotEqual(lhs.phase, rhs.phase)
+        XCTAssertEqual(lhs, configuration.slot(eventID: collision[0], rootSeed: 77))
+        XCTAssertEqual(rhs, configuration.slot(eventID: collision[1], rootSeed: 77))
+    }
+
     func testDailyMotionPlansUseSlowWideStableRoutesAndBothDirections() {
         var reachedFamilies = Set<DayObjectChoreographyFamily>()
 

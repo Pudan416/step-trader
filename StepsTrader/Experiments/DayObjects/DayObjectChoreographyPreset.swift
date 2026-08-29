@@ -144,8 +144,10 @@ struct DayObjectChoreographyConfiguration: Equatable {
     }
 
     private static func numericEventOrdinal(_ eventID: String) -> Int? {
-        guard eventID.hasPrefix("event-") else { return nil }
-        return Int(eventID.dropFirst("event-".count))
+        guard eventID.hasPrefix("event-"),
+              let ordinal = Int(eventID.dropFirst("event-".count)),
+              ordinal >= 0 else { return nil }
+        return ordinal
     }
 
     private static func normalizedPhase(_ phase: Double) -> Double {
