@@ -261,6 +261,50 @@ final class DayObjectChoreographyTests: XCTestCase {
         XCTAssertEqual(rhs, configuration.slot(eventID: collision[1], rootSeed: 77))
     }
 
+    func testDiscardedLowStableHashBitsKeepSameSlotButChangeProductionRoute() {
+        let rootSeed: UInt64 = 0x900D_45EC_C632_A72C
+        let ids = ["", "("]
+        let configuration = DayObjectChoreographyConfiguration.make(seed: rootSeed)
+        let firstHash = configuration.stableEventHash(ids[0], rootSeed: rootSeed).hash
+        let secondHash = configuration.stableEventHash(ids[1], rootSeed: rootSeed).hash
+
+        XCTAssertEqual(configuration.preset, .crossCurrents)
+        XCTAssertEqual(firstHash, 0x5BFF_D908_4210_8409)
+        XCTAssertEqual(secondHash, 0x5BFF_D908_4210_8413)
+        XCTAssertEqual(firstHash >> 11, secondHash >> 11)
+        XCTAssertNotEqual(firstHash & 0x7FF, secondHash & 0x7FF)
+        XCTAssertEqual(firstHash % 10, secondHash % 10)
+
+        let firstPhase = DayObjectChoreographyConfiguration.identityPhase(
+            forStableHash: firstHash
+        )
+        let secondPhase = DayObjectChoreographyConfiguration.identityPhase(
+            forStableHash: secondHash
+        )
+        XCTAssertTrue(firstPhase.isFinite && secondPhase.isFinite)
+        XCTAssertTrue((0..<0.08).contains(firstPhase))
+        XCTAssertTrue((0..<0.08).contains(secondPhase))
+        XCTAssertNotEqual(firstPhase, secondPhase)
+
+        let plan = DayObjectMotionPlan.make(
+            configuration: configuration,
+            rootSeed: rootSeed,
+            eventIDs: ids
+        )
+        XCTAssertEqual(
+            configuration.slot(eventID: ids[0], rootSeed: rootSeed).ordinal,
+            configuration.slot(eventID: ids[1], rootSeed: rootSeed).ordinal
+        )
+        XCTAssertNotEqual(plan.routes[ids[0]], plan.routes[ids[1]])
+        XCTAssertGreaterThan(
+            simd_distance(
+                plan.routes[ids[0]]!.position(at: 0),
+                plan.routes[ids[1]]!.position(at: 0)
+            ),
+            0.000_001
+        )
+    }
+
     /// Mutation covered: setting the actor-local identity phase to zero in any
     /// route branch makes at least one production route or pose assertion fail.
     func testArbitraryIDsSharingCanonicalSlotKeepDistinctProductionPoses() throws {

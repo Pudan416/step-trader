@@ -211,7 +211,7 @@ struct DayObjectChoreographyConfiguration: Equatable {
         let admissionOrdinal = event.numericOrdinal ?? Int(event.hash % 10)
         let slot = slots[Self.admissionToGeometryOrdinals(for: topology)[admissionOrdinal % 10]]
         let identityPhase = event.numericOrdinal.map { _ in 0 }
-            ?? Double(event.hash >> 11) / Double(UInt64(1) << 53) * 0.08
+            ?? Self.identityPhase(forStableHash: event.hash)
         return DayObjectChoreographySlot(
             ordinal: slot.ordinal,
             group: slot.group,
@@ -544,7 +544,7 @@ struct DayObjectChoreographyConfiguration: Equatable {
         )
     }
 
-    private func stableEventHash(
+    func stableEventHash(
         _ eventID: String,
         rootSeed: UInt64
     ) -> (hash: UInt64, numericOrdinal: Int?) {
@@ -555,11 +555,23 @@ struct DayObjectChoreographyConfiguration: Equatable {
         return (hash, Self.numericEventOrdinal(eventID))
     }
 
+    static func identityPhase(forStableHash hash: UInt64) -> Double {
+        let mixedHash = mixedStableHash(hash)
+        return Double(mixedHash >> 11) / Double(UInt64(1) << 53) * 0.08
+    }
+
     private static func numericEventOrdinal(_ eventID: String) -> Int? {
         guard eventID.hasPrefix("event-"),
               let ordinal = Int(eventID.dropFirst("event-".count)),
               ordinal >= 0 else { return nil }
         return ordinal
+    }
+
+    private static func mixedStableHash(_ hash: UInt64) -> UInt64 {
+        var value = hash &+ 0x9E37_79B9_7F4A_7C15
+        value = (value ^ (value >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        value = (value ^ (value >> 27)) &* 0x94D0_49BB_1331_11EB
+        return value ^ (value >> 31)
     }
 
     private static func normalizedPhase(_ phase: Double) -> Double {
