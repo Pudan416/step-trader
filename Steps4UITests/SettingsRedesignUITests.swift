@@ -364,6 +364,18 @@ final class SettingsRedesignUITests: XCTestCase {
         XCTAssertTrue(app.otherElements["settings.wallpaper.controls"].exists)
     }
 
+    func testWallpaperOffersInstallBeforeOptionalInstructions() {
+        let app = launchSettings()
+        app.buttons["settings.destination.widgetsWallpaper"].tap()
+        app.swipeUp()
+
+        let install = app.buttons["settings.wallpaper.install"]
+        let instructions = app.buttons["settings.wallpaper.instructions"]
+        XCTAssertTrue(install.waitForExistence(timeout: 3))
+        XCTAssertTrue(instructions.exists)
+        XCTAssertLessThan(install.frame.minY, instructions.frame.minY)
+    }
+
     func testDeveloperDiagnosticsHaveOneDestination() {
         let app = launchSettings()
 

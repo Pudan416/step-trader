@@ -67,6 +67,21 @@ final class SettingsHomePresentationTests: XCTestCase {
         )
     }
 
+    func testAccountFailuresUseStableRecoveryCopy() {
+        XCTAssertEqual(
+            SettingsAccountFailurePresentation.message(for: .deletion),
+            "We couldn't delete your account. Check your connection and try again."
+        )
+        XCTAssertEqual(
+            SettingsAccountFailurePresentation.message(for: .profileSaving),
+            "We couldn't save your profile. Your previous details are still intact."
+        )
+        XCTAssertEqual(
+            SettingsAccountFailurePresentation.message(for: .other),
+            "Something went wrong. Please try again."
+        )
+    }
+
     func testNormalIPhone17ContentWidthUsesTwoGridColumns() {
         let contentWidth: CGFloat = 402 - (2 * 24)
 

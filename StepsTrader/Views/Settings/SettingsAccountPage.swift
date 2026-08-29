@@ -1,5 +1,24 @@
 import SwiftUI
 
+enum SettingsAccountFailurePresentation {
+    enum Operation {
+        case deletion
+        case profileSaving
+        case other
+    }
+
+    static func message(for operation: Operation) -> String {
+        switch operation {
+        case .deletion:
+            String(localized: "We couldn't delete your account. Check your connection and try again.")
+        case .profileSaving:
+            String(localized: "We couldn't save your profile. Your previous details are still intact.")
+        case .other:
+            String(localized: "Something went wrong. Please try again.")
+        }
+    }
+}
+
 struct SettingsAccountPage: View {
     @ObservedObject var authService: AuthenticationService
     @ObservedObject var model: AppModel
@@ -206,7 +225,8 @@ struct SettingsAccountPage: View {
             try await authService.deleteAccount()
             dismiss()
         } catch {
-            errorMessage = error.localizedDescription
+            AppLogger.auth.error("Account deletion failed: \(error.localizedDescription)")
+            errorMessage = SettingsAccountFailurePresentation.message(for: .deletion)
             isDeleting = false
         }
     }

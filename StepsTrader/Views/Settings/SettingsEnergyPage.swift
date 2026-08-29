@@ -103,9 +103,8 @@ struct SettingsEnergyPage: View {
         .onAppear { syncBedtimeFromStorage() }
     }
 
-    /// Mirrors `DayEndSettingsView.syncSelectedFromStorage()`: if the stored dayEnd
-    /// is off-grid, snap to the nearest valid step and write the snapped value back so
-    /// the picker UI and persistent state agree.
+    /// If the stored dayEnd is off-grid, snap to the nearest valid step and write the
+    /// snapped value back so the picker UI and persistent state agree.
     private func syncBedtimeFromStorage() {
         let current = dayEndHourSetting * 60 + dayEndMinuteSetting
         if allowedBedtimeMinutes.contains(current) {

@@ -625,6 +625,9 @@
     "Increase sleep goal" : {
       "comment" : "Sleep goal picker increment button"
     },
+    "Install the Nowhere wallpaper shortcut." : {
+      "comment" : "Wallpaper setup step"
+    },
     "New day hour" : {
       "comment" : "Custom day boundary hour control"
     },
@@ -2620,6 +2623,9 @@
     "Setup" : {
       "comment" : "Wallpaper section header"
     },
+    "Setup in Shortcuts" : {
+      "comment" : "Wallpaper setup disclosure title"
+    },
     "Shake to change the shapes" : {
       "comment" : "Palette shake hint"
     },
@@ -2765,6 +2771,9 @@
     },
     "Something went wrong" : {
 
+    },
+    "Something went wrong. Please try again." : {
+      "comment" : "Generic account recovery message"
     },
     "spend" : {
 
@@ -3015,6 +3024,12 @@
     },
     "We couldn't check Health access." : {
       "comment" : "Health permission failure message"
+    },
+    "We couldn't delete your account. Check your connection and try again." : {
+      "comment" : "Account deletion recovery message"
+    },
+    "We couldn't save your profile. Your previous details are still intact." : {
+      "comment" : "Profile save recovery message"
     },
     "we read steps, sleep, and workouts. nothing else." : {
 

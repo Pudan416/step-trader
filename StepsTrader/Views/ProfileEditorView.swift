@@ -182,7 +182,8 @@ struct ProfileEditorView: View {
             )
             dismiss()
         } catch {
-            saveError = error.localizedDescription
+            AppLogger.auth.error("Profile save failed: \(error.localizedDescription)")
+            saveError = SettingsAccountFailurePresentation.message(for: .profileSaving)
         }
         
         isSaving = false
