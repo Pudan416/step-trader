@@ -575,6 +575,14 @@ final class DayObjectPaletteTests: XCTestCase {
     }
 
     func testDailyMeshReachesEveryArchetypeAndBothMotionDirections() {
+        let bounds: [DayObjectMeshGradientArchetype:
+            (ClosedRange<Double>, ClosedRange<Double>, ClosedRange<Double>, ClosedRange<Double>)] = [
+            .drift: (0.08...0.24, -0.04...0.04, 0.045...0.085, 0.90...1.24),
+            .orbit: (0.20...0.48, -0.42...0.42, 0.045...0.090, 0.92...1.26),
+            .tide: (0.20...0.50, -0.08...0.08, 0.040...0.080, 0.88...1.22),
+            .islands: (0.08...0.30, -0.12...0.12, 0.050...0.100, 0.96...1.34),
+            .bloom: (0.14...0.38, -0.16...0.16, 0.035...0.070, 0.86...1.18),
+        ]
         var archetypes = Set<DayObjectMeshGradientArchetype>()
         var directions = Set<Int>()
 
@@ -585,12 +593,15 @@ final class DayObjectPaletteTests: XCTestCase {
             XCTAssertEqual(style, DayObjectMeshGradientStyle.make(seed: seed, palette: palette))
             archetypes.insert(style.archetype)
             directions.insert(Int(style.motionDirection))
-            XCTAssertTrue((0.045...0.18).contains(style.speed), "seed=\(seed)")
-            XCTAssertTrue((0.72...1.42).contains(style.scale), "seed=\(seed)")
-            XCTAssertTrue((0...0.92).contains(style.distortion), "seed=\(seed)")
-            XCTAssertTrue((-0.72...0.72).contains(style.swirl), "seed=\(seed)")
-            XCTAssertTrue((-0.22...0.22).contains(style.offset.x), "seed=\(seed)")
-            XCTAssertTrue((-0.22...0.22).contains(style.offset.y), "seed=\(seed)")
+            XCTAssertEqual(style.colors.count, 4, "seed=\(seed)")
+            XCTAssertTrue((-0.18...0.18).contains(style.offset.x), "seed=\(seed)")
+            XCTAssertTrue((-0.18...0.18).contains(style.offset.y), "seed=\(seed)")
+
+            let (distortion, swirl, speed, scale) = bounds[style.archetype]!
+            XCTAssertTrue(distortion.contains(style.distortion), "seed=\(seed) archetype=\(style.archetype)")
+            XCTAssertTrue(swirl.contains(style.swirl), "seed=\(seed) archetype=\(style.archetype)")
+            XCTAssertTrue(speed.contains(style.speed), "seed=\(seed) archetype=\(style.archetype)")
+            XCTAssertTrue(scale.contains(style.scale), "seed=\(seed) archetype=\(style.archetype)")
         }
 
         XCTAssertEqual(archetypes, Set(DayObjectMeshGradientArchetype.allCases))

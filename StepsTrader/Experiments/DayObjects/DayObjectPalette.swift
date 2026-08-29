@@ -200,30 +200,30 @@ struct DayObjectMeshGradientStyle: Equatable {
         let scale: Double
         switch archetype {
         case .drift:
-            distortion = rng.nextDouble(in: 0.12...0.32)
-            swirl = rng.nextDouble(in: -0.05...0.05)
-            speed = rng.nextDouble(in: 0.06...0.11)
-            scale = rng.nextDouble(in: 0.82...1.20)
+            distortion = rng.nextDouble(in: 0.08...0.24)
+            swirl = rng.nextDouble(in: -0.04...0.04)
+            speed = rng.nextDouble(in: 0.045...0.085)
+            scale = rng.nextDouble(in: 0.90...1.24)
         case .orbit:
-            distortion = rng.nextDouble(in: 0.42...0.82)
-            swirl = direction * rng.nextDouble(in: 0.28...0.68)
-            speed = rng.nextDouble(in: 0.07...0.13)
-            scale = rng.nextDouble(in: 0.84...1.22)
+            distortion = rng.nextDouble(in: 0.20...0.48)
+            swirl = direction * rng.nextDouble(in: 0.00...0.42)
+            speed = rng.nextDouble(in: 0.045...0.090)
+            scale = rng.nextDouble(in: 0.92...1.26)
         case .tide:
-            distortion = rng.nextDouble(in: 0.45...0.85)
-            swirl = rng.nextDouble(in: -0.12...0.12)
-            speed = rng.nextDouble(in: 0.05...0.10)
-            scale = rng.nextDouble(in: 0.78...1.18)
+            distortion = rng.nextDouble(in: 0.20...0.50)
+            swirl = rng.nextDouble(in: -0.08...0.08)
+            speed = rng.nextDouble(in: 0.040...0.080)
+            scale = rng.nextDouble(in: 0.88...1.22)
         case .islands:
-            distortion = rng.nextDouble(in: 0.12...0.45)
-            swirl = rng.nextDouble(in: -0.18...0.18)
-            speed = rng.nextDouble(in: 0.08...0.16)
-            scale = rng.nextDouble(in: 0.90...1.40)
+            distortion = rng.nextDouble(in: 0.08...0.30)
+            swirl = rng.nextDouble(in: -0.12...0.12)
+            speed = rng.nextDouble(in: 0.050...0.100)
+            scale = rng.nextDouble(in: 0.96...1.34)
         case .bloom:
-            distortion = rng.nextDouble(in: 0.25...0.62)
-            swirl = rng.nextDouble(in: -0.25...0.25)
-            speed = rng.nextDouble(in: 0.045...0.09)
-            scale = rng.nextDouble(in: 0.72...1.15)
+            distortion = rng.nextDouble(in: 0.14...0.38)
+            swirl = rng.nextDouble(in: -0.16...0.16)
+            speed = rng.nextDouble(in: 0.035...0.070)
+            scale = rng.nextDouble(in: 0.86...1.18)
         }
         return DayObjectMeshGradientStyle(
             colors: palette.colors.map(\.linearRGB),
