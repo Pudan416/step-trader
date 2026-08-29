@@ -406,13 +406,13 @@ final class MePosterEventLedgerTests: XCTestCase {
 
 final class MePosterPresentationPolicyTests: XCTestCase {
 
-    func testTodayUsesTheLiveCanvasWithoutAStoredTrace() {
+    func testTodayUsesTheCurrentCapturedCanvasWithoutAStoredTrace() {
         XCTAssertEqual(
             MePosterPresentationPolicy.mode(
                 isToday: true,
                 hasSavedElements: false
             ),
-            .liveToday
+            .currentDay
         )
     }
 
@@ -450,7 +450,7 @@ final class MePosterPresentationPolicyTests: XCTestCase {
 
     func testTodayCanShareMeaningfulLiveHealthDataWithoutHappenings() {
         XCTAssertTrue(MePosterPresentationPolicy.canShare(
-            mode: .liveToday,
+            mode: .currentDay,
             hasElements: false,
             hasStepsData: true,
             hasSleepData: false
@@ -459,7 +459,7 @@ final class MePosterPresentationPolicyTests: XCTestCase {
 
     func testTodayCanShareItsCurrentCanvasBeforeAnyDataArrives() {
         XCTAssertTrue(MePosterPresentationPolicy.canShare(
-            mode: .liveToday,
+            mode: .currentDay,
             hasElements: false,
             hasStepsData: false,
             hasSleepData: false

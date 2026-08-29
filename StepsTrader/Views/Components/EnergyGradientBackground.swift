@@ -676,6 +676,39 @@ private struct AnimatedGradientView: View {
     }
 }
 
+/// A single deterministic gradient frame used by posters and other captured
+/// surfaces. Unlike `AnimatedGradientView`, it never subscribes to a timeline.
+private struct StaticGradientView: View {
+    let stepsNorm: Double
+    let sleepNorm: Double
+    let hasStepsData: Bool
+    let hasSleepData: Bool
+    let gradientStyle: GradientStyle
+    let gradientPalette: GradientPalette
+    let time: TimeInterval
+
+    var body: some View {
+        let palette = EnergyGradientRenderer.palette(for: gradientPalette)
+        Canvas { context, size in
+            let opacities = EnergyGradientRenderer.computeOpacities(
+                smoothedS: EnergyGradientRenderer.smoothstep(stepsNorm),
+                smoothedL: EnergyGradientRenderer.smoothstep(sleepNorm),
+                hasStepsData: hasStepsData,
+                hasSleepData: hasSleepData
+            )
+            EnergyGradientRenderer.draw(
+                context: &context,
+                size: size,
+                opacities: opacities,
+                baseColor: palette.dark,
+                gradientStyle: gradientStyle,
+                colorPalette: palette,
+                time: time
+            )
+        }
+    }
+}
+
 // MARK: - EnergyGradientBackground View
 /// Shared energy gradient + grain background used by every tab.
 ///
@@ -693,6 +726,8 @@ struct EnergyGradientBackground: View {
     var gradientStyleOverride: String? = nil
     var gradientPaletteOverride: String? = nil
     var textureOverride: String? = nil
+    /// When present, freezes animated gradient styles to this exact frame.
+    var fixedTime: Date? = nil
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @AppStorage(SharedKeys.gradientStyle) private var gradientStyleRaw: String = GradientStyle.radial.rawValue
@@ -746,7 +781,17 @@ struct EnergyGradientBackground: View {
 
     @ViewBuilder
     private var gradientContent: some View {
-        if gradientStyle.isAnimated && !reduceMotion {
+        if let fixedTime {
+            StaticGradientView(
+                stepsNorm: stepsNorm,
+                sleepNorm: sleepNorm,
+                hasStepsData: hasStepsData,
+                hasSleepData: hasSleepData,
+                gradientStyle: gradientStyle,
+                gradientPalette: gradientPaletteValue,
+                time: fixedTime.timeIntervalSinceReferenceDate
+            )
+        } else if gradientStyle.isAnimated && !reduceMotion {
             AnimatedGradientView(
                 stepsNorm: stepsNorm,
                 sleepNorm: sleepNorm,

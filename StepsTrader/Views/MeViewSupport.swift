@@ -74,7 +74,7 @@ struct MePosterUnlock: Equatable, Identifiable {
 }
 
 enum MePosterCanvasMode: Equatable {
-    case liveToday
+    case currentDay
     case savedPast
     case healthPast
     case emptyPast
@@ -86,7 +86,7 @@ enum MePosterPresentationPolicy {
         hasSavedElements: Bool,
         hasHealthData: Bool = false
     ) -> MePosterCanvasMode {
-        if isToday { return .liveToday }
+        if isToday { return .currentDay }
         if hasSavedElements { return .savedPast }
         return hasHealthData ? .healthPast : .emptyPast
     }
@@ -98,9 +98,9 @@ enum MePosterPresentationPolicy {
         hasSleepData: Bool
     ) -> Bool {
         switch mode {
-        case .liveToday:
-            // Today's live canvas is meaningful even before the first HealthKit
-            // sample or happening arrives: it is the current state of the day.
+        case .currentDay:
+            // Today's captured canvas is meaningful even before the first
+            // HealthKit sample or happening arrives.
             return true
         case .savedPast:
             // Keep the action stable while the persisted canvas is loading.
@@ -592,6 +592,7 @@ struct MeSelectedDayPoster: View {
     let onShareAvailabilityChange: (Bool) -> Void
 
     @Environment(\.appTheme) private var theme
+    @Environment(\.renderingIsActive) private var renderingIsActive
     @AppStorage("gallery_sleep_color", store: UserDefaults.stepsTrader())
     private var liveSleepColorHex: String = "#000000"
     @AppStorage("gallery_steps_color", store: UserDefaults.stepsTrader())
@@ -603,6 +604,7 @@ struct MeSelectedDayPoster: View {
     @AppStorage(SharedKeys.canvasTexture)
     private var liveTextureRaw: String = CanvasTexture.grainSmall.rawValue
     @State private var dayCanvas: DayCanvas?
+    @State private var artworkCanvas: DayCanvas?
     @State private var isLoading = false
     @State private var shareImage: UIImage?
     @State private var showShareSheet = false
@@ -701,6 +703,10 @@ struct MeSelectedDayPoster: View {
             dayKey: dayKey,
             hasTrackedSnapshot: snapshot != nil
         )) { await loadCanvas() }
+        .onChange(of: renderingIsActive) { wasActive, isActive in
+            guard isToday, isActive, !wasActive, artworkCanvas != nil else { return }
+            Task { await loadCanvas() }
+        }
         .onChange(of: canShare, initial: true) { _, available in
             onShareAvailabilityChange(available)
         }
@@ -717,89 +723,40 @@ struct MeSelectedDayPoster: View {
 
     @ViewBuilder
     private func canvasLayer(isOffscreenRender: Bool) -> some View {
-        switch posterMode {
-        case .liveToday:
+        if let canvas = artworkCanvas {
             ZStack {
                 EnergyGradientBackground(
-                    stepsPoints: model.stepsPointsToday,
-                    sleepPoints: model.sleepPointsToday,
-                    hasStepsData: model.hasStepsData,
-                    hasSleepData: model.hasSleepData,
+                    stepsPoints: canvas.stepsPoints,
+                    sleepPoints: canvas.sleepPoints,
+                    hasStepsData: canvas.resolvedHasStepsData,
+                    hasSleepData: canvas.resolvedHasSleepData,
                     showGrain: true,
-                    gradientStyleOverride: liveGradientStyle,
-                    gradientPaletteOverride: liveGradientPalette,
-                    textureOverride: liveTextureRaw
+                    gradientStyleOverride: canvas.gradientStyle,
+                    gradientPaletteOverride: canvas.gradientPalette,
+                    textureOverride: canvas.textureRaw,
+                    fixedTime: canvas.lastModified
                 )
 
                 GenerativeCanvasView(
-                    elements: dayCanvas?.elements ?? [],
-                    dayKey: dayKey,
-                    sleepPoints: model.sleepPointsToday,
-                    stepsPoints: model.stepsPointsToday,
-                    sleepColor: Color(hex: liveSleepColorHex),
-                    stepsColor: Color(hex: liveStepsColorHex),
-                    decayNorm: liveDecayNorm,
+                    elements: canvas.elements,
+                    dayKey: canvas.dayKey,
+                    sleepPoints: canvas.sleepPoints,
+                    stepsPoints: canvas.stepsPoints,
+                    sleepColor: Color(hex: canvas.sleepColorHex),
+                    stepsColor: Color(hex: canvas.stepsColorHex),
+                    decayNorm: canvas.decayNorm,
                     backgroundColor: .clear,
                     labelColor: theme.textPrimary,
                     showLabelsOnCanvas: false,
                     showsOutlinedLabels: false,
                     showsBackgroundGradient: false,
-                    hasStepsData: model.hasStepsData,
-                    hasSleepData: model.hasSleepData,
-                    fixedTime: isOffscreenRender ? .now : nil,
+                    hasStepsData: canvas.resolvedHasStepsData,
+                    hasSleepData: canvas.resolvedHasSleepData,
+                    fixedTime: canvas.lastModified,
                     isOffscreenRender: isOffscreenRender
                 )
             }
-
-        case .savedPast:
-            if let canvas = dayCanvas {
-                ZStack {
-                    EnergyGradientBackground(
-                        stepsPoints: canvas.stepsPoints,
-                        sleepPoints: canvas.sleepPoints,
-                        hasStepsData: canvas.resolvedHasStepsData,
-                        hasSleepData: canvas.resolvedHasSleepData,
-                        showGrain: true,
-                        gradientStyleOverride: canvas.gradientStyle,
-                        gradientPaletteOverride: canvas.gradientPalette,
-                        textureOverride: canvas.textureRaw
-                    )
-
-                    GenerativeCanvasView(
-                        elements: canvas.elements,
-                        dayKey: canvas.dayKey,
-                        sleepPoints: canvas.sleepPoints,
-                        stepsPoints: canvas.stepsPoints,
-                        sleepColor: Color(hex: canvas.sleepColorHex),
-                        stepsColor: Color(hex: canvas.stepsColorHex),
-                        decayNorm: canvas.decayNorm,
-                        backgroundColor: .clear,
-                        labelColor: theme.textPrimary,
-                        showLabelsOnCanvas: false,
-                        showsOutlinedLabels: false,
-                        showsBackgroundGradient: false,
-                        hasStepsData: canvas.resolvedHasStepsData,
-                        hasSleepData: canvas.resolvedHasSleepData,
-                        fixedTime: canvas.lastModified,
-                        isOffscreenRender: isOffscreenRender
-                    )
-                }
-            }
-
-        case .healthPast:
-            let resolvedHealth = health ?? snapshot.map(MeDayHealth.init(snapshot:))
-            EnergyGradientBackground(
-                stepsPoints: resolvedHealth?.stepsPoints ?? 0,
-                sleepPoints: resolvedHealth?.sleepPoints ?? 0,
-                hasStepsData: resolvedHealth?.hasStepsData == true,
-                hasSleepData: resolvedHealth?.hasSleepData == true,
-                showGrain: true,
-                gradientStyleOverride: liveGradientStyle,
-                gradientPaletteOverride: liveGradientPalette,
-                textureOverride: liveTextureRaw
-            )
-
-        case .emptyPast:
+        } else if posterMode == .emptyPast {
             ZStack {
                 Color.black.opacity(0.12)
 
@@ -816,6 +773,14 @@ struct MeSelectedDayPoster: View {
                     .foregroundStyle(.black.opacity(0.42))
                 }
             }
+        } else {
+            Color.black.opacity(0.12)
+                .overlay {
+                    if isLoading {
+                        ProgressView()
+                            .tint(.black.opacity(0.55))
+                    }
+                }
         }
     }
 
@@ -823,6 +788,7 @@ struct MeSelectedDayPoster: View {
     private func loadCanvas() async {
         isLoading = true
         dayCanvas = nil
+        artworkCanvas = nil
 
         let key = dayKey
         var loaded = await Task.detached(priority: .userInitiated) {
@@ -839,7 +805,40 @@ struct MeSelectedDayPoster: View {
 
         guard !Task.isCancelled else { return }
         dayCanvas = loaded
+        let captureTime = loaded?.lastModified ?? Date.now
+        artworkCanvas = resolvedArtworkCanvas(from: loaded, capturedAt: captureTime)
         isLoading = false
+    }
+
+    private func resolvedArtworkCanvas(
+        from loaded: DayCanvas?,
+        capturedAt captureTime: Date
+    ) -> DayCanvas {
+        if let loaded { return loaded }
+
+        var canvas = DayCanvas(dayKey: dayKey)
+        canvas.sleepColorHex = liveSleepColorHex
+        canvas.stepsColorHex = liveStepsColorHex
+        canvas.gradientStyle = liveGradientStyle
+        canvas.gradientPalette = liveGradientPalette
+        canvas.textureRaw = liveTextureRaw
+        canvas.lastModified = captureTime
+
+        if isToday {
+            canvas.sleepPoints = model.sleepPointsToday
+            canvas.stepsPoints = model.stepsPointsToday
+            canvas.inkEarned = model.baseEnergyToday
+            canvas.inkSpent = model.spentStepsToday
+            canvas.hasStepsData = model.hasStepsData
+            canvas.hasSleepData = model.hasSleepData
+        } else if let resolvedHealth = health ?? snapshot.map(MeDayHealth.init(snapshot:)) {
+            canvas.sleepPoints = resolvedHealth.sleepPoints
+            canvas.stepsPoints = resolvedHealth.stepsPoints
+            canvas.hasStepsData = resolvedHealth.hasStepsData
+            canvas.hasSleepData = resolvedHealth.hasSleepData
+        }
+
+        return canvas
     }
 
     @MainActor

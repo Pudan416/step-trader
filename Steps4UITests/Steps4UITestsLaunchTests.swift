@@ -167,6 +167,39 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         attachScreenshot(named: "me-calendar-selection-centered")
     }
 
+    func testMePosterArtworkStaysFrozenAfterOpening() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["ui-testing", "ui-testing-me-static-poster"]
+        app.launch()
+
+        let meTab = app.buttons["tab_me"]
+        XCTAssertTrue(meTab.waitForExistence(timeout: 8))
+        meTab.tap()
+
+        let carousel = app.descendants(matching: .any)["me_poster_carousel"]
+        XCTAssertTrue(carousel.waitForExistence(timeout: 5))
+        let todayKey = try XCTUnwrap(carousel.value as? String)
+        let poster = app.otherElements.matching(
+            NSPredicate(
+                format: "identifier == 'me_selected_day_poster' AND value == %@",
+                todayKey
+            )
+        ).firstMatch
+        XCTAssertTrue(poster.waitForExistence(timeout: 5))
+
+        sleep(1)
+        let firstFrame = poster.screenshot().pngRepresentation
+        sleep(2)
+        let secondFrame = poster.screenshot().pngRepresentation
+
+        XCTAssertEqual(
+            firstFrame,
+            secondFrame,
+            "A Me poster must keep one saved artwork frame instead of replaying Canvas animation"
+        )
+        attachScreenshot(named: "me-static-poster")
+    }
+
     func testMeArchiveActionLivesInTheRecentDaysHeader() throws {
         let app = XCUIApplication()
         app.launchArguments = ["ui-testing"]

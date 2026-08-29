@@ -124,6 +124,46 @@ struct StepsTraderApp: App {
     }
 
     init() {
+        let processArguments = ProcessInfo.processInfo.arguments
+
+        if processArguments.contains("ui-testing-me-static-poster") {
+            let dayKey = AppModel.dayKey(for: Date.now)
+            var canvas = DayCanvas(dayKey: dayKey)
+            let fixtureDate = Date(timeIntervalSinceReferenceDate: 800_000_000)
+            canvas.elements = [
+                CanvasElement(
+                    id: UUID(uuidString: "A83479D2-BEFA-40C8-AB45-A951FF2A7B0F")!,
+                    kind: .circle,
+                    optionId: "ui-test-static-poster",
+                    label: "Static poster fixture",
+                    hexColor: "#B58AE8",
+                    hexColor2: "#4EC5D4",
+                    size: 0.24,
+                    basePosition: CGPoint(x: 0.5, y: 0.5),
+                    phaseOffset: 0.75,
+                    driftSpeed: 2,
+                    driftAmplitude: 0.12,
+                    pulseFrequency: 2.5,
+                    pulseAmplitude: 0.1,
+                    rotationSpeed: 1,
+                    opacity: 0.9,
+                    createdAt: fixtureDate,
+                    shapeSeed: 42,
+                    lastEditedAt: fixtureDate,
+                    frozenShapeType: .snowflake
+                )
+            ]
+            canvas.sleepPoints = 14
+            canvas.stepsPoints = 16
+            canvas.inkEarned = 30
+            canvas.gradientStyle = GradientStyle.mesh.rawValue
+            canvas.gradientPalette = GradientPalette.aurora.rawValue
+            canvas.hasStepsData = true
+            canvas.hasSleepData = true
+            canvas.lastModified = fixtureDate
+            CanvasStorageService.shared.saveCanvas(canvas)
+        }
+
         // Task 7 screenshot scenarios mutate today's additions. Xcode reuses the
         // installed app container across UI-test methods, so without resetting
         // this fixture-only state an "all used" test empties the palette for
