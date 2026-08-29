@@ -728,12 +728,108 @@ final class DayObjectPaletteTests: XCTestCase {
         descriptor.colorAttachments[0].pixelFormat = .rgba16Float
         let pipeline = try device.makeRenderPipelineState(descriptor: descriptor)
         let plan = DayObjectsRenderTargetPlan(drawableWidth: 80, drawableHeight: 60)
-        let colors = ["000000", "ff0000", "ffff00", "00ffff"].map {
-            DayObjectRGB(hex: $0).linearRGB
+        struct ProductionSample {
+            let archetype: DayObjectMeshGradientArchetype
+            let seed: UInt64
+            let paletteCode: String
+            let phase: Double
+            let offset: SIMD2<Double>
+            let motionDirection: Double
+            let speed: Double
+            let distortion: Double
+            let swirl: Double
+            let scale: Double
         }
+        let samples: [ProductionSample] = [
+            ProductionSample(
+                archetype: .drift,
+                seed: 9,
+                paletteCode: "fbe4d6261fb31611790c0950",
+                phase: 0.3342437857622169,
+                offset: SIMD2(-0.061515760031825115, 0.15669136671557865),
+                motionDirection: -1,
+                speed: 0.05667018910757374,
+                distortion: 0.09772469198316976,
+                swirl: -0.02812940477327963,
+                scale: 1.1266914788115472
+            ),
+            ProductionSample(
+                archetype: .orbit,
+                seed: 5,
+                paletteCode: "1f6f5f2fa0846fcf97eeeeee",
+                phase: 5.793237263670018,
+                offset: SIMD2(0.060535677611837924, -0.026964133027720855),
+                motionDirection: -1,
+                speed: 0.06963054318298634,
+                distortion: 0.35276991894408083,
+                swirl: -0.26857879109355753,
+                scale: 1.2306537698124989
+            ),
+            ProductionSample(
+                archetype: .tide,
+                seed: 0,
+                paletteCode: "d2ff7273ec8b54c39215b392",
+                phase: 3.6192557437130937,
+                offset: SIMD2(-0.05718957802923064, -0.09489767378223239),
+                motionDirection: 1,
+                speed: 0.07107144436470772,
+                distortion: 0.3815711795469606,
+                swirl: -0.012204924698197284,
+                scale: 1.0333248272942093
+            ),
+            ProductionSample(
+                archetype: .islands,
+                seed: 10,
+                paletteCode: "914f1edeac80f7dcb9b5c18e",
+                phase: 0.23057307904709248,
+                offset: SIMD2(-0.13043781338829147, -0.07487085736809763),
+                motionDirection: -1,
+                speed: 0.08080084296248385,
+                distortion: 0.16835330640967378,
+                swirl: -0.05543680157378307,
+                scale: 1.3065003444766914
+            ),
+            ProductionSample(
+                archetype: .bloom,
+                seed: 2,
+                paletteCode: "a0937de7d4b5f6e6cbb6c7aa",
+                phase: 3.4771381603265383,
+                offset: SIMD2(0.16550632165939833, -0.060173329084549934),
+                motionDirection: -1,
+                speed: 0.0408662342167714,
+                distortion: 0.271070799945461,
+                swirl: 0.12226389197267654,
+                scale: 0.9708499485223571
+            ),
+        ]
 
-        for archetype in DayObjectMeshGradientArchetype.allCases {
-            let style = productionCoverageStyle(colors: colors, archetype: archetype)
+        XCTAssertEqual(
+            Set(samples.map(\.archetype)),
+            Set(DayObjectMeshGradientArchetype.allCases)
+        )
+
+        for sample in samples {
+            let palette = DayObjectPalette.make(seed: sample.seed)
+            let style = DayObjectMeshGradientStyle.make(seed: sample.seed, palette: palette)
+            let expectedPalette = try XCTUnwrap(
+                ModernPaletteCatalog.all.first { $0.code == sample.paletteCode }
+            )
+            XCTAssertEqual(
+                palette.colors,
+                expectedPalette.hexes.map(DayObjectRGB.init(hex:)),
+                "seed=\(sample.seed)"
+            )
+            XCTAssertEqual(style.archetype, sample.archetype, "seed=\(sample.seed)")
+            XCTAssertEqual(style.colors, palette.colors.map(\.linearRGB), "seed=\(sample.seed)")
+            XCTAssertEqual(style.phase, sample.phase, accuracy: 0.000_000_000_001, "seed=\(sample.seed)")
+            XCTAssertEqual(style.offset.x, sample.offset.x, accuracy: 0.000_000_000_001, "seed=\(sample.seed)")
+            XCTAssertEqual(style.offset.y, sample.offset.y, accuracy: 0.000_000_000_001, "seed=\(sample.seed)")
+            XCTAssertEqual(style.motionDirection, sample.motionDirection, "seed=\(sample.seed)")
+            XCTAssertEqual(style.speed, sample.speed, accuracy: 0.000_000_000_001, "seed=\(sample.seed)")
+            XCTAssertEqual(style.distortion, sample.distortion, accuracy: 0.000_000_000_001, "seed=\(sample.seed)")
+            XCTAssertEqual(style.swirl, sample.swirl, accuracy: 0.000_000_000_001, "seed=\(sample.seed)")
+            XCTAssertEqual(style.scale, sample.scale, accuracy: 0.000_000_000_001, "seed=\(sample.seed)")
+
             let first = try renderMeshGradient(
                 style: style,
                 elapsedTime: 0,
@@ -761,9 +857,9 @@ final class DayObjectPaletteTests: XCTestCase {
             let shortDelta = meanAbsoluteRGBDifference(first, nextFrame)
             let longDelta = meanAbsoluteRGBDifference(first, later)
 
-            XCTAssertLessThan(shortDelta, 0.0025, "\(archetype) flashes between frames")
-            XCTAssertGreaterThan(longDelta, 0.004, "\(archetype) appears static")
-            XCTAssertLessThan(longDelta, 0.20, "\(archetype) changes too abruptly")
+            XCTAssertLessThan(shortDelta, 0.0025, "\(sample.archetype) flashes between frames")
+            XCTAssertGreaterThan(longDelta, 0.004, "\(sample.archetype) appears static")
+            XCTAssertLessThan(longDelta, 0.20, "\(sample.archetype) changes too abruptly")
         }
     }
 
