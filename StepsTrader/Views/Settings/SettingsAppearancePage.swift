@@ -139,6 +139,7 @@ struct SettingsAppearancePage: View {
                 .tag(SettingsAppearanceMode.manual)
         }
         .pickerStyle(.segmented)
+        .controlSize(.large)
         .accessibilityIdentifier("settings.appearance.mode")
     }
 

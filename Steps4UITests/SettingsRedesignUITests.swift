@@ -12,6 +12,9 @@ final class SettingsRedesignUITests: XCTestCase {
 
     private func launchSettings(
         contentSizeCategory: String,
+        appearance: String? = nil,
+        reduceMotion: Bool = false,
+        increaseContrast: Bool = false,
         seedSettings: Bool = true,
         extraArguments: [String] = []
     ) -> XCUIApplication {
@@ -19,6 +22,9 @@ final class SettingsRedesignUITests: XCTestCase {
         launchSettings(
             app,
             contentSizeCategory: contentSizeCategory,
+            appearance: appearance,
+            reduceMotion: reduceMotion,
+            increaseContrast: increaseContrast,
             seedSettings: seedSettings,
             extraArguments: extraArguments
         )
@@ -28,6 +34,9 @@ final class SettingsRedesignUITests: XCTestCase {
     private func launchSettings(
         _ app: XCUIApplication,
         contentSizeCategory: String = "UICTContentSizeCategoryL",
+        appearance: String? = nil,
+        reduceMotion: Bool = false,
+        increaseContrast: Bool = false,
         seedSettings: Bool,
         extraArguments: [String] = []
     ) {
@@ -40,6 +49,15 @@ final class SettingsRedesignUITests: XCTestCase {
             "-AppleLanguages", "(en)", "-AppleLocale", "en_US",
             "-UIPreferredContentSizeCategoryName", contentSizeCategory,
         ]
+        if let appearance {
+            app.launchArguments += ["-AppleInterfaceStyle", appearance]
+        }
+        if reduceMotion {
+            app.launchArguments += ["-UIAccessibilityReduceMotionEnabled", "YES"]
+        }
+        if increaseContrast {
+            app.launchArguments += ["-UIAccessibilityDarkerSystemColorsEnabled", "YES"]
+        }
         app.launch()
         XCTAssertTrue(app.buttons["tab_me"].waitForExistence(timeout: 10))
         app.buttons["tab_me"].tap()
@@ -50,14 +68,29 @@ final class SettingsRedesignUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 5))
     }
 
-    private func launchTicketSettings() -> XCUIApplication {
+    private func launchTicketSettings(
+        contentSizeCategory: String = "UICTContentSizeCategoryL",
+        appearance: String? = nil,
+        reduceMotion: Bool = false,
+        increaseContrast: Bool = false
+    ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
             "ui-testing",
             "ui-testing-ticket-settings",
             "-AppleLanguages", "(en)",
             "-AppleLocale", "en_US",
+            "-UIPreferredContentSizeCategoryName", contentSizeCategory,
         ]
+        if let appearance {
+            app.launchArguments += ["-AppleInterfaceStyle", appearance]
+        }
+        if reduceMotion {
+            app.launchArguments += ["-UIAccessibilityReduceMotionEnabled", "YES"]
+        }
+        if increaseContrast {
+            app.launchArguments += ["-UIAccessibilityDarkerSystemColorsEnabled", "YES"]
+        }
         app.launch()
 
         XCTAssertTrue(app.otherElements["ui-testing-ticket-settings.isolatedRoot"].waitForExistence(timeout: 5))
@@ -334,6 +367,35 @@ final class SettingsRedesignUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(widgets.frame.height, 112)
     }
 
+    func testSettingsCriticalFlowAtAccessibilitySize() {
+        let app = launchSettings(
+            contentSizeCategory: "UICTContentSizeCategoryAccessibilityM",
+            appearance: "Dark",
+            reduceMotion: true,
+            increaseContrast: true
+        )
+        let yourDay = app.buttons["settings.yourDay"]
+        XCTAssertTrue(yourDay.waitForExistence(timeout: 3))
+        XCTAssertTrue(yourDay.isHittable)
+        assertMinimumHitTarget(yourDay)
+
+        let appearance = app.buttons["settings.destination.appearance"]
+        XCTAssertTrue(appearance.waitForExistence(timeout: 3))
+        XCTAssertTrue(appearance.isHittable)
+        assertMinimumHitTarget(appearance)
+        appearance.tap()
+
+        XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 3))
+        let automatic = app.segmentedControls.buttons["Automatic"]
+        let manual = app.segmentedControls.buttons["Manual"]
+        XCTAssertTrue(automatic.waitForExistence(timeout: 3))
+        XCTAssertTrue(manual.exists)
+        XCTAssertTrue(automatic.isHittable)
+        XCTAssertTrue(manual.isHittable)
+        assertMinimumHitTarget(automatic)
+        assertMinimumHitTarget(manual)
+    }
+
     func testGridUsesMeasuredDeviceWidth() {
         let app = launchSettings()
         let appearance = app.buttons["settings.destination.appearance"]
@@ -391,9 +453,22 @@ final class SettingsRedesignUITests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
+        // XCUI serializes CoreGraphics frames through floating-point layers;
+        // a nominal 44 pt control can arrive as 43.999999999999986.
+        let subpixelTolerance: CGFloat = 0.001
         XCTAssertTrue(element.waitForExistence(timeout: 3), file: file, line: line)
-        XCTAssertGreaterThanOrEqual(element.frame.width, 44, file: file, line: line)
-        XCTAssertGreaterThanOrEqual(element.frame.height, 44, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(
+            element.frame.width + subpixelTolerance,
+            44,
+            file: file,
+            line: line
+        )
+        XCTAssertGreaterThanOrEqual(
+            element.frame.height + subpixelTolerance,
+            44,
+            file: file,
+            line: line
+        )
     }
 
     private func waitForValue(_ expected: String, of element: XCUIElement) -> Bool {
