@@ -9,6 +9,7 @@ struct SettingsPermissionsPage: View {
     @ObservedObject var model: AppModel
     @Environment(\.appTheme) private var theme
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var permissionFailure: SettingsPermissionFailurePresentation?
 
@@ -36,24 +37,46 @@ struct SettingsPermissionsPage: View {
         #endif
     }
 
+    private var usesPermissionActionsFixture: Bool {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains("ui-testing")
+            && arguments.contains("ui-testing-permissions-actions")
+        #else
+        false
+        #endif
+    }
+
+    private var usesHealthFailureFixture: Bool {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains("ui-testing")
+            && arguments.contains("ui-testing-permissions-health-error")
+        #else
+        false
+        #endif
+    }
+
     private var healthPresentation: SettingsPermissionPresentation {
         SettingsPermissionPresentation.health(
             isAvailable: isHealthKitAvailable,
-            hasReturnedData: usesSuccessfulZeroHealthFixture
+            hasReturnedData: !usesPermissionActionsFixture
+                && (usesSuccessfulZeroHealthFixture
                 || model.hasStepsData
-                || model.hasSleepData
+                || model.hasSleepData)
         )
     }
 
     private var screenTimePresentation: SettingsPermissionPresentation {
         SettingsPermissionPresentation.screenTime(
-            isAuthorized: model.blockingStore.isAuthorized
+            isAuthorized: !usesPermissionActionsFixture
+                && model.blockingStore.isAuthorized
         )
     }
 
     private var notificationPresentation: SettingsPermissionPresentation {
         SettingsPermissionPresentation.notifications(
-            status: usesDeniedNotificationsFixture
+            status: usesDeniedNotificationsFixture || usesPermissionActionsFixture
                 ? .denied
                 : model.notificationAuthorizationStatus
         )
@@ -78,6 +101,7 @@ struct SettingsPermissionsPage: View {
 
                     SettingsGroupedSurface {
                         permissionRow(
+                            identifier: "settings.permissions.health",
                             icon: "heart.fill",
                             title: String(localized: "Health", comment: "Permission row – HealthKit"),
                             subtitle: String(localized: "Steps, sleep, workouts", comment: "Permission row – HealthKit detail"),
@@ -94,6 +118,7 @@ struct SettingsPermissionsPage: View {
                         DetailDivider()
 
                         permissionRow(
+                            identifier: "settings.permissions.screenTime",
                             icon: "hourglass",
                             title: String(localized: "Screen Time", comment: "Permission row – Family Controls"),
                             subtitle: String(localized: "App blocking & limits", comment: "Permission row – Family Controls detail"),
@@ -110,6 +135,7 @@ struct SettingsPermissionsPage: View {
                         DetailDivider()
 
                         permissionRow(
+                            identifier: "settings.permissions.notifications",
                             icon: "bell.fill",
                             title: String(localized: "Notifications", comment: "Permission row – Notifications"),
                             subtitle: String(localized: "Timers, reminders, alerts", comment: "Permission row – Notifications detail"),
@@ -125,7 +151,7 @@ struct SettingsPermissionsPage: View {
                     }
                     .padding(.horizontal, 16)
 
-                    SettingsFooter(text: String(localized: "If a permission was denied, tap it to open Settings where you can enable it.", comment: "Permissions – footer hint"))
+                    SettingsFooter(text: String(localized: "If a permission was denied, use its action button to open Settings where you can enable it.", comment: "Permissions – footer hint"))
                         .padding(.horizontal, 16)
                 }
                 .padding(.bottom, 80)
@@ -166,6 +192,7 @@ struct SettingsPermissionsPage: View {
     // MARK: - Permission row
 
     private func permissionRow(
+        identifier: String,
         icon: String,
         title: String,
         subtitle: String,
@@ -173,7 +200,46 @@ struct SettingsPermissionsPage: View {
         actionTitle: String?,
         onFix: @escaping () -> Void
     ) -> some View {
-        HStack(spacing: 12) {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 12) {
+                    permissionIdentity(icon: icon, title: title, subtitle: subtitle, presentation: presentation)
+                    permissionStatus(
+                        presentation: presentation,
+                        actionTitle: actionTitle,
+                        identifier: identifier,
+                        alignment: .leading,
+                        textAlignment: .leading,
+                        onFix: onFix
+                    )
+                    .padding(.leading, 36)
+                }
+            } else {
+                HStack(spacing: 12) {
+                    permissionIdentity(icon: icon, title: title, subtitle: subtitle, presentation: presentation)
+                    Spacer(minLength: 12)
+                    permissionStatus(
+                        presentation: presentation,
+                        actionTitle: actionTitle,
+                        identifier: identifier,
+                        alignment: .trailing,
+                        textAlignment: .trailing,
+                        onFix: onFix
+                    )
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 13)
+    }
+
+    private func permissionIdentity(
+        icon: String,
+        title: String,
+        subtitle: String,
+        presentation: SettingsPermissionPresentation
+    ) -> some View {
+        HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon)
                 .font(.geist(size: 15))
                 .foregroundStyle(permissionColor(for: presentation))
@@ -187,26 +253,36 @@ struct SettingsPermissionsPage: View {
                 Text(subtitle)
                     .font(.geist(.caption))
                     .foregroundStyle(theme.adaptiveSecondaryText)
-            }
-
-            Spacer(minLength: 12)
-
-            VStack(alignment: .trailing, spacing: 5) {
-                Text(presentation.status.displayText)
-                    .font(.geist(.caption).weight(.semibold))
-                    .foregroundStyle(permissionColor(for: presentation))
-                    .multilineTextAlignment(.trailing)
-
-                if presentation.action != nil, let actionTitle {
-                    Button(actionTitle, action: onFix)
-                        .font(.geist(.caption).weight(.semibold))
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                }
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 13)
+    }
+
+    private func permissionStatus(
+        presentation: SettingsPermissionPresentation,
+        actionTitle: String?,
+        identifier: String,
+        alignment: HorizontalAlignment,
+        textAlignment: TextAlignment,
+        onFix: @escaping () -> Void
+    ) -> some View {
+        VStack(alignment: alignment, spacing: 5) {
+            Text(presentation.status.displayText)
+                .font(.geist(.caption).weight(.semibold))
+                .foregroundStyle(permissionColor(for: presentation))
+                .multilineTextAlignment(textAlignment)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("\(identifier).status")
+
+            if presentation.action != nil, let actionTitle {
+                Button(actionTitle, action: onFix)
+                    .font(.geist(.caption).weight(.semibold))
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("\(identifier).action")
+            }
+        }
     }
 
     // MARK: - Helpers
@@ -300,6 +376,9 @@ struct SettingsPermissionsPage: View {
     private func permissionFailure(
         for permission: SettingsPermissionKind
     ) -> SettingsPermissionFailurePresentation? {
+        if usesHealthFailureFixture, permission == .health {
+            return .health
+        }
         guard permissionFailure?.permission == permission else { return nil }
         return permissionFailure
     }
@@ -333,18 +412,23 @@ struct SettingsPermissionsPage: View {
                     Button(String(localized: "Try Again", comment: "Permission retry action")) {
                         retry(failure.permission)
                     }
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .accessibilityIdentifier("\(permissionFailureIdentifier(for: failure.permission)).tryAgain")
                 }
                 if failure.actions.contains(.openSettings) {
                     Button(String(localized: "Open Settings", comment: "Permission recovery action")) {
                         openAppSettings()
                     }
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .accessibilityIdentifier("\(permissionFailureIdentifier(for: failure.permission)).openSettings")
                 }
             }
             .font(.geist(.caption).weight(.semibold))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .accessibilityIdentifier(permissionFailureIdentifier(for: failure.permission))
     }
 
     private func requestNotificationAuthorization() {

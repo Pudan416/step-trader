@@ -21,19 +21,52 @@ struct DetailInfoRow: View {
     let label: String
     let value: String
     @Environment(\.appTheme) private var theme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack {
-            Text(label)
-                .font(.geist(.subheadline))
-                .foregroundStyle(theme.adaptivePrimaryText)
-            Spacer()
-            Text(value)
-                .font(.geist(.subheadline))
-                .foregroundStyle(theme.adaptiveSecondaryText)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                stackedContent
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    horizontalContent
+                    stackedContent
+                }
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 13)
+    }
+
+    private var horizontalContent: some View {
+        HStack {
+            labelText
+                .fixedSize(horizontal: true, vertical: false)
+            Spacer()
+            valueText
+                .fixedSize(horizontal: true, vertical: false)
+        }
+    }
+
+    private var stackedContent: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            labelText
+            valueText
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var labelText: some View {
+        Text(label)
+            .font(.geist(.subheadline))
+            .foregroundStyle(theme.adaptivePrimaryText)
+    }
+
+    private var valueText: some View {
+        Text(value)
+            .font(.geist(.subheadline))
+            .foregroundStyle(theme.adaptiveSecondaryText)
     }
 }
 
@@ -129,29 +162,68 @@ struct SettingsLinkRow: View {
     var detail: String? = nil
     var trailingIcon: String = "arrow.up.right"
     @Environment(\.appTheme) private var theme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                stackedContent
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    horizontalContent
+                    stackedContent
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 13)
+        .contentShape(Rectangle())
+    }
+
+    private var horizontalContent: some View {
+        HStack(spacing: 12) {
+            leadingContent
+            Spacer()
+            trailingContent
+                .fixedSize(horizontal: true, vertical: false)
+        }
+    }
+
+    private var stackedContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            leadingContent
+            trailingContent
+                .padding(.leading, 36)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var leadingContent: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.geist(size: 15))
                 .foregroundStyle(theme.adaptiveSecondaryText)
                 .frame(width: 24)
+                .accessibilityHidden(true)
             Text(title)
                 .font(.geist(.subheadline))
                 .foregroundStyle(theme.adaptivePrimaryText)
-            Spacer()
+        }
+    }
+
+    private var trailingContent: some View {
+        HStack(spacing: 8) {
             if let detail {
                 Text(detail)
                     .font(.geist(.caption))
                     .foregroundStyle(theme.adaptiveSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Image(systemName: trailingIcon)
                 .font(.geist(size: 10, weight: .semibold))
                 .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
+                .accessibilityHidden(true)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 13)
-        .contentShape(Rectangle())
     }
 }
 

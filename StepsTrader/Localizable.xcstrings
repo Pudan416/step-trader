@@ -595,6 +595,9 @@
     "Close" : {
       "comment" : "DayCanvasViewer – close VoiceOver\nFull calendar – close\nMetricOverlay – close button\nPalette close button\nPayGate – close button VoiceOver label\nQuickStatus – dismiss button\nSettings sheet close button"
     },
+    "Close preview" : {
+      "comment" : "Gradient preview close button"
+    },
     "Close quick status" : {
       "comment" : "QuickStatus – close VoiceOver label"
     },
@@ -1066,6 +1069,9 @@
 
     },
     "If a permission was denied, tap it to open Settings where you can enable it." : {
+      "comment" : "Permissions – footer hint"
+    },
+    "If a permission was denied, use its action button to open Settings where you can enable it." : {
       "comment" : "Permissions – footer hint"
     },
     "Increase daily steps goal by %@ steps" : {

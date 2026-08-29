@@ -71,14 +71,14 @@ struct ManualsPage: View {
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: 0) {
                         Text(note.topic)
-                            .font(.geist(size: 13, weight: .medium, design: .rounded))
+                            .font(.geist(13, weight: .medium, relativeTo: .caption))
                             .tracking(1.5)
                             .textCase(.uppercase)
                             .foregroundStyle(theme.textSecondary.opacity(0.5))
                             .padding(.bottom, 20)
 
                         Text(note.body)
-                            .font(.geist(size: 20, weight: .light, design: .rounded))
+                            .font(.geist(20, weight: .light, relativeTo: .title3))
                             .italic()
                             .foregroundStyle(theme.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -93,6 +93,7 @@ struct ManualsPage: View {
                 .scrollBounceBehavior(.basedOnSize)
             }
             .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("settings.notes.card")
         }
         .padding(.horizontal, 28)
     }
@@ -119,9 +120,9 @@ struct ManualsPage: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "list.bullet")
-                        .font(.geist(size: 13, weight: .medium))
+                        .font(.geist(13, weight: .medium, relativeTo: .caption))
                     Text(String(localized: "all", comment: "ManualsPage – filter showing all notes"))
-                        .font(.geist(size: 13, weight: .medium))
+                        .font(.geist(13, weight: .medium, relativeTo: .caption))
 
                     if readTracker.unreadCount > 0 {
                         Circle()
@@ -135,6 +136,7 @@ struct ManualsPage: View {
                 .settingsCardSurface()
             }
             .buttonStyle(MattePressStyle())
+            .accessibilityIdentifier("settings.notes.all")
         }
     }
 }
@@ -169,11 +171,15 @@ struct AllNotesListView: View {
 
                                     VStack(alignment: .leading, spacing: 3) {
                                         Text(note.topic)
-                                            .font(.geist(size: 15, weight: readTracker.isRead(note) ? .regular : .medium))
+                                            .font(.geist(
+                                                15,
+                                                weight: readTracker.isRead(note) ? .regular : .medium,
+                                                relativeTo: .subheadline
+                                            ))
                                             .foregroundStyle(.primary)
 
                                         Text(note.body)
-                                            .font(.geist(size: 13, weight: .light))
+                                            .font(.geist(13, weight: .light, relativeTo: .footnote))
                                             .italic()
                                             .foregroundStyle(.secondary)
                                             .lineLimit(2)
@@ -182,7 +188,7 @@ struct AllNotesListView: View {
                                     Spacer(minLength: 0)
 
                                     Image(systemName: "chevron.right")
-                                        .font(.geist(size: 12, weight: .light))
+                                        .font(.geist(12, weight: .light, relativeTo: .caption))
                                         .foregroundStyle(.secondary.opacity(0.4))
                                 }
                                 .padding(.horizontal, 16)
@@ -190,10 +196,10 @@ struct AllNotesListView: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("settings.notes.item.\(note.id)")
 
                             if note.id != NoteCatalog.all.last?.id {
-                                Divider()
-                                    .padding(.leading, 38)
+                                DetailDivider(inset: 38)
                             }
                         }
                     }
@@ -201,6 +207,7 @@ struct AllNotesListView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
             }
+            .accessibilityIdentifier("settings.notes.allList")
             .navigationTitle(String(localized: "all notes", comment: "ManualsPage – accessibility label for all filter"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -208,7 +215,10 @@ struct AllNotesListView: View {
                     Button(String(localized: "Done", comment: "ManualsPage – dismiss button")) {
                         dismiss()
                     }
-                    .font(.geist(size: 15, weight: .regular))
+                    .font(.geist(15, weight: .regular, relativeTo: .subheadline))
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .accessibilityIdentifier("settings.notes.done")
                 }
             }
         }

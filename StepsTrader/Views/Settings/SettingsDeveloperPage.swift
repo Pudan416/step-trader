@@ -310,10 +310,7 @@ struct SettingsDeveloperPage: View {
     }
 
     private var rowDivider: some View {
-        Rectangle()
-            .fill(theme.adaptiveDividerColor.opacity(0.5))
-            .frame(height: 0.5)
-            .padding(.leading, 36)
+        DetailDivider(inset: 36)
     }
 }
 #endif

@@ -69,7 +69,11 @@ struct GradientPreviewSheet: View {
                             .font(.geist(.title2))
                             .symbolRenderingMode(.hierarchical)
                             .foregroundStyle(.white.opacity(0.7))
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
+                    .accessibilityLabel(String(localized: "Close preview", comment: "Gradient preview close button"))
+                    .accessibilityIdentifier("settings.appearance.preview.close")
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 16)

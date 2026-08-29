@@ -40,6 +40,20 @@ struct NotificationSettingsView: View {
         #endif
     }
 
+    private var usesNotificationFailureFixture: Bool {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains("ui-testing")
+            && arguments.contains("ui-testing-notifications-error")
+        #else
+        false
+        #endif
+    }
+
+    private var presentedNotificationFailure: SettingsPermissionFailurePresentation? {
+        usesNotificationFailureFixture ? .notifications : notificationFailure
+    }
+
     private var notificationPresentation: SettingsPermissionPresentation {
         SettingsPermissionPresentation.notifications(
             status: usesDeniedNotificationsFixture
@@ -111,12 +125,12 @@ struct NotificationSettingsView: View {
                                 }
                                 .font(.geist(.subheadline).weight(.semibold))
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                                .frame(minHeight: 44)
                                 .padding(.horizontal, 14)
-                                .padding(.vertical, 13)
                                 .contentShape(Rectangle())
                             }
 
-                            if let notificationFailure {
+                            if let notificationFailure = presentedNotificationFailure {
                                 DetailDivider()
                                 permissionFailureRow(notificationFailure)
                             }
@@ -310,9 +324,11 @@ struct NotificationSettingsView: View {
     private func refreshNotificationStatus() async {
         if usesDeniedNotificationsFixture {
             model.notificationAuthorizationStatus = .denied
+            notificationFailure = nil
             return
         }
         await model.refreshNotificationAuthorizationStatus()
+        notificationFailure = nil
     }
 
     private func requestNotificationAuthorization() {
@@ -341,18 +357,23 @@ struct NotificationSettingsView: View {
                     Button(String(localized: "Try Again", comment: "Permission retry action")) {
                         requestNotificationAuthorization()
                     }
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .accessibilityIdentifier("settings.notifications.error.tryAgain")
                 }
                 if failure.actions.contains(.openSettings) {
                     Button(String(localized: "Open Settings", comment: "Permission recovery action")) {
                         openAppSettings()
                     }
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .accessibilityIdentifier("settings.notifications.error.openSettings")
                 }
             }
             .font(.geist(.caption).weight(.semibold))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .accessibilityIdentifier("settings.notifications.permission.error")
     }
 
     private func openAppSettings() {
