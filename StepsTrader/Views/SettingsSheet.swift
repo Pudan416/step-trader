@@ -17,6 +17,7 @@ struct SettingsSheet: View {
     var featureTipRouteBinding: Binding<FeatureTipSettingsPage?>? = nil
 
     @ObservedObject private var authService = AuthenticationService.shared
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -80,11 +81,6 @@ struct SettingsSheet: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        Text(String(localized: "Settings", comment: "Settings page title"))
-                            .font(.geist(size: 28, weight: .bold, design: .rounded))
-                            .foregroundStyle(theme.adaptivePrimaryText)
-                            .padding(.top, 8)
-
                         VStack(spacing: 16) {
                             accountCard
 
@@ -214,7 +210,18 @@ struct SettingsSheet: View {
                 .safeAreaInset(edge: .top, spacing: 0) {
                     Color.clear.frame(height: embeddedInTab ? topCardHeight : 0)
                 }
-                .toolbar(.hidden, for: .navigationBar)
+                .navigationTitle(String(localized: "Settings", comment: "Settings page title"))
+                .navigationBarTitleDisplayMode(.large)
+                .toolbar {
+                    if !embeddedInTab {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button(String(localized: "Close", comment: "Settings sheet close button")) {
+                                if let onDone { onDone() } else { dismiss() }
+                            }
+                            .accessibilityIdentifier("settings.close")
+                        }
+                    }
+                }
                 .navigationDestination(item: featureTipRoute) { page in
                     switch page {
                     case .wallpaper:

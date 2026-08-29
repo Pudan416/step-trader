@@ -28,10 +28,6 @@ struct SettingsDeveloperPage: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    DetailHeader(
-                        title: String(localized: "Developer", comment: "Settings developer page title")
-                    )
-
                     VStack(spacing: 0) {
                         shieldDiagnosticsRows
                     }
@@ -43,8 +39,8 @@ struct SettingsDeveloperPage: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .detailSwipeBack()
+        .navigationTitle(String(localized: "Developer", comment: "Settings developer page title"))
+        .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(isPresented: $showOnboardingDemo) {
             OnboardingDemoView()
         }

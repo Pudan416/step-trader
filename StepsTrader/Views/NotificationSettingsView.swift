@@ -50,9 +50,6 @@ struct NotificationSettingsView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    DetailHeader(title: String(localized: "Notifications", comment: "Navigation title"))
-                        .padding(.horizontal, 16)
-
                     // MARK: - Access Window
                     VStack(alignment: .leading, spacing: 0) {
                         SettingsSectionLabel(text: String(localized: "Access window", comment: "Notification section header"))
@@ -178,8 +175,8 @@ struct NotificationSettingsView: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .detailSwipeBack()
+        .navigationTitle(String(localized: "Notifications", comment: "Navigation title"))
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     // MARK: - Reschedule helpers

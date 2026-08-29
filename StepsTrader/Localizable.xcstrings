@@ -688,7 +688,7 @@
 
     },
     "Close" : {
-      "comment" : "DayCanvasViewer – close VoiceOver\nFull calendar – close\nMetricOverlay – close button\nPalette close button\nPayGate – close button VoiceOver label\nQuickStatus – dismiss button"
+      "comment" : "DayCanvasViewer – close VoiceOver\nFull calendar – close\nMetricOverlay – close button\nPalette close button\nPayGate – close button VoiceOver label\nQuickStatus – dismiss button\nSettings sheet close button"
     },
     "Close quick status" : {
       "comment" : "QuickStatus – close VoiceOver label"

@@ -57,6 +57,27 @@ final class SettingsRedesignUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Sign in to continue"].exists)
     }
 
+    func testSettingsUsesVisibleCloseAndSystemBackNavigation() {
+        let app = launchSettings()
+        let close = app.buttons["settings.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 3))
+        XCTAssertTrue(close.isHittable)
+
+        app.buttons["settings.yourDay"].tap()
+        XCTAssertTrue(app.navigationBars["Your day"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).isHittable)
+    }
+
+    func testAppearanceHorizontalSwipeDoesNotDismissDestination() {
+        let app = launchSettings()
+        app.buttons["settings.destination.appearance"].tap()
+        let carousel = app.otherElements["settings.appearance.paletteCarousel"]
+        XCTAssertTrue(carousel.waitForExistence(timeout: 3))
+        carousel.swipeLeft()
+        carousel.swipeRight()
+        XCTAssertTrue(app.navigationBars["Appearance"].exists)
+    }
+
     func testYourDayEditorsExposeContextualSemanticsAndMinimumHitTargets() {
         let app = launchSettings()
         app.buttons["settings.yourDay"].tap()

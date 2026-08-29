@@ -49,9 +49,6 @@ struct SettingsPermissionsPage: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    DetailHeader(title: String(localized: "Permissions", comment: "Permissions page title"))
-                        .padding(.horizontal, 16)
-
                     if missingPermissionCount > 0 {
                         statusBanner
                             .padding(.horizontal, 16)
@@ -130,8 +127,8 @@ struct SettingsPermissionsPage: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .detailSwipeBack()
+        .navigationTitle(String(localized: "Permissions", comment: "Permissions page title"))
+        .navigationBarTitleDisplayMode(.inline)
         .task {
             await refreshNotificationStatus()
         }

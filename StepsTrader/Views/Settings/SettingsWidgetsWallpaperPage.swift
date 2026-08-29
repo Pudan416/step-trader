@@ -9,7 +9,6 @@ struct SettingsWidgetsWallpaperPage: View {
             SettingsGradientBG(model: model)
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    DetailHeader(title: String(localized: "Widgets & wallpaper", comment: "Settings row and combined page title"))
                     SettingsSectionLabel(text: String(localized: "Widget", comment: "Settings section title"))
                     SettingsWidgetControls()
                     DetailDivider()
@@ -23,8 +22,8 @@ struct SettingsWidgetsWallpaperPage: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .detailSwipeBack()
+        .navigationTitle(String(localized: "Widgets & wallpaper", comment: "Settings row and combined page title"))
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

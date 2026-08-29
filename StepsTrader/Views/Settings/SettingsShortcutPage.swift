@@ -10,9 +10,6 @@ struct SettingsShortcutPage: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    DetailHeader(title: String(localized: "Wallpaper", comment: "Settings section title"))
-                        .padding(.horizontal, 16)
-
                     SettingsWallpaperControls()
                         .padding(.horizontal, 16)
                 }
@@ -23,8 +20,8 @@ struct SettingsShortcutPage: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .detailSwipeBack()
+        .navigationTitle(String(localized: "Wallpaper", comment: "Settings section title"))
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

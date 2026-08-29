@@ -19,9 +19,6 @@ struct SettingsEnergyPage: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    DetailHeader(title: String(localized: "Your day", comment: "Settings section title"))
-                        .padding(.horizontal, 16)
-
                     // MARK: - Steps
                     VStack(spacing: 12) {
                         sectionHeader(
@@ -100,8 +97,8 @@ struct SettingsEnergyPage: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .detailSwipeBack()
+        .navigationTitle(String(localized: "Your day", comment: "Settings section title"))
+        .navigationBarTitleDisplayMode(.inline)
         .onAppear { syncBedtimeFromStorage() }
     }
 

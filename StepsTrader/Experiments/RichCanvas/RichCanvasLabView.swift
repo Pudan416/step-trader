@@ -63,8 +63,8 @@ struct RichCanvasLabView: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .detailSwipeBack()
+        .navigationTitle("Rich Canvas")
+        .navigationBarTitleDisplayMode(.inline)
         .sensoryFeedback(.impact(weight: .light), trigger: lightHapticTick)
         .task {
             canvas = RichCanvasLabSnapshot.load(
@@ -76,9 +76,6 @@ struct RichCanvasLabView: View {
 
     private var controls: some View {
         VStack(spacing: 0) {
-            DetailHeader(title: "Rich Canvas")
-                .padding(.horizontal, 16)
-
             Spacer()
 
             Button {

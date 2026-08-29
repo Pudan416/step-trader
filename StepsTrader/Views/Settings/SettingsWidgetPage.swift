@@ -11,9 +11,6 @@ struct SettingsWidgetPage: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    DetailHeader(title: String(localized: "Widget", comment: "Settings section title"))
-                        .padding(.horizontal, 16)
-
                     SettingsWidgetControls()
                         .padding(.horizontal, 16)
                 }
@@ -24,8 +21,8 @@ struct SettingsWidgetPage: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .detailSwipeBack()
+        .navigationTitle(String(localized: "Widget", comment: "Settings section title"))
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

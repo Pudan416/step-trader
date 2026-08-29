@@ -21,9 +21,6 @@ struct SettingsAccountPage: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    DetailHeader(title: String(localized: "Account", comment: "Settings account page title"))
-                        .padding(.horizontal, 16)
-
                     profileSummary
 
                     accountSection(String(localized: "PROFILE", comment: "Settings account section header")) {
@@ -96,8 +93,8 @@ struct SettingsAccountPage: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .detailSwipeBack()
+        .navigationTitle(String(localized: "Account", comment: "Settings account page title"))
+        .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showProfileEditor) {
             ProfileEditorView(authService: authService)
         }

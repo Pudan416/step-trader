@@ -73,7 +73,6 @@ struct DayEndSettingsView: View {
             Color.clear.frame(height: topCardHeight)
         }
         .toolbar(.hidden, for: .navigationBar)
-        .detailSwipeBack()
         .onAppear { syncSelectedFromStorage() }
         .onChange(of: selectedMinutes) { _, newValue in
             let hour = (newValue / 60) % 24

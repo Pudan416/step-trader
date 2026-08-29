@@ -16,9 +16,6 @@ struct ManualsPage: View {
             SettingsGradientBG(model: model)
 
             VStack(spacing: 0) {
-                DetailHeader(title: String(localized: "Notes from Kosta", comment: "ManualsPage – page title"))
-                    .padding(.horizontal, 16)
-
                 Spacer(minLength: 20)
 
                 TabView(selection: $currentIndex) {
@@ -45,8 +42,8 @@ struct ManualsPage: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .detailSwipeBack()
+        .navigationTitle(String(localized: "Notes from Kosta", comment: "ManualsPage – page title"))
+        .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showAllNotes) {
             AllNotesListView(readTracker: readTracker) { note in
                 if let idx = notes.firstIndex(where: { $0.id == note.id }) {

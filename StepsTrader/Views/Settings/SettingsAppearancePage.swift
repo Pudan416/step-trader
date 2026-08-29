@@ -46,9 +46,6 @@ struct SettingsAppearancePage: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    DetailHeader(title: String(localized: "Appearance", comment: "Settings section title"))
-                        .padding(.horizontal, 16)
-
                     dailyRandomThemeSection
                         .padding(.horizontal, 16)
 
@@ -63,8 +60,8 @@ struct SettingsAppearancePage: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topCardHeight)
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .detailSwipeBack()
+        .navigationTitle(String(localized: "Appearance", comment: "Settings section title"))
+        .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $previewConfig) { config in
             GradientPreviewSheet(
                 config: config,
@@ -186,28 +183,36 @@ struct SettingsAppearancePage: View {
     // MARK: - Palette (horizontal scroll)
 
     private var paletteHScroll: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 14) {
-                ForEach(GradientPalette.allCases, id: \.rawValue) { scheme in
-                    let isSelected = selectedPalette == scheme
-                    Button {
-                        guard !isDailyRandomActive else { return }
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            gradientPaletteRaw = scheme.rawValue
+        VStack(spacing: 0) {
+            ScrollView(.horizontal) {
+                HStack(spacing: 14) {
+                    ForEach(GradientPalette.allCases, id: \.rawValue) { scheme in
+                        let isSelected = selectedPalette == scheme
+                        Button {
+                            guard !isDailyRandomActive else { return }
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                gradientPaletteRaw = scheme.rawValue
+                            }
+                            model.syncUserPreferencesToSupabase()
+                            lightHapticTick &+= 1
+                        } label: {
+                            paletteChip(scheme: scheme, isSelected: isSelected)
                         }
-                        model.syncUserPreferencesToSupabase()
-                                                lightHapticTick &+= 1
-                    } label: {
-                        paletteChip(scheme: scheme, isSelected: isSelected)
+                        .buttonStyle(.plain)
+                        .disabled(isDailyRandomActive)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(isDailyRandomActive)
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 4)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 4)
+            .scrollIndicators(.hidden)
+
+            Color.clear
+                .frame(height: 1)
+                .accessibilityHidden(true)
         }
-        .scrollIndicators(.hidden)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("settings.appearance.paletteCarousel")
     }
 
     private func paletteChip(scheme: GradientPalette, isSelected: Bool) -> some View {
