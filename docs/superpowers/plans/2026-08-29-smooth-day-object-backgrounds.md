@@ -225,3 +225,47 @@ Expected: `BUILD SUCCEEDED` and no Metal warnings.
 git add -- Steps4Tests/DayObjectPaletteTests.swift
 git commit -m "test: lock smooth moving Day Object backgrounds"
 ```
+
+### Task 4: Confirm and update intentional perceptual signatures
+
+**Files:**
+- Modify only after visual confirmation: `Steps4Tests/DayObjectRenderFrameTests.swift`
+
+**Interfaces:**
+- Consumes: final choreography, broad background shader, existing `PostRenderHarness`, PNG attachments, `DayObjectsPerceptualSignature`, and `DayObjectsTransitionPerceptualSignature`.
+- Produces: committed signatures that describe the verified new render without widening tolerances or hiding actor/safety regressions.
+
+- [ ] **Step 1: Reproduce only the two published signature failures**
+
+  Run the two named tests independently at the current HEAD and save their `.xcresult` bundles:
+
+  ```bash
+  xcodebuild test -project Steps4.xcodeproj -scheme Steps4 -configuration Debug \
+    -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
+    -only-testing:Steps4Tests/DayObjectRenderFrameTests/testCommittedPerceptualSignaturesCoverProductionTransferCompositionAndPalette \
+    -only-testing:Steps4Tests/DayObjectRenderFrameTests/testInsertionAndRemovalTriptychsMatchCommittedPerceptualSignatures \
+    CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+  ```
+
+  Confirm failures are baseline mismatches, not crashes, missing actors, unsafe placement, ABI errors, or non-finite output. Record every actual mismatch value.
+
+- [ ] **Step 2: Export and inspect the actual new renders before editing baselines**
+
+  Export the kept PNG attachments for `light-phone-portrait` and every failing insertion/removal triptych phase. Provide absolute artifact paths and a contact sheet. Stop with `NEEDS_CONTEXT` before changing golden values so the controller can inspect the images and authorize the update.
+
+  The visual gate requires broad continuous background fields, visible actors, expected actor counts, no hard rings/stripes/seams, no UI-exclusion intrusion, and transitions whose changed area corresponds to the inserted/removed actor.
+
+- [ ] **Step 3: Update only confirmed signature values**
+
+  After controller authorization, replace only the stale literal baseline fields with the actual verified measurements. Do not change tolerances, comparison logic, fixtures, render time, canvas size, or expected actor counts. Do not regenerate unrelated fixtures.
+
+- [ ] **Step 4: Verify the signature tests and full render path**
+
+  Run the two named tests, the complete `DayObjectRenderFrameTests`, the full `Steps4Tests` target, and the simulator build. Expected: both signature tests pass, all render assertions remain active, `TEST SUCCEEDED`, and `BUILD SUCCEEDED`.
+
+- [ ] **Step 5: Commit the verified golden update**
+
+  ```bash
+  git add -- Steps4Tests/DayObjectRenderFrameTests.swift
+  git commit -m "test: approve updated Day Object perceptual signatures"
+  ```
