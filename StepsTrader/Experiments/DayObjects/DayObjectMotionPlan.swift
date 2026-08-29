@@ -88,64 +88,56 @@ struct DayObjectEncounter: Equatable {
 }
 
 struct DayObjectMotionPlan: Equatable {
-    let family: DayObjectChoreographyFamily
+    let configuration: DayObjectChoreographyConfiguration
     let routes: [String: DayObjectRoute]
     let depths: [String: DayObjectDepthSchedule]
     let encounters: [String: DayObjectEncounter]
 
+    var preset: DayObjectChoreographyPreset { configuration.preset }
+
+    // Transitional display compatibility until the scene and score migrate to
+    // the ten-preset vocabulary together.
+    var family: DayObjectChoreographyFamily {
+        switch preset {
+        case .crossCurrents:
+            return .crossCurrent
+        case .waveRibbon:
+            return .tidalSweep
+        case .depthField:
+            return .depthMigration
+        case .eclipseStack:
+            return .softEncounters
+        default:
+            return .driftField
+        }
+    }
+
     static func make(rootSeed: UInt64, eventIDs: [String]) -> DayObjectMotionPlan {
-        let family = DayObjectChoreographyFamily.allCases[
-            Int(mixed(rootSeed ^ 0x243F_6A88_85A3_08D3)
-                % UInt64(DayObjectChoreographyFamily.allCases.count))
-        ]
+        make(
+            configuration: DayObjectChoreographyConfiguration.make(seed: rootSeed),
+            rootSeed: rootSeed,
+            eventIDs: eventIDs
+        )
+    }
+
+    static func make(
+        configuration: DayObjectChoreographyConfiguration,
+        rootSeed: UInt64,
+        eventIDs: [String]
+    ) -> DayObjectMotionPlan {
         var seen = Set<String>()
         let ids = eventIDs.filter { seen.insert($0).inserted }.prefix(DayObjectScene.maxActors)
         var routes = [String: DayObjectRoute]()
         var depths = [String: DayObjectDepthSchedule]()
         var encounters = [String: DayObjectEncounter]()
 
-        let routeRecords = ids.map { eventID -> (eventID: String, seed: UInt64) in
-            (eventID, eventSeed(rootSeed: rootSeed, eventID: eventID))
-        }
-        var sectorByID = Dictionary(uniqueKeysWithValues: routeRecords.map {
-            ($0.eventID, sector(for: $0.eventID, seed: $0.seed, family: family))
-        })
-        if routeRecords.count >= 8, Set(sectorByID.values).count < 5 {
-            var counts = Dictionary(grouping: sectorByID.values, by: { $0 }).mapValues(\.count)
-            var missing = (0..<9).filter { counts[$0] == nil }
-            let movable = routeRecords.sorted {
-                mixed($0.seed ^ 0xD6E8_FEB8_6659_FD93)
-                    < mixed($1.seed ^ 0xD6E8_FEB8_6659_FD93)
-            }
-            for record in movable where Set(sectorByID.values).count < 5 {
-                guard let current = sectorByID[record.eventID],
-                      counts[current, default: 0] > 1,
-                      !missing.isEmpty else { continue }
-                let selected = missing.removeFirst()
-                counts[current, default: 0] -= 1
-                counts[selected, default: 0] += 1
-                sectorByID[record.eventID] = selected
-            }
-        }
-        var directionByID = Dictionary(uniqueKeysWithValues: routeRecords.map {
-            ($0.eventID, direction(for: $0.eventID, seed: $0.seed))
-        })
-        if routeRecords.count >= 2, Set(directionByID.values).count == 1,
-           let selected = routeRecords.min(by: {
-               mixed($0.seed ^ 0xA409_3822_299F_31D0)
-                   < mixed($1.seed ^ 0xA409_3822_299F_31D0)
-           }) {
-            directionByID[selected.eventID] = -(directionByID[selected.eventID] ?? 1)
-        }
         for eventID in ids {
             let seed = eventSeed(rootSeed: rootSeed, eventID: eventID)
-            let depthOrdinal = numericSuffix(eventID)
-                ?? Int(mixed(seed ^ 0x1319_8A2E_0370_7344) % 10)
+            let slot = configuration.slot(eventID: eventID, rootSeed: rootSeed)
             // Ten stable encounter slots map to five shared pair channels. The
             // slot is derived only from the event ID, so removing another
             // happening never rerolls an existing orb's meeting geometry.
-            let encounterSlot = numericSuffix(eventID).map { $0 % 10 }
-                ?? Int(mixed(seed ^ 0xBE54_66CF_34E9_0C6C) % 10)
+            let encounterSlot = slot.ordinal
             let encounterChannel = encounterSlot / 2
             let encounterMemberOrdinal = encounterSlot % 2
             let encounterMemberCount = 2
@@ -153,19 +145,15 @@ struct DayObjectMotionPlan: Equatable {
                 rootSeed ^ UInt64(encounterChannel) &* 0x9E37_79B9_7F4A_7C15
             )
             routes[eventID] = makeRoute(
+                configuration: configuration,
+                slot: slot,
                 seed: seed,
-                family: family,
-                direction: directionByID[eventID] ?? 1,
-                sector: sectorByID[eventID] ?? 0
+                rootSeed: rootSeed
             )
-            depths[eventID] = DayObjectDepthSchedule(
-                baseDepth: 0.5,
-                amplitude: 0.38 + 0.08 * stableUnit(seed, salt: 0xA409_3822_299F_31D0),
-                period: 60 + 80 * stableUnit(seed, salt: 0x082E_FA98_EC4E_6C89),
-                phase: normalizedPhase(
-                    (Double(depthOrdinal % 10) + 0.5) / 10
-                        + 0.04 * (stableUnit(seed, salt: 0x4528_21E6_38D0_1377) - 0.5)
-                )
+            depths[eventID] = makeDepthSchedule(
+                profile: configuration.depthProfile,
+                slot: slot,
+                seed: seed
             )
             encounters[eventID] = DayObjectEncounter(
                 channel: encounterChannel,
@@ -181,7 +169,7 @@ struct DayObjectMotionPlan: Equatable {
         }
 
         return DayObjectMotionPlan(
-            family: family,
+            configuration: configuration,
             routes: routes,
             depths: depths,
             encounters: encounters
@@ -194,91 +182,200 @@ struct DayObjectMotionPlan: Equatable {
     }
 
     private static func makeRoute(
+        configuration: DayObjectChoreographyConfiguration,
+        slot: DayObjectChoreographySlot,
         seed: UInt64,
-        family: DayObjectChoreographyFamily,
-        direction: Double,
-        sector: Int
+        rootSeed: UInt64
     ) -> DayObjectRoute {
-        let pointCount = 4 + Int(mixed(seed ^ 0xD131_0BA6_98DF_B5AC) % 3)
-        let baseAngle = 2 * Double.pi * stableUnit(seed, salt: 0x2FFD_72DB_D01A_DFB7)
-        var major = 0.15 + 0.15 * stableUnit(seed, salt: 0xB8E1_AFED_6A26_7E96)
-        var minor = 0.11 + 0.11 * stableUnit(seed, salt: 0xBA7C_9045_F12C_7F99)
-        var rotation = baseAngle
-
-        switch family {
-        case .driftField:
-            rotation += .pi / 4
-        case .crossCurrent:
-            major = 0.25 + 0.05 * stableUnit(seed, salt: 0x24A1_9947_B391_6CF7)
-            minor = 0.10 + 0.04 * stableUnit(seed, salt: 0x0801_F2E2_858E_FC16)
-            rotation = direction > 0 ? 0.12 : -0.12
-        case .tidalSweep:
-            major = 0.24 + 0.05 * stableUnit(seed, salt: 0x6369_20D8_7157_4E69)
-            minor = 0.10 + 0.04 * stableUnit(seed, salt: 0xA458_FEA3_F493_3D7E)
-            rotation = mixed(seed ^ 0x0D95_748F_728E_B658).isMultiple(of: 2) ? 0 : .pi / 2
-        case .depthMigration:
-            major = 0.12 + 0.06 * stableUnit(seed, salt: 0x718B_CD58_8215_4AEE)
-            minor = 0.10 + 0.04 * stableUnit(seed, salt: 0x7B54_A41D_C25A_59B5)
-        case .softEncounters:
-            major = 0.20 + 0.09 * stableUnit(seed, salt: 0x9C30_D539_2AF2_6013)
-            minor = 0.12 + 0.07 * stableUnit(seed, salt: 0xC5D1_B023_2860_85F0)
+        let anchor = centered(slot.anchor)
+        let pointCount = configuration.preset == .spiralProcession ? 10 : 8
+        let points: [SIMD2<Double>]
+        switch configuration.preset {
+        case .circularChoir:
+            points = angularLoop(
+                center: anchor,
+                radius: SIMD2(repeating: 0.075),
+                rotation: configuration.orientation,
+                count: pointCount
+            )
+        case .doubleOrbit:
+            let radius = slot.group.isMultiple(of: 2) ? 0.065 : 0.105
+            points = angularLoop(
+                center: anchor,
+                radius: SIMD2(radius * configuration.eccentricity, radius),
+                rotation: configuration.orientation,
+                count: pointCount
+            )
+        case .radialBloom:
+            let spoke = atan2(
+                slot.anchor.y - configuration.center.y,
+                slot.anchor.x - configuration.center.x
+            )
+            points = angularLoop(
+                center: anchor,
+                radius: SIMD2(0.115, 0.018),
+                rotation: -spoke,
+                count: pointCount
+            )
+        case .breathingGrid:
+            let stagger = slot.group.isMultiple(of: 2) ? -0.012 : 0.012
+            points = angularLoop(
+                center: anchor + SIMD2(stagger, 0),
+                radius: SIMD2(0.045, 0.030),
+                rotation: 0,
+                count: pointCount
+            )
+        case .waveRibbon:
+            let ribbonCenter = anchor + SIMD2(
+                0,
+                0.045 * sin(Double(slot.ordinal) * .pi / 5)
+            )
+            points = angularLoop(
+                center: ribbonCenter,
+                radius: SIMD2(0.055, 0.018),
+                rotation: 0,
+                count: pointCount
+            )
+        case .spiralProcession:
+            points = (0..<pointCount).map { index in
+                let half = Double(pointCount) / 2
+                let outwardProgress = 1 - abs(Double(index) - half) / half
+                let radius = 0.025 * exp(log(0.11 / 0.025) * outwardProgress)
+                let angle = configuration.orientation
+                    + 2 * Double.pi * Double(index) / Double(pointCount)
+                return anchor + SIMD2(radius * cos(angle), radius * sin(angle))
+            }
+        case .eclipseStack:
+            let groupSlots = configuration.slots.filter { $0.group == slot.group }
+            let sharedAnchor = groupSlots.map { centered($0.anchor) }
+                .reduce(.zero, +) / Double(max(groupSlots.count, 1))
+            let memberSign = slot.ordinal.isMultiple(of: 2) ? 1.0 : -1.0
+            let separationAxis = configuration.orientation + Double(slot.group) * .pi / 5
+            let separationVector = SIMD2(
+                0.36 * memberSign * cos(separationAxis),
+                0.36 * memberSign * sin(separationAxis)
+            )
+            points = (0..<pointCount).map { index in
+                let angle = 2 * Double.pi * Double(index) / Double(pointCount)
+                let separation = 0.5 - 0.5 * cos(angle)
+                return sharedAnchor + separationVector * separation
+                    + (anchor - sharedAnchor) * 0.15 * separation
+                    + SIMD2(0.035 * sin(angle), 0.018 * sin(2 * angle))
+            }
+        case .crossCurrents:
+            points = angularLoop(
+                center: anchor,
+                radius: SIMD2(0.125, 0.025),
+                rotation: slot.direction > 0 ? 0.10 : -0.10,
+                count: pointCount
+            )
+        case .constellation:
+            let radius = 0.026 + 0.006 * Double(slot.group)
+            points = angularLoop(
+                center: anchor,
+                radius: SIMD2(radius, radius * 0.8),
+                rotation: configuration.orientation + Double(slot.ordinal) * .pi / 10,
+                count: pointCount
+            )
+        case .depthField:
+            points = angularLoop(
+                center: anchor,
+                radius: SIMD2(0.105, 0.060),
+                rotation: configuration.orientation + Double(slot.group) * .pi / 8,
+                count: pointCount
+            )
         }
 
-        let cosRotation = cos(rotation)
-        let sinRotation = sin(rotation)
-        let rawPoints = (0..<pointCount).map { index -> SIMD2<Double> in
-            let angle = baseAngle + 2 * Double.pi * Double(index) / Double(pointCount)
-            let modulation = 0.88 + 0.24 * stableUnit(
-                seed,
-                salt: UInt64(index) &* 0x9E37_79B9_7F4A_7C15
-            )
-            let local = SIMD2(major * modulation * cos(angle), minor * modulation * sin(angle))
-            return SIMD2(
-                local.x * cosRotation - local.y * sinRotation,
-                local.x * sinRotation + local.y * cosRotation
-            )
-        }
-        let xs = rawPoints.map(\.x)
-        let ys = rawPoints.map(\.y)
-        let xExtent = (xs.max() ?? 0) - (xs.min() ?? 0)
-        let yExtent = (ys.max() ?? 0) - (ys.min() ?? 0)
-        let extent = max(xExtent, yExtent)
-        let extentScale = extent > 0 ? min(max(0.205 / extent, 1), 0.68 / extent) : 1
-        let points = rawPoints.map { $0 * extentScale }
+        let routeSeed = configuration.preset == .eclipseStack
+            ? mixed(rootSeed ^ UInt64(slot.group) &* 0xD6E8_FEB8_6659_FD93)
+            : seed
         return DayObjectRoute(
             controlPoints: points,
-            period: 70 + 110 * stableUnit(seed, salt: 0xF6BB_4B60_9FBC_CEAE),
-            phase: stableUnit(seed, salt: 0x2D7E_9E3B_0912_1F40),
-            direction: direction,
-            sector: sector
+            period: 90 + 130 * stableUnit(routeSeed, salt: 0xF6BB_4B60_9FBC_CEAE),
+            phase: configuration.preset == .eclipseStack ? 0 : normalizedPhase(slot.phase),
+            direction: direction(for: configuration.preset, slot: slot),
+            sector: sector(for: configuration.preset, slot: slot)
         )
     }
 
-    private static func direction(for eventID: String, seed: UInt64) -> Double {
-        if let suffix = numericSuffix(eventID) {
-            return suffix.isMultiple(of: 2) ? 1 : -1
+    private static func makeDepthSchedule(
+        profile: DayObjectDepthProfile,
+        slot: DayObjectChoreographySlot,
+        seed: UInt64
+    ) -> DayObjectDepthSchedule {
+        let baseDepth: Double
+        let amplitude: Double
+        switch profile {
+        case .flat:
+            baseDepth = 0.55
+            amplitude = 0.04 * stableUnit(seed, salt: 0xA409_3822_299F_31D0)
+        case .layered:
+            baseDepth = slot.baseDepth
+            amplitude = 0.10 + 0.12 * stableUnit(seed, salt: 0xA409_3822_299F_31D0)
+        case .migrating:
+            baseDepth = slot.baseDepth
+            amplitude = 0.36 + 0.11 * stableUnit(seed, salt: 0xA409_3822_299F_31D0)
         }
-        return mixed(seed ^ 0xD1B5_4A32_D192_ED03).isMultiple(of: 2) ? 1 : -1
+        return DayObjectDepthSchedule(
+            baseDepth: baseDepth,
+            amplitude: amplitude,
+            period: 90 + 130 * stableUnit(seed, salt: 0x082E_FA98_EC4E_6C89),
+            phase: normalizedPhase(slot.phase)
+        )
+    }
+
+    private static func angularLoop(
+        center: SIMD2<Double>,
+        radius: SIMD2<Double>,
+        rotation: Double,
+        count: Int
+    ) -> [SIMD2<Double>] {
+        let cosine = cos(rotation)
+        let sine = sin(rotation)
+        return (0..<count).map { index in
+            let angle = 2 * Double.pi * Double(index) / Double(count)
+            let local = SIMD2(radius.x * cos(angle), radius.y * sin(angle))
+            return center + SIMD2(
+                local.x * cosine - local.y * sine,
+                local.x * sine + local.y * cosine
+            )
+        }
+    }
+
+    private static func centered(_ anchor: SIMD2<Double>) -> SIMD2<Double> {
+        SIMD2(anchor.x - 0.5, 0.5 - anchor.y)
+    }
+
+    private static func direction(
+        for preset: DayObjectChoreographyPreset,
+        slot: DayObjectChoreographySlot
+    ) -> Double {
+        switch preset {
+        case .doubleOrbit, .eclipseStack, .crossCurrents:
+            return slot.direction
+        default:
+            return 1
+        }
     }
 
     private static func sector(
-        for eventID: String,
-        seed: UInt64,
-        family: DayObjectChoreographyFamily
+        for preset: DayObjectChoreographyPreset,
+        slot: DayObjectChoreographySlot
     ) -> Int {
-        if let suffix = numericSuffix(eventID) {
-            if family == .softEncounters {
-                let encounterSectors = [0, 2, 3, 5, 6, 8, 1, 7, 4, 0]
-                return encounterSectors[suffix % encounterSectors.count]
-            }
-            return (suffix * 5 + 1) % 9
+        let sectors: [Int]
+        switch preset {
+        case .breathingGrid:
+            sectors = [0, 1, 2, 3, 4, 6, 7, 8, 5, 4]
+        case .waveRibbon:
+            sectors = [0, 3, 1, 4, 2, 8, 5, 6, 7, 8]
+        case .eclipseStack:
+            sectors = [4, 4, 1, 1, 7, 7, 3, 3, 5, 5]
+        case .crossCurrents:
+            sectors = [0, 2, 3, 5, 6, 8, 1, 7, 4, 4]
+        default:
+            sectors = [1, 2, 5, 8, 7, 6, 3, 0, 4, 4]
         }
-        return Int(mixed(seed ^ 0x94D0_49BB_1331_11EB) % 9)
-    }
-
-    private static func numericSuffix(_ eventID: String) -> Int? {
-        guard let suffix = eventID.split(separator: "-").last else { return nil }
-        return Int(suffix)
+        return sectors[slot.ordinal % sectors.count]
     }
 
     private static func eventSeed(rootSeed: UInt64, eventID: String) -> UInt64 {

@@ -12,6 +12,15 @@ final class DayObjectChoreographyTests: XCTestCase {
         )
     }
 
+    private func scene(
+        for preset: DayObjectChoreographyPreset,
+        count: Int
+    ) throws -> DayObjectScene {
+        try XCTUnwrap((UInt64(0)..<4_096).lazy.map {
+            DayObjectScene.make(input: self.fixtureInput(seed: $0, count: count))
+        }.first { $0.motionPlan.preset == preset })
+    }
+
     func testDailyPresetCatalogIsDeterministicAndReachesAllTenPresets() {
         var reached = Set<DayObjectChoreographyPreset>()
         for seed in UInt64(0)..<2_048 {
@@ -64,249 +73,241 @@ final class DayObjectChoreographyTests: XCTestCase {
         XCTAssertEqual(rhs, configuration.slot(eventID: collision[1], rootSeed: 77))
     }
 
-    func testDailyMotionPlansUseSlowWideStableRoutesAndBothDirections() {
-        var reachedFamilies = Set<DayObjectChoreographyFamily>()
-
-        for seed in UInt64(0)..<64 {
-            for count in [1, 4, 7, 10] {
-                let ids = (0..<count).map { "event-\($0)" }
-                let plan = DayObjectMotionPlan.make(rootSeed: seed, eventIDs: ids)
-                XCTAssertEqual(plan, DayObjectMotionPlan.make(rootSeed: seed, eventIDs: ids))
-                XCTAssertEqual(Set(plan.routes.keys), Set(ids))
-                reachedFamilies.insert(plan.family)
-
-                for route in plan.routes.values {
-                    XCTAssertTrue((4...6).contains(route.controlPoints.count))
-                    XCTAssertTrue((70...180).contains(route.period))
-                    XCTAssertTrue(route.direction == -1 || route.direction == 1)
-                    XCTAssertTrue((0..<9).contains(route.sector))
-                    let xs = route.controlPoints.map(\.x)
-                    let ys = route.controlPoints.map(\.y)
-                    let xExtent = (xs.max() ?? 0) - (xs.min() ?? 0)
-                    let yExtent = (ys.max() ?? 0) - (ys.min() ?? 0)
-                    XCTAssertTrue((0.20...0.70).contains(max(xExtent, yExtent)))
-                }
-
-                if count == 10 {
-                    XCTAssertEqual(Set(plan.routes.values.map(\.direction)), [-1, 1])
-                }
-            }
-        }
-
-        XCTAssertEqual(reachedFamilies, Set(DayObjectChoreographyFamily.allCases))
-    }
-
-    func testEightToTenOrbsReachAtLeastSixCanvasSectorsAcrossMotionSample() {
-        for seed in UInt64(0)..<64 {
-            for count in 8...10 {
-                let scene = DayObjectScene.make(input: fixtureInput(seed: seed, count: count))
-                var sectors = Set<Int>()
-                for elapsed in [0.0, 19.0, 43.0, 71.0, 97.0] {
-                    sectors.formUnion(scene.actors.map { actor in
-                        let pose = scene.score.pose(
-                            for: actor,
-                            at: elapsed,
-                            canvasAspect: 1,
-                            compositionPlan: scene.compositionPlan
-                        )
-                        let column = min(max(Int((pose.position.x + 0.5) * 3), 0), 2)
-                        let row = min(max(Int((0.5 - pose.position.y) * 3), 0), 2)
-                        return row * 3 + column
-                    })
-                }
-                XCTAssertGreaterThanOrEqual(
-                    sectors.count,
-                    6,
-                    "seed=\(seed) count=\(count) sectors=\(sectors)"
-                )
-            }
-        }
-    }
-
-    func testSixOrMoreActorsReachEveryVerticalThird() {
-        for seed in UInt64(0)..<64 {
-            for count in 6...10 {
-                let scene = DayObjectScene.make(input: fixtureInput(seed: seed, count: count))
-                var thirds = Set<Int>()
-                for time in stride(from: 0.0, through: 90.0, by: 15.0) {
-                    for actor in scene.actors {
-                        let pose = scene.score.pose(
-                            for: actor,
-                            at: time,
-                            canvasAspect: 1,
-                            compositionPlan: scene.compositionPlan
-                        )
-                        thirds.insert(min(max(Int((0.5 - pose.position.y) * 3), 0), 2))
-                    }
-                }
-                XCTAssertEqual(
-                    thirds,
-                    Set([0, 1, 2]),
-                    "seed=\(seed) count=\(count)"
-                )
-            }
-        }
-    }
-
-    func testArbitraryEventIDsStillReceiveDistributedRoutesAndBothDirections() {
-        var idsByPreferredSector = [Int: [String]]()
-        for index in 0..<1_000 {
-            let eventID = "uuid-like-\(index)-x"
-            let route = DayObjectMotionPlan.make(
-                rootSeed: 44,
-                eventIDs: [eventID]
-            ).routes[eventID]!
-            idsByPreferredSector[route.sector, default: []].append(eventID)
-        }
-        let eventIDs = Array(idsByPreferredSector.values.first { $0.count >= 10 }!.prefix(10))
-        let plan = DayObjectMotionPlan.make(rootSeed: 44, eventIDs: eventIDs)
-
-        XCTAssertGreaterThanOrEqual(Set(plan.routes.values.map(\.sector)).count, 5)
-        XCTAssertEqual(Set(plan.routes.values.map(\.direction)), [-1, 1])
-    }
-
-    func testRepresentativeSceneContainsBothTravelDirections() {
-        let scene = DayObjectScene.make(input: fixtureInput(seed: 19, count: 10))
-        XCTAssertEqual(Set(scene.actors.map { scene.score.travelDirection(for: $0) }), [-1, 1])
-    }
-
-    func testSoftEncounterChannelsAreBoundedAndUseApprovedWindows() {
-        var softRoots = 0
+    func testExplicitConfigurationProducesDeterministicSlowRoutesAndDepthProfiles() {
+        let ids = (0..<10).map { "event-\($0)" }
         for seed in UInt64(0)..<128 {
+            let configuration = DayObjectChoreographyConfiguration.make(seed: seed)
             let plan = DayObjectMotionPlan.make(
+                configuration: configuration,
                 rootSeed: seed,
-                eventIDs: (0..<10).map { "event-\($0)" }
+                eventIDs: ids
             )
-            guard plan.family == .softEncounters else { continue }
-            softRoots += 1
-            let channelCounts = Dictionary(grouping: plan.encounters.values, by: \.channel)
-                .mapValues(\.count)
-            XCTAssertLessThanOrEqual(channelCounts.values.max() ?? 0, 4)
-            XCTAssertTrue(plan.encounters.values.allSatisfy {
-                (0.05...0.18).contains($0.durationFraction)
-                    && (0.15...0.40).contains($0.overlapFraction)
-            })
+
+            XCTAssertEqual(plan.configuration, configuration)
+            XCTAssertEqual(
+                plan,
+                DayObjectMotionPlan.make(
+                    configuration: configuration,
+                    rootSeed: seed,
+                    eventIDs: ids
+                )
+            )
+            XCTAssertEqual(Set(plan.routes.keys), Set(ids))
+            XCTAssertTrue(plan.routes.values.allSatisfy { (90...220).contains($0.period) })
+            XCTAssertTrue(plan.depths.values.allSatisfy { (90...220).contains($0.period) })
+
+            switch configuration.depthProfile {
+            case .flat:
+                XCTAssertTrue(plan.depths.values.allSatisfy {
+                    $0.baseDepth == 0.55 && (0...0.04).contains($0.amplitude)
+                })
+            case .layered:
+                XCTAssertTrue(plan.depths.values.allSatisfy {
+                    (0.10...0.22).contains($0.amplitude)
+                })
+            case .migrating:
+                XCTAssertTrue(plan.depths.values.allSatisfy {
+                    (0.36...0.47).contains($0.amplitude)
+                })
+            }
         }
-        XCTAssertGreaterThan(softRoots, 0)
     }
 
-    func testSoftEncountersOverlapBrieflyThenSeparate() throws {
-        let seed = try XCTUnwrap((UInt64(0)..<128).first {
-            DayObjectMotionPlan.make(rootSeed: $0, eventIDs: ["event-0"]).family
-                == .softEncounters
-        })
-        let scene = DayObjectScene.make(input: fixtureInput(seed: seed, count: 10))
-        var sawApprovedOverlap = false
-        var sawSeparatedFrame = false
+    func testCompatibilityWrapperStoresTheConfigurationSelectedFromItsRootSeed() {
+        let ids = (0..<10).map { "event-\($0)" }
+        for seed in UInt64(0)..<64 {
+            let plan = DayObjectMotionPlan.make(rootSeed: seed, eventIDs: ids)
+            XCTAssertEqual(plan.configuration, DayObjectChoreographyConfiguration.make(seed: seed))
+            XCTAssertEqual(
+                plan,
+                DayObjectMotionPlan.make(
+                    configuration: plan.configuration,
+                    rootSeed: seed,
+                    eventIDs: ids
+                )
+            )
+        }
+    }
 
-        for sample in 0...360 {
-            let time = Double(sample) * 0.5
-            let poses = scene.actors.map {
+    func testFlatPresetRoutesCloseContinuouslyAndUseOneFocusPlane() throws {
+        for preset in [DayObjectChoreographyPreset.circularChoir, .radialBloom,
+                       .breathingGrid, .waveRibbon] {
+            let scene = try scene(for: preset, count: 10)
+            XCTAssertTrue(scene.actors.allSatisfy { abs($0.depthSchedule.amplitude) <= 0.04 })
+            for actor in scene.actors {
+                let start = actor.route.position(at: 0)
+                let end = actor.route.position(at: actor.route.period)
+                XCTAssertLessThan(simd_distance(start, end), 0.000_001)
+            }
+        }
+    }
+
+    func testDoubleOrbitAndCrossCurrentsUseOpposingGroups() throws {
+        for preset in [DayObjectChoreographyPreset.doubleOrbit, .crossCurrents] {
+            let scene = try scene(for: preset, count: 10)
+            XCTAssertEqual(Set(scene.actors.map { $0.route.direction }), [-1, 1])
+        }
+    }
+
+    func testEveryDistributedPresetUsesAllVerticalThirdsWithSixActors() throws {
+        let presets = DayObjectChoreographyPreset.allCases.filter { $0 != .eclipseStack }
+        for preset in presets {
+            let scene = try scene(for: preset, count: 6)
+            var thirds = Set<Int>()
+            for time in stride(from: 0.0, through: scene.score.duration, by: 12.0) {
+                for actor in scene.actors {
+                    let pose = scene.score.pose(
+                        for: actor, at: time, canvasAspect: 1,
+                        compositionPlan: scene.compositionPlan
+                    )
+                    thirds.insert(min(max(Int((0.5 - pose.position.y) * 3), 0), 2))
+                }
+            }
+            XCTAssertEqual(thirds, [0, 1, 2], "preset=\(preset)")
+        }
+    }
+
+    func testDepthFieldTraversesFarMiddleAndNearPlanes() throws {
+        let scene = try scene(for: .depthField, count: 10)
+        let depths = stride(from: 0.0, through: scene.score.duration, by: 2.0)
+            .flatMap { time in
+                scene.actors.map {
+                    scene.score.pose(for: $0, at: time, canvasAspect: 1,
+                                     compositionPlan: scene.compositionPlan).depth
+                }
+            }
+        XCTAssertLessThan(depths.min()!, 0.20)
+        XCTAssertGreaterThan(depths.max()!, 0.85)
+        XCTAssertTrue(depths.contains { (0.48...0.62).contains($0) })
+    }
+
+    func testCircularChoirKeepsRingRadiusVarianceBelowFourHundredths() throws {
+        let scene = try scene(for: .circularChoir, count: 10)
+        let times = Array(stride(from: 0.0, through: scene.score.duration, by: 12.0))
+        for actor in scene.actors {
+            let routeCenter = actor.route.controlPoints.reduce(.zero, +)
+                / Double(actor.route.controlPoints.count)
+            let radii = times.map { time -> Double in
+                let position = scene.score.pose(
+                    for: actor, at: time, canvasAspect: 1
+                ).position
+                let localPosition = actor.route.position(at: time)
+                let center = position - localPosition * 0.45 + routeCenter * 0.45
+                return simd_distance(position, center)
+            }
+            for (time, radius) in zip(times, radii) {
+                XCTAssertLessThan(
+                    (radii.max() ?? 0) - (radii.min() ?? 0),
+                    0.04,
+                    "preset=\(scene.motionPlan.preset) time=\(time) radius=\(radius)"
+                )
+            }
+        }
+    }
+
+    func testBreathingGridPreservesStaggeredRowAndColumnOrder() throws {
+        let scene = try scene(for: .breathingGrid, count: 6)
+        let expectedSectors = [0, 1, 2, 3, 4, 6]
+        for time in stride(from: 0.0, through: scene.score.duration, by: 12.0) {
+            let sectors = scene.actors.map { actor -> Int in
+                let position = scene.score.pose(
+                    for: actor, at: time, canvasAspect: 1,
+                    compositionPlan: scene.compositionPlan
+                ).position
+                let column = min(max(Int((position.x + 0.5) * 3), 0), 2)
+                let row = min(max(Int((0.5 - position.y) * 3), 0), 2)
+                return row * 3 + column
+            }
+            XCTAssertEqual(
+                sectors, expectedSectors,
+                "preset=\(scene.motionPlan.preset) time=\(time) sectors=\(sectors)"
+            )
+        }
+    }
+
+    func testWaveRibbonPreservesActorOrderAlongTheRibbon() throws {
+        let scene = try scene(for: .waveRibbon, count: 6)
+        for time in stride(from: 0.0, through: scene.score.duration, by: 12.0) {
+            let positions = scene.actors.map {
                 scene.score.pose(
                     for: $0, at: time, canvasAspect: 1,
                     compositionPlan: scene.compositionPlan
+                ).position
+            }
+            let columnRanges = stride(from: 0, to: positions.count, by: 2).map {
+                let column = positions[$0..<min($0 + 2, positions.count)].map(\.x)
+                return (minimum: column.min()!, maximum: column.max()!)
+            }
+            for pair in zip(columnRanges, columnRanges.dropFirst()) {
+                XCTAssertLessThanOrEqual(
+                    pair.0.maximum, pair.1.minimum,
+                    "preset=\(scene.motionPlan.preset) time=\(time) positions=\(positions)"
                 )
             }
-            var actorsInsideOneDiameter = 0
-            for lhs in poses.indices {
-                for rhs in poses.indices where rhs > lhs {
-                    let reach = poses[lhs].bodyRadius + poses[rhs].bodyRadius
-                    let distance = simd_distance(poses[lhs].position, poses[rhs].position)
-                    let overlap = max(0, 1 - distance / max(reach, 0.000_001))
-                    sawApprovedOverlap = sawApprovedOverlap || (0.15...0.40).contains(overlap)
-                    sawSeparatedFrame = sawSeparatedFrame || distance > reach * 1.5
-                    if distance <= max(poses[lhs].bodyRadius, poses[rhs].bodyRadius) {
-                        actorsInsideOneDiameter += 1
-                    }
+        }
+    }
+
+    func testSpiralProcessionPreservesAngularActorOrder() throws {
+        let scene = try scene(for: .spiralProcession, count: 6)
+        for time in stride(from: 0.0, through: scene.score.duration, by: 12.0) {
+            let positions = scene.actors.map {
+                scene.score.pose(
+                    for: $0, at: time, canvasAspect: 1,
+                    compositionPlan: scene.compositionPlan
+                ).position
+            }
+            let center = positions.reduce(.zero, +) / Double(positions.count)
+            let angles = positions.map { atan2(($0 - center).y, ($0 - center).x) }
+            let clockwiseSteps = zip(angles, angles.dropFirst()).map { lhs, rhs in
+                let raw = lhs - rhs
+                return raw >= 0 ? raw : raw + 2 * Double.pi
+            }
+            XCTAssertTrue(
+                clockwiseSteps.allSatisfy { $0 > 0 && $0 < .pi },
+                "preset=\(scene.motionPlan.preset) time=\(time) angles=\(angles)"
+            )
+        }
+    }
+
+    func testEclipseStackOverlapsThenSeparates() throws {
+        let scene = try scene(for: .eclipseStack, count: 10)
+        let pairs = stride(from: 0, to: scene.actors.count, by: 2).map {
+            Array(scene.actors[$0..<min($0 + 2, scene.actors.count)])
+        }.filter { $0.count == 2 }
+        var overlapTimes = Array<Double?>(repeating: nil, count: pairs.count)
+        var laterSeparationTimes = Array<Double?>(repeating: nil, count: pairs.count)
+
+        for time in stride(from: 0.0, through: scene.score.duration, by: 12.0) {
+            for (index, pair) in pairs.enumerated() {
+                let poses = pair.map {
+                    scene.score.pose(
+                        for: $0, at: time, canvasAspect: 1,
+                        compositionPlan: scene.compositionPlan
+                    )
                 }
+                let distance = simd_distance(poses[0].position, poses[1].position)
+                let reach = poses[0].bodyRadius + poses[1].bodyRadius
+                if overlapTimes[index] == nil, distance < reach {
+                    overlapTimes[index] = time
+                } else if overlapTimes[index] != nil, distance > reach {
+                    laterSeparationTimes[index] = time
+                }
+                XCTAssertTrue(
+                    distance.isFinite,
+                    "preset=\(scene.motionPlan.preset) time=\(time) distance=\(distance)"
+                )
             }
-            XCTAssertLessThan(actorsInsideOneDiameter, poses.count - 1)
         }
 
-        XCTAssertTrue(sawApprovedOverlap)
-        XCTAssertTrue(sawSeparatedFrame)
-    }
-
-    func testSoftEncounterChannelConvergesOnItsDeclaredSharedOverlap() throws {
-        let scene = try XCTUnwrap((UInt64(0)..<256).lazy.map {
-            DayObjectScene.make(input: self.fixtureInput(seed: $0, count: 10))
-        }.first { scene in
-            scene.motionPlan.family == .softEncounters
-                && Dictionary(grouping: scene.actors, by: { $0.encounter.channel })
-                    .values.contains { $0.count >= 2 }
-        })
-        let groups = Dictionary(grouping: scene.actors, by: { $0.encounter.channel })
-            .filter { $0.value.count >= 2 }
-            .sorted { $0.key < $1.key }
-        XCTAssertFalse(groups.isEmpty)
-
-        for (channel, group) in groups {
-            let orderedGroup = group.sorted {
-                $0.encounter.memberOrdinal < $1.encounter.memberOrdinal
-            }
-            let lhsActor = orderedGroup[0]
-            let rhsActor = orderedGroup[1]
-            let encounter = lhsActor.encounter
-            let midpoint = (encounter.phase + encounter.durationFraction * 0.5) * 90
-            let lhs = scene.score.pose(
-                for: lhsActor, at: midpoint, canvasAspect: 1,
-                compositionPlan: scene.compositionPlan
-            )
-            let rhs = scene.score.pose(
-                for: rhsActor, at: midpoint, canvasAspect: 1,
-                compositionPlan: scene.compositionPlan
-            )
-            let overlap = max(
-                0,
-                1 - simd_distance(lhs.position, rhs.position)
-                    / max(lhs.bodyRadius + rhs.bodyRadius, 0.000_001)
-            )
-
-            XCTAssertEqual(lhsActor.encounter.phase, rhsActor.encounter.phase)
-            XCTAssertEqual(lhsActor.encounter.overlapFraction, rhsActor.encounter.overlapFraction)
-            XCTAssertEqual(
-                overlap,
-                encounter.overlapFraction,
-                accuracy: 0.10,
-                "channel=\(channel)"
-            )
-        }
-    }
-
-    func testDepthSchedulesAreContinuousAndMapNearMidFarAppearance() {
-        let scene = DayObjectScene.make(input: fixtureInput(seed: 27, count: 10))
-        XCTAssertTrue(scene.actors.allSatisfy { (60...140).contains($0.depthSchedule.period) })
-        let poses = scene.actors.map {
-            scene.score.pose(
-                for: $0, at: 0, canvasAspect: 1,
-                compositionPlan: scene.compositionPlan
-            )
-        }
-        XCTAssertLessThan(poses.map(\.depth).min() ?? 1, 0.33)
-        XCTAssertGreaterThan(poses.map(\.depth).max() ?? 0, 0.66)
-        XCTAssertTrue(poses.contains { (0.33...0.66).contains($0.depth) })
-
-        let far = poses.min { $0.depth < $1.depth }!
-        let near = poses.max { $0.depth < $1.depth }!
-        XCTAssertGreaterThan(near.scale, far.scale)
-        XCTAssertGreaterThan(near.opacity, far.opacity)
-
-        for actor in scene.actors {
-            let before = scene.score.pose(
-                for: actor, at: 31.999, canvasAspect: 1,
-                compositionPlan: scene.compositionPlan
-            )
-            let after = scene.score.pose(
-                for: actor, at: 32.001, canvasAspect: 1,
-                compositionPlan: scene.compositionPlan
-            )
-            XCTAssertLessThan(abs(after.depth - before.depth), 0.001)
-            XCTAssertLessThan(abs(after.materialPhase - before.materialPhase), 0.001)
-        }
+        XCTAssertTrue(
+            zip(overlapTimes, laterSeparationTimes).contains { $0 != nil && $1 != nil },
+            "preset=\(scene.motionPlan.preset) overlaps=\(overlapTimes) "
+                + "separations=\(laterSeparationTimes)"
+        )
     }
 
     func testCameraFocusIsSharpestAtMidDepthAndSoftAtBothExtremes() throws {
-        let scene = DayObjectScene.make(input: fixtureInput(seed: 27, count: 10))
+        let scene = try scene(for: .depthField, count: 10)
         let actor = try XCTUnwrap(scene.actors.first)
         let samples = stride(from: 0.0, through: actor.depthSchedule.period, by: 0.1).map {
             scene.score.pose(
@@ -483,6 +484,7 @@ final class DayObjectChoreographyTests: XCTestCase {
         ]
         var maximumPositionStep = 0.0
         var maximumTangentStep = 0.0
+        var maximumTangentContext = ""
 
         for seed in UInt64(0)..<8 {
             for region in regions {
@@ -516,10 +518,12 @@ final class DayObjectChoreographyTests: XCTestCase {
                                     maximumPositionStep,
                                     simd_distance(previous.position, pose.position)
                                 )
-                                maximumTangentStep = max(
-                                    maximumTangentStep,
-                                    simd_distance(previous.tangent, pose.tangent)
-                                )
+                                let tangentStep = simd_distance(previous.tangent, pose.tangent)
+                                if tangentStep > maximumTangentStep {
+                                    maximumTangentStep = tangentStep
+                                    maximumTangentContext = "preset=\(scene.motionPlan.preset) "
+                                        + "seed=\(seed) actor=\(actor.id) sample=\(sample)"
+                                }
                             }
                             previous = pose
                         }
@@ -529,7 +533,10 @@ final class DayObjectChoreographyTests: XCTestCase {
         }
 
         XCTAssertLessThanOrEqual(maximumPositionStep, 0.035)
-        XCTAssertLessThanOrEqual(maximumTangentStep, 0.65)
+        XCTAssertLessThanOrEqual(
+            maximumTangentStep, 0.65,
+            "\(maximumTangentContext) tangentStep=\(maximumTangentStep)"
+        )
     }
 
     func testAtLeastFiftyFivePercentOfActorsRemainVisible() {
