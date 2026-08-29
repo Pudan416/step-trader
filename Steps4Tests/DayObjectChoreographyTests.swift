@@ -120,6 +120,11 @@ final class DayObjectChoreographyTests: XCTestCase {
         return remainder >= 0 ? remainder : remainder + 2 * Double.pi
     }
 
+    private func normalizedPhase(_ phase: Double) -> Double {
+        let remainder = phase.truncatingRemainder(dividingBy: 1)
+        return remainder >= 0 ? remainder : remainder + 1
+    }
+
     private func levelCount(_ values: [Double], tolerance: Double) -> Int {
         values.sorted().reduce(into: [Double]()) { levels, value in
             if levels.last.map({ abs($0 - value) > tolerance }) ?? true {
@@ -235,6 +240,35 @@ final class DayObjectChoreographyTests: XCTestCase {
         }
     }
 
+    func testOnlyExactCanonicalEventFormatsUseOrdinalAdmission() {
+        let configuration = DayObjectChoreographyConfiguration.make(seed: 77)
+        let supported = [
+            ("event-0", 0), ("event-7", 7),
+            ("lab-event-0", 0), ("lab-event-7", 7),
+        ]
+
+        for (eventID, ordinal) in supported {
+            XCTAssertEqual(
+                configuration.stableEventHash(eventID, rootSeed: 77).numericOrdinal,
+                ordinal,
+                "eventID=\(eventID)"
+            )
+            XCTAssertEqual(
+                configuration.slot(eventID: eventID, rootSeed: 77).identityPhase,
+                0,
+                accuracy: 0.000_000_001,
+                "eventID=\(eventID)"
+            )
+        }
+
+        for eventID in ["uuid-like-2-x", "event--1", "event-", "other-7"] {
+            XCTAssertNil(
+                configuration.stableEventHash(eventID, rootSeed: 77).numericOrdinal,
+                "eventID=\(eventID)"
+            )
+        }
+    }
+
     func testNegativeNumericLookingEventIDUsesAStableArbitrarySlot() {
         let configuration = DayObjectChoreographyConfiguration.make(seed: 77)
         let first = configuration.slot(eventID: "event--1", rootSeed: 77)
@@ -305,8 +339,8 @@ final class DayObjectChoreographyTests: XCTestCase {
         )
     }
 
-    /// Mutation covered: setting the actor-local identity phase to zero in any
-    /// route branch makes at least one production route or pose assertion fail.
+    /// Mutation covered: setting a route phase to zero, including depth field,
+    /// makes its production route-phase assertion fail.
     func testArbitraryIDsSharingCanonicalSlotKeepDistinctProductionPoses() throws {
         let configuration = DayObjectChoreographyConfiguration.make(seed: 77)
         XCTAssertEqual(configuration.preset, .radialBloom)
@@ -339,6 +373,22 @@ final class DayObjectChoreographyTests: XCTestCase {
                     scene.actors[1].route,
                     "preset=\(preset) ids=\(ids)"
                 )
+                for actor in scene.actors {
+                    let expectedPhase: Double
+                    if preset == .crossCurrents {
+                        expectedPhase = normalizedPhase(
+                            actor.choreographySlot.phase + actor.choreographySlot.identityPhase
+                        )
+                    } else {
+                        expectedPhase = actor.choreographySlot.identityPhase
+                    }
+                    XCTAssertEqual(
+                        actor.route.phase,
+                        expectedPhase,
+                        accuracy: 0.000_000_001,
+                        "preset=\(preset) actor=\(actor.eventID)"
+                    )
+                }
                 for time in [0.0, scene.score.duration * 0.23, scene.score.duration * 0.71] {
                     XCTAssertGreaterThan(
                         simd_distance(
@@ -354,7 +404,7 @@ final class DayObjectChoreographyTests: XCTestCase {
     }
 
     func testSparseDoubleOrbitAdmitsSeparatedRingsBeforeAdjacentGeometry() {
-        let ids = (0..<5).map { "event-\($0)" }
+        let ids = (0..<5).map { "lab-event-\($0)" }
         for source in scenes(for: .doubleOrbit, eventIDs: ids) {
             let center = canvasPoint(source.choreographyConfiguration.center)
             for count in [1, 2, 3, 5] {
@@ -362,6 +412,21 @@ final class DayObjectChoreographyTests: XCTestCase {
                 let positions = scene.actors.map { pose($0, in: scene, at: 0).position }
                 let radials = positions.map { $0 - center }
                 XCTAssertTrue(radials.allSatisfy { simd_length($0).isFinite })
+                let groups = Dictionary(grouping: scene.actors) { $0.choreographySlot.group }
+                XCTAssertEqual(groups[0]?.count ?? 0, (count + 1) / 2, "count=\(count)")
+                XCTAssertEqual(groups[1]?.count ?? 0, count / 2, "count=\(count)")
+
+                let radii = radials.map(simd_length)
+                XCTAssertEqual(
+                    radii.filter { $0 < 0.19 }.count,
+                    (count + 1) / 2,
+                    "count=\(count) radii=\(radii)"
+                )
+                XCTAssertEqual(
+                    radii.filter { $0 > 0.20 }.count,
+                    count / 2,
+                    "count=\(count) radii=\(radii)"
+                )
                 if count >= 2 {
                     XCTAssertGreaterThan(
                         abs(simd_length(radials[0]) - simd_length(radials[1])),
@@ -382,14 +447,14 @@ final class DayObjectChoreographyTests: XCTestCase {
                             min(wrappedPositiveAngle($0 - angle), wrappedPositiveAngle(angle - $0))
                         }
                     }
-                    XCTAssertGreaterThan(separations.min() ?? 0, 0.65, "count=\(count)")
+                    XCTAssertGreaterThan(separations.min() ?? 0, 1.0, "count=\(count)")
                 }
             }
         }
     }
 
     func testSparseWaveRibbonAdmitsCenterAndOpposedPositionsBeforeAdjacentPoints() {
-        let ids = (0..<5).map { "event-\($0)" }
+        let ids = (0..<5).map { "lab-event-\($0)" }
         for ribbonCount in 1...2 {
             for source in scenes(
                 for: .waveRibbon,
@@ -409,26 +474,40 @@ final class DayObjectChoreographyTests: XCTestCase {
                     let longitudinal = scene.actors.map {
                         simd_dot(pose($0, in: scene, at: 0).position - center, tangent)
                     }
+                    let centralCount = longitudinal.filter { abs($0) < 0.06 }.count
+                    let negativeOuterCount = longitudinal.filter { $0 < -0.18 }.count
+                    let positiveOuterCount = longitudinal.filter { $0 > 0.18 }.count
                     if ribbonCount == 1 {
-                        XCTAssertLessThan(abs(longitudinal[0]), 0.06, "count=\(count)")
-                        if count >= 2 {
-                            XCTAssertGreaterThan(abs(longitudinal[1]), 0.20, "count=\(count)")
+                        XCTAssertEqual(Set(scene.actors.map(\.choreographySlot.group)), [0])
+                        let expectedBands = [
+                            1: (central: 1, negativeOuter: 0, positiveOuter: 0),
+                            2: (central: 1, negativeOuter: 1, positiveOuter: 0),
+                            3: (central: 1, negativeOuter: 1, positiveOuter: 1),
+                            5: (central: 2, negativeOuter: 1, positiveOuter: 1),
+                        ][count]!
+                        XCTAssertEqual(centralCount, expectedBands.central, "count=\(count)")
+                        XCTAssertEqual(negativeOuterCount, expectedBands.negativeOuter, "count=\(count)")
+                        XCTAssertEqual(positiveOuterCount, expectedBands.positiveOuter, "count=\(count)")
+                        if count == 5 {
+                            XCTAssertEqual(
+                                longitudinal.filter { (-0.15...(-0.06)).contains($0) }.count,
+                                1,
+                                "count=\(count)"
+                            )
                         }
-                        if count >= 3 {
-                            XCTAssertLessThan(longitudinal.min() ?? 0, -0.20, "count=\(count)")
-                            XCTAssertGreaterThan(longitudinal.max() ?? 0, 0.20, "count=\(count)")
-                        }
-                    } else if count >= 2 {
-                        XCTAssertNotEqual(
-                            scene.actors[0].choreographySlot.group,
-                            scene.actors[1].choreographySlot.group,
-                            "count=\(count)"
-                        )
-                        XCTAssertGreaterThan(
-                            abs(longitudinal[0] - longitudinal[1]),
-                            0.18,
-                            "count=\(count)"
-                        )
+                    } else {
+                        let groups = Dictionary(grouping: scene.actors) { $0.choreographySlot.group }
+                        XCTAssertEqual(groups[0]?.count ?? 0, (count + 1) / 2, "count=\(count)")
+                        XCTAssertEqual(groups[1]?.count ?? 0, count / 2, "count=\(count)")
+                        let expectedBands = [
+                            1: (central: 1, negativeOuter: 0, positiveOuter: 0),
+                            2: (central: 1, negativeOuter: 1, positiveOuter: 0),
+                            3: (central: 1, negativeOuter: 1, positiveOuter: 1),
+                            5: (central: 2, negativeOuter: 2, positiveOuter: 1),
+                        ][count]!
+                        XCTAssertEqual(centralCount, expectedBands.central, "count=\(count)")
+                        XCTAssertEqual(negativeOuterCount, expectedBands.negativeOuter, "count=\(count)")
+                        XCTAssertEqual(positiveOuterCount, expectedBands.positiveOuter, "count=\(count)")
                     }
                 }
             }
@@ -436,7 +515,7 @@ final class DayObjectChoreographyTests: XCTestCase {
     }
 
     func testSparseSpiralProcessionAdmitsInnerMiddleAndOuterRolesEarly() {
-        let ids = (0..<5).map { "event-\($0)" }
+        let ids = (0..<5).map { "lab-event-\($0)" }
         for source in scenes(for: .spiralProcession, eventIDs: ids) {
             let center = canvasPoint(source.choreographyConfiguration.center)
             for count in [1, 2, 3, 5] {
@@ -444,12 +523,26 @@ final class DayObjectChoreographyTests: XCTestCase {
                 let radii = scene.actors.map {
                     simd_distance(pose($0, in: scene, at: 0).position, center)
                 }
-                XCTAssertLessThan(radii.min() ?? .greatestFiniteMagnitude, 0.075, "count=\(count)")
-                if count >= 2 {
-                    XCTAssertTrue(radii.contains { (0.10...0.15).contains($0) }, "count=\(count)")
-                }
-                if count >= 3 {
-                    XCTAssertGreaterThan(radii.max() ?? 0, 0.16, "count=\(count)")
+                let innerCount = radii.filter { $0 < 0.075 }.count
+                let middleCount = radii.filter { (0.075..<0.16).contains($0) }.count
+                let outerCount = radii.filter { $0 >= 0.16 }.count
+                XCTAssertEqual(innerCount, 1, "count=\(count)")
+                switch count {
+                case 1:
+                    XCTAssertEqual(middleCount, 0, "count=\(count)")
+                    XCTAssertEqual(outerCount, 0, "count=\(count)")
+                case 2:
+                    XCTAssertEqual(middleCount, 1, "count=\(count)")
+                    XCTAssertEqual(outerCount, 0, "count=\(count)")
+                case 3:
+                    XCTAssertEqual(middleCount, 1, "count=\(count)")
+                    XCTAssertEqual(outerCount, 1, "count=\(count)")
+                case 5:
+                    XCTAssertGreaterThanOrEqual(middleCount, 2, "count=\(count)")
+                    XCTAssertGreaterThanOrEqual(outerCount, 1, "count=\(count)")
+                    XCTAssertEqual(middleCount + outerCount, 4, "count=\(count)")
+                default:
+                    XCTFail("Unexpected count \(count)")
                 }
             }
         }

@@ -552,7 +552,7 @@ struct DayObjectChoreographyConfiguration: Equatable {
         for byte in eventID.utf8 {
             hash = (hash ^ UInt64(byte)) &* 0x1000_0000_01B3
         }
-        return (hash, Self.numericEventOrdinal(eventID))
+        return (hash, Self.canonicalEventOrdinal(eventID))
     }
 
     static func identityPhase(forStableHash hash: UInt64) -> Double {
@@ -560,11 +560,15 @@ struct DayObjectChoreographyConfiguration: Equatable {
         return Double(mixedHash >> 11) / Double(UInt64(1) << 53) * 0.08
     }
 
-    private static func numericEventOrdinal(_ eventID: String) -> Int? {
-        guard eventID.hasPrefix("event-"),
-              let ordinal = Int(eventID.dropFirst("event-".count)),
-              ordinal >= 0 else { return nil }
-        return ordinal
+    private static func canonicalEventOrdinal(_ eventID: String) -> Int? {
+        for prefix in ["event-", "lab-event-"] where eventID.hasPrefix(prefix) {
+            let suffix = eventID.dropFirst(prefix.count)
+            guard !suffix.isEmpty,
+                  suffix.utf8.allSatisfy({ (48...57).contains($0) }),
+                  let ordinal = Int(suffix) else { return nil }
+            return ordinal
+        }
+        return nil
     }
 
     private static func mixedStableHash(_ hash: UInt64) -> UInt64 {
