@@ -627,9 +627,10 @@ extension AppModel {
 
     /// True when one or more permissions needed for the full experience are missing.
     var hasPermissionIssues: Bool {
-        let healthMissing = !healthStore.hasStepsData && !healthStore.hasSleepData
         let familyMissing = !blockingStore.isAuthorized
-        let notifMissing = notificationAuthorizationStatus != .authorized
-        return healthMissing || familyMissing || notifMissing
+        let notifications = SettingsPermissionPresentation.notifications(
+            status: notificationAuthorizationStatus
+        )
+        return familyMissing || notifications.contributesToWarning
     }
 }
