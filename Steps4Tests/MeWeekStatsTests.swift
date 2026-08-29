@@ -133,6 +133,65 @@ final class MeConnectedAppFillTests: XCTestCase {
 
 final class MeCalendarTimelineTests: XCTestCase {
 
+    @MainActor
+    func testPosterArtworkLoadingKeepsTheExistingFrameVisible() {
+        var existing = DayCanvas(dayKey: "2026-08-29")
+        existing.lastModified = Date(timeIntervalSince1970: 100)
+        var fallback = DayCanvas(dayKey: "2026-08-29")
+        fallback.lastModified = Date(timeIntervalSince1970: 200)
+
+        let visible = MePosterArtworkLoadingPolicy.visibleArtwork(
+            existing: existing,
+            fallback: fallback
+        )
+
+        XCTAssertEqual(visible.lastModified, existing.lastModified)
+    }
+
+    @MainActor
+    func testPosterCanvasLoaderSharesOneInFlightLoadBetweenConsumers() async {
+        var attempts = 0
+        let loader = MePosterCanvasLoadCoordinator { dayKey, _ in
+            attempts += 1
+            try? await Task.sleep(for: .milliseconds(50))
+            return DayCanvas(dayKey: dayKey)
+        }
+
+        async let posterCanvas = loader.canvas(
+            for: "2026-08-28",
+            hasTrackedSnapshot: true
+        )
+        async let tileCanvas = loader.canvas(
+            for: "2026-08-28",
+            hasTrackedSnapshot: true
+        )
+        let (poster, tile) = await (posterCanvas, tileCanvas)
+
+        XCTAssertEqual(attempts, 1)
+        XCTAssertEqual(poster?.dayKey, "2026-08-28")
+        XCTAssertEqual(tile?.dayKey, "2026-08-28")
+    }
+
+    @MainActor
+    func testPosterCanvasLoaderReusesCompletedPastDayLoad() async {
+        var attempts = 0
+        let loader = MePosterCanvasLoadCoordinator { dayKey, _ in
+            attempts += 1
+            return DayCanvas(dayKey: dayKey)
+        }
+
+        _ = await loader.canvas(
+            for: "2026-08-27",
+            hasTrackedSnapshot: true
+        )
+        _ = await loader.canvas(
+            for: "2026-08-27",
+            hasTrackedSnapshot: true
+        )
+
+        XCTAssertEqual(attempts, 1)
+    }
+
     func testPosterCarouselHidesAdjacentPagesUntilTheUserScrolls() {
         let viewportWidth: CGFloat = 393
         let sizing = MePosterCarouselLayout.sizing(viewportWidth: viewportWidth)

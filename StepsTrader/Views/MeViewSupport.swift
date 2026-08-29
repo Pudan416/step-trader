@@ -121,6 +121,89 @@ struct MePosterCanvasLoadID: Hashable {
     let hasTrackedSnapshot: Bool
 }
 
+enum MePosterArtworkLoadingPolicy {
+    static func visibleArtwork(
+        existing: DayCanvas?,
+        fallback: DayCanvas
+    ) -> DayCanvas {
+        existing ?? fallback
+    }
+}
+
+/// One load path shared by the large Me poster and its calendar thumbnail.
+/// Past canvases are immutable, so completed results remain cached for the
+/// lifetime of the app. Today explicitly asks for a refresh when Me becomes
+/// active again.
+@MainActor
+final class MePosterCanvasLoadCoordinator {
+    typealias LoadOperation = @MainActor (String, Bool) async -> DayCanvas?
+
+    static let shared = MePosterCanvasLoadCoordinator { dayKey, hasTrackedSnapshot in
+        var loaded = await Task.detached(priority: .userInitiated) {
+            CanvasStorageService.shared.loadCanvas(for: dayKey)
+        }.value
+
+        if MeCalendarTimeline.shouldAttemptRemoteRecovery(
+            hasTrackedSnapshot: hasTrackedSnapshot,
+            localCanvasMissing: loaded == nil
+        ), let remote = await SupabaseSyncService.shared.fetchDayCanvas(for: dayKey) {
+            CanvasStorageService.shared.saveCanvas(remote)
+            loaded = remote
+        }
+
+        return loaded
+    }
+
+    private let loadOperation: LoadOperation
+    private var cachedCanvases: [String: DayCanvas] = [:]
+    private var missingLoads: Set<MePosterCanvasLoadID> = []
+    private var inFlight: [MePosterCanvasLoadID: Task<DayCanvas?, Never>] = [:]
+
+    init(loadOperation: @escaping LoadOperation) {
+        self.loadOperation = loadOperation
+    }
+
+    func canvas(
+        for dayKey: String,
+        hasTrackedSnapshot: Bool,
+        forceRefresh: Bool = false
+    ) async -> DayCanvas? {
+        let loadID = MePosterCanvasLoadID(
+            dayKey: dayKey,
+            hasTrackedSnapshot: hasTrackedSnapshot
+        )
+
+        if let active = inFlight[loadID] {
+            return await active.value
+        }
+
+        if forceRefresh {
+            cachedCanvases.removeValue(forKey: dayKey)
+            missingLoads = missingLoads.filter { $0.dayKey != dayKey }
+        } else if let cached = cachedCanvases[dayKey] {
+            return cached
+        } else if missingLoads.contains(loadID) {
+            return nil
+        }
+
+        let operation = loadOperation
+        let task = Task { @MainActor in
+            await operation(dayKey, hasTrackedSnapshot)
+        }
+        inFlight[loadID] = task
+
+        let loaded = await task.value
+        inFlight.removeValue(forKey: loadID)
+        if let loaded {
+            cachedCanvases[dayKey] = loaded
+            missingLoads = missingLoads.filter { $0.dayKey != dayKey }
+        } else {
+            missingLoads.insert(loadID)
+        }
+        return loaded
+    }
+}
+
 struct MeDayHealth: Equatable {
     let steps: Int?
     let sleepHours: Double?
@@ -702,10 +785,10 @@ struct MeSelectedDayPoster: View {
         .task(id: MePosterCanvasLoadID(
             dayKey: dayKey,
             hasTrackedSnapshot: snapshot != nil
-        )) { await loadCanvas() }
+        )) { await loadCanvas(forceRefresh: isToday) }
         .onChange(of: renderingIsActive) { wasActive, isActive in
             guard isToday, isActive, !wasActive, artworkCanvas != nil else { return }
-            Task { await loadCanvas() }
+            Task { await loadCanvas(forceRefresh: true) }
         }
         .onChange(of: canShare, initial: true) { _, available in
             onShareAvailabilityChange(available)
@@ -785,29 +868,30 @@ struct MeSelectedDayPoster: View {
     }
 
     @MainActor
-    private func loadCanvas() async {
+    private func loadCanvas(forceRefresh: Bool = false) async {
         isLoading = true
-        dayCanvas = nil
-        artworkCanvas = nil
+        defer { isLoading = false }
+
+        let fallback = resolvedArtworkCanvas(
+            from: dayCanvas,
+            capturedAt: artworkCanvas?.lastModified ?? Date.now
+        )
+        artworkCanvas = MePosterArtworkLoadingPolicy.visibleArtwork(
+            existing: artworkCanvas,
+            fallback: fallback
+        )
 
         let key = dayKey
-        var loaded = await Task.detached(priority: .userInitiated) {
-            CanvasStorageService.shared.loadCanvas(for: key)
-        }.value
-
-        if MeCalendarTimeline.shouldAttemptRemoteRecovery(
+        let loaded = await MePosterCanvasLoadCoordinator.shared.canvas(
+            for: key,
             hasTrackedSnapshot: snapshot != nil,
-            localCanvasMissing: loaded == nil
-        ), let remote = await SupabaseSyncService.shared.fetchDayCanvas(for: key) {
-            CanvasStorageService.shared.saveCanvas(remote)
-            loaded = remote
-        }
+            forceRefresh: forceRefresh
+        )
 
         guard !Task.isCancelled else { return }
         dayCanvas = loaded
         let captureTime = loaded?.lastModified ?? Date.now
         artworkCanvas = resolvedArtworkCanvas(from: loaded, capturedAt: captureTime)
-        isLoading = false
     }
 
     private func resolvedArtworkCanvas(

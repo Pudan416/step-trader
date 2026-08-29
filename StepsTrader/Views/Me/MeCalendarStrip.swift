@@ -369,19 +369,10 @@ struct DayHistoryTile: View {
 
     private func loadThumbnail() async {
         let key = dayKey
-        var canvas = await Task.detached(priority: .utility) {
-            CanvasStorageService.shared.loadCanvas(for: key)
-        }.value
-
-        if MeCalendarTimeline.shouldAttemptRemoteRecovery(
-            hasTrackedSnapshot: snapshot != nil,
-            localCanvasMissing: canvas == nil
-        ) {
-            if let remote = await SupabaseSyncService.shared.fetchDayCanvas(for: key) {
-                CanvasStorageService.shared.saveCanvas(remote)
-                canvas = remote
-            }
-        }
+        let canvas = await MePosterCanvasLoadCoordinator.shared.canvas(
+            for: key,
+            hasTrackedSnapshot: snapshot != nil
+        )
 
         guard let canvas, !canvas.elements.isEmpty else {
             return
