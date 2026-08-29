@@ -164,6 +164,22 @@ final class SettingsRedesignUITests: XCTestCase {
         XCTAssertTrue(app.otherElements["settings.notifications.accessWindow"].exists)
     }
 
+    func testNotificationSectionLabelsSitAboveTheirCards() {
+        let app = launchSettings(extraArguments: ["ui-testing-notifications-denied"])
+        app.buttons["settings.destination.notifications"].tap()
+
+        assertSectionLabel(
+            "NOTIFICATION ACCESS",
+            sitsAbove: app.descendants(matching: .any)["settings.notifications.authorization"],
+            in: app
+        )
+        assertSectionLabel(
+            "ACCESS WINDOW",
+            sitsAbove: app.descendants(matching: .any)["settings.notifications.accessWindow"],
+            in: app
+        )
+    }
+
     func testZeroHealthDataDoesNotProduceUrgentWarning() {
         let app = launchSettings(extraArguments: ["ui-testing-health-zero-success"])
         app.buttons["settings.destination.permissions"].tap()
@@ -559,6 +575,25 @@ final class SettingsRedesignUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(
             element.frame.height + subpixelTolerance,
             44,
+            file: file,
+            line: line
+        )
+    }
+
+    private func assertSectionLabel(
+        _ title: String,
+        sitsAbove surface: XCUIElement,
+        in app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let label = app.staticTexts[title]
+        XCTAssertTrue(label.waitForExistence(timeout: 3), file: file, line: line)
+        XCTAssertTrue(surface.waitForExistence(timeout: 3), file: file, line: line)
+        XCTAssertLessThanOrEqual(
+            label.frame.maxY + 8,
+            surface.frame.minY,
+            "Section labels should have clear space before the card surface",
             file: file,
             line: line
         )

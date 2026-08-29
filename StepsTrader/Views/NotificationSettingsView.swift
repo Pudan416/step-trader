@@ -91,11 +91,10 @@ struct NotificationSettingsView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     // MARK: - System Authorization
                     VStack(alignment: .leading, spacing: 8) {
-                        SettingsGroupedSurface {
-                            SettingsSectionLabel(text: String(localized: "Notification access", comment: "Notification authorization section header"))
-                                .padding(.horizontal, 14)
-                                .padding(.bottom, 8)
-
+                        SettingsLabeledGroup(
+                            title: String(localized: "Notification access", comment: "Notification authorization section header"),
+                            surfaceIdentifier: "settings.notifications.authorization"
+                        ) {
                             HStack(spacing: 12) {
                                 Image(systemName: "bell.badge")
                                     .font(.geist(size: 15))
@@ -135,8 +134,6 @@ struct NotificationSettingsView: View {
                                 permissionFailureRow(notificationFailure)
                             }
                         }
-                        .accessibilityElement(children: .contain)
-                        .accessibilityIdentifier("settings.notifications.authorization")
 
                         if notificationDeliveryIsUnavailable {
                             SettingsFooter(text: String(localized: "Reminders will not be delivered until notifications are allowed.", comment: "Notifications unavailable footer"))
@@ -145,11 +142,10 @@ struct NotificationSettingsView: View {
                     .padding(.horizontal, 16)
 
                     // MARK: - Access Window
-                    SettingsGroupedSurface {
-                        SettingsSectionLabel(text: String(localized: "Access window", comment: "Notification section header"))
-                            .padding(.horizontal, 14)
-                            .padding(.bottom, 8)
-
+                    SettingsLabeledGroup(
+                        title: String(localized: "Access window", comment: "Notification section header"),
+                        surfaceIdentifier: "settings.notifications.accessWindow"
+                    ) {
                         SettingsToggleRow(
                             icon: "timer",
                             title: String(localized: "1 minute before access ends", comment: "Notification preference for access ending soon"),
@@ -165,15 +161,11 @@ struct NotificationSettingsView: View {
                         )
                     }
                     .padding(.horizontal, 16)
-                    .accessibilityElement(children: .contain)
-                    .accessibilityIdentifier("settings.notifications.accessWindow")
 
                     // MARK: - Canvas Reminder
-                    SettingsGroupedSurface {
-                        SettingsSectionLabel(text: String(localized: "Canvas reminder", comment: "Notification section header"))
-                            .padding(.horizontal, 14)
-                            .padding(.bottom, 8)
-
+                    SettingsLabeledGroup(
+                        title: String(localized: "Canvas reminder", comment: "Notification section header")
+                    ) {
                         SettingsToggleRow(
                             icon: "paintpalette",
                             title: String(localized: "Daily canvas reminder"),
@@ -208,11 +200,9 @@ struct NotificationSettingsView: View {
                     .padding(.horizontal, 16)
 
                     // MARK: - Day Reset Warning
-                    SettingsGroupedSurface {
-                        SettingsSectionLabel(text: String(localized: "Day reset", comment: "Notification section header"))
-                            .padding(.horizontal, 14)
-                            .padding(.bottom, 8)
-
+                    SettingsLabeledGroup(
+                        title: String(localized: "Day reset", comment: "Notification section header")
+                    ) {
                         SettingsToggleRow(
                             icon: "arrow.counterclockwise",
                             title: String(localized: "Canvas reset warning"),

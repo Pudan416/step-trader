@@ -84,6 +84,50 @@ struct SettingsSectionLabel: View {
     }
 }
 
+/// A section heading with deliberate breathing room before its matte card.
+/// Keeping the heading outside the clipped surface prevents the card outline
+/// from running through the text at both default and accessibility sizes.
+struct SettingsLabeledGroup<Content: View>: View {
+    let title: String
+    let surfaceIdentifier: String?
+    @ViewBuilder let content: () -> Content
+
+    init(
+        title: String,
+        surfaceIdentifier: String? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.surfaceIdentifier = surfaceIdentifier
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SettingsSectionLabel(text: title)
+                .padding(.horizontal, 14)
+
+            SettingsGroupedSurface(content: content)
+                .modifier(OptionalSettingsSurfaceIdentifier(identifier: surfaceIdentifier))
+        }
+    }
+}
+
+private struct OptionalSettingsSurfaceIdentifier: ViewModifier {
+    let identifier: String?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let identifier {
+            content
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier(identifier)
+        } else {
+            content
+        }
+    }
+}
+
 // MARK: - Toggle row
 
 struct SettingsToggleRow: View {

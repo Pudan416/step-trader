@@ -68,11 +68,9 @@ struct SettingsAboutPage: View {
                     .padding(.horizontal, 16)
 
                     // MARK: - Contact
-                    SettingsGroupedSurface {
-                        SettingsSectionLabel(text: String(localized: "Contact", comment: "About section header"))
-                            .padding(.horizontal, 14)
-                            .padding(.bottom, 8)
-
+                    SettingsLabeledGroup(
+                        title: String(localized: "Contact", comment: "About section header")
+                    ) {
                         Button {
                             if let url = URL(string: Identity.feedbackMailto) {
                                 openURL(url)
