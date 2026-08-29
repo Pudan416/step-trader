@@ -8,7 +8,6 @@ struct SettingsDeveloperPage: View {
     @ObservedObject var model: AppModel
     @ObservedObject private var authService = AuthenticationService.shared
     @Environment(\.appTheme) private var theme
-    @Environment(\.topCardHeight) private var topCardHeight
     @Environment(CoachMarkManager.self) private var coachMarkManager
 
     @State private var diagCopied = false
@@ -24,11 +23,11 @@ struct SettingsDeveloperPage: View {
 
     var body: some View {
         ZStack {
-            SettingsGradientBG(model: model)
+            SettingsDetailBackground(model: model)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    VStack(spacing: 0) {
+                    SettingsGroupedSurface {
                         shieldDiagnosticsRows
                     }
                 }
@@ -36,11 +35,7 @@ struct SettingsDeveloperPage: View {
                 .padding(.bottom, 80)
             }
         }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            Color.clear.frame(height: topCardHeight)
-        }
-        .navigationTitle(String(localized: "Developer", comment: "Settings developer page title"))
-        .navigationBarTitleDisplayMode(.inline)
+        .settingsDetailPage(title: String(localized: "Developer", comment: "Settings developer page title"))
         .fullScreenCover(isPresented: $showOnboardingDemo) {
             OnboardingDemoView()
         }

@@ -14,7 +14,6 @@ struct SettingsAppearancePage: View {
     @State private var allowedShapes: Set<CanvasShapeType> = []
     @State private var allowedFills: Set<TextureKind> = []
 
-    @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.appTheme) private var theme
     @State private var previewConfig: GradientPreviewConfig?
     @State private var lightHapticTick = 0
@@ -42,7 +41,7 @@ struct SettingsAppearancePage: View {
 
     var body: some View {
         ZStack {
-            SettingsGradientBG(model: model)
+            SettingsDetailBackground(model: model)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
@@ -57,11 +56,7 @@ struct SettingsAppearancePage: View {
             }
         }
         .overlay { }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            Color.clear.frame(height: topCardHeight)
-        }
-        .navigationTitle(String(localized: "Appearance", comment: "Settings section title"))
-        .navigationBarTitleDisplayMode(.inline)
+        .settingsDetailPage(title: String(localized: "Appearance", comment: "Settings section title"))
         .sheet(item: $previewConfig) { config in
             GradientPreviewSheet(
                 config: config,
@@ -83,14 +78,13 @@ struct SettingsAppearancePage: View {
     // MARK: - Daily Random Theme
 
     private var dailyRandomThemeSection: some View {
-        VStack(spacing: 0) {
+        SettingsGroupedSurface {
             dailyRandomToggleRow
             if isDailyRandomActive {
                 DetailDivider()
                 rerollRow
             }
         }
-        .glassCard()
     }
 
     private var dailyRandomToggleRow: some View {
@@ -626,11 +620,10 @@ struct SettingsAppearancePage: View {
             }
             .padding(.horizontal, 16)
 
-            VStack(spacing: 0) {
+            SettingsGroupedSurface {
                 shapeMultiSelectRow
             }
             .padding(.horizontal, 16)
-            .glassCard()
         }
         .onAppear { allowedShapes = Set(CanvasShapeType.allowedByUser) }
     }

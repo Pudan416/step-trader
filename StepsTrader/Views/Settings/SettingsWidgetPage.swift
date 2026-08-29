@@ -3,26 +3,24 @@ import WidgetKit
 
 struct SettingsWidgetPage: View {
     @ObservedObject var model: AppModel
-    @Environment(\.topCardHeight) private var topCardHeight
 
     var body: some View {
         ZStack {
-            SettingsGradientBG(model: model)
+            SettingsDetailBackground(model: model)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    SettingsWidgetControls()
+                    SettingsGroupedSurface {
+                        SettingsWidgetControls()
+                            .padding(14)
+                    }
                         .padding(.horizontal, 16)
                 }
                 .padding(.bottom, 80)
             }
         }
         .overlay { }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            Color.clear.frame(height: topCardHeight)
-        }
-        .navigationTitle(String(localized: "Widget", comment: "Settings section title"))
-        .navigationBarTitleDisplayMode(.inline)
+        .settingsDetailPage(title: String(localized: "Widget", comment: "Settings section title"))
     }
 }
 

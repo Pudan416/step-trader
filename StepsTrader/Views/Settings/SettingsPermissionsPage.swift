@@ -7,7 +7,6 @@ import FamilyControls
 
 struct SettingsPermissionsPage: View {
     @ObservedObject var model: AppModel
-    @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.appTheme) private var theme
 
     @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
@@ -45,7 +44,7 @@ struct SettingsPermissionsPage: View {
 
     var body: some View {
         ZStack {
-            SettingsGradientBG(model: model)
+            SettingsDetailBackground(model: model)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
@@ -54,7 +53,7 @@ struct SettingsPermissionsPage: View {
                             .padding(.horizontal, 16)
                     }
 
-                    VStack(spacing: 0) {
+                    SettingsGroupedSurface {
                         permissionRow(
                             icon: "heart.fill",
                             title: String(localized: "Health", comment: "Permission row – HealthKit"),
@@ -124,11 +123,7 @@ struct SettingsPermissionsPage: View {
             }
         }
         .overlay { }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            Color.clear.frame(height: topCardHeight)
-        }
-        .navigationTitle(String(localized: "Permissions", comment: "Permissions page title"))
-        .navigationBarTitleDisplayMode(.inline)
+        .settingsDetailPage(title: String(localized: "Permissions", comment: "Permissions page title"))
         .task {
             await refreshNotificationStatus()
         }

@@ -4,7 +4,6 @@ struct SettingsAccountPage: View {
     @ObservedObject var authService: AuthenticationService
     @ObservedObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.appTheme) private var theme
     @State private var showProfileEditor = false
     @State private var showDeleteConfirmation = false
@@ -17,11 +16,14 @@ struct SettingsAccountPage: View {
 
     var body: some View {
         ZStack {
-            SettingsGradientBG(model: model)
+            SettingsDetailBackground(model: model)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    profileSummary
+                    SettingsGroupedSurface {
+                        profileSummary
+                    }
+                    .padding(.horizontal, 16)
 
                     accountSection(String(localized: "PROFILE", comment: "Settings account section header")) {
                         DetailInfoRow(
@@ -90,11 +92,7 @@ struct SettingsAccountPage: View {
                 .padding(.bottom, 80)
             }
         }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            Color.clear.frame(height: topCardHeight)
-        }
-        .navigationTitle(String(localized: "Account", comment: "Settings account page title"))
-        .navigationBarTitleDisplayMode(.inline)
+        .settingsDetailPage(title: String(localized: "Account", comment: "Settings account page title"))
         .sheet(isPresented: $showProfileEditor) {
             ProfileEditorView(authService: authService)
         }
@@ -142,7 +140,7 @@ struct SettingsAccountPage: View {
             .buttonStyle(MattePressStyle())
             .accessibilityIdentifier("settings.account.editProfile")
         }
-        .padding(.horizontal, 30)
+        .padding(.horizontal, 14)
     }
 
     private var accountAvatar: some View {
@@ -174,14 +172,14 @@ struct SettingsAccountPage: View {
 
     private func accountSection<Content: View, Footer: View>(
         _ title: String,
-        @ViewBuilder content: () -> Content,
+        @ViewBuilder content: @escaping () -> Content,
         @ViewBuilder footer: () -> Footer = { EmptyView() }
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             SettingsSectionLabel(text: title)
                 .padding(.horizontal, 30)
 
-            VStack(spacing: 0) { content() }
+            SettingsGroupedSurface { content() }
                 .padding(.horizontal, 16)
 
             footer()

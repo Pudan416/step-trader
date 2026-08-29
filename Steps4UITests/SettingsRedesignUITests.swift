@@ -78,6 +78,13 @@ final class SettingsRedesignUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Appearance"].exists)
     }
 
+    func testNotificationsUsesGroupedDetailSurface() {
+        let app = launchSettings()
+        app.buttons["settings.destination.notifications"].tap()
+        XCTAssertTrue(app.otherElements["settings.detail.background"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.otherElements["settings.notifications.accessWindow"].exists)
+    }
+
     func testYourDayEditorsExposeContextualSemanticsAndMinimumHitTargets() {
         let app = launchSettings()
         app.buttons["settings.yourDay"].tap()

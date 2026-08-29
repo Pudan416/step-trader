@@ -2,7 +2,6 @@ import SwiftUI
 
 struct NotificationSettingsView: View {
     @ObservedObject var model: AppModel
-    @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
 
@@ -46,12 +45,12 @@ struct NotificationSettingsView: View {
 
     var body: some View {
         ZStack {
-            SettingsGradientBG(model: model)
+            SettingsDetailBackground(model: model)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     // MARK: - Access Window
-                    VStack(alignment: .leading, spacing: 0) {
+                    SettingsGroupedSurface {
                         SettingsSectionLabel(text: String(localized: "Access window", comment: "Notification section header"))
                             .padding(.horizontal, 14)
                             .padding(.bottom, 8)
@@ -71,11 +70,11 @@ struct NotificationSettingsView: View {
                         )
                     }
                     .padding(.horizontal, 16)
-
-                    DetailDivider().padding(.horizontal, 16)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("settings.notifications.accessWindow")
 
                     // MARK: - Canvas Reminder
-                    VStack(alignment: .leading, spacing: 0) {
+                    SettingsGroupedSurface {
                         SettingsSectionLabel(text: String(localized: "Canvas reminder", comment: "Notification section header"))
                             .padding(.horizontal, 14)
                             .padding(.bottom, 8)
@@ -110,10 +109,8 @@ struct NotificationSettingsView: View {
                     }
                     .padding(.horizontal, 16)
 
-                    DetailDivider().padding(.horizontal, 16)
-
                     // MARK: - Day Reset Warning
-                    VStack(alignment: .leading, spacing: 0) {
+                    SettingsGroupedSurface {
                         SettingsSectionLabel(text: String(localized: "Day reset", comment: "Notification section header"))
                             .padding(.horizontal, 14)
                             .padding(.bottom, 8)
@@ -172,11 +169,7 @@ struct NotificationSettingsView: View {
             }
         }
         .overlay { }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            Color.clear.frame(height: topCardHeight)
-        }
-        .navigationTitle(String(localized: "Notifications", comment: "Navigation title"))
-        .navigationBarTitleDisplayMode(.inline)
+        .settingsDetailPage(title: String(localized: "Notifications", comment: "Navigation title"))
     }
 
     // MARK: - Reschedule helpers

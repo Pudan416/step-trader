@@ -183,6 +183,24 @@ struct SettingsGradientBG: View {
     }
 }
 
+/// A calmer form of the energy wash for pushed Settings destinations. The
+/// root page keeps the full-strength gradient while details recede behind
+/// their controls.
+struct SettingsDetailBackground: View {
+    @ObservedObject var model: AppModel
+    @Environment(\.appTheme) private var theme
+
+    var body: some View {
+        ZStack {
+            SettingsGradientBG(model: model)
+            theme.backgroundColor.opacity(0.78)
+        }
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
+        .accessibilityIdentifier("settings.detail.background")
+    }
+}
+
 /// Grain layer rendered ABOVE settings content. Place as the last sibling of
 /// the ZStack so it sits on top of the ScrollView. Pairs with
 /// `SettingsGradientBG` which already includes a grain layer in the
@@ -236,6 +254,36 @@ struct SettingsCardSurface: ViewModifier {
 
 extension View {
     func settingsCardSurface() -> some View { modifier(SettingsCardSurface()) }
+}
+
+/// Shared matte container for rows that belong to one Settings group.
+struct SettingsGroupedSurface<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(spacing: 0, content: content)
+            .settingsCardSurface()
+    }
+}
+
+private struct SettingsDetailPageModifier: ViewModifier {
+    let title: String
+    @Environment(\.topCardHeight) private var topCardHeight
+
+    func body(content: Content) -> some View {
+        content
+            .safeAreaInset(edge: .top, spacing: 0) {
+                Color.clear.frame(height: topCardHeight)
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+extension View {
+    func settingsDetailPage(title: String) -> some View {
+        modifier(SettingsDetailPageModifier(title: title))
+    }
 }
 
 // MARK: - Gradient preview config
