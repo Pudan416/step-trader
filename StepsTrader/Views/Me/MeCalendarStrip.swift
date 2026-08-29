@@ -249,6 +249,12 @@ struct MeCalendarStrip: View {
 
 // MARK: - Day Tile
 
+enum MeHistoryThumbnailPolicy {
+    static func canvasForRendering(_ canvas: DayCanvas?) -> DayCanvas? {
+        canvas
+    }
+}
+
 struct DayHistoryTile: View {
     let dayKey: String
     let snapshot: PastDaySnapshot?
@@ -374,7 +380,7 @@ struct DayHistoryTile: View {
             hasTrackedSnapshot: snapshot != nil
         )
 
-        guard let canvas, !canvas.elements.isEmpty else {
+        guard let canvas = MeHistoryThumbnailPolicy.canvasForRendering(canvas) else {
             return
         }
 

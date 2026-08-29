@@ -192,6 +192,18 @@ final class MeCalendarTimelineTests: XCTestCase {
         XCTAssertEqual(attempts, 1)
     }
 
+    func testHistoryThumbnailUsesSavedCanvasEvenWithoutHappenings() throws {
+        var canvas = DayCanvas(dayKey: "2026-08-26")
+        canvas.gradientPalette = GradientPalette.aurora.rawValue
+
+        let resolved = try XCTUnwrap(
+            MeHistoryThumbnailPolicy.canvasForRendering(canvas)
+        )
+
+        XCTAssertTrue(resolved.elements.isEmpty)
+        XCTAssertEqual(resolved.gradientPalette, GradientPalette.aurora.rawValue)
+    }
+
     func testPosterCarouselHidesAdjacentPagesUntilTheUserScrolls() {
         let viewportWidth: CGFloat = 393
         let sizing = MePosterCarouselLayout.sizing(viewportWidth: viewportWidth)
