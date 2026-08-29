@@ -7,8 +7,10 @@ struct InlineTicketSettingsView: View {
     let onEditApps: () -> Void
     var onAfterDelete: (() -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isUnlocking = false
     @State private var showEditSettings = false
+    @State private var showDeleteConfirmation = false
     @State private var unlockHapticTick = 0
 
     private let intervals: [AccessWindow] = [.minutes10, .minutes30, .hour1]
@@ -25,7 +27,7 @@ struct InlineTicketSettingsView: View {
                 .background(separator)
 
             Button {
-                withAnimation(.easeInOut(duration: 0.25)) {
+                withMotionAnimation(.easeInOut(duration: 0.25), reduceMotion: reduceMotion) {
                     showEditSettings.toggle()
                 }
             } label: {
@@ -39,7 +41,7 @@ struct InlineTicketSettingsView: View {
                         .background(separator)
                     inlineIntervalsSection
                 }
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
             }
 
             Button {
@@ -50,9 +52,7 @@ struct InlineTicketSettingsView: View {
             .buttonStyle(.plain)
 
             Button {
-                let groupId = group.id
-                onAfterDelete?()
-                model.deleteTicketGroup(groupId)
+                showDeleteConfirmation = true
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "trash")
@@ -76,9 +76,20 @@ struct InlineTicketSettingsView: View {
                 )
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("settings.feed.delete")
         }
         .padding(.top, 8)
         .sensoryFeedback(.impact(weight: .medium), trigger: unlockHapticTick)
+        .confirmationDialog(
+            String(localized: "Delete \(group.name.isEmpty ? "Feed" : group.name)?"),
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(String(localized: "Delete Feed"), role: .destructive) { confirmDelete() }
+            Button(String(localized: "Cancel"), role: .cancel) {}
+        } message: {
+            Text(String(localized: "This removes the Feed and its access options. This action cannot be undone."))
+        }
     }
 
     private func rowButtonLabel(icon: String, title: String, showChevron: Bool, expanded: Bool, surface: Color, separator: Color) -> some View {
@@ -122,24 +133,20 @@ struct InlineTicketSettingsView: View {
                 .foregroundStyle(.primary)
 
             ForEach(intervals, id: \.self) { interval in
-                HStack {
-                    Text(interval.displayName)
-                        .font(.geist(.subheadline))
-                        .foregroundStyle(.primary)
-                    Spacer()
-                    Toggle("", isOn: Binding(
-                        get: { group.enabledIntervals.contains(interval) },
-                        set: { enabled in
-                            if enabled {
-                                group.enabledIntervals.insert(interval)
-                            } else if group.enabledIntervals.count > 1 {
-                                group.enabledIntervals.remove(interval)
-                            }
-                            model.updateTicketGroup(group)
+                Toggle(interval.displayName, isOn: Binding(
+                    get: { group.enabledIntervals.contains(interval) },
+                    set: { enabled in
+                        if enabled {
+                            group.enabledIntervals.insert(interval)
+                        } else if group.enabledIntervals.count > 1 {
+                            group.enabledIntervals.remove(interval)
                         }
-                    ))
-                    .tint(accent)
-                }
+                        model.updateTicketGroup(group)
+                    }
+                ))
+                .font(.geist(.subheadline))
+                .foregroundStyle(.primary)
+                .tint(accent)
                 .padding(.vertical, 6)
             }
         }
@@ -152,6 +159,12 @@ struct InlineTicketSettingsView: View {
                         .stroke(separator.opacity(0.5), lineWidth: 1)
                 )
         )
+    }
+
+    private func confirmDelete() {
+        let groupId = group.id
+        model.deleteTicketGroup(groupId)
+        onAfterDelete?()
     }
 
     @ViewBuilder

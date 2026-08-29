@@ -205,7 +205,17 @@ struct AppsPageSimplified: View {
                     }
                 )
             }
-            .onAppear { selection = model.appSelection }
+            .onAppear {
+                selection = model.appSelection
+                #if DEBUG
+                openTicketSettingsFixtureIfAvailable()
+                #endif
+            }
+            #if DEBUG
+            .onChange(of: model.blockingStore.ticketGroups.map(\.id)) {
+                openTicketSettingsFixtureIfAvailable()
+            }
+            #endif
             .task {
                 // The honest signal steps once a minute (the monitor
                 // extension's per-minute tick). Poll a little faster so
@@ -456,6 +466,20 @@ struct AppsPageSimplified: View {
             !group.selection.applicationTokens.isEmpty || !group.selection.categoryTokens.isEmpty
         }
     }
+
+    #if DEBUG
+    private var opensTicketSettingsFixture: Bool {
+        ProcessInfo.processInfo.arguments.contains("ui-testing-ticket-settings")
+    }
+
+    private func openTicketSettingsFixtureIfAvailable() {
+        guard opensTicketSettingsFixture,
+              expandedSheetGroupId == nil,
+              model.blockingStore.ticketGroups.contains(where: { $0.id == "ui-testing-study" })
+        else { return }
+        expandedSheetGroupId = TicketGroupId(id: "ui-testing-study")
+    }
+    #endif
 
     private func deleteAndCleanup(_ groupId: String) {
         if expandedSheetGroupId?.id == groupId { expandedSheetGroupId = nil }

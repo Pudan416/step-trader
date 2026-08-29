@@ -835,6 +835,12 @@
     "Delete" : {
       "comment" : "Feeds surface – corner menu"
     },
+    "Delete %@?" : {
+      "comment" : "Feed settings delete confirmation title"
+    },
+    "Delete Feed" : {
+      "comment" : "Feed settings destructive confirmation action"
+    },
     "Delete Account" : {
       "comment" : "ProfileEditor – delete account button\nProfileEditor – delete confirmation title"
     },
@@ -2887,6 +2893,9 @@
     },
     "This part is shaped by the things you chose to notice today. Each different happening adds color once, up to 60 colors." : {
       "comment" : "Canvas data panel – inline happenings explanation"
+    },
+    "This removes the Feed and its access options. This action cannot be undone." : {
+      "comment" : "Feed settings delete confirmation message"
     },
     "this uses apple's screen time. you'll see a system prompt." : {
 

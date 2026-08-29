@@ -50,6 +50,22 @@ final class SettingsRedesignUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 5))
     }
 
+    private func launchTicketSettings() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "ui-testing",
+            "ui-testing-ticket-settings",
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        XCTAssertTrue(app.buttons["tab_feeds"].waitForExistence(timeout: 10))
+        app.buttons["tab_feeds"].tap()
+        XCTAssertTrue(app.navigationBars["Study"].waitForExistence(timeout: 5))
+        return app
+    }
+
     func testYourDayIsAvailableWithoutOpeningLogin() {
         let app = launchSettings()
 
@@ -109,6 +125,29 @@ final class SettingsRedesignUITests: XCTestCase {
         app.buttons["settings.destination.permissions"].tap()
         XCTAssertTrue(app.staticTexts["Connected"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.staticTexts["Health not granted"].exists)
+    }
+
+    func testDeletingFeedRequiresConfirmation() {
+        let app = launchTicketSettings()
+
+        app.buttons["settings.feed.delete"].tap()
+        XCTAssertTrue(app.sheets["Delete Study?"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Cancel"].exists)
+        XCTAssertTrue(app.buttons["Delete Feed"].exists)
+
+        app.buttons["Cancel"].tap()
+
+        XCTAssertTrue(app.staticTexts["Study"].exists)
+    }
+
+    func testConfirmingFeedDeletionRemovesSeededFeed() {
+        let app = launchTicketSettings()
+
+        app.buttons["settings.feed.delete"].tap()
+        XCTAssertTrue(app.sheets["Delete Study?"].waitForExistence(timeout: 3))
+        app.buttons["Delete Feed"].tap()
+
+        XCTAssertFalse(app.staticTexts["Study"].waitForExistence(timeout: 3))
     }
 
     func testDeniedNotificationsShowSystemRecoveryAction() {

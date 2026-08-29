@@ -181,6 +181,18 @@ struct StepsTraderApp: App {
             defaults.set(0, forKey: SharedKeys.dayEndHour)
             defaults.set(0, forKey: SharedKeys.dayEndMinute)
         }
+        #if DEBUG
+        if processArguments.contains("ui-testing-ticket-settings") {
+            let fixture = TicketGroup(
+                id: "ui-testing-study",
+                name: "Study",
+                settings: AppUnlockSettings(entryCostSteps: 10, dayPassCostSteps: 100)
+            )
+            if let data = try? JSONEncoder().encode([fixture]) {
+                UserDefaults.stepsTrader().set(data, forKey: SharedKeys.ticketGroups)
+            }
+        }
+        #endif
         _model = StateObject(wrappedValue: DIContainer.shared.makeAppModel())
 
         // Register the MetricKit subscriber early so diagnostics aggregated since
