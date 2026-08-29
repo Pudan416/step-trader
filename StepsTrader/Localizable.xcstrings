@@ -403,6 +403,27 @@
     "Angular" : {
 
     },
+    "Appearance mode" : {
+      "comment" : "Appearance mode picker label"
+    },
+    "Automatic" : {
+      "comment" : "Appearance mode option"
+    },
+    "Canvas ingredients" : {
+      "comment" : "Appearance manual disclosure label"
+    },
+    "Current theme" : {
+      "comment" : "Automatic Appearance summary heading"
+    },
+    "Gradient style" : {
+      "comment" : "Appearance current gradient style label\nAppearance gradient style heading"
+    },
+    "Manual" : {
+      "comment" : "Appearance mode option"
+    },
+    "Palette" : {
+      "comment" : "Appearance current palette label\nAppearance palette heading"
+    },
     "App blocking & limits" : {
       "comment" : "Permission row – Family Controls detail"
     },

@@ -254,6 +254,34 @@ struct SettingsCardSurface: ViewModifier {
 
 extension View {
     func settingsCardSurface() -> some View { modifier(SettingsCardSurface()) }
+
+    func settingsSelectable(label: String, isSelected: Bool) -> some View {
+        modifier(SettingsSelectableModifier(label: label, isSelected: isSelected))
+    }
+}
+
+private struct SettingsSelectableModifier: ViewModifier {
+    let label: String
+    let isSelected: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isSelected {
+            selectableContent(content)
+                .accessibilityAddTraits(.isSelected)
+        } else {
+            selectableContent(content)
+        }
+    }
+
+    private func selectableContent(_ content: Content) -> some View {
+        content
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(Text(label))
+            .accessibilityValue(Text(isSelected
+                ? String(localized: "Selected", comment: "Settings selectable choice state")
+                : String(localized: "Not selected", comment: "Settings selectable choice state")))
+    }
 }
 
 /// Shared matte container for rows that belong to one Settings group.

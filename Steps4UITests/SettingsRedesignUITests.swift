@@ -71,11 +71,23 @@ final class SettingsRedesignUITests: XCTestCase {
     func testAppearanceHorizontalSwipeDoesNotDismissDestination() {
         let app = launchSettings()
         app.buttons["settings.destination.appearance"].tap()
+        app.segmentedControls.buttons["Manual"].tap()
         let carousel = app.otherElements["settings.appearance.paletteCarousel"]
         XCTAssertTrue(carousel.waitForExistence(timeout: 3))
         carousel.swipeLeft()
         carousel.swipeRight()
         XCTAssertTrue(app.navigationBars["Appearance"].exists)
+    }
+
+    func testAppearanceManualChoicesExposeSelectedStateAtAccessibilitySize() {
+        let app = launchSettings(contentSizeCategory: "UICTContentSizeCategoryAccessibilityM")
+        app.buttons["settings.destination.appearance"].tap()
+        app.segmentedControls.buttons["Manual"].tap()
+        let selectedPalette = app.buttons.matching(
+            NSPredicate(format: "value == 'Selected'")
+        ).firstMatch
+        XCTAssertTrue(selectedPalette.waitForExistence(timeout: 3))
+        XCTAssertTrue(selectedPalette.isHittable)
     }
 
     func testNotificationsUsesGroupedDetailSurface() {

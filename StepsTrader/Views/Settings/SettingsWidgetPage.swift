@@ -26,6 +26,7 @@ struct SettingsWidgetPage: View {
 
 struct SettingsWidgetControls: View {
     @Environment(\.appTheme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(
         SharedKeys.widgetBackgroundMode,
         store: UserDefaults(suiteName: SharedKeys.appGroupId)
@@ -139,7 +140,10 @@ struct SettingsWidgetControls: View {
         @ViewBuilder preview: () -> Preview
     ) -> some View {
         Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            withMotionAnimation(
+                .spring(response: 0.3, dampingFraction: 0.7),
+                reduceMotion: reduceMotion
+            ) {
                 backgroundMode = value
             }
         } label: {
@@ -155,6 +159,15 @@ struct SettingsWidgetControls: View {
                                 lineWidth: 2
                             )
                     }
+                    .overlay(alignment: .topTrailing) {
+                        if isSelected {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.geist(size: 16, weight: .bold))
+                                .symbolRenderingMode(.palette)
+                                .foregroundStyle(.white, AppColors.brandAccent)
+                                .padding(6)
+                        }
+                    }
 
                 Text(title)
                     .font(.geist(.caption).weight(isSelected ? .semibold : .regular))
@@ -162,6 +175,7 @@ struct SettingsWidgetControls: View {
             }
         }
         .buttonStyle(.plain)
+        .settingsSelectable(label: title, isSelected: isSelected)
     }
 }
 

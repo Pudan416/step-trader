@@ -150,4 +150,11 @@ final class SettingsHomePresentationTests: XCTestCase {
 
         XCTAssertEqual(SettingsLocalizedCasing.uppercase("izin", locale: turkish), "İZİN")
     }
+
+    func testAppearanceModeMapsToExistingBooleanWithoutMigration() {
+        XCTAssertEqual(SettingsAppearanceMode(dailyRandomEnabled: true), .automatic)
+        XCTAssertEqual(SettingsAppearanceMode(dailyRandomEnabled: false), .manual)
+        XCTAssertTrue(SettingsAppearanceMode.automatic.dailyRandomEnabled)
+        XCTAssertFalse(SettingsAppearanceMode.manual.dailyRandomEnabled)
+    }
 }

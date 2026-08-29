@@ -15,7 +15,9 @@ struct SettingsAppearancePage: View {
     @State private var allowedFills: Set<TextureKind> = []
 
     @Environment(\.appTheme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var previewConfig: GradientPreviewConfig?
+    @State private var isCanvasIngredientsExpanded = false
     @State private var lightHapticTick = 0
     @State private var mediumHapticTick = 0
 
@@ -31,8 +33,39 @@ struct SettingsAppearancePage: View {
         EnergyGradientRenderer.palette(for: selectedPalette)
     }
 
-    private var isDailyRandomActive: Bool {
-        dailyRandomThemeEnabled
+    private var appearanceMode: SettingsAppearanceMode {
+        SettingsAppearanceMode(dailyRandomEnabled: dailyRandomThemeEnabled)
+    }
+
+    private var appearanceModeBinding: Binding<SettingsAppearanceMode> {
+        Binding(
+            get: { appearanceMode },
+            set: { mode in
+                guard mode.dailyRandomEnabled != dailyRandomThemeEnabled else { return }
+                withMotionAnimation(
+                    .spring(response: 0.3, dampingFraction: 0.8),
+                    reduceMotion: reduceMotion
+                ) {
+                    model.setDailyRandomTheme(enabled: mode.dailyRandomEnabled)
+                }
+                lightHapticTick &+= 1
+            }
+        )
+    }
+
+    private var canvasIngredientsBinding: Binding<Bool> {
+        Binding(
+            get: { isCanvasIngredientsExpanded },
+            set: { isExpanded in
+                withMotionAnimation(
+                    .spring(response: 0.3, dampingFraction: 0.8),
+                    reduceMotion: reduceMotion,
+                    reducedMotionFallback: nil
+                ) {
+                    isCanvasIngredientsExpanded = isExpanded
+                }
+            }
+        )
     }
 
     private var selectedModernPaletteCategories: Set<ModernPaletteCategory> {
@@ -45,14 +78,27 @@ struct SettingsAppearancePage: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    dailyRandomThemeSection
+                    appearanceModePicker
                         .padding(.horizontal, 16)
 
-                    randomizableGroup
-
-                    manualGroup
+                    if appearanceMode == .automatic {
+                        automaticThemeSection
+                            .padding(.horizontal, 16)
+                            .transition(.opacity)
+                    } else {
+                        VStack(alignment: .leading, spacing: 24) {
+                            backgroundGroup
+                            canvasIngredientsDisclosure
+                        }
+                        .transition(.opacity)
+                    }
                 }
                 .padding(.bottom, 80)
+                .motionAnimation(
+                    .spring(response: 0.3, dampingFraction: 0.8),
+                    value: appearanceMode,
+                    reducedMotionFallback: .easeInOut(duration: 0.15)
+                )
             }
         }
         .overlay { }
@@ -61,10 +107,13 @@ struct SettingsAppearancePage: View {
             GradientPreviewSheet(
                 config: config,
                 onApply: {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    withMotionAnimation(
+                        .spring(response: 0.3, dampingFraction: 0.7),
+                        reduceMotion: reduceMotion
+                    ) {
                         gradientStyleRaw = config.style.rawValue
                     }
-                                        mediumHapticTick &+= 1
+                    mediumHapticTick &+= 1
                     previewConfig = nil
                     model.syncUserPreferencesToSupabase()
                 }
@@ -75,59 +124,53 @@ struct SettingsAppearancePage: View {
         .sensoryFeedback(.impact(weight: .medium), trigger: mediumHapticTick)
     }
 
-    // MARK: - Daily Random Theme
+    // MARK: - Appearance Mode
 
-    private var dailyRandomThemeSection: some View {
-        SettingsGroupedSurface {
-            dailyRandomToggleRow
-            if isDailyRandomActive {
+    private var appearanceModePicker: some View {
+        Picker(
+            String(localized: "Appearance mode", comment: "Appearance mode picker label"),
+            selection: appearanceModeBinding
+        ) {
+            Text(String(localized: "Automatic", comment: "Appearance mode option"))
+                .font(.geist(.subheadline))
+                .tag(SettingsAppearanceMode.automatic)
+            Text(String(localized: "Manual", comment: "Appearance mode option"))
+                .font(.geist(.subheadline))
+                .tag(SettingsAppearanceMode.manual)
+        }
+        .pickerStyle(.segmented)
+        .accessibilityIdentifier("settings.appearance.mode")
+    }
+
+    private var automaticThemeSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionLabel(String(localized: "Current theme", comment: "Automatic Appearance summary heading"))
+
+            SettingsGroupedSurface {
+                DetailInfoRow(
+                    label: String(localized: "Palette", comment: "Appearance current palette label"),
+                    value: selectedPalette.displayName
+                )
+                DetailDivider()
+                DetailInfoRow(
+                    label: String(localized: "Gradient style", comment: "Appearance current gradient style label"),
+                    value: selectedStyle.displayName
+                )
                 DetailDivider()
                 rerollRow
             }
         }
     }
 
-    private var dailyRandomToggleRow: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "shuffle")
-                .font(.geist(size: 14, weight: .semibold))
-                .foregroundStyle(isDailyRandomActive ? AppColors.brandAccent : theme.adaptiveSecondaryText)
-                .frame(width: 28, height: 28)
-                .background(Circle().fill((isDailyRandomActive ? AppColors.brandAccent : theme.adaptiveSecondaryText).opacity(0.12)))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(String(localized: "Daily random theme"))
-                    .font(.geist(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(theme.adaptivePrimaryText)
-                Text(isDailyRandomActive
-                     ? String(localized: "Randomizes color & gradient style each day.")
-                     : String(localized: "A fresh palette + style every day."))
-                    .font(.geist(size: 11))
-                    .foregroundStyle(theme.adaptiveMutedText)
-            }
-
-            Spacer(minLength: 0)
-
-            Toggle("", isOn: Binding(
-                get: { dailyRandomThemeEnabled },
-                set: { newValue in
-                    model.setDailyRandomTheme(enabled: newValue)
-                                            lightHapticTick &+= 1
-                }
-            ))
-            .labelsHidden()
-            .tint(AppColors.brandAccent)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-    }
-
     private var rerollRow: some View {
         Button {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+            withMotionAnimation(
+                .spring(response: 0.4, dampingFraction: 0.75),
+                reduceMotion: reduceMotion
+            ) {
                 model.rerollDailyTheme()
             }
-                        mediumHapticTick &+= 1
+            mediumHapticTick &+= 1
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "dice")
@@ -136,7 +179,7 @@ struct SettingsAppearancePage: View {
                     .frame(width: 28, height: 28)
                     .background(Circle().fill(AppColors.brandAccent.opacity(0.12)))
                 Text(String(localized: "Re-roll today's theme"))
-                    .font(.geist(size: 14, weight: .medium, design: .rounded))
+                    .font(.geist(.subheadline).weight(.medium))
                     .foregroundStyle(theme.adaptivePrimaryText)
                 Spacer()
                 Image(systemName: "arrow.clockwise")
@@ -151,27 +194,41 @@ struct SettingsAppearancePage: View {
         .accessibilityLabel(String(localized: "Re-roll today's theme"))
     }
 
-    // MARK: - Randomizable Group (palette + gradient style)
+    // MARK: - Background (palette + gradient style)
 
-    private var randomizableGroup: some View {
+    private var backgroundGroup: some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack(spacing: 8) {
-                sectionLabel(String(localized: "BACKGROUND COLOR", comment: "Appearance section header"))
-                if isDailyRandomActive { autoTag }
-            }
-            .padding(.horizontal, 16)
+            sectionLabel(String(localized: "Background", comment: "Appearance manual group heading"))
+                .padding(.horizontal, 16)
+
+            sectionLabel(String(localized: "Palette", comment: "Appearance palette heading"))
+                .padding(.horizontal, 16)
 
             paletteHScroll
 
-            HStack(spacing: 8) {
-                sectionLabel(String(localized: "GRADIENT STYLE", comment: "Appearance section header"))
-                if isDailyRandomActive { autoTag }
-            }
-            .padding(.horizontal, 16)
+            sectionLabel(String(localized: "Gradient style", comment: "Appearance gradient style heading"))
+                .padding(.horizontal, 16)
 
             gradientStyleHScroll
         }
-        .opacity(isDailyRandomActive ? 0.45 : 1.0)
+    }
+
+    private var canvasIngredientsDisclosure: some View {
+        SettingsGroupedSurface {
+            DisclosureGroup(isExpanded: canvasIngredientsBinding) {
+                manualGroup
+                    .padding(.top, 18)
+                    .padding(.bottom, 4)
+            } label: {
+                Text(String(localized: "Canvas ingredients", comment: "Appearance manual disclosure label"))
+                    .font(.geist(.subheadline).weight(.semibold))
+                    .foregroundStyle(theme.adaptivePrimaryText)
+            }
+            .tint(theme.adaptiveSecondaryText)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+        }
+        .padding(.horizontal, 16)
     }
 
     // MARK: - Palette (horizontal scroll)
@@ -183,8 +240,10 @@ struct SettingsAppearancePage: View {
                     ForEach(GradientPalette.allCases, id: \.rawValue) { scheme in
                         let isSelected = selectedPalette == scheme
                         Button {
-                            guard !isDailyRandomActive else { return }
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            withMotionAnimation(
+                                .spring(response: 0.3, dampingFraction: 0.7),
+                                reduceMotion: reduceMotion
+                            ) {
                                 gradientPaletteRaw = scheme.rawValue
                             }
                             model.syncUserPreferencesToSupabase()
@@ -193,7 +252,7 @@ struct SettingsAppearancePage: View {
                             paletteChip(scheme: scheme, isSelected: isSelected)
                         }
                         .buttonStyle(.plain)
-                        .disabled(isDailyRandomActive)
+                        .settingsSelectable(label: scheme.displayName, isSelected: isSelected)
                     }
                 }
                 .padding(.horizontal, 16)
@@ -233,13 +292,12 @@ struct SettingsAppearancePage: View {
                         .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
                 }
             }
-            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isSelected)
+            .motionAnimation(.spring(response: 0.25, dampingFraction: 0.7), value: isSelected)
 
             Text(scheme.displayName)
-                .font(.geist(size: 10, weight: isSelected ? .bold : .medium))
+                .font(.geist(.caption2).weight(isSelected ? .bold : .medium))
                 .foregroundStyle(isSelected ? .primary : .secondary)
         }
-        .accessibilityLabel(scheme.displayName)
     }
 
     // MARK: - Gradient Style (horizontal scroll)
@@ -250,9 +308,8 @@ struct SettingsAppearancePage: View {
                 ForEach(GradientStyle.allCases, id: \.rawValue) { style in
                     let isSelected = gradientStyleRaw == style.rawValue
                     Button {
-                        guard !isDailyRandomActive else { return }
                         previewConfig = GradientPreviewConfig(style: style)
-                                                lightHapticTick &+= 1
+                        lightHapticTick &+= 1
                     } label: {
                         VStack(spacing: 6) {
                             ZStack {
@@ -277,22 +334,29 @@ struct SettingsAppearancePage: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
                             }
                             .overlay {
-                                RoundedRectangle(cornerRadius: 10)
-                                    .strokeBorder(
-                                        isSelected ? AppColors.brandAccent : Color.white.opacity(0.08),
-                                        lineWidth: isSelected ? 2 : 0.5
-                                    )
+                                ZStack(alignment: .topTrailing) {
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .strokeBorder(
+                                            isSelected ? AppColors.brandAccent : Color.white.opacity(0.08),
+                                            lineWidth: isSelected ? 2 : 0.5
+                                        )
+                                    if isSelected {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .font(.geist(size: 15, weight: .bold))
+                                            .foregroundStyle(.white, AppColors.brandAccent)
+                                            .padding(6)
+                                    }
+                                }
                             }
 
                             Text(style.displayName)
-                                .font(.geist(size: 10, weight: isSelected ? .bold : .medium))
+                                .font(.geist(.caption2).weight(isSelected ? .bold : .medium))
                                 .foregroundStyle(isSelected ? .primary : .secondary)
                                 .lineLimit(1)
                         }
                     }
                     .buttonStyle(.plain)
-                    .disabled(isDailyRandomActive)
-                    .accessibilityLabel(Text(style.displayName))
+                    .settingsSelectable(label: style.displayName, isSelected: isSelected)
                 }
             }
             .padding(.horizontal, 16)
@@ -355,13 +419,15 @@ struct SettingsAppearancePage: View {
 
     private var modernPaletteAllChip: some View {
         let isSelected = selectedModernPaletteCategories == ModernPaletteSelection.all
+        let title = String(localized: "All", comment: "All modern palette categories")
 
         return Button {
             updateModernPaletteCategories(ModernPaletteSelection.all)
         } label: {
-            modernPaletteChipLabel(title: "All", isSelected: isSelected, colors: [])
+            modernPaletteChipLabel(title: title, isSelected: isSelected, colors: [])
         }
         .buttonStyle(.plain)
+        .settingsSelectable(label: title, isSelected: isSelected)
         .accessibilityIdentifier("modernPalette.all")
     }
 
@@ -382,6 +448,7 @@ struct SettingsAppearancePage: View {
             )
         }
         .buttonStyle(.plain)
+        .settingsSelectable(label: category.displayName, isSelected: isSelected)
         .accessibilityIdentifier("modernPalette.\(category.rawValue)")
     }
 
@@ -406,7 +473,7 @@ struct SettingsAppearancePage: View {
             }
 
             Text(title)
-                .font(.geist(size: 12, weight: isSelected ? .bold : .medium, design: .rounded))
+                .font(.geist(.caption).weight(isSelected ? .bold : .medium))
 
             if isSelected {
                 Image(systemName: "checkmark")
@@ -415,7 +482,7 @@ struct SettingsAppearancePage: View {
         }
         .foregroundStyle(isSelected ? AppColors.brandAccent : theme.adaptiveSecondaryText)
         .padding(.horizontal, 10)
-        .frame(height: 34)
+        .frame(minHeight: 44)
         .background(
             Capsule()
                 .fill(isSelected ? AppColors.brandAccent.opacity(0.12) : theme.adaptivePrimaryText.opacity(0.05))
@@ -427,12 +494,13 @@ struct SettingsAppearancePage: View {
                     lineWidth: isSelected ? 1.5 : 0.5
                 )
         }
-        .accessibilityLabel(title)
-        .accessibilityValue(isSelected ? "Selected" : "Not selected")
     }
 
     private func updateModernPaletteCategories(_ categories: Set<ModernPaletteCategory>) {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+        withMotionAnimation(
+            .spring(response: 0.3, dampingFraction: 0.7),
+            reduceMotion: reduceMotion
+        ) {
             modernPaletteCategoriesRaw = ModernPaletteSelection.encode(categories)
         }
         lightHapticTick &+= 1
@@ -447,6 +515,7 @@ struct SettingsAppearancePage: View {
                 Image(systemName: "sparkles.rectangle.stack")
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Rich Canvas")
+                        .font(.geist(.subheadline))
                     Text("Preview today's canvas with experimental figures")
                         .font(.geist(.caption))
                         .foregroundStyle(theme.adaptiveSecondaryText)
@@ -469,6 +538,7 @@ struct SettingsAppearancePage: View {
                 Image(systemName: "circle.hexagongrid.fill")
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Generative Scene")
+                        .font(.geist(.subheadline))
                     Text("Volumetric day scene prototype with live parameters")
                         .font(.geist(.caption))
                         .foregroundStyle(theme.adaptiveSecondaryText)
@@ -491,6 +561,7 @@ struct SettingsAppearancePage: View {
                 Image(systemName: "camera.aperture")
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Atmosphere")
+                        .font(.geist(.subheadline))
                     Text("Today's canvas with dust and depth of field")
                         .font(.geist(.caption))
                         .foregroundStyle(theme.adaptiveSecondaryText)
@@ -513,6 +584,7 @@ struct SettingsAppearancePage: View {
                 Image(systemName: "rays")
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Day Rays")
+                        .font(.geist(.subheadline))
                     Text("Generated ray fans — single day or a grid of seeds")
                         .font(.geist(.caption))
                         .foregroundStyle(theme.adaptiveSecondaryText)
@@ -535,6 +607,7 @@ struct SettingsAppearancePage: View {
                 Image(systemName: "wind")
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Day Objects")
+                        .font(.geist(.subheadline))
                     Text("Large radial-gradient orbs in seeded choreography")
                         .font(.geist(.caption))
                         .foregroundStyle(theme.adaptiveSecondaryText)
@@ -576,7 +649,10 @@ struct SettingsAppearancePage: View {
             var next = allowedFills
             if isSelected { next.remove(fill) } else { next.insert(fill) }
             guard TextureKind.setAllowed(next) else { return }
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            withMotionAnimation(
+                .spring(response: 0.3, dampingFraction: 0.7),
+                reduceMotion: reduceMotion
+            ) {
                 allowedFills = next
             }
             lightHapticTick &+= 1
@@ -600,15 +676,23 @@ struct SettingsAppearancePage: View {
                                 lineWidth: isSelected ? 2 : 0.5
                             )
                     }
+                    .overlay(alignment: .topTrailing) {
+                        if isSelected {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.geist(size: 14, weight: .bold))
+                                .foregroundStyle(theme.adaptivePrimaryText, AppColors.brandAccent)
+                                .offset(x: 5, y: -5)
+                        }
+                    }
                 Text(fill.displayName)
-                    .font(.geist(size: 10, weight: isSelected ? .bold : .medium))
+                    .font(.geist(.caption2).weight(isSelected ? .bold : .medium))
                     .foregroundStyle(isSelected ? theme.adaptivePrimaryText : theme.adaptiveSecondaryText)
             }
         }
         .buttonStyle(.plain)
         .disabled(isLastSelected)
         .opacity(isLastSelected ? 0.75 : 1)
-        .accessibilityLabel(fill.displayName)
+        .settingsSelectable(label: fill.displayName, isSelected: isSelected)
     }
 
     // MARK: - Canvas Shapes (compact)
@@ -634,7 +718,7 @@ struct SettingsAppearancePage: View {
     private var shapeMultiSelectRow: some View {
         return HStack(spacing: 10) {
             Text("Shapes", comment: "Canvas shapes multi-select row label")
-                .font(.geist(size: 13, weight: .semibold, design: .rounded))
+                .font(.geist(.caption).weight(.semibold))
                 .foregroundStyle(theme.adaptivePrimaryText)
                 .frame(width: 72, alignment: .leading)
 
@@ -661,7 +745,10 @@ struct SettingsAppearancePage: View {
             var next = allowedShapes
             if isSelected { next.remove(shape) } else { next.insert(shape) }
             guard CanvasShapeType.setAllowed(next) else { return }
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            withMotionAnimation(
+                .spring(response: 0.3, dampingFraction: 0.7),
+                reduceMotion: reduceMotion
+            ) {
                 allowedShapes = next
             }
             lightHapticTick &+= 1
@@ -672,6 +759,7 @@ struct SettingsAppearancePage: View {
         .buttonStyle(.plain)
         .disabled(isLastSelected)
         .opacity(isLastSelected ? 0.75 : 1)
+        .settingsSelectable(label: shape.displayName, isSelected: isSelected)
     }
 
     private func compactShapeChip(shape: CanvasShapeType, isSelected: Bool) -> some View {
@@ -690,7 +778,14 @@ struct SettingsAppearancePage: View {
                     lineWidth: isSelected ? 2 : 0.5
                 )
         }
-        .accessibilityLabel(shape.displayName)
+        .overlay(alignment: .topTrailing) {
+            if isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.geist(size: 14, weight: .bold))
+                    .foregroundStyle(theme.adaptivePrimaryText, AppColors.brandAccent)
+                    .offset(x: 4, y: -4)
+            }
+        }
     }
 
     @ViewBuilder
@@ -761,10 +856,13 @@ struct SettingsAppearancePage: View {
         let isSelected = selectedTexture == texture
 
         return Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            withMotionAnimation(
+                .spring(response: 0.3, dampingFraction: 0.7),
+                reduceMotion: reduceMotion
+            ) {
                 canvasTextureRaw = texture.rawValue
             }
-                                lightHapticTick &+= 1
+            lightHapticTick &+= 1
             model.syncUserPreferencesToSupabase()
         } label: {
             VStack(spacing: 6) {
@@ -793,14 +891,23 @@ struct SettingsAppearancePage: View {
                             lineWidth: isSelected ? 2 : 0.5
                         )
                 }
+                .overlay(alignment: .topTrailing) {
+                    if isSelected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.geist(size: 15, weight: .bold))
+                            .foregroundStyle(theme.adaptivePrimaryText, AppColors.brandAccent)
+                            .offset(x: 5, y: -5)
+                    }
+                }
 
                 Text(texture.displayName)
-                    .font(.geist(size: 9, weight: isSelected ? .bold : .medium))
+                    .font(.geist(.caption2).weight(isSelected ? .bold : .medium))
                     .foregroundStyle(isSelected ? .primary : .secondary)
                     .lineLimit(1)
             }
         }
         .buttonStyle(.plain)
+        .settingsSelectable(label: texture.displayName, isSelected: isSelected)
     }
 
     // MARK: - Shared Helpers
@@ -812,15 +919,6 @@ struct SettingsAppearancePage: View {
             .foregroundStyle(theme.adaptiveMutedText)
     }
 
-    private var autoTag: some View {
-        Text(String(localized: "auto", comment: "Inline tag — picker disabled because daily random is on"))
-            .font(.geist(size: 10, weight: .heavy))
-            .tracking(0.6)
-            .foregroundStyle(theme.adaptiveMutedText)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Capsule().fill(theme.adaptiveMutedText.opacity(0.12)))
-    }
 }
 
 #Preview {

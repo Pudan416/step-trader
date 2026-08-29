@@ -177,3 +177,16 @@ enum SettingsLocalizedCasing {
         value.uppercased(with: locale)
     }
 }
+
+enum SettingsAppearanceMode: String, CaseIterable, Identifiable {
+    case automatic
+    case manual
+
+    var id: Self { self }
+
+    init(dailyRandomEnabled: Bool) {
+        self = dailyRandomEnabled ? .automatic : .manual
+    }
+
+    var dailyRandomEnabled: Bool { self == .automatic }
+}
