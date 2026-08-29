@@ -517,7 +517,7 @@
     "Circle" : {
       "comment" : "Canvas shape type"
     },
-    "Circles, snowflakes, rays, organic blobs. Four families, and you decide which of them the canvas is allowed to use — in Settings, under Appearance.\n\nThey used to be assigned: one family per category, whether you liked it or not. Now nothing is assigned. Every happening takes a shape from the ones you left on, a color from the day, and a place it keeps until midnight.\n\nNo metaphors. Just things that felt true." : {
+    "Circles, snowflakes, rays, organic blobs. Four families. You decide which ones the canvas may use — in Settings, under Appearance.\n\nEvery happening takes a shape from the ones you left on, a color from the day, and a place on the canvas. If the place feels wrong, you can move it.\n\nNo fixed meanings. Just forms that felt true." : {
       "comment" : "Note body: about_shapes"
     },
     "Clear" : {
@@ -547,7 +547,7 @@
     "colors" : {
       "comment" : "Category overlay – unit"
     },
-    "Colors are not a currency. Well — kind of. You can earn up to 100 per day. Steps and sleep give them to you automatically — 20 each. The other 60 are happenings, and you add those yourself. You can spend colors to unlock apps. But the more you spend, the less colorful your canvas becomes. Because doomscrolling takes color out of life. Literally, here.\n\nI'm not selling them through microtransactions. Colors are yours. You earn them, you deserve them, you can always add more. Within limits." : {
+    "Colors are not quite a currency. They are a limited material the day gives you. Up to 100: some from sleep and steps, the rest from happenings you add yourself.\n\nYou can spend them to open a feed, and the canvas carries that choice too. You can't buy colors. That would undo the whole idea." : {
       "comment" : "Note body: about_colors"
     },
     "colors are the currency you earn for living a real life." : {
@@ -768,7 +768,7 @@
     "Error" : {
       "comment" : "ProfileEditor – error alert title"
     },
-    "Every day is 24 hours. But no two are the same. The canvas is proof of that — a record of what actually happened, not what you planned. The more you lived, the more it shows. It reacts to your sleep and steps. The more you sleep, the darker it gets. The more you walk, the brighter. Your actions throughout the day shape it, and every 24 hours the canvas resets — unique, every single time." : {
+    "Every day leaves a different trace. The canvas is not a score, and it isn't proof that you lived enough. It holds what Nowhere could notice: sleep, steps, and the happenings you chose to name. Some things will always be missing. At the end of your day, the live canvas makes room for another. The trace can stay." : {
       "comment" : "Note body: about_canvas"
     },
     "Exit full screen" : {
@@ -816,7 +816,7 @@
     "Feeds" : {
       "comment" : "Tab bar title"
     },
-    "Feeds are not evil. They're just expensive. Every minute inside them drains color from the day. That's the deal — open your banned apps, watch the canvas fade. The choice is always yours. I just made it visible. You can unlock apps through the notification that pops up when you try to open a blocked one, through this app, or through the widget." : {
+    "Feeds are not evil. They're just expensive. When you choose to open one, you spend some of the colors the day gave you. The balance falls. The canvas changes.\n\nThe choice stays yours. Nowhere only makes the trade visible." : {
       "comment" : "Note body: about_feeds"
     },
     "first you need to add any one app" : {
@@ -930,13 +930,13 @@
     "how many steps a day is your goal?" : {
 
     },
-    "I am not my job title\nI am not a designer\nI am not a developer\nI am not a manager\nI am not good\nI am not happy\nI am not sad\nI am not what I post\nI am not who I was yesterday\nI am not who I'll be tomorrow\nI am not nowhere\nI am now here\n\nHey. Thank you for using this app. If you're reading this, I hope you found something in it that matters.\nMy name is Kosta.\nI spent years working on creative projects for brands — winning awards, getting recognition. It made me feel successful, creative, whatever. But recently I realized I was living inside my work, hiding in it. I didn't really know myself anymore. Could I do something on my own? For myself? Was I capable of something else? The classic midlife corporate crisis. It felt like I was nowhere.\nSo I started building this app — at first just for myself, to learn. Over time it became something personal. It's not perfect. Neither am I. Neither are you.\nI'm trying to accept myself and find meaning beyond work. And if you ever feel burned out, lost, or stuck in that same nowhere — you are here, now. That matters most.\nFeel free to text me. All the contacts are in the settings. Thank you." : {
+    "I am not my job title\nI am not a designer\nI am not a developer\nI am not a manager\nI am not good\nI am not happy\nI am not sad\nI am not what I post\nI am not who I was yesterday\nI am not who I'll be tomorrow\nI am not nowhere\nI am now here\n\nHey. Thank you for using Nowhere. If you're reading this, I hope you found something in it that matters.\nMy name is Kosta.\nI spent years working on creative projects for brands — winning awards, getting recognition. It made me feel successful, creative, whatever. But recently I realized I was living inside my work, hiding in it. I didn't really know myself anymore. Could I do something on my own? For myself? Was I capable of something else? The classic midlife corporate crisis. It felt like I was nowhere.\nSo I started building this — at first just for myself, to learn. Over time it became something personal. It's not perfect. Neither am I. I don't think it needs to be.\nI'm trying to accept myself and find meaning beyond work. And if you ever feel burned out, lost, or stuck in that same nowhere — you are here, now. That matters most.\nFeel free to text me. All the contacts are in the settings. Thank you." : {
       "comment" : "Note body: about_me"
     },
     "i live mostly online. working. scrolling. staring at a screen." : {
 
     },
-    "I made a shortcut that sets the canvas as your wallpaper. It changed something — you see your day every time you unlock your phone. The downside: you have to open the app to refresh it. The upside: once you've blocked enough apps here, you'll be opening it anyway. Seemed fair." : {
+    "I made a shortcut that puts the canvas on the Lock Screen. Close Nowhere, and the wallpaper catches up with the day.\n\nYou still have to open Nowhere for it to change. That small inconvenience became part of the point: look at the day, then leave again." : {
       "comment" : "Note body: about_wallpaper"
     },
     "I used to slice the day into three — body, mind, heart. Borrowed from Tibetan Buddhism, which I know almost nothing about. It felt right, and that was enough.\n\nIt wasn't. Nobody who just called their mother wants to decide whether that was mind or heart.\n\nNow there is one word. A happening is anything a day is made of, and each counts once a day." : {
@@ -2485,7 +2485,7 @@
     "Sleep hours" : {
 
     },
-    "Sleep is the frame around every day. Everything else fits inside it. Set your desired sleep time, and if you hit it — you earn 20 colors. Data comes from the Health app. Sometimes Apple is slow to sync. Not my fault." : {
+    "Sleep is the frame around every day. Everything else fits inside it. Sleep lays down the dark. As the night approaches the goal you set, it brings up to 20 colors.\n\nSleep comes from the Health app. Apple can be slow to finish the night, so the canvas may catch up later." : {
       "comment" : "Note body: about_sleep"
     },
     "Sleep only" : {
@@ -2583,7 +2583,7 @@
     "steps a day" : {
       "comment" : "MeView – average steps label"
     },
-    "Steps are not a fitness metric. They are proof that your body moved through the world today. The more you moved, the brighter everything gets. Set your own step goal and earn 20 colors when you reach it. You don't have to do 10k. It's your number." : {
+    "Steps are not a fitness score. They are proof that the body moved through the world today. As you move toward the target you set, they bring up to 20 colors and brighten the canvas. It doesn't have to be 10k. It's your number." : {
       "comment" : "Note body: about_steps"
     },
     "steps brighten it." : {
@@ -2819,7 +2819,7 @@
     "You are not nowhere. You are now here." : {
       "comment" : "App philosophy tagline"
     },
-    "You can add widgets to your home screen. They bring the app's mechanics right to your lock screen and desktop. Large widget for unlocking apps, medium one for tracking the day. They don't always update automatically — Apple limits that — so sometimes you'll want to tap “refresh” to check the latest status." : {
+    "I wanted less reason to open Nowhere, not more. So the widgets carry the useful parts to the Home Screen: the day's colors, the feeds you closed, and the choice to open one.\n\nApple decides when widgets wake up. If one falls behind, the refresh button is there." : {
       "comment" : "Note body: about_widgets"
     },
     "you can change this in settings anytime." : {

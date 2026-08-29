@@ -121,6 +121,19 @@ final class HappeningStoreTests: XCTestCase {
         XCTAssertEqual(makeStore().create(title: "  Sauna \n", at: .now).title, "Sauna")
     }
 
+    func testCreateLimitsTitleToFifteenCharacters() {
+        let made = makeStore().create(title: "1234567890123456", at: .now)
+
+        XCTAssertEqual(made.title, "123456789012345")
+    }
+
+    func testCreateCountsAnEmojiSequenceAsOneCharacter() {
+        let made = makeStore().create(title: "12345678901234👨‍👩‍👧‍👦Z", at: .now)
+
+        XCTAssertEqual(made.title, "12345678901234👨‍👩‍👧‍👦")
+        XCTAssertEqual(made.title.count, 15)
+    }
+
     func testCreatePersists() {
         let made = makeStore().create(title: "Sauna", at: .now)
         XCTAssertEqual(makeStore().happening(id: made.id)?.title, "Sauna")
