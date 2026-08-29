@@ -4385,7 +4385,7 @@ private enum DayObjectsPerceptualBaselines {
             signature: DayObjectsPerceptualSignature(
                 meanRGB: SIMD3(0.36255936448772746, 0.43432950, 0.47524648),
                 meanLuminance: 0.39799265,
-                luminanceDeviation: 0.12982584125631863,
+                luminanceDeviation: 0.13164704,
                 lowLuminance: 0.25282211,
                 highLuminance: 0.62309170,
                 edgeEnergy: 0.00859305,
