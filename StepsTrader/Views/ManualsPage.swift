@@ -131,10 +131,10 @@ struct ManualsPage: View {
                 }
                 .foregroundStyle(theme.textPrimary)
                 .padding(.horizontal, 20)
-                .padding(.vertical, 11)
-                .modifier(NotesCapsuleChrome(theme: theme))
+                .frame(minHeight: 44)
+                .settingsCardSurface()
             }
-            .buttonStyle(.plain)
+            .buttonStyle(MattePressStyle())
         }
     }
 }
@@ -211,22 +211,6 @@ struct AllNotesListView: View {
                     .font(.geist(size: 15, weight: .regular))
                 }
             }
-        }
-    }
-}
-
-// MARK: - Chrome (Liquid Glass on iOS 26+, matte fill before)
-
-private struct NotesCapsuleChrome: ViewModifier {
-    let theme: AppTheme
-
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content.liquidGlassControl(in: Capsule(style: .continuous), style: .frosted, tint: .off)
-        } else {
-            content
-                .background(theme.backgroundSecondary.opacity(0.7), in: Capsule())
-                .overlay(Capsule().stroke(theme.stroke.opacity(theme.strokeOpacity * 0.5), lineWidth: 0.5))
         }
     }
 }
