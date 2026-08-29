@@ -60,6 +60,7 @@ final class SettingsRedesignUITests: XCTestCase {
         ]
         app.launch()
 
+        XCTAssertTrue(app.otherElements["ui-testing-ticket-settings.isolatedRoot"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["tab_feeds"].waitForExistence(timeout: 10))
         app.buttons["tab_feeds"].tap()
         XCTAssertTrue(app.navigationBars["Study"].waitForExistence(timeout: 5))
@@ -148,7 +149,12 @@ final class SettingsRedesignUITests: XCTestCase {
         XCTAssertTrue(app.sheets["Delete Study?"].waitForExistence(timeout: 3))
         app.buttons["Delete Feed"].tap()
 
-        XCTAssertFalse(app.staticTexts["Study"].waitForExistence(timeout: 3))
+        let studyNavigation = app.navigationBars["Study"]
+        let sheetDismissed = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: studyNavigation
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [sheetDismissed], timeout: 3), .completed)
     }
 
     func testDeniedNotificationsShowSystemRecoveryAction() {

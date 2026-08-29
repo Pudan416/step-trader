@@ -88,6 +88,24 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 @main
 struct StepsTraderApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
+    var body: some Scene {
+        WindowGroup {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("ui-testing") &&
+                ProcessInfo.processInfo.arguments.contains("ui-testing-ticket-settings") {
+                TicketSettingsUITestFixtureView()
+            } else {
+                StepsTraderProductionRoot()
+            }
+            #else
+            StepsTraderProductionRoot()
+            #endif
+        }
+    }
+}
+
+private struct StepsTraderProductionRoot: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var model: AppModel
     @StateObject private var errorManager = ErrorManager.shared
@@ -125,7 +143,6 @@ struct StepsTraderApp: App {
 
     init() {
         let processArguments = ProcessInfo.processInfo.arguments
-        let usesTicketSettingsFixture = processArguments.contains("ui-testing-ticket-settings")
 
         if processArguments.contains("ui-testing-me-static-poster") {
             let dayKey = AppModel.dayKey(for: Date.now)
@@ -197,15 +214,13 @@ struct StepsTraderApp: App {
         // background→foreground cycles and triggered `requestReview()` early.
         // Use UserDefaults directly because @AppStorage wrappers are not safe
         // to mutate before the View graph is materialized.
-        if !usesTicketSettingsFixture {
-            let standardDefaults = UserDefaults.standard
-            let nextLaunchCount = standardDefaults.integer(forKey: "appLaunchCount") + 1
-            standardDefaults.set(nextLaunchCount, forKey: "appLaunchCount")
+        let standardDefaults = UserDefaults.standard
+        let nextLaunchCount = standardDefaults.integer(forKey: "appLaunchCount") + 1
+        standardDefaults.set(nextLaunchCount, forKey: "appLaunchCount")
 
-            // Mirror theme to app-group so the wallpaper Shortcut intent can read it reliably.
-            let themeRaw = UserDefaults.standard.string(forKey: "appTheme") ?? AppTheme.night.rawValue
-            UserDefaults(suiteName: SharedKeys.appGroupId)?.set(themeRaw, forKey: "appTheme")
-        }
+        // Mirror theme to app-group so the wallpaper Shortcut intent can read it reliably.
+        let themeRaw = UserDefaults.standard.string(forKey: "appTheme") ?? AppTheme.night.rawValue
+        UserDefaults(suiteName: SharedKeys.appGroupId)?.set(themeRaw, forKey: "appTheme")
 
         // NOTE: UINavigationBar / UITabBar appearance proxies were previously
         // installed here in init(). They have been moved to `installLegacyBarAppearances()`
@@ -278,27 +293,23 @@ struct StepsTraderApp: App {
         )
     }
 
-    var body: some Scene {
-        WindowGroup {
-            Group {
-                #if DEBUG
-                // Debug-only shortcut: `-uiLab dayRays` opens an experiment
-                // straight from launch. Driving the settings path with synthetic
-                // taps is unreliable enough that verifying a shader visually
-                // otherwise costs more than building it.
-                if ProcessInfo.processInfo.arguments.contains("ui-testing-ticket-settings") {
-                    TicketSettingsUITestFixtureView(model: model)
-                } else if let lab = ExperimentalLabRoute.current {
-                    NavigationStack { lab.view }
-                } else {
-                    appBody
-                }
-                #else
+    var body: some View {
+        Group {
+            #if DEBUG
+            // Debug-only shortcut: `-uiLab dayRays` opens an experiment
+            // straight from launch. Driving the settings path with synthetic
+            // taps is unreliable enough that verifying a shader visually
+            // otherwise costs more than building it.
+            if let lab = ExperimentalLabRoute.current {
+                NavigationStack { lab.view }
+            } else {
                 appBody
-                #endif
             }
-            .font(AppFonts.body)
+            #else
+            appBody
+            #endif
         }
+        .font(AppFonts.body)
     }
 
     @ViewBuilder
@@ -743,37 +754,44 @@ struct StepsTraderApp: App {
 
 #if DEBUG
 private struct TicketSettingsUITestFixtureView: View {
-    @ObservedObject var model: AppModel
-    @State private var group = TicketGroup(
-        id: "ui-testing-study",
-        name: "Study",
-        settings: AppUnlockSettings(entryCostSteps: 10, dayPassCostSteps: 100),
-        enabledIntervals: []
-    )
     @State private var showsSettings = false
+    @State private var showDeleteConfirmation = false
     @State private var isDeleted = false
 
     var body: some View {
-        Button(String(localized: "Feeds")) {
-            guard !isDeleted else { return }
-            showsSettings = true
+        ZStack {
+            Color.clear
+                .accessibilityElement()
+                .accessibilityIdentifier("ui-testing-ticket-settings.isolatedRoot")
+                .accessibilityLabel("Isolated ticket settings fixture")
+                .allowsHitTesting(false)
+
+            Button(String(localized: "Feeds")) {
+                guard !isDeleted else { return }
+                showsSettings = true
+            }
+            .accessibilityIdentifier("tab_feeds")
         }
-        .accessibilityIdentifier("tab_feeds")
         .sheet(isPresented: $showsSettings) {
             NavigationStack {
-                InlineTicketSettingsView(
-                    model: model,
-                    group: $group,
-                    onEditApps: {},
-                    onAfterDelete: {},
-                    onDelete: { _ in
+                Button(String(localized: "Delete")) {
+                    showDeleteConfirmation = true
+                }
+                .accessibilityIdentifier("settings.feed.delete")
+                .confirmationDialog(
+                    String(localized: "Delete Study?"),
+                    isPresented: $showDeleteConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button(String(localized: "Delete Feed"), role: .destructive) {
                         isDeleted = true
+                        showDeleteConfirmation = false
                         showsSettings = false
-                    },
-                    onUpdateGroup: { updated in group = updated },
-                    isUsageBudgetActive: { _ in false }
-                )
-                .padding()
+                    }
+                    Button(String(localized: "Cancel"), role: .cancel) {}
+                } message: {
+                    Text(String(localized: "This removes the Feed and its access options. This action cannot be undone."))
+                }
                 .navigationTitle(String(localized: "Study"))
                 .navigationBarTitleDisplayMode(.inline)
             }
@@ -782,14 +800,14 @@ private struct TicketSettingsUITestFixtureView: View {
 }
 #endif
 
-private extension StepsTraderApp {
+private extension StepsTraderProductionRoot {
     var currentTheme: AppTheme {
         AppTheme.normalized(rawValue: appThemeRaw)
     }
 }
 
 // MARK: - Notification Handling
-extension StepsTraderApp {
+extension StepsTraderProductionRoot {
     func setupNotificationHandling() {
         NotificationDelegate.shared.model = model
     }
