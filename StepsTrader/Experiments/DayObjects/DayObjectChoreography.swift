@@ -122,28 +122,31 @@ struct DayObjectChoreographyScore: Equatable {
         let time = rawTime.isFinite ? rawTime : 0
         let aspect = rawAspect.isFinite && rawAspect > 0 ? rawAspect : 1
         let depth = depthValue(for: actor, at: time)
-        let baseScale = renderDiameter(for: actor, compositionPlan: compositionPlan)
-        let depthScale = 0.62 + 0.76 * depth
-        let breathing = 1 + 0.035 * sin(
-            2 * Double.pi * (
-                time / actor.depthSchedule.period
-                    + actor.phaseOffset / (2 * Double.pi)
-            )
+        let profile = actor.choreographyConfiguration.sizeProfile
+        let depthScale = profile == .spatial ? 0.56 + 1.04 * depth : 1
+        let breathingAmplitude = profile == .uniform ? 0.018 : 0.035
+        let actorBreathingPhase = 2 * Double.pi * (
+            time / actor.depthSchedule.period
+                + actor.phaseOffset / (2 * Double.pi)
         )
-        let scale = baseScale * depthScale * breathing
+        let breathing = 1 + breathingAmplitude * sin(actorBreathingPhase)
+        let scale = presetDiameter(
+            for: actor,
+            compositionPlan: compositionPlan
+        ) * depthScale * breathing
         let trailReach = 0.008
         let rawTangent = routeTangent(for: actor, at: time)
         let halfSize = SIMD2<Double>(
             scale * 0.5,
             scale * 0.5 * DayObjectActorGeometry.aspectRatio(for: actor)
         )
-        let position = position(
+        let position = resolvedPosition(
             for: actor,
             at: time,
             canvasAspect: aspect,
             compositionPlan: compositionPlan
         )
-        let tangent = finalTangent(
+        let tangent = resolvedTangent(
             for: actor,
             at: time,
             canvasAspect: aspect,
@@ -194,7 +197,7 @@ struct DayObjectChoreographyScore: Equatable {
             tangent: tangent,
             rotation: rotation,
             scale: scale,
-            opacity: 0.58 + 0.42 * depth,
+            opacity: opacity(for: actor, depth: depth),
             depth: depth,
             depthBand: min(max(Int(depth * 4), 0), 3),
             // A camera-like focus plane keeps middle-distance actors sharp;
@@ -225,24 +228,47 @@ struct DayObjectChoreographyScore: Equatable {
         compositionPlan: DayObjectCompositionPlan?
     ) -> SIMD2<Double> {
         if let compositionPlan {
-            let requestedPlanningDiameter = renderDiameter(
+            let evaluatedDiameter = evaluatedDiameter(
+                for: actor,
+                at: time,
+                compositionPlan: compositionPlan
+            )
+            let baseDiameter = presetDiameter(
                 for: actor,
                 compositionPlan: compositionPlan
-            ) * 1.43
-            let planningDiameter = compositionPlan.usesFullCanvas
-                ? min(requestedPlanningDiameter, 0.16)
-                : requestedPlanningDiameter
-            let planningReach = planningReach(
+            )
+            let evaluatedReach = planningReach(
                 for: actor,
-                diameter: planningDiameter
+                diameter: evaluatedDiameter
             )
-            let base = compositionPlan.distributedRoutePosition(
-                sector: actor.route.sector,
-                actorSeed: actor.seed,
-                localPosition: actor.route.position(at: time),
-                footprintReach: planningReach,
-                canvasAspect: canvasAspect
-            )
+            let lanePlanningReach = compositionPlan.usesFullCanvas
+                ? min(
+                    evaluatedReach,
+                    planningReach(for: actor, diameter: 0.16)
+                )
+                : planningReach(
+                    for: actor,
+                    diameter: baseDiameter * 1.43
+                )
+            let routePosition = actor.route.position(at: time)
+            let base: SIMD2<Double>
+            if actor.choreographyConfiguration.preset == .eclipseStack {
+                base = compositionPlan.distributedRoutePosition(
+                    sector: actor.route.sector,
+                    actorSeed: actor.seed,
+                    localPosition: .zero,
+                    footprintReach: lanePlanningReach,
+                    canvasAspect: canvasAspect
+                ) + routePosition
+            } else {
+                base = compositionPlan.distributedRoutePosition(
+                    sector: actor.route.sector,
+                    actorSeed: actor.seed,
+                    localPosition: routePosition,
+                    footprintReach: lanePlanningReach,
+                    canvasAspect: canvasAspect
+                )
+            }
             guard family == .softEncounters else {
                 return base
             }
@@ -347,11 +373,58 @@ struct DayObjectChoreographyScore: Equatable {
         return length > 1e-12 ? travel / length : fallback
     }
 
-    private func baseDiameter(for actor: DayObjectActor) -> Double {
-        let range = actor.sizeBand.diameterRange
-        return range.lowerBound
-            + (range.upperBound - range.lowerBound)
-                * stableUnit(actor.seed, salt: 0xA409_3822_299F_31D0)
+    private func resolvedPosition(
+        for actor: DayObjectActor,
+        at time: Double,
+        canvasAspect: Double,
+        compositionPlan: DayObjectCompositionPlan?
+    ) -> SIMD2<Double> {
+        let routedPosition = position(
+            for: actor,
+            at: time,
+            canvasAspect: canvasAspect,
+            compositionPlan: compositionPlan
+        )
+        guard let compositionPlan,
+              compositionPlan.usesFullCanvas,
+              ![DayObjectChoreographyPreset.depthField, .eclipseStack]
+                .contains(actor.choreographyConfiguration.preset) else {
+            return routedPosition
+        }
+        let diameter = evaluatedDiameter(
+            for: actor,
+            at: time,
+            compositionPlan: compositionPlan
+        )
+        let conservativeReach = planningReach(for: actor, diameter: diameter)
+        return compositionPlan.constrainedPosition(
+            routedPosition,
+            footprintHalfExtents: SIMD2(repeating: conservativeReach),
+            canvasAspect: canvasAspect
+        )
+    }
+
+    private func resolvedTangent(
+        for actor: DayObjectActor,
+        at time: Double,
+        canvasAspect: Double,
+        compositionPlan: DayObjectCompositionPlan?,
+        fallback: SIMD2<Double>
+    ) -> SIMD2<Double> {
+        let epsilon = 0.001
+        let travel = resolvedPosition(
+            for: actor,
+            at: time + epsilon,
+            canvasAspect: canvasAspect,
+            compositionPlan: compositionPlan
+        ) - resolvedPosition(
+            for: actor,
+            at: time - epsilon,
+            canvasAspect: canvasAspect,
+            compositionPlan: compositionPlan
+        )
+        let length = simd_length(travel)
+        return length > 1e-12 ? travel / length : fallback
     }
 
     private func encounterBodyRadius(
@@ -359,16 +432,11 @@ struct DayObjectChoreographyScore: Equatable {
         at time: Double,
         compositionPlan: DayObjectCompositionPlan?
     ) -> Double {
-        let depth = depthValue(for: actor, at: time)
-        let breathing = 1 + 0.035 * sin(
-            2 * Double.pi * (
-                time / actor.depthSchedule.period
-                    + actor.phaseOffset / (2 * Double.pi)
-            )
+        let diameter = evaluatedDiameter(
+            for: actor,
+            at: time,
+            compositionPlan: compositionPlan
         )
-        let diameter = renderDiameter(for: actor, compositionPlan: compositionPlan)
-            * (0.62 + 0.76 * depth)
-            * breathing
         let halfSize = SIMD2<Double>(
             diameter * 0.5,
             diameter * 0.5 * DayObjectActorGeometry.aspectRatio(for: actor)
@@ -395,7 +463,7 @@ struct DayObjectChoreographyScore: Equatable {
         let nearDistance = max((depth - focusDepth) / (1 - focusDepth), 0)
         return 0.018
             + 0.30 * pow(farDistance, 1.35)
-            + 0.34 * pow(nearDistance, 1.50)
+            + 0.62 * pow(nearDistance, 1.35)
     }
 
     private func normalizedPhase(_ value: Double) -> Double {
@@ -403,15 +471,59 @@ struct DayObjectChoreographyScore: Equatable {
         return remainder >= 0 ? remainder : remainder + 1
     }
 
-    private func renderDiameter(
+    private func presetDiameter(
         for actor: DayObjectActor,
         compositionPlan: DayObjectCompositionPlan?
     ) -> Double {
-        let diameter = baseDiameter(for: actor)
+        let configuration = actor.choreographyConfiguration
+        let multiplier = actor.choreographySlot.sizeMultiplier
+        let diameter: Double
+        switch configuration.sizeProfile {
+        case .uniform:
+            let seededUnit = min(max(configuration.orientation / (2 * Double.pi), 0), 1)
+            diameter = 0.22 + 0.14 * seededUnit
+        case .grouped:
+            let groupUnit = min(max((multiplier - 0.85) / 0.40, 0), 1)
+            diameter = 0.16 + 0.30 * groupUnit
+        case .spatial:
+            let spatialUnit = min(max((multiplier - 0.80) / 0.40, 0), 1)
+            diameter = 0.12 + 0.62 * spatialUnit
+        }
         guard compositionPlan?.usesFullCanvas == true else {
             return min(diameter, 0.112)
         }
         return diameter
+    }
+
+    private func evaluatedDiameter(
+        for actor: DayObjectActor,
+        at time: Double,
+        compositionPlan: DayObjectCompositionPlan?
+    ) -> Double {
+        let profile = actor.choreographyConfiguration.sizeProfile
+        let depth = depthValue(for: actor, at: time)
+        let depthScale = profile == .spatial ? 0.56 + 1.04 * depth : 1
+        let breathingAmplitude = profile == .uniform ? 0.018 : 0.035
+        let actorBreathingPhase = 2 * Double.pi * (
+            time / actor.depthSchedule.period
+                + actor.phaseOffset / (2 * Double.pi)
+        )
+        let breathing = 1 + breathingAmplitude * sin(actorBreathingPhase)
+        return presetDiameter(for: actor, compositionPlan: compositionPlan)
+            * depthScale
+            * breathing
+    }
+
+    private func opacity(for actor: DayObjectActor, depth: Double) -> Double {
+        switch actor.choreographyConfiguration.depthProfile {
+        case .flat:
+            return 0.86 + 0.14 * stableUnit(
+                actor.seed,
+                salt: 0x1319_8A2E_0370_7344
+            )
+        case .layered, .migrating:
+            return max(0.58 + 0.42 * depth, 0.72)
+        }
     }
 
     private func planningReach(for actor: DayObjectActor, diameter: Double) -> Double {

@@ -86,6 +86,11 @@ struct DayObjectScene: Equatable {
                 id: id,
                 input: input,
                 composition: composition,
+                choreographyConfiguration: motionPlan.configuration,
+                choreographySlot: motionPlan.configuration.slot(
+                    eventID: eventID,
+                    rootSeed: rootSeed
+                ),
                 appearance: appearance,
                 route: route,
                 depthSchedule: depthSchedule,
@@ -136,6 +141,8 @@ struct DayObjectScene: Equatable {
         id: DayObjectActorID,
         input: DayObjectSceneInput,
         composition: DayObjectComposition,
+        choreographyConfiguration: DayObjectChoreographyConfiguration,
+        choreographySlot: DayObjectChoreographySlot,
         appearance: DayObjectAppearance,
         route: DayObjectRoute,
         depthSchedule: DayObjectDepthSchedule,
@@ -170,6 +177,8 @@ struct DayObjectScene: Equatable {
         return DayObjectActor(
             id: id,
             seed: seed,
+            choreographyConfiguration: choreographyConfiguration,
+            choreographySlot: choreographySlot,
             appearance: appearance,
             route: route,
             depthSchedule: depthSchedule,

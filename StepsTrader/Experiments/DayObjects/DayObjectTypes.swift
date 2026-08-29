@@ -117,6 +117,8 @@ enum DayObjectActorRole: String, CaseIterable, Equatable {
 struct DayObjectActor: Equatable {
     let id: DayObjectActorID
     let seed: UInt64
+    let choreographyConfiguration: DayObjectChoreographyConfiguration
+    let choreographySlot: DayObjectChoreographySlot
     let appearance: DayObjectAppearance
     let route: DayObjectRoute
     let depthSchedule: DayObjectDepthSchedule

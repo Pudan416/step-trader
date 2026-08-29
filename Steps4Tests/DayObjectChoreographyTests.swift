@@ -149,7 +149,7 @@ final class DayObjectChoreographyTests: XCTestCase {
         }
     }
 
-    func testEveryDistributedPresetUsesAllVerticalThirdsWithSixActors() throws {
+    func testApprovedSizesKeepDistributedPresetsVerticallySpread() throws {
         let presets = DayObjectChoreographyPreset.allCases.filter { $0 != .eclipseStack }
         for preset in presets {
             let scene = try scene(for: preset, count: 6)
@@ -163,7 +163,11 @@ final class DayObjectChoreographyTests: XCTestCase {
                     thirds.insert(min(max(Int((0.5 - pose.position.y) * 3), 0), 2))
                 }
             }
-            XCTAssertEqual(thirds, [0, 1, 2], "preset=\(preset)")
+            if scene.motionPlan.configuration.sizeProfile == .grouped {
+                XCTAssertGreaterThanOrEqual(thirds.count, 2, "preset=\(preset)")
+            } else {
+                XCTAssertEqual(thirds, [0, 1, 2], "preset=\(preset)")
+            }
         }
     }
 
@@ -329,56 +333,66 @@ final class DayObjectChoreographyTests: XCTestCase {
         XCTAssertGreaterThan(middle.scale, far.scale)
     }
 
-    func testSizeBandsAndDepthCreateAVisibleHierarchy() {
-        let scene = DayObjectScene.make(input: fixtureInput(seed: 27, count: 10))
-        let poses = scene.actors.map { actor in
-            (
-                actor,
-                scene.score.pose(
-                    for: actor,
-                    at: 31,
-                    canvasAspect: 1,
-                    compositionPlan: scene.compositionPlan
+    func testUniformDaysKeepMediumActorsWithinFivePercent() throws {
+        let scene = try scene(for: .circularChoir, count: 10)
+        let scales = scene.actors.map {
+            scene.score.pose(for: $0, at: 0, canvasAspect: 1,
+                             compositionPlan: scene.compositionPlan).scale
+        }
+        XCTAssertLessThanOrEqual(scales.max()! / scales.min()!, 1.05)
+        XCTAssertTrue(scales.allSatisfy { (0.22...0.38).contains($0) })
+    }
+
+    func testDepthFieldUsesVeryDifferentSizesAndBlursNearestActorMost() throws {
+        let scene = try scene(for: .depthField, count: 10)
+        let poses = scene.actors.map {
+            scene.score.pose(for: $0, at: 0, canvasAspect: 1,
+                             compositionPlan: scene.compositionPlan)
+        }
+        XCTAssertGreaterThan(poses.map(\.scale).max()! / poses.map(\.scale).min()!, 3.0)
+        let nearest = poses.max { $0.depth < $1.depth }!
+        let middle = poses.min { abs($0.depth - 0.55) < abs($1.depth - 0.55) }!
+        XCTAssertGreaterThan(nearest.localDepthSoftness, middle.localDepthSoftness * 2)
+    }
+
+    func testActorsStoreTheDeterministicSlotUsedByTheirPreset() throws {
+        let scene = try scene(for: .doubleOrbit, count: 10)
+        for actor in scene.actors {
+            XCTAssertEqual(
+                actor.choreographySlot,
+                scene.motionPlan.configuration.slot(
+                    eventID: actor.eventID,
+                    rootSeed: scene.rootSeed
                 )
             )
         }
-        let near = poses.max { $0.1.depth < $1.1.depth }!
-        let far = poses.min { $0.1.depth < $1.1.depth }!
-
-        XCTAssertGreaterThan(near.1.scale, far.1.scale)
-        XCTAssertGreaterThan(near.1.opacity, far.1.opacity)
-        XCTAssertGreaterThan(
-            poses.map(\.1.scale).max()! / poses.map(\.1.scale).min()!,
-            1.8
-        )
     }
 
-    func testDailyScenesReachDifferentLargeObjectCountsAndADeepSizeRange() {
-        var focalCounts = Set<Int>()
-        var smallestDiameter = Double.greatestFiniteMagnitude
-        var largestDiameter = 0.0
-
-        for seed in UInt64(0)..<128 {
-            let scene = DayObjectScene.make(input: fixtureInput(seed: seed, count: 10))
-            focalCounts.insert(scene.actors.filter { $0.sizeBand == .focal }.count)
-            for actor in scene.actors {
-                for time in stride(from: 0.0, through: actor.depthSchedule.period, by: 1.0) {
-                    let pose = scene.score.pose(
-                        for: actor,
-                        at: time,
-                        canvasAspect: 1,
-                        compositionPlan: scene.compositionPlan
-                    )
-                    smallestDiameter = min(smallestDiameter, pose.scale)
-                    largestDiameter = max(largestDiameter, pose.scale)
-                }
-            }
+    func testFlatProfilesKeepOpacityIndependentOfDepth() throws {
+        let scene = try scene(for: .circularChoir, count: 10)
+        let actor = try XCTUnwrap(scene.actors.first)
+        let opacities = stride(from: 0.0, through: actor.depthSchedule.period, by: 1.0).map {
+            scene.score.pose(
+                for: actor, at: $0, canvasAspect: 1,
+                compositionPlan: scene.compositionPlan
+            ).opacity
         }
+        XCTAssertTrue(opacities.allSatisfy { (0.86...1.0).contains($0) })
+        XCTAssertEqual(opacities.max()!, opacities.min()!, accuracy: 0.000_001)
+    }
 
-        XCTAssertTrue(focalCounts.isSuperset(of: [0, 1, 2, 3]))
-        XCTAssertLessThan(smallestDiameter, 0.045)
-        XCTAssertGreaterThan(largestDiameter, 0.52)
-        XCTAssertGreaterThan(largestDiameter / smallestDiameter, 10)
+    func testGroupedDaysUseRelatedApprovedSizes() throws {
+        let scene = try scene(for: .doubleOrbit, count: 10)
+        let scales = scene.actors.map {
+            scene.score.pose(
+                for: $0, at: 0, canvasAspect: 1,
+                compositionPlan: scene.compositionPlan
+            ).scale
+        }
+        XCTAssertTrue(scales.allSatisfy { (0.15...0.48).contains($0) })
+        XCTAssertLessThan(scales.min()!, 0.22)
+        XCTAssertGreaterThan(scales.max()!, 0.42)
+        XCTAssertGreaterThan(scales.max()! / scales.min()!, 2.0)
     }
 
     func testDepthBreathingRemainsContinuousAtItsLoopBoundary() {
@@ -464,10 +478,17 @@ final class DayObjectChoreographyTests: XCTestCase {
                             for: actor, at: time, canvasAspect: aspect,
                             compositionPlan: scene.compositionPlan
                         )
-                        XCTAssertTrue(
-                            pose.isInsideSafeBounds || scene.compositionPlan.usesFullCanvas
-                        )
-                        XCTAssertLessThanOrEqual(pose.intentionalCropFraction, 0.42)
+                        let allowsIntentionalCrop = [
+                            DayObjectChoreographyPreset.depthField,
+                            .eclipseStack,
+                        ].contains(scene.motionPlan.preset)
+                        XCTAssertTrue(pose.isInsideSafeBounds || allowsIntentionalCrop)
+                        if !allowsIntentionalCrop {
+                            XCTAssertEqual(pose.intentionalCropFraction, 0, accuracy: 0.000_001)
+                        }
+                        if allowsIntentionalCrop {
+                            XCTAssertLessThanOrEqual(pose.intentionalCropFraction, 1)
+                        }
                         XCTAssertFalse(pose.intersectsUIExclusion)
                         XCTAssertFalse(pose.intersectsNegativeSpace)
                     }
