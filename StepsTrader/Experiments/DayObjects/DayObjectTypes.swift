@@ -122,7 +122,6 @@ struct DayObjectActor: Equatable {
     let appearance: DayObjectAppearance
     let route: DayObjectRoute
     let depthSchedule: DayObjectDepthSchedule
-    let encounter: DayObjectEncounter
     let role: DayObjectActorRole
     let shape: DayObjectShape
     let elongation: DayObjectElongation
@@ -130,7 +129,6 @@ struct DayObjectActor: Equatable {
     let fill: DayObjectFill
     let trajectory: DayObjectTrajectory
     let spin: DayObjectSpin
-    let speedRatio: Double
     let phaseOffset: Double
     let depthBand: Int
     let zIndex: Double

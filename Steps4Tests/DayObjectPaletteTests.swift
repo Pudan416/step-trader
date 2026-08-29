@@ -58,19 +58,7 @@ final class DayObjectPaletteTests: XCTestCase {
         )
     }
 
-    func testObjectPaletteAllocationUsesApprovedRatioAndUniqueSubsets() {
-        let expectedCounts = [
-            (primary: 1, secondary: 0),
-            (primary: 1, secondary: 1),
-            (primary: 2, secondary: 1),
-            (primary: 2, secondary: 2),
-            (primary: 3, secondary: 2),
-            (primary: 4, secondary: 2),
-            (primary: 4, secondary: 3),
-            (primary: 5, secondary: 3),
-            (primary: 5, secondary: 4),
-            (primary: 6, secondary: 4),
-        ]
+    func testObjectPaletteAllocationIsActorLocalAndUsesOneToThreeColors() throws {
         let paletteSet = DayObjectPaletteSet.make(
             rootSeed: 44,
             categories: [.pastel, .cold, .warm]
@@ -84,18 +72,18 @@ final class DayObjectPaletteTests: XCTestCase {
                 paletteSet: paletteSet
             )
             let values = Array(assignments.values)
-            let primary = values.filter { $0.paletteSlot == .primary }.count
-            let secondary = values.filter { $0.paletteSlot == .secondary }.count
-            let subsetKeys = values.map {
-                "\($0.paletteSlot.rawValue):\($0.sourceIndices.sorted())"
-            }
 
             XCTAssertEqual(assignments.count, count)
-            XCTAssertEqual(primary, expectedCounts[count - 1].primary, "count=\(count)")
-            XCTAssertEqual(secondary, expectedCounts[count - 1].secondary, "count=\(count)")
-            XCTAssertEqual(Set(subsetKeys).count, count, "count=\(count)")
             XCTAssertTrue(values.allSatisfy { (1...3).contains($0.colors.count) })
             XCTAssertTrue(values.allSatisfy { $0.colors.count == $0.sourceIndices.count })
+            for eventID in eventIDs {
+                let alone = DayObjectColorAllocator.assignments(
+                    eventIDs: [eventID],
+                    rootSeed: 44,
+                    paletteSet: paletteSet
+                )
+                XCTAssertEqual(assignments[eventID], try XCTUnwrap(alone[eventID]))
+            }
         }
     }
 
@@ -131,7 +119,8 @@ final class DayObjectPaletteTests: XCTestCase {
             )
             let language = DayObjectVisualLanguage.make(
                 rootSeed: seed,
-                paletteSet: paletteSet
+                paletteSet: paletteSet,
+                choreography: DayObjectChoreographyConfiguration.make(seed: seed)
             )
             let appearances = language.appearances(
                 eventIDs: (0..<10).map { "event-\($0)" },
@@ -148,7 +137,7 @@ final class DayObjectPaletteTests: XCTestCase {
         }
     }
 
-    func testArbitraryEventIDsKeepSixFourSplitAndAtLeastNineColorAssignments() {
+    func testArbitraryEventIDsUseBothDailyPalettesAcrossARepresentativeSample() {
         let eventIDs = [
             "id-0x", "id-1x", "id-2x", "id-4x", "id-8x",
             "id-9x", "id-10x", "id-16x", "id-24x", "id-58x",
@@ -164,13 +153,9 @@ final class DayObjectPaletteTests: XCTestCase {
             paletteSet: paletteSet
         )
         let values = eventIDs.compactMap { assignments[$0] }
-        let uniqueSubsets = Set(values.map {
-            "\($0.paletteSlot.rawValue):\($0.sourceIndices.sorted())"
-        })
-
-        XCTAssertEqual(values.filter { $0.paletteSlot == .primary }.count, 6)
-        XCTAssertEqual(values.filter { $0.paletteSlot == .secondary }.count, 4)
-        XCTAssertGreaterThanOrEqual(uniqueSubsets.count, 9)
+        XCTAssertTrue(values.contains { $0.paletteSlot == .primary })
+        XCTAssertTrue(values.contains { $0.paletteSlot == .secondary })
+        XCTAssertTrue(values.allSatisfy { (1...3).contains($0.colors.count) })
     }
 
     func testAssignedObjectColorsRemainReadableAgainstTheRenderedBackgroundPalette() {
@@ -224,6 +209,47 @@ final class DayObjectPaletteTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(removed["read"]), try XCTUnwrap(full["read"]))
     }
 
+    func testArbitraryColorAssignmentsSurvivePreferredPrimaryAddRemoveAndReorder() throws {
+        let eventIDs = [
+            "alpha-forest", "beta-river", "gamma-stone", "delta-cloud",
+            "epsilon-lantern", "zeta-window", "eta-orchard", "theta-bridge",
+            "iota-moon", "kappa-harbor", "lambda-meadow", "mu-copper",
+        ]
+
+        for rootSeed in [UInt64(3), 44, 73, 991] {
+            let paletteSet = DayObjectPaletteSet.make(
+                rootSeed: rootSeed,
+                categories: [.pastel, .cold, .warm]
+            )
+            for retainedID in eventIDs {
+                let alone = DayObjectColorAllocator.assignments(
+                    eventIDs: [retainedID], rootSeed: rootSeed, paletteSet: paletteSet
+                )
+                let expected = try XCTUnwrap(alone[retainedID])
+                for addedID in eventIDs where addedID != retainedID {
+                    let insertedBefore = DayObjectColorAllocator.assignments(
+                        eventIDs: [addedID, retainedID],
+                        rootSeed: rootSeed,
+                        paletteSet: paletteSet
+                    )
+                    let insertedAfter = DayObjectColorAllocator.assignments(
+                        eventIDs: [retainedID, addedID],
+                        rootSeed: rootSeed,
+                        paletteSet: paletteSet
+                    )
+                    XCTAssertEqual(
+                        try XCTUnwrap(insertedBefore[retainedID]), expected,
+                        "rootSeed=\(rootSeed) retained=\(retainedID) added=\(addedID)"
+                    )
+                    XCTAssertEqual(
+                        try XCTUnwrap(insertedAfter[retainedID]), expected,
+                        "rootSeed=\(rootSeed) retained=\(retainedID) added=\(addedID)"
+                    )
+                }
+            }
+        }
+    }
+
     func testDailyVisualLanguageUsesOneFamilyAndOnlyRelatedMutations() {
         for seed in UInt64(0)..<128 {
             let paletteSet = DayObjectPaletteSet.make(
@@ -232,7 +258,8 @@ final class DayObjectPaletteTests: XCTestCase {
             )
             let language = DayObjectVisualLanguage.make(
                 rootSeed: seed,
-                paletteSet: paletteSet
+                paletteSet: paletteSet,
+                choreography: DayObjectChoreographyConfiguration.make(seed: seed)
             )
 
             XCTAssertEqual(language.grainIntensity, 0.05)
@@ -275,7 +302,8 @@ final class DayObjectPaletteTests: XCTestCase {
             reached.insert(
                 DayObjectVisualLanguage.make(
                     rootSeed: seed,
-                    paletteSet: paletteSet
+                    paletteSet: paletteSet,
+                    choreography: DayObjectChoreographyConfiguration.make(seed: seed)
                 ).family
             )
         }
@@ -298,7 +326,8 @@ final class DayObjectPaletteTests: XCTestCase {
             )
             let language = DayObjectVisualLanguage.make(
                 rootSeed: seed,
-                paletteSet: paletteSet
+                paletteSet: paletteSet,
+                choreography: DayObjectChoreographyConfiguration.make(seed: seed)
             )
             let appearances = language.appearances(
                 eventIDs: (0..<10).map { "event-\($0)" },
@@ -352,7 +381,8 @@ final class DayObjectPaletteTests: XCTestCase {
         )
         let language = DayObjectVisualLanguage.make(
             rootSeed: 44,
-            paletteSet: paletteSet
+            paletteSet: paletteSet,
+            choreography: DayObjectChoreographyConfiguration.make(seed: 44)
         )
         let appearances = language.appearances(eventIDs: eventIDs, rootSeed: 44)
 
@@ -370,7 +400,8 @@ final class DayObjectPaletteTests: XCTestCase {
         )
         let language = DayObjectVisualLanguage.make(
             rootSeed: 71,
-            paletteSet: paletteSet
+            paletteSet: paletteSet,
+            choreography: DayObjectChoreographyConfiguration.make(seed: 71)
         )
         let one = language.appearances(eventIDs: ["walk"], rootSeed: 71)
         let ten = language.appearances(
@@ -397,7 +428,8 @@ final class DayObjectPaletteTests: XCTestCase {
             )
             let language = DayObjectVisualLanguage.make(
                 rootSeed: seed,
-                paletteSet: paletteSet
+                paletteSet: paletteSet,
+                choreography: DayObjectChoreographyConfiguration.make(seed: seed)
             )
             let ids = (0..<10).map { "event-\($0)" }
             let appearances = language.appearances(eventIDs: ids, rootSeed: seed)

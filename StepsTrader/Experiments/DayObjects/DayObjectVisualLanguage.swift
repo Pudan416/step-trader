@@ -125,17 +125,6 @@ struct DayObjectVisualLanguage: Equatable {
         )
     }
 
-    static func make(
-        rootSeed: UInt64,
-        paletteSet: DayObjectPaletteSet
-    ) -> DayObjectVisualLanguage {
-        make(
-            rootSeed: rootSeed,
-            paletteSet: paletteSet,
-            choreography: DayObjectChoreographyConfiguration.make(seed: rootSeed)
-        )
-    }
-
     func appearances(
         eventIDs: [String],
         rootSeed: UInt64

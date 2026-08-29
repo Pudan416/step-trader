@@ -73,7 +73,7 @@ struct DayObjectScene: Equatable {
         )
         let palette = DayObjectPalette.make(modernPalette: paletteSet.background)
         let meshGradientStyle = DayObjectMeshGradientStyle.make(seed: rootSeed, palette: palette)
-        let score = DayObjectChoreographyScore.make(seed: rootSeed)
+        let score = DayObjectChoreographyScore.make(configuration: choreography)
         let appearances = visualLanguage.appearances(
             eventIDs: eventIDs,
             rootSeed: rootSeed
@@ -84,8 +84,7 @@ struct DayObjectScene: Equatable {
         for eventID in eventIDs {
             guard let appearance = appearances[eventID],
                   let route = motionPlan.routes[eventID],
-                  let depthSchedule = motionPlan.depths[eventID],
-                  let encounter = motionPlan.encounters[eventID] else { continue }
+                  let depthSchedule = motionPlan.depths[eventID] else { continue }
             let id = DayObjectActorID(eventID: eventID, memberIndex: 0)
             actors.append(makeActor(
                 id: id,
@@ -98,8 +97,7 @@ struct DayObjectScene: Equatable {
                 ),
                 appearance: appearance,
                 route: route,
-                depthSchedule: depthSchedule,
-                encounter: encounter
+                depthSchedule: depthSchedule
             ))
         }
 
@@ -151,8 +149,7 @@ struct DayObjectScene: Equatable {
         choreographySlot: DayObjectChoreographySlot,
         appearance: DayObjectAppearance,
         route: DayObjectRoute,
-        depthSchedule: DayObjectDepthSchedule,
-        encounter: DayObjectEncounter
+        depthSchedule: DayObjectDepthSchedule
     ) -> DayObjectActor {
         let actorIdentity = "\(input.identity.utf8.count):\(input.identity):\(id.eventID.utf8.count):\(id.eventID)"
         let seed = CanvasElement.makeSeed(
@@ -188,7 +185,6 @@ struct DayObjectScene: Equatable {
             appearance: appearance,
             route: route,
             depthSchedule: depthSchedule,
-            encounter: encounter,
             role: role,
             shape: appearance.shape,
             elongation: .round,
@@ -196,7 +192,6 @@ struct DayObjectScene: Equatable {
             fill: composition.fill,
             trajectory: composition.trajectory,
             spin: composition.spin,
-            speedRatio: pick([0.5, 0.75, 1, 1.5, 2], domain: "speed"),
             phaseOffset: value(0...(2 * .pi), domain: "phase"),
             depthBand: depthBand,
             zIndex: Double(depthBand) + value(0...0.999, domain: "zIndex")

@@ -39,6 +39,29 @@ final class DayObjectSceneTests: XCTestCase {
         }
     }
 
+    func testArbitraryActorAppearanceIsIndependentOfPreferredPrimaryAddRemoveAndOrder() throws {
+        let eventIDs = [
+            "alpha-forest", "beta-river", "gamma-stone", "delta-cloud",
+            "epsilon-lantern", "zeta-window", "eta-orchard", "theta-bridge",
+        ]
+
+        for retainedID in eventIDs {
+            let alone = DayObjectScene.make(input: input([retainedID]))
+            let expected = try XCTUnwrap(alone.actors.first)
+            for addedID in eventIDs where addedID != retainedID {
+                for order in [[addedID, retainedID], [retainedID, addedID]] {
+                    let expanded = DayObjectScene.make(input: input(order))
+                    let retained = try XCTUnwrap(
+                        expanded.actors.first { $0.eventID == retainedID }
+                    )
+                    XCTAssertEqual(retained.appearance, expected.appearance)
+                    XCTAssertEqual(retained.choreographySlot, expected.choreographySlot)
+                    XCTAssertEqual(retained.route, expected.route)
+                }
+            }
+        }
+    }
+
     func testEventOrderDoesNotChangeActors() {
         let a = DayObjectScene.make(input: input(["walk", "sleep"]))
         let b = DayObjectScene.make(input: input(["sleep", "walk"]))
@@ -206,12 +229,9 @@ final class DayObjectCompositionTests: XCTestCase {
         XCTAssertEqual(reached, Set(DayObjectShape.allCases))
     }
 
-    func testShapeAndAppearanceColorCountNumericValuesMatchMetalShaderABI() {
+    func testProductionSphereAndAppearanceColorCountNumericValuesMatchMetalShaderABI() {
         let expectedShapes: [DayObjectShape: UInt32] = [
             .sphere: 0,
-            .ellipse: 1,
-            .lens: 2,
-            .softBlob: 3,
         ]
         let expectedColorCounts: Set<UInt32> = [1, 2, 3]
         let environment = DayObjectEnvironment(

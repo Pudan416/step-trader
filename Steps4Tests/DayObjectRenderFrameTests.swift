@@ -29,6 +29,45 @@ final class DayObjectRenderFrameTests: XCTestCase {
         ))
     }
 
+    private func fixtureScene(
+        for preset: DayObjectChoreographyPreset,
+        ids: [String],
+        canvasCoverage: DayObjectCanvasCoverage = .fullCanvas
+    ) throws -> DayObjectScene {
+        try XCTUnwrap((UInt64(0)..<4_096).lazy.map { seed in
+            DayObjectScene.make(input: .init(
+                dayKey: "render-fixture-\(seed)", identity: "tester", eventIDs: ids,
+                motionEnergy: 0.55, visualClarity: 0.55, reduceMotion: false,
+                canvasCoverage: canvasCoverage
+            ))
+        }.first { $0.motionPlan.preset == preset })
+    }
+
+    private func assertSameVisualActorState(
+        _ actual: DayObjectRenderActor,
+        _ expected: DayObjectRenderActor,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(actual.actorID, expected.actorID, file: file, line: line)
+        XCTAssertEqual(actual.eventID, expected.eventID, file: file, line: line)
+        XCTAssertEqual(actual.gpuAppearance, expected.gpuAppearance, file: file, line: line)
+        XCTAssertEqual(actual.gpuActor.position, expected.gpuActor.position, file: file, line: line)
+        XCTAssertEqual(actual.gpuActor.direction, expected.gpuActor.direction, file: file, line: line)
+        XCTAssertEqual(actual.gpuActor.halfSize, expected.gpuActor.halfSize, file: file, line: line)
+        XCTAssertEqual(actual.gpuActor.opacity, expected.gpuActor.opacity, file: file, line: line)
+        XCTAssertEqual(actual.gpuActor.trailLength, expected.gpuActor.trailLength, file: file, line: line)
+        XCTAssertEqual(actual.gpuActor.shape, expected.gpuActor.shape, file: file, line: line)
+        XCTAssertEqual(actual.gpuActor.depth, expected.gpuActor.depth, file: file, line: line)
+        XCTAssertEqual(actual.gpuActor.materialPhase, expected.gpuActor.materialPhase, file: file, line: line)
+        XCTAssertEqual(
+            actual.gpuActor.localDepthSoftness,
+            expected.gpuActor.localDepthSoftness,
+            file: file,
+            line: line
+        )
+    }
+
     func testSpentColorsClampAndMapToAbsoluteDamage() {
         XCTAssertEqual(DayObjectDigitalImpact(spentColors: -4).spentColors, 0)
         XCTAssertEqual(DayObjectDigitalImpact(spentColors: 140).spentColors, 100)
@@ -142,16 +181,11 @@ final class DayObjectRenderFrameTests: XCTestCase {
         })
     }
 
-    func testRepresentativeSceneUsesApprovedOrbScaleHierarchy() {
-        let scene = DayObjectScene.make(input: .init(
-            dayKey: "2026-08-20",
-            identity: "tester",
-            eventIDs: (0..<8).map { "orb-\($0)" },
-            motionEnergy: 0.55,
-            visualClarity: 0.55,
-            reduceMotion: false,
-            canvasCoverage: .fullCanvas
-        ))
+    func testDepthFieldSceneUsesApprovedSpatialScaleHierarchy() throws {
+        let scene = try fixtureScene(
+            for: .depthField,
+            ids: (0..<8).map { "orb-\($0)" }
+        )
         let environment = DayObjectEnvironment(
             motionEnergy: 1,
             visualClarity: 1,
@@ -168,7 +202,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
             let diameters = frame.actors.map { Double($0.halfSize.x * 2) }
             XCTAssertGreaterThan((diameters.max() ?? 0) - (diameters.min() ?? 0), 0.16)
             XCTAssertTrue(
-                diameters.allSatisfy { (0.035...0.64).contains($0) },
+                diameters.allSatisfy { $0 >= 0.12 - 0.000_001 && $0 <= 0.74 + 0.000_001 },
                 "elapsed=\(elapsed) \(diameters)"
             )
         }
@@ -990,8 +1024,6 @@ final class DayObjectRenderFrameTests: XCTestCase {
                                     actorDifference: actorContribution
                                 )
                                 if actorCount == 10 {
-                                    XCTAssertGreaterThanOrEqual(metrics.occupiedSectorCount, 5)
-                                    XCTAssertLessThanOrEqual(metrics.maximumActorsInOneSector, 4)
                                     XCTAssertEqual(metrics.materialCounts.count, 1)
                                     XCTAssertEqual(metrics.paletteSlotCounts.values.reduce(0, +), 10)
                                     XCTAssertEqual(
@@ -1111,33 +1143,40 @@ final class DayObjectRenderFrameTests: XCTestCase {
 
         for day in 22...26 {
             let dayKey = "2026-08-\(day)"
-            let scene = DayObjectScene.make(input: .init(
-                dayKey: dayKey,
-                identity: "day-objects-lab",
-                eventIDs: (0..<10).map { "lab-event-\($0)" },
-                motionEnergy: 0.55,
-                visualClarity: 0.95,
-                reduceMotion: false,
-                canvasCoverage: .fullCanvas
-            ))
+            let eventIDs = (0..<10).map { "lab-event-\($0)" }
+            func makeScene(actorCount: Int) -> DayObjectScene {
+                DayObjectScene.make(input: .init(
+                    dayKey: dayKey,
+                    identity: "day-objects-lab",
+                    eventIDs: Array(eventIDs.prefix(actorCount)),
+                    motionEnergy: 0.55,
+                    visualClarity: 0.95,
+                    reduceMotion: false,
+                    canvasCoverage: .fullCanvas
+                ))
+            }
+            let scene = makeScene(actorCount: 10)
             XCTAssertTrue(scene.compositionPlan.usesFullCanvas)
-
-            let emptyByTime = try Dictionary(uniqueKeysWithValues: times.map { elapsed in
-                (
-                    elapsed,
-                    try harness.render(
-                        scene: scene,
-                        clarity: 0.95,
-                        elapsed: elapsed,
-                        motionEnergy: 0.55,
-                        actorLimit: 0
-                    )
-                )
-            })
+            let preset = scene.score.preset
+            let sizeProfile = scene.score.configuration.sizeProfile
 
             for actorCount in [1, 4, 7, 10] {
+                let inspectedScene = makeScene(actorCount: actorCount)
+                XCTAssertEqual(inspectedScene.score.preset, preset)
+                XCTAssertEqual(inspectedScene.actors.count, actorCount)
+                let emptyByTime = try Dictionary(uniqueKeysWithValues: times.map { elapsed in
+                    (
+                        elapsed,
+                        try harness.render(
+                            scene: inspectedScene,
+                            clarity: 0.95,
+                            elapsed: elapsed,
+                            motionEnergy: 0.55,
+                            actorLimit: 0
+                        )
+                    )
+                })
                 var occupiedThirds = Set<Int>()
-                var occupiedSectors = Set<Int>()
                 var diameters = [Double]()
                 var focalDisplacements = [Double]()
                 var lowerThirdCoverages = [Double]()
@@ -1145,11 +1184,10 @@ final class DayObjectRenderFrameTests: XCTestCase {
 
                 for elapsed in times {
                     let result = try harness.render(
-                        scene: scene,
+                        scene: inspectedScene,
                         clarity: 0.95,
                         elapsed: elapsed,
-                        motionEnergy: 0.55,
-                        actorLimit: actorCount
+                        motionEnergy: 0.55
                     )
                     let empty = try XCTUnwrap(emptyByTime[elapsed])
                     let actorDifference = result.noGrain.difference(from: empty.noGrain)
@@ -1159,7 +1197,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
                         reduceMotion: false
                     )
                     let frame = DayObjectRenderFrame.make(
-                        scene: scene,
+                        scene: inspectedScene,
                         environment: environment,
                         elapsed: elapsed,
                         insertions: [:],
@@ -1167,16 +1205,16 @@ final class DayObjectRenderFrameTests: XCTestCase {
                     )
                     let records = Array(frame.actors.prefix(actorCount))
                     let actorsByID = Dictionary(
-                        uniqueKeysWithValues: scene.actors.map { ($0.id, $0) }
+                        uniqueKeysWithValues: inspectedScene.actors.map { ($0.id, $0) }
                     )
 
                     for record in records {
                         guard let actor = actorsByID[record.actorID] else { continue }
-                        let pose = scene.score.pose(
+                        let pose = inspectedScene.score.pose(
                             for: actor,
                             at: frame.choreographyTime,
                             canvasAspect: aspect,
-                            compositionPlan: scene.compositionPlan
+                            compositionPlan: inspectedScene.compositionPlan
                         )
                         let span = aspect >= 1
                             ? SIMD2<Double>(aspect, 1)
@@ -1185,10 +1223,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
                             pose.position.x / span.x + 0.5,
                             0.5 - pose.position.y / span.y
                         )
-                        let column = min(max(Int(normalized.x * 3), 0), 2)
                         let row = min(max(Int(normalized.y * 3), 0), 2)
                         occupiedThirds.insert(row)
-                        occupiedSectors.insert(row * 3 + column)
                         diameters.append(Double(record.halfSize.x * 2))
                         focalDisplacements.append(
                             actor.appearance.layers
@@ -1234,22 +1270,28 @@ final class DayObjectRenderFrameTests: XCTestCase {
                     captures[1].meanAbsoluteDifference(from: captures[2]),
                     0.000_01
                 )
-                if actorCount >= 6 {
+                if actorCount >= 6 && preset == .constellation {
                     XCTAssertEqual(occupiedThirds, Set([0, 1, 2]), dayKey)
                     XCTAssertGreaterThan(lowerThirdCoverages.max() ?? 0, 0.001, dayKey)
                 }
                 if actorCount >= 8 {
-                    XCTAssertGreaterThanOrEqual(occupiedSectors.count, 6, dayKey)
-                    XCTAssertGreaterThan(
-                        (diameters.max() ?? 0) / max(diameters.min() ?? 1, 0.000_001),
-                        1.8,
-                        dayKey
-                    )
+                    let ratio = (diameters.max() ?? 0)
+                        / max(diameters.min() ?? 1, 0.000_001)
+                    switch sizeProfile {
+                    case .uniform:
+                        XCTAssertLessThanOrEqual(ratio, 1.12, dayKey)
+                    case .grouped:
+                        XCTAssertGreaterThan(ratio, 1.04, dayKey)
+                        XCTAssertLessThanOrEqual(ratio, 1.75, dayKey)
+                    case .spatial:
+                        XCTAssertGreaterThan(ratio, 1.8, dayKey)
+                    }
                 }
 
                 print(
-                    "CIRCLE_DNA_SANDBOX day=\(dayKey) actors=\(actorCount) "
-                        + "thirds=\(occupiedThirds.sorted()) sectors=\(occupiedSectors.sorted()) "
+                    "CIRCLE_DNA_SANDBOX day=\(dayKey) preset=\(preset) "
+                        + "sizeProfile=\(sizeProfile) actors=\(actorCount) "
+                        + "thirds=\(occupiedThirds.sorted()) "
                         + "diameter=\(diameters.min() ?? 0)...\(diameters.max() ?? 0) "
                         + "focal=\(focalDisplacements.max() ?? 0) "
                         + "lowerCoverage=\(lowerThirdCoverages)"
@@ -1459,7 +1501,10 @@ final class DayObjectRenderFrameTests: XCTestCase {
             elapsed: 10.5,
             insertions: [:]
         ).actors
-        XCTAssertEqual(activeDuring, activeReference)
+        XCTAssertEqual(activeDuring.count, activeReference.count)
+        for (actual, expected) in zip(activeDuring, activeReference) {
+            assertSameVisualActorState(actual, expected)
+        }
     }
 
     func testReduceMotionRemovalChangesOpacityOnlyAndDisablesTrails() {
@@ -3832,8 +3877,6 @@ private struct PostUniformBytes {
 }
 
 private struct DayObjectsLivingOrbMatrixMetrics: CustomStringConvertible {
-    let occupiedSectorCount: Int
-    let maximumActorsInOneSector: Int
     let materialCounts: [UInt32: Int]
     let paletteSlotCounts: [UInt32: Int]
     let uniqueColorSubsetCount: Int
@@ -3869,10 +3912,6 @@ private struct DayObjectsLivingOrbMatrixMetrics: CustomStringConvertible {
         let selectedActors = rendered.compactMap { actorByID[$0.actorID] }
 
         let aspect = canvasAspect.isFinite && canvasAspect > 0 ? canvasAspect : 1
-        let span = aspect >= 1
-            ? SIMD2<Double>(aspect, 1)
-            : SIMD2<Double>(1, 1 / aspect)
-        var sectorCounts = [Int: Int]()
         var allInside = true
         var uiIntersections = 0
         var negativeIntersections = 0
@@ -3883,13 +3922,6 @@ private struct DayObjectsLivingOrbMatrixMetrics: CustomStringConvertible {
                 canvasAspect: aspect,
                 compositionPlan: scene.compositionPlan
             )
-            let normalized = SIMD2<Double>(
-                pose.position.x / span.x + 0.5,
-                0.5 - pose.position.y / span.y
-            )
-            let column = min(max(Int(normalized.x * 3), 0), 2)
-            let row = min(max(Int(normalized.y * 3), 0), 2)
-            sectorCounts[row * 3 + column, default: 0] += 1
             allInside = allInside && pose.isInsideSafeBounds
             uiIntersections += pose.intersectsUIExclusion ? 1 : 0
             negativeIntersections += pose.intersectsNegativeSpace ? 1 : 0
@@ -3909,8 +3941,6 @@ private struct DayObjectsLivingOrbMatrixMetrics: CustomStringConvertible {
         }
 
         return Self(
-            occupiedSectorCount: sectorCounts.count,
-            maximumActorsInOneSector: sectorCounts.values.max() ?? 0,
             materialCounts: materials,
             paletteSlotCounts: paletteSlots,
             uniqueColorSubsetCount: subsets.count,
@@ -3925,8 +3955,7 @@ private struct DayObjectsLivingOrbMatrixMetrics: CustomStringConvertible {
     }
 
     var description: String {
-        "sectors=\(occupiedSectorCount) maxSector=\(maximumActorsInOneSector) "
-            + "materials=\(materialCounts) palettes=\(paletteSlotCounts) "
+        "materials=\(materialCounts) palettes=\(paletteSlotCounts) "
             + "uniqueSubsets=\(uniqueColorSubsetCount) safe=\(allActorsInsideSafeBounds) "
             + "uiIntersections=\(uiIntersectionCount) negativeIntersections=\(negativeSpaceIntersectionCount) "
             + "borderPeak=\(borderPeak) uiPeak=\(uiExclusionPeak)"
@@ -4232,20 +4261,20 @@ private enum DayObjectsPerceptualBaselines {
             name: "light-phone-portrait", dayKey: "2026-08-20",
             categories: [.pastel, .spring], width: 180, height: 390,
             signature: DayObjectsPerceptualSignature(
-                meanRGB: SIMD3(0.52087497, 0.50961275, 0.64562216),
-                meanLuminance: 0.52182698,
-                luminanceDeviation: 0.05932905,
-                lowLuminance: 0.46149243,
-                highLuminance: 0.59398242,
-                edgeEnergy: 0.00846268,
-                colorfulness: 0.16791070,
+                meanRGB: SIMD3(0.52259559, 0.50821285, 0.64226986),
+                meanLuminance: 0.52094954,
+                luminanceDeviation: 0.06869799,
+                lowLuminance: 0.46308799,
+                highLuminance: 0.59388496,
+                edgeEnergy: 0.00874509,
+                colorfulness: 0.16852454,
                 coarseLuminance: [
-                    0.48012660, 0.53996706, 0.57603132, 0.56118711,
-                    0.49837675, 0.51641615, 0.53493346, 0.46695413,
+                    0.48528784, 0.50629279, 0.55976743, 0.56612877,
+                    0.50513392, 0.53025215, 0.54475144, 0.46584897,
                     0.55314608, 0.53773679, 0.51139925, 0.48564902,
                 ],
-                actorInkFraction: 0.05958689,
-                actorEnergy: 0.00529430,
+                actorInkFraction: 0.04670940,
+                actorEnergy: 0.01024832,
                 borderActorPeak: 0,
                 negativeSpaceActorPeak: 0,
                 exclusionActorPeak: 0
@@ -4255,20 +4284,20 @@ private enum DayObjectsPerceptualBaselines {
             name: "light-tablet-landscape", dayKey: "2026-08-20",
             categories: [.pastel, .spring], width: 256, height: 192,
             signature: DayObjectsPerceptualSignature(
-                meanRGB: SIMD3(0.50255711, 0.49570026, 0.63915784),
-                meanLuminance: 0.50751567,
-                luminanceDeviation: 0.05979513,
-                lowLuminance: 0.43799805,
-                highLuminance: 0.58708672,
-                edgeEnergy: 0.00885708,
-                colorfulness: 0.18145776,
+                meanRGB: SIMD3(0.50448833, 0.49481352, 0.63801832),
+                meanLuminance: 0.50720977,
+                luminanceDeviation: 0.06975438,
+                lowLuminance: 0.43452388,
+                highLuminance: 0.58848779,
+                edgeEnergy: 0.00885143,
+                colorfulness: 0.18559257,
                 coarseLuminance: [
-                    0.47866842, 0.51384770, 0.53216098, 0.48886080,
-                    0.48845475, 0.50223890, 0.53746349, 0.45000074,
+                    0.48974934, 0.49961164, 0.53089130, 0.47834785,
+                    0.49798849, 0.51360078, 0.53970604, 0.43812962,
                     0.54373032, 0.54565328, 0.54492674, 0.46418186,
                 ],
-                actorInkFraction: 0.08628337,
-                actorEnergy: 0.00655188,
+                actorInkFraction: 0.04062907,
+                actorEnergy: 0.00638120,
                 borderActorPeak: 0,
                 negativeSpaceActorPeak: 0,
                 exclusionActorPeak: 0
@@ -4278,20 +4307,20 @@ private enum DayObjectsPerceptualBaselines {
             name: "dark-phone-portrait", dayKey: "2026-08-21",
             categories: [.winter, .cold], width: 180, height: 390,
             signature: DayObjectsPerceptualSignature(
-                meanRGB: SIMD3(0.24567215, 0.41338184, 0.45988343),
-                meanLuminance: 0.38108417,
-                luminanceDeviation: 0.11836123,
-                lowLuminance: 0.26525651,
-                highLuminance: 0.54206528,
-                edgeEnergy: 0.00906805,
-                colorfulness: 0.21508838,
+                meanRGB: SIMD3(0.23935530, 0.41144475, 0.45878600),
+                meanLuminance: 0.37827657,
+                luminanceDeviation: 0.11910768,
+                lowLuminance: 0.26297239,
+                highLuminance: 0.54424336,
+                edgeEnergy: 0.00848344,
+                colorfulness: 0.21954614,
                 coarseLuminance: [
-                    0.33711656, 0.35118810, 0.33838456, 0.30688756,
-                    0.49328450, 0.34426819, 0.31492384, 0.35324485,
+                    0.33737330, 0.34194105, 0.33950932, 0.29737721,
+                    0.49045791, 0.34905074, 0.32329983, 0.32659762,
                     0.60741273, 0.46320073, 0.32553495, 0.33756349,
                 ],
-                actorInkFraction: 0.06484330,
-                actorEnergy: 0.00753984,
+                actorInkFraction: 0.02283476,
+                actorEnergy: 0.00279893,
                 borderActorPeak: 0,
                 negativeSpaceActorPeak: 0,
                 exclusionActorPeak: 0
@@ -4301,20 +4330,20 @@ private enum DayObjectsPerceptualBaselines {
             name: "dark-tablet-landscape", dayKey: "2026-08-21",
             categories: [.winter, .cold], width: 256, height: 192,
             signature: DayObjectsPerceptualSignature(
-                meanRGB: SIMD3(0.25799003, 0.43578718, 0.47590647),
-                meanLuminance: 0.40088412,
-                luminanceDeviation: 0.13240509,
-                lowLuminance: 0.25516587,
-                highLuminance: 0.62208691,
-                edgeEnergy: 0.00950106,
-                colorfulness: 0.21986032,
+                meanRGB: SIMD3(0.24951740, 0.43432950, 0.47524648),
+                meanLuminance: 0.39799265,
+                luminanceDeviation: 0.13164704,
+                lowLuminance: 0.25282211,
+                highLuminance: 0.62309170,
+                edgeEnergy: 0.00859305,
+                colorfulness: 0.22585323,
                 coarseLuminance: [
-                    0.37885050, 0.39908867, 0.34540799, 0.30676566,
-                    0.48822281, 0.34583329, 0.28477538, 0.39063390,
+                    0.38567925, 0.39662211, 0.34913940, 0.28529646,
+                    0.48462864, 0.35115281, 0.29345747, 0.35890446,
                     0.68702154, 0.46814357, 0.35387929, 0.36198683,
                 ],
-                actorInkFraction: 0.09568278,
-                actorEnergy: 0.01069006,
+                actorInkFraction: 0.02541097,
+                actorEnergy: 0.00328016,
                 borderActorPeak: 0,
                 negativeSpaceActorPeak: 0,
                 exclusionActorPeak: 0
@@ -4325,39 +4354,39 @@ private enum DayObjectsPerceptualBaselines {
     static let transitionSignatures = [
         DayObjectsTransitionPerceptualSignature(
             name: "insertion-before", renderedActorCount: 4,
-            affectedEnergy: 0, meanLuminance: 0.54374254, edgeEnergy: 0.00751654
+            affectedEnergy: 0, meanLuminance: 0.54361400, edgeEnergy: 0.00744868
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "insertion-during", renderedActorCount: 5,
-            affectedEnergy: 0, meanLuminance: 0.54348660, edgeEnergy: 0.00748289
+            affectedEnergy: 0, meanLuminance: 0.54340186, edgeEnergy: 0.00741477
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "insertion-after", renderedActorCount: 5,
-            affectedEnergy: 0.00062779, meanLuminance: 0.54238499, edgeEnergy: 0.00749185
+            affectedEnergy: 0.00157489, meanLuminance: 0.54444710, edgeEnergy: 0.00742865
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "removal-before", renderedActorCount: 5,
-            affectedEnergy: 0.00075859, meanLuminance: 0.53039970, edgeEnergy: 0.00741160
+            affectedEnergy: 0.00128326, meanLuminance: 0.53306038, edgeEnergy: 0.00739795
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "removal-during", renderedActorCount: 5,
-            affectedEnergy: 0.00054829, meanLuminance: 0.52924617, edgeEnergy: 0.00741549
+            affectedEnergy: 0.00085778, meanLuminance: 0.53131268, edgeEnergy: 0.00740709
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "removal-after", renderedActorCount: 4,
-            affectedEnergy: 0, meanLuminance: 0.52766296, edgeEnergy: 0.00738246
+            affectedEnergy: 0, meanLuminance: 0.52835168, edgeEnergy: 0.00739413
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "capped-replacement-before", renderedActorCount: 10,
-            affectedEnergy: 0, meanLuminance: 0.50822471, edgeEnergy: 0.00765185
+            affectedEnergy: 0, meanLuminance: 0.50527465, edgeEnergy: 0.00763671
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "capped-replacement-during", renderedActorCount: 10,
-            affectedEnergy: 0.00025949, meanLuminance: 0.50727208, edgeEnergy: 0.00768517
+            affectedEnergy: 0.00050329, meanLuminance: 0.50447868, edgeEnergy: 0.00767771
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "capped-replacement-after", renderedActorCount: 10,
-            affectedEnergy: 0.00007606, meanLuminance: 0.50483752, edgeEnergy: 0.00766775
+            affectedEnergy: 0.00001581, meanLuminance: 0.50272408, edgeEnergy: 0.00764747
         ),
     ]
 
