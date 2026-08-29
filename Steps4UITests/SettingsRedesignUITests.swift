@@ -61,7 +61,7 @@ final class SettingsRedesignUITests: XCTestCase {
         let app = launchSettings()
         let close = app.buttons["settings.close"]
         XCTAssertTrue(close.waitForExistence(timeout: 3))
-        XCTAssertTrue(close.isHittable)
+        assertMinimumHitTarget(close)
 
         app.buttons["settings.yourDay"].tap()
         XCTAssertTrue(app.navigationBars["Your day"].waitForExistence(timeout: 3))

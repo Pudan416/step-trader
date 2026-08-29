@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Settings Sheet (matte tactile hub — no liquid glass)
 /// The settings page intentionally drops the liquid-glass treatment used by
@@ -215,10 +216,11 @@ struct SettingsSheet: View {
                 .toolbar {
                     if !embeddedInTab {
                         ToolbarItem(placement: .topBarTrailing) {
-                            Button(String(localized: "Close", comment: "Settings sheet close button")) {
+                            SettingsCloseToolbarButton(
+                                title: String(localized: "Close", comment: "Settings sheet close button")
+                            ) {
                                 if let onDone { onDone() } else { dismiss() }
                             }
-                            .accessibilityIdentifier("settings.close")
                         }
                     }
                 }
@@ -278,6 +280,59 @@ struct SettingsSheet: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 4)
+    }
+}
+
+/// A native, unbordered toolbar control whose exposed button frame is a real
+/// 44-point target. SwiftUI's text toolbar item normalizes label sizing to a
+/// smaller accessibility frame, so the minimum belongs to the hosted control.
+private struct SettingsCloseToolbarButton: UIViewRepresentable {
+    let title: String
+    let action: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(action: action)
+    }
+
+    func makeUIView(context: Context) -> UIButton {
+        let button = UIButton(type: .system)
+        button.setTitle(title, for: .normal)
+        button.accessibilityIdentifier = "settings.close"
+        button.addTarget(
+            context.coordinator,
+            action: #selector(Coordinator.activate),
+            for: .touchUpInside
+        )
+        return button
+    }
+
+    func updateUIView(_ button: UIButton, context: Context) {
+        button.setTitle(title, for: .normal)
+        context.coordinator.action = action
+    }
+
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        uiView button: UIButton,
+        context: Context
+    ) -> CGSize? {
+        let intrinsicSize = button.intrinsicContentSize
+        return CGSize(
+            width: max(44, intrinsicSize.width),
+            height: max(44, intrinsicSize.height)
+        )
+    }
+
+    final class Coordinator: NSObject {
+        var action: () -> Void
+
+        init(action: @escaping () -> Void) {
+            self.action = action
+        }
+
+        @objc func activate() {
+            action()
+        }
     }
 }
 
