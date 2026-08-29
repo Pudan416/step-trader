@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A16C90010000000000000001 /* ExperimentalFeatures.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000001 /* ExperimentalFeatures.swift */; };
+		9E5C000200000000000000D1 /* ExperimentalLabRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000D1 /* ExperimentalLabRoute.swift */; };
 		132547AFAA9C80DFE4295A03 /* DayCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE8A4067A79B84F980E2699C /* DayCanvas.swift */; };
 		20095A8B2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20095A8A2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift */; };
 		200AC47B2F0C795D0018004E /* TargetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC47A2F0C795D0018004E /* TargetResolver.swift */; };
@@ -263,6 +265,24 @@
 		DA0023002300230023000011 /* HappeningShapeAssignmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0023002300230023000010 /* HappeningShapeAssignmentTests.swift */; };
 		DA0025002500250025000011 /* HappeningShapeNonceStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0025002500250025000010 /* HappeningShapeNonceStoreTests.swift */; };
 		DA0030003000300030000011 /* CanvasElementSpawnFigureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0030003000300030000010 /* CanvasElementSpawnFigureTests.swift */; };
+		D0B100000000000000000002 /* DayObjectSceneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000001 /* DayObjectSceneTests.swift */; };
+		D0B100000000000000000004 /* DayObjectPaletteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000003 /* DayObjectPaletteTests.swift */; };
+		D0B100000000000000000006 /* DayObjectChoreographyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000005 /* DayObjectChoreographyTests.swift */; };
+		D0B100000000000000000008 /* DayObjectRenderFrameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000007 /* DayObjectRenderFrameTests.swift */; };
+		D0B100000000000000000009 /* DayObjectsLabUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B10000000000000000000A /* DayObjectsLabUITests.swift */; };
+		D0B100000000000000000021 /* DayObjectTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000011 /* DayObjectTypes.swift */; };
+		D0B100000000000000000022 /* DayObjectScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000012 /* DayObjectScene.swift */; };
+		D0B100000000000000000023 /* DayObjectComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000013 /* DayObjectComposition.swift */; };
+		D0B100000000000000000024 /* DayObjectPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000014 /* DayObjectPalette.swift */; };
+		D0B100000000000000000025 /* DayObjectChoreography.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000015 /* DayObjectChoreography.swift */; };
+		D0B100000000000000000026 /* DayObjectRenderFrame.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000016 /* DayObjectRenderFrame.swift */; };
+		D0B100000000000000000028 /* DayObjectsRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000018 /* DayObjectsRenderer.swift */; };
+		D0B100000000000000000029 /* DayObjectsMetalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000019 /* DayObjectsMetalView.swift */; };
+		D0B10000000000000000002A /* DayObjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B10000000000000000001A /* DayObjectsView.swift */; };
+		D0B10000000000000000002B /* DayObjectsMeshGradientShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = D0B10000000000000000001B /* DayObjectsMeshGradientShader.metal */; };
+		D0B10000000000000000002C /* DayObjectsActorShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = D0B10000000000000000001C /* DayObjectsActorShader.metal */; };
+		D0B10000000000000000002D /* DayObjectsPostShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = D0B10000000000000000001D /* DayObjectsPostShader.metal */; };
+		D0B10000000000000000002E /* DayObjectsLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B10000000000000000002F /* DayObjectsLabView.swift */; };
 		DA0026002600260026000011 /* HappeningShapeAssignmentModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0026002600260026000010 /* HappeningShapeAssignmentModelTests.swift */; };
 		DA0028002800280028000011 /* HappeningTileLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0028002800280028000010 /* HappeningTileLayoutTests.swift */; };
 		DA000A000A000A000A0000A1 /* AllowedCanvasShapesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */; };
@@ -374,6 +394,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A16C80010000000000000001 /* ExperimentalFeatures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExperimentalFeatures.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000D1 /* ExperimentalLabRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ExperimentalLabRoute.swift; path = Experiments/ExperimentalLabRoute.swift; sourceTree = "<group>"; };
 		008E480BBB86AEC405B9C2EE /* GradientPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GradientPalette.swift; path = StepsTrader/Models/GradientPalette.swift; sourceTree = SOURCE_ROOT; };
 		1C0D419D1FDF446F850FAE7E /* RayShapeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RayShapeRenderer.swift; path = StepsTrader/Shapes/RayShapeRenderer.swift; sourceTree = SOURCE_ROOT; };
 		1D27465EA0680011F9D75A64 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppTheme.swift; path = StepsTrader/Theme/AppTheme.swift; sourceTree = SOURCE_ROOT; };
@@ -629,6 +651,24 @@
 		DA0023002300230023000010 /* HappeningShapeAssignmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningShapeAssignmentTests.swift; sourceTree = "<group>"; };
 		DA0025002500250025000010 /* HappeningShapeNonceStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningShapeNonceStoreTests.swift; sourceTree = "<group>"; };
 		DA0030003000300030000010 /* CanvasElementSpawnFigureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasElementSpawnFigureTests.swift; sourceTree = "<group>"; };
+		D0B100000000000000000001 /* DayObjectSceneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectSceneTests.swift; sourceTree = "<group>"; };
+		D0B100000000000000000003 /* DayObjectPaletteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectPaletteTests.swift; sourceTree = "<group>"; };
+		D0B100000000000000000005 /* DayObjectChoreographyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectChoreographyTests.swift; sourceTree = "<group>"; };
+		D0B100000000000000000007 /* DayObjectRenderFrameTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectRenderFrameTests.swift; sourceTree = "<group>"; };
+		D0B10000000000000000000A /* DayObjectsLabUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLabUITests.swift; sourceTree = "<group>"; };
+		D0B100000000000000000011 /* DayObjectTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectTypes.swift; sourceTree = "<group>"; };
+		D0B100000000000000000012 /* DayObjectScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectScene.swift; sourceTree = "<group>"; };
+		D0B100000000000000000013 /* DayObjectComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectComposition.swift; sourceTree = "<group>"; };
+		D0B100000000000000000014 /* DayObjectPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectPalette.swift; sourceTree = "<group>"; };
+		D0B100000000000000000015 /* DayObjectChoreography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectChoreography.swift; sourceTree = "<group>"; };
+		D0B100000000000000000016 /* DayObjectRenderFrame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectRenderFrame.swift; sourceTree = "<group>"; };
+		D0B100000000000000000018 /* DayObjectsRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsRenderer.swift; sourceTree = "<group>"; };
+		D0B100000000000000000019 /* DayObjectsMetalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsMetalView.swift; sourceTree = "<group>"; };
+		D0B10000000000000000001A /* DayObjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsView.swift; sourceTree = "<group>"; };
+		D0B10000000000000000001B /* DayObjectsMeshGradientShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = DayObjectsMeshGradientShader.metal; sourceTree = "<group>"; };
+		D0B10000000000000000001C /* DayObjectsActorShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = DayObjectsActorShader.metal; sourceTree = "<group>"; };
+		D0B10000000000000000001D /* DayObjectsPostShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = DayObjectsPostShader.metal; sourceTree = "<group>"; };
+		D0B10000000000000000002F /* DayObjectsLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLabView.swift; sourceTree = "<group>"; };
 		DA0026002600260026000010 /* HappeningShapeAssignmentModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningShapeAssignmentModelTests.swift; sourceTree = "<group>"; };
 		DA0028002800280028000010 /* HappeningTileLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningTileLayoutTests.swift; sourceTree = "<group>"; };
 		DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllowedCanvasShapesTests.swift; sourceTree = "<group>"; };
@@ -776,6 +816,23 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		D0B100000000000000000031 /* DayObjects */ = {
+			isa = PBXGroup;
+			children = (
+				D0B100000000000000000013 /* DayObjectComposition.swift */,
+				D0B100000000000000000014 /* DayObjectPalette.swift */,
+				D0B100000000000000000015 /* DayObjectChoreography.swift */,
+				D0B100000000000000000016 /* DayObjectRenderFrame.swift */,
+				D0B100000000000000000018 /* DayObjectsRenderer.swift */,
+				D0B100000000000000000019 /* DayObjectsMetalView.swift */,
+				D0B10000000000000000001A /* DayObjectsView.swift */,
+				D0B10000000000000000002F /* DayObjectsLabView.swift */,
+				D0B100000000000000000011 /* DayObjectTypes.swift */,
+				D0B100000000000000000012 /* DayObjectScene.swift */,
+			);
+			path = Experiments/DayObjects;
+			sourceTree = "<group>";
+		};
 		2089F0AB2E71A18E00ABF5FA = {
 			isa = PBXGroup;
 			children = (
@@ -952,6 +1009,7 @@
 		2089F0E82E71AE3400ABF5FA /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				A16C80010000000000000001 /* ExperimentalFeatures.swift */,
 				20F0NT012FFF040000000001 /* Font+Custom.swift */,
 				207AE91A2F32293A00925680 /* DayBoundary+App.swift */,
 				20AA247A2F70BCF5002F2F2C /* SharedKeys.swift */,
@@ -976,6 +1034,8 @@
 		2089F0EA2E71AE3400ABF5FA /* StepsTrader */ = {
 			isa = PBXGroup;
 			children = (
+				D0B100000000000000000031 /* DayObjects */,
+				9E5C000100000000000000D1 /* ExperimentalLabRoute.swift */,
 				2089F0E32E71AE3400ABF5FA /* Models */,
 				2089F0E62E71AE3400ABF5FA /* Services */,
 				209424BE2E8593DA00904A0A /* Views */,
@@ -1176,6 +1236,9 @@
 		50SM00073002000050SM0007 /* Metal */ = {
 			isa = PBXGroup;
 			children = (
+				D0B10000000000000000001B /* DayObjectsMeshGradientShader.metal */,
+				D0B10000000000000000001C /* DayObjectsActorShader.metal */,
+				D0B10000000000000000001D /* DayObjectsPostShader.metal */,
 				50SM00043002000050SM0004 /* SmudgeShaders.metal */,
 				50SM00053002000050SM0005 /* MetalSmudgeRenderer.swift */,
 				60SP0002300000000060SP0002 /* ShaderParkShader.metal */,
@@ -1255,6 +1318,10 @@
 				DA0023002300230023000010 /* HappeningShapeAssignmentTests.swift */,
 				DA0025002500250025000010 /* HappeningShapeNonceStoreTests.swift */,
 				DA0030003000300030000010 /* CanvasElementSpawnFigureTests.swift */,
+				D0B100000000000000000001 /* DayObjectSceneTests.swift */,
+				D0B100000000000000000003 /* DayObjectPaletteTests.swift */,
+				D0B100000000000000000005 /* DayObjectChoreographyTests.swift */,
+				D0B100000000000000000007 /* DayObjectRenderFrameTests.swift */,
 				DA0026002600260026000010 /* HappeningShapeAssignmentModelTests.swift */,
 				DA0028002800280028000010 /* HappeningTileLayoutTests.swift */,
 				DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */,
@@ -1277,6 +1344,7 @@
 			children = (
 				T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */,
 				CA51F0210000000000000021 /* CanvasSimplificationUITests.swift */,
+				D0B10000000000000000000A /* DayObjectsLabUITests.swift */,
 			);
 			path = Steps4UITests;
 			sourceTree = "<group>";
@@ -1597,6 +1665,21 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A16C90010000000000000001 /* ExperimentalFeatures.swift in Sources */,
+				D0B100000000000000000023 /* DayObjectComposition.swift in Sources */,
+				D0B100000000000000000024 /* DayObjectPalette.swift in Sources */,
+				D0B100000000000000000025 /* DayObjectChoreography.swift in Sources */,
+				D0B100000000000000000026 /* DayObjectRenderFrame.swift in Sources */,
+				D0B10000000000000000002B /* DayObjectsMeshGradientShader.metal in Sources */,
+				D0B10000000000000000002C /* DayObjectsActorShader.metal in Sources */,
+				D0B10000000000000000002D /* DayObjectsPostShader.metal in Sources */,
+				D0B100000000000000000028 /* DayObjectsRenderer.swift in Sources */,
+				D0B100000000000000000029 /* DayObjectsMetalView.swift in Sources */,
+				D0B10000000000000000002A /* DayObjectsView.swift in Sources */,
+				D0B10000000000000000002E /* DayObjectsLabView.swift in Sources */,
+				D0B100000000000000000021 /* DayObjectTypes.swift in Sources */,
+				D0B100000000000000000022 /* DayObjectScene.swift in Sources */,
+				9E5C000200000000000000D1 /* ExperimentalLabRoute.swift in Sources */,
 				20AA24882F70BEE1002F2F2C /* AppUnlockSettings.swift in Sources */,
 				2089F0ED2E71AE3400ABF5FA /* FamilyControlsService.swift in Sources */,
 				209424C82E85952D00904A0A /* NotificationManager.swift in Sources */,
@@ -1859,6 +1942,10 @@
 				DA0023002300230023000011 /* HappeningShapeAssignmentTests.swift in Sources */,
 				DA0025002500250025000011 /* HappeningShapeNonceStoreTests.swift in Sources */,
 				DA0030003000300030000011 /* CanvasElementSpawnFigureTests.swift in Sources */,
+				D0B100000000000000000002 /* DayObjectSceneTests.swift in Sources */,
+				D0B100000000000000000004 /* DayObjectPaletteTests.swift in Sources */,
+				D0B100000000000000000006 /* DayObjectChoreographyTests.swift in Sources */,
+				D0B100000000000000000008 /* DayObjectRenderFrameTests.swift in Sources */,
 				DA0026002600260026000011 /* HappeningShapeAssignmentModelTests.swift in Sources */,
 				DA0028002800280028000011 /* HappeningTileLayoutTests.swift in Sources */,
 				DA000A000A000A000A0000A1 /* AllowedCanvasShapesTests.swift in Sources */,
@@ -1880,6 +1967,7 @@
 			files = (
 				T1E5T5E22E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */,
 				CA51B0210000000000000021 /* CanvasSimplificationUITests.swift in Sources */,
+				D0B100000000000000000009 /* DayObjectsLabUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

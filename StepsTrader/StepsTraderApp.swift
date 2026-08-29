@@ -230,6 +230,24 @@ struct StepsTraderApp: App {
 
     var body: some Scene {
         WindowGroup {
+            #if DEBUG || INTERNAL_BUILD
+            // Debug/Internal shortcut: `-uiLab dayObjects` opens the retained experiment
+            // straight from launch. Driving the settings path with synthetic
+            // taps is unreliable enough that verifying a shader visually
+            // otherwise costs more than building it.
+            if let lab = ExperimentalLabRoute.current {
+                NavigationStack { lab.view }
+            } else {
+                appBody
+            }
+            #else
+            appBody
+            #endif
+        }
+    }
+
+    @ViewBuilder
+    private var appBody: some View {
             GlassShimmerProvider {
             ZStack {
                 if hasCompletedOnboarding || isUITest {
@@ -485,7 +503,6 @@ struct StepsTraderApp: App {
             .background(currentTheme.backgroundColor)
             .preferredColorScheme(currentTheme.colorScheme)
             } // GlassShimmerProvider
-        }
     }
 
     private func handleWidgetOpenApp(_ url: URL) {
