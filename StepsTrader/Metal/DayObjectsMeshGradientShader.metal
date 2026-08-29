@@ -1,7 +1,7 @@
 #include <metal_stdlib>
 using namespace metal;
 
-// Moving inverse-distance color spots with organic distortion and vortex flow.
+// Moving broad color fields with organic distortion and vortex flow.
 
 struct DayObjectsMeshGradientUniforms {
     float4 colors[5];
@@ -94,6 +94,12 @@ static float2 dayObjectsMeshPosition(
     }
 }
 
+static float dayObjectsBroadFieldWeight(float distance, float radius) {
+    float normalized = distance / max(radius, 0.001);
+    float gaussian = exp(-1.65 * normalized * normalized);
+    return 0.035 + gaussian;
+}
+
 fragment float4 dayObjectsMeshGradientFragment(
     DayObjectsFullscreenVertexOut in [[stage_in]],
     constant DayObjectsMeshGradientUniforms &uniforms [[buffer(0)]]
@@ -114,14 +120,14 @@ fragment float4 dayObjectsMeshGradientFragment(
         break;
     }
     case 2: { // tide
-        uv.x += uniforms.distortion * 0.24 * sin((uv.y - 0.5) * 3.4 + time * 0.62);
+        uv.x += uniforms.distortion * 0.24 * sin((uv.y - 0.5) * 2.4 + time * 0.62);
         uv.y += uniforms.distortion * 0.07 * sin((uv.x - 0.5) * 2.1 - time * 0.34);
         break;
     }
     case 3: { // islands
         uv += uniforms.distortion * 0.09 * float2(
-            sin(uv.y * 4.1 + time * 0.43) + cos(uv.x * 2.3 - time * 0.27),
-            cos(uv.x * 3.7 - time * 0.39) - sin(uv.y * 2.5 + time * 0.31)
+            sin(uv.y * 3.0 + time * 0.43) + cos(uv.x * 2.3 - time * 0.27),
+            cos(uv.x * 3.0 - time * 0.39) - sin(uv.y * 2.5 + time * 0.31)
         );
         break;
     }
@@ -135,14 +141,12 @@ fragment float4 dayObjectsMeshGradientFragment(
         break;
     }
     default: { // orbit
-        for (uint iteration = 1; iteration <= 2; ++iteration) {
-            float layer = float(iteration);
-            uv.x += uniforms.distortion * centerWeight / layer
-                * sin(time + layer * 0.4 * smoothstep(0.0, 1.0, uv.y))
-                * cos(0.2 * time + layer * 2.4 * smoothstep(0.0, 1.0, uv.y));
-            uv.y += uniforms.distortion * centerWeight / layer
-                * cos(time + layer * 2.0 * smoothstep(0.0, 1.0, uv.x));
-        }
+        float layer = 1.0;
+        uv.x += uniforms.distortion * centerWeight / layer
+            * sin(time + layer * 0.4 * smoothstep(0.0, 1.0, uv.y))
+            * cos(0.2 * time + layer * 1.6 * smoothstep(0.0, 1.0, uv.y));
+        uv.y += uniforms.distortion * centerWeight / layer
+            * cos(time + layer * 1.6 * smoothstep(0.0, 1.0, uv.x));
         break;
     }
     }
@@ -150,11 +154,29 @@ fragment float4 dayObjectsMeshGradientFragment(
     if (uniforms.archetype != 4) {
         uv = dayObjectsBackgroundRotate(
             uv - 0.5,
-            -3.0 * uniforms.swirl * radius
+            -1.35 * uniforms.swirl * radius
         ) + 0.5;
     }
 
     uint colorCount = clamp(uniforms.colorCount, 3u, 5u);
+    float fieldRadius;
+    switch (uniforms.archetype) {
+    case 0: // drift
+        fieldRadius = 0.72;
+        break;
+    case 2: // tide
+        fieldRadius = 0.74;
+        break;
+    case 3: // islands
+        fieldRadius = 0.62;
+        break;
+    case 4: // bloom
+        fieldRadius = 0.70;
+        break;
+    default: // orbit
+        fieldRadius = 0.68;
+        break;
+    }
     float3 color = float3(0.0);
     float totalWeight = 0.0;
     for (uint index = 0; index < 5; ++index) {
@@ -167,8 +189,10 @@ fragment float4 dayObjectsMeshGradientFragment(
             uniforms.phase,
             uniforms.archetype
         );
-        float distance = length(uv - position);
-        float weight = 1.0 / (pow(distance, 3.5) + 0.001);
+        float2 fieldPosition = 0.5 + (position - 0.5) * 1.85;
+        float distance = length(uv - fieldPosition);
+        float nodeFactor = 0.94 + 0.06 * sin(float(index) * 2.17 + uniforms.phase);
+        float weight = dayObjectsBroadFieldWeight(distance, fieldRadius) * nodeFactor;
         color += uniforms.colors[index].rgb * weight;
         totalWeight += weight;
     }

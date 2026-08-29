@@ -619,8 +619,8 @@ final class DayObjectPaletteTests: XCTestCase {
         descriptor.fragmentFunction = fragmentFunction
         descriptor.colorAttachments[0].pixelFormat = .rgba16Float
         let pipeline = try device.makeRenderPipelineState(descriptor: descriptor)
-        let plan = DayObjectsRenderTargetPlan(drawableWidth: 320, drawableHeight: 240)
-        let colors = ["bcecf6", "00aaff", "00f7ff", "ffd447"].map {
+        let plan = DayObjectsRenderTargetPlan(drawableWidth: 80, drawableHeight: 60)
+        let colors = ["000000", "ff0000", "ffff00", "00ffff"].map {
             DayObjectRGB(hex: $0).linearRGB
         }
 
@@ -682,12 +682,15 @@ final class DayObjectPaletteTests: XCTestCase {
             )
             let metrics = broadFieldMetrics(
                 pixels: first,
+                palette: style.colors,
                 width: plan.background.width,
                 height: plan.background.height
             )
-            XCTAssertLessThanOrEqual(metrics.centralRowReversals, 10, "\(archetype): \(metrics)")
-            XCTAssertLessThan(metrics.strongAdjacentRatio, 0.04, "\(archetype): \(metrics)")
-            XCTAssertGreaterThan(metrics.luminanceRange, 0.06, "\(archetype): \(metrics)")
+            XCTAssertLessThanOrEqual(metrics.centralRowReversals, 6, "\(archetype): \(metrics)")
+            XCTAssertLessThan(metrics.strongAdjacentRatio, 0.015, "\(archetype): \(metrics)")
+            XCTAssertLessThan(metrics.maximumAdjacentLuminanceDelta, 0.18, "\(archetype): \(metrics)")
+            XCTAssertGreaterThan(metrics.luminanceRange, 0.055, "\(archetype): \(metrics)")
+            XCTAssertTrue(metrics.paletteCoverage.allSatisfy { $0 > 0.02 }, "\(archetype): \(metrics)")
             XCTAssertGreaterThan(
                 meanAbsoluteRGBDifference(first, later),
                 0.008,
@@ -807,6 +810,7 @@ final class DayObjectPaletteTests: XCTestCase {
         )
         let metrics = broadFieldMetrics(
             pixels: first,
+            palette: style.colors,
             width: plan.background.width,
             height: plan.background.height
         )
@@ -960,9 +964,16 @@ final class DayObjectPaletteTests: XCTestCase {
 
     private func broadFieldMetrics(
         pixels: [UInt16],
+        palette: [SIMD3<Float>],
         width: Int,
         height: Int
-    ) -> (centralRowReversals: Int, strongAdjacentRatio: Double, luminanceRange: Float) {
+    ) -> (
+        centralRowReversals: Int,
+        strongAdjacentRatio: Double,
+        maximumAdjacentLuminanceDelta: Float,
+        luminanceRange: Float,
+        paletteCoverage: [Double]
+    ) {
         func luminance(x: Int, y: Int) -> Float {
             let index = (y * width + x) * 4
             let red = Float(Float16(bitPattern: pixels[index]))
@@ -989,6 +1000,7 @@ final class DayObjectPaletteTests: XCTestCase {
         var adjacentCount = 0
         var minimum = Float.greatestFiniteMagnitude
         var maximum = -Float.greatestFiniteMagnitude
+        var maximumAdjacentLuminanceDelta: Float = 0
         for y in 0..<height {
             for x in 0..<width {
                 let value = luminance(x: x, y: y)
@@ -996,7 +1008,9 @@ final class DayObjectPaletteTests: XCTestCase {
                 maximum = max(maximum, value)
                 if x > 0 {
                     adjacentCount += 1
-                    if abs(value - luminance(x: x - 1, y: y)) > 0.04 {
+                    let adjacentDelta = abs(value - luminance(x: x - 1, y: y))
+                    maximumAdjacentLuminanceDelta = max(maximumAdjacentLuminanceDelta, adjacentDelta)
+                    if adjacentDelta > 0.04 {
                         strongAdjacent += 1
                     }
                 }
@@ -1006,7 +1020,30 @@ final class DayObjectPaletteTests: XCTestCase {
         return (
             centralRowReversals: reversals,
             strongAdjacentRatio: Double(strongAdjacent) / Double(max(adjacentCount, 1)),
-            luminanceRange: maximum - minimum
+            maximumAdjacentLuminanceDelta: maximumAdjacentLuminanceDelta,
+            luminanceRange: maximum - minimum,
+            paletteCoverage: paletteCoverage(pixels: pixels, palette: palette)
         )
+    }
+
+    private func paletteCoverage(
+        pixels: [UInt16],
+        palette: [SIMD3<Float>]
+    ) -> [Double] {
+        var counts = Array(repeating: 0, count: palette.count)
+        for index in stride(from: 0, to: pixels.count, by: 4) {
+            let sample = SIMD3(
+                Float(Float16(bitPattern: pixels[index])),
+                Float(Float16(bitPattern: pixels[index + 1])),
+                Float(Float16(bitPattern: pixels[index + 2]))
+            )
+            let nearest = palette.indices.min {
+                simd_distance_squared(sample, palette[$0])
+                    < simd_distance_squared(sample, palette[$1])
+            }!
+            counts[nearest] += 1
+        }
+        let total = Double(max(counts.reduce(0, +), 1))
+        return counts.map { Double($0) / total }
     }
 }
