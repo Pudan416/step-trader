@@ -1831,7 +1831,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
             )
             let language = DayObjectVisualLanguage.make(
                 rootSeed: seed,
-                paletteSet: paletteSet
+                paletteSet: paletteSet,
+                choreography: DayObjectChoreographyConfiguration.make(seed: seed)
             )
             let source = try XCTUnwrap(
                 language.appearances(eventIDs: ["event-0"], rootSeed: seed)["event-0"]

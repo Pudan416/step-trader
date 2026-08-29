@@ -21,6 +21,51 @@ final class DayObjectChoreographyTests: XCTestCase {
         }.first { $0.motionPlan.preset == preset })
     }
 
+    func testPresetFramesKeepEveryActorFiniteWithinCapacity() throws {
+        for preset in [DayObjectChoreographyPreset.circularChoir,
+                       .eclipseStack, .depthField] {
+            for count in [1, 5, 10] {
+                let scene = try scene(for: preset, count: count)
+                let frame = DayObjectRenderFrame.make(
+                    scene: scene,
+                    environment: .init(motionEnergy: 0.55,
+                                       visualClarity: 0.55,
+                                       reduceMotion: false),
+                    elapsed: 42,
+                    insertions: [:]
+                )
+                XCTAssertEqual(frame.actors.count, scene.actors.count)
+                XCTAssertLessThanOrEqual(frame.actors.count, DayObjectScene.maxActors)
+                XCTAssertTrue(frame.actors.allSatisfy {
+                    $0.halfSize.x.isFinite && $0.halfSize.y.isFinite
+                        && $0.opacity.isFinite && $0.depth.isFinite
+                        && $0.halfSize.x >= 0 && $0.halfSize.y >= 0
+                })
+            }
+        }
+    }
+
+    func testMotionEnergyChangesTimeButNotDailyConfiguration() throws {
+        let scene = try scene(for: .waveRibbon, count: 10)
+        let slow = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: .init(motionEnergy: 0, visualClarity: 1, reduceMotion: false),
+            elapsed: 30,
+            insertions: [:]
+        )
+        let fast = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: .init(motionEnergy: 1, visualClarity: 1, reduceMotion: false),
+            elapsed: 30,
+            insertions: [:]
+        )
+        XCTAssertLessThan(slow.choreographyTime, fast.choreographyTime)
+        let rebuilt = DayObjectScene.make(input: scene.input)
+        XCTAssertEqual(scene.motionPlan.preset, .waveRibbon)
+        XCTAssertEqual(scene.actors.map(\.choreographySlot),
+                       rebuilt.actors.map(\.choreographySlot))
+    }
+
     func testDailyPresetCatalogIsDeterministicAndReachesAllTenPresets() {
         var reached = Set<DayObjectChoreographyPreset>()
         for seed in UInt64(0)..<2_048 {
@@ -284,7 +329,7 @@ final class DayObjectChoreographyTests: XCTestCase {
         }
 
         XCTAssertTrue(
-            zip(overlapTimes, laterSeparationTimes).contains { $0 != nil && $1 != nil },
+            zip(overlapTimes, laterSeparationTimes).allSatisfy { $0 != nil && $1 != nil },
             "preset=\(scene.motionPlan.preset) overlaps=\(overlapTimes) "
                 + "separations=\(laterSeparationTimes)"
         )
