@@ -754,8 +754,13 @@ private struct StepsTraderProductionRoot: View {
 
 #if DEBUG
 private struct TicketSettingsUITestFixtureView: View {
+    @State private var group = TicketGroup(
+        id: "ui-testing-study",
+        name: "Study",
+        settings: AppUnlockSettings(entryCostSteps: 10, dayPassCostSteps: 100),
+        enabledIntervals: []
+    )
     @State private var showsSettings = false
-    @State private var showDeleteConfirmation = false
     @State private var isDeleted = false
 
     var body: some View {
@@ -774,24 +779,24 @@ private struct TicketSettingsUITestFixtureView: View {
         }
         .sheet(isPresented: $showsSettings) {
             NavigationStack {
-                Button(String(localized: "Delete")) {
-                    showDeleteConfirmation = true
-                }
-                .accessibilityIdentifier("settings.feed.delete")
-                .confirmationDialog(
-                    String(localized: "Delete Study?"),
-                    isPresented: $showDeleteConfirmation,
-                    titleVisibility: .visible
-                ) {
-                    Button(String(localized: "Delete Feed"), role: .destructive) {
-                        isDeleted = true
-                        showDeleteConfirmation = false
+                TicketSettingsContentView(
+                    group: $group,
+                    onEditApps: {},
+                    onAfterDelete: {
                         showsSettings = false
-                    }
-                    Button(String(localized: "Cancel"), role: .cancel) {}
-                } message: {
-                    Text(String(localized: "This removes the Feed and its access options. This action cannot be undone."))
-                }
+                    },
+                    updateGroup: { updatedGroup in
+                        group = updatedGroup
+                    },
+                    deleteTicketGroup: { _ in
+                        isDeleted = true
+                    },
+                    isUsageBudgetActive: { _ in false },
+                    unspentUsageBudget: { _ in 0 },
+                    availableStepsBalance: { 0 },
+                    handlePayGatePayment: { _, _, _ in }
+                )
+                .padding()
                 .navigationTitle(String(localized: "Study"))
                 .navigationBarTitleDisplayMode(.inline)
             }

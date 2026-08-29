@@ -6,6 +6,41 @@ struct InlineTicketSettingsView: View {
     @Binding var group: TicketGroup
     let onEditApps: () -> Void
     var onAfterDelete: (() -> Void)? = nil
+
+    var body: some View {
+        TicketSettingsContentView(
+            group: $group,
+            onEditApps: onEditApps,
+            onAfterDelete: onAfterDelete ?? {},
+            updateGroup: { model.updateTicketGroup($0) },
+            deleteTicketGroup: { model.deleteTicketGroup($0) },
+            isUsageBudgetActive: { model.isGroupUsageBudgetActive($0) },
+            unspentUsageBudget: { model.unspentUsageBudgetMatchingShield(for: $0) },
+            availableStepsBalance: { model.userEconomyStore.totalStepsBalance },
+            handlePayGatePayment: { groupId, window, cost in
+                await model.handlePayGatePaymentForGroup(
+                    groupId: groupId,
+                    window: window,
+                    costOverride: cost
+                )
+            }
+        )
+    }
+}
+
+/// The settings surface is independent of persistence so production and the
+/// isolated UI fixture exercise the same controls and confirmation flow.
+struct TicketSettingsContentView: View {
+    @Binding var group: TicketGroup
+    let onEditApps: () -> Void
+    let onAfterDelete: () -> Void
+    let updateGroup: (TicketGroup) -> Void
+    let deleteTicketGroup: (String) -> Void
+    let isUsageBudgetActive: (String) -> Bool
+    let unspentUsageBudget: (String) -> Int
+    let availableStepsBalance: () -> Int
+    let handlePayGatePayment: (String, AccessWindow, Int) async -> Void
+
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isUnlocking = false
@@ -141,7 +176,7 @@ struct InlineTicketSettingsView: View {
                         } else if group.enabledIntervals.count > 1 {
                             group.enabledIntervals.remove(interval)
                         }
-                        model.updateTicketGroup(group)
+                        updateGroup(group)
                     }
                 ))
                 .font(.geist(.subheadline))
@@ -163,16 +198,16 @@ struct InlineTicketSettingsView: View {
 
     private func confirmDelete() {
         let groupId = group.id
-        model.deleteTicketGroup(groupId)
-        onAfterDelete?()
+        deleteTicketGroup(groupId)
+        onAfterDelete()
     }
 
     @ViewBuilder
     private var unlockButtonsSection: some View {
-        if model.isGroupUsageBudgetActive(group.id) {
+        if isUsageBudgetActive(group.id) {
             // Same accessor the Feeds surface uses: the wall-clock-floored one
             // reports time already spent when the phone merely sat idle.
-            let budget = model.unspentUsageBudgetMatchingShield(for: group.id)
+            let budget = unspentUsageBudget(group.id)
             HStack(spacing: 12) {
                 Image(systemName: "lock.open.fill")
                     .font(.geist(.title2))
@@ -213,7 +248,7 @@ struct InlineTicketSettingsView: View {
 
     private func quickUnlockButton(interval: AccessWindow) -> some View {
         let cost = group.cost(for: interval)
-        let canAfford = model.userEconomyStore.totalStepsBalance >= cost
+        let canAfford = availableStepsBalance() >= cost
         let timeLabel = interval.displayName
 
         return Button {
@@ -222,7 +257,7 @@ struct InlineTicketSettingsView: View {
 
             Task {
                 isUnlocking = true
-                await model.handlePayGatePaymentForGroup(groupId: group.id, window: interval, costOverride: cost)
+                await handlePayGatePayment(group.id, interval, cost)
                 isUnlocking = false
             }
         } label: {
