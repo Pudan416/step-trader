@@ -95,31 +95,6 @@ struct DayObjectMotionPlan: Equatable {
 
     var preset: DayObjectChoreographyPreset { configuration.preset }
 
-    // Transitional display compatibility until the scene and score migrate to
-    // the ten-preset vocabulary together.
-    var family: DayObjectChoreographyFamily {
-        switch preset {
-        case .crossCurrents:
-            return .crossCurrent
-        case .waveRibbon:
-            return .tidalSweep
-        case .depthField:
-            return .depthMigration
-        case .eclipseStack:
-            return .softEncounters
-        default:
-            return .driftField
-        }
-    }
-
-    static func make(rootSeed: UInt64, eventIDs: [String]) -> DayObjectMotionPlan {
-        make(
-            configuration: DayObjectChoreographyConfiguration.make(seed: rootSeed),
-            rootSeed: rootSeed,
-            eventIDs: eventIDs
-        )
-    }
-
     static func make(
         configuration: DayObjectChoreographyConfiguration,
         rootSeed: UInt64,

@@ -62,7 +62,7 @@ struct DayObjectsLabView: View {
             + "mutations=\(mutationCounts[.base, default: 0])/"
             + "\(mutationCounts[.soft, default: 0])/"
             + "\(mutationCounts[.accent, default: 0]) "
-            + "motion=\(currentScene.motionPlan.family) "
+            + "motion=\(currentScene.motionPlan.preset) "
             + "palettes=\(palettes)"
     }
 

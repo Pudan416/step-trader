@@ -8,6 +8,7 @@ struct DayObjectScene: Equatable {
     let composition: DayObjectComposition
     let compositionPlan: DayObjectCompositionPlan
     let paletteSet: DayObjectPaletteSet
+    let choreographyConfiguration: DayObjectChoreographyConfiguration
     let visualLanguage: DayObjectVisualLanguage
     let motionPlan: DayObjectMotionPlan
     let palette: DayObjectPalette
@@ -28,6 +29,7 @@ struct DayObjectScene: Equatable {
             composition: composition,
             compositionPlan: compositionPlan,
             paletteSet: paletteSet,
+            choreographyConfiguration: choreographyConfiguration,
             visualLanguage: visualLanguage,
             motionPlan: motionPlan,
             palette: palette,
@@ -57,12 +59,15 @@ struct DayObjectScene: Equatable {
             rootSeed: rootSeed,
             categories: input.paletteCategories
         )
+        let choreography = DayObjectChoreographyConfiguration.make(seed: rootSeed)
         let visualLanguage = DayObjectVisualLanguage.make(
             rootSeed: rootSeed,
-            paletteSet: paletteSet
+            paletteSet: paletteSet,
+            choreography: choreography
         )
         let eventIDs = Array(chronologicalUniqueEventIDs(from: input.eventIDs).prefix(maxActors))
         let motionPlan = DayObjectMotionPlan.make(
+            configuration: choreography,
             rootSeed: rootSeed,
             eventIDs: eventIDs
         )
@@ -86,8 +91,8 @@ struct DayObjectScene: Equatable {
                 id: id,
                 input: input,
                 composition: composition,
-                choreographyConfiguration: motionPlan.configuration,
-                choreographySlot: motionPlan.configuration.slot(
+                choreographyConfiguration: choreography,
+                choreographySlot: choreography.slot(
                     eventID: eventID,
                     rootSeed: rootSeed
                 ),
@@ -104,6 +109,7 @@ struct DayObjectScene: Equatable {
             composition: composition,
             compositionPlan: compositionPlan,
             paletteSet: paletteSet,
+            choreographyConfiguration: choreography,
             visualLanguage: visualLanguage,
             motionPlan: motionPlan,
             palette: palette,

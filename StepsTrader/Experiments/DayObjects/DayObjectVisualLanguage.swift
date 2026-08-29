@@ -101,15 +101,13 @@ struct DayObjectVisualLanguage: Equatable {
 
     static func make(
         rootSeed: UInt64,
-        paletteSet: DayObjectPaletteSet
+        paletteSet: DayObjectPaletteSet,
+        choreography: DayObjectChoreographyConfiguration
     ) -> DayObjectVisualLanguage {
         var rng = SeededRNG.derived(from: rootSeed, domain: "dailyVisualLanguage")
-        // Gradient appears twice in the HTML STYLE_RECIPES table and remains
-        // intentionally twice as likely as each specialist recipe.
-        let weightedRecipes: [DayObjectMaterialFamily] = [
-            .gradient, .gradient, .solid, .sphere, .glass,
-            .mist, .halo, .luminous, .outline, .counterform,
-        ]
+        let weightedRecipes = DayObjectMaterialFamily.allCases.flatMap { family in
+            Array(repeating: family, count: choreography.materialWeight(for: family))
+        }
         let family = weightedRecipes[
             rng.nextInt(in: 0...(weightedRecipes.count - 1))
         ]
@@ -124,6 +122,17 @@ struct DayObjectVisualLanguage: Equatable {
             lightDirection: SIMD2(cos(lightAngle), sin(lightAngle)),
             lightSoftness: rng.nextDouble(in: 0.40...0.85),
             grainIntensity: 0.05
+        )
+    }
+
+    static func make(
+        rootSeed: UInt64,
+        paletteSet: DayObjectPaletteSet
+    ) -> DayObjectVisualLanguage {
+        make(
+            rootSeed: rootSeed,
+            paletteSet: paletteSet,
+            choreography: DayObjectChoreographyConfiguration.make(seed: rootSeed)
         )
     }
 

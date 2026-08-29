@@ -20,6 +20,25 @@ final class DayObjectSceneTests: XCTestCase {
         XCTAssertEqual(retained, before.actors)
     }
 
+    func testSceneUsesOnePresetAndOneMaterialForTheWholeDay() {
+        let scene = DayObjectScene.make(input: input((0..<10).map { "event-\($0)" }))
+        XCTAssertEqual(scene.motionPlan.configuration, scene.choreographyConfiguration)
+        XCTAssertEqual(Set(scene.actors.map { $0.appearance.material }), [scene.visualLanguage.family])
+        XCTAssertEqual(Set(scene.actors.map { $0.choreographySlot.ordinal }).count,
+                       Set(scene.actors.map { $0.id }).count)
+    }
+
+    func testAddingAnEventDoesNotRerollRetainedActors() {
+        let five = DayObjectScene.make(input: input((0..<5).map { "event-\($0)" }))
+        let six = DayObjectScene.make(input: input((0..<6).map { "event-\($0)" }))
+        for actor in five.actors {
+            let retained = six.actors.first { $0.id == actor.id }!
+            XCTAssertEqual(retained.appearance, actor.appearance)
+            XCTAssertEqual(retained.route, actor.route)
+            XCTAssertEqual(retained.choreographySlot, actor.choreographySlot)
+        }
+    }
+
     func testEventOrderDoesNotChangeActors() {
         let a = DayObjectScene.make(input: input(["walk", "sleep"]))
         let b = DayObjectScene.make(input: input(["sleep", "walk"]))

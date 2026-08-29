@@ -113,22 +113,6 @@ final class DayObjectChoreographyTests: XCTestCase {
         }
     }
 
-    func testCompatibilityWrapperStoresTheConfigurationSelectedFromItsRootSeed() {
-        let ids = (0..<10).map { "event-\($0)" }
-        for seed in UInt64(0)..<64 {
-            let plan = DayObjectMotionPlan.make(rootSeed: seed, eventIDs: ids)
-            XCTAssertEqual(plan.configuration, DayObjectChoreographyConfiguration.make(seed: seed))
-            XCTAssertEqual(
-                plan,
-                DayObjectMotionPlan.make(
-                    configuration: plan.configuration,
-                    rootSeed: seed,
-                    eventIDs: ids
-                )
-            )
-        }
-    }
-
     func testFlatPresetRoutesCloseContinuouslyAndUseOneFocusPlane() throws {
         for preset in [DayObjectChoreographyPreset.circularChoir, .radialBloom,
                        .breathingGrid, .waveRibbon] {
