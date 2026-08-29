@@ -131,8 +131,16 @@ final class SettingsRedesignUITests: XCTestCase {
         app.segmentedControls.buttons["Manual"].tap()
         let carousel = app.otherElements["settings.appearance.paletteCarousel"]
         XCTAssertTrue(carousel.waitForExistence(timeout: 3))
-        carousel.swipeLeft()
-        carousel.swipeRight()
+
+        let horizon = app.buttons["Horizon"]
+        XCTAssertTrue(horizon.exists)
+        XCTAssertFalse(horizon.isHittable)
+        for _ in 0..<3 where !horizon.isHittable {
+            carousel.swipeLeft()
+        }
+        XCTAssertTrue(horizon.isHittable)
+        horizon.tap()
+        XCTAssertEqual(String(describing: horizon.value), "Selected")
         XCTAssertTrue(app.navigationBars["Appearance"].exists)
     }
 
@@ -195,6 +203,93 @@ final class SettingsRedesignUITests: XCTestCase {
         app.buttons["settings.destination.notifications"].tap()
         XCTAssertTrue(app.staticTexts["Off in System Settings"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["Open Settings"].exists)
+    }
+
+    func testPermissionActionsMeetMinimumTargetsAtDefaultSize() {
+        let app = launchSettings(extraArguments: [
+            "ui-testing-notifications-denied",
+            "ui-testing-permissions-actions",
+        ])
+        openSettingsDestination("settings.destination.permissions", in: app)
+
+        assertPermissionActionTargets(in: app)
+    }
+
+    func testPermissionActionsStackAndMeetMinimumTargetsAtAccessibilitySize() {
+        let app = launchSettings(
+            contentSizeCategory: "UICTContentSizeCategoryAccessibilityM",
+            extraArguments: [
+                "ui-testing-notifications-denied",
+                "ui-testing-permissions-actions",
+            ]
+        )
+        openSettingsDestination("settings.destination.permissions", in: app)
+
+        assertPermissionActionTargets(in: app)
+        let healthAction = app.buttons["settings.permissions.health.action"]
+        let healthStatus = app.staticTexts["Check access"].firstMatch
+        XCTAssertGreaterThan(healthAction.frame.minY, healthStatus.frame.minY)
+    }
+
+    func testPermissionFailureRecoveryActionsMeetMinimumTargets() {
+        let app = launchSettings(extraArguments: ["ui-testing-permissions-health-error"])
+        openSettingsDestination("settings.destination.permissions", in: app)
+
+        XCTAssertTrue(
+            app.otherElements["settings.permissions.health.error"]
+                .waitForExistence(timeout: 3)
+        )
+        assertMinimumHitTarget(app.buttons["settings.permissions.health.error.tryAgain"])
+        assertMinimumHitTarget(app.buttons["settings.permissions.health.error.openSettings"])
+    }
+
+    func testNotificationFailureRecoveryActionsMeetMinimumTargets() {
+        let app = launchSettings(extraArguments: [
+            "ui-testing-notifications-denied",
+            "ui-testing-notifications-error",
+        ])
+        openSettingsDestination("settings.destination.notifications", in: app)
+
+        XCTAssertTrue(
+            app.otherElements["settings.notifications.permission.error"]
+                .waitForExistence(timeout: 3)
+        )
+        assertMinimumHitTarget(app.buttons["settings.notifications.error.tryAgain"])
+        assertMinimumHitTarget(app.buttons["settings.notifications.error.openSettings"])
+    }
+
+    func testGradientPreviewCloseHasNamedMinimumTarget() {
+        let app = launchSettings()
+        app.buttons["settings.destination.appearance"].tap()
+        app.segmentedControls.buttons["Manual"].tap()
+        app.buttons["Radial"].tap()
+
+        let closePreview = app.buttons["Close preview"]
+        XCTAssertTrue(closePreview.waitForExistence(timeout: 3))
+        XCTAssertTrue(closePreview.isHittable)
+        assertMinimumHitTarget(closePreview)
+    }
+
+    func testNotesRemainUsableAtAccessibilitySize() {
+        let app = launchSettings(contentSizeCategory: "UICTContentSizeCategoryAccessibilityM")
+        openSettingsDestination("settings.destination.notes", in: app)
+
+        XCTAssertTrue(app.otherElements["settings.notes.card"].waitForExistence(timeout: 3))
+        let allNotes = app.buttons["settings.notes.all"]
+        XCTAssertTrue(allNotes.waitForExistence(timeout: 3))
+        XCTAssertTrue(allNotes.isHittable)
+        assertMinimumHitTarget(allNotes)
+        allNotes.tap()
+
+        XCTAssertTrue(app.otherElements["settings.notes.allList"].waitForExistence(timeout: 3))
+        let firstNote = app.buttons["settings.notes.item.about_canvas"]
+        XCTAssertTrue(firstNote.waitForExistence(timeout: 3))
+        XCTAssertTrue(firstNote.isHittable)
+        assertMinimumHitTarget(firstNote)
+        let done = app.buttons["settings.notes.done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 3))
+        XCTAssertTrue(done.isHittable)
+        assertMinimumHitTarget(done)
     }
 
     func testYourDayEditorsExposeContextualSemanticsAndMinimumHitTargets() {
@@ -469,6 +564,40 @@ final class SettingsRedesignUITests: XCTestCase {
             file: file,
             line: line
         )
+    }
+
+    private func openSettingsDestination(
+        _ identifier: String,
+        in app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let destination = app.buttons[identifier]
+        for _ in 0..<3 where !destination.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(destination.waitForExistence(timeout: 3), file: file, line: line)
+        XCTAssertTrue(destination.isHittable, file: file, line: line)
+        destination.tap()
+    }
+
+    private func assertPermissionActionTargets(
+        in app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        for identifier in [
+            "settings.permissions.health.action",
+            "settings.permissions.screenTime.action",
+            "settings.permissions.notifications.action",
+        ] {
+            let action = app.buttons[identifier]
+            if !action.isHittable {
+                app.swipeUp()
+            }
+            XCTAssertTrue(action.isHittable, "Permission action is not reachable: \(identifier)", file: file, line: line)
+            assertMinimumHitTarget(action, file: file, line: line)
+        }
     }
 
     private func waitForValue(_ expected: String, of element: XCUIElement) -> Bool {
