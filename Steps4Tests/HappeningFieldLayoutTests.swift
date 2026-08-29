@@ -118,6 +118,49 @@ final class CanvasOverlayIntegrationRegressionTests: XCTestCase {
         XCTAssertEqual(model.todayAdditions.map(\.optionId), [element.optionId])
     }
 
+    func testAllTenDifferentPaletteHappeningsCanBeAddedToTheCanvas() throws {
+        let date = Date.now
+        let dayKey = AppModel.dayKey(for: date)
+        let model = makeModel()
+        let happenings = model.availablePaletteHappenings(on: date)
+        let figures = model.paletteFigures(on: date)
+        var canvas = DayCanvas(dayKey: dayKey)
+
+        XCTAssertEqual(happenings.count, 10)
+
+        for happening in happenings {
+            let element = CanvasElement.spawn(
+                optionId: happening.id,
+                label: happening.localizedTitle(),
+                existingElements: canvas.elements,
+                dayKey: dayKey,
+                composition: DayComposition.forDay(
+                    dayKey: dayKey,
+                    happeningCount: canvas.elements.count
+                ),
+                figure: try XCTUnwrap(figures[happening.id])
+            )
+            let result = try XCTUnwrap(
+                CanvasHappeningSpawnTransaction.commit(
+                    canvasLoaded: true,
+                    canvas: canvas,
+                    model: model,
+                    element: element,
+                    recordUse: true,
+                    at: date,
+                    persist: { _ in true }
+                )
+            )
+            canvas = result.canvas
+        }
+
+        XCTAssertEqual(canvas.elements.count, 10)
+        XCTAssertEqual(Set(canvas.elements.map(\.optionId)).count, 10)
+        XCTAssertEqual(model.todayAdditions.count, 10)
+        XCTAssertEqual(model.happeningPointsToday, 60)
+        XCTAssertTrue(model.availablePaletteHappenings(on: date).isEmpty)
+    }
+
     func testSpawnRejectsCapturedDayBoundaryMismatchWithoutPersistingEitherRecord() {
         let model = makeModel()
         let beforeBoundary = Date(timeIntervalSince1970: 1_786_176_000)

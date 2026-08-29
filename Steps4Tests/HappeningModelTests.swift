@@ -56,11 +56,11 @@ final class HappeningModelTests: XCTestCase {
         )
     }
 
-    func testAdditionPointsReachTheCapAtSix() {
+    func testAdditionPointsReachTheCapAtTen() {
         XCTAssertEqual(
-            HappeningDefaults.pointsPerAddition * 6,
+            HappeningDefaults.pointsPerAddition * 10,
             HappeningDefaults.happeningsMaxPoints,
-            "Six additions must exactly reach the ceiling"
+            "Ten additions must exactly reach the ceiling"
         )
     }
 
