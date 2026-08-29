@@ -122,18 +122,12 @@ struct DayObjectChoreographyScore: Equatable {
         let time = rawTime.isFinite ? rawTime : 0
         let aspect = rawAspect.isFinite && rawAspect > 0 ? rawAspect : 1
         let depth = depthValue(for: actor, at: time)
-        let profile = actor.choreographyConfiguration.sizeProfile
-        let depthScale = profile == .spatial ? 0.56 + 1.04 * depth : 1
-        let breathingAmplitude = profile == .uniform ? 0.018 : 0.035
-        let actorBreathingPhase = 2 * Double.pi * (
-            time / actor.depthSchedule.period
-                + actor.phaseOffset / (2 * Double.pi)
-        )
-        let breathing = 1 + breathingAmplitude * sin(actorBreathingPhase)
-        let scale = presetDiameter(
+        let scale = evaluatedDiameter(
             for: actor,
+            at: time,
+            depth: depth,
             compositionPlan: compositionPlan
-        ) * depthScale * breathing
+        )
         let trailReach = 0.008
         let rawTangent = routeTangent(for: actor, at: time)
         let halfSize = SIMD2<Double>(
@@ -233,10 +227,6 @@ struct DayObjectChoreographyScore: Equatable {
                 at: time,
                 compositionPlan: compositionPlan
             )
-            let baseDiameter = presetDiameter(
-                for: actor,
-                compositionPlan: compositionPlan
-            )
             let evaluatedReach = planningReach(
                 for: actor,
                 diameter: evaluatedDiameter
@@ -248,13 +238,22 @@ struct DayObjectChoreographyScore: Equatable {
                 )
                 : planningReach(
                     for: actor,
-                    diameter: baseDiameter * 1.43
+                    diameter: max(
+                        presetDiameter(for: actor, compositionPlan: compositionPlan) * 1.43,
+                        maximumEvaluatedDiameter(
+                            for: actor,
+                            compositionPlan: compositionPlan
+                        )
+                    )
                 )
             let routePosition = actor.route.position(at: time)
+            let sector = compositionPlan.usesFullCanvas
+                ? placementSector(for: actor)
+                : actor.route.sector
             let base: SIMD2<Double>
             if actor.choreographyConfiguration.preset == .eclipseStack {
                 base = compositionPlan.distributedRoutePosition(
-                    sector: actor.route.sector,
+                    sector: sector,
                     actorSeed: actor.seed,
                     localPosition: .zero,
                     footprintReach: lanePlanningReach,
@@ -262,7 +261,7 @@ struct DayObjectChoreographyScore: Equatable {
                 ) + routePosition
             } else {
                 base = compositionPlan.distributedRoutePosition(
-                    sector: actor.route.sector,
+                    sector: sector,
                     actorSeed: actor.seed,
                     localPosition: routePosition,
                     footprintReach: lanePlanningReach,
@@ -498,20 +497,51 @@ struct DayObjectChoreographyScore: Equatable {
     private func evaluatedDiameter(
         for actor: DayObjectActor,
         at time: Double,
+        depth: Double? = nil,
         compositionPlan: DayObjectCompositionPlan?
     ) -> Double {
         let profile = actor.choreographyConfiguration.sizeProfile
-        let depth = depthValue(for: actor, at: time)
-        let depthScale = profile == .spatial ? 0.56 + 1.04 * depth : 1
-        let breathingAmplitude = profile == .uniform ? 0.018 : 0.035
         let actorBreathingPhase = 2 * Double.pi * (
             time / actor.depthSchedule.period
                 + actor.phaseOffset / (2 * Double.pi)
         )
-        let breathing = 1 + breathingAmplitude * sin(actorBreathingPhase)
         return presetDiameter(for: actor, compositionPlan: compositionPlan)
-            * depthScale
-            * breathing
+            * diameterModulation(
+                profile: profile,
+                depth: depth ?? depthValue(for: actor, at: time),
+                breathingWave: sin(actorBreathingPhase)
+            )
+    }
+
+    private func maximumEvaluatedDiameter(
+        for actor: DayObjectActor,
+        compositionPlan: DayObjectCompositionPlan?
+    ) -> Double {
+        let profile = actor.choreographyConfiguration.sizeProfile
+        return presetDiameter(for: actor, compositionPlan: compositionPlan)
+            * diameterModulation(profile: profile, depth: 1, breathingWave: 1)
+    }
+
+    private func diameterModulation(
+        profile: DayObjectSizeProfile,
+        depth: Double,
+        breathingWave: Double
+    ) -> Double {
+        let depthScale = profile == .spatial ? 0.56 + 1.04 * depth : 1
+        let breathingAmplitude = profile == .uniform ? 0.018 : 0.035
+        return depthScale * (1 + breathingAmplitude * breathingWave)
+    }
+
+    private func placementSector(for actor: DayObjectActor) -> Int {
+        guard actor.choreographyConfiguration.sizeProfile == .grouped,
+              actor.choreographyConfiguration.preset != .eclipseStack else {
+            return actor.route.sector
+        }
+        // Clockwise outer anchors preserve formation order. The conservative
+        // clamp keeps the largest pair in the middle third, while smaller
+        // pairs safely occupy the top and bottom thirds.
+        let groupedSectors = [2, 8, 7, 6, 0, 1, 3, 5, 0, 2]
+        return groupedSectors[actor.choreographySlot.ordinal % groupedSectors.count]
     }
 
     private func opacity(for actor: DayObjectActor, depth: Double) -> Double {

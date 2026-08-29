@@ -149,7 +149,7 @@ final class DayObjectChoreographyTests: XCTestCase {
         }
     }
 
-    func testApprovedSizesKeepDistributedPresetsVerticallySpread() throws {
+    func testEveryDistributedPresetUsesAllVerticalThirdsWithSixActors() throws {
         let presets = DayObjectChoreographyPreset.allCases.filter { $0 != .eclipseStack }
         for preset in presets {
             let scene = try scene(for: preset, count: 6)
@@ -163,11 +163,7 @@ final class DayObjectChoreographyTests: XCTestCase {
                     thirds.insert(min(max(Int((0.5 - pose.position.y) * 3), 0), 2))
                 }
             }
-            if scene.motionPlan.configuration.sizeProfile == .grouped {
-                XCTAssertGreaterThanOrEqual(thirds.count, 2, "preset=\(preset)")
-            } else {
-                XCTAssertEqual(thirds, [0, 1, 2], "preset=\(preset)")
-            }
+            XCTAssertEqual(thirds, [0, 1, 2], "preset=\(preset)")
         }
     }
 
@@ -468,6 +464,8 @@ final class DayObjectChoreographyTests: XCTestCase {
     }
 
     func testPlannedFootprintsStayInsideBordersAndOutsideReservedRegions() {
+        let cropAllowlist: Set<DayObjectChoreographyPreset> = [.depthField, .eclipseStack]
+        var presetsObservedCropping = Set<DayObjectChoreographyPreset>()
         for seed in UInt64(0)..<24 {
             let scene = DayObjectScene.make(input: fixtureInput(seed: seed, count: 10))
             for aspect in [0.46, 0.75, 1.0, 4.0 / 3.0, 2.16] {
@@ -478,17 +476,53 @@ final class DayObjectChoreographyTests: XCTestCase {
                             for: actor, at: time, canvasAspect: aspect,
                             compositionPlan: scene.compositionPlan
                         )
-                        let allowsIntentionalCrop = [
-                            DayObjectChoreographyPreset.depthField,
-                            .eclipseStack,
-                        ].contains(scene.motionPlan.preset)
+                        let allowsIntentionalCrop = cropAllowlist.contains(scene.motionPlan.preset)
                         XCTAssertTrue(pose.isInsideSafeBounds || allowsIntentionalCrop)
                         if !allowsIntentionalCrop {
                             XCTAssertEqual(pose.intentionalCropFraction, 0, accuracy: 0.000_001)
                         }
-                        if allowsIntentionalCrop {
-                            XCTAssertLessThanOrEqual(pose.intentionalCropFraction, 1)
+                        if pose.intentionalCropFraction > 0.000_001 {
+                            presetsObservedCropping.insert(scene.motionPlan.preset)
+                            XCTAssertTrue(allowsIntentionalCrop)
                         }
+                        XCTAssertFalse(pose.intersectsUIExclusion)
+                        XCTAssertFalse(pose.intersectsNegativeSpace)
+                    }
+                }
+            }
+        }
+        XCTAssertFalse(presetsObservedCropping.isEmpty)
+        XCTAssertTrue(presetsObservedCropping.isSubset(of: cropAllowlist))
+    }
+
+    func testCustomExclusionPlansForMaximumSpatialDiameter() throws {
+        let fullCanvasScene = try scene(for: .depthField, count: 10)
+        let regions = [
+            DayObjectNormalizedRect(minX: 0.02, minY: 0.03, maxX: 0.34, maxY: 0.27),
+            DayObjectNormalizedRect(minX: 0.35, minY: 0.28, maxX: 0.68, maxY: 0.66),
+            DayObjectNormalizedRect(minX: 0.66, minY: 0.70, maxX: 0.98, maxY: 0.97),
+        ]
+
+        for region in regions {
+            let source = fullCanvasScene.input
+            let input = DayObjectSceneInput(
+                dayKey: source.dayKey, identity: source.identity,
+                eventIDs: source.eventIDs, motionEnergy: source.motionEnergy,
+                visualClarity: source.visualClarity, reduceMotion: source.reduceMotion,
+                uiExclusionRegion: region, canvasCoverage: .excluding(region),
+                paletteCategories: source.paletteCategories
+            )
+            let scene = DayObjectScene.make(input: input)
+            XCTAssertEqual(scene.motionPlan.preset, .depthField)
+            for aspect in [0.46, 1.0, 4.0 / 3.0, 2.16] {
+                for actor in scene.actors {
+                    for sample in 0...192 {
+                        let time = actor.depthSchedule.period * Double(sample) / 192
+                        let pose = scene.score.pose(
+                            for: actor, at: time, canvasAspect: aspect,
+                            compositionPlan: scene.compositionPlan
+                        )
+                        XCTAssertTrue(pose.isInsideSafeBounds)
                         XCTAssertFalse(pose.intersectsUIExclusion)
                         XCTAssertFalse(pose.intersectsNegativeSpace)
                     }
