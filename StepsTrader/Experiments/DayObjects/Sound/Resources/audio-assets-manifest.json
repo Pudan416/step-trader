@@ -1,0 +1,438 @@
+{
+  "assets": [
+    {
+      "licenseFilename": "AudioKitSynthOne-MIT.txt",
+      "path": "SynthOnePresets/selected-presets.json",
+      "presetUIDs": [
+        "39529417-FBC1-41D5-B1D1-0DED9E38F164",
+        "96F9F71C-1D6C-41FC-8192-E4B550562357",
+        "9BF89CC8-5AD5-46D8-9640-C3FE335C65D9",
+        "E9AFAF33-21A5-4A1B-80BF-74BFB333E86D",
+        "88335303-C675-4D14-907E-2D80823C2BCA",
+        "8FC6202C-DAE8-4651-98DE-F3BEBB07E6BF",
+        "C2958050-CDCA-4C64-AF92-3217539CE60A",
+        "4131C811-FBB8-4E15-B238-8986645A62D3",
+        "FA16AF16-3033-485F-A183-4DAAB7025B52",
+        "9BDE3DCB-219D-4D70-A067-C1057B557F19",
+        "2B6BCC6D-8526-4CAD-8230-EF3C84A26E9F",
+        "BB74B6AD-9076-464C-B373-F2E968BBD2BE",
+        "AA903CDB-938B-4FC7-8E01-050DB95EFDE7",
+        "6A4C11CA-2CF9-4153-B5D3-A67F28E465A1",
+        "9F2D32B0-ED71-4127-A4C5-F51209656AF7"
+      ],
+      "sha256": "e1eea582d634425605954cf20c201ec34045f0a1f3f48b652b6c2a81442fd063",
+      "sourceFiles": [
+        {
+          "path": "AudioKitSynthOne/Presets/Data/Bonus.json",
+          "sha256": "e189a9782469bd851d97a2bd157cfdd43692621287de68eb2909e8aabbd4b996"
+        },
+        {
+          "path": "AudioKitSynthOne/Presets/Data/Brice Beasley.json",
+          "sha256": "a42a515cc66fc392f8831efa4865145dc9e2c8a8d9bc2554d1fd8a1aed242d45"
+        },
+        {
+          "path": "AudioKitSynthOne/Presets/Data/Electronisounds.json",
+          "sha256": "94447bcafd93b8e534b99347ef1a2ab7f96006364c36e85c88825e2480a026e7"
+        },
+        {
+          "path": "AudioKitSynthOne/Presets/Data/JEC.json",
+          "sha256": "9af56a4f52d050c98da8bfc6bc355ac872772cdd419def188bb644b0c9dff0c0"
+        },
+        {
+          "path": "AudioKitSynthOne/Presets/Data/Red Sky Lullaby.json",
+          "sha256": "db813fe373ebd0c2434c8c0af376b245c331c35080b396bce83bc4d9f2fb0aac"
+        },
+        {
+          "path": "AudioKitSynthOne/Presets/Data/Spidericemidas.json",
+          "sha256": "1cb034e91677be3b7bc0cddca64d821ddbfc132d79f98e4211053867f76eec35"
+        }
+      ],
+      "sourceKey": "AudioKitSynthOne"
+    },
+    {
+      "licenseFilename": "AudioKitCookbook-MIT.txt",
+      "path": "Drums/bass_drum_C1.wav",
+      "sha256": "f682067cb3e717374d27e2c8cdabaa3ea16eb8afe36776f163b46ebed64de5c9",
+      "sourceFiles": [
+        {
+          "path": "Cookbook/CookbookCommon/Sources/CookbookCommon/Samples/bass_drum_C1.wav",
+          "sha256": "f682067cb3e717374d27e2c8cdabaa3ea16eb8afe36776f163b46ebed64de5c9"
+        }
+      ],
+      "sourceKey": "AudioKit/Cookbook"
+    },
+    {
+      "licenseFilename": "AudioKitCookbook-MIT.txt",
+      "path": "Drums/closed_hi_hat_F#1.wav",
+      "sha256": "c9f30ff2b4d73b03f41960e504e03c54e9a59697af666fe4d155bab9cd1ccae6",
+      "sourceFiles": [
+        {
+          "path": "Cookbook/CookbookCommon/Sources/CookbookCommon/Samples/closed_hi_hat_F#1.wav",
+          "sha256": "c9f30ff2b4d73b03f41960e504e03c54e9a59697af666fe4d155bab9cd1ccae6"
+        }
+      ],
+      "sourceKey": "AudioKit/Cookbook"
+    },
+    {
+      "licenseFilename": "AudioKitCookbook-MIT.txt",
+      "path": "Drums/open_hi_hat_A#1.wav",
+      "sha256": "cde0aec2ca84358067859f52bac7d55b875f30d2baea700923e25e21307803e9",
+      "sourceFiles": [
+        {
+          "path": "Cookbook/CookbookCommon/Sources/CookbookCommon/Samples/open_hi_hat_A#1.wav",
+          "sha256": "cde0aec2ca84358067859f52bac7d55b875f30d2baea700923e25e21307803e9"
+        }
+      ],
+      "sourceKey": "AudioKit/Cookbook"
+    },
+    {
+      "licenseFilename": "AudioKitCookbook-MIT.txt",
+      "path": "Drums/clap_D#1.wav",
+      "sha256": "376429bb81cb48d1f392a11cd066c32ffb7883d445b2488704ea52e46bb08286",
+      "sourceFiles": [
+        {
+          "path": "Cookbook/CookbookCommon/Sources/CookbookCommon/Samples/clap_D#1.wav",
+          "sha256": "376429bb81cb48d1f392a11cd066c32ffb7883d445b2488704ea52e46bb08286"
+        }
+      ],
+      "sourceKey": "AudioKit/Cookbook"
+    },
+    {
+      "licenseFilename": "AudioKitCookbook-MIT.txt",
+      "path": "Drums/snare_D1.wav",
+      "sha256": "d7fa75dff476baaef99de0b251d86c39aa0e0f36a06043db9a97417350fe4439",
+      "sourceFiles": [
+        {
+          "path": "Cookbook/CookbookCommon/Sources/CookbookCommon/Samples/snare_D1.wav",
+          "sha256": "d7fa75dff476baaef99de0b251d86c39aa0e0f36a06043db9a97417350fe4439"
+        }
+      ],
+      "sourceKey": "AudioKit/Cookbook"
+    },
+    {
+      "licenseFilename": "AudioKitCookbook-MIT.txt",
+      "path": "Drums/cheeb-stick.wav",
+      "sha256": "2af90d5f8192a71c3caf2746322dee5a593c27256837b0ef7c66e57ec90aa634",
+      "sourceFiles": [
+        {
+          "path": "Cookbook/Sounds/cheeb-stick.wav",
+          "sha256": "2af90d5f8192a71c3caf2746322dee5a593c27256837b0ef7c66e57ec90aa634"
+        }
+      ],
+      "sourceKey": "AudioKit/Cookbook"
+    },
+    {
+      "licenseFilename": "AudioKitCookbook-MIT.txt",
+      "path": "Drums/cheeb-hat.wav",
+      "sha256": "33b9b334fb30d3a467f1c5ff28eb6299f08049cd94627c4cd41aafc8e466ab0d",
+      "sourceFiles": [
+        {
+          "path": "Cookbook/Sounds/cheeb-hat.wav",
+          "sha256": "33b9b334fb30d3a467f1c5ff28eb6299f08049cd94627c4cd41aafc8e466ab0d"
+        }
+      ],
+      "sourceKey": "AudioKit/Cookbook"
+    },
+    {
+      "licenseFilename": "AudioKitCookbook-MIT.txt",
+      "path": "Drums/cheeb-ch.wav",
+      "sha256": "6e18c1bd394fe97bea79f0106aa30285d56c16b78fb7ac9311c85fb502bbc106",
+      "sourceFiles": [
+        {
+          "path": "Cookbook/Sounds/cheeb-ch.wav",
+          "sha256": "6e18c1bd394fe97bea79f0106aa30285d56c16b78fb7ac9311c85fb502bbc106"
+        }
+      ],
+      "sourceKey": "AudioKit/Cookbook"
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_C2.caf",
+      "rootMIDINote": 36,
+      "rootNote": "C2",
+      "sha256": "033f516d8e0057b3a757e975996dc0d2134c0ad18878a9b097b626fac55af1c7",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_C2_vl1.flac",
+          "sha256": "cce3112e179b2bf20c4b18de67345a4cee8e2f981cdbf58d95e1758d14cc0ef1"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_E2.caf",
+      "rootMIDINote": 40,
+      "rootNote": "E2",
+      "sha256": "52fc1f374b127ae0c0a5ca7574ca26edd121ad570b0be03827b9b5e723ffa96d",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_E2_vl1.flac",
+          "sha256": "d52280ab1804cf9ecd1dd93d8fc245a17b801ffdebe0ff47b07d965fb4f5bf45"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_G2.caf",
+      "rootMIDINote": 43,
+      "rootNote": "G2",
+      "sha256": "b1f50a4cf006d120d1da6f7127e3324b355e12a157a0de99e907cbe9279dd842",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_G2_vl1.flac",
+          "sha256": "af26a649cf2d3de12cf75ff8d403ede451f5c0c81e4cb0500adabb966b44da28"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_C3.caf",
+      "rootMIDINote": 48,
+      "rootNote": "C3",
+      "sha256": "a00fd0a10d95de071b37d43684750df700f1ec3a5a36f6ace3401c9cbbb36f93",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_C3_vl1.flac",
+          "sha256": "4e509d501311b1fc7e6691cff1127f5a068a2292ec4501f94e68a36183a05e68"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_E3.caf",
+      "rootMIDINote": 52,
+      "rootNote": "E3",
+      "sha256": "03d091b7977d949587d06641fe775e648a85fa3f7d1d4a4a19823f707e11e203",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_E3_vl1.flac",
+          "sha256": "58c4188910fd6feb1b31561936f146f89f376dfa9d29acfa7e0c574334a97869"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_G3.caf",
+      "rootMIDINote": 55,
+      "rootNote": "G3",
+      "sha256": "d7029053ac37c674351053ccee763cf4090bc0d6fc156b3c1f2d59b5155d997c",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_G3_vl1.flac",
+          "sha256": "47a25644da5e4b770fd35ba29e53acded50a267985dad2f0d5e8f5a2698fe6ce"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_C4.caf",
+      "rootMIDINote": 60,
+      "rootNote": "C4",
+      "sha256": "07eb5a0d8abbdf039967b59cce5a75d4bb3d0dab2d2018e3dd57122d27dc1127",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_C4_vl1.flac",
+          "sha256": "f9e1ecef1ae24470796591f09d2d0aed4b320b5a376df8b7abf30c7880628545"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_E4.caf",
+      "rootMIDINote": 64,
+      "rootNote": "E4",
+      "sha256": "74c0748b394ce3b02d175938dd537ffcc0f51a9f54758ba855c5708a01f9b563",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_E4_vl1.flac",
+          "sha256": "592a756ccad9242f461a4af0542bc6bfdcbcfb3624e638baa2a0ac15eef773be"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_G4.caf",
+      "rootMIDINote": 67,
+      "rootNote": "G4",
+      "sha256": "6f8d9825f3c77fa2fbce627d610fe2c99ca4f32febb9208af966c08713e3f674",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_G4_vl1.flac",
+          "sha256": "f66433c9210a9a30544dd9b74c7a6688afc168a6476988b33b6745a21429f7af"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_C5.caf",
+      "rootMIDINote": 72,
+      "rootNote": "C5",
+      "sha256": "a44461ea38774dcf0bbd9a2a406df418c6d63832b61790b56486edf58eacb99e",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_C5_vl1.flac",
+          "sha256": "b402a966e7a9fd5f165d07b92c53d90f06fca9430036c377432d4071de5ae4d5"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_E5.caf",
+      "rootMIDINote": 76,
+      "rootNote": "E5",
+      "sha256": "12b7182462c11c72e6bb7f3deac9c1a55b196cb510e7f6bbf74380c6ccfcdcf6",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_E5_vl1.flac",
+          "sha256": "d3f7e471c4b7ad9f45a6aa4451189423eba33d6d849f1a6603a357fa6f201f00"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_G5.caf",
+      "rootMIDINote": 79,
+      "rootNote": "G5",
+      "sha256": "d900e6d295f3cdd7e142c88564282ee58de3095fa9f715474a09e458f7e58b98",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_G5_vl1.flac",
+          "sha256": "f7b14111af1078676f761d6e1ff22ef368baf6b895acbe5cfd1555f74cc84ac2"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    }
+  ],
+  "schemaVersion": 1,
+  "sources": {
+    "AudioKit/Cookbook": {
+      "creator": "AudioKit contributors",
+      "licenseFilename": "AudioKitCookbook-MIT.txt",
+      "licenseIdentifier": "MIT",
+      "revision": "c37d41daedf161b47315b7ae24b07f41213b73be",
+      "sourceURL": "https://github.com/AudioKit/Cookbook"
+    },
+    "AudioKitSynthOne": {
+      "creator": "AudioKit contributors",
+      "licenseFilename": "AudioKitSynthOne-MIT.txt",
+      "licenseIdentifier": "MIT",
+      "revision": "6466a3715c96b7ecf1dd255a218cbd571408a314",
+      "sourceURL": "https://github.com/AudioKit/AudioKitSynthOne"
+    },
+    "sfzinstruments/Osiris_Piano": {
+      "creator": "Karoryfer Samples / sfzinstruments contributors",
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "licenseIdentifier": "CC0-1.0",
+      "redistributionAndModificationRights": "CC0 1.0 public-domain dedication permits copying, modification, and redistribution, including commercial use.",
+      "revision": "18c6afccb60cff458edbf7c394571783e074e1e9",
+      "sourceURL": "https://github.com/sfzinstruments/Osiris_Piano"
+    }
+  }
+}
