@@ -57,7 +57,9 @@ struct DayObjectScene: Equatable {
         )
         let paletteSet = DayObjectPaletteSet.make(
             rootSeed: rootSeed,
-            categories: input.paletteCategories
+            categories: input.paletteCategories,
+            dayKey: input.dayKey,
+            identity: input.identity
         )
         let choreography = DayObjectChoreographyConfiguration.make(seed: rootSeed)
         let visualLanguage = DayObjectVisualLanguage.make(

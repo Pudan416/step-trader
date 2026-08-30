@@ -13,7 +13,9 @@ struct DayObjectPaletteSet: Equatable {
 
     static func make(
         rootSeed: UInt64,
-        categories: Set<ModernPaletteCategory>
+        categories: Set<ModernPaletteCategory>,
+        dayKey: String? = nil,
+        identity: String = "local"
     ) -> DayObjectPaletteSet {
         let normalizedCategories = categories.isEmpty
             ? ModernPaletteSelection.all
@@ -29,13 +31,13 @@ struct DayObjectPaletteSet: Equatable {
         }
 
         precondition(!candidates.isEmpty, "Modern palette catalog must not be empty")
-        var backgroundRNG = SeededRNG.derived(
-            from: rootSeed,
-            domain: "backgroundPalette"
+        let background = backgroundPalette(
+            rootSeed: rootSeed,
+            categories: normalizedCategories,
+            dayKey: dayKey,
+            identity: identity,
+            candidates: candidates
         )
-        let background = candidates[
-            backgroundRNG.nextInt(in: 0...(candidates.count - 1))
-        ]
         let objectCandidates = boundedObjectCandidates(
             candidates.filter { $0.code != background.code },
             rootSeed: rootSeed
@@ -76,6 +78,136 @@ struct DayObjectPaletteSet: Equatable {
             primaryObjects: primary,
             secondaryObjects: secondary
         )
+    }
+
+    static func backgroundPalette(
+        rootSeed: UInt64,
+        categories: Set<ModernPaletteCategory>,
+        dayKey: String?,
+        identity: String
+    ) -> ModernPalette {
+        let normalizedCategories = categories.isEmpty
+            ? ModernPaletteSelection.all
+            : categories
+        var candidates = ModernPaletteCatalog.palettes(matching: normalizedCategories)
+        if candidates.count < 3 {
+            for palette in ModernPaletteCatalog.all where
+                !candidates.contains(where: { $0.code == palette.code })
+            {
+                candidates.append(palette)
+                if candidates.count == 3 { break }
+            }
+        }
+        precondition(!candidates.isEmpty, "Modern palette catalog must not be empty")
+        return backgroundPalette(
+            rootSeed: rootSeed,
+            categories: normalizedCategories,
+            dayKey: dayKey,
+            identity: identity,
+            candidates: candidates
+        )
+    }
+
+    private static func backgroundPalette(
+        rootSeed: UInt64,
+        categories: Set<ModernPaletteCategory>,
+        dayKey: String?,
+        identity: String,
+        candidates: [ModernPalette]
+    ) -> ModernPalette {
+        if let dayKey,
+           let dayOrdinal = calendarDayOrdinal(dayKey),
+           candidates.count >= 2 {
+            return candidates[calendarBackgroundIndex(
+                dayOrdinal: dayOrdinal,
+                identity: identity,
+                categories: categories,
+                candidateCount: candidates.count
+            )]
+        }
+        var backgroundRNG = SeededRNG.derived(
+            from: rootSeed,
+            domain: "backgroundPalette"
+        )
+        return candidates[backgroundRNG.nextInt(in: 0...(candidates.count - 1))]
+    }
+
+    private static func calendarDayOrdinal(_ dayKey: String) -> Int? {
+        let parts = dayKey.split(separator: "-", omittingEmptySubsequences: false)
+        guard parts.count == 3,
+              parts[0].count == 4,
+              parts[1].count == 2,
+              parts[2].count == 2,
+              parts.allSatisfy({ $0.utf8.allSatisfy { (48...57).contains($0) } }),
+              let year = Int(parts[0]), year > 0,
+              let month = Int(parts[1]), (1...12).contains(month),
+              let day = Int(parts[2]) else {
+            return nil
+        }
+
+        let monthLengths = [
+            31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30,
+            31, 31, 30, 31, 30, 31,
+        ]
+        guard (1...monthLengths[month - 1]).contains(day) else { return nil }
+
+        let completedYears = year - 1
+        let daysBeforeYear = completedYears * 365
+            + completedYears / 4
+            - completedYears / 100
+            + completedYears / 400
+        return daysBeforeYear + monthLengths.prefix(month - 1).reduce(0, +) + day - 1
+    }
+
+    private static func isLeapYear(_ year: Int) -> Bool {
+        year.isMultiple(of: 400)
+            || (year.isMultiple(of: 4) && !year.isMultiple(of: 100))
+    }
+
+    private static func calendarBackgroundIndex(
+        dayOrdinal: Int,
+        identity: String,
+        categories: Set<ModernPaletteCategory>,
+        candidateCount: Int
+    ) -> Int {
+        precondition(candidateCount >= 2)
+        let hash = stableCalendarContextHash(identity: identity, categories: categories)
+        let offset = Int(hash % UInt64(candidateCount))
+        var stride = Int((hash >> 32) % UInt64(candidateCount - 1)) + 1
+        while greatestCommonDivisor(stride, candidateCount) != 1 {
+            stride = stride == candidateCount - 1 ? 1 : stride + 1
+        }
+        return (offset + (dayOrdinal % candidateCount) * stride) % candidateCount
+    }
+
+    private static func stableCalendarContextHash(
+        identity: String,
+        categories: Set<ModernPaletteCategory>
+    ) -> UInt64 {
+        var hash: UInt64 = 0xCBF2_9CE4_8422_2325
+        func append(_ string: String) {
+            for byte in string.utf8 {
+                hash = (hash ^ UInt64(byte)) &* 0x1000_0000_01B3
+            }
+            hash = (hash ^ 0xFF) &* 0x1000_0000_01B3
+        }
+        append(identity.isEmpty ? "anonymous" : identity)
+        for category in ModernPaletteCategory.allCases where categories.contains(category) {
+            append(category.rawValue)
+        }
+        hash ^= hash >> 33
+        hash &*= 0xFF51_AFD7_ED55_8CCD
+        hash ^= hash >> 33
+        return hash
+    }
+
+    private static func greatestCommonDivisor(_ lhs: Int, _ rhs: Int) -> Int {
+        var a = lhs
+        var b = rhs
+        while b != 0 {
+            (a, b) = (b, a % b)
+        }
+        return a
     }
 
     private static func boundedObjectCandidates(

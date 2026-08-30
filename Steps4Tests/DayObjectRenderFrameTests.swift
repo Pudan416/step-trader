@@ -4314,20 +4314,20 @@ private enum DayObjectsPerceptualBaselines {
             name: "light-phone-portrait", dayKey: "2026-08-20",
             categories: [.pastel, .spring], width: 180, height: 390,
             signature: DayObjectsPerceptualSignature(
-                meanRGB: SIMD3(0.8958059301131811, 0.50821285, 0.5026922746533342),
-                meanLuminance: 0.5813882794916415,
+                meanRGB: SIMD3(0.5582745726495727, 0.5517561475096265, 0.5026922746533342),
+                meanLuminance: 0.5491627991715605,
                 luminanceDeviation: 0.1254479192274434,
-                lowLuminance: 0.421563330078125,
-                highLuminance: 0.7203345703124999,
+                lowLuminance: 0.39016425781249997,
+                highLuminance: 0.76413291015625,
                 edgeEnergy: 0.00874509,
-                colorfulness: 0.4383254552770544,
+                colorfulness: 0.19546997591980503,
                 coarseLuminance: [
-                    0.5988909262820523, 0.5718316662326403, 0.55976743, 0.56612877,
-                    0.5831049001151857, 0.47188373611528606, 0.4312085785193813, 0.6084531704518907,
-                    0.55314608, 0.6081750664312909, 0.6900759610188797, 0.7453748392594814,
+                    0.5988909262820523, 0.661405726028313, 0.6421512758851661, 0.7842015921474362,
+                    0.5831049001151857, 0.47188373611528606, 0.4854730598540997, 0.6084531704518907,
+                    0.55314608, 0.43610097700904804, 0.4312714915281111, 0.4134397941581536,
                 ],
                 actorInkFraction: 0.21316239316239316,
-                actorEnergy: 0.043097651457088194,
+                actorEnergy: 0.033410629591895474,
                 borderActorPeak: 0,
                 negativeSpaceActorPeak: 0,
                 exclusionActorPeak: 0
@@ -4337,20 +4337,20 @@ private enum DayObjectsPerceptualBaselines {
             name: "light-tablet-landscape", dayKey: "2026-08-20",
             categories: [.pastel, .spring], width: 256, height: 192,
             signature: DayObjectsPerceptualSignature(
-                meanRGB: SIMD3(0.8626769197483858, 0.49481352, 0.48603802050153416),
+                meanRGB: SIMD3(0.5248418661455313, 0.5536613799631596, 0.48603802050153416),
                 meanLuminance: 0.5581872294723965,
                 luminanceDeviation: 0.1305890922041445,
-                lowLuminance: 0.334153857421875,
-                highLuminance: 0.673623046875,
+                lowLuminance: 0.38571904296875,
+                highLuminance: 0.71025185546875,
                 edgeEnergy: 0.00885143,
-                colorfulness: 0.4162002590795358,
+                colorfulness: 0.16490194698174795,
                 coarseLuminance: [
-                    0.6079084845066081, 0.5795996627211593, 0.53089130, 0.5563321788668644,
-                    0.5730623696148376, 0.42247112434208334, 0.39133103758096655, 0.5989425823688482,
-                    0.54373032, 0.54565328, 0.6206813619881885, 0.6904927531003942,
+                    0.6079084845066081, 0.5795996627211593, 0.53089130, 0.7536240112125883,
+                    0.5730623696148376, 0.42247112434208334, 0.46516727546155456, 0.5989425823688482,
+                    0.54373032, 0.4487894833415757, 0.48007507135868116, 0.4899360250473018,
                 ],
                 actorInkFraction: 0.25787353515625,
-                actorEnergy: 0.057756140160063946,
+                actorEnergy: 0.040558592437952755,
                 borderActorPeak: 0,
                 negativeSpaceActorPeak: 0,
                 exclusionActorPeak: 0
@@ -4360,21 +4360,21 @@ private enum DayObjectsPerceptualBaselines {
             name: "dark-phone-portrait", dayKey: "2026-08-21",
             categories: [.winter, .cold], width: 180, height: 390,
             signature: DayObjectsPerceptualSignature(
-                meanRGB: SIMD3(0.2869584468830685, 0.35068851916538685, 0.3774293452857906),
-                meanLuminance: 0.33907019344406775,
-                luminanceDeviation: 0.14031226769840727,
-                lowLuminance: 0.18792399902343748,
-                highLuminance: 0.54424336,
+                meanRGB: SIMD3(0.149248292058961, 0.2497039264559406, 0.3441325148014601),
+                meanLuminance: 0.23516480266169063,
+                luminanceDeviation: 0.08465816982217539,
+                lowLuminance: 0.12394271240234375,
+                highLuminance: 0.3400966796875,
                 edgeEnergy: 0.00848344,
-                colorfulness: 0.11237052895744302,
+                colorfulness: 0.22195180865774128,
                 coarseLuminance: [
-                    0.18431669435471776, 0.21743077467072305, 0.2832736649201218, 0.29737721,
-                    0.33886116897869817, 0.49113898546841633, 0.48819783551181906, 0.47077195415581524,
-                    0.32507004298961656, 0.3337877915039059, 0.32553495, 0.33756349,
+                    0.11550917070124697, 0.21743077467072305, 0.15459069723954175, 0.1764330070206076,
+                    0.2917649806085581, 0.2542644688939802, 0.2209232955457899, 0.23522548102693538,
+                    0.32507004298961656, 0.3337877915039059, 0.2653575830933659, 0.28444195609016093,
                 ],
                 actorInkFraction: 0.5824216524216524,
-                actorEnergy: 0.07595823910531162,
-                borderActorPeak: 0.32969860839843745,
+                actorEnergy: 0.032550143036757816,
+                borderActorPeak: 0.2499622314453125,
                 negativeSpaceActorPeak: 0,
                 exclusionActorPeak: 0
             )
@@ -4383,21 +4383,21 @@ private enum DayObjectsPerceptualBaselines {
             name: "dark-tablet-landscape", dayKey: "2026-08-21",
             categories: [.winter, .cold], width: 256, height: 192,
             signature: DayObjectsPerceptualSignature(
-                meanRGB: SIMD3(0.36255936448772746, 0.43432950, 0.47524648),
-                meanLuminance: 0.39799265,
-                luminanceDeviation: 0.13164704,
-                lowLuminance: 0.25282211,
-                highLuminance: 0.62309170,
+                meanRGB: SIMD3(0.16917203925549984, 0.26610423624515533, 0.37073007225990295),
+                meanLuminance: 0.2530504365254201,
+                luminanceDeviation: 0.08394972234990368,
+                lowLuminance: 0.1492218994140625,
+                highLuminance: 0.36829116210937496,
                 edgeEnergy: 0.00859305,
-                colorfulness: 0.11459366356333096,
+                colorfulness: 0.23552695848047733,
                 coarseLuminance: [
-                    0.23270347720086587, 0.2673201636254791, 0.40097312848269934, 0.3702352593183502,
-                    0.3618045460581773, 0.48513273609578567, 0.5141033355951319, 0.5141814978718761,
-                    0.47182227016687384, 0.46814357, 0.48501506869792904, 0.503168677973748,
+                    0.14901381171047712, 0.2673201636254791, 0.18458954571932593, 0.18247365726381543,
+                    0.3618045460581773, 0.2414284190356728, 0.23096141778677706, 0.24841264107972383,
+                    0.38276071653962107, 0.2947183510005475, 0.2735746770113697, 0.2768049349889159,
                 ],
                 actorInkFraction: 0.7433878580729166,
-                actorEnergy: 0.11320217272341261,
-                borderActorPeak: 0.316439697265625,
+                actorEnergy: 0.04577566050353123,
+                borderActorPeak: 0.23250014648437503,
                 negativeSpaceActorPeak: 0,
                 exclusionActorPeak: 0
             )
@@ -4407,39 +4407,39 @@ private enum DayObjectsPerceptualBaselines {
     static let transitionSignatures = [
         DayObjectsTransitionPerceptualSignature(
             name: "insertion-before", renderedActorCount: 4,
-            affectedEnergy: 0, meanLuminance: 0.54361400, edgeEnergy: 0.00744868
+            affectedEnergy: 0, meanLuminance: 0.6241096255339696, edgeEnergy: 0.00744868
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "insertion-during", renderedActorCount: 5,
-            affectedEnergy: 0, meanLuminance: 0.54340186, edgeEnergy: 0.00741477
+            affectedEnergy: 0, meanLuminance: 0.6250922700937283, edgeEnergy: 0.00741477
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "insertion-after", renderedActorCount: 5,
-            affectedEnergy: 0.0034671640209523948, meanLuminance: 0.54444710, edgeEnergy: 0.00742865
+            affectedEnergy: 0.0013438760068809987, meanLuminance: 0.6252551639748873, edgeEnergy: 0.00742865
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "removal-before", renderedActorCount: 5,
-            affectedEnergy: 0.004402918115995346, meanLuminance: 0.53306038, edgeEnergy: 0.00739795
+            affectedEnergy: 0.0021255725726790266, meanLuminance: 0.6383002278712754, edgeEnergy: 0.00739795
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "removal-during", renderedActorCount: 5,
-            affectedEnergy: 0.003307269349439027, meanLuminance: 0.53131268, edgeEnergy: 0.00740709
+            affectedEnergy: 0.0016493109301310828, meanLuminance: 0.6398319109388411, edgeEnergy: 0.00740709
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "removal-after", renderedActorCount: 4,
-            affectedEnergy: 0, meanLuminance: 0.52835168, edgeEnergy: 0.00739413
+            affectedEnergy: 0, meanLuminance: 0.6430566316650813, edgeEnergy: 0.00739413
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "capped-replacement-before", renderedActorCount: 10,
-            affectedEnergy: 0, meanLuminance: 0.5466119146135209, edgeEnergy: 0.00763671
+            affectedEnergy: 0, meanLuminance: 0.6424730924633711, edgeEnergy: 0.00763671
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "capped-replacement-during", renderedActorCount: 10,
-            affectedEnergy: 0.0011199276337914169, meanLuminance: 0.547478168378538, edgeEnergy: 0.00767771
+            affectedEnergy: 0.001642403795580257, meanLuminance: 0.6445122690068424, edgeEnergy: 0.00767771
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "capped-replacement-after", renderedActorCount: 10,
-            affectedEnergy: 0.0011212288756390961, meanLuminance: 0.5496605541926607, edgeEnergy: 0.00764747
+            affectedEnergy: 0.0011212288756390961, meanLuminance: 0.6458860448062952, edgeEnergy: 0.00764747
         ),
     ]
 

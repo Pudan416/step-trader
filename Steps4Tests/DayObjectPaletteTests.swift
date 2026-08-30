@@ -4,6 +4,100 @@ import XCTest
 @testable import Steps4
 
 final class DayObjectPaletteTests: XCTestCase {
+    func testProductionLabBackgroundDoesNotRepeatOnConsecutiveCalendarDays() {
+        let filters: [(name: String, categories: Set<ModernPaletteCategory>)] = [
+            ("all", ModernPaletteSelection.all),
+            ("pastel-cold", [.pastel, .cold]),
+            ("warm-fall", [.warm, .fall]),
+            ("neon-summer", [.neon, .summer]),
+        ]
+        let dayKeys = isoDayKeys(from: 2026, through: 2035)
+
+        for filter in filters {
+            var previousBackgroundCode: String?
+            for dayKey in dayKeys {
+                let rootSeed = CanvasElement.makeSeed(
+                    optionId: "dayObjects:day-objects-lab",
+                    dayKey: dayKey,
+                    index: 0
+                )
+                let background = DayObjectPaletteSet.backgroundPalette(
+                    rootSeed: rootSeed,
+                    categories: filter.categories,
+                    dayKey: dayKey,
+                    identity: "day-objects-lab"
+                )
+
+                XCTAssertNotEqual(
+                    background.code,
+                    previousBackgroundCode,
+                    "filter=\(filter.name) day=\(dayKey)"
+                )
+                previousBackgroundCode = background.code
+            }
+        }
+    }
+
+    func testCalendarPaletteSelectionIsDeterministicAndDistinctWithinDay() {
+        var consecutiveBackgrounds = [String]()
+        for dayKey in [
+            "2026-01-01", "2027-01-11", "2027-01-12",
+            "2028-02-29", "2031-07-14", "2035-12-31",
+        ] {
+            let input = DayObjectSceneInput(
+                dayKey: dayKey,
+                identity: "day-objects-lab",
+                eventIDs: [],
+                motionEnergy: 0.55,
+                visualClarity: 0.95,
+                reduceMotion: false,
+                paletteCategories: ModernPaletteSelection.all
+            )
+            let first = DayObjectScene.make(input: input).paletteSet
+            let second = DayObjectScene.make(input: input).paletteSet
+
+            XCTAssertEqual(first, second, dayKey)
+            XCTAssertEqual(
+                Set([
+                    first.background.code,
+                    first.primaryObjects.code,
+                    first.secondaryObjects.code,
+                ]).count,
+                3,
+                dayKey
+            )
+            if dayKey == "2027-01-11" || dayKey == "2027-01-12" {
+                consecutiveBackgrounds.append(first.background.code)
+            }
+        }
+        XCTAssertEqual(Set(consecutiveBackgrounds).count, 2)
+    }
+
+    func testNonCalendarFixturePaletteSelectionRemainsDeterministicAndDistinct() {
+        let input = DayObjectSceneInput(
+            dayKey: "render-fixture-palette-safety",
+            identity: "day-objects-lab",
+            eventIDs: [],
+            motionEnergy: 0.55,
+            visualClarity: 0.95,
+            reduceMotion: false,
+            paletteCategories: [.pastel, .cold]
+        )
+
+        let first = DayObjectScene.make(input: input).paletteSet
+        let second = DayObjectScene.make(input: input).paletteSet
+
+        XCTAssertEqual(first, second)
+        XCTAssertEqual(
+            Set([
+                first.background.code,
+                first.primaryObjects.code,
+                first.secondaryObjects.code,
+            ]).count,
+            3
+        )
+    }
+
     func testDailyPaletteSetUsesThreeDistinctAllowedCatalogEntries() {
         let allowed: Set<ModernPaletteCategory> = [.pastel, .cold]
 
@@ -687,6 +781,7 @@ final class DayObjectPaletteTests: XCTestCase {
                 height: plan.background.height
             )
             XCTAssertLessThanOrEqual(metrics.centralRowReversals, 6, "\(archetype): \(metrics)")
+            XCTAssertLessThanOrEqual(metrics.centralColumnReversals, 6, "\(archetype): \(metrics)")
             XCTAssertLessThan(metrics.strongAdjacentRatio, 0.015, "\(archetype): \(metrics)")
             XCTAssertLessThan(metrics.maximumAdjacentLuminanceDelta, 0.18, "\(archetype): \(metrics)")
             XCTAssertGreaterThan(metrics.luminanceRange, 0.055, "\(archetype): \(metrics)")
@@ -1072,6 +1167,7 @@ final class DayObjectPaletteTests: XCTestCase {
             height: plan.background.height
         )
         XCTAssertLessThanOrEqual(metrics.centralRowReversals, 8, "metrics=\(metrics)")
+        XCTAssertLessThanOrEqual(metrics.centralColumnReversals, 8, "metrics=\(metrics)")
         XCTAssertLessThan(metrics.strongAdjacentRatio, 0.03, "metrics=\(metrics)")
         XCTAssertGreaterThan(metrics.luminanceRange, 0.08, "metrics=\(metrics)")
         XCTAssertGreaterThan(
@@ -1093,6 +1189,32 @@ final class DayObjectPaletteTests: XCTestCase {
         let anotherDay = DayObjectMeshGradientStyle.make(seed: 43, palette: palette)
         XCTAssertNotEqual(anotherDay, style)
         XCTAssertEqual(anotherDay.colors, style.colors)
+    }
+
+    func testBroadFieldMetricsIncludeVerticalAdjacentPixels() {
+        let width = 8
+        let height = 8
+        var pixels = Array(repeating: UInt16(0), count: width * height * 4)
+        for y in 0..<height {
+            let value = Float16(y.isMultiple(of: 2) ? 0 : 1).bitPattern
+            for x in 0..<width {
+                let index = (y * width + x) * 4
+                pixels[index] = value
+                pixels[index + 1] = value
+                pixels[index + 2] = value
+                pixels[index + 3] = Float16(1).bitPattern
+            }
+        }
+
+        let metrics = broadFieldMetrics(
+            pixels: pixels,
+            palette: [SIMD3(repeating: 0), SIMD3(repeating: 1)],
+            width: width,
+            height: height
+        )
+
+        XCTAssertGreaterThan(metrics.strongAdjacentRatio, 0.45)
+        XCTAssertGreaterThan(metrics.maximumAdjacentLuminanceDelta, 0.9)
     }
 
     func testFigureRolesContrastWithBackgroundBase() {
@@ -1219,6 +1341,25 @@ final class DayObjectPaletteTests: XCTestCase {
         return total / Double(max(componentCount, 1))
     }
 
+    private func isoDayKeys(from firstYear: Int, through lastYear: Int) -> [String] {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        var result = [String]()
+        for year in firstYear...lastYear {
+            for month in 1...12 {
+                let days = calendar.range(
+                    of: .day,
+                    in: .month,
+                    for: calendar.date(from: DateComponents(year: year, month: month, day: 1))!
+                )!
+                for day in days {
+                    result.append(String(format: "%04d-%02d-%02d", year, month, day))
+                }
+            }
+        }
+        return result
+    }
+
     private func broadFieldMetrics(
         pixels: [UInt16],
         palette: [SIMD3<Float>],
@@ -1226,6 +1367,7 @@ final class DayObjectPaletteTests: XCTestCase {
         height: Int
     ) -> (
         centralRowReversals: Int,
+        centralColumnReversals: Int,
         strongAdjacentRatio: Double,
         maximumAdjacentLuminanceDelta: Float,
         luminanceRange: Float,
@@ -1239,19 +1381,29 @@ final class DayObjectPaletteTests: XCTestCase {
             return red * 0.2126 + green * 0.7152 + blue * 0.0722
         }
 
-        let centerY = height / 2
-        var reversals = 0
-        var previousDirection = 0
-        for x in 1..<width {
-            let delta = luminance(x: x, y: centerY) - luminance(x: x - 1, y: centerY)
-            let direction = delta > 0.002 ? 1 : (delta < -0.002 ? -1 : 0)
-            if direction != 0 {
-                if previousDirection != 0, direction != previousDirection {
-                    reversals += 1
+        func reversalCount(_ values: [Float]) -> Int {
+            var reversals = 0
+            var previousDirection = 0
+            for index in 1..<values.count {
+                let delta = values[index] - values[index - 1]
+                let direction = delta > 0.002 ? 1 : (delta < -0.002 ? -1 : 0)
+                if direction != 0 {
+                    if previousDirection != 0, direction != previousDirection {
+                        reversals += 1
+                    }
+                    previousDirection = direction
                 }
-                previousDirection = direction
             }
+            return reversals
         }
+        let centerY = height / 2
+        let centerX = width / 2
+        let centralRowReversals = reversalCount(
+            (0..<width).map { luminance(x: $0, y: centerY) }
+        )
+        let centralColumnReversals = reversalCount(
+            (0..<height).map { luminance(x: centerX, y: $0) }
+        )
 
         var strongAdjacent = 0
         var adjacentCount = 0
@@ -1271,11 +1423,20 @@ final class DayObjectPaletteTests: XCTestCase {
                         strongAdjacent += 1
                     }
                 }
+                if y > 0 {
+                    adjacentCount += 1
+                    let adjacentDelta = abs(value - luminance(x: x, y: y - 1))
+                    maximumAdjacentLuminanceDelta = max(maximumAdjacentLuminanceDelta, adjacentDelta)
+                    if adjacentDelta > 0.04 {
+                        strongAdjacent += 1
+                    }
+                }
             }
         }
 
         return (
-            centralRowReversals: reversals,
+            centralRowReversals: centralRowReversals,
+            centralColumnReversals: centralColumnReversals,
             strongAdjacentRatio: Double(strongAdjacent) / Double(max(adjacentCount, 1)),
             maximumAdjacentLuminanceDelta: maximumAdjacentLuminanceDelta,
             luminanceRange: maximum - minimum,
