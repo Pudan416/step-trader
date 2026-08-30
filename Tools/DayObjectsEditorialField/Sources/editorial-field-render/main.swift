@@ -21,7 +21,9 @@ enum RenderCLIError: Error, LocalizedError {
 private let usage = """
 Usage:
   editorial-field-render composition --manifest <path> --output <round-dir> [--source-commit <hash>] [--overlays all|none|crop,overlap,centerOfMass,occupiedBounds]
+  editorial-field-render material --manifest <path> --composition-approval <path> --output <round-dir> [--source-commit <hash>] [--scale <positive-integer>]
   editorial-field-render verify --package <round-dir> --expected-source-commit <full-git-object-id>
+  editorial-field-render verify-material --package <round-dir> --composition-approval <path> --expected-source-commit <full-git-object-id>
 """
 
 private func option(_ name: String, in arguments: [String]) throws -> String {
@@ -69,6 +71,19 @@ private func currentSourceCommit() -> String {
     }
 }
 
+private func positiveIntegerOption(
+    _ name: String,
+    in arguments: [String],
+    default defaultValue: Int
+) throws -> Int {
+    guard arguments.contains(name) else { return defaultValue }
+    let value = try option(name, in: arguments)
+    guard let integer = Int(value), integer > 0 else {
+        throw RenderCLIError.usage("\(name) must be a positive integer")
+    }
+    return integer
+}
+
 do {
     let arguments = Array(CommandLine.arguments.dropFirst())
     guard let command = arguments.first else { throw RenderCLIError.usage(usage) }
@@ -96,6 +111,33 @@ do {
         print("core PNG views: \(generated.manifest.coreImageCount)")
         print("artifact records: \(generated.manifest.artifacts.count)")
         print("package SHA-256: \(generated.packageHash)")
+    case "material":
+        let manifestURL = URL(fileURLWithPath: try option("--manifest", in: arguments))
+        let approvalURL = URL(fileURLWithPath: try option("--composition-approval", in: arguments))
+        let outputURL = URL(fileURLWithPath: try option("--output", in: arguments), isDirectory: true)
+        let manifest = try JSONDecoder().decode(
+            CorpusManifest.self,
+            from: Data(contentsOf: manifestURL)
+        )
+        let sourceCommit: String
+        if arguments.contains("--source-commit") {
+            sourceCommit = try option("--source-commit", in: arguments)
+        } else {
+            sourceCommit = currentSourceCommit()
+        }
+        let generated = try MaterialEvidencePackage.generate(
+            manifest: manifest,
+            compositionApprovalData: Data(contentsOf: approvalURL),
+            sourceCommit: sourceCommit,
+            outputDirectory: outputURL,
+            scale: try positiveIntegerOption("--scale", in: arguments, default: 3)
+        )
+        print("material evidence: \(generated.outputDirectory.path)")
+        print("material fixtures: \(generated.manifest.fixtureCount)")
+        print("core PNG views: \(generated.manifest.coreImageCount)")
+        print("artifact records: \(generated.manifest.artifacts.count)")
+        print("composition approval SHA-256: \(generated.manifest.compositionApprovalSHA256)")
+        print("package SHA-256: \(generated.packageHash)")
     case "verify":
         let packageURL = URL(fileURLWithPath: try option("--package", in: arguments), isDirectory: true)
         let expectedSourceCommit = try option("--expected-source-commit", in: arguments)
@@ -104,6 +146,16 @@ do {
             expectedSourceCommit: expectedSourceCommit
         )
         print("verified package SHA-256: \(packageHash)")
+    case "verify-material":
+        let packageURL = URL(fileURLWithPath: try option("--package", in: arguments), isDirectory: true)
+        let approvalURL = URL(fileURLWithPath: try option("--composition-approval", in: arguments))
+        let expectedSourceCommit = try option("--expected-source-commit", in: arguments)
+        let packageHash = try MaterialEvidencePackage.verify(
+            directory: packageURL,
+            expectedSourceCommit: expectedSourceCommit,
+            expectedCompositionApprovalData: Data(contentsOf: approvalURL)
+        )
+        print("verified material package SHA-256: \(packageHash)")
     default:
         throw RenderCLIError.usage(usage)
     }

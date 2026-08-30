@@ -61,6 +61,36 @@ known limitations when returning an artist round. Neutral evidence is only for
 composition review; it contains no material color, motion, Metal, or production
 renderer behavior.
 
+Render the complete radial material atlas on frozen approved composition
+layouts (nine families crossed with requested one/two/three-color fixtures,
+light/dark/low-contrast backgrounds, full phone renders, exact tile crops, and
+a dedicated outline/counterform sheet):
+
+```bash
+swift run --package-path Tools/DayObjectsEditorialField editorial-field-render material \
+  --manifest Tools/DayObjectsEditorialField/Manifests/visible-v1.json \
+  --composition-approval artifacts/day-objects-editorial-field/composition/composition-approved.json \
+  --output artifacts/day-objects-editorial-field/material/<infrastructure-round> \
+  --source-commit <full-renderer-source-commit>
+```
+
+The material package copies `composition-approved.json` byte-for-byte and
+records its SHA-256 alongside a canonical hash for every consumed composition
+recipe. `metrics.json` contains every actor's one-to-three palette colors,
+zero-to-three radial descriptors, mutation/topology controls, and actual
+rendered RGBA samples. A solid request is intentionally normalized to one
+color and zero fields. No command in this phase creates
+`material-approved.json` or a critic verdict.
+
+Verify both the sealed artifact set and the external frozen composition bytes:
+
+```bash
+swift run --package-path Tools/DayObjectsEditorialField editorial-field-render verify-material \
+  --package artifacts/day-objects-editorial-field/material/<infrastructure-round> \
+  --composition-approval artifacts/day-objects-editorial-field/composition/composition-approved.json \
+  --expected-source-commit <full-renderer-source-commit>
+```
+
 `visible-v1` is a named semantic corpus contract, not a caller-supplied label.
 Generation rejects any manifest whose canonical decoded content differs from
 `CorpusManifest.visibleV1()`, including reordered or missing fixtures, changed
