@@ -50,7 +50,7 @@ public enum MaterialRendererError: Error, LocalizedError {
 /// recipe. It is intentionally independent from app/Metal code and consumes
 /// immutable composition values without deriving or changing geometry.
 public struct MaterialRenderer {
-    public static let version = "material-coregraphics-radial-v1"
+    public static let version = "material-coregraphics-radial-v2"
 
     public init() {}
 
@@ -266,39 +266,105 @@ public struct MaterialRenderer {
                         u: u,
                         v: v,
                         focusX: 0.32,
-                        focusY: 0.68,
-                        radius: 0.42,
-                        softness: 0.78
+                        focusY: 0.36,
+                        radius: 0.30,
+                        softness: 0.72
                     )
-                    color = mix(color, RGB.white, 0.24 * highlight)
-                    color = color.scaled(0.84 + 0.16 * (1 - shapeDistance / outerRadius))
+                    let bodyDepth = sqrt(clamp(1 - shapeDistance / outerRadius))
+                    color = color.scaled(0.70 + bodyDepth * 0.30)
+                    color = mix(color, RGB.white, 0.40 * highlight)
                 case .glass:
-                    let rim = 1 - smoothstep(0.020, 0.075, abs(shapeDistance - outerRadius * 0.90))
+                    let surfaceTension = 1 - smoothstep(
+                        0.012,
+                        0.050,
+                        abs(shapeDistance - outerRadius * 0.90)
+                    )
+                    let refractedBand = 1 - smoothstep(
+                        0.018,
+                        0.060,
+                        abs(shapeDistance - outerRadius * 0.76)
+                    )
                     let highlight = radialWeight(
                         u: u,
                         v: v,
                         focusX: 0.31,
-                        focusY: 0.70,
-                        radius: 0.31,
-                        softness: 0.82
+                        focusY: 0.34,
+                        radius: 0.25,
+                        softness: 0.76
                     )
-                    color = mix(color, RGB.white, min(0.48, rim * 0.24 + highlight * 0.30))
+                    color = mix(
+                        color,
+                        RGB(material.colors.last ?? material.colors[0]),
+                        refractedBand * 0.24
+                    )
+                    color = mix(
+                        color,
+                        RGB.white,
+                        min(0.64, surfaceTension * 0.50 + highlight * 0.24)
+                    )
+                    alpha *= 0.88 + surfaceTension * 0.12
                 case .mist:
-                    color = mix(color, RGB.white, 0.08)
+                    let volume = material.fields.map { field in
+                        radialWeight(
+                            u: u,
+                            v: v,
+                            focusX: field.focus.x,
+                            focusY: field.focus.y,
+                            radius: field.radius,
+                            softness: field.softness
+                        ) * clamp(field.opacity)
+                    }.max() ?? 1
+                    let fineVolume = valueNoise(
+                        u: u,
+                        v: v,
+                        frequency: 28,
+                        seed: stableHash(material.eventID)
+                    ) - 0.5
+                    let broadVolume = valueNoise(
+                        u: u,
+                        v: v,
+                        frequency: 13,
+                        seed: stableHash(material.eventID) ^ 0xD1FF_053D
+                    ) - 0.5
+                    let grain = fineVolume * 0.72 + broadVolume * 0.28
+                    let textureAmount = 0.15 * (0.55 + volume * 0.45)
+                    color = mix(color, RGB.white, 0.045)
+                    color = grain >= 0
+                        ? mix(color, RGB.white, grain * textureAmount)
+                        : mix(color, RGB.black, -grain * textureAmount)
+                    alpha *= 0.86 + volume * 0.14
                 case .halo:
                     let corona = 1 - smoothstep(0.025, 0.105, abs(shapeDistance - outerRadius * 0.78))
                     color = mix(color, RGB.white, corona * 0.23)
                     alpha *= 0.86 + corona * 0.14
                 case .luminous:
-                    let glow = radialWeight(
+                    let core = radialWeight(
                         u: u,
                         v: v,
-                        focusX: 0.44,
-                        focusY: 0.54,
-                        radius: 0.65,
-                        softness: 0.84
+                        focusX: 0.43,
+                        focusY: 0.55,
+                        radius: 0.24,
+                        softness: 0.72
                     )
-                    color = mix(color, RGB.white, glow * 0.31)
+                    let innerGlow = radialWeight(
+                        u: u,
+                        v: v,
+                        focusX: 0.43,
+                        focusY: 0.55,
+                        radius: 0.43,
+                        softness: 0.82
+                    )
+                    let outerCorona = 1 - smoothstep(
+                        0.018,
+                        0.075,
+                        abs(shapeDistance - outerRadius * 0.86)
+                    )
+                    color = mix(
+                        color,
+                        RGB.white,
+                        min(0.82, core * 0.52 + innerGlow * 0.10 + outerCorona * 0.62)
+                    )
+                    alpha *= 0.88 + core * 0.08 + outerCorona * 0.04
                 case .outline:
                     var contourAlpha = 0.0
                     let contourCount = max(1, material.contourCount)
@@ -531,6 +597,46 @@ private func mix(_ lhs: RGB, _ rhs: RGB, _ amount: Double) -> RGB {
 
 private func distance(_ lhs: RGB, _ rhs: RGB) -> Double {
     hypot(lhs.r - rhs.r, hypot(lhs.g - rhs.g, lhs.b - rhs.b))
+}
+
+private func stableHash(_ value: String) -> UInt64 {
+    value.utf8.reduce(0xCBF29CE484222325) { partial, byte in
+        (partial ^ UInt64(byte)) &* 0x100000001B3
+    }
+}
+
+private func valueNoise(u: Double, v: Double, frequency: Double, seed: UInt64) -> Double {
+    let scaledX = u * frequency
+    let scaledY = v * frequency
+    let x0 = Int(floor(scaledX))
+    let y0 = Int(floor(scaledY))
+    let tx = smoothstep(0, 1, scaledX - Double(x0))
+    let ty = smoothstep(0, 1, scaledY - Double(y0))
+    let lower = mixScalar(
+        latticeNoise(x: x0, y: y0, seed: seed),
+        latticeNoise(x: x0 + 1, y: y0, seed: seed),
+        tx
+    )
+    let upper = mixScalar(
+        latticeNoise(x: x0, y: y0 + 1, seed: seed),
+        latticeNoise(x: x0 + 1, y: y0 + 1, seed: seed),
+        tx
+    )
+    return mixScalar(lower, upper, ty)
+}
+
+private func latticeNoise(x: Int, y: Int, seed: UInt64) -> Double {
+    var state = seed
+        ^ (UInt64(bitPattern: Int64(x)) &* 0x9E3779B97F4A7C15)
+        ^ (UInt64(bitPattern: Int64(y)) &* 0xD1B54A32D192ED03)
+    state = (state ^ (state >> 30)) &* 0xBF58476D1CE4E5B9
+    state = (state ^ (state >> 27)) &* 0x94D049BB133111EB
+    state ^= state >> 31
+    return Double(state >> 11) / Double(UInt64(1) << 53)
+}
+
+private func mixScalar(_ lhs: Double, _ rhs: Double, _ amount: Double) -> Double {
+    lhs + (rhs - lhs) * clamp(amount)
 }
 
 private func smoothstep(_ lower: Double, _ upper: Double, _ value: Double) -> Double {

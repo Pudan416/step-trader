@@ -258,7 +258,7 @@ public enum MaterialDNA {
     ) -> [MaterialColor] {
         let baseHue = unit(daySeed ^ 0xB453_C010) * 360
         let actorHueShift = (actorUnit(actorSeed, salt: 0x48E) - 0.5) * 18
-        let hueOffsets = [0.0, 52.0, 146.0]
+        let hueOffsets = [0.0, 68.0, 154.0]
         return (0..<count).map { index in
             let hue = baseHue + actorHueShift + hueOffsets[index]
                 + (actorUnit(actorSeed, salt: UInt64(0xC01 + index)) - 0.5) * 16
@@ -282,42 +282,42 @@ public enum MaterialDNA {
         mutation: MaterialMutation?
     ) -> [RadialField] {
         guard family != .solid else { return [] }
+        let rotation = actorUnit(actorSeed, salt: 0xF0C0_5001) * Double.pi * 2
+        let focusOffsets: [(x: Double, y: Double)] = switch colorCount {
+        case 1: [(0.02, -0.03)]
+        case 2: [(-0.18, -0.12), (0.19, 0.13)]
+        default: [(-0.23, -0.16), (0.25, -0.11), (-0.04, 0.29)]
+        }
         return (0..<colorCount).map { index in
-            let x = 0.12 + actorUnit(actorSeed, salt: UInt64(0x100 + index * 7)) * 0.76
-            let y = 0.12 + actorUnit(actorSeed, salt: UInt64(0x101 + index * 7)) * 0.76
+            let offset = focusOffsets[index]
+            let rotatedX = offset.x * cos(rotation) - offset.y * sin(rotation)
+            let rotatedY = offset.x * sin(rotation) + offset.y * cos(rotation)
+            let jitterX = (actorUnit(actorSeed, salt: UInt64(0x100 + index * 7)) - 0.5) * 0.055
+            let jitterY = (actorUnit(actorSeed, salt: UInt64(0x101 + index * 7)) - 0.5) * 0.055
+            let x = min(0.84, max(0.16, 0.5 + rotatedX + jitterX))
+            let y = min(0.84, max(0.16, 0.5 + rotatedY + jitterY))
             let radius: Double
             if index == 0 {
-                radius = 0.90 + actorUnit(actorSeed, salt: UInt64(0x102 + index * 7)) * 0.25
+                radius = 0.82 + actorUnit(actorSeed, salt: UInt64(0x102 + index * 7)) * 0.13
             } else {
-                radius = 0.55 + actorUnit(actorSeed, salt: UInt64(0x102 + index * 7)) * 0.33
+                radius = 0.55 + actorUnit(actorSeed, salt: UInt64(0x102 + index * 7)) * 0.06
             }
-            var softness = 0.52 + actorUnit(actorSeed, salt: UInt64(0x103 + index * 7)) * 0.26
+            var softness = 0.68 + actorUnit(actorSeed, salt: UInt64(0x103 + index * 7)) * 0.09
             if mutation == .softGradient || mutation == .frostedGlass || mutation == .diffuseMist {
-                softness = min(0.80, softness + 0.05)
+                softness = min(0.80, softness + 0.03)
             }
             let opacity = index == 0
                 ? 1
-                : 0.74 + actorUnit(actorSeed, salt: UInt64(0x104 + index * 7)) * 0.22
-            let blend: RadialBlend
-            if index == 0 {
-                blend = .normal
-            } else if family == .outline || family == .counterform {
-                // Sparse rings and cut centers expose only a narrow subset of
-                // each radial field. Normal ownership keeps every requested
-                // palette region chromatically legible on that topology.
-                blend = .normal
-            } else {
-                let choices: [RadialBlend] = [.normal, .screen, .softLight, .multiply]
-                let selector = Int((actorSeed >> UInt64(index * 9)) % UInt64(choices.count))
-                blend = choices[selector]
-            }
+                : 0.92 + actorUnit(actorSeed, salt: UInt64(0x104 + index * 7)) * 0.06
             return RadialField(
                 focus: CompositionPoint(x: x, y: y),
                 radius: radius,
                 softness: softness,
                 opacity: opacity,
                 colorIndex: index,
-                blend: blend
+                // Broad normal ownership preserves each related palette color.
+                // Renderer decoding still supports the bounded HTML blend set.
+                blend: .normal
             )
         }
     }

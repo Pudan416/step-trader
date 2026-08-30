@@ -88,6 +88,38 @@ public struct MaterialFixtureMetrics: Codable, Equatable, Sendable {
     public let actors: [MaterialActorMetrics]
 }
 
+public struct MaterialFamilyCropMetrics: Codable, Equatable, Sendable {
+    public let family: MaterialFamily
+    public let requestedColorCount: Int
+    public let actualColorCount: Int
+    public let daySeed: UInt64
+    public let eventID: String
+    public let background: BackgroundCondition
+    public let pixelSize: Int
+    public let path: String
+}
+
+public struct MaterialC3ActorAcceptance: Codable, Equatable, Sendable {
+    public let eventID: String
+    public let diameter: Double
+    public let secondaryAreaFraction: Double
+    public let tertiaryAreaFraction: Double
+    public let secondaryPeakDifference: Double
+    public let tertiaryPeakDifference: Double
+    public let ownershipCenterDistance: Double
+    public let ownershipColorDistance: Double
+    public let passes: Bool
+}
+
+public struct MaterialC3FixtureAcceptance: Codable, Equatable, Sendable {
+    public let fixtureIndex: Int
+    public let family: MaterialFamily
+    public let eligibleActorCount: Int
+    public let passingActorCount: Int
+    public let passRate: Double
+    public let actors: [MaterialC3ActorAcceptance]
+}
+
 public struct MaterialEvidenceMetrics: Codable, Equatable, Sendable {
     public let version: String
     public let fixtureCount: Int
@@ -95,6 +127,8 @@ public struct MaterialEvidenceMetrics: Codable, Equatable, Sendable {
     public let compositionApprovalSHA256: String
     public let compositionRecipeArchiveSHA256: String
     public let fixtures: [MaterialFixtureMetrics]
+    public let familyCrops: [MaterialFamilyCropMetrics]
+    public let c3Acceptance: [MaterialC3FixtureAcceptance]
 }
 
 public struct MaterialEvidenceManifest: Codable, Equatable, Sendable {
@@ -176,6 +210,42 @@ public enum MaterialEvidencePackage {
         func colorDistance(to other: MaterialPixelProbe) -> Double {
             hypot(hypot(red - other.red, green - other.green), blue - other.blue)
         }
+    }
+
+    private struct AnalysisPixel {
+        let red: Double
+        let green: Double
+        let blue: Double
+        let alpha: Double
+
+        func distance(to other: AnalysisPixel) -> Double {
+            hypot(hypot(red - other.red, green - other.green), blue - other.blue)
+        }
+    }
+
+    private struct AnalysisImage {
+        let width: Int
+        let height: Int
+        let rgba: Data
+
+        func pixel(x: Int, y: Int) -> AnalysisPixel {
+            let offset = (y * width + x) * 4
+            let alphaByte = Double(rgba[offset + 3])
+            let divisor = max(1, alphaByte)
+            return AnalysisPixel(
+                red: Double(rgba[offset]) / divisor,
+                green: Double(rgba[offset + 1]) / divisor,
+                blue: Double(rgba[offset + 2]) / divisor,
+                alpha: alphaByte / 255
+            )
+        }
+    }
+
+    private struct ColorContributionAnalysis {
+        let areaFraction: Double
+        let peakDifference: Double
+        let center: CompositionPoint
+        let color: AnalysisPixel
     }
 
     public static func coverage(for manifest: CorpusManifest) -> MaterialAtlasCoverage {
@@ -271,13 +341,33 @@ public enum MaterialEvidencePackage {
             ))
         }
 
+        let familyCrops = try writeFamilyCropArtifacts(
+            manifest: manifest,
+            scale: scale,
+            renderer: renderer,
+            directory: outputDirectory
+        )
+        let c3Acceptance = try c3AcceptanceMetrics(
+            coverage: atlasCoverage,
+            manifest: manifest,
+            frozenRecipes: frozenRecipes,
+            renderer: renderer
+        )
+        guard c3Acceptance.allSatisfy({ $0.passRate >= 0.90 }) else {
+            throw MaterialEvidenceError.invalidPackage(
+                "critic c3 discriminability proxy did not reach 90 percent"
+            )
+        }
+
         let metrics = MaterialEvidenceMetrics(
-            version: "material-metrics-v2",
+            version: "material-metrics-v3",
             fixtureCount: atlasCoverage.fixtures.count,
             coreImageCount: atlasCoverage.coreImageCount,
             compositionApprovalSHA256: approvalHash,
             compositionRecipeArchiveSHA256: recipeArchiveHash,
-            fixtures: fixtureMetrics
+            fixtures: fixtureMetrics,
+            familyCrops: familyCrops,
+            c3Acceptance: c3Acceptance
         )
         try write(canonicalJSON(metrics), path: "metrics.json", in: outputDirectory)
         try makeContactSheet(
@@ -293,7 +383,7 @@ public enum MaterialEvidencePackage {
 
         let artifacts = try artifactRecords(in: outputDirectory)
         let packageManifest = MaterialEvidenceManifest(
-            version: "material-evidence-v2",
+            version: "material-evidence-v3",
             sourceCommit: sourceCommit,
             rendererVersion: MaterialRenderer.version,
             toolchain: "Swift 6 / Swift Package Manager",
@@ -365,7 +455,7 @@ public enum MaterialEvidencePackage {
             from: Data(contentsOf: directory.appendingPathComponent("metrics.json"))
         )
         let expectedCoverage = coverage(for: corpus)
-        guard manifest.version == "material-evidence-v2",
+        guard manifest.version == "material-evidence-v3",
               manifest.sourceCommit == expectedSourceCommit,
               manifest.rendererVersion == MaterialRenderer.version,
               manifest.toolchain == "Swift 6 / Swift Package Manager",
@@ -395,12 +485,22 @@ public enum MaterialEvidencePackage {
                 renderer: MaterialRenderer()
             )
         }
-        guard metrics.version == "material-metrics-v2",
+        let expectedFamilyCrops = familyCropMetrics(manifest: corpus, scale: manifest.viewport.scale)
+        let expectedC3Acceptance = try c3AcceptanceMetrics(
+            coverage: expectedCoverage,
+            manifest: corpus,
+            frozenRecipes: frozenRecipes,
+            renderer: MaterialRenderer()
+        )
+        guard metrics.version == "material-metrics-v3",
               metrics.fixtureCount == expectedCoverage.fixtures.count,
               metrics.coreImageCount == expectedCoverage.coreImageCount,
               metrics.compositionApprovalSHA256 == manifest.compositionApprovalSHA256,
               metrics.compositionRecipeArchiveSHA256 == manifest.compositionRecipeArchiveSHA256,
-              metrics.fixtures == expectedFixtureMetrics
+              metrics.fixtures == expectedFixtureMetrics,
+              metrics.familyCrops == expectedFamilyCrops,
+              metrics.c3Acceptance == expectedC3Acceptance,
+              metrics.c3Acceptance.allSatisfy({ $0.passRate >= 0.90 })
         else {
             throw MaterialEvidenceError.invalidPackage("metrics coverage or descriptors mismatch")
         }
@@ -566,6 +666,208 @@ public enum MaterialEvidencePackage {
                 height: side
             ),
             actors: try actorMetrics(for: dna, renderer: renderer)
+        )
+    }
+
+    private static func familyCropMetrics(
+        manifest: CorpusManifest,
+        scale: Int
+    ) -> [MaterialFamilyCropMetrics] {
+        let exemplar = manifest.breadth[0]
+        let eventID = exemplar.eventIDs[0]
+        let pixelSize = 160 * scale
+        return MaterialFamily.allCases.flatMap { family in
+            (1...3).map { colorCount in
+                MaterialFamilyCropMetrics(
+                    family: family,
+                    requestedColorCount: colorCount,
+                    actualColorCount: family == .solid ? 1 : colorCount,
+                    daySeed: exemplar.seed,
+                    eventID: eventID,
+                    background: .lowContrast,
+                    pixelSize: pixelSize,
+                    path: familyCropPath(
+                        family: family,
+                        colorCount: colorCount,
+                        scale: scale
+                    )
+                )
+            }
+        }
+    }
+
+    private static func writeFamilyCropArtifacts(
+        manifest: CorpusManifest,
+        scale: Int,
+        renderer: MaterialRenderer,
+        directory: URL
+    ) throws -> [MaterialFamilyCropMetrics] {
+        let metrics = familyCropMetrics(manifest: manifest, scale: scale)
+        for crop in metrics {
+            let actor = MaterialDNA.fixture(
+                daySeed: crop.daySeed,
+                eventIDs: [crop.eventID],
+                family: crop.family,
+                requestedColorCount: crop.requestedColorCount
+            ).actor(crop.eventID)
+            guard let actor else {
+                throw MaterialEvidenceError.invalidPackage("missing family crop actor")
+            }
+            let rendered = try renderer.renderActor(
+                actor,
+                pixelSize: crop.pixelSize,
+                background: crop.background
+            )
+            try write(rendered.pngData, path: crop.path, in: directory)
+        }
+        try makeContactSheet(
+            paths: metrics.map(\.path),
+            outputPath: "contact-sheets/family-optics.png",
+            directory: directory,
+            columns: 3,
+            cellWidth: 180,
+            cellHeight: 180
+        )
+        return metrics
+    }
+
+    private static func c3AcceptanceMetrics(
+        coverage: MaterialAtlasCoverage,
+        manifest: CorpusManifest,
+        frozenRecipes: [Int: SceneRecipe],
+        renderer: MaterialRenderer
+    ) throws -> [MaterialC3FixtureAcceptance] {
+        let targetIndexes: Set<Int> = [2, 8, 11, 14, 20]
+        return try coverage.fixtures.filter { targetIndexes.contains($0.index) }.map { fixture in
+            let layout = manifest.breadth[fixture.layoutFixtureIndex]
+            guard let recipe = frozenRecipes[fixture.layoutFixtureIndex] else {
+                throw MaterialEvidenceError.invalidCompositionApproval(
+                    "missing frozen recipe for c3 fixture \(fixture.index)"
+                )
+            }
+            let eligible = recipe.actors.filter { $0.diameter >= 0.15 }
+            guard !eligible.isEmpty else {
+                throw MaterialEvidenceError.invalidPackage(
+                    "c3 fixture \(fixture.index) has no eligible actors"
+                )
+            }
+            let actors = try eligible.map { compositionActor in
+                let variants = try (1...3).map { colorCount -> AnalysisImage in
+                    let actor = MaterialDNA.fixture(
+                        daySeed: layout.seed,
+                        eventIDs: layout.eventIDs,
+                        family: fixture.family,
+                        requestedColorCount: colorCount
+                    ).actor(compositionActor.eventID)
+                    guard let actor else {
+                        throw MaterialEvidenceError.invalidPackage(
+                            "missing c3 proxy actor \(compositionActor.eventID)"
+                        )
+                    }
+                    return try analysisImage(actor: actor, renderer: renderer)
+                }
+                let secondary = colorContribution(from: variants[0], to: variants[1])
+                let tertiary = colorContribution(from: variants[1], to: variants[2])
+                let centerDistance = hypot(
+                    secondary.center.x - tertiary.center.x,
+                    secondary.center.y - tertiary.center.y
+                )
+                let colorDistance = secondary.color.distance(to: tertiary.color)
+                let passes = secondary.areaFraction >= 0.10
+                    && tertiary.areaFraction >= 0.10
+                    && secondary.peakDifference >= 0.18
+                    && tertiary.peakDifference >= 0.18
+                    && centerDistance >= 0.16
+                    && colorDistance >= 0.12
+                return MaterialC3ActorAcceptance(
+                    eventID: compositionActor.eventID,
+                    diameter: compositionActor.diameter,
+                    secondaryAreaFraction: secondary.areaFraction,
+                    tertiaryAreaFraction: tertiary.areaFraction,
+                    secondaryPeakDifference: secondary.peakDifference,
+                    tertiaryPeakDifference: tertiary.peakDifference,
+                    ownershipCenterDistance: centerDistance,
+                    ownershipColorDistance: colorDistance,
+                    passes: passes
+                )
+            }
+            let passing = actors.filter(\.passes).count
+            return MaterialC3FixtureAcceptance(
+                fixtureIndex: fixture.index,
+                family: fixture.family,
+                eligibleActorCount: actors.count,
+                passingActorCount: passing,
+                passRate: Double(passing) / Double(actors.count),
+                actors: actors
+            )
+        }
+    }
+
+    private static func analysisImage(
+        actor: ActorMaterialRecipe,
+        renderer: MaterialRenderer
+    ) throws -> AnalysisImage {
+        let rendered = try renderer.renderActor(actor, pixelSize: 160)
+        let image = try decodedPNG(rendered.pngData, path: "analysis:\(actor.eventID)")
+        return AnalysisImage(
+            width: image.width,
+            height: image.height,
+            rgba: try normalizedRGBA(image)
+        )
+    }
+
+    private static func colorContribution(
+        from previous: AnalysisImage,
+        to current: AnalysisImage
+    ) -> ColorContributionAnalysis {
+        var visibleCount = 0
+        var peakDifference = 0.0
+        var affected = [(difference: Double, x: Double, y: Double, color: AnalysisPixel)]()
+        for y in stride(from: 0, to: current.height, by: 2) {
+            for x in stride(from: 0, to: current.width, by: 2) {
+                let old = previous.pixel(x: x, y: y)
+                let new = current.pixel(x: x, y: y)
+                guard min(old.alpha, new.alpha) >= 0.12 else { continue }
+                visibleCount += 1
+                let difference = old.distance(to: new)
+                peakDifference = max(peakDifference, difference)
+                guard difference >= 0.10 else { continue }
+                affected.append((
+                    difference: difference,
+                    x: (Double(x) + 0.5) / Double(current.width),
+                    y: (Double(y) + 0.5) / Double(current.height),
+                    color: new
+                ))
+            }
+        }
+        let ownershipFloor = max(0.10, peakDifference * 0.70)
+        let ownership = affected.filter { $0.difference >= ownershipFloor }
+        var weight = 0.0
+        var weightedX = 0.0
+        var weightedY = 0.0
+        var weightedRed = 0.0
+        var weightedGreen = 0.0
+        var weightedBlue = 0.0
+        for sample in ownership {
+            let salience = sample.difference * sample.difference * sample.difference
+            weight += salience
+            weightedX += sample.x * salience
+            weightedY += sample.y * salience
+            weightedRed += sample.color.red * salience
+            weightedGreen += sample.color.green * salience
+            weightedBlue += sample.color.blue * salience
+        }
+        let divisor = max(weight, 0.000_001)
+        return ColorContributionAnalysis(
+            areaFraction: Double(affected.count) / Double(max(visibleCount, 1)),
+            peakDifference: peakDifference,
+            center: CompositionPoint(x: weightedX / divisor, y: weightedY / divisor),
+            color: AnalysisPixel(
+                red: weightedRed / divisor,
+                green: weightedGreen / divisor,
+                blue: weightedBlue / divisor,
+                alpha: 1
+            )
         )
     }
 
@@ -735,6 +1037,7 @@ public enum MaterialEvidencePackage {
         var paths: Set<String> = [
             "composition-approved.json",
             "composition-recipes.json",
+            "contact-sheets/family-optics.png",
             "contact-sheets/material-atlas.png",
             "contact-sheets/outline-counterform.png",
             "corpus-manifest.json",
@@ -744,6 +1047,15 @@ public enum MaterialEvidencePackage {
             let prefix = "renders/\(fixture.family.rawValue)/\(renderStem(fixture))"
             paths.insert("\(prefix)-full@\(scale)x.png")
             paths.insert("\(prefix)-tile@\(scale)x.png")
+        }
+        for family in MaterialFamily.allCases {
+            for colorCount in 1...3 {
+                paths.insert(familyCropPath(
+                    family: family,
+                    colorCount: colorCount,
+                    scale: scale
+                ))
+            }
         }
         return paths
     }
@@ -814,6 +1126,35 @@ public enum MaterialEvidencePackage {
                 throw MaterialEvidenceError.tileCropMismatch(tilePath)
             }
         }
+
+        let familyCrops = familyCropMetrics(manifest: manifest, scale: scale)
+        for crop in familyCrops {
+            let actor = MaterialDNA.fixture(
+                daySeed: crop.daySeed,
+                eventIDs: [crop.eventID],
+                family: crop.family,
+                requestedColorCount: crop.requestedColorCount
+            ).actor(crop.eventID)
+            guard let actor else {
+                throw MaterialEvidenceError.invalidPackage("missing expected family crop actor")
+            }
+            let expectedData = try renderer.renderActor(
+                actor,
+                pixelSize: crop.pixelSize,
+                background: crop.background
+            ).pngData
+            let actual = try decodedPNG(
+                Data(contentsOf: directory.appendingPathComponent(crop.path)),
+                path: crop.path
+            )
+            let expected = try decodedPNG(expectedData, path: "expected:\(crop.path)")
+            guard actual.width == crop.pixelSize,
+                  actual.height == crop.pixelSize,
+                  try normalizedRGBA(actual) == normalizedRGBA(expected)
+            else {
+                throw MaterialEvidenceError.renderPixelMismatch(crop.path)
+            }
+        }
         let atlasPaths = coverage.fixtures.map {
             "renders/\($0.family.rawValue)/\(renderStem($0))-full@\(scale)x.png"
         }
@@ -840,6 +1181,27 @@ public enum MaterialEvidencePackage {
             else {
                 throw MaterialEvidenceError.renderPixelMismatch(path)
             }
+        }
+        let familySheetPath = "contact-sheets/family-optics.png"
+        let actualFamilySheet = try decodedPNG(
+            Data(contentsOf: directory.appendingPathComponent(familySheetPath)),
+            path: familySheetPath
+        )
+        let expectedFamilySheet = try decodedPNG(
+            contactSheetData(
+                paths: familyCrops.map(\.path),
+                directory: directory,
+                columns: 3,
+                cellWidth: 180,
+                cellHeight: 180
+            ),
+            path: "expected:\(familySheetPath)"
+        )
+        guard actualFamilySheet.width == expectedFamilySheet.width,
+              actualFamilySheet.height == expectedFamilySheet.height,
+              try normalizedRGBA(actualFamilySheet) == normalizedRGBA(expectedFamilySheet)
+        else {
+            throw MaterialEvidenceError.renderPixelMismatch(familySheetPath)
         }
     }
 
@@ -887,6 +1249,14 @@ public enum MaterialEvidencePackage {
         )
     }
 
+    private static func familyCropPath(
+        family: MaterialFamily,
+        colorCount: Int,
+        scale: Int
+    ) -> String {
+        "actor-crops/\(family.rawValue)/\(family.rawValue)-colors-\(colorCount)@\(scale)x.png"
+    }
+
     private static func write(_ data: Data, path: String, in directory: URL) throws {
         let url = directory.appendingPathComponent(path)
         try FileManager.default.createDirectory(
@@ -911,7 +1281,8 @@ public enum MaterialEvidencePackage {
         try packageFilePaths(in: directory).filter { !excluded.contains($0) }.map { path in
             let data = try Data(contentsOf: directory.appendingPathComponent(path))
             let kind: String
-            if path.hasPrefix("renders/") { kind = "core-render" }
+            if path.hasPrefix("actor-crops/") { kind = "isolated-actor-crop" }
+            else if path.hasPrefix("renders/") { kind = "core-render" }
             else if path.hasPrefix("contact-sheets/") { kind = "contact-sheet" }
             else if path == "metrics.json" { kind = "metrics" }
             else if path == "corpus-manifest.json" { kind = "corpus-manifest" }
@@ -953,10 +1324,19 @@ public enum MaterialEvidencePackage {
     private static func makeContactSheet(
         paths: [String],
         outputPath: String,
-        directory: URL
+        directory: URL,
+        columns requestedColumns: Int? = nil,
+        cellWidth: Int = 132,
+        cellHeight: Int = 286
     ) throws {
         try write(
-            contactSheetData(paths: paths, directory: directory),
+            contactSheetData(
+                paths: paths,
+                directory: directory,
+                columns: requestedColumns,
+                cellWidth: cellWidth,
+                cellHeight: cellHeight
+            ),
             path: outputPath,
             in: directory
         )
@@ -964,12 +1344,13 @@ public enum MaterialEvidencePackage {
 
     private static func contactSheetData(
         paths: [String],
-        directory: URL
+        directory: URL,
+        columns requestedColumns: Int? = nil,
+        cellWidth: Int = 132,
+        cellHeight: Int = 286
     ) throws -> Data {
-        let columns = min(6, max(1, paths.count))
+        let columns = min(requestedColumns ?? 6, max(1, paths.count))
         let rows = Int(ceil(Double(paths.count) / Double(columns)))
-        let cellWidth = 132
-        let cellHeight = 286
         guard let context = CGContext(
             data: nil,
             width: columns * cellWidth,

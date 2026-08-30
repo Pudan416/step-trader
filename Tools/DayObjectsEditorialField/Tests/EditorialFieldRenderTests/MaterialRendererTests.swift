@@ -312,11 +312,24 @@ struct MaterialRendererTests {
         #expect(metrics.fixtures.flatMap(\.actors).allSatisfy { actor in
             !actor.colors.isEmpty && !actor.samples.isEmpty && actor.fields.count <= 3
         })
+        #expect(metrics.familyCrops.count == 27)
+        #expect(Set(metrics.c3Acceptance.map(\.fixtureIndex)) == Set([2, 8, 11, 14, 20]))
+        #expect(metrics.c3Acceptance.allSatisfy {
+            $0.eligibleActorCount > 0 && $0.passRate >= 0.90
+        })
         #expect(FileManager.default.fileExists(
             atPath: directory.appendingPathComponent("contact-sheets/material-atlas.png").path
         ))
         #expect(FileManager.default.fileExists(
             atPath: directory.appendingPathComponent("contact-sheets/outline-counterform.png").path
+        ))
+        let familyCropArtifacts = generated.manifest.artifacts.filter {
+            $0.path.hasPrefix("actor-crops/") && $0.path.hasSuffix(".png")
+        }
+        #expect(familyCropArtifacts.count == 27)
+        #expect(Set(familyCropArtifacts.map(\.kind)) == Set(["isolated-actor-crop"]))
+        #expect(FileManager.default.fileExists(
+            atPath: directory.appendingPathComponent("contact-sheets/family-optics.png").path
         ))
         #expect(try MaterialEvidencePackage.verify(
             directory: directory,
@@ -559,6 +572,193 @@ struct MaterialRendererTests {
             }
         }
     }
+
+    @Test("critic target c3 actors expose three broad shifted color regions")
+    func criticTargetC3ActorsExposeThreeBroadShiftedRegions() throws {
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let targetIndexes = Set([2, 8, 11, 14, 20])
+        let fixtures = MaterialEvidencePackage.coverage(for: manifest).fixtures.filter {
+            targetIndexes.contains($0.index)
+        }
+        #expect(Set(fixtures.map(\.index)) == targetIndexes)
+
+        let renderer = MaterialRenderer()
+        for fixture in fixtures {
+            let layout = manifest.breadth[fixture.layoutFixtureIndex]
+            let recipe = try #require(archive.fixtures.first {
+                $0.fixtureIndex == fixture.layoutFixtureIndex
+            }?.recipe)
+            let eligibleActors = recipe.actors.filter { $0.diameter >= 0.15 }
+            #expect(!eligibleActors.isEmpty)
+            var passingActors = 0
+            var diagnostics = [String]()
+            for compositionActor in eligibleActors {
+                let variants = try (1...3).map { count in
+                    let actor = try #require(MaterialDNA.fixture(
+                        daySeed: layout.seed,
+                        eventIDs: layout.eventIDs,
+                        family: fixture.family,
+                        requestedColorCount: count
+                    ).actor(compositionActor.eventID))
+                    return try pixels(renderer.renderActor(actor, pixelSize: 160).pngData)
+                }
+                let secondary = colorContribution(from: variants[0], to: variants[1])
+                let tertiary = colorContribution(from: variants[1], to: variants[2])
+                let centerDistance = hypot(
+                    secondary.center.x - tertiary.center.x,
+                    secondary.center.y - tertiary.center.y
+                )
+                let regionColorDistance = rgbDistance(secondary.color, tertiary.color)
+                let passes = secondary.areaFraction >= 0.10
+                    && tertiary.areaFraction >= 0.10
+                    && secondary.peakDifference >= 0.18
+                    && tertiary.peakDifference >= 0.18
+                    && centerDistance >= 0.16
+                    && regionColorDistance >= 0.12
+                if passes { passingActors += 1 }
+                diagnostics.append(
+                    "\(compositionActor.eventID.prefix(8)) "
+                        + "areas=\(secondary.areaFraction)/\(tertiary.areaFraction) "
+                        + "peaks=\(secondary.peakDifference)/\(tertiary.peakDifference) "
+                        + "center=\(centerDistance) color=\(regionColorDistance)"
+                )
+            }
+            let passRate = Double(passingActors) / Double(eligibleActors.count)
+            #expect(
+                passRate >= 0.90,
+                Comment(rawValue: "fixture \(fixture.index) \(fixture.family.rawValue) "
+                    + "passed \(passingActors)/\(eligibleActors.count): "
+                    + diagnostics.joined(separator: "; "))
+            )
+        }
+    }
+
+    @Test("same-layout c2 crops expose two broad regions for every non-solid family")
+    func sameLayoutC2CropsExposeTwoBroadRegions() throws {
+        let exemplar = CorpusManifest.visibleV1().breadth[0]
+        let eventID = try #require(exemplar.eventIDs.first)
+        let renderer = MaterialRenderer()
+
+        for family in MaterialFamily.allCases where family != .solid {
+            let oneColor = try #require(MaterialDNA.fixture(
+                daySeed: exemplar.seed,
+                eventIDs: [eventID],
+                family: family,
+                requestedColorCount: 1
+            ).actor(eventID))
+            let twoColor = try #require(MaterialDNA.fixture(
+                daySeed: exemplar.seed,
+                eventIDs: [eventID],
+                family: family,
+                requestedColorCount: 2
+            ).actor(eventID))
+            let baseImage = try pixels(renderer.renderActor(oneColor, pixelSize: 160).pngData)
+            let twoColorImage = try pixels(renderer.renderActor(twoColor, pixelSize: 160).pngData)
+            let secondary = colorContribution(from: baseImage, to: twoColorImage)
+            let retainedBase = retainedBaseContribution(from: baseImage, to: twoColorImage)
+            let centerDistance = hypot(
+                secondary.center.x - retainedBase.center.x,
+                secondary.center.y - retainedBase.center.y
+            )
+            let colorDistance = rgbDistance(secondary.color, retainedBase.color)
+            let context = "\(family.rawValue): secondaryArea=\(secondary.areaFraction), "
+                + "baseArea=\(retainedBase.areaFraction), peak=\(secondary.peakDifference), "
+                + "center=\(centerDistance), color=\(colorDistance)"
+
+            #expect(secondary.areaFraction >= 0.12, Comment(rawValue: context))
+            #expect(retainedBase.areaFraction >= 0.12, Comment(rawValue: context))
+            #expect(secondary.peakDifference >= 0.18, Comment(rawValue: context))
+            #expect(centerDistance >= 0.14, Comment(rawValue: context))
+            #expect(colorDistance >= 0.12, Comment(rawValue: context))
+        }
+    }
+
+    @Test("mist texture is stable fine volume rather than a smooth Gaussian or noise mask")
+    func mistHasStableFineVolumeTexture() throws {
+        let actor = try #require(MaterialDNA.fixture(
+            daySeed: 0x5157_5EED,
+            eventIDs: ["mist-actor"],
+            family: .mist,
+            requestedColorCount: 3
+        ).actor("mist-actor"))
+        let renderer = MaterialRenderer()
+        let firstData = try renderer.renderActor(actor, pixelSize: 192).pngData
+        let secondData = try renderer.renderActor(actor, pixelSize: 192).pngData
+        let image = try pixels(firstData)
+
+        #expect(firstData == secondData)
+        let colorEnergy = interiorHighFrequencyEnergy(image, alphaChannel: false)
+        let alphaEnergy = interiorHighFrequencyEnergy(image, alphaChannel: true)
+        let adjacentVariation = interiorLagEnergy(image, alphaChannel: false, lag: 1)
+        let volumeVariation = interiorLagEnergy(image, alphaChannel: false, lag: 8)
+        #expect(colorEnergy >= 0.001 && colorEnergy <= 0.010, "mist color grain energy \(colorEnergy)")
+        #expect(adjacentVariation <= 0.004, "mist became pixel-scale static: \(adjacentVariation)")
+        #expect(volumeVariation >= 0.012, "mist lost its correlated volume: \(volumeVariation)")
+        #expect(
+            volumeVariation >= adjacentVariation * 2.2,
+            "mist texture is not spatially correlated: adjacent=\(adjacentVariation), volume=\(volumeVariation)"
+        )
+        #expect(alphaEnergy <= 0.012, "mist alpha became a noise mask: \(alphaEnergy)")
+    }
+
+    @Test("luminous has a legible shifted core and outer emission unlike sphere")
+    func luminousHasInternalAndOuterEmission() throws {
+        let seed: UInt64 = 0x1A11_CE55
+        let renderer = MaterialRenderer()
+        let luminous = try #require(MaterialDNA.fixture(
+            daySeed: seed,
+            eventIDs: ["light"],
+            family: .luminous,
+            requestedColorCount: 3
+        ).actor("light"))
+        let sphere = try #require(MaterialDNA.fixture(
+            daySeed: seed,
+            eventIDs: ["light"],
+            family: .sphere,
+            requestedColorCount: 3
+        ).actor("light"))
+        let luminousImage = try pixels(renderer.renderActor(luminous, pixelSize: 192).pngData)
+        let sphereImage = try pixels(renderer.renderActor(sphere, pixelSize: 192).pngData)
+
+        let luminousCore = averageLuminance(luminousImage, around: .init(x: 0.43, y: 0.55), radius: 0.09)
+        let luminousBody = averageLuminance(luminousImage, radialBand: 0.22...0.31)
+        let luminousCorona = averageLuminance(luminousImage, radialBand: 0.39...0.46)
+        let sphereCorona = averageLuminance(sphereImage, radialBand: 0.39...0.46)
+        #expect(luminousCore - luminousBody >= 0.07)
+        #expect(luminousCorona - luminousBody >= 0.04)
+        #expect(luminousCorona - sphereCorona >= 0.04)
+    }
+
+    @Test("glass keeps a refractive rim visible on the low contrast field")
+    func glassHasVisibleSurfaceTension() throws {
+        let actor = try #require(MaterialDNA.fixture(
+            daySeed: 0x61A5_5EED,
+            eventIDs: ["glass"],
+            family: .glass,
+            requestedColorCount: 3
+        ).actor("glass"))
+        let renderer = MaterialRenderer()
+        let transparent = try pixels(renderer.renderActor(actor, pixelSize: 192).pngData)
+        let lowContrast = try pixels(renderer.renderActor(
+            actor,
+            pixelSize: 192,
+            background: .lowContrast
+        ).pngData)
+        let rim = averageColor(transparent, radialBand: 0.41...0.46)
+        let interior = averageColor(transparent, radialBand: 0.20...0.31)
+        let background = lowContrast.pixel(x: 2, y: 2).straight
+        let visibleRimFraction = radialSamples(lowContrast, radius: 0.44, count: 96).filter {
+            rgbDistance($0, background) >= 0.11
+        }.count
+
+        #expect(rgbDistance(rim, interior) >= 0.10)
+        #expect(Double(visibleRimFraction) / 96 >= 0.75)
+    }
 }
 
 private func fixtureActor(
@@ -586,6 +786,7 @@ private struct StraightRGB {
     let b: Double
 
     var chroma: Double { max(r, g, b) - min(r, g, b) }
+    var luminance: Double { r * 0.2126 + g * 0.7152 + b * 0.0722 }
 
     var hue: Double {
         let maximum = max(r, g, b)
@@ -637,6 +838,219 @@ private struct PixelImage {
             blueByte: rgba[offset + 2],
             alphaByte: rgba[offset + 3]
         )
+    }
+}
+
+private struct ColorContribution {
+    let areaFraction: Double
+    let peakDifference: Double
+    let center: CompositionPoint
+    let color: StraightRGB
+}
+
+private func colorContribution(from previous: PixelImage, to current: PixelImage) -> ColorContribution {
+    precondition(previous.width == current.width && previous.height == current.height)
+    var visibleCount = 0
+    var peakDifference = 0.0
+    var affected = [(difference: Double, x: Double, y: Double, color: StraightRGB)]()
+    for y in stride(from: 0, to: current.height, by: 2) {
+        for x in stride(from: 0, to: current.width, by: 2) {
+            let old = previous.pixel(x: x, y: y)
+            let new = current.pixel(x: x, y: y)
+            guard min(old.alpha, new.alpha) >= 0.12 else { continue }
+            visibleCount += 1
+            let difference = rgbDistance(old.straight, new.straight)
+            peakDifference = max(peakDifference, difference)
+            guard difference >= 0.10 else { continue }
+            affected.append((
+                difference: difference,
+                x: (Double(x) + 0.5) / Double(current.width),
+                y: (Double(y) + 0.5) / Double(current.height),
+                color: new.straight
+            ))
+        }
+    }
+    let ownershipFloor = max(0.10, peakDifference * 0.70)
+    let ownership = affected.filter { $0.difference >= ownershipFloor }
+    var weight = 0.0
+    var weightedX = 0.0
+    var weightedY = 0.0
+    var weightedRed = 0.0
+    var weightedGreen = 0.0
+    var weightedBlue = 0.0
+    for sample in ownership {
+        let salience = sample.difference * sample.difference * sample.difference
+        weight += salience
+        weightedX += sample.x * salience
+        weightedY += sample.y * salience
+        weightedRed += sample.color.r * salience
+        weightedGreen += sample.color.g * salience
+        weightedBlue += sample.color.b * salience
+    }
+    let divisor = max(weight, 0.000_001)
+    return ColorContribution(
+        areaFraction: Double(affected.count) / Double(max(visibleCount, 1)),
+        peakDifference: peakDifference,
+        center: CompositionPoint(x: weightedX / divisor, y: weightedY / divisor),
+        color: StraightRGB(
+            r: weightedRed / divisor,
+            g: weightedGreen / divisor,
+            b: weightedBlue / divisor
+        )
+    )
+}
+
+private func retainedBaseContribution(
+    from previous: PixelImage,
+    to current: PixelImage
+) -> ColorContribution {
+    precondition(previous.width == current.width && previous.height == current.height)
+    var visibleCount = 0
+    var samples = [(weight: Double, x: Double, y: Double, color: StraightRGB)]()
+    for y in stride(from: 0, to: current.height, by: 2) {
+        for x in stride(from: 0, to: current.width, by: 2) {
+            let old = previous.pixel(x: x, y: y)
+            let new = current.pixel(x: x, y: y)
+            guard min(old.alpha, new.alpha) >= 0.12 else { continue }
+            visibleCount += 1
+            let difference = rgbDistance(old.straight, new.straight)
+            guard difference <= 0.08 else { continue }
+            samples.append((
+                weight: max(0.001, 0.08 - difference),
+                x: (Double(x) + 0.5) / Double(current.width),
+                y: (Double(y) + 0.5) / Double(current.height),
+                color: new.straight
+            ))
+        }
+    }
+    let totalWeight = max(samples.map(\.weight).reduce(0, +), 0.000_001)
+    return ColorContribution(
+        areaFraction: Double(samples.count) / Double(max(visibleCount, 1)),
+        peakDifference: 0,
+        center: CompositionPoint(
+            x: samples.map { $0.x * $0.weight }.reduce(0, +) / totalWeight,
+            y: samples.map { $0.y * $0.weight }.reduce(0, +) / totalWeight
+        ),
+        color: StraightRGB(
+            r: samples.map { $0.color.r * $0.weight }.reduce(0, +) / totalWeight,
+            g: samples.map { $0.color.g * $0.weight }.reduce(0, +) / totalWeight,
+            b: samples.map { $0.color.b * $0.weight }.reduce(0, +) / totalWeight
+        )
+    )
+}
+
+private func interiorHighFrequencyEnergy(_ image: PixelImage, alphaChannel: Bool) -> Double {
+    var total = 0.0
+    var count = 0
+    for y in stride(from: 20, to: image.height - 20, by: 2) {
+        for x in stride(from: 20, to: image.width - 20, by: 2) {
+            let center = image.pixel(x: x, y: y)
+            guard center.alpha >= 0.18 else { continue }
+            let neighbours = [
+                image.pixel(x: x - 1, y: y), image.pixel(x: x + 1, y: y),
+                image.pixel(x: x, y: y - 1), image.pixel(x: x, y: y + 1),
+            ]
+            guard neighbours.allSatisfy({ $0.alpha >= 0.18 }) else { continue }
+            let centerValue = alphaChannel ? center.alpha : center.straight.luminance
+            let neighbourMean = neighbours.map {
+                alphaChannel ? $0.alpha : $0.straight.luminance
+            }.reduce(0, +) / 4
+            total += abs(centerValue - neighbourMean)
+            count += 1
+        }
+    }
+    return total / Double(max(count, 1))
+}
+
+private func interiorLagEnergy(_ image: PixelImage, alphaChannel: Bool, lag: Int) -> Double {
+    var total = 0.0
+    var count = 0
+    for y in stride(from: 20, to: image.height - 20 - lag, by: 2) {
+        for x in stride(from: 20, to: image.width - 20 - lag, by: 2) {
+            let center = image.pixel(x: x, y: y)
+            let horizontal = image.pixel(x: x + lag, y: y)
+            let vertical = image.pixel(x: x, y: y + lag)
+            guard center.alpha >= 0.18,
+                  horizontal.alpha >= 0.18,
+                  vertical.alpha >= 0.18
+            else { continue }
+            let centerValue = alphaChannel ? center.alpha : center.straight.luminance
+            let horizontalValue = alphaChannel ? horizontal.alpha : horizontal.straight.luminance
+            let verticalValue = alphaChannel ? vertical.alpha : vertical.straight.luminance
+            total += (abs(centerValue - horizontalValue) + abs(centerValue - verticalValue)) * 0.5
+            count += 1
+        }
+    }
+    return total / Double(max(count, 1))
+}
+
+private func averageLuminance(
+    _ image: PixelImage,
+    around point: CompositionPoint,
+    radius: Double
+) -> Double {
+    let samples = pixels(image, around: point, radius: radius)
+    return samples.map(\.luminance).reduce(0, +) / Double(max(samples.count, 1))
+}
+
+private func averageLuminance(_ image: PixelImage, radialBand: ClosedRange<Double>) -> Double {
+    let samples = pixels(image, radialBand: radialBand)
+    return samples.map(\.luminance).reduce(0, +) / Double(max(samples.count, 1))
+}
+
+private func averageColor(_ image: PixelImage, radialBand: ClosedRange<Double>) -> StraightRGB {
+    let samples = pixels(image, radialBand: radialBand)
+    let divisor = Double(max(samples.count, 1))
+    return StraightRGB(
+        r: samples.map(\.r).reduce(0, +) / divisor,
+        g: samples.map(\.g).reduce(0, +) / divisor,
+        b: samples.map(\.b).reduce(0, +) / divisor
+    )
+}
+
+private func pixels(
+    _ image: PixelImage,
+    around point: CompositionPoint,
+    radius: Double
+) -> [StraightRGB] {
+    var result = [StraightRGB]()
+    for y in 0..<image.height {
+        for x in 0..<image.width {
+            let normalized = CompositionPoint(
+                x: (Double(x) + 0.5) / Double(image.width),
+                y: (Double(y) + 0.5) / Double(image.height)
+            )
+            guard hypot(normalized.x - point.x, normalized.y - point.y) <= radius else { continue }
+            let sample = image.pixel(x: x, y: y)
+            if sample.alpha >= 0.12 { result.append(sample.straight) }
+        }
+    }
+    return result
+}
+
+private func pixels(_ image: PixelImage, radialBand: ClosedRange<Double>) -> [StraightRGB] {
+    var result = [StraightRGB]()
+    for y in 0..<image.height {
+        for x in 0..<image.width {
+            let u = (Double(x) + 0.5) / Double(image.width)
+            let v = (Double(y) + 0.5) / Double(image.height)
+            guard radialBand.contains(hypot(u - 0.5, v - 0.5)) else { continue }
+            let sample = image.pixel(x: x, y: y)
+            if sample.alpha >= 0.12 { result.append(sample.straight) }
+        }
+    }
+    return result
+}
+
+private func radialSamples(_ image: PixelImage, radius: Double, count: Int) -> [StraightRGB] {
+    (0..<count).map { index in
+        let angle = Double(index) / Double(count) * Double.pi * 2
+        let x = Int(((0.5 + cos(angle) * radius) * Double(image.width)).rounded(.down))
+        let y = Int(((0.5 + sin(angle) * radius) * Double(image.height)).rounded(.down))
+        return image.pixel(
+            x: min(image.width - 1, max(0, x)),
+            y: min(image.height - 1, max(0, y))
+        ).straight
     }
 }
 
