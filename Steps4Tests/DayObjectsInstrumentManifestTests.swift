@@ -1,0 +1,92 @@
+import XCTest
+@testable import Steps4
+
+final class DayObjectsInstrumentManifestTests: XCTestCase {
+    private let expectedIDs = [
+        "pad.interstellar",
+        "pad.whispering-sands",
+        "pad.forgotten-stories",
+        "pluck.play-something-sad",
+        "pluck.jec-ambient-pizz-2",
+        "pluck.spider-filter-pluck",
+        "bass.analog-boom",
+        "bass.bb-roys-phaser",
+        "bass.jec-hollores-2",
+        "lead.verbacious",
+        "lead.jec-softwah-2",
+        "lead.bb-silver-screen",
+        "keys.maschinenmensch",
+        "keys.bb-slow-poly",
+        "keys.jec-polaroids-2",
+    ]
+
+    private let expectedUIDByID = [
+        "pad.interstellar": "39529417-FBC1-41D5-B1D1-0DED9E38F164",
+        "pad.whispering-sands": "96F9F71C-1D6C-41FC-8192-E4B550562357",
+        "pad.forgotten-stories": "9BF89CC8-5AD5-46D8-9640-C3FE335C65D9",
+        "pluck.play-something-sad": "E9AFAF33-21A5-4A1B-80BF-74BFB333E86D",
+        "pluck.jec-ambient-pizz-2": "88335303-C675-4D14-907E-2D80823C2BCA",
+        "pluck.spider-filter-pluck": "8FC6202C-DAE8-4651-98DE-F3BEBB07E6BF",
+        "bass.analog-boom": "C2958050-CDCA-4C64-AF92-3217539CE60A",
+        "bass.bb-roys-phaser": "4131C811-FBB8-4E15-B238-8986645A62D3",
+        "bass.jec-hollores-2": "FA16AF16-3033-485F-A183-4DAAB7025B52",
+        "lead.verbacious": "9BDE3DCB-219D-4D70-A067-C1057B557F19",
+        "lead.jec-softwah-2": "2B6BCC6D-8526-4CAD-8230-EF3C84A26E9F",
+        "lead.bb-silver-screen": "BB74B6AD-9076-464C-B373-F2E968BBD2BE",
+        "keys.maschinenmensch": "AA903CDB-938B-4FC7-8E01-050DB95EFDE7",
+        "keys.bb-slow-poly": "6A4C11CA-2CF9-4153-B5D3-A67F28E465A1",
+        "keys.jec-polaroids-2": "9F2D32B0-ED71-4127-A4C5-F51209656AF7",
+    ]
+
+    func testDefaultDescriptorsPreserveExactStableCatalogContract() {
+        let descriptors = DayObjectsInstrumentManifest.defaultDescriptors
+
+        XCTAssertEqual(descriptors.map(\.id.rawValue), expectedIDs)
+        XCTAssertEqual(
+            Dictionary(uniqueKeysWithValues: descriptors.compactMap { descriptor in
+                descriptor.sourceUID.map { (descriptor.id.rawValue, $0) }
+            }),
+            expectedUIDByID
+        )
+    }
+
+    func testEachSynthOneTonalCategoryContainsExactlyThreeUniqueDescriptors() {
+        let descriptors = DayObjectsInstrumentManifest.defaultDescriptors
+        let tonalCategories: [DayObjectsInstrumentCategory] = [.pad, .pluck, .bass, .lead, .keys]
+
+        for category in tonalCategories {
+            let matching = DayObjectsInstrumentManifest.descriptors(in: category)
+            XCTAssertEqual(matching.count, 3, "Unexpected count for \(category)")
+            XCTAssertEqual(Set(matching.map(\.id)).count, 3, "Duplicate ID in \(category)")
+            XCTAssertTrue(matching.allSatisfy { $0.category == category })
+            XCTAssertEqual(matching, descriptors.filter { $0.category == category })
+        }
+
+        XCTAssertEqual(DayObjectsInstrumentManifest.descriptors(in: .drums), [])
+        XCTAssertEqual(DayObjectsInstrumentManifest.descriptors(in: .piano), [])
+        XCTAssertEqual(Set(descriptors.map(\.id)).count, 15)
+        XCTAssertEqual(Set(descriptors.compactMap(\.sourceUID)).count, 15)
+    }
+
+    func testEverySynthOneDescriptorHasAttributionAndBoundedAuditionMetadata() {
+        for descriptor in DayObjectsInstrumentManifest.defaultDescriptors {
+            XCTAssertFalse(descriptor.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            XCTAssertFalse(descriptor.bankName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            XCTAssertNotNil(descriptor.sourceUID)
+            XCTAssertTrue(descriptor.outputTrimDB.isFinite)
+            XCTAssertLessThanOrEqual(descriptor.outputTrimDB, 0)
+            XCTAssertTrue((24...96).contains(descriptor.referenceMIDI))
+            XCTAssertFalse(descriptor.auditionChord.isEmpty)
+            XCTAssertTrue(descriptor.auditionChord.allSatisfy { (24...108).contains($0) })
+        }
+    }
+
+    func testInstrumentIDAndDescriptorRoundTripThroughCodable() throws {
+        let descriptor = try XCTUnwrap(DayObjectsInstrumentManifest.defaultDescriptors.first)
+        let data = try JSONEncoder().encode(descriptor)
+
+        XCTAssertEqual(try JSONDecoder().decode(DayObjectsInstrumentDescriptor.self, from: data), descriptor)
+        XCTAssertEqual(try JSONDecoder().decode(DayObjectsInstrumentID.self, from: JSONEncoder().encode(descriptor.id)), descriptor.id)
+        XCTAssertEqual(Set(DayObjectsInstrumentCategory.allCases), [.pad, .pluck, .bass, .lead, .keys, .drums, .piano])
+    }
+}
