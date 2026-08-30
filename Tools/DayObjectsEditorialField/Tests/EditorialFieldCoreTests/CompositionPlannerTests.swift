@@ -95,6 +95,81 @@ struct CompositionPlannerTests {
         #expect(foundSceneWithoutGiant)
     }
 
+    @Test("visible pairs form an asymmetric counterpoint away from the top cluster")
+    func visiblePairsAvoidTopCluster() {
+        let pairs = CorpusManifest.visibleV1().breadth.filter { $0.actorCount == 2 }
+        #expect(pairs.count == 2)
+
+        for fixture in pairs {
+            let recipe = CompositionPlanner.make(
+                daySeed: fixture.seed,
+                eventIDs: fixture.eventIDs,
+                viewport: .phone
+            )
+            let extent = occupiedVerticalExtent(recipe)
+            let centerY = recipe.actors.map(\.position.y).reduce(0, +) / Double(recipe.actors.count)
+            #expect((0.30...0.70).contains(centerY), "fixture \(fixture.index) center y: \(centerY)")
+            #expect(extent.bottom - extent.top >= 0.24, "fixture \(fixture.index) is too compact: \(extent)")
+        }
+    }
+
+    @Test("dense visible fields use independent cropped edges and useful depth accents")
+    func visibleDenseFieldsCarryAsymmetricDepth() {
+        let denseFixtures = CorpusManifest.visibleV1().breadth.filter {
+            $0.actorCount >= 7 && EditorialGrammar.select(daySeed: $0.seed) != .equalScaleStudy
+        }
+        #expect(denseFixtures.count == 3)
+
+        for fixture in denseFixtures {
+            let recipe = CompositionPlanner.make(
+                daySeed: fixture.seed,
+                eventIDs: fixture.eventIDs,
+                viewport: .phone
+            )
+            let cropped = recipe.actors.filter { recipe.cropFraction(of: $0) >= 0.12 }
+            let croppedEdges = Set(cropped.compactMap { croppedEdge(of: $0, in: recipe) })
+            #expect(cropped.count >= 2, "fixture \(fixture.index) has only \(cropped.count) intentional crops")
+            #expect(croppedEdges.count >= 2, "fixture \(fixture.index) repeats edge \(croppedEdges)")
+
+            let extent = occupiedVerticalExtent(recipe)
+            #expect(extent.top <= 0.02, "fixture \(fixture.index) top extent \(extent.top)")
+            #expect(extent.bottom >= 0.98, "fixture \(fixture.index) bottom extent \(extent.bottom)")
+            #expect(recipe.actors.contains { $0.diameter <= 0.105 && recipe.cropFraction(of: $0) < 0.10 })
+
+            let depthBands = Set(recipe.actors.map { actor -> Int in
+                if actor.depth < 0.28 { return 0 }
+                if actor.depth < 0.68 { return 1 }
+                return 2
+            })
+            #expect(depthBands == Set([0, 1, 2]))
+        }
+    }
+
+    @Test("non-equal ten-actor fields sustain an extreme but continuous hierarchy")
+    func tenActorHierarchyKeepsExtremeRange() {
+        for recipe in Self.stressRecipes where recipe.grammar != .equalScaleStudy {
+            #expect(recipe.maximumDiameter / recipe.minimumDiameter >= 4.5)
+
+            let occupiedBands = Set(recipe.actors.map { actor -> Int in
+                switch actor.diameter {
+                case ...0.105: 0
+                case ...0.18: 1
+                case ...0.34: 2
+                default: 3
+                }
+            })
+            #expect(occupiedBands == Set([0, 1, 2, 3]))
+            #expect(Set(recipe.actors.map { Int(($0.diameter * 10_000).rounded()) }).count >= 8)
+        }
+    }
+
+    @Test("the rare equal-scale grammar remains related without becoming equal-sized")
+    func equalScaleStudyRetainsEditorialVariation() {
+        for recipe in Self.stressRecipes where recipe.grammar == .equalScaleStudy {
+            #expect(recipe.maximumDiameter / recipe.minimumDiameter >= 1.60)
+        }
+    }
+
     @Test("distributed grammars occupy every vertical third with six or more actors")
     func distributedGrammarsUseAllVerticalThirds() {
         for recipe in Self.stressRecipes {
@@ -348,6 +423,14 @@ struct CompositionPlannerTests {
         #expect(croppedScores.compactCluster < 0.95)
     }
 
+    @Test("edge anchors do not create an equal-spacing removal subset")
+    func edgeAnchorSubsetStaysIrregular() {
+        let selectedIDs = [ids[0], ids[3], ids[4], ids[6]]
+        let recipe = CompositionPlanner.make(daySeed: 9, eventIDs: selectedIDs, viewport: .phone)
+        let scores = CompositionGuardrails.evaluate(recipe)
+        #expect(scores.equalSpacing < 0.95, "actors: \(recipe.actors), scores: \(scores)")
+    }
+
     @Test("grammar weights and regularity guardrails remain bounded across 2,048 seeds")
     func distributionAndRegularityGuardrails() {
         var grammarCounts = Dictionary(uniqueKeysWithValues: EditorialGrammar.allCases.map { ($0, 0) })
@@ -411,6 +494,33 @@ struct CompositionPlannerTests {
             }
         }
         return count
+    }
+
+    private func occupiedVerticalExtent(_ recipe: CompositionRecipe) -> (top: Double, bottom: Double) {
+        let radiusScale = recipe.viewport.shortSide / recipe.viewport.height * 0.5
+        return (
+            recipe.actors.map { $0.position.y - $0.diameter * radiusScale }.min() ?? 0,
+            recipe.actors.map { $0.position.y + $0.diameter * radiusScale }.max() ?? 0
+        )
+    }
+
+    private func croppedEdge(
+        of actor: ActorCompositionRecipe,
+        in recipe: CompositionRecipe
+    ) -> String? {
+        let point = CompositionGeometry.shortSidePoint(actor.position, viewport: recipe.viewport)
+        let radius = actor.diameter * 0.5
+        let width = recipe.viewport.width / recipe.viewport.shortSide
+        let height = recipe.viewport.height / recipe.viewport.shortSide
+        let penetrations = [
+            ("left", radius - point.x),
+            ("right", radius - (width - point.x)),
+            ("top", radius - point.y),
+            ("bottom", radius - (height - point.y)),
+        ]
+        return penetrations.max(by: { $0.1 < $1.1 }).flatMap { edge, penetration in
+            penetration / radius >= 0.12 ? edge : nil
+        }
     }
 
     private func controlRecipe(

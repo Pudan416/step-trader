@@ -191,10 +191,19 @@ public enum CompositionPlanner {
         let diameter = diameter(rank: rank, grammar: grammar, random: &random)
         let depth = depth(rank: rank, grammar: grammar, random: &random)
         let cropAllowance: Double
-        if grammar == .croppedForeground && rank == 0 {
-            cropAllowance = random.inRange(0.20...0.45)
-        } else {
-            cropAllowance = diameter >= 0.38 ? random.inRange(0.15...0.45) : random.inRange(0...0.08)
+        switch rank {
+        case 0 where grammar == .croppedForeground:
+            cropAllowance = random.inRange(0.24...0.45)
+        case 3:
+            cropAllowance = random.inRange(0.14...0.24)
+        case 4:
+            cropAllowance = random.inRange(0.18...0.34)
+        case 6:
+            cropAllowance = random.inRange(0.14...0.24)
+        case 7:
+            cropAllowance = random.inRange(0.20...0.40)
+        default:
+            cropAllowance = diameter >= 0.38 ? random.inRange(0.15...0.32) : random.inRange(0...0.08)
         }
         let position = position(
             rank: rank,
@@ -230,19 +239,31 @@ public enum CompositionPlanner {
         random: inout SplitMix64
     ) -> Double {
         if grammar == .equalScaleStudy {
-            return random.inRange(0.22...0.34)
+            let relatedMediumRanges: [ClosedRange<Double>] = [
+                0.35...0.38,
+                0.18...0.21,
+                0.26...0.33,
+                0.21...0.27,
+                0.31...0.37,
+                0.23...0.30,
+                0.19...0.22,
+                0.30...0.36,
+                0.22...0.29,
+                0.25...0.32,
+            ]
+            return random.inRange(relatedMediumRanges[rank % relatedMediumRanges.count])
         }
         let ranges: [ClosedRange<Double>] = [
-            grammar == .croppedForeground ? 0.54...0.70 : 0.42...0.58,
-            0.06...0.12,
-            0.19...0.34,
-            0.10...0.16,
-            0.38...0.52,
-            0.25...0.38,
+            grammar == .croppedForeground ? 0.56...0.73 : 0.44...0.64,
             0.06...0.105,
-            0.46...0.68,
-            0.16...0.29,
-            0.115...0.16,
+            0.20...0.32,
+            0.105...0.18,
+            0.36...0.56,
+            0.22...0.40,
+            0.06...0.095,
+            0.46...0.72,
+            0.16...0.31,
+            0.11...0.18,
         ]
         return random.inRange(ranges[rank % ranges.count])
     }
@@ -282,61 +303,76 @@ public enum CompositionPlanner {
         let radiusX = diameter * 0.5 * viewport.shortSide / viewport.width
         let radiusY = diameter * 0.5 * viewport.shortSide / viewport.height
 
-        if grammar == .croppedForeground && rank == 0 {
-            let crop = random.inRange(0.17...cropAllowance)
-            let edgeDistanceX = radiusX * (1 - crop)
-            let edgeDistanceY = radiusY * (1 - crop)
-            let orthogonalMinX = radiusX * (1 - cropAllowance)
-            let orthogonalMaxX = 1 - orthogonalMinX
-            switch daySeed % 4 {
-            case 0:
-                return CompositionPoint(x: edgeDistanceX, y: random.inRange(0.16...0.46))
-            case 1:
-                return CompositionPoint(x: 1 - edgeDistanceX, y: random.inRange(0.54...0.84))
-            case 2:
-                return CompositionPoint(
-                    x: random.inRange(max(0.10, orthogonalMinX)...min(0.42, orthogonalMaxX)),
-                    y: edgeDistanceY
-                )
-            default:
-                return CompositionPoint(
-                    x: random.inRange(max(0.58, orthogonalMinX)...min(0.90, orthogonalMaxX)),
-                    y: 1 - edgeDistanceY
-                )
-            }
-        }
-
-        let x: Double
-        let y: Double
+        let anchors: [CompositionPoint]
         switch grammar {
-        case .openField, .depthScatter:
-            let third = rank % 3
-            y = (Double(third) + random.inRange(0.14...0.86)) / 3
-            if rank.isMultiple(of: 2) {
-                x = random.inRange(0.06...0.46)
-            } else {
-                x = random.inRange(0.54...0.94)
-            }
         case .layeredOverlap, .transparentPrint:
-            let anchorX = 0.34 + 0.30 * unit(from: daySeed &+ 0xA11CE)
-            let anchorY = 0.30 + 0.40 * unit(from: daySeed &+ 0xB4A1A)
-            let spread = grammar == .layeredOverlap ? 0.50 : 0.42
-            x = anchorX + (random.unit - 0.5) * spread + (rank.isMultiple(of: 2) ? -0.08 : 0.08)
-            y = anchorY + (random.unit - 0.5) * spread * 1.35 + Double((rank % 3) - 1) * 0.09
-        case .croppedForeground:
-            if rank == 2 {
-                x = random.inRange(0.55...0.86)
-                y = random.inRange(0.30...0.70)
-            } else {
-                x = rank.isMultiple(of: 2) ? random.inRange(0.10...0.48) : random.inRange(0.52...0.90)
-                y = (Double(rank % 3) + random.inRange(0.18...0.82)) / 3
-            }
-        case .equalScaleStudy:
-            x = rank.isMultiple(of: 2) ? random.inRange(0.08...0.47) : random.inRange(0.53...0.92)
-            y = (Double(rank % 3) + random.inRange(0.12...0.88)) / 3
+            // Three loose masses span the portrait; each has an off-axis small
+            // accent instead of collapsing around one shared center.
+            anchors = [
+                .init(x: 0.26, y: 0.40), .init(x: 0.42, y: 0.47),
+                .init(x: 0.31, y: 0.25), .init(x: 0.86, y: 0.08),
+                .init(x: 0.18, y: 0.70), .init(x: 0.36, y: 0.62),
+                .init(x: 0.24, y: 0.95), .init(x: 0.86, y: 0.78),
+                .init(x: 0.70, y: 0.69), .init(x: 0.92, y: 0.48),
+            ]
+        case .openField, .equalScaleStudy:
+            anchors = [
+                .init(x: 0.18, y: 0.18), .init(x: 0.80, y: 0.84),
+                .init(x: 0.66, y: 0.46), .init(x: 0.88, y: 0.07),
+                .init(x: 0.16, y: 0.72), .init(x: 0.72, y: 0.61),
+                .init(x: 0.25, y: 0.95), .init(x: 0.86, y: 0.34),
+                .init(x: 0.34, y: 0.43), .init(x: 0.91, y: 0.73),
+            ]
+        case .depthScatter, .croppedForeground:
+            anchors = [
+                .init(x: 0.18, y: 0.18), .init(x: 0.82, y: 0.84),
+                .init(x: 0.30, y: 0.27), .init(x: 0.84, y: 0.07),
+                .init(x: 0.16, y: 0.72), .init(x: 0.66, y: 0.56),
+                .init(x: 0.23, y: 0.95), .init(x: 0.86, y: 0.76),
+                .init(x: 0.58, y: 0.39), .init(x: 0.93, y: 0.48),
+            ]
         }
 
-        let crop = diameter >= 0.38 && rank == 7 ? min(cropAllowance, 0.22) : 0.06
+        let anchor = anchors[rank % anchors.count]
+        let mirrorX = ((daySeed >> 9) & 1) == 1
+        let mirrorY = ((daySeed >> 17) & 1) == 1
+        let baseX = mirrorX ? 1 - anchor.x : anchor.x
+        let baseY = mirrorY ? 1 - anchor.y : anchor.y
+        let jitterX: Double
+        if rank == 3 || rank == 6 {
+            jitterX = 0.70
+        } else {
+            jitterX = rank == 2 ? 0.12 : 0.20
+        }
+        let jitterY = rank == 2 ? 0.07 : 0.12
+        var x = baseX + (random.unit - 0.5) * jitterX
+        var y = baseY + (random.unit - 0.5) * jitterY
+
+        let crop: Double
+        switch rank {
+        case 0 where grammar == .croppedForeground:
+            crop = random.inRange(0.20...cropAllowance)
+            if daySeed.isMultiple(of: 2) {
+                x = radiusX * (1 - crop)
+            } else {
+                x = 1 - radiusX * (1 - crop)
+            }
+        case 3:
+            crop = random.inRange(0.12...cropAllowance)
+            y = mirrorY ? 1 - radiusY * (1 - crop) : radiusY * (1 - crop)
+        case 4:
+            crop = random.inRange(0.15...cropAllowance)
+            x = mirrorX ? 1 - radiusX * (1 - crop) : radiusX * (1 - crop)
+        case 6:
+            crop = random.inRange(0.12...cropAllowance)
+            y = mirrorY ? radiusY * (1 - crop) : 1 - radiusY * (1 - crop)
+        case 7:
+            crop = random.inRange(0.18...cropAllowance)
+            x = mirrorX ? radiusX * (1 - crop) : 1 - radiusX * (1 - crop)
+        default:
+            crop = 0.04
+        }
+
         let minX = radiusX * (1 - crop)
         let maxX = 1 - minX
         let minY = radiusY * (1 - crop)
