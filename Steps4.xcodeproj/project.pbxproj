@@ -7,6 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D0A0D1000000000000000004 /* AudioKitSynthOne-MIT.txt in Resources */ = {isa = PBXBuildFile; fileRef = D0A0D1000000000000000003 /* AudioKitSynthOne-MIT.txt */; };
+		D0A0D1000000000000000005 /* AudioKitSynthOne-MIT.txt in Resources */ = {isa = PBXBuildFile; fileRef = D0A0D1000000000000000003 /* AudioKitSynthOne-MIT.txt */; };
+		D0A0D1000000000000000007 /* AudioKitCookbook-MIT.txt in Resources */ = {isa = PBXBuildFile; fileRef = D0A0D1000000000000000006 /* AudioKitCookbook-MIT.txt */; };
+		D0A0D1000000000000000008 /* AudioKitCookbook-MIT.txt in Resources */ = {isa = PBXBuildFile; fileRef = D0A0D1000000000000000006 /* AudioKitCookbook-MIT.txt */; };
+		D0A0D100000000000000000A /* OsirisPiano-CC0-1.0.txt in Resources */ = {isa = PBXBuildFile; fileRef = D0A0D1000000000000000009 /* OsirisPiano-CC0-1.0.txt */; };
+		D0A0D100000000000000000B /* OsirisPiano-CC0-1.0.txt in Resources */ = {isa = PBXBuildFile; fileRef = D0A0D1000000000000000009 /* OsirisPiano-CC0-1.0.txt */; };
+		D0A0D100000000000000000D /* SOURCES.json in Resources */ = {isa = PBXBuildFile; fileRef = D0A0D100000000000000000C /* SOURCES.json */; };
+		D0A0D100000000000000000E /* SOURCES.json in Resources */ = {isa = PBXBuildFile; fileRef = D0A0D100000000000000000C /* SOURCES.json */; };
+		D0A0D100000000000000000F /* AudioKit in Frameworks */ = {isa = PBXBuildFile; productRef = D0A0D1000000000000000016 /* AudioKit */; };
+		D0A0D1000000000000000010 /* SoundpipeAudioKit in Frameworks */ = {isa = PBXBuildFile; productRef = D0A0D1000000000000000017 /* SoundpipeAudioKit */; };
+		D0A0D1000000000000000002 /* DayObjectsAudioResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A0D1000000000000000001 /* DayObjectsAudioResourceTests.swift */; };
 		D0B100000000000000000002 /* DayObjectSceneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000001 /* DayObjectSceneTests.swift */; };
 		91F0A0023100000000000002 /* AppTypographyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91F0A0013100000000000001 /* AppTypographyTests.swift */; };
 		91F0A0043100000000000004 /* Unbounded[wght].ttf in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A0033100000000000003 /* Unbounded[wght].ttf */; };
@@ -431,6 +442,11 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		D0A0D1000000000000000001 /* DayObjectsAudioResourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsAudioResourceTests.swift; sourceTree = "<group>"; };
+		D0A0D1000000000000000003 /* AudioKitSynthOne-MIT.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "AudioKitSynthOne-MIT.txt"; sourceTree = "<group>"; };
+		D0A0D1000000000000000006 /* AudioKitCookbook-MIT.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "AudioKitCookbook-MIT.txt"; sourceTree = "<group>"; };
+		D0A0D1000000000000000009 /* OsirisPiano-CC0-1.0.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "OsirisPiano-CC0-1.0.txt"; sourceTree = "<group>"; };
+		D0A0D100000000000000000C /* SOURCES.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = SOURCES.json; sourceTree = "<group>"; };
 		D0B100000000000000000001 /* DayObjectSceneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectSceneTests.swift; sourceTree = "<group>"; };
 		91F0A0013100000000000001 /* AppTypographyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppTypographyTests.swift; path = Steps4Tests/AppTypographyTests.swift; sourceTree = SOURCE_ROOT; };
 		91F0A0033100000000000003 /* Unbounded[wght].ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Unbounded[wght].ttf"; sourceTree = "<group>"; };
@@ -848,6 +864,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0A0D100000000000000000F /* AudioKit in Frameworks */,
+				D0A0D1000000000000000010 /* SoundpipeAudioKit in Frameworks */,
 				2035D7582E7D9CF90011B21D /* DeviceActivity.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -893,6 +911,7 @@
 		DA0BG0010000000000000001 /* DayObjects */ = {
 			isa = PBXGroup;
 			children = (
+				D0A0D1000000000000000011 /* Sound */,
 				DA0BDO010000000000000001 /* DayObjectComposition.swift */,
 				D0B100000000000000000014 /* DayObjectPalette.swift */,
 				D0B100000000000000000015 /* DayObjectChoreography.swift */,
@@ -905,6 +924,33 @@
 				D0B100000000000000000012 /* DayObjectScene.swift */,
 			);
 			path = Experiments/DayObjects;
+			sourceTree = "<group>";
+		};
+		D0A0D1000000000000000011 /* Sound */ = {
+			isa = PBXGroup;
+			children = (
+				D0A0D1000000000000000012 /* Resources */,
+			);
+			path = Sound;
+			sourceTree = "<group>";
+		};
+		D0A0D1000000000000000012 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				D0A0D1000000000000000013 /* AudioLicenses */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		D0A0D1000000000000000013 /* AudioLicenses */ = {
+			isa = PBXGroup;
+			children = (
+				D0A0D1000000000000000003 /* AudioKitSynthOne-MIT.txt */,
+				D0A0D1000000000000000006 /* AudioKitCookbook-MIT.txt */,
+				D0A0D1000000000000000009 /* OsirisPiano-CC0-1.0.txt */,
+				D0A0D100000000000000000C /* SOURCES.json */,
+			);
+			path = AudioLicenses;
 			sourceTree = "<group>";
 		};
 		A16C70010000000000000001 /* RichCanvas */ = {
@@ -1414,6 +1460,7 @@
 		T1E5T5A12E71A18F00ABF5FA /* Steps4Tests */ = {
 			isa = PBXGroup;
 			children = (
+				D0A0D1000000000000000001 /* DayObjectsAudioResourceTests.swift */,
 				D0B100000000000000000001 /* DayObjectSceneTests.swift */,
 				D0B100000000000000000003 /* DayObjectPaletteTests.swift */,
 				D0B100000000000000000005 /* DayObjectChoreographyTests.swift */,
@@ -1583,6 +1630,8 @@
 			);
 			name = Steps4;
 			packageProductDependencies = (
+				D0A0D1000000000000000016 /* AudioKit */,
+				D0A0D1000000000000000017 /* SoundpipeAudioKit */,
 			);
 			productName = Steps4;
 			productReference = 2089F0B42E71A18E00ABF5FA /* Nowhere.app */;
@@ -1713,6 +1762,8 @@
 			);
 			mainGroup = 2089F0AB2E71A18E00ABF5FA;
 			packageReferences = (
+				D0A0D1000000000000000014 /* XCRemoteSwiftPackageReference "AudioKit" */,
+				D0A0D1000000000000000015 /* XCRemoteSwiftPackageReference "SoundpipeAudioKit" */,
 			);
 			productRefGroup = 2089F0B52E71A18E00ABF5FA /* Products */;
 			projectDirPath = "";
@@ -1748,6 +1799,10 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0A0D1000000000000000004 /* AudioKitSynthOne-MIT.txt in Resources */,
+				D0A0D1000000000000000007 /* AudioKitCookbook-MIT.txt in Resources */,
+				D0A0D100000000000000000A /* OsirisPiano-CC0-1.0.txt in Resources */,
+				D0A0D100000000000000000D /* SOURCES.json in Resources */,
 				91F0A00E310000000000000E /* Geist-Medium.ttf in Resources */,
 				91F0A00A310000000000000A /* GeistMono-Medium.ttf in Resources */,
 				91F0A00C310000000000000C /* GeistMono-OFL.txt in Resources */,
@@ -1765,6 +1820,10 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0A0D1000000000000000005 /* AudioKitSynthOne-MIT.txt in Resources */,
+				D0A0D1000000000000000008 /* AudioKitCookbook-MIT.txt in Resources */,
+				D0A0D100000000000000000B /* OsirisPiano-CC0-1.0.txt in Resources */,
+				D0A0D100000000000000000E /* SOURCES.json in Resources */,
 				DA0002000200020002000021 /* canvas_legacy_categorised.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -2074,6 +2133,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0A0D1000000000000000002 /* DayObjectsAudioResourceTests.swift in Sources */,
 				D0B100000000000000000002 /* DayObjectSceneTests.swift in Sources */,
 				D0B100000000000000000004 /* DayObjectPaletteTests.swift in Sources */,
 				D0B100000000000000000006 /* DayObjectChoreographyTests.swift in Sources */,
@@ -2209,6 +2269,38 @@
 			targetProxy = 63495B2B2E564063AEB97212 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		D0A0D1000000000000000014 /* XCRemoteSwiftPackageReference "AudioKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/AudioKit/AudioKit.git";
+			requirement = {
+				kind = exactVersion;
+				version = 5.7.2;
+			};
+		};
+		D0A0D1000000000000000015 /* XCRemoteSwiftPackageReference "SoundpipeAudioKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/AudioKit/SoundpipeAudioKit.git";
+			requirement = {
+				kind = exactVersion;
+				version = 5.7.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		D0A0D1000000000000000016 /* AudioKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D0A0D1000000000000000014 /* XCRemoteSwiftPackageReference "AudioKit" */;
+			productName = AudioKit;
+		};
+		D0A0D1000000000000000017 /* SoundpipeAudioKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D0A0D1000000000000000015 /* XCRemoteSwiftPackageReference "SoundpipeAudioKit" */;
+			productName = SoundpipeAudioKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		00EA17931620479BB15D9633 /* Debug */ = {
