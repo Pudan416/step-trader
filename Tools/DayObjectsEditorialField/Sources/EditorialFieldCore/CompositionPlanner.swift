@@ -302,6 +302,9 @@ public enum CompositionPlanner {
     ) -> CompositionPoint {
         let radiusX = diameter * 0.5 * viewport.shortSide / viewport.width
         let radiusY = diameter * 0.5 * viewport.shortSide / viewport.height
+        let tileHeight = min(1, viewport.width / viewport.height)
+        let tileTop = (1 - tileHeight) * 0.5
+        let tileY: (Double) -> Double = { tileTop + $0 * tileHeight }
 
         let anchors: [CompositionPoint]
         switch grammar {
@@ -316,24 +319,33 @@ public enum CompositionPlanner {
                 .init(x: 0.70, y: 0.69), .init(x: 0.92, y: 0.48),
             ]
         case .openField:
-            // Ranks two and eight are offset neighbours of earlier depth planes.
-            // They form local counterpoints without turning the field into one cluster.
+            // The first three roles survive the production square crop; later
+            // edge roles keep the complete portrait field. Ranks two and eight
+            // remain offset neighbours of earlier depth planes.
             anchors = [
-                .init(x: 0.18, y: 0.18), .init(x: 0.80, y: 0.84),
-                .init(x: 0.47, y: 0.14), .init(x: 0.88, y: 0.07),
+                .init(x: 0.18, y: tileY(0.25)), .init(x: 0.80, y: tileY(0.78)),
+                .init(x: 0.47, y: tileY(0.36)), .init(x: 0.88, y: 0.07),
                 .init(x: 0.16, y: 0.72), .init(x: 0.72, y: 0.61),
                 .init(x: 0.25, y: 0.95), .init(x: 0.86, y: 0.34),
                 .init(x: 0.56, y: 0.40), .init(x: 0.91, y: 0.73),
             ]
         case .equalScaleStudy:
             anchors = [
-                .init(x: 0.18, y: 0.27), .init(x: 0.80, y: 0.84),
-                .init(x: 0.47, y: 0.24), .init(x: 0.88, y: 0.07),
+                .init(x: 0.18, y: tileY(0.30)), .init(x: 0.80, y: tileY(0.82)),
+                .init(x: 0.47, y: tileY(0.23)), .init(x: 0.88, y: 0.07),
                 .init(x: 0.16, y: 0.72), .init(x: 0.72, y: 0.61),
                 .init(x: 0.25, y: 0.95), .init(x: 0.86, y: 0.34),
                 .init(x: 0.56, y: 0.40), .init(x: 0.91, y: 0.73),
             ]
-        case .depthScatter, .croppedForeground:
+        case .depthScatter:
+            anchors = [
+                .init(x: 0.18, y: tileY(0.25)), .init(x: 0.82, y: 0.84),
+                .init(x: 0.30, y: 0.27), .init(x: 0.84, y: 0.07),
+                .init(x: 0.16, y: 0.72), .init(x: 0.66, y: 0.56),
+                .init(x: 0.23, y: 0.95), .init(x: 0.86, y: 0.76),
+                .init(x: 0.58, y: 0.39), .init(x: 0.93, y: 0.48),
+            ]
+        case .croppedForeground:
             anchors = [
                 .init(x: 0.18, y: 0.18), .init(x: 0.82, y: 0.84),
                 .init(x: 0.30, y: 0.27), .init(x: 0.84, y: 0.07),

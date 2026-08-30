@@ -141,6 +141,74 @@ struct CompositionPlannerTests {
         #expect(actorsIntersectingTile.count >= 2, "fixture 4 tile sees only \(actorsIntersectingTile)")
     }
 
+    @Test("listed sparse breadth tiles retain readable editorial relationships")
+    func sparseBreadthTilesRetainEditorialRelationships() {
+        let breadth = CorpusManifest.visibleV1().breadth
+        let single = CompositionPlanner.make(
+            daySeed: breadth[1].seed,
+            eventIDs: breadth[1].eventIDs,
+            viewport: .phone
+        )
+        let singleCenters = actorsCenteredInTile(single)
+        #expect(singleCenters.map(\.eventID) == single.actors.map(\.eventID))
+        #expect(single.actors[0].diameter >= 0.35)
+        #expect((0.12...0.88).contains(tileLocalY(single.actors[0], in: single)))
+        #expect((0.12...0.88).contains(single.actors[0].position.x))
+
+        let triple = CompositionPlanner.make(
+            daySeed: breadth[4].seed,
+            eventIDs: breadth[4].eventIDs,
+            viewport: .phone
+        )
+        let tripleCenters = actorsCenteredInTile(triple)
+        #expect(tripleCenters.map(\.eventID) == triple.actors.map(\.eventID))
+        #expect(horizontalSpan(tripleCenters) >= 0.55)
+        #expect(tileVerticalSpan(tripleCenters, in: triple) >= 0.35)
+        #expect(!readableCrossDepthPairs(in: triple).isEmpty)
+    }
+
+    @Test("sparse continuity tiles retain identities and two-axis balance")
+    func sparseContinuityTilesRetainVisibleIdentities() {
+        let continuity = CorpusManifest.visibleV1().continuity
+        let stageIndices = [0, 1, 2, 3, 6]
+        let minimumReadableCenters = [1, 2, 3, 3, 3]
+        var previousVisibleIDs: Set<String> = []
+        var fiveActorRecipe: CompositionRecipe?
+
+        for (offset, stageIndex) in stageIndices.enumerated() {
+            let stage = continuity.stages[stageIndex]
+            let recipe = CompositionPlanner.make(
+                daySeed: continuity.seed,
+                eventIDs: stage.eventIDs,
+                viewport: .phone
+            )
+            let centered = actorsCenteredInTile(recipe)
+            let visibleIDs = Set(centered.map(\.eventID))
+
+            #expect(
+                centered.count >= minimumReadableCenters[offset],
+                "stage \(stageIndex) centered: \(centered.map(\.eventID)); actors: \(recipe.actors)"
+            )
+            #expect(previousVisibleIDs.isSubset(of: visibleIDs))
+            #expect(Set(stage.eventIDs.prefix(min(3, stage.actorCount))).isSubset(of: visibleIDs))
+            if stage.actorCount >= 2 {
+                #expect(horizontalSpan(centered) >= 0.50)
+                #expect(tileVerticalSpan(centered, in: recipe) >= 0.35)
+            }
+            if stageIndex == 3 || stageIndex == 6 {
+                let lowerCounterweight = recipe.actors.first { $0.eventID == ids[4] }!
+                #expect(tileVisibleVerticalFraction(lowerCounterweight, in: recipe) >= 0.30)
+            }
+
+            if stageIndex == 3 {
+                fiveActorRecipe = recipe
+            } else if stageIndex == 6 {
+                #expect(recipe.actors == fiveActorRecipe?.actors)
+            }
+            previousVisibleIDs = visibleIDs
+        }
+    }
+
     @Test("continuity count ten carries two independent cross-depth overlaps")
     func continuityTenUsesIndependentDepthPairs() {
         let continuity = CorpusManifest.visibleV1().continuity
@@ -549,6 +617,54 @@ struct CompositionPlannerTests {
             }
         }
         return count
+    }
+
+    private func actorsCenteredInTile(
+        _ recipe: CompositionRecipe
+    ) -> [ActorCompositionRecipe] {
+        let tileHeight = recipe.viewport.width / recipe.viewport.height
+        let tileTop = (1 - tileHeight) * 0.5
+        let tileBottom = 1 - tileTop
+        return recipe.actors.filter { (tileTop...tileBottom).contains($0.position.y) }
+    }
+
+    private func tileLocalY(
+        _ actor: ActorCompositionRecipe,
+        in recipe: CompositionRecipe
+    ) -> Double {
+        let tileHeight = recipe.viewport.width / recipe.viewport.height
+        let tileTop = (1 - tileHeight) * 0.5
+        return (actor.position.y - tileTop) / tileHeight
+    }
+
+    private func horizontalSpan(_ actors: [ActorCompositionRecipe]) -> Double {
+        guard let minimum = actors.map(\.position.x).min(),
+              let maximum = actors.map(\.position.x).max() else { return 0 }
+        return maximum - minimum
+    }
+
+    private func tileVerticalSpan(
+        _ actors: [ActorCompositionRecipe],
+        in recipe: CompositionRecipe
+    ) -> Double {
+        guard let minimum = actors.map({ tileLocalY($0, in: recipe) }).min(),
+              let maximum = actors.map({ tileLocalY($0, in: recipe) }).max() else { return 0 }
+        return maximum - minimum
+    }
+
+    private func tileVisibleVerticalFraction(
+        _ actor: ActorCompositionRecipe,
+        in recipe: CompositionRecipe
+    ) -> Double {
+        let tileHeight = recipe.viewport.width / recipe.viewport.height
+        let tileTop = (1 - tileHeight) * 0.5
+        let tileBottom = 1 - tileTop
+        let radiusY = actor.diameter * 0.5 * recipe.viewport.shortSide / recipe.viewport.height
+        let visibleHeight = max(
+            0,
+            min(tileBottom, actor.position.y + radiusY) - max(tileTop, actor.position.y - radiusY)
+        )
+        return visibleHeight / (2 * radiusY)
     }
 
     private func readableCrossDepthPairs(
