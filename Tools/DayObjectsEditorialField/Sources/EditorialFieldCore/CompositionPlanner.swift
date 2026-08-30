@@ -316,12 +316,14 @@ public enum CompositionPlanner {
                 .init(x: 0.70, y: 0.69), .init(x: 0.92, y: 0.48),
             ]
         case .openField, .equalScaleStudy:
+            // Ranks two and eight are offset neighbours of earlier depth planes.
+            // They form local counterpoints without turning the field into one cluster.
             anchors = [
                 .init(x: 0.18, y: 0.18), .init(x: 0.80, y: 0.84),
-                .init(x: 0.66, y: 0.46), .init(x: 0.88, y: 0.07),
+                .init(x: 0.47, y: 0.14), .init(x: 0.88, y: 0.07),
                 .init(x: 0.16, y: 0.72), .init(x: 0.72, y: 0.61),
                 .init(x: 0.25, y: 0.95), .init(x: 0.86, y: 0.34),
-                .init(x: 0.34, y: 0.43), .init(x: 0.91, y: 0.73),
+                .init(x: 0.56, y: 0.40), .init(x: 0.91, y: 0.73),
             ]
         case .depthScatter, .croppedForeground:
             anchors = [
@@ -427,6 +429,13 @@ public enum CompositionPlanner {
         result += balance * 1.8
         result -= abs(averageOverlap - grammar.overlapTarget) * 2.2
         result += min(nearest, 0.55) * (grammar == .openField ? 2.0 : 0.65)
+        result += neighbourPairIntent(
+            candidate,
+            rank: rank,
+            admitted: admitted,
+            grammar: grammar,
+            viewport: viewport
+        )
         result += admitted.reduce(0) {
             $0 + min(abs($1.depth - candidate.depth), 0.4) * 0.18
                 + min(abs($1.diameter - candidate.diameter), 0.35) * 0.12
@@ -463,6 +472,31 @@ public enum CompositionPlanner {
         }.count
         result -= Double(commonPointCount) * 0.55
         return result
+    }
+
+    private static func neighbourPairIntent(
+        _ candidate: Candidate,
+        rank: Int,
+        admitted: [Candidate],
+        grammar: EditorialGrammar,
+        viewport: EditorialViewport
+    ) -> Double {
+        let neighbourIndex: Int
+        switch (grammar, rank) {
+        case (.openField, 2), (.equalScaleStudy, 2):
+            neighbourIndex = 0
+        case (.openField, 8):
+            neighbourIndex = 7
+        default:
+            return 0
+        }
+        guard admitted.indices.contains(neighbourIndex) else { return 0 }
+
+        let neighbour = admitted[neighbourIndex]
+        let overlap = overlapProxy(candidate, neighbour, viewport: viewport)
+        let overlapFit = max(-1, 1 - abs(overlap - 0.28) / 0.28)
+        let depthFit = min(abs(candidate.depth - neighbour.depth) / 0.18, 1)
+        return overlapFit * 2.4 + depthFit * 1.2
     }
 
     private static func angularRingRegularity(

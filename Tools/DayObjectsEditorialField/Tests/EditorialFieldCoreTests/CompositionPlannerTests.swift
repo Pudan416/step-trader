@@ -113,6 +113,50 @@ struct CompositionPlannerTests {
         }
     }
 
+    @Test("breadth fixture four breaks the diagonal with a readable cross-depth neighbour")
+    func breadthFourUsesCrossDepthCounterpoint() {
+        let fixture = CorpusManifest.visibleV1().breadth[4]
+        let recipe = CompositionPlanner.make(
+            daySeed: fixture.seed,
+            eventIDs: fixture.eventIDs,
+            viewport: .phone
+        )
+
+        let pairs = readableCrossDepthPairs(in: recipe)
+        #expect(!pairs.isEmpty, "fixture 4 has no readable cross-depth pair: \(recipe.actors)")
+        #expect(
+            normalizedTriangleArea(recipe) >= 0.18,
+            "fixture 4 remains diagonally linear: \(recipe.actors)"
+        )
+    }
+
+    @Test("continuity count ten carries two independent cross-depth overlaps")
+    func continuityTenUsesIndependentDepthPairs() {
+        let continuity = CorpusManifest.visibleV1().continuity
+        let stage = continuity.stages.first { $0.actorCount == 10 }!
+        let recipe = CompositionPlanner.make(
+            daySeed: continuity.seed,
+            eventIDs: stage.eventIDs,
+            viewport: .phone
+        )
+
+        let pairs = readableCrossDepthPairs(in: recipe)
+        let hasIndependentPairs = pairs.indices.contains { first in
+            pairs.indices.contains { second in
+                second > first
+                    && Set([pairs[first].0, pairs[first].1, pairs[second].0, pairs[second].1]).count == 4
+            }
+        }
+        #expect(hasIndependentPairs, "continuity count 10 depth pairs: \(pairs)")
+
+        let thirds = Set(recipe.actors.map { min(2, max(0, Int($0.position.y * 3))) })
+        #expect(thirds == Set([0, 1, 2]))
+        let extent = occupiedVerticalExtent(recipe)
+        #expect(extent.top <= 0.02)
+        #expect(extent.bottom >= 0.98)
+        #expect(CompositionGuardrails.evaluate(recipe).compactCluster <= 0.35)
+    }
+
     @Test("dense visible fields use independent cropped edges and useful depth accents")
     func visibleDenseFieldsCarryAsymmetricDepth() {
         let denseFixtures = CorpusManifest.visibleV1().breadth.filter {
@@ -494,6 +538,45 @@ struct CompositionPlannerTests {
             }
         }
         return count
+    }
+
+    private func readableCrossDepthPairs(
+        in recipe: CompositionRecipe
+    ) -> [(String, String)] {
+        let widthInShortSides = recipe.viewport.width / recipe.viewport.shortSide
+        let heightInShortSides = recipe.viewport.height / recipe.viewport.shortSide
+        var pairs: [(String, String)] = []
+        for left in recipe.actors.indices {
+            for right in recipe.actors.indices where right > left {
+                let lhs = recipe.actors[left]
+                let rhs = recipe.actors[right]
+                let dx = (lhs.position.x - rhs.position.x) * widthInShortSides
+                let dy = (lhs.position.y - rhs.position.y) * heightInShortSides
+                let radiusSum = (lhs.diameter + rhs.diameter) * 0.5
+                let penetration = (radiusSum - hypot(dx, dy)) / radiusSum
+                if (0.08...0.52).contains(penetration), abs(lhs.depth - rhs.depth) >= 0.12 {
+                    pairs.append((lhs.eventID, rhs.eventID))
+                }
+            }
+        }
+        return pairs
+    }
+
+    private func normalizedTriangleArea(_ recipe: CompositionRecipe) -> Double {
+        guard recipe.actors.count == 3 else { return 0 }
+        let points = recipe.actors.map {
+            CompositionGeometry.shortSidePoint($0.position, viewport: recipe.viewport)
+        }
+        let twiceArea = abs(
+            (points[1].x - points[0].x) * (points[2].y - points[0].y)
+                - (points[1].y - points[0].y) * (points[2].x - points[0].x)
+        )
+        let longestSquared = combinations(of: points, count: 2).map { pair in
+            let dx = pair[0].x - pair[1].x
+            let dy = pair[0].y - pair[1].y
+            return dx * dx + dy * dy
+        }.max() ?? 1
+        return longestSquared > 0 ? twiceArea / longestSquared : 0
     }
 
     private func occupiedVerticalExtent(_ recipe: CompositionRecipe) -> (top: Double, bottom: Double) {
