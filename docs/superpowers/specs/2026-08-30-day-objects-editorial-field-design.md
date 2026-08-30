@@ -286,6 +286,260 @@ motion and focus without regenerating identities or material descriptors.
 Metal consumes bounded actor and appearance buffers and retains one instanced
 actor draw.
 
+## Agent-directed visual development
+
+The feature is developed through a director-led visual gauntlet before its
+formulas are integrated into production Metal. Builder confidence, automated
+metrics, and an attractive hand-picked seed are not sufficient evidence of
+quality.
+
+### Visual director agent
+
+The primary agent delegates a long-lived visual director agent. The director
+owns the reference board, seed corpora, review sequence, evidence manifest,
+and decision ledger, but does not draw compositions or implement renderer
+code. It:
+
+- commissions independent artist agents in isolated workspaces;
+- prevents artists from seeing or averaging one another's implementations;
+- verifies that every required seed, viewport, actor count, and time phase was
+  rendered;
+- starts a fresh critic after every artist revision;
+- returns only the largest material gap and its observable next acceptance
+  test to the responsible artist;
+- blocks Metal transfer until composition, material, and motion have passed
+  independently;
+- never weakens the contract because a deadline or iteration count has been
+  reached.
+
+### Artist agents
+
+The first exploration round uses two or three independent composition artists
+in parallel, within the available agent limit. Every artist receives the same
+visual contract and visible seed corpus but works in a separate sandbox and
+returns artifacts rather than editing shared production files.
+
+The work is subsequently separated by visual responsibility:
+
+- **composition artists** use neutral distinguishable materials and own
+  position, continuous scale, cropping, overlap, negative space, draw order,
+  and static depth assignment;
+- **material artists** use fixed approved layouts and own the nine material
+  families, one-to-three-color behavior, radial-field construction,
+  transparency, contours, chroma, and texture;
+- **motion and depth artists** start only after the static composition passes
+  and own shared flow, individual phase and direction, parallax, breathing,
+  local focus, and loop continuity;
+- **Metal transfer agents** start only after all sandbox pieces pass and port
+  the accepted recipe semantics without introducing a second aesthetic model.
+
+An artist reports artifact paths, render instructions, measurements, and
+known limitations. It never issues a PASS verdict on its own work.
+
+### Reference behavior board
+
+References are tagged by the behavior they establish rather than treated as
+images to reproduce pixel-for-pixel:
+
+- the current Day Objects grid is the negative baseline for repeated
+  equal-size clusters, centered symbols, weak depth, and washed materials;
+- vivid gradient-circle references define saturated internal color, broad
+  overlapping radial influence, shifted centers, and smooth transitions;
+- translucent print references define readable overlapping silhouettes and
+  new color created at intersections;
+- large cropped-circle references define extreme scale hierarchy, foreground
+  cropping, full-canvas occupation, and deliberate negative space;
+- grain references define tactile surface without reducing color or
+  silhouette clarity;
+- `random-gradient-circle.html` defines the HTML material DNA and the
+  separation of shape seed from color seed.
+
+Every critic must cite the relevant reference behavior in its evidence. A
+candidate cannot pass merely because it is attractive in another style.
+
+### Visible seed corpus
+
+All artists and critics initially use the same renderer-independent core
+manifest. It contains twelve fixed day seeds, with two days for each actor
+count in `1`, `2`, `3`, `5`, `7`, and `10`. Stable canonical UUIDs represent
+the first ten happenings.
+
+The seeds are generated rather than selected. After this specification is
+finalized, a corpus tool hashes the immutable specification commit, the public
+nonce `day-objects-editorial-field-visible-v1`, the suite name, and the
+zero-based fixture index with SHA-256. The first 64 bits form the day seed;
+collision resolution hashes the same input with an incrementing suffix. Actor
+count, background condition, sleep condition, step condition, and capture
+phase are assigned by fixed index tables, not by inspecting the resulting
+render. The tool and its complete output manifest are committed before artist
+work begins.
+
+The manifest distributes light, dark, warm, cool, saturated, and deliberately
+low-contrast backgrounds. Static frames are captured at normalized phases
+`0.00`, `0.25`, `0.50`, and `0.75`. Motion clips cover low and normal step
+tempo plus Reduce Motion. Normal sleep is the default, with sharp and
+low-sleep fixtures added for focus evaluation.
+
+Three visible suites use the same identities:
+
+1. **breadth** — all twelve days at their assigned actor counts;
+2. **continuity** — one day at `1 → 2 → 3 → 5 → 7 → 10 → 5` happenings;
+3. **stress** — at least forty-eight additional fixed seeds for automated
+   distribution and failure detection.
+
+The Lab frame is rendered at `393 × 852` points at `3×`. Tile captures use the
+production tile crop rather than a separately composed thumbnail.
+
+### Held-out visual corpus
+
+Automated stress seeds do not protect against visually overfitting the visible
+contact sheet. Before Metal transfer, the director therefore creates a
+separate held-out corpus of twenty-four day seeds unknown to artist agents.
+It is balanced across `1`, `2`, `3`, `5`, `7`, and `10` actors and the same
+background-condition catalog.
+
+The director does not choose these seeds. After a candidate source commit is
+frozen, a fresh critic generates and publishes one cryptographically random
+128-bit nonce. The corpus tool derives each held-out seed from the frozen
+candidate commit, that nonce, the suite name, and fixture index using the same
+SHA-256 rule. Fixed index tables assign actor counts and conditions. The nonce,
+candidate commit, generated manifest, and manifest hash are recorded before
+the first held-out render, and the complete manifest must be rendered without
+omission or substitution.
+
+After the visible corpus passes, the director reveals the held-out seeds once
+and renders them without allowing an intervening code change. Two independent
+fresh critics blindly evaluate the same frozen contact sheet with separately
+randomized labels. Metal transfer is allowed only after both report PASS with
+no dominant repeated clusters, compressed scale hierarchy, missing depth,
+disappearing materials, or repeated material layout.
+
+If the held-out check fails, those seeds become visible training evidence. The
+next candidate must pass the reported gap and then face a new unrevealed
+twenty-four-seed corpus derived only after the next candidate commit is frozen
+and a different fresh critic publishes a new nonce. Artists and the director
+may not choose, remove, or replace unfavorable held-out results.
+
+### Evidence packages
+
+Every round writes a machine-readable manifest, individual full-resolution
+renders, and a contact sheet under a round-specific artifact directory. The
+manifest records the source commit, sandbox or Metal renderer version,
+toolchain, device and OS, viewport and scale, color space, seed and phase, plus
+cryptographic hashes of every evidence artifact. A review always refers to one
+immutable evidence-package hash.
+
+Composition evidence includes:
+
+- all core renders with neutral materials;
+- position, diameter, depth, crop, opacity, and draw-order data;
+- optional debug overlays for occupied bounds, overlap, depth, and center of
+  mass;
+- continuity frames proving retained actor identity.
+
+Material evidence includes:
+
+- an atlas covering every material family;
+- one-, two-, and three-color fixtures on light, dark, and low-contrast
+  backgrounds;
+- radial descriptors and sampled color measurements;
+- a dedicated outline and counterform sheet.
+
+Motion evidence includes:
+
+- eight-to-twelve-second clips for selected grammars;
+- stills at all four normalized phases;
+- separate path and depth traces;
+- low-step, normal-step, Reduce Motion, insertion, and removal captures.
+
+### Fresh critic protocol
+
+A new critic judges every revision. It receives only this visual contract, the
+tagged references, the applicable seed manifest, candidate artifacts, and
+render instructions. It does not receive artist reasoning, confidence,
+suspected fixes, or prior verdicts.
+
+Candidate comparisons use identical viewport, crop, seed, phase, and
+background conditions. When comparing alternatives or a candidate against a
+baseline, A/B labels are randomized until the critic records its observations.
+The critic inspects both contact sheets, which expose repetition, and
+full-resolution renders, which expose seams, blur, weak color, and grain.
+
+The critic returns exactly one judgment:
+
+```text
+VERDICT: PASS | ITERATE | BLOCKED
+EVIDENCE: <reference behavior, affected seeds/phases, and observed comparison>
+LARGEST GAP: <one material gap, or NONE>
+NEXT ACCEPTANCE TEST: <one observable rerendered proof that closes the gap>
+```
+
+The director returns only `LARGEST GAP` and `NEXT ACCEPTANCE TEST` to the
+artist. Averages cannot hide a failed core seed, and metrics remain guardrails
+rather than a substitute for visual judgment.
+
+If the same largest gap survives three consecutive rounds, the director must
+change strategy by splitting the piece, replacing the artist, simplifying the
+representation, or revising the sandbox architecture. Three failed rounds do
+not create a waiver or PASS.
+
+### Piece pass conditions
+
+Composition passes only when the deterministic constraints in this document
+pass, the core sheet demonstrates edge use, vertical distribution, overlap,
+negative space, distinct depth planes, and broad scale, and no unintended
+ring, grid, row, flower, central anchor, or equal-size cluster dominates any
+core scene.
+
+Material passes only when solids are truly flat, every multicolor fill is
+smoothly radial, secondary fields visibly contribute color, shifted centers
+and broad fields survive across the core corpus, transparent actors stay
+readable, and outline and counterform remain distinct.
+
+Motion passes only when actors share a coherent flow without obvious orbiting
+or dominant local spinning, retain independent phase and parallax, cross depth
+smoothly, preserve identity during insertion and removal, and remain
+continuous at loop boundaries.
+
+Every revision receives one fresh critic. When a piece first receives PASS,
+the director freezes its evidence package and commissions a second independent
+blind critic with separately randomized A/B labels. The piece gate opens only
+when both critics return PASS on the same hashed package. Any disagreement or
+shared critical concern is ITERATE, never a majority vote. Automated checks
+remain additional requirements.
+
+### Sandbox-to-Metal transfer
+
+The approved sandbox freezes a versioned `SceneRecipe` representation with
+grammar constraints, stable identities, position, continuous diameter, depth,
+crop, draw order, material family, mutation, colors, radial-field descriptors,
+blend operations, and motion parameters.
+
+Metal consumes the same recipe semantics and seed manifest. It may optimize
+the implementation but may not independently retune the accepted aesthetic.
+For every core seed, transfer evidence contains matched sandbox and Metal
+renders, randomized side-by-side comparisons, sampled composition and color
+measurements, and representative motion clips.
+
+Two independent blind transfer critics judge the same frozen parity package.
+Pixel equality is not required, but Metal may not lose scale hierarchy,
+placement, depth, radial richness, contour identity, transparency, or motion
+character for performance. Both critics must return PASS.
+
+### Final integration gate
+
+After transfer parity passes, a fresh integration critic checks the complete
+Lab experience at one, two, five, and ten happenings; insertion and removal;
+all background conditions; normal and low sleep; low and normal steps; Reduce
+Motion; tile and single-day presentation; and deterministic relaunch.
+
+Perceptual goldens may be updated only from renders already inspected and
+accepted through this loop. Final integration also requires two independent
+blind PASS verdicts on one frozen evidence package. The work is complete only
+when the composition, material, motion, held-out, Metal transfer, and final
+integration gates all pass, or when the user explicitly changes or stops the
+contract.
+
 ## Performance constraints
 
 - Maximum ten actors.
