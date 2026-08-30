@@ -335,7 +335,7 @@ public enum CompositionPlanner {
                 .init(x: 0.47, y: tileY(0.23)), .init(x: 0.88, y: 0.07),
                 .init(x: 0.16, y: 0.72), .init(x: 0.72, y: 0.61),
                 .init(x: 0.25, y: 0.95), .init(x: 0.86, y: 0.34),
-                .init(x: 0.56, y: 0.40), .init(x: 0.91, y: 0.73),
+                .init(x: 0.56, y: 0.30), .init(x: 0.91, y: 0.73),
             ]
         case .depthScatter:
             anchors = [

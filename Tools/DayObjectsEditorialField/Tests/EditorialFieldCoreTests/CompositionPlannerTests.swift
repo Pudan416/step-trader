@@ -293,6 +293,47 @@ struct CompositionPlannerTests {
         }
     }
 
+    @Test("breadth ten equal-scale field avoids rhythmic overlapping bead rows")
+    func breadthTenEqualScaleAvoidsRhythmicOverlapRows() {
+        let fixture = CorpusManifest.visibleV1().breadth[10]
+        let recipe = CompositionPlanner.make(
+            daySeed: fixture.seed,
+            eventIDs: fixture.eventIDs,
+            viewport: .phone
+        )
+
+        let rows = rhythmicOverlapTriples(in: recipe)
+        #expect(rows.isEmpty, "breadth 10 rhythmic overlap rows: \(rows)")
+    }
+
+    @Test("breadth ten equal-scale field retains its readable editorial field")
+    func breadthTenEqualScaleRetainsReadableEditorialField() {
+        let fixture = CorpusManifest.visibleV1().breadth[10]
+        let recipe = CompositionPlanner.make(
+            daySeed: fixture.seed,
+            eventIDs: fixture.eventIDs,
+            viewport: .phone
+        )
+
+        #expect(recipe.grammar == .equalScaleStudy)
+        #expect(recipe.actors.count == 10)
+        #expect(recipe.actors.map(\.eventID) == fixture.eventIDs)
+        #expect(recipe.minimumDiameter >= 0.18)
+        #expect(recipe.actors.allSatisfy { recipe.cropFraction(of: $0) <= 0.35 })
+        #expect(recipe.actors.filter { recipe.cropFraction(of: $0) >= 0.12 }.count >= 3)
+        #expect(Set(recipe.actors.map { min(2, max(0, Int($0.position.y * 3))) }) == Set([0, 1, 2]))
+        let extent = occupiedVerticalExtent(recipe)
+        #expect(extent.top <= 0.02)
+        #expect(extent.bottom >= 0.98)
+        #expect(CompositionGuardrails.evaluate(recipe).compactCluster <= 0.35)
+
+        let renderedOrder = recipe.actors.sorted { $0.drawOrder < $1.drawOrder }.map(\.eventID)
+        let expectedOrder = recipe.actors.sorted {
+            $0.depth == $1.depth ? $0.eventID < $1.eventID : $0.depth < $1.depth
+        }.map(\.eventID)
+        #expect(renderedOrder == expectedOrder)
+    }
+
     @Test("distributed grammars occupy every vertical third with six or more actors")
     func distributedGrammarsUseAllVerticalThirds() {
         for recipe in Self.stressRecipes {
@@ -687,6 +728,70 @@ struct CompositionPlannerTests {
             }
         }
         return pairs
+    }
+
+    private func rhythmicOverlapTriples(
+        in recipe: CompositionRecipe
+    ) -> [(String, String, String)] {
+        let points = recipe.actors.map {
+            CompositionGeometry.shortSidePoint($0.position, viewport: recipe.viewport)
+        }
+        var rows: [(String, String, String)] = []
+
+        for triple in combinations(of: Array(recipe.actors.indices), count: 3) {
+            for middle in triple {
+                let ends = triple.filter { $0 != middle }
+                let firstVector = (
+                    x: points[ends[0]].x - points[middle].x,
+                    y: points[ends[0]].y - points[middle].y
+                )
+                let secondVector = (
+                    x: points[ends[1]].x - points[middle].x,
+                    y: points[ends[1]].y - points[middle].y
+                )
+                let firstDistance = hypot(firstVector.x, firstVector.y)
+                let secondDistance = hypot(secondVector.x, secondVector.y)
+                guard firstDistance > 0, secondDistance > 0 else { continue }
+
+                let directionCosine = (
+                    firstVector.x * secondVector.x + firstVector.y * secondVector.y
+                ) / (firstDistance * secondDistance)
+                let spacingRatio = min(firstDistance, secondDistance) / max(firstDistance, secondDistance)
+                let firstOverlap = overlapPenetration(
+                    recipe.actors[middle],
+                    recipe.actors[ends[0]],
+                    distance: firstDistance
+                )
+                let secondOverlap = overlapPenetration(
+                    recipe.actors[middle],
+                    recipe.actors[ends[1]],
+                    distance: secondDistance
+                )
+
+                if directionCosine <= -cos(20 * .pi / 180),
+                    spacingRatio >= 0.68,
+                    (0.08...0.52).contains(firstOverlap),
+                    (0.08...0.52).contains(secondOverlap),
+                    abs(firstOverlap - secondOverlap) <= 0.12
+                {
+                    rows.append((
+                        recipe.actors[ends[0]].eventID,
+                        recipe.actors[middle].eventID,
+                        recipe.actors[ends[1]].eventID
+                    ))
+                }
+            }
+        }
+        return rows
+    }
+
+    private func overlapPenetration(
+        _ lhs: ActorCompositionRecipe,
+        _ rhs: ActorCompositionRecipe,
+        distance: Double
+    ) -> Double {
+        let radiusSum = (lhs.diameter + rhs.diameter) * 0.5
+        return radiusSum > 0 ? (radiusSum - distance) / radiusSum : 0
     }
 
     private func normalizedTriangleArea(_ recipe: CompositionRecipe) -> Double {
