@@ -61,6 +61,34 @@ public struct NeutralActorEvidence: Codable, Equatable, Sendable {
     public let cropFraction: Double
     public let drawOrder: Int
     public let labelInkPixelCount: Int
+
+    public init(
+        eventID: String,
+        label: String,
+        position: CompositionPoint,
+        diameter: Double,
+        diameterPixels: Double,
+        depth: Double,
+        luminance: Double,
+        localBlur: Double,
+        localBlurPixels: Double,
+        cropFraction: Double,
+        drawOrder: Int,
+        labelInkPixelCount: Int
+    ) {
+        self.eventID = eventID
+        self.label = label
+        self.position = position
+        self.diameter = diameter
+        self.diameterPixels = diameterPixels
+        self.depth = depth
+        self.luminance = luminance
+        self.localBlur = localBlur
+        self.localBlurPixels = localBlurPixels
+        self.cropFraction = cropFraction
+        self.drawOrder = drawOrder
+        self.labelInkPixelCount = labelInkPixelCount
+    }
 }
 
 public struct NeutralRenderedScene: Sendable {

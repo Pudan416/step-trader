@@ -1,4 +1,5 @@
 import CoreGraphics
+import CryptoKit
 import Foundation
 import ImageIO
 import Testing
@@ -113,15 +114,21 @@ struct NeutralRendererTests {
     func tamperFailsVerification() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("editorial-field-evidence-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        let artifact = directory.appendingPathComponent("sample.bin")
-        try Data([0x10, 0x20, 0x30]).write(to: artifact)
-        let packageHash = try EvidencePackage.seal(directory: directory)
+        let generated = try EvidencePackage.generateComposition(
+            manifest: .visibleV1(),
+            sourceCommit: "0123456789abcdef",
+            outputDirectory: directory,
+            renderConfiguration: .init(scale: 1, overlays: [])
+        )
+        let packageHash = generated.packageHash
         #expect(try EvidencePackage.verify(directory: directory) == packageHash)
 
-        try Data([0x10, 0x20, 0x30, 0x40]).write(to: artifact)
+        let artifact = directory.appendingPathComponent("metrics.json")
+        var bytes = try Data(contentsOf: artifact)
+        bytes.append(0x20)
+        try bytes.write(to: artifact, options: .atomic)
         #expect(throws: EvidencePackageError.self) {
             try EvidencePackage.verify(directory: directory)
         }
@@ -154,6 +161,148 @@ struct NeutralRendererTests {
         #expect(FileManager.default.fileExists(atPath: directory.appendingPathComponent("contact-sheets/breadth.png").path))
         #expect(FileManager.default.fileExists(atPath: directory.appendingPathComponent("contact-sheets/continuity.png").path))
         #expect(try EvidencePackage.verify(directory: directory) == generated.packageHash)
+    }
+
+    @Test("visible-v1 generation rejects a manifest with eleven breadth fixtures")
+    func generationRejectsMissingBreadthFixture() throws {
+        let malformed = try mutatedVisibleManifest { json in
+            var breadth = try #require(json["breadth"] as? [[String: Any]])
+            breadth.removeLast()
+            json["breadth"] = breadth
+        }
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("editorial-field-incomplete-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        #expect(throws: EvidencePackageError.self) {
+            try EvidencePackage.generateComposition(
+                manifest: malformed,
+                sourceCommit: "0123456789abcdef",
+                outputDirectory: directory,
+                renderConfiguration: .init(scale: 1, overlays: [])
+            )
+        }
+    }
+
+    @Test("visible-v1 generation rejects reordered fixtures and changed phase, stage, or authority metadata")
+    func generationRejectsOtherCanonicalCorpusMutations() throws {
+        let malformedManifests = try [
+            mutatedVisibleManifest { json in
+                var breadth = try #require(json["breadth"] as? [[String: Any]])
+                breadth.swapAt(0, 1)
+                json["breadth"] = breadth
+            },
+            mutatedVisibleManifest { json in
+                json["phases"] = [0, 0.25, 0.5, 0.80]
+            },
+            mutatedVisibleManifest { json in
+                var continuity = try #require(json["continuity"] as? [String: Any])
+                var stages = try #require(continuity["stages"] as? [[String: Any]])
+                stages[6]["actorCount"] = 7
+                continuity["stages"] = stages
+                json["continuity"] = continuity
+            },
+            mutatedVisibleManifest { json in
+                json["nonce"] = "substituted-visible-nonce"
+            },
+            mutatedVisibleManifest { json in
+                json["specificationCommit"] = String(repeating: "0", count: 40)
+            },
+            mutatedVisibleManifest { json in
+                var stress = try #require(json["stress"] as? [[String: Any]])
+                stress.removeLast()
+                json["stress"] = stress
+            },
+        ]
+
+        for (index, malformed) in malformedManifests.enumerated() {
+            let directory = FileManager.default.temporaryDirectory
+                .appendingPathComponent("editorial-field-invalid-\(index)-\(UUID().uuidString)", isDirectory: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            #expect(throws: EvidencePackageError.self) {
+                try EvidencePackage.generateComposition(
+                    manifest: malformed,
+                    sourceCommit: "0123456789abcdef",
+                    outputDirectory: directory,
+                    renderConfiguration: .init(scale: 1, overlays: [])
+                )
+            }
+        }
+    }
+
+    @Test("verification rejects checksum-valid corpus, manifest, and metrics substitutions")
+    func verifyRejectsResealedSemanticSubstitution() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("editorial-field-semantic-\(UUID().uuidString)", isDirectory: true)
+        let canonicalDirectory = root.appendingPathComponent("canonical", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        _ = try EvidencePackage.generateComposition(
+            manifest: .visibleV1(),
+            sourceCommit: "0123456789abcdef",
+            outputDirectory: canonicalDirectory,
+            renderConfiguration: .init(scale: 1, overlays: [])
+        )
+
+        let corpusForgery = root.appendingPathComponent("corpus-forgery", isDirectory: true)
+        try FileManager.default.copyItem(at: canonicalDirectory, to: corpusForgery)
+        let incomplete = try mutatedVisibleManifest { json in
+            var breadth = try #require(json["breadth"] as? [[String: Any]])
+            breadth.removeLast()
+            json["breadth"] = breadth
+        }
+        try incomplete.canonicalJSON().write(
+            to: corpusForgery.appendingPathComponent("corpus-manifest.json"),
+            options: .atomic
+        )
+        _ = try EvidencePackage.seal(directory: corpusForgery)
+        #expect(throws: EvidencePackageError.self) {
+            try EvidencePackage.verify(directory: corpusForgery)
+        }
+
+        let manifestForgery = root.appendingPathComponent("manifest-forgery", isDirectory: true)
+        try FileManager.default.copyItem(at: canonicalDirectory, to: manifestForgery)
+        _ = try rewriteJSON(manifestForgery.appendingPathComponent("manifest.json")) { json in
+            var frames = try #require(json["frames"] as? [[String: Any]])
+            frames.removeLast()
+            json["frames"] = frames
+            json["coreImageCount"] = 151
+        }
+        _ = try EvidencePackage.seal(directory: manifestForgery)
+        #expect(throws: EvidencePackageError.self) {
+            try EvidencePackage.verify(directory: manifestForgery)
+        }
+
+        let metricsForgery = root.appendingPathComponent("metrics-forgery", isDirectory: true)
+        try FileManager.default.copyItem(at: canonicalDirectory, to: metricsForgery)
+        let metricsData = try rewriteJSON(metricsForgery.appendingPathComponent("metrics.json")) { json in
+            json["breadthSceneCount"] = 47
+        }
+        _ = try rewriteJSON(metricsForgery.appendingPathComponent("manifest.json")) { json in
+            var artifacts = try #require(json["artifacts"] as? [[String: Any]])
+            let index = try #require(artifacts.firstIndex { $0["path"] as? String == "metrics.json" })
+            artifacts[index]["byteCount"] = metricsData.count
+            artifacts[index]["sha256"] = sha256Hex(metricsData)
+            json["artifacts"] = artifacts
+        }
+        _ = try EvidencePackage.seal(directory: metricsForgery)
+        #expect(throws: EvidencePackageError.self) {
+            try EvidencePackage.verify(directory: metricsForgery)
+        }
+
+        let pathForgery = root.appendingPathComponent("path-forgery", isDirectory: true)
+        try FileManager.default.copyItem(at: canonicalDirectory, to: pathForgery)
+        let missingPath = "renders/breadth/breadth-11-phase-075-tile@1x.png"
+        try FileManager.default.removeItem(at: pathForgery.appendingPathComponent(missingPath))
+        _ = try rewriteJSON(pathForgery.appendingPathComponent("manifest.json")) { json in
+            var artifacts = try #require(json["artifacts"] as? [[String: Any]])
+            artifacts.removeAll { $0["path"] as? String == missingPath }
+            json["artifacts"] = artifacts
+        }
+        _ = try EvidencePackage.seal(directory: pathForgery)
+        #expect(throws: EvidencePackageError.self) {
+            try EvidencePackage.verify(directory: pathForgery)
+        }
     }
 
     private var testRecipe: CompositionRecipe {
@@ -220,6 +369,40 @@ struct NeutralRendererTests {
             ]
         )
     }
+}
+
+private func mutatedVisibleManifest(
+    _ mutate: (inout [String: Any]) throws -> Void
+) throws -> CorpusManifest {
+    let canonical = try CorpusManifest.visibleV1().canonicalJSON()
+    var json = try #require(
+        JSONSerialization.jsonObject(with: canonical) as? [String: Any]
+    )
+    try mutate(&json)
+    let data = try JSONSerialization.data(withJSONObject: json, options: [.sortedKeys])
+    return try JSONDecoder().decode(CorpusManifest.self, from: data)
+}
+
+@discardableResult
+private func rewriteJSON(
+    _ url: URL,
+    mutate: (inout [String: Any]) throws -> Void
+) throws -> Data {
+    var json = try #require(
+        JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+    )
+    try mutate(&json)
+    var data = try JSONSerialization.data(
+        withJSONObject: json,
+        options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+    )
+    data.append(0x0A)
+    try data.write(to: url, options: .atomic)
+    return data
+}
+
+private func sha256Hex(_ data: Data) -> String {
+    SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
 }
 
 private enum TestImageError: Error {

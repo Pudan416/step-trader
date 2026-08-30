@@ -11,6 +11,13 @@ public enum EvidenceView: String, CaseIterable, Codable, Hashable, Sendable {
     case calendarTile
 }
 
+/// Every evidence corpus is accepted only through an explicit, versioned
+/// semantic contract. Future held-out corpora add a new kind and validator;
+/// unknown versions fail closed rather than inheriting visible-v1 rules.
+public enum EvidenceCorpusKind: String, Codable, Hashable, Sendable {
+    case visibleV1 = "visible-v1"
+}
+
 public struct CompositionEvidenceFrame: Codable, Equatable, Hashable, Sendable {
     public let suite: String
     public let fixtureIndex: Int
@@ -99,6 +106,13 @@ public enum EvidencePackageError: Error, LocalizedError {
     case packageHashMismatch(expected: String, actual: String)
     case cannotDecodeImage(String)
     case cannotCreateContactSheet
+    case unsupportedCorpusKind(String)
+    case corpusContractMismatch(EvidenceCorpusKind)
+    case invalidEvidenceManifest(String)
+    case invalidMetrics(String)
+    case artifactManifestMismatch
+    case requiredArtifactSetMismatch
+    case invalidImage(path: String, expectedWidth: Int, expectedHeight: Int)
 
     public var errorDescription: String? {
         switch self {
@@ -113,6 +127,15 @@ public enum EvidencePackageError: Error, LocalizedError {
             "Evidence package hash mismatch: expected \(expected), got \(actual)"
         case .cannotDecodeImage(let path): "Cannot decode evidence image: \(path)"
         case .cannotCreateContactSheet: "Cannot create evidence contact sheet"
+        case .unsupportedCorpusKind(let version): "Unsupported evidence corpus kind: \(version)"
+        case .corpusContractMismatch(let kind):
+            "Corpus does not match the canonical \(kind.rawValue) semantic contract"
+        case .invalidEvidenceManifest(let detail): "Invalid evidence manifest: \(detail)"
+        case .invalidMetrics(let detail): "Invalid composition metrics: \(detail)"
+        case .artifactManifestMismatch: "Evidence artifact records do not match package files"
+        case .requiredArtifactSetMismatch: "Evidence package paths do not match required corpus coverage"
+        case .invalidImage(let path, let expectedWidth, let expectedHeight):
+            "Evidence image \(path) is not a \(expectedWidth)x\(expectedHeight) PNG"
         }
     }
 }
@@ -166,6 +189,7 @@ public enum EvidencePackage {
             overlays: Set(NeutralOverlay.allCases)
         )
     ) throws -> GeneratedCompositionEvidence {
+        _ = try validatedCorpusKind(for: manifest)
         try prepareEmptyDirectory(outputDirectory)
         let renderer = NeutralRenderer()
         let coverage = compositionCoverage(for: manifest)
@@ -349,7 +373,261 @@ public enum EvidencePackage {
         guard namedPaths == (try packageFilePaths(in: directory)) else {
             throw EvidencePackageError.artifactSetMismatch
         }
+        try verifySemanticContract(in: directory)
         return expectedPackageHash
+    }
+
+    private static func verifySemanticContract(in directory: URL) throws {
+        let decoder = JSONDecoder()
+        let corpusURL = directory.appendingPathComponent("corpus-manifest.json")
+        let evidenceURL = directory.appendingPathComponent("manifest.json")
+        let metricsURL = directory.appendingPathComponent("metrics.json")
+        let corpus: CorpusManifest
+        let evidence: CompositionEvidenceManifest
+        let metrics: CompositionEvidenceMetrics
+        do {
+            corpus = try decoder.decode(CorpusManifest.self, from: Data(contentsOf: corpusURL))
+            evidence = try decoder.decode(CompositionEvidenceManifest.self, from: Data(contentsOf: evidenceURL))
+            metrics = try decoder.decode(CompositionEvidenceMetrics.self, from: Data(contentsOf: metricsURL))
+        } catch {
+            throw EvidencePackageError.invalidEvidenceManifest(error.localizedDescription)
+        }
+
+        let kind = try validatedCorpusKind(for: corpus)
+        guard evidence.version == "composition-evidence-v1",
+              evidence.corpusVersion == kind.rawValue,
+              evidence.corpusVersion == corpus.version,
+              evidence.specificationCommit == corpus.specificationCommit,
+              evidence.rendererVersion == NeutralRenderer.version,
+              evidence.colorSpace == "sRGB",
+              evidence.viewport.widthPoints == 393,
+              evidence.viewport.heightPoints == 852,
+              evidence.viewport.scale > 0,
+              evidence.viewport.tileCrop == "centered-square-from-phone-canvas",
+              !evidence.sourceCommit.isEmpty
+        else {
+            throw EvidencePackageError.invalidEvidenceManifest("authority or renderer metadata mismatch")
+        }
+
+        let coverage = compositionCoverage(for: corpus)
+        let expectedFrames = coverage.breadth + coverage.continuity
+        guard evidence.coreImageCount == coverage.coreImageCount,
+              evidence.frames == expectedFrames
+        else {
+            throw EvidencePackageError.invalidEvidenceManifest("frame coverage does not match canonical corpus")
+        }
+
+        let overlays = try validatedOverlays(evidence.overlays)
+        let expectedKinds = expectedArtifactKinds(
+            coverage: coverage,
+            scale: evidence.viewport.scale,
+            overlays: overlays
+        )
+        let recordedPaths = evidence.artifacts.map(\.path)
+        guard recordedPaths == recordedPaths.sorted(),
+              Set(recordedPaths).count == recordedPaths.count,
+              Dictionary(uniqueKeysWithValues: evidence.artifacts.map { ($0.path, $0.kind) }) == expectedKinds
+        else {
+            throw EvidencePackageError.requiredArtifactSetMismatch
+        }
+
+        let actualArtifacts = try artifactRecords(in: directory, excluding: ["manifest.json"])
+        guard evidence.artifacts == actualArtifacts else {
+            throw EvidencePackageError.artifactManifestMismatch
+        }
+        try validateMetrics(metrics, corpus: corpus, scale: evidence.viewport.scale)
+        try validateImageFiles(expectedKinds: expectedKinds, scale: evidence.viewport.scale, directory: directory)
+    }
+
+    private static func validatedOverlays(_ values: [String]) throws -> Set<NeutralOverlay> {
+        var overlays = Set<NeutralOverlay>()
+        for value in values {
+            guard let overlay = NeutralOverlay(rawValue: value), overlays.insert(overlay).inserted else {
+                throw EvidencePackageError.invalidEvidenceManifest("unknown or duplicate overlay \(value)")
+            }
+        }
+        guard values == values.sorted() else {
+            throw EvidencePackageError.invalidEvidenceManifest("overlay list is not canonical")
+        }
+        return overlays
+    }
+
+    private static func expectedArtifactKinds(
+        coverage: CompositionEvidenceCoverage,
+        scale: Int,
+        overlays: Set<NeutralOverlay>
+    ) -> [String: String] {
+        let frames = coverage.breadth + coverage.continuity
+        var result = [
+            "contact-sheets/breadth.png": "contact-sheet",
+            "contact-sheets/continuity.png": "contact-sheet",
+            "corpus-manifest.json": "corpus-manifest",
+            "metrics.json": "metrics",
+        ]
+        for frame in frames {
+            result[coreRenderPath(frame, scale: scale)] = "core-render"
+            guard frame.view == .fullScreen else { continue }
+            let stem = renderStem(frame)
+            for overlay in overlays {
+                result["debug/\(frame.suite)/\(stem)-\(overlay.rawValue)@\(scale)x.png"] = "debug-overlay"
+            }
+        }
+        return result
+    }
+
+    private static func coreRenderPath(_ frame: CompositionEvidenceFrame, scale: Int) -> String {
+        let suffix = frame.view == .fullScreen ? "full" : "tile"
+        return "renders/\(frame.suite)/\(renderStem(frame))-\(suffix)@\(scale)x.png"
+    }
+
+    private static func renderStem(_ frame: CompositionEvidenceFrame) -> String {
+        if frame.suite == "breadth" {
+            return "breadth-\(padded(frame.fixtureIndex, width: 2))-phase-\(phaseCode(frame.phase))"
+        }
+        return "continuity-stage-\(padded(frame.stage ?? -1, width: 2))-count-\(padded(frame.actorCount, width: 2))-phase-\(phaseCode(frame.phase))"
+    }
+
+    private static func validateMetrics(
+        _ metrics: CompositionEvidenceMetrics,
+        corpus: CorpusManifest,
+        scale: Int
+    ) throws {
+        let breadthCount = corpus.breadth.count * corpus.phases.count
+        let continuityCount = corpus.continuity.stages.count * corpus.phases.count
+        guard metrics.version == "composition-metrics-v1",
+              metrics.breadthSceneCount == breadthCount,
+              metrics.continuitySceneCount == continuityCount,
+              metrics.coreImageCount == (breadthCount + continuityCount) * EvidenceView.allCases.count,
+              metrics.frames.count == breadthCount + continuityCount
+        else {
+            throw EvidencePackageError.invalidMetrics("summary counts do not match canonical corpus")
+        }
+
+        var index = 0
+        for fixture in corpus.breadth {
+            for phase in corpus.phases {
+                try validateMetricFrame(
+                    metrics.frames[index],
+                    suite: fixture.suite,
+                    fixtureIndex: fixture.index,
+                    stage: nil,
+                    seed: fixture.seed,
+                    phase: phase,
+                    background: fixture.background,
+                    sleep: fixture.sleep,
+                    steps: fixture.steps,
+                    reduceMotion: fixture.reduceMotion,
+                    eventIDs: fixture.eventIDs,
+                    scale: scale
+                )
+                index += 1
+            }
+        }
+        let continuity = corpus.continuity
+        for stage in continuity.stages {
+            for phase in corpus.phases {
+                try validateMetricFrame(
+                    metrics.frames[index],
+                    suite: continuity.suite,
+                    fixtureIndex: continuity.index,
+                    stage: stage.stage,
+                    seed: continuity.seed,
+                    phase: phase,
+                    background: continuity.background,
+                    sleep: continuity.sleep,
+                    steps: continuity.steps,
+                    reduceMotion: continuity.reduceMotion,
+                    eventIDs: stage.eventIDs,
+                    scale: scale
+                )
+                index += 1
+            }
+        }
+    }
+
+    private static func validateMetricFrame(
+        _ actual: CompositionFrameMetrics,
+        suite: String,
+        fixtureIndex: Int,
+        stage: Int?,
+        seed: UInt64,
+        phase: Double,
+        background: BackgroundCondition,
+        sleep: SleepCondition,
+        steps: StepCondition,
+        reduceMotion: Bool,
+        eventIDs: [String],
+        scale: Int
+    ) throws {
+        let recipe = CompositionPlanner.make(daySeed: seed, eventIDs: eventIDs, viewport: .phone)
+        let tileSide = 393 * scale
+        let expectedCrop = PixelRect(
+            x: 0,
+            y: (852 * scale - tileSide) / 2,
+            width: tileSide,
+            height: tileSide
+        )
+        let expectedActors = recipe.actors.enumerated().map { actorIndex, actor in
+            NeutralActorEvidence(
+                eventID: actor.eventID,
+                label: String(format: "A%02d", actorIndex + 1),
+                position: actor.position,
+                diameter: actor.diameter,
+                diameterPixels: actor.diameter * Double(tileSide),
+                depth: actor.depth,
+                luminance: 0.22 + min(max(actor.depth, 0), 1) * 0.58,
+                localBlur: actor.localBlur,
+                localBlurPixels: actor.localBlur * Double(tileSide),
+                cropFraction: recipe.cropFraction(of: actor),
+                drawOrder: actor.drawOrder,
+                labelInkPixelCount: max(1, 3 * scale * 8)
+            )
+        }
+        guard actual.suite == suite,
+              actual.fixtureIndex == fixtureIndex,
+              actual.stage == stage,
+              actual.seed == seed,
+              actual.phase == phase,
+              actual.background == background,
+              actual.sleep == sleep,
+              actual.steps == steps,
+              actual.reduceMotion == reduceMotion,
+              actual.grammar == recipe.grammar,
+              actual.tileCrop == expectedCrop,
+              actual.actors == expectedActors
+        else {
+            throw EvidencePackageError.invalidMetrics("frame \(suite)/\(fixtureIndex)/\(stage.map(String.init) ?? "-")/\(phase) mismatch")
+        }
+    }
+
+    private static func validateImageFiles(
+        expectedKinds: [String: String],
+        scale: Int,
+        directory: URL
+    ) throws {
+        for (path, kind) in expectedKinds where ["core-render", "debug-overlay", "contact-sheet"].contains(kind) {
+            let expected: (Int, Int)
+            if kind == "contact-sheet" {
+                expected = path.contains("breadth") ? (792, 2_288) : (792, 1_430)
+            } else if path.contains("-tile@") {
+                expected = (393 * scale, 393 * scale)
+            } else {
+                expected = (393 * scale, 852 * scale)
+            }
+            let url = directory.appendingPathComponent(path)
+            guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  CGImageSourceGetType(source) as String? == UTType.png.identifier,
+                  let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+                  (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue == expected.0,
+                  (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue == expected.1
+            else {
+                throw EvidencePackageError.invalidImage(
+                    path: path,
+                    expectedWidth: expected.0,
+                    expectedHeight: expected.1
+                )
+            }
+        }
     }
 
     private static func prepareEmptyDirectory(_ directory: URL) throws {
@@ -362,6 +640,21 @@ public enum EvidencePackage {
         } else {
             try manager.createDirectory(at: directory, withIntermediateDirectories: true)
         }
+    }
+
+    private static func validatedCorpusKind(for manifest: CorpusManifest) throws -> EvidenceCorpusKind {
+        guard let kind = EvidenceCorpusKind(rawValue: manifest.version) else {
+            throw EvidencePackageError.unsupportedCorpusKind(manifest.version)
+        }
+        switch kind {
+        case .visibleV1:
+            let expected = try CorpusManifest.visibleV1().canonicalJSON()
+            let actual = try manifest.canonicalJSON()
+            guard actual == expected else {
+                throw EvidencePackageError.corpusContractMismatch(kind)
+            }
+        }
+        return kind
     }
 
     private static func writeDebug(
@@ -395,8 +688,11 @@ public enum EvidencePackage {
         return data
     }
 
-    private static func artifactRecords(in directory: URL) throws -> [EvidenceArtifact] {
-        try packageFilePaths(in: directory).map { path in
+    private static func artifactRecords(
+        in directory: URL,
+        excluding excludedPaths: Set<String> = []
+    ) throws -> [EvidenceArtifact] {
+        try packageFilePaths(in: directory).filter { !excludedPaths.contains($0) }.map { path in
             let data = try Data(contentsOf: directory.appendingPathComponent(path))
             let kind: String
             if path.hasPrefix("renders/") { kind = "core-render" }

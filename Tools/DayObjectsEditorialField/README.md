@@ -60,6 +60,17 @@ known limitations when returning an artist round. Neutral evidence is only for
 composition review; it contains no material color, motion, Metal, or production
 renderer behavior.
 
+`visible-v1` is a named semantic corpus contract, not a caller-supplied label.
+Generation rejects any manifest whose canonical decoded content differs from
+`CorpusManifest.visibleV1()`, including reordered or missing fixtures, changed
+phases/stages/identities, a different nonce or specification commit, or an
+incomplete stress suite. Verification repeats that contract check and also
+cross-checks the evidence manifest, metrics, exact required render/overlay
+paths, artifact records, and PNG dimensions after validating `SHA256SUMS`.
+Recomputing checksums therefore cannot turn a truncated package into valid
+`visible-v1` evidence. Future held-out corpora must add their own explicit
+corpus kind and validator; unknown kinds fail closed.
+
 The visible corpus fixes the specification commit
 `8a8539a77ce704fcc688ebe8cb98d78e2a0f80dd`, nonce
 `day-objects-editorial-field-visible-v1`, canonical actor identities,
