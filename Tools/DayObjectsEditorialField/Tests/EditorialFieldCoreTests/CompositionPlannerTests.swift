@@ -47,10 +47,19 @@ struct CompositionPlannerTests {
     func broadScaleIsContinuousAndNotEqualSized() {
         for recipe in Self.stressRecipes {
             guard recipe.grammar != .equalScaleStudy else { continue }
-
-            #expect(recipe.minimumDiameter >= 0.06)
-            #expect(recipe.maximumDiameter <= 0.75)
-            #expect(recipe.maximumDiameter / recipe.minimumDiameter >= 3)
+            for count in 4...10 {
+                let active = recipeKeepingPrefix(count, from: recipe)
+                #expect(active.minimumDiameter >= 0.06)
+                #expect(active.maximumDiameter <= 0.75)
+                #expect(active.maximumDiameter / active.minimumDiameter >= 3)
+                #expect((active.actors.map(\.depth).max() ?? 0) - (active.actors.map(\.depth).min() ?? 0) >= 0.44)
+                let depthBands = Set(active.actors.map { actor -> Int in
+                    if actor.depth < 0.28 { return 0 }
+                    if actor.depth < 0.68 { return 1 }
+                    return 2
+                })
+                #expect(depthBands == Set([0, 1, 2]))
+            }
             #expect(Set(recipe.actors.map { Int(($0.diameter * 10_000).rounded()) }).count >= 7)
         }
     }
@@ -90,9 +99,39 @@ struct CompositionPlannerTests {
     func distributedGrammarsUseAllVerticalThirds() {
         for recipe in Self.stressRecipes {
             guard recipe.grammar == .openField || recipe.grammar == .depthScatter else { continue }
+            for count in 6...10 {
+                let active = recipeKeepingPrefix(count, from: recipe)
+                let thirds = Set(active.actors.map { min(2, max(0, Int($0.position.y * 3))) })
+                #expect(thirds == Set([0, 1, 2]))
+            }
+        }
+    }
 
-            let thirds = Set(recipe.actors.map { min(2, max(0, Int($0.position.y * 3))) })
-            #expect(thirds == Set([0, 1, 2]))
+    @Test("visible overlap grammars intersect in rendered phone geometry")
+    func visibleOverlapUsesPhoneShortSideSpace() {
+        for fixture in CorpusManifest.visibleV1().breadth where fixture.actorCount > 1 {
+            let recipe = CompositionPlanner.make(
+                daySeed: fixture.seed,
+                eventIDs: fixture.eventIDs,
+                viewport: .phone
+            )
+            if recipe.grammar == .layeredOverlap || recipe.grammar == .transparentPrint {
+                #expect(
+                    renderedIntersectionCount(recipe) > 0,
+                    "fixture \(fixture.index) has no rendered overlap: \(recipe.actors)"
+                )
+            }
+        }
+    }
+
+    @Test("dense and depth grammars keep rendered intersections across 2,048 seeds")
+    func stressOverlapUsesPhoneShortSideSpace() {
+        for recipe in Self.stressRecipes
+        where recipe.grammar == .layeredOverlap
+            || recipe.grammar == .transparentPrint
+            || recipe.grammar == .depthScatter
+        {
+            #expect(renderedIntersectionCount(recipe) > 0)
         }
     }
 
@@ -127,6 +166,122 @@ struct CompositionPlannerTests {
         }
     }
 
+    @Test("forbidden grid, ring, and flower controls score as catastrophic")
+    func guardrailNegativeControlsRejectForbiddenPatterns() {
+        let gridPoints = [0.70, 1.45].flatMap { y in
+            [0.14, 0.32, 0.50, 0.68, 0.86].map { CompositionPoint(x: $0, y: y) }
+        }
+        let grid = controlRecipe(shortSidePoints: gridPoints, diameter: 0.12)
+        let gridScores = CompositionGuardrails.evaluate(grid)
+        #expect(gridScores.grid >= 0.95)
+        #expect(gridScores.row >= 0.95)
+        #expect(gridScores.equalSpacing >= 0.95)
+        #expect(gridScores.equalScale >= 0.95)
+
+        let ringCenter = CompositionPoint(x: 0.50, y: 1.08)
+        let ringPoints = (0..<10).map { index -> CompositionPoint in
+            let angle = Double(index) / 10 * 2 * Double.pi
+            return CompositionPoint(
+                x: ringCenter.x + cos(angle) * 0.36,
+                y: ringCenter.y + sin(angle) * 0.36
+            )
+        }
+        let ringScores = CompositionGuardrails.evaluate(
+            controlRecipe(shortSidePoints: ringPoints, diameter: 0.12)
+        )
+        #expect(ringScores.ring >= 0.95)
+        #expect(ringScores.equalSpacing >= 0.95)
+
+        let flowerPoints = (0..<10).map { index -> CompositionPoint in
+            let angle = Double(index) / 10 * 2 * Double.pi
+            let radius = index.isMultiple(of: 2) ? 0.16 : 0.22
+            return CompositionPoint(
+                x: ringCenter.x + cos(angle) * radius,
+                y: ringCenter.y + sin(angle) * radius
+            )
+        }
+        let flowerScores = CompositionGuardrails.evaluate(
+            controlRecipe(shortSidePoints: flowerPoints, diameter: 0.48)
+        )
+        #expect(flowerScores.commonFocalPoint >= 0.95)
+        #expect(flowerScores.compactCluster >= 0.55)
+    }
+
+    @Test("continuity-prefix removals preserve actors and achievable composition guarantees")
+    func continuityOneStepRemovalsRemainComposed() {
+        let fixture = CorpusManifest.visibleV1().continuity
+        for beforeCount in [2, 3, 5, 7, 10] {
+            let beforeIDs = Array(CorpusManifest.canonicalEventIDs.prefix(beforeCount))
+            let afterIDs = Array(beforeIDs.dropLast())
+            let before = CompositionPlanner.make(daySeed: fixture.seed, eventIDs: beforeIDs, viewport: .phone)
+            let after = CompositionPlanner.make(daySeed: fixture.seed, eventIDs: afterIDs, viewport: .phone)
+
+            for id in afterIDs {
+                #expect(before.actor(id) == after.actor(id))
+            }
+            if after.actors.count >= 4, after.grammar != .equalScaleStudy {
+                #expect(after.maximumDiameter / after.minimumDiameter >= 3)
+                let depthBands = Set(after.actors.map { actor -> Int in
+                    if actor.depth < 0.28 { return 0 }
+                    if actor.depth < 0.68 { return 1 }
+                    return 2
+                })
+                #expect(depthBands == Set([0, 1, 2]))
+            }
+            if after.actors.count >= 6,
+                after.grammar == .openField || after.grammar == .depthScatter
+            {
+                let thirds = Set(after.actors.map { min(2, max(0, Int($0.position.y * 3))) })
+                #expect(thirds == Set([0, 1, 2]))
+            }
+        }
+    }
+
+    @Test("arbitrary identity sets stay immutable, finite, visible, and non-catastrophic")
+    func arbitraryIdentitySetsKeepBoundedActorDNA() {
+        // Universal 3:1/all-thirds assertions are intentionally absent here:
+        // they are mathematically incompatible with immutable final actor values.
+        // Arbitrary sets retain identity and must still avoid invalid/catastrophic geometry.
+        let externalIDs = (0..<10).map { "external-editorial-\($0)" }
+        let full = CompositionPlanner.make(daySeed: 24, eventIDs: externalIDs, viewport: .phone)
+        let subsetIDs = [externalIDs[0], externalIDs[2], externalIDs[3], externalIDs[6], externalIDs[8], externalIDs[9]]
+        let subset = CompositionPlanner.make(daySeed: 24, eventIDs: subsetIDs.reversed(), viewport: .phone)
+
+        for id in subsetIDs {
+            #expect(full.actor(id) == subset.actor(id))
+        }
+        for actor in subset.actors {
+            #expect(actor.position.x.isFinite && actor.position.y.isFinite)
+            #expect((0...1).contains(actor.position.x) && (0...1).contains(actor.position.y))
+            #expect((0.06...0.75).contains(actor.diameter))
+            #expect((0...1).contains(actor.depth))
+            #expect(actor.localBlur.isFinite)
+            #expect((0...0.45).contains(actor.cropAllowance))
+            #expect(subset.cropFraction(of: actor) <= actor.cropAllowance + 0.07)
+        }
+        let scores = CompositionGuardrails.evaluate(subset)
+        #expect(scores.grid < 0.95)
+        #expect(scores.ring < 0.95)
+        #expect(scores.commonFocalPoint < 0.95)
+        #expect(scores.compactCluster < 0.95)
+
+        let canonicalFull = CompositionPlanner.make(daySeed: 24, eventIDs: ids, viewport: .phone)
+        let canonicalSubsetIDs = [ids[0], ids[2], ids[4], ids[5], ids[7], ids[9]]
+        let canonicalSubset = CompositionPlanner.make(
+            daySeed: 24,
+            eventIDs: canonicalSubsetIDs,
+            viewport: .phone
+        )
+        for id in canonicalSubsetIDs {
+            #expect(canonicalFull.actor(id) == canonicalSubset.actor(id))
+        }
+        let canonicalScores = CompositionGuardrails.evaluate(canonicalSubset)
+        #expect(canonicalScores.grid < 0.95)
+        #expect(canonicalScores.ring < 0.95)
+        #expect(canonicalScores.commonFocalPoint < 0.95)
+        #expect(canonicalScores.compactCluster < 0.95)
+    }
+
     @Test("grammar weights and regularity guardrails remain bounded across 2,048 seeds")
     func distributionAndRegularityGuardrails() {
         var grammarCounts = Dictionary(uniqueKeysWithValues: EditorialGrammar.allCases.map { ($0, 0) })
@@ -142,6 +297,10 @@ struct CompositionPlannerTests {
             #expect(scores.row <= 0.60)
             #expect(scores.commonFocalPoint <= 0.78)
             #expect(scores.compactCluster <= 0.78)
+            #expect(scores.equalSpacing <= 0.92)
+            if recipe.grammar != .equalScaleStudy {
+                #expect(scores.equalScale <= 0.88)
+            }
         }
 
         let equalShare = Double(grammarCounts[.equalScaleStudy, default: 0]) / 2_048
@@ -156,7 +315,59 @@ struct CompositionPlannerTests {
         print("composition grammar shares: \(shares)")
         print(
             "worst guardrails: ring=\(worst.ring), grid=\(worst.grid), row=\(worst.row), "
-                + "focus=\(worst.commonFocalPoint), cluster=\(worst.compactCluster)"
+                + "focus=\(worst.commonFocalPoint), cluster=\(worst.compactCluster), "
+                + "spacing=\(worst.equalSpacing), scale=\(worst.equalScale)"
         )
+    }
+
+    private func recipeKeepingPrefix(_ count: Int, from recipe: CompositionRecipe) -> CompositionRecipe {
+        CompositionRecipe(
+            daySeed: recipe.daySeed,
+            grammar: recipe.grammar,
+            viewport: recipe.viewport,
+            actors: Array(recipe.actors.prefix(count))
+        )
+    }
+
+    private func renderedIntersectionCount(_ recipe: CompositionRecipe) -> Int {
+        let widthInShortSides = recipe.viewport.width / recipe.viewport.shortSide
+        let heightInShortSides = recipe.viewport.height / recipe.viewport.shortSide
+        var count = 0
+        for left in recipe.actors.indices {
+            for right in recipe.actors.indices where right > left {
+                let lhs = recipe.actors[left]
+                let rhs = recipe.actors[right]
+                let dx = (lhs.position.x - rhs.position.x) * widthInShortSides
+                let dy = (lhs.position.y - rhs.position.y) * heightInShortSides
+                if hypot(dx, dy) < (lhs.diameter + rhs.diameter) * 0.5 {
+                    count += 1
+                }
+            }
+        }
+        return count
+    }
+
+    private func controlRecipe(
+        shortSidePoints: [CompositionPoint],
+        diameter: Double
+    ) -> CompositionRecipe {
+        let viewport = EditorialViewport.phone
+        let widthInShortSides = viewport.width / viewport.shortSide
+        let heightInShortSides = viewport.height / viewport.shortSide
+        let actors = shortSidePoints.enumerated().map { index, point in
+            ActorCompositionRecipe(
+                eventID: "negative-control-\(index)",
+                position: CompositionPoint(
+                    x: point.x / widthInShortSides,
+                    y: point.y / heightInShortSides
+                ),
+                diameter: diameter,
+                depth: 0.5,
+                localBlur: 0,
+                cropAllowance: 0,
+                drawOrder: index
+            )
+        }
+        return CompositionRecipe(daySeed: 0, grammar: .openField, viewport: viewport, actors: actors)
     }
 }

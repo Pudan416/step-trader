@@ -3,6 +3,12 @@ import Foundation
 public enum CompositionPlanner {
     public static let candidateCount = 64
 
+    /// Actor recipes are immutable functions of day, identity, and viewport.
+    /// Global 3:1 scale and all-thirds guarantees apply to canonical admission
+    /// prefixes. They cannot hold for every arbitrary subset without rerolling:
+    /// any four-of-ten scale guarantee would require a 27:1 total range, beyond
+    /// the schema's 12.5:1 range, and every six-of-ten thirds guarantee would
+    /// require at least five actors in each of three thirds.
     public static func make<EventIDs: Sequence>(
         daySeed: UInt64,
         eventIDs: EventIDs,
@@ -51,7 +57,17 @@ public enum CompositionPlanner {
                 )
             }
             let selected = candidates.map {
-                ($0, score($0, rank: rank, admitted: admitted, grammar: grammar, daySeed: daySeed))
+                (
+                    $0,
+                    score(
+                        $0,
+                        rank: rank,
+                        admitted: admitted,
+                        grammar: grammar,
+                        daySeed: daySeed,
+                        viewport: viewport
+                    )
+                )
             }.max { $0.1 < $1.1 }!.0
             admitted.append(selected)
         }
@@ -84,7 +100,17 @@ public enum CompositionPlanner {
             )
         }
         let selected = candidates.map {
-            ($0, score($0, rank: rank, admitted: references, grammar: grammar, daySeed: daySeed))
+            (
+                $0,
+                score(
+                    $0,
+                    rank: rank,
+                    admitted: references,
+                    grammar: grammar,
+                    daySeed: daySeed,
+                    viewport: viewport
+                )
+            )
         }.max { $0.1 < $1.1 }!.0
         return selected.recipe(drawOrder: Int(stableHash(eventID) % 10_000) + 10)
     }
@@ -262,15 +288,21 @@ public enum CompositionPlanner {
         rank: Int,
         admitted: [Candidate],
         grammar: EditorialGrammar,
-        daySeed: UInt64
+        daySeed: UInt64,
+        viewport: EditorialViewport
     ) -> Double {
         guard !admitted.isEmpty else {
-            return candidate.quality + edgeIntent(candidate, grammar: grammar, rank: rank) * 2
+            return candidate.quality
+                + edgeIntent(candidate, grammar: grammar, rank: rank, viewport: viewport) * 2
         }
 
-        let distances = admitted.map { distance(candidate, $0) }
+        let candidatePoint = CompositionGeometry.shortSidePoint(candidate.position, viewport: viewport)
+        let admittedPoints = admitted.map {
+            CompositionGeometry.shortSidePoint($0.position, viewport: viewport)
+        }
+        let distances = admitted.map { distance(candidate, $0, viewport: viewport) }
         let nearest = distances.min() ?? 1
-        let overlaps = admitted.map { overlapProxy(candidate, $0) }
+        let overlaps = admitted.map { overlapProxy(candidate, $0, viewport: viewport) }
         let averageOverlap = overlaps.reduce(0, +) / Double(overlaps.count)
         let existingThirds = Set(admitted.map { min(2, max(0, Int($0.position.y * 3))) })
         let candidateThird = min(2, max(0, Int(candidate.position.y * 3)))
@@ -287,7 +319,11 @@ public enum CompositionPlanner {
         let balance = -hypot(centerX - targetX, centerY - targetY)
 
         var result = candidate.quality * 0.12
-        result += existingThirds.contains(candidateThird) ? 0 : 1.35
+        if grammar.isDistributed {
+            result += existingThirds.contains(candidateThird) ? 0 : 1.35
+        } else if grammar == .croppedForeground {
+            result += existingThirds.contains(candidateThird) ? 0 : 0.30
+        }
         result += balance * 1.8
         result -= abs(averageOverlap - grammar.overlapTarget) * 2.2
         result += min(nearest, 0.55) * (grammar == .openField ? 2.0 : 0.65)
@@ -295,10 +331,10 @@ public enum CompositionPlanner {
             $0 + min(abs($1.depth - candidate.depth), 0.4) * 0.18
                 + min(abs($1.diameter - candidate.diameter), 0.35) * 0.12
         }
-        result += edgeIntent(candidate, grammar: grammar, rank: rank) * 0.9
+        result += edgeIntent(candidate, grammar: grammar, rank: rank, viewport: viewport) * 0.9
 
-        let rowMatches = admitted.filter { abs($0.position.y - candidate.position.y) < 0.032 }.count
-        let columnMatches = admitted.filter { abs($0.position.x - candidate.position.x) < 0.032 }.count
+        let rowMatches = admittedPoints.filter { abs($0.y - candidatePoint.y) < 0.035 }.count
+        let columnMatches = admittedPoints.filter { abs($0.x - candidatePoint.x) < 0.035 }.count
         result -= Double(rowMatches) * 0.48
         result -= Double(columnMatches) * 0.34
         result -= Double(rowMatches * columnMatches) * 0.22
@@ -315,17 +351,28 @@ public enum CompositionPlanner {
             if span < 0.38 { result -= (0.38 - span) * 5 }
         }
         if admitted.count >= 3 {
-            result -= angularRingRegularity(candidate: candidate, admitted: admitted) * 0.42
+            result -= angularRingRegularity(
+                candidate: candidate,
+                admitted: admitted,
+                viewport: viewport
+            ) * 0.42
         }
         let commonPointCount = admitted.filter {
-            distance(candidate, $0) < min(candidate.diameter, $0.diameter) * 0.32
+            distance(candidate, $0, viewport: viewport)
+                < min(candidate.diameter, $0.diameter) * 0.32
         }.count
         result -= Double(commonPointCount) * 0.55
         return result
     }
 
-    private static func angularRingRegularity(candidate: Candidate, admitted: [Candidate]) -> Double {
-        let points = admitted.map(\.position) + [candidate.position]
+    private static func angularRingRegularity(
+        candidate: Candidate,
+        admitted: [Candidate],
+        viewport: EditorialViewport
+    ) -> Double {
+        let points = (admitted.map(\.position) + [candidate.position]).map {
+            CompositionGeometry.shortSidePoint($0, viewport: viewport)
+        }
         let centerX = points.map(\.x).reduce(0, +) / Double(points.count)
         let centerY = points.map(\.y).reduce(0, +) / Double(points.count)
         let radii = points.map { hypot($0.x - centerX, $0.y - centerY) }
@@ -349,27 +396,47 @@ public enum CompositionPlanner {
         return radialRegularity * angularRegularity
     }
 
-    private static func edgeIntent(_ candidate: Candidate, grammar: EditorialGrammar, rank: Int) -> Double {
+    private static func edgeIntent(
+        _ candidate: Candidate,
+        grammar: EditorialGrammar,
+        rank: Int,
+        viewport: EditorialViewport
+    ) -> Double {
+        let point = CompositionGeometry.shortSidePoint(candidate.position, viewport: viewport)
+        let width = viewport.width / viewport.shortSide
+        let height = viewport.height / viewport.shortSide
         let edgeDistance = min(
-            candidate.position.x,
-            1 - candidate.position.x,
-            candidate.position.y,
-            1 - candidate.position.y
+            point.x,
+            width - point.x,
+            point.y,
+            height - point.y
         )
         if grammar == .croppedForeground && rank == 0 {
-            return max(0, 0.25 - edgeDistance)
+            let radius = candidate.diameter * 0.5
+            return radius > 0 ? max(0, radius - edgeDistance) / radius : 0
         }
         return max(0, 0.10 - edgeDistance) * 0.25
     }
 
-    private static func distance(_ lhs: Candidate, _ rhs: Candidate) -> Double {
-        hypot(lhs.position.x - rhs.position.x, lhs.position.y - rhs.position.y)
+    private static func distance(
+        _ lhs: Candidate,
+        _ rhs: Candidate,
+        viewport: EditorialViewport
+    ) -> Double {
+        CompositionGeometry.distance(from: lhs.position, to: rhs.position, viewport: viewport)
     }
 
-    private static func overlapProxy(_ lhs: Candidate, _ rhs: Candidate) -> Double {
+    private static func overlapProxy(
+        _ lhs: Candidate,
+        _ rhs: Candidate,
+        viewport: EditorialViewport
+    ) -> Double {
         let radiusSum = (lhs.diameter + rhs.diameter) * 0.5
         guard radiusSum > 0 else { return 0 }
-        return max(0, min(1, (radiusSum - distance(lhs, rhs)) / radiusSum))
+        return max(
+            0,
+            min(1, (radiusSum - distance(lhs, rhs, viewport: viewport)) / radiusSum)
+        )
     }
 
     private static func actorSeed(daySeed: UInt64, eventID: String, candidateIndex: Int) -> UInt64 {
