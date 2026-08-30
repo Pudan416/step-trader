@@ -113,6 +113,10 @@ public enum EvidencePackageError: Error, LocalizedError {
     case artifactManifestMismatch
     case requiredArtifactSetMismatch
     case invalidImage(path: String, expectedWidth: Int, expectedHeight: Int)
+    case tileCropMismatch(fullPath: String, tilePath: String)
+    case invalidSourceCommit(String)
+    case sourceCommitMismatch(expected: String, actual: String)
+    case invalidProvenanceMetadata(String)
 
     public var errorDescription: String? {
         switch self {
@@ -136,6 +140,14 @@ public enum EvidencePackageError: Error, LocalizedError {
         case .requiredArtifactSetMismatch: "Evidence package paths do not match required corpus coverage"
         case .invalidImage(let path, let expectedWidth, let expectedHeight):
             "Evidence image \(path) is not a \(expectedWidth)x\(expectedHeight) PNG"
+        case .tileCropMismatch(let fullPath, let tilePath):
+            "Evidence tile \(tilePath) is not the exact centered crop of \(fullPath)"
+        case .invalidSourceCommit(let value):
+            "Source commit must be a full 40- or 64-character lowercase hexadecimal object ID, got \(value)"
+        case .sourceCommitMismatch(let expected, let actual):
+            "Evidence source commit mismatch: expected \(expected), got \(actual)"
+        case .invalidProvenanceMetadata(let detail):
+            "Invalid evidence provenance metadata: \(detail)"
         }
     }
 }
@@ -190,6 +202,7 @@ public enum EvidencePackage {
         )
     ) throws -> GeneratedCompositionEvidence {
         _ = try validatedCorpusKind(for: manifest)
+        try validateSourceCommit(sourceCommit)
         try prepareEmptyDirectory(outputDirectory)
         let renderer = NeutralRenderer()
         let coverage = compositionCoverage(for: manifest)
@@ -283,13 +296,21 @@ public enum EvidencePackage {
         try makeContactSheet(paths: continuityFullPaths, outputPath: "contact-sheets/continuity.png", directory: outputDirectory)
 
         let artifacts = try artifactRecords(in: outputDirectory)
+        let toolchain = "Swift 6 / Swift Package Manager"
+        let device = Host.current().localizedName ?? ProcessInfo.processInfo.hostName
+        let operatingSystem = ProcessInfo.processInfo.operatingSystemVersionString
+        try validateProvenanceMetadata(
+            toolchain: toolchain,
+            device: device,
+            operatingSystem: operatingSystem
+        )
         let packageManifest = CompositionEvidenceManifest(
             version: "composition-evidence-v1",
             sourceCommit: sourceCommit,
             rendererVersion: NeutralRenderer.version,
-            toolchain: "Swift 6 / Swift Package Manager",
-            device: Host.current().localizedName ?? ProcessInfo.processInfo.hostName,
-            operatingSystem: ProcessInfo.processInfo.operatingSystemVersionString,
+            toolchain: toolchain,
+            device: device,
+            operatingSystem: operatingSystem,
             viewport: EvidenceViewportMetadata(
                 widthPoints: 393,
                 heightPoints: 852,
@@ -332,7 +353,8 @@ public enum EvidencePackage {
     }
 
     @discardableResult
-    public static func verify(directory: URL) throws -> String {
+    public static func verify(directory: URL, expectedSourceCommit: String) throws -> String {
+        try validateSourceCommit(expectedSourceCommit)
         let sumsURL = directory.appendingPathComponent("SHA256SUMS")
         let hashURL = directory.appendingPathComponent("package-hash.txt")
         guard FileManager.default.fileExists(atPath: sumsURL.path) else {
@@ -373,11 +395,14 @@ public enum EvidencePackage {
         guard namedPaths == (try packageFilePaths(in: directory)) else {
             throw EvidencePackageError.artifactSetMismatch
         }
-        try verifySemanticContract(in: directory)
+        try verifySemanticContract(in: directory, expectedSourceCommit: expectedSourceCommit)
         return expectedPackageHash
     }
 
-    private static func verifySemanticContract(in directory: URL) throws {
+    private static func verifySemanticContract(
+        in directory: URL,
+        expectedSourceCommit: String
+    ) throws {
         let decoder = JSONDecoder()
         let corpusURL = directory.appendingPathComponent("corpus-manifest.json")
         let evidenceURL = directory.appendingPathComponent("manifest.json")
@@ -394,6 +419,18 @@ public enum EvidencePackage {
         }
 
         let kind = try validatedCorpusKind(for: corpus)
+        try validateSourceCommit(evidence.sourceCommit)
+        guard evidence.sourceCommit == expectedSourceCommit else {
+            throw EvidencePackageError.sourceCommitMismatch(
+                expected: expectedSourceCommit,
+                actual: evidence.sourceCommit
+            )
+        }
+        try validateProvenanceMetadata(
+            toolchain: evidence.toolchain,
+            device: evidence.device,
+            operatingSystem: evidence.operatingSystem
+        )
         guard evidence.version == "composition-evidence-v1",
               evidence.corpusVersion == kind.rawValue,
               evidence.corpusVersion == corpus.version,
@@ -403,8 +440,7 @@ public enum EvidencePackage {
               evidence.viewport.widthPoints == 393,
               evidence.viewport.heightPoints == 852,
               evidence.viewport.scale > 0,
-              evidence.viewport.tileCrop == "centered-square-from-phone-canvas",
-              !evidence.sourceCommit.isEmpty
+              evidence.viewport.tileCrop == "centered-square-from-phone-canvas"
         else {
             throw EvidencePackageError.invalidEvidenceManifest("authority or renderer metadata mismatch")
         }
@@ -437,6 +473,7 @@ public enum EvidencePackage {
         }
         try validateMetrics(metrics, corpus: corpus, scale: evidence.viewport.scale)
         try validateImageFiles(expectedKinds: expectedKinds, scale: evidence.viewport.scale, directory: directory)
+        try validateTileCrops(coverage: coverage, scale: evidence.viewport.scale, directory: directory)
     }
 
     private static func validatedOverlays(_ values: [String]) throws -> Set<NeutralOverlay> {
@@ -450,6 +487,40 @@ public enum EvidencePackage {
             throw EvidencePackageError.invalidEvidenceManifest("overlay list is not canonical")
         }
         return overlays
+    }
+
+    private static func validateSourceCommit(_ value: String) throws {
+        let count = value.utf8.count
+        let isHex = value.utf8.allSatisfy { byte in
+            (48...57).contains(byte) || (97...102).contains(byte)
+        }
+        guard (count == 40 || count == 64), isHex else {
+            throw EvidencePackageError.invalidSourceCommit(value)
+        }
+    }
+
+    private static func validateProvenanceMetadata(
+        toolchain: String,
+        device: String,
+        operatingSystem: String
+    ) throws {
+        guard toolchain == "Swift 6 / Swift Package Manager" else {
+            throw EvidencePackageError.invalidProvenanceMetadata("unsupported toolchain identifier/version")
+        }
+        guard isStructuredMetadata(device) else {
+            throw EvidencePackageError.invalidProvenanceMetadata("device is empty or malformed")
+        }
+        guard isStructuredMetadata(operatingSystem) else {
+            throw EvidencePackageError.invalidProvenanceMetadata("operating system is empty or malformed")
+        }
+    }
+
+    private static func isStructuredMetadata(_ value: String) -> Bool {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value == trimmed
+            && !value.isEmpty
+            && value.utf8.count <= 256
+            && value.unicodeScalars.allSatisfy { !CharacterSet.controlCharacters.contains($0) }
     }
 
     private static func expectedArtifactKinds(
@@ -628,6 +699,68 @@ public enum EvidencePackage {
                 )
             }
         }
+    }
+
+    private static func validateTileCrops(
+        coverage: CompositionEvidenceCoverage,
+        scale: Int,
+        directory: URL
+    ) throws {
+        let side = 393 * scale
+        let crop = CGRect(x: 0, y: (852 * scale - side) / 2, width: side, height: side)
+        let fullFrames = (coverage.breadth + coverage.continuity).filter { $0.view == .fullScreen }
+        for fullFrame in fullFrames {
+            let tileFrame = CompositionEvidenceFrame(
+                suite: fullFrame.suite,
+                fixtureIndex: fullFrame.fixtureIndex,
+                stage: fullFrame.stage,
+                actorCount: fullFrame.actorCount,
+                seed: fullFrame.seed,
+                phase: fullFrame.phase,
+                view: .calendarTile
+            )
+            let fullPath = coreRenderPath(fullFrame, scale: scale)
+            let tilePath = coreRenderPath(tileFrame, scale: scale)
+            let fullImage = try decodedPNG(at: directory.appendingPathComponent(fullPath), path: fullPath)
+            let tileImage = try decodedPNG(at: directory.appendingPathComponent(tilePath), path: tilePath)
+            guard let expectedTile = fullImage.cropping(to: crop),
+                  try normalizedRGBA(tileImage) == normalizedRGBA(expectedTile)
+            else {
+                throw EvidencePackageError.tileCropMismatch(fullPath: fullPath, tilePath: tilePath)
+            }
+        }
+    }
+
+    private static func decodedPNG(at url: URL, path: String) throws -> CGImage {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              CGImageSourceGetType(source) as String? == UTType.png.identifier,
+              let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+        else {
+            throw EvidencePackageError.invalidImage(path: path, expectedWidth: 0, expectedHeight: 0)
+        }
+        return image
+    }
+
+    private static func normalizedRGBA(_ image: CGImage) throws -> Data {
+        let bytesPerRow = image.width * 4
+        var data = Data(count: bytesPerRow * image.height)
+        let rendered = data.withUnsafeMutableBytes { bytes -> Bool in
+            guard let context = CGContext(
+                data: bytes.baseAddress,
+                width: image.width,
+                height: image.height,
+                bitsPerComponent: 8,
+                bytesPerRow: bytesPerRow,
+                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return false }
+            context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+            return true
+        }
+        guard rendered else {
+            throw EvidencePackageError.invalidImage(path: "decoded-pixel-buffer", expectedWidth: image.width, expectedHeight: image.height)
+        }
+        return data
     }
 
     private static func prepareEmptyDirectory(_ directory: URL) throws {

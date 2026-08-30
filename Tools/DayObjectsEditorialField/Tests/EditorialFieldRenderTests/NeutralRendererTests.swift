@@ -7,6 +7,9 @@ import EditorialFieldCore
 import EditorialFieldEvidence
 import EditorialFieldRender
 
+private let canonicalTestCommit = String(repeating: "a", count: 40)
+private let otherTestCommit = String(repeating: "b", count: 40)
+
 @Suite("Neutral editorial field evidence")
 struct NeutralRendererTests {
     @Test("phone PNG is exact 3x and tile bytes are cropped from that scene")
@@ -118,19 +121,22 @@ struct NeutralRendererTests {
 
         let generated = try EvidencePackage.generateComposition(
             manifest: .visibleV1(),
-            sourceCommit: "0123456789abcdef",
+            sourceCommit: canonicalTestCommit,
             outputDirectory: directory,
             renderConfiguration: .init(scale: 1, overlays: [])
         )
         let packageHash = generated.packageHash
-        #expect(try EvidencePackage.verify(directory: directory) == packageHash)
+        #expect(try EvidencePackage.verify(
+            directory: directory,
+            expectedSourceCommit: canonicalTestCommit
+        ) == packageHash)
 
         let artifact = directory.appendingPathComponent("metrics.json")
         var bytes = try Data(contentsOf: artifact)
         bytes.append(0x20)
         try bytes.write(to: artifact, options: .atomic)
         #expect(throws: EvidencePackageError.self) {
-            try EvidencePackage.verify(directory: directory)
+            try EvidencePackage.verify(directory: directory, expectedSourceCommit: canonicalTestCommit)
         }
     }
 
@@ -142,12 +148,12 @@ struct NeutralRendererTests {
 
         let generated = try EvidencePackage.generateComposition(
             manifest: .visibleV1(),
-            sourceCommit: "0123456789abcdef",
+            sourceCommit: canonicalTestCommit,
             outputDirectory: directory,
             renderConfiguration: .init(scale: 1, overlays: [])
         )
 
-        #expect(generated.manifest.sourceCommit == "0123456789abcdef")
+        #expect(generated.manifest.sourceCommit == canonicalTestCommit)
         #expect(generated.manifest.coreImageCount == 152)
         #expect(generated.manifest.frames.count == 152)
         #expect(Set(generated.manifest.frames.map(\.phase)) == Set([0, 0.25, 0.5, 0.75]))
@@ -160,7 +166,10 @@ struct NeutralRendererTests {
         #expect(FileManager.default.fileExists(atPath: directory.appendingPathComponent("metrics.json").path))
         #expect(FileManager.default.fileExists(atPath: directory.appendingPathComponent("contact-sheets/breadth.png").path))
         #expect(FileManager.default.fileExists(atPath: directory.appendingPathComponent("contact-sheets/continuity.png").path))
-        #expect(try EvidencePackage.verify(directory: directory) == generated.packageHash)
+        #expect(try EvidencePackage.verify(
+            directory: directory,
+            expectedSourceCommit: canonicalTestCommit
+        ) == generated.packageHash)
     }
 
     @Test("visible-v1 generation rejects a manifest with eleven breadth fixtures")
@@ -177,7 +186,7 @@ struct NeutralRendererTests {
         #expect(throws: EvidencePackageError.self) {
             try EvidencePackage.generateComposition(
                 manifest: malformed,
-                sourceCommit: "0123456789abcdef",
+                sourceCommit: canonicalTestCommit,
                 outputDirectory: directory,
                 renderConfiguration: .init(scale: 1, overlays: [])
             )
@@ -222,7 +231,7 @@ struct NeutralRendererTests {
             #expect(throws: EvidencePackageError.self) {
                 try EvidencePackage.generateComposition(
                     manifest: malformed,
-                    sourceCommit: "0123456789abcdef",
+                    sourceCommit: canonicalTestCommit,
                     outputDirectory: directory,
                     renderConfiguration: .init(scale: 1, overlays: [])
                 )
@@ -239,7 +248,7 @@ struct NeutralRendererTests {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         _ = try EvidencePackage.generateComposition(
             manifest: .visibleV1(),
-            sourceCommit: "0123456789abcdef",
+            sourceCommit: canonicalTestCommit,
             outputDirectory: canonicalDirectory,
             renderConfiguration: .init(scale: 1, overlays: [])
         )
@@ -257,7 +266,7 @@ struct NeutralRendererTests {
         )
         _ = try EvidencePackage.seal(directory: corpusForgery)
         #expect(throws: EvidencePackageError.self) {
-            try EvidencePackage.verify(directory: corpusForgery)
+            try EvidencePackage.verify(directory: corpusForgery, expectedSourceCommit: canonicalTestCommit)
         }
 
         let manifestForgery = root.appendingPathComponent("manifest-forgery", isDirectory: true)
@@ -270,7 +279,7 @@ struct NeutralRendererTests {
         }
         _ = try EvidencePackage.seal(directory: manifestForgery)
         #expect(throws: EvidencePackageError.self) {
-            try EvidencePackage.verify(directory: manifestForgery)
+            try EvidencePackage.verify(directory: manifestForgery, expectedSourceCommit: canonicalTestCommit)
         }
 
         let metricsForgery = root.appendingPathComponent("metrics-forgery", isDirectory: true)
@@ -287,7 +296,7 @@ struct NeutralRendererTests {
         }
         _ = try EvidencePackage.seal(directory: metricsForgery)
         #expect(throws: EvidencePackageError.self) {
-            try EvidencePackage.verify(directory: metricsForgery)
+            try EvidencePackage.verify(directory: metricsForgery, expectedSourceCommit: canonicalTestCommit)
         }
 
         let pathForgery = root.appendingPathComponent("path-forgery", isDirectory: true)
@@ -301,7 +310,98 @@ struct NeutralRendererTests {
         }
         _ = try EvidencePackage.seal(directory: pathForgery)
         #expect(throws: EvidencePackageError.self) {
-            try EvidencePackage.verify(directory: pathForgery)
+            try EvidencePackage.verify(directory: pathForgery, expectedSourceCommit: canonicalTestCommit)
+        }
+    }
+
+    @Test("verification rejects a checksum-valid tile swapped from another scene")
+    func verifyRejectsCrossSceneTileSubstitution() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("editorial-field-tile-swap-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        _ = try EvidencePackage.generateComposition(
+            manifest: .visibleV1(),
+            sourceCommit: canonicalTestCommit,
+            outputDirectory: directory,
+            renderConfiguration: .init(scale: 1, overlays: [])
+        )
+
+        let targetPath = "renders/breadth/breadth-00-phase-000-tile@1x.png"
+        let substitutedPath = "renders/breadth/breadth-01-phase-000-tile@1x.png"
+        let substituted = try Data(contentsOf: directory.appendingPathComponent(substitutedPath))
+        try substituted.write(to: directory.appendingPathComponent(targetPath), options: .atomic)
+        _ = try rewriteJSON(directory.appendingPathComponent("manifest.json")) { json in
+            var artifacts = try #require(json["artifacts"] as? [[String: Any]])
+            let index = try #require(artifacts.firstIndex { $0["path"] as? String == targetPath })
+            artifacts[index]["byteCount"] = substituted.count
+            artifacts[index]["sha256"] = sha256Hex(substituted)
+            json["artifacts"] = artifacts
+        }
+        _ = try EvidencePackage.seal(directory: directory)
+
+        #expect(throws: EvidencePackageError.self) {
+            try EvidencePackage.verify(directory: directory, expectedSourceCommit: canonicalTestCommit)
+        }
+    }
+
+    @Test("verification rejects checksum-valid forged and empty provenance metadata")
+    func verifyRejectsForgedProvenance() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("editorial-field-provenance-\(UUID().uuidString)", isDirectory: true)
+        let canonicalDirectory = root.appendingPathComponent("canonical", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        _ = try EvidencePackage.generateComposition(
+            manifest: .visibleV1(),
+            sourceCommit: canonicalTestCommit,
+            outputDirectory: canonicalDirectory,
+            renderConfiguration: .init(scale: 1, overlays: [])
+        )
+        #expect(try EvidencePackage.verify(
+            directory: canonicalDirectory,
+            expectedSourceCommit: canonicalTestCommit
+        ).count == 64)
+
+        let invalidCommit = root.appendingPathComponent("invalid-commit", isDirectory: true)
+        try FileManager.default.copyItem(at: canonicalDirectory, to: invalidCommit)
+        _ = try rewriteJSON(invalidCommit.appendingPathComponent("manifest.json")) { json in
+            json["sourceCommit"] = "forged-nonempty"
+        }
+        _ = try EvidencePackage.seal(directory: invalidCommit)
+        #expect(throws: EvidencePackageError.self) {
+            try EvidencePackage.verify(directory: invalidCommit, expectedSourceCommit: canonicalTestCommit)
+        }
+
+        let emptyMetadata = root.appendingPathComponent("empty-metadata", isDirectory: true)
+        try FileManager.default.copyItem(at: canonicalDirectory, to: emptyMetadata)
+        _ = try rewriteJSON(emptyMetadata.appendingPathComponent("manifest.json")) { json in
+            json["toolchain"] = ""
+            json["device"] = ""
+            json["operatingSystem"] = ""
+        }
+        _ = try EvidencePackage.seal(directory: emptyMetadata)
+        #expect(throws: EvidencePackageError.self) {
+            try EvidencePackage.verify(directory: emptyMetadata, expectedSourceCommit: canonicalTestCommit)
+        }
+
+        let mismatchedCommit = root.appendingPathComponent("mismatched-commit", isDirectory: true)
+        try FileManager.default.copyItem(at: canonicalDirectory, to: mismatchedCommit)
+        _ = try rewriteJSON(mismatchedCommit.appendingPathComponent("manifest.json")) { json in
+            json["sourceCommit"] = otherTestCommit
+        }
+        _ = try EvidencePackage.seal(directory: mismatchedCommit)
+        #expect(throws: EvidencePackageError.self) {
+            try EvidencePackage.verify(directory: mismatchedCommit, expectedSourceCommit: canonicalTestCommit)
+        }
+
+        let invalidGeneration = root.appendingPathComponent("invalid-generation", isDirectory: true)
+        #expect(throws: EvidencePackageError.self) {
+            try EvidencePackage.generateComposition(
+                manifest: .visibleV1(),
+                sourceCommit: "forged-nonempty",
+                outputDirectory: invalidGeneration,
+                renderConfiguration: .init(scale: 1, overlays: [])
+            )
         }
     }
 

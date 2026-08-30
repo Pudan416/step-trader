@@ -21,7 +21,7 @@ enum RenderCLIError: Error, LocalizedError {
 private let usage = """
 Usage:
   editorial-field-render composition --manifest <path> --output <round-dir> [--source-commit <hash>] [--overlays all|none|crop,overlap,centerOfMass,occupiedBounds]
-  editorial-field-render verify --package <round-dir>
+  editorial-field-render verify --package <round-dir> --expected-source-commit <full-git-object-id>
 """
 
 private func option(_ name: String, in arguments: [String]) throws -> String {
@@ -98,7 +98,11 @@ do {
         print("package SHA-256: \(generated.packageHash)")
     case "verify":
         let packageURL = URL(fileURLWithPath: try option("--package", in: arguments), isDirectory: true)
-        let packageHash = try EvidencePackage.verify(directory: packageURL)
+        let expectedSourceCommit = try option("--expected-source-commit", in: arguments)
+        let packageHash = try EvidencePackage.verify(
+            directory: packageURL,
+            expectedSourceCommit: expectedSourceCommit
+        )
         print("verified package SHA-256: \(packageHash)")
     default:
         throw RenderCLIError.usage(usage)

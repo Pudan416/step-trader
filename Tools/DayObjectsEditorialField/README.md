@@ -51,7 +51,8 @@ critic:
 
 ```bash
 swift run --package-path Tools/DayObjectsEditorialField editorial-field-render verify \
-  --package artifacts/day-objects-editorial-field/composition/<artist-round>
+  --package artifacts/day-objects-editorial-field/composition/<artist-round> \
+  --expected-source-commit <full-40-or-64-character-git-object-id>
 ```
 
 Any changed, added, or removed package file makes verification fail. Record the
@@ -70,6 +71,14 @@ paths, artifact records, and PNG dimensions after validating `SHA256SUMS`.
 Recomputing checksums therefore cannot turn a truncated package into valid
 `visible-v1` evidence. Future held-out corpora must add their own explicit
 corpus kind and validator; unknown kinds fail closed.
+
+The expected source commit is external review context, normally copied from the
+director ledger or the artist handoff. Generation and verification accept only
+full 40- or 64-character lowercase hexadecimal Git object IDs, and verification
+requires the externally supplied ID to equal the package manifest. This lets
+later artist commits produce packages without trusting a package's own
+self-asserted provenance. The current known toolchain identifier is exact, and
+device/OS metadata must be nonempty, trimmed, printable, and bounded in length.
 
 The visible corpus fixes the specification commit
 `8a8539a77ce704fcc688ebe8cb98d78e2a0f80dd`, nonce
