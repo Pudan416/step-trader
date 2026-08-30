@@ -138,7 +138,7 @@ struct FeedsSurfaceView: View {
             }
         } label: {
             Image(systemName: "ellipsis")
-                .font(.system(size: 16, weight: .semibold))
+                .font(.geist(size: 16, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 32, height: 32)
                 .background(Circle().fill(.white.opacity(0.16)))
@@ -173,10 +173,10 @@ struct FeedsSurfaceView: View {
         } label: {
             HStack {
                 Text(window.displayName)
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .font(.geist(size: 17, weight: .semibold, design: .rounded))
                 Spacer()
                 Text("\(cost)")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .font(.geist(size: 16, weight: .bold, design: .rounded))
                     .monospacedDigit()
             }
             .foregroundStyle(.white)
@@ -229,7 +229,7 @@ struct FeedsSurfaceView: View {
                 // gives them their own line so neither has to shrink to make
                 // room for the other.
                 Text(display.digits)
-                    .font(.systemSerif(Self.digitsSize, weight: .bold, relativeTo: .largeTitle))
+                    .font(.geist(Self.digitsSize, weight: .bold, relativeTo: .largeTitle))
                     .foregroundStyle(.white)
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
@@ -276,10 +276,10 @@ struct FeedsSurfaceView: View {
         } label: {
             HStack(spacing: 7) {
                 Text(String(localized: "Open \(name)", comment: "Feeds surface – open the unlocked app"))
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .font(.geist(size: 16, weight: .semibold, design: .rounded))
                     .lineLimit(1)
                 Image(systemName: "arrow.up.forward")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.geist(size: 13, weight: .semibold))
             }
             // Outlined, not filled: against an unscrimmed canvas a solid
             // block of accent would fight the disc for attention.

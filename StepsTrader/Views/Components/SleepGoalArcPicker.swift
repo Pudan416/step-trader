@@ -18,21 +18,52 @@ struct DayResetTimePicker: View {
     private var currentHour: Int { (selectedMinutes / 60) % 24 }
     private var currentMinute: Int { selectedMinutes % 60 }
 
+    private var hourAccessibilityLabel: String {
+        String(localized: "New day hour", comment: "Custom day boundary hour control")
+    }
+
+    private var minuteAccessibilityLabel: String {
+        String(localized: "New day minute", comment: "Custom day boundary minute control")
+    }
+
     var body: some View {
         HStack(spacing: 6) {
             FlipClockPanel(
                 displayText: String(format: "%02d", currentHour),
+                accessibilityLabel: hourAccessibilityLabel,
+                accessibilityValue: currentHour.formatted(.number),
+                accessibilityIdentifier: "settings.yourDay.boundary.hour",
+                incrementLabel: String(
+                    localized: "Increase new day hour",
+                    comment: "Custom day boundary hour increment button"
+                ),
+                decrementLabel: String(
+                    localized: "Decrease new day hour",
+                    comment: "Custom day boundary hour decrement button"
+                ),
                 onIncrement: { stepHour(forward: true) },
                 onDecrement: { stepHour(forward: false) }
             )
 
             Text(":")
-                .font(.system(size: 44, weight: .semibold, design: .rounded))
+                .font(.geist(size: 44, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white.opacity(0.35))
                 .offset(y: -2)
+                .accessibilityHidden(true)
 
             FlipClockPanel(
                 displayText: String(format: "%02d", currentMinute),
+                accessibilityLabel: minuteAccessibilityLabel,
+                accessibilityValue: currentMinute.formatted(.number),
+                accessibilityIdentifier: "settings.yourDay.boundary.minute",
+                incrementLabel: String(
+                    localized: "Increase new day minute",
+                    comment: "Custom day boundary minute increment button"
+                ),
+                decrementLabel: String(
+                    localized: "Decrease new day minute",
+                    comment: "Custom day boundary minute decrement button"
+                ),
                 onIncrement: { stepMinute(forward: true) },
                 onDecrement: { stepMinute(forward: false) }
             )
@@ -88,6 +119,11 @@ struct DayResetTimePicker: View {
 
 private struct FlipClockPanel: View {
     let displayText: String
+    let accessibilityLabel: String
+    let accessibilityValue: String
+    let accessibilityIdentifier: String
+    let incrementLabel: String
+    let decrementLabel: String
     let onIncrement: () -> Void
     let onDecrement: () -> Void
 
@@ -124,7 +160,7 @@ private struct FlipClockPanel: View {
                     .frame(height: 1)
 
                 Text(displayText)
-                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                    .font(.geist(size: 48, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(.white)
                     .contentTransition(.numericText())
@@ -147,6 +183,20 @@ private struct FlipClockPanel: View {
                         withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) { dragOffset = 0 }
                     }
             )
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilityLabel)
+            .accessibilityValue(accessibilityValue)
+            .accessibilityIdentifier("\(accessibilityIdentifier).adjustable")
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment:
+                    onIncrement()
+                case .decrement:
+                    onDecrement()
+                @unknown default:
+                    break
+                }
+            }
 
             chevronButton(up: false)
         }
@@ -157,12 +207,15 @@ private struct FlipClockPanel: View {
             if up { onIncrement() } else { onDecrement() }
         } label: {
             Image(systemName: up ? "chevron.up" : "chevron.down")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.geist(size: 12, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.35))
-                .frame(width: tileWidth, height: 28)
+                .frame(width: tileWidth, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(up ? incrementLabel : decrementLabel)
+        .accessibilityValue(accessibilityValue)
+        .accessibilityIdentifier("\(accessibilityIdentifier).\(up ? "increment" : "decrement")")
     }
 }
 
@@ -176,30 +229,76 @@ struct SleepDurationStepper: View {
     private let maxHours: Double = 10
     private let step: Double = 0.5
 
+    private var accessibilityLabel: String {
+        String(localized: "Sleep Goal")
+    }
+
+    private var accessibilityValue: String {
+        String(
+            localized: "\(formattedHours) hours",
+            comment: "Sleep goal picker accessibility value"
+        )
+    }
+
     var body: some View {
         HStack(spacing: 16) {
-            stepButton(icon: "minus", enabled: hours > minHours) {
+            stepButton(
+                icon: "minus",
+                enabled: hours > minHours,
+                accessibilityLabel: String(
+                    localized: "Decrease sleep goal",
+                    comment: "Sleep goal picker decrement button"
+                ),
+                accessibilityIdentifier: "settings.yourDay.sleep.decrement"
+            ) {
                 withAnimation(.snappy(duration: 0.15)) { hours = max(minHours, hours - step) }
             }
 
             VStack(spacing: 1) {
                 Text(formattedHours)
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .font(.geist(size: 34, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(theme.adaptivePrimaryText)
                     .contentTransition(.numericText())
                     .animation(.snappy(duration: 0.15), value: hours)
                 Text(String(localized: "hours"))
-                    .font(.caption.weight(.medium))
+                    .font(.geist(.caption).weight(.medium))
                     .foregroundStyle(theme.adaptiveSecondaryText)
             }
             .frame(minWidth: 80)
+            .accessibilityHidden(true)
 
-            stepButton(icon: "plus", enabled: hours < maxHours) {
+            stepButton(
+                icon: "plus",
+                enabled: hours < maxHours,
+                accessibilityLabel: String(
+                    localized: "Increase sleep goal",
+                    comment: "Sleep goal picker increment button"
+                ),
+                accessibilityIdentifier: "settings.yourDay.sleep.increment"
+            ) {
                 withAnimation(.snappy(duration: 0.15)) { hours = min(maxHours, hours + step) }
             }
         }
         .sensoryFeedback(.impact(weight: .light), trigger: hours)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue(accessibilityValue)
+        .accessibilityIdentifier("settings.yourDay.sleep.adjustable")
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment:
+                withAnimation(.snappy(duration: 0.15)) {
+                    hours = min(maxHours, hours + step)
+                }
+            case .decrement:
+                withAnimation(.snappy(duration: 0.15)) {
+                    hours = max(minHours, hours - step)
+                }
+            @unknown default:
+                break
+            }
+        }
     }
 
     private var formattedHours: String {
@@ -208,10 +307,16 @@ struct SleepDurationStepper: View {
             : hours.formatted(.number.precision(.fractionLength(1)))
     }
 
-    private func stepButton(icon: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+    private func stepButton(
+        icon: String,
+        enabled: Bool,
+        accessibilityLabel: String,
+        accessibilityIdentifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 15, weight: .bold))
+                .font(.geist(size: 15, weight: .bold))
                 .foregroundStyle(enabled ? theme.adaptivePrimaryText : theme.adaptiveMutedText.opacity(0.3))
                 .frame(width: 48, height: 48)
                 .background(
@@ -222,5 +327,8 @@ struct SleepDurationStepper: View {
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue(accessibilityValue)
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 }

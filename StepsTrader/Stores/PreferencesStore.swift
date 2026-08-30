@@ -40,6 +40,7 @@ enum PreferencesStore {
         var userGradientStyle: String
         var userGradientPalette: String
         var dailyRandomThemeEnabled: Bool
+        var modernPaletteCategories: [String] = []
         /// Legacy per-category shapes. Still restored during rollout because
         /// older builds sharing this App Group read them, and because they are
         /// what seeds `allowedCanvasShapes` on a device that has never had it.
@@ -49,6 +50,7 @@ enum PreferencesStore {
         /// The shape set that replaces the three above. Empty means the device
         /// has no server-side value yet; seeding from the legacy keys handles it.
         var allowedCanvasShapes: [String] = []
+        var allowedCanvasFills: [String] = []
     }
 
     // Keys stored as bare string literals elsewhere in the codebase (not yet in
@@ -90,6 +92,15 @@ enum PreferencesStore {
         standard.set(s.userGradientStyle, forKey: SharedKeys.userGradientStyle)
         standard.set(s.userGradientPalette, forKey: SharedKeys.userGradientPalette)
         standard.set(s.dailyRandomThemeEnabled, forKey: SharedKeys.dailyRandomThemeEnabled)
+        let modernCategories = Set(
+            s.modernPaletteCategories.compactMap(ModernPaletteCategory.init(rawValue:))
+        )
+        if !modernCategories.isEmpty {
+            standard.set(
+                ModernPaletteSelection.encode(modernCategories),
+                forKey: SharedKeys.modernPaletteCategories
+            )
+        }
         standard.set(s.bodyCanvasShape, forKey: SharedKeys.bodyCanvasShape)
         standard.set(s.mindCanvasShape, forKey: SharedKeys.mindCanvasShape)
         standard.set(s.heartCanvasShape, forKey: SharedKeys.heartCanvasShape)
@@ -98,6 +109,9 @@ enum PreferencesStore {
         // path in `CanvasShapeType.allowedByUser`.
         if !s.allowedCanvasShapes.isEmpty {
             standard.set(s.allowedCanvasShapes, forKey: SharedKeys.allowedCanvasShapes)
+        }
+        if !s.allowedCanvasFills.isEmpty {
+            standard.set(s.allowedCanvasFills, forKey: SharedKeys.allowedCanvasFills)
         }
 
         // Mirror the active theme into the app group so widgets/extensions match.

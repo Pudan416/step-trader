@@ -162,12 +162,12 @@ struct FeatureTipSheet: View {
 
             VStack(spacing: 10) {
                 Text(tip.title)
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .font(.geist(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(theme.adaptivePrimaryText)
                     .multilineTextAlignment(.center)
 
                 Text(tip.message)
-                    .font(.subheadline)
+                    .font(.geist(.subheadline))
                     .foregroundStyle(theme.adaptiveSecondaryText)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -188,7 +188,7 @@ struct FeatureTipSheet: View {
                     )
                 } label: {
                     Text(tip.primaryActionTitle)
-                        .font(.headline)
+                        .font(.geist(.headline))
                         .foregroundStyle(.black)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 15)
@@ -200,7 +200,7 @@ struct FeatureTipSheet: View {
                     dismiss()
                 } label: {
                     Text(String(localized: "Maybe later", comment: "Feature tip dismiss button"))
-                        .font(.subheadline.weight(.medium))
+                        .font(.geist(.subheadline).weight(.medium))
                         .foregroundStyle(theme.adaptiveSecondaryText)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -269,7 +269,7 @@ struct FeatureTipSheet: View {
             )
             .overlay {
                 Image(systemName: tip.iconSystemName)
-                    .font(.system(size: 34, weight: .light))
+                    .font(.geist(size: 34, weight: .light))
                     .foregroundStyle(.white.opacity(0.85))
             }
         }

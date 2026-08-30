@@ -1,63 +1,5 @@
 import SwiftUI
 
-// MARK: - Detail page header (replaces hidden nav bar)
-
-struct DetailHeader: View {
-    let title: String
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.appTheme) private var theme
-
-    var body: some View {
-        HStack {
-            Button { dismiss() } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "chevron.left")
-                        .font(.subheadline.weight(.semibold))
-                    Text(String(localized: "Back", comment: "SettingsComponents – back button label"))
-                        .font(.subheadline)
-                }
-                .foregroundStyle(theme.adaptivePrimaryText)
-            }
-            Spacer()
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(theme.adaptivePrimaryText)
-            Spacer()
-            Color.clear.frame(width: 50, height: 1)
-        }
-        // Settings is a sheet now, not a tab: there is no status-bar safe area
-        // above these pages, so 4pt put Back flush against the sheet's top edge
-        // and into its rounded corners.
-        .padding(.top, 16)
-        .padding(.bottom, 8)
-    }
-}
-
-// MARK: - Swipe back
-
-/// Swipe right to dismiss — same threshold as onboarding (`>60pt` horizontal).
-private struct DetailSwipeBackModifier: ViewModifier {
-    @Environment(\.dismiss) private var dismiss
-
-    func body(content: Content) -> some View {
-        content.simultaneousGesture(
-            DragGesture(minimumDistance: 40)
-                .onEnded { value in
-                    let dx = value.translation.width
-                    let dy = abs(value.translation.height)
-                    guard dx > 60, dx > dy else { return }
-                    dismiss()
-                }
-        )
-    }
-}
-
-extension View {
-    func detailSwipeBack() -> some View {
-        modifier(DetailSwipeBackModifier())
-    }
-}
-
 // MARK: - Hairline divider
 
 /// Thin 0.5pt divider between rows on the matte settings surface.
@@ -79,19 +21,52 @@ struct DetailInfoRow: View {
     let label: String
     let value: String
     @Environment(\.appTheme) private var theme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack {
-            Text(label)
-                .font(.subheadline)
-                .foregroundStyle(theme.adaptivePrimaryText)
-            Spacer()
-            Text(value)
-                .font(.subheadline)
-                .foregroundStyle(theme.adaptiveSecondaryText)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                stackedContent
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    horizontalContent
+                    stackedContent
+                }
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 13)
+    }
+
+    private var horizontalContent: some View {
+        HStack {
+            labelText
+                .fixedSize(horizontal: true, vertical: false)
+            Spacer()
+            valueText
+                .fixedSize(horizontal: true, vertical: false)
+        }
+    }
+
+    private var stackedContent: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            labelText
+            valueText
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var labelText: some View {
+        Text(label)
+            .font(.geist(.subheadline))
+            .foregroundStyle(theme.adaptivePrimaryText)
+    }
+
+    private var valueText: some View {
+        Text(value)
+            .font(.geist(.subheadline))
+            .foregroundStyle(theme.adaptiveSecondaryText)
     }
 }
 
@@ -102,10 +77,54 @@ struct SettingsSectionLabel: View {
     @Environment(\.appTheme) private var theme
 
     var body: some View {
-        Text(text.uppercased())
-            .font(.caption2.weight(.semibold))
+        Text(SettingsLocalizedCasing.uppercase(text))
+            .font(.geist(.caption2).weight(.semibold))
             .tracking(3)
             .foregroundStyle(theme.adaptiveMutedText)
+    }
+}
+
+/// A section heading with deliberate breathing room before its matte card.
+/// Keeping the heading outside the clipped surface prevents the card outline
+/// from running through the text at both default and accessibility sizes.
+struct SettingsLabeledGroup<Content: View>: View {
+    let title: String
+    let surfaceIdentifier: String?
+    @ViewBuilder let content: () -> Content
+
+    init(
+        title: String,
+        surfaceIdentifier: String? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.surfaceIdentifier = surfaceIdentifier
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SettingsSectionLabel(text: title)
+                .padding(.horizontal, 14)
+
+            SettingsGroupedSurface(content: content)
+                .modifier(OptionalSettingsSurfaceIdentifier(identifier: surfaceIdentifier))
+        }
+    }
+}
+
+private struct OptionalSettingsSurfaceIdentifier: ViewModifier {
+    let identifier: String?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let identifier {
+            content
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier(identifier)
+        } else {
+            content
+        }
     }
 }
 
@@ -122,16 +141,16 @@ struct SettingsToggleRow: View {
         Toggle(isOn: $isOn) {
             HStack(spacing: 12) {
                 Image(systemName: icon)
-                    .font(.system(size: 15))
+                    .font(.geist(size: 15))
                     .foregroundStyle(theme.adaptiveSecondaryText)
                     .frame(width: 24)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.subheadline)
+                        .font(.geist(.subheadline))
                         .foregroundStyle(theme.adaptivePrimaryText)
                     if let subtitle {
                         Text(subtitle)
-                            .font(.caption)
+                            .font(.geist(.caption))
                             .foregroundStyle(theme.adaptiveSecondaryText)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -155,21 +174,23 @@ struct SettingsNavRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 15))
+                .font(.geist(size: 15))
                 .foregroundStyle(theme.adaptiveSecondaryText)
                 .frame(width: 24)
+                .accessibilityHidden(true)
             Text(title)
-                .font(.subheadline)
+                .font(.geist(.subheadline))
                 .foregroundStyle(theme.adaptivePrimaryText)
             Spacer()
             if let value {
                 Text(value)
-                    .font(.subheadline)
+                    .font(.geist(.subheadline))
                     .foregroundStyle(theme.adaptiveSecondaryText)
             }
             Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.geist(size: 12, weight: .semibold))
                 .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 13)
@@ -185,29 +206,68 @@ struct SettingsLinkRow: View {
     var detail: String? = nil
     var trailingIcon: String = "arrow.up.right"
     @Environment(\.appTheme) private var theme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 15))
-                .foregroundStyle(theme.adaptiveSecondaryText)
-                .frame(width: 24)
-            Text(title)
-                .font(.subheadline)
-                .foregroundStyle(theme.adaptivePrimaryText)
-            Spacer()
-            if let detail {
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(theme.adaptiveSecondaryText)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                stackedContent
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    horizontalContent
+                    stackedContent
+                }
             }
-            Image(systemName: trailingIcon)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 13)
         .contentShape(Rectangle())
+    }
+
+    private var horizontalContent: some View {
+        HStack(spacing: 12) {
+            leadingContent
+            Spacer()
+            trailingContent
+                .fixedSize(horizontal: true, vertical: false)
+        }
+    }
+
+    private var stackedContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            leadingContent
+            trailingContent
+                .padding(.leading, 36)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var leadingContent: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.geist(size: 15))
+                .foregroundStyle(theme.adaptiveSecondaryText)
+                .frame(width: 24)
+                .accessibilityHidden(true)
+            Text(title)
+                .font(.geist(.subheadline))
+                .foregroundStyle(theme.adaptivePrimaryText)
+        }
+    }
+
+    private var trailingContent: some View {
+        HStack(spacing: 8) {
+            if let detail {
+                Text(detail)
+                    .font(.geist(.caption))
+                    .foregroundStyle(theme.adaptiveSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Image(systemName: trailingIcon)
+                .font(.geist(size: 10, weight: .semibold))
+                .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
+                .accessibilityHidden(true)
+        }
     }
 }
 
@@ -219,7 +279,7 @@ struct SettingsFooter: View {
 
     var body: some View {
         Text(text)
-            .font(.caption)
+            .font(.geist(.caption))
             .foregroundStyle(theme.adaptiveSecondaryText)
             .padding(.horizontal, 4)
     }
@@ -236,6 +296,24 @@ struct SettingsGradientBG: View {
 
     var body: some View {
         Color.clear.energyGradientBackground(model: model, showGrain: false)
+    }
+}
+
+/// A calmer form of the energy wash for pushed Settings destinations. The
+/// root page keeps the full-strength gradient while details recede behind
+/// their controls.
+struct SettingsDetailBackground: View {
+    @ObservedObject var model: AppModel
+    @Environment(\.appTheme) private var theme
+
+    var body: some View {
+        ZStack {
+            SettingsGradientBG(model: model)
+            theme.backgroundColor.opacity(0.78)
+        }
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
+        .accessibilityIdentifier("settings.detail.background")
     }
 }
 
@@ -268,6 +346,87 @@ struct MattePressStyle: ButtonStyle {
         configuration.label
             .opacity(configuration.isPressed ? 0.55 : 1.0)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+// MARK: - Card surface
+
+struct SettingsCardSurface: ViewModifier {
+    @Environment(\.appTheme) private var theme
+
+    func body(content: Content) -> some View {
+        content
+            .background(Color.black.opacity(SettingsCardAppearance.surfaceOpacity))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(
+                        theme.adaptivePrimaryText.opacity(SettingsCardAppearance.outlineOpacity),
+                        lineWidth: 0.75
+                    )
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+extension View {
+    func settingsCardSurface() -> some View { modifier(SettingsCardSurface()) }
+
+    func settingsSelectable(label: String, isSelected: Bool) -> some View {
+        modifier(SettingsSelectableModifier(label: label, isSelected: isSelected))
+    }
+}
+
+private struct SettingsSelectableModifier: ViewModifier {
+    let label: String
+    let isSelected: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isSelected {
+            selectableContent(content)
+                .accessibilityAddTraits(.isSelected)
+        } else {
+            selectableContent(content)
+        }
+    }
+
+    private func selectableContent(_ content: Content) -> some View {
+        content
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(Text(label))
+            .accessibilityValue(Text(isSelected
+                ? String(localized: "Selected", comment: "Settings selectable choice state")
+                : String(localized: "Not selected", comment: "Settings selectable choice state")))
+    }
+}
+
+/// Shared matte container for rows that belong to one Settings group.
+struct SettingsGroupedSurface<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(spacing: 0, content: content)
+            .settingsCardSurface()
+    }
+}
+
+private struct SettingsDetailPageModifier: ViewModifier {
+    let title: String
+    @Environment(\.topCardHeight) private var topCardHeight
+
+    func body(content: Content) -> some View {
+        content
+            .safeAreaInset(edge: .top, spacing: 0) {
+                Color.clear.frame(height: topCardHeight)
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+extension View {
+    func settingsDetailPage(title: String) -> some View {
+        modifier(SettingsDetailPageModifier(title: title))
     }
 }
 

@@ -2,7 +2,6 @@ import SwiftUI
 
 struct SettingsAboutPage: View {
     @ObservedObject var model: AppModel
-    @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.openURL) private var openURL
     @Environment(\.appTheme) private var theme
 
@@ -28,36 +27,34 @@ struct SettingsAboutPage: View {
 
     var body: some View {
         ZStack {
-            SettingsGradientBG(model: model)
+            SettingsDetailBackground(model: model)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    DetailHeader(title: String(localized: "About", comment: "Settings section title"))
-                        .padding(.horizontal, 16)
-
                     // MARK: - Brand Identity
-                    VStack(spacing: 12) {
-                        Text(Identity.brandName)
-                            .font(.system(size: 28, weight: .black, design: .serif))
-                            .foregroundStyle(theme.adaptivePrimaryText)
+                    SettingsGroupedSurface {
+                        VStack(spacing: 12) {
+                            Text(Identity.brandName)
+                                .font(.unbounded(28, weight: .semibold, relativeTo: .title2))
+                                .fontDesign(nil)
+                                .foregroundStyle(theme.adaptivePrimaryText)
 
-                        Text(String(localized: "You are not nowhere. You are now here.", comment: "App philosophy tagline"))
-                            .font(.subheadline)
-                            .foregroundStyle(theme.adaptiveSecondaryText)
-                            .multilineTextAlignment(.center)
+                            Text(String(localized: "You are not nowhere. You are now here.", comment: "App philosophy tagline"))
+                                .font(.geist(.subheadline))
+                                .foregroundStyle(theme.adaptiveSecondaryText)
+                                .multilineTextAlignment(.center)
 
-                        Text("v\(appVersion) (\(buildNumber))")
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundStyle(theme.adaptiveMutedText)
+                            Text("v\(appVersion) (\(buildNumber))")
+                                .font(.geist(size: 11, weight: .medium, design: .monospaced))
+                                .foregroundStyle(theme.adaptiveMutedText)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
                     .padding(.horizontal, 16)
 
-                    DetailDivider().padding(.horizontal, 16)
-
                     // MARK: - Info
-                    VStack(spacing: 0) {
+                    SettingsGroupedSurface {
                         DetailInfoRow(
                             label: String(localized: "Developer"),
                             value: Identity.developerName
@@ -70,14 +67,10 @@ struct SettingsAboutPage: View {
                     }
                     .padding(.horizontal, 16)
 
-                    DetailDivider().padding(.horizontal, 16)
-
                     // MARK: - Contact
-                    VStack(alignment: .leading, spacing: 0) {
-                        SettingsSectionLabel(text: String(localized: "Contact", comment: "About section header"))
-                            .padding(.horizontal, 14)
-                            .padding(.bottom, 8)
-
+                    SettingsLabeledGroup(
+                        title: String(localized: "Contact", comment: "About section header")
+                    ) {
                         Button {
                             if let url = URL(string: Identity.feedbackMailto) {
                                 openURL(url)
@@ -142,11 +135,7 @@ struct SettingsAboutPage: View {
             }
         }
         .overlay { }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            Color.clear.frame(height: topCardHeight)
-        }
-        .toolbar(.hidden, for: .navigationBar)
-        .detailSwipeBack()
+        .settingsDetailPage(title: String(localized: "About", comment: "Settings section title"))
     }
 }
 

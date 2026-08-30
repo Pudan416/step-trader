@@ -96,7 +96,7 @@ struct LoginView: View {
                     Spacer()
                     Button { dismiss() } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.geist(size: 13, weight: .semibold))
                             .foregroundStyle(appTheme.adaptiveSecondaryText)
                             .frame(width: 30, height: 30)
                             .background(appTheme.adaptiveMutedText.opacity(0.1), in: Circle())
@@ -125,11 +125,12 @@ struct LoginView: View {
 
                 VStack(spacing: 6) {
                     Text(String(localized: "Nowhere"))
-                        .font(.systemSerif(32, weight: .black, relativeTo: .title))
+                        .font(.unbounded(32, weight: .semibold, relativeTo: .title))
+                        .fontDesign(nil)
                         .foregroundStyle(appTheme.textPrimary)
 
                     Text(String(localized: "The sense of being present"))
-                        .font(.subheadline)
+                        .font(.geist(.subheadline))
                         .foregroundStyle(appTheme.adaptiveSecondaryText)
                 }
                 .opacity(appeared ? 1 : 0)
@@ -167,7 +168,7 @@ struct LoginView: View {
                 appleSignInButton
 
                 Text(String(localized: "Sign in to keep your data safe and synced across devices"))
-                    .font(.caption)
+                    .font(.geist(.caption))
                     .foregroundStyle(appTheme.adaptiveMutedText)
                     .multilineTextAlignment(.center)
             }
@@ -207,11 +208,11 @@ struct LoginView: View {
     private func featureRow(icon: String, text: String, tint: Color) -> some View {
         HStack(spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 15, weight: .medium))
+                .font(.geist(size: 15, weight: .medium))
                 .foregroundStyle(tint)
                 .frame(width: 22)
             Text(text)
-                .font(.subheadline)
+                .font(.geist(.subheadline))
                 .foregroundStyle(appTheme.textPrimary.opacity(0.8))
         }
     }

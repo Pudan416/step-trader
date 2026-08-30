@@ -1,0 +1,4060 @@
+{
+  "artifacts" : [
+    {
+      "byteCount" : 243427,
+      "kind" : "contact-sheet",
+      "path" : "contact-sheets/breadth.png",
+      "sha256" : "ceb18163a1329074e861164f4b2b53c2d0f2661f669856b365e8631a1cd0d202"
+    },
+    {
+      "byteCount" : 93816,
+      "kind" : "contact-sheet",
+      "path" : "contact-sheets/continuity.png",
+      "sha256" : "77c0108d4149dcbe996ac0740f2335b55808e4cc015bd5f1ffb9cab79a9aa57e"
+    },
+    {
+      "byteCount" : 33550,
+      "kind" : "corpus-manifest",
+      "path" : "corpus-manifest.json",
+      "sha256" : "3ce4e38005b3c262cd76ca58a8cd169e38f0a23aa2df70a8437ebb134bed52c9"
+    },
+    {
+      "byteCount" : 339547,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-00-phase-000-centerOfMass@3x.png",
+      "sha256" : "f61d0015cc719587c8562122727c840cae92caa19e1f005864c68e6abce850d2"
+    },
+    {
+      "byteCount" : 344720,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-00-phase-000-crop@3x.png",
+      "sha256" : "1e1ccb22749c22af5ef73fff07d0c9cedb536e8f97132529b4a5bfa7fa2e15a2"
+    },
+    {
+      "byteCount" : 344710,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-00-phase-000-occupiedBounds@3x.png",
+      "sha256" : "b0ef8dd3873dfc46e196aa5cc33b06b4842d1ec91970c18271a7d47e98f80232"
+    },
+    {
+      "byteCount" : 338682,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-00-phase-000-overlap@3x.png",
+      "sha256" : "0ed610aed0f936b35b797ce16d968e26f03716b6b249e8c95d16f1ecd68f385b"
+    },
+    {
+      "byteCount" : 339547,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-00-phase-025-centerOfMass@3x.png",
+      "sha256" : "f61d0015cc719587c8562122727c840cae92caa19e1f005864c68e6abce850d2"
+    },
+    {
+      "byteCount" : 344720,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-00-phase-025-crop@3x.png",
+      "sha256" : "1e1ccb22749c22af5ef73fff07d0c9cedb536e8f97132529b4a5bfa7fa2e15a2"
+    },
+    {
+      "byteCount" : 344710,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-00-phase-025-occupiedBounds@3x.png",
+      "sha256" : "b0ef8dd3873dfc46e196aa5cc33b06b4842d1ec91970c18271a7d47e98f80232"
+    },
+    {
+      "byteCount" : 338682,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-00-phase-025-overlap@3x.png",
+      "sha256" : "0ed610aed0f936b35b797ce16d968e26f03716b6b249e8c95d16f1ecd68f385b"
+    },
+    {
+      "byteCount" : 339547,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-00-phase-050-centerOfMass@3x.png",
+      "sha256" : "f61d0015cc719587c8562122727c840cae92caa19e1f005864c68e6abce850d2"
+    },
+    {
+      "byteCount" : 344720,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-00-phase-050-crop@3x.png",
+      "sha256" : "1e1ccb22749c22af5ef73fff07d0c9cedb536e8f97132529b4a5bfa7fa2e15a2"
+    },
+    {
+      "byteCount" : 344710,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-00-phase-050-occupiedBounds@3x.png",
+      "sha256" : "b0ef8dd3873dfc46e196aa5cc33b06b4842d1ec91970c18271a7d47e98f80232"
+    },
+    {
+      "byteCount" : 338682,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-00-phase-050-overlap@3x.png",
+      "sha256" : "0ed610aed0f936b35b797ce16d968e26f03716b6b249e8c95d16f1ecd68f385b"
+    },
+    {
+      "byteCount" : 339547,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-00-phase-075-centerOfMass@3x.png",
+      "sha256" : "f61d0015cc719587c8562122727c840cae92caa19e1f005864c68e6abce850d2"
+    },
+    {
+      "byteCount" : 344720,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-00-phase-075-crop@3x.png",
+      "sha256" : "1e1ccb22749c22af5ef73fff07d0c9cedb536e8f97132529b4a5bfa7fa2e15a2"
+    },
+    {
+      "byteCount" : 344710,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-00-phase-075-occupiedBounds@3x.png",
+      "sha256" : "b0ef8dd3873dfc46e196aa5cc33b06b4842d1ec91970c18271a7d47e98f80232"
+    },
+    {
+      "byteCount" : 338682,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-00-phase-075-overlap@3x.png",
+      "sha256" : "0ed610aed0f936b35b797ce16d968e26f03716b6b249e8c95d16f1ecd68f385b"
+    },
+    {
+      "byteCount" : 233824,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-01-phase-000-centerOfMass@3x.png",
+      "sha256" : "ed63437c6361ab2b83e6df067c1996d42e5a1fcef2a30bb6d2053bbfeb4e8ea5"
+    },
+    {
+      "byteCount" : 248481,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-01-phase-000-crop@3x.png",
+      "sha256" : "859c86b1d83ed8495b8a22a2405a06d1fa08759719c990575c468bad14d30be3"
+    },
+    {
+      "byteCount" : 241770,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-01-phase-000-occupiedBounds@3x.png",
+      "sha256" : "c7d87284745f3f1530fb842fcf0d3cf1ced1c819f97d877b8379a78a3f4ccd9f"
+    },
+    {
+      "byteCount" : 232796,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-01-phase-000-overlap@3x.png",
+      "sha256" : "c938afa451109e98c4c2bbffef00f7aca0e1606d47164efeeae60637c78498fa"
+    },
+    {
+      "byteCount" : 233824,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-01-phase-025-centerOfMass@3x.png",
+      "sha256" : "ed63437c6361ab2b83e6df067c1996d42e5a1fcef2a30bb6d2053bbfeb4e8ea5"
+    },
+    {
+      "byteCount" : 248481,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-01-phase-025-crop@3x.png",
+      "sha256" : "859c86b1d83ed8495b8a22a2405a06d1fa08759719c990575c468bad14d30be3"
+    },
+    {
+      "byteCount" : 241770,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-01-phase-025-occupiedBounds@3x.png",
+      "sha256" : "c7d87284745f3f1530fb842fcf0d3cf1ced1c819f97d877b8379a78a3f4ccd9f"
+    },
+    {
+      "byteCount" : 232796,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-01-phase-025-overlap@3x.png",
+      "sha256" : "c938afa451109e98c4c2bbffef00f7aca0e1606d47164efeeae60637c78498fa"
+    },
+    {
+      "byteCount" : 233824,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-01-phase-050-centerOfMass@3x.png",
+      "sha256" : "ed63437c6361ab2b83e6df067c1996d42e5a1fcef2a30bb6d2053bbfeb4e8ea5"
+    },
+    {
+      "byteCount" : 248481,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-01-phase-050-crop@3x.png",
+      "sha256" : "859c86b1d83ed8495b8a22a2405a06d1fa08759719c990575c468bad14d30be3"
+    },
+    {
+      "byteCount" : 241770,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-01-phase-050-occupiedBounds@3x.png",
+      "sha256" : "c7d87284745f3f1530fb842fcf0d3cf1ced1c819f97d877b8379a78a3f4ccd9f"
+    },
+    {
+      "byteCount" : 232796,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-01-phase-050-overlap@3x.png",
+      "sha256" : "c938afa451109e98c4c2bbffef00f7aca0e1606d47164efeeae60637c78498fa"
+    },
+    {
+      "byteCount" : 233824,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-01-phase-075-centerOfMass@3x.png",
+      "sha256" : "ed63437c6361ab2b83e6df067c1996d42e5a1fcef2a30bb6d2053bbfeb4e8ea5"
+    },
+    {
+      "byteCount" : 248481,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-01-phase-075-crop@3x.png",
+      "sha256" : "859c86b1d83ed8495b8a22a2405a06d1fa08759719c990575c468bad14d30be3"
+    },
+    {
+      "byteCount" : 241770,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-01-phase-075-occupiedBounds@3x.png",
+      "sha256" : "c7d87284745f3f1530fb842fcf0d3cf1ced1c819f97d877b8379a78a3f4ccd9f"
+    },
+    {
+      "byteCount" : 232796,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-01-phase-075-overlap@3x.png",
+      "sha256" : "c938afa451109e98c4c2bbffef00f7aca0e1606d47164efeeae60637c78498fa"
+    },
+    {
+      "byteCount" : 267885,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-02-phase-000-centerOfMass@3x.png",
+      "sha256" : "ed0f21186b749f5b4c605624026c1853bb23e8421c6bae17baf03124dadb03c3"
+    },
+    {
+      "byteCount" : 272623,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-02-phase-000-crop@3x.png",
+      "sha256" : "e5dac76beec76d1ca4059c529df9d809af67fbeb774f1ba664fed5884d7e617b"
+    },
+    {
+      "byteCount" : 270416,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-02-phase-000-occupiedBounds@3x.png",
+      "sha256" : "bbacfae84c888f658f76afb57f1eb289d7960adde2bd47bd56a8537a8fc5806a"
+    },
+    {
+      "byteCount" : 267889,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-02-phase-000-overlap@3x.png",
+      "sha256" : "069a110a318c8a513bd58616fb5ac4ccf635a5a76d78223a2b664044eefb5833"
+    },
+    {
+      "byteCount" : 267885,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-02-phase-025-centerOfMass@3x.png",
+      "sha256" : "ed0f21186b749f5b4c605624026c1853bb23e8421c6bae17baf03124dadb03c3"
+    },
+    {
+      "byteCount" : 272623,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-02-phase-025-crop@3x.png",
+      "sha256" : "e5dac76beec76d1ca4059c529df9d809af67fbeb774f1ba664fed5884d7e617b"
+    },
+    {
+      "byteCount" : 270416,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-02-phase-025-occupiedBounds@3x.png",
+      "sha256" : "bbacfae84c888f658f76afb57f1eb289d7960adde2bd47bd56a8537a8fc5806a"
+    },
+    {
+      "byteCount" : 267889,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-02-phase-025-overlap@3x.png",
+      "sha256" : "069a110a318c8a513bd58616fb5ac4ccf635a5a76d78223a2b664044eefb5833"
+    },
+    {
+      "byteCount" : 267885,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-02-phase-050-centerOfMass@3x.png",
+      "sha256" : "ed0f21186b749f5b4c605624026c1853bb23e8421c6bae17baf03124dadb03c3"
+    },
+    {
+      "byteCount" : 272623,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-02-phase-050-crop@3x.png",
+      "sha256" : "e5dac76beec76d1ca4059c529df9d809af67fbeb774f1ba664fed5884d7e617b"
+    },
+    {
+      "byteCount" : 270416,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-02-phase-050-occupiedBounds@3x.png",
+      "sha256" : "bbacfae84c888f658f76afb57f1eb289d7960adde2bd47bd56a8537a8fc5806a"
+    },
+    {
+      "byteCount" : 267889,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-02-phase-050-overlap@3x.png",
+      "sha256" : "069a110a318c8a513bd58616fb5ac4ccf635a5a76d78223a2b664044eefb5833"
+    },
+    {
+      "byteCount" : 267885,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-02-phase-075-centerOfMass@3x.png",
+      "sha256" : "ed0f21186b749f5b4c605624026c1853bb23e8421c6bae17baf03124dadb03c3"
+    },
+    {
+      "byteCount" : 272623,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-02-phase-075-crop@3x.png",
+      "sha256" : "e5dac76beec76d1ca4059c529df9d809af67fbeb774f1ba664fed5884d7e617b"
+    },
+    {
+      "byteCount" : 270416,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-02-phase-075-occupiedBounds@3x.png",
+      "sha256" : "bbacfae84c888f658f76afb57f1eb289d7960adde2bd47bd56a8537a8fc5806a"
+    },
+    {
+      "byteCount" : 267889,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-02-phase-075-overlap@3x.png",
+      "sha256" : "069a110a318c8a513bd58616fb5ac4ccf635a5a76d78223a2b664044eefb5833"
+    },
+    {
+      "byteCount" : 239754,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-03-phase-000-centerOfMass@3x.png",
+      "sha256" : "e6fb79d66ac501e741a15e32b43ae373ba9f1447037c1f684742501351fa8423"
+    },
+    {
+      "byteCount" : 246208,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-03-phase-000-crop@3x.png",
+      "sha256" : "ae913adfda830a772c5752b539196b0db3a1a38495e90b28fc0f0f948c835b9a"
+    },
+    {
+      "byteCount" : 244954,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-03-phase-000-occupiedBounds@3x.png",
+      "sha256" : "e34483a1276cfb64c1d56432cd2242d4c010aa72fb8d3d018390d7cd76f74168"
+    },
+    {
+      "byteCount" : 240152,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-03-phase-000-overlap@3x.png",
+      "sha256" : "62b617c619d79226482191b6f0dbc34eb69f6aa2a8b29ce277314834d27e019e"
+    },
+    {
+      "byteCount" : 239754,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-03-phase-025-centerOfMass@3x.png",
+      "sha256" : "e6fb79d66ac501e741a15e32b43ae373ba9f1447037c1f684742501351fa8423"
+    },
+    {
+      "byteCount" : 246208,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-03-phase-025-crop@3x.png",
+      "sha256" : "ae913adfda830a772c5752b539196b0db3a1a38495e90b28fc0f0f948c835b9a"
+    },
+    {
+      "byteCount" : 244954,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-03-phase-025-occupiedBounds@3x.png",
+      "sha256" : "e34483a1276cfb64c1d56432cd2242d4c010aa72fb8d3d018390d7cd76f74168"
+    },
+    {
+      "byteCount" : 240152,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-03-phase-025-overlap@3x.png",
+      "sha256" : "62b617c619d79226482191b6f0dbc34eb69f6aa2a8b29ce277314834d27e019e"
+    },
+    {
+      "byteCount" : 239754,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-03-phase-050-centerOfMass@3x.png",
+      "sha256" : "e6fb79d66ac501e741a15e32b43ae373ba9f1447037c1f684742501351fa8423"
+    },
+    {
+      "byteCount" : 246208,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-03-phase-050-crop@3x.png",
+      "sha256" : "ae913adfda830a772c5752b539196b0db3a1a38495e90b28fc0f0f948c835b9a"
+    },
+    {
+      "byteCount" : 244954,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-03-phase-050-occupiedBounds@3x.png",
+      "sha256" : "e34483a1276cfb64c1d56432cd2242d4c010aa72fb8d3d018390d7cd76f74168"
+    },
+    {
+      "byteCount" : 240152,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-03-phase-050-overlap@3x.png",
+      "sha256" : "62b617c619d79226482191b6f0dbc34eb69f6aa2a8b29ce277314834d27e019e"
+    },
+    {
+      "byteCount" : 239754,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-03-phase-075-centerOfMass@3x.png",
+      "sha256" : "e6fb79d66ac501e741a15e32b43ae373ba9f1447037c1f684742501351fa8423"
+    },
+    {
+      "byteCount" : 246208,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-03-phase-075-crop@3x.png",
+      "sha256" : "ae913adfda830a772c5752b539196b0db3a1a38495e90b28fc0f0f948c835b9a"
+    },
+    {
+      "byteCount" : 244954,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-03-phase-075-occupiedBounds@3x.png",
+      "sha256" : "e34483a1276cfb64c1d56432cd2242d4c010aa72fb8d3d018390d7cd76f74168"
+    },
+    {
+      "byteCount" : 240152,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-03-phase-075-overlap@3x.png",
+      "sha256" : "62b617c619d79226482191b6f0dbc34eb69f6aa2a8b29ce277314834d27e019e"
+    },
+    {
+      "byteCount" : 172736,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-04-phase-000-centerOfMass@3x.png",
+      "sha256" : "2aa2a5be80ce27598632b646d7b5d8613fb0a75a9e20eaa027e4c06cfcdee0d1"
+    },
+    {
+      "byteCount" : 179820,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-04-phase-000-crop@3x.png",
+      "sha256" : "6a47b80fd852e0c02e3086fc8f1181065d3cf14c3da6ed7cab0fbc6baa0fe070"
+    },
+    {
+      "byteCount" : 179176,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-04-phase-000-occupiedBounds@3x.png",
+      "sha256" : "965b6d375185eb2531ebed4864cbe68d183c23b6f6a49b6618abf518f2b41472"
+    },
+    {
+      "byteCount" : 173487,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-04-phase-000-overlap@3x.png",
+      "sha256" : "034511bbe298044a7ed2d93ccdfb862e760e0629485eb96321756c0dfc55df1d"
+    },
+    {
+      "byteCount" : 172736,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-04-phase-025-centerOfMass@3x.png",
+      "sha256" : "2aa2a5be80ce27598632b646d7b5d8613fb0a75a9e20eaa027e4c06cfcdee0d1"
+    },
+    {
+      "byteCount" : 179820,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-04-phase-025-crop@3x.png",
+      "sha256" : "6a47b80fd852e0c02e3086fc8f1181065d3cf14c3da6ed7cab0fbc6baa0fe070"
+    },
+    {
+      "byteCount" : 179176,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-04-phase-025-occupiedBounds@3x.png",
+      "sha256" : "965b6d375185eb2531ebed4864cbe68d183c23b6f6a49b6618abf518f2b41472"
+    },
+    {
+      "byteCount" : 173487,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-04-phase-025-overlap@3x.png",
+      "sha256" : "034511bbe298044a7ed2d93ccdfb862e760e0629485eb96321756c0dfc55df1d"
+    },
+    {
+      "byteCount" : 172736,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-04-phase-050-centerOfMass@3x.png",
+      "sha256" : "2aa2a5be80ce27598632b646d7b5d8613fb0a75a9e20eaa027e4c06cfcdee0d1"
+    },
+    {
+      "byteCount" : 179820,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-04-phase-050-crop@3x.png",
+      "sha256" : "6a47b80fd852e0c02e3086fc8f1181065d3cf14c3da6ed7cab0fbc6baa0fe070"
+    },
+    {
+      "byteCount" : 179176,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-04-phase-050-occupiedBounds@3x.png",
+      "sha256" : "965b6d375185eb2531ebed4864cbe68d183c23b6f6a49b6618abf518f2b41472"
+    },
+    {
+      "byteCount" : 173487,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-04-phase-050-overlap@3x.png",
+      "sha256" : "034511bbe298044a7ed2d93ccdfb862e760e0629485eb96321756c0dfc55df1d"
+    },
+    {
+      "byteCount" : 172736,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-04-phase-075-centerOfMass@3x.png",
+      "sha256" : "2aa2a5be80ce27598632b646d7b5d8613fb0a75a9e20eaa027e4c06cfcdee0d1"
+    },
+    {
+      "byteCount" : 179820,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-04-phase-075-crop@3x.png",
+      "sha256" : "6a47b80fd852e0c02e3086fc8f1181065d3cf14c3da6ed7cab0fbc6baa0fe070"
+    },
+    {
+      "byteCount" : 179176,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-04-phase-075-occupiedBounds@3x.png",
+      "sha256" : "965b6d375185eb2531ebed4864cbe68d183c23b6f6a49b6618abf518f2b41472"
+    },
+    {
+      "byteCount" : 173487,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-04-phase-075-overlap@3x.png",
+      "sha256" : "034511bbe298044a7ed2d93ccdfb862e760e0629485eb96321756c0dfc55df1d"
+    },
+    {
+      "byteCount" : 258804,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-05-phase-000-centerOfMass@3x.png",
+      "sha256" : "f941723337a8990ce63f05557c93378570eb2eced412d173bfd53bd5b061ae7a"
+    },
+    {
+      "byteCount" : 264652,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-05-phase-000-crop@3x.png",
+      "sha256" : "048e49dc987b8da963bfc1a9edfee2d5576429bf41c8f42bd2af9dbe2648cf2f"
+    },
+    {
+      "byteCount" : 261477,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-05-phase-000-occupiedBounds@3x.png",
+      "sha256" : "6f93b0d88468fd028e2d1ddfd95a67da97da02607202eb34adffaa7048a37eb6"
+    },
+    {
+      "byteCount" : 261264,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-05-phase-000-overlap@3x.png",
+      "sha256" : "b842fd83a08844a301ff55c4911791ce039c10875777592e43e9c7c225de97e1"
+    },
+    {
+      "byteCount" : 258804,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-05-phase-025-centerOfMass@3x.png",
+      "sha256" : "f941723337a8990ce63f05557c93378570eb2eced412d173bfd53bd5b061ae7a"
+    },
+    {
+      "byteCount" : 264652,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-05-phase-025-crop@3x.png",
+      "sha256" : "048e49dc987b8da963bfc1a9edfee2d5576429bf41c8f42bd2af9dbe2648cf2f"
+    },
+    {
+      "byteCount" : 261477,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-05-phase-025-occupiedBounds@3x.png",
+      "sha256" : "6f93b0d88468fd028e2d1ddfd95a67da97da02607202eb34adffaa7048a37eb6"
+    },
+    {
+      "byteCount" : 261264,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-05-phase-025-overlap@3x.png",
+      "sha256" : "b842fd83a08844a301ff55c4911791ce039c10875777592e43e9c7c225de97e1"
+    },
+    {
+      "byteCount" : 258804,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-05-phase-050-centerOfMass@3x.png",
+      "sha256" : "f941723337a8990ce63f05557c93378570eb2eced412d173bfd53bd5b061ae7a"
+    },
+    {
+      "byteCount" : 264652,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-05-phase-050-crop@3x.png",
+      "sha256" : "048e49dc987b8da963bfc1a9edfee2d5576429bf41c8f42bd2af9dbe2648cf2f"
+    },
+    {
+      "byteCount" : 261477,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-05-phase-050-occupiedBounds@3x.png",
+      "sha256" : "6f93b0d88468fd028e2d1ddfd95a67da97da02607202eb34adffaa7048a37eb6"
+    },
+    {
+      "byteCount" : 261264,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-05-phase-050-overlap@3x.png",
+      "sha256" : "b842fd83a08844a301ff55c4911791ce039c10875777592e43e9c7c225de97e1"
+    },
+    {
+      "byteCount" : 258804,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-05-phase-075-centerOfMass@3x.png",
+      "sha256" : "f941723337a8990ce63f05557c93378570eb2eced412d173bfd53bd5b061ae7a"
+    },
+    {
+      "byteCount" : 264652,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-05-phase-075-crop@3x.png",
+      "sha256" : "048e49dc987b8da963bfc1a9edfee2d5576429bf41c8f42bd2af9dbe2648cf2f"
+    },
+    {
+      "byteCount" : 261477,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-05-phase-075-occupiedBounds@3x.png",
+      "sha256" : "6f93b0d88468fd028e2d1ddfd95a67da97da02607202eb34adffaa7048a37eb6"
+    },
+    {
+      "byteCount" : 261264,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-05-phase-075-overlap@3x.png",
+      "sha256" : "b842fd83a08844a301ff55c4911791ce039c10875777592e43e9c7c225de97e1"
+    },
+    {
+      "byteCount" : 599840,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-06-phase-000-centerOfMass@3x.png",
+      "sha256" : "e952d6069f18a5b3e415abdd7d5a8ad20b9459c570ba3e48456ff08fbc8eb62b"
+    },
+    {
+      "byteCount" : 606790,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-06-phase-000-crop@3x.png",
+      "sha256" : "50c0d1a531e89a761ea4f2fb393ac1bebe3c05cc6d31bb2bd7f62666ed51e715"
+    },
+    {
+      "byteCount" : 610204,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-06-phase-000-occupiedBounds@3x.png",
+      "sha256" : "b3b513e0d1ee12488886b254e65125f9c2c3452285b01f4aa80e55a07cef1460"
+    },
+    {
+      "byteCount" : 598822,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-06-phase-000-overlap@3x.png",
+      "sha256" : "971bf19c69f3cafa9870b5cc7d44079549800ce40855e0e9257f39174beb1e8a"
+    },
+    {
+      "byteCount" : 599840,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-06-phase-025-centerOfMass@3x.png",
+      "sha256" : "e952d6069f18a5b3e415abdd7d5a8ad20b9459c570ba3e48456ff08fbc8eb62b"
+    },
+    {
+      "byteCount" : 606790,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-06-phase-025-crop@3x.png",
+      "sha256" : "50c0d1a531e89a761ea4f2fb393ac1bebe3c05cc6d31bb2bd7f62666ed51e715"
+    },
+    {
+      "byteCount" : 610204,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-06-phase-025-occupiedBounds@3x.png",
+      "sha256" : "b3b513e0d1ee12488886b254e65125f9c2c3452285b01f4aa80e55a07cef1460"
+    },
+    {
+      "byteCount" : 598822,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-06-phase-025-overlap@3x.png",
+      "sha256" : "971bf19c69f3cafa9870b5cc7d44079549800ce40855e0e9257f39174beb1e8a"
+    },
+    {
+      "byteCount" : 599840,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-06-phase-050-centerOfMass@3x.png",
+      "sha256" : "e952d6069f18a5b3e415abdd7d5a8ad20b9459c570ba3e48456ff08fbc8eb62b"
+    },
+    {
+      "byteCount" : 606790,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-06-phase-050-crop@3x.png",
+      "sha256" : "50c0d1a531e89a761ea4f2fb393ac1bebe3c05cc6d31bb2bd7f62666ed51e715"
+    },
+    {
+      "byteCount" : 610204,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-06-phase-050-occupiedBounds@3x.png",
+      "sha256" : "b3b513e0d1ee12488886b254e65125f9c2c3452285b01f4aa80e55a07cef1460"
+    },
+    {
+      "byteCount" : 598822,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-06-phase-050-overlap@3x.png",
+      "sha256" : "971bf19c69f3cafa9870b5cc7d44079549800ce40855e0e9257f39174beb1e8a"
+    },
+    {
+      "byteCount" : 599840,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-06-phase-075-centerOfMass@3x.png",
+      "sha256" : "e952d6069f18a5b3e415abdd7d5a8ad20b9459c570ba3e48456ff08fbc8eb62b"
+    },
+    {
+      "byteCount" : 606790,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-06-phase-075-crop@3x.png",
+      "sha256" : "50c0d1a531e89a761ea4f2fb393ac1bebe3c05cc6d31bb2bd7f62666ed51e715"
+    },
+    {
+      "byteCount" : 610204,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-06-phase-075-occupiedBounds@3x.png",
+      "sha256" : "b3b513e0d1ee12488886b254e65125f9c2c3452285b01f4aa80e55a07cef1460"
+    },
+    {
+      "byteCount" : 598822,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-06-phase-075-overlap@3x.png",
+      "sha256" : "971bf19c69f3cafa9870b5cc7d44079549800ce40855e0e9257f39174beb1e8a"
+    },
+    {
+      "byteCount" : 462887,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-07-phase-000-centerOfMass@3x.png",
+      "sha256" : "9a392ef3f16bb7f8e8cab5c207a2e8bcb005f75ce978bdc2ccafb0946a7f7d5c"
+    },
+    {
+      "byteCount" : 480101,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-07-phase-000-crop@3x.png",
+      "sha256" : "456c32f189b3008dda5f1d71ac860359fc3e88987d0be6cf209e103ac2e89f94"
+    },
+    {
+      "byteCount" : 483912,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-07-phase-000-occupiedBounds@3x.png",
+      "sha256" : "8498e4657630ddd64051236530b579c5a029d99bbcc8537981c9d15dced63f4d"
+    },
+    {
+      "byteCount" : 462501,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-07-phase-000-overlap@3x.png",
+      "sha256" : "dabf908a50f651a201f08d152675723d3dcb9d7ecff31549b505319047e5af68"
+    },
+    {
+      "byteCount" : 462887,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-07-phase-025-centerOfMass@3x.png",
+      "sha256" : "9a392ef3f16bb7f8e8cab5c207a2e8bcb005f75ce978bdc2ccafb0946a7f7d5c"
+    },
+    {
+      "byteCount" : 480101,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-07-phase-025-crop@3x.png",
+      "sha256" : "456c32f189b3008dda5f1d71ac860359fc3e88987d0be6cf209e103ac2e89f94"
+    },
+    {
+      "byteCount" : 483912,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-07-phase-025-occupiedBounds@3x.png",
+      "sha256" : "8498e4657630ddd64051236530b579c5a029d99bbcc8537981c9d15dced63f4d"
+    },
+    {
+      "byteCount" : 462501,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-07-phase-025-overlap@3x.png",
+      "sha256" : "dabf908a50f651a201f08d152675723d3dcb9d7ecff31549b505319047e5af68"
+    },
+    {
+      "byteCount" : 462887,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-07-phase-050-centerOfMass@3x.png",
+      "sha256" : "9a392ef3f16bb7f8e8cab5c207a2e8bcb005f75ce978bdc2ccafb0946a7f7d5c"
+    },
+    {
+      "byteCount" : 480101,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-07-phase-050-crop@3x.png",
+      "sha256" : "456c32f189b3008dda5f1d71ac860359fc3e88987d0be6cf209e103ac2e89f94"
+    },
+    {
+      "byteCount" : 483912,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-07-phase-050-occupiedBounds@3x.png",
+      "sha256" : "8498e4657630ddd64051236530b579c5a029d99bbcc8537981c9d15dced63f4d"
+    },
+    {
+      "byteCount" : 462501,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-07-phase-050-overlap@3x.png",
+      "sha256" : "dabf908a50f651a201f08d152675723d3dcb9d7ecff31549b505319047e5af68"
+    },
+    {
+      "byteCount" : 462887,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-07-phase-075-centerOfMass@3x.png",
+      "sha256" : "9a392ef3f16bb7f8e8cab5c207a2e8bcb005f75ce978bdc2ccafb0946a7f7d5c"
+    },
+    {
+      "byteCount" : 480101,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-07-phase-075-crop@3x.png",
+      "sha256" : "456c32f189b3008dda5f1d71ac860359fc3e88987d0be6cf209e103ac2e89f94"
+    },
+    {
+      "byteCount" : 483912,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-07-phase-075-occupiedBounds@3x.png",
+      "sha256" : "8498e4657630ddd64051236530b579c5a029d99bbcc8537981c9d15dced63f4d"
+    },
+    {
+      "byteCount" : 462501,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-07-phase-075-overlap@3x.png",
+      "sha256" : "dabf908a50f651a201f08d152675723d3dcb9d7ecff31549b505319047e5af68"
+    },
+    {
+      "byteCount" : 547937,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-08-phase-000-centerOfMass@3x.png",
+      "sha256" : "775053ea77ce882279aac4c7ffabd74a06964b28ffff778eb9b0a23546aea645"
+    },
+    {
+      "byteCount" : 554172,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-08-phase-000-crop@3x.png",
+      "sha256" : "a1f65ec8b88674d997ec95a9e131187b85f5bf7f74bab278237657e0dce70756"
+    },
+    {
+      "byteCount" : 562279,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-08-phase-000-occupiedBounds@3x.png",
+      "sha256" : "a30006a4a280e0179f118ccd70fb2b158c637f4e60a39228d20e72f2d1c60137"
+    },
+    {
+      "byteCount" : 548608,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-08-phase-000-overlap@3x.png",
+      "sha256" : "41062f61d2e6d5c589738c6643cabb7074af2403269634ec0c04c462255d690b"
+    },
+    {
+      "byteCount" : 547937,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-08-phase-025-centerOfMass@3x.png",
+      "sha256" : "775053ea77ce882279aac4c7ffabd74a06964b28ffff778eb9b0a23546aea645"
+    },
+    {
+      "byteCount" : 554172,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-08-phase-025-crop@3x.png",
+      "sha256" : "a1f65ec8b88674d997ec95a9e131187b85f5bf7f74bab278237657e0dce70756"
+    },
+    {
+      "byteCount" : 562279,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-08-phase-025-occupiedBounds@3x.png",
+      "sha256" : "a30006a4a280e0179f118ccd70fb2b158c637f4e60a39228d20e72f2d1c60137"
+    },
+    {
+      "byteCount" : 548608,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-08-phase-025-overlap@3x.png",
+      "sha256" : "41062f61d2e6d5c589738c6643cabb7074af2403269634ec0c04c462255d690b"
+    },
+    {
+      "byteCount" : 547937,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-08-phase-050-centerOfMass@3x.png",
+      "sha256" : "775053ea77ce882279aac4c7ffabd74a06964b28ffff778eb9b0a23546aea645"
+    },
+    {
+      "byteCount" : 554172,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-08-phase-050-crop@3x.png",
+      "sha256" : "a1f65ec8b88674d997ec95a9e131187b85f5bf7f74bab278237657e0dce70756"
+    },
+    {
+      "byteCount" : 562279,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-08-phase-050-occupiedBounds@3x.png",
+      "sha256" : "a30006a4a280e0179f118ccd70fb2b158c637f4e60a39228d20e72f2d1c60137"
+    },
+    {
+      "byteCount" : 548608,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-08-phase-050-overlap@3x.png",
+      "sha256" : "41062f61d2e6d5c589738c6643cabb7074af2403269634ec0c04c462255d690b"
+    },
+    {
+      "byteCount" : 547937,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-08-phase-075-centerOfMass@3x.png",
+      "sha256" : "775053ea77ce882279aac4c7ffabd74a06964b28ffff778eb9b0a23546aea645"
+    },
+    {
+      "byteCount" : 554172,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-08-phase-075-crop@3x.png",
+      "sha256" : "a1f65ec8b88674d997ec95a9e131187b85f5bf7f74bab278237657e0dce70756"
+    },
+    {
+      "byteCount" : 562279,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-08-phase-075-occupiedBounds@3x.png",
+      "sha256" : "a30006a4a280e0179f118ccd70fb2b158c637f4e60a39228d20e72f2d1c60137"
+    },
+    {
+      "byteCount" : 548608,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-08-phase-075-overlap@3x.png",
+      "sha256" : "41062f61d2e6d5c589738c6643cabb7074af2403269634ec0c04c462255d690b"
+    },
+    {
+      "byteCount" : 375971,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-09-phase-000-centerOfMass@3x.png",
+      "sha256" : "b648e4fa22dcad70ee3ca313ed1d106d514427dac88035343d6a573b56bbd868"
+    },
+    {
+      "byteCount" : 382414,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-09-phase-000-crop@3x.png",
+      "sha256" : "784c67d7bb25d6ecf0b76bc4733327c1926c63cdae8f15e751697be91b8f7518"
+    },
+    {
+      "byteCount" : 389863,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-09-phase-000-occupiedBounds@3x.png",
+      "sha256" : "49b9f372f0ad971d51f6af31ce0ad288d855a32d654998fb3050788018e48e30"
+    },
+    {
+      "byteCount" : 375961,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-09-phase-000-overlap@3x.png",
+      "sha256" : "0f43b25320978b31fab6397f8667c7c4b6805726231bd97fec9e56645ec0a36d"
+    },
+    {
+      "byteCount" : 375971,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-09-phase-025-centerOfMass@3x.png",
+      "sha256" : "b648e4fa22dcad70ee3ca313ed1d106d514427dac88035343d6a573b56bbd868"
+    },
+    {
+      "byteCount" : 382414,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-09-phase-025-crop@3x.png",
+      "sha256" : "784c67d7bb25d6ecf0b76bc4733327c1926c63cdae8f15e751697be91b8f7518"
+    },
+    {
+      "byteCount" : 389863,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-09-phase-025-occupiedBounds@3x.png",
+      "sha256" : "49b9f372f0ad971d51f6af31ce0ad288d855a32d654998fb3050788018e48e30"
+    },
+    {
+      "byteCount" : 375961,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-09-phase-025-overlap@3x.png",
+      "sha256" : "0f43b25320978b31fab6397f8667c7c4b6805726231bd97fec9e56645ec0a36d"
+    },
+    {
+      "byteCount" : 375971,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-09-phase-050-centerOfMass@3x.png",
+      "sha256" : "b648e4fa22dcad70ee3ca313ed1d106d514427dac88035343d6a573b56bbd868"
+    },
+    {
+      "byteCount" : 382414,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-09-phase-050-crop@3x.png",
+      "sha256" : "784c67d7bb25d6ecf0b76bc4733327c1926c63cdae8f15e751697be91b8f7518"
+    },
+    {
+      "byteCount" : 389863,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-09-phase-050-occupiedBounds@3x.png",
+      "sha256" : "49b9f372f0ad971d51f6af31ce0ad288d855a32d654998fb3050788018e48e30"
+    },
+    {
+      "byteCount" : 375961,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-09-phase-050-overlap@3x.png",
+      "sha256" : "0f43b25320978b31fab6397f8667c7c4b6805726231bd97fec9e56645ec0a36d"
+    },
+    {
+      "byteCount" : 375971,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-09-phase-075-centerOfMass@3x.png",
+      "sha256" : "b648e4fa22dcad70ee3ca313ed1d106d514427dac88035343d6a573b56bbd868"
+    },
+    {
+      "byteCount" : 382414,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-09-phase-075-crop@3x.png",
+      "sha256" : "784c67d7bb25d6ecf0b76bc4733327c1926c63cdae8f15e751697be91b8f7518"
+    },
+    {
+      "byteCount" : 389863,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-09-phase-075-occupiedBounds@3x.png",
+      "sha256" : "49b9f372f0ad971d51f6af31ce0ad288d855a32d654998fb3050788018e48e30"
+    },
+    {
+      "byteCount" : 375961,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-09-phase-075-overlap@3x.png",
+      "sha256" : "0f43b25320978b31fab6397f8667c7c4b6805726231bd97fec9e56645ec0a36d"
+    },
+    {
+      "byteCount" : 385202,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-10-phase-000-centerOfMass@3x.png",
+      "sha256" : "c961847ea46b0cb98e099f530a8fac7dc14cb8e17ff1698766b6f06d25d5914a"
+    },
+    {
+      "byteCount" : 392405,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-10-phase-000-crop@3x.png",
+      "sha256" : "53e705275ee493dc83be3526691a0caf7046eca6f8987f48e337c550d01f4fed"
+    },
+    {
+      "byteCount" : 397386,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-10-phase-000-occupiedBounds@3x.png",
+      "sha256" : "33185861c55d11d97c35b2e08b6578c9b1992a4007923cf47b02d238a1383da2"
+    },
+    {
+      "byteCount" : 389067,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-10-phase-000-overlap@3x.png",
+      "sha256" : "cf24b347a87089f833c1f36eeed160ac967785f941b1a93a1e5cd6452c8b2cb0"
+    },
+    {
+      "byteCount" : 385202,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-10-phase-025-centerOfMass@3x.png",
+      "sha256" : "c961847ea46b0cb98e099f530a8fac7dc14cb8e17ff1698766b6f06d25d5914a"
+    },
+    {
+      "byteCount" : 392405,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-10-phase-025-crop@3x.png",
+      "sha256" : "53e705275ee493dc83be3526691a0caf7046eca6f8987f48e337c550d01f4fed"
+    },
+    {
+      "byteCount" : 397386,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-10-phase-025-occupiedBounds@3x.png",
+      "sha256" : "33185861c55d11d97c35b2e08b6578c9b1992a4007923cf47b02d238a1383da2"
+    },
+    {
+      "byteCount" : 389067,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-10-phase-025-overlap@3x.png",
+      "sha256" : "cf24b347a87089f833c1f36eeed160ac967785f941b1a93a1e5cd6452c8b2cb0"
+    },
+    {
+      "byteCount" : 385202,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-10-phase-050-centerOfMass@3x.png",
+      "sha256" : "c961847ea46b0cb98e099f530a8fac7dc14cb8e17ff1698766b6f06d25d5914a"
+    },
+    {
+      "byteCount" : 392405,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-10-phase-050-crop@3x.png",
+      "sha256" : "53e705275ee493dc83be3526691a0caf7046eca6f8987f48e337c550d01f4fed"
+    },
+    {
+      "byteCount" : 397386,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-10-phase-050-occupiedBounds@3x.png",
+      "sha256" : "33185861c55d11d97c35b2e08b6578c9b1992a4007923cf47b02d238a1383da2"
+    },
+    {
+      "byteCount" : 389067,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-10-phase-050-overlap@3x.png",
+      "sha256" : "cf24b347a87089f833c1f36eeed160ac967785f941b1a93a1e5cd6452c8b2cb0"
+    },
+    {
+      "byteCount" : 385202,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-10-phase-075-centerOfMass@3x.png",
+      "sha256" : "c961847ea46b0cb98e099f530a8fac7dc14cb8e17ff1698766b6f06d25d5914a"
+    },
+    {
+      "byteCount" : 392405,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-10-phase-075-crop@3x.png",
+      "sha256" : "53e705275ee493dc83be3526691a0caf7046eca6f8987f48e337c550d01f4fed"
+    },
+    {
+      "byteCount" : 397386,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-10-phase-075-occupiedBounds@3x.png",
+      "sha256" : "33185861c55d11d97c35b2e08b6578c9b1992a4007923cf47b02d238a1383da2"
+    },
+    {
+      "byteCount" : 389067,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-10-phase-075-overlap@3x.png",
+      "sha256" : "cf24b347a87089f833c1f36eeed160ac967785f941b1a93a1e5cd6452c8b2cb0"
+    },
+    {
+      "byteCount" : 629274,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-11-phase-000-centerOfMass@3x.png",
+      "sha256" : "825c0fc0d3cda6d767ade6531a51f1b9e0bccb85b8e6ee4b24171ab74e4e75d3"
+    },
+    {
+      "byteCount" : 634871,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-11-phase-000-crop@3x.png",
+      "sha256" : "81471033c1237caa8013fa1e23b21c9d418b71fdb6685e4c6c58614a99744eee"
+    },
+    {
+      "byteCount" : 640672,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-11-phase-000-occupiedBounds@3x.png",
+      "sha256" : "86f3a4855c44531c8ec65586d639ff476889c6feebff6ef9e628d4e300759625"
+    },
+    {
+      "byteCount" : 632816,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-11-phase-000-overlap@3x.png",
+      "sha256" : "d3ddeae1af5b751ee1370e8a6c9ae1f826681a65287df739f3a9110f1417ac40"
+    },
+    {
+      "byteCount" : 629274,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-11-phase-025-centerOfMass@3x.png",
+      "sha256" : "825c0fc0d3cda6d767ade6531a51f1b9e0bccb85b8e6ee4b24171ab74e4e75d3"
+    },
+    {
+      "byteCount" : 634871,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-11-phase-025-crop@3x.png",
+      "sha256" : "81471033c1237caa8013fa1e23b21c9d418b71fdb6685e4c6c58614a99744eee"
+    },
+    {
+      "byteCount" : 640672,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-11-phase-025-occupiedBounds@3x.png",
+      "sha256" : "86f3a4855c44531c8ec65586d639ff476889c6feebff6ef9e628d4e300759625"
+    },
+    {
+      "byteCount" : 632816,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-11-phase-025-overlap@3x.png",
+      "sha256" : "d3ddeae1af5b751ee1370e8a6c9ae1f826681a65287df739f3a9110f1417ac40"
+    },
+    {
+      "byteCount" : 629274,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-11-phase-050-centerOfMass@3x.png",
+      "sha256" : "825c0fc0d3cda6d767ade6531a51f1b9e0bccb85b8e6ee4b24171ab74e4e75d3"
+    },
+    {
+      "byteCount" : 634871,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-11-phase-050-crop@3x.png",
+      "sha256" : "81471033c1237caa8013fa1e23b21c9d418b71fdb6685e4c6c58614a99744eee"
+    },
+    {
+      "byteCount" : 640672,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-11-phase-050-occupiedBounds@3x.png",
+      "sha256" : "86f3a4855c44531c8ec65586d639ff476889c6feebff6ef9e628d4e300759625"
+    },
+    {
+      "byteCount" : 632816,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-11-phase-050-overlap@3x.png",
+      "sha256" : "d3ddeae1af5b751ee1370e8a6c9ae1f826681a65287df739f3a9110f1417ac40"
+    },
+    {
+      "byteCount" : 629274,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-11-phase-075-centerOfMass@3x.png",
+      "sha256" : "825c0fc0d3cda6d767ade6531a51f1b9e0bccb85b8e6ee4b24171ab74e4e75d3"
+    },
+    {
+      "byteCount" : 634871,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-11-phase-075-crop@3x.png",
+      "sha256" : "81471033c1237caa8013fa1e23b21c9d418b71fdb6685e4c6c58614a99744eee"
+    },
+    {
+      "byteCount" : 640672,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-11-phase-075-occupiedBounds@3x.png",
+      "sha256" : "86f3a4855c44531c8ec65586d639ff476889c6feebff6ef9e628d4e300759625"
+    },
+    {
+      "byteCount" : 632816,
+      "kind" : "debug-overlay",
+      "path" : "debug/breadth/breadth-11-phase-075-overlap@3x.png",
+      "sha256" : "d3ddeae1af5b751ee1370e8a6c9ae1f826681a65287df739f3a9110f1417ac40"
+    },
+    {
+      "byteCount" : 211257,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-00-count-01-phase-000-centerOfMass@3x.png",
+      "sha256" : "65150535b19ed2804f9d41a45f16e06b27be85b368d251c37cc4bde836c06bc4"
+    },
+    {
+      "byteCount" : 217817,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-00-count-01-phase-000-crop@3x.png",
+      "sha256" : "14e144b2aeda25aa737d18643303af80b8b4a1bd1f1d085a4e84e978cdc14bb4"
+    },
+    {
+      "byteCount" : 214413,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-00-count-01-phase-000-occupiedBounds@3x.png",
+      "sha256" : "2d774b1ca9b0f25f14646deb5c0acb80a9f3359f586b578a96874195a5843d71"
+    },
+    {
+      "byteCount" : 210542,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-00-count-01-phase-000-overlap@3x.png",
+      "sha256" : "f913c4285b3af2d10355759613be7b1d200fd5906f21a8304331af2556998e26"
+    },
+    {
+      "byteCount" : 211257,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-00-count-01-phase-025-centerOfMass@3x.png",
+      "sha256" : "65150535b19ed2804f9d41a45f16e06b27be85b368d251c37cc4bde836c06bc4"
+    },
+    {
+      "byteCount" : 217817,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-00-count-01-phase-025-crop@3x.png",
+      "sha256" : "14e144b2aeda25aa737d18643303af80b8b4a1bd1f1d085a4e84e978cdc14bb4"
+    },
+    {
+      "byteCount" : 214413,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-00-count-01-phase-025-occupiedBounds@3x.png",
+      "sha256" : "2d774b1ca9b0f25f14646deb5c0acb80a9f3359f586b578a96874195a5843d71"
+    },
+    {
+      "byteCount" : 210542,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-00-count-01-phase-025-overlap@3x.png",
+      "sha256" : "f913c4285b3af2d10355759613be7b1d200fd5906f21a8304331af2556998e26"
+    },
+    {
+      "byteCount" : 211257,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-00-count-01-phase-050-centerOfMass@3x.png",
+      "sha256" : "65150535b19ed2804f9d41a45f16e06b27be85b368d251c37cc4bde836c06bc4"
+    },
+    {
+      "byteCount" : 217817,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-00-count-01-phase-050-crop@3x.png",
+      "sha256" : "14e144b2aeda25aa737d18643303af80b8b4a1bd1f1d085a4e84e978cdc14bb4"
+    },
+    {
+      "byteCount" : 214413,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-00-count-01-phase-050-occupiedBounds@3x.png",
+      "sha256" : "2d774b1ca9b0f25f14646deb5c0acb80a9f3359f586b578a96874195a5843d71"
+    },
+    {
+      "byteCount" : 210542,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-00-count-01-phase-050-overlap@3x.png",
+      "sha256" : "f913c4285b3af2d10355759613be7b1d200fd5906f21a8304331af2556998e26"
+    },
+    {
+      "byteCount" : 211257,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-00-count-01-phase-075-centerOfMass@3x.png",
+      "sha256" : "65150535b19ed2804f9d41a45f16e06b27be85b368d251c37cc4bde836c06bc4"
+    },
+    {
+      "byteCount" : 217817,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-00-count-01-phase-075-crop@3x.png",
+      "sha256" : "14e144b2aeda25aa737d18643303af80b8b4a1bd1f1d085a4e84e978cdc14bb4"
+    },
+    {
+      "byteCount" : 214413,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-00-count-01-phase-075-occupiedBounds@3x.png",
+      "sha256" : "2d774b1ca9b0f25f14646deb5c0acb80a9f3359f586b578a96874195a5843d71"
+    },
+    {
+      "byteCount" : 210542,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-00-count-01-phase-075-overlap@3x.png",
+      "sha256" : "f913c4285b3af2d10355759613be7b1d200fd5906f21a8304331af2556998e26"
+    },
+    {
+      "byteCount" : 230893,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-01-count-02-phase-000-centerOfMass@3x.png",
+      "sha256" : "598f5faa49d7f435d1363a8166162a0584cfcb8e7c179e4fadc0f6d935b7b603"
+    },
+    {
+      "byteCount" : 236035,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-01-count-02-phase-000-crop@3x.png",
+      "sha256" : "6987124218b23cc617148d7a23a8c8d303a05a03050a35636298819efcfc5f45"
+    },
+    {
+      "byteCount" : 236719,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-01-count-02-phase-000-occupiedBounds@3x.png",
+      "sha256" : "ceddf3e2071e17cc12b43ca3caf596cb567cfeaa1e6d36d1b7cf7600a9f2a48e"
+    },
+    {
+      "byteCount" : 230255,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-01-count-02-phase-000-overlap@3x.png",
+      "sha256" : "436646c29a5ea3cd876b85fe1af7ecdd66cb277844c7428532ca71fe5e01ce9f"
+    },
+    {
+      "byteCount" : 230893,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-01-count-02-phase-025-centerOfMass@3x.png",
+      "sha256" : "598f5faa49d7f435d1363a8166162a0584cfcb8e7c179e4fadc0f6d935b7b603"
+    },
+    {
+      "byteCount" : 236035,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-01-count-02-phase-025-crop@3x.png",
+      "sha256" : "6987124218b23cc617148d7a23a8c8d303a05a03050a35636298819efcfc5f45"
+    },
+    {
+      "byteCount" : 236719,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-01-count-02-phase-025-occupiedBounds@3x.png",
+      "sha256" : "ceddf3e2071e17cc12b43ca3caf596cb567cfeaa1e6d36d1b7cf7600a9f2a48e"
+    },
+    {
+      "byteCount" : 230255,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-01-count-02-phase-025-overlap@3x.png",
+      "sha256" : "436646c29a5ea3cd876b85fe1af7ecdd66cb277844c7428532ca71fe5e01ce9f"
+    },
+    {
+      "byteCount" : 230893,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-01-count-02-phase-050-centerOfMass@3x.png",
+      "sha256" : "598f5faa49d7f435d1363a8166162a0584cfcb8e7c179e4fadc0f6d935b7b603"
+    },
+    {
+      "byteCount" : 236035,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-01-count-02-phase-050-crop@3x.png",
+      "sha256" : "6987124218b23cc617148d7a23a8c8d303a05a03050a35636298819efcfc5f45"
+    },
+    {
+      "byteCount" : 236719,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-01-count-02-phase-050-occupiedBounds@3x.png",
+      "sha256" : "ceddf3e2071e17cc12b43ca3caf596cb567cfeaa1e6d36d1b7cf7600a9f2a48e"
+    },
+    {
+      "byteCount" : 230255,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-01-count-02-phase-050-overlap@3x.png",
+      "sha256" : "436646c29a5ea3cd876b85fe1af7ecdd66cb277844c7428532ca71fe5e01ce9f"
+    },
+    {
+      "byteCount" : 230893,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-01-count-02-phase-075-centerOfMass@3x.png",
+      "sha256" : "598f5faa49d7f435d1363a8166162a0584cfcb8e7c179e4fadc0f6d935b7b603"
+    },
+    {
+      "byteCount" : 236035,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-01-count-02-phase-075-crop@3x.png",
+      "sha256" : "6987124218b23cc617148d7a23a8c8d303a05a03050a35636298819efcfc5f45"
+    },
+    {
+      "byteCount" : 236719,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-01-count-02-phase-075-occupiedBounds@3x.png",
+      "sha256" : "ceddf3e2071e17cc12b43ca3caf596cb567cfeaa1e6d36d1b7cf7600a9f2a48e"
+    },
+    {
+      "byteCount" : 230255,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-01-count-02-phase-075-overlap@3x.png",
+      "sha256" : "436646c29a5ea3cd876b85fe1af7ecdd66cb277844c7428532ca71fe5e01ce9f"
+    },
+    {
+      "byteCount" : 243782,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-02-count-03-phase-000-centerOfMass@3x.png",
+      "sha256" : "5101b0fd01badf3ecd6325625a2fa60edd4224986afd98e775fbbeb6ef05e2de"
+    },
+    {
+      "byteCount" : 249575,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-02-count-03-phase-000-crop@3x.png",
+      "sha256" : "7691f46142fe78e59be5c5508e50538591bd433f021f9ba0c82102db96f60c1d"
+    },
+    {
+      "byteCount" : 250240,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-02-count-03-phase-000-occupiedBounds@3x.png",
+      "sha256" : "cf6f88721ff9e3fe9b01c2cfbda1a7e035b995638003a168a90b903abf88ca6a"
+    },
+    {
+      "byteCount" : 243948,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-02-count-03-phase-000-overlap@3x.png",
+      "sha256" : "893b38388d67d8867b99a42f953d207ba7559e44972b215211b2d8b3cd378491"
+    },
+    {
+      "byteCount" : 243782,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-02-count-03-phase-025-centerOfMass@3x.png",
+      "sha256" : "5101b0fd01badf3ecd6325625a2fa60edd4224986afd98e775fbbeb6ef05e2de"
+    },
+    {
+      "byteCount" : 249575,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-02-count-03-phase-025-crop@3x.png",
+      "sha256" : "7691f46142fe78e59be5c5508e50538591bd433f021f9ba0c82102db96f60c1d"
+    },
+    {
+      "byteCount" : 250240,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-02-count-03-phase-025-occupiedBounds@3x.png",
+      "sha256" : "cf6f88721ff9e3fe9b01c2cfbda1a7e035b995638003a168a90b903abf88ca6a"
+    },
+    {
+      "byteCount" : 243948,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-02-count-03-phase-025-overlap@3x.png",
+      "sha256" : "893b38388d67d8867b99a42f953d207ba7559e44972b215211b2d8b3cd378491"
+    },
+    {
+      "byteCount" : 243782,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-02-count-03-phase-050-centerOfMass@3x.png",
+      "sha256" : "5101b0fd01badf3ecd6325625a2fa60edd4224986afd98e775fbbeb6ef05e2de"
+    },
+    {
+      "byteCount" : 249575,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-02-count-03-phase-050-crop@3x.png",
+      "sha256" : "7691f46142fe78e59be5c5508e50538591bd433f021f9ba0c82102db96f60c1d"
+    },
+    {
+      "byteCount" : 250240,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-02-count-03-phase-050-occupiedBounds@3x.png",
+      "sha256" : "cf6f88721ff9e3fe9b01c2cfbda1a7e035b995638003a168a90b903abf88ca6a"
+    },
+    {
+      "byteCount" : 243948,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-02-count-03-phase-050-overlap@3x.png",
+      "sha256" : "893b38388d67d8867b99a42f953d207ba7559e44972b215211b2d8b3cd378491"
+    },
+    {
+      "byteCount" : 243782,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-02-count-03-phase-075-centerOfMass@3x.png",
+      "sha256" : "5101b0fd01badf3ecd6325625a2fa60edd4224986afd98e775fbbeb6ef05e2de"
+    },
+    {
+      "byteCount" : 249575,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-02-count-03-phase-075-crop@3x.png",
+      "sha256" : "7691f46142fe78e59be5c5508e50538591bd433f021f9ba0c82102db96f60c1d"
+    },
+    {
+      "byteCount" : 250240,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-02-count-03-phase-075-occupiedBounds@3x.png",
+      "sha256" : "cf6f88721ff9e3fe9b01c2cfbda1a7e035b995638003a168a90b903abf88ca6a"
+    },
+    {
+      "byteCount" : 243948,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-02-count-03-phase-075-overlap@3x.png",
+      "sha256" : "893b38388d67d8867b99a42f953d207ba7559e44972b215211b2d8b3cd378491"
+    },
+    {
+      "byteCount" : 313602,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-03-count-05-phase-000-centerOfMass@3x.png",
+      "sha256" : "05e25263f8bf5f577936bfaee127538ffd60b7dad00385ebc33e053dc407f7ac"
+    },
+    {
+      "byteCount" : 319751,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-03-count-05-phase-000-crop@3x.png",
+      "sha256" : "da66fef5244f2807247bb740eee87ee6fecb6a96f5575136bb1581e41dfd5c10"
+    },
+    {
+      "byteCount" : 325000,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-03-count-05-phase-000-occupiedBounds@3x.png",
+      "sha256" : "bb5b287b7906b868b3929a1d513f74e4938b4d9761cf06216af2ae9be609a7b6"
+    },
+    {
+      "byteCount" : 314091,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-03-count-05-phase-000-overlap@3x.png",
+      "sha256" : "6a0d7ae5221d75ff5c0458b2b16e74d493bd8d603c1a6741a19fb77a91faf42a"
+    },
+    {
+      "byteCount" : 313602,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-03-count-05-phase-025-centerOfMass@3x.png",
+      "sha256" : "05e25263f8bf5f577936bfaee127538ffd60b7dad00385ebc33e053dc407f7ac"
+    },
+    {
+      "byteCount" : 319751,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-03-count-05-phase-025-crop@3x.png",
+      "sha256" : "da66fef5244f2807247bb740eee87ee6fecb6a96f5575136bb1581e41dfd5c10"
+    },
+    {
+      "byteCount" : 325000,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-03-count-05-phase-025-occupiedBounds@3x.png",
+      "sha256" : "bb5b287b7906b868b3929a1d513f74e4938b4d9761cf06216af2ae9be609a7b6"
+    },
+    {
+      "byteCount" : 314091,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-03-count-05-phase-025-overlap@3x.png",
+      "sha256" : "6a0d7ae5221d75ff5c0458b2b16e74d493bd8d603c1a6741a19fb77a91faf42a"
+    },
+    {
+      "byteCount" : 313602,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-03-count-05-phase-050-centerOfMass@3x.png",
+      "sha256" : "05e25263f8bf5f577936bfaee127538ffd60b7dad00385ebc33e053dc407f7ac"
+    },
+    {
+      "byteCount" : 319751,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-03-count-05-phase-050-crop@3x.png",
+      "sha256" : "da66fef5244f2807247bb740eee87ee6fecb6a96f5575136bb1581e41dfd5c10"
+    },
+    {
+      "byteCount" : 325000,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-03-count-05-phase-050-occupiedBounds@3x.png",
+      "sha256" : "bb5b287b7906b868b3929a1d513f74e4938b4d9761cf06216af2ae9be609a7b6"
+    },
+    {
+      "byteCount" : 314091,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-03-count-05-phase-050-overlap@3x.png",
+      "sha256" : "6a0d7ae5221d75ff5c0458b2b16e74d493bd8d603c1a6741a19fb77a91faf42a"
+    },
+    {
+      "byteCount" : 313602,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-03-count-05-phase-075-centerOfMass@3x.png",
+      "sha256" : "05e25263f8bf5f577936bfaee127538ffd60b7dad00385ebc33e053dc407f7ac"
+    },
+    {
+      "byteCount" : 319751,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-03-count-05-phase-075-crop@3x.png",
+      "sha256" : "da66fef5244f2807247bb740eee87ee6fecb6a96f5575136bb1581e41dfd5c10"
+    },
+    {
+      "byteCount" : 325000,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-03-count-05-phase-075-occupiedBounds@3x.png",
+      "sha256" : "bb5b287b7906b868b3929a1d513f74e4938b4d9761cf06216af2ae9be609a7b6"
+    },
+    {
+      "byteCount" : 314091,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-03-count-05-phase-075-overlap@3x.png",
+      "sha256" : "6a0d7ae5221d75ff5c0458b2b16e74d493bd8d603c1a6741a19fb77a91faf42a"
+    },
+    {
+      "byteCount" : 363400,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-04-count-07-phase-000-centerOfMass@3x.png",
+      "sha256" : "9d475fa5f275006c144bb5fee08e44317a1a8c92893051827879b50d64942ae4"
+    },
+    {
+      "byteCount" : 370900,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-04-count-07-phase-000-crop@3x.png",
+      "sha256" : "4c04db77d61ccd08b1939b33c74bcbcd9db318be82f291dfee037589e17cbcd9"
+    },
+    {
+      "byteCount" : 377929,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-04-count-07-phase-000-occupiedBounds@3x.png",
+      "sha256" : "5ad0ef0c8687ab23335d45a2d8405d3e19d72457f4ebdab25a4272e71b2c5984"
+    },
+    {
+      "byteCount" : 363919,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-04-count-07-phase-000-overlap@3x.png",
+      "sha256" : "83f3735455cdc073e555f402ae8f19d1a40b356965ad3a265ed505982dd2966c"
+    },
+    {
+      "byteCount" : 363400,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-04-count-07-phase-025-centerOfMass@3x.png",
+      "sha256" : "9d475fa5f275006c144bb5fee08e44317a1a8c92893051827879b50d64942ae4"
+    },
+    {
+      "byteCount" : 370900,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-04-count-07-phase-025-crop@3x.png",
+      "sha256" : "4c04db77d61ccd08b1939b33c74bcbcd9db318be82f291dfee037589e17cbcd9"
+    },
+    {
+      "byteCount" : 377929,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-04-count-07-phase-025-occupiedBounds@3x.png",
+      "sha256" : "5ad0ef0c8687ab23335d45a2d8405d3e19d72457f4ebdab25a4272e71b2c5984"
+    },
+    {
+      "byteCount" : 363919,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-04-count-07-phase-025-overlap@3x.png",
+      "sha256" : "83f3735455cdc073e555f402ae8f19d1a40b356965ad3a265ed505982dd2966c"
+    },
+    {
+      "byteCount" : 363400,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-04-count-07-phase-050-centerOfMass@3x.png",
+      "sha256" : "9d475fa5f275006c144bb5fee08e44317a1a8c92893051827879b50d64942ae4"
+    },
+    {
+      "byteCount" : 370900,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-04-count-07-phase-050-crop@3x.png",
+      "sha256" : "4c04db77d61ccd08b1939b33c74bcbcd9db318be82f291dfee037589e17cbcd9"
+    },
+    {
+      "byteCount" : 377929,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-04-count-07-phase-050-occupiedBounds@3x.png",
+      "sha256" : "5ad0ef0c8687ab23335d45a2d8405d3e19d72457f4ebdab25a4272e71b2c5984"
+    },
+    {
+      "byteCount" : 363919,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-04-count-07-phase-050-overlap@3x.png",
+      "sha256" : "83f3735455cdc073e555f402ae8f19d1a40b356965ad3a265ed505982dd2966c"
+    },
+    {
+      "byteCount" : 363400,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-04-count-07-phase-075-centerOfMass@3x.png",
+      "sha256" : "9d475fa5f275006c144bb5fee08e44317a1a8c92893051827879b50d64942ae4"
+    },
+    {
+      "byteCount" : 370900,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-04-count-07-phase-075-crop@3x.png",
+      "sha256" : "4c04db77d61ccd08b1939b33c74bcbcd9db318be82f291dfee037589e17cbcd9"
+    },
+    {
+      "byteCount" : 377929,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-04-count-07-phase-075-occupiedBounds@3x.png",
+      "sha256" : "5ad0ef0c8687ab23335d45a2d8405d3e19d72457f4ebdab25a4272e71b2c5984"
+    },
+    {
+      "byteCount" : 363919,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-04-count-07-phase-075-overlap@3x.png",
+      "sha256" : "83f3735455cdc073e555f402ae8f19d1a40b356965ad3a265ed505982dd2966c"
+    },
+    {
+      "byteCount" : 535571,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-05-count-10-phase-000-centerOfMass@3x.png",
+      "sha256" : "4a6e8e5407fd74be2ecd956d8e1d0ac46fe819429d44792123dae814d4787d6e"
+    },
+    {
+      "byteCount" : 542764,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-05-count-10-phase-000-crop@3x.png",
+      "sha256" : "1fb5bba3478fe896b42dea80d5939ff414a117bdbe10588687facee9c72333dd"
+    },
+    {
+      "byteCount" : 547337,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-05-count-10-phase-000-occupiedBounds@3x.png",
+      "sha256" : "0bba97f54d006894913480d393e2ee348a7d8963b3170df074b67a05b0c87959"
+    },
+    {
+      "byteCount" : 538231,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-05-count-10-phase-000-overlap@3x.png",
+      "sha256" : "f8f9b3425072c85253c43ec75bde53b55f20183b3c1f1583ffa34e79e6e38447"
+    },
+    {
+      "byteCount" : 535571,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-05-count-10-phase-025-centerOfMass@3x.png",
+      "sha256" : "4a6e8e5407fd74be2ecd956d8e1d0ac46fe819429d44792123dae814d4787d6e"
+    },
+    {
+      "byteCount" : 542764,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-05-count-10-phase-025-crop@3x.png",
+      "sha256" : "1fb5bba3478fe896b42dea80d5939ff414a117bdbe10588687facee9c72333dd"
+    },
+    {
+      "byteCount" : 547337,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-05-count-10-phase-025-occupiedBounds@3x.png",
+      "sha256" : "0bba97f54d006894913480d393e2ee348a7d8963b3170df074b67a05b0c87959"
+    },
+    {
+      "byteCount" : 538231,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-05-count-10-phase-025-overlap@3x.png",
+      "sha256" : "f8f9b3425072c85253c43ec75bde53b55f20183b3c1f1583ffa34e79e6e38447"
+    },
+    {
+      "byteCount" : 535571,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-05-count-10-phase-050-centerOfMass@3x.png",
+      "sha256" : "4a6e8e5407fd74be2ecd956d8e1d0ac46fe819429d44792123dae814d4787d6e"
+    },
+    {
+      "byteCount" : 542764,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-05-count-10-phase-050-crop@3x.png",
+      "sha256" : "1fb5bba3478fe896b42dea80d5939ff414a117bdbe10588687facee9c72333dd"
+    },
+    {
+      "byteCount" : 547337,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-05-count-10-phase-050-occupiedBounds@3x.png",
+      "sha256" : "0bba97f54d006894913480d393e2ee348a7d8963b3170df074b67a05b0c87959"
+    },
+    {
+      "byteCount" : 538231,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-05-count-10-phase-050-overlap@3x.png",
+      "sha256" : "f8f9b3425072c85253c43ec75bde53b55f20183b3c1f1583ffa34e79e6e38447"
+    },
+    {
+      "byteCount" : 535571,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-05-count-10-phase-075-centerOfMass@3x.png",
+      "sha256" : "4a6e8e5407fd74be2ecd956d8e1d0ac46fe819429d44792123dae814d4787d6e"
+    },
+    {
+      "byteCount" : 542764,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-05-count-10-phase-075-crop@3x.png",
+      "sha256" : "1fb5bba3478fe896b42dea80d5939ff414a117bdbe10588687facee9c72333dd"
+    },
+    {
+      "byteCount" : 547337,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-05-count-10-phase-075-occupiedBounds@3x.png",
+      "sha256" : "0bba97f54d006894913480d393e2ee348a7d8963b3170df074b67a05b0c87959"
+    },
+    {
+      "byteCount" : 538231,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-05-count-10-phase-075-overlap@3x.png",
+      "sha256" : "f8f9b3425072c85253c43ec75bde53b55f20183b3c1f1583ffa34e79e6e38447"
+    },
+    {
+      "byteCount" : 313602,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-06-count-05-phase-000-centerOfMass@3x.png",
+      "sha256" : "05e25263f8bf5f577936bfaee127538ffd60b7dad00385ebc33e053dc407f7ac"
+    },
+    {
+      "byteCount" : 319751,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-06-count-05-phase-000-crop@3x.png",
+      "sha256" : "da66fef5244f2807247bb740eee87ee6fecb6a96f5575136bb1581e41dfd5c10"
+    },
+    {
+      "byteCount" : 325000,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-06-count-05-phase-000-occupiedBounds@3x.png",
+      "sha256" : "bb5b287b7906b868b3929a1d513f74e4938b4d9761cf06216af2ae9be609a7b6"
+    },
+    {
+      "byteCount" : 314091,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-06-count-05-phase-000-overlap@3x.png",
+      "sha256" : "6a0d7ae5221d75ff5c0458b2b16e74d493bd8d603c1a6741a19fb77a91faf42a"
+    },
+    {
+      "byteCount" : 313602,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-06-count-05-phase-025-centerOfMass@3x.png",
+      "sha256" : "05e25263f8bf5f577936bfaee127538ffd60b7dad00385ebc33e053dc407f7ac"
+    },
+    {
+      "byteCount" : 319751,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-06-count-05-phase-025-crop@3x.png",
+      "sha256" : "da66fef5244f2807247bb740eee87ee6fecb6a96f5575136bb1581e41dfd5c10"
+    },
+    {
+      "byteCount" : 325000,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-06-count-05-phase-025-occupiedBounds@3x.png",
+      "sha256" : "bb5b287b7906b868b3929a1d513f74e4938b4d9761cf06216af2ae9be609a7b6"
+    },
+    {
+      "byteCount" : 314091,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-06-count-05-phase-025-overlap@3x.png",
+      "sha256" : "6a0d7ae5221d75ff5c0458b2b16e74d493bd8d603c1a6741a19fb77a91faf42a"
+    },
+    {
+      "byteCount" : 313602,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-06-count-05-phase-050-centerOfMass@3x.png",
+      "sha256" : "05e25263f8bf5f577936bfaee127538ffd60b7dad00385ebc33e053dc407f7ac"
+    },
+    {
+      "byteCount" : 319751,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-06-count-05-phase-050-crop@3x.png",
+      "sha256" : "da66fef5244f2807247bb740eee87ee6fecb6a96f5575136bb1581e41dfd5c10"
+    },
+    {
+      "byteCount" : 325000,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-06-count-05-phase-050-occupiedBounds@3x.png",
+      "sha256" : "bb5b287b7906b868b3929a1d513f74e4938b4d9761cf06216af2ae9be609a7b6"
+    },
+    {
+      "byteCount" : 314091,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-06-count-05-phase-050-overlap@3x.png",
+      "sha256" : "6a0d7ae5221d75ff5c0458b2b16e74d493bd8d603c1a6741a19fb77a91faf42a"
+    },
+    {
+      "byteCount" : 313602,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-06-count-05-phase-075-centerOfMass@3x.png",
+      "sha256" : "05e25263f8bf5f577936bfaee127538ffd60b7dad00385ebc33e053dc407f7ac"
+    },
+    {
+      "byteCount" : 319751,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-06-count-05-phase-075-crop@3x.png",
+      "sha256" : "da66fef5244f2807247bb740eee87ee6fecb6a96f5575136bb1581e41dfd5c10"
+    },
+    {
+      "byteCount" : 325000,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-06-count-05-phase-075-occupiedBounds@3x.png",
+      "sha256" : "bb5b287b7906b868b3929a1d513f74e4938b4d9761cf06216af2ae9be609a7b6"
+    },
+    {
+      "byteCount" : 314091,
+      "kind" : "debug-overlay",
+      "path" : "debug/continuity/continuity-stage-06-count-05-phase-075-overlap@3x.png",
+      "sha256" : "6a0d7ae5221d75ff5c0458b2b16e74d493bd8d603c1a6741a19fb77a91faf42a"
+    },
+    {
+      "byteCount" : 244375,
+      "kind" : "metrics",
+      "path" : "metrics.json",
+      "sha256" : "b1ba6469aa7253f7f64ff07fcc6b3cfac897ba65fc173994cc559f4ef16de31c"
+    },
+    {
+      "byteCount" : 338682,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-00-phase-000-full@3x.png",
+      "sha256" : "0ed610aed0f936b35b797ce16d968e26f03716b6b249e8c95d16f1ecd68f385b"
+    },
+    {
+      "byteCount" : 223765,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-00-phase-000-tile@3x.png",
+      "sha256" : "1aae2c6926dc135ccafd327aed22be962320a3de724d651d0e80fb0d06715e91"
+    },
+    {
+      "byteCount" : 338682,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-00-phase-025-full@3x.png",
+      "sha256" : "0ed610aed0f936b35b797ce16d968e26f03716b6b249e8c95d16f1ecd68f385b"
+    },
+    {
+      "byteCount" : 223765,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-00-phase-025-tile@3x.png",
+      "sha256" : "1aae2c6926dc135ccafd327aed22be962320a3de724d651d0e80fb0d06715e91"
+    },
+    {
+      "byteCount" : 338682,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-00-phase-050-full@3x.png",
+      "sha256" : "0ed610aed0f936b35b797ce16d968e26f03716b6b249e8c95d16f1ecd68f385b"
+    },
+    {
+      "byteCount" : 223765,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-00-phase-050-tile@3x.png",
+      "sha256" : "1aae2c6926dc135ccafd327aed22be962320a3de724d651d0e80fb0d06715e91"
+    },
+    {
+      "byteCount" : 338682,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-00-phase-075-full@3x.png",
+      "sha256" : "0ed610aed0f936b35b797ce16d968e26f03716b6b249e8c95d16f1ecd68f385b"
+    },
+    {
+      "byteCount" : 223765,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-00-phase-075-tile@3x.png",
+      "sha256" : "1aae2c6926dc135ccafd327aed22be962320a3de724d651d0e80fb0d06715e91"
+    },
+    {
+      "byteCount" : 232796,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-01-phase-000-full@3x.png",
+      "sha256" : "c938afa451109e98c4c2bbffef00f7aca0e1606d47164efeeae60637c78498fa"
+    },
+    {
+      "byteCount" : 198687,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-01-phase-000-tile@3x.png",
+      "sha256" : "fa1da072abb09fb343a72c2bd49fa256f1df71f98f94ea667039851ad8cf93d4"
+    },
+    {
+      "byteCount" : 232796,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-01-phase-025-full@3x.png",
+      "sha256" : "c938afa451109e98c4c2bbffef00f7aca0e1606d47164efeeae60637c78498fa"
+    },
+    {
+      "byteCount" : 198687,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-01-phase-025-tile@3x.png",
+      "sha256" : "fa1da072abb09fb343a72c2bd49fa256f1df71f98f94ea667039851ad8cf93d4"
+    },
+    {
+      "byteCount" : 232796,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-01-phase-050-full@3x.png",
+      "sha256" : "c938afa451109e98c4c2bbffef00f7aca0e1606d47164efeeae60637c78498fa"
+    },
+    {
+      "byteCount" : 198687,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-01-phase-050-tile@3x.png",
+      "sha256" : "fa1da072abb09fb343a72c2bd49fa256f1df71f98f94ea667039851ad8cf93d4"
+    },
+    {
+      "byteCount" : 232796,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-01-phase-075-full@3x.png",
+      "sha256" : "c938afa451109e98c4c2bbffef00f7aca0e1606d47164efeeae60637c78498fa"
+    },
+    {
+      "byteCount" : 198687,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-01-phase-075-tile@3x.png",
+      "sha256" : "fa1da072abb09fb343a72c2bd49fa256f1df71f98f94ea667039851ad8cf93d4"
+    },
+    {
+      "byteCount" : 267190,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-02-phase-000-full@3x.png",
+      "sha256" : "5055f34168c80bbf3f82eaadf0299520e82a2e0883bd33014dd1ead839067acf"
+    },
+    {
+      "byteCount" : 224133,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-02-phase-000-tile@3x.png",
+      "sha256" : "edfb93fa2285e5b487262e8bae32aa5fb18219c4d8e76339ad31f97f3e75367a"
+    },
+    {
+      "byteCount" : 267190,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-02-phase-025-full@3x.png",
+      "sha256" : "5055f34168c80bbf3f82eaadf0299520e82a2e0883bd33014dd1ead839067acf"
+    },
+    {
+      "byteCount" : 224133,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-02-phase-025-tile@3x.png",
+      "sha256" : "edfb93fa2285e5b487262e8bae32aa5fb18219c4d8e76339ad31f97f3e75367a"
+    },
+    {
+      "byteCount" : 267190,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-02-phase-050-full@3x.png",
+      "sha256" : "5055f34168c80bbf3f82eaadf0299520e82a2e0883bd33014dd1ead839067acf"
+    },
+    {
+      "byteCount" : 224133,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-02-phase-050-tile@3x.png",
+      "sha256" : "edfb93fa2285e5b487262e8bae32aa5fb18219c4d8e76339ad31f97f3e75367a"
+    },
+    {
+      "byteCount" : 267190,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-02-phase-075-full@3x.png",
+      "sha256" : "5055f34168c80bbf3f82eaadf0299520e82a2e0883bd33014dd1ead839067acf"
+    },
+    {
+      "byteCount" : 224133,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-02-phase-075-tile@3x.png",
+      "sha256" : "edfb93fa2285e5b487262e8bae32aa5fb18219c4d8e76339ad31f97f3e75367a"
+    },
+    {
+      "byteCount" : 239109,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-03-phase-000-full@3x.png",
+      "sha256" : "81b6eec27b6336060a75b4110a0451ead232e057e98b23e744d3251fa40692bd"
+    },
+    {
+      "byteCount" : 156191,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-03-phase-000-tile@3x.png",
+      "sha256" : "236972611893734b499f757c660dd8b752b72e441bc95ee01f039d2aceb97dbd"
+    },
+    {
+      "byteCount" : 239109,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-03-phase-025-full@3x.png",
+      "sha256" : "81b6eec27b6336060a75b4110a0451ead232e057e98b23e744d3251fa40692bd"
+    },
+    {
+      "byteCount" : 156191,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-03-phase-025-tile@3x.png",
+      "sha256" : "236972611893734b499f757c660dd8b752b72e441bc95ee01f039d2aceb97dbd"
+    },
+    {
+      "byteCount" : 239109,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-03-phase-050-full@3x.png",
+      "sha256" : "81b6eec27b6336060a75b4110a0451ead232e057e98b23e744d3251fa40692bd"
+    },
+    {
+      "byteCount" : 156191,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-03-phase-050-tile@3x.png",
+      "sha256" : "236972611893734b499f757c660dd8b752b72e441bc95ee01f039d2aceb97dbd"
+    },
+    {
+      "byteCount" : 239109,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-03-phase-075-full@3x.png",
+      "sha256" : "81b6eec27b6336060a75b4110a0451ead232e057e98b23e744d3251fa40692bd"
+    },
+    {
+      "byteCount" : 156191,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-03-phase-075-tile@3x.png",
+      "sha256" : "236972611893734b499f757c660dd8b752b72e441bc95ee01f039d2aceb97dbd"
+    },
+    {
+      "byteCount" : 172419,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-04-phase-000-full@3x.png",
+      "sha256" : "588fc42e78f85e715780d21d653be05bf64e04c424e3b620a7d1a303251bebfc"
+    },
+    {
+      "byteCount" : 140174,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-04-phase-000-tile@3x.png",
+      "sha256" : "4cc6bbe9617f7a822b37107ac4d21c7c7d0ceb02c37ad8aaa30598bec2ae3c80"
+    },
+    {
+      "byteCount" : 172419,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-04-phase-025-full@3x.png",
+      "sha256" : "588fc42e78f85e715780d21d653be05bf64e04c424e3b620a7d1a303251bebfc"
+    },
+    {
+      "byteCount" : 140174,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-04-phase-025-tile@3x.png",
+      "sha256" : "4cc6bbe9617f7a822b37107ac4d21c7c7d0ceb02c37ad8aaa30598bec2ae3c80"
+    },
+    {
+      "byteCount" : 172419,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-04-phase-050-full@3x.png",
+      "sha256" : "588fc42e78f85e715780d21d653be05bf64e04c424e3b620a7d1a303251bebfc"
+    },
+    {
+      "byteCount" : 140174,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-04-phase-050-tile@3x.png",
+      "sha256" : "4cc6bbe9617f7a822b37107ac4d21c7c7d0ceb02c37ad8aaa30598bec2ae3c80"
+    },
+    {
+      "byteCount" : 172419,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-04-phase-075-full@3x.png",
+      "sha256" : "588fc42e78f85e715780d21d653be05bf64e04c424e3b620a7d1a303251bebfc"
+    },
+    {
+      "byteCount" : 140174,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-04-phase-075-tile@3x.png",
+      "sha256" : "4cc6bbe9617f7a822b37107ac4d21c7c7d0ceb02c37ad8aaa30598bec2ae3c80"
+    },
+    {
+      "byteCount" : 258278,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-05-phase-000-full@3x.png",
+      "sha256" : "2b56a528b9d50a4bb14de4a4029c70f30646b54d43e9ba16718d5a3b5cad4d42"
+    },
+    {
+      "byteCount" : 182504,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-05-phase-000-tile@3x.png",
+      "sha256" : "db051d65f115dceed2b76e067376412b1d323eb80558dad7ec733b439fac7235"
+    },
+    {
+      "byteCount" : 258278,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-05-phase-025-full@3x.png",
+      "sha256" : "2b56a528b9d50a4bb14de4a4029c70f30646b54d43e9ba16718d5a3b5cad4d42"
+    },
+    {
+      "byteCount" : 182504,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-05-phase-025-tile@3x.png",
+      "sha256" : "db051d65f115dceed2b76e067376412b1d323eb80558dad7ec733b439fac7235"
+    },
+    {
+      "byteCount" : 258278,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-05-phase-050-full@3x.png",
+      "sha256" : "2b56a528b9d50a4bb14de4a4029c70f30646b54d43e9ba16718d5a3b5cad4d42"
+    },
+    {
+      "byteCount" : 182504,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-05-phase-050-tile@3x.png",
+      "sha256" : "db051d65f115dceed2b76e067376412b1d323eb80558dad7ec733b439fac7235"
+    },
+    {
+      "byteCount" : 258278,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-05-phase-075-full@3x.png",
+      "sha256" : "2b56a528b9d50a4bb14de4a4029c70f30646b54d43e9ba16718d5a3b5cad4d42"
+    },
+    {
+      "byteCount" : 182504,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-05-phase-075-tile@3x.png",
+      "sha256" : "db051d65f115dceed2b76e067376412b1d323eb80558dad7ec733b439fac7235"
+    },
+    {
+      "byteCount" : 598822,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-06-phase-000-full@3x.png",
+      "sha256" : "971bf19c69f3cafa9870b5cc7d44079549800ce40855e0e9257f39174beb1e8a"
+    },
+    {
+      "byteCount" : 287614,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-06-phase-000-tile@3x.png",
+      "sha256" : "1e4d656a28ee806fc8c33bc5e17b7fc0c56b4d32d4359f67fe7d8c2cb2d58f6a"
+    },
+    {
+      "byteCount" : 598822,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-06-phase-025-full@3x.png",
+      "sha256" : "971bf19c69f3cafa9870b5cc7d44079549800ce40855e0e9257f39174beb1e8a"
+    },
+    {
+      "byteCount" : 287614,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-06-phase-025-tile@3x.png",
+      "sha256" : "1e4d656a28ee806fc8c33bc5e17b7fc0c56b4d32d4359f67fe7d8c2cb2d58f6a"
+    },
+    {
+      "byteCount" : 598822,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-06-phase-050-full@3x.png",
+      "sha256" : "971bf19c69f3cafa9870b5cc7d44079549800ce40855e0e9257f39174beb1e8a"
+    },
+    {
+      "byteCount" : 287614,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-06-phase-050-tile@3x.png",
+      "sha256" : "1e4d656a28ee806fc8c33bc5e17b7fc0c56b4d32d4359f67fe7d8c2cb2d58f6a"
+    },
+    {
+      "byteCount" : 598822,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-06-phase-075-full@3x.png",
+      "sha256" : "971bf19c69f3cafa9870b5cc7d44079549800ce40855e0e9257f39174beb1e8a"
+    },
+    {
+      "byteCount" : 287614,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-06-phase-075-tile@3x.png",
+      "sha256" : "1e4d656a28ee806fc8c33bc5e17b7fc0c56b4d32d4359f67fe7d8c2cb2d58f6a"
+    },
+    {
+      "byteCount" : 461258,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-07-phase-000-full@3x.png",
+      "sha256" : "7f57ad5f27472ab53340709f466dddef7d9e55f7552329c18f948bcf8f6d94dd"
+    },
+    {
+      "byteCount" : 300773,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-07-phase-000-tile@3x.png",
+      "sha256" : "6e131ea412d7cd983565e8bc40960e704e57bfb20f9ae8b4388dbdf9aaf927b5"
+    },
+    {
+      "byteCount" : 461258,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-07-phase-025-full@3x.png",
+      "sha256" : "7f57ad5f27472ab53340709f466dddef7d9e55f7552329c18f948bcf8f6d94dd"
+    },
+    {
+      "byteCount" : 300773,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-07-phase-025-tile@3x.png",
+      "sha256" : "6e131ea412d7cd983565e8bc40960e704e57bfb20f9ae8b4388dbdf9aaf927b5"
+    },
+    {
+      "byteCount" : 461258,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-07-phase-050-full@3x.png",
+      "sha256" : "7f57ad5f27472ab53340709f466dddef7d9e55f7552329c18f948bcf8f6d94dd"
+    },
+    {
+      "byteCount" : 300773,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-07-phase-050-tile@3x.png",
+      "sha256" : "6e131ea412d7cd983565e8bc40960e704e57bfb20f9ae8b4388dbdf9aaf927b5"
+    },
+    {
+      "byteCount" : 461258,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-07-phase-075-full@3x.png",
+      "sha256" : "7f57ad5f27472ab53340709f466dddef7d9e55f7552329c18f948bcf8f6d94dd"
+    },
+    {
+      "byteCount" : 300773,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-07-phase-075-tile@3x.png",
+      "sha256" : "6e131ea412d7cd983565e8bc40960e704e57bfb20f9ae8b4388dbdf9aaf927b5"
+    },
+    {
+      "byteCount" : 547655,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-08-phase-000-full@3x.png",
+      "sha256" : "8143b790821cc46c52484e7feac03ad151e9592caa4e8cd7c5b1a5896038341d"
+    },
+    {
+      "byteCount" : 368416,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-08-phase-000-tile@3x.png",
+      "sha256" : "24d37a2d2cad70ef5cf64d7347b7f7984f33d03ace963d807617421f0d7c36fa"
+    },
+    {
+      "byteCount" : 547655,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-08-phase-025-full@3x.png",
+      "sha256" : "8143b790821cc46c52484e7feac03ad151e9592caa4e8cd7c5b1a5896038341d"
+    },
+    {
+      "byteCount" : 368416,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-08-phase-025-tile@3x.png",
+      "sha256" : "24d37a2d2cad70ef5cf64d7347b7f7984f33d03ace963d807617421f0d7c36fa"
+    },
+    {
+      "byteCount" : 547655,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-08-phase-050-full@3x.png",
+      "sha256" : "8143b790821cc46c52484e7feac03ad151e9592caa4e8cd7c5b1a5896038341d"
+    },
+    {
+      "byteCount" : 368416,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-08-phase-050-tile@3x.png",
+      "sha256" : "24d37a2d2cad70ef5cf64d7347b7f7984f33d03ace963d807617421f0d7c36fa"
+    },
+    {
+      "byteCount" : 547655,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-08-phase-075-full@3x.png",
+      "sha256" : "8143b790821cc46c52484e7feac03ad151e9592caa4e8cd7c5b1a5896038341d"
+    },
+    {
+      "byteCount" : 368416,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-08-phase-075-tile@3x.png",
+      "sha256" : "24d37a2d2cad70ef5cf64d7347b7f7984f33d03ace963d807617421f0d7c36fa"
+    },
+    {
+      "byteCount" : 375609,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-09-phase-000-full@3x.png",
+      "sha256" : "58139978a9f46cf853c36f1bdab8dff62d99feee54f7b3993aed8e2d7b87c57a"
+    },
+    {
+      "byteCount" : 238450,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-09-phase-000-tile@3x.png",
+      "sha256" : "0e9258ad83de633c2f986d51ea4ddee0c394662925fae629fd9ce431d348a523"
+    },
+    {
+      "byteCount" : 375609,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-09-phase-025-full@3x.png",
+      "sha256" : "58139978a9f46cf853c36f1bdab8dff62d99feee54f7b3993aed8e2d7b87c57a"
+    },
+    {
+      "byteCount" : 238450,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-09-phase-025-tile@3x.png",
+      "sha256" : "0e9258ad83de633c2f986d51ea4ddee0c394662925fae629fd9ce431d348a523"
+    },
+    {
+      "byteCount" : 375609,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-09-phase-050-full@3x.png",
+      "sha256" : "58139978a9f46cf853c36f1bdab8dff62d99feee54f7b3993aed8e2d7b87c57a"
+    },
+    {
+      "byteCount" : 238450,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-09-phase-050-tile@3x.png",
+      "sha256" : "0e9258ad83de633c2f986d51ea4ddee0c394662925fae629fd9ce431d348a523"
+    },
+    {
+      "byteCount" : 375609,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-09-phase-075-full@3x.png",
+      "sha256" : "58139978a9f46cf853c36f1bdab8dff62d99feee54f7b3993aed8e2d7b87c57a"
+    },
+    {
+      "byteCount" : 238450,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-09-phase-075-tile@3x.png",
+      "sha256" : "0e9258ad83de633c2f986d51ea4ddee0c394662925fae629fd9ce431d348a523"
+    },
+    {
+      "byteCount" : 384239,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-10-phase-000-full@3x.png",
+      "sha256" : "1d8fbf48d9cd7e195319a7887560ab4ff231c5aa675ae538bfbd7f29b45d1006"
+    },
+    {
+      "byteCount" : 235513,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-10-phase-000-tile@3x.png",
+      "sha256" : "d15354c02f3647db8fa1ce508d7c12d41686b8a660e1f6959acec61d0768bf79"
+    },
+    {
+      "byteCount" : 384239,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-10-phase-025-full@3x.png",
+      "sha256" : "1d8fbf48d9cd7e195319a7887560ab4ff231c5aa675ae538bfbd7f29b45d1006"
+    },
+    {
+      "byteCount" : 235513,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-10-phase-025-tile@3x.png",
+      "sha256" : "d15354c02f3647db8fa1ce508d7c12d41686b8a660e1f6959acec61d0768bf79"
+    },
+    {
+      "byteCount" : 384239,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-10-phase-050-full@3x.png",
+      "sha256" : "1d8fbf48d9cd7e195319a7887560ab4ff231c5aa675ae538bfbd7f29b45d1006"
+    },
+    {
+      "byteCount" : 235513,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-10-phase-050-tile@3x.png",
+      "sha256" : "d15354c02f3647db8fa1ce508d7c12d41686b8a660e1f6959acec61d0768bf79"
+    },
+    {
+      "byteCount" : 384239,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-10-phase-075-full@3x.png",
+      "sha256" : "1d8fbf48d9cd7e195319a7887560ab4ff231c5aa675ae538bfbd7f29b45d1006"
+    },
+    {
+      "byteCount" : 235513,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-10-phase-075-tile@3x.png",
+      "sha256" : "d15354c02f3647db8fa1ce508d7c12d41686b8a660e1f6959acec61d0768bf79"
+    },
+    {
+      "byteCount" : 628797,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-11-phase-000-full@3x.png",
+      "sha256" : "156458591ff2380cee8f59fbdf8fff1da7f740d6ae25228f585dd53465dffb5e"
+    },
+    {
+      "byteCount" : 348053,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-11-phase-000-tile@3x.png",
+      "sha256" : "8d344ad975dbb44a462a6e3a9f4be30bbb2587a4f81e5cccd04607786d6ade3b"
+    },
+    {
+      "byteCount" : 628797,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-11-phase-025-full@3x.png",
+      "sha256" : "156458591ff2380cee8f59fbdf8fff1da7f740d6ae25228f585dd53465dffb5e"
+    },
+    {
+      "byteCount" : 348053,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-11-phase-025-tile@3x.png",
+      "sha256" : "8d344ad975dbb44a462a6e3a9f4be30bbb2587a4f81e5cccd04607786d6ade3b"
+    },
+    {
+      "byteCount" : 628797,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-11-phase-050-full@3x.png",
+      "sha256" : "156458591ff2380cee8f59fbdf8fff1da7f740d6ae25228f585dd53465dffb5e"
+    },
+    {
+      "byteCount" : 348053,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-11-phase-050-tile@3x.png",
+      "sha256" : "8d344ad975dbb44a462a6e3a9f4be30bbb2587a4f81e5cccd04607786d6ade3b"
+    },
+    {
+      "byteCount" : 628797,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-11-phase-075-full@3x.png",
+      "sha256" : "156458591ff2380cee8f59fbdf8fff1da7f740d6ae25228f585dd53465dffb5e"
+    },
+    {
+      "byteCount" : 348053,
+      "kind" : "core-render",
+      "path" : "renders/breadth/breadth-11-phase-075-tile@3x.png",
+      "sha256" : "8d344ad975dbb44a462a6e3a9f4be30bbb2587a4f81e5cccd04607786d6ade3b"
+    },
+    {
+      "byteCount" : 210542,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-00-count-01-phase-000-full@3x.png",
+      "sha256" : "f913c4285b3af2d10355759613be7b1d200fd5906f21a8304331af2556998e26"
+    },
+    {
+      "byteCount" : 176831,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-00-count-01-phase-000-tile@3x.png",
+      "sha256" : "d7a24356ba81b93b7b0e2d8610034983edfa001d6285a9c9f68a9de1facf7866"
+    },
+    {
+      "byteCount" : 210542,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-00-count-01-phase-025-full@3x.png",
+      "sha256" : "f913c4285b3af2d10355759613be7b1d200fd5906f21a8304331af2556998e26"
+    },
+    {
+      "byteCount" : 176831,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-00-count-01-phase-025-tile@3x.png",
+      "sha256" : "d7a24356ba81b93b7b0e2d8610034983edfa001d6285a9c9f68a9de1facf7866"
+    },
+    {
+      "byteCount" : 210542,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-00-count-01-phase-050-full@3x.png",
+      "sha256" : "f913c4285b3af2d10355759613be7b1d200fd5906f21a8304331af2556998e26"
+    },
+    {
+      "byteCount" : 176831,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-00-count-01-phase-050-tile@3x.png",
+      "sha256" : "d7a24356ba81b93b7b0e2d8610034983edfa001d6285a9c9f68a9de1facf7866"
+    },
+    {
+      "byteCount" : 210542,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-00-count-01-phase-075-full@3x.png",
+      "sha256" : "f913c4285b3af2d10355759613be7b1d200fd5906f21a8304331af2556998e26"
+    },
+    {
+      "byteCount" : 176831,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-00-count-01-phase-075-tile@3x.png",
+      "sha256" : "d7a24356ba81b93b7b0e2d8610034983edfa001d6285a9c9f68a9de1facf7866"
+    },
+    {
+      "byteCount" : 230255,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-01-count-02-phase-000-full@3x.png",
+      "sha256" : "436646c29a5ea3cd876b85fe1af7ecdd66cb277844c7428532ca71fe5e01ce9f"
+    },
+    {
+      "byteCount" : 194886,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-01-count-02-phase-000-tile@3x.png",
+      "sha256" : "4510d53b4bd9b9d6ba5b98a06b83ec5edb807b73ee5c9ced6a0afa0b53fa1fa4"
+    },
+    {
+      "byteCount" : 230255,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-01-count-02-phase-025-full@3x.png",
+      "sha256" : "436646c29a5ea3cd876b85fe1af7ecdd66cb277844c7428532ca71fe5e01ce9f"
+    },
+    {
+      "byteCount" : 194886,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-01-count-02-phase-025-tile@3x.png",
+      "sha256" : "4510d53b4bd9b9d6ba5b98a06b83ec5edb807b73ee5c9ced6a0afa0b53fa1fa4"
+    },
+    {
+      "byteCount" : 230255,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-01-count-02-phase-050-full@3x.png",
+      "sha256" : "436646c29a5ea3cd876b85fe1af7ecdd66cb277844c7428532ca71fe5e01ce9f"
+    },
+    {
+      "byteCount" : 194886,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-01-count-02-phase-050-tile@3x.png",
+      "sha256" : "4510d53b4bd9b9d6ba5b98a06b83ec5edb807b73ee5c9ced6a0afa0b53fa1fa4"
+    },
+    {
+      "byteCount" : 230255,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-01-count-02-phase-075-full@3x.png",
+      "sha256" : "436646c29a5ea3cd876b85fe1af7ecdd66cb277844c7428532ca71fe5e01ce9f"
+    },
+    {
+      "byteCount" : 194886,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-01-count-02-phase-075-tile@3x.png",
+      "sha256" : "4510d53b4bd9b9d6ba5b98a06b83ec5edb807b73ee5c9ced6a0afa0b53fa1fa4"
+    },
+    {
+      "byteCount" : 243071,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-02-count-03-phase-000-full@3x.png",
+      "sha256" : "f7854571f4f059baf37389101dfb0f75c01fc313f8d5baafc3a1afdec5de907e"
+    },
+    {
+      "byteCount" : 208070,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-02-count-03-phase-000-tile@3x.png",
+      "sha256" : "ab15de038c001dd8bb7957420da76becc98b58c80badf25df3265a6cb4461a4a"
+    },
+    {
+      "byteCount" : 243071,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-02-count-03-phase-025-full@3x.png",
+      "sha256" : "f7854571f4f059baf37389101dfb0f75c01fc313f8d5baafc3a1afdec5de907e"
+    },
+    {
+      "byteCount" : 208070,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-02-count-03-phase-025-tile@3x.png",
+      "sha256" : "ab15de038c001dd8bb7957420da76becc98b58c80badf25df3265a6cb4461a4a"
+    },
+    {
+      "byteCount" : 243071,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-02-count-03-phase-050-full@3x.png",
+      "sha256" : "f7854571f4f059baf37389101dfb0f75c01fc313f8d5baafc3a1afdec5de907e"
+    },
+    {
+      "byteCount" : 208070,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-02-count-03-phase-050-tile@3x.png",
+      "sha256" : "ab15de038c001dd8bb7957420da76becc98b58c80badf25df3265a6cb4461a4a"
+    },
+    {
+      "byteCount" : 243071,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-02-count-03-phase-075-full@3x.png",
+      "sha256" : "f7854571f4f059baf37389101dfb0f75c01fc313f8d5baafc3a1afdec5de907e"
+    },
+    {
+      "byteCount" : 208070,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-02-count-03-phase-075-tile@3x.png",
+      "sha256" : "ab15de038c001dd8bb7957420da76becc98b58c80badf25df3265a6cb4461a4a"
+    },
+    {
+      "byteCount" : 313080,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-03-count-05-phase-000-full@3x.png",
+      "sha256" : "eb9c47170619692d1fad0739abc21febaf94f078df598d98193aa9663d2bd7d3"
+    },
+    {
+      "byteCount" : 224895,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-03-count-05-phase-000-tile@3x.png",
+      "sha256" : "8bb7f0294e1fd7f23d47c1704be116b876040ef82963f32f6bc52257ccd39c35"
+    },
+    {
+      "byteCount" : 313080,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-03-count-05-phase-025-full@3x.png",
+      "sha256" : "eb9c47170619692d1fad0739abc21febaf94f078df598d98193aa9663d2bd7d3"
+    },
+    {
+      "byteCount" : 224895,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-03-count-05-phase-025-tile@3x.png",
+      "sha256" : "8bb7f0294e1fd7f23d47c1704be116b876040ef82963f32f6bc52257ccd39c35"
+    },
+    {
+      "byteCount" : 313080,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-03-count-05-phase-050-full@3x.png",
+      "sha256" : "eb9c47170619692d1fad0739abc21febaf94f078df598d98193aa9663d2bd7d3"
+    },
+    {
+      "byteCount" : 224895,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-03-count-05-phase-050-tile@3x.png",
+      "sha256" : "8bb7f0294e1fd7f23d47c1704be116b876040ef82963f32f6bc52257ccd39c35"
+    },
+    {
+      "byteCount" : 313080,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-03-count-05-phase-075-full@3x.png",
+      "sha256" : "eb9c47170619692d1fad0739abc21febaf94f078df598d98193aa9663d2bd7d3"
+    },
+    {
+      "byteCount" : 224895,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-03-count-05-phase-075-tile@3x.png",
+      "sha256" : "8bb7f0294e1fd7f23d47c1704be116b876040ef82963f32f6bc52257ccd39c35"
+    },
+    {
+      "byteCount" : 362936,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-04-count-07-phase-000-full@3x.png",
+      "sha256" : "2b76facf44d1fe18e828042910402753c7c1da9faea5211907c05c22c9932dc5"
+    },
+    {
+      "byteCount" : 263362,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-04-count-07-phase-000-tile@3x.png",
+      "sha256" : "5fc67041ab4bff5408f3e3def03c7697717556a6299e1535b5f60f141b3862ab"
+    },
+    {
+      "byteCount" : 362936,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-04-count-07-phase-025-full@3x.png",
+      "sha256" : "2b76facf44d1fe18e828042910402753c7c1da9faea5211907c05c22c9932dc5"
+    },
+    {
+      "byteCount" : 263362,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-04-count-07-phase-025-tile@3x.png",
+      "sha256" : "5fc67041ab4bff5408f3e3def03c7697717556a6299e1535b5f60f141b3862ab"
+    },
+    {
+      "byteCount" : 362936,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-04-count-07-phase-050-full@3x.png",
+      "sha256" : "2b76facf44d1fe18e828042910402753c7c1da9faea5211907c05c22c9932dc5"
+    },
+    {
+      "byteCount" : 263362,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-04-count-07-phase-050-tile@3x.png",
+      "sha256" : "5fc67041ab4bff5408f3e3def03c7697717556a6299e1535b5f60f141b3862ab"
+    },
+    {
+      "byteCount" : 362936,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-04-count-07-phase-075-full@3x.png",
+      "sha256" : "2b76facf44d1fe18e828042910402753c7c1da9faea5211907c05c22c9932dc5"
+    },
+    {
+      "byteCount" : 263362,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-04-count-07-phase-075-tile@3x.png",
+      "sha256" : "5fc67041ab4bff5408f3e3def03c7697717556a6299e1535b5f60f141b3862ab"
+    },
+    {
+      "byteCount" : 535111,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-05-count-10-phase-000-full@3x.png",
+      "sha256" : "5daf9f93c4359149e374b82f9c19616b134af624590201b861441b261381b685"
+    },
+    {
+      "byteCount" : 377839,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-05-count-10-phase-000-tile@3x.png",
+      "sha256" : "d9bef42244843580e1fb59f76b705a367789ed281bd4b0f99489aa2309cdfc0b"
+    },
+    {
+      "byteCount" : 535111,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-05-count-10-phase-025-full@3x.png",
+      "sha256" : "5daf9f93c4359149e374b82f9c19616b134af624590201b861441b261381b685"
+    },
+    {
+      "byteCount" : 377839,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-05-count-10-phase-025-tile@3x.png",
+      "sha256" : "d9bef42244843580e1fb59f76b705a367789ed281bd4b0f99489aa2309cdfc0b"
+    },
+    {
+      "byteCount" : 535111,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-05-count-10-phase-050-full@3x.png",
+      "sha256" : "5daf9f93c4359149e374b82f9c19616b134af624590201b861441b261381b685"
+    },
+    {
+      "byteCount" : 377839,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-05-count-10-phase-050-tile@3x.png",
+      "sha256" : "d9bef42244843580e1fb59f76b705a367789ed281bd4b0f99489aa2309cdfc0b"
+    },
+    {
+      "byteCount" : 535111,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-05-count-10-phase-075-full@3x.png",
+      "sha256" : "5daf9f93c4359149e374b82f9c19616b134af624590201b861441b261381b685"
+    },
+    {
+      "byteCount" : 377839,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-05-count-10-phase-075-tile@3x.png",
+      "sha256" : "d9bef42244843580e1fb59f76b705a367789ed281bd4b0f99489aa2309cdfc0b"
+    },
+    {
+      "byteCount" : 313080,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-06-count-05-phase-000-full@3x.png",
+      "sha256" : "eb9c47170619692d1fad0739abc21febaf94f078df598d98193aa9663d2bd7d3"
+    },
+    {
+      "byteCount" : 224895,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-06-count-05-phase-000-tile@3x.png",
+      "sha256" : "8bb7f0294e1fd7f23d47c1704be116b876040ef82963f32f6bc52257ccd39c35"
+    },
+    {
+      "byteCount" : 313080,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-06-count-05-phase-025-full@3x.png",
+      "sha256" : "eb9c47170619692d1fad0739abc21febaf94f078df598d98193aa9663d2bd7d3"
+    },
+    {
+      "byteCount" : 224895,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-06-count-05-phase-025-tile@3x.png",
+      "sha256" : "8bb7f0294e1fd7f23d47c1704be116b876040ef82963f32f6bc52257ccd39c35"
+    },
+    {
+      "byteCount" : 313080,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-06-count-05-phase-050-full@3x.png",
+      "sha256" : "eb9c47170619692d1fad0739abc21febaf94f078df598d98193aa9663d2bd7d3"
+    },
+    {
+      "byteCount" : 224895,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-06-count-05-phase-050-tile@3x.png",
+      "sha256" : "8bb7f0294e1fd7f23d47c1704be116b876040ef82963f32f6bc52257ccd39c35"
+    },
+    {
+      "byteCount" : 313080,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-06-count-05-phase-075-full@3x.png",
+      "sha256" : "eb9c47170619692d1fad0739abc21febaf94f078df598d98193aa9663d2bd7d3"
+    },
+    {
+      "byteCount" : 224895,
+      "kind" : "core-render",
+      "path" : "renders/continuity/continuity-stage-06-count-05-phase-075-tile@3x.png",
+      "sha256" : "8bb7f0294e1fd7f23d47c1704be116b876040ef82963f32f6bc52257ccd39c35"
+    }
+  ],
+  "colorSpace" : "sRGB",
+  "coreImageCount" : 152,
+  "corpusVersion" : "visible-v1",
+  "device" : "Konstantin’s MacBook Pro",
+  "frames" : [
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 0,
+      "phase" : 0,
+      "seed" : 1612052424515492083,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 0,
+      "phase" : 0,
+      "seed" : 1612052424515492083,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 0,
+      "phase" : 0.25,
+      "seed" : 1612052424515492083,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 0,
+      "phase" : 0.25,
+      "seed" : 1612052424515492083,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 0,
+      "phase" : 0.5,
+      "seed" : 1612052424515492083,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 0,
+      "phase" : 0.5,
+      "seed" : 1612052424515492083,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 0,
+      "phase" : 0.75,
+      "seed" : 1612052424515492083,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 0,
+      "phase" : 0.75,
+      "seed" : 1612052424515492083,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 1,
+      "phase" : 0,
+      "seed" : 11154729244141354478,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 1,
+      "phase" : 0,
+      "seed" : 11154729244141354478,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 1,
+      "phase" : 0.25,
+      "seed" : 11154729244141354478,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 1,
+      "phase" : 0.25,
+      "seed" : 11154729244141354478,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 1,
+      "phase" : 0.5,
+      "seed" : 11154729244141354478,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 1,
+      "phase" : 0.5,
+      "seed" : 11154729244141354478,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 1,
+      "phase" : 0.75,
+      "seed" : 11154729244141354478,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 1,
+      "phase" : 0.75,
+      "seed" : 11154729244141354478,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 2,
+      "phase" : 0,
+      "seed" : 2440890826682767589,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 2,
+      "phase" : 0,
+      "seed" : 2440890826682767589,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 2,
+      "phase" : 0.25,
+      "seed" : 2440890826682767589,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 2,
+      "phase" : 0.25,
+      "seed" : 2440890826682767589,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 2,
+      "phase" : 0.5,
+      "seed" : 2440890826682767589,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 2,
+      "phase" : 0.5,
+      "seed" : 2440890826682767589,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 2,
+      "phase" : 0.75,
+      "seed" : 2440890826682767589,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 2,
+      "phase" : 0.75,
+      "seed" : 2440890826682767589,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 3,
+      "phase" : 0,
+      "seed" : 4252333746721226202,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 3,
+      "phase" : 0,
+      "seed" : 4252333746721226202,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 3,
+      "phase" : 0.25,
+      "seed" : 4252333746721226202,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 3,
+      "phase" : 0.25,
+      "seed" : 4252333746721226202,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 3,
+      "phase" : 0.5,
+      "seed" : 4252333746721226202,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 3,
+      "phase" : 0.5,
+      "seed" : 4252333746721226202,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 3,
+      "phase" : 0.75,
+      "seed" : 4252333746721226202,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 3,
+      "phase" : 0.75,
+      "seed" : 4252333746721226202,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 4,
+      "phase" : 0,
+      "seed" : 18373866469865252394,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 4,
+      "phase" : 0,
+      "seed" : 18373866469865252394,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 4,
+      "phase" : 0.25,
+      "seed" : 18373866469865252394,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 4,
+      "phase" : 0.25,
+      "seed" : 18373866469865252394,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 4,
+      "phase" : 0.5,
+      "seed" : 18373866469865252394,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 4,
+      "phase" : 0.5,
+      "seed" : 18373866469865252394,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 4,
+      "phase" : 0.75,
+      "seed" : 18373866469865252394,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 4,
+      "phase" : 0.75,
+      "seed" : 18373866469865252394,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 5,
+      "phase" : 0,
+      "seed" : 7479491137834673588,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 5,
+      "phase" : 0,
+      "seed" : 7479491137834673588,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 5,
+      "phase" : 0.25,
+      "seed" : 7479491137834673588,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 5,
+      "phase" : 0.25,
+      "seed" : 7479491137834673588,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 5,
+      "phase" : 0.5,
+      "seed" : 7479491137834673588,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 5,
+      "phase" : 0.5,
+      "seed" : 7479491137834673588,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 5,
+      "phase" : 0.75,
+      "seed" : 7479491137834673588,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 5,
+      "phase" : 0.75,
+      "seed" : 7479491137834673588,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 6,
+      "phase" : 0,
+      "seed" : 13055084160803594050,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 6,
+      "phase" : 0,
+      "seed" : 13055084160803594050,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 6,
+      "phase" : 0.25,
+      "seed" : 13055084160803594050,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 6,
+      "phase" : 0.25,
+      "seed" : 13055084160803594050,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 6,
+      "phase" : 0.5,
+      "seed" : 13055084160803594050,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 6,
+      "phase" : 0.5,
+      "seed" : 13055084160803594050,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 6,
+      "phase" : 0.75,
+      "seed" : 13055084160803594050,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 6,
+      "phase" : 0.75,
+      "seed" : 13055084160803594050,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 7,
+      "phase" : 0,
+      "seed" : 15575039812687928232,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 7,
+      "phase" : 0,
+      "seed" : 15575039812687928232,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 7,
+      "phase" : 0.25,
+      "seed" : 15575039812687928232,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 7,
+      "phase" : 0.25,
+      "seed" : 15575039812687928232,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 7,
+      "phase" : 0.5,
+      "seed" : 15575039812687928232,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 7,
+      "phase" : 0.5,
+      "seed" : 15575039812687928232,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 7,
+      "phase" : 0.75,
+      "seed" : 15575039812687928232,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 7,
+      "phase" : 0.75,
+      "seed" : 15575039812687928232,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 8,
+      "phase" : 0,
+      "seed" : 13549638178566396628,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 8,
+      "phase" : 0,
+      "seed" : 13549638178566396628,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 8,
+      "phase" : 0.25,
+      "seed" : 13549638178566396628,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 8,
+      "phase" : 0.25,
+      "seed" : 13549638178566396628,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 8,
+      "phase" : 0.5,
+      "seed" : 13549638178566396628,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 8,
+      "phase" : 0.5,
+      "seed" : 13549638178566396628,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 8,
+      "phase" : 0.75,
+      "seed" : 13549638178566396628,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 8,
+      "phase" : 0.75,
+      "seed" : 13549638178566396628,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 9,
+      "phase" : 0,
+      "seed" : 10204364386044217361,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 9,
+      "phase" : 0,
+      "seed" : 10204364386044217361,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 9,
+      "phase" : 0.25,
+      "seed" : 10204364386044217361,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 9,
+      "phase" : 0.25,
+      "seed" : 10204364386044217361,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 9,
+      "phase" : 0.5,
+      "seed" : 10204364386044217361,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 9,
+      "phase" : 0.5,
+      "seed" : 10204364386044217361,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 9,
+      "phase" : 0.75,
+      "seed" : 10204364386044217361,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 9,
+      "phase" : 0.75,
+      "seed" : 10204364386044217361,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 10,
+      "phase" : 0,
+      "seed" : 8218615278489109398,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 10,
+      "phase" : 0,
+      "seed" : 8218615278489109398,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 10,
+      "phase" : 0.25,
+      "seed" : 8218615278489109398,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 10,
+      "phase" : 0.25,
+      "seed" : 8218615278489109398,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 10,
+      "phase" : 0.5,
+      "seed" : 8218615278489109398,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 10,
+      "phase" : 0.5,
+      "seed" : 8218615278489109398,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 10,
+      "phase" : 0.75,
+      "seed" : 8218615278489109398,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 10,
+      "phase" : 0.75,
+      "seed" : 8218615278489109398,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 11,
+      "phase" : 0,
+      "seed" : 1939359117579385755,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 11,
+      "phase" : 0,
+      "seed" : 1939359117579385755,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 11,
+      "phase" : 0.25,
+      "seed" : 1939359117579385755,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 11,
+      "phase" : 0.25,
+      "seed" : 1939359117579385755,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 11,
+      "phase" : 0.5,
+      "seed" : 1939359117579385755,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 11,
+      "phase" : 0.5,
+      "seed" : 1939359117579385755,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 11,
+      "phase" : 0.75,
+      "seed" : 1939359117579385755,
+      "suite" : "breadth",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 11,
+      "phase" : 0.75,
+      "seed" : 1939359117579385755,
+      "suite" : "breadth",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 0,
+      "phase" : 0,
+      "seed" : 5211325511773202532,
+      "stage" : 0,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 0,
+      "phase" : 0,
+      "seed" : 5211325511773202532,
+      "stage" : 0,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 0,
+      "phase" : 0.25,
+      "seed" : 5211325511773202532,
+      "stage" : 0,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 0,
+      "phase" : 0.25,
+      "seed" : 5211325511773202532,
+      "stage" : 0,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 0,
+      "phase" : 0.5,
+      "seed" : 5211325511773202532,
+      "stage" : 0,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 0,
+      "phase" : 0.5,
+      "seed" : 5211325511773202532,
+      "stage" : 0,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 0,
+      "phase" : 0.75,
+      "seed" : 5211325511773202532,
+      "stage" : 0,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 1,
+      "fixtureIndex" : 0,
+      "phase" : 0.75,
+      "seed" : 5211325511773202532,
+      "stage" : 0,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 0,
+      "phase" : 0,
+      "seed" : 5211325511773202532,
+      "stage" : 1,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 0,
+      "phase" : 0,
+      "seed" : 5211325511773202532,
+      "stage" : 1,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 0,
+      "phase" : 0.25,
+      "seed" : 5211325511773202532,
+      "stage" : 1,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 0,
+      "phase" : 0.25,
+      "seed" : 5211325511773202532,
+      "stage" : 1,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 0,
+      "phase" : 0.5,
+      "seed" : 5211325511773202532,
+      "stage" : 1,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 0,
+      "phase" : 0.5,
+      "seed" : 5211325511773202532,
+      "stage" : 1,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 0,
+      "phase" : 0.75,
+      "seed" : 5211325511773202532,
+      "stage" : 1,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 2,
+      "fixtureIndex" : 0,
+      "phase" : 0.75,
+      "seed" : 5211325511773202532,
+      "stage" : 1,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 0,
+      "phase" : 0,
+      "seed" : 5211325511773202532,
+      "stage" : 2,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 0,
+      "phase" : 0,
+      "seed" : 5211325511773202532,
+      "stage" : 2,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 0,
+      "phase" : 0.25,
+      "seed" : 5211325511773202532,
+      "stage" : 2,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 0,
+      "phase" : 0.25,
+      "seed" : 5211325511773202532,
+      "stage" : 2,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 0,
+      "phase" : 0.5,
+      "seed" : 5211325511773202532,
+      "stage" : 2,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 0,
+      "phase" : 0.5,
+      "seed" : 5211325511773202532,
+      "stage" : 2,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 0,
+      "phase" : 0.75,
+      "seed" : 5211325511773202532,
+      "stage" : 2,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 3,
+      "fixtureIndex" : 0,
+      "phase" : 0.75,
+      "seed" : 5211325511773202532,
+      "stage" : 2,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 0,
+      "phase" : 0,
+      "seed" : 5211325511773202532,
+      "stage" : 3,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 0,
+      "phase" : 0,
+      "seed" : 5211325511773202532,
+      "stage" : 3,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 0,
+      "phase" : 0.25,
+      "seed" : 5211325511773202532,
+      "stage" : 3,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 0,
+      "phase" : 0.25,
+      "seed" : 5211325511773202532,
+      "stage" : 3,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 0,
+      "phase" : 0.5,
+      "seed" : 5211325511773202532,
+      "stage" : 3,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 0,
+      "phase" : 0.5,
+      "seed" : 5211325511773202532,
+      "stage" : 3,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 0,
+      "phase" : 0.75,
+      "seed" : 5211325511773202532,
+      "stage" : 3,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 0,
+      "phase" : 0.75,
+      "seed" : 5211325511773202532,
+      "stage" : 3,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 0,
+      "phase" : 0,
+      "seed" : 5211325511773202532,
+      "stage" : 4,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 0,
+      "phase" : 0,
+      "seed" : 5211325511773202532,
+      "stage" : 4,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 0,
+      "phase" : 0.25,
+      "seed" : 5211325511773202532,
+      "stage" : 4,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 0,
+      "phase" : 0.25,
+      "seed" : 5211325511773202532,
+      "stage" : 4,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 0,
+      "phase" : 0.5,
+      "seed" : 5211325511773202532,
+      "stage" : 4,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 0,
+      "phase" : 0.5,
+      "seed" : 5211325511773202532,
+      "stage" : 4,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 0,
+      "phase" : 0.75,
+      "seed" : 5211325511773202532,
+      "stage" : 4,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 7,
+      "fixtureIndex" : 0,
+      "phase" : 0.75,
+      "seed" : 5211325511773202532,
+      "stage" : 4,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 0,
+      "phase" : 0,
+      "seed" : 5211325511773202532,
+      "stage" : 5,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 0,
+      "phase" : 0,
+      "seed" : 5211325511773202532,
+      "stage" : 5,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 0,
+      "phase" : 0.25,
+      "seed" : 5211325511773202532,
+      "stage" : 5,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 0,
+      "phase" : 0.25,
+      "seed" : 5211325511773202532,
+      "stage" : 5,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 0,
+      "phase" : 0.5,
+      "seed" : 5211325511773202532,
+      "stage" : 5,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 0,
+      "phase" : 0.5,
+      "seed" : 5211325511773202532,
+      "stage" : 5,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 0,
+      "phase" : 0.75,
+      "seed" : 5211325511773202532,
+      "stage" : 5,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 10,
+      "fixtureIndex" : 0,
+      "phase" : 0.75,
+      "seed" : 5211325511773202532,
+      "stage" : 5,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 0,
+      "phase" : 0,
+      "seed" : 5211325511773202532,
+      "stage" : 6,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 0,
+      "phase" : 0,
+      "seed" : 5211325511773202532,
+      "stage" : 6,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 0,
+      "phase" : 0.25,
+      "seed" : 5211325511773202532,
+      "stage" : 6,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 0,
+      "phase" : 0.25,
+      "seed" : 5211325511773202532,
+      "stage" : 6,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 0,
+      "phase" : 0.5,
+      "seed" : 5211325511773202532,
+      "stage" : 6,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 0,
+      "phase" : 0.5,
+      "seed" : 5211325511773202532,
+      "stage" : 6,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 0,
+      "phase" : 0.75,
+      "seed" : 5211325511773202532,
+      "stage" : 6,
+      "suite" : "continuity",
+      "view" : "fullScreen"
+    },
+    {
+      "actorCount" : 5,
+      "fixtureIndex" : 0,
+      "phase" : 0.75,
+      "seed" : 5211325511773202532,
+      "stage" : 6,
+      "suite" : "continuity",
+      "view" : "calendarTile"
+    }
+  ],
+  "operatingSystem" : "Version 26.5.2 (Build 25F84)",
+  "overlays" : [
+    "centerOfMass",
+    "crop",
+    "occupiedBounds",
+    "overlap"
+  ],
+  "rendererVersion" : "neutral-coregraphics-v1",
+  "sourceCommit" : "c6046f28347ed68034295968a26ff48ce19c629e",
+  "specificationCommit" : "8a8539a77ce704fcc688ebe8cb98d78e2a0f80dd",
+  "toolchain" : "Swift 6 / Swift Package Manager",
+  "version" : "composition-evidence-v1",
+  "viewport" : {
+    "heightPoints" : 852,
+    "scale" : 3,
+    "tileCrop" : "centered-square-from-phone-canvas",
+    "widthPoints" : 393
+  }
+}

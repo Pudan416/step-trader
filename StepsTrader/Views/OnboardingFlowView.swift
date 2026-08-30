@@ -38,7 +38,7 @@ struct OnboardingFlowView: View {
                     Task { await model.ensureHealthAuthorizationAndRefresh() }
                 },
                 onNotificationSlide: {
-                    Task { await model.requestNotificationPermission() }
+                    Task { try? await model.requestNotificationPermission() }
                 },
                 onFamilyControlsSlide: {
                     Task { try? await model.familyControlsService.requestAuthorization() }

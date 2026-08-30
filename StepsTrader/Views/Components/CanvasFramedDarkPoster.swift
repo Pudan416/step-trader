@@ -82,10 +82,11 @@ struct CanvasFramedDarkPoster<Content: View>: View {
                     }
                     .position(x: cLeft + cW / 2, y: cTop + cH / 2)
 
-                // User name — top-left, 20px New York Semibold
+                // User name — top-left, 20px Unbounded Medium
                 if let name = userName, !name.isEmpty {
                     Text(name)
-                        .font(.system(size: max(6, w * Self.nameSizeR), weight: .semibold, design: .serif))
+                        .font(.unbounded(max(6, w * Self.nameSizeR), weight: .medium))
+                        .fontDesign(nil)
                         .foregroundStyle(.white)
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -99,9 +100,10 @@ struct CanvasFramedDarkPoster<Content: View>: View {
                     .padding(.trailing, w * Self.statsRightR)
                     .padding(.top, h * Self.statsTopR)
 
-                // Date — overlapping bottom of canvas, 70px New York Black
+                // Date — overlapping bottom of canvas, 70px Unbounded Bold
                 Text(formattedDate)
-                    .font(.system(size: max(10, w * Self.nowhereSizeR), weight: .black, design: .serif))
+                    .font(.unbounded(max(10, w * Self.nowhereSizeR), weight: .black))
+                    .fontDesign(nil)
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -109,9 +111,10 @@ struct CanvasFramedDarkPoster<Content: View>: View {
                     .padding(.leading, w * Self.nowhereLeftR)
                     .padding(.top, h * Self.nowhereTopR)
 
-                // "NOWHERE" — bottom-left, 12px New York Black
+                // "NOWHERE" — bottom-left, 12px Unbounded Bold
                 Text("NOWHERE")
-                    .font(.system(size: max(5, w * Self.dateSizeR), weight: .black, design: .serif))
+                    .font(.unbounded(max(5, w * Self.dateSizeR), weight: .black))
+                    .fontDesign(nil)
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -139,7 +142,7 @@ struct CanvasFramedDarkPoster<Content: View>: View {
                     sleepHours.map { "\($0.formatted(.number.precision(.fractionLength(1)))) h. sleep" }
                 ].compactMap { $0 }
                 Text(parts.joined(separator: " / "))
-                    .font(.system(size: fontSize, weight: .regular))
+                    .font(.geist(size: fontSize, weight: .regular))
                     .foregroundStyle(.white)
                     .lineLimit(1)
             }
@@ -151,7 +154,7 @@ struct CanvasFramedDarkPoster<Content: View>: View {
                 ].compactMap { $0 }
                 if !parts.isEmpty {
                     Text(parts.joined(separator: " / "))
-                        .font(.system(size: fontSize, weight: .regular))
+                        .font(.geist(size: fontSize, weight: .regular))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                 }
@@ -164,12 +167,11 @@ struct CanvasFramedDarkPoster<Content: View>: View {
     private func taglineView(fontSize: CGFloat) -> some View {
         VStack(alignment: .trailing, spacing: 1) {
             Text("«Nowhere» is an iOS app")
-                .font(.system(size: fontSize, weight: .regular))
+                .font(.geist(size: fontSize, weight: .regular))
                 .foregroundStyle(.white)
                 .lineLimit(1)
             Text("by Kosta Pudan")
-                .font(.system(size: fontSize, weight: .regular, design: .serif))
-                .italic()
+                .font(.geist(size: fontSize, weight: .medium, design: .rounded))
                 .foregroundStyle(.white)
                 .lineLimit(1)
         }

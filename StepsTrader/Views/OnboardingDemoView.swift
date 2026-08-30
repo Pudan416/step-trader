@@ -64,7 +64,7 @@ struct OnboardingDemoView: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.title2)
+                            .font(.geist(.title2))
                             .foregroundStyle(.white.opacity(0.5))
                     }
                     .padding(.trailing, 20)

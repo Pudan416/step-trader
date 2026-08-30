@@ -97,6 +97,10 @@ enum SharedKeys {
     /// re-rolling on every foreground within the same day.
     static let dailyRandomThemeLastRolledKey = "dailyRandomTheme_lastRolledKey_v1"
 
+    /// Comma-separated `ModernPaletteCategory` raw values. An empty string
+    /// means every category, which is the default.
+    static let modernPaletteCategories = "modernPaletteCategories_v1"
+
     static let canvasOverlayStyle = "canvasOverlayStyle_v1"
     static let canvasTexture = "canvasTexture_v1"
 
@@ -110,6 +114,10 @@ enum SharedKeys {
     /// The shapes a new canvas element may take, as `CanvasShapeType` raw
     /// strings. Replaces the three keys above. Never empty.
     static let allowedCanvasShapes = "allowedCanvasShapes_v1"
+
+    /// Fill styles eligible for the day's single deterministic canvas style.
+    /// Stored in `TextureKind.allCases` order and never empty.
+    static let allowedCanvasFills = "allowedCanvasFills_v1"
 
     // MARK: - Happenings
 

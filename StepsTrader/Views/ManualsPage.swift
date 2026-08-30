@@ -3,7 +3,6 @@ import SwiftUI
 struct ManualsPage: View {
     @ObservedObject var model: AppModel
     @Environment(\.appTheme) private var theme
-    @Environment(\.topCardHeight) private var topCardHeight
 
     @State private var readTracker = NoteReadTracker()
     @State private var currentIndex: Int = 0
@@ -13,12 +12,9 @@ struct ManualsPage: View {
 
     var body: some View {
         ZStack {
-            SettingsGradientBG(model: model)
+            SettingsDetailBackground(model: model)
 
             VStack(spacing: 0) {
-                DetailHeader(title: String(localized: "Notes from Kosta", comment: "ManualsPage – page title"))
-                    .padding(.horizontal, 16)
-
                 Spacer(minLength: 20)
 
                 TabView(selection: $currentIndex) {
@@ -42,11 +38,7 @@ struct ManualsPage: View {
             }
             .padding(.horizontal, 0)
         }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            Color.clear.frame(height: topCardHeight)
-        }
-        .toolbar(.hidden, for: .navigationBar)
-        .detailSwipeBack()
+        .settingsDetailPage(title: String(localized: "Notes from Kosta", comment: "ManualsPage – page title"))
         .sheet(isPresented: $showAllNotes) {
             AllNotesListView(readTracker: readTracker) { note in
                 if let idx = notes.firstIndex(where: { $0.id == note.id }) {
@@ -75,35 +67,33 @@ struct ManualsPage: View {
         // jump, which leaves short notes with room to spare — centre them in it
         // rather than pinning them to the top. Long ones still scroll.
         GeometryReader { proxy in
-            ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(note.topic)
-                        .font(.system(size: 13, weight: .medium, design: .default))
-                        .tracking(1.5)
-                        .textCase(.uppercase)
-                        .foregroundStyle(theme.textSecondary.opacity(0.5))
-                        .padding(.bottom, 20)
+            SettingsGroupedSurface {
+                ScrollView(.vertical) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(note.topic)
+                            .font(.geist(13, weight: .medium, relativeTo: .caption))
+                            .tracking(1.5)
+                            .textCase(.uppercase)
+                            .foregroundStyle(theme.textSecondary.opacity(0.5))
+                            .padding(.bottom, 20)
 
-                    Text(note.body)
-                        .font(.system(size: 20, weight: .thin, design: .serif))
-                        .italic()
-                        .foregroundStyle(theme.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .lineSpacing(6)
-                        .multilineTextAlignment(.leading)
+                        Text(note.body)
+                            .font(.geist(20, weight: .light, relativeTo: .title3))
+                            .italic()
+                            .foregroundStyle(theme.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .lineSpacing(6)
+                            .multilineTextAlignment(.leading)
+                    }
+                    .padding(28)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(minHeight: proxy.size.height, alignment: .center)
                 }
-                .padding(28)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(minHeight: proxy.size.height, alignment: .center)
+                .scrollIndicators(.hidden)
+                .scrollBounceBehavior(.basedOnSize)
             }
-            .scrollIndicators(.hidden)
-            .scrollBounceBehavior(.basedOnSize)
-            .glassCard(cornerRadius: 20, style: .lensTinted)
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(theme.stroke.opacity(theme.strokeOpacity * 0.5), lineWidth: 0.5)
-            )
             .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("settings.notes.card")
         }
         .padding(.horizontal, 28)
     }
@@ -130,9 +120,9 @@ struct ManualsPage: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "list.bullet")
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.geist(13, weight: .medium, relativeTo: .caption))
                     Text(String(localized: "all", comment: "ManualsPage – filter showing all notes"))
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.geist(13, weight: .medium, relativeTo: .caption))
 
                     if readTracker.unreadCount > 0 {
                         Circle()
@@ -142,10 +132,11 @@ struct ManualsPage: View {
                 }
                 .foregroundStyle(theme.textPrimary)
                 .padding(.horizontal, 20)
-                .padding(.vertical, 11)
-                .modifier(NotesCapsuleChrome(theme: theme))
+                .frame(minHeight: 44)
+                .settingsCardSurface()
             }
-            .buttonStyle(.plain)
+            .buttonStyle(MattePressStyle())
+            .accessibilityIdentifier("settings.notes.all")
         }
     }
 }
@@ -161,56 +152,62 @@ struct AllNotesListView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(NoteCatalog.all) { note in
-                        Button {
-                            onSelect(note)
-                        } label: {
-                            HStack(spacing: 14) {
-                                if !readTracker.isRead(note) {
-                                    Circle()
-                                        .fill(AppColors.brandAccent)
-                                        .frame(width: 8, height: 8)
-                                } else {
-                                    Circle()
-                                        .fill(Color.secondary.opacity(0.15))
-                                        .frame(width: 8, height: 8)
+                SettingsGroupedSurface {
+                    LazyVStack(spacing: 0) {
+                        ForEach(NoteCatalog.all) { note in
+                            Button {
+                                onSelect(note)
+                            } label: {
+                                HStack(spacing: 14) {
+                                    if !readTracker.isRead(note) {
+                                        Circle()
+                                            .fill(AppColors.brandAccent)
+                                            .frame(width: 8, height: 8)
+                                    } else {
+                                        Circle()
+                                            .fill(Color.secondary.opacity(0.15))
+                                            .frame(width: 8, height: 8)
+                                    }
+
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(note.topic)
+                                            .font(.geist(
+                                                15,
+                                                weight: readTracker.isRead(note) ? .regular : .medium,
+                                                relativeTo: .subheadline
+                                            ))
+                                            .foregroundStyle(.primary)
+
+                                        Text(note.body)
+                                            .font(.geist(13, weight: .light, relativeTo: .footnote))
+                                            .italic()
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(2)
+                                    }
+
+                                    Spacer(minLength: 0)
+
+                                    Image(systemName: "chevron.right")
+                                        .font(.geist(12, weight: .light, relativeTo: .caption))
+                                        .foregroundStyle(.secondary.opacity(0.4))
                                 }
-
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(note.topic)
-                                        .font(.system(size: 15, weight: readTracker.isRead(note) ? .regular : .medium))
-                                        .foregroundStyle(.primary)
-
-                                    Text(note.body)
-                                        .font(.system(size: 13, weight: .light))
-                                        .italic()
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(2)
-                                }
-
-                                Spacer(minLength: 0)
-
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .light))
-                                    .foregroundStyle(.secondary.opacity(0.4))
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 14)
+                                .contentShape(Rectangle())
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 14)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("settings.notes.item.\(note.id)")
 
-                        if note.id != NoteCatalog.all.last?.id {
-                            Divider()
-                                .padding(.leading, 38)
+                            if note.id != NoteCatalog.all.last?.id {
+                                DetailDivider(inset: 38)
+                            }
                         }
                     }
                 }
-                .glassCard(cornerRadius: 16, style: .lensTinted)
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
             }
+            .accessibilityIdentifier("settings.notes.allList")
             .navigationTitle(String(localized: "all notes", comment: "ManualsPage – accessibility label for all filter"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -218,25 +215,12 @@ struct AllNotesListView: View {
                     Button(String(localized: "Done", comment: "ManualsPage – dismiss button")) {
                         dismiss()
                     }
-                    .font(.system(size: 15, weight: .regular))
+                    .font(.geist(15, weight: .regular, relativeTo: .subheadline))
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .accessibilityIdentifier("settings.notes.done")
                 }
             }
-        }
-    }
-}
-
-// MARK: - Chrome (Liquid Glass on iOS 26+, matte fill before)
-
-private struct NotesCapsuleChrome: ViewModifier {
-    let theme: AppTheme
-
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content.liquidGlassControl(in: Capsule(style: .continuous), style: .frosted, tint: .off)
-        } else {
-            content
-                .background(theme.backgroundSecondary.opacity(0.7), in: Capsule())
-                .overlay(Capsule().stroke(theme.stroke.opacity(theme.strokeOpacity * 0.5), lineWidth: 0.5))
         }
     }
 }

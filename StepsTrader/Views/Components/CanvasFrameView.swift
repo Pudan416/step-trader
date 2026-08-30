@@ -87,7 +87,8 @@ struct CanvasFrameView<Content: View>: View {
                     // Header: date (big) + user name (small italic)
                     HStack(alignment: .lastTextBaseline) {
                         Text(formattedDate)
-                            .font(.system(size: max(6, w * Self.brandSizeR), weight: .black, design: .serif))
+                            .font(.unbounded(max(6, w * Self.brandSizeR), weight: .black))
+                            .fontDesign(nil)
                             .foregroundStyle(Color.black)
                             .lineLimit(1)
 
@@ -95,8 +96,8 @@ struct CanvasFrameView<Content: View>: View {
 
                         if let name = userName, !name.isEmpty {
                             Text(name)
-                                .font(.system(size: max(5, w * Self.dateSizeR), weight: .regular, design: .serif))
-                                .italic()
+                                .font(.unbounded(max(5, w * Self.dateSizeR), weight: .regular))
+                                .fontDesign(nil)
                                 .foregroundStyle(Color.black)
                                 .lineLimit(1)
                         }
@@ -135,7 +136,8 @@ struct CanvasFrameView<Content: View>: View {
                     // Footer: NOWHERE + stats
                     HStack(alignment: .firstTextBaseline) {
                         Text("NOWHERE")
-                            .font(.system(size: max(5, w * Self.nameSizeR), weight: .black, design: .serif))
+                            .font(.unbounded(max(5, w * Self.nameSizeR), weight: .black))
+                            .fontDesign(nil)
                             .foregroundStyle(Color.black)
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
@@ -151,8 +153,7 @@ struct CanvasFrameView<Content: View>: View {
 
                 // Tagline — rotated 90° along right edge of canvas
                 Text("«Nowhere» is an iOS app by Kosta Pudan")
-                    .font(.system(size: max(4, w * Self.taglineSizeR), design: .serif))
-                    .italic()
+                    .font(.geist(size: max(4, w * Self.taglineSizeR), weight: .medium, design: .rounded))
                     .foregroundStyle(Color.black)
                     .lineLimit(1)
                     .fixedSize()
@@ -178,7 +179,7 @@ struct CanvasFrameView<Content: View>: View {
                     ].compactMap { $0 }
 
                     Text(parts.joined(separator: " / "))
-                        .font(.system(size: fontSize, weight: .medium))
+                        .font(.geist(size: fontSize, weight: .medium))
                         .foregroundStyle(Color.black)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
@@ -192,7 +193,7 @@ struct CanvasFrameView<Content: View>: View {
 
                     if !parts.isEmpty {
                         Text(parts.joined(separator: " / "))
-                            .font(.system(size: fontSize, weight: .medium))
+                            .font(.geist(size: fontSize, weight: .medium))
                             .foregroundStyle(Color.black)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)

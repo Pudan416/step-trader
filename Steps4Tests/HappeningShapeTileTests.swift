@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 @testable import Steps4
 
@@ -50,17 +51,37 @@ final class HappeningShapeTileTests: XCTestCase {
             HappeningShapeTile.previewSize(for: .circle),
             "Rays lose over half their scale to the aspect-preserving fit"
         )
-        XCTAssertGreaterThan(
-            HappeningShapeTile.previewSize(for: .snowflake),
-            HappeningShapeTile.previewSize(for: .circle),
-            "A snowflake's arms are thin, so it needs more radius to read"
-        )
         for shape in CanvasShapeType.selectableCases {
             XCTAssertGreaterThan(HappeningShapeTile.previewSize(for: shape), 0)
             XCTAssertLessThanOrEqual(
                 HappeningShapeTile.previewSize(for: shape),
                 0.45,
                 "\(shape.rawValue) clips into a square block past this"
+            )
+        }
+    }
+
+    @MainActor
+    func testSnowflakePreviewHasComparableRenderedBoundsToOtherClosedShapes() throws {
+        let circleBounds = try renderedBounds(shapeType: .circle, seed: 42)
+        let blobBounds = try renderedBounds(shapeType: .organicBlob, seed: 42)
+        let circleDiameter = max(circleBounds.width, circleBounds.height)
+        let blobDiameter = max(blobBounds.width, blobBounds.height)
+        let lowerBound = min(circleDiameter, blobDiameter) * 0.8
+        let upperBound = max(circleDiameter, blobDiameter) * 1.2
+
+        for seed in (0..<128).map(UInt64.init) {
+            let snowflakeBounds = try renderedBounds(shapeType: .snowflake, seed: seed)
+            let snowflakeDiameter = max(snowflakeBounds.width, snowflakeBounds.height)
+            XCTAssertGreaterThanOrEqual(
+                snowflakeDiameter,
+                lowerBound,
+                "Snowflake seed \(seed) rendered too small beside circle/blob"
+            )
+            XCTAssertLessThanOrEqual(
+                snowflakeDiameter,
+                upperBound,
+                "Snowflake seed \(seed) rendered too large beside circle/blob"
             )
         }
     }
@@ -124,5 +145,56 @@ final class HappeningShapeTileTests: XCTestCase {
         XCTAssertEqual(element.driftAmplitude, 0, accuracy: 0.0001)
         XCTAssertEqual(element.pulseAmplitude, 0, accuracy: 0.0001)
         XCTAssertEqual(element.rotationSpeed, 0, accuracy: 0.0001)
+    }
+
+    @MainActor
+    private func renderedBounds(
+        shapeType: CanvasShapeType,
+        seed: UInt64
+    ) throws -> CGRect {
+        let side = 100
+        let element = HappeningShapeTile.previewElement(
+            optionId: "visual-size",
+            label: "Visual size",
+            shapeType: shapeType,
+            colorHex: "#FFFFFF",
+            seed: seed
+        )
+        let renderer = ImageRenderer(content: HappeningShapeTile(element: element, side: CGFloat(side)))
+        renderer.scale = 1
+        let image = try XCTUnwrap(renderer.cgImage)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var pixels = [UInt8](repeating: 0, count: side * side * 4)
+        let context = try XCTUnwrap(CGContext(
+            data: &pixels,
+            width: side,
+            height: side,
+            bitsPerComponent: 8,
+            bytesPerRow: side * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: side, height: side))
+
+        var minimumX = side
+        var minimumY = side
+        var maximumX = -1
+        var maximumY = -1
+        for y in 0..<side {
+            for x in 0..<side where pixels[(y * side + x) * 4 + 3] > 8 {
+                minimumX = min(minimumX, x)
+                minimumY = min(minimumY, y)
+                maximumX = max(maximumX, x)
+                maximumY = max(maximumY, y)
+            }
+        }
+        XCTAssertGreaterThanOrEqual(maximumX, minimumX)
+        XCTAssertGreaterThanOrEqual(maximumY, minimumY)
+        return CGRect(
+            x: minimumX,
+            y: minimumY,
+            width: maximumX - minimumX + 1,
+            height: maximumY - minimumY + 1
+        )
     }
 }

@@ -40,6 +40,7 @@ extension AppModel {
             assetVariant: nil
         )
         todayAdditions.append(entry)
+        removeSatisfiedActivitySuggestions()
         if recordUse { happeningStore.recordUse(id: id, at: date) }
         recalculateDailyEnergy()
         persistTodayAdditions()
@@ -661,8 +662,14 @@ extension AppModel {
                 userGradientStyle: std.string(forKey: SharedKeys.userGradientStyle) ?? GradientStyle.radial.rawValue,
                 userGradientPalette: std.string(forKey: SharedKeys.userGradientPalette) ?? GradientPalette.warmSunset.rawValue,
                 dailyRandomThemeEnabled: std.bool(forKey: SharedKeys.dailyRandomThemeEnabled),
+                modernPaletteCategories: ModernPaletteCategory.allCases
+                    .filter(ModernPaletteSelection.decode(
+                        std.string(forKey: SharedKeys.modernPaletteCategories) ?? ""
+                    ).contains)
+                    .map(\.rawValue),
                 canvasOverlayStyle: g.string(forKey: SharedKeys.canvasOverlayStyle) ?? CanvasOverlayStyle.smudge.rawValue,
-                allowedCanvasShapes: CanvasShapeType.allowedByUser.map(\.rawValue)
+                allowedCanvasShapes: CanvasShapeType.allowedByUser.map(\.rawValue),
+                allowedCanvasFills: TextureKind.allowedByUser.map(\.rawValue)
             )
         }
     }

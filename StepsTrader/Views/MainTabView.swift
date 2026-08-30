@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - Environment key for StepBalanceCard height
+// MARK: - Environment key for the energy pill height
 
 extension EnvironmentValues {
     @Entry var topCardHeight: CGFloat = 0
@@ -34,8 +34,8 @@ struct MainTabView: View {
     @State private var paletteRoute = CanvasPaletteRouteState()
     @State private var metricOverlay: MetricOverlayKind? = nil
     @State private var topCardHeight: CGFloat = 0
-    @State private var isWideCanvas: Bool = false
-    @State private var showColorsHelp: Bool = false
+    @State private var canvasPresentation: CanvasPresentationState = .canvas
+    @State private var dataPanelPullDistance: CGFloat = 0
     /// Deep-link route for the Settings sheet, driven by feature-tip CTAs.
     @State private var settingsDeepLinkRoute: FeatureTipSettingsPage?
     /// Settings is a sheet opened from Me. The host owns the flag and the route
@@ -45,11 +45,9 @@ struct MainTabView: View {
     @State private var showSettings = false
     @State private var tabBarHeight: CGFloat = 80
     private let isUITest = ProcessInfo.processInfo.arguments.contains("ui-testing")
-    // Figma menu tabs (475:64): icon ≈ 2× label height, label ≈ caption.
     @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
-    @ScaledMetric(relativeTo: .caption2) private var tabIconSize: CGFloat = 24
-    @ScaledMetric(relativeTo: .caption2) private var selectedTabIconSize: CGFloat = 26
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @Environment(CoachMarkManager.self) private var coachMarkManager
     @State private var coachAnchors: [CoachMarkAnchor] = []
@@ -61,7 +59,7 @@ struct MainTabView: View {
 
         var icon: String {
             switch self {
-            case .feeds: return "square.grid.2x2"
+            case .feeds: return "line.3.horizontal"
             case .canvas: return "scribble.variable"
             case .me: return "person.circle"
             }
@@ -94,11 +92,11 @@ struct MainTabView: View {
 
     private var tabTint: Color { AppColors.Night.textPrimary }
 
+    private var isWideCanvas: Bool { canvasPresentation.isWideCanvas }
+
     private var hidesSurroundingChromeForPalette: Bool {
         HappeningPaletteChromeLayout.hidesSurroundingChrome(
-            isPalettePresented: isHappeningPaletteVisible,
-            isPanelPresented: isHappeningPalettePanelVisible,
-            dynamicTypeSize: dynamicTypeSize
+            isPalettePresented: isHappeningPaletteVisible
         )
     }
 
@@ -109,7 +107,7 @@ struct MainTabView: View {
         return "\(Task7UITestAccessibilityConfiguration.name(for: dynamicTypeSize)),\(contrast)"
     }
 
-    // Height preference key for the StepBalanceCard overlay
+    // Height preference key for the energy pill overlay
     private struct TopCardHeightPreferenceKey: PreferenceKey {
         static let defaultValue: CGFloat = 0
         static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
@@ -133,7 +131,8 @@ struct MainTabView: View {
                         GalleryView(
                             model: model,
                             metricOverlay: $metricOverlay,
-                            isWideCanvas: $isWideCanvas,
+                            presentation: $canvasPresentation,
+                            externalDataPanelPullDistance: dataPanelPullDistance,
                             paletteRoute: $paletteRoute,
                             isCanvasSelected: selection == Tab.canvas.rawValue,
                             onPalettePresentationChange: { isPresented in
@@ -230,7 +229,11 @@ struct MainTabView: View {
                         )
                         .background(
                             GeometryReader { geo in
-                                Color.clear.preference(key: TabBarHeightPreferenceKey.self, value: geo.size.height)
+                                Color.clear
+                                    .preference(key: TabBarHeightPreferenceKey.self, value: geo.size.height)
+                                    .accessibilityElement()
+                                    .accessibilityLabel("Canvas tab bar")
+                                    .accessibilityIdentifier("canvas_tab_bar")
                             }
                         )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -264,54 +267,49 @@ struct MainTabView: View {
         }
         .overlay(alignment: .top) {
             // Me is where you look back, not where you check your balance — the
-            // card is drawn on canvas and feeds only.
+            // pill is drawn on canvas and feeds only.
             if !isWideCanvas, !hidesSurroundingChromeForPalette, selection != Tab.me.rawValue {
-            StepBalanceCard(
-                remainingSteps: model.userEconomyStore.totalStepsBalance,
-                totalSteps: model.healthStore.baseEnergyToday,
-                spentSteps: model.spentStepsToday,
-                healthKitSteps: model.userEconomyStore.stepsBalance,
-                dayEndHour: model.dayEndHour,
-                dayEndMinute: model.dayEndMinute,
-                showDetails: selection == Tab.canvas.rawValue,
-                stepsPoints: model.stepsPointsToday,
-                sleepPoints: model.sleepPointsToday,
-                happeningPoints: model.happeningPointsToday,
-                baseEnergyToday: model.healthStore.baseEnergyToday,
-                onStepsTap: {
-                    if selection == Tab.canvas.rawValue {
-                        metricOverlay = .steps
+                CanvasEnergyStatusPill(
+                    status: CanvasEnergyStatus(
+                        stepsBalance: model.userEconomyStore.stepsBalance,
+                        baseEnergyToday: model.healthStore.baseEnergyToday,
+                        maximum: EnergyDefaults.maxBaseEnergy
+                    ),
+                    canPullDataPanel: selection == Tab.canvas.rawValue && canvasPresentation == .canvas,
+                    onPullChanged: { distance in
+                        var transaction = Transaction()
+                        transaction.animation = nil
+                        withTransaction(transaction) {
+                            dataPanelPullDistance = distance
+                        }
+                    },
+                    onPullEnded: { distance, velocity in
+                        let shouldOpen = CanvasDataPanelGesture.shouldOpen(
+                            translation: distance,
+                            velocity: velocity
+                        )
+                        withAnimation(
+                            reduceMotion
+                                ? nil
+                                : .interactiveSpring(response: 0.32, dampingFraction: 0.86)
+                        ) {
+                            if shouldOpen {
+                                canvasPresentation = canvasPresentation.applying(.showData)
+                            }
+                            dataPanelPullDistance = 0
+                        }
                     }
-                },
-                onSleepTap: {
-                    if selection == Tab.canvas.rawValue {
-                        metricOverlay = .sleep
+                )
+                .padding(.top, 8)
+                .padding(.bottom, 8)
+                .background(
+                    GeometryReader { geo in
+                        Color.clear
+                            .preference(key: TopCardHeightPreferenceKey.self, value: geo.size.height)
                     }
-                },
-                onMoveTap: {
-                    if selection == Tab.canvas.rawValue {
-                        metricOverlay = .happenings
-                    } else {
-                        openHappeningPaletteOnCanvas()
-                    }
-                },
-                onColorsHelpTap: { showColorsHelp = true }
-            )
-            .padding(.horizontal)
-            .padding(.top, 8)
-            .padding(.bottom, 8)
-            .background(
-                GeometryReader { geo in
-                    Color.clear
-                        .preference(key: TopCardHeightPreferenceKey.self, value: geo.size.height)
-                }
-            )
-            .transition(.move(edge: .top).combined(with: .opacity))
-            }
-        }
-        .overlay {
-            if showColorsHelp {
-                colorsHelpOverlay
+                )
+                .coachMarkAnchor(.colorBalance)
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         // Settings left the tab bar; `embeddedInTab` defaults to false, which
@@ -362,6 +360,7 @@ struct MainTabView: View {
             if newValue != Tab.canvas.rawValue {
                 metricOverlay = nil
                 paletteRoute.cancelPendingRequest()
+                dataPanelPullDistance = 0
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .init("OpenTicketSettings"))) { notification in
@@ -377,50 +376,6 @@ struct MainTabView: View {
                 // Bump token so consecutive deliveries of the same bundleId still re-fire .task(id:).
                 ticketDeliveryToken = UUID()
             }
-        }
-    }
-
-    private func openHappeningPaletteOnCanvas() {
-        paletteRoute.requestOpen()
-        withAnimation(.easeInOut(duration: 0.2)) {
-            selection = Tab.canvas.rawValue
-        }
-    }
-
-    private var colorsHelpOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.35)
-                .ignoresSafeArea()
-                .onTapGesture { showColorsHelp = false }
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text(String(localized: "About colors", comment: "Help overlay title"))
-                        .font(.headline)
-                    Spacer()
-                    Button { showColorsHelp = false } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-                Text(String(localized: "Each of the five areas — steps, sleep, body, mind and heart — contributes up to 20 colors (100 colors total)."))
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
-                Text(String(localized: "Steps and sleep come from the Health app and are the same for everyone. Body, mind and heart are activities you add by tapping the + button at the bottom of the screen."))
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
-            }
-            .padding(16)
-            .frame(maxWidth: 300)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(theme.backgroundSecondary.opacity(0.98))
-                    .shadow(color: Color.black.opacity(0.2), radius: 16, x: 0, y: 8)
-            )
-            .padding(.horizontal, 32)
         }
     }
 
@@ -440,40 +395,33 @@ struct MainTabView: View {
         }
     }
 
-    // Figma 475:64 — translucent pill-shaped floating tab bar with white
-    // outline icons + labels. Selection state uses opacity rather than color
-    // shift to stay on-design over the energy gradient background.
+    // Figma 1624:264 — a compact 240×60 floating navigation capsule. The
+    // destination names remain accessibility labels, but the visible bar is
+    // deliberately glyph-only so the Canvas actions can share its baseline.
     @available(iOS 26.0, *)
     private var liquidGlassTabBar: some View {
         GlassEffectContainer(spacing: 8) {
             tabBarItems(animated: true)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
+                .padding(6)
                 // Tab bar follows the global cycling shimmer tint via
                 // `liquidGlassControl(in:)` — same effect as `.glassEffect(.clear.interactive())`
                 // but reads `\.glassShimmerColor` from the env so it slowly cycles.
                 .liquidGlassControl(in: Capsule(style: .continuous))
         }
-        .padding(.horizontal, 12)
         .padding(.bottom, 4)
     }
 
     private var legacyTabBar: some View {
         tabBarItems(animated: false)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 12)
+            .padding(6)
             .liquidGlassControl(in: Capsule(style: .continuous))
             .clipShape(Capsule(style: .continuous))
-            .padding(.horizontal, 12)
             .padding(.bottom, 4)
     }
 
     @ViewBuilder
     private func tabBarItems(animated: Bool) -> some View {
-        // Fixed spacing, not a distributed one: with three destinations left,
-        // stretching each item to an equal share of the screen leaves the icons
-        // marooned at the edges of a bar that spans the whole width.
-        HStack(spacing: 4) {
+        HStack(spacing: 5) {
             ForEach(Tab.allCases, id: \.rawValue) { tab in
                 let isSelected = selection == tab.rawValue
                 Button {
@@ -485,46 +433,39 @@ struct MainTabView: View {
                         selection = tab.rawValue
                     }
                 } label: {
-                    VStack(spacing: 6) {
-                        ZStack(alignment: .topTrailing) {
-                            Image(systemName: tab.icon)
-                                .font(.system(
-                                    size: isSelected ? selectedTabIconSize : tabIconSize,
-                                    weight: isSelected ? .semibold : .regular
-                                ))
-                                .symbolRenderingMode(.monochrome)
-                                // Pin every glyph to a fixed-height slot so symbols
-                                // with differing intrinsic heights (and the 24→26pt
-                                // selection bump) don't shift the label baseline.
-                                .frame(height: selectedTabIconSize, alignment: .center)
-                            // Settings is a button on Me now, so the permission
-                            // warning dot follows it there.
-                            if tab == .me && model.hasPermissionIssues {
-                                Circle()
-                                    .fill(.orange)
-                                    .frame(width: 7, height: 7)
-                                    .offset(x: 3, y: -2)
-                            }
-                        }
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: tab.icon)
+                            .font(.geist(size: 20, weight: .regular))
+                            .symbolRenderingMode(.monochrome)
+                            .frame(width: 24, height: 24)
 
-                        Text(tab.title)
-                            .font(.caption2.weight(isSelected ? .semibold : .medium))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
+                        // Settings is a button on Me now, so the permission
+                        // warning dot follows it there.
+                        if tab == .me && model.hasPermissionIssues {
+                            Circle()
+                                .fill(.orange)
+                                .frame(width: 7, height: 7)
+                                .offset(x: 3, y: -2)
+                        }
                     }
                     .foregroundStyle(tabTint.opacity(isSelected ? 1.0 : 0.75))
-                    // A minimum, so the pill hugs its contents while every item
-                    // keeps a tap target wider than the 44pt floor.
-                    .frame(minWidth: 56)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 4)
-                    .contentShape(Rectangle())
+                    .frame(width: isSelected ? 78 : 70, height: 48)
+                    .background {
+                        if isSelected {
+                            Capsule(style: .continuous)
+                                .fill(tabTint.opacity(0.09))
+                        }
+                    }
+                    .contentShape(Capsule(style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(tab.title)
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
                 .accessibilityIdentifier(tab.accessibilityId)
                 .modifier(FeedsTabCoachAnchor(tab: tab))
             }
         }
+        .frame(width: 228, height: 48)
     }
 
     private struct FeedsTabCoachAnchor: ViewModifier {

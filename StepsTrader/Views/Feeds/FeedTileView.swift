@@ -125,7 +125,7 @@ struct FeedAddTileView: View {
                     .fill(Color.white.opacity(0.13))
                     .overlay(Circle().strokeBorder(.white.opacity(0.14), lineWidth: 0.5))
                 Image(systemName: "plus")
-                    .font(.system(size: 28, weight: .light))
+                    .font(.geist(size: 28, weight: .light))
                     .foregroundStyle(AppColors.Night.textPrimary)
             }
             .frame(width: FeedTileView.diameter, height: FeedTileView.diameter)
@@ -148,5 +148,313 @@ struct FeedPlaceholderTileView: View {
             .strokeBorder(.white.opacity(0.16), style: StrokeStyle(lineWidth: 1, dash: [4, 5]))
             .frame(width: FeedTileView.diameter, height: FeedTileView.diameter)
             .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Row timer design
+
+/// A full-height continuous capsule. The management menu sits inside the
+/// trailing cap, matching the approved reference instead of cutting a notch
+/// out of the card.
+struct FeedTicketShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        guard rect.width > 0, rect.height > 0 else { return Path() }
+        let cornerRadius = min(rect.height / 2, FeedCardLayout.collapsedHeight / 2)
+        return RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .path(in: rect)
+    }
+}
+
+/// One feed ticket carries both the action and the timer. A locked ticket opens
+/// the duration picker; an active one opens its app. No social-network artwork
+/// is repeated here — the app name is the identifier, and the shared canvas
+/// gradient expresses remaining access while locked cards disclose choices inline.
+struct FeedRowView: View {
+    @ObservedObject var model: AppModel
+    let group: TicketGroup
+    let accessState: FeedRowAccessState
+    let canOpen: Bool
+    let showsUnlockOptions: Bool
+    let onTap: () -> Void
+    let onSettings: () -> Void
+    let onDelete: () -> Void
+    let onPurchased: () -> Void
+
+    private var fillFraction: Double {
+        if case .active(_, let fraction) = accessState { return fraction }
+        return 0
+    }
+
+    private var remainingMinutes: Int? {
+        if case .active(let minutes, _) = accessState { return minutes }
+        return nil
+    }
+
+    private var displayName: String {
+        group.templateApp.map { TargetResolver.displayName(for: $0) }
+            ?? (group.name.isEmpty ? String(localized: "Feed") : group.name)
+    }
+
+    var body: some View {
+        rowGeometry
+            .frame(height: FeedCardLayout.height(showsUnlockOptions: showsUnlockOptions))
+    }
+
+    private var rowGeometry: some View {
+        GeometryReader { geometry in
+            rowSurface(fillWidth: geometry.size.width * CGFloat(fillFraction))
+        }
+    }
+
+    private func rowSurface(fillWidth: CGFloat) -> some View {
+        ZStack(alignment: .topTrailing) {
+            ticketBody(fillWidth: fillWidth)
+            optionsMenu
+                .padding(.trailing, 12)
+                .padding(
+                    .top,
+                    (FeedCardLayout.collapsedHeight - FeedCardLayout.optionsControlDiameter) / 2
+                )
+        }
+    }
+
+    private func ticketBody(fillWidth: CGFloat) -> some View {
+        ZStack(alignment: .leading) {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .overlay(Color.black.opacity(0.16))
+
+            ResourceGradientFill()
+                .frame(width: max(0, fillWidth))
+                .frame(maxHeight: .infinity)
+
+            // A permanent scrim keeps one text colour readable at every fill
+            // fraction. No word changes colour when the timer crosses it.
+            LinearGradient(
+                stops: [
+                    .init(color: .black.opacity(0.30), location: 0),
+                    .init(color: .black.opacity(0.12), location: 0.58),
+                    .init(color: .clear, location: 0.84),
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .allowsHitTesting(false)
+
+            VStack(spacing: 0) {
+                Button(action: onTap) {
+                    rowContent
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .frame(height: FeedCardLayout.collapsedHeight)
+                .accessibilityLabel(accessibilityLabel)
+                .accessibilityHint(accessibilityHint)
+                .accessibilityAction(named: String(localized: "Settings"), onSettings)
+                .accessibilityAction(named: String(localized: "Delete"), onDelete)
+
+                if showsUnlockOptions {
+                    FeedInlineDurationOptions(
+                        model: model,
+                        group: group,
+                        onPurchased: onPurchased
+                    )
+                    .frame(height: FeedCardLayout.unlockOptionsHeight)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+        }
+        .clipShape(FeedTicketShape())
+        .overlay {
+            FeedTicketShape()
+                .stroke(Color.white.opacity(0.16), lineWidth: 0.75)
+                .allowsHitTesting(false)
+        }
+    }
+
+    private var rowContent: some View {
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(displayName)
+                    .font(.geist(size: 19, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+
+                HStack(spacing: 6) {
+                    Image(systemName: remainingMinutes == nil ? "lock.fill" : "clock.fill")
+                        .font(.geist(size: 12, weight: .semibold))
+                    Text(statusText)
+                        .font(.geist(size: 14, weight: .medium, design: .rounded))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                }
+                .opacity(0.82)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(.white)
+        .padding(.leading, 22)
+        .padding(.trailing, 68)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    private var statusText: String {
+        guard let remainingMinutes else {
+            return String(localized: "Choose time")
+        }
+        return String(localized: "\(remainingMinutes) min left", comment: "Active feed row status")
+    }
+
+    private var optionsMenu: some View {
+        Menu {
+            Button(action: onSettings) {
+                Label(String(localized: "Settings"), systemImage: "gearshape")
+            }
+            Button(role: .destructive, action: onDelete) {
+                Label(String(localized: "Delete"), systemImage: "trash")
+            }
+        } label: {
+            HStack(spacing: 4) {
+                ForEach(0..<3, id: \.self) { _ in
+                    Circle()
+                        .fill(Color.white.opacity(0.94))
+                        .frame(width: 4, height: 4)
+                }
+            }
+            .frame(
+                width: FeedCardLayout.optionsControlDiameter,
+                height: FeedCardLayout.optionsControlDiameter
+            )
+            .background(
+                Circle()
+                    .fill(.ultraThinMaterial)
+                    .overlay(Circle().fill(Color.black.opacity(0.12)))
+            )
+            .overlay(Circle().stroke(Color.white.opacity(0.22), lineWidth: 0.75))
+            .contentShape(Circle())
+        }
+        .accessibilityLabel(String(localized: "Feed options"))
+    }
+
+    private var accessibilityLabel: String {
+        guard let remainingMinutes else {
+            return String(localized: "\(displayName), locked", comment: "Locked feed row")
+        }
+        return String(localized: "\(displayName), \(remainingMinutes) minutes left", comment: "Active feed row")
+    }
+
+    private var accessibilityHint: String {
+        if remainingMinutes == nil {
+            return String(localized: "Double tap to choose unlock time")
+        }
+        return canOpen
+            ? String(localized: "Double tap to open the app")
+            : String(localized: "Double tap to open feed settings")
+    }
+}
+
+/// Horizontal unlock choices living inside the expanded feed surface.
+struct FeedInlineDurationOptions: View {
+    @ObservedObject var model: AppModel
+    let group: TicketGroup
+    let onPurchased: () -> Void
+
+    @State private var purchasingWindow: AccessWindow?
+
+    private var windows: [AccessWindow] {
+        AccessWindow.allCases.filter(group.enabledIntervals.contains)
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(windows.enumerated()), id: \.element) { index, window in
+                if index > 0 {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.13))
+                        .frame(width: 0.75, height: 24)
+                        .accessibilityHidden(true)
+                }
+                durationButton(window)
+            }
+        }
+        .padding(.horizontal, 14)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.white.opacity(0.13))
+                .frame(height: 0.75)
+                .padding(.horizontal, 18)
+                .accessibilityHidden(true)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(String(localized: "Choose how long to unlock"))
+    }
+
+    private func durationButton(_ window: AccessWindow) -> some View {
+        let cost = group.cost(for: window)
+        let canAfford = model.totalStepsBalance >= cost
+
+        return Button {
+            purchase(window: window, cost: cost)
+        } label: {
+            HStack(spacing: 4) {
+                Text(window.displayName)
+                    .font(.geist(size: 12, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                Spacer(minLength: 3)
+
+                Group {
+                    if purchasingWindow == window {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .tint(AppColors.brandAccent)
+                    } else {
+                        Text(FeedCardLayout.priceLabel(cost: cost))
+                            .font(.geist(size: 11, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                    }
+                }
+                .foregroundStyle(canAfford ? AppColors.brandAccent : Color.white.opacity(0.58))
+                .padding(.horizontal, 6)
+                .frame(minWidth: 34, minHeight: 24)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(AppColors.brandAccent.opacity(canAfford ? 0.14 : 0.06))
+                )
+            }
+            .padding(.horizontal, 7)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 44)
+            .foregroundStyle(.white)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!canAfford || purchasingWindow != nil)
+        .opacity((!canAfford || purchasingWindow != nil) ? 0.55 : 1)
+        .accessibilityLabel(
+            String(localized: "\(window.displayName), \(cost) colors")
+        )
+        .accessibilityHint(
+            canAfford
+                ? String(localized: "Double tap to unlock")
+                : String(localized: "Not enough colors")
+        )
+    }
+
+    private func purchase(window: AccessWindow, cost: Int) {
+        guard purchasingWindow == nil else { return }
+        purchasingWindow = window
+        Task { @MainActor in
+            await model.handlePayGatePaymentForGroup(
+                groupId: group.id,
+                window: window,
+                costOverride: cost
+            )
+            purchasingWindow = nil
+
+            guard model.unspentUsageBudgetMatchingShield(for: group.id) > 0 else { return }
+            onPurchased()
+        }
     }
 }

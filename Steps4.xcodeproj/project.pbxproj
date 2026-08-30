@@ -7,6 +7,68 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D0B100000000000000000002 /* DayObjectSceneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000001 /* DayObjectSceneTests.swift */; };
+		91F0A0023100000000000002 /* AppTypographyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91F0A0013100000000000001 /* AppTypographyTests.swift */; };
+		91F0A0043100000000000004 /* Unbounded[wght].ttf in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A0033100000000000003 /* Unbounded[wght].ttf */; };
+		91F0A0063100000000000006 /* Unbounded-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A0053100000000000005 /* Unbounded-OFL.txt */; };
+		91F0A0083100000000000008 /* Unbounded-Black.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A0073100000000000007 /* Unbounded-Black.ttf */; };
+		91F0A00A310000000000000A /* GeistMono-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A0093100000000000009 /* GeistMono-Medium.ttf */; };
+		91F0A00C310000000000000C /* GeistMono-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A00B310000000000000B /* GeistMono-OFL.txt */; };
+		91F0A00E310000000000000E /* Geist-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A00D310000000000000D /* Geist-Medium.ttf */; };
+		A16C90010000000000000001 /* ExperimentalFeatures.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000001 /* ExperimentalFeatures.swift */; };
+		A16C90010000000000000002 /* RichFigureModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000002 /* RichFigureModels.swift */; };
+		A16C90010000000000000003 /* RichFigureAssignment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000003 /* RichFigureAssignment.swift */; };
+		A16C90010000000000000004 /* RichFigureAssignmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000004 /* RichFigureAssignmentTests.swift */; };
+		A16C90010000000000000005 /* RichFigureLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000005 /* RichFigureLayout.swift */; };
+		A16C90010000000000000006 /* RichFigureLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000006 /* RichFigureLayoutTests.swift */; };
+		A16C90010000000000000007 /* RichRenderBudget.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000007 /* RichRenderBudget.swift */; };
+		A16C90010000000000000008 /* RichRenderBudgetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000008 /* RichRenderBudgetTests.swift */; };
+		A16C90010000000000000009 /* RichFigureGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000009 /* RichFigureGeometry.swift */; };
+		DA0BDO010000000000000002 /* DayObjectComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0BDO010000000000000001 /* DayObjectComposition.swift */; };
+		DA0BDO020000000000000002 /* DayObjectsLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0BDO020000000000000001 /* DayObjectsLabView.swift */; };
+		DA0BDO030000000000000002 /* DayObjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0BDO030000000000000001 /* DayObjectsView.swift */; };
+		A16C9001000000000000000A /* RichFigureGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C8001000000000000000A /* RichFigureGeometryTests.swift */; };
+		A16C9001000000000000000B /* RichFillGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C8001000000000000000B /* RichFillGeometry.swift */; };
+		A16C9001000000000000000C /* RichRenderCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C8001000000000000000C /* RichRenderCache.swift */; };
+		A16C9001000000000000000D /* RichFigureRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C8001000000000000000D /* RichFigureRenderer.swift */; };
+		A16C9001000000000000000E /* RichCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C8001000000000000000E /* RichCanvasView.swift */; };
+		A16C9001000000000000000F /* RichCanvasLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C8001000000000000000F /* RichCanvasLabView.swift */; };
+		9E5C000200000000000000A1 /* GenerativeSceneShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000A1 /* GenerativeSceneShader.metal */; };
+		9E5C000200000000000000A2 /* GenerativeSceneParams.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000A2 /* GenerativeSceneParams.swift */; };
+		9E5C000200000000000000A3 /* GenerativeSceneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000A3 /* GenerativeSceneView.swift */; };
+		9E5C000200000000000000A4 /* GenerativeSceneLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000A4 /* GenerativeSceneLabView.swift */; };
+		9E5C000200000000000000A5 /* GenerativeSceneParamsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000A5 /* GenerativeSceneParamsTests.swift */; };
+		9E5C000200000000000000B1 /* CanvasDustShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000B1 /* CanvasDustShader.metal */; };
+		9E5C000200000000000000B2 /* CanvasAtmosphere.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000B2 /* CanvasAtmosphere.swift */; };
+		9E5C000200000000000000B3 /* CanvasAtmosphereView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000B3 /* CanvasAtmosphereView.swift */; };
+		9E5C000200000000000000B4 /* CanvasAtmosphereLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000B4 /* CanvasAtmosphereLabView.swift */; };
+		9E5C000200000000000000B5 /* CanvasAtmosphereTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000B5 /* CanvasAtmosphereTests.swift */; };
+		9E5C000200000000000000C1 /* DayRaysShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000C1 /* DayRaysShader.metal */; };
+		D0B100000000000000000004 /* DayObjectPaletteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000003 /* DayObjectPaletteTests.swift */; };
+		D0B100000000000000000006 /* DayObjectChoreographyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000005 /* DayObjectChoreographyTests.swift */; };
+		D0B100000000000000000008 /* DayObjectRenderFrameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000007 /* DayObjectRenderFrameTests.swift */; };
+		D0B100000000000000000009 /* DayObjectsLabUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B10000000000000000000A /* DayObjectsLabUITests.swift */; };
+		D0B100000000000000000021 /* DayObjectTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000011 /* DayObjectTypes.swift */; };
+		D0B100000000000000000022 /* DayObjectScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000012 /* DayObjectScene.swift */; };
+		D0B100000000000000000024 /* DayObjectPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000014 /* DayObjectPalette.swift */; };
+		C0110A000000000000000002 /* ModernPaletteCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0110A000000000000000001 /* ModernPaletteCatalog.swift */; };
+		C0110A000000000000000004 /* DayObjectPaletteSet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0110A000000000000000003 /* DayObjectPaletteSet.swift */; };
+		C0110A000000000000000006 /* DayObjectVisualLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0110A000000000000000005 /* DayObjectVisualLanguage.swift */; };
+		C0110A000000000000000008 /* DayObjectMotionPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0110A000000000000000007 /* DayObjectMotionPlan.swift */; };
+		D0B100000000000000000025 /* DayObjectChoreography.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000015 /* DayObjectChoreography.swift */; };
+		C0DEC0DE0000000000000001 /* DayObjectChoreographyPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000002 /* DayObjectChoreographyPreset.swift */; };
+		D0B100000000000000000026 /* DayObjectRenderFrame.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000016 /* DayObjectRenderFrame.swift */; };
+		D0B100000000000000000028 /* DayObjectsRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000018 /* DayObjectsRenderer.swift */; };
+		D0B100000000000000000029 /* DayObjectsMetalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000019 /* DayObjectsMetalView.swift */; };
+		D0B10000000000000000002B /* DayObjectsMeshGradientShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = D0B10000000000000000001B /* DayObjectsMeshGradientShader.metal */; };
+		D0B10000000000000000002C /* DayObjectsActorShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = D0B10000000000000000001C /* DayObjectsActorShader.metal */; };
+		D0B10000000000000000002D /* DayObjectsPostShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = D0B10000000000000000001D /* DayObjectsPostShader.metal */; };
+		9E5C000200000000000000C2 /* DayRayComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000C2 /* DayRayComposition.swift */; };
+		9E5C000200000000000000C3 /* DayRaysView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000C3 /* DayRaysView.swift */; };
+		9E5C000200000000000000C4 /* DayRaysLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000C4 /* DayRaysLabView.swift */; };
+		9E5C000200000000000000C5 /* DayRayCompositionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000C5 /* DayRayCompositionTests.swift */; };
+		9E5C000200000000000000D1 /* ExperimentalLabRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5C000100000000000000D1 /* ExperimentalLabRoute.swift */; };
+		A16C90010000000000000010 /* RichCanvasLabIsolationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000010 /* RichCanvasLabIsolationTests.swift */; };
 		132547AFAA9C80DFE4295A03 /* DayCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE8A4067A79B84F980E2699C /* DayCanvas.swift */; };
 		20095A8B2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20095A8A2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift */; };
 		200AC47B2F0C795D0018004E /* TargetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200AC47A2F0C795D0018004E /* TargetResolver.swift */; };
@@ -32,6 +94,7 @@
 		2061EB8A2F269CC7009FEC24 /* NotificationDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB882F269CC7009FEC24 /* NotificationDelegate.swift */; };
 		2061EB8C2F269CD5009FEC24 /* PayGateBackgroundStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB8B2F269CD5009FEC24 /* PayGateBackgroundStyle.swift */; };
 		2061EB8D2F269CE6009FEC24 /* ProfileEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB8E2F269CE6009FEC24 /* ProfileEditorView.swift */; };
+		A3C000020000000000000001 /* SettingsAccountPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C000010000000000000001 /* SettingsAccountPage.swift */; };
 		2061EB912F269CE6009FEC24 /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB922F269CE6009FEC24 /* ImagePicker.swift */; };
 		2061EB972F269CF7009FEC24 /* ManualsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB982F269CF7009FEC24 /* ManualsPage.swift */; };
 		2061EBA32F269D19009FEC24 /* AppSelectionComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EBA42F269D19009FEC24 /* AppSelectionComponents.swift */; };
@@ -109,8 +172,15 @@
 		20CC02032F86000000000003 /* SettingsEnergyPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01032F86000000000003 /* SettingsEnergyPage.swift */; };
 		20CC02042F86000000000004 /* SettingsShortcutPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01042F86000000000004 /* SettingsShortcutPage.swift */; };
 		20CC02052F86000000000005 /* SettingsWidgetPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01052F86000000000005 /* SettingsWidgetPage.swift */; };
+		20CC020E2F86000000000014 /* SettingsWidgetsWallpaperPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010E2F86000000000014 /* SettingsWidgetsWallpaperPage.swift */; };
+		20CC020F2F86000000000015 /* SettingsDeveloperPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010F2F86000000000015 /* SettingsDeveloperPage.swift */; };
+		20CC02102F86000000000016 /* SettingsHomeCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01102F86000000000016 /* SettingsHomeCards.swift */; };
 		20CC02062F86000000000006 /* SettingsAboutPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01062F86000000000006 /* SettingsAboutPage.swift */; };
 		20CC02072F86000000000007 /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01072F86000000000007 /* SettingsComponents.swift */; };
+		20CC020B2F86000000000011 /* SettingsHomePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010B2F86000000000011 /* SettingsHomePresentation.swift */; };
+		20CC020C2F86000000000012 /* SettingsHomePresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010C2F86000000000012 /* SettingsHomePresentationTests.swift */; };
+		20CC02112F86000000000017 /* SettingsPermissionPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01112F86000000000017 /* SettingsPermissionPresentation.swift */; };
+		20CC02122F86000000000018 /* SettingsPermissionPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01122F86000000000018 /* SettingsPermissionPresentationTests.swift */; };
 		20CC02082F86000000000008 /* SupabaseSyncDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC01082F86000000000008 /* SupabaseSyncDTOs.swift */; };
 		20CC020A2F86000000000010 /* SettingsPermissionsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010A2F86000000000010 /* SettingsPermissionsPage.swift */; };
 		20DB000B2F85000000000002 /* DayBoundary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20DB000A2F85000000000001 /* DayBoundary.swift */; };
@@ -125,7 +195,6 @@
 		20F44D508BD0D693DD77251E /* BudgetEngineProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E3143C1B5B277380C445D26 /* BudgetEngineProtocol.swift */; };
 		20F5A0032FFF000100000003 /* AutomationUIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0012FFF000100000001 /* AutomationUIModels.swift */; };
 		20F5A0052FFF000100000005 /* AppsPageSimplified.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0062FFF000100000006 /* AppsPageSimplified.swift */; };
-		20F5A0102FFF020000000001 /* StepBalanceCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A00F2FFF020000000000 /* StepBalanceCard.swift */; };
 		20F5A0112FFF030000000002 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0122FFF030000000003 /* Localization.swift */; };
 		20F5A0162FFF030000000007 /* SeededRNG.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F5A0172FFF030000000008 /* SeededRNG.swift */; };
 		DA0014001400140014001471 /* SimplexNoise.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0014001400140014001481 /* SimplexNoise.swift */; };
@@ -138,6 +207,7 @@
 		20F6C0022F3E100100000002 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 20F6C0012F3E100100000001 /* Localizable.xcstrings */; };
 		20FE17A22F90000000000002 /* FeatureTipSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20FE17A12F90000000000001 /* FeatureTipSheet.swift */; };
 		20GC00022F86100000000002 /* GlassCardModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20GC00012F86100000000001 /* GlassCardModifier.swift */; };
+		20RM00022F90000000000002 /* ReduceMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20RM00012F90000000000001 /* ReduceMotion.swift */; };
 		20HV0003AAAA000100000003 /* DayCanvasViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20HV0004AAAA000100000004 /* DayCanvasViewerView.swift */; };
 		20HV0005AAAA000100000005 /* HistoryThumbnailCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20HV0006AAAA000100000006 /* HistoryThumbnailCache.swift */; };
 		20IC0001AAAA000100000001 /* ShapeIconCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20IC0002AAAA000100000002 /* ShapeIconCache.swift */; };
@@ -156,6 +226,8 @@
 		30A1D1B12F3C000100000003 /* DayEndSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1D1A12F3C000100000001 /* DayEndSettingsView.swift */; };
 		30A1D1B32F3C000100000005 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1D1A32F3C000100000003 /* NotificationSettingsView.swift */; };
 		30CA0001300000000000CA01 /* CanvasElement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0002300000000000CA02 /* CanvasElement.swift */; };
+		CA51B0030000000000000003 /* CanvasRemix.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0030000000000000003 /* CanvasRemix.swift */; };
+		CA51B0010000000000000001 /* CanvasEnergyStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0010000000000000001 /* CanvasEnergyStatus.swift */; };
 		DA0003000300030003000031 /* Happening.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0003000300030003000030 /* Happening.swift */; };
 		DA0022002200220022000011 /* HappeningShapeAssignment.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0022002200220022000010 /* HappeningShapeAssignment.swift */; };
 		DA0004000400040004000041 /* HappeningDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0004000400040004000040 /* HappeningDefaults.swift */; };
@@ -173,6 +245,12 @@
 		DA000F000F000F000F0000F1 /* HappeningFreeTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA000F000F000F000F0000F0 /* HappeningFreeTextField.swift */; };
 		30CA0003300000000000CA03 /* GenerativeCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0004300000000000CA04 /* GenerativeCanvasView.swift */; };
 		30CA0007300000000000CA07 /* CanvasStateManagers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0008300000000000CA08 /* CanvasStateManagers.swift */; };
+		CA51B0080000000000000008 /* CanvasEditingDock.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0080000000000000008 /* CanvasEditingDock.swift */; };
+		CA51B0070000000000000007 /* CanvasDataPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0070000000000000007 /* CanvasDataPanel.swift */; };
+		CA51B0050000000000000005 /* CanvasFullScreenDock.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0050000000000000005 /* CanvasFullScreenDock.swift */; };
+		CA51B0060000000000000006 /* CanvasBottomActionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0060000000000000006 /* CanvasBottomActionRow.swift */; };
+		CA51B0020000000000000002 /* CanvasPresentationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0020000000000000002 /* CanvasPresentationState.swift */; };
+		CA51B0040000000000000004 /* CanvasEnergyStatusPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0040000000000000004 /* CanvasEnergyStatusPill.swift */; };
 		30CA0009300000000000CA09 /* CanvasStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA000A300000000000CA0A /* CanvasStorageService.swift */; };
 		30EA00023001000000EA0002 /* EnergyGradientBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30EA00013001000000EA0001 /* EnergyGradientBackground.swift */; };
 		31E56CC97BFC4B2EB6CAA2A8 /* AppModel+PayGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E8B78AD65E54737AA7CA90F /* AppModel+PayGate.swift */; };
@@ -237,6 +315,9 @@
 		AA00NOTE2F3A000100000001 /* Note.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00NOTE2F3A000100000002 /* Note.swift */; };
 		AABB001100110011AABB0011 /* SubscriptionGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB001100110011AABB0010 /* SubscriptionGateTests.swift */; };
 		ME7A00ME7A00ME7A00F011 /* MainTabSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ME7A00ME7A00ME7A00F010 /* MainTabSelectionTests.swift */; };
+		CA51B0130000000000000013 /* CanvasRemixTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0130000000000000013 /* CanvasRemixTests.swift */; };
+		CA51B0110000000000000011 /* CanvasEnergyStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0110000000000000011 /* CanvasEnergyStatusTests.swift */; };
+		CA51B0120000000000000012 /* CanvasPresentationStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0120000000000000012 /* CanvasPresentationStateTests.swift */; };
 		ME7A00ME7A00ME7A00F021 /* MeWeekStatsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ME7A00ME7A00ME7A00F020 /* MeWeekStatsTests.swift */; };
 		ME7A00ME7A00ME7A00F051 /* RayShapeRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ME7A00ME7A00ME7A00F050 /* RayShapeRendererTests.swift */; };
 		RA0000013005000000000001 /* RenderingActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = RA0000023005000000000002 /* RenderingActivityTests.swift */; };
@@ -296,6 +377,8 @@
 		CM7A00CM7A00CM7A00B003 /* CoachMarkTourTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CM7A00CM7A00CM7A00F003 /* CoachMarkTourTests.swift */; };
 		T1E5T5C22E71A18F00ABF5FA /* DailyEnergyLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */; };
 		T1E5T5E22E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */; };
+		CA51B0210000000000000021 /* CanvasSimplificationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0210000000000000021 /* CanvasSimplificationUITests.swift */; };
+		20CC020D2F86000000000013 /* SettingsRedesignUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010D2F86000000000013 /* SettingsRedesignUITests.swift */; };
 		WK000001AAAA000100000001 /* AppModel+WorkoutSuggestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = WK000001AAAA000100000002 /* AppModel+WorkoutSuggestions.swift */; };
 		WK000002AAAA000200000001 /* WorkoutSuggestionBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WK000002AAAA000200000002 /* WorkoutSuggestionBanner.swift */; };
 /* End PBXBuildFile section */
@@ -363,6 +446,68 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		D0B100000000000000000001 /* DayObjectSceneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectSceneTests.swift; sourceTree = "<group>"; };
+		91F0A0013100000000000001 /* AppTypographyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppTypographyTests.swift; path = Steps4Tests/AppTypographyTests.swift; sourceTree = SOURCE_ROOT; };
+		91F0A0033100000000000003 /* Unbounded[wght].ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Unbounded[wght].ttf"; sourceTree = "<group>"; };
+		91F0A0053100000000000005 /* Unbounded-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Unbounded-OFL.txt"; sourceTree = "<group>"; };
+		91F0A0073100000000000007 /* Unbounded-Black.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Unbounded-Black.ttf"; sourceTree = "<group>"; };
+		91F0A0093100000000000009 /* GeistMono-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "GeistMono-Medium.ttf"; sourceTree = "<group>"; };
+		91F0A00B310000000000000B /* GeistMono-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "GeistMono-OFL.txt"; sourceTree = "<group>"; };
+		91F0A00D310000000000000D /* Geist-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Geist-Medium.ttf"; sourceTree = "<group>"; };
+		A16C80010000000000000001 /* ExperimentalFeatures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExperimentalFeatures.swift; sourceTree = "<group>"; };
+		A16C80010000000000000002 /* RichFigureModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFigureModels.swift; sourceTree = "<group>"; };
+		A16C80010000000000000003 /* RichFigureAssignment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFigureAssignment.swift; sourceTree = "<group>"; };
+		A16C80010000000000000004 /* RichFigureAssignmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFigureAssignmentTests.swift; sourceTree = "<group>"; };
+		A16C80010000000000000005 /* RichFigureLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFigureLayout.swift; sourceTree = "<group>"; };
+		A16C80010000000000000006 /* RichFigureLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFigureLayoutTests.swift; sourceTree = "<group>"; };
+		A16C80010000000000000007 /* RichRenderBudget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichRenderBudget.swift; sourceTree = "<group>"; };
+		A16C80010000000000000008 /* RichRenderBudgetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichRenderBudgetTests.swift; sourceTree = "<group>"; };
+		A16C80010000000000000009 /* RichFigureGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFigureGeometry.swift; sourceTree = "<group>"; };
+		DA0BDO010000000000000001 /* DayObjectComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectComposition.swift; sourceTree = "<group>"; };
+		DA0BDO020000000000000001 /* DayObjectsLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLabView.swift; sourceTree = "<group>"; };
+		DA0BDO030000000000000001 /* DayObjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsView.swift; sourceTree = "<group>"; };
+		A16C8001000000000000000A /* RichFigureGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFigureGeometryTests.swift; sourceTree = "<group>"; };
+		A16C8001000000000000000B /* RichFillGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFillGeometry.swift; sourceTree = "<group>"; };
+		A16C8001000000000000000C /* RichRenderCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichRenderCache.swift; sourceTree = "<group>"; };
+		A16C8001000000000000000D /* RichFigureRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFigureRenderer.swift; sourceTree = "<group>"; };
+		A16C8001000000000000000E /* RichCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichCanvasView.swift; sourceTree = "<group>"; };
+		A16C8001000000000000000F /* RichCanvasLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichCanvasLabView.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000A1 /* GenerativeSceneShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = GenerativeSceneShader.metal; sourceTree = "<group>"; };
+		9E5C000100000000000000A2 /* GenerativeSceneParams.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerativeSceneParams.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000A3 /* GenerativeSceneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerativeSceneView.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000A4 /* GenerativeSceneLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerativeSceneLabView.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000A5 /* GenerativeSceneParamsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerativeSceneParamsTests.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000B1 /* CanvasDustShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = CanvasDustShader.metal; sourceTree = "<group>"; };
+		9E5C000100000000000000B2 /* CanvasAtmosphere.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasAtmosphere.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000B3 /* CanvasAtmosphereView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasAtmosphereView.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000B4 /* CanvasAtmosphereLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasAtmosphereLabView.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000B5 /* CanvasAtmosphereTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasAtmosphereTests.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000C1 /* DayRaysShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = DayRaysShader.metal; sourceTree = "<group>"; };
+		D0B100000000000000000003 /* DayObjectPaletteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectPaletteTests.swift; sourceTree = "<group>"; };
+		D0B100000000000000000005 /* DayObjectChoreographyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectChoreographyTests.swift; sourceTree = "<group>"; };
+		D0B100000000000000000007 /* DayObjectRenderFrameTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectRenderFrameTests.swift; sourceTree = "<group>"; };
+		D0B10000000000000000000A /* DayObjectsLabUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLabUITests.swift; sourceTree = "<group>"; };
+		D0B100000000000000000011 /* DayObjectTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectTypes.swift; sourceTree = "<group>"; };
+		D0B100000000000000000012 /* DayObjectScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectScene.swift; sourceTree = "<group>"; };
+		D0B100000000000000000014 /* DayObjectPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectPalette.swift; sourceTree = "<group>"; };
+		C0110A000000000000000001 /* ModernPaletteCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModernPaletteCatalog.swift; sourceTree = "<group>"; };
+		C0110A000000000000000003 /* DayObjectPaletteSet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectPaletteSet.swift; sourceTree = "<group>"; };
+		C0110A000000000000000005 /* DayObjectVisualLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectVisualLanguage.swift; sourceTree = "<group>"; };
+		C0110A000000000000000007 /* DayObjectMotionPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectMotionPlan.swift; sourceTree = "<group>"; };
+		D0B100000000000000000015 /* DayObjectChoreography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectChoreography.swift; sourceTree = "<group>"; };
+		C0DEC0DE0000000000000002 /* DayObjectChoreographyPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectChoreographyPreset.swift; sourceTree = "<group>"; };
+		D0B100000000000000000016 /* DayObjectRenderFrame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectRenderFrame.swift; sourceTree = "<group>"; };
+		D0B100000000000000000018 /* DayObjectsRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsRenderer.swift; sourceTree = "<group>"; };
+		D0B100000000000000000019 /* DayObjectsMetalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsMetalView.swift; sourceTree = "<group>"; };
+		D0B10000000000000000001B /* DayObjectsMeshGradientShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = DayObjectsMeshGradientShader.metal; sourceTree = "<group>"; };
+		D0B10000000000000000001C /* DayObjectsActorShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = DayObjectsActorShader.metal; sourceTree = "<group>"; };
+		D0B10000000000000000001D /* DayObjectsPostShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = DayObjectsPostShader.metal; sourceTree = "<group>"; };
+		9E5C000100000000000000C2 /* DayRayComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayRayComposition.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000C3 /* DayRaysView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayRaysView.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000C4 /* DayRaysLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayRaysLabView.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000C5 /* DayRayCompositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayRayCompositionTests.swift; sourceTree = "<group>"; };
+		9E5C000100000000000000D1 /* ExperimentalLabRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ExperimentalLabRoute.swift; path = Experiments/ExperimentalLabRoute.swift; sourceTree = "<group>"; };
+		A16C80010000000000000010 /* RichCanvasLabIsolationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichCanvasLabIsolationTests.swift; sourceTree = "<group>"; };
 		008E480BBB86AEC405B9C2EE /* GradientPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GradientPalette.swift; path = StepsTrader/Models/GradientPalette.swift; sourceTree = SOURCE_ROOT; };
 		1C0D419D1FDF446F850FAE7E /* RayShapeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RayShapeRenderer.swift; path = StepsTrader/Shapes/RayShapeRenderer.swift; sourceTree = SOURCE_ROOT; };
 		1D27465EA0680011F9D75A64 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppTheme.swift; path = StepsTrader/Theme/AppTheme.swift; sourceTree = SOURCE_ROOT; };
@@ -400,6 +545,7 @@
 		2061EB882F269CC7009FEC24 /* NotificationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationDelegate.swift; sourceTree = "<group>"; };
 		2061EB8B2F269CD5009FEC24 /* PayGateBackgroundStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayGateBackgroundStyle.swift; sourceTree = "<group>"; };
 		2061EB8E2F269CE6009FEC24 /* ProfileEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileEditorView.swift; sourceTree = "<group>"; };
+		A3C000010000000000000001 /* SettingsAccountPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAccountPage.swift; sourceTree = "<group>"; };
 		2061EB922F269CE6009FEC24 /* ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
 		2061EB982F269CF7009FEC24 /* ManualsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualsPage.swift; sourceTree = "<group>"; };
 		2061EBA42F269D19009FEC24 /* AppSelectionComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSelectionComponents.swift; sourceTree = "<group>"; };
@@ -464,8 +610,15 @@
 		20CC01032F86000000000003 /* SettingsEnergyPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsEnergyPage.swift; sourceTree = "<group>"; };
 		20CC01042F86000000000004 /* SettingsShortcutPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsShortcutPage.swift; sourceTree = "<group>"; };
 		20CC01052F86000000000005 /* SettingsWidgetPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWidgetPage.swift; sourceTree = "<group>"; };
+		20CC010E2F86000000000014 /* SettingsWidgetsWallpaperPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWidgetsWallpaperPage.swift; sourceTree = "<group>"; };
+		20CC010F2F86000000000015 /* SettingsDeveloperPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDeveloperPage.swift; sourceTree = "<group>"; };
+		20CC01102F86000000000016 /* SettingsHomeCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHomeCards.swift; sourceTree = "<group>"; };
 		20CC01062F86000000000006 /* SettingsAboutPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAboutPage.swift; sourceTree = "<group>"; };
 		20CC01072F86000000000007 /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
+		20CC010B2F86000000000011 /* SettingsHomePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHomePresentation.swift; sourceTree = "<group>"; };
+		20CC010C2F86000000000012 /* SettingsHomePresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHomePresentationTests.swift; sourceTree = "<group>"; };
+		20CC01112F86000000000017 /* SettingsPermissionPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPermissionPresentation.swift; sourceTree = "<group>"; };
+		20CC01122F86000000000018 /* SettingsPermissionPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPermissionPresentationTests.swift; sourceTree = "<group>"; };
 		20CC01082F86000000000008 /* SupabaseSyncDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseSyncDTOs.swift; sourceTree = "<group>"; };
 		20CC010A2F86000000000010 /* SettingsPermissionsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPermissionsPage.swift; sourceTree = "<group>"; };
 		20DB000A2F85000000000001 /* DayBoundary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayBoundary.swift; sourceTree = "<group>"; };
@@ -480,7 +633,6 @@
 		20F0NT012FFF040000000001 /* Font+Custom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Font+Custom.swift"; sourceTree = "<group>"; };
 		20F5A0012FFF000100000001 /* AutomationUIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationUIModels.swift; sourceTree = "<group>"; };
 		20F5A0062FFF000100000006 /* AppsPageSimplified.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppsPageSimplified.swift; sourceTree = "<group>"; };
-		20F5A00F2FFF020000000000 /* StepBalanceCard.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StepBalanceCard.swift; sourceTree = "<group>"; };
 		20F5A0122FFF030000000003 /* Localization.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		20F5A0172FFF030000000008 /* SeededRNG.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SeededRNG.swift; sourceTree = "<group>"; };
 		DA0014001400140014001481 /* SimplexNoise.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SimplexNoise.swift; path = StepsTrader/Utilities/SimplexNoise.swift; sourceTree = SOURCE_ROOT; };
@@ -494,6 +646,7 @@
 		20F6C0012F3E100100000001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		20FE17A12F90000000000001 /* FeatureTipSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureTipSheet.swift; sourceTree = "<group>"; };
 		20GC00012F86100000000001 /* GlassCardModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCardModifier.swift; sourceTree = "<group>"; };
+		20RM00012F90000000000001 /* ReduceMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReduceMotion.swift; sourceTree = "<group>"; };
 		20HV0004AAAA000100000004 /* DayCanvasViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayCanvasViewerView.swift; sourceTree = "<group>"; };
 		20HV0006AAAA000100000006 /* HistoryThumbnailCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryThumbnailCache.swift; sourceTree = "<group>"; };
 		20IC0002AAAA000100000002 /* ShapeIconCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShapeIconCache.swift; sourceTree = "<group>"; };
@@ -512,6 +665,8 @@
 		30A1D1A12F3C000100000001 /* DayEndSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayEndSettingsView.swift; sourceTree = "<group>"; };
 		30A1D1A32F3C000100000003 /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
 		30CA0002300000000000CA02 /* CanvasElement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasElement.swift; sourceTree = "<group>"; };
+		CA51F0030000000000000003 /* CanvasRemix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasRemix.swift; sourceTree = "<group>"; };
+		CA51F0010000000000000001 /* CanvasEnergyStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasEnergyStatus.swift; sourceTree = "<group>"; };
 		DA0003000300030003000030 /* Happening.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Happening.swift; sourceTree = "<group>"; };
 		DA0022002200220022000010 /* HappeningShapeAssignment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningShapeAssignment.swift; sourceTree = "<group>"; };
 		DA0004000400040004000040 /* HappeningDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningDefaults.swift; sourceTree = "<group>"; };
@@ -529,6 +684,12 @@
 		DA000F000F000F000F0000F0 /* HappeningFreeTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningFreeTextField.swift; sourceTree = "<group>"; };
 		30CA0004300000000000CA04 /* GenerativeCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerativeCanvasView.swift; sourceTree = "<group>"; };
 		30CA0008300000000000CA08 /* CanvasStateManagers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasStateManagers.swift; sourceTree = "<group>"; };
+		CA51F0080000000000000008 /* CanvasEditingDock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasEditingDock.swift; sourceTree = "<group>"; };
+		CA51F0070000000000000007 /* CanvasDataPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasDataPanel.swift; sourceTree = "<group>"; };
+		CA51F0050000000000000005 /* CanvasFullScreenDock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasFullScreenDock.swift; sourceTree = "<group>"; };
+		CA51F0060000000000000006 /* CanvasBottomActionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasBottomActionRow.swift; sourceTree = "<group>"; };
+		CA51F0020000000000000002 /* CanvasPresentationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasPresentationState.swift; sourceTree = "<group>"; };
+		CA51F0040000000000000004 /* CanvasEnergyStatusPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasEnergyStatusPill.swift; sourceTree = "<group>"; };
 		30CA000A300000000000CA0A /* CanvasStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasStorageService.swift; sourceTree = "<group>"; };
 		30EA00013001000000EA0001 /* EnergyGradientBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnergyGradientBackground.swift; sourceTree = "<group>"; };
 		40IN00012FFF050000000001 /* ExportCanvasWallpaperIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportCanvasWallpaperIntent.swift; sourceTree = "<group>"; };
@@ -592,6 +753,9 @@
 		AA00NOTE2F3A000100000002 /* Note.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Note.swift; sourceTree = "<group>"; };
 		AABB001100110011AABB0010 /* SubscriptionGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionGateTests.swift; sourceTree = "<group>"; };
 		ME7A00ME7A00ME7A00F010 /* MainTabSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabSelectionTests.swift; sourceTree = "<group>"; };
+		CA51F0130000000000000013 /* CanvasRemixTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasRemixTests.swift; sourceTree = "<group>"; };
+		CA51F0110000000000000011 /* CanvasEnergyStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasEnergyStatusTests.swift; sourceTree = "<group>"; };
+		CA51F0120000000000000012 /* CanvasPresentationStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasPresentationStateTests.swift; sourceTree = "<group>"; };
 		ME7A00ME7A00ME7A00F020 /* MeWeekStatsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeWeekStatsTests.swift; sourceTree = "<group>"; };
 		ME7A00ME7A00ME7A00F050 /* RayShapeRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RayShapeRendererTests.swift; sourceTree = "<group>"; };
 		RA0000023005000000000002 /* RenderingActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderingActivityTests.swift; sourceTree = "<group>"; };
@@ -648,6 +812,8 @@
 		CM7A00CM7A00CM7A00F003 /* CoachMarkTourTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachMarkTourTests.swift; sourceTree = "<group>"; };
 		T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyEnergyLogicTests.swift; sourceTree = "<group>"; };
 		T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Steps4UITestsLaunchTests.swift; sourceTree = "<group>"; };
+		CA51F0210000000000000021 /* CanvasSimplificationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasSimplificationUITests.swift; sourceTree = "<group>"; };
+		20CC010D2F86000000000013 /* SettingsRedesignUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRedesignUITests.swift; sourceTree = "<group>"; };
 		WK000001AAAA000100000002 /* AppModel+WorkoutSuggestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+WorkoutSuggestions.swift"; sourceTree = "<group>"; };
 		WK000002AAAA000200000002 /* WorkoutSuggestionBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSuggestionBanner.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -754,6 +920,75 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		DA0BG0010000000000000001 /* DayObjects */ = {
+			isa = PBXGroup;
+			children = (
+				DA0BDO010000000000000001 /* DayObjectComposition.swift */,
+				D0B100000000000000000014 /* DayObjectPalette.swift */,
+				C0110A000000000000000001 /* ModernPaletteCatalog.swift */,
+				C0110A000000000000000003 /* DayObjectPaletteSet.swift */,
+				C0110A000000000000000005 /* DayObjectVisualLanguage.swift */,
+				C0110A000000000000000007 /* DayObjectMotionPlan.swift */,
+				D0B100000000000000000015 /* DayObjectChoreography.swift */,
+				C0DEC0DE0000000000000002 /* DayObjectChoreographyPreset.swift */,
+				D0B100000000000000000016 /* DayObjectRenderFrame.swift */,
+				D0B100000000000000000018 /* DayObjectsRenderer.swift */,
+				D0B100000000000000000019 /* DayObjectsMetalView.swift */,
+				DA0BDO020000000000000001 /* DayObjectsLabView.swift */,
+				DA0BDO030000000000000001 /* DayObjectsView.swift */,
+				D0B100000000000000000011 /* DayObjectTypes.swift */,
+				D0B100000000000000000012 /* DayObjectScene.swift */,
+			);
+			path = Experiments/DayObjects;
+			sourceTree = "<group>";
+		};
+		A16C70010000000000000001 /* RichCanvas */ = {
+			isa = PBXGroup;
+			children = (
+				A16C80010000000000000002 /* RichFigureModels.swift */,
+				A16C80010000000000000003 /* RichFigureAssignment.swift */,
+				A16C80010000000000000005 /* RichFigureLayout.swift */,
+				A16C80010000000000000007 /* RichRenderBudget.swift */,
+				A16C80010000000000000009 /* RichFigureGeometry.swift */,
+				A16C8001000000000000000B /* RichFillGeometry.swift */,
+				A16C8001000000000000000C /* RichRenderCache.swift */,
+				A16C8001000000000000000D /* RichFigureRenderer.swift */,
+				A16C8001000000000000000E /* RichCanvasView.swift */,
+				A16C8001000000000000000F /* RichCanvasLabView.swift */,
+			);
+			path = Experiments/RichCanvas;
+			sourceTree = "<group>";
+		};
+		9E5C000300000000000000A0 /* GenerativeScene */ = {
+			isa = PBXGroup;
+			children = (
+				9E5C000100000000000000A2 /* GenerativeSceneParams.swift */,
+				9E5C000100000000000000A3 /* GenerativeSceneView.swift */,
+				9E5C000100000000000000A4 /* GenerativeSceneLabView.swift */,
+			);
+			path = Experiments/GenerativeScene;
+			sourceTree = "<group>";
+		};
+		9E5C000300000000000000B0 /* Atmosphere */ = {
+			isa = PBXGroup;
+			children = (
+				9E5C000100000000000000B2 /* CanvasAtmosphere.swift */,
+				9E5C000100000000000000B3 /* CanvasAtmosphereView.swift */,
+				9E5C000100000000000000B4 /* CanvasAtmosphereLabView.swift */,
+			);
+			path = Experiments/Atmosphere;
+			sourceTree = "<group>";
+		};
+		9E5C000300000000000000C0 /* DayRays */ = {
+			isa = PBXGroup;
+			children = (
+				9E5C000100000000000000C2 /* DayRayComposition.swift */,
+				9E5C000100000000000000C3 /* DayRaysView.swift */,
+				9E5C000100000000000000C4 /* DayRaysLabView.swift */,
+			);
+			path = Experiments/DayRays;
+			sourceTree = "<group>";
+		};
 		2089F0AB2E71A18E00ABF5FA = {
 			isa = PBXGroup;
 			children = (
@@ -874,6 +1109,8 @@
 				2061EB8B2F269CD5009FEC24 /* PayGateBackgroundStyle.swift */,
 				AA00NOTE2F3A000100000002 /* Note.swift */,
 				30CA0002300000000000CA02 /* CanvasElement.swift */,
+				CA51F0030000000000000003 /* CanvasRemix.swift */,
+				CA51F0010000000000000001 /* CanvasEnergyStatus.swift */,
 				DA0003000300030003000030 /* Happening.swift */,
 				DA0022002200220022000010 /* HappeningShapeAssignment.swift */,
 				DA0004000400040004000040 /* HappeningDefaults.swift */,
@@ -928,6 +1165,7 @@
 		2089F0E82E71AE3400ABF5FA /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				A16C80010000000000000001 /* ExperimentalFeatures.swift */,
 				20F0NT012FFF040000000001 /* Font+Custom.swift */,
 				207AE91A2F32293A00925680 /* DayBoundary+App.swift */,
 				20AA247A2F70BCF5002F2F2C /* SharedKeys.swift */,
@@ -944,6 +1182,7 @@
 				2061ECEB2F277000009FEC24 /* StatusViewHelpers.swift */,
 				2089F0E72E71AE3400ABF5FA /* Date+Today.swift */,
 				20GC00012F86100000000001 /* GlassCardModifier.swift */,
+				20RM00012F90000000000001 /* ReduceMotion.swift */,
 				RA0000043005000000000004 /* RenderingActivity.swift */,
 			);
 			path = Utilities;
@@ -952,6 +1191,12 @@
 		2089F0EA2E71AE3400ABF5FA /* StepsTrader */ = {
 			isa = PBXGroup;
 			children = (
+				A16C70010000000000000001 /* RichCanvas */,
+				DA0BG0010000000000000001 /* DayObjects */,
+				9E5C000300000000000000A0 /* GenerativeScene */,
+				9E5C000300000000000000B0 /* Atmosphere */,
+				9E5C000300000000000000C0 /* DayRays */,
+				9E5C000100000000000000D1 /* ExperimentalLabRoute.swift */,
 				2089F0E32E71AE3400ABF5FA /* Models */,
 				2089F0E62E71AE3400ABF5FA /* Services */,
 				209424BE2E8593DA00904A0A /* Views */,
@@ -990,7 +1235,6 @@
 			isa = PBXGroup;
 			children = (
 				2061ECE82F276FE8009FEC24 /* TimeAccessPickerSheet.swift */,
-				20F5A00F2FFF020000000000 /* StepBalanceCard.swift */,
 				20C7E6132F8BF2A200BD06AA /* CanvasShapePreview.swift */,
 				30EA00013001000000EA0001 /* EnergyGradientBackground.swift */,
 				WK000002AAAA000200000002 /* WorkoutSuggestionBanner.swift */,
@@ -1079,9 +1323,15 @@
 				20CC01032F86000000000003 /* SettingsEnergyPage.swift */,
 				20CC01042F86000000000004 /* SettingsShortcutPage.swift */,
 				20CC01052F86000000000005 /* SettingsWidgetPage.swift */,
+				20CC010E2F86000000000014 /* SettingsWidgetsWallpaperPage.swift */,
+				20CC010F2F86000000000015 /* SettingsDeveloperPage.swift */,
+				20CC01102F86000000000016 /* SettingsHomeCards.swift */,
 				20CC01062F86000000000006 /* SettingsAboutPage.swift */,
 				20CC010A2F86000000000010 /* SettingsPermissionsPage.swift */,
 				20CC01072F86000000000007 /* SettingsComponents.swift */,
+				20CC010B2F86000000000011 /* SettingsHomePresentation.swift */,
+				20CC01112F86000000000017 /* SettingsPermissionPresentation.swift */,
+				A3C000010000000000000001 /* SettingsAccountPage.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -1115,6 +1365,12 @@
 		20F0NT032FFF040000000003 /* Fonts */ = {
 			isa = PBXGroup;
 			children = (
+				91F0A00D310000000000000D /* Geist-Medium.ttf */,
+				91F0A0093100000000000009 /* GeistMono-Medium.ttf */,
+				91F0A00B310000000000000B /* GeistMono-OFL.txt */,
+				91F0A0033100000000000003 /* Unbounded[wght].ttf */,
+				91F0A0073100000000000007 /* Unbounded-Black.ttf */,
+				91F0A0053100000000000005 /* Unbounded-OFL.txt */,
 			);
 			path = Fonts;
 			sourceTree = "<group>";
@@ -1131,6 +1387,12 @@
 			isa = PBXGroup;
 			children = (
 				30CA0008300000000000CA08 /* CanvasStateManagers.swift */,
+				CA51F0080000000000000008 /* CanvasEditingDock.swift */,
+				CA51F0070000000000000007 /* CanvasDataPanel.swift */,
+				CA51F0050000000000000005 /* CanvasFullScreenDock.swift */,
+				CA51F0060000000000000006 /* CanvasBottomActionRow.swift */,
+				CA51F0020000000000000002 /* CanvasPresentationState.swift */,
+				CA51F0040000000000000004 /* CanvasEnergyStatusPill.swift */,
 			);
 			path = Gallery;
 			sourceTree = "<group>";
@@ -1152,6 +1414,12 @@
 				60SP0002300000000060SP0002 /* ShaderParkShader.metal */,
 				60SP0004300000000060SP0004 /* MetalShaderParkRenderer.swift */,
 				70SL0002300000000070SL0002 /* SpotlightShader.metal */,
+				9E5C000100000000000000A1 /* GenerativeSceneShader.metal */,
+				9E5C000100000000000000B1 /* CanvasDustShader.metal */,
+				9E5C000100000000000000C1 /* DayRaysShader.metal */,
+				D0B10000000000000000001B /* DayObjectsMeshGradientShader.metal */,
+				D0B10000000000000000001C /* DayObjectsActorShader.metal */,
+				D0B10000000000000000001D /* DayObjectsPostShader.metal */,
 			);
 			path = Metal;
 			sourceTree = "<group>";
@@ -1188,6 +1456,19 @@
 		T1E5T5A12E71A18F00ABF5FA /* Steps4Tests */ = {
 			isa = PBXGroup;
 			children = (
+				D0B100000000000000000001 /* DayObjectSceneTests.swift */,
+				D0B100000000000000000003 /* DayObjectPaletteTests.swift */,
+				D0B100000000000000000005 /* DayObjectChoreographyTests.swift */,
+				D0B100000000000000000007 /* DayObjectRenderFrameTests.swift */,
+				91F0A0013100000000000001 /* AppTypographyTests.swift */,
+				A16C80010000000000000010 /* RichCanvasLabIsolationTests.swift */,
+				9E5C000100000000000000A5 /* GenerativeSceneParamsTests.swift */,
+				9E5C000100000000000000B5 /* CanvasAtmosphereTests.swift */,
+				9E5C000100000000000000C5 /* DayRayCompositionTests.swift */,
+				A16C80010000000000000004 /* RichFigureAssignmentTests.swift */,
+				A16C80010000000000000006 /* RichFigureLayoutTests.swift */,
+				A16C80010000000000000008 /* RichRenderBudgetTests.swift */,
+				A16C8001000000000000000A /* RichFigureGeometryTests.swift */,
 				AA000001AA000001AA000003 /* TestHelpers */,
 				T1E5T5B12E71A18F00ABF5FA /* BudgetEngineTests.swift */,
 				PREF5702570057005700F002 /* PreferencesStoreTests.swift */,
@@ -1209,6 +1490,9 @@
 				BB000002BB000002BB000001 /* OnboardingFlowTests.swift */,
 				AABB001100110011AABB0010 /* SubscriptionGateTests.swift */,
 				ME7A00ME7A00ME7A00F010 /* MainTabSelectionTests.swift */,
+				CA51F0130000000000000013 /* CanvasRemixTests.swift */,
+				CA51F0110000000000000011 /* CanvasEnergyStatusTests.swift */,
+				CA51F0120000000000000012 /* CanvasPresentationStateTests.swift */,
 				ME7A00ME7A00ME7A00F020 /* MeWeekStatsTests.swift */,
 				ME7A00ME7A00ME7A00F050 /* RayShapeRendererTests.swift */,
 				RA0000023005000000000002 /* RenderingActivityTests.swift */,
@@ -1236,6 +1520,8 @@
 				UB53000053000053000000A1 /* UsageBudgetScheduleTests.swift */,
 				AL01000053000053000000A1 /* AuthSignInLoadingStateTests.swift */,
 				60OR0002300000000060OR0002 /* CanvasOverlayStyleTests.swift */,
+				20CC010C2F86000000000012 /* SettingsHomePresentationTests.swift */,
+				20CC01122F86000000000018 /* SettingsPermissionPresentationTests.swift */,
 			);
 			path = Steps4Tests;
 			sourceTree = "<group>";
@@ -1244,6 +1530,9 @@
 			isa = PBXGroup;
 			children = (
 				T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */,
+				CA51F0210000000000000021 /* CanvasSimplificationUITests.swift */,
+				20CC010D2F86000000000013 /* SettingsRedesignUITests.swift */,
+				D0B10000000000000000000A /* DayObjectsLabUITests.swift */,
 			);
 			path = Steps4UITests;
 			sourceTree = "<group>";
@@ -1504,6 +1793,12 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				91F0A00E310000000000000E /* Geist-Medium.ttf in Resources */,
+				91F0A00A310000000000000A /* GeistMono-Medium.ttf in Resources */,
+				91F0A00C310000000000000C /* GeistMono-OFL.txt in Resources */,
+				91F0A0043100000000000004 /* Unbounded[wght].ttf in Resources */,
+				91F0A0083100000000000008 /* Unbounded-Black.ttf in Resources */,
+				91F0A0063100000000000006 /* Unbounded-OFL.txt in Resources */,
 				2089F0BF2E71A18F00ABF5FA /* Preview Assets.xcassets in Resources */,
 				20E3AE142F3F6C1C007CF1EC /* Assets.xcassets in Resources */,
 				20F6C0022F3E100100000002 /* Localizable.xcstrings in Resources */,
@@ -1564,6 +1859,48 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A16C90010000000000000001 /* ExperimentalFeatures.swift in Sources */,
+				A16C90010000000000000002 /* RichFigureModels.swift in Sources */,
+				A16C90010000000000000003 /* RichFigureAssignment.swift in Sources */,
+				A16C90010000000000000005 /* RichFigureLayout.swift in Sources */,
+				A16C90010000000000000007 /* RichRenderBudget.swift in Sources */,
+				A16C90010000000000000009 /* RichFigureGeometry.swift in Sources */,
+				DA0BDO010000000000000002 /* DayObjectComposition.swift in Sources */,
+				D0B100000000000000000024 /* DayObjectPalette.swift in Sources */,
+				C0110A000000000000000002 /* ModernPaletteCatalog.swift in Sources */,
+				C0110A000000000000000004 /* DayObjectPaletteSet.swift in Sources */,
+				C0110A000000000000000006 /* DayObjectVisualLanguage.swift in Sources */,
+				C0110A000000000000000008 /* DayObjectMotionPlan.swift in Sources */,
+				D0B100000000000000000025 /* DayObjectChoreography.swift in Sources */,
+				C0DEC0DE0000000000000001 /* DayObjectChoreographyPreset.swift in Sources */,
+				D0B100000000000000000026 /* DayObjectRenderFrame.swift in Sources */,
+				D0B100000000000000000028 /* DayObjectsRenderer.swift in Sources */,
+				D0B100000000000000000029 /* DayObjectsMetalView.swift in Sources */,
+				DA0BDO020000000000000002 /* DayObjectsLabView.swift in Sources */,
+				DA0BDO030000000000000002 /* DayObjectsView.swift in Sources */,
+				D0B100000000000000000021 /* DayObjectTypes.swift in Sources */,
+				D0B100000000000000000022 /* DayObjectScene.swift in Sources */,
+				A16C9001000000000000000B /* RichFillGeometry.swift in Sources */,
+				A16C9001000000000000000C /* RichRenderCache.swift in Sources */,
+				A16C9001000000000000000D /* RichFigureRenderer.swift in Sources */,
+				A16C9001000000000000000E /* RichCanvasView.swift in Sources */,
+				A16C9001000000000000000F /* RichCanvasLabView.swift in Sources */,
+				9E5C000200000000000000A1 /* GenerativeSceneShader.metal in Sources */,
+				9E5C000200000000000000A2 /* GenerativeSceneParams.swift in Sources */,
+				9E5C000200000000000000A3 /* GenerativeSceneView.swift in Sources */,
+				9E5C000200000000000000A4 /* GenerativeSceneLabView.swift in Sources */,
+				9E5C000200000000000000B1 /* CanvasDustShader.metal in Sources */,
+				9E5C000200000000000000B2 /* CanvasAtmosphere.swift in Sources */,
+				9E5C000200000000000000B3 /* CanvasAtmosphereView.swift in Sources */,
+				9E5C000200000000000000B4 /* CanvasAtmosphereLabView.swift in Sources */,
+				9E5C000200000000000000C1 /* DayRaysShader.metal in Sources */,
+				D0B10000000000000000002B /* DayObjectsMeshGradientShader.metal in Sources */,
+				D0B10000000000000000002C /* DayObjectsActorShader.metal in Sources */,
+				D0B10000000000000000002D /* DayObjectsPostShader.metal in Sources */,
+				9E5C000200000000000000C2 /* DayRayComposition.swift in Sources */,
+				9E5C000200000000000000C3 /* DayRaysView.swift in Sources */,
+				9E5C000200000000000000C4 /* DayRaysLabView.swift in Sources */,
+				9E5C000200000000000000D1 /* ExperimentalLabRoute.swift in Sources */,
 				20AA24882F70BEE1002F2F2C /* AppUnlockSettings.swift in Sources */,
 				2089F0ED2E71AE3400ABF5FA /* FamilyControlsService.swift in Sources */,
 				209424C82E85952D00904A0A /* NotificationManager.swift in Sources */,
@@ -1586,9 +1923,11 @@
 				70CM00023004000070CM0002 /* CoachMarkManager.swift in Sources */,
 				70CM00023004000070CM0003 /* CoachMarkOverlay.swift in Sources */,
 				2061EB8D2F269CE6009FEC24 /* ProfileEditorView.swift in Sources */,
+				A3C000020000000000000001 /* SettingsAccountPage.swift in Sources */,
 				2061EB912F269CE6009FEC24 /* ImagePicker.swift in Sources */,
 				2061F00A2F2803AC009FEC24 /* AppModel+AppSelection.swift in Sources */,
 				20GC00022F86100000000002 /* GlassCardModifier.swift in Sources */,
+				20RM00022F90000000000002 /* ReduceMotion.swift in Sources */,
 				2061EB972F269CF7009FEC24 /* ManualsPage.swift in Sources */,
 				20AA24872F70BED0002F2F2C /* TicketGroup.swift in Sources */,
 				FE000002FEED000100000001 /* FeedRowModel.swift in Sources */,
@@ -1621,7 +1960,6 @@
 				20A05E010000000000000002 /* AppUser.swift in Sources */,
 				20A05E020000000000000002 /* AuthSupportTypes.swift in Sources */,
 				20A05E030000000000000002 /* AuthenticationService+SupabaseREST.swift in Sources */,
-				20F5A0102FFF020000000001 /* StepBalanceCard.swift in Sources */,
 				30EA00023001000000EA0002 /* EnergyGradientBackground.swift in Sources */,
 				WK000002AAAA000200000001 /* WorkoutSuggestionBanner.swift in Sources */,
 				DD000002DDDD000200000001 /* TicketTemplatePickerView.swift in Sources */,
@@ -1629,6 +1967,8 @@
 				DD000004DDDD000400000001 /* SettingsSheet.swift in Sources */,
 				2061EBD02F269D30009FEC24 /* GalleryView.swift in Sources */,
 				30CA0001300000000000CA01 /* CanvasElement.swift in Sources */,
+				CA51B0030000000000000003 /* CanvasRemix.swift in Sources */,
+				CA51B0010000000000000001 /* CanvasEnergyStatus.swift in Sources */,
 				DA0003000300030003000031 /* Happening.swift in Sources */,
 				DA0022002200220022000011 /* HappeningShapeAssignment.swift in Sources */,
 				DA0004000400040004000041 /* HappeningDefaults.swift in Sources */,
@@ -1646,6 +1986,12 @@
 				DA000F000F000F000F0000F1 /* HappeningFreeTextField.swift in Sources */,
 				30CA0003300000000000CA03 /* GenerativeCanvasView.swift in Sources */,
 				30CA0007300000000000CA07 /* CanvasStateManagers.swift in Sources */,
+				CA51B0080000000000000008 /* CanvasEditingDock.swift in Sources */,
+				CA51B0070000000000000007 /* CanvasDataPanel.swift in Sources */,
+				CA51B0050000000000000005 /* CanvasFullScreenDock.swift in Sources */,
+				CA51B0060000000000000006 /* CanvasBottomActionRow.swift in Sources */,
+				CA51B0020000000000000002 /* CanvasPresentationState.swift in Sources */,
+				CA51B0040000000000000004 /* CanvasEnergyStatusPill.swift in Sources */,
 				30CA0009300000000000CA09 /* CanvasStorageService.swift in Sources */,
 				2061EBF32F269D50009FEC24 /* MeView.swift in Sources */,
 				ME7A00ME7A00ME7A00F031 /* MeWeekStats.swift in Sources */,
@@ -1710,6 +2056,8 @@
 				20CC02032F86000000000003 /* SettingsEnergyPage.swift in Sources */,
 				20CC02042F86000000000004 /* SettingsShortcutPage.swift in Sources */,
 				20CC02052F86000000000005 /* SettingsWidgetPage.swift in Sources */,
+				20CC020E2F86000000000014 /* SettingsWidgetsWallpaperPage.swift in Sources */,
+				20CC020F2F86000000000015 /* SettingsDeveloperPage.swift in Sources */,
 				20FE17A22F90000000000002 /* FeatureTipSheet.swift in Sources */,
 				20CC02062F86000000000006 /* SettingsAboutPage.swift in Sources */,
 				20C7E6142F8BF2A200BD06AA /* CanvasShapePreview.swift in Sources */,
@@ -1720,6 +2068,9 @@
 				80PV00023005000080PV0002 /* CanvasPosterView.swift in Sources */,
 				20CC020A2F86000000000010 /* SettingsPermissionsPage.swift in Sources */,
 				20CC02072F86000000000007 /* SettingsComponents.swift in Sources */,
+				20CC02102F86000000000016 /* SettingsHomeCards.swift in Sources */,
+				20CC020B2F86000000000011 /* SettingsHomePresentation.swift in Sources */,
+				20CC02112F86000000000017 /* SettingsPermissionPresentation.swift in Sources */,
 				20CC02082F86000000000008 /* SupabaseSyncDTOs.swift in Sources */,
 				20SS02012F87000000000001 /* SupabaseSyncService+Analytics.swift in Sources */,
 				20SS02022F87000000000002 /* SupabaseSyncService+Selections.swift in Sources */,
@@ -1780,6 +2131,19 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0B100000000000000000002 /* DayObjectSceneTests.swift in Sources */,
+				D0B100000000000000000004 /* DayObjectPaletteTests.swift in Sources */,
+				D0B100000000000000000006 /* DayObjectChoreographyTests.swift in Sources */,
+				D0B100000000000000000008 /* DayObjectRenderFrameTests.swift in Sources */,
+				91F0A0023100000000000002 /* AppTypographyTests.swift in Sources */,
+				A16C90010000000000000010 /* RichCanvasLabIsolationTests.swift in Sources */,
+				9E5C000200000000000000A5 /* GenerativeSceneParamsTests.swift in Sources */,
+				9E5C000200000000000000B5 /* CanvasAtmosphereTests.swift in Sources */,
+				9E5C000200000000000000C5 /* DayRayCompositionTests.swift in Sources */,
+				A16C90010000000000000004 /* RichFigureAssignmentTests.swift in Sources */,
+				A16C90010000000000000006 /* RichFigureLayoutTests.swift in Sources */,
+				A16C90010000000000000008 /* RichRenderBudgetTests.swift in Sources */,
+				A16C9001000000000000000A /* RichFigureGeometryTests.swift in Sources */,
 				AA000001AA000001AA000002 /* SharedMocks.swift in Sources */,
 				201816142F33C8CC0006B350 /* DayBoundaryTests.swift in Sources */,
 				T1E5T5B22E71A18F00ABF5FA /* BudgetEngineTests.swift in Sources */,
@@ -1801,6 +2165,9 @@
 				BB000002BB000002BB000002 /* OnboardingFlowTests.swift in Sources */,
 				AABB001100110011AABB0011 /* SubscriptionGateTests.swift in Sources */,
 				ME7A00ME7A00ME7A00F011 /* MainTabSelectionTests.swift in Sources */,
+				CA51B0130000000000000013 /* CanvasRemixTests.swift in Sources */,
+				CA51B0110000000000000011 /* CanvasEnergyStatusTests.swift in Sources */,
+				CA51B0120000000000000012 /* CanvasPresentationStateTests.swift in Sources */,
 				ME7A00ME7A00ME7A00F021 /* MeWeekStatsTests.swift in Sources */,
 				ME7A00ME7A00ME7A00F051 /* RayShapeRendererTests.swift in Sources */,
 				RA0000013005000000000001 /* RenderingActivityTests.swift in Sources */,
@@ -1828,6 +2195,8 @@
 				UB53000053000053000000B1 /* UsageBudgetScheduleTests.swift in Sources */,
 				AL01000053000053000000B1 /* AuthSignInLoadingStateTests.swift in Sources */,
 				60OR0001300000000060OR0001 /* CanvasOverlayStyleTests.swift in Sources */,
+				20CC020C2F86000000000012 /* SettingsHomePresentationTests.swift in Sources */,
+				20CC02122F86000000000018 /* SettingsPermissionPresentationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1836,6 +2205,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				T1E5T5E22E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */,
+				CA51B0210000000000000021 /* CanvasSimplificationUITests.swift in Sources */,
+				20CC020D2F86000000000013 /* SettingsRedesignUITests.swift in Sources */,
+				D0B100000000000000000009 /* DayObjectsLabUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

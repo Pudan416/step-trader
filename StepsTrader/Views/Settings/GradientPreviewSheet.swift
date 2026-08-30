@@ -5,6 +5,7 @@ struct GradientPreviewSheet: View {
     let onApply: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(SharedKeys.gradientPalette) private var gradientPaletteRaw: String = GradientPalette.warmSunset.rawValue
     @State private var selectedState = 0
 
@@ -60,15 +61,19 @@ struct GradientPreviewSheet: View {
             VStack(spacing: 0) {
                 HStack {
                     Text(config.style.displayName)
-                        .font(.headline.weight(.semibold))
+                        .font(.geist(.headline).weight(.semibold))
                         .foregroundStyle(.white)
                     Spacer()
                     Button { dismiss() } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.title2)
+                            .font(.geist(.title2))
                             .symbolRenderingMode(.hierarchical)
                             .foregroundStyle(.white.opacity(0.7))
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
+                    .accessibilityLabel(String(localized: "Close preview", comment: "Gradient preview close button"))
+                    .accessibilityIdentifier("settings.appearance.preview.close")
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
@@ -78,7 +83,12 @@ struct GradientPreviewSheet: View {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                     ForEach(Array(states.enumerated()), id: \.offset) { index, state in
                         Button {
-                            withAnimation(.easeInOut(duration: 0.4)) { selectedState = index }
+                            withMotionAnimation(
+                                .easeInOut(duration: 0.4),
+                                reduceMotion: reduceMotion
+                            ) {
+                                selectedState = index
+                            }
                         } label: {
                             VStack(spacing: 5) {
                                 Canvas { context, size in
@@ -102,19 +112,31 @@ struct GradientPreviewSheet: View {
                                 .frame(height: 72)
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                                 .overlay {
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .strokeBorder(
-                                            selectedState == index ? Color.white : Color.white.opacity(0.15),
-                                            lineWidth: selectedState == index ? 2 : 0.5
-                                        )
+                                    ZStack(alignment: .topTrailing) {
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .strokeBorder(
+                                                selectedState == index ? Color.white : Color.white.opacity(0.15),
+                                                lineWidth: selectedState == index ? 2 : 0.5
+                                            )
+                                        if selectedState == index {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .font(.geist(size: 15, weight: .bold))
+                                                .foregroundStyle(.white)
+                                                .padding(6)
+                                        }
+                                    }
                                 }
 
                                 Text(state.label)
-                                    .font(.system(size: 10, weight: selectedState == index ? .bold : .medium))
+                                    .font(.geist(.caption2).weight(selectedState == index ? .bold : .medium))
                                     .foregroundStyle(selectedState == index ? .white : .white.opacity(0.5))
                             }
                         }
                         .buttonStyle(.plain)
+                        .settingsSelectable(
+                            label: state.label,
+                            isSelected: selectedState == index
+                        )
                     }
                 }
                 .padding(.horizontal, 20)
@@ -123,7 +145,7 @@ struct GradientPreviewSheet: View {
                     onApply()
                 } label: {
                     Text(String(localized: "Apply", comment: "GradientPreview – apply gradient button"))
-                        .font(.subheadline.weight(.semibold))
+                        .font(.geist(.subheadline).weight(.semibold))
                         .foregroundStyle(.black)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)

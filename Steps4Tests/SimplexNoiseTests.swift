@@ -278,14 +278,12 @@ final class SnowflakeTextureProfileTests: XCTestCase {
             let geometry = ProceduralTexture.geometry(
                 spec: spec, radii: frame.textureProfile.radii, seed: 42)
             switch kind {
-            case .flat, .gradient:
+            case .flat, .gradient, .outline:
                 XCTAssertEqual(geometry, TextureGeometry())
             case .rings:
                 XCTAssertFalse(geometry.rings.isEmpty)
             case .hatch:
                 XCTAssertFalse(geometry.lines.isEmpty)
-            case .stipple:
-                XCTAssertFalse(geometry.dots.isEmpty)
             }
         }
     }

@@ -118,8 +118,10 @@ actor SupabaseSyncService {
         let userGradientStyle: String
         let userGradientPalette: String
         let dailyRandomThemeEnabled: Bool
+        let modernPaletteCategories: [String]
         let canvasOverlayStyle: String
         let allowedCanvasShapes: [String]
+        let allowedCanvasFills: [String]
     }
     
     var pendingDailySelections: DailySelectionsPayload?
@@ -444,8 +446,14 @@ actor SupabaseSyncService {
                         userGradientStyle: std.string(forKey: SharedKeys.userGradientStyle) ?? GradientStyle.radial.rawValue,
                         userGradientPalette: std.string(forKey: SharedKeys.userGradientPalette) ?? GradientPalette.warmSunset.rawValue,
                         dailyRandomThemeEnabled: std.bool(forKey: SharedKeys.dailyRandomThemeEnabled),
+                        modernPaletteCategories: ModernPaletteCategory.allCases
+                            .filter(ModernPaletteSelection.decode(
+                                std.string(forKey: SharedKeys.modernPaletteCategories) ?? ""
+                            ).contains)
+                            .map(\.rawValue),
                         canvasOverlayStyle: g.string(forKey: SharedKeys.canvasOverlayStyle) ?? CanvasOverlayStyle.smudge.rawValue,
-                        allowedCanvasShapes: CanvasShapeType.allowedByUser.map(\.rawValue)
+                        allowedCanvasShapes: CanvasShapeType.allowedByUser.map(\.rawValue),
+                        allowedCanvasFills: TextureKind.allowedByUser.map(\.rawValue)
                     )
                 )
             }
@@ -479,6 +487,7 @@ actor SupabaseSyncService {
         if let additions = await loadOptionEntriesFromServer(dayKey: today), !additions.isEmpty {
             await MainActor.run {
                 model.todayAdditions = additions
+                model.removeSatisfiedActivitySuggestions()
                 model.persistDailyEnergyState()
             }
             didRestore = true
@@ -521,10 +530,12 @@ actor SupabaseSyncService {
                         userGradientStyle: prefs.userGradientStyle,
                         userGradientPalette: prefs.userGradientPalette,
                         dailyRandomThemeEnabled: prefs.dailyRandomThemeEnabled,
+                        modernPaletteCategories: prefs.modernPaletteCategories,
                         bodyCanvasShape: prefs.bodyCanvasShape,
                         mindCanvasShape: prefs.mindCanvasShape,
                         heartCanvasShape: prefs.heartCanvasShape,
-                        allowedCanvasShapes: prefs.allowedCanvasShapes
+                        allowedCanvasShapes: prefs.allowedCanvasShapes,
+                        allowedCanvasFills: prefs.allowedCanvasFills
                     )
                 )
                 // Day boundary is dual-written: the app-group key (read by

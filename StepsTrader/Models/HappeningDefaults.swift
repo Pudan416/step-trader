@@ -13,10 +13,10 @@ enum HappeningDefaults {
     // day = steps(20) + sleep(20) + happenings(60) = 100
     //
     // The 100 ceiling is deliberately unchanged — onboarding has a slide built
-    // on it. Additions past the sixth still land on the canvas and still
+    // on it. Additions past the tenth still land on the canvas and still
     // increment `useCount`; they just stop earning.
 
-    static let pointsPerAddition: Int = 10
+    static let pointsPerAddition: Int = 6
     static let happeningsMaxPoints: Int = 60
 
     // MARK: - Built-ins

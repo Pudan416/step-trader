@@ -1,227 +1,74 @@
 import SwiftUI
 
-// MARK: - Day Canvas Viewer
-/// Full-screen viewer for a past day's canvas. Renders the **persisted** canvas
-/// (loaded from disk, with Supabase fallback) at the canvas's frozen time so the
-/// composition is pixel-identical to what the user saw on that date.
-///
-/// Behavior:
-/// - Tap canvas → toggle immersive mode (hide top bar + bottom card)
-/// - Swipe down on bottom card → dismiss
-/// - Share button → ImageRenderer export, presented via `CanvasShareSheet`
-/// - Long-press canvas → context menu (Save to Photos / Share)
+// MARK: - Day poster viewer
+
+/// Full-screen presentation of the same gallery poster used on Me. Keeping the
+/// poster itself shared guarantees that the calendar, viewer and exported image
+/// never drift into different typography or metadata layouts.
 struct DayCanvasViewerView: View {
     @ObservedObject var model: AppModel
     let dayKey: String
+    let health: MeDayHealth?
+    let unlockRecords: [MePosterUnlockRecord]
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
 
-    @State private var dayCanvas: DayCanvas?
     @State private var snapshot: PastDaySnapshot?
-    @State private var isLoading = true
-    @State private var isImmersive = false
-    @State private var shareImage: UIImage?
-    @State private var showShareSheet = false
-    @State private var posterStyle: PosterStyle = .museum
+    @State private var shareRequestID = 0
+    @State private var posterCanShare = false
 
-    private var canvasIsEmpty: Bool {
-        guard let dc = dayCanvas else { return true }
-        return dc.elements.isEmpty
-    }
-
-    private var fixedTime: Date {
-        if let modified = dayCanvas?.lastModified { return modified }
-        return DayBoundary.endOfCalendarDay(forDayKey: dayKey)
-    }
-
-    private var displayDate: Date {
-        CachedFormatters.dayKey.date(from: dayKey) ?? .now
+    init(
+        model: AppModel,
+        dayKey: String,
+        snapshot: PastDaySnapshot? = nil,
+        health: MeDayHealth? = nil,
+        unlockRecords: [MePosterUnlockRecord] = []
+    ) {
+        self.model = model
+        self.dayKey = dayKey
+        self.health = health
+        self.unlockRecords = unlockRecords
+        _snapshot = State(initialValue: snapshot)
     }
 
     var body: some View {
         ZStack {
-            backgroundLayer
-            canvasLayer
-            overlayLayer
-        }
-        .background(theme.backgroundColor.ignoresSafeArea())
-        .preferredColorScheme(theme.colorScheme)
-        .task { await load() }
-        .sheet(isPresented: $showShareSheet, onDismiss: { shareImage = nil }) {
-            if let image = shareImage {
-                CanvasShareSheet(items: [image])
-            }
-        }
-    }
+            theme.backgroundColor.ignoresSafeArea()
 
-    // MARK: - Layers
+            VStack(spacing: 12) {
+                topBar
 
-    private var backgroundLayer: some View {
-        theme.backgroundColor
-            .ignoresSafeArea()
-    }
+                Spacer(minLength: 0)
 
-    @ViewBuilder
-    private var canvasLayer: some View {
-        if isLoading {
-            ProgressView()
-                .controlSize(.large)
-                .tint(theme.adaptivePrimaryText)
-        } else if let dc = dayCanvas, !dc.elements.isEmpty {
-            GeometryReader { geo in
-                let frameSize = GenerativeCanvasView.framedCanvasSize
-                let fitScale = min(
-                    geo.size.width / frameSize.width,
-                    geo.size.height / frameSize.height
+                MeSelectedDayPoster(
+                    model: model,
+                    dayKey: dayKey,
+                    snapshot: snapshot,
+                    health: health ?? snapshot.map(MeDayHealth.init(snapshot:)),
+                    unlockRecords: unlockRecords,
+                    shareRequestID: shareRequestID,
+                    onShareAvailabilityChange: { posterCanShare = $0 }
                 )
-                let displayWidth = frameSize.width * fitScale
-                let displayHeight = frameSize.height * fitScale
+                .padding(.horizontal, 28)
 
-                CanvasPosterView(
-                    style: posterStyle,
-                    date: displayDate,
-                    userName: AuthenticationService.shared.currentUser?.displayName,
-                    steps: snapshot?.steps,
-                    sleepHours: snapshot?.sleepHours,
-                    inkEarned: snapshot?.inkEarned,
-                    inkSpent: snapshot?.inkSpent
-                ) {
-                    canvasContent(dc)
-                }
-                .frame(width: frameSize.width, height: frameSize.height)
-                .scaleEffect(fitScale)
-                .frame(width: displayWidth, height: displayHeight)
-                .position(x: geo.size.width / 2, y: geo.size.height / 2)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    withAnimation(.easeInOut(duration: 0.35)) {
-                        isImmersive.toggle()
-                    }
-                }
-                .accessibilityLabel(isImmersive ? String(localized: "Exit immersive mode") : String(localized: "View canvas"))
-                .accessibilityAddTraits(.isButton)
-                .contextMenu {
-                    Button {
-                        Task { await saveToPhotos() }
-                    } label: {
-                        Label(String(localized: "Save to Photos", comment: "DayCanvasViewer – context menu"), systemImage: "square.and.arrow.down")
-                    }
-                    Button {
-                        Task { await prepareAndShare() }
-                    } label: {
-                        Label(String(localized: "Share", comment: "DayCanvasViewer – context menu"), systemImage: "square.and.arrow.up")
-                    }
-                }
-                .animation(.easeInOut(duration: 0.35), value: posterStyle)
+                Spacer(minLength: 16)
             }
-            .ignoresSafeArea()
-        } else {
-            emptyCanvasPlaceholder
+            .padding(.top, 8)
+        }
+        .energyGradientBackground(model: model, showGrain: false)
+        .preferredColorScheme(theme.colorScheme)
+        .task(id: dayKey) {
+            guard snapshot == nil else { return }
+            snapshot = model.loadPastDaySnapshots()[dayKey]
         }
     }
-
-    private var emptyCanvasPlaceholder: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "calendar.badge.exclamationmark")
-                .font(.system(size: 44, weight: .ultraLight))
-                .foregroundStyle(theme.adaptiveMutedText)
-            Text(String(localized: "No data for this day.", comment: "DayCanvasViewer – empty state"))
-                .font(.systemSerif(20, weight: .semibold, relativeTo: .title3))
-                .foregroundStyle(theme.adaptiveMutedText)
-                .multilineTextAlignment(.center)
-        }
-        .padding(.horizontal, 32)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var overlayLayer: some View {
-        VStack {
-            if !isImmersive { topBar }
-            Spacer()
-            if !isImmersive { posterStylePicker.padding(.bottom, 24) }
-        }
-        .animation(.easeInOut(duration: 0.35), value: isImmersive)
-    }
-
-    // MARK: - Canvas Content (shared between viewer & export)
-
-    @ViewBuilder
-    private func canvasContent(_ dc: DayCanvas, isOffscreenRender: Bool = false) -> some View {
-        ZStack {
-            EnergyGradientBackground(
-                stepsPoints: dc.stepsPoints,
-                sleepPoints: dc.sleepPoints,
-                hasStepsData: dc.resolvedHasStepsData,
-                hasSleepData: dc.resolvedHasSleepData,
-                showGrain: true,
-                gradientStyleOverride: dc.gradientStyle,
-                gradientPaletteOverride: dc.gradientPalette,
-                textureOverride: dc.textureRaw
-            )
-
-            GenerativeCanvasView(
-                elements: dc.elements,
-                dayKey: dc.dayKey,
-                sleepPoints: dc.sleepPoints,
-                stepsPoints: dc.stepsPoints,
-                sleepColor: Color(hex: dc.sleepColorHex),
-                stepsColor: Color(hex: dc.stepsColorHex),
-                decayNorm: dc.decayNorm,
-                backgroundColor: .clear,
-                labelColor: theme.textPrimary,
-                showLabelsOnCanvas: true,
-                showsOutlinedLabels: false,
-                showsBackgroundGradient: false,
-                hasStepsData: dc.resolvedHasStepsData,
-                hasSleepData: dc.resolvedHasSleepData,
-                fixedTime: fixedTime,
-                isOffscreenRender: isOffscreenRender
-            )
-        }
-    }
-
-    // MARK: - Poster Style Picker
-
-    private var posterStylePicker: some View {
-        HStack(spacing: 10) {
-            ForEach(PosterStyle.allCases) { style in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        posterStyle = style
-                    }
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: style.iconName)
-                            .font(.system(size: 12, weight: .medium))
-                        Text(style.displayName)
-                            .font(.system(size: 11, weight: .semibold))
-                    }
-                    .foregroundStyle(posterStyle == style ? .white : theme.adaptivePrimaryText)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(
-                        Capsule().fill(posterStyle == style
-                            ? AnyShapeStyle(AppColors.brandAccent)
-                            : AnyShapeStyle(.ultraThinMaterial))
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 16)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
-    }
-
-    // MARK: - Top Bar
 
     private var topBar: some View {
         HStack {
-            Button {
-                dismiss()
-            } label: {
+            Button { dismiss() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.geist(size: 13, weight: .bold))
                     .foregroundStyle(theme.adaptivePrimaryText)
                     .frame(width: 40, height: 40)
                     .background(.ultraThinMaterial, in: Circle())
@@ -231,95 +78,23 @@ struct DayCanvasViewerView: View {
 
             Spacer()
 
-            if !canvasIsEmpty {
-                Button {
-                    Task { await prepareAndShare() }
-                } label: {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 16, weight: .regular))
-                        .foregroundStyle(theme.adaptivePrimaryText)
-                        .frame(width: 40, height: 40)
-                        .background(.ultraThinMaterial, in: Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(String(localized: "Share canvas", comment: "DayCanvasViewer – share VoiceOver"))
+            Button {
+                shareRequestID &+= 1
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.geist(size: 16, weight: .regular))
+                    .foregroundStyle(theme.adaptivePrimaryText)
+                    .frame(width: 40, height: 40)
+                    .background(.ultraThinMaterial, in: Circle())
             }
+            .buttonStyle(.plain)
+            .disabled(!posterCanShare)
+            .opacity(posterCanShare ? 1 : 0.3)
+            .accessibilityIdentifier("day_poster_share")
+            .accessibilityLabel(String(localized: "Share canvas", comment: "DayCanvasViewer – share VoiceOver"))
         }
         .padding(.horizontal, 20)
-        .padding(.top, 8)
-        .transition(.move(edge: .top).combined(with: .opacity))
     }
-
-    // MARK: - Loading
-
-    private func load() async {
-        isLoading = true
-        snapshot = model.loadPastDaySnapshots()[dayKey]
-
-        let key = dayKey
-        let local = await Task.detached(priority: .userInitiated) {
-            CanvasStorageService.shared.loadCanvas(for: key)
-        }.value
-
-        if let local {
-            dayCanvas = local
-        } else if let remote = await SupabaseSyncService.shared.fetchDayCanvas(for: key) {
-            dayCanvas = remote
-            CanvasStorageService.shared.saveCanvas(remote)
-        }
-
-        isLoading = false
-    }
-
-    // MARK: - Sharing
-
-    @MainActor
-    private func prepareAndShare() async {
-        guard let image = renderShareableImage() else { return }
-        shareImage = image
-        showShareSheet = true
-    }
-
-    @MainActor
-    private func saveToPhotos() async {
-        guard let image = renderShareableImage() else { return }
-        UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
-    }
-
-    @MainActor
-    private func renderShareableImage() -> UIImage? {
-        guard let dc = dayCanvas, !dc.elements.isEmpty else { return nil }
-
-        let userName = AuthenticationService.shared.currentUser?.displayName
-
-        // Render the poster at the exact on-screen frame size, then upscale via
-        // `renderer.scale`. This keeps every element — including the canvas's
-        // absolute-point labels — at the same proportions shown in the viewer,
-        // just at share resolution. Inflating the layout instead would shrink the
-        // fixed-size labels relative to the canvas.
-        let frameSize = GenerativeCanvasView.framedCanvasSize
-        let targetWidth: CGFloat = 2160
-
-        let shareable = CanvasPosterView(
-            style: posterStyle,
-            date: displayDate,
-            userName: userName,
-            steps: snapshot?.steps,
-            sleepHours: snapshot?.sleepHours,
-            inkEarned: snapshot?.inkEarned,
-            inkSpent: snapshot?.inkSpent
-        ) {
-            canvasContent(dc, isOffscreenRender: true)
-        }
-        .frame(width: frameSize.width, height: frameSize.height)
-        .environment(\.appTheme, theme)
-
-        let renderer = ImageRenderer(content: shareable)
-        renderer.scale = targetWidth / frameSize.width
-        renderer.proposedSize = .init(width: frameSize.width, height: frameSize.height)
-        return renderer.uiImage
-    }
-
 }
 
 #Preview {

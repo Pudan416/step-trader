@@ -15,6 +15,219 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         app.launch()
     }
 
+    func testMeCalendarAllButtonKeepsTheFullCalendarPresented() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["ui-testing"]
+        app.launch()
+
+        let meTab = app.buttons["tab_me"]
+        XCTAssertTrue(meTab.waitForExistence(timeout: 8))
+        meTab.tap()
+
+        let allButton = app.buttons["me_archive_button"]
+        XCTAssertTrue(allButton.waitForExistence(timeout: 8))
+        allButton.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+
+        let calendarTitle = app.staticTexts["Calendar"]
+        XCTAssertTrue(calendarTitle.waitForExistence(timeout: 3))
+        XCTAssertTrue(calendarTitle.isHittable)
+        XCTAssertTrue(app.buttons["Previous month"].isHittable)
+        XCTAssertFalse(app.buttons["tab_me"].isHittable)
+        attachScreenshot(named: "me-full-calendar")
+    }
+
+    func testMeKeepsRecentDaysAboveTabBar() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "ui-testing",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryL",
+        ]
+        app.launch()
+
+        let meTab = app.buttons["tab_me"]
+        XCTAssertTrue(meTab.waitForExistence(timeout: 8))
+        meTab.tap()
+
+        let archive = app.buttons["me_archive_button"]
+        XCTAssertTrue(archive.waitForExistence(timeout: 8))
+        let settingsButton = app.buttons["me_settings_button"]
+        XCTAssertTrue(settingsButton.exists)
+        XCTAssertLessThan(
+            settingsButton.frame.minY,
+            archive.frame.minY,
+            "Opening Me should keep the page header above the recent-days section"
+        )
+
+        let dayButtons = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'me_calendar_day_'")
+        )
+        XCTAssertEqual(
+            dayButtons.count,
+            7,
+            "The compact strip should expose only the latest seven days; older history belongs in All"
+        )
+        let dayFrames = (0..<dayButtons.count)
+            .map { dayButtons.element(boundBy: $0).frame }
+            .sorted { $0.minX < $1.minX }
+        attachScreenshot(named: "me-layout-before-overlap-check")
+        for (left, right) in zip(dayFrames, dayFrames.dropFirst()) {
+            XCTAssertLessThan(
+                left.midX,
+                right.midX,
+                "All seven calendar cards must retain distinct visual slots"
+            )
+        }
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(dayFrames.first).minX, app.frame.minX)
+        XCTAssertLessThanOrEqual(try XCTUnwrap(dayFrames.last).maxX, app.frame.maxX)
+
+        let posterCarousel = app.descendants(matching: .any)["me_poster_carousel"]
+        XCTAssertTrue(posterCarousel.waitForExistence(timeout: 3))
+        let newestDay = try XCTUnwrap(posterCarousel.value as? String)
+
+        posterCarousel.swipeRight()
+        let movedToOlderDay = NSPredicate(format: "value != %@", newestDay)
+        expectation(for: movedToOlderDay, evaluatedWith: posterCarousel)
+        waitForExpectations(timeout: 3)
+        let olderDay = try XCTUnwrap(posterCarousel.value as? String)
+        XCTAssertNotEqual(olderDay, newestDay)
+
+        posterCarousel.swipeLeft()
+        let returnedToNewestDay = NSPredicate(format: "value == %@", newestDay)
+        expectation(for: returnedToNewestDay, evaluatedWith: posterCarousel)
+        waitForExpectations(timeout: 3)
+
+        posterCarousel.swipeLeft()
+        XCTAssertEqual(
+            posterCarousel.value as? String,
+            newestDay,
+            "Swiping toward a newer day must stop on today"
+        )
+        let visibleBottom = (0..<dayButtons.count)
+            .map { dayButtons.element(boundBy: $0) }
+            .map { $0.frame.maxY }
+            .max()
+        let calendarBottom = try XCTUnwrap(visibleBottom)
+        let calendarGap = meTab.frame.minY - calendarBottom
+        XCTAssertGreaterThan(
+            calendarGap,
+            0,
+            "Calendar should not sit underneath the floating tab bar"
+        )
+        XCTAssertLessThan(
+            calendarGap,
+            120,
+            "Calendar should finish immediately above the floating tab bar"
+        )
+        attachScreenshot(named: "me-layout")
+    }
+
+    func testTappingCalendarDayCentersTheWholeSelectedPoster() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["ui-testing"]
+        app.launch()
+
+        let meTab = app.buttons["tab_me"]
+        XCTAssertTrue(meTab.waitForExistence(timeout: 8))
+        meTab.tap()
+
+        let dayButtons = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'me_calendar_day_'")
+        )
+        XCTAssertEqual(dayButtons.count, 7)
+        let targetDay = dayButtons.allElementsBoundByAccessibilityElement
+            .sorted { $0.frame.minX < $1.frame.minX }[3]
+        let targetKey = targetDay.identifier.replacingOccurrences(
+            of: "me_calendar_day_",
+            with: ""
+        )
+
+        targetDay.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+
+        let carousel = app.descendants(matching: .any)["me_poster_carousel"]
+        let selectedValue = NSPredicate(format: "value == %@", targetKey)
+        expectation(for: selectedValue, evaluatedWith: carousel)
+        waitForExpectations(timeout: 3)
+
+        let selectedPoster = app.otherElements.matching(
+            NSPredicate(
+                format: "identifier == 'me_selected_day_poster' AND value == %@",
+                targetKey
+            )
+        ).firstMatch
+        XCTAssertTrue(selectedPoster.waitForExistence(timeout: 3))
+        XCTAssertEqual(
+            selectedPoster.frame.midX,
+            carousel.frame.midX,
+            accuracy: 2,
+            "Calendar selection must settle on one centered poster, not between two pages"
+        )
+        XCTAssertGreaterThanOrEqual(selectedPoster.frame.minX, carousel.frame.minX)
+        XCTAssertLessThanOrEqual(selectedPoster.frame.maxX, carousel.frame.maxX)
+        attachScreenshot(named: "me-calendar-selection-centered")
+    }
+
+    func testMePosterArtworkStaysFrozenAfterOpening() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["ui-testing", "ui-testing-me-static-poster"]
+        app.launch()
+
+        let meTab = app.buttons["tab_me"]
+        XCTAssertTrue(meTab.waitForExistence(timeout: 8))
+        meTab.tap()
+
+        let carousel = app.descendants(matching: .any)["me_poster_carousel"]
+        XCTAssertTrue(carousel.waitForExistence(timeout: 5))
+        let todayKey = try XCTUnwrap(carousel.value as? String)
+        let poster = app.otherElements.matching(
+            NSPredicate(
+                format: "identifier == 'me_selected_day_poster' AND value == %@",
+                todayKey
+            )
+        ).firstMatch
+        XCTAssertTrue(poster.waitForExistence(timeout: 5))
+
+        sleep(1)
+        let firstFrame = poster.screenshot().pngRepresentation
+        sleep(2)
+        let secondFrame = poster.screenshot().pngRepresentation
+
+        XCTAssertEqual(
+            firstFrame,
+            secondFrame,
+            "A Me poster must keep one saved artwork frame instead of replaying Canvas animation"
+        )
+        attachScreenshot(named: "me-static-poster")
+    }
+
+    func testMeArchiveActionLivesInTheRecentDaysHeader() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["ui-testing"]
+        app.launch()
+
+        let meTab = app.buttons["tab_me"]
+        XCTAssertTrue(meTab.waitForExistence(timeout: 8))
+        meTab.tap()
+
+        let archive = app.buttons["me_archive_button"]
+        XCTAssertTrue(archive.waitForExistence(timeout: 8))
+
+        let dayButtons = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'me_calendar_day_'")
+        )
+        XCTAssertEqual(dayButtons.count, 7)
+        let firstDay = dayButtons.element(boundBy: 0)
+        XCTAssertTrue(firstDay.exists)
+        XCTAssertLessThan(
+            archive.frame.maxY,
+            firstDay.frame.minY,
+            "Archive should read as a lightweight action in the recent-days header, not as a second bar above the tab bar"
+        )
+
+        archive.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.staticTexts["Calendar"].waitForExistence(timeout: 3))
+    }
+
     func testTask7FixRoundOneDefaultScreenshots() throws {
         let app = launchTask7App()
         openPalette(in: app)

@@ -54,13 +54,8 @@ enum HappeningPaletteChromeLayout {
             : max(compactInset, tabBarHeight + chromeSpacing)
     }
 
-    static func hidesSurroundingChrome(
-        isPalettePresented: Bool,
-        isPanelPresented: Bool,
-        dynamicTypeSize: DynamicTypeSize
-    ) -> Bool {
+    static func hidesSurroundingChrome(isPalettePresented: Bool) -> Bool {
         isPalettePresented
-            && (isPanelPresented || HappeningFieldLayout.usesExpandedLayout(for: dynamicTypeSize))
     }
 
     static func showsCanvasControls(isPalettePresented: Bool) -> Bool {
@@ -145,9 +140,7 @@ struct HappeningPaletteView: View {
                 dynamicTypeSize: dynamicTypeSize
             )
             let hidesSurroundingChrome = HappeningPaletteChromeLayout.hidesSurroundingChrome(
-                isPalettePresented: true,
-                isPanelPresented: activePanel != nil,
-                dynamicTypeSize: dynamicTypeSize
+                isPalettePresented: true
             )
             // Line the dock up with the canvas `+` it sits on top of — the
             // button reports its own position, so this never drifts from the
@@ -185,7 +178,7 @@ struct HappeningPaletteView: View {
                     }
 
                 Text("Shake to change the shapes", comment: "Palette shake hint")
-                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    .font(.geist(size: 13, weight: .regular, design: .rounded))
                     // `textSecondary` is a deliberate alias of `textPrimary` in
                     // this theme — hierarchy comes from opacity, so without this
                     // the hint reads as loud as the tile labels.
@@ -214,7 +207,7 @@ struct HappeningPaletteView: View {
                     // figures beside it any more it read as one more shape
                     // rather than as the end of the day's list.
                     Text("All added for today", comment: "Palette completion state")
-                        .font(.system(size: 17, weight: .medium, design: .rounded))
+                        .font(.geist(size: 17, weight: .medium, design: .rounded))
                         .foregroundStyle(AppColors.Night.textPrimary.opacity(0.75))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 32)
@@ -424,7 +417,7 @@ struct HappeningPaletteView: View {
     ) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 20, weight: .regular))
+                .font(.geist(size: 20, weight: .regular))
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(AppColors.Night.textPrimary)
                 .frame(width: 56, height: 56)
@@ -530,7 +523,7 @@ private struct HappeningCompletionIsland: View {
                 }
 
                 Text("All added for today")
-                    .font(.system(size: messagePointSize, weight: .semibold, design: .rounded))
+                    .font(.geist(size: messagePointSize, weight: .semibold, design: .rounded))
                     .foregroundStyle(.black.opacity(0.82))
                     .multilineTextAlignment(.center)
                     .lineLimit(3)

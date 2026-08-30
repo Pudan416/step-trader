@@ -106,6 +106,16 @@ final class HistoryThumbnailCache {
         }
     }
 
+    /// Drops all style-dependent thumbnails after a global appearance change.
+    func invalidateAll() {
+        memCache.removeAll()
+        accessOrder.removeAll()
+        guard let files = try? fileManager.contentsOfDirectory(atPath: diskCacheURL.path) else { return }
+        for file in files {
+            try? fileManager.removeItem(at: diskCacheURL.appending(path: file))
+        }
+    }
+
     /// Manually warms the memory cache for callers that already rendered a frame.
     func store(_ image: UIImage, dayKey: String, size: CGSize, theme: AppTheme) {
         let key = cacheKey(dayKey: dayKey, size: size, theme: theme)
@@ -180,7 +190,7 @@ final class HistoryThumbnailCache {
 
     // MARK: - Disk
 
-    private static let cacheVersion = 5
+    private static let cacheVersion = 6
 
     private func cacheKey(dayKey: String, size: CGSize, theme: AppTheme) -> String {
         "\(dayKey)_\(Int(size.width))x\(Int(size.height))_\(theme.rawValue)_v\(Self.cacheVersion)"

@@ -220,7 +220,7 @@ struct OnboardingStoriesView: View {
                                 goBack()
                             } label: {
                                 Image(systemName: "chevron.left")
-                                    .font(.system(size: 15, weight: .semibold))
+                                    .font(.geist(size: 15, weight: .semibold))
                                     .foregroundStyle(.white.opacity(0.85))
                                     .minimumHitTarget()
                             }
@@ -246,7 +246,7 @@ struct OnboardingStoriesView: View {
                 VStack(spacing: 8) {
                     if showFeedHint {
                         Text(String(localized: "first you need to add any one app"))
-                            .font(.systemSerif(13, weight: .light, relativeTo: .footnote))
+                            .font(.geist(13, weight: .light, relativeTo: .footnote))
                             .foregroundStyle(accent)
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
@@ -254,14 +254,14 @@ struct OnboardingStoriesView: View {
                     if isAppleLoginSkippable {
                         Button(action: next) {
                             Text(skipText)
-                                .font(.systemSerif(14, weight: .light, relativeTo: .subheadline))
+                                .font(.geist(14, weight: .light, relativeTo: .subheadline))
                                 .foregroundStyle(.white.opacity(0.25))
                                 .frame(maxWidth: .infinity, minHeight: 48)
                         }
                     } else {
                         Button(action: next) {
                             Text(primaryButtonTitle)
-                                .font(.headline)
+                                .font(.geist(.headline))
                                 .foregroundStyle(AppAccentInk.primary)
                                 .frame(maxWidth: .infinity, minHeight: 56)
                                 .background(isFeedSlideWithoutSelection ? accent.opacity(0.35) : accent)
@@ -284,7 +284,7 @@ struct OnboardingStoriesView: View {
                         if isFeedSlideWithoutSelection {
                             Button(action: skipFeedSelection) {
                                 Text(skipText)
-                                    .font(.systemSerif(14, weight: .light, relativeTo: .subheadline))
+                                    .font(.geist(14, weight: .light, relativeTo: .subheadline))
                                     .foregroundStyle(.white.opacity(0.35))
                                     .frame(maxWidth: .infinity, minHeight: 44)
                             }
@@ -313,7 +313,7 @@ struct OnboardingStoriesView: View {
                     finish(wantsTour: false)
                 } label: {
                     Text("Skip onboarding")
-                        .font(.caption.weight(.semibold))
+                        .font(.geist(.caption).weight(.semibold))
                         .foregroundStyle(.white.opacity(0.75))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
@@ -644,7 +644,7 @@ struct OnboardingStoriesView: View {
     @ViewBuilder
     private func onboardingLineText(_ line: String, size: CGFloat, relativeTo textStyle: Font.TextStyle = .body) -> some View {
         Text(line)
-            .font(.systemSerif(size, weight: .light, relativeTo: textStyle))
+            .font(.geist(size, weight: .light, relativeTo: textStyle))
             .foregroundStyle(.white.opacity(0.9))
             .multilineTextAlignment(.center)
             .lineSpacing(size >= 20 ? 4 : 3)
@@ -781,7 +781,7 @@ struct OnboardingStoriesView: View {
                 
                 if !tappedOrbs.isEmpty {
                     Text("\(tappedOrbs.count * 20)")
-                        .font(.systemSerif(36, weight: .thin, relativeTo: .largeTitle))
+                        .font(.geist(36, weight: .thin, relativeTo: .largeTitle))
                         .foregroundStyle(accent)
                         .contentTransition(.numericText())
                 }
@@ -803,10 +803,10 @@ struct OnboardingStoriesView: View {
                     } label: {
                         VStack(spacing: 4) {
                             Image(systemName: categories[i].icon)
-                                .font(.system(size: 18, weight: .light))
+                                .font(.geist(size: 18, weight: .light))
                                 .foregroundStyle(isTapped ? categories[i].color : .white.opacity(0.25))
                             Text(String(localized: "+20"))
-                                .font(.systemSerif(10, weight: .light, relativeTo: .caption))
+                                .font(.geist(10, weight: .light, relativeTo: .caption))
                                 .foregroundStyle(isTapped ? categories[i].color.opacity(0.8) : .white.opacity(0.2))
                         }
                         .frame(width: 54, height: 54)
@@ -880,11 +880,11 @@ struct OnboardingStoriesView: View {
                     .fill(accent)
                     .frame(width: 8, height: 8)
                 Text("\(demoColorPool)")
-                    .font(.systemSerif(28, weight: .thin, relativeTo: .title2))
+                    .font(.geist(28, weight: .thin, relativeTo: .title2))
                     .foregroundStyle(accent)
                     .contentTransition(.numericText())
                 Text(String(localized: "colors"))
-                    .font(.systemSerif(14, weight: .light, relativeTo: .caption))
+                    .font(.geist(14, weight: .light, relativeTo: .caption))
                     .foregroundStyle(.white.opacity(0.35))
             }
             .padding(.bottom, 20)
@@ -903,7 +903,7 @@ struct OnboardingStoriesView: View {
                 
                 if isUnlocked {
                     Image(systemName: "lock.open.fill")
-                        .font(.system(size: 16, weight: .light))
+                        .font(.geist(size: 16, weight: .light))
                         .foregroundStyle(.green.opacity(0.8))
                         .transition(.scale.combined(with: .opacity))
                 }
@@ -912,7 +912,7 @@ struct OnboardingStoriesView: View {
             
             if !isUnlocked {
                 Text(String(localized: "Instagram is closed."))
-                    .font(.systemSerif(14, weight: .light, relativeTo: .footnote))
+                    .font(.geist(14, weight: .light, relativeTo: .footnote))
                     .foregroundStyle(.white.opacity(0.45))
                     .padding(.bottom, 16)
             }
@@ -936,13 +936,13 @@ struct OnboardingStoriesView: View {
                     } label: {
                         HStack {
                             Text(tariff.label)
-                                .font(.systemSerif(16, weight: .light, relativeTo: .body))
+                                .font(.geist(16, weight: .light, relativeTo: .body))
                                 .foregroundStyle(isSelected ? accent : .white.opacity(canAfford ? 0.7 : 0.25))
                             
                             Spacer()
                             
                             Text("\(tariff.cost) colors")
-                                .font(.systemSerif(14, weight: .light, relativeTo: .subheadline))
+                                .font(.geist(14, weight: .light, relativeTo: .subheadline))
                                 .foregroundStyle(isSelected ? accent : .white.opacity(canAfford ? 0.45 : 0.15))
                         }
                         .padding(.horizontal, 20)
@@ -1017,11 +1017,11 @@ struct OnboardingStoriesView: View {
                                 .fill(Color.white.opacity(0.05))
                                 .frame(width: 64, height: 64)
                             Image(systemName: step.icon)
-                                .font(.system(size: 22, weight: .ultraLight))
+                                .font(.geist(size: 22, weight: .ultraLight))
                                 .foregroundStyle(visible ? accent : .white.opacity(0.15))
                         }
                         Text(step.label)
-                            .font(.systemSerif(13, weight: .light, relativeTo: .caption))
+                            .font(.geist(13, weight: .light, relativeTo: .caption))
                             .foregroundStyle(visible ? .white.opacity(0.6) : .white.opacity(0.15))
                     }
                     .opacity(visible ? 1 : 0.3)
@@ -1030,7 +1030,7 @@ struct OnboardingStoriesView: View {
                     
                     if i < steps.count - 1 {
                         Image(systemName: "arrow.right")
-                            .font(.system(size: 12, weight: .ultraLight))
+                            .font(.geist(size: 12, weight: .ultraLight))
                             .foregroundStyle(.white.opacity(loopPhase > i ? 0.25 : 0.08))
                     }
                 }
@@ -1067,12 +1067,12 @@ struct OnboardingStoriesView: View {
             .padding(.bottom, 36)
             
             Text(formatGroupedNumber(Int(stepsTarget)))
-                .font(.systemSerif(60, weight: .thin, relativeTo: .largeTitle))
+                .font(.geist(60, weight: .thin, relativeTo: .largeTitle))
                 .foregroundStyle(accent)
                 .contentTransition(.numericText())
             
             Text(String(localized: "steps", comment: "Onboarding – steps unit label"))
-                .font(.systemSerif(16, weight: .light, relativeTo: .subheadline))
+                .font(.geist(16, weight: .light, relativeTo: .subheadline))
                 .foregroundStyle(.white.opacity(0.4))
                 .padding(.bottom, 28)
             
@@ -1087,7 +1087,7 @@ struct OnboardingStoriesView: View {
                     Spacer()
                     Text(String(localized: "15,000", comment: "Onboarding – steps slider maximum"))
                 }
-                .font(.systemSerif(13, weight: .light, relativeTo: .footnote))
+                .font(.geist(13, weight: .light, relativeTo: .footnote))
                 .foregroundStyle(.white.opacity(0.3))
                 .padding(.horizontal, 44)
             }
@@ -1113,12 +1113,12 @@ struct OnboardingStoriesView: View {
             .padding(.bottom, 36)
             
             Text(sleepTarget.formatted(.number.precision(.fractionLength(1))))
-                .font(.systemSerif(60, weight: .thin, relativeTo: .largeTitle))
+                .font(.geist(60, weight: .thin, relativeTo: .largeTitle))
                 .foregroundStyle(accent)
                 .contentTransition(.numericText())
             
             Text(String(localized: "hours", comment: "Onboarding – sleep unit label"))
-                .font(.systemSerif(16, weight: .light, relativeTo: .subheadline))
+                .font(.geist(16, weight: .light, relativeTo: .subheadline))
                 .foregroundStyle(.white.opacity(0.4))
                 .padding(.bottom, 28)
             
@@ -1133,7 +1133,7 @@ struct OnboardingStoriesView: View {
                     Spacer()
                     Text(String(localized: "10h", comment: "Onboarding – sleep slider maximum"))
                 }
-                .font(.systemSerif(13, weight: .light, relativeTo: .footnote))
+                .font(.geist(13, weight: .light, relativeTo: .footnote))
                 .foregroundStyle(.white.opacity(0.3))
                 .padding(.horizontal, 44)
             }
@@ -1159,7 +1159,7 @@ struct OnboardingStoriesView: View {
             
             if let microcopy = slide.microcopy {
                 Text(microcopy)
-                    .font(.systemSerif(14, weight: .light, relativeTo: .footnote))
+                    .font(.geist(14, weight: .light, relativeTo: .footnote))
                     .foregroundStyle(.white.opacity(0.35))
                     .padding(.top, 16)
             }
@@ -1229,7 +1229,7 @@ struct OnboardingStoriesView: View {
                                 
                                 if isSelected {
                                     Image(systemName: "checkmark.circle.fill")
-                                        .font(.systemSerif(16, relativeTo: .subheadline))
+                                        .font(.geist(16, relativeTo: .subheadline))
                                         .foregroundStyle(accent)
                                         .background(Circle().fill(.black).padding(2))
                                         .offset(x: 4, y: -4)
@@ -1237,7 +1237,7 @@ struct OnboardingStoriesView: View {
                             }
                             
                             Text(app.name)
-                                .font(.systemSerif(11, weight: .light, relativeTo: .caption))
+                                .font(.geist(11, weight: .light, relativeTo: .caption))
                                 .foregroundStyle(isSelected ? .white : .white.opacity(0.4))
                                 .lineLimit(1)
                         }
@@ -1261,7 +1261,7 @@ struct OnboardingStoriesView: View {
 
             if hasSelection {
                 Text(String(localized: "i'll nudge you when colors are ready to spend."))
-                    .font(.systemSerif(13, weight: .light, relativeTo: .footnote))
+                    .font(.geist(13, weight: .light, relativeTo: .footnote))
                     .foregroundStyle(accent.opacity(0.8))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
@@ -1271,7 +1271,7 @@ struct OnboardingStoriesView: View {
 
             if !hasSelection, let microcopy = slide.microcopy {
                 Text(microcopy)
-                    .font(.systemSerif(13, weight: .light, relativeTo: .footnote))
+                    .font(.geist(13, weight: .light, relativeTo: .footnote))
                     .foregroundStyle(.white.opacity(0.35))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
@@ -1318,7 +1318,8 @@ struct OnboardingStoriesView: View {
                 
                 HStack(spacing: 0) {
                     Text("NOW")
-                        .font(.systemSerif(48, weight: .thin, relativeTo: .largeTitle))
+                        .font(.unbounded(48, weight: .light, relativeTo: .largeTitle))
+                        .fontDesign(nil)
                         .foregroundStyle(revealPhase >= 2 ? accent : .white.opacity(0.74))
                         .offset(x: -nowhereSplit)
                     
@@ -1327,7 +1328,8 @@ struct OnboardingStoriesView: View {
                         .frame(width: max(nowhereSplit * 0.15, 0), height: 40)
                     
                     Text("HERE")
-                        .font(.systemSerif(48, weight: .thin, relativeTo: .largeTitle))
+                        .font(.unbounded(48, weight: .light, relativeTo: .largeTitle))
+                        .fontDesign(nil)
                         .foregroundStyle(revealPhase >= 2 ? accent : .white.opacity(0.74))
                         .offset(x: nowhereSplit)
                 }
@@ -1372,7 +1374,7 @@ struct OnboardingStoriesView: View {
 
             if let microcopy = slide.microcopy {
                 Text(microcopy)
-                    .font(.systemSerif(14, weight: .light, relativeTo: .footnote))
+                    .font(.geist(14, weight: .light, relativeTo: .footnote))
                     .foregroundStyle(.white.opacity(0.35))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 36)
@@ -1382,10 +1384,10 @@ struct OnboardingStoriesView: View {
             if let auth = authService, auth.hasAppleAccount {
                 HStack(spacing: 10) {
                     Image(systemName: "checkmark.circle")
-                        .font(.systemSerif(20, weight: .thin, relativeTo: .title3))
+                        .font(.geist(20, weight: .thin, relativeTo: .title3))
                         .foregroundStyle(.green.opacity(0.8))
                     Text(String(localized: "Signed in", comment: "Onboarding – Apple sign-in success state"))
-                        .font(.systemSerif(18, weight: .light, relativeTo: .body))
+                        .font(.geist(18, weight: .light, relativeTo: .body))
                         .foregroundStyle(.white.opacity(0.7))
                 }
                 .transition(.opacity.combined(with: .scale))
@@ -1496,20 +1498,21 @@ struct OnboardingStoriesView: View {
             
             VStack(spacing: 16) {
                 Text(String(localized: "welcome to nowhere"))
-                    .font(.systemSerif(24, weight: .light, relativeTo: .title2))
+                    .font(.unbounded(24, weight: .regular, relativeTo: .title2))
+                    .fontDesign(nil)
                     .foregroundStyle(.white.opacity(0.7))
                 
                 if let name = authService?.currentUser?.displayName,
                    !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text(name.trimmingCharacters(in: .whitespacesAndNewlines))
-                        .font(.systemSerif(36, weight: .thin, relativeTo: .title))
+                        .font(.geist(36, weight: .thin, relativeTo: .title))
                         .foregroundStyle(accent)
                         .scaleEffect(welcomeNameVisible ? 1.0 : 0.85)
                         .opacity(welcomeNameVisible ? 1.0 : 0)
                 }
                 
                 Text(String(localized: "you're here."))
-                    .font(.systemSerif(18, weight: .light, relativeTo: .body))
+                    .font(.geist(18, weight: .light, relativeTo: .body))
                     .foregroundStyle(.white.opacity(0.45))
                     .opacity(welcomeNameVisible ? 1 : 0)
                     .padding(.top, 4)
@@ -1618,7 +1621,7 @@ struct OnboardingStoriesView: View {
 
             if balancePhase >= 3 {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 48, weight: .ultraLight))
+                    .font(.geist(size: 48, weight: .ultraLight))
                     .foregroundStyle(accent.opacity(0.6))
                     .transition(.scale.combined(with: .opacity))
                     .padding(.bottom, 32)
@@ -1638,7 +1641,7 @@ struct OnboardingStoriesView: View {
                 )
 
                 Text(String(localized: "you can change this later."))
-                    .font(.systemSerif(13, weight: .light, relativeTo: .footnote))
+                    .font(.geist(13, weight: .light, relativeTo: .footnote))
                     .foregroundStyle(.white.opacity(0.4))
                     .padding(.top, 4)
             }
@@ -1715,16 +1718,16 @@ struct OnboardingStoriesView: View {
                                     .fill(cat.color.opacity(0.15))
                                     .frame(width: 56, height: 56)
                                 Image(systemName: cat.icon)
-                                    .font(.system(size: 22, weight: .light))
+                                    .font(.geist(size: 22, weight: .light))
                                     .foregroundStyle(cat.color)
                             }
 
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(cat.label)
-                                    .font(.systemSerif(16, weight: .medium, relativeTo: .body))
+                                    .font(.geist(16, weight: .medium, relativeTo: .body))
                                     .foregroundStyle(.white.opacity(0.85))
                                 Text(cat.desc)
-                                    .font(.systemSerif(13, weight: .light, relativeTo: .caption))
+                                    .font(.geist(13, weight: .light, relativeTo: .caption))
                                     .foregroundStyle(.white.opacity(0.45))
                                     .lineLimit(2)
                             }
@@ -1754,7 +1757,7 @@ struct OnboardingStoriesView: View {
 
     // MARK: - Onboarding Canvas Elements (slide 8+)
 
-    /// Fixed so the demo canvas's fill (rings/hatch/stipple mix) is stable
+    /// Fixed so the demo canvas's fill (rings/hatch mix) is stable
     /// across runs — `onboardingCanvasElements` below builds elements by hand
     /// rather than through `spawn`, so this is only consumed by the renderer's
     /// `dayComposition`, not by element placement.
@@ -1821,10 +1824,10 @@ struct OnboardingStoriesView: View {
 
                 HStack(spacing: 8) {
                     Text("100")
-                        .font(.systemSerif(36, weight: .thin, relativeTo: .largeTitle))
+                        .font(.geist(36, weight: .thin, relativeTo: .largeTitle))
                         .foregroundStyle(accent)
                     Text(String(localized: "colors"))
-                        .font(.systemSerif(16, weight: .light, relativeTo: .body))
+                        .font(.geist(16, weight: .light, relativeTo: .body))
                         .foregroundStyle(.white.opacity(0.5))
                 }
                 .padding(.top, 8)
@@ -1849,7 +1852,7 @@ struct OnboardingStoriesView: View {
             Spacer()
 
             Image(systemName: "bell.badge")
-                .font(.system(size: 48, weight: .ultraLight))
+                .font(.geist(size: 48, weight: .ultraLight))
                 .foregroundStyle(accent.opacity(0.6))
                 .padding(.bottom, 32)
 
@@ -1888,13 +1891,14 @@ struct OnboardingStoriesView: View {
 
             VStack(spacing: 24) {
                 Text(String(localized: "welcome to"))
-                    .font(.systemSerif(20, weight: .light, relativeTo: .title3))
+                    .font(.geist(20, weight: .light, relativeTo: .title3))
                     .foregroundStyle(.white.opacity(0.5))
                     .opacity(welcomeV8Phase >= 1 ? 1 : 0)
 
                 HStack(spacing: 0) {
                     Text("NOW")
-                        .font(.systemSerif(48, weight: .thin, relativeTo: .largeTitle))
+                        .font(.unbounded(48, weight: .light, relativeTo: .largeTitle))
+                        .fontDesign(nil)
                         .foregroundStyle(welcomeV8Phase >= 2 ? accent : .white.opacity(0.74))
                         .offset(x: -welcomeV8Split)
 
@@ -1903,7 +1907,8 @@ struct OnboardingStoriesView: View {
                         .frame(width: max(welcomeV8Split * 0.15, 0), height: 40)
 
                     Text("HERE")
-                        .font(.systemSerif(48, weight: .thin, relativeTo: .largeTitle))
+                        .font(.unbounded(48, weight: .light, relativeTo: .largeTitle))
+                        .fontDesign(nil)
                         .foregroundStyle(welcomeV8Phase >= 2 ? accent : .white.opacity(0.74))
                         .offset(x: welcomeV8Split)
                 }
@@ -1912,7 +1917,7 @@ struct OnboardingStoriesView: View {
                    let name = authService?.currentUser?.displayName,
                    !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text(name.trimmingCharacters(in: .whitespacesAndNewlines))
-                        .font(.systemSerif(28, weight: .thin, relativeTo: .title))
+                        .font(.geist(28, weight: .thin, relativeTo: .title))
                         .foregroundStyle(accent.opacity(0.8))
                         .transition(.opacity)
                 }

@@ -57,7 +57,7 @@ struct HappeningChooserView: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Choose happenings")
-                    .font(.title3.weight(.semibold))
+                    .font(.geist(.title3).weight(.semibold))
                     .accessibilityAddTraits(.isHeader)
                     .accessibilitySortPriority(
                         HappeningPanelAccessibilityOrder.priority(
@@ -67,7 +67,7 @@ struct HappeningChooserView: View {
                     )
 
                 Text("\(draft.ids.count)/\(HappeningPaletteSelection.slotCount)")
-                    .font(.title3.weight(.semibold))
+                    .font(.geist(.title3).weight(.semibold))
                     .foregroundStyle(
                         draft.ids.count == HappeningPaletteSelection.slotCount
                             ? AppColors.brandAccent
@@ -182,7 +182,7 @@ struct HappeningChooserView: View {
             // called first and on whether it is in the palette second.
             HStack(spacing: 12) {
                 Text(happening.localizedTitle())
-                    .font(.body)
+                    .font(.geist(.body))
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.leading)
 
@@ -201,7 +201,7 @@ struct HappeningChooserView: View {
                         }
                     if isSelected {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.geist(size: 14, weight: .bold))
                             .foregroundStyle(Color.black.opacity(0.8))
                     }
                 }

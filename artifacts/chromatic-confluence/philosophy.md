@@ -1,0 +1,11 @@
+# Gesture Field
+
+Gesture Field treats a moving point as a brush whose true body is memory. Ten kindred agents cross a portrait atmosphere, but none is represented by a solid object. Each appears through the layered evidence of where it has been: filaments, broken marks, bright knots, and fading chromatic echoes. The meticulously crafted algorithm turns duration into composition, so every frame is both a present event and a drawing of recent time.
+
+The agents follow one asymmetrical orbital law with seeded phase, lane, and harmonic differences. A smooth curl-like disturbance bends the shared path without replacing it with arbitrary noise. This balance is the product of deep computational refinement: enough instability to feel hand-drawn and alive, enough structure to preserve a deliberate visual hierarchy throughout the cycle. Identical seeds always recover the same choreography.
+
+Each gesture consists of several neighboring filaments rather than one perfect stroke. Their offsets breathe along the local normal of the trajectory, creating marks that alternately resemble handwriting, magnetic field lines, and strands seen through moving water. Color travels from one endpoint of a palette to another across remembered time. Painstaking opacity and line-weight calibration keeps the trails luminous without allowing their many crossings to collapse into visual fog.
+
+Encounter is expressed through interference. When two brush heads approach, a small family of oscillating curves forms between them; at the midpoint, circular fragments register a temporary vortex. The agents do not abandon their paths. Instead, the shared field briefly becomes visible, like a conversation drawn in air. This master-level interaction system uses continuous distance functions so every knot appears and dissolves without a mechanical cut.
+
+Behind the gestures, midnight blue rises through cobalt and violet into coral and apricot. Fine seeded grain and a nearly invisible field of directional marks give the atmosphere depth while leaving space for the active drawing. Adjustable memory, turbulence, line weight, tempo, and encounter radius expose only the essential qualities of the living system. Beauty resides in the process: every instant is composed to stand alone as a wallpaper, while remaining unmistakably part of an evolving computational performance.

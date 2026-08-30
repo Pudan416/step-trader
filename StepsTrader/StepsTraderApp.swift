@@ -88,6 +88,24 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 @main
 struct StepsTraderApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
+    var body: some Scene {
+        WindowGroup {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("ui-testing") &&
+                ProcessInfo.processInfo.arguments.contains("ui-testing-ticket-settings") {
+                TicketSettingsUITestFixtureView()
+            } else {
+                StepsTraderProductionRoot()
+            }
+            #else
+            StepsTraderProductionRoot()
+            #endif
+        }
+    }
+}
+
+private struct StepsTraderProductionRoot: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var model: AppModel
     @StateObject private var errorManager = ErrorManager.shared
@@ -124,6 +142,46 @@ struct StepsTraderApp: App {
     }
 
     init() {
+        let processArguments = ProcessInfo.processInfo.arguments
+
+        if processArguments.contains("ui-testing-me-static-poster") {
+            let dayKey = AppModel.dayKey(for: Date.now)
+            var canvas = DayCanvas(dayKey: dayKey)
+            let fixtureDate = Date(timeIntervalSinceReferenceDate: 800_000_000)
+            canvas.elements = [
+                CanvasElement(
+                    id: UUID(uuidString: "A83479D2-BEFA-40C8-AB45-A951FF2A7B0F")!,
+                    kind: .circle,
+                    optionId: "ui-test-static-poster",
+                    label: "Static poster fixture",
+                    hexColor: "#B58AE8",
+                    hexColor2: "#4EC5D4",
+                    size: 0.24,
+                    basePosition: CGPoint(x: 0.5, y: 0.5),
+                    phaseOffset: 0.75,
+                    driftSpeed: 2,
+                    driftAmplitude: 0.12,
+                    pulseFrequency: 2.5,
+                    pulseAmplitude: 0.1,
+                    rotationSpeed: 1,
+                    opacity: 0.9,
+                    createdAt: fixtureDate,
+                    shapeSeed: 42,
+                    lastEditedAt: fixtureDate,
+                    frozenShapeType: .snowflake
+                )
+            ]
+            canvas.sleepPoints = 14
+            canvas.stepsPoints = 16
+            canvas.inkEarned = 30
+            canvas.gradientStyle = GradientStyle.mesh.rawValue
+            canvas.gradientPalette = GradientPalette.aurora.rawValue
+            canvas.hasStepsData = true
+            canvas.hasSleepData = true
+            canvas.lastModified = fixtureDate
+            CanvasStorageService.shared.saveCanvas(canvas)
+        }
+
         // Task 7 screenshot scenarios mutate today's additions. Xcode reuses the
         // installed app container across UI-test methods, so without resetting
         // this fixture-only state an "all used" test empties the palette for
@@ -133,6 +191,13 @@ struct StepsTraderApp: App {
             CanvasStorageService.shared.deleteCanvas(
                 for: AppModel.dayKey(for: Date.now)
             )
+        }
+        if ProcessInfo.processInfo.arguments.contains("ui-testing-settings") {
+            let defaults = UserDefaults.stepsTrader()
+            defaults.set(10_000.0, forKey: SharedKeys.userStepsTarget)
+            defaults.set(8.0, forKey: SharedKeys.userSleepTarget)
+            defaults.set(0, forKey: SharedKeys.dayEndHour)
+            defaults.set(0, forKey: SharedKeys.dayEndMinute)
         }
         _model = StateObject(wrappedValue: DIContainer.shared.makeAppModel())
 
@@ -228,8 +293,27 @@ struct StepsTraderApp: App {
         )
     }
 
-    var body: some Scene {
-        WindowGroup {
+    var body: some View {
+        Group {
+            #if DEBUG
+            // Debug-only shortcut: `-uiLab dayRays` opens an experiment
+            // straight from launch. Driving the settings path with synthetic
+            // taps is unreliable enough that verifying a shader visually
+            // otherwise costs more than building it.
+            if let lab = ExperimentalLabRoute.current {
+                NavigationStack { lab.view }
+            } else {
+                appBody
+            }
+            #else
+            appBody
+            #endif
+        }
+        .font(AppFonts.body)
+    }
+
+    @ViewBuilder
+    private var appBody: some View {
             GlassShimmerProvider {
             ZStack {
                 if hasCompletedOnboarding || isUITest {
@@ -485,7 +569,6 @@ struct StepsTraderApp: App {
             .background(currentTheme.backgroundColor)
             .preferredColorScheme(currentTheme.colorScheme)
             } // GlassShimmerProvider
-        }
     }
 
     private func handleWidgetOpenApp(_ url: URL) {
@@ -669,14 +752,67 @@ struct StepsTraderApp: App {
 
 }
 
-private extension StepsTraderApp {
+#if DEBUG
+private struct TicketSettingsUITestFixtureView: View {
+    @State private var group = TicketGroup(
+        id: "ui-testing-study",
+        name: "Study",
+        settings: AppUnlockSettings(entryCostSteps: 10, dayPassCostSteps: 100),
+        enabledIntervals: []
+    )
+    @State private var showsSettings = false
+    @State private var isDeleted = false
+
+    var body: some View {
+        ZStack {
+            Color.clear
+                .accessibilityElement()
+                .accessibilityIdentifier("ui-testing-ticket-settings.isolatedRoot")
+                .accessibilityLabel("Isolated ticket settings fixture")
+                .allowsHitTesting(false)
+
+            Button(String(localized: "Feeds")) {
+                guard !isDeleted else { return }
+                showsSettings = true
+            }
+            .accessibilityIdentifier("tab_feeds")
+        }
+        .sheet(isPresented: $showsSettings) {
+            NavigationStack {
+                TicketSettingsContentView(
+                    group: $group,
+                    onEditApps: {},
+                    onAfterDelete: {
+                        showsSettings = false
+                    },
+                    updateGroup: { updatedGroup in
+                        group = updatedGroup
+                    },
+                    deleteTicketGroup: { _ in
+                        isDeleted = true
+                    },
+                    isUsageBudgetActive: { _ in false },
+                    unspentUsageBudget: { _ in 0 },
+                    availableStepsBalance: { 0 },
+                    handlePayGatePayment: { _, _, _ in }
+                )
+                .padding()
+                .navigationTitle(String(localized: "Study"))
+                .navigationBarTitleDisplayMode(.inline)
+            }
+        }
+    }
+}
+#endif
+
+private extension StepsTraderProductionRoot {
     var currentTheme: AppTheme {
         AppTheme.normalized(rawValue: appThemeRaw)
     }
 }
 
 // MARK: - Notification Handling
-extension StepsTraderApp {
+extension StepsTraderProductionRoot {
     func setupNotificationHandling() {
         NotificationDelegate.shared.model = model
     }

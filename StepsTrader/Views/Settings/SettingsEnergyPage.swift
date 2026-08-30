@@ -6,7 +6,6 @@ struct SettingsEnergyPage: View {
     @AppStorage(SharedKeys.userSleepTarget, store: UserDefaults.stepsTrader()) private var sleepTarget: Double = EnergyDefaults.sleepTargetHours
     @AppStorage(SharedKeys.dayEndHour, store: UserDefaults.stepsTrader()) private var dayEndHourSetting: Int = 0
     @AppStorage(SharedKeys.dayEndMinute, store: UserDefaults.stepsTrader()) private var dayEndMinuteSetting: Int = 0
-    @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.appTheme) private var theme
 
     private var allowedBedtimeMinutes: [Int] { DayEndOptions.allowedMinutes }
@@ -15,74 +14,83 @@ struct SettingsEnergyPage: View {
 
     var body: some View {
         ZStack {
-            SettingsGradientBG(model: model)
+            SettingsDetailBackground(model: model)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    DetailHeader(title: String(localized: "Limits", comment: "Settings section title"))
-                        .padding(.horizontal, 16)
-
                     // MARK: - Steps
-                    VStack(spacing: 12) {
-                        sectionHeader(
-                            icon: "figure.walk",
-                            title: String(localized: "Daily Steps Goal"),
-                            color: AppColors.brandAccent,
-                            value: formatCompactNumber(Int(stepsTarget))
-                        )
+                    SettingsGroupedSurface {
+                        VStack(spacing: 12) {
+                            sectionHeader(
+                                icon: "figure.walk",
+                                title: String(localized: "Daily Steps Goal"),
+                                color: AppColors.brandAccent,
+                                value: formatCompactNumber(Int(stepsTarget))
+                            )
 
-                        StepGoalDrumPicker(value: $stepsTarget)
-                            .padding(.bottom, 14)
-                            .onChange(of: stepsTarget) { _, _ in
-                                model.recalculateDailyEnergy()
-                            }
+                            StepGoalDrumPicker(value: $stepsTarget)
+                                .padding(.bottom, 14)
+                                .onChange(of: stepsTarget) { _, _ in
+                                    model.recalculateDailyEnergy()
+                                }
+                        }
                     }
                     .padding(.horizontal, 16)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("settings.yourDay.steps")
 
                     DetailDivider().padding(.horizontal, 16)
 
                     // MARK: - Sleep Goal
-                    VStack(spacing: 12) {
-                        sectionHeader(
-                            icon: "bed.double.fill",
-                            title: String(localized: "Sleep Goal"),
-                            color: Color.indigo
-                        )
+                    SettingsGroupedSurface {
+                        VStack(spacing: 12) {
+                            sectionHeader(
+                                icon: "bed.double.fill",
+                                title: String(localized: "Sleep Goal"),
+                                color: Color.indigo
+                            )
 
-                        SleepDurationStepper(hours: $sleepTarget)
-                            .frame(maxWidth: .infinity)
-                            .padding(.bottom, 14)
-                            .onChange(of: sleepTarget) { _, _ in
-                                model.recalculateDailyEnergy()
-                            }
+                            SleepDurationStepper(hours: $sleepTarget)
+                                .frame(maxWidth: .infinity)
+                                .padding(.bottom, 14)
+                                .onChange(of: sleepTarget) { _, _ in
+                                    model.recalculateDailyEnergy()
+                                }
+                        }
                     }
                     .padding(.horizontal, 16)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("settings.yourDay.sleep")
 
                     DetailDivider().padding(.horizontal, 16)
 
                     // MARK: - Day Reset
-                    VStack(spacing: 10) {
-                        sectionHeader(
-                            icon: "clock.arrow.circlepath",
-                            title: String(localized: "Day Resets At"),
-                            color: Color.orange
-                        )
+                    SettingsGroupedSurface {
+                        VStack(spacing: 10) {
+                            sectionHeader(
+                                icon: "clock.arrow.circlepath",
+                                title: String(localized: "Day Resets At"),
+                                color: Color.orange
+                            )
 
-                        DayResetTimePicker(
-                            selectedMinutes: $bedtimeMinutes,
-                            allowedMinutes: allowedBedtimeMinutes
-                        )
-                        .padding(.bottom, 14)
-                        .onChange(of: bedtimeMinutes) { _, newValue in
-                            let hour = (newValue / 60) % 24
-                            let minute = newValue % 60
-                            // model.updateDayEnd is the single (debounced) writer of
-                            // the persisted boundary; writing dayEndHour/MinuteSetting
-                            // here too would race the re-anchor → false day rollover.
-                            model.updateDayEnd(hour: hour, minute: minute)
+                            DayResetTimePicker(
+                                selectedMinutes: $bedtimeMinutes,
+                                allowedMinutes: allowedBedtimeMinutes
+                            )
+                            .padding(.bottom, 14)
+                            .onChange(of: bedtimeMinutes) { _, newValue in
+                                let hour = (newValue / 60) % 24
+                                let minute = newValue % 60
+                                // model.updateDayEnd is the single (debounced) writer of
+                                // the persisted boundary; writing dayEndHour/MinuteSetting
+                                // here too would race the re-anchor → false day rollover.
+                                model.updateDayEnd(hour: hour, minute: minute)
+                            }
                         }
                     }
                     .padding(.horizontal, 16)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("settings.yourDay.boundary")
 
                     SettingsFooter(text: String(localized: "Your canvas and colors reset at this time each day."))
                         .padding(.horizontal, 20)
@@ -91,17 +99,12 @@ struct SettingsEnergyPage: View {
             }
         }
         .overlay { }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            Color.clear.frame(height: topCardHeight)
-        }
-        .toolbar(.hidden, for: .navigationBar)
-        .detailSwipeBack()
+        .settingsDetailPage(title: String(localized: "Your day", comment: "Settings section title"))
         .onAppear { syncBedtimeFromStorage() }
     }
 
-    /// Mirrors `DayEndSettingsView.syncSelectedFromStorage()`: if the stored dayEnd
-    /// is off-grid, snap to the nearest valid step and write the snapped value back so
-    /// the picker UI and persistent state agree.
+    /// If the stored dayEnd is off-grid, snap to the nearest valid step and write the
+    /// snapped value back so the picker UI and persistent state agree.
     private func syncBedtimeFromStorage() {
         let current = dayEndHourSetting * 60 + dayEndMinuteSetting
         if allowedBedtimeMinutes.contains(current) {
@@ -121,17 +124,17 @@ struct SettingsEnergyPage: View {
     private func sectionHeader(icon: String, title: String, color: Color, value: String? = nil) -> some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.geist(size: 14, weight: .semibold))
                 .foregroundStyle(color)
                 .frame(width: 28, height: 28)
                 .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
             Text(title)
-                .font(.subheadline.weight(.semibold))
+                .font(.geist(.subheadline).weight(.semibold))
                 .foregroundStyle(theme.adaptivePrimaryText)
             Spacer()
             if let value {
                 Text(value)
-                    .font(.subheadline.weight(.bold).monospacedDigit())
+                    .font(.geist(.subheadline).weight(.bold).monospacedDigit())
                     .foregroundStyle(color)
             }
         }

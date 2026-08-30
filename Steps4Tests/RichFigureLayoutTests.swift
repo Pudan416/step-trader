@@ -1,0 +1,213 @@
+import XCTest
+@testable import Steps4
+
+final class RichFigureLayoutTests: XCTestCase {
+    func testFootprintsAreStableAcrossShuffle() {
+        let elements = RichAssignmentFixture.elements(count: 10)
+        let a = RichFigureAssignment.make(elements: elements, dayKey: "2026-08-16", shuffleNonce: 0)
+        let b = RichFigureAssignment.make(elements: elements, dayKey: "2026-08-16", shuffleNonce: 9)
+        let layoutA = RichFigureLayout.make(elements: elements, styles: a)
+        let layoutB = RichFigureLayout.make(elements: elements, styles: b)
+
+        for element in elements {
+            let diameterA = try! XCTUnwrap(layoutA[element.id]?.targetDiameterFraction)
+            let diameterB = try! XCTUnwrap(layoutB[element.id]?.targetDiameterFraction)
+            XCTAssertEqual(diameterA, diameterB, accuracy: 0.000_001)
+            XCTAssertEqual(layoutA[element.id]?.center, layoutB[element.id]?.center)
+        }
+    }
+
+    func testTenNearlyEqualSourcesStillFormStrongCompositionalRoles() {
+        var elements = RichAssignmentFixture.elements(count: 10)
+        for index in elements.indices {
+            elements[index].size = 0.20 + CGFloat(index) * 0.000_1
+        }
+        let styles = RichFigureAssignment.make(elements: elements, dayKey: "2026-08-16", shuffleNonce: 0)
+        let values = RichFigureLayout.make(elements: elements, styles: styles)
+            .values.map(\.targetDiameterFraction).sorted()
+
+        XCTAssertEqual(
+            values,
+            [0.14, 0.16, 0.17, 0.18, 0.21, 0.23, 0.25, 0.29, 0.32, 0.38]
+        )
+    }
+
+    func testStarOpticalScaleExceedsOrganicScale() {
+        XCTAssertGreaterThan(RichFigureLayout.opticalScale(for: .crystallineStar),
+                             RichFigureLayout.opticalScale(for: .luminousOrganic))
+    }
+
+    func testBoundaryEnvelopeContainsLargestStarFootprintOverscanAndDriftExtrema() {
+        let canvasSize = CGSize(width: 390, height: 844)
+        let layout = RichFigureLayoutSpec(
+            center: CGPoint(x: 0.08, y: 0.91),
+            targetDiameterFraction: 0.34,
+            opticalScale: RichFigureLayout.opticalScale(for: .crystallineStar),
+            overscanFraction: 0.14
+        )
+
+        let envelope = RichFigureLayout.edgeSafeEnvelope(
+            for: layout,
+            canvasSize: canvasSize
+        )
+
+        XCTAssertEqual(envelope.sourceCenter.x, 31.2, accuracy: 0.000_001)
+        XCTAssertEqual(envelope.sourceCenter.y, 768.04, accuracy: 0.000_001)
+        XCTAssertEqual(envelope.effectiveTargetDiameter, 132.6, accuracy: 0.000_001)
+        XCTAssertGreaterThanOrEqual(
+            envelope.maximumContentRadius,
+            envelope.effectiveTargetDiameter * 1.12 / 2
+        )
+        XCTAssertGreaterThanOrEqual(
+            envelope.effectReserve,
+            envelope.effectiveTargetDiameter * 0.14 / 2
+        )
+
+        for proposedCenter in [
+            CGPoint(x: -390, y: -844),
+            envelope.sourceCenter,
+            CGPoint(x: 780, y: 1_688)
+        ] {
+            let center = envelope.constrainedCenter(proposedCenter)
+            XCTAssertGreaterThanOrEqual(
+                center.x - envelope.totalRadius,
+                -0.000_001
+            )
+            XCTAssertLessThanOrEqual(
+                center.x + envelope.totalRadius,
+                canvasSize.width + 0.000_001
+            )
+            XCTAssertGreaterThanOrEqual(
+                center.y - envelope.totalRadius,
+                -0.000_001
+            )
+            XCTAssertLessThanOrEqual(
+                center.y + envelope.totalRadius,
+                canvasSize.height + 0.000_001
+            )
+        }
+    }
+
+    func testEdgeSafeEnvelopeIsStableAcrossShuffleFamilyChanges() {
+        let elements = RichAssignmentFixture.elements(count: 10)
+        let first = RichFigureAssignment.previewItems(
+            elements: elements,
+            dayKey: "2026-08-16",
+            shuffleNonce: 3
+        )
+        let shuffled = RichFigureAssignment.previewItems(
+            elements: elements,
+            dayKey: "2026-08-16",
+            shuffleNonce: 4
+        )
+        let canvasSize = CGSize(width: 390, height: 844)
+
+        XCTAssertNotEqual(first.map(\.style.family), shuffled.map(\.style.family))
+        let firstEnvelopes = Dictionary(uniqueKeysWithValues: first.map {
+            ($0.id, RichFigureLayout.edgeSafeEnvelope(for: $0.layout, canvasSize: canvasSize))
+        })
+        let shuffledEnvelopes = Dictionary(uniqueKeysWithValues: shuffled.map {
+            ($0.id, RichFigureLayout.edgeSafeEnvelope(for: $0.layout, canvasSize: canvasSize))
+        })
+
+        XCTAssertEqual(firstEnvelopes, shuffledEnvelopes)
+    }
+
+    func testEdgeSafeTargetPreservesSizeAtEdgesUntilCanvasItselfIsTooSmall() {
+        let canvasSize = CGSize(width: 390, height: 844)
+        func envelope(targetFraction: CGFloat) -> RichFigureEdgeEnvelope {
+            RichFigureLayout.edgeSafeEnvelope(
+                for: RichFigureLayoutSpec(
+                    center: CGPoint(x: 0.25, y: 0.5),
+                    targetDiameterFraction: targetFraction,
+                    opticalScale: 1,
+                    overscanFraction: 0.14
+                ),
+                canvasSize: canvasSize
+            )
+        }
+
+        let small = envelope(targetFraction: 0.10)
+        let medium = envelope(targetFraction: 0.20)
+        let large = envelope(targetFraction: 0.34)
+        let oversized = envelope(targetFraction: 0.68)
+
+        XCTAssertEqual(small.effectiveTargetDiameter, 39, accuracy: 0.000_001)
+        XCTAssertEqual(medium.effectiveTargetDiameter, 78, accuracy: 0.000_001)
+        XCTAssertEqual(large.effectiveTargetDiameter, 132.6, accuracy: 0.000_001)
+        XCTAssertGreaterThan(oversized.effectiveTargetDiameter, large.effectiveTargetDiameter)
+        XCTAssertLessThan(oversized.effectiveTargetDiameter, 265.2)
+    }
+
+    func testEffectMetricsReserveARealLuminousCoreInsteadOfATinyDot() {
+        let metrics = RichFigureLayout.effectMetrics(
+            targetDiameter: 120,
+            overscanFraction: 0.14
+        )
+
+        XCTAssertGreaterThanOrEqual(metrics.coreGlowDiameter, 42)
+        XCTAssertGreaterThanOrEqual(metrics.coreGlowBlur, 8)
+        XCTAssertGreaterThanOrEqual(metrics.outerGlowBlur, 5)
+    }
+
+    func testLabelSitsOutsideFigureAndFlipsAboveNearBottomEdge() {
+        let canvasSize = CGSize(width: 390, height: 844)
+        let middle = RichFigureLayout.labelCenter(
+            figureCenter: CGPoint(x: 195, y: 300),
+            contentRadius: 60,
+            canvasSize: canvasSize
+        )
+        let bottom = RichFigureLayout.labelCenter(
+            figureCenter: CGPoint(x: 195, y: 800),
+            contentRadius: 60,
+            canvasSize: canvasSize
+        )
+
+        XCTAssertGreaterThan(middle.y, 370)
+        XCTAssertLessThan(bottom.y, 730)
+        XCTAssertEqual(middle.x, 195, accuracy: 0.000_001)
+        XCTAssertEqual(bottom.x, 195, accuracy: 0.000_001)
+    }
+
+    func testOverlappingLabelsSeparateWithoutMovingUnrelatedLabel() {
+        let firstID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+        let secondID = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+        let thirdID = UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
+        let resolved = RichFigureLayout.resolvedLabelCenters(
+            candidates: [
+                .init(id: firstID, preferredCenter: CGPoint(x: 170, y: 400), estimatedWidth: 90),
+                .init(id: secondID, preferredCenter: CGPoint(x: 210, y: 400), estimatedWidth: 90),
+                .init(id: thirdID, preferredCenter: CGPoint(x: 320, y: 260), estimatedWidth: 50)
+            ],
+            canvasSize: CGSize(width: 390, height: 844)
+        )
+        let first = try! XCTUnwrap(resolved[firstID])
+        let second = try! XCTUnwrap(resolved[secondID])
+
+        XCTAssertGreaterThanOrEqual(
+            abs(first.y - second.y),
+            18
+        )
+        XCTAssertEqual(resolved[thirdID], CGPoint(x: 320, y: 260))
+    }
+
+    func testFittedScaleFallsBackForNaNWidth() {
+        let scale = RichFigureLayout.fittedScale(
+            canonicalBounds: CGRect(x: 0, y: 0, width: CGFloat.nan, height: 4),
+            targetDiameter: 0.4,
+            opticalScale: 1.12
+        )
+
+        XCTAssertEqual(scale, 0.2, accuracy: 0.000_001)
+    }
+
+    func testFittedScaleFallsBackForNaNHeight() {
+        let scale = RichFigureLayout.fittedScale(
+            canonicalBounds: CGRect(x: 0, y: 0, width: 4, height: CGFloat.nan),
+            targetDiameter: 0.4,
+            opticalScale: 1.12
+        )
+
+        XCTAssertEqual(scale, 0.2, accuracy: 0.000_001)
+    }
+}

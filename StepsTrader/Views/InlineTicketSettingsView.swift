@@ -6,9 +6,46 @@ struct InlineTicketSettingsView: View {
     @Binding var group: TicketGroup
     let onEditApps: () -> Void
     var onAfterDelete: (() -> Void)? = nil
+
+    var body: some View {
+        TicketSettingsContentView(
+            group: $group,
+            onEditApps: onEditApps,
+            onAfterDelete: onAfterDelete ?? {},
+            updateGroup: { model.updateTicketGroup($0) },
+            deleteTicketGroup: { model.deleteTicketGroup($0) },
+            isUsageBudgetActive: { model.isGroupUsageBudgetActive($0) },
+            unspentUsageBudget: { model.unspentUsageBudgetMatchingShield(for: $0) },
+            availableStepsBalance: { model.userEconomyStore.totalStepsBalance },
+            handlePayGatePayment: { groupId, window, cost in
+                await model.handlePayGatePaymentForGroup(
+                    groupId: groupId,
+                    window: window,
+                    costOverride: cost
+                )
+            }
+        )
+    }
+}
+
+/// The settings surface is independent of persistence so production and the
+/// isolated UI fixture exercise the same controls and confirmation flow.
+struct TicketSettingsContentView: View {
+    @Binding var group: TicketGroup
+    let onEditApps: () -> Void
+    let onAfterDelete: () -> Void
+    let updateGroup: (TicketGroup) -> Void
+    let deleteTicketGroup: (String) -> Void
+    let isUsageBudgetActive: (String) -> Bool
+    let unspentUsageBudget: (String) -> Int
+    let availableStepsBalance: () -> Int
+    let handlePayGatePayment: (String, AccessWindow, Int) async -> Void
+
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isUnlocking = false
     @State private var showEditSettings = false
+    @State private var showDeleteConfirmation = false
     @State private var unlockHapticTick = 0
 
     private let intervals: [AccessWindow] = [.minutes10, .minutes30, .hour1]
@@ -25,7 +62,7 @@ struct InlineTicketSettingsView: View {
                 .background(separator)
 
             Button {
-                withAnimation(.easeInOut(duration: 0.25)) {
+                withMotionAnimation(.easeInOut(duration: 0.25), reduceMotion: reduceMotion) {
                     showEditSettings.toggle()
                 }
             } label: {
@@ -39,7 +76,7 @@ struct InlineTicketSettingsView: View {
                         .background(separator)
                     inlineIntervalsSection
                 }
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
             }
 
             Button {
@@ -50,17 +87,15 @@ struct InlineTicketSettingsView: View {
             .buttonStyle(.plain)
 
             Button {
-                let groupId = group.id
-                onAfterDelete?()
-                model.deleteTicketGroup(groupId)
+                showDeleteConfirmation = true
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "trash")
-                        .font(.body)
+                        .font(.geist(.body))
                         .foregroundStyle(.red)
                         .frame(width: 24)
                     Text(String(localized: "Delete"))
-                        .font(.subheadline.weight(.medium))
+                        .font(.geist(.subheadline).weight(.medium))
                         .foregroundStyle(.red)
                     Spacer()
                 }
@@ -76,29 +111,40 @@ struct InlineTicketSettingsView: View {
                 )
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("settings.feed.delete")
         }
         .padding(.top, 8)
         .sensoryFeedback(.impact(weight: .medium), trigger: unlockHapticTick)
+        .confirmationDialog(
+            String(localized: "Delete \(group.name.isEmpty ? "Feed" : group.name)?"),
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(String(localized: "Delete Feed"), role: .destructive) { confirmDelete() }
+            Button(String(localized: "Cancel"), role: .cancel) {}
+        } message: {
+            Text(String(localized: "This removes the Feed and its access options. This action cannot be undone."))
+        }
     }
 
     private func rowButtonLabel(icon: String, title: String, showChevron: Bool, expanded: Bool, surface: Color, separator: Color) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.body)
+                .font(.geist(.body))
                 .foregroundStyle(.primary)
                 .frame(width: 24)
             Text(title)
-                .font(.subheadline.weight(.medium))
+                .font(.geist(.subheadline).weight(.medium))
                 .foregroundStyle(.primary)
             Spacer()
             if showChevron {
                 Image(systemName: "chevron.down")
-                    .font(.caption.weight(.semibold))
+                    .font(.geist(.caption).weight(.semibold))
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(expanded ? 180 : 0))
             } else {
                 Image(systemName: "chevron.right")
-                    .font(.caption)
+                    .font(.geist(.caption))
                     .foregroundStyle(.tertiary)
             }
         }
@@ -118,28 +164,24 @@ struct InlineTicketSettingsView: View {
     private var inlineIntervalsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(String(localized: "Time options"))
-                .font(.subheadline.weight(.semibold))
+                .font(.geist(.subheadline).weight(.semibold))
                 .foregroundStyle(.primary)
 
             ForEach(intervals, id: \.self) { interval in
-                HStack {
-                    Text(interval.displayName)
-                        .font(.subheadline)
-                        .foregroundStyle(.primary)
-                    Spacer()
-                    Toggle("", isOn: Binding(
-                        get: { group.enabledIntervals.contains(interval) },
-                        set: { enabled in
-                            if enabled {
-                                group.enabledIntervals.insert(interval)
-                            } else if group.enabledIntervals.count > 1 {
-                                group.enabledIntervals.remove(interval)
-                            }
-                            model.updateTicketGroup(group)
+                Toggle(interval.displayName, isOn: Binding(
+                    get: { group.enabledIntervals.contains(interval) },
+                    set: { enabled in
+                        if enabled {
+                            group.enabledIntervals.insert(interval)
+                        } else if group.enabledIntervals.count > 1 {
+                            group.enabledIntervals.remove(interval)
                         }
-                    ))
-                    .tint(accent)
-                }
+                        updateGroup(group)
+                    }
+                ))
+                .font(.geist(.subheadline))
+                .foregroundStyle(.primary)
+                .tint(accent)
                 .padding(.vertical, 6)
             }
         }
@@ -154,22 +196,28 @@ struct InlineTicketSettingsView: View {
         )
     }
 
+    private func confirmDelete() {
+        let groupId = group.id
+        deleteTicketGroup(groupId)
+        onAfterDelete()
+    }
+
     @ViewBuilder
     private var unlockButtonsSection: some View {
-        if model.isGroupUsageBudgetActive(group.id) {
+        if isUsageBudgetActive(group.id) {
             // Same accessor the Feeds surface uses: the wall-clock-floored one
             // reports time already spent when the phone merely sat idle.
-            let budget = model.unspentUsageBudgetMatchingShield(for: group.id)
+            let budget = unspentUsageBudget(group.id)
             HStack(spacing: 12) {
                 Image(systemName: "lock.open.fill")
-                    .font(.title2)
+                    .font(.geist(.title2))
                     .foregroundStyle(accent)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(String(localized: "Open", comment: "Unlock status label"))
-                        .font(.headline)
+                        .font(.geist(.headline))
                         .foregroundStyle(.primary)
                     Text(String(localized: "\(budget) min remaining"))
-                        .font(.caption)
+                        .font(.geist(.caption))
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -187,7 +235,7 @@ struct InlineTicketSettingsView: View {
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 Text(String(localized: "Spend colors on", comment: "Unlock section header"))
-                    .font(.caption.weight(.semibold))
+                    .font(.geist(.caption).weight(.semibold))
                     .foregroundStyle(.secondary)
                 ForEach(intervals, id: \.self) { interval in
                     if group.enabledIntervals.contains(interval) {
@@ -200,7 +248,7 @@ struct InlineTicketSettingsView: View {
 
     private func quickUnlockButton(interval: AccessWindow) -> some View {
         let cost = group.cost(for: interval)
-        let canAfford = model.userEconomyStore.totalStepsBalance >= cost
+        let canAfford = availableStepsBalance() >= cost
         let timeLabel = interval.displayName
 
         return Button {
@@ -209,23 +257,23 @@ struct InlineTicketSettingsView: View {
 
             Task {
                 isUnlocking = true
-                await model.handlePayGatePaymentForGroup(groupId: group.id, window: interval, costOverride: cost)
+                await handlePayGatePayment(group.id, interval, cost)
                 isUnlocking = false
             }
         } label: {
             HStack(spacing: 12) {
                 Text(timeLabel)
-                    .font(.headline)
+                    .font(.geist(.headline))
                     .foregroundStyle(canAfford ? Color.primary : Color.primary.opacity(0.5))
 
                 Spacer()
 
                 HStack(spacing: 4) {
                     Text("\(cost)")
-                        .font(.headline)
+                        .font(.geist(.headline))
                         .monospacedDigit()
                     Text(String(localized: "colors"))
-                        .font(.subheadline)
+                        .font(.geist(.subheadline))
                 }
                 .foregroundStyle(canAfford ? Color.primary : Color.primary.opacity(0.5))
             }

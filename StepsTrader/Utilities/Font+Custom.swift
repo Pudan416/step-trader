@@ -1,25 +1,34 @@
 import SwiftUI
 
-/// System fonts (SF) as app-wide typography.
-extension Font {
-    static func systemSerif(
-        _ size: CGFloat,
-        weight: Font.Weight = .regular,
-        relativeTo textStyle: Font.TextStyle = .body
-    ) -> Font {
-        let base = UIFont.systemFont(ofSize: size, weight: uiFontWeight(from: weight))
-        let scaled = UIFontMetrics(forTextStyle: uiFontTextStyle(from: textStyle)).scaledFont(for: base)
-        return Font(scaled)
+enum AppTypography {
+    static let interfacePostScriptName = "Geist-Medium"
+    static let posterMetadataPostScriptName = "GeistMono-Medium"
+
+    static func pointSize(for style: Font.TextStyle) -> CGFloat {
+        switch style {
+        case .largeTitle: return 34
+        case .title: return 28
+        case .title2: return 22
+        case .title3: return 20
+        case .headline, .body: return 17
+        case .callout: return 16
+        case .subheadline: return 15
+        case .footnote: return 13
+        case .caption: return 12
+        case .caption2: return 11
+        @unknown default: return 17
+        }
     }
 
-    private static let fontWeightMap: [Font.Weight: UIFont.Weight] = [
-        .ultraLight: .ultraLight, .thin: .thin, .light: .light,
-        .regular: .regular, .medium: .medium, .semibold: .semibold,
-        .bold: .bold, .heavy: .heavy, .black: .black,
-    ]
-
-    private static func uiFontWeight(from weight: Font.Weight) -> UIFont.Weight {
-        fontWeightMap[weight] ?? .regular
+    static func scaledUIFont(
+        size: CGFloat,
+        relativeTo textStyle: Font.TextStyle = .body,
+        compatibleWith traitCollection: UITraitCollection? = nil
+    ) -> UIFont {
+        let base = UIFont(name: interfacePostScriptName, size: size)
+            ?? UIFont.systemFont(ofSize: size, weight: .medium)
+        return UIFontMetrics(forTextStyle: uiFontTextStyle(from: textStyle))
+            .scaledFont(for: base, compatibleWith: traitCollection)
     }
 
     private static func uiFontTextStyle(from style: Font.TextStyle) -> UIFont.TextStyle {
@@ -40,18 +49,122 @@ extension Font {
     }
 }
 
+/// App-wide typography: Geist Medium for interface text, Geist Mono Medium
+/// for poster metadata, and Unbounded for short brand/display moments.
+extension Font {
+    static func geist(
+        _ size: CGFloat,
+        weight: Font.Weight = .medium,
+        relativeTo textStyle: Font.TextStyle = .body
+    ) -> Font {
+        .custom(
+            AppTypography.interfacePostScriptName,
+            size: size,
+            relativeTo: textStyle
+        )
+    }
+
+    static func geist(
+        size: CGFloat,
+        weight: Font.Weight = .medium,
+        design: Font.Design = .default
+    ) -> Font {
+        .custom(AppTypography.interfacePostScriptName, fixedSize: size)
+    }
+
+    static func geist(
+        _ textStyle: Font.TextStyle,
+        design: Font.Design = .default
+    ) -> Font {
+        .custom(
+            AppTypography.interfacePostScriptName,
+            size: AppTypography.pointSize(for: textStyle),
+            relativeTo: textStyle
+        )
+    }
+
+    static func geistMono(
+        _ size: CGFloat,
+        weight: Font.Weight = .medium,
+        relativeTo textStyle: Font.TextStyle = .body
+    ) -> Font {
+        .custom(
+            AppTypography.posterMetadataPostScriptName,
+            size: size,
+            relativeTo: textStyle
+        )
+    }
+
+    static func geistMono(
+        size: CGFloat,
+        weight: Font.Weight = .medium,
+        design: Font.Design = .default
+    ) -> Font {
+        .custom(AppTypography.posterMetadataPostScriptName, fixedSize: size)
+    }
+
+    static func geistMono(
+        _ textStyle: Font.TextStyle,
+        design: Font.Design = .default
+    ) -> Font {
+        .custom(
+            AppTypography.posterMetadataPostScriptName,
+            size: AppTypography.pointSize(for: textStyle),
+            relativeTo: textStyle
+        )
+    }
+
+    /// Fixed-size brand type for canvas/poster compositions whose typography
+    /// scales with the exported artwork rather than Dynamic Type.
+    static func unbounded(
+        _ size: CGFloat,
+        weight: Font.Weight = .regular
+    ) -> Font {
+        .custom(unboundedPostScriptName(for: weight), fixedSize: size)
+    }
+
+    /// Dynamic-Type-aware brand type for short headings in the app UI.
+    static func unbounded(
+        _ size: CGFloat,
+        weight: Font.Weight = .regular,
+        relativeTo textStyle: Font.TextStyle
+    ) -> Font {
+        .custom(
+            unboundedPostScriptName(for: weight),
+            size: size,
+            relativeTo: textStyle
+        )
+    }
+
+    private static let unboundedPostScriptNames: [Font.Weight: String] = [
+        .ultraLight: "Unbounded-Regular_ExtraLight",
+        .thin: "Unbounded-Regular_ExtraLight",
+        .light: "Unbounded-Regular_Light",
+        .regular: "Unbounded-Regular",
+        .medium: "Unbounded-Regular_Medium",
+        .semibold: "Unbounded-Regular_SemiBold",
+        .bold: "Unbounded-Regular_Bold",
+        .heavy: "Unbounded-Regular_ExtraBold",
+        .black: "Unbounded-Black",
+    ]
+
+    private static func unboundedPostScriptName(for weight: Font.Weight) -> String {
+        unboundedPostScriptNames[weight] ?? "Unbounded-Regular"
+    }
+}
+
 /// AppFonts — aliases for consistent typography across the codebase.
 enum AppFonts {
     // MARK: - Headlines
-    static let largeTitle = Font.largeTitle
-    static let title = Font.title
-    static let title2 = Font.title2
-    static let title3 = Font.title3
-    static let headline = Font.headline
+    static let largeTitle = Font.geist(.largeTitle)
+    static let title = Font.geist(.title)
+    static let title2 = Font.geist(.title2)
+    static let title3 = Font.geist(.title3)
+    static let headline = Font.geist(.headline)
 
     // MARK: - Body text
-    static let body = Font.body
-    static let subheadline = Font.subheadline
-    static let caption = Font.caption
-    static let caption2 = Font.caption2
+    static let body = Font.geist(.body)
+    static let subheadline = Font.geist(.subheadline)
+    static let caption = Font.geist(.caption)
+    static let caption2 = Font.geist(.caption2)
 }

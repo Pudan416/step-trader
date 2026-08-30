@@ -52,6 +52,7 @@ final class PreferencesStoreTests: XCTestCase {
             userGradientStyle: "test-user-style",
             userGradientPalette: "test-user-palette",
             dailyRandomThemeEnabled: true,
+            modernPaletteCategories: ["pastel", "neon"],
             bodyCanvasShape: "test-body",
             mindCanvasShape: "test-mind",
             heartCanvasShape: "test-heart",
@@ -86,6 +87,10 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertEqual(standard.string(forKey: SharedKeys.userGradientStyle), "test-user-style")
         XCTAssertEqual(standard.string(forKey: SharedKeys.userGradientPalette), "test-user-palette")
         XCTAssertTrue(standard.bool(forKey: SharedKeys.dailyRandomThemeEnabled))
+        XCTAssertEqual(
+            standard.string(forKey: SharedKeys.modernPaletteCategories),
+            "pastel,neon"
+        )
         XCTAssertEqual(standard.string(forKey: SharedKeys.bodyCanvasShape), "test-body")
         XCTAssertEqual(standard.string(forKey: SharedKeys.mindCanvasShape), "test-mind")
         XCTAssertEqual(standard.string(forKey: SharedKeys.heartCanvasShape), "test-heart")
@@ -113,6 +118,33 @@ final class PreferencesStoreTests: XCTestCase {
         )
     }
 
+    func testPreferencesRowDefaultsMissingModernCategoriesToAll() throws {
+        let data = try XCTUnwrap(#"{"user_id":"person"}"#.data(using: .utf8))
+        let row = try JSONDecoder().decode(UserPreferencesRow.self, from: data)
+
+        XCTAssertEqual(
+            Set(row.modernPaletteCategories),
+            Set(ModernPaletteCategory.allCases.map(\.rawValue))
+        )
+    }
+
+    func testPreferencesRowDecodesModernCategories() throws {
+        let data = try XCTUnwrap(
+            #"{"user_id":"person","modern_palette_categories":["pastel","neon"]}"#
+                .data(using: .utf8)
+        )
+        let row = try JSONDecoder().decode(UserPreferencesRow.self, from: data)
+
+        XCTAssertEqual(row.modernPaletteCategories, ["pastel", "neon"])
+    }
+
+    func testPreferencePayloadDoesNotDedupeDifferentModernCategories() {
+        XCTAssertNotEqual(
+            preferencesPayload(categories: ["pastel"]),
+            preferencesPayload(categories: ["neon"])
+        )
+    }
+
     /// The appearance keys must NOT be written to the app-group suite (only the
     /// two mirrored theme keys are), and app-group-only keys must NOT leak into
     /// `standard`. This is the specific class of mis-route the refactor prevents.
@@ -127,5 +159,38 @@ final class PreferencesStoreTests: XCTestCase {
         // App-group-only keys are not in standard.
         XCTAssertNil(standard.string(forKey: SharedKeys.canvasOverlayStyle))
         XCTAssertEqual(standard.double(forKey: SharedKeys.userStepsTarget), 0)
+    }
+
+    private func preferencesPayload(
+        categories: [String]
+    ) -> SupabaseSyncService.UserPreferencesPayload {
+        SupabaseSyncService.UserPreferencesPayload(
+            stepsTarget: 10_000,
+            sleepTarget: 8,
+            dayEndHour: 0,
+            dayEndMinute: 0,
+            restDayOverride: false,
+            hasWallpaperShortcut: false,
+            wallpaperShortcutUses: 0,
+            notifyOneMinBefore: true,
+            notifyWhenTimerOver: true,
+            notifyCanvasReminder: false,
+            canvasReminderHour: 21,
+            canvasReminderMinute: 0,
+            notifyDayResetWarning: true,
+            dayResetWarningHours: 1,
+            hasMediumWidget: false,
+            hasLargeWidget: false,
+            lastOpenedAt: nil,
+            gradientStyle: "radial",
+            gradientPalette: "warmSunset",
+            userGradientStyle: "radial",
+            userGradientPalette: "warmSunset",
+            dailyRandomThemeEnabled: false,
+            modernPaletteCategories: categories,
+            canvasOverlayStyle: "smudge",
+            allowedCanvasShapes: ["circle"],
+            allowedCanvasFills: ["flat"]
+        )
     }
 }
