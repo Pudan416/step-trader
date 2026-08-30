@@ -1,5 +1,11 @@
 # Day Objects Synth One Preset Lab Design
 
+> **Superseded on 2026-08-30.** Do not implement this document by itself.
+> The approved scope now includes goal-relative Steps rhythm, Sleep harmony,
+> recurring Happenings, Lead, Glitch, and Remix. Start with
+> [Day Objects Generative Music System](2026-08-30-day-objects-generative-music-system-design.md)
+> and its three child specifications.
+
 **Date:** 2026-08-30
 
 ## Goal

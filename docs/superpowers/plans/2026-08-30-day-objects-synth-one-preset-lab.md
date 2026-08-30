@@ -1,5 +1,12 @@
 # Day Objects Synth One Preset Lab Implementation Plan
 
+> **Superseded on 2026-08-30. Do not execute this plan.** It intentionally
+> excluded the musical mappings that are now required. The replacement design
+> begins at
+> [Day Objects Generative Music System](../specs/2026-08-30-day-objects-generative-music-system-design.md).
+> New implementation plans will be written only after the replacement
+> specifications are reviewed.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.
 
 **Goal:** Build a native, debug-only Day Objects sound lab that lets a person compare twelve selected AudioKit Synth One-derived Pad, Pluck, Bass, and Lead voices with Note, Chord, and expressive XY controls on an iPhone.
