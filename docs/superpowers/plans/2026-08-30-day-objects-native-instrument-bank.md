@@ -87,7 +87,7 @@ git commit -m "build: add Day Objects audio dependencies and licenses"
 
 **Files:**
 
-- Create: `scripts/import_day_objects_audio_assets.sh`
+- Create: `Scripts/import_day_objects_audio_assets.sh`
 - Create: `StepsTrader/Experiments/DayObjects/Sound/Resources/SynthOnePresets/selected-presets.json`
 - Create: `StepsTrader/Experiments/DayObjects/Sound/Resources/Drums/*.wav`
 - Create: `StepsTrader/Experiments/DayObjects/Sound/Resources/FeltPiano/*.caf`
@@ -158,7 +158,7 @@ Use these exact Osiris source files from `UC-Sus-noisy/A/`, all velocity layer `
 Run:
 
 ~~~bash
-./scripts/import_day_objects_audio_assets.sh
+./Scripts/import_day_objects_audio_assets.sh
 ~~~
 
 Inspect the manifest and verify that no upstream repository, `.git` directory, GUI image, PDF, unused preset, or unused piano sample entered the workspace.
@@ -170,7 +170,7 @@ Add the four resource folders and manifest to Copy Bundle Resources. Rerun `DayO
 - [ ] **Step 5: Commit imported assets and provenance**
 
 ~~~bash
-git add scripts/import_day_objects_audio_assets.sh StepsTrader/Experiments/DayObjects/Sound/Resources Steps4.xcodeproj/project.pbxproj Steps4Tests/DayObjectsAudioResourceTests.swift
+git add Scripts/import_day_objects_audio_assets.sh StepsTrader/Experiments/DayObjects/Sound/Resources Steps4.xcodeproj/project.pbxproj Steps4Tests/DayObjectsAudioResourceTests.swift
 git commit -m "assets: import licensed Day Objects audio bank"
 ~~~
 

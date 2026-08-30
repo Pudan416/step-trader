@@ -16,30 +16,81 @@ readonly PIANO_FIXED_GAIN_DB="-6.0"
 readonly script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly repo_root="$(cd "${script_dir}/.." && pwd -P)"
 readonly resource_root="${repo_root}/StepsTrader/Experiments/DayObjects/Sound/Resources"
-readonly license_root="${resource_root}/AudioLicenses"
-readonly synth_destination="${resource_root}/SynthOnePresets"
-readonly drum_destination="${resource_root}/Drums"
-readonly piano_destination="${resource_root}/FeltPiano"
-readonly manifest_destination="${resource_root}/audio-assets-manifest.json"
 
 fail() {
     printf 'error: %s\n' "$*" >&2
     exit 1
 }
 
-for command_name in git jq shasum cmp mktemp afconvert afinfo swift; do
+for command_name in git jq shasum cmp mktemp afconvert afinfo swift cp mv find awk; do
     command -v "${command_name}" >/dev/null 2>&1 || fail "required tool is unavailable: ${command_name}"
 done
 [[ "$(afconvert -h 2>&1)" == *"Version: 2.0"* ]] || fail "unsupported afconvert version"
 
 [[ -f "${repo_root}/Steps4.xcodeproj/project.pbxproj" ]] || fail "run this importer from the Steps project checkout"
+[[ -d "${resource_root}" && ! -L "${resource_root}" ]] || fail "resource root must be a real directory: ${resource_root}"
+readonly canonical_resource_root="$(cd "${resource_root}" && pwd -P)"
+readonly license_root="${canonical_resource_root}/AudioLicenses"
+readonly synth_destination="${canonical_resource_root}/SynthOnePresets"
+readonly drum_destination="${canonical_resource_root}/Drums"
+readonly piano_destination="${canonical_resource_root}/FeltPiano"
+readonly manifest_destination="${canonical_resource_root}/audio-assets-manifest.json"
 [[ -f "${license_root}/SOURCES.json" ]] || fail "missing pinned source manifest"
 
 readonly temp_root="$(mktemp -d /tmp/day-objects-audio-import.XXXXXX)"
+transaction_root=""
+transaction_active=0
+transaction_committed=0
+
+rollback_transaction() {
+    local rollback_failed=0
+    local index
+    local destination
+    local old_path
+    local displaced_path
+
+    mkdir -p "${transaction_root}/displaced"
+    for index in "${!transaction_destinations[@]}"; do
+        destination="${transaction_destinations[$index]}"
+        old_path="${transaction_root}/old/${transaction_unit_names[$index]}"
+        displaced_path="${transaction_root}/displaced/${transaction_unit_names[$index]}"
+
+        if [[ -e "${destination}" || -L "${destination}" ]]; then
+            if ! mv "${destination}" "${displaced_path}"; then
+                printf 'error: rollback could not move current bank unit aside: %s\n' "${destination}" >&2
+                rollback_failed=1
+                continue
+            fi
+        fi
+        if [[ -e "${old_path}" || -L "${old_path}" ]]; then
+            if ! mv "${old_path}" "${destination}"; then
+                printf 'error: rollback could not restore bank unit: %s\n' "${destination}" >&2
+                rollback_failed=1
+            fi
+        fi
+    done
+    [[ "${rollback_failed}" -eq 0 ]]
+}
+
 cleanup() {
+    local exit_code=$?
+    local remove_transaction=1
+    trap - EXIT INT TERM
+
+    if [[ "${transaction_active}" -eq 1 && "${transaction_committed}" -eq 0 ]]; then
+        if ! rollback_transaction; then
+            printf 'error: automatic rollback was incomplete; recovery data retained at %s\n' "${transaction_root}" >&2
+            remove_transaction=0
+            exit_code=1
+        fi
+    fi
     if [[ -d "${temp_root}" ]]; then
         find "${temp_root}" -depth -delete
     fi
+    if [[ "${remove_transaction}" -eq 1 && -n "${transaction_root}" && -d "${transaction_root}" && ! -L "${transaction_root}" ]]; then
+        find "${transaction_root}" -depth -delete
+    fi
+    exit "${exit_code}"
 }
 trap cleanup EXIT
 trap 'exit 130' INT
@@ -442,7 +493,32 @@ jq -S -n \
 chmod 0644 "${staged_manifest}"
 jq -e '.schemaVersion == 1 and (.assets | length == 21)' "${staged_manifest}" >/dev/null || fail "generated asset manifest is incomplete"
 
-validate_destination() {
+validate_destination_path() {
+    local destination="$1"
+    local expected_name="$2"
+    local expected_kind="$3"
+    local parent_path="${destination%/*}"
+    local destination_name="${destination##*/}"
+    local canonical_parent
+    local canonical_destination
+
+    [[ "${destination_name}" == "${expected_name}" ]] || fail "unexpected destination name: ${destination}"
+    [[ ! -L "${destination}" ]] || fail "refusing symlink destination: ${destination}"
+    canonical_parent="$(cd "${parent_path}" && pwd -P)"
+    [[ "${canonical_parent}" == "${canonical_resource_root}" ]] || fail "destination escapes canonical resource root: ${destination}"
+
+    if [[ -e "${destination}" ]]; then
+        if [[ "${expected_kind}" == "directory" ]]; then
+            [[ -d "${destination}" ]] || fail "destination is not a directory: ${destination}"
+            canonical_destination="$(cd "${destination}" && pwd -P)"
+            [[ "${canonical_destination}" == "${canonical_resource_root}/${expected_name}" ]] || fail "destination resolves outside canonical resource root: ${destination}"
+        else
+            [[ -f "${destination}" ]] || fail "destination is not a regular file: ${destination}"
+        fi
+    fi
+}
+
+validate_destination_contents() {
     local destination="$1"
     shift
     local existing_path
@@ -451,6 +527,8 @@ validate_destination() {
     local is_allowed
     [[ -d "${destination}" ]] || return 0
     while IFS= read -r existing_path; do
+        [[ ! -L "${existing_path}" ]] || fail "refusing symlink destination entry: ${existing_path}"
+        [[ -f "${existing_path}" ]] || fail "refusing non-file destination entry: ${existing_path}"
         existing_name="${existing_path##*/}"
         is_allowed=0
         for allowed_name in "$@"; do
@@ -463,29 +541,63 @@ validate_destination() {
     done < <(find "${destination}" -mindepth 1 -maxdepth 1 -print)
 }
 
-validate_destination "${synth_destination}" "selected-presets.json"
-validate_destination "${drum_destination}" "${DRUM_OUTPUT_NAMES[@]}"
 piano_output_names=()
 for root_note in "${PIANO_ROOTS[@]}"; do
     piano_output_names+=("felt_${root_note}.caf")
 done
-validate_destination "${piano_destination}" "${piano_output_names[@]}"
-if [[ -e "${manifest_destination}" && ! -f "${manifest_destination}" ]]; then
-    fail "refusing to replace non-file manifest destination: ${manifest_destination}"
-fi
 
-mkdir -p "${synth_destination}" "${drum_destination}" "${piano_destination}"
-cp "${staged_synth}/selected-presets.json" "${synth_destination}/selected-presets.json"
-chmod 0644 "${synth_destination}/selected-presets.json"
+validate_all_destinations() {
+    validate_destination_path "${synth_destination}" "SynthOnePresets" "directory"
+    validate_destination_path "${drum_destination}" "Drums" "directory"
+    validate_destination_path "${piano_destination}" "FeltPiano" "directory"
+    validate_destination_path "${manifest_destination}" "audio-assets-manifest.json" "file"
+    validate_destination_contents "${synth_destination}" "selected-presets.json"
+    validate_destination_contents "${drum_destination}" "${DRUM_OUTPUT_NAMES[@]}"
+    validate_destination_contents "${piano_destination}" "${piano_output_names[@]}"
+}
+
+validate_all_destinations
+
+transaction_root="$(mktemp -d "${canonical_resource_root}/.day-objects-audio-transaction.XXXXXX")"
+readonly transaction_new_root="${transaction_root}/new"
+readonly transaction_old_root="${transaction_root}/old"
+mkdir -p "${transaction_new_root}" "${transaction_old_root}"
+cp -R "${staged_synth}" "${transaction_new_root}/SynthOnePresets"
+cp -R "${staged_drums}" "${transaction_new_root}/Drums"
+cp -R "${staged_piano}" "${transaction_new_root}/FeltPiano"
+cp "${staged_manifest}" "${transaction_new_root}/audio-assets-manifest.json"
+
+cmp -s "${staged_synth}/selected-presets.json" "${transaction_new_root}/SynthOnePresets/selected-presets.json" || fail "same-filesystem preset staging mismatch"
 for output_name in "${DRUM_OUTPUT_NAMES[@]}"; do
-    cp "${staged_drums}/${output_name}" "${drum_destination}/${output_name}"
-    chmod 0644 "${drum_destination}/${output_name}"
+    cmp -s "${staged_drums}/${output_name}" "${transaction_new_root}/Drums/${output_name}" || fail "same-filesystem drum staging mismatch: ${output_name}"
 done
 for output_name in "${piano_output_names[@]}"; do
-    cp "${staged_piano}/${output_name}" "${piano_destination}/${output_name}"
-    chmod 0644 "${piano_destination}/${output_name}"
+    cmp -s "${staged_piano}/${output_name}" "${transaction_new_root}/FeltPiano/${output_name}" || fail "same-filesystem piano staging mismatch: ${output_name}"
 done
-cp "${staged_manifest}" "${manifest_destination}"
-chmod 0644 "${manifest_destination}"
+cmp -s "${staged_manifest}" "${transaction_new_root}/audio-assets-manifest.json" || fail "same-filesystem manifest staging mismatch"
+
+# Recheck immediately before mutation so a replaced destination is rejected.
+validate_all_destinations
+
+transaction_unit_names=(SynthOnePresets Drums FeltPiano audio-assets-manifest.json)
+transaction_destinations=("${synth_destination}" "${drum_destination}" "${piano_destination}" "${manifest_destination}")
+transaction_new_paths=(
+    "${transaction_new_root}/SynthOnePresets"
+    "${transaction_new_root}/Drums"
+    "${transaction_new_root}/FeltPiano"
+    "${transaction_new_root}/audio-assets-manifest.json"
+)
+transaction_active=1
+
+for index in "${!transaction_destinations[@]}"; do
+    destination="${transaction_destinations[$index]}"
+    if [[ -e "${destination}" || -L "${destination}" ]]; then
+        mv "${destination}" "${transaction_old_root}/${transaction_unit_names[$index]}"
+    fi
+done
+for index in "${!transaction_destinations[@]}"; do
+    mv "${transaction_new_paths[$index]}" "${transaction_destinations[$index]}"
+done
+transaction_committed=1
 
 printf 'Imported 15 Synth One presets, 8 drum samples, and 12 felt-piano samples.\n'
