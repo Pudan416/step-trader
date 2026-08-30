@@ -108,6 +108,10 @@ public struct MaterialC3ActorAcceptance: Codable, Equatable, Sendable {
     public let tertiaryPeakDifference: Double
     public let ownershipCenterDistance: Double
     public let ownershipColorDistance: Double
+    public let tertiaryExpectedColorDistance: Double
+    public let tertiarySecondaryColorDistance: Double
+    public let secondaryTertiaryPaletteDistance: Double
+    public let duplicateTertiaryRejected: Bool
     public let passes: Bool
 }
 
@@ -120,6 +124,31 @@ public struct MaterialC3FixtureAcceptance: Codable, Equatable, Sendable {
     public let actors: [MaterialC3ActorAcceptance]
 }
 
+public struct MaterialSceneScaleActorMetrics: Codable, Equatable, Sendable {
+    public let eventID: String
+    public let diameter: Double
+    public let eligible: Bool
+    public let sampleCount: Int
+    public let meanContrast: Double
+    public let percentile90Contrast: Double
+    public let visibleAreaFraction: Double
+    public let passes: Bool
+}
+
+public struct MaterialSceneScaleMetrics: Codable, Equatable, Sendable {
+    public let family: MaterialFamily
+    public let requestedColorCount: Int
+    public let background: BackgroundCondition
+    public let layoutFixtureIndex: Int
+    public let daySeed: UInt64
+    public let sourceScale: Int
+    public let pixelWidth: Int
+    public let pixelHeight: Int
+    public let fullPath: String
+    public let tilePath: String
+    public let actors: [MaterialSceneScaleActorMetrics]
+}
+
 public struct MaterialEvidenceMetrics: Codable, Equatable, Sendable {
     public let version: String
     public let fixtureCount: Int
@@ -129,6 +158,7 @@ public struct MaterialEvidenceMetrics: Codable, Equatable, Sendable {
     public let fixtures: [MaterialFixtureMetrics]
     public let familyCrops: [MaterialFamilyCropMetrics]
     public let c3Acceptance: [MaterialC3FixtureAcceptance]
+    public let sceneScale: [MaterialSceneScaleMetrics]
 }
 
 public struct MaterialEvidenceManifest: Codable, Equatable, Sendable {
@@ -221,6 +251,10 @@ public enum MaterialEvidencePackage {
         func distance(to other: AnalysisPixel) -> Double {
             hypot(hypot(red - other.red, green - other.green), blue - other.blue)
         }
+
+        func distance(to color: MaterialColor) -> Double {
+            hypot(hypot(red - color.red, green - color.green), blue - color.blue)
+        }
     }
 
     private struct AnalysisImage {
@@ -246,6 +280,25 @@ public enum MaterialEvidencePackage {
         let peakDifference: Double
         let center: CompositionPoint
         let color: AnalysisPixel
+    }
+
+    private struct SceneScaleEvidence {
+        let metrics: [MaterialSceneScaleMetrics]
+        let fullImages: [String: Data]
+        let tileImages: [String: Data]
+    }
+
+    struct C3ActorAssessment {
+        let secondaryAreaFraction: Double
+        let tertiaryAreaFraction: Double
+        let secondaryPeakDifference: Double
+        let tertiaryPeakDifference: Double
+        let ownershipCenterDistance: Double
+        let ownershipColorDistance: Double
+        let tertiaryExpectedColorDistance: Double
+        let tertiarySecondaryColorDistance: Double
+        let secondaryTertiaryPaletteDistance: Double
+        let passes: Bool
     }
 
     public static func coverage(for manifest: CorpusManifest) -> MaterialAtlasCoverage {
@@ -358,16 +411,42 @@ public enum MaterialEvidencePackage {
                 "critic c3 discriminability proxy did not reach 90 percent"
             )
         }
+        let sceneScaleEvidence = try makeSceneScaleEvidence(
+            manifest: manifest,
+            frozenRecipes: frozenRecipes,
+            renderer: renderer
+        )
+        let sceneScaleFailures = sceneScaleEvidence.metrics.flatMap { scene in
+            scene.actors.filter { !$0.passes }.map { actor in
+                "\(scene.family.rawValue)/c\(scene.requestedColorCount)/"
+                    + "\(scene.background.rawValue)/\(actor.eventID.prefix(4))"
+                    + " p90=\(String(format: "%.3f", actor.percentile90Contrast))"
+                    + " area=\(String(format: "%.3f", actor.visibleAreaFraction))"
+            }
+        }
+        guard sceneScaleFailures.isEmpty else {
+            throw MaterialEvidenceError.invalidPackage(
+                "scene-scale actor readability proxy failed: "
+                    + sceneScaleFailures.joined(separator: ", ")
+            )
+        }
+        for (path, data) in sceneScaleEvidence.fullImages {
+            try write(data, path: path, in: outputDirectory)
+        }
+        for (path, data) in sceneScaleEvidence.tileImages {
+            try write(data, path: path, in: outputDirectory)
+        }
 
         let metrics = MaterialEvidenceMetrics(
-            version: "material-metrics-v3",
+            version: "material-metrics-v5",
             fixtureCount: atlasCoverage.fixtures.count,
             coreImageCount: atlasCoverage.coreImageCount,
             compositionApprovalSHA256: approvalHash,
             compositionRecipeArchiveSHA256: recipeArchiveHash,
             fixtures: fixtureMetrics,
             familyCrops: familyCrops,
-            c3Acceptance: c3Acceptance
+            c3Acceptance: c3Acceptance,
+            sceneScale: sceneScaleEvidence.metrics
         )
         try write(canonicalJSON(metrics), path: "metrics.json", in: outputDirectory)
         try makeContactSheet(
@@ -380,10 +459,26 @@ public enum MaterialEvidencePackage {
             outputPath: "contact-sheets/outline-counterform.png",
             directory: outputDirectory
         )
+        try makeContactSheet(
+            paths: sceneScaleEvidence.metrics.map(\.fullPath),
+            outputPath: "contact-sheets/scene-scale-full.png",
+            directory: outputDirectory,
+            columns: 9,
+            cellWidth: 92,
+            cellHeight: 198
+        )
+        try makeContactSheet(
+            paths: sceneScaleEvidence.metrics.map(\.tilePath),
+            outputPath: "contact-sheets/scene-scale-tile.png",
+            directory: outputDirectory,
+            columns: 9,
+            cellWidth: 96,
+            cellHeight: 96
+        )
 
         let artifacts = try artifactRecords(in: outputDirectory)
         let packageManifest = MaterialEvidenceManifest(
-            version: "material-evidence-v3",
+            version: "material-evidence-v5",
             sourceCommit: sourceCommit,
             rendererVersion: MaterialRenderer.version,
             toolchain: "Swift 6 / Swift Package Manager",
@@ -455,7 +550,7 @@ public enum MaterialEvidencePackage {
             from: Data(contentsOf: directory.appendingPathComponent("metrics.json"))
         )
         let expectedCoverage = coverage(for: corpus)
-        guard manifest.version == "material-evidence-v3",
+        guard manifest.version == "material-evidence-v5",
               manifest.sourceCommit == expectedSourceCommit,
               manifest.rendererVersion == MaterialRenderer.version,
               manifest.toolchain == "Swift 6 / Swift Package Manager",
@@ -492,7 +587,12 @@ public enum MaterialEvidencePackage {
             frozenRecipes: frozenRecipes,
             renderer: MaterialRenderer()
         )
-        guard metrics.version == "material-metrics-v3",
+        let expectedSceneScale = try makeSceneScaleEvidence(
+            manifest: corpus,
+            frozenRecipes: frozenRecipes,
+            renderer: MaterialRenderer()
+        )
+        guard metrics.version == "material-metrics-v5",
               metrics.fixtureCount == expectedCoverage.fixtures.count,
               metrics.coreImageCount == expectedCoverage.coreImageCount,
               metrics.compositionApprovalSHA256 == manifest.compositionApprovalSHA256,
@@ -500,7 +600,11 @@ public enum MaterialEvidencePackage {
               metrics.fixtures == expectedFixtureMetrics,
               metrics.familyCrops == expectedFamilyCrops,
               metrics.c3Acceptance == expectedC3Acceptance,
-              metrics.c3Acceptance.allSatisfy({ $0.passRate >= 0.90 })
+              metrics.c3Acceptance.allSatisfy({ $0.passRate >= 0.90 }),
+              metrics.sceneScale == expectedSceneScale.metrics,
+              metrics.sceneScale.allSatisfy({
+                  !$0.actors.isEmpty && $0.actors.allSatisfy(\.passes)
+              })
         else {
             throw MaterialEvidenceError.invalidPackage("metrics coverage or descriptors mismatch")
         }
@@ -517,6 +621,7 @@ public enum MaterialEvidencePackage {
             manifest: corpus,
             frozenRecipes: frozenRecipes,
             scale: manifest.viewport.scale,
+            sceneScaleEvidence: expectedSceneScale,
             directory: directory
         )
         return packageHash
@@ -731,6 +836,179 @@ public enum MaterialEvidencePackage {
         return metrics
     }
 
+    private static func makeSceneScaleEvidence(
+        manifest: CorpusManifest,
+        frozenRecipes: [Int: SceneRecipe],
+        renderer: MaterialRenderer
+    ) throws -> SceneScaleEvidence {
+        let layoutFixtureIndex = 11
+        guard manifest.breadth.indices.contains(layoutFixtureIndex),
+              let recipe = frozenRecipes[layoutFixtureIndex]
+        else {
+            throw MaterialEvidenceError.invalidCompositionApproval(
+                "scene-scale evidence requires frozen breadth fixture 11"
+            )
+        }
+        let layout = manifest.breadth[layoutFixtureIndex]
+        let backgrounds: [BackgroundCondition] = [.light, .dark, .lowContrast]
+        var metrics = [MaterialSceneScaleMetrics]()
+        var fullImages = [String: Data]()
+        var tileImages = [String: Data]()
+
+        for family in MaterialFamily.allCases {
+            for colorCount in 1...3 {
+                let material = MaterialDNA.fixture(
+                    daySeed: layout.seed,
+                    eventIDs: layout.eventIDs,
+                    family: family,
+                    requestedColorCount: colorCount
+                )
+                for background in backgrounds {
+                    let source = try renderer.render(
+                        recipe: recipe,
+                        material: material,
+                        background: background,
+                        configuration: .init(scale: 2)
+                    )
+                    let sourceImage = try decodedPNG(
+                        source.fullScreen.pngData,
+                        path: "scene-scale-source"
+                    )
+                    let fullImage = try downsampled(
+                        sourceImage,
+                        width: 393,
+                        height: 852
+                    )
+                    guard let tileImage = fullImage.cropping(
+                        to: CGRect(x: 0, y: 229, width: 393, height: 393)
+                    ) else {
+                        throw MaterialEvidenceError.cannotCreateContactSheet
+                    }
+                    let stem = sceneScaleStem(
+                        family: family,
+                        colorCount: colorCount,
+                        background: background
+                    )
+                    let fullPath = "scene-scale/\(family.rawValue)/\(stem)-full@1x.png"
+                    let tilePath = "scene-scale/\(family.rawValue)/\(stem)-tile@1x.png"
+                    fullImages[fullPath] = try encodedPNG(fullImage)
+                    tileImages[tilePath] = try encodedPNG(tileImage)
+                    let actorReadability = try sceneScaleReadability(
+                        image: fullImage,
+                        recipe: recipe,
+                        material: material,
+                        background: background
+                    )
+                    metrics.append(MaterialSceneScaleMetrics(
+                        family: family,
+                        requestedColorCount: colorCount,
+                        background: background,
+                        layoutFixtureIndex: layoutFixtureIndex,
+                        daySeed: layout.seed,
+                        sourceScale: 2,
+                        pixelWidth: 393,
+                        pixelHeight: 852,
+                        fullPath: fullPath,
+                        tilePath: tilePath,
+                        actors: actorReadability
+                    ))
+                }
+            }
+        }
+        return SceneScaleEvidence(
+            metrics: metrics,
+            fullImages: fullImages,
+            tileImages: tileImages
+        )
+    }
+
+    private static func sceneScaleReadability(
+        image: CGImage,
+        recipe: SceneRecipe,
+        material: DailyMaterialDNA,
+        background: BackgroundCondition
+    ) throws -> [MaterialSceneScaleActorMetrics] {
+        let analysis = AnalysisImage(
+            width: image.width,
+            height: image.height,
+            rgba: try normalizedRGBA(image)
+        )
+        let backgroundColor = Self.backgroundRGB(background)
+        return recipe.actors.map { actor in
+            let actorMaterial = material.actor(actor.eventID)
+            let centerX = actor.position.x * 393
+            // normalizedRGBA exposes the bitmap's bottom-origin row order, the
+            // same coordinate system in which the scene renderer positions it.
+            let centerY = actor.position.y * 852
+            let nominalRadius = actor.diameter * 393 * 0.5
+            let minimumX = max(0, Int(floor(centerX - nominalRadius * 1.08)))
+            let maximumX = min(392, Int(ceil(centerX + nominalRadius * 1.08)))
+            let minimumY = max(0, Int(floor(centerY - nominalRadius * 1.08)))
+            let maximumY = min(851, Int(ceil(centerY + nominalRadius * 1.08)))
+            var contrasts = [Double]()
+            for y in minimumY...maximumY {
+                for x in minimumX...maximumX {
+                    let normalizedRadius = hypot(
+                        (Double(x) + 0.5 - centerX) / max(nominalRadius, 1),
+                        (Double(y) + 0.5 - centerY) / max(nominalRadius, 1)
+                    )
+                    let sample: Bool = switch material.family {
+                    case .outline:
+                        (0.58...1.04).contains(normalizedRadius)
+                    case .counterform:
+                        normalizedRadius >= (actorMaterial?.counterformRadius ?? 0.30) * 0.90
+                            && normalizedRadius <= 1.02
+                    default:
+                        normalizedRadius <= 0.94
+                    }
+                    guard sample else { continue }
+                    contrasts.append(analysis.pixel(x: x, y: y).distance(to: backgroundColor))
+                }
+            }
+            contrasts.sort()
+            let mean = contrasts.reduce(0, +) / Double(max(contrasts.count, 1))
+            let percentileIndex = min(
+                max(contrasts.count - 1, 0),
+                Int(Double(max(contrasts.count - 1, 0)) * 0.90)
+            )
+            let percentile90 = contrasts.isEmpty ? 0 : contrasts[percentileIndex]
+            let visibleArea = Double(contrasts.filter { $0 >= 0.08 }.count)
+                / Double(max(contrasts.count, 1))
+            let thresholds: (contrast: Double, area: Double) = switch material.family {
+            case .gradient, .solid, .sphere:
+                (0.12, 0.44)
+            case .glass, .mist, .halo, .luminous:
+                (0.11, 0.30)
+            case .outline, .counterform:
+                (0.13, 0.18)
+            }
+            return MaterialSceneScaleActorMetrics(
+                eventID: actor.eventID,
+                diameter: actor.diameter,
+                eligible: actor.diameter >= 0.15,
+                sampleCount: contrasts.count,
+                meanContrast: mean,
+                percentile90Contrast: percentile90,
+                visibleAreaFraction: visibleArea,
+                passes: actor.diameter < 0.15 || (
+                    contrasts.count >= 8
+                        && percentile90 >= thresholds.contrast
+                        && visibleArea >= thresholds.area
+                )
+            )
+        }
+    }
+
+    private static func backgroundRGB(_ condition: BackgroundCondition) -> AnalysisPixel {
+        let color = MaterialRenderer.backgroundColor(for: condition)
+        return AnalysisPixel(
+            red: color.red,
+            green: color.green,
+            blue: color.blue,
+            alpha: 1
+        )
+    }
+
     private static func c3AcceptanceMetrics(
         coverage: MaterialAtlasCoverage,
         manifest: CorpusManifest,
@@ -752,7 +1030,7 @@ public enum MaterialEvidencePackage {
                 )
             }
             let actors = try eligible.map { compositionActor in
-                let variants = try (1...3).map { colorCount -> AnalysisImage in
+                let variants = try (1...3).map { colorCount -> ActorMaterialRecipe in
                     let actor = MaterialDNA.fixture(
                         daySeed: layout.seed,
                         eventIDs: layout.eventIDs,
@@ -764,31 +1042,35 @@ public enum MaterialEvidencePackage {
                             "missing c3 proxy actor \(compositionActor.eventID)"
                         )
                     }
-                    return try analysisImage(actor: actor, renderer: renderer)
+                    return actor
                 }
-                let secondary = colorContribution(from: variants[0], to: variants[1])
-                let tertiary = colorContribution(from: variants[1], to: variants[2])
-                let centerDistance = hypot(
-                    secondary.center.x - tertiary.center.x,
-                    secondary.center.y - tertiary.center.y
+                let assessment = try assessC3Actor(
+                    oneColor: variants[0],
+                    twoColor: variants[1],
+                    threeColor: variants[2],
+                    renderer: renderer
                 )
-                let colorDistance = secondary.color.distance(to: tertiary.color)
-                let passes = secondary.areaFraction >= 0.10
-                    && tertiary.areaFraction >= 0.10
-                    && secondary.peakDifference >= 0.18
-                    && tertiary.peakDifference >= 0.18
-                    && centerDistance >= 0.16
-                    && colorDistance >= 0.12
+                let duplicateAssessment = try assessC3Actor(
+                    oneColor: variants[0],
+                    twoColor: variants[1],
+                    threeColor: replacingTertiaryColorWithSecondary(variants[2]),
+                    renderer: renderer
+                )
+                let duplicateRejected = !duplicateAssessment.passes
                 return MaterialC3ActorAcceptance(
                     eventID: compositionActor.eventID,
                     diameter: compositionActor.diameter,
-                    secondaryAreaFraction: secondary.areaFraction,
-                    tertiaryAreaFraction: tertiary.areaFraction,
-                    secondaryPeakDifference: secondary.peakDifference,
-                    tertiaryPeakDifference: tertiary.peakDifference,
-                    ownershipCenterDistance: centerDistance,
-                    ownershipColorDistance: colorDistance,
-                    passes: passes
+                    secondaryAreaFraction: assessment.secondaryAreaFraction,
+                    tertiaryAreaFraction: assessment.tertiaryAreaFraction,
+                    secondaryPeakDifference: assessment.secondaryPeakDifference,
+                    tertiaryPeakDifference: assessment.tertiaryPeakDifference,
+                    ownershipCenterDistance: assessment.ownershipCenterDistance,
+                    ownershipColorDistance: assessment.ownershipColorDistance,
+                    tertiaryExpectedColorDistance: assessment.tertiaryExpectedColorDistance,
+                    tertiarySecondaryColorDistance: assessment.tertiarySecondaryColorDistance,
+                    secondaryTertiaryPaletteDistance: assessment.secondaryTertiaryPaletteDistance,
+                    duplicateTertiaryRejected: duplicateRejected,
+                    passes: assessment.passes && duplicateRejected
                 )
             }
             let passing = actors.filter(\.passes).count
@@ -801,6 +1083,88 @@ public enum MaterialEvidencePackage {
                 actors: actors
             )
         }
+    }
+
+    static func assessC3Actor(
+        oneColor: ActorMaterialRecipe,
+        twoColor: ActorMaterialRecipe,
+        threeColor: ActorMaterialRecipe,
+        renderer: MaterialRenderer = MaterialRenderer()
+    ) throws -> C3ActorAssessment {
+        guard oneColor.colors.count == 1,
+              twoColor.colors.count == 2,
+              threeColor.colors.count == 3
+        else {
+            throw MaterialEvidenceError.invalidPackage(
+                "c3 assessment requires one, two, and three palette colors"
+            )
+        }
+        let variants = try [oneColor, twoColor, threeColor].map {
+            try analysisImage(actor: $0, renderer: renderer)
+        }
+        let secondary = colorContribution(from: variants[0], to: variants[1])
+        let tertiary = colorContribution(from: variants[1], to: variants[2])
+        let centerDistance = hypot(
+            secondary.center.x - tertiary.center.x,
+            secondary.center.y - tertiary.center.y
+        )
+        let ownershipColorDistance = secondary.color.distance(to: tertiary.color)
+        let expectedColorDistance = tertiary.color.distance(to: threeColor.colors[2])
+        let secondaryColorDistance = tertiary.color.distance(to: threeColor.colors[1])
+        let paletteDistance = materialColorDistance(
+            threeColor.colors[1],
+            threeColor.colors[2]
+        )
+        let passes = secondary.areaFraction >= 0.10
+            && tertiary.areaFraction >= 0.10
+            && secondary.peakDifference >= 0.18
+            && tertiary.peakDifference >= 0.18
+            && centerDistance >= 0.16
+            && ownershipColorDistance >= 0.12
+            && paletteDistance >= 0.20
+            && expectedColorDistance <= 0.34
+            && expectedColorDistance + 0.04 <= secondaryColorDistance
+        return C3ActorAssessment(
+            secondaryAreaFraction: secondary.areaFraction,
+            tertiaryAreaFraction: tertiary.areaFraction,
+            secondaryPeakDifference: secondary.peakDifference,
+            tertiaryPeakDifference: tertiary.peakDifference,
+            ownershipCenterDistance: centerDistance,
+            ownershipColorDistance: ownershipColorDistance,
+            tertiaryExpectedColorDistance: expectedColorDistance,
+            tertiarySecondaryColorDistance: secondaryColorDistance,
+            secondaryTertiaryPaletteDistance: paletteDistance,
+            passes: passes
+        )
+    }
+
+    private static func replacingTertiaryColorWithSecondary(
+        _ actor: ActorMaterialRecipe
+    ) -> ActorMaterialRecipe {
+        guard actor.colors.count == 3 else { return actor }
+        return ActorMaterialRecipe(
+            eventID: actor.eventID,
+            family: actor.family,
+            mutation: actor.mutation,
+            colors: [actor.colors[0], actor.colors[1], actor.colors[1]],
+            fields: actor.fields,
+            baseOpacity: actor.baseOpacity,
+            edgeSoftness: actor.edgeSoftness,
+            contourWidth: actor.contourWidth,
+            contourCount: actor.contourCount,
+            counterformRadius: actor.counterformRadius,
+            counterformSoftness: actor.counterformSoftness
+        )
+    }
+
+    private static func materialColorDistance(
+        _ lhs: MaterialColor,
+        _ rhs: MaterialColor
+    ) -> Double {
+        hypot(
+            hypot(lhs.red - rhs.red, lhs.green - rhs.green),
+            lhs.blue - rhs.blue
+        )
     }
 
     private static func analysisImage(
@@ -1040,6 +1404,8 @@ public enum MaterialEvidencePackage {
             "contact-sheets/family-optics.png",
             "contact-sheets/material-atlas.png",
             "contact-sheets/outline-counterform.png",
+            "contact-sheets/scene-scale-full.png",
+            "contact-sheets/scene-scale-tile.png",
             "corpus-manifest.json",
             "metrics.json",
         ]
@@ -1055,6 +1421,19 @@ public enum MaterialEvidencePackage {
                     colorCount: colorCount,
                     scale: scale
                 ))
+                for background in [
+                    BackgroundCondition.light,
+                    .dark,
+                    .lowContrast,
+                ] {
+                    let stem = sceneScaleStem(
+                        family: family,
+                        colorCount: colorCount,
+                        background: background
+                    )
+                    paths.insert("scene-scale/\(family.rawValue)/\(stem)-full@1x.png")
+                    paths.insert("scene-scale/\(family.rawValue)/\(stem)-tile@1x.png")
+                }
             }
         }
         return paths
@@ -1065,6 +1444,7 @@ public enum MaterialEvidencePackage {
         manifest: CorpusManifest,
         frozenRecipes: [Int: SceneRecipe],
         scale: Int,
+        sceneScaleEvidence: SceneScaleEvidence,
         directory: URL
     ) throws {
         let fullWidth = 393 * scale
@@ -1203,6 +1583,72 @@ public enum MaterialEvidencePackage {
         else {
             throw MaterialEvidenceError.renderPixelMismatch(familySheetPath)
         }
+
+        for metric in sceneScaleEvidence.metrics {
+            guard let expectedFullData = sceneScaleEvidence.fullImages[metric.fullPath],
+                  let expectedTileData = sceneScaleEvidence.tileImages[metric.tilePath]
+            else {
+                throw MaterialEvidenceError.invalidPackage("missing expected scene-scale image")
+            }
+            let actualFull = try decodedPNG(
+                Data(contentsOf: directory.appendingPathComponent(metric.fullPath)),
+                path: metric.fullPath
+            )
+            let actualTile = try decodedPNG(
+                Data(contentsOf: directory.appendingPathComponent(metric.tilePath)),
+                path: metric.tilePath
+            )
+            let expectedFull = try decodedPNG(expectedFullData, path: "expected:\(metric.fullPath)")
+            let expectedTile = try decodedPNG(expectedTileData, path: "expected:\(metric.tilePath)")
+            guard actualFull.width == 393,
+                  actualFull.height == 852,
+                  actualTile.width == 393,
+                  actualTile.height == 393,
+                  try normalizedRGBA(actualFull) == normalizedRGBA(expectedFull),
+                  try normalizedRGBA(actualTile) == normalizedRGBA(expectedTile),
+                  let crop = actualFull.cropping(to: CGRect(x: 0, y: 229, width: 393, height: 393)),
+                  try normalizedRGBA(crop) == normalizedRGBA(actualTile)
+            else {
+                throw MaterialEvidenceError.renderPixelMismatch(metric.fullPath)
+            }
+        }
+        for (path, sourcePaths, columns, cellWidth, cellHeight) in [
+            (
+                "contact-sheets/scene-scale-full.png",
+                sceneScaleEvidence.metrics.map(\.fullPath),
+                9,
+                92,
+                198
+            ),
+            (
+                "contact-sheets/scene-scale-tile.png",
+                sceneScaleEvidence.metrics.map(\.tilePath),
+                9,
+                96,
+                96
+            ),
+        ] {
+            let actual = try decodedPNG(
+                Data(contentsOf: directory.appendingPathComponent(path)),
+                path: path
+            )
+            let expected = try decodedPNG(
+                contactSheetData(
+                    paths: sourcePaths,
+                    directory: directory,
+                    columns: columns,
+                    cellWidth: cellWidth,
+                    cellHeight: cellHeight
+                ),
+                path: "expected:\(path)"
+            )
+            guard actual.width == expected.width,
+                  actual.height == expected.height,
+                  try normalizedRGBA(actual) == normalizedRGBA(expected)
+            else {
+                throw MaterialEvidenceError.renderPixelMismatch(path)
+            }
+        }
     }
 
     private static func verifySealedArtifacts(in directory: URL) throws -> String {
@@ -1257,6 +1703,14 @@ public enum MaterialEvidencePackage {
         "actor-crops/\(family.rawValue)/\(family.rawValue)-colors-\(colorCount)@\(scale)x.png"
     }
 
+    private static func sceneScaleStem(
+        family: MaterialFamily,
+        colorCount: Int,
+        background: BackgroundCondition
+    ) -> String {
+        "\(family.rawValue)-colors-\(colorCount)-\(background.rawValue)-layout-11"
+    }
+
     private static func write(_ data: Data, path: String, in directory: URL) throws {
         let url = directory.appendingPathComponent(path)
         try FileManager.default.createDirectory(
@@ -1282,6 +1736,7 @@ public enum MaterialEvidencePackage {
             let data = try Data(contentsOf: directory.appendingPathComponent(path))
             let kind: String
             if path.hasPrefix("actor-crops/") { kind = "isolated-actor-crop" }
+            else if path.hasPrefix("scene-scale/") { kind = "scene-scale-render" }
             else if path.hasPrefix("renders/") { kind = "core-render" }
             else if path.hasPrefix("contact-sheets/") { kind = "contact-sheet" }
             else if path == "metrics.json" { kind = "metrics" }
@@ -1411,6 +1866,48 @@ public enum MaterialEvidencePackage {
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
         else { throw MaterialEvidenceError.cannotDecodeImage(path) }
         return image
+    }
+
+    private static func downsampled(
+        _ image: CGImage,
+        width: Int,
+        height: Int
+    ) throws -> CGImage {
+        guard let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                | CGBitmapInfo.byteOrder32Big.rawValue
+        ) else {
+            throw MaterialEvidenceError.cannotCreateContactSheet
+        }
+        context.interpolationQuality = .high
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        guard let result = context.makeImage() else {
+            throw MaterialEvidenceError.cannotCreateContactSheet
+        }
+        return result
+    }
+
+    private static func encodedPNG(_ image: CGImage) throws -> Data {
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            data,
+            UTType.png.identifier as CFString,
+            1,
+            nil
+        ) else {
+            throw MaterialEvidenceError.cannotCreateContactSheet
+        }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else {
+            throw MaterialEvidenceError.cannotCreateContactSheet
+        }
+        return data as Data
     }
 
     private static func normalizedRGBA(_ image: CGImage) throws -> Data {

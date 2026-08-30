@@ -50,7 +50,7 @@ public enum MaterialRendererError: Error, LocalizedError {
 /// recipe. It is intentionally independent from app/Metal code and consumes
 /// immutable composition values without deriving or changing geometry.
 public struct MaterialRenderer {
-    public static let version = "material-coregraphics-radial-v2"
+    public static let version = "material-coregraphics-radial-v4"
 
     public init() {}
 
@@ -272,7 +272,7 @@ public struct MaterialRenderer {
                     )
                     let bodyDepth = sqrt(clamp(1 - shapeDistance / outerRadius))
                     color = color.scaled(0.70 + bodyDepth * 0.30)
-                    color = mix(color, RGB.white, 0.40 * highlight)
+                    color = mix(color, RGB.white, 0.30 * highlight)
                 case .glass:
                     let surfaceTension = 1 - smoothstep(
                         0.012,
@@ -300,11 +300,11 @@ public struct MaterialRenderer {
                     color = mix(
                         color,
                         RGB.white,
-                        min(0.64, surfaceTension * 0.50 + highlight * 0.24)
+                        min(0.42, surfaceTension * 0.32 + highlight * 0.14)
                     )
-                    alpha *= 0.88 + surfaceTension * 0.12
+                    alpha *= 0.90 + surfaceTension * 0.10
                 case .mist:
-                    let volume = material.fields.map { field in
+                    let radialVolumes = material.fields.map { field in
                         radialWeight(
                             u: u,
                             v: v,
@@ -313,26 +313,16 @@ public struct MaterialRenderer {
                             radius: field.radius,
                             softness: field.softness
                         ) * clamp(field.opacity)
-                    }.max() ?? 1
-                    let fineVolume = valueNoise(
-                        u: u,
-                        v: v,
-                        frequency: 28,
-                        seed: stableHash(material.eventID)
-                    ) - 0.5
-                    let broadVolume = valueNoise(
-                        u: u,
-                        v: v,
-                        frequency: 13,
-                        seed: stableHash(material.eventID) ^ 0xD1FF_053D
-                    ) - 0.5
-                    let grain = fineVolume * 0.72 + broadVolume * 0.28
-                    let textureAmount = 0.15 * (0.55 + volume * 0.45)
-                    color = mix(color, RGB.white, 0.045)
-                    color = grain >= 0
-                        ? mix(color, RGB.white, grain * textureAmount)
-                        : mix(color, RGB.black, -grain * textureAmount)
-                    alpha *= 0.86 + volume * 0.14
+                    }
+                    let peakVolume = radialVolumes.max() ?? 1
+                    let sharedVolume = radialVolumes.reduce(0, +)
+                        / Double(max(radialVolumes.count, 1))
+                    // Mist is translucent depth made only from the same broad,
+                    // overlapping radial fields as its color surface. There is
+                    // intentionally no actor-seeded texture or 2D noise here.
+                    let volume = clamp(peakVolume * 0.58 + sharedVolume * 0.42)
+                    color = mix(color, RGB.white, 0.025 + (1 - volume) * 0.035)
+                    alpha *= 0.58 + volume * 0.42
                 case .halo:
                     let corona = 1 - smoothstep(0.025, 0.105, abs(shapeDistance - outerRadius * 0.78))
                     color = mix(color, RGB.white, corona * 0.23)
@@ -362,9 +352,9 @@ public struct MaterialRenderer {
                     color = mix(
                         color,
                         RGB.white,
-                        min(0.82, core * 0.52 + innerGlow * 0.10 + outerCorona * 0.62)
+                        min(0.62, core * 0.38 + innerGlow * 0.10 + outerCorona * 0.46)
                     )
-                    alpha *= 0.88 + core * 0.08 + outerCorona * 0.04
+                    alpha *= 0.92 + core * 0.05 + outerCorona * 0.03
                 case .outline:
                     var contourAlpha = 0.0
                     let contourCount = max(1, material.contourCount)
@@ -402,7 +392,8 @@ public struct MaterialRenderer {
                     color = visibilityAdjusted(
                         color,
                         alpha: alpha,
-                        background: RGB(contrastBackground)
+                        background: RGB(contrastBackground),
+                        family: material.family
                     )
                 }
                 write(
@@ -481,11 +472,30 @@ public struct MaterialRenderer {
         return base + (2 * layer - 1) * (d - base)
     }
 
-    private func visibilityAdjusted(_ color: RGB, alpha: Double, background: RGB) -> RGB {
+    private func visibilityAdjusted(
+        _ color: RGB,
+        alpha: Double,
+        background: RGB,
+        family: MaterialFamily
+    ) -> RGB {
         let composited = mix(background, color, alpha)
-        guard distance(composited, background) < 0.16 else { return color }
-        let target = background.luminance > 0.52 ? RGB.black : RGB.white
-        return mix(color, target, 0.42)
+        let contrast = distance(composited, background)
+        let visibilityNeed = 1 - smoothstep(0.075, 0.235, contrast)
+        // Mid-value editorial grounds gain contrast by shading, not by adding
+        // an achromatic white ribbon between complementary radial colors.
+        let target = background.luminance > 0.30 ? RGB.black : RGB.white
+        let isMidValueGround = (0.30...0.70).contains(background.luminance)
+        let strength: Double
+        if !isMidValueGround {
+            strength = 0.58
+        } else {
+            strength = switch family {
+            case .outline, .counterform: 0.62
+            case .glass, .mist, .halo, .luminous: 0.42
+            case .gradient, .solid, .sphere: 0.28
+            }
+        }
+        return mix(color, target, strength * visibilityNeed)
     }
 
     private func blurred(_ image: CGImage, radius: Double) throws -> CGImage {
@@ -597,46 +607,6 @@ private func mix(_ lhs: RGB, _ rhs: RGB, _ amount: Double) -> RGB {
 
 private func distance(_ lhs: RGB, _ rhs: RGB) -> Double {
     hypot(lhs.r - rhs.r, hypot(lhs.g - rhs.g, lhs.b - rhs.b))
-}
-
-private func stableHash(_ value: String) -> UInt64 {
-    value.utf8.reduce(0xCBF29CE484222325) { partial, byte in
-        (partial ^ UInt64(byte)) &* 0x100000001B3
-    }
-}
-
-private func valueNoise(u: Double, v: Double, frequency: Double, seed: UInt64) -> Double {
-    let scaledX = u * frequency
-    let scaledY = v * frequency
-    let x0 = Int(floor(scaledX))
-    let y0 = Int(floor(scaledY))
-    let tx = smoothstep(0, 1, scaledX - Double(x0))
-    let ty = smoothstep(0, 1, scaledY - Double(y0))
-    let lower = mixScalar(
-        latticeNoise(x: x0, y: y0, seed: seed),
-        latticeNoise(x: x0 + 1, y: y0, seed: seed),
-        tx
-    )
-    let upper = mixScalar(
-        latticeNoise(x: x0, y: y0 + 1, seed: seed),
-        latticeNoise(x: x0 + 1, y: y0 + 1, seed: seed),
-        tx
-    )
-    return mixScalar(lower, upper, ty)
-}
-
-private func latticeNoise(x: Int, y: Int, seed: UInt64) -> Double {
-    var state = seed
-        ^ (UInt64(bitPattern: Int64(x)) &* 0x9E3779B97F4A7C15)
-        ^ (UInt64(bitPattern: Int64(y)) &* 0xD1B54A32D192ED03)
-    state = (state ^ (state >> 30)) &* 0xBF58476D1CE4E5B9
-    state = (state ^ (state >> 27)) &* 0x94D049BB133111EB
-    state ^= state >> 31
-    return Double(state >> 11) / Double(UInt64(1) << 53)
-}
-
-private func mixScalar(_ lhs: Double, _ rhs: Double, _ amount: Double) -> Double {
-    lhs + (rhs - lhs) * clamp(amount)
 }
 
 private func smoothstep(_ lower: Double, _ upper: Double, _ value: Double) -> Double {

@@ -353,8 +353,11 @@ public enum MaterialDNA {
             let count = mutation == .multiOutline
                 ? 2 + Int(actorUnit(actorSeed, salt: 0x0A71) * 2)
                 : 1
-            let width = 0.026 + actorUnit(actorSeed, salt: 0x0A72) * 0.026
-            return (0.92, 0.016, width, count, nil, 0)
+            // A contour must remain a contour after the approved depth blur is
+            // sampled onto the 393 pt canvas. This is material topology, not a
+            // change to the frozen actor diameter or placement.
+            let width = 0.092 + actorUnit(actorSeed, salt: 0x0A72) * 0.022
+            return (0.98, 0.014, width, count, nil, 0)
         case .counterform:
             let base = 0.30 + actorUnit(actorSeed, salt: 0xC017) * 0.10
             let radius = mutation == .wideCounterform ? min(0.44, base + 0.045) : base
