@@ -479,7 +479,7 @@ struct MaterialRendererTests {
         ) != "")
     }
 
-    @Test("canonical material metrics sample visible outline rings and distinct secondary color")
+    @Test("canonical material metrics sample visible topology and distinct secondary color for every multicolor actor")
     func materialMetricsSamplesFollowMaterialTopology() throws {
         let authority = try canonicalCompositionAuthority()
         let testRoot = repositoryRoot()
@@ -510,31 +510,53 @@ struct MaterialRendererTests {
             )
         }
 
-        let twoColorGradient = try #require(metrics.fixtures.first {
-            $0.fixture.family == .gradient && $0.fixture.requestedColorCount == 2
-        })
-        for actor in twoColorGradient.actors {
-            let visible = actor.samples.filter { $0.alpha > 0.18 }.map {
-                StraightRGB(r: $0.red, g: $0.green, b: $0.blue)
-            }
-            #expect(visible.count >= 2)
-            var maximumColorDistance = 0.0
-            var maximumHueDistance = 0.0
-            for lhs in visible.indices {
-                for rhs in visible.indices where rhs > lhs {
-                    maximumColorDistance = max(
-                        maximumColorDistance,
-                        rgbDistance(visible[lhs], visible[rhs])
-                    )
-                    maximumHueDistance = max(
-                        maximumHueDistance,
-                        circularHueDistance(visible[lhs].hue, visible[rhs].hue)
-                    )
+        let multicolorFixtures = metrics.fixtures.filter {
+            $0.fixture.family != .solid && $0.fixture.requestedColorCount >= 2
+        }
+        #expect(multicolorFixtures.count == 16)
+        for fixture in multicolorFixtures {
+            for actor in fixture.actors {
+                let minimumVisibleAlpha: Double = switch actor.family {
+                case .glass, .mist, .halo, .luminous: 0.10
+                case .outline, .counterform: 0.16
+                case .gradient, .sphere: 0.50
+                case .solid: 1
                 }
+                let visible = actor.samples.filter { $0.alpha >= minimumVisibleAlpha }.map {
+                    StraightRGB(r: $0.red, g: $0.green, b: $0.blue)
+                }
+                #expect(visible.count >= 2)
+                var maximumColorDistance = 0.0
+                var maximumHueDistance = 0.0
+                var maximumChromaDifference = 0.0
+                for lhs in visible.indices {
+                    for rhs in visible.indices where rhs > lhs {
+                        maximumColorDistance = max(
+                            maximumColorDistance,
+                            rgbDistance(visible[lhs], visible[rhs])
+                        )
+                        if min(visible[lhs].chroma, visible[rhs].chroma) > 0.12 {
+                            maximumHueDistance = max(
+                                maximumHueDistance,
+                                circularHueDistance(visible[lhs].hue, visible[rhs].hue)
+                            )
+                        }
+                        maximumChromaDifference = max(
+                            maximumChromaDifference,
+                            abs(visible[lhs].chroma - visible[rhs].chroma)
+                        )
+                    }
+                }
+                let context = "fixture \(fixture.fixture.index) \(actor.eventID): "
+                    + "rgb=\(maximumColorDistance), hue=\(maximumHueDistance), "
+                    + "chroma=\(maximumChromaDifference)"
+                #expect(maximumColorDistance > 0.08, Comment(rawValue: context))
+                #expect(
+                    maximumHueDistance > 0.04 || maximumChromaDifference > 0.06,
+                    Comment(rawValue: context)
+                )
+                #expect(visible.contains { $0.chroma > 0.25 })
             }
-            #expect(maximumColorDistance > 0.10)
-            #expect(maximumHueDistance > 0.04)
-            #expect(visible.contains { $0.chroma > 0.25 })
         }
     }
 }

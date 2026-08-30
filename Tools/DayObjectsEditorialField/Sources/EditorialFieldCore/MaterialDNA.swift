@@ -301,6 +301,11 @@ public enum MaterialDNA {
             let blend: RadialBlend
             if index == 0 {
                 blend = .normal
+            } else if family == .outline || family == .counterform {
+                // Sparse rings and cut centers expose only a narrow subset of
+                // each radial field. Normal ownership keeps every requested
+                // palette region chromatically legible on that topology.
+                blend = .normal
             } else {
                 let choices: [RadialBlend] = [.normal, .screen, .softLight, .multiply]
                 let selector = Int((actorSeed >> UInt64(index * 9)) % UInt64(choices.count))
