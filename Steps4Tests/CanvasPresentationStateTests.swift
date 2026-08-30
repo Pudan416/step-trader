@@ -112,6 +112,15 @@ final class CanvasPresentationStateTests: XCTestCase {
         }
     }
 
+    func testGalleryUsesDayObjectsExceptWhileEditing() {
+        XCTAssertEqual(GalleryCanvasRenderMode.forPresentation(.canvas), .liveDayObjects)
+        XCTAssertEqual(GalleryCanvasRenderMode.forPresentation(.data), .liveDayObjects)
+        XCTAssertEqual(GalleryCanvasRenderMode.forPresentation(.fullScreen), .liveDayObjects)
+        XCTAssertEqual(GalleryCanvasRenderMode.forPresentation(.editing), .legacyEditing)
+        XCTAssertFalse(GalleryCanvasRenderMode.liveDayObjects.usesLegacyTextureOverlay)
+        XCTAssertTrue(GalleryCanvasRenderMode.legacyEditing.usesLegacyTextureOverlay)
+    }
+
     // MARK: - Analytics
 
     func testAnalyticsNamesCoverTheTrackedTransitions() {

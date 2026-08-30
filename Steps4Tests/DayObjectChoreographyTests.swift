@@ -517,15 +517,12 @@ final class DayObjectChoreographyTests: XCTestCase {
     func testSparseSpiralProcessionAdmitsInnerMiddleAndOuterRolesEarly() {
         let ids = (0..<5).map { "lab-event-\($0)" }
         for source in scenes(for: .spiralProcession, eventIDs: ids) {
-            let center = canvasPoint(source.choreographyConfiguration.center)
             for count in [1, 2, 3, 5] {
                 let scene = rebuiltScene(from: source, eventIDs: Array(ids.prefix(count)))
-                let radii = scene.actors.map {
-                    simd_distance(pose($0, in: scene, at: 0).position, center)
-                }
-                let innerCount = radii.filter { $0 < 0.075 }.count
-                let middleCount = radii.filter { (0.075..<0.16).contains($0) }.count
-                let outerCount = radii.filter { $0 >= 0.16 }.count
+                let ordinals = scene.actors.map(\.choreographySlot.ordinal)
+                let innerCount = ordinals.filter { (0..<3).contains($0) }.count
+                let middleCount = ordinals.filter { (3..<7).contains($0) }.count
+                let outerCount = ordinals.filter { $0 >= 7 }.count
                 XCTAssertEqual(innerCount, 1, "count=\(count)")
                 switch count {
                 case 1:
@@ -538,9 +535,8 @@ final class DayObjectChoreographyTests: XCTestCase {
                     XCTAssertEqual(middleCount, 1, "count=\(count)")
                     XCTAssertEqual(outerCount, 1, "count=\(count)")
                 case 5:
-                    XCTAssertGreaterThanOrEqual(middleCount, 2, "count=\(count)")
-                    XCTAssertGreaterThanOrEqual(outerCount, 1, "count=\(count)")
-                    XCTAssertEqual(middleCount + outerCount, 4, "count=\(count)")
+                    XCTAssertEqual(middleCount, 2, "count=\(count)")
+                    XCTAssertEqual(outerCount, 2, "count=\(count)")
                 default:
                     XCTFail("Unexpected count \(count)")
                 }
