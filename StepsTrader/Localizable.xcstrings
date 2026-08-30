@@ -1,9 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "" : {
-
-    },
     "—" : {
       "comment" : "Settings account unavailable email"
     },
@@ -252,9 +249,6 @@
         }
       }
     },
-    "+%lld more" : {
-      "comment" : "ActivitySuggestionBanner – show more"
-    },
     "+20" : {
 
     },
@@ -295,9 +289,6 @@
 
     },
     "100" : {
-
-    },
-    "A fresh palette + style every day." : {
 
     },
     "A heads-up before your canvas resets for a new day." : {
@@ -346,7 +337,7 @@
       "comment" : "Settings account section header"
     },
     "Action needed" : {
-      "comment" : "Permissions warning label"
+      "comment" : "Permission status\nPermissions warning label"
     },
     "Activity suggestions" : {
       "comment" : "A label for the activity suggestions banner.",
@@ -393,6 +384,9 @@
     "all" : {
       "comment" : "ManualsPage – filter showing all notes"
     },
+    "All" : {
+      "comment" : "All modern palette categories"
+    },
     "All added for today" : {
       "comment" : "Palette completion state"
     },
@@ -435,27 +429,6 @@
     "Angular" : {
 
     },
-    "Appearance mode" : {
-      "comment" : "Appearance mode picker label"
-    },
-    "Automatic" : {
-      "comment" : "Appearance mode option"
-    },
-    "Canvas ingredients" : {
-      "comment" : "Appearance manual disclosure label"
-    },
-    "Current theme" : {
-      "comment" : "Automatic Appearance summary heading"
-    },
-    "Gradient style" : {
-      "comment" : "Appearance current gradient style label\nAppearance gradient style heading"
-    },
-    "Manual" : {
-      "comment" : "Appearance mode option"
-    },
-    "Palette" : {
-      "comment" : "Appearance current palette label\nAppearance palette heading"
-    },
     "App blocking & limits" : {
       "comment" : "Permission row – Family Controls detail"
     },
@@ -467,6 +440,9 @@
     },
     "Appearance" : {
       "comment" : "Settings destination title\nSettings section title"
+    },
+    "Appearance mode" : {
+      "comment" : "Appearance mode picker label"
     },
     "Apply" : {
       "comment" : "GradientPreview – apply gradient button"
@@ -487,11 +463,11 @@
     "Aurora" : {
 
     },
-    "auto" : {
-      "comment" : "Inline tag — picker disabled because daily random is on"
-    },
     "Auto-wallpaper" : {
 
+    },
+    "Automatic" : {
+      "comment" : "Appearance mode option"
     },
     "Automatic sync" : {
       "comment" : "Settings account sync status label"
@@ -503,10 +479,7 @@
       "comment" : "SettingsComponents – back button label"
     },
     "Background" : {
-      "comment" : "Widget section header"
-    },
-    "BACKGROUND COLOR" : {
-      "comment" : "Appearance section header"
+      "comment" : "Appearance manual group heading\nWidget section header"
     },
     "Blob" : {
       "comment" : "Canvas shape type"
@@ -535,6 +508,9 @@
     "CANVAS FILLS" : {
       "comment" : "Appearance section header"
     },
+    "Canvas ingredients" : {
+      "comment" : "Appearance manual disclosure label"
+    },
     "Canvas reminder" : {
       "comment" : "Notification section header"
     },
@@ -550,11 +526,11 @@
     "Canvas Wallpaper" : {
 
     },
-    "Check access" : {
-      "comment" : "Health permission action\nNotification permission status\nPermission check action\nPermission status"
-    },
     "Charged: %lld colors." : {
       "comment" : "Notification – charged colors only body"
+    },
+    "Check access" : {
+      "comment" : "Health permission action\nPermission check action\nPermission status"
     },
     "Choose App → select Nowhere → pick \"Is Closed\"" : {
 
@@ -637,11 +613,11 @@
     "Colors restored. %lld min." : {
       "comment" : "Notification – budget restored body"
     },
-    "Connected" : {
-      "comment" : "Permission status"
-    },
     "COLORS SPENT THIS WEEK" : {
       "comment" : "MeView – connected apps section header"
+    },
+    "Connected" : {
+      "comment" : "Permission status"
     },
     "Contact" : {
       "comment" : "About section header"
@@ -670,6 +646,9 @@
     "Create" : {
       "comment" : "CategoryDetail – create custom card button"
     },
+    "Current theme" : {
+      "comment" : "Automatic Appearance summary heading"
+    },
     "Custom Apps" : {
       "comment" : "TemplatePicker – custom apps option title"
     },
@@ -678,9 +657,6 @@
     },
     "Daily energy" : {
       "comment" : "Canvas status pill – VoiceOver label"
-    },
-    "Daily random theme" : {
-
     },
     "Daily Steps Goal" : {
 
@@ -706,9 +682,6 @@
     },
     "Day reset" : {
       "comment" : "Notification section header"
-    },
-    "Day Reset" : {
-      "comment" : "Navigation title"
     },
     "Day Resets At" : {
 
@@ -760,9 +733,6 @@
     },
     "Dismiss" : {
       "comment" : "LoginView – dismiss button VoiceOver label"
-    },
-    "Dismiss all" : {
-
     },
     "Dismiss suggestion" : {
       "comment" : "ActivitySuggestionBanner – dismiss VoiceOver label"
@@ -869,9 +839,6 @@
     },
     "Email is managed by Apple ID" : {
       "comment" : "ProfileEditor – email hint"
-    },
-    "Enable" : {
-      "comment" : "Permission – enable button"
     },
     "Entries left today: %@" : {
 
@@ -996,11 +963,11 @@
     "Gradient" : {
       "comment" : "Canvas fill style"
     },
+    "Gradient style" : {
+      "comment" : "Appearance current gradient style label\nAppearance gradient style heading"
+    },
     "Gradient Style" : {
 
-    },
-    "GRADIENT STYLE" : {
-      "comment" : "Appearance section header"
     },
     "Grid" : {
 
@@ -1024,9 +991,6 @@
     },
     "Health" : {
       "comment" : "Permission row – HealthKit"
-    },
-    "Health access couldn't be checked" : {
-      "comment" : "Health permission error title"
     },
     "Health data refreshed!" : {
       "comment" : "Developer diagnostic success"
@@ -1068,9 +1032,6 @@
     "i'll nudge you when colors are ready to spend." : {
 
     },
-    "If a permission was denied, tap it to open Settings where you can enable it." : {
-      "comment" : "Permissions – footer hint"
-    },
     "If a permission was denied, use its action button to open Settings where you can enable it." : {
       "comment" : "Permissions – footer hint"
     },
@@ -1086,14 +1047,18 @@
     "Increase sleep goal" : {
       "comment" : "Sleep goal picker increment button"
     },
-    "Install the Nowhere wallpaper shortcut." : {
-      "comment" : "Wallpaper setup step"
-    },
     "Instagram is closed." : {
 
     },
+    "Install the Nowhere wallpaper shortcut." : {
+      "comment" : "Wallpaper setup step"
+    },
     "Intense" : {
       "comment" : "Texture picker – intense grain"
+    },
+    "Isolated ticket settings fixture" : {
+      "comment" : "A view that appears in the background during UI tests.",
+      "isCommentAutoGenerated" : true
     },
     "keep it closed" : {
       "comment" : "PayGate dismiss button"
@@ -1120,6 +1085,9 @@
     "Long-press the widget → Edit to choose which group to display." : {
 
     },
+    "Manual" : {
+      "comment" : "Appearance mode option"
+    },
     "Maybe later" : {
       "comment" : "Feature tip dismiss button"
     },
@@ -1144,9 +1112,6 @@
     },
     "My progress overview" : {
       "comment" : "QuickStatus – subtitle"
-    },
-    "N/A" : {
-      "comment" : "Permission – not available badge"
     },
     "Name your feed" : {
 
@@ -1179,6 +1144,9 @@
     },
     "Next month" : {
       "comment" : "Full calendar – next month"
+    },
+    "Next suggestion: %@" : {
+      "comment" : "ActivitySuggestionBanner – queued suggestion VoiceOver label"
     },
     "Nickname" : {
       "comment" : "ProfileEditor – nickname field"
@@ -1219,8 +1187,7 @@
       "comment" : "Notification permission status"
     },
     "Not selected" : {
-      "comment" : "A label describing a selection that is not selected.",
-      "isCommentAutoGenerated" : true
+      "comment" : "Settings selectable choice state"
     },
     "Notes from Kosta" : {
       "comment" : "ManualsPage – page title\nSettings destination title"
@@ -2415,6 +2382,9 @@
     "Outline" : {
       "comment" : "Canvas fill style"
     },
+    "Palette" : {
+      "comment" : "Appearance current palette label\nAppearance palette heading"
+    },
     "Permissions" : {
       "comment" : "Permissions page title\nSettings destination title"
     },
@@ -2474,9 +2444,6 @@
 
     },
     "Radial Reversed" : {
-
-    },
-    "Randomizes color & gradient style each day." : {
 
     },
     "Rays" : {
@@ -2551,7 +2518,7 @@
       "comment" : "AppSelection – navigation title"
     },
     "Selected" : {
-      "comment" : "Canvas editing – selected element state"
+      "comment" : "Canvas editing – selected element state\nSettings selectable choice state"
     },
     "Set it up" : {
       "comment" : "Feature tip primary button — wallpaper"
@@ -2580,9 +2547,6 @@
     },
     "Settings and history sync automatically across your devices." : {
       "comment" : "Settings account sync footer"
-    },
-    "Setup" : {
-      "comment" : "Wallpaper section header"
     },
     "Setup in Shortcuts" : {
       "comment" : "Wallpaper setup disclosure title"
@@ -2797,14 +2761,15 @@
     "Steps, sleep, workouts" : {
       "comment" : "Permission row – HealthKit detail"
     },
+    "Study" : {
+      "comment" : "A title for the settings screen.",
+      "isCommentAutoGenerated" : true
+    },
     "Sunset" : {
 
     },
     "SYNC" : {
       "comment" : "Settings account section header"
-    },
-    "System notifications" : {
-      "comment" : "Notification authorization row title"
     },
     "Sync across devices" : {
       "comment" : "Settings signed-out account card subtitle"
@@ -2812,8 +2777,8 @@
     "Synced with wallpaper shortcut" : {
 
     },
-    "Tap the button below to add the wallpaper shortcut" : {
-
+    "System notifications" : {
+      "comment" : "Notification authorization row title"
     },
     "Tap to add to your daily total" : {
 
@@ -3019,11 +2984,11 @@
     "What have you done so far?" : {
       "comment" : "Empty-canvas nudge, morning — retrospective"
     },
-    "when does your day end?" : {
-
-    },
     "When access ends" : {
       "comment" : "Notification preference for access ending"
+    },
+    "when does your day end?" : {
+
     },
     "Why this matters" : {
       "comment" : "Canvas metric disclosure – research link"
