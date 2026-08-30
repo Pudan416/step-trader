@@ -212,6 +212,54 @@ struct MaterialRendererTests {
         #expect(try rgbaBytes(expectedTile) == rgbaBytes(decodePNG(rendered.calendarTile.pngData)))
     }
 
+    @Test("actor-local blur fades beyond the body bounds without a square clipping seam")
+    func localBlurHasTransparentPadding() throws {
+        let recipe = CompositionRecipe(
+            daySeed: 99,
+            grammar: .openField,
+            viewport: .phone,
+            actors: [
+                ActorCompositionRecipe(
+                    eventID: "blurred",
+                    position: .init(x: 0.5, y: 0.5),
+                    diameter: 0.5,
+                    depth: 0.2,
+                    localBlur: 0.04,
+                    cropAllowance: 0,
+                    drawOrder: 0
+                ),
+            ]
+        )
+        let material = MaterialDNA.fixture(
+            daySeed: 99,
+            eventIDs: ["blurred"],
+            family: .solid,
+            requestedColorCount: 1
+        )
+        let rendered = try MaterialRenderer().render(
+            recipe: recipe,
+            material: material,
+            background: .dark,
+            configuration: .init(scale: 1)
+        )
+        let image = try pixels(rendered.fullScreen.pngData)
+        let background = image.pixel(x: 50, y: 426).straight
+        let justOutsideBody = image.pixel(x: 94, y: 426).straight
+        var largestJump = 0.0
+        for x in 88..<110 {
+            largestJump = max(
+                largestJump,
+                rgbDistance(
+                    image.pixel(x: x, y: 426).straight,
+                    image.pixel(x: x + 1, y: 426).straight
+                )
+            )
+        }
+
+        #expect(rgbDistance(justOutsideBody, background) > 0.02)
+        #expect(largestJump < 0.10)
+    }
+
     @Test("material atlas coverage crosses every family with one two and three requested colors")
     func materialAtlasCoverageIsComplete() {
         let coverage = MaterialEvidencePackage.coverage(for: .visibleV1())

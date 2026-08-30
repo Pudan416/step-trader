@@ -142,17 +142,23 @@ public struct MaterialRenderer {
             )
             let blur = max(0, actor.localBlur * shortSide)
             if blur >= 0.5 {
+                actorImage = try padded(
+                    actorImage,
+                    by: max(2, Int(ceil(blur * 3)))
+                )
                 actorImage = try blurred(actorImage, radius: blur)
             }
             let center = CGPoint(
                 x: actor.position.x * Double(width),
                 y: (1 - actor.position.y) * Double(height)
             )
+            let layerWidth = Double(actorImage.width)
+            let layerHeight = Double(actorImage.height)
             context.draw(actorImage, in: CGRect(
-                x: center.x - Double(diameter) * 0.5,
-                y: center.y - Double(diameter) * 0.5,
-                width: Double(diameter),
-                height: Double(diameter)
+                x: center.x - layerWidth * 0.5,
+                y: center.y - layerHeight * 0.5,
+                width: layerWidth,
+                height: layerHeight
             ))
         }
 
@@ -426,6 +432,22 @@ public struct MaterialRenderer {
             throw MaterialRendererError.cannotCreateImage
         }
         return image
+    }
+
+    private func padded(_ image: CGImage, by padding: Int) throws -> CGImage {
+        let width = image.width + padding * 2
+        let height = image.height + padding * 2
+        let context = try makeContext(width: width, height: height)
+        context.draw(image, in: CGRect(
+            x: padding,
+            y: padding,
+            width: image.width,
+            height: image.height
+        ))
+        guard let padded = context.makeImage() else {
+            throw MaterialRendererError.cannotCreateImage
+        }
+        return padded
     }
 
     private func makeContext(width: Int, height: Int) throws -> CGContext {
