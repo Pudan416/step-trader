@@ -246,22 +246,23 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertTrue(app.buttons["canvas_add_button"].waitForExistence(timeout: 3))
     }
 
-    func testLiveGalleryUsesDayObjectsAndEditingTemporarilyUsesLegacyCanvas() {
+    func testLiveAndEditingGalleryNeverSelectDayObjectsRenderer() {
         let app = launchCanvas()
         let dayObjects = app.otherElements["dayObjects.canvas"]
 
-        XCTAssertTrue(dayObjects.waitForExistence(timeout: 5))
+        XCTAssertTrue(dayObjects.waitForNonExistence(timeout: 3))
 
         app.buttons["canvas_fullscreen_button"].tap()
         XCTAssertTrue(app.buttons["canvas_edit_button"].waitForExistence(timeout: 3))
-        XCTAssertTrue(dayObjects.exists)
+        XCTAssertFalse(dayObjects.exists)
 
         app.buttons["canvas_edit_button"].tap()
         XCTAssertTrue(app.buttons["canvas_done_button"].waitForExistence(timeout: 3))
         XCTAssertTrue(dayObjects.waitForNonExistence(timeout: 3))
 
         app.buttons["canvas_done_button"].tap()
-        XCTAssertTrue(dayObjects.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["canvas_edit_button"].waitForExistence(timeout: 3))
+        XCTAssertFalse(dayObjects.exists)
     }
 
     func testAddReplacesTheTabBarWithTheHappeningDock() {

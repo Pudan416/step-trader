@@ -1,54 +1,5 @@
 import SwiftUI
 
-enum GalleryCanvasRenderMode: Equatable {
-    case liveDayObjects
-    case legacyEditing
-
-    static func forPresentation(_ presentation: CanvasPresentationState) -> Self {
-        presentation.isEditing ? .legacyEditing : .liveDayObjects
-    }
-
-    var usesLegacyTextureOverlay: Bool { self == .legacyEditing }
-    var usesLegacyEnergyBackground: Bool { self == .legacyEditing }
-}
-
-/// Pure boundary between persisted Gallery data and the procedural renderer.
-///
-/// The identity intentionally describes the production surface rather than a
-/// device or account. Together with the saved day key and synced element UUIDs,
-/// that makes the same day deterministic across a user's devices.
-enum GalleryDayObjectsInputAdapter {
-    static let productionIdentity = "gallery-day-objects-v1"
-
-    static func makeSceneInput(
-        dayCanvas: DayCanvas,
-        stepsPoints: Int,
-        sleepPoints: Int,
-        reduceMotion: Bool,
-        paletteCategories: Set<ModernPaletteCategory>
-    ) -> DayObjectSceneInput {
-        DayObjectSceneInput(
-            dayKey: dayCanvas.dayKey,
-            identity: productionIdentity,
-            eventIDs: Array(
-                dayCanvas.elements
-                    .prefix(DayObjectScene.maxActors)
-                    .map { $0.id.uuidString }
-            ),
-            motionEnergy: normalized(points: stepsPoints, maximum: EnergyDefaults.stepsMaxPoints),
-            visualClarity: normalized(points: sleepPoints, maximum: EnergyDefaults.sleepMaxPoints),
-            reduceMotion: reduceMotion,
-            canvasCoverage: .fullCanvas,
-            paletteCategories: paletteCategories
-        )
-    }
-
-    private static func normalized(points: Int, maximum: Int) -> Double {
-        guard maximum > 0 else { return 0 }
-        return min(max(Double(points) / Double(maximum), 0), 1)
-    }
-}
-
 enum CanvasSpawnOriginMapper {
     static func normalizedPosition(
         for origin: CGPoint,
@@ -82,7 +33,6 @@ struct GalleryView: View {
     @AppStorage(SharedKeys.gradientStyle) private var currentGradientStyle: String = GradientStyle.radial.rawValue
     @AppStorage(SharedKeys.gradientPalette) private var currentGradientPalette: String = GradientPalette.warmSunset.rawValue
     @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
-    @AppStorage(SharedKeys.modernPaletteCategories) private var modernPaletteCategoriesRaw = ""
     /// Last day key whose remote bootstrap finished. When `== todayKey`, an empty
     /// canvas (post-fetch with no remote data) is treated as a real "nothing yet"
     /// state instead of re-firing the remote round-trip on every appear.
@@ -429,10 +379,6 @@ struct GalleryView: View {
         return min(1.0, Double(dayCanvas.inkSpent) / Double(dayCanvas.inkEarned))
     }
 
-    private var canvasRenderMode: GalleryCanvasRenderMode {
-        GalleryCanvasRenderMode.forPresentation(presentation)
-    }
-
     // ═══════════════════════════════════════════════════════════
     // MARK: - Haptics (§4.1 — declarative via .sensoryFeedback)
     // ═══════════════════════════════════════════════════════════
@@ -446,31 +392,32 @@ struct GalleryView: View {
     @ViewBuilder
     private var canvasLayers: some View {
         ZStack {
-            // This switch is intentionally limited to the on-screen Gallery.
-            // Export and offscreen thumbnail services keep their existing
-            // renderer until a dedicated Metal snapshot path can capture the
-            // MTKView deterministically instead of producing an empty image.
-            if canvasRenderMode == .liveDayObjects {
-                DayObjectsView(
-                    sceneInput: GalleryDayObjectsInputAdapter.makeSceneInput(
-                        dayCanvas: dayCanvas,
-                        stepsPoints: model.stepsPointsToday,
-                        sleepPoints: model.sleepPointsToday,
-                        reduceMotion: reduceMotion,
-                        paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw)
-                    ),
-                    digitalImpact: DayObjectDigitalImpact(spentColors: dayCanvas.inkSpent)
-                )
-                .frame(
-                    width: GenerativeCanvasView.canonicalPortraitSize.width,
-                    height: GenerativeCanvasView.canonicalPortraitSize.height
-                )
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
-            } else {
-                GenerativeCanvasView(
+            GenerativeCanvasView(
+                elements: renderedCanvasElements,
+                dayKey: dayCanvas.dayKey,
+                sleepPoints: model.sleepPointsToday,
+                stepsPoints: model.stepsPointsToday,
+                sleepColor: Color(hex: sleepColorHex),
+                stepsColor: Color(hex: stepsColorHex),
+                decayNorm: decayNorm,
+                backgroundColor: canvasBackground,
+                labelColor: labelColor,
+                showLabelsOnCanvas: presentation.isEditing,
+                showsBackgroundGradient: false,
+                hasStepsData: model.hasStepsData,
+                hasSleepData: model.hasSleepData,
+                fixedTime: editState.editFreezeTime
+            )
+            .frame(
+                width: GenerativeCanvasView.canonicalPortraitSize.width,
+                height: GenerativeCanvasView.canonicalPortraitSize.height
+            )
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+
+            if !presentation.isEditing {
+                CanvasAnimationOverlay(
                     elements: renderedCanvasElements,
-                    dayKey: dayCanvas.dayKey,
                     sleepPoints: model.sleepPointsToday,
                     stepsPoints: model.stepsPointsToday,
                     sleepColor: Color(hex: sleepColorHex),
@@ -478,19 +425,17 @@ struct GalleryView: View {
                     decayNorm: decayNorm,
                     backgroundColor: canvasBackground,
                     labelColor: labelColor,
-                    showLabelsOnCanvas: true,
-                    showsBackgroundGradient: false,
                     hasStepsData: model.hasStepsData,
-                    hasSleepData: model.hasSleepData,
-                    fixedTime: editState.editFreezeTime
+                    hasSleepData: model.hasSleepData
                 )
                 .frame(
                     width: GenerativeCanvasView.canonicalPortraitSize.width,
                     height: GenerativeCanvasView.canonicalPortraitSize.height
                 )
                 .ignoresSafeArea()
-                .allowsHitTesting(false)
+            }
 
+            if presentation.isEditing {
                 editModeGestureOverlay
                     .frame(
                         width: GenerativeCanvasView.canonicalPortraitSize.width,
@@ -566,27 +511,13 @@ struct GalleryView: View {
             }
         }
         .overlay {
-            if canvasRenderMode.usesLegacyTextureOverlay {
-                TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
-                    .transaction { $0.animation = nil }
-            }
+            TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
+                .transaction { $0.animation = nil }
         }
         .overlay {
             happeningPaletteOverlay
         }
-        .background {
-            if canvasRenderMode.usesLegacyEnergyBackground {
-                EnergyGradientBackground(
-                    stepsPoints: model.stepsPointsToday,
-                    sleepPoints: model.sleepPointsToday,
-                    hasStepsData: model.hasStepsData,
-                    hasSleepData: model.hasSleepData,
-                    showGrain: false
-                )
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
-            }
-        }
+        .energyGradientBackground(model: model, showGrain: false)
         .toolbar(.hidden, for: .navigationBar)
         .background(
             GeometryReader { geo in
