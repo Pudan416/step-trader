@@ -402,6 +402,40 @@ struct MaterialRendererTests {
         }
     }
 
+    @Test("material verification rejects a checksum-valid blank contact sheet")
+    func materialVerifierRejectsResealedBlankContactSheet() throws {
+        let authority = try canonicalCompositionAuthority()
+        let testRoot = repositoryRoot()
+            .appendingPathComponent("editorial-material-blank-sheet-\(UUID().uuidString)", isDirectory: true)
+        let directory = testRoot.appendingPathComponent("atlas", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: testRoot) }
+        let sourceCommit = String(repeating: "e", count: 40)
+
+        _ = try MaterialEvidencePackage.generate(
+            manifest: .visibleV1(),
+            compositionApprovalData: authority.approval,
+            compositionRecipeArchiveData: authority.recipes,
+            sourceCommit: sourceCommit,
+            outputDirectory: directory,
+            scale: 1
+        )
+        let sheetPath = "contact-sheets/material-atlas.png"
+        try blankPNG(width: 792, height: 1_430).write(
+            to: directory.appendingPathComponent(sheetPath),
+            options: .atomic
+        )
+        try refreshArtifactRecordsAndSeal(paths: [sheetPath], directory: directory)
+
+        #expect(throws: MaterialEvidenceError.self) {
+            try MaterialEvidencePackage.verify(
+                directory: directory,
+                expectedSourceCommit: sourceCommit,
+                expectedCompositionApprovalData: authority.approval,
+                expectedCompositionRecipeArchiveData: authority.recipes
+            )
+        }
+    }
+
     @Test("material atlas geometry and pixels come from the frozen recipe archive")
     func materialAtlasUsesFrozenRecipesInsteadOfLivePlanner() throws {
         let workspace = repositoryRoot()

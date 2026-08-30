@@ -814,8 +814,32 @@ public enum MaterialEvidencePackage {
                 throw MaterialEvidenceError.tileCropMismatch(tilePath)
             }
         }
-        for path in ["contact-sheets/material-atlas.png", "contact-sheets/outline-counterform.png"] {
-            _ = try decodedPNG(Data(contentsOf: directory.appendingPathComponent(path)), path: path)
+        let atlasPaths = coverage.fixtures.map {
+            "renders/\($0.family.rawValue)/\(renderStem($0))-full@\(scale)x.png"
+        }
+        let structuralPaths = coverage.fixtures.filter {
+            $0.family == .outline || $0.family == .counterform
+        }.map {
+            "renders/\($0.family.rawValue)/\(renderStem($0))-full@\(scale)x.png"
+        }
+        for (path, sourcePaths) in [
+            ("contact-sheets/material-atlas.png", atlasPaths),
+            ("contact-sheets/outline-counterform.png", structuralPaths),
+        ] {
+            let actual = try decodedPNG(
+                Data(contentsOf: directory.appendingPathComponent(path)),
+                path: path
+            )
+            let expected = try decodedPNG(
+                contactSheetData(paths: sourcePaths, directory: directory),
+                path: "expected:\(path)"
+            )
+            guard actual.width == expected.width,
+                  actual.height == expected.height,
+                  try normalizedRGBA(actual) == normalizedRGBA(expected)
+            else {
+                throw MaterialEvidenceError.renderPixelMismatch(path)
+            }
         }
     }
 
@@ -931,6 +955,17 @@ public enum MaterialEvidencePackage {
         outputPath: String,
         directory: URL
     ) throws {
+        try write(
+            contactSheetData(paths: paths, directory: directory),
+            path: outputPath,
+            in: directory
+        )
+    }
+
+    private static func contactSheetData(
+        paths: [String],
+        directory: URL
+    ) throws -> Data {
         let columns = min(6, max(1, paths.count))
         let rows = Int(ceil(Double(paths.count) / Double(columns)))
         let cellWidth = 132
@@ -986,7 +1021,7 @@ public enum MaterialEvidencePackage {
         guard CGImageDestinationFinalize(destination) else {
             throw MaterialEvidenceError.cannotCreateContactSheet
         }
-        try write(data as Data, path: outputPath, in: directory)
+        return data as Data
     }
 
     private static func decodedPNG(_ data: Data, path: String) throws -> CGImage {
