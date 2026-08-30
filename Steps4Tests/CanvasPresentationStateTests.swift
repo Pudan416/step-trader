@@ -119,6 +119,8 @@ final class CanvasPresentationStateTests: XCTestCase {
         XCTAssertEqual(GalleryCanvasRenderMode.forPresentation(.editing), .legacyEditing)
         XCTAssertFalse(GalleryCanvasRenderMode.liveDayObjects.usesLegacyTextureOverlay)
         XCTAssertTrue(GalleryCanvasRenderMode.legacyEditing.usesLegacyTextureOverlay)
+        XCTAssertFalse(GalleryCanvasRenderMode.liveDayObjects.usesLegacyEnergyBackground)
+        XCTAssertTrue(GalleryCanvasRenderMode.legacyEditing.usesLegacyEnergyBackground)
     }
 
     // MARK: - Analytics

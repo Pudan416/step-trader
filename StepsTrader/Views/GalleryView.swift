@@ -9,6 +9,7 @@ enum GalleryCanvasRenderMode: Equatable {
     }
 
     var usesLegacyTextureOverlay: Bool { self == .legacyEditing }
+    var usesLegacyEnergyBackground: Bool { self == .legacyEditing }
 }
 
 /// Pure boundary between persisted Gallery data and the procedural renderer.
@@ -428,6 +429,10 @@ struct GalleryView: View {
         return min(1.0, Double(dayCanvas.inkSpent) / Double(dayCanvas.inkEarned))
     }
 
+    private var canvasRenderMode: GalleryCanvasRenderMode {
+        GalleryCanvasRenderMode.forPresentation(presentation)
+    }
+
     // ═══════════════════════════════════════════════════════════
     // MARK: - Haptics (§4.1 — declarative via .sensoryFeedback)
     // ═══════════════════════════════════════════════════════════
@@ -445,7 +450,7 @@ struct GalleryView: View {
             // Export and offscreen thumbnail services keep their existing
             // renderer until a dedicated Metal snapshot path can capture the
             // MTKView deterministically instead of producing an empty image.
-            if GalleryCanvasRenderMode.forPresentation(presentation) == .liveDayObjects {
+            if canvasRenderMode == .liveDayObjects {
                 DayObjectsView(
                     sceneInput: GalleryDayObjectsInputAdapter.makeSceneInput(
                         dayCanvas: dayCanvas,
@@ -561,7 +566,7 @@ struct GalleryView: View {
             }
         }
         .overlay {
-            if GalleryCanvasRenderMode.forPresentation(presentation).usesLegacyTextureOverlay {
+            if canvasRenderMode.usesLegacyTextureOverlay {
                 TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
                     .transaction { $0.animation = nil }
             }
@@ -569,7 +574,19 @@ struct GalleryView: View {
         .overlay {
             happeningPaletteOverlay
         }
-        .energyGradientBackground(model: model, showGrain: false)
+        .background {
+            if canvasRenderMode.usesLegacyEnergyBackground {
+                EnergyGradientBackground(
+                    stepsPoints: model.stepsPointsToday,
+                    sleepPoints: model.sleepPointsToday,
+                    hasStepsData: model.hasStepsData,
+                    hasSleepData: model.hasSleepData,
+                    showGrain: false
+                )
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+            }
+        }
         .toolbar(.hidden, for: .navigationBar)
         .background(
             GeometryReader { geo in
