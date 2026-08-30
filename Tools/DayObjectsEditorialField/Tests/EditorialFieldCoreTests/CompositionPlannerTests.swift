@@ -113,6 +113,58 @@ struct CompositionPlannerTests {
         }
     }
 
+    @Test("visible single-actor fields use distinct regions, scale, and depth")
+    func visibleSinglesCarryDistinctEditorialRoles() {
+        let fixtures = Array(CorpusManifest.visibleV1().breadth.prefix(2))
+        let recipes = fixtures.map {
+            CompositionPlanner.make(daySeed: $0.seed, eventIDs: $0.eventIDs, viewport: .phone)
+        }
+        #expect(recipes.allSatisfy { $0.actors.count == 1 })
+
+        let first = recipes[0].actors[0]
+        let second = recipes[1].actors[0]
+        let regionDistance = CompositionGeometry.distance(
+            from: first.position,
+            to: second.position,
+            viewport: .phone
+        )
+        let scaleRatio = max(first.diameter, second.diameter) / min(first.diameter, second.diameter)
+        #expect(regionDistance >= 0.45, "single-actor region distance: \(regionDistance)")
+        #expect(scaleRatio >= 1.18, "single-actor scale ratio: \(scaleRatio)")
+        #expect(abs(first.depth - second.depth) >= 0.08)
+
+        for recipe in recipes {
+            #expect(actorsCenteredInTile(recipe).count == 1)
+            #expect(tileVisibleVerticalFraction(recipe.actors[0], in: recipe) >= 0.75)
+        }
+    }
+
+    @Test("breadth two through five retain every sparse identity in the tile")
+    func sparseBreadthTilesRetainEverySilhouette() {
+        let breadth = CorpusManifest.visibleV1().breadth
+        for index in 2...5 {
+            let fixture = breadth[index]
+            let recipe = CompositionPlanner.make(
+                daySeed: fixture.seed,
+                eventIDs: fixture.eventIDs,
+                viewport: .phone
+            )
+            let centeredIDs = Set(actorsCenteredInTile(recipe).map(\.eventID))
+
+            #expect(
+                centeredIDs == Set(fixture.eventIDs),
+                "breadth \(index) centered IDs: \(centeredIDs); actors: \(recipe.actors)"
+            )
+            for actor in recipe.actors {
+                let visibleFraction = tileVisibleVerticalFraction(actor, in: recipe)
+                #expect(
+                    visibleFraction >= 0.75,
+                    "breadth \(index) actor \(actor.eventID) is only \(visibleFraction) visible"
+                )
+            }
+        }
+    }
+
     @Test("breadth fixture four breaks the diagonal with a readable cross-depth neighbour")
     func breadthFourUsesCrossDepthCounterpoint() {
         let fixture = CorpusManifest.visibleV1().breadth[4]

@@ -311,9 +311,10 @@ public enum CompositionPlanner {
         case .layeredOverlap, .transparentPrint:
             // Three loose masses span the portrait; each has an off-axis small
             // accent instead of collapsing around one shared center.
+            let thirdY = grammar == .transparentPrint ? tileY(0.22) : 0.25
             anchors = [
                 .init(x: 0.26, y: 0.40), .init(x: 0.42, y: 0.47),
-                .init(x: 0.31, y: 0.25), .init(x: 0.86, y: 0.08),
+                .init(x: 0.31, y: thirdY), .init(x: 0.86, y: 0.08),
                 .init(x: 0.18, y: 0.70), .init(x: 0.36, y: 0.62),
                 .init(x: 0.24, y: 0.95), .init(x: 0.86, y: 0.78),
                 .init(x: 0.70, y: 0.69), .init(x: 0.92, y: 0.48),
@@ -338,8 +339,11 @@ public enum CompositionPlanner {
                 .init(x: 0.56, y: 0.30), .init(x: 0.91, y: 0.73),
             ]
         case .depthScatter:
+            let lead = daySeed.isMultiple(of: 2)
+                ? CompositionPoint(x: 0.78, y: tileY(0.72))
+                : CompositionPoint(x: 0.18, y: tileY(0.25))
             anchors = [
-                .init(x: 0.18, y: tileY(0.25)), .init(x: 0.82, y: 0.84),
+                lead, .init(x: 0.82, y: 0.84),
                 .init(x: 0.30, y: 0.27), .init(x: 0.84, y: 0.07),
                 .init(x: 0.16, y: 0.72), .init(x: 0.66, y: 0.56),
                 .init(x: 0.23, y: 0.95), .init(x: 0.86, y: 0.76),
