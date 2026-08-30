@@ -252,6 +252,86 @@ final class DayObjectPaletteTests: XCTestCase {
         XCTAssertTrue(values.allSatisfy { (1...3).contains($0.colors.count) })
     }
 
+    func testCanonicalGalleryUUIDCorporaEmitBothPalettesAndThreeReadableColors() {
+        let paletteSet = DayObjectPaletteSet.make(
+            rootSeed: 44,
+            categories: [.pastel, .cold, .warm]
+        )
+
+        for (name, eventIDs) in canonicalGalleryUUIDCorpora {
+            XCTAssertEqual(
+                eventIDs.compactMap(UUID.init(uuidString:)).count,
+                eventIDs.count,
+                "fixture must contain only canonical UUID strings: \(name)"
+            )
+            let assignments = DayObjectColorAllocator.assignments(
+                eventIDs: eventIDs,
+                rootSeed: 44,
+                paletteSet: paletteSet
+            )
+
+            XCTAssertEqual(
+                Set(assignments.values.map(\.paletteSlot)),
+                Set([.primary, .secondary]),
+                "both daily palettes must reach emitted actors: \(name)"
+            )
+            XCTAssertGreaterThanOrEqual(
+                perceptuallyDistinctCount(assignments.values.flatMap(\.colors)),
+                3,
+                "three readable colors must reach emitted actors: \(name)"
+            )
+        }
+    }
+
+    func testCanonicalGalleryUUIDAssignmentsStayActorLocalAcrossRemovalAndReorder() throws {
+        for (name, eventIDs) in canonicalGalleryUUIDCorpora {
+            let paletteSet = DayObjectPaletteSet.make(
+                rootSeed: 73,
+                categories: [.pastel, .cold, .warm]
+            )
+            let full = DayObjectColorAllocator.assignments(
+                eventIDs: eventIDs,
+                rootSeed: 73,
+                paletteSet: paletteSet
+            )
+            let reordered = DayObjectColorAllocator.assignments(
+                eventIDs: Array(eventIDs.reversed()),
+                rootSeed: 73,
+                paletteSet: paletteSet
+            )
+            let removed = DayObjectColorAllocator.assignments(
+                eventIDs: Array(eventIDs.dropFirst().dropLast()),
+                rootSeed: 73,
+                paletteSet: paletteSet
+            )
+
+            for eventID in eventIDs {
+                let alone = DayObjectColorAllocator.assignments(
+                    eventIDs: [eventID],
+                    rootSeed: 73,
+                    paletteSet: paletteSet
+                )
+                XCTAssertEqual(
+                    try XCTUnwrap(full[eventID]),
+                    try XCTUnwrap(alone[eventID]),
+                    "actor-local assignment: \(name) \(eventID)"
+                )
+                XCTAssertEqual(
+                    try XCTUnwrap(reordered[eventID]),
+                    try XCTUnwrap(full[eventID]),
+                    "reorder invariance: \(name) \(eventID)"
+                )
+                if removed[eventID] != nil {
+                    XCTAssertEqual(
+                        try XCTUnwrap(removed[eventID]),
+                        try XCTUnwrap(full[eventID]),
+                        "removal invariance: \(name) \(eventID)"
+                    )
+                }
+            }
+        }
+    }
+
     func testAssignedObjectColorsRemainReadableAcrossRepresentativeRawMeshFields() {
         let filters = [ModernPaletteSelection.all]
             + ModernPaletteCategory.allCases.map { Set([$0]) }
@@ -386,7 +466,7 @@ final class DayObjectPaletteTests: XCTestCase {
             backgrounds.insert(paletteSet.background.code)
             let samples = representativeMeshSamples(palette: paletteSet.background)
             let assignments = DayObjectColorAllocator.assignments(
-                eventIDs: (0..<10).map { "production-\($0)" },
+                eventIDs: canonicalGalleryUUIDsWithSameTrailingDecimal,
                 rootSeed: rootSeed,
                 paletteSet: paletteSet
             )
@@ -1793,6 +1873,46 @@ final class DayObjectPaletteTests: XCTestCase {
             phase: 1.25,
             motionDirection: -1
         )
+    }
+
+    private var canonicalGalleryUUIDCorpora: [(name: String, eventIDs: [String])] {
+        [
+            (name: "representative", eventIDs: representativeCanonicalGalleryUUIDs),
+            (
+                name: "same-trailing-decimal",
+                eventIDs: canonicalGalleryUUIDsWithSameTrailingDecimal
+            ),
+        ]
+    }
+
+    private var representativeCanonicalGalleryUUIDs: [String] {
+        [
+            "B08F75C2-149A-4D31-8AC6-7E92F103BA10",
+            "1E4A92D7-C5B0-4768-91FD-20AB34CE5721",
+            "7C31E5A9-08DF-42B6-A174-9D60F2BC8E32",
+            "D2640BA1-7E53-49C8-BF20-516A93ED4C43",
+            "38AD7F20-61C9-45E4-8B32-E7501C96DA54",
+            "A9502E6C-3D17-4B84-906F-C28AD5713E65",
+            "4F83C1D6-A209-47BE-9D50-36E8B74AC176",
+            "E71B46A3-5C80-429D-AF16-8D302CE95787",
+            "26D9A074-F13E-48C5-B762-401EAC83D998",
+            "93C5E218-6AB4-4F70-8D29-B1475E60CA09",
+        ]
+    }
+
+    private var canonicalGalleryUUIDsWithSameTrailingDecimal: [String] {
+        [
+            "0F4C9B1A-2D3E-4A50-8B61-7C8D9E0F1AA7",
+            "1A2B3C4D-5E6F-4789-9ABC-DEF0123456B7",
+            "2B7E41C9-8A30-4D65-AF12-903C5E7B14C7",
+            "3C8F52DA-9B41-4E76-B023-A14D6F8C25D7",
+            "4D9063EB-AC52-4F87-8134-B25E709D36E7",
+            "5EA174FC-BD63-4098-9245-C36F81AE47F7",
+            "6FB2850D-CE74-41A9-A356-D47092BF58A7",
+            "70C3961E-DF85-42BA-B467-E581A3C069B7",
+            "81D4A72F-E096-43CB-8578-F692B4D17AC7",
+            "92E5B830-F1A7-44DC-9689-07A3C5E28BD7",
+        ]
     }
 
     /// Broad positive mesh weights keep the rendered field inside the convex

@@ -580,6 +580,23 @@ enum DayObjectColorAllocator {
         eventID: String,
         rootSeed: UInt64
     ) -> (patternIndex: Int, subsetIndex: Int) {
+        if let uuidBytes = canonicalUUIDBytes(eventID) {
+            let patternHash = hashUUIDBytes(
+                uuidBytes,
+                rootSeed: rootSeed,
+                domain: 0xA076_1D64_78BD_642F
+            )
+            let subsetHash = hashUUIDBytes(
+                uuidBytes,
+                rootSeed: rootSeed,
+                domain: 0xE703_7ED1_A0B4_28DB
+            )
+            return (
+                Int(patternHash % UInt64(palettePattern.count)),
+                Int(subsetHash % UInt64(restrainedSubsets.count))
+            )
+        }
+
         let trailingDigits = eventID.reversed().prefix { $0.isNumber }.reversed()
         if !trailingDigits.isEmpty, let ordinal = Int(String(trailingDigits)) {
             let patternIndex = ordinal % palettePattern.count
@@ -597,6 +614,35 @@ enum DayObjectColorAllocator {
             Int(hash % UInt64(palettePattern.count)),
             Int((hash / UInt64(palettePattern.count)) % UInt64(restrainedSubsets.count))
         )
+    }
+
+    private static func canonicalUUIDBytes(_ value: String) -> [UInt8]? {
+        let bytes = Array(value.utf8)
+        guard bytes.count == 36,
+              bytes[8] == 45, bytes[13] == 45, bytes[18] == 45, bytes[23] == 45,
+              let uuid = UUID(uuidString: value)
+        else { return nil }
+
+        let raw = uuid.uuid
+        return [
+            raw.0, raw.1, raw.2, raw.3, raw.4, raw.5, raw.6, raw.7,
+            raw.8, raw.9, raw.10, raw.11, raw.12, raw.13, raw.14, raw.15,
+        ]
+    }
+
+    private static func hashUUIDBytes(
+        _ bytes: [UInt8],
+        rootSeed: UInt64,
+        domain: UInt64
+    ) -> UInt64 {
+        var hash = (rootSeed ^ domain ^ 0xCBF2_9CE4_8422_2325)
+        for byte in bytes {
+            hash = (hash ^ UInt64(byte)) &* 0x1000_0000_01B3
+        }
+        hash ^= hash >> 32
+        hash &*= 0xD6E8_FEB8_6659_FD93
+        hash ^= hash >> 32
+        return hash
     }
 
     private static func shuffledSubsets(
