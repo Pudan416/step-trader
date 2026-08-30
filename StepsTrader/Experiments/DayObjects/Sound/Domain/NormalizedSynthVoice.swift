@@ -6,7 +6,7 @@ struct NormalizedSynthVoice: Equatable, Sendable {
         let wavePosition: Double
         let level: Double
         let semitoneOffset: Int
-        let fineDetuneSemitones: Double
+        let detuneHz: Double
     }
 
     enum SubWaveform: String, Equatable, Sendable {
@@ -49,10 +49,10 @@ struct NormalizedSynthVoice: Equatable, Sendable {
     }
 
     enum LFOWaveform: Int, Equatable, Sendable {
-        case sine
-        case triangle
-        case square
-        case sawtooth
+        case sine = 0
+        case square = 1
+        case sawtooth = 2
+        case reverseSawtooth = 3
     }
 
     struct LFO: Equatable, Sendable {

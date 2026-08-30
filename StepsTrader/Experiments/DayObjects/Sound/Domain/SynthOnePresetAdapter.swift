@@ -81,7 +81,7 @@ struct SynthOnePresetRecord: Decodable, Equatable, Sendable {
     var reverbMixLFO: Double? = nil
     var lfo2Amplitude: Double? = nil
     var lfo2Rate: Double? = nil
-    var lfo2Waveform: Double? = nil
+    var lfo2Waveform: Int? = nil
 
     var compressorMasterAttack: Double? = nil
     var compressorMasterMakeupGain: Double? = nil
@@ -168,13 +168,13 @@ enum SynthOnePresetAdapter {
             wavePosition: value(source.waveform1, default: 0.5, in: 0...1, field: "waveform1", diagnostics: &diagnostics),
             level: value(source.vco1Volume, default: 0.5, in: 0...1, field: "vco1Volume", diagnostics: &diagnostics),
             semitoneOffset: integer(source.vco1Semitone, default: 0, in: -24...24, field: "vco1Semitone", diagnostics: &diagnostics),
-            fineDetuneSemitones: 0
+            detuneHz: 0
         )
         let oscillator2 = NormalizedSynthVoice.Oscillator(
             wavePosition: value(source.waveform2, default: 0.5, in: 0...1, field: "waveform2", diagnostics: &diagnostics),
             level: value(source.vco2Volume, default: 0.5, in: 0...1, field: "vco2Volume", diagnostics: &diagnostics),
             semitoneOffset: integer(source.vco2Semitone, default: 0, in: -24...24, field: "vco2Semitone", diagnostics: &diagnostics),
-            fineDetuneSemitones: value(source.vco2Detuning, default: 0, in: -12...12, field: "vco2Detuning", diagnostics: &diagnostics)
+            detuneHz: value(source.vco2Detuning, default: 0, in: -4...4, field: "vco2Detuning", diagnostics: &diagnostics)
         )
 
         let amplitudeEnvelope = envelope(
@@ -281,33 +281,77 @@ enum SynthOnePresetAdapter {
         _ source: SynthOnePresetRecord,
         diagnostics: inout [SynthOneAdapterDiagnostic]
     ) -> NormalizedSynthVoice.LFO {
-        let routes: [(NormalizedSynthVoice.LFOTarget, Double?)] = [
-            (.pitch, source.pitchLFO),
-            (.filter, source.cutoffLFO),
-            (.amplitude, source.tremoloLFO),
+        let routes: [(NormalizedSynthVoice.LFOTarget, String, Double?)] = [
+            (.pitch, "pitchLFO", source.pitchLFO),
+            (.filter, "cutoffLFO", source.cutoffLFO),
+            (.amplitude, "tremoloLFO", source.tremoloLFO),
         ]
-        let active = routes.filter { isActive($0.1) }
+        let active = routes.compactMap { target, field, source -> (NormalizedSynthVoice.LFOTarget, String, Int)? in
+            primaryLFOSelector(source, field: field, diagnostics: &diagnostics).map { (target, field, $0) }
+        }
         if active.count > 1 {
             diagnostics.append(.init(code: .unsupportedModulationRoute, field: "multiplePrimaryLFORoutes"))
         }
-        return .init(
-            target: active.first?.0 ?? .none,
-            rateHz: value(source.lfoRate, default: 1, in: 0.01...30, field: "lfoRate", diagnostics: &diagnostics),
-            depth: value(source.lfoAmplitude, default: 0, in: 0...1, field: "lfoAmplitude", diagnostics: &diagnostics),
-            waveform: lfoWaveform(source.lfoWaveform, diagnostics: &diagnostics)
-        )
+        for route in active where route.2 == 3 {
+            diagnostics.append(.init(code: .unsupportedModulationRoute, field: "\(route.1).combined"))
+        }
+
+        guard let selected = active.first else { return neutralLFO }
+        switch selected.2 {
+        case 1:
+            return .init(
+                target: selected.0,
+                rateHz: value(source.lfoRate, default: 1, in: 0.01...30, field: "lfoRate", diagnostics: &diagnostics),
+                depth: value(source.lfoAmplitude, default: 0, in: 0...1, field: "lfoAmplitude", diagnostics: &diagnostics),
+                waveform: lfoWaveform(source.lfoWaveform, field: "lfoWaveform", diagnostics: &diagnostics)
+            )
+        case 2:
+            return .init(
+                target: selected.0,
+                rateHz: value(source.lfo2Rate, default: 1, in: 0.01...30, field: "lfo2Rate", diagnostics: &diagnostics),
+                depth: value(source.lfo2Amplitude, default: 0, in: 0...1, field: "lfo2Amplitude", diagnostics: &diagnostics),
+                waveform: lfoWaveform(source.lfo2Waveform, field: "lfo2Waveform", diagnostics: &diagnostics)
+            )
+        default:
+            return neutralLFO
+        }
+    }
+
+    private static let neutralLFO = NormalizedSynthVoice.LFO(
+        target: .none,
+        rateHz: 1,
+        depth: 0,
+        waveform: .sine
+    )
+
+    private static func primaryLFOSelector(
+        _ source: Double?,
+        field: String,
+        diagnostics: inout [SynthOneAdapterDiagnostic]
+    ) -> Int? {
+        guard let source, source != 0 else { return nil }
+        guard source.isFinite else {
+            diagnostics.append(.init(code: .nonFiniteValue, field: field))
+            return nil
+        }
+        guard source.rounded() == source, (1...3).contains(source) else {
+            diagnostics.append(.init(code: .clampedValue, field: field))
+            return nil
+        }
+        return Int(source)
     }
 
     private static func lfoWaveform(
         _ source: Int?,
+        field: String,
         diagnostics: inout [SynthOneAdapterDiagnostic]
     ) -> NormalizedSynthVoice.LFOWaveform {
         guard let source else {
-            diagnostics.append(.init(code: .defaultedValue, field: "lfoWaveform"))
+            diagnostics.append(.init(code: .defaultedValue, field: field))
             return .sine
         }
         guard let waveform = NormalizedSynthVoice.LFOWaveform(rawValue: source) else {
-            diagnostics.append(.init(code: .clampedValue, field: "lfoWaveform"))
+            diagnostics.append(.init(code: .clampedValue, field: field))
             return .sine
         }
         return waveform
@@ -341,7 +385,7 @@ enum SynthOnePresetAdapter {
         }
         let extraRoutes = [
             source.oscMixLFO, source.noiseLFO, source.resonanceLFO, source.filterEnvLFO,
-            source.detuneLFO, source.decayLFO, source.reverbMixLFO, source.lfo2Amplitude,
+            source.detuneLFO, source.decayLFO, source.reverbMixLFO,
         ]
         if extraRoutes.contains(where: isActive) {
             diagnostics.append(.init(code: .unsupportedModulationRoute, field: "additionalModulation"))
