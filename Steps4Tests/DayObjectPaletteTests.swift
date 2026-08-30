@@ -252,34 +252,315 @@ final class DayObjectPaletteTests: XCTestCase {
         XCTAssertTrue(values.allSatisfy { (1...3).contains($0.colors.count) })
     }
 
-    func testAssignedObjectColorsRemainReadableAgainstTheRenderedBackgroundPalette() {
-        for seed in UInt64(0)..<128 {
+    func testAssignedObjectColorsRemainReadableAcrossRepresentativeRawMeshFields() {
+        let filters = [ModernPaletteSelection.all]
+            + ModernPaletteCategory.allCases.map { Set([$0]) }
+
+        for categories in filters {
+            for seed in UInt64(0)..<16 {
+                let paletteSet = DayObjectPaletteSet.make(
+                    rootSeed: seed,
+                    categories: categories
+                )
+                let backgroundSamples = representativeMeshSamples(
+                    palette: paletteSet.background
+                )
+                let assignments = DayObjectColorAllocator.assignments(
+                    eventIDs: (0..<10).map { "uuid-\($0)-x" },
+                    rootSeed: seed,
+                    paletteSet: paletteSet
+                )
+
+                for assignment in assignments.values {
+                    for color in assignment.colors {
+                        XCTAssertGreaterThanOrEqual(
+                            lowPercentileContrast(
+                                actor: color.linearRGB,
+                                backgrounds: backgroundSamples
+                            ),
+                            1.35 - 0.000_001,
+                            "categories=\(categories) seed=\(seed) "
+                                + "color=\(color.sRGB) background=\(paletteSet.background.code)"
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    func testEveryCatalogPaletteCanBackVisibleDeterministicActorColors() {
+        let catalog = ModernPaletteCatalog.all
+        for (index, background) in catalog.enumerated() {
+            let paletteSet = DayObjectPaletteSet(
+                background: background,
+                primaryObjects: catalog[(index + 1) % catalog.count],
+                secondaryObjects: catalog[(index + 2) % catalog.count]
+            )
+            let eventIDs = (0..<10).map { "catalog-\($0)" }
+            let first = DayObjectColorAllocator.assignments(
+                eventIDs: eventIDs,
+                rootSeed: UInt64(index),
+                paletteSet: paletteSet
+            )
+            let repeated = DayObjectColorAllocator.assignments(
+                eventIDs: eventIDs,
+                rootSeed: UInt64(index),
+                paletteSet: paletteSet
+            )
+            let samples = representativeMeshSamples(palette: background)
+            let sourceColors: [DayObjectObjectPaletteSlot: [DayObjectRGB]] = [
+                .primary: paletteSet.primaryObjects.hexes.map(DayObjectRGB.init(hex:)),
+                .secondary: paletteSet.secondaryObjects.hexes.map(DayObjectRGB.init(hex:)),
+            ]
+
+            XCTAssertEqual(first, repeated, "background=\(background.code)")
+            XCTAssertEqual(first.count, 10, "background=\(background.code)")
+            for assignment in first.values {
+                XCTAssertTrue((1...3).contains(assignment.colors.count))
+                for (sourceIndex, color) in zip(
+                    assignment.sourceIndices,
+                    assignment.colors
+                ) {
+                    let source = sourceColors[assignment.paletteSlot]![sourceIndex]
+                    let sourcePerceptual = testOKLab(source.linearRGB)
+                    let adjustedPerceptual = testOKLab(color.linearRGB)
+                    XCTAssertTrue(
+                        color.linearRGB.x.isFinite
+                            && color.linearRGB.y.isFinite
+                            && color.linearRGB.z.isFinite
+                            && (0...1).contains(color.linearRGB.x)
+                            && (0...1).contains(color.linearRGB.y)
+                            && (0...1).contains(color.linearRGB.z),
+                        "background=\(background.code) actor=\(color.linearRGB)"
+                    )
+                    XCTAssertGreaterThanOrEqual(
+                        lowPercentileContrast(
+                            actor: color.linearRGB,
+                            backgrounds: samples
+                        ),
+                        1.05,
+                        "best-effort background=\(background.code) actor=\(color.sRGB)"
+                    )
+                    XCTAssertLessThanOrEqual(
+                        abs(adjustedPerceptual.x - sourcePerceptual.x),
+                        0.25 + 0.000_1,
+                        "bounded lightness background=\(background.code)"
+                    )
+                    XCTAssertTrue(
+                        (0.06...0.94).contains(adjustedPerceptual.x),
+                        "bounded output background=\(background.code) actor=\(color.sRGB)"
+                    )
+                    let sourceChroma = simd_length(SIMD2(sourcePerceptual.y, sourcePerceptual.z))
+                    let adjustedChroma = simd_length(
+                        SIMD2(adjustedPerceptual.y, adjustedPerceptual.z)
+                    )
+                    if sourceChroma >= 0.025 {
+                        XCTAssertGreaterThanOrEqual(
+                            adjustedChroma,
+                            sourceChroma * 0.55 - 0.000_1,
+                            "chroma background=\(background.code) actor=\(color.sRGB)"
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    func testProductionSelectionFindsBoundedVisiblePairsForEveryCatalogBackground() {
+        let identity = "catalog-contrast-cycle"
+        let dayKeys = Array(isoDayKeys(from: 2026, through: 2026).prefix(340))
+        var backgrounds = Set<String>()
+
+        for (index, dayKey) in dayKeys.enumerated() {
+            let rootSeed = CanvasElement.makeSeed(
+                optionId: "dayObjects:\(identity)",
+                dayKey: dayKey,
+                index: 0
+            )
+            let paletteSet = DayObjectPaletteSet.make(
+                rootSeed: rootSeed,
+                categories: ModernPaletteSelection.all,
+                dayKey: dayKey,
+                identity: identity
+            )
+            backgrounds.insert(paletteSet.background.code)
+            let samples = representativeMeshSamples(palette: paletteSet.background)
+            let assignments = DayObjectColorAllocator.assignments(
+                eventIDs: (0..<10).map { "production-\($0)" },
+                rootSeed: rootSeed,
+                paletteSet: paletteSet
+            )
+            XCTAssertEqual(
+                Set(assignments.values.map(\.paletteSlot)),
+                Set([.primary, .secondary]),
+                "both actor palettes must remain represented for day=\(dayKey)"
+            )
+            XCTAssertGreaterThanOrEqual(
+                perceptuallyDistinctCount(assignments.values.flatMap(\.colors)),
+                3,
+                "three readable colors required for day=\(dayKey)"
+            )
+            let sourceColors: [DayObjectObjectPaletteSlot: [DayObjectRGB]] = [
+                .primary: paletteSet.primaryObjects.hexes.map(DayObjectRGB.init(hex:)),
+                .secondary: paletteSet.secondaryObjects.hexes.map(DayObjectRGB.init(hex:)),
+            ]
+
+            for assignment in assignments.values {
+                for (sourceIndex, color) in zip(
+                    assignment.sourceIndices,
+                    assignment.colors
+                ) {
+                    let source = sourceColors[assignment.paletteSlot]![sourceIndex]
+                    let sourcePerceptual = testOKLab(source.linearRGB)
+                    let adjustedPerceptual = testOKLab(color.linearRGB)
+                    XCTAssertGreaterThanOrEqual(
+                        lowPercentileContrast(
+                            actor: color.linearRGB,
+                            backgrounds: samples
+                        ),
+                        1.35 - 0.000_001,
+                        "index=\(index) day=\(dayKey) background=\(paletteSet.background.code)"
+                    )
+                    XCTAssertLessThanOrEqual(
+                        abs(adjustedPerceptual.x - sourcePerceptual.x),
+                        0.25 + 0.000_1,
+                        "day=\(dayKey) background=\(paletteSet.background.code)"
+                    )
+                    XCTAssertTrue((0.06...0.94).contains(adjustedPerceptual.x))
+                    let sourceChroma = simd_length(SIMD2(sourcePerceptual.y, sourcePerceptual.z))
+                    let adjustedChroma = simd_length(
+                        SIMD2(adjustedPerceptual.y, adjustedPerceptual.z)
+                    )
+                    if sourceChroma >= 0.025 {
+                        XCTAssertGreaterThanOrEqual(
+                            adjustedChroma,
+                            sourceChroma * 0.55 - 0.000_1
+                        )
+                    }
+                }
+            }
+        }
+
+        XCTAssertEqual(backgrounds, Set(ModernPaletteCatalog.all.map(\.code)))
+    }
+
+    func testAllocatorOmitsUnreadableMembersButKeepsBothRelatedPalettes() {
+        let paletteSet = DayObjectPaletteSet(
+            background: ModernPalette(
+                code: "202020707070C8C8C8F0F0F0",
+                categories: [.pastel]
+            ),
+            primaryObjects: ModernPalette(
+                code: "202020747474F04A6AF5C542",
+                categories: [.warm]
+            ),
+            secondaryObjects: ModernPalette(
+                code: "3030308080804AC8F05C65F5",
+                categories: [.cold]
+            )
+        )
+        let samples = representativeMeshSamples(palette: paletteSet.background)
+        let assignments = DayObjectColorAllocator.assignments(
+            eventIDs: (0..<10).map { "readable-subset-\($0)" },
+            rootSeed: 0xB0A_D3D,
+            paletteSet: paletteSet
+        )
+
+        XCTAssertEqual(Set(assignments.values.map(\.paletteSlot)), Set([.primary, .secondary]))
+        XCTAssertTrue(assignments.values.allSatisfy { (1...3).contains($0.colors.count) })
+        XCTAssertTrue(assignments.values.flatMap(\.colors).allSatisfy {
+            lowPercentileContrast(actor: $0.linearRGB, backgrounds: samples)
+                >= 1.35 - 0.000_001
+        })
+        XCTAssertGreaterThanOrEqual(
+            perceptuallyDistinctCount(assignments.values.flatMap(\.colors)),
+            3
+        )
+    }
+
+    func testCoherentAdjustmentFixesPaletteWhoseBestNodeContrastHidesItsWorstField() {
+        let paletteSet = DayObjectPaletteSet(
+            background: ModernPalette(
+                code: "202020707070C8C8C8F0F0F0",
+                categories: [.pastel]
+            ),
+            primaryObjects: ModernPalette(
+                code: "6868687474748080808C8C8C",
+                categories: [.pastel]
+            ),
+            secondaryObjects: ModernPalette(
+                code: "6070807080908090A090A0B0",
+                categories: [.cold]
+            )
+        )
+        let rawActor = DayObjectRGB(hex: "747474")
+        let samples = representativeMeshSamples(palette: paletteSet.background)
+        XCTAssertGreaterThan(
+            samples.map { contrastRatio(rawActor.linearRGB, $0) }.max() ?? 0,
+            1.35
+        )
+        XCTAssertLessThan(
+            lowPercentileContrast(actor: rawActor.linearRGB, backgrounds: samples),
+            1.35
+        )
+
+        let assignments = DayObjectColorAllocator.assignments(
+            eventIDs: (0..<10).map { "adversarial-\($0)" },
+            rootSeed: 91,
+            paletteSet: paletteSet
+        )
+        let colors = assignments.values.flatMap(\.colors)
+
+        XCTAssertFalse(colors.isEmpty)
+        XCTAssertTrue(colors.allSatisfy {
+            lowPercentileContrast(actor: $0.linearRGB, backgrounds: samples)
+                >= 1.35 - 0.000_001
+        })
+        XCTAssertTrue(colors.allSatisfy {
+            $0.linearRGB.x.isFinite && $0.linearRGB.y.isFinite && $0.linearRGB.z.isFinite
+                && (0...1).contains($0.linearRGB.x)
+                && (0...1).contains($0.linearRGB.y)
+                && (0...1).contains($0.linearRGB.z)
+        })
+    }
+
+    func testDailyActorColorAdjustmentIsDeterministicAndCoherentAcrossBothPalettes() {
+        for seed in UInt64(0)..<64 {
             let paletteSet = DayObjectPaletteSet.make(
                 rootSeed: seed,
                 categories: ModernPaletteSelection.all
             )
-            let renderedBackground = DayObjectPalette.make(
-                modernPalette: paletteSet.background
-            )
-            let backgroundColors = [renderedBackground.backgroundBase]
-                + renderedBackground.backgroundFields
-            let assignments = DayObjectColorAllocator.assignments(
-                eventIDs: (0..<10).map { "uuid-\($0)-x" },
+            let eventIDs = (0..<10).map { "coherent-\($0)" }
+            let first = DayObjectColorAllocator.assignments(
+                eventIDs: eventIDs,
                 rootSeed: seed,
                 paletteSet: paletteSet
             )
+            let repeated = DayObjectColorAllocator.assignments(
+                eventIDs: eventIDs,
+                rootSeed: seed,
+                paletteSet: paletteSet
+            )
+            XCTAssertEqual(first, repeated, "seed=\(seed)")
 
-            for assignment in assignments.values {
-                for color in assignment.colors {
-                    XCTAssertGreaterThanOrEqual(
-                        backgroundColors.map {
-                            contrastRatio(color.linearRGB, $0)
-                        }.min() ?? 0,
-                        1.35 - 0.000_001,
-                        "seed=\(seed) color=\(color.sRGB) background=\(backgroundColors)"
-                    )
+            let source = [
+                DayObjectObjectPaletteSlot.primary:
+                    paletteSet.primaryObjects.hexes.map(DayObjectRGB.init(hex:)),
+                DayObjectObjectPaletteSlot.secondary:
+                    paletteSet.secondaryObjects.hexes.map(DayObjectRGB.init(hex:)),
+            ]
+            var directions = Set<Int>()
+            for assignment in first.values {
+                let raw = source[assignment.paletteSlot]!
+                for (index, adjusted) in zip(assignment.sourceIndices, assignment.colors) {
+                    let delta = relativeLuminance(adjusted.linearRGB)
+                        - relativeLuminance(raw[index].linearRGB)
+                    if abs(delta) > 0.000_001 {
+                        directions.insert(delta > 0 ? 1 : -1)
+                    }
                 }
             }
+            XCTAssertLessThanOrEqual(directions.count, 1, "seed=\(seed)")
         }
     }
 
@@ -1512,6 +1793,63 @@ final class DayObjectPaletteTests: XCTestCase {
             phase: 1.25,
             motionDirection: -1
         )
+    }
+
+    /// Broad positive mesh weights keep the rendered field inside the convex
+    /// hull of the four raw catalog colors. These node, transition, and center
+    /// samples cover the regions a moving production mesh repeatedly exposes
+    /// without relying on the old darkened SwiftUI fallback palette.
+    private func representativeMeshSamples(palette: ModernPalette) -> [SIMD3<Float>] {
+        let colors = palette.hexes.map { DayObjectRGB(hex: $0).linearRGB }
+        var samples = colors
+        for lhs in colors.indices {
+            for rhs in colors.indices where lhs < rhs {
+                for amount: Float in [0.25, 0.5, 0.75] {
+                    samples.append(colors[lhs] + (colors[rhs] - colors[lhs]) * amount)
+                }
+            }
+        }
+        samples.append(
+            colors.reduce(into: SIMD3<Float>.zero, +=) / Float(max(colors.count, 1))
+        )
+        return samples
+    }
+
+    private func lowPercentileContrast(
+        actor: SIMD3<Float>,
+        backgrounds: [SIMD3<Float>]
+    ) -> Double {
+        let contrasts = backgrounds.map { contrastRatio(actor, $0) }.sorted()
+        guard !contrasts.isEmpty else { return 0 }
+        return contrasts[Int(floor(Double(contrasts.count - 1) * 0.15))]
+    }
+
+    private func testOKLab(_ linearRGB: SIMD3<Float>) -> SIMD3<Double> {
+        let red = Double(linearRGB.x)
+        let green = Double(linearRGB.y)
+        let blue = Double(linearRGB.z)
+        let l = 0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue
+        let m = 0.2119034982 * red + 0.6806995451 * green + 0.1073969566 * blue
+        let s = 0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue
+        let lRoot = cbrt(l)
+        let mRoot = cbrt(m)
+        let sRoot = cbrt(s)
+        return SIMD3(
+            0.2104542553 * lRoot + 0.7936177850 * mRoot - 0.0040720468 * sRoot,
+            1.9779984951 * lRoot - 2.4285922050 * mRoot + 0.4505937099 * sRoot,
+            0.0259040371 * lRoot + 0.7827717662 * mRoot - 0.8086757660 * sRoot
+        )
+    }
+
+    private func perceptuallyDistinctCount(_ colors: [DayObjectRGB]) -> Int {
+        var representatives = [SIMD3<Double>]()
+        for color in colors {
+            let perceptual = testOKLab(color.linearRGB)
+            if representatives.allSatisfy({ simd_distance($0, perceptual) >= 0.055 }) {
+                representatives.append(perceptual)
+            }
+        }
+        return representatives.count
     }
 
     private func minimumPairwiseRGBDistance(_ colors: [SIMD3<Float>]) -> Float {

@@ -6,6 +6,11 @@ struct DayObjectRGB: Equatable {
     let sRGB: SIMD3<Float>
     let linearRGB: SIMD3<Float>
 
+    var perceptualOKLab: SIMD3<Float> {
+        let color = DayObjectOKLab(linearRGB: linearRGB)
+        return SIMD3(color.lightness, color.a, color.b)
+    }
+
     init(hex: String) {
         let trimmed = hex.trimmingCharacters(in: .whitespacesAndNewlines)
         let value = trimmed.hasPrefix("#") ? String(trimmed.dropFirst()) : trimmed
@@ -48,6 +53,66 @@ struct DayObjectRGB: Equatable {
         return DayObjectRGB(linearRGB: linearRGB + (SIMD3(repeating: 1) - linearRGB) * min(max(whiteMix, 0), 1))
     }
 
+    func shiftingPerceptualLightness(
+        by shift: Float,
+        minimumChromaFraction: Float = 0.55
+    ) -> DayObjectRGB {
+        let source = DayObjectOKLab(linearRGB: linearRGB)
+        if abs(shift) < 0.000_001,
+           (0.061...0.939).contains(source.lightness) {
+            return self
+        }
+        var targetLightness = min(max(source.lightness + shift, 0.061), 0.939)
+        let minimumScale = min(max(minimumChromaFraction, 0), 1)
+
+        func candidate(chromaScale: Float, lightness: Float? = nil) -> SIMD3<Float> {
+            DayObjectOKLab(
+                lightness: lightness ?? targetLightness,
+                a: source.a * chromaScale,
+                b: source.b * chromaScale
+            ).linearRGB
+        }
+
+        if DayObjectOKLab.isInDisplayGamut(candidate(chromaScale: 1)) {
+            return DayObjectRGB(linearRGB: candidate(chromaScale: 1))
+        }
+
+        var lower = minimumScale
+        var upper: Float = 1
+        if !DayObjectOKLab.isInDisplayGamut(candidate(chromaScale: lower)) {
+            // At the display-gamut boundary, retain the promised chroma and
+            // give back only as much lightness shift as is necessary.
+            let sourceBounded = min(max(source.lightness, 0.061), 0.939)
+            var infeasible = targetLightness
+            var feasible = sourceBounded
+            guard DayObjectOKLab.isInDisplayGamut(
+                candidate(chromaScale: lower, lightness: feasible)
+            ) else {
+                return self
+            }
+            for _ in 0..<12 {
+                let midpoint = (infeasible + feasible) * 0.5
+                if DayObjectOKLab.isInDisplayGamut(
+                    candidate(chromaScale: lower, lightness: midpoint)
+                ) {
+                    feasible = midpoint
+                } else {
+                    infeasible = midpoint
+                }
+            }
+            targetLightness = feasible
+        }
+        for _ in 0..<12 {
+            let midpoint = (lower + upper) * 0.5
+            if DayObjectOKLab.isInDisplayGamut(candidate(chromaScale: midpoint)) {
+                lower = midpoint
+            } else {
+                upper = midpoint
+            }
+        }
+        return DayObjectRGB(linearRGB: candidate(chromaScale: lower))
+    }
+
     private static func linearComponent(_ value: Float) -> Float {
         value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
     }
@@ -62,6 +127,59 @@ struct DayObjectRGB: Equatable {
             value.y.isFinite ? min(max(value.y, 0), 1) : 0,
             value.z.isFinite ? min(max(value.z, 0), 1) : 0
         )
+    }
+}
+
+/// OKLab keeps hue and chroma perceptually stable while daily contrast moves
+/// the whole actor family along one bounded lightness axis.
+private struct DayObjectOKLab {
+    let lightness: Float
+    let a: Float
+    let b: Float
+
+    init(lightness: Float, a: Float, b: Float) {
+        self.lightness = lightness
+        self.a = a
+        self.b = b
+    }
+
+    init(linearRGB: SIMD3<Float>) {
+        let l = 0.412_221_46 * linearRGB.x
+            + 0.536_332_55 * linearRGB.y
+            + 0.051_445_995 * linearRGB.z
+        let m = 0.211_903_5 * linearRGB.x
+            + 0.680_699_5 * linearRGB.y
+            + 0.107_396_96 * linearRGB.z
+        let s = 0.088_302_46 * linearRGB.x
+            + 0.281_718_85 * linearRGB.y
+            + 0.629_978_7 * linearRGB.z
+        let lRoot = cbrt(l)
+        let mRoot = cbrt(m)
+        let sRoot = cbrt(s)
+        lightness = 0.210_454_26 * lRoot + 0.793_617_8 * mRoot - 0.004_072_047 * sRoot
+        a = 1.977_998_5 * lRoot - 2.428_592_2 * mRoot + 0.450_593_7 * sRoot
+        b = 0.025_904_037 * lRoot + 0.782_771_77 * mRoot - 0.808_675_77 * sRoot
+    }
+
+    var linearRGB: SIMD3<Float> {
+        let lRoot = lightness + 0.396_337_78 * a + 0.215_803_76 * b
+        let mRoot = lightness - 0.105_561_346 * a - 0.063_854_17 * b
+        let sRoot = lightness - 0.089_484_18 * a - 1.291_485_5 * b
+        let l = lRoot * lRoot * lRoot
+        let m = mRoot * mRoot * mRoot
+        let s = sRoot * sRoot * sRoot
+        return SIMD3(
+            4.076_741_7 * l - 3.307_711_6 * m + 0.230_969_94 * s,
+            -1.268_438 * l + 2.609_757_4 * m - 0.341_319_38 * s,
+            -0.004_196_086_3 * l - 0.703_418_6 * m + 1.707_614_7 * s
+        )
+    }
+
+    static func isInDisplayGamut(_ color: SIMD3<Float>) -> Bool {
+        color.x.isFinite && color.y.isFinite && color.z.isFinite
+            && color.x >= 0 && color.x <= 1
+            && color.y >= 0 && color.y <= 1
+            && color.z >= 0 && color.z <= 1
     }
 }
 
