@@ -125,6 +125,47 @@ struct MaterialDNATests {
         }
     }
 
+    @Test("organic structural topology is bounded actor-local recipe data")
+    func structuralTopologyIsEncodedAndBounded() throws {
+        for family in [MaterialFamily.halo, .outline, .counterform] {
+            let dna = MaterialDNA.fixture(
+                daySeed: 0xECCE_1705,
+                eventIDs: eventIDs,
+                family: family,
+                requestedColorCount: 1
+            )
+            for actor in dna.actors {
+                let topology = try #require(actor.organicTopology)
+                #expect((0.38...0.62).contains(topology.outerCenter.x))
+                #expect((0.38...0.62).contains(topology.outerCenter.y))
+                #expect((0.38...0.62).contains(topology.innerCenter.x))
+                #expect((0.38...0.62).contains(topology.innerCenter.y))
+                #expect((0.03...0.50).contains(topology.innerRadius))
+                #expect((0.08...0.50).contains(topology.outerRadius))
+                #expect(hypot(
+                    topology.innerCenter.x - topology.outerCenter.x,
+                    topology.innerCenter.y - topology.outerCenter.y
+                ) >= 0.030)
+                if family == .outline {
+                    #expect(topology.contours.count == actor.contourCount)
+                } else {
+                    #expect(topology.contours.isEmpty)
+                }
+                let encoded = try JSONEncoder().encode(actor)
+                #expect(try JSONDecoder().decode(ActorMaterialRecipe.self, from: encoded) == actor)
+            }
+        }
+        for family in MaterialFamily.allCases where ![.halo, .outline, .counterform].contains(family) {
+            let dna = MaterialDNA.fixture(
+                daySeed: 0xECCE_1705,
+                eventIDs: eventIDs,
+                family: family,
+                requestedColorCount: 3
+            )
+            #expect(dna.actors.allSatisfy { $0.organicTopology == nil })
+        }
+    }
+
     @Test("material generation depends on identity and day seed, not composition geometry bytes")
     func materialIsCompositionIndependent() {
         let ids = Array(eventIDs.prefix(3))

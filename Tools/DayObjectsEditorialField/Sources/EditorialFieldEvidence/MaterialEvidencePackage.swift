@@ -77,6 +77,7 @@ public struct MaterialActorMetrics: Codable, Equatable, Sendable {
     public let contourCount: Int
     public let counterformRadius: Double?
     public let counterformSoftness: Double
+    public let organicTopology: OrganicRadialTopology?
     public let samples: [MaterialSampleMeasurement]
 }
 
@@ -96,6 +97,17 @@ public struct MaterialFamilyCropMetrics: Codable, Equatable, Sendable {
     public let eventID: String
     public let background: BackgroundCondition
     public let pixelSize: Int
+    public let path: String
+}
+
+public struct MaterialExactTopologyCropMetrics: Codable, Equatable, Sendable {
+    public let fixtureIndex: Int
+    public let eventID: String
+    public let family: MaterialFamily
+    public let background: BackgroundCondition
+    public let scale: Int
+    public let pixelWidth: Int
+    public let pixelHeight: Int
     public let path: String
 }
 
@@ -147,6 +159,10 @@ public struct MaterialSceneScaleTopologyMetrics: Codable, Equatable, Sendable {
     public let tileRimContrast: Double
     public let tileOpenCenterMargin: Double
     public let tileCenterToRimRatio: Double
+    public let fullEccentricCenterOffset: Double
+    public let fullThicknessRange: Double
+    public let tileEccentricCenterOffset: Double
+    public let tileThicknessRange: Double
     public let passes: Bool
 }
 
@@ -173,6 +189,7 @@ public struct MaterialEvidenceMetrics: Codable, Equatable, Sendable {
     public let compositionRecipeArchiveSHA256: String
     public let fixtures: [MaterialFixtureMetrics]
     public let familyCrops: [MaterialFamilyCropMetrics]
+    public let exactTopologyCrops: [MaterialExactTopologyCropMetrics]
     public let c3Acceptance: [MaterialC3FixtureAcceptance]
     public let sceneScale: [MaterialSceneScaleMetrics]
 }
@@ -304,6 +321,11 @@ public enum MaterialEvidencePackage {
         let tileImages: [String: Data]
     }
 
+    private struct ExactTopologyCropEvidence {
+        let metrics: [MaterialExactTopologyCropMetrics]
+        let images: [String: Data]
+    }
+
     struct C3ActorAssessment {
         let secondaryAreaFraction: Double
         let tertiaryAreaFraction: Double
@@ -416,6 +438,16 @@ public enum MaterialEvidencePackage {
             renderer: renderer,
             directory: outputDirectory
         )
+        let exactTopologyCrops = try makeExactTopologyCropEvidence(
+            coverage: atlasCoverage,
+            manifest: manifest,
+            frozenRecipes: frozenRecipes,
+            renderer: renderer,
+            scale: scale
+        )
+        for (path, data) in exactTopologyCrops.images {
+            try write(data, path: path, in: outputDirectory)
+        }
         let c3Acceptance = try c3AcceptanceMetrics(
             coverage: atlasCoverage,
             manifest: manifest,
@@ -461,13 +493,14 @@ public enum MaterialEvidencePackage {
         }
 
         let metrics = MaterialEvidenceMetrics(
-            version: "material-metrics-v6",
+            version: "material-metrics-v7",
             fixtureCount: atlasCoverage.fixtures.count,
             coreImageCount: atlasCoverage.coreImageCount,
             compositionApprovalSHA256: approvalHash,
             compositionRecipeArchiveSHA256: recipeArchiveHash,
             fixtures: fixtureMetrics,
             familyCrops: familyCrops,
+            exactTopologyCrops: exactTopologyCrops.metrics,
             c3Acceptance: c3Acceptance,
             sceneScale: sceneScaleEvidence.metrics
         )
@@ -501,7 +534,7 @@ public enum MaterialEvidencePackage {
 
         let artifacts = try artifactRecords(in: outputDirectory)
         let packageManifest = MaterialEvidenceManifest(
-            version: "material-evidence-v6",
+            version: "material-evidence-v7",
             sourceCommit: sourceCommit,
             rendererVersion: MaterialRenderer.version,
             toolchain: "Swift 6 / Swift Package Manager",
@@ -573,7 +606,7 @@ public enum MaterialEvidencePackage {
             from: Data(contentsOf: directory.appendingPathComponent("metrics.json"))
         )
         let expectedCoverage = coverage(for: corpus)
-        guard manifest.version == "material-evidence-v6",
+        guard manifest.version == "material-evidence-v7",
               manifest.sourceCommit == expectedSourceCommit,
               manifest.rendererVersion == MaterialRenderer.version,
               manifest.toolchain == "Swift 6 / Swift Package Manager",
@@ -604,6 +637,13 @@ public enum MaterialEvidencePackage {
             )
         }
         let expectedFamilyCrops = familyCropMetrics(manifest: corpus, scale: manifest.viewport.scale)
+        let expectedExactTopologyCrops = try makeExactTopologyCropEvidence(
+            coverage: expectedCoverage,
+            manifest: corpus,
+            frozenRecipes: frozenRecipes,
+            renderer: MaterialRenderer(),
+            scale: manifest.viewport.scale
+        )
         let expectedC3Acceptance = try c3AcceptanceMetrics(
             coverage: expectedCoverage,
             manifest: corpus,
@@ -615,13 +655,14 @@ public enum MaterialEvidencePackage {
             frozenRecipes: frozenRecipes,
             renderer: MaterialRenderer()
         )
-        guard metrics.version == "material-metrics-v6",
+        guard metrics.version == "material-metrics-v7",
               metrics.fixtureCount == expectedCoverage.fixtures.count,
               metrics.coreImageCount == expectedCoverage.coreImageCount,
               metrics.compositionApprovalSHA256 == manifest.compositionApprovalSHA256,
               metrics.compositionRecipeArchiveSHA256 == manifest.compositionRecipeArchiveSHA256,
               metrics.fixtures == expectedFixtureMetrics,
               metrics.familyCrops == expectedFamilyCrops,
+              metrics.exactTopologyCrops == expectedExactTopologyCrops.metrics,
               metrics.c3Acceptance == expectedC3Acceptance,
               metrics.c3Acceptance.allSatisfy({ $0.passRate >= 0.90 }),
               metrics.sceneScale == expectedSceneScale.metrics,
@@ -647,6 +688,7 @@ public enum MaterialEvidencePackage {
             frozenRecipes: frozenRecipes,
             scale: manifest.viewport.scale,
             sceneScaleEvidence: expectedSceneScale,
+            exactTopologyCropEvidence: expectedExactTopologyCrops,
             directory: directory
         )
         return packageHash
@@ -760,6 +802,7 @@ public enum MaterialEvidencePackage {
                 contourCount: actor.contourCount,
                 counterformRadius: actor.counterformRadius,
                 counterformSoftness: actor.counterformSoftness,
+                organicTopology: actor.organicTopology,
                 samples: try renderedSamples(for: actor, renderer: renderer)
             )
         }
@@ -859,6 +902,84 @@ public enum MaterialEvidencePackage {
             cellHeight: 180
         )
         return metrics
+    }
+
+    private static func makeExactTopologyCropEvidence(
+        coverage: MaterialAtlasCoverage,
+        manifest: CorpusManifest,
+        frozenRecipes: [Int: SceneRecipe],
+        renderer: MaterialRenderer,
+        scale: Int
+    ) throws -> ExactTopologyCropEvidence {
+        var metrics = [MaterialExactTopologyCropMetrics]()
+        var images = [String: Data]()
+        let canvasWidth = 393 * scale
+        let canvasHeight = 852 * scale
+
+        for item in exactTopologyCropCases {
+            guard let fixture = coverage.fixtures.first(where: { $0.index == item.fixtureIndex }),
+                  manifest.breadth.indices.contains(fixture.layoutFixtureIndex),
+                  let recipe = frozenRecipes[fixture.layoutFixtureIndex],
+                  let actor = recipe.actor(item.eventID)
+            else {
+                throw MaterialEvidenceError.invalidPackage("missing exact topology crop fixture")
+            }
+            let layout = manifest.breadth[fixture.layoutFixtureIndex]
+            let material = MaterialDNA.fixture(
+                daySeed: layout.seed,
+                eventIDs: layout.eventIDs,
+                family: fixture.family,
+                requestedColorCount: fixture.requestedColorCount
+            )
+            let isolated = SceneRecipe(
+                daySeed: recipe.daySeed,
+                grammar: recipe.grammar,
+                viewport: recipe.viewport,
+                actors: [actor]
+            )
+            let rendered = try renderer.render(
+                recipe: isolated,
+                material: material,
+                background: fixture.background,
+                configuration: .init(scale: scale)
+            )
+            let full = try decodedPNG(rendered.fullScreen.pngData, path: "exact-topology-source")
+            let actorLayerPoints = (actor.diameter + actor.localBlur * 6) * 393
+            let cropSide = min(
+                canvasWidth,
+                max(96 * scale, Int(ceil(actorLayerPoints * Double(scale))))
+            )
+            let desiredX = Int((actor.position.x * Double(canvasWidth)).rounded()) - cropSide / 2
+            let desiredY = Int((actor.position.y * Double(canvasHeight)).rounded()) - cropSide / 2
+            let cropX = min(max(0, desiredX), canvasWidth - cropSide)
+            let cropY = min(max(0, desiredY), canvasHeight - cropSide)
+            guard let crop = full.cropping(to: CGRect(
+                x: cropX,
+                y: cropY,
+                width: cropSide,
+                height: cropSide
+            )) else {
+                throw MaterialEvidenceError.cannotCreateContactSheet
+            }
+            let path = exactTopologyCropPath(
+                fixtureIndex: item.fixtureIndex,
+                family: fixture.family,
+                eventID: item.eventID,
+                scale: scale
+            )
+            images[path] = try encodedPNG(crop)
+            metrics.append(MaterialExactTopologyCropMetrics(
+                fixtureIndex: item.fixtureIndex,
+                eventID: item.eventID,
+                family: fixture.family,
+                background: fixture.background,
+                scale: scale,
+                pixelWidth: crop.width,
+                pixelHeight: crop.height,
+                path: path
+            ))
+        }
+        return ExactTopologyCropEvidence(metrics: metrics, images: images)
     }
 
     private static func makeSceneScaleEvidence(
@@ -1084,15 +1205,33 @@ public enum MaterialEvidencePackage {
             background: background,
             centerYAdjustment: -229
         )
+        let fullOrganic = try organicTopologyBands(
+            image: full,
+            actor: actor,
+            background: background,
+            centerYAdjustment: 0
+        )
+        let tileOrganic = try organicTopologyBands(
+            image: tile,
+            actor: actor,
+            background: background,
+            centerYAdjustment: -229
+        )
         let requiredRimContrast = 0.25
         let maximumCenterRatio = 0.55
         let requiredMargin = 0.045
+        let requiredEccentricOffset = family == .counterform ? 0.003 : 0.010
+        let requiredThicknessRange = 0.025
         let passes = fullBands.rim >= requiredRimContrast
             && tileBands.rim >= requiredRimContrast
             && fullBands.margin >= requiredMargin
             && tileBands.margin >= requiredMargin
             && fullBands.ratio <= maximumCenterRatio
             && tileBands.ratio <= maximumCenterRatio
+            && fullOrganic.centerOffset >= requiredEccentricOffset
+            && tileOrganic.centerOffset >= requiredEccentricOffset
+            && fullOrganic.thicknessRange >= requiredThicknessRange
+            && tileOrganic.thicknessRange >= requiredThicknessRange
 
         return [MaterialSceneScaleTopologyMetrics(
             eventID: exemplarID,
@@ -1106,8 +1245,76 @@ public enum MaterialEvidencePackage {
             tileRimContrast: tileBands.rim,
             tileOpenCenterMargin: tileBands.margin,
             tileCenterToRimRatio: tileBands.ratio,
+            fullEccentricCenterOffset: fullOrganic.centerOffset,
+            fullThicknessRange: fullOrganic.thicknessRange,
+            tileEccentricCenterOffset: tileOrganic.centerOffset,
+            tileThicknessRange: tileOrganic.thicknessRange,
             passes: actorMaterial.family == family && passes
         )]
+    }
+
+    private static func organicTopologyBands(
+        image: CGImage,
+        actor: ActorCompositionRecipe,
+        background: BackgroundCondition,
+        centerYAdjustment: Double
+    ) throws -> (centerOffset: Double, thicknessRange: Double) {
+        let analysis = AnalysisImage(
+            width: image.width,
+            height: image.height,
+            rgba: try normalizedRGBA(image)
+        )
+        let ground = backgroundRGB(background)
+        let centerX = actor.position.x * 393
+        let centerY = actor.position.y * 852 + centerYAdjustment
+        let diameter = actor.diameter * 393
+        let support = diameter * 0.58
+        let minimumX = max(0, Int(floor(centerX - support)))
+        let maximumX = min(image.width - 1, Int(ceil(centerX + support)))
+        let minimumY = max(0, Int(floor(centerY - support)))
+        let maximumY = min(image.height - 1, Int(ceil(centerY + support)))
+        var maximumContrast = 0.0
+        var weightedX = 0.0
+        var weightedY = 0.0
+        var weight = 0.0
+        for y in minimumY...maximumY {
+            for x in minimumX...maximumX {
+                let contrast = analysis.pixel(x: x, y: y).distance(to: ground)
+                maximumContrast = max(maximumContrast, contrast)
+                let salience = contrast * contrast
+                weight += salience
+                weightedX += (Double(x) + 0.5) * salience
+                weightedY += (Double(y) + 0.5) * salience
+            }
+        }
+        let contributionCenterX = weightedX / max(weight, 0.000_001)
+        let contributionCenterY = weightedY / max(weight, 0.000_001)
+        let centerOffset = hypot(
+            contributionCenterX - centerX,
+            contributionCenterY - centerY
+        ) / max(diameter, 1)
+        let threshold = maximumContrast * 0.28
+        var thicknesses = [Double]()
+        for angleIndex in 0..<72 {
+            let angle = Double(angleIndex) / 72 * Double.pi * 2
+            var occupied = [Double]()
+            for step in 0...180 {
+                let radius = Double(step) / 180 * 0.56
+                let x = Int((centerX + cos(angle) * radius * diameter).rounded(.down))
+                let y = Int((centerY + sin(angle) * radius * diameter).rounded(.down))
+                guard (0..<image.width).contains(x), (0..<image.height).contains(y) else { continue }
+                if analysis.pixel(x: x, y: y).distance(to: ground) >= threshold {
+                    occupied.append(radius)
+                }
+            }
+            if let first = occupied.first, let last = occupied.last {
+                thicknesses.append(last - first)
+            }
+        }
+        return (
+            centerOffset: centerOffset,
+            thicknessRange: (thicknesses.max() ?? 0) - (thicknesses.min() ?? 0)
+        )
     }
 
     private static func topologyBands(
@@ -1603,6 +1810,14 @@ public enum MaterialEvidencePackage {
                 }
             }
         }
+        for item in exactTopologyCropCases {
+            paths.insert(exactTopologyCropPath(
+                fixtureIndex: item.fixtureIndex,
+                family: item.family,
+                eventID: item.eventID,
+                scale: scale
+            ))
+        }
         return paths
     }
 
@@ -1612,6 +1827,7 @@ public enum MaterialEvidencePackage {
         frozenRecipes: [Int: SceneRecipe],
         scale: Int,
         sceneScaleEvidence: SceneScaleEvidence,
+        exactTopologyCropEvidence: ExactTopologyCropEvidence,
         directory: URL
     ) throws {
         let fullWidth = 393 * scale
@@ -1697,6 +1913,22 @@ public enum MaterialEvidencePackage {
             let expected = try decodedPNG(expectedData, path: "expected:\(crop.path)")
             guard actual.width == crop.pixelSize,
                   actual.height == crop.pixelSize,
+                  try normalizedRGBA(actual) == normalizedRGBA(expected)
+            else {
+                throw MaterialEvidenceError.renderPixelMismatch(crop.path)
+            }
+        }
+        for crop in exactTopologyCropEvidence.metrics {
+            guard let expectedData = exactTopologyCropEvidence.images[crop.path] else {
+                throw MaterialEvidenceError.invalidPackage("missing expected exact topology crop")
+            }
+            let actual = try decodedPNG(
+                Data(contentsOf: directory.appendingPathComponent(crop.path)),
+                path: crop.path
+            )
+            let expected = try decodedPNG(expectedData, path: "expected:\(crop.path)")
+            guard actual.width == crop.pixelWidth,
+                  actual.height == crop.pixelHeight,
                   try normalizedRGBA(actual) == normalizedRGBA(expected)
             else {
                 throw MaterialEvidenceError.renderPixelMismatch(crop.path)
@@ -1870,6 +2102,25 @@ public enum MaterialEvidencePackage {
         "actor-crops/\(family.rawValue)/\(family.rawValue)-colors-\(colorCount)@\(scale)x.png"
     }
 
+    private static let exactTopologyCropCases: [
+        (fixtureIndex: Int, family: MaterialFamily, eventID: String)
+    ] = [
+        (15, .halo, "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"),
+        (15, .halo, "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02"),
+        (21, .outline, "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"),
+        (23, .outline, "4E6B83FD-19A8-4AA2-91FC-D297E6C15405"),
+    ]
+
+    private static func exactTopologyCropPath(
+        fixtureIndex: Int,
+        family: MaterialFamily,
+        eventID: String,
+        scale: Int
+    ) -> String {
+        let prefix = String(eventID.prefix(8))
+        return "exact-topology-crops/\(fixtureIndex)-\(family.rawValue)-\(prefix)@\(scale)x.png"
+    }
+
     private static func sceneScaleStem(
         family: MaterialFamily,
         colorCount: Int,
@@ -1903,6 +2154,9 @@ public enum MaterialEvidencePackage {
             let data = try Data(contentsOf: directory.appendingPathComponent(path))
             let kind: String
             if path.hasPrefix("actor-crops/") { kind = "isolated-actor-crop" }
+            else if path.hasPrefix("exact-topology-crops/") {
+                kind = "exact-structural-actor-crop"
+            }
             else if path.hasPrefix("scene-scale/") { kind = "scene-scale-render" }
             else if path.hasPrefix("renders/") { kind = "core-render" }
             else if path.hasPrefix("contact-sheets/") { kind = "contact-sheet" }

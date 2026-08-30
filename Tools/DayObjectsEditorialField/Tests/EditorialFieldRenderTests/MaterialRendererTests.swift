@@ -312,7 +312,16 @@ struct MaterialRendererTests {
         #expect(metrics.fixtures.flatMap(\.actors).allSatisfy { actor in
             !actor.colors.isEmpty && !actor.samples.isEmpty && actor.fields.count <= 3
         })
+        #expect(metrics.fixtures.flatMap(\.actors).allSatisfy { actor in
+            let structural = [MaterialFamily.halo, .outline, .counterform].contains(actor.family)
+            return structural == (actor.organicTopology != nil)
+        })
         #expect(metrics.familyCrops.count == 27)
+        #expect(metrics.exactTopologyCrops.count == 4)
+        #expect(Set(metrics.exactTopologyCrops.map(\.fixtureIndex)) == Set([15, 21, 23]))
+        #expect(metrics.exactTopologyCrops.allSatisfy {
+            $0.scale == 1 && $0.pixelWidth > 0 && $0.pixelHeight > 0
+        })
         #expect(Set(metrics.c3Acceptance.map(\.fixtureIndex)) == Set([2, 8, 11, 14, 20]))
         #expect(metrics.c3Acceptance.allSatisfy {
             $0.eligibleActorCount > 0 && $0.passRate >= 0.90
@@ -340,7 +349,11 @@ struct MaterialRendererTests {
         #expect(structuralSceneScale.allSatisfy {
             !$0.topology.isEmpty
                 && $0.topology.contains(where: \.eligible)
-                && $0.topology.allSatisfy(\.passes)
+                && $0.topology.allSatisfy { topology in
+                    topology.passes
+                        && topology.fullThicknessRange >= 0.025
+                        && topology.tileThicknessRange >= 0.025
+                }
         })
         #expect(metrics.sceneScale.filter {
             ![.halo, .outline, .counterform].contains($0.family)
@@ -359,6 +372,11 @@ struct MaterialRendererTests {
         }
         #expect(familyCropArtifacts.count == 27)
         #expect(Set(familyCropArtifacts.map(\.kind)) == Set(["isolated-actor-crop"]))
+        let exactTopologyArtifacts = generated.manifest.artifacts.filter {
+            $0.path.hasPrefix("exact-topology-crops/") && $0.path.hasSuffix(".png")
+        }
+        #expect(exactTopologyArtifacts.count == 4)
+        #expect(Set(exactTopologyArtifacts.map(\.kind)) == Set(["exact-structural-actor-crop"]))
         #expect(FileManager.default.fileExists(
             atPath: directory.appendingPathComponent("contact-sheets/family-optics.png").path
         ))
@@ -1131,6 +1149,72 @@ struct MaterialRendererTests {
             )
         }
     }
+
+    @Test("returned halo and outline recipes reject mechanical concentric topology")
+    func returnedStructuralRecipesAreEccentricAtNativeScale() throws {
+        let manifest = CorpusManifest.visibleV1()
+        let cases: [(fixtureIndex: Int, eventID: String)] = [
+            (15, "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"),
+            (15, "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02"),
+            (21, "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"),
+            (23, "4E6B83FD-19A8-4AA2-91FC-D297E6C15405"),
+        ]
+
+        for item in cases {
+            let fixture = try #require(MaterialEvidencePackage.coverage(for: manifest).fixtures.first {
+                $0.index == item.fixtureIndex
+            })
+            let layout = manifest.breadth[fixture.layoutFixtureIndex]
+            let material = MaterialDNA.fixture(
+                daySeed: layout.seed,
+                eventIDs: layout.eventIDs,
+                family: fixture.family,
+                requestedColorCount: fixture.requestedColorCount
+            )
+            let actorMaterial = try #require(material.actor(item.eventID))
+            let image = try pixels(MaterialRenderer().renderActor(
+                actorMaterial,
+                pixelSize: 384
+            ).pngData)
+            let metrics = organicRimMetrics(image)
+            let context = "fixture=\(item.fixtureIndex) actor=\(item.eventID.prefix(8)) \(metrics)"
+
+            #expect(metrics.alphaCentroidOffset >= 0.018, Comment(rawValue: context))
+            #expect(metrics.alphaCentroidOffset <= 0.10, Comment(rawValue: context))
+            #expect(metrics.thicknessRange >= 0.035, Comment(rawValue: context))
+            #expect(metrics.thicknessVariation >= 0.10, Comment(rawValue: context))
+        }
+    }
+
+    @Test("multi-outline uses unequal related circle spacing")
+    func multiOutlineSpacingIsNotMechanical() throws {
+        let manifest = CorpusManifest.visibleV1()
+        let fixture = try #require(MaterialEvidencePackage.coverage(for: manifest).fixtures.first {
+            $0.index == 21
+        })
+        let layout = manifest.breadth[fixture.layoutFixtureIndex]
+        let material = MaterialDNA.fixture(
+            daySeed: layout.seed,
+            eventIDs: layout.eventIDs,
+            family: .outline,
+            requestedColorCount: 1
+        )
+        let actor = try #require(material.actor("0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"))
+        #expect(actor.contourCount == 3)
+        let image = try pixels(MaterialRenderer().renderActor(actor, pixelSize: 512).pngData)
+        let imbalance = maximumContourSpacingImbalance(image)
+
+        #expect(imbalance >= 0.025, "mechanical equal contour spacing: \(imbalance)")
+    }
+
+    @Test("organic topology proxy rejects a perfect mechanical torus")
+    func organicProxyRejectsMechanicalRingControl() {
+        let metrics = organicRimMetrics(mechanicalRingControl(size: 384))
+
+        #expect(metrics.alphaCentroidOffset < 0.006)
+        #expect(metrics.thicknessRange < 0.012)
+        #expect(metrics.thicknessVariation < 0.04)
+    }
 }
 
 private func fixtureActor(
@@ -1254,6 +1338,106 @@ private struct RadialTopologyMetrics: CustomStringConvertible {
             + "margin=\(openCenterMargin), centerRatio=\(centerToRimRatio), "
             + "interiorRatio=\(interiorToRimRatio)"
     }
+}
+
+private struct OrganicRimMetrics: CustomStringConvertible {
+    let alphaCentroidOffset: Double
+    let thicknessRange: Double
+    let thicknessVariation: Double
+
+    var description: String {
+        "centroidOffset=\(alphaCentroidOffset), thicknessRange=\(thicknessRange), "
+            + "thicknessVariation=\(thicknessVariation)"
+    }
+}
+
+private func organicRimMetrics(_ image: PixelImage) -> OrganicRimMetrics {
+    var alphaWeight = 0.0
+    var weightedX = 0.0
+    var weightedY = 0.0
+    var maximumAlpha = 0.0
+    for y in 0..<image.height {
+        for x in 0..<image.width {
+            let alpha = image.pixel(x: x, y: y).alpha
+            maximumAlpha = max(maximumAlpha, alpha)
+            alphaWeight += alpha
+            weightedX += ((Double(x) + 0.5) / Double(image.width)) * alpha
+            weightedY += ((Double(y) + 0.5) / Double(image.height)) * alpha
+        }
+    }
+    let centroidX = weightedX / max(alphaWeight, 0.000_001)
+    let centroidY = weightedY / max(alphaWeight, 0.000_001)
+    var thicknesses = [Double]()
+    let threshold = maximumAlpha * 0.28
+    for angleIndex in 0..<96 {
+        let angle = Double(angleIndex) / 96 * Double.pi * 2
+        var occupied = [Double]()
+        for step in 0...220 {
+            let radius = Double(step) / 220 * 0.54
+            let x = Int(((0.5 + cos(angle) * radius) * Double(image.width)).rounded(.down))
+            let y = Int(((0.5 + sin(angle) * radius) * Double(image.height)).rounded(.down))
+            guard (0..<image.width).contains(x), (0..<image.height).contains(y) else { continue }
+            if image.pixel(x: x, y: y).alpha >= threshold { occupied.append(radius) }
+        }
+        if let first = occupied.first, let last = occupied.last {
+            thicknesses.append(last - first)
+        }
+    }
+    let mean = thicknesses.reduce(0, +) / Double(max(thicknesses.count, 1))
+    let variance = thicknesses.map { ($0 - mean) * ($0 - mean) }.reduce(0, +)
+        / Double(max(thicknesses.count, 1))
+    return OrganicRimMetrics(
+        alphaCentroidOffset: hypot(centroidX - 0.5, centroidY - 0.5),
+        thicknessRange: (thicknesses.max() ?? 0) - (thicknesses.min() ?? 0),
+        thicknessVariation: sqrt(variance) / max(mean, 0.000_001)
+    )
+}
+
+private func maximumContourSpacingImbalance(_ image: PixelImage) -> Double {
+    var maximumImbalance = 0.0
+    for angleIndex in 0..<72 {
+        let angle = Double(angleIndex) / 72 * Double.pi * 2
+        var bands = [(start: Double, end: Double)]()
+        var activeStart: Double?
+        for step in 0...320 {
+            let radius = Double(step) / 320 * 0.52
+            let x = Int(((0.5 + cos(angle) * radius) * Double(image.width)).rounded(.down))
+            let y = Int(((0.5 + sin(angle) * radius) * Double(image.height)).rounded(.down))
+            let occupied = (0..<image.width).contains(x)
+                && (0..<image.height).contains(y)
+                && image.pixel(x: x, y: y).alpha >= 0.24
+            if occupied, activeStart == nil {
+                activeStart = radius
+            } else if !occupied, let start = activeStart {
+                bands.append((start, radius))
+                activeStart = nil
+            }
+        }
+        if let start = activeStart { bands.append((start, 0.52)) }
+        let centers = bands.map { ($0.start + $0.end) * 0.5 }
+        guard centers.count >= 3 else { continue }
+        let gaps = zip(centers, centers.dropFirst()).map { $1 - $0 }
+        maximumImbalance = max(maximumImbalance, (gaps.max() ?? 0) - (gaps.min() ?? 0))
+    }
+    return maximumImbalance
+}
+
+private func mechanicalRingControl(size: Int) -> PixelImage {
+    var rgba = Data(count: size * size * 4)
+    for y in 0..<size {
+        for x in 0..<size {
+            let u = (Double(x) + 0.5) / Double(size)
+            let v = (Double(y) + 0.5) / Double(size)
+            let radius = hypot(u - 0.5, v - 0.5)
+            let alpha: UInt8 = (0.24...0.44).contains(radius) ? 255 : 0
+            let offset = (y * size + x) * 4
+            rgba[offset] = alpha
+            rgba[offset + 1] = alpha
+            rgba[offset + 2] = alpha
+            rgba[offset + 3] = alpha
+        }
+    }
+    return PixelImage(width: size, height: size, rgba: rgba)
 }
 
 private func radialTopologyMetrics(
@@ -1443,7 +1627,8 @@ private func replacingTertiaryColorWithSecondary(
         contourWidth: actor.contourWidth,
         contourCount: actor.contourCount,
         counterformRadius: actor.counterformRadius,
-        counterformSoftness: actor.counterformSoftness
+        counterformSoftness: actor.counterformSoftness,
+        organicTopology: actor.organicTopology
     )
 }
 
@@ -1462,7 +1647,8 @@ private func replacingEventID(
         contourWidth: actor.contourWidth,
         contourCount: actor.contourCount,
         counterformRadius: actor.counterformRadius,
-        counterformSoftness: actor.counterformSoftness
+        counterformSoftness: actor.counterformSoftness,
+        organicTopology: actor.organicTopology
     )
 }
 

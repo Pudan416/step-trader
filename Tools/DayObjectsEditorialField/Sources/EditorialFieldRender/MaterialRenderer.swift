@@ -50,7 +50,7 @@ public enum MaterialRendererError: Error, LocalizedError {
 /// recipe. It is intentionally independent from app/Metal code and consumes
 /// immutable composition values without deriving or changing geometry.
 public struct MaterialRenderer {
-    public static let version = "material-coregraphics-radial-v5"
+    public static let version = "material-coregraphics-radial-v6"
 
     public init() {}
 
@@ -235,6 +235,29 @@ public struct MaterialRenderer {
            (material.counterformRadius ?? 0) <= 0 {
             throw MaterialRendererError.invalidMaterial("counterform requires a cut center")
         }
+        if [.halo, .outline, .counterform].contains(material.family) {
+            guard let topology = material.organicTopology,
+                  (0.38...0.62).contains(topology.outerCenter.x),
+                  (0.38...0.62).contains(topology.outerCenter.y),
+                  (0.38...0.62).contains(topology.innerCenter.x),
+                  (0.38...0.62).contains(topology.innerCenter.y),
+                  topology.outerRadius > 0,
+                  topology.outerRadius <= 0.50,
+                  topology.innerRadius > 0,
+                  topology.innerRadius < topology.outerRadius,
+                  topology.contours.count <= 3,
+                  topology.contours.allSatisfy({ contour in
+                      contour.outerRadius > contour.innerRadius
+                          && contour.outerRadius <= 0.50
+                          && contour.innerRadius > 0
+                          && (0...1).contains(contour.opacity)
+                  })
+            else {
+                throw MaterialRendererError.invalidMaterial(
+                    "structural family requires bounded organic radial topology"
+                )
+            }
+        }
     }
 
     private func makeActorImage(
@@ -330,14 +353,30 @@ public struct MaterialRenderer {
                     color = mix(color, RGB.white, 0.025 + (1 - volume) * 0.035)
                     alpha *= 0.58 + volume * 0.42
                 case .halo:
-                    let corona = 1 - smoothstep(0.025, 0.105, abs(shapeDistance - outerRadius * 0.78))
-                    let openCenter = smoothstep(
-                        outerRadius * 0.25,
-                        outerRadius * 0.67,
-                        shapeDistance
+                    let topology = material.organicTopology
+                    let outerCenter = topology?.outerCenter ?? CompositionPoint(x: 0.5, y: 0.5)
+                    let innerCenter = topology?.innerCenter ?? CompositionPoint(x: 0.5, y: 0.5)
+                    let organicOuterRadius = topology?.outerRadius ?? outerRadius
+                    let organicInnerRadius = topology?.innerRadius ?? outerRadius * 0.32
+                    let outerDistance = hypot(u - outerCenter.x, v - outerCenter.y)
+                    let innerDistance = hypot(u - innerCenter.x, v - innerCenter.y)
+                    let body = 1 - smoothstep(
+                        organicOuterRadius - edgeWidth,
+                        organicOuterRadius,
+                        outerDistance
                     )
-                    color = mix(color, RGB.white, corona * 0.23)
-                    alpha *= openCenter * (0.76 + corona * 0.24)
+                    let opening = smoothstep(
+                        organicInnerRadius - edgeWidth * 1.6,
+                        organicInnerRadius + edgeWidth * 1.4,
+                        innerDistance
+                    )
+                    let atmosphericEdge = 1 - smoothstep(
+                        edgeWidth * 0.7,
+                        edgeWidth * 3.4,
+                        abs(innerDistance - organicInnerRadius)
+                    )
+                    alpha = min(alpha, body) * opening * (0.76 + atmosphericEdge * 0.24)
+                    color = mix(color, RGB.white, atmosphericEdge * 0.09)
                 case .luminous:
                     let core = radialWeight(
                         u: u,
@@ -368,31 +407,66 @@ public struct MaterialRenderer {
                     alpha *= 0.92 + core * 0.05 + outerCorona * 0.03
                 case .outline:
                     var contourAlpha = 0.0
-                    let contourCount = max(1, material.contourCount)
-                    for index in 0..<contourCount {
-                        let spacing = material.contourWidth * 1.55 * Double(index)
-                        let centerRadius = outerRadius - material.contourWidth * 0.55 - spacing
-                        let distanceFromContour = abs(shapeDistance - centerRadius)
-                        let oneContour = 1 - smoothstep(
-                            material.contourWidth * 0.48,
-                            material.contourWidth * 0.48 + antialias * 1.5,
-                            distanceFromContour
-                        )
-                        contourAlpha = max(contourAlpha, oneContour * (1 - Double(index) * 0.13))
+                    if let topology = material.organicTopology,
+                       topology.contours.count == max(1, material.contourCount) {
+                        for contour in topology.contours {
+                            let outerDistance = hypot(
+                                u - contour.outerCenter.x,
+                                v - contour.outerCenter.y
+                            )
+                            let innerDistance = hypot(
+                                u - contour.innerCenter.x,
+                                v - contour.innerCenter.y
+                            )
+                            let outerFill = 1 - smoothstep(
+                                contour.outerRadius - antialias * 1.8,
+                                contour.outerRadius + antialias * 1.2,
+                                outerDistance
+                            )
+                            let innerCut = smoothstep(
+                                contour.innerRadius - antialias * 1.4,
+                                contour.innerRadius + antialias * 1.8,
+                                innerDistance
+                            )
+                            contourAlpha = max(
+                                contourAlpha,
+                                outerFill * innerCut * contour.opacity
+                            )
+                        }
+                    } else {
+                        let contourCount = max(1, material.contourCount)
+                        for index in 0..<contourCount {
+                            let spacing = material.contourWidth * 1.55 * Double(index)
+                            let centerRadius = outerRadius - material.contourWidth * 0.55 - spacing
+                            let distanceFromContour = abs(shapeDistance - centerRadius)
+                            let oneContour = 1 - smoothstep(
+                                material.contourWidth * 0.48,
+                                material.contourWidth * 0.48 + antialias * 1.5,
+                                distanceFromContour
+                            )
+                            contourAlpha = max(
+                                contourAlpha,
+                                oneContour * (1 - Double(index) * 0.13)
+                            )
+                        }
                     }
                     alpha *= contourAlpha
                 case .counterform:
-                    let holeRadius = outerRadius * (material.counterformRadius ?? 0)
+                    let innerCenter = material.organicTopology?.innerCenter
+                        ?? CompositionPoint(x: 0.5, y: 0.5)
+                    let holeRadius = material.organicTopology?.innerRadius
+                        ?? outerRadius * (material.counterformRadius ?? 0)
                     let holeSoftness = max(material.counterformSoftness, antialias)
+                    let innerDistance = hypot(u - innerCenter.x, v - innerCenter.y)
                     let cutout = smoothstep(
                         holeRadius - holeSoftness,
                         holeRadius + holeSoftness,
-                        shapeDistance
+                        innerDistance
                     )
                     let corona = 1 - smoothstep(
                         holeSoftness,
                         holeSoftness * 3.2,
-                        abs(shapeDistance - holeRadius)
+                        abs(innerDistance - holeRadius)
                     )
                     alpha *= cutout
                     color = mix(color, RGB.white, corona * 0.24)
@@ -533,16 +607,26 @@ public struct MaterialRenderer {
         blurRadius: Double
     ) throws -> CGImage {
         let openingOuter: Double
+        let openingCenter: CompositionPoint
         let contrastGain: Double
         switch material.family {
         case .halo:
-            openingOuter = 0.28
+            openingCenter = material.organicTopology?.innerCenter
+                ?? CompositionPoint(x: 0.5, y: 0.5)
+            openingOuter = max(0.23, (material.organicTopology?.innerRadius ?? 0.22) * 0.98)
             contrastGain = 1 + min(0.18, blurRadius / Double(sourceDiameter) * 1.6)
         case .outline:
-            if material.contourCount <= 1 {
+            if let innermost = material.organicTopology?.contours.last {
+                openingCenter = innermost.innerCenter
+                openingOuter = material.contourCount <= 1
+                    ? max(0.27, innermost.innerRadius * 0.92)
+                    : max(0.15, innermost.innerRadius * 0.92)
+            } else if material.contourCount <= 1 {
+                openingCenter = CompositionPoint(x: 0.5, y: 0.5)
                 let innerContourEdge = 0.48 - material.contourWidth * 1.03
                 openingOuter = max(0.27, innerContourEdge * 0.88)
             } else {
+                openingCenter = CompositionPoint(x: 0.5, y: 0.5)
                 // Multi-contour outlines retain their two outer bands while
                 // the small innermost band yields to a legible open center.
                 openingOuter = 0.20
@@ -560,8 +644,10 @@ public struct MaterialRenderer {
         }
         let bytes = rawData.assumingMemoryBound(to: UInt8.self)
         let bytesPerRow = context.bytesPerRow
-        let centerX = Double(image.width) * 0.5
-        let centerY = Double(image.height) * 0.5
+        let actorOriginX = (Double(image.width) - Double(sourceDiameter)) * 0.5
+        let actorOriginY = (Double(image.height) - Double(sourceDiameter)) * 0.5
+        let centerX = actorOriginX + openingCenter.x * Double(sourceDiameter)
+        let centerY = actorOriginY + openingCenter.y * Double(sourceDiameter)
         let openingInner = openingOuter * (material.family == .halo ? 0.48 : 0.67)
 
         for y in 0..<image.height {

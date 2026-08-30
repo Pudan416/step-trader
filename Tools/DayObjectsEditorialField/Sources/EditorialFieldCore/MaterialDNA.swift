@@ -85,6 +85,54 @@ public struct RadialField: Codable, Equatable, Sendable {
     }
 }
 
+public struct OrganicRadialContour: Codable, Equatable, Sendable {
+    public let outerCenter: CompositionPoint
+    public let outerRadius: Double
+    public let innerCenter: CompositionPoint
+    public let innerRadius: Double
+    public let opacity: Double
+
+    public init(
+        outerCenter: CompositionPoint,
+        outerRadius: Double,
+        innerCenter: CompositionPoint,
+        innerRadius: Double,
+        opacity: Double
+    ) {
+        self.outerCenter = outerCenter
+        self.outerRadius = outerRadius
+        self.innerCenter = innerCenter
+        self.innerRadius = innerRadius
+        self.opacity = opacity
+    }
+}
+
+/// Reproducible circle-derived material topology. These bounded descriptors
+/// are generated actor-locally with the radial palette fields and are carried
+/// in the recipe so CoreGraphics, evidence verification, and a future Metal
+/// renderer share exactly one aesthetic source of truth.
+public struct OrganicRadialTopology: Codable, Equatable, Sendable {
+    public let outerCenter: CompositionPoint
+    public let outerRadius: Double
+    public let innerCenter: CompositionPoint
+    public let innerRadius: Double
+    public let contours: [OrganicRadialContour]
+
+    public init(
+        outerCenter: CompositionPoint,
+        outerRadius: Double,
+        innerCenter: CompositionPoint,
+        innerRadius: Double,
+        contours: [OrganicRadialContour]
+    ) {
+        self.outerCenter = outerCenter
+        self.outerRadius = outerRadius
+        self.innerCenter = innerCenter
+        self.innerRadius = innerRadius
+        self.contours = contours
+    }
+}
+
 public struct ActorMaterialRecipe: Codable, Equatable, Sendable {
     public let eventID: String
     public let family: MaterialFamily
@@ -97,6 +145,7 @@ public struct ActorMaterialRecipe: Codable, Equatable, Sendable {
     public let contourCount: Int
     public let counterformRadius: Double?
     public let counterformSoftness: Double
+    public let organicTopology: OrganicRadialTopology?
 
     public init(
         eventID: String,
@@ -109,7 +158,8 @@ public struct ActorMaterialRecipe: Codable, Equatable, Sendable {
         contourWidth: Double,
         contourCount: Int,
         counterformRadius: Double?,
-        counterformSoftness: Double
+        counterformSoftness: Double,
+        organicTopology: OrganicRadialTopology? = nil
     ) {
         self.eventID = eventID
         self.family = family
@@ -122,6 +172,7 @@ public struct ActorMaterialRecipe: Codable, Equatable, Sendable {
         self.contourCount = contourCount
         self.counterformRadius = counterformRadius
         self.counterformSoftness = counterformSoftness
+        self.organicTopology = organicTopology
     }
 }
 
@@ -213,6 +264,14 @@ public enum MaterialDNA {
                 mutation: mutation,
                 actorSeed: actorSeed
             )
+            let organicTopology = organicTopology(
+                family: family,
+                fields: fields,
+                actorSeed: actorSeed,
+                contourWidth: construction.contourWidth,
+                contourCount: construction.contourCount,
+                counterformRadius: construction.counterformRadius
+            )
             return ActorMaterialRecipe(
                 eventID: eventID,
                 family: family,
@@ -224,7 +283,8 @@ public enum MaterialDNA {
                 contourWidth: construction.contourWidth,
                 contourCount: construction.contourCount,
                 counterformRadius: construction.counterformRadius,
-                counterformSoftness: construction.counterformSoftness
+                counterformSoftness: construction.counterformSoftness,
+                organicTopology: organicTopology
             )
         }
         return DailyMaterialDNA(
@@ -363,6 +423,108 @@ public enum MaterialDNA {
             let radius = mutation == .wideCounterform ? min(0.44, base + 0.045) : base
             return (0.93, 0.024, 0, 0, radius, 0.018)
         }
+    }
+
+    private static func organicTopology(
+        family: MaterialFamily,
+        fields: [RadialField],
+        actorSeed: UInt64,
+        contourWidth: Double,
+        contourCount: Int,
+        counterformRadius: Double?
+    ) -> OrganicRadialTopology? {
+        guard [.halo, .outline, .counterform].contains(family) else { return nil }
+        let focus = fields.first?.focus ?? CompositionPoint(x: 0.5, y: 0.5)
+        var directionX = focus.x - 0.5
+        var directionY = focus.y - 0.5
+        var magnitude = hypot(directionX, directionY)
+        if magnitude < 0.018 {
+            let fallbackAngle = actorUnit(actorSeed, salt: 0xECCE_1701) * Double.pi * 2
+            directionX = cos(fallbackAngle)
+            directionY = sin(fallbackAngle)
+            magnitude = 1
+        }
+        directionX /= magnitude
+        directionY /= magnitude
+        let perpendicularX = -directionY
+        let perpendicularY = directionX
+        let handedness = actorUnit(actorSeed, salt: 0xECCE_1702) < 0.5 ? -1.0 : 1.0
+        let eccentricity = 0.053 + actorUnit(actorSeed, salt: 0xECCE_1703) * 0.018
+        let outerDrift = 0.010 + actorUnit(actorSeed, salt: 0xECCE_1704) * 0.008
+        let outerCenter = boundedTopologyPoint(
+            x: 0.5 - directionX * outerDrift + perpendicularX * handedness * 0.006,
+            y: 0.5 - directionY * outerDrift + perpendicularY * handedness * 0.006
+        )
+        let innerCenter = boundedTopologyPoint(
+            x: 0.5 + directionX * eccentricity + perpendicularX * handedness * 0.010,
+            y: 0.5 + directionY * eccentricity + perpendicularY * handedness * 0.010
+        )
+
+        switch family {
+        case .halo:
+            return OrganicRadialTopology(
+                outerCenter: outerCenter,
+                outerRadius: 0.475,
+                innerCenter: innerCenter,
+                innerRadius: 0.205 + actorUnit(actorSeed, salt: 0xECCE_1705) * 0.035,
+                contours: []
+            )
+        case .outline:
+            let spacingFactors = [0.0, 1.30, 2.96]
+            let opacityFactors = [1.0, 0.76, 0.57]
+            let widthFactors = [0.92, 0.78, 0.64]
+            let contours = (0..<max(1, contourCount)).map { index in
+                let centerRadius = 0.48
+                    - contourWidth * 0.55
+                    - contourWidth * spacingFactors[index]
+                let bandWidth = contourWidth * widthFactors[index]
+                let levelShift = Double(index) * 0.012
+                let alternating = index.isMultiple(of: 2) ? 1.0 : -1.0
+                let contourOuterCenter = boundedTopologyPoint(
+                    x: outerCenter.x + directionX * levelShift
+                        + perpendicularX * alternating * 0.006 * Double(index),
+                    y: outerCenter.y + directionY * levelShift
+                        + perpendicularY * alternating * 0.006 * Double(index)
+                )
+                let contourInnerCenter = boundedTopologyPoint(
+                    x: contourOuterCenter.x + directionX * (0.036 + Double(index) * 0.006)
+                        + perpendicularX * handedness * 0.006,
+                    y: contourOuterCenter.y + directionY * (0.036 + Double(index) * 0.006)
+                        + perpendicularY * handedness * 0.006
+                )
+                return OrganicRadialContour(
+                    outerCenter: contourOuterCenter,
+                    outerRadius: centerRadius + bandWidth * 0.5,
+                    innerCenter: contourInnerCenter,
+                    innerRadius: max(0.035, centerRadius - bandWidth * 0.5),
+                    opacity: opacityFactors[index]
+                )
+            }
+            return OrganicRadialTopology(
+                outerCenter: outerCenter,
+                outerRadius: contours[0].outerRadius,
+                innerCenter: contours.last?.innerCenter ?? innerCenter,
+                innerRadius: contours.last?.innerRadius ?? 0.20,
+                contours: contours
+            )
+        case .counterform:
+            return OrganicRadialTopology(
+                outerCenter: outerCenter,
+                outerRadius: 0.48,
+                innerCenter: innerCenter,
+                innerRadius: 0.48 * (counterformRadius ?? 0.34),
+                contours: []
+            )
+        default:
+            return nil
+        }
+    }
+
+    private static func boundedTopologyPoint(x: Double, y: Double) -> CompositionPoint {
+        CompositionPoint(
+            x: min(0.62, max(0.38, x)),
+            y: min(0.62, max(0.38, y))
+        )
     }
 
     private static func hsl(hue: Double, saturation: Double, lightness: Double) -> MaterialColor {
