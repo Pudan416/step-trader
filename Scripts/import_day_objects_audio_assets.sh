@@ -41,28 +41,56 @@ readonly temp_root="$(mktemp -d /tmp/day-objects-audio-import.XXXXXX)"
 transaction_root=""
 transaction_active=0
 transaction_committed=0
+transaction_backup_completed=()
+transaction_install_completed=()
 
 rollback_transaction() {
     local rollback_failed=0
     local index
     local destination
     local old_path
+    local new_path
     local displaced_path
+    local backup_completed
+    local install_completed
 
     mkdir -p "${transaction_root}/displaced"
     for index in "${!transaction_destinations[@]}"; do
         destination="${transaction_destinations[$index]}"
         old_path="${transaction_root}/old/${transaction_unit_names[$index]}"
+        new_path="${transaction_new_paths[$index]}"
         displaced_path="${transaction_root}/displaced/${transaction_unit_names[$index]}"
+        backup_completed="${transaction_backup_completed[$index]}"
+        install_completed="${transaction_install_completed[$index]}"
 
-        if [[ -e "${destination}" || -L "${destination}" ]]; then
+        # The old/new locations are also a filesystem journal. They cover a
+        # signal delivered after atomic mv completed but before the following
+        # in-memory state assignment could run.
+        if [[ -e "${old_path}" || -L "${old_path}" ]]; then
+            backup_completed=1
+        fi
+        if [[ ! -e "${new_path}" && ! -L "${new_path}" && ( -e "${destination}" || -L "${destination}" ) ]]; then
+            install_completed=1
+        fi
+
+        if [[ "${install_completed}" -eq 1 && ( -e "${destination}" || -L "${destination}" ) ]]; then
             if ! mv "${destination}" "${displaced_path}"; then
                 printf 'error: rollback could not move current bank unit aside: %s\n' "${destination}" >&2
                 rollback_failed=1
                 continue
             fi
         fi
-        if [[ -e "${old_path}" || -L "${old_path}" ]]; then
+        if [[ "${backup_completed}" -eq 1 ]]; then
+            if [[ -e "${destination}" || -L "${destination}" ]]; then
+                printf 'error: rollback will not overwrite an unexpected destination: %s\n' "${destination}" >&2
+                rollback_failed=1
+                continue
+            fi
+            if [[ ! -e "${old_path}" && ! -L "${old_path}" ]]; then
+                printf 'error: rollback backup is missing for bank unit: %s\n' "${destination}" >&2
+                rollback_failed=1
+                continue
+            fi
             if ! mv "${old_path}" "${destination}"; then
                 printf 'error: rollback could not restore bank unit: %s\n' "${destination}" >&2
                 rollback_failed=1
@@ -70,6 +98,45 @@ rollback_transaction() {
         fi
     done
     [[ "${rollback_failed}" -eq 0 ]]
+}
+
+backup_transaction_unit() {
+    local index="$1"
+    local destination="${transaction_destinations[$index]}"
+    local old_path="${transaction_root}/old/${transaction_unit_names[$index]}"
+    local move_exit
+
+    [[ -e "${destination}" || -L "${destination}" ]] || return 0
+    if mv "${destination}" "${old_path}"; then
+        transaction_backup_completed[$index]=1
+        return 0
+    else
+        move_exit=$?
+        # A same-filesystem rename is atomic, but preserve correct history even
+        # if a wrapper reports failure after completing the move.
+        if [[ ( -e "${old_path}" || -L "${old_path}" ) && ! -e "${destination}" && ! -L "${destination}" ]]; then
+            transaction_backup_completed[$index]=1
+        fi
+        return "${move_exit}"
+    fi
+}
+
+install_transaction_unit() {
+    local index="$1"
+    local new_path="${transaction_new_paths[$index]}"
+    local destination="${transaction_destinations[$index]}"
+    local move_exit
+
+    if mv "${new_path}" "${destination}"; then
+        transaction_install_completed[$index]=1
+        return 0
+    else
+        move_exit=$?
+        if [[ ( -e "${destination}" || -L "${destination}" ) && ! -e "${new_path}" && ! -L "${new_path}" ]]; then
+            transaction_install_completed[$index]=1
+        fi
+        return "${move_exit}"
+    fi
 }
 
 cleanup() {
@@ -587,16 +654,15 @@ transaction_new_paths=(
     "${transaction_new_root}/FeltPiano"
     "${transaction_new_root}/audio-assets-manifest.json"
 )
+transaction_backup_completed=(0 0 0 0)
+transaction_install_completed=(0 0 0 0)
 transaction_active=1
 
 for index in "${!transaction_destinations[@]}"; do
-    destination="${transaction_destinations[$index]}"
-    if [[ -e "${destination}" || -L "${destination}" ]]; then
-        mv "${destination}" "${transaction_old_root}/${transaction_unit_names[$index]}"
-    fi
+    backup_transaction_unit "${index}"
 done
 for index in "${!transaction_destinations[@]}"; do
-    mv "${transaction_new_paths[$index]}" "${transaction_destinations[$index]}"
+    install_transaction_unit "${index}"
 done
 transaction_committed=1
 
