@@ -29,7 +29,7 @@ struct DayObjectsMeshGradientUniforms: Equatable {
         self.init(
             style: scene.meshGradientStyle,
             resolution: resolution,
-            elapsedTime: elapsedTime
+            elapsedTime: scene.input.reduceMotion ? 0 : elapsedTime
         )
     }
 

@@ -36,7 +36,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
     }
 
     static func configureAnimationFrameRate(_ view: MTKView) {
-        view.preferredFramesPerSecond = 60
+        view.preferredFramesPerSecond = 30
     }
 
     func updateUIView(_ uiView: MTKView, context: Context) {

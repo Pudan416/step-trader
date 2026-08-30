@@ -1479,6 +1479,93 @@ final class DayObjectPaletteTests: XCTestCase {
         XCTAssertEqual(MemoryLayout<DayObjectsMeshGradientUniforms>.offset(of: \.motionDirection), 124)
     }
 
+    func testMeshGradientReduceMotionFreezesUniformsAndGPUOutputWhileStandardMotionAdvances() throws {
+        let frozenScene = DayObjectScene.make(input: DayObjectSceneInput(
+            dayKey: "2026-08-30",
+            identity: "mesh-reduce-motion",
+            eventIDs: [],
+            motionEnergy: 0.55,
+            visualClarity: 0.55,
+            reduceMotion: true
+        ))
+        let movingScene = DayObjectScene.make(input: DayObjectSceneInput(
+            dayKey: "2026-08-30",
+            identity: "mesh-reduce-motion",
+            eventIDs: [],
+            motionEnergy: 0.55,
+            visualClarity: 0.55,
+            reduceMotion: false
+        ))
+        let resolution = SIMD2<Float>(80, 60)
+        let frozenEarly = DayObjectsMeshGradientUniforms(
+            scene: frozenScene,
+            resolution: resolution,
+            elapsedTime: 5
+        )
+        let frozenLate = DayObjectsMeshGradientUniforms(
+            scene: frozenScene,
+            resolution: resolution,
+            elapsedTime: 95
+        )
+        let movingEarly = DayObjectsMeshGradientUniforms(
+            scene: movingScene,
+            resolution: resolution,
+            elapsedTime: 5
+        )
+        let movingLate = DayObjectsMeshGradientUniforms(
+            scene: movingScene,
+            resolution: resolution,
+            elapsedTime: 95
+        )
+
+        XCTAssertEqual(frozenEarly, frozenLate)
+        XCTAssertNotEqual(movingEarly, movingLate)
+
+        let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        let commandQueue = try XCTUnwrap(device.makeCommandQueue())
+        let library = try XCTUnwrap(device.makeDefaultLibrary())
+        let vertexFunction = try XCTUnwrap(library.makeFunction(name: "dayObjectsFullscreenVertex"))
+        let fragmentFunction = try XCTUnwrap(library.makeFunction(name: "dayObjectsMeshGradientFragment"))
+        let descriptor = MTLRenderPipelineDescriptor()
+        descriptor.vertexFunction = vertexFunction
+        descriptor.fragmentFunction = fragmentFunction
+        descriptor.colorAttachments[0].pixelFormat = .rgba16Float
+        let pipeline = try device.makeRenderPipelineState(descriptor: descriptor)
+        let plan = DayObjectsRenderTargetPlan(drawableWidth: 160, drawableHeight: 120)
+
+        let frozenEarlyPixels = try renderMeshGradient(
+            uniforms: frozenEarly,
+            plan: plan,
+            device: device,
+            commandQueue: commandQueue,
+            pipeline: pipeline
+        )
+        let frozenLatePixels = try renderMeshGradient(
+            uniforms: frozenLate,
+            plan: plan,
+            device: device,
+            commandQueue: commandQueue,
+            pipeline: pipeline
+        )
+        let movingEarlyPixels = try renderMeshGradient(
+            uniforms: movingEarly,
+            plan: plan,
+            device: device,
+            commandQueue: commandQueue,
+            pipeline: pipeline
+        )
+        let movingLatePixels = try renderMeshGradient(
+            uniforms: movingLate,
+            plan: plan,
+            device: device,
+            commandQueue: commandQueue,
+            pipeline: pipeline
+        )
+
+        XCTAssertEqual(frozenEarlyPixels, frozenLatePixels)
+        XCTAssertGreaterThan(meanAbsoluteRGBDifference(movingEarlyPixels, movingLatePixels), 0.01)
+    }
+
     func testMeshGradientGPUProducesSmoothColorSpotsThatKeepMoving() throws {
         let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
         let commandQueue = try XCTUnwrap(device.makeCommandQueue())
@@ -1638,6 +1725,27 @@ final class DayObjectPaletteTests: XCTestCase {
         commandQueue: MTLCommandQueue,
         pipeline: MTLRenderPipelineState
     ) throws -> [UInt16] {
+        let uniforms = DayObjectsMeshGradientUniforms(
+            style: style,
+            resolution: SIMD2(Float(plan.background.width), Float(plan.background.height)),
+            elapsedTime: elapsedTime
+        )
+        return try renderMeshGradient(
+            uniforms: uniforms,
+            plan: plan,
+            device: device,
+            commandQueue: commandQueue,
+            pipeline: pipeline
+        )
+    }
+
+    private func renderMeshGradient(
+        uniforms: DayObjectsMeshGradientUniforms,
+        plan: DayObjectsRenderTargetPlan,
+        device: MTLDevice,
+        commandQueue: MTLCommandQueue,
+        pipeline: MTLRenderPipelineState
+    ) throws -> [UInt16] {
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: .rgba16Float,
             width: plan.background.width,
@@ -1655,14 +1763,10 @@ final class DayObjectPaletteTests: XCTestCase {
 
         let commandBuffer = try XCTUnwrap(commandQueue.makeCommandBuffer())
         let encoder = try XCTUnwrap(commandBuffer.makeRenderCommandEncoder(descriptor: renderPass))
-        var uniforms = DayObjectsMeshGradientUniforms(
-            style: style,
-            resolution: SIMD2(Float(plan.background.width), Float(plan.background.height)),
-            elapsedTime: elapsedTime
-        )
+        var meshUniforms = uniforms
         encoder.setRenderPipelineState(pipeline)
         encoder.setFragmentBytes(
-            &uniforms,
+            &meshUniforms,
             length: MemoryLayout<DayObjectsMeshGradientUniforms>.stride,
             index: 0
         )

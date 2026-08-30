@@ -712,12 +712,12 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertEqual(readback.sRGBBytes, SIMD3<UInt8>(118, 188, 231))
     }
 
-    func testAnimatedMetalViewTargetsSixtyFramesPerSecond() {
+    func testLiveDayObjectsMetalViewTargetsThirtyFramesPerSecond() {
         let view = MTKView(frame: .zero)
 
         DayObjectsMetalView.configureAnimationFrameRate(view)
 
-        XCTAssertEqual(view.preferredFramesPerSecond, 60)
+        XCTAssertEqual(view.preferredFramesPerSecond, 30)
     }
 
     func testPostGPUDefocusesCompleteSceneMonotonicallyWhileGrainStaysSharp() throws {
