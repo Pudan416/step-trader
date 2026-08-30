@@ -164,6 +164,56 @@ final class SettingsRedesignUITests: XCTestCase {
         XCTAssertTrue(app.otherElements["settings.notifications.accessWindow"].exists)
     }
 
+    func testAccountIdentityLeadsProfileDetailsWithoutADuplicateGroup() {
+        let app = launchSettings(extraArguments: ["ui-testing-settings-account"])
+        let account = app.buttons["settings.account"]
+        XCTAssertTrue(account.waitForExistence(timeout: 3))
+        XCTAssertTrue(waitForLabel("Konstantin Pudan", of: account))
+        account.tap()
+
+        let profileHeader = app.otherElements["settings.account.profileHeader"]
+        let displayName = app.staticTexts["Konstantin Pudan"]
+        let email = app.staticTexts["konstantin@example.com"]
+        let editProfile = app.buttons["settings.account.editProfile"]
+        let syncSection = app.staticTexts["SYNC"]
+
+        XCTAssertTrue(profileHeader.waitForExistence(timeout: 3))
+        XCTAssertTrue(displayName.exists)
+        XCTAssertTrue(email.exists)
+        XCTAssertTrue(editProfile.exists)
+        XCTAssertTrue(syncSection.waitForExistence(timeout: 3))
+        XCTAssertFalse(app.staticTexts["PROFILE"].exists)
+        XCTAssertLessThan(profileHeader.frame.maxY + 20, syncSection.frame.minY)
+        XCTAssertTrue(editProfile.isHittable)
+        assertMinimumHitTarget(editProfile)
+    }
+
+    func testAccountIdentityKeepsEditorialAlignmentAtAccessibilitySize() {
+        let app = launchSettings(
+            contentSizeCategory: "UICTContentSizeCategoryAccessibilityM",
+            extraArguments: ["ui-testing-settings-account"]
+        )
+        let account = app.buttons["settings.account"]
+        XCTAssertTrue(account.waitForExistence(timeout: 3))
+        XCTAssertTrue(waitForLabel("Konstantin Pudan", of: account))
+        account.tap()
+
+        let profileHeader = app.otherElements["settings.account.profileHeader"]
+        let displayName = app.staticTexts["Konstantin Pudan"]
+        let email = app.staticTexts["konstantin@example.com"]
+        let editProfile = app.buttons["settings.account.editProfile"]
+        let syncSection = app.staticTexts["SYNC"]
+
+        XCTAssertTrue(profileHeader.waitForExistence(timeout: 3))
+        XCTAssertTrue(editProfile.waitForExistence(timeout: 3))
+        XCTAssertTrue(syncSection.waitForExistence(timeout: 3))
+        XCTAssertGreaterThan(editProfile.frame.minY, email.frame.maxY)
+        XCTAssertEqual(editProfile.frame.minX, displayName.frame.minX, accuracy: 2)
+        XCTAssertLessThan(profileHeader.frame.maxY + 20, syncSection.frame.minY)
+        XCTAssertTrue(editProfile.isHittable)
+        assertMinimumHitTarget(editProfile)
+    }
+
     func testNotificationSectionLabelsSitAboveTheirCards() {
         let app = launchSettings(extraArguments: ["ui-testing-notifications-denied"])
         app.buttons["settings.destination.notifications"].tap()
@@ -638,6 +688,12 @@ final class SettingsRedesignUITests: XCTestCase {
             guard let element = object as? XCUIElement else { return false }
             return String(describing: element.value).contains(expected)
         }
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+        return XCTWaiter.wait(for: [expectation], timeout: 3) == .completed
+    }
+
+    private func waitForLabel(_ expected: String, of element: XCUIElement) -> Bool {
+        let predicate = NSPredicate(format: "label == %@", expected)
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
         return XCTWaiter.wait(for: [expectation], timeout: 3) == .completed
     }

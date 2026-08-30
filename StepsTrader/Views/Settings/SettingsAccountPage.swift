@@ -24,6 +24,7 @@ struct SettingsAccountPage: View {
     @ObservedObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showProfileEditor = false
     @State private var showDeleteConfirmation = false
     @State private var isDeleting = false
@@ -39,22 +40,9 @@ struct SettingsAccountPage: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    SettingsGroupedSurface {
-                        profileSummary
-                    }
-                    .padding(.horizontal, 16)
-
-                    accountSection(String(localized: "PROFILE", comment: "Settings account section header")) {
-                        DetailInfoRow(
-                            label: String(localized: "Display name", comment: "Settings account profile label"),
-                            value: user?.displayName ?? String(localized: "User", comment: "Settings account fallback name")
-                        )
-                        DetailDivider()
-                        DetailInfoRow(
-                            label: String(localized: "Email", comment: "Settings account profile label"),
-                            value: user?.email ?? String(localized: "—", comment: "Settings account unavailable email")
-                        )
-                    }
+                    profileHeader
+                        .padding(.horizontal, 30)
+                        .padding(.top, 12)
 
                     accountSection(String(localized: "SYNC", comment: "Settings account section header")) {
                         HStack {
@@ -139,27 +127,63 @@ struct SettingsAccountPage: View {
         }
     }
 
-    private var profileSummary: some View {
-        HStack(spacing: 14) {
+    private var profileHeader: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 14) {
+                    profileIdentity
+                    editProfileButton
+                        .padding(.leading, 66)
+                }
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 16) {
+                        profileIdentity
+                        Spacer(minLength: 12)
+                        editProfileButton
+                    }
+
+                    VStack(alignment: .leading, spacing: 14) {
+                        profileIdentity
+                        editProfileButton
+                            .padding(.leading, 66)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("settings.account.profileHeader")
+    }
+
+    private var profileIdentity: some View {
+        HStack(alignment: .center, spacing: 14) {
             accountAvatar
 
-            Text(user?.displayName ?? String(localized: "User", comment: "Settings account fallback name"))
-                .font(.geist(.title3).weight(.semibold))
-                .foregroundStyle(theme.adaptivePrimaryText)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(user?.displayName ?? String(localized: "User", comment: "Settings account fallback name"))
+                    .font(.geist(.title2).weight(.semibold))
+                    .foregroundStyle(theme.adaptivePrimaryText)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            Spacer()
-
-            Button(String(localized: "Edit profile", comment: "Settings account edit profile button")) {
-                showProfileEditor = true
+                Text(user?.email ?? String(localized: "—", comment: "Settings account unavailable email"))
+                    .font(.geist(.subheadline))
+                    .foregroundStyle(theme.adaptiveSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .font(.geist(.subheadline).weight(.semibold))
-            .foregroundStyle(AppColors.brandAccent)
-            .frame(minWidth: 44, minHeight: 44)
-            .contentShape(Rectangle())
-            .buttonStyle(MattePressStyle())
-            .accessibilityIdentifier("settings.account.editProfile")
         }
-        .padding(.horizontal, 14)
+    }
+
+    private var editProfileButton: some View {
+        Button(String(localized: "Edit profile", comment: "Settings account edit profile button")) {
+            showProfileEditor = true
+        }
+        .font(.geist(.subheadline).weight(.semibold))
+        .foregroundStyle(AppColors.brandAccent)
+        .frame(minWidth: 44, minHeight: 44)
+        .contentShape(Rectangle())
+        .buttonStyle(MattePressStyle())
+        .accessibilityIdentifier("settings.account.editProfile")
     }
 
     private var accountAvatar: some View {
@@ -195,15 +219,12 @@ struct SettingsAccountPage: View {
         @ViewBuilder footer: () -> Footer = { EmptyView() }
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            SettingsSectionLabel(text: title)
-                .padding(.horizontal, 30)
-
-            SettingsGroupedSurface { content() }
-                .padding(.horizontal, 16)
+            SettingsLabeledGroup(title: title, content: content)
 
             footer()
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 4)
         }
+        .padding(.horizontal, 16)
     }
 
     private func accountActionLabel(_ title: String) -> some View {
