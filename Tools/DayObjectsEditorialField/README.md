@@ -24,6 +24,42 @@ Run the core tests:
 swift test --package-path Tools/DayObjectsEditorialField --filter CorpusManifestTests
 ```
 
+Render a complete neutral composition evidence package into a new or empty
+round directory:
+
+```bash
+swift run --package-path Tools/DayObjectsEditorialField editorial-field-render composition \
+  --manifest Tools/DayObjectsEditorialField/Manifests/visible-v1.json \
+  --output artifacts/day-objects-editorial-field/composition/<artist-round>
+```
+
+The default composition command renders the `393 x 852` point phone canvas at
+`3x` (`1179 x 2556` pixels), derives a centered square calendar tile by cropping
+that exact phone image, and emits all four separate debug overlay families:
+`crop`, `overlap`, `centerOfMass`, and `occupiedBounds`. For a clean neutral
+package without overlays, append `--overlays none`; a subset can be requested
+as a comma-separated list. Overlay selection never changes the core render.
+
+Every package contains the source corpus copy, `152` breadth/continuity core
+PNG views, neutral breadth and continuity contact sheets, actor/geometry
+`metrics.json`, a machine-readable `manifest.json`, `SHA256SUMS`, and
+`package-hash.txt`. The output directory must be new or empty so an artist
+cannot silently replace an existing round.
+
+Verify every artifact and the package hash before handing the directory to a
+critic:
+
+```bash
+swift run --package-path Tools/DayObjectsEditorialField editorial-field-render verify \
+  --package artifacts/day-objects-editorial-field/composition/<artist-round>
+```
+
+Any changed, added, or removed package file makes verification fail. Record the
+printed package SHA-256, source commit, exact render command, artifact path, and
+known limitations when returning an artist round. Neutral evidence is only for
+composition review; it contains no material color, motion, Metal, or production
+renderer behavior.
+
 The visible corpus fixes the specification commit
 `8a8539a77ce704fcc688ebe8cb98d78e2a0f80dd`, nonce
 `day-objects-editorial-field-visible-v1`, canonical actor identities,
