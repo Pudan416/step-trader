@@ -21,9 +21,9 @@ enum RenderCLIError: Error, LocalizedError {
 private let usage = """
 Usage:
   editorial-field-render composition --manifest <path> --output <round-dir> [--source-commit <hash>] [--overlays all|none|crop,overlap,centerOfMass,occupiedBounds]
-  editorial-field-render material --manifest <path> --composition-approval <path> --output <round-dir> [--source-commit <hash>] [--scale <positive-integer>]
+  editorial-field-render material --manifest <path> --composition-approval <path> --composition-recipes <path> --output <round-dir> [--source-commit <hash>] [--scale <positive-integer>]
   editorial-field-render verify --package <round-dir> --expected-source-commit <full-git-object-id>
-  editorial-field-render verify-material --package <round-dir> --composition-approval <path> --expected-source-commit <full-git-object-id>
+  editorial-field-render verify-material --package <round-dir> --composition-approval <path> --composition-recipes <path> --expected-source-commit <full-git-object-id>
 """
 
 private func option(_ name: String, in arguments: [String]) throws -> String {
@@ -114,6 +114,7 @@ do {
     case "material":
         let manifestURL = URL(fileURLWithPath: try option("--manifest", in: arguments))
         let approvalURL = URL(fileURLWithPath: try option("--composition-approval", in: arguments))
+        let recipesURL = URL(fileURLWithPath: try option("--composition-recipes", in: arguments))
         let outputURL = URL(fileURLWithPath: try option("--output", in: arguments), isDirectory: true)
         let manifest = try JSONDecoder().decode(
             CorpusManifest.self,
@@ -128,6 +129,7 @@ do {
         let generated = try MaterialEvidencePackage.generate(
             manifest: manifest,
             compositionApprovalData: Data(contentsOf: approvalURL),
+            compositionRecipeArchiveData: Data(contentsOf: recipesURL),
             sourceCommit: sourceCommit,
             outputDirectory: outputURL,
             scale: try positiveIntegerOption("--scale", in: arguments, default: 3)
@@ -137,6 +139,7 @@ do {
         print("core PNG views: \(generated.manifest.coreImageCount)")
         print("artifact records: \(generated.manifest.artifacts.count)")
         print("composition approval SHA-256: \(generated.manifest.compositionApprovalSHA256)")
+        print("composition recipes SHA-256: \(generated.manifest.compositionRecipeArchiveSHA256)")
         print("package SHA-256: \(generated.packageHash)")
     case "verify":
         let packageURL = URL(fileURLWithPath: try option("--package", in: arguments), isDirectory: true)
@@ -149,11 +152,13 @@ do {
     case "verify-material":
         let packageURL = URL(fileURLWithPath: try option("--package", in: arguments), isDirectory: true)
         let approvalURL = URL(fileURLWithPath: try option("--composition-approval", in: arguments))
+        let recipesURL = URL(fileURLWithPath: try option("--composition-recipes", in: arguments))
         let expectedSourceCommit = try option("--expected-source-commit", in: arguments)
         let packageHash = try MaterialEvidencePackage.verify(
             directory: packageURL,
             expectedSourceCommit: expectedSourceCommit,
-            expectedCompositionApprovalData: Data(contentsOf: approvalURL)
+            expectedCompositionApprovalData: Data(contentsOf: approvalURL),
+            expectedCompositionRecipeArchiveData: Data(contentsOf: recipesURL)
         )
         print("verified material package SHA-256: \(packageHash)")
     default:

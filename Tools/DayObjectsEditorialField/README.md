@@ -70,16 +70,19 @@ a dedicated outline/counterform sheet):
 swift run --package-path Tools/DayObjectsEditorialField editorial-field-render material \
   --manifest Tools/DayObjectsEditorialField/Manifests/visible-v1.json \
   --composition-approval artifacts/day-objects-editorial-field/composition/composition-approved.json \
+  --composition-recipes artifacts/day-objects-editorial-field/composition/composition-recipes-approved.json \
   --output artifacts/day-objects-editorial-field/material/<infrastructure-round> \
   --source-commit <full-renderer-source-commit>
 ```
 
-The material package copies `composition-approved.json` byte-for-byte and
-records its SHA-256 alongside a canonical hash for every consumed composition
-recipe. `metrics.json` contains every actor's one-to-three palette colors,
-zero-to-three radial descriptors, mutation/topology controls, and actual
-rendered RGBA samples. A solid request is intentionally normalized to one
-color and zero fields. No command in this phase creates
+The material package copies `composition-approved.json` and the externally
+frozen recipe archive byte-for-byte. The archive embeds the approved evidence
+checksum manifest and metrics bytes, proving the approval hash through to each
+render-relevant recipe field without calling the current composition planner.
+`metrics.json` contains every actor's one-to-three palette colors,
+zero-to-three radial descriptors, mutation/topology controls, and topology-aware
+rendered RGBA samples. A solid request is intentionally normalized to one color
+and zero fields. No command in this phase creates
 `material-approved.json` or a critic verdict.
 
 Verify both the sealed artifact set and the external frozen composition bytes:
@@ -88,8 +91,13 @@ Verify both the sealed artifact set and the external frozen composition bytes:
 swift run --package-path Tools/DayObjectsEditorialField editorial-field-render verify-material \
   --package artifacts/day-objects-editorial-field/material/<infrastructure-round> \
   --composition-approval artifacts/day-objects-editorial-field/composition/composition-approved.json \
+  --composition-recipes artifacts/day-objects-editorial-field/composition/composition-recipes-approved.json \
   --expected-source-commit <full-renderer-source-commit>
 ```
+
+Verification re-renders every frozen recipe/material fixture and compares
+normalized full and tile pixels with the sealed PNGs. Updating the manifest and
+resealing therefore cannot authenticate a blank or substituted render.
 
 `visible-v1` is a named semantic corpus contract, not a caller-supplied label.
 Generation rejects any manifest whose canonical decoded content differs from

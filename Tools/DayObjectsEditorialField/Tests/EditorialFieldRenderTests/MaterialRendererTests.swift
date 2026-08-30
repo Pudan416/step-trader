@@ -3,6 +3,7 @@ import CryptoKit
 import Foundation
 import ImageIO
 import Testing
+import UniformTypeIdentifiers
 import EditorialFieldCore
 import EditorialFieldEvidence
 @testable import EditorialFieldRender
@@ -286,11 +287,13 @@ struct MaterialRendererTests {
         let directory = testRoot
             .appendingPathComponent("atlas", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: testRoot) }
-        let approval = Data(#"{"corpusVersion":"visible-v1","evidencePackageSHA256":"26a3517f1fdbae1e32bf07855d6ee2c53b6144f26af9eff9472e9c3a97c6ca95","frozen":true,"scope":"neutral-composition-only"}"#.utf8)
+        let authority = try canonicalCompositionAuthority()
+        let approval = authority.approval
 
         let generated = try MaterialEvidencePackage.generate(
             manifest: .visibleV1(),
             compositionApprovalData: approval,
+            compositionRecipeArchiveData: authority.recipes,
             sourceCommit: String(repeating: "a", count: 40),
             outputDirectory: directory,
             scale: 1
@@ -318,7 +321,8 @@ struct MaterialRendererTests {
         #expect(try MaterialEvidencePackage.verify(
             directory: directory,
             expectedSourceCommit: String(repeating: "a", count: 40),
-            expectedCompositionApprovalData: approval
+            expectedCompositionApprovalData: approval,
+            expectedCompositionRecipeArchiveData: authority.recipes
         ) == generated.packageHash)
 
         let metricsURL = directory.appendingPathComponent("metrics.json")
@@ -349,8 +353,154 @@ struct MaterialRendererTests {
             try MaterialEvidencePackage.verify(
                 directory: directory,
                 expectedSourceCommit: String(repeating: "a", count: 40),
-                expectedCompositionApprovalData: approval
+                expectedCompositionApprovalData: approval,
+                expectedCompositionRecipeArchiveData: authority.recipes
             )
+        }
+    }
+
+    @Test("material verification rejects a checksum-valid blank full render and matching tile")
+    func materialVerifierRejectsResealedBlankPixels() throws {
+        let testRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+            .appendingPathComponent("editorial-material-blank-substitution-\(UUID().uuidString)", isDirectory: true)
+        let directory = testRoot.appendingPathComponent("atlas", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: testRoot) }
+        let authority = try canonicalCompositionAuthority()
+        let approval = authority.approval
+        let sourceCommit = String(repeating: "b", count: 40)
+
+        _ = try MaterialEvidencePackage.generate(
+            manifest: .visibleV1(),
+            compositionApprovalData: approval,
+            compositionRecipeArchiveData: authority.recipes,
+            sourceCommit: sourceCommit,
+            outputDirectory: directory,
+            scale: 1
+        )
+        let fullPath = "renders/gradient/01-gradient-colors-02-dark-layout-01-full@1x.png"
+        let tilePath = "renders/gradient/01-gradient-colors-02-dark-layout-01-tile@1x.png"
+        try blankPNG(width: 393, height: 852).write(
+            to: directory.appendingPathComponent(fullPath),
+            options: .atomic
+        )
+        try blankPNG(width: 393, height: 393).write(
+            to: directory.appendingPathComponent(tilePath),
+            options: .atomic
+        )
+        try refreshArtifactRecordsAndSeal(
+            paths: [fullPath, tilePath],
+            directory: directory
+        )
+
+        #expect(throws: MaterialEvidenceError.self) {
+            try MaterialEvidencePackage.verify(
+                directory: directory,
+                expectedSourceCommit: sourceCommit,
+                expectedCompositionApprovalData: approval,
+                expectedCompositionRecipeArchiveData: authority.recipes
+            )
+        }
+    }
+
+    @Test("material atlas geometry and pixels come from the frozen recipe archive")
+    func materialAtlasUsesFrozenRecipesInsteadOfLivePlanner() throws {
+        let workspace = repositoryRoot()
+        let approval = try Data(contentsOf: workspace.appendingPathComponent(
+            "artifacts/day-objects-editorial-field/composition/composition-approved.json"
+        ))
+        let recipeArchive = try Data(contentsOf: workspace.appendingPathComponent(
+            "artifacts/day-objects-editorial-field/composition/composition-recipes-approved.json"
+        ))
+        #expect(recipeArchive.count < 100_000)
+        let testRoot = workspace
+            .appendingPathComponent("editorial-material-frozen-recipes-\(UUID().uuidString)", isDirectory: true)
+        let directory = testRoot.appendingPathComponent("atlas", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: testRoot) }
+
+        _ = try MaterialEvidencePackage.generate(
+            manifest: .visibleV1(),
+            compositionApprovalData: approval,
+            compositionRecipeArchiveData: recipeArchive,
+            sourceCommit: String(repeating: "c", count: 40),
+            outputDirectory: directory,
+            scale: 1
+        )
+        let metrics = try JSONDecoder().decode(
+            MaterialEvidenceMetrics.self,
+            from: Data(contentsOf: directory.appendingPathComponent("metrics.json"))
+        )
+        let firstFull = try Data(contentsOf: directory.appendingPathComponent(
+            "renders/gradient/00-gradient-colors-01-light-layout-00-full@1x.png"
+        ))
+
+        #expect(metrics.fixtures[0].compositionRecipeSHA256 ==
+            "65eea0956acce3095862c92d27ec59aaf16ff8b6d53dfea02f0ed82e5d8d3886")
+        #expect(sha256Hex(firstFull) ==
+            "4a766210cb7631d5b96efa8fa9c2e21ad0e8c5ddc9e325040cfb99e6fecd16ba")
+        #expect(try MaterialEvidencePackage.verify(
+            directory: directory,
+            expectedSourceCommit: String(repeating: "c", count: 40),
+            expectedCompositionApprovalData: approval,
+            expectedCompositionRecipeArchiveData: recipeArchive
+        ) != "")
+    }
+
+    @Test("canonical material metrics sample visible outline rings and distinct secondary color")
+    func materialMetricsSamplesFollowMaterialTopology() throws {
+        let authority = try canonicalCompositionAuthority()
+        let testRoot = repositoryRoot()
+            .appendingPathComponent("editorial-material-topology-samples-\(UUID().uuidString)", isDirectory: true)
+        let directory = testRoot.appendingPathComponent("atlas", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: testRoot) }
+
+        _ = try MaterialEvidencePackage.generate(
+            manifest: .visibleV1(),
+            compositionApprovalData: authority.approval,
+            compositionRecipeArchiveData: authority.recipes,
+            sourceCommit: String(repeating: "d", count: 40),
+            outputDirectory: directory,
+            scale: 1
+        )
+        let metrics = try JSONDecoder().decode(
+            MaterialEvidenceMetrics.self,
+            from: Data(contentsOf: directory.appendingPathComponent("metrics.json"))
+        )
+        let outlineActors = metrics.fixtures
+            .filter { $0.fixture.family == .outline }
+            .flatMap(\.actors)
+        #expect(!outlineActors.isEmpty)
+        for actor in outlineActors {
+            #expect(
+                actor.samples.contains { $0.alpha > 0.18 },
+                "outline samples missed the visible ring for \(actor.eventID)"
+            )
+        }
+
+        let twoColorGradient = try #require(metrics.fixtures.first {
+            $0.fixture.family == .gradient && $0.fixture.requestedColorCount == 2
+        })
+        for actor in twoColorGradient.actors {
+            let visible = actor.samples.filter { $0.alpha > 0.18 }.map {
+                StraightRGB(r: $0.red, g: $0.green, b: $0.blue)
+            }
+            #expect(visible.count >= 2)
+            var maximumColorDistance = 0.0
+            var maximumHueDistance = 0.0
+            for lhs in visible.indices {
+                for rhs in visible.indices where rhs > lhs {
+                    maximumColorDistance = max(
+                        maximumColorDistance,
+                        rgbDistance(visible[lhs], visible[rhs])
+                    )
+                    maximumHueDistance = max(
+                        maximumHueDistance,
+                        circularHueDistance(visible[lhs].hue, visible[rhs].hue)
+                    )
+                }
+            }
+            #expect(maximumColorDistance > 0.10)
+            #expect(maximumHueDistance > 0.04)
+            #expect(visible.contains { $0.chroma > 0.25 })
         }
     }
 }
@@ -481,4 +631,74 @@ private func canonicalJSONObject(_ object: Any) throws -> Data {
     var data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
     data.append(0x0A)
     return data
+}
+
+private func blankPNG(width: Int, height: Int) throws -> Data {
+    let space = try #require(CGColorSpace(name: CGColorSpace.sRGB))
+    let context = try #require(CGContext(
+        data: nil,
+        width: width,
+        height: height,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: space,
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    ))
+    context.setFillColor(red: 0.04, green: 0.05, blue: 0.08, alpha: 1)
+    context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+    let image = try #require(context.makeImage())
+    let data = NSMutableData()
+    let destination = try #require(CGImageDestinationCreateWithData(
+        data,
+        UTType.png.identifier as CFString,
+        1,
+        nil
+    ))
+    CGImageDestinationAddImage(destination, image, nil)
+    #expect(CGImageDestinationFinalize(destination))
+    return data as Data
+}
+
+private func refreshArtifactRecordsAndSeal(paths: [String], directory: URL) throws {
+    let manifestURL = directory.appendingPathComponent("manifest.json")
+    var manifestObject = try #require(
+        JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any]
+    )
+    var artifacts = try #require(manifestObject["artifacts"] as? [[String: Any]])
+    for path in paths {
+        let data = try Data(contentsOf: directory.appendingPathComponent(path))
+        let index = try #require(artifacts.firstIndex { ($0["path"] as? String) == path })
+        artifacts[index]["byteCount"] = data.count
+        artifacts[index]["sha256"] = SHA256.hash(data: data)
+            .map { String(format: "%02x", $0) }
+            .joined()
+    }
+    manifestObject["artifacts"] = artifacts
+    try canonicalJSONObject(manifestObject).write(to: manifestURL, options: .atomic)
+    _ = try EvidencePackage.seal(directory: directory)
+}
+
+private func sha256Hex(_ data: Data) -> String {
+    SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+}
+
+private func canonicalCompositionAuthority() throws -> (approval: Data, recipes: Data) {
+    let workspace = repositoryRoot()
+    return (
+        approval: try Data(contentsOf: workspace.appendingPathComponent(
+            "artifacts/day-objects-editorial-field/composition/composition-approved.json"
+        )),
+        recipes: try Data(contentsOf: workspace.appendingPathComponent(
+            "artifacts/day-objects-editorial-field/composition/composition-recipes-approved.json"
+        ))
+    )
+}
+
+private func repositoryRoot() -> URL {
+    URL(
+        fileURLWithPath: FileManager.default.currentDirectoryPath,
+        isDirectory: true
+    )
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
 }

@@ -21,7 +21,43 @@ public struct MaterialAtlasCoverage: Equatable, Sendable {
     public var coreImageCount: Int { fixtures.count * EvidenceView.allCases.count }
 }
 
+public struct FrozenCompositionRecipeFixture: Codable, Equatable, Sendable {
+    public let fixtureIndex: Int
+    public let recipe: SceneRecipe
+
+    public init(fixtureIndex: Int, recipe: SceneRecipe) {
+        self.fixtureIndex = fixtureIndex
+        self.recipe = recipe
+    }
+}
+
+/// Canonical SceneRecipe bytes projected from, and cryptographically tied to,
+/// the approved neutral evidence package. The embedded source bytes let a
+/// verifier prove the original approval -> SHA256SUMS -> metrics -> recipe
+/// geometry chain without consulting the current CompositionPlanner.
+public struct FrozenCompositionRecipeArchive: Codable, Equatable, Sendable {
+    public let version: String
+    public let approvedEvidenceChecksumsZlib: Data
+    public let approvedMetricsZlib: Data
+    public let fixtures: [FrozenCompositionRecipeFixture]
+
+    public init(
+        version: String = "composition-recipe-archive-v2",
+        approvedEvidenceChecksums: Data,
+        approvedMetrics: Data,
+        fixtures: [FrozenCompositionRecipeFixture]
+    ) throws {
+        self.version = version
+        self.approvedEvidenceChecksumsZlib = try (approvedEvidenceChecksums as NSData)
+            .compressed(using: .zlib) as Data
+        self.approvedMetricsZlib = try (approvedMetrics as NSData)
+            .compressed(using: .zlib) as Data
+        self.fixtures = fixtures
+    }
+}
+
 public struct MaterialSampleMeasurement: Codable, Equatable, Sendable {
+    public let role: String
     public let point: CompositionPoint
     public let red: Double
     public let green: Double
@@ -57,6 +93,7 @@ public struct MaterialEvidenceMetrics: Codable, Equatable, Sendable {
     public let fixtureCount: Int
     public let coreImageCount: Int
     public let compositionApprovalSHA256: String
+    public let compositionRecipeArchiveSHA256: String
     public let fixtures: [MaterialFixtureMetrics]
 }
 
@@ -72,6 +109,7 @@ public struct MaterialEvidenceManifest: Codable, Equatable, Sendable {
     public let corpusVersion: String
     public let specificationCommit: String
     public let compositionApprovalSHA256: String
+    public let compositionRecipeArchiveSHA256: String
     public let fixtureCount: Int
     public let coreImageCount: Int
     public let fixtures: [MaterialAtlasFixture]
@@ -95,6 +133,7 @@ public enum MaterialEvidenceError: Error, LocalizedError {
     case packageHashMismatch(expected: String, actual: String)
     case artifactHashMismatch(String)
     case tileCropMismatch(String)
+    case renderPixelMismatch(String)
 
     public var errorDescription: String? {
         switch self {
@@ -109,11 +148,36 @@ public enum MaterialEvidenceError: Error, LocalizedError {
             "Material package hash mismatch: expected \(expected), got \(actual)"
         case .artifactHashMismatch(let path): "Material artifact hash mismatch: \(path)"
         case .tileCropMismatch(let path): "Material tile is not the exact full-screen crop: \(path)"
+        case .renderPixelMismatch(let path): "Material render pixels do not match the canonical recipe: \(path)"
         }
     }
 }
 
 public enum MaterialEvidencePackage {
+    private struct CompositionApprovalAuthority: Decodable {
+        let scope: String
+        let corpusVersion: String
+        let evidencePackageSHA256: String
+        let frozen: Bool
+    }
+
+    private struct MaterialPixelProbe {
+        let x: Int
+        let y: Int
+        let red: Double
+        let green: Double
+        let blue: Double
+        let alpha: Double
+
+        func colorDistance(to color: MaterialColor) -> Double {
+            hypot(hypot(red - color.red, green - color.green), blue - color.blue)
+        }
+
+        func colorDistance(to other: MaterialPixelProbe) -> Double {
+            hypot(hypot(red - other.red, green - other.green), blue - other.blue)
+        }
+    }
+
     public static func coverage(for manifest: CorpusManifest) -> MaterialAtlasCoverage {
         let requiredBackgrounds: [BackgroundCondition] = [.light, .dark, .lowContrast]
         var fixtures = [MaterialAtlasFixture]()
@@ -139,12 +203,18 @@ public enum MaterialEvidencePackage {
     public static func generate(
         manifest: CorpusManifest,
         compositionApprovalData: Data,
+        compositionRecipeArchiveData: Data,
         sourceCommit: String,
         outputDirectory: URL,
         scale: Int = 3
     ) throws -> GeneratedMaterialEvidence {
         try validateCorpus(manifest)
         try validateCompositionApproval(compositionApprovalData, corpusVersion: manifest.version)
+        let frozenRecipes = try validatedFrozenRecipes(
+            archiveData: compositionRecipeArchiveData,
+            approvalData: compositionApprovalData,
+            manifest: manifest
+        )
         try validateSourceCommit(sourceCommit)
         guard scale > 0 else { throw MaterialEvidenceError.invalidPackage("scale must be positive") }
         try prepareEmptyDirectory(outputDirectory)
@@ -152,20 +222,22 @@ public enum MaterialEvidencePackage {
         let renderer = MaterialRenderer()
         let atlasCoverage = coverage(for: manifest)
         let approvalHash = sha256(compositionApprovalData)
+        let recipeArchiveHash = sha256(compositionRecipeArchiveData)
         var fixtureMetrics = [MaterialFixtureMetrics]()
         var atlasFullPaths = [String]()
         var structuralFullPaths = [String]()
 
         try write(compositionApprovalData, path: "composition-approved.json", in: outputDirectory)
+        try write(compositionRecipeArchiveData, path: "composition-recipes.json", in: outputDirectory)
         try write(manifest.canonicalJSON(), path: "corpus-manifest.json", in: outputDirectory)
 
         for fixture in atlasCoverage.fixtures {
             let layout = manifest.breadth[fixture.layoutFixtureIndex]
-            let recipe = CompositionPlanner.make(
-                daySeed: layout.seed,
-                eventIDs: layout.eventIDs,
-                viewport: .phone
-            )
+            guard let recipe = frozenRecipes[fixture.layoutFixtureIndex] else {
+                throw MaterialEvidenceError.invalidCompositionApproval(
+                    "missing frozen recipe for breadth fixture \(fixture.layoutFixtureIndex)"
+                )
+            }
             let recipeBytes = try canonicalJSON(recipe)
             let dna = MaterialDNA.fixture(
                 daySeed: layout.seed,
@@ -200,10 +272,11 @@ public enum MaterialEvidencePackage {
         }
 
         let metrics = MaterialEvidenceMetrics(
-            version: "material-metrics-v1",
+            version: "material-metrics-v2",
             fixtureCount: atlasCoverage.fixtures.count,
             coreImageCount: atlasCoverage.coreImageCount,
             compositionApprovalSHA256: approvalHash,
+            compositionRecipeArchiveSHA256: recipeArchiveHash,
             fixtures: fixtureMetrics
         )
         try write(canonicalJSON(metrics), path: "metrics.json", in: outputDirectory)
@@ -220,7 +293,7 @@ public enum MaterialEvidencePackage {
 
         let artifacts = try artifactRecords(in: outputDirectory)
         let packageManifest = MaterialEvidenceManifest(
-            version: "material-evidence-v1",
+            version: "material-evidence-v2",
             sourceCommit: sourceCommit,
             rendererVersion: MaterialRenderer.version,
             toolchain: "Swift 6 / Swift Package Manager",
@@ -236,6 +309,7 @@ public enum MaterialEvidencePackage {
             corpusVersion: manifest.version,
             specificationCommit: manifest.specificationCommit,
             compositionApprovalSHA256: approvalHash,
+            compositionRecipeArchiveSHA256: recipeArchiveHash,
             fixtureCount: atlasCoverage.fixtures.count,
             coreImageCount: atlasCoverage.coreImageCount,
             fixtures: atlasCoverage.fixtures,
@@ -254,13 +328,20 @@ public enum MaterialEvidencePackage {
     public static func verify(
         directory: URL,
         expectedSourceCommit: String,
-        expectedCompositionApprovalData: Data
+        expectedCompositionApprovalData: Data,
+        expectedCompositionRecipeArchiveData: Data
     ) throws -> String {
         try validateSourceCommit(expectedSourceCommit)
         let packageHash = try verifySealedArtifacts(in: directory)
         let actualApproval = try Data(contentsOf: directory.appendingPathComponent("composition-approved.json"))
         guard actualApproval == expectedCompositionApprovalData else {
             throw MaterialEvidenceError.invalidPackage("composition approval bytes changed")
+        }
+        let actualRecipeArchive = try Data(
+            contentsOf: directory.appendingPathComponent("composition-recipes.json")
+        )
+        guard actualRecipeArchive == expectedCompositionRecipeArchiveData else {
+            throw MaterialEvidenceError.invalidPackage("composition recipe archive bytes changed")
         }
 
         let decoder = JSONDecoder()
@@ -270,6 +351,11 @@ public enum MaterialEvidencePackage {
         )
         try validateCorpus(corpus)
         try validateCompositionApproval(actualApproval, corpusVersion: corpus.version)
+        let frozenRecipes = try validatedFrozenRecipes(
+            archiveData: actualRecipeArchive,
+            approvalData: actualApproval,
+            manifest: corpus
+        )
         let manifest = try decoder.decode(
             MaterialEvidenceManifest.self,
             from: Data(contentsOf: directory.appendingPathComponent("manifest.json"))
@@ -279,7 +365,7 @@ public enum MaterialEvidencePackage {
             from: Data(contentsOf: directory.appendingPathComponent("metrics.json"))
         )
         let expectedCoverage = coverage(for: corpus)
-        guard manifest.version == "material-evidence-v1",
+        guard manifest.version == "material-evidence-v2",
               manifest.sourceCommit == expectedSourceCommit,
               manifest.rendererVersion == MaterialRenderer.version,
               manifest.toolchain == "Swift 6 / Swift Package Manager",
@@ -293,6 +379,7 @@ public enum MaterialEvidencePackage {
               manifest.corpusVersion == corpus.version,
               manifest.specificationCommit == corpus.specificationCommit,
               manifest.compositionApprovalSHA256 == sha256(actualApproval),
+              manifest.compositionRecipeArchiveSHA256 == sha256(actualRecipeArchive),
               manifest.fixtureCount == expectedCoverage.fixtures.count,
               manifest.coreImageCount == expectedCoverage.coreImageCount,
               manifest.fixtures == expectedCoverage.fixtures
@@ -303,14 +390,16 @@ public enum MaterialEvidencePackage {
             try expectedMetrics(
                 for: fixture,
                 manifest: corpus,
+                frozenRecipes: frozenRecipes,
                 scale: manifest.viewport.scale,
                 renderer: MaterialRenderer()
             )
         }
-        guard metrics.version == "material-metrics-v1",
+        guard metrics.version == "material-metrics-v2",
               metrics.fixtureCount == expectedCoverage.fixtures.count,
               metrics.coreImageCount == expectedCoverage.coreImageCount,
               metrics.compositionApprovalSHA256 == manifest.compositionApprovalSHA256,
+              metrics.compositionRecipeArchiveSHA256 == manifest.compositionRecipeArchiveSHA256,
               metrics.fixtures == expectedFixtureMetrics
         else {
             throw MaterialEvidenceError.invalidPackage("metrics coverage or descriptors mismatch")
@@ -325,6 +414,8 @@ public enum MaterialEvidencePackage {
         }
         try validateImagesAndCrops(
             coverage: expectedCoverage,
+            manifest: corpus,
+            frozenRecipes: frozenRecipes,
             scale: manifest.viewport.scale,
             directory: directory
         )
@@ -339,24 +430,85 @@ public enum MaterialEvidencePackage {
         let rendered = try renderer.renderActor(actor, pixelSize: size)
         let image = try decodedPNG(rendered.pngData, path: actor.eventID)
         let rgba = try normalizedRGBA(image)
-        var points = [
-            CompositionPoint(x: 0.5, y: 0.5),
-            CompositionPoint(x: 0.72, y: 0.5),
-            CompositionPoint(x: 0.92, y: 0.5),
-        ]
-        points.append(contentsOf: actor.fields.map(\.focus))
-        return points.map { point in
-            let x = min(size - 1, max(0, Int((point.x * Double(size)).rounded(.down))))
-            let y = min(size - 1, max(0, Int((point.y * Double(size)).rounded(.down))))
-            let offset = (y * size + x) * 4
-            let alpha = Double(rgba[offset + 3]) / 255
-            let divisor = max(1, Double(rgba[offset + 3]))
+        var probes = [MaterialPixelProbe]()
+        probes.reserveCapacity(size * size)
+        for y in 0..<size {
+            for x in 0..<size {
+                let offset = (y * size + x) * 4
+                let alphaByte = Double(rgba[offset + 3])
+                let divisor = max(1, alphaByte)
+                probes.append(MaterialPixelProbe(
+                    x: x,
+                    y: y,
+                    red: Double(rgba[offset]) / divisor,
+                    green: Double(rgba[offset + 1]) / divisor,
+                    blue: Double(rgba[offset + 2]) / divisor,
+                    alpha: alphaByte / 255
+                ))
+            }
+        }
+        let maximumAlpha = probes.map(\.alpha).max() ?? 0
+        let visibleThreshold = max(0.04, maximumAlpha * 0.18)
+        let visible = probes.filter { $0.alpha >= visibleThreshold }
+        guard !visible.isEmpty else {
+            throw MaterialEvidenceError.invalidPackage("actor \(actor.eventID) has no sampleable pixels")
+        }
+
+        var selected = [(role: String, probe: MaterialPixelProbe)]()
+        var selectedCoordinates = Set<String>()
+        func append(_ role: String, _ probe: MaterialPixelProbe?) {
+            guard let probe else { return }
+            let key = "\(probe.x):\(probe.y)"
+            guard selectedCoordinates.insert(key).inserted else { return }
+            selected.append((role, probe))
+        }
+
+        let center = probes[(size / 2) * size + size / 2]
+        append("center", center)
+        append("visible-peak", visible.max { $0.alpha < $1.alpha })
+
+        if actor.family == .outline || actor.family == .counterform {
+            let centerCoordinate = Double(size - 1) * 0.5
+            func radius(_ probe: MaterialPixelProbe) -> Double {
+                hypot(Double(probe.x) - centerCoordinate, Double(probe.y) - centerCoordinate)
+            }
+            append("inner-visible-band", visible.min { radius($0) < radius($1) })
+            append("outer-visible-band", visible.max { radius($0) < radius($1) })
+        }
+
+        var paletteProbes = [MaterialPixelProbe]()
+        for (index, color) in actor.colors.enumerated() {
+            let closest = visible.min { $0.colorDistance(to: color) < $1.colorDistance(to: color) }
+            append("palette-\(index)", closest)
+            if let closest { paletteProbes.append(closest) }
+        }
+        if let first = paletteProbes.first {
+            append(
+                "color-extreme",
+                visible.max { $0.colorDistance(to: first) < $1.colorDistance(to: first) }
+            )
+        }
+
+        for (index, field) in actor.fields.enumerated() {
+            let x = min(size - 1, max(0, Int((field.focus.x * Double(size)).rounded(.down))))
+            let y = min(size - 1, max(0, Int((field.focus.y * Double(size)).rounded(.down))))
+            let probe = probes[y * size + x]
+            if probe.alpha >= visibleThreshold {
+                append("field-focus-\(index)", probe)
+            }
+        }
+
+        return selected.map { role, probe in
             return MaterialSampleMeasurement(
-                point: point,
-                red: Double(rgba[offset]) / divisor,
-                green: Double(rgba[offset + 1]) / divisor,
-                blue: Double(rgba[offset + 2]) / divisor,
-                alpha: alpha
+                role: role,
+                point: CompositionPoint(
+                    x: (Double(probe.x) + 0.5) / Double(size),
+                    y: (Double(probe.y) + 0.5) / Double(size)
+                ),
+                red: probe.red,
+                green: probe.green,
+                blue: probe.blue,
+                alpha: probe.alpha
             )
         }
     }
@@ -386,15 +538,16 @@ public enum MaterialEvidencePackage {
     private static func expectedMetrics(
         for fixture: MaterialAtlasFixture,
         manifest: CorpusManifest,
+        frozenRecipes: [Int: SceneRecipe],
         scale: Int,
         renderer: MaterialRenderer
     ) throws -> MaterialFixtureMetrics {
         let layout = manifest.breadth[fixture.layoutFixtureIndex]
-        let recipe = CompositionPlanner.make(
-            daySeed: layout.seed,
-            eventIDs: layout.eventIDs,
-            viewport: .phone
-        )
+        guard let recipe = frozenRecipes[fixture.layoutFixtureIndex] else {
+            throw MaterialEvidenceError.invalidCompositionApproval(
+                "missing frozen recipe for breadth fixture \(fixture.layoutFixtureIndex)"
+            )
+        }
         let dna = MaterialDNA.fixture(
             daySeed: layout.seed,
             eventIDs: layout.eventIDs,
@@ -423,15 +576,9 @@ public enum MaterialEvidencePackage {
     }
 
     private static func validateCompositionApproval(_ data: Data, corpusVersion: String) throws {
-        struct Approval: Decodable {
-            let scope: String
-            let corpusVersion: String
-            let evidencePackageSHA256: String
-            let frozen: Bool
-        }
-        let approval: Approval
+        let approval: CompositionApprovalAuthority
         do {
-            approval = try JSONDecoder().decode(Approval.self, from: data)
+            approval = try JSONDecoder().decode(CompositionApprovalAuthority.self, from: data)
         } catch {
             throw MaterialEvidenceError.invalidCompositionApproval(error.localizedDescription)
         }
@@ -442,6 +589,123 @@ public enum MaterialEvidencePackage {
         else {
             throw MaterialEvidenceError.invalidCompositionApproval("scope, corpus, frozen flag, or evidence hash mismatch")
         }
+    }
+
+    private static func validatedFrozenRecipes(
+        archiveData: Data,
+        approvalData: Data,
+        manifest: CorpusManifest
+    ) throws -> [Int: SceneRecipe] {
+        let approval: CompositionApprovalAuthority
+        let archive: FrozenCompositionRecipeArchive
+        let sourceMetrics: CompositionEvidenceMetrics
+        let approvedEvidenceChecksums: Data
+        let approvedMetrics: Data
+        do {
+            approval = try JSONDecoder().decode(CompositionApprovalAuthority.self, from: approvalData)
+            archive = try JSONDecoder().decode(FrozenCompositionRecipeArchive.self, from: archiveData)
+            approvedEvidenceChecksums = try (archive.approvedEvidenceChecksumsZlib as NSData)
+                .decompressed(using: .zlib) as Data
+            approvedMetrics = try (archive.approvedMetricsZlib as NSData)
+                .decompressed(using: .zlib) as Data
+            sourceMetrics = try JSONDecoder().decode(
+                CompositionEvidenceMetrics.self,
+                from: approvedMetrics
+            )
+        } catch {
+            throw MaterialEvidenceError.invalidCompositionApproval(
+                "cannot decode frozen recipe authority: \(error.localizedDescription)"
+            )
+        }
+        guard archive.version == "composition-recipe-archive-v2",
+              sha256(approvedEvidenceChecksums) == approval.evidencePackageSHA256,
+              checksum(
+                for: "metrics.json",
+                in: approvedEvidenceChecksums
+              ) == sha256(approvedMetrics),
+              sourceMetrics.version == "composition-metrics-v1",
+              archive.fixtures.count == manifest.breadth.count,
+              archive.fixtures.map(\.fixtureIndex) == manifest.breadth.map(\.index)
+        else {
+            throw MaterialEvidenceError.invalidCompositionApproval(
+                "recipe archive is not bound to the approved evidence metrics"
+            )
+        }
+
+        var result = [Int: SceneRecipe]()
+        for (layout, frozen) in zip(manifest.breadth, archive.fixtures) {
+            let sourceFrames = sourceMetrics.frames.filter {
+                $0.suite == layout.suite && $0.fixtureIndex == layout.index && $0.stage == nil
+            }
+            guard sourceFrames.count == manifest.phases.count,
+                  sourceFrames.map(\.phase) == manifest.phases,
+                  frozen.fixtureIndex == layout.index
+            else {
+                throw MaterialEvidenceError.invalidCompositionApproval(
+                    "approved metrics coverage mismatch for breadth fixture \(layout.index)"
+                )
+            }
+            for frame in sourceFrames {
+                try validateFrozenRecipe(frozen.recipe, layout: layout, sourceFrame: frame)
+            }
+            result[layout.index] = frozen.recipe
+        }
+        return result
+    }
+
+    private static func validateFrozenRecipe(
+        _ recipe: SceneRecipe,
+        layout: CorpusFixture,
+        sourceFrame: CompositionFrameMetrics
+    ) throws {
+        guard recipe.daySeed == layout.seed,
+              recipe.daySeed == sourceFrame.seed,
+              recipe.grammar == sourceFrame.grammar,
+              recipe.viewport == .phone,
+              recipe.actors.count == layout.actorCount,
+              sourceFrame.actors.count == recipe.actors.count,
+              Set(recipe.actors.map(\.eventID)) == Set(layout.eventIDs)
+        else {
+            throw MaterialEvidenceError.invalidCompositionApproval(
+                "frozen recipe identity mismatch for breadth fixture \(layout.index)"
+            )
+        }
+        for (actor, sourceActor) in zip(recipe.actors, sourceFrame.actors) {
+            let finite = [
+                actor.position.x,
+                actor.position.y,
+                actor.diameter,
+                actor.depth,
+                actor.localBlur,
+                actor.cropAllowance,
+            ].allSatisfy(\.isFinite)
+            let cropFraction = recipe.cropFraction(of: actor)
+            guard finite,
+                  actor.eventID == sourceActor.eventID,
+                  actor.position == sourceActor.position,
+                  actor.diameter == sourceActor.diameter,
+                  actor.depth == sourceActor.depth,
+                  actor.localBlur == sourceActor.localBlur,
+                  actor.drawOrder == sourceActor.drawOrder,
+                  abs(cropFraction - sourceActor.cropFraction) < 0.000_000_000_001,
+                  (0...0.45).contains(actor.cropAllowance),
+                  cropFraction <= actor.cropAllowance + 0.07
+            else {
+                throw MaterialEvidenceError.invalidCompositionApproval(
+                    "frozen recipe geometry mismatch for \(sourceActor.eventID)"
+                )
+            }
+        }
+    }
+
+    private static func checksum(for path: String, in sums: Data) -> String? {
+        let text = String(decoding: sums, as: UTF8.self)
+        for substring in text.split(whereSeparator: \.isNewline) {
+            let line = String(substring)
+            guard line.count > 66, String(line.dropFirst(66)) == path else { continue }
+            return String(line.prefix(64))
+        }
+        return nil
     }
 
     private static func validateSourceCommit(_ value: String) throws {
@@ -470,6 +734,7 @@ public enum MaterialEvidencePackage {
     ) -> Set<String> {
         var paths: Set<String> = [
             "composition-approved.json",
+            "composition-recipes.json",
             "contact-sheets/material-atlas.png",
             "contact-sheets/outline-counterform.png",
             "corpus-manifest.json",
@@ -485,6 +750,8 @@ public enum MaterialEvidencePackage {
 
     private static func validateImagesAndCrops(
         coverage: MaterialAtlasCoverage,
+        manifest: CorpusManifest,
+        frozenRecipes: [Int: SceneRecipe],
         scale: Int,
         directory: URL
     ) throws {
@@ -496,7 +763,26 @@ public enum MaterialEvidencePackage {
             width: fullWidth,
             height: fullWidth
         )
+        let renderer = MaterialRenderer()
         for fixture in coverage.fixtures {
+            let layout = manifest.breadth[fixture.layoutFixtureIndex]
+            guard let recipe = frozenRecipes[fixture.layoutFixtureIndex] else {
+                throw MaterialEvidenceError.invalidCompositionApproval(
+                    "missing frozen recipe for breadth fixture \(fixture.layoutFixtureIndex)"
+                )
+            }
+            let material = MaterialDNA.fixture(
+                daySeed: layout.seed,
+                eventIDs: layout.eventIDs,
+                family: fixture.family,
+                requestedColorCount: fixture.requestedColorCount
+            )
+            let expected = try renderer.render(
+                recipe: recipe,
+                material: material,
+                background: fixture.background,
+                configuration: .init(scale: scale)
+            )
             let prefix = "renders/\(fixture.family.rawValue)/\(renderStem(fixture))"
             let fullPath = "\(prefix)-full@\(scale)x.png"
             let tilePath = "\(prefix)-tile@\(scale)x.png"
@@ -508,11 +794,21 @@ public enum MaterialEvidencePackage {
                 Data(contentsOf: directory.appendingPathComponent(tilePath)),
                 path: tilePath
             )
+            let expectedFull = try decodedPNG(expected.fullScreen.pngData, path: "expected:\(fullPath)")
+            let expectedTileImage = try decodedPNG(expected.calendarTile.pngData, path: "expected:\(tilePath)")
             guard full.width == fullWidth,
                   full.height == fullHeight,
                   tile.width == fullWidth,
-                  tile.height == fullWidth,
-                  let expectedTile = full.cropping(to: cropRect),
+                  tile.height == fullWidth
+            else {
+                throw MaterialEvidenceError.tileCropMismatch(tilePath)
+            }
+            guard try normalizedRGBA(full) == normalizedRGBA(expectedFull),
+                  try normalizedRGBA(tile) == normalizedRGBA(expectedTileImage)
+            else {
+                throw MaterialEvidenceError.renderPixelMismatch(fullPath)
+            }
+            guard let expectedTile = full.cropping(to: cropRect),
                   try normalizedRGBA(expectedTile) == normalizedRGBA(tile)
             else {
                 throw MaterialEvidenceError.tileCropMismatch(tilePath)
@@ -596,6 +892,7 @@ public enum MaterialEvidencePackage {
             else if path == "metrics.json" { kind = "metrics" }
             else if path == "corpus-manifest.json" { kind = "corpus-manifest" }
             else if path == "composition-approved.json" { kind = "composition-approval" }
+            else if path == "composition-recipes.json" { kind = "composition-recipe-archive" }
             else { kind = "artifact" }
             return EvidenceArtifact(
                 path: path,
