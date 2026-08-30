@@ -46,6 +46,9 @@ public enum CompositionPlanner {
     ) -> [ActorCompositionRecipe] {
         var admitted: [Candidate] = []
         for (rank, eventID) in CorpusManifest.canonicalEventIDs.enumerated() {
+            let admittedPoints = admitted.map {
+                CompositionGeometry.shortSidePoint($0.position, viewport: viewport)
+            }
             let candidates = (0..<candidateCount).map {
                 candidate(
                     daySeed: daySeed,
@@ -56,7 +59,7 @@ public enum CompositionPlanner {
                     viewport: viewport
                 )
             }
-            let selected = candidates.map {
+            let ranked = candidates.map {
                 (
                     $0,
                     score(
@@ -68,7 +71,15 @@ public enum CompositionPlanner {
                         viewport: viewport
                     )
                 )
-            }.max { $0.1 < $1.1 }!.0
+            }.sorted { $0.1 > $1.1 }
+            let selected = ranked.first {
+                !createsCatastrophicSubset(
+                    byAdding: $0.0,
+                    to: admitted,
+                    admittedPoints: admittedPoints,
+                    viewport: viewport
+                )
+            }?.0 ?? ranked[0].0
             admitted.append(selected)
         }
 
@@ -90,7 +101,7 @@ public enum CompositionPlanner {
         let rank = Int(stableHash(eventID) % 10)
         let references = referenceActors.map(Candidate.init)
         let candidates = (0..<candidateCount).map {
-            candidate(
+            identityAnchoredCandidate(
                 daySeed: daySeed,
                 eventID: eventID,
                 rank: rank,
@@ -113,6 +124,59 @@ public enum CompositionPlanner {
             )
         }.max { $0.1 < $1.1 }!.0
         return selected.recipe(drawOrder: Int(stableHash(eventID) % 10_000) + 10)
+    }
+
+    /// External identities do not inherit a ten-slot geometry role. Their broad
+    /// anchor is a full-width, actor-local hash stream; candidate variation stays
+    /// near that anchor, so unrelated IDs cannot collapse merely because their
+    /// hashes share `mod 10`. No active-set value participates in this function.
+    private static func identityAnchoredCandidate(
+        daySeed: UInt64,
+        eventID: String,
+        rank: Int,
+        candidateIndex: Int,
+        grammar: EditorialGrammar,
+        viewport: EditorialViewport
+    ) -> Candidate {
+        let base = candidate(
+            daySeed: daySeed,
+            eventID: eventID,
+            rank: rank,
+            candidateIndex: candidateIndex,
+            grammar: grammar,
+            viewport: viewport
+        )
+        let anchorX = 0.08 + 0.84 * actorUnit(
+            daySeed: daySeed,
+            eventID: eventID,
+            salt: 0xA3C5_9AC3_9D71_4E13
+        )
+        let anchorY = 0.06 + 0.88 * actorUnit(
+            daySeed: daySeed,
+            eventID: eventID,
+            salt: 0xD1B5_4A32_D192_ED03
+        )
+        let radiusX = base.diameter * 0.5 * viewport.shortSide / viewport.width
+        let radiusY = base.diameter * 0.5 * viewport.shortSide / viewport.height
+        let crop = base.diameter >= 0.38 ? min(base.cropAllowance, 0.18) : min(base.cropAllowance, 0.06)
+        let minX = radiusX * (1 - crop)
+        let maxX = 1 - minX
+        let minY = radiusY * (1 - crop)
+        let maxY = 1 - minY
+        let anchorWeight = 0.78
+        let position = CompositionPoint(
+            x: min(maxX, max(minX, anchorX * anchorWeight + base.position.x * (1 - anchorWeight))),
+            y: min(maxY, max(minY, anchorY * anchorWeight + base.position.y * (1 - anchorWeight)))
+        )
+        return Candidate(
+            eventID: base.eventID,
+            position: position,
+            diameter: base.diameter,
+            depth: base.depth,
+            localBlur: base.localBlur,
+            cropAllowance: base.cropAllowance,
+            quality: base.quality
+        )
     }
 
     private static func candidate(
@@ -396,6 +460,94 @@ public enum CompositionPlanner {
         return radialRegularity * angularRegularity
     }
 
+    /// Every subset is completed exactly once during canonical admission. By
+    /// rejecting a candidate when any newly completed four-actor subset crosses
+    /// a catastrophic regularity threshold, arbitrary later removals inherit the
+    /// protection without changing any retained actor.
+    private static func createsCatastrophicSubset(
+        byAdding candidate: Candidate,
+        to admitted: [Candidate],
+        admittedPoints: [CompositionPoint],
+        viewport: EditorialViewport
+    ) -> Bool {
+        guard admitted.count >= 3 else { return false }
+        let candidatePoint = CompositionGeometry.shortSidePoint(
+            candidate.position,
+            viewport: viewport
+        )
+        for first in 0..<(admitted.count - 2) {
+            for second in (first + 1)..<(admitted.count - 1) {
+                for third in (second + 1)..<admitted.count {
+                    if catastrophicRegularity(
+                        admitted[first], at: admittedPoints[first],
+                        admitted[second], at: admittedPoints[second],
+                        admitted[third], at: admittedPoints[third],
+                        candidate, at: candidatePoint
+                    ) {
+                        return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    private static func catastrophicRegularity(
+        _ first: Candidate,
+        at firstPoint: CompositionPoint,
+        _ second: Candidate,
+        at secondPoint: CompositionPoint,
+        _ third: Candidate,
+        at thirdPoint: CompositionPoint,
+        _ fourth: Candidate,
+        at fourthPoint: CompositionPoint
+    ) -> Bool {
+        // For four actors `row >= .95` means every actor belongs to a
+        // multi-actor y cluster. `grid >= .95` implies that same condition, so
+        // this exact row predicate covers both catastrophic outcomes.
+        let sortedY = [firstPoint.y, secondPoint.y, thirdPoint.y, fourthPoint.y].sorted()
+        let firstPair = sortedY[1] - sortedY[0] <= 0.035
+        let lastPair = sortedY[3] - sortedY[2] <= 0.035
+        if firstPair && lastPair {
+            return true
+        }
+
+        let center = CompositionPoint(
+            x: (firstPoint.x + secondPoint.x + thirdPoint.x + fourthPoint.x) * 0.25,
+            y: (firstPoint.y + secondPoint.y + thirdPoint.y + fourthPoint.y) * 0.25
+        )
+        let actors = [first, second, third, fourth]
+        let points = [firstPoint, secondPoint, thirdPoint, fourthPoint]
+        for probe in [firstPoint, secondPoint, thirdPoint, fourthPoint, center] {
+            var allContain = true
+            for index in 0..<4 where allContain {
+                allContain = hypot(points[index].x - probe.x, points[index].y - probe.y)
+                    <= actors[index].diameter * 0.5
+            }
+            if allContain { return true }
+        }
+
+        let distance01 = hypot(firstPoint.x - secondPoint.x, firstPoint.y - secondPoint.y)
+        let distance02 = hypot(firstPoint.x - thirdPoint.x, firstPoint.y - thirdPoint.y)
+        let distance03 = hypot(firstPoint.x - fourthPoint.x, firstPoint.y - fourthPoint.y)
+        let distance12 = hypot(secondPoint.x - thirdPoint.x, secondPoint.y - thirdPoint.y)
+        let distance13 = hypot(secondPoint.x - fourthPoint.x, secondPoint.y - fourthPoint.y)
+        let distance23 = hypot(thirdPoint.x - fourthPoint.x, thirdPoint.y - fourthPoint.y)
+        let nearest0 = min(distance01, distance02, distance03)
+        let nearest1 = min(distance01, distance12, distance13)
+        let nearest2 = min(distance02, distance12, distance23)
+        let nearest3 = min(distance03, distance13, distance23)
+        let mean = (nearest0 + nearest1 + nearest2 + nearest3) * 0.25
+        guard mean > 0 else { return true }
+        let variance = (
+            (nearest0 - mean) * (nearest0 - mean)
+                + (nearest1 - mean) * (nearest1 - mean)
+                + (nearest2 - mean) * (nearest2 - mean)
+                + (nearest3 - mean) * (nearest3 - mean)
+        ) * 0.25
+        return exp(-sqrt(variance) / mean * 7) >= 0.95
+    }
+
     private static func edgeIntent(
         _ candidate: Candidate,
         grammar: EditorialGrammar,
@@ -449,6 +601,10 @@ public enum CompositionPlanner {
         value.utf8.reduce(0xCBF29CE484222325) { partial, byte in
             (partial ^ UInt64(byte)) &* 0x100000001B3
         }
+    }
+
+    private static func actorUnit(daySeed: UInt64, eventID: String, salt: UInt64) -> Double {
+        unit(from: daySeed ^ stableHash(eventID) ^ salt)
     }
 
     private static func unit(from value: UInt64) -> Double {

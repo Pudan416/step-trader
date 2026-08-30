@@ -282,6 +282,72 @@ struct CompositionPlannerTests {
         #expect(canonicalScores.compactCluster < 0.95)
     }
 
+    @Test("every canonical removal subset avoids catastrophic regularity across 2,048 seeds")
+    func exhaustiveCanonicalSubsetsAvoidCatastrophicRegularity() {
+        var evaluated = 0
+        var failures = 0
+        var firstFailure: String?
+
+        for recipe in Self.stressRecipes {
+            for count in 4...9 {
+                for actors in combinations(of: recipe.actors, count: count) {
+                    let active = CompositionRecipe(
+                        daySeed: recipe.daySeed,
+                        grammar: recipe.grammar,
+                        viewport: recipe.viewport,
+                        actors: actors
+                    )
+                    let scores = CompositionGuardrails.evaluate(active)
+                    evaluated += 1
+                    if scores.commonFocalPoint >= 0.95
+                        || scores.equalSpacing >= 0.95
+                        || scores.grid >= 0.95
+                        || scores.row >= 0.95
+                    {
+                        failures += 1
+                        if firstFailure == nil {
+                            firstFailure = "seed=\(recipe.daySeed), ids=\(actors.map(\.eventID)), scores=\(scores)"
+                        }
+                    }
+                }
+            }
+        }
+
+        #expect(evaluated == 1_734_656)
+        #expect(failures == 0, "first catastrophic canonical subset: \(firstFailure ?? "none")")
+        print("canonical arbitrary subsets evaluated: \(evaluated), catastrophic: \(failures)")
+    }
+
+    @Test("same-role external identities de-regularize without reroll")
+    func sameRoleExternalIDsDoNotCollapse() {
+        let collisionIDs = [
+            "external-16", "external-27", "external-29", "external-47", "external-58",
+            "external-67", "external-85", "external-92", "external-104", "external-113",
+        ]
+        let full = CompositionPlanner.make(daySeed: 24, eventIDs: collisionIDs, viewport: .phone)
+
+        for count in [4, 6, 10] {
+            let ids = Array(collisionIDs.prefix(count))
+            let recipe = CompositionPlanner.make(daySeed: 24, eventIDs: ids.reversed(), viewport: .phone)
+            for id in ids {
+                #expect(recipe.actor(id) == full.actor(id))
+            }
+            let scores = CompositionGuardrails.evaluate(recipe)
+            #expect(scores.grid < 0.95)
+            #expect(scores.row < 0.95)
+            #expect(scores.commonFocalPoint < 0.95)
+        }
+
+        let cropped = CompositionPlanner.make(
+            daySeed: 44,
+            eventIDs: Array(collisionIDs.prefix(4)),
+            viewport: .phone
+        )
+        let croppedScores = CompositionGuardrails.evaluate(cropped)
+        #expect(croppedScores.commonFocalPoint < 0.95)
+        #expect(croppedScores.compactCluster < 0.95)
+    }
+
     @Test("grammar weights and regularity guardrails remain bounded across 2,048 seeds")
     func distributionAndRegularityGuardrails() {
         var grammarCounts = Dictionary(uniqueKeysWithValues: EditorialGrammar.allCases.map { ($0, 0) })
@@ -369,5 +435,28 @@ struct CompositionPlannerTests {
             )
         }
         return CompositionRecipe(daySeed: 0, grammar: .openField, viewport: viewport, actors: actors)
+    }
+
+    private func combinations<T>(of values: [T], count: Int) -> [[T]] {
+        guard count > 0, count <= values.count else { return [] }
+        var result: [[T]] = []
+        var current: [T] = []
+
+        func visit(start: Int) {
+            if current.count == count {
+                result.append(current)
+                return
+            }
+            let remaining = count - current.count
+            guard start <= values.count - remaining else { return }
+            for index in start...(values.count - remaining) {
+                current.append(values[index])
+                visit(start: index + 1)
+                current.removeLast()
+            }
+        }
+
+        visit(start: 0)
+        return result
     }
 }
