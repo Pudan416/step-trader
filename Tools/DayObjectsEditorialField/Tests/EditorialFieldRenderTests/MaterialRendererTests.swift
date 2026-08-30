@@ -333,6 +333,18 @@ struct MaterialRendererTests {
                 && $0.actors.contains(where: \.eligible)
                 && $0.actors.allSatisfy(\.passes)
         })
+        let structuralSceneScale = metrics.sceneScale.filter {
+            [.halo, .outline, .counterform].contains($0.family)
+        }
+        #expect(structuralSceneScale.count == 27)
+        #expect(structuralSceneScale.allSatisfy {
+            !$0.topology.isEmpty
+                && $0.topology.contains(where: \.eligible)
+                && $0.topology.allSatisfy(\.passes)
+        })
+        #expect(metrics.sceneScale.filter {
+            ![.halo, .outline, .counterform].contains($0.family)
+        }.allSatisfy { $0.topology.isEmpty })
         #expect(metrics.c3Acceptance.flatMap(\.actors).allSatisfy {
             $0.duplicateTertiaryRejected && $0.passes
         })
@@ -935,6 +947,190 @@ struct MaterialRendererTests {
         let jump = maximumInteriorNeighbourJump(image, background: .lowContrast)
         #expect(jump <= 0.10, "hard scene-scale wedge jump \(jump)")
     }
+
+    @Test("returned halo and outline actors keep an open center after frozen depth blur")
+    func structuralFamiliesKeepOpenCentersAtExactSceneScale() throws {
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let cases: [(fixtureIndex: Int, eventID: String)] = [
+            (15, "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"),
+            (15, "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02"),
+            (21, "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"),
+            (23, "4E6B83FD-19A8-4AA2-91FC-D297E6C15405"),
+        ]
+
+        for item in cases {
+            let fixture = try #require(MaterialEvidencePackage.coverage(for: manifest).fixtures.first {
+                $0.index == item.fixtureIndex
+            })
+            let layout = manifest.breadth[fixture.layoutFixtureIndex]
+            let approved = try #require(archive.fixtures.first {
+                $0.fixtureIndex == fixture.layoutFixtureIndex
+            }?.recipe)
+            let actor = try #require(approved.actor(item.eventID))
+            let isolated = CompositionRecipe(
+                daySeed: approved.daySeed,
+                grammar: approved.grammar,
+                viewport: approved.viewport,
+                actors: [actor]
+            )
+            let material = MaterialDNA.fixture(
+                daySeed: layout.seed,
+                eventIDs: layout.eventIDs,
+                family: fixture.family,
+                requestedColorCount: fixture.requestedColorCount
+            )
+            let actorMaterial = try #require(material.actor(item.eventID))
+            let rendered = try MaterialRenderer().render(
+                recipe: isolated,
+                material: material,
+                background: fixture.background,
+                configuration: .init(scale: 2)
+            )
+            let full = try downsampledPixels(rendered.fullScreen.pngData, width: 393, height: 852)
+            let tile = full.cropped(x: 0, y: 229, width: 393, height: 393)
+            let fullMetrics = radialTopologyMetrics(
+                full,
+                actor: actor,
+                background: fixture.background,
+                centerYAdjustment: 0
+            )
+            let tileMetrics = radialTopologyMetrics(
+                tile,
+                actor: actor,
+                background: fixture.background,
+                centerYAdjustment: -229
+            )
+            let requiredMargin = actor.diameter < 0.15 ? 0.025 : 0.045
+            let maximumCenterRatio = actor.diameter < 0.15 ? 0.68 : 0.55
+            let requiredRimContrast = actor.diameter < 0.15 ? 0.14 : 0.25
+            let maximumInteriorRatio = actorMaterial.family == .outline
+                    && actorMaterial.contourCount > 1
+                ? 1.10
+                : 0.70
+            let context = "fixture=\(item.fixtureIndex) actor=\(item.eventID.prefix(8)) "
+                + "full=\(fullMetrics) tile=\(tileMetrics)"
+
+            #expect(fullMetrics.rimContrast >= requiredRimContrast, Comment(rawValue: context))
+            #expect(fullMetrics.openCenterMargin >= requiredMargin, Comment(rawValue: context))
+            #expect(fullMetrics.centerToRimRatio <= maximumCenterRatio, Comment(rawValue: context))
+            #expect(
+                fullMetrics.interiorToRimRatio <= maximumInteriorRatio,
+                Comment(rawValue: context)
+            )
+            #expect(tileMetrics.rimContrast >= requiredRimContrast, Comment(rawValue: context))
+            #expect(tileMetrics.openCenterMargin >= requiredMargin, Comment(rawValue: context))
+            #expect(tileMetrics.centerToRimRatio <= maximumCenterRatio, Comment(rawValue: context))
+            #expect(
+                tileMetrics.interiorToRimRatio <= maximumInteriorRatio,
+                Comment(rawValue: context)
+            )
+
+            if item.fixtureIndex == 23 {
+                let removedRecipe = CompositionRecipe(
+                    daySeed: approved.daySeed,
+                    grammar: approved.grammar,
+                    viewport: approved.viewport,
+                    actors: approved.actors.filter { $0.eventID != item.eventID }
+                )
+                let fullScene = try MaterialRenderer().render(
+                    recipe: approved,
+                    material: material,
+                    background: fixture.background,
+                    configuration: .init(scale: 2)
+                )
+                let removedScene = try MaterialRenderer().render(
+                    recipe: removedRecipe,
+                    material: material,
+                    background: fixture.background,
+                    configuration: .init(scale: 2)
+                )
+                let scenePixels = try downsampledPixels(
+                    fullScene.fullScreen.pngData,
+                    width: 393,
+                    height: 852
+                )
+                let removedPixels = try downsampledPixels(
+                    removedScene.fullScreen.pngData,
+                    width: 393,
+                    height: 852
+                )
+                let contribution = radialTopologyMetrics(
+                    scenePixels,
+                    actor: actor,
+                    background: fixture.background,
+                    centerYAdjustment: 0,
+                    reference: removedPixels
+                )
+                let contributionContext = context + " contribution=\(contribution)"
+                #expect(
+                    contribution.rimContrast >= requiredRimContrast,
+                    Comment(rawValue: contributionContext)
+                )
+                #expect(
+                    contribution.openCenterMargin >= requiredMargin,
+                    Comment(rawValue: contributionContext)
+                )
+                #expect(
+                    contribution.centerToRimRatio <= maximumCenterRatio,
+                    Comment(rawValue: contributionContext)
+                )
+                #expect(
+                    contribution.interiorToRimRatio <= maximumInteriorRatio,
+                    Comment(rawValue: contributionContext)
+                )
+            }
+        }
+    }
+
+    @Test("gradient and mist stay filled rather than inheriting annular topology")
+    func gradientAndMistRemainNonAnnularAfterSceneBlur() throws {
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let layout = manifest.breadth[11]
+        let approved = try #require(archive.fixtures.first { $0.fixtureIndex == 11 }?.recipe)
+        let actor = try #require(approved.actor("0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"))
+        let isolated = CompositionRecipe(
+            daySeed: approved.daySeed,
+            grammar: approved.grammar,
+            viewport: approved.viewport,
+            actors: [actor]
+        )
+
+        for family in [MaterialFamily.gradient, .mist] {
+            let material = MaterialDNA.fixture(
+                daySeed: layout.seed,
+                eventIDs: layout.eventIDs,
+                family: family,
+                requestedColorCount: 3
+            )
+            let rendered = try MaterialRenderer().render(
+                recipe: isolated,
+                material: material,
+                background: .light,
+                configuration: .init(scale: 2)
+            )
+            let full = try downsampledPixels(rendered.fullScreen.pngData, width: 393, height: 852)
+            let metrics = radialTopologyMetrics(
+                full,
+                actor: actor,
+                background: .light,
+                centerYAdjustment: 0
+            )
+            #expect(
+                metrics.centerToRimRatio >= 0.78,
+                "\(family.rawValue) became annular: \(metrics)"
+            )
+        }
+    }
 }
 
 private func fixtureActor(
@@ -1043,6 +1239,83 @@ private struct ReadabilityDifference: CustomStringConvertible {
     var description: String {
         "peak=\(peakDifference), mean=\(meanDifference), area=\(affectedAreaFraction)"
     }
+}
+
+private struct RadialTopologyMetrics: CustomStringConvertible {
+    let centerContrast: Double
+    let interiorContrast: Double
+    let rimContrast: Double
+
+    var openCenterMargin: Double { rimContrast - centerContrast }
+    var centerToRimRatio: Double { centerContrast / max(rimContrast, 0.000_001) }
+    var interiorToRimRatio: Double { interiorContrast / max(rimContrast, 0.000_001) }
+    var description: String {
+        "center=\(centerContrast), interior=\(interiorContrast), rim=\(rimContrast), "
+            + "margin=\(openCenterMargin), centerRatio=\(centerToRimRatio), "
+            + "interiorRatio=\(interiorToRimRatio)"
+    }
+}
+
+private func radialTopologyMetrics(
+    _ image: PixelImage,
+    actor: ActorCompositionRecipe,
+    background: BackgroundCondition,
+    centerYAdjustment: Double,
+    reference: PixelImage? = nil
+) -> RadialTopologyMetrics {
+    let materialBackground = MaterialRenderer.backgroundColor(for: background)
+    let backgroundRGB = StraightRGB(
+        r: materialBackground.red,
+        g: materialBackground.green,
+        b: materialBackground.blue
+    )
+    let centerX = actor.position.x * 393
+    let centerY = actor.position.y * 852 + centerYAdjustment
+    let radius = actor.diameter * 393 * 0.5
+    var centerSamples = [Double]()
+    var interiorSamples = [Double]()
+    var rimSamples = [Double]()
+    let minX = max(0, Int(floor(centerX - radius * 1.05)))
+    let maxX = min(image.width - 1, Int(ceil(centerX + radius * 1.05)))
+    let minY = max(0, Int(floor(centerY - radius * 1.05)))
+    let maxY = min(image.height - 1, Int(ceil(centerY + radius * 1.05)))
+    for y in minY...maxY {
+        for x in minX...maxX {
+            let normalizedRadius = hypot(
+                (Double(x) + 0.5 - centerX) / max(radius, 1),
+                (Double(y) + 0.5 - centerY) / max(radius, 1)
+            )
+            let contrast = if let reference {
+                rgbDistance(
+                    image.pixel(x: x, y: y).straight,
+                    reference.pixel(x: x, y: y).straight
+                )
+            } else {
+                rgbDistance(image.pixel(x: x, y: y).straight, backgroundRGB)
+            }
+            if normalizedRadius <= 0.16 {
+                centerSamples.append(contrast)
+            }
+            if normalizedRadius <= 0.52 {
+                interiorSamples.append(contrast)
+            } else if (0.60...0.98).contains(normalizedRadius) {
+                rimSamples.append(contrast)
+            }
+        }
+    }
+    centerSamples.sort()
+    rimSamples.sort()
+    return RadialTopologyMetrics(
+        centerContrast: percentile(centerSamples, fraction: 0.50),
+        interiorContrast: percentile(interiorSamples, fraction: 0.50),
+        rimContrast: percentile(rimSamples, fraction: 0.75)
+    )
+}
+
+private func percentile(_ values: [Double], fraction: Double) -> Double {
+    guard !values.isEmpty else { return 0 }
+    let index = min(values.count - 1, max(0, Int(Double(values.count - 1) * fraction)))
+    return values[index]
 }
 
 private func readabilityDifference(
@@ -1323,6 +1596,29 @@ private func decodePNG(_ data: Data) throws -> CGImage {
 private func pixels(_ data: Data) throws -> PixelImage {
     let image = try decodePNG(data)
     return PixelImage(width: image.width, height: image.height, rgba: try rgbaBytes(image))
+}
+
+private func downsampledPixels(_ data: Data, width: Int, height: Int) throws -> PixelImage {
+    let image = try decodePNG(data)
+    let bytesPerRow = width * 4
+    var rgba = Data(count: bytesPerRow * height)
+    let rendered = rgba.withUnsafeMutableBytes { bytes -> Bool in
+        guard let context = CGContext(
+            data: bytes.baseAddress,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                | CGBitmapInfo.byteOrder32Big.rawValue
+        ) else { return false }
+        context.interpolationQuality = .high
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return true
+    }
+    #expect(rendered)
+    return PixelImage(width: width, height: height, rgba: rgba)
 }
 
 private func rgbaBytes(_ image: CGImage) throws -> Data {

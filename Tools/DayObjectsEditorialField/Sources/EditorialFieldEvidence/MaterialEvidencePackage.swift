@@ -135,6 +135,21 @@ public struct MaterialSceneScaleActorMetrics: Codable, Equatable, Sendable {
     public let passes: Bool
 }
 
+public struct MaterialSceneScaleTopologyMetrics: Codable, Equatable, Sendable {
+    public let eventID: String
+    public let diameter: Double
+    public let eligible: Bool
+    public let fullCenterContrast: Double
+    public let fullRimContrast: Double
+    public let fullOpenCenterMargin: Double
+    public let fullCenterToRimRatio: Double
+    public let tileCenterContrast: Double
+    public let tileRimContrast: Double
+    public let tileOpenCenterMargin: Double
+    public let tileCenterToRimRatio: Double
+    public let passes: Bool
+}
+
 public struct MaterialSceneScaleMetrics: Codable, Equatable, Sendable {
     public let family: MaterialFamily
     public let requestedColorCount: Int
@@ -147,6 +162,7 @@ public struct MaterialSceneScaleMetrics: Codable, Equatable, Sendable {
     public let fullPath: String
     public let tilePath: String
     public let actors: [MaterialSceneScaleActorMetrics]
+    public let topology: [MaterialSceneScaleTopologyMetrics]
 }
 
 public struct MaterialEvidenceMetrics: Codable, Equatable, Sendable {
@@ -417,12 +433,19 @@ public enum MaterialEvidencePackage {
             renderer: renderer
         )
         let sceneScaleFailures = sceneScaleEvidence.metrics.flatMap { scene in
-            scene.actors.filter { !$0.passes }.map { actor in
+            let readability = scene.actors.filter { !$0.passes }.map { actor in
                 "\(scene.family.rawValue)/c\(scene.requestedColorCount)/"
                     + "\(scene.background.rawValue)/\(actor.eventID.prefix(4))"
                     + " p90=\(String(format: "%.3f", actor.percentile90Contrast))"
                     + " area=\(String(format: "%.3f", actor.visibleAreaFraction))"
             }
+            let topology = scene.topology.filter { !$0.passes }.map { actor in
+                "\(scene.family.rawValue)/c\(scene.requestedColorCount)/"
+                    + "\(scene.background.rawValue)/\(actor.eventID.prefix(4))"
+                    + " topology full=\(String(format: "%.3f", actor.fullCenterToRimRatio))"
+                    + " tile=\(String(format: "%.3f", actor.tileCenterToRimRatio))"
+            }
+            return readability + topology
         }
         guard sceneScaleFailures.isEmpty else {
             throw MaterialEvidenceError.invalidPackage(
@@ -438,7 +461,7 @@ public enum MaterialEvidencePackage {
         }
 
         let metrics = MaterialEvidenceMetrics(
-            version: "material-metrics-v5",
+            version: "material-metrics-v6",
             fixtureCount: atlasCoverage.fixtures.count,
             coreImageCount: atlasCoverage.coreImageCount,
             compositionApprovalSHA256: approvalHash,
@@ -478,7 +501,7 @@ public enum MaterialEvidencePackage {
 
         let artifacts = try artifactRecords(in: outputDirectory)
         let packageManifest = MaterialEvidenceManifest(
-            version: "material-evidence-v5",
+            version: "material-evidence-v6",
             sourceCommit: sourceCommit,
             rendererVersion: MaterialRenderer.version,
             toolchain: "Swift 6 / Swift Package Manager",
@@ -550,7 +573,7 @@ public enum MaterialEvidencePackage {
             from: Data(contentsOf: directory.appendingPathComponent("metrics.json"))
         )
         let expectedCoverage = coverage(for: corpus)
-        guard manifest.version == "material-evidence-v5",
+        guard manifest.version == "material-evidence-v6",
               manifest.sourceCommit == expectedSourceCommit,
               manifest.rendererVersion == MaterialRenderer.version,
               manifest.toolchain == "Swift 6 / Swift Package Manager",
@@ -592,7 +615,7 @@ public enum MaterialEvidencePackage {
             frozenRecipes: frozenRecipes,
             renderer: MaterialRenderer()
         )
-        guard metrics.version == "material-metrics-v5",
+        guard metrics.version == "material-metrics-v6",
               metrics.fixtureCount == expectedCoverage.fixtures.count,
               metrics.coreImageCount == expectedCoverage.coreImageCount,
               metrics.compositionApprovalSHA256 == manifest.compositionApprovalSHA256,
@@ -603,7 +626,9 @@ public enum MaterialEvidencePackage {
               metrics.c3Acceptance.allSatisfy({ $0.passRate >= 0.90 }),
               metrics.sceneScale == expectedSceneScale.metrics,
               metrics.sceneScale.allSatisfy({
-                  !$0.actors.isEmpty && $0.actors.allSatisfy(\.passes)
+                  !$0.actors.isEmpty
+                      && $0.actors.allSatisfy(\.passes)
+                      && $0.topology.allSatisfy(\.passes)
               })
         else {
             throw MaterialEvidenceError.invalidPackage("metrics coverage or descriptors mismatch")
@@ -899,6 +924,13 @@ public enum MaterialEvidencePackage {
                         material: material,
                         background: background
                     )
+                    let topology = try sceneScaleTopology(
+                        family: family,
+                        recipe: recipe,
+                        material: material,
+                        background: background,
+                        renderer: renderer
+                    )
                     metrics.append(MaterialSceneScaleMetrics(
                         family: family,
                         requestedColorCount: colorCount,
@@ -910,7 +942,8 @@ public enum MaterialEvidencePackage {
                         pixelHeight: 852,
                         fullPath: fullPath,
                         tilePath: tilePath,
-                        actors: actorReadability
+                        actors: actorReadability,
+                        topology: topology
                     ))
                 }
             }
@@ -997,6 +1030,140 @@ public enum MaterialEvidencePackage {
                 )
             )
         }
+    }
+
+    private static func sceneScaleTopology(
+        family: MaterialFamily,
+        recipe: SceneRecipe,
+        material: DailyMaterialDNA,
+        background: BackgroundCondition,
+        renderer: MaterialRenderer
+    ) throws -> [MaterialSceneScaleTopologyMetrics] {
+        guard [.halo, .outline, .counterform].contains(family) else { return [] }
+        // This layout-11 actor is fully present in both the 393x852 canvas and
+        // its exact centered 393x393 tile crop, while still carrying scene
+        // blur. Isolating it keeps the topology measurement independent from
+        // overlap and draw order without changing any frozen actor geometry.
+        let exemplarID = "5FA2D140-7C0E-45B9-BE3D-8124A937EF06"
+        guard let actor = recipe.actor(exemplarID),
+              let actorMaterial = material.actor(exemplarID)
+        else {
+            throw MaterialEvidenceError.invalidPackage("missing scene-scale topology exemplar")
+        }
+        let isolated = SceneRecipe(
+            daySeed: recipe.daySeed,
+            grammar: recipe.grammar,
+            viewport: recipe.viewport,
+            actors: [actor]
+        )
+        let source = try renderer.render(
+            recipe: isolated,
+            material: material,
+            background: background,
+            configuration: .init(scale: 2)
+        )
+        let sourceImage = try decodedPNG(
+            source.fullScreen.pngData,
+            path: "scene-scale-topology-source"
+        )
+        let full = try downsampled(sourceImage, width: 393, height: 852)
+        guard let tile = full.cropping(
+            to: CGRect(x: 0, y: 229, width: 393, height: 393)
+        ) else {
+            throw MaterialEvidenceError.cannotCreateContactSheet
+        }
+        let fullBands = try topologyBands(
+            image: full,
+            actor: actor,
+            background: background,
+            centerYAdjustment: 0
+        )
+        let tileBands = try topologyBands(
+            image: tile,
+            actor: actor,
+            background: background,
+            centerYAdjustment: -229
+        )
+        let requiredRimContrast = 0.25
+        let maximumCenterRatio = 0.55
+        let requiredMargin = 0.045
+        let passes = fullBands.rim >= requiredRimContrast
+            && tileBands.rim >= requiredRimContrast
+            && fullBands.margin >= requiredMargin
+            && tileBands.margin >= requiredMargin
+            && fullBands.ratio <= maximumCenterRatio
+            && tileBands.ratio <= maximumCenterRatio
+
+        return [MaterialSceneScaleTopologyMetrics(
+            eventID: exemplarID,
+            diameter: actor.diameter,
+            eligible: actor.diameter >= 0.15,
+            fullCenterContrast: fullBands.center,
+            fullRimContrast: fullBands.rim,
+            fullOpenCenterMargin: fullBands.margin,
+            fullCenterToRimRatio: fullBands.ratio,
+            tileCenterContrast: tileBands.center,
+            tileRimContrast: tileBands.rim,
+            tileOpenCenterMargin: tileBands.margin,
+            tileCenterToRimRatio: tileBands.ratio,
+            passes: actorMaterial.family == family && passes
+        )]
+    }
+
+    private static func topologyBands(
+        image: CGImage,
+        actor: ActorCompositionRecipe,
+        background: BackgroundCondition,
+        centerYAdjustment: Double
+    ) throws -> (center: Double, rim: Double, margin: Double, ratio: Double) {
+        let analysis = AnalysisImage(
+            width: image.width,
+            height: image.height,
+            rgba: try normalizedRGBA(image)
+        )
+        let ground = backgroundRGB(background)
+        let centerX = actor.position.x * 393
+        let centerY = actor.position.y * 852 + centerYAdjustment
+        let diameter = actor.diameter * 393
+        let outer = diameter * 0.52
+        let minimumX = max(0, Int(floor(centerX - outer)))
+        let maximumX = min(image.width - 1, Int(ceil(centerX + outer)))
+        let minimumY = max(0, Int(floor(centerY - outer)))
+        let maximumY = min(image.height - 1, Int(ceil(centerY + outer)))
+        var centerSamples = [Double]()
+        var rimSamples = [Double]()
+        for y in minimumY...maximumY {
+            for x in minimumX...maximumX {
+                let radialDistance = hypot(
+                    Double(x) + 0.5 - centerX,
+                    Double(y) + 0.5 - centerY
+                ) / max(diameter, 1)
+                let contrast = analysis.pixel(x: x, y: y).distance(to: ground)
+                if radialDistance <= 0.16 {
+                    centerSamples.append(contrast)
+                } else if (0.30...0.49).contains(radialDistance) {
+                    rimSamples.append(contrast)
+                }
+            }
+        }
+        let center = percentile(centerSamples, fraction: 0.50)
+        let rim = percentile(rimSamples, fraction: 0.75)
+        return (
+            center: center,
+            rim: rim,
+            margin: rim - center,
+            ratio: center / max(rim, 0.000_1)
+        )
+    }
+
+    private static func percentile(_ values: [Double], fraction: Double) -> Double {
+        guard !values.isEmpty else { return 0 }
+        let sorted = values.sorted()
+        let index = min(
+            sorted.count - 1,
+            max(0, Int((Double(sorted.count - 1) * fraction).rounded(.down)))
+        )
+        return sorted[index]
     }
 
     private static func backgroundRGB(_ condition: BackgroundCondition) -> AnalysisPixel {

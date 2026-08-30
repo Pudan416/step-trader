@@ -50,7 +50,7 @@ public enum MaterialRendererError: Error, LocalizedError {
 /// recipe. It is intentionally independent from app/Metal code and consumes
 /// immutable composition values without deriving or changing geometry.
 public struct MaterialRenderer {
-    public static let version = "material-coregraphics-radial-v4"
+    public static let version = "material-coregraphics-radial-v5"
 
     public init() {}
 
@@ -147,6 +147,12 @@ public struct MaterialRenderer {
                     by: max(2, Int(ceil(blur * 3)))
                 )
                 actorImage = try blurred(actorImage, radius: blur)
+                actorImage = try restoringOpenCenter(
+                    actorImage,
+                    material: actorMaterial,
+                    sourceDiameter: diameter,
+                    blurRadius: blur
+                )
             }
             let center = CGPoint(
                 x: actor.position.x * Double(width),
@@ -325,8 +331,13 @@ public struct MaterialRenderer {
                     alpha *= 0.58 + volume * 0.42
                 case .halo:
                     let corona = 1 - smoothstep(0.025, 0.105, abs(shapeDistance - outerRadius * 0.78))
+                    let openCenter = smoothstep(
+                        outerRadius * 0.25,
+                        outerRadius * 0.67,
+                        shapeDistance
+                    )
                     color = mix(color, RGB.white, corona * 0.23)
-                    alpha *= 0.86 + corona * 0.14
+                    alpha *= openCenter * (0.76 + corona * 0.24)
                 case .luminous:
                     let core = radialWeight(
                         u: u,
@@ -508,6 +519,72 @@ public struct MaterialRenderer {
             throw MaterialRendererError.cannotCreateImage
         }
         return image
+    }
+
+    /// A Gaussian depth blur is allowed to soften an actor, but it must not
+    /// turn an intentionally open radial topology into a filled disc. This
+    /// radial transfer removes only the blur energy that crossed the center
+    /// of halo/outline actors. It leaves every field, contour location, scene
+    /// position, diameter, draw order, and depth value unchanged.
+    private func restoringOpenCenter(
+        _ image: CGImage,
+        material: ActorMaterialRecipe,
+        sourceDiameter: Int,
+        blurRadius: Double
+    ) throws -> CGImage {
+        let openingOuter: Double
+        let contrastGain: Double
+        switch material.family {
+        case .halo:
+            openingOuter = 0.28
+            contrastGain = 1 + min(0.18, blurRadius / Double(sourceDiameter) * 1.6)
+        case .outline:
+            if material.contourCount <= 1 {
+                let innerContourEdge = 0.48 - material.contourWidth * 1.03
+                openingOuter = max(0.27, innerContourEdge * 0.88)
+            } else {
+                // Multi-contour outlines retain their two outer bands while
+                // the small innermost band yields to a legible open center.
+                openingOuter = 0.20
+            }
+            let contourPixels = max(1, material.contourWidth * Double(sourceDiameter))
+            contrastGain = 1 + min(0.32, blurRadius / contourPixels * 0.16)
+        default:
+            return image
+        }
+
+        let context = try makeContext(width: image.width, height: image.height)
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        guard let rawData = context.data else {
+            throw MaterialRendererError.cannotCreateBitmap(image.width, image.height)
+        }
+        let bytes = rawData.assumingMemoryBound(to: UInt8.self)
+        let bytesPerRow = context.bytesPerRow
+        let centerX = Double(image.width) * 0.5
+        let centerY = Double(image.height) * 0.5
+        let openingInner = openingOuter * (material.family == .halo ? 0.48 : 0.67)
+
+        for y in 0..<image.height {
+            for x in 0..<image.width {
+                let radialDistance = hypot(
+                    Double(x) + 0.5 - centerX,
+                    Double(y) + 0.5 - centerY
+                ) / Double(sourceDiameter)
+                let opening = smoothstep(openingInner, openingOuter, radialDistance)
+                let transfer = opening * contrastGain
+                let offset = y * bytesPerRow + x * 4
+                for channel in 0..<4 {
+                    bytes[offset + channel] = UInt8(min(
+                        255,
+                        (Double(bytes[offset + channel]) * transfer).rounded()
+                    ))
+                }
+            }
+        }
+        guard let restored = context.makeImage() else {
+            throw MaterialRendererError.cannotCreateImage
+        }
+        return restored
     }
 
     private func padded(_ image: CGImage, by padding: Int) throws -> CGImage {
