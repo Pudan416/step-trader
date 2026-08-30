@@ -233,9 +233,11 @@ struct MaterialRendererTests {
 
     @Test("material atlas preserves frozen approval bytes and seals descriptors plus rendered samples")
     func materialAtlasWriterIsAuditable() throws {
-        let directory = FileManager.default.temporaryDirectory
+        let testRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
             .appendingPathComponent("editorial-material-atlas-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
+        let directory = testRoot
+            .appendingPathComponent("atlas", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: testRoot) }
         let approval = Data(#"{"corpusVersion":"visible-v1","evidencePackageSHA256":"26a3517f1fdbae1e32bf07855d6ee2c53b6144f26af9eff9472e9c3a97c6ca95","frozen":true,"scope":"neutral-composition-only"}"#.utf8)
 
         let generated = try MaterialEvidencePackage.generate(

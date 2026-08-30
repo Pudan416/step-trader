@@ -610,7 +610,7 @@ public enum MaterialEvidencePackage {
         guard let enumerator = FileManager.default.enumerator(
             at: directory,
             includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
+            options: []
         ) else { return [] }
         let root = directory.standardizedFileURL.path + "/"
         var paths = [String]()
@@ -621,6 +621,7 @@ public enum MaterialEvidencePackage {
                 throw MaterialEvidenceError.invalidPackage("unsafe path \(path)")
             }
             let relative = String(path.dropFirst(root.count))
+            if relative.split(separator: "/").contains(where: { $0.hasPrefix(".") }) { continue }
             if relative != "SHA256SUMS" && relative != "package-hash.txt" {
                 paths.append(relative)
             }

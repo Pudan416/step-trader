@@ -843,7 +843,10 @@ public enum EvidencePackage {
         guard let enumerator = FileManager.default.enumerator(
             at: directory,
             includingPropertiesForKeys: keys,
-            options: [.skipsHiddenFiles]
+            // `skipsHiddenFiles` applies to hidden ancestors of an absolute URL
+            // on macOS, so a package under `.worktrees` can enumerate as empty.
+            // Enumerate normally and filter only hidden paths inside the package.
+            options: []
         ) else { return [] }
         var paths = [String]()
         for case let url as URL in enumerator {
@@ -853,6 +856,7 @@ public enum EvidencePackage {
             let path = url.standardizedFileURL.path
             guard path.hasPrefix(root + "/") else { throw EvidencePackageError.unsafeRelativePath(path) }
             let relative = String(path.dropFirst(root.count + 1))
+            if relative.split(separator: "/").contains(where: { $0.hasPrefix(".") }) { continue }
             if relative == "SHA256SUMS" || relative == "package-hash.txt" { continue }
             try validateRelativePath(relative)
             paths.append(relative)
