@@ -311,7 +311,7 @@ public enum CompositionPlanner {
         case .layeredOverlap, .transparentPrint:
             // Three loose masses span the portrait; each has an off-axis small
             // accent instead of collapsing around one shared center.
-            let thirdY = grammar == .transparentPrint ? tileY(0.22) : 0.25
+            let thirdY = grammar == .transparentPrint ? tileY(0.14) : 0.25
             anchors = [
                 .init(x: 0.26, y: 0.40), .init(x: 0.42, y: 0.47),
                 .init(x: 0.31, y: thirdY), .init(x: 0.86, y: 0.08),

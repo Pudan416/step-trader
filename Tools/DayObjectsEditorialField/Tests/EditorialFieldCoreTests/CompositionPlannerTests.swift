@@ -165,6 +165,20 @@ struct CompositionPlannerTests {
         }
     }
 
+    @Test("sparse crop safety does not reroll retained actor scale or depth")
+    func sparseCropSafetyPreservesActorDepthScale() {
+        let fixture = CorpusManifest.visibleV1().breadth[5]
+        let recipe = CompositionPlanner.make(
+            daySeed: fixture.seed,
+            eventIDs: fixture.eventIDs,
+            viewport: .phone
+        )
+        let third = recipe.actors[2]
+
+        #expect(abs(third.diameter - 0.29400213930320696) < 1e-12)
+        #expect(abs(third.depth - 0.4881732109400873) < 1e-12)
+    }
+
     @Test("breadth fixture four breaks the diagonal with a readable cross-depth neighbour")
     func breadthFourUsesCrossDepthCounterpoint() {
         let fixture = CorpusManifest.visibleV1().breadth[4]
