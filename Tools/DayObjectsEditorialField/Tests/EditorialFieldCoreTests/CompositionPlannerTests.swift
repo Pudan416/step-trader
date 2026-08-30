@@ -128,6 +128,17 @@ struct CompositionPlannerTests {
             normalizedTriangleArea(recipe) >= 0.18,
             "fixture 4 remains diagonally linear: \(recipe.actors)"
         )
+
+        let tileHeight = recipe.viewport.width / recipe.viewport.height
+        let tileTop = (1 - tileHeight) * 0.5
+        let tileBottom = 1 - tileTop
+        let centersInTile = recipe.actors.filter { (tileTop...tileBottom).contains($0.position.y) }
+        let actorsIntersectingTile = recipe.actors.filter { actor in
+            let radiusY = actor.diameter * 0.5 * recipe.viewport.shortSide / recipe.viewport.height
+            return actor.position.y + radiusY >= tileTop && actor.position.y - radiusY <= tileBottom
+        }
+        #expect(!centersInTile.isEmpty, "fixture 4 tile has no actor center")
+        #expect(actorsIntersectingTile.count >= 2, "fixture 4 tile sees only \(actorsIntersectingTile)")
     }
 
     @Test("continuity count ten carries two independent cross-depth overlaps")

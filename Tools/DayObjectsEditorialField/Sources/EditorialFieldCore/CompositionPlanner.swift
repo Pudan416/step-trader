@@ -315,12 +315,20 @@ public enum CompositionPlanner {
                 .init(x: 0.24, y: 0.95), .init(x: 0.86, y: 0.78),
                 .init(x: 0.70, y: 0.69), .init(x: 0.92, y: 0.48),
             ]
-        case .openField, .equalScaleStudy:
+        case .openField:
             // Ranks two and eight are offset neighbours of earlier depth planes.
             // They form local counterpoints without turning the field into one cluster.
             anchors = [
                 .init(x: 0.18, y: 0.18), .init(x: 0.80, y: 0.84),
                 .init(x: 0.47, y: 0.14), .init(x: 0.88, y: 0.07),
+                .init(x: 0.16, y: 0.72), .init(x: 0.72, y: 0.61),
+                .init(x: 0.25, y: 0.95), .init(x: 0.86, y: 0.34),
+                .init(x: 0.56, y: 0.40), .init(x: 0.91, y: 0.73),
+            ]
+        case .equalScaleStudy:
+            anchors = [
+                .init(x: 0.18, y: 0.27), .init(x: 0.80, y: 0.84),
+                .init(x: 0.47, y: 0.24), .init(x: 0.88, y: 0.07),
                 .init(x: 0.16, y: 0.72), .init(x: 0.72, y: 0.61),
                 .init(x: 0.25, y: 0.95), .init(x: 0.86, y: 0.34),
                 .init(x: 0.56, y: 0.40), .init(x: 0.91, y: 0.73),
