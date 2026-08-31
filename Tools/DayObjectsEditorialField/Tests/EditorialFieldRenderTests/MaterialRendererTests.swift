@@ -156,7 +156,12 @@ struct MaterialRendererTests {
             family: .counterform,
             requestedColorCount: 3
         ).actor("actor"))
-        let outlinePixels = try pixels(renderer.renderActor(outline, pixelSize: 160).pngData)
+        let outlineLayer = try #require(renderer.renderStructuralAlphaLayers(
+            outline,
+            pixelSize: 160,
+            blurRadius: 0
+        ).first)
+        let outlinePixels = try pixels(outlineLayer.pngData)
         let counterPixels = try pixels(renderer.renderActor(counterform, pixelSize: 160).pngData)
 
         let outlineCenter = outlinePixels.pixel(x: 80, y: 80).alpha
@@ -1074,8 +1079,8 @@ struct MaterialRendererTests {
         #expect(jump <= 0.10, "hard scene-scale wedge jump \(jump)")
     }
 
-    @Test("returned halo and outline actors keep an open center after frozen depth blur")
-    func structuralFamiliesKeepOpenCentersAtExactSceneScale() throws {
+    @Test("normal halo and outline actors keep filled centers after frozen depth blur")
+    func structuralFamiliesKeepFilledCentersAtExactSceneScale() throws {
         let authority = try canonicalCompositionAuthority()
         let archive = try JSONDecoder().decode(
             FrozenCompositionRecipeArchive.self,
@@ -1085,9 +1090,7 @@ struct MaterialRendererTests {
         let cases: [(fixtureIndex: Int, eventID: String)] = [
             (15, "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"),
             (15, "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02"),
-            (16, "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"),
             (21, "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"),
-            (22, "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03"),
             (23, "4E6B83FD-19A8-4AA2-91FC-D297E6C15405"),
         ]
 
@@ -1135,28 +1138,22 @@ struct MaterialRendererTests {
                 background: fixture.background,
                 centerYAdjustment: -229
             )
-            let requiredMargin = actor.diameter < 0.15 ? 0.025 : 0.045
-            let maximumCenterRatio = actor.diameter < 0.15 ? 0.68 : 0.55
-            let requiredRimContrast = actor.diameter < 0.15 ? 0.14 : 0.25
-            let maximumInteriorRatio = actorMaterial.family == .outline
-                    && actorMaterial.contourCount > 1
-                ? 1.10
-                : 0.70
+            let requiredCenterContrast = actorMaterial.family == .halo ? 0.11 : 0.075
+            let minimumCenterRatio = actorMaterial.family == .halo ? 0.64 : 0.34
+            let maximumOpenCenterMargin = actorMaterial.family == .halo ? 0.18 : 0.34
             let context = "fixture=\(item.fixtureIndex) actor=\(item.eventID.prefix(8)) "
                 + "full=\(fullMetrics) tile=\(tileMetrics)"
 
-            #expect(fullMetrics.rimContrast >= requiredRimContrast, Comment(rawValue: context))
-            #expect(fullMetrics.openCenterMargin >= requiredMargin, Comment(rawValue: context))
-            #expect(fullMetrics.centerToRimRatio <= maximumCenterRatio, Comment(rawValue: context))
+            #expect(fullMetrics.centerContrast >= requiredCenterContrast, Comment(rawValue: context))
+            #expect(fullMetrics.centerToRimRatio >= minimumCenterRatio, Comment(rawValue: context))
             #expect(
-                fullMetrics.interiorToRimRatio <= maximumInteriorRatio,
+                fullMetrics.openCenterMargin <= maximumOpenCenterMargin,
                 Comment(rawValue: context)
             )
-            #expect(tileMetrics.rimContrast >= requiredRimContrast, Comment(rawValue: context))
-            #expect(tileMetrics.openCenterMargin >= requiredMargin, Comment(rawValue: context))
-            #expect(tileMetrics.centerToRimRatio <= maximumCenterRatio, Comment(rawValue: context))
+            #expect(tileMetrics.centerContrast >= requiredCenterContrast, Comment(rawValue: context))
+            #expect(tileMetrics.centerToRimRatio >= minimumCenterRatio, Comment(rawValue: context))
             #expect(
-                tileMetrics.interiorToRimRatio <= maximumInteriorRatio,
+                tileMetrics.openCenterMargin <= maximumOpenCenterMargin,
                 Comment(rawValue: context)
             )
 
@@ -1199,22 +1196,75 @@ struct MaterialRendererTests {
                 )
                 let contributionContext = context + " contribution=\(contribution)"
                 #expect(
-                    contribution.rimContrast >= requiredRimContrast,
+                    contribution.centerContrast >= requiredCenterContrast,
                     Comment(rawValue: contributionContext)
                 )
                 #expect(
-                    contribution.openCenterMargin >= requiredMargin,
+                    contribution.centerToRimRatio >= minimumCenterRatio,
                     Comment(rawValue: contributionContext)
                 )
                 #expect(
-                    contribution.centerToRimRatio <= maximumCenterRatio,
-                    Comment(rawValue: contributionContext)
-                )
-                #expect(
-                    contribution.interiorToRimRatio <= maximumInteriorRatio,
+                    contribution.openCenterMargin <= maximumOpenCenterMargin,
                     Comment(rawValue: contributionContext)
                 )
             }
+        }
+    }
+
+    @Test("normal exact outlines keep a visible palette contour over filled bodies")
+    func exactOutlinesKeepVisibleContourAccentAtSceneScale() throws {
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let cases: [(fixtureIndex: Int, eventID: String)] = [
+            (21, "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"),
+            (23, "4E6B83FD-19A8-4AA2-91FC-D297E6C15405"),
+        ]
+
+        for item in cases {
+            let fixture = try #require(MaterialEvidencePackage.coverage(for: manifest).fixtures.first {
+                $0.index == item.fixtureIndex
+            })
+            let layout = manifest.breadth[fixture.layoutFixtureIndex]
+            let approved = try #require(archive.fixtures.first {
+                $0.fixtureIndex == fixture.layoutFixtureIndex
+            }?.recipe)
+            let actor = try #require(approved.actor(item.eventID))
+            let isolated = CompositionRecipe(
+                daySeed: approved.daySeed,
+                grammar: approved.grammar,
+                viewport: approved.viewport,
+                actors: [actor]
+            )
+            let material = MaterialDNA.fixture(
+                daySeed: layout.seed,
+                eventIDs: layout.eventIDs,
+                family: fixture.family,
+                requestedColorCount: fixture.requestedColorCount
+            )
+            let actorMaterial = try #require(material.actor(item.eventID))
+            let rendered = try MaterialRenderer().render(
+                recipe: isolated,
+                material: material,
+                background: fixture.background,
+                configuration: .init(scale: 2)
+            )
+            let full = try downsampledPixels(rendered.fullScreen.pngData, width: 393, height: 852)
+            let tile = full.cropped(x: 0, y: 229, width: 393, height: 393)
+            let fullMetrics = outlineContourAccentMetrics(
+                full,
+                actor: actor,
+                material: actorMaterial,
+                centerYAdjustment: 0
+            )
+            let context = "fixture=\(item.fixtureIndex) actor=\(item.eventID.prefix(8)) "
+                + "full=\(fullMetrics) tileSize=\(tile.width)x\(tile.height)"
+
+            #expect(fullMetrics.ridgeSeparation >= 0.055, Comment(rawValue: context))
+            #expect(fullMetrics.angularPresence >= 0.30, Comment(rawValue: context))
         }
     }
 
@@ -1288,7 +1338,7 @@ struct MaterialRendererTests {
             )
             let actorMaterial = try #require(material.actor(item.eventID))
             let renderedBands: [PixelImage]
-            if actorMaterial.family == .outline {
+            if actorMaterial.family == .halo || actorMaterial.family == .outline {
                 renderedBands = try MaterialRenderer().renderStructuralAlphaLayers(
                     actorMaterial,
                     pixelSize: 384,
@@ -1346,7 +1396,12 @@ struct MaterialRendererTests {
         )
         let actor = try #require(material.actor("0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"))
         #expect(actor.contourCount == 3)
-        let image = try pixels(MaterialRenderer().renderActor(actor, pixelSize: 512).pngData)
+        let layers = try MaterialRenderer().renderStructuralAlphaLayers(
+            actor,
+            pixelSize: 512,
+            blurRadius: 0
+        ).map { try pixels($0.pngData) }
+        let image = try #require(combinedAlphaImage(layers))
         let imbalance = maximumContourSpacingImbalance(image)
 
         let topology = try #require(actor.organicTopology)
@@ -1600,6 +1655,23 @@ private struct PixelImage: Equatable {
     }
 }
 
+private func combinedAlphaImage(_ images: [PixelImage]) -> PixelImage? {
+    guard let first = images.first,
+          images.allSatisfy({ $0.width == first.width && $0.height == first.height })
+    else {
+        return nil
+    }
+    var rgba = Data(count: first.width * first.height * 4)
+    for index in 0..<(first.width * first.height) {
+        let alpha = images.map { $0.rgba[index * 4 + 3] }.max() ?? 0
+        rgba[index * 4] = alpha
+        rgba[index * 4 + 1] = alpha
+        rgba[index * 4 + 2] = alpha
+        rgba[index * 4 + 3] = alpha
+    }
+    return PixelImage(width: first.width, height: first.height, rgba: rgba)
+}
+
 private struct ColorContribution {
     let areaFraction: Double
     let peakDifference: Double
@@ -1644,6 +1716,99 @@ private struct OrganicRimMetrics: CustomStringConvertible {
             + "thicknessVariation=\(thicknessVariation), coverage=\(angularCoverage), "
             + "minimumThickness=\(minimumThickness)"
     }
+}
+
+private struct OutlineContourAccentMetrics: CustomStringConvertible {
+    let ridgeSeparation: Double
+    let angularPresence: Double
+
+    var description: String {
+        "ridgeSeparation=\(ridgeSeparation), angularPresence=\(angularPresence)"
+    }
+}
+
+private func outlineContourAccentMetrics(
+    _ image: PixelImage,
+    actor: ActorCompositionRecipe,
+    material: ActorMaterialRecipe,
+    centerYAdjustment: Double
+) -> OutlineContourAccentMetrics {
+    guard let topology = material.organicTopology, !topology.contours.isEmpty else {
+        return OutlineContourAccentMetrics(ridgeSeparation: 0, angularPresence: 0)
+    }
+    let actorCenterX = actor.position.x * 393
+    let actorCenterY = actor.position.y * 852 + centerYAdjustment
+    let diameter = actor.diameter * 393
+    var separations = [Double]()
+    for contour in topology.contours.prefix(1) {
+        let delta = max(0.030, (contour.outerRadius - contour.innerRadius) * 0.40)
+        let boundaryRadius = contour.outerRadius
+        for angleIndex in 0..<96 {
+            let angle = Double(angleIndex) / 96 * Double.pi * 2
+            let ridge = sample(
+                image,
+                actorCenterX: actorCenterX,
+                actorCenterY: actorCenterY,
+                center: contour.outerCenter,
+                radius: boundaryRadius,
+                diameter: diameter,
+                angle: angle
+            )
+            let inside = sample(
+                image,
+                actorCenterX: actorCenterX,
+                actorCenterY: actorCenterY,
+                center: contour.outerCenter,
+                radius: max(0, boundaryRadius - delta),
+                diameter: diameter,
+                angle: angle
+            )
+            let outside = sample(
+                image,
+                actorCenterX: actorCenterX,
+                actorCenterY: actorCenterY,
+                center: contour.outerCenter,
+                radius: boundaryRadius + delta,
+                diameter: diameter,
+                angle: angle
+            )
+            guard let ridge, let inside, let outside else { continue }
+            let baseline = StraightRGB(
+                r: (inside.r + outside.r) * 0.5,
+                g: (inside.g + outside.g) * 0.5,
+                b: (inside.b + outside.b) * 0.5
+            )
+            separations.append(rgbDistance(ridge, baseline))
+        }
+    }
+    let present = separations.filter { $0 >= 0.040 }.count
+    return OutlineContourAccentMetrics(
+        ridgeSeparation: percentile(separations, fraction: 0.82),
+        angularPresence: Double(present) / Double(max(separations.count, 1))
+    )
+}
+
+private func sample(
+    _ image: PixelImage,
+    actorCenterX: Double,
+    actorCenterY: Double,
+    center: CompositionPoint,
+    radius: Double,
+    diameter: Double,
+    angle: Double
+) -> StraightRGB? {
+    let x = Int((
+        actorCenterX
+            + (center.x - 0.5) * diameter
+            + cos(angle) * radius * diameter
+    ).rounded(.down))
+    let y = Int((
+        actorCenterY
+            + (center.y - 0.5) * diameter
+            + sin(angle) * radius * diameter
+    ).rounded(.down))
+    guard (0..<image.width).contains(x), (0..<image.height).contains(y) else { return nil }
+    return image.pixel(x: x, y: y).straight
 }
 
 private func organicRimMetrics(_ image: PixelImage) -> OrganicRimMetrics {

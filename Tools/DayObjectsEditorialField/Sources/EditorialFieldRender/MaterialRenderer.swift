@@ -90,10 +90,10 @@ public struct MaterialRenderer {
         )
     }
 
-    /// Transparent structural masks rendered through the same actor-local
-    /// Gaussian blur and open-center restoration as a composed scene. Outline
-    /// contours are returned separately so evidence can measure each alpha
-    /// band without allowing palette chroma to impersonate topology.
+    /// Transparent structural masks rendered through the actor-local Gaussian
+    /// blur and contour-only topology path. Outline contours are returned
+    /// separately so evidence can measure each alpha band without allowing
+    /// palette chroma to impersonate topology.
     public func renderStructuralAlphaLayers(
         _ material: ActorMaterialRecipe,
         pixelSize: Int,
@@ -120,12 +120,13 @@ public struct MaterialRenderer {
                 material,
                 pixelSize: pixelSize,
                 contrastBackground: nil,
-                isolatedContourIndex: contourIndex
+                isolatedContourIndex: contourIndex,
+                structuralAlphaLayer: true
             )
             if blurRadius >= 0.5 {
                 image = try padded(image, by: max(2, Int(ceil(blurRadius * 3))))
                 image = try blurred(image, radius: blurRadius)
-                image = try restoringOpenCenter(
+                image = try restoringStructuralOpening(
                     image,
                     material: material,
                     sourceDiameter: pixelSize,
@@ -190,6 +191,14 @@ public struct MaterialRenderer {
                 pixelSize: diameter,
                 contrastBackground: backgroundColor
             )
+            let outlineAccentImage = actorMaterial.family == .outline
+                ? try makeActorImage(
+                    actorMaterial,
+                    pixelSize: diameter,
+                    contrastBackground: backgroundColor,
+                    outlineAccentLayer: true
+                )
+                : nil
             let blur = max(0, actor.localBlur * shortSide)
             if blur >= 0.5 {
                 actorImage = try padded(
@@ -197,11 +206,12 @@ public struct MaterialRenderer {
                     by: max(2, Int(ceil(blur * 3)))
                 )
                 actorImage = try blurred(actorImage, radius: blur)
-                actorImage = try restoringOpenCenter(
-                    actorImage,
-                    material: actorMaterial,
-                    sourceDiameter: diameter,
-                    blurRadius: blur
+            }
+            if let outlineAccentImage {
+                actorImage = try compositedCentered(
+                    outlineAccentImage,
+                    over: actorImage,
+                    sourceDiameter: diameter
                 )
             }
             let center = CGPoint(
@@ -354,7 +364,9 @@ public struct MaterialRenderer {
         _ material: ActorMaterialRecipe,
         pixelSize: Int,
         contrastBackground: MaterialColor?,
-        isolatedContourIndex: Int? = nil
+        isolatedContourIndex: Int? = nil,
+        structuralAlphaLayer: Bool = false,
+        outlineAccentLayer: Bool = false
     ) throws -> CGImage {
         let context = try makeContext(width: pixelSize, height: pixelSize)
         guard let rawData = context.data else {
@@ -458,18 +470,50 @@ public struct MaterialRenderer {
                         organicOuterRadius,
                         outerDistance
                     )
-                    let opening = smoothstep(
-                        organicInnerRadius - edgeWidth * 1.6,
-                        organicInnerRadius + edgeWidth * 1.4,
-                        innerDistance
-                    )
-                    let atmosphericEdge = 1 - smoothstep(
-                        edgeWidth * 0.7,
-                        edgeWidth * 3.4,
-                        abs(innerDistance - organicInnerRadius)
-                    )
-                    alpha = min(alpha, body) * opening * (0.76 + atmosphericEdge * 0.24)
-                    color = mix(color, RGB.white, atmosphericEdge * 0.09)
+                    if structuralAlphaLayer {
+                        let opening = smoothstep(
+                            organicInnerRadius - edgeWidth * 1.6,
+                            organicInnerRadius + edgeWidth * 1.4,
+                            innerDistance
+                        )
+                        let atmosphericEdge = 1 - smoothstep(
+                            edgeWidth * 0.7,
+                            edgeWidth * 3.4,
+                            abs(innerDistance - organicInnerRadius)
+                        )
+                        alpha = min(alpha, body) * opening * (0.76 + atmosphericEdge * 0.24)
+                        color = mix(color, RGB.white, atmosphericEdge * 0.09)
+                    } else {
+                        let fieldVolume = material.fields.map { field in
+                            radialWeight(
+                                u: u,
+                                v: v,
+                                focusX: field.focus.x,
+                                focusY: field.focus.y,
+                                radius: max(0.42, field.radius * 0.72),
+                                softness: max(0.74, field.softness),
+                            ) * clamp(field.opacity)
+                        }.reduce(0, +) / Double(max(material.fields.count, 1))
+                        let innerBloom = radialWeight(
+                            u: u,
+                            v: v,
+                            focusX: innerCenter.x,
+                            focusY: innerCenter.y,
+                            radius: max(0.34, organicInnerRadius * 1.75),
+                            softness: 0.86
+                        )
+                        let outerBloom = radialWeight(
+                            u: u,
+                            v: v,
+                            focusX: outerCenter.x,
+                            focusY: outerCenter.y,
+                            radius: organicOuterRadius,
+                            softness: 0.82
+                        )
+                        let aura = clamp(0.52 + fieldVolume * 0.18 + innerBloom * 0.17 + outerBloom * 0.13)
+                        alpha = min(alpha, body) * aura
+                        color = mix(color, RGB.white, min(0.14, innerBloom * 0.08 + fieldVolume * 0.06))
+                    }
                 case .luminous:
                     let core = radialWeight(
                         u: u,
@@ -500,6 +544,7 @@ public struct MaterialRenderer {
                     alpha *= 0.92 + core * 0.05 + outerCorona * 0.03
                 case .outline:
                     var contourAlpha = 0.0
+                    var ridgeAlpha = 0.0
                     guard let topology = material.organicTopology else {
                         throw MaterialRendererError.invalidMaterial("outline topology was not validated")
                     }
@@ -509,9 +554,21 @@ public struct MaterialRenderer {
                             throw MaterialRendererError.invalidMaterial("outline contour index is invalid")
                         }
                         contours = topology.contours[isolatedContourIndex...isolatedContourIndex]
+                    } else if outlineAccentLayer {
+                        contours = topology.contours.prefix(1)
                     } else {
                         contours = topology.contours[...]
                     }
+                    let fieldVolume = material.fields.map { field in
+                        radialWeight(
+                            u: u,
+                            v: v,
+                            focusX: field.focus.x,
+                            focusY: field.focus.y,
+                            radius: max(0.36, field.radius * 0.66),
+                            softness: max(0.72, field.softness)
+                        ) * clamp(field.opacity)
+                    }.reduce(0, +) / Double(max(material.fields.count, 1))
                     for contour in contours {
                         let outerDistance = hypot(
                             u - contour.outerCenter.x,
@@ -531,12 +588,106 @@ public struct MaterialRenderer {
                             contour.innerRadius + antialias * 1.8,
                             innerDistance
                         )
+                        let contourPresence: Double
+                        if structuralAlphaLayer {
+                            contourPresence = 1
+                        } else if outlineAccentLayer {
+                            contourPresence = 0.18 + pow(fieldVolume, 1.7) * 0.82
+                        } else {
+                            contourPresence = 0.56 + fieldVolume * 0.44
+                        }
+                        let ringAlpha = outerFill * innerCut * contour.opacity * contourPresence
                         contourAlpha = max(
                             contourAlpha,
-                            outerFill * innerCut * contour.opacity
+                            ringAlpha
+                        )
+                        if !structuralAlphaLayer || outlineAccentLayer {
+                            let ridgeWidth = max(
+                                antialias * 2.0,
+                                (contour.outerRadius - contour.innerRadius) * 0.22
+                            )
+                            let outerRidge = 1 - smoothstep(
+                                ridgeWidth * 0.36,
+                                ridgeWidth * 1.35,
+                                abs(outerDistance - contour.outerRadius)
+                            )
+                            let innerRidge = 1 - smoothstep(
+                                ridgeWidth * 0.36,
+                                ridgeWidth * 1.35,
+                                abs(innerDistance - contour.innerRadius)
+                            )
+                            let ridge = outlineAccentLayer
+                                ? outerRidge * innerCut
+                                : max(outerRidge * innerCut, innerRidge * outerFill)
+                            ridgeAlpha = max(
+                                ridgeAlpha,
+                                ridge
+                                    * contour.opacity
+                                    * contourPresence
+                            )
+                        }
+                    }
+                    if structuralAlphaLayer {
+                        alpha *= contourAlpha
+                    } else if outlineAccentLayer {
+                        let baseInk = RGB(material.colors[0])
+                        let ridgeInk = if material.colors.count > 1 {
+                            RGB(material.colors[min(material.colors.count - 1, 1)])
+                        } else {
+                            baseInk.scaled(baseInk.luminance > 0.58 ? 0.72 : 1.45)
+                        }
+                        alpha *= clamp(contourAlpha * 0.06 + ridgeAlpha * 0.82)
+                        color = mix(
+                            color,
+                            ridgeInk,
+                            min(0.82, ridgeAlpha * 0.74 + contourAlpha * 0.05)
+                        )
+                    } else {
+                        let innerCenter = topology.innerCenter
+                        let outerCenter = topology.outerCenter
+                        let bodyDistance = hypot(u - outerCenter.x, v - outerCenter.y)
+                        let body = 1 - smoothstep(
+                            topology.outerRadius - edgeWidth * 1.8,
+                            topology.outerRadius + edgeWidth * 0.8,
+                            bodyDistance
+                        )
+                        let innerBloom = radialWeight(
+                            u: u,
+                            v: v,
+                            focusX: innerCenter.x,
+                            focusY: innerCenter.y,
+                            radius: max(0.28, topology.innerRadius * 1.85),
+                            softness: 0.84
+                        )
+                        let bodyAlpha = body * clamp(0.22 + fieldVolume * 0.14 + innerBloom * 0.10)
+                        alpha *= clamp(bodyAlpha + contourAlpha * 0.10 + ridgeAlpha * 0.95)
+                        let baseInk = RGB(material.colors[0])
+                        let ridgeInk = if material.colors.count > 1 {
+                            RGB(material.colors[min(material.colors.count - 1, 1)])
+                        } else {
+                            baseInk.scaled(baseInk.luminance > 0.58 ? 0.72 : 1.45)
+                        }
+                        color = mix(
+                            color,
+                            ridgeInk,
+                            min(0.62, ridgeAlpha * 0.54 + contourAlpha * 0.04)
+                        )
+                        let baseOwnership = material.fields.first.map { field in
+                            radialWeight(
+                                u: u,
+                                v: v,
+                                focusX: field.focus.x,
+                                focusY: field.focus.y,
+                                radius: max(0.36, field.radius * 0.62),
+                                softness: max(0.72, field.softness)
+                            )
+                        } ?? 1
+                        color = mix(
+                            color,
+                            baseInk.scaled(baseInk.luminance > 0.58 ? 0.94 : 1.06),
+                            min(0.16, baseOwnership * 0.10 + innerBloom * 0.04)
                         )
                     }
-                    alpha *= contourAlpha
                 case .counterform:
                     guard let topology = material.organicTopology else {
                         throw MaterialRendererError.invalidMaterial(
@@ -684,12 +835,11 @@ public struct MaterialRenderer {
         return image
     }
 
-    /// A Gaussian depth blur is allowed to soften an actor, but it must not
-    /// turn an intentionally open radial topology into a filled disc. This
-    /// radial transfer removes only the blur energy that crossed the center
-    /// of halo/outline actors. It leaves every field, contour location, scene
-    /// position, diameter, draw order, and depth value unchanged.
-    private func restoringOpenCenter(
+    /// Structural alpha evidence is allowed to stay contour-only even when the
+    /// normal scene render has a filled material body. This radial transfer is
+    /// used only by `renderStructuralAlphaLayers` after blur so evidence can
+    /// keep measuring the authored contour topology independently of RGB.
+    private func restoringStructuralOpening(
         _ image: CGImage,
         material: ActorMaterialRecipe,
         sourceDiameter: Int,
@@ -770,6 +920,27 @@ public struct MaterialRenderer {
             throw MaterialRendererError.cannotCreateImage
         }
         return padded
+    }
+
+    private func compositedCentered(
+        _ overlay: CGImage,
+        over base: CGImage,
+        sourceDiameter: Int
+    ) throws -> CGImage {
+        let context = try makeContext(width: base.width, height: base.height)
+        context.draw(base, in: CGRect(x: 0, y: 0, width: base.width, height: base.height))
+        let originX = (Double(base.width) - Double(sourceDiameter)) * 0.5
+        let originY = (Double(base.height) - Double(sourceDiameter)) * 0.5
+        context.draw(overlay, in: CGRect(
+            x: originX,
+            y: originY,
+            width: Double(sourceDiameter),
+            height: Double(sourceDiameter)
+        ))
+        guard let composited = context.makeImage() else {
+            throw MaterialRendererError.cannotCreateImage
+        }
+        return composited
     }
 
     private func makeContext(width: Int, height: Int) throws -> CGContext {

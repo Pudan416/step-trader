@@ -1225,17 +1225,40 @@ public enum MaterialEvidencePackage {
             background: background,
             renderer: renderer
         )
-        let requiredRimContrast = 0.25
-        let maximumCenterRatio = 0.55
-        let requiredMargin = 0.045
+        let normalRenderPasses: Bool
+        switch family {
+        case .halo:
+            normalRenderPasses = fullBands.center >= 0.11
+                && tileBands.center >= 0.11
+                && fullBands.ratio >= 0.64
+                && tileBands.ratio >= 0.64
+                && fullBands.margin <= 0.18
+                && tileBands.margin <= 0.18
+        case .outline:
+            normalRenderPasses = fullBands.center >= 0.075
+                && tileBands.center >= 0.075
+                && fullBands.rim >= 0.13
+                && tileBands.rim >= 0.13
+                && fullBands.ratio >= 0.34
+                && tileBands.ratio >= 0.34
+                && fullBands.margin <= 0.40
+                && tileBands.margin <= 0.40
+        case .counterform:
+            let requiredRimContrast = 0.25
+            let maximumCenterRatio = 0.55
+            let requiredMargin = 0.045
+            normalRenderPasses = fullBands.rim >= requiredRimContrast
+                && tileBands.rim >= requiredRimContrast
+                && fullBands.margin >= requiredMargin
+                && tileBands.margin >= requiredMargin
+                && fullBands.ratio <= maximumCenterRatio
+                && tileBands.ratio <= maximumCenterRatio
+        default:
+            normalRenderPasses = false
+        }
         let requiredEccentricOffset = family == .counterform ? 0.003 : 0.010
         let requiredThicknessRange = 0.025
-        let passes = fullBands.rim >= requiredRimContrast
-            && tileBands.rim >= requiredRimContrast
-            && fullBands.margin >= requiredMargin
-            && tileBands.margin >= requiredMargin
-            && fullBands.ratio <= maximumCenterRatio
-            && tileBands.ratio <= maximumCenterRatio
+        let passes = normalRenderPasses
             && !alphaTopology.full.isEmpty
             && alphaTopology.full.count == alphaTopology.tile.count
             && alphaTopology.full.allSatisfy(\.passes)
