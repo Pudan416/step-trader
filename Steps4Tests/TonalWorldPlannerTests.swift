@@ -75,13 +75,72 @@ final class TonalWorldPlannerTests: XCTestCase {
         XCTAssertGreaterThan(lowSleepCounts[16, default: 0], lowSleepCounts[8, default: 0])
     }
 
-    func testChordPlansPublishChordTonesSafeModeTonesVoicingsAndCompleteCycleDurations() {
-        let plan = TonalWorldPlanner.makePlan(
+    func testDirectConstructionRejectsCentersCyclesAndProgressionLengthsOutsideTheApprovedSets() {
+        XCTAssertNil(TonalWorldPlanner.makePlan(
+            centerPitchClass: 1,
+            mode: .dorian,
+            progressionLength: 1,
+            cycleBars: 8
+        ))
+        XCTAssertNil(TonalWorldPlanner.makePlan(
+            centerPitchClass: 0,
+            mode: .dorian,
+            progressionLength: 1,
+            cycleBars: 13
+        ))
+        XCTAssertNil(TonalWorldPlanner.makePlan(
+            centerPitchClass: 0,
+            mode: .dorian,
+            progressionLength: 0,
+            cycleBars: 8
+        ))
+        XCTAssertNil(TonalWorldPlanner.makePlan(
+            centerPitchClass: 0,
+            mode: .dorian,
+            progressionLength: 5,
+            cycleBars: 8
+        ))
+
+        for center in [0, 2, 4, 5, 7, 9] {
+            for cycleBars in [8, 12, 16] {
+                XCTAssertNotNil(TonalWorldPlanner.makePlan(
+                    centerPitchClass: center,
+                    mode: .dorian,
+                    progressionLength: 4,
+                    cycleBars: cycleBars
+                ))
+            }
+        }
+    }
+
+    func testMajorPentatonicTemplatesUseExactApprovedChordQualities() throws {
+        let plan = try XCTUnwrap(TonalWorldPlanner.makePlan(
+            centerPitchClass: 0,
+            mode: .majorPentatonic,
+            progressionLength: 4,
+            cycleBars: 12
+        ))
+
+        XCTAssertEqual(plan.progression.map(\.modalDegree), [0, 9, 5, 7])
+        XCTAssertEqual(plan.progression.map(\.rootPitchClass), [0, 9, 5, 7])
+        XCTAssertEqual(
+            plan.progression.map(\.chordPitchClasses),
+            [
+                [0, 7],       // I5
+                [9, 4, 7],    // vi7(no3)
+                [5, 7, 0],    // IVsus2
+                [7, 0, 2]     // Vsus
+            ]
+        )
+    }
+
+    func testChordPlansPublishChordTonesSafeModeTonesVoicingsAndCompleteCycleDurations() throws {
+        let plan = try XCTUnwrap(TonalWorldPlanner.makePlan(
             centerPitchClass: 0,
             mode: .dorian,
             progressionLength: 4,
             cycleBars: 12
-        )
+        ))
 
         XCTAssertEqual(plan.scalePitchClasses, [0, 2, 3, 5, 7, 9, 10])
         XCTAssertEqual(plan.progression.map(\.modalDegree), [0, 3, 10, 5])

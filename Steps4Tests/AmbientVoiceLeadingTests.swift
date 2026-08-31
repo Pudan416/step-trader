@@ -51,6 +51,26 @@ final class AmbientVoiceLeadingTests: XCTestCase {
         XCTAssertEqual(selected, [48, 48, 55])
     }
 
+    func testSearchRejectsVoiceCountsBeyondTheAmbientBoundBeforeEnumeration() {
+        XCTAssertEqual(
+            AmbientVoiceLeading.candidates(
+                chordPitchClasses: [0],
+                register: 48...60,
+                voiceCount: 5
+            ),
+            []
+        )
+        XCTAssertEqual(
+            AmbientVoiceLeading.nearestVoicing(
+                chordPitchClasses: [0, 4, 7],
+                previousNotes: nil,
+                register: 48...72,
+                voiceCount: 5
+            ),
+            []
+        )
+    }
+
     func testSearchHandlesTheLowestAndHighestMIDIBoundsWithoutOverflow() {
         XCTAssertEqual(
             AmbientVoiceLeading.nearestVoicing(

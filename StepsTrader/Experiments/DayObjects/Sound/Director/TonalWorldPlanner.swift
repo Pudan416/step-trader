@@ -1,6 +1,7 @@
 #if DEBUG || INTERNAL_BUILD
 enum TonalWorldPlanner {
     private static let allowedCenterPitchClasses = [0, 2, 4, 5, 7, 9]
+    private static let allowedCycleBars = [8, 12, 16]
 
     static func makePlan(
         input: NormalizedDayMusicInput,
@@ -21,7 +22,7 @@ enum TonalWorldPlanner {
             random: &progressionRandom
         )
 
-        return makePlan(
+        return buildPlan(
             centerPitchClass: centerPitchClass,
             mode: mode,
             progressionLength: progressionLength,
@@ -34,20 +35,41 @@ enum TonalWorldPlanner {
         mode: DayMusicMode,
         progressionLength: Int,
         cycleBars: Int
-    ) -> TonalWorldPlan {
-        let normalizedCenter = normalizedPitchClass(centerPitchClass)
-        let safePitchClasses = mode.scaleIntervals.map {
-            normalizedPitchClass(normalizedCenter + $0)
+    ) -> TonalWorldPlan? {
+        guard
+            allowedCenterPitchClasses.contains(centerPitchClass),
+            allowedCycleBars.contains(cycleBars),
+            (1...mode.progressionDegreeTemplates.count).contains(progressionLength)
+        else {
+            return nil
         }
-        let templateIndex = min(max(progressionLength, 1), mode.progressionDegreeTemplates.count) - 1
+
+        return buildPlan(
+            centerPitchClass: centerPitchClass,
+            mode: mode,
+            progressionLength: progressionLength,
+            cycleBars: cycleBars
+        )
+    }
+
+    private static func buildPlan(
+        centerPitchClass: Int,
+        mode: DayMusicMode,
+        progressionLength: Int,
+        cycleBars: Int
+    ) -> TonalWorldPlan {
+        let safePitchClasses = mode.scaleIntervals.map {
+            normalizedPitchClass(centerPitchClass + $0)
+        }
+        let templateIndex = progressionLength - 1
         let degrees = mode.progressionDegreeTemplates[templateIndex]
         let durations = chordDurations(chordCount: degrees.count, cycleBars: cycleBars)
         var previousNotes: [UInt8]?
 
         let progression = degrees.enumerated().map { index, degree -> ChordPlan in
-            let rootPitchClass = normalizedPitchClass(normalizedCenter + degree)
+            let rootPitchClass = normalizedPitchClass(centerPitchClass + degree)
             let chordPitchClasses = chordPitchClasses(
-                centerPitchClass: normalizedCenter,
+                centerPitchClass: centerPitchClass,
                 mode: mode,
                 modalDegree: degree
             )
@@ -68,11 +90,11 @@ enum TonalWorldPlanner {
         }
 
         return TonalWorldPlan(
-            centerPitchClass: normalizedCenter,
+            centerPitchClass: centerPitchClass,
             mode: mode,
             scalePitchClasses: safePitchClasses,
             progression: progression,
-            cycleBars: max(cycleBars, degrees.count)
+            cycleBars: cycleBars
         )
     }
 
@@ -140,9 +162,8 @@ enum TonalWorldPlanner {
     }
 
     private static func chordDurations(chordCount: Int, cycleBars: Int) -> [Int] {
-        let boundedCycleBars = max(cycleBars, chordCount)
-        let baseDuration = boundedCycleBars / chordCount
-        let remainder = boundedCycleBars % chordCount
+        let baseDuration = cycleBars / chordCount
+        let remainder = cycleBars % chordCount
         return (0..<chordCount).map { index in
             baseDuration + (index < remainder ? 1 : 0)
         }

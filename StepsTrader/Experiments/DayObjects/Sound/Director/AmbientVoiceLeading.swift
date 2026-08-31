@@ -2,6 +2,7 @@
 enum AmbientVoiceLeading {
     static let ambientRegister: ClosedRange<UInt8> = 48...72
     static let ambientVoiceCount = 3
+    static let maximumVoiceCount = 4
 
     static func nearestVoicing(
         chordPitchClasses: [Int],
@@ -29,6 +30,8 @@ enum AmbientVoiceLeading {
         let normalizedPitchClasses = uniquePitchClasses(chordPitchClasses)
         guard
             !normalizedPitchClasses.isEmpty,
+            voiceCount > 0,
+            voiceCount <= maximumVoiceCount,
             voiceCount >= normalizedPitchClasses.count
         else {
             return []
