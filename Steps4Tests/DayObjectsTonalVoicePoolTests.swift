@@ -5,6 +5,64 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
     private let firstID = DayObjectsInstrumentID(rawValue: "pad.first")
     private let secondID = DayObjectsInstrumentID(rawValue: "lead.second")
 
+    func testPreparedPresetRemainsPendingUntilTheFixedGraphCanSynchronize() {
+        var lifecycle = DayObjectsTonalVoiceGraphLifecycle()
+
+        lifecycle.preparePreset()
+
+        XCTAssertTrue(lifecycle.hasPendingPreset)
+        XCTAssertFalse(lifecycle.synchronizeIfAttached(false))
+        XCTAssertTrue(lifecycle.hasPendingPreset)
+        XCTAssertTrue(lifecycle.synchronizeIfAttached(true))
+        XCTAssertFalse(lifecycle.hasPendingPreset)
+        XCTAssertEqual(lifecycle.configurationRevision, 1)
+    }
+
+    func testFilterEnvelopePlanModulatesTheActualCutoffRange() {
+        let plan = DayObjectsTonalVoiceModulationPlan(
+            preset: Self.voice(filterEnvelopeAmount: 0.75)
+        )
+
+        XCTAssertEqual(plan.filterEnvelope.startCutoffHz, 4_000)
+        XCTAssertGreaterThan(plan.filterEnvelope.peakCutoffHz, plan.filterEnvelope.startCutoffHz)
+        XCTAssertGreaterThan(
+            plan.filterCutoff(envelopeLevel: 1, lfoPhase: 0),
+            plan.filterCutoff(envelopeLevel: 0, lfoPhase: 0)
+        )
+    }
+
+    func testFilterLFOPlanModulatesCutoffWithoutRoutingAmplitude() {
+        let plan = DayObjectsTonalVoiceModulationPlan(
+            preset: Self.voice(lfoTarget: .filter, lfoWaveform: .square, lfoDepth: 0.4)
+        )
+
+        XCTAssertEqual(plan.lfo.target, .filter)
+        XCTAssertEqual(plan.lfo.waveform, .square)
+        XCTAssertGreaterThan(
+            plan.filterCutoff(envelopeLevel: 0, lfoPhase: 0.25),
+            plan.filterCutoff(envelopeLevel: 0, lfoPhase: 0.75)
+        )
+        XCTAssertEqual(plan.amplitudeDepth, 0)
+    }
+
+    func testPitchLFOPlanPreservesEveryNormalizedWaveform() {
+        let expectedOffsets: [(NormalizedSynthVoice.LFOWaveform, Double)] = [
+            (.sine, 1),
+            (.square, 1),
+            (.sawtooth, -0.5),
+            (.reverseSawtooth, 0.5),
+        ]
+
+        for (waveform, expectedOffset) in expectedOffsets {
+            let plan = DayObjectsTonalVoiceModulationPlan(
+                preset: Self.voice(lfoTarget: .pitch, lfoWaveform: waveform, lfoDepth: 0.5)
+            )
+
+            XCTAssertEqual(plan.lfo.waveform, waveform)
+            XCTAssertEqual(plan.pitchSemitoneOffset(phase: 0.25), expectedOffset, accuracy: 0.000_001)
+        }
+    }
+
     func testDefaultAuditionPoolAllocatesExactlySixVoicesBeforePlayback() {
         let harness = makeHarness()
 
@@ -391,7 +449,11 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
         oscillator2DetuneHz: Double = 2,
         delayFeedback: Double = 0.4,
         reverbFeedback: Double = 0.8,
-        outputTrimDB: Double = -18
+        outputTrimDB: Double = -18,
+        filterEnvelopeAmount: Double = 0.4,
+        lfoTarget: NormalizedSynthVoice.LFOTarget = .filter,
+        lfoWaveform: NormalizedSynthVoice.LFOWaveform = .sine,
+        lfoDepth: Double = 0.2
     ) -> NormalizedSynthVoice {
         .init(
             oscillator1: .init(wavePosition: 0.25, level: 0.6, semitoneOffset: 0, detuneHz: oscillator1DetuneHz),
@@ -405,11 +467,11 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
                 cutoffHz: 4_000,
                 resonance: 0.3,
                 envelope: .init(attackSeconds: 0.02, decaySeconds: 0.3, sustainLevel: 0.5, releaseSeconds: 0.5),
-                envelopeAmount: 0.4
+                envelopeAmount: filterEnvelopeAmount
             ),
             glideSeconds: 0.05,
             isMonophonic: false,
-            lfo: .init(target: .filter, rateHz: 0.5, depth: 0.2, waveform: .sine),
+            lfo: .init(target: lfoTarget, rateHz: 0.5, depth: lfoDepth, waveform: lfoWaveform),
             delay: .init(isEnabled: true, timeSeconds: 0.25, feedback: delayFeedback, mix: 0.2),
             reverb: .init(isEnabled: true, feedback: reverbFeedback, highPassHz: 80, mix: 0.3),
             phaser: .init(rateHz: 0.4, feedback: 0.2, mix: 0.2, notchWidthHz: 800),

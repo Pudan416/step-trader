@@ -23,12 +23,104 @@ enum DayObjectsTonalPoolPreparationError: Error, Equatable {
     case missingInstrument(DayObjectsInstrumentID)
 }
 
+struct DayObjectsTonalVoiceGraphLifecycle: Equatable, Sendable {
+    private(set) var hasPendingPreset = false
+    private(set) var configurationRevision = 0
+
+    mutating func preparePreset() {
+        hasPendingPreset = true
+    }
+
+    @discardableResult
+    mutating func synchronizeIfAttached(_ isAttached: Bool) -> Bool {
+        guard isAttached, hasPendingPreset else { return false }
+        hasPendingPreset = false
+        configurationRevision += 1
+        return true
+    }
+}
+
+struct DayObjectsTonalVoiceModulationPlan: Equatable, Sendable {
+    struct FilterEnvelope: Equatable, Sendable {
+        let startCutoffHz: Double
+        let peakCutoffHz: Double
+        let sustainCutoffHz: Double
+        let attackSeconds: Double
+        let decaySeconds: Double
+        let sustainLevel: Double
+        let releaseSeconds: Double
+    }
+
+    let lfo: NormalizedSynthVoice.LFO
+    let filterEnvelope: FilterEnvelope
+    let amplitudeDepth: Double
+
+    init(preset: NormalizedSynthVoice) {
+        lfo = preset.lfo
+        let envelope = preset.filter.envelope
+        let base = preset.filter.cutoffHz
+        let multiplier = pow(2, preset.filter.envelopeAmount * 4)
+        let peak = Self.clampCutoff(base * multiplier)
+        filterEnvelope = .init(
+            startCutoffHz: base,
+            peakCutoffHz: peak,
+            sustainCutoffHz: Self.interpolate(base, peak, envelope.sustainLevel),
+            attackSeconds: envelope.attackSeconds,
+            decaySeconds: envelope.decaySeconds,
+            sustainLevel: envelope.sustainLevel,
+            releaseSeconds: envelope.releaseSeconds
+        )
+        amplitudeDepth = preset.lfo.target == .amplitude ? preset.lfo.depth : 0
+    }
+
+    func filterCutoff(envelopeLevel: Double, lfoPhase: Double) -> Double {
+        let enveloped = Self.interpolate(
+            filterEnvelope.startCutoffHz,
+            filterEnvelope.peakCutoffHz,
+            envelopeLevel
+        )
+        guard lfo.target == .filter else { return Self.clampCutoff(enveloped) }
+        return Self.clampCutoff(enveloped * pow(2, lfo.depth * 2 * lfoValue(phase: lfoPhase)))
+    }
+
+    func pitchSemitoneOffset(phase: Double) -> Double {
+        guard lfo.target == .pitch else { return 0 }
+        return lfo.depth * 2 * lfoValue(phase: phase)
+    }
+
+    private func lfoValue(phase: Double) -> Double {
+        let normalized = phase - floor(phase)
+        switch lfo.waveform {
+        case .sine:
+            return sin(normalized * 2 * .pi)
+        case .square:
+            return normalized < 0.5 ? 1 : -1
+        case .sawtooth:
+            return normalized * 2 - 1
+        case .reverseSawtooth:
+            return 1 - normalized * 2
+        }
+    }
+
+    private static func interpolate(_ start: Double, _ end: Double, _ level: Double) -> Double {
+        start + (end - start) * min(max(level, 0), 1)
+    }
+
+    private static func clampCutoff(_ cutoff: Double) -> Double {
+        min(max(cutoff, DayObjectsAudioParameters.minimumCutoffHz), DayObjectsAudioParameters.maximumCutoffHz)
+    }
+}
+
 final class DayObjectsAudioKitTonalPool {
     let pool: DayObjectsTonalVoicePool
     let output: Mixer
 
     var voiceNodeIdentities: [ObjectIdentifier] {
         voices.flatMap(\.nodeIdentities)
+    }
+
+    func synchronizeGraphIfAttached() {
+        voices.forEach { $0.synchronizeGraphIfAttached() }
     }
 
     private let voices: [DayObjectsTonalVoice]
@@ -71,7 +163,7 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
         delaySendCount: 1,
         reverbSendCount: 1,
         outputTrimCount: 1,
-        allocatedNodeCount: 35
+        allocatedNodeCount: 24
     )
 
     let output: Fader
@@ -95,19 +187,7 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
     private let highPassFader: Fader
     private let filterMixer: Mixer
 
-    private let filterColor: LowPassFilter
-    private let filterEnvelope: AmplitudeEnvelope
-    private let filterDryFader: Fader
-    private let filterEnvelopeFader: Fader
-    private let filterEnvelopeMixer: Mixer
     private let amplitudeEnvelope: AmplitudeEnvelope
-
-    private let pitchVibrato: Vibrato
-    private let lfoDryFader: Fader
-    private let filterLFOHighPass: HighPassFilter
-    private let filterLFOTremolo: Tremolo
-    private let filterLFOFader: Fader
-    private let filterLFOMixer: Mixer
     private let amplitudeTremolo: Tremolo
 
     private let phaser: Phaser
@@ -130,6 +210,13 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
     private var delaySend = 1.0
     private var reverbSend = 1.0
     private var isGateOpen = false
+    private var graphLifecycle = DayObjectsTonalVoiceGraphLifecycle()
+    private var modulationPlan: DayObjectsTonalVoiceModulationPlan?
+    private var modulationTimer: Timer?
+    private var noteStartedAt: TimeInterval?
+    private var releaseStartedAt: TimeInterval?
+    private var releaseStartEnvelopeLevel = 0.0
+    private var currentFilterEnvelopeLevel = 0.0
 
     init() {
         let morphTables = [Table(.sine), Table(.triangle), Table(.square), Table(.sawtooth)]
@@ -150,20 +237,8 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
         highPassFader = Fader(highPass, gain: 0)
         filterMixer = Mixer(lowPassFader, bandPassFader, highPassFader)
 
-        filterColor = LowPassFilter(filterMixer, cutoffFrequency: 12_000, resonance: 0)
-        filterEnvelope = AmplitudeEnvelope(filterColor, sustainLevel: 0)
-        filterDryFader = Fader(filterMixer, gain: 1)
-        filterEnvelopeFader = Fader(filterEnvelope, gain: 0)
-        filterEnvelopeMixer = Mixer(filterDryFader, filterEnvelopeFader)
-        amplitudeEnvelope = AmplitudeEnvelope(filterEnvelopeMixer, sustainLevel: 0)
-
-        pitchVibrato = Vibrato(amplitudeEnvelope, speed: 1, depth: 0)
-        lfoDryFader = Fader(pitchVibrato, gain: 1)
-        filterLFOHighPass = HighPassFilter(pitchVibrato, cutoffFrequency: 2_000, resonance: 0)
-        filterLFOTremolo = Tremolo(filterLFOHighPass, frequency: 1, depth: 0)
-        filterLFOFader = Fader(filterLFOTremolo, gain: 0)
-        filterLFOMixer = Mixer(lfoDryFader, filterLFOFader)
-        amplitudeTremolo = Tremolo(filterLFOMixer, frequency: 1, depth: 0)
+        amplitudeEnvelope = AmplitudeEnvelope(filterMixer, sustainLevel: 0)
+        amplitudeTremolo = Tremolo(amplitudeEnvelope, frequency: 1, depth: 0)
 
         phaser = Phaser(amplitudeTremolo, dryWetMix: 0)
         autoPanner = AutoPanner(phaser, frequency: 0.25, depth: 0)
@@ -177,19 +252,34 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
         output = Fader(effectsMixer, gain: 0)
     }
 
+    deinit {
+        modulationTimer?.invalidate()
+    }
+
     func replacePreset(
         _ rawPreset: NormalizedSynthVoice,
         instrumentID _: DayObjectsInstrumentID,
         transitionDuration: TimeInterval
     ) {
         noteOff()
+        modulationTimer?.invalidate()
+        modulationTimer = nil
         let preset = DayObjectsAudioParameters.clamped(rawPreset)
         currentPreset = preset
+        modulationPlan = DayObjectsTonalVoiceModulationPlan(preset: preset)
         baseOutputGain = DayObjectsAudioParameters.linearGain(decibels: preset.outputTrimDB)
         delayMix = preset.delay.isEnabled ? preset.delay.mix : 0
         reverbMix = preset.reverb.isEnabled ? preset.reverb.mix : 0
+        graphLifecycle.preparePreset()
+        synchronizeGraphIfAttached(transitionDuration: transitionDuration)
+    }
 
-        guard isGraphAttached else { return }
+    func synchronizeGraphIfAttached() {
+        synchronizeGraphIfAttached(transitionDuration: DayObjectsAudioParameters.presetTransitionDuration)
+    }
+
+    private func synchronizeGraphIfAttached(transitionDuration: TimeInterval) {
+        guard let preset = currentPreset, graphLifecycle.synchronizeIfAttached(isGraphAttached) else { return }
 
         oscillator1.start()
         oscillator2.start()
@@ -239,6 +329,8 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
             return
         }
 
+        synchronizeGraphIfAttached()
+
         let envelope = request.envelopeVariant
         amplitudeEnvelope.attackDuration = value(
             preset.amplitudeEnvelope.attackSeconds * (envelope?.attackScale ?? 1)
@@ -246,16 +338,16 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
         amplitudeEnvelope.releaseDuration = value(
             preset.amplitudeEnvelope.releaseSeconds * (envelope?.releaseScale ?? 1)
         )
-        setFrequencies(midiNote: currentMIDINote, duration: Float(preset.glideSeconds))
+        setFrequencies(midiNote: currentMIDINote, pitchSemitoneOffset: 0, duration: Float(preset.glideSeconds))
         rampEffects(duration: Float(DayObjectsAudioParameters.controlRampDuration))
         rampOutput(
             expression: expression,
             pan: pan,
             duration: Float(DayObjectsAudioParameters.controlRampDuration)
         )
-        filterEnvelope.openGate()
         amplitudeEnvelope.openGate()
         isGateOpen = true
+        startModulation()
     }
 
     func update(_ update: DayObjectsVoiceUpdate) {
@@ -279,8 +371,10 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
 
         guard isGraphAttached else { return }
 
+        synchronizeGraphIfAttached()
+
         if let midiNote = update.midiNote {
-            setFrequencies(midiNote: midiNote, duration: duration)
+            setFrequencies(midiNote: midiNote, pitchSemitoneOffset: 0, duration: duration)
         }
         if let cutoffHz = update.cutoffHz {
             setFilterCutoff(cutoffHz, duration: duration)
@@ -293,10 +387,11 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
         guard isGateOpen else { return }
         defer { isGateOpen = false }
         guard isGraphAttached else { return }
-        filterEnvelope.closeGate()
         amplitudeEnvelope.closeGate()
         let release = currentPreset?.amplitudeEnvelope.releaseSeconds ?? 0.05
         rampOutput(expression: 0, pan: pan, duration: Float(release))
+        releaseStartedAt = Date.timeIntervalSinceReferenceDate
+        releaseStartEnvelopeLevel = currentFilterEnvelopeLevel
     }
 
     private var isGraphAttached: Bool {
@@ -307,9 +402,7 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
         [
             oscillator1, oscillator2, subOscillator, noise, sourceMixer,
             lowPass, bandPass, highPass, lowPassFader, bandPassFader, highPassFader, filterMixer,
-            filterColor, filterEnvelope, filterDryFader, filterEnvelopeFader, filterEnvelopeMixer,
-            amplitudeEnvelope, pitchVibrato, lfoDryFader, filterLFOHighPass, filterLFOTremolo,
-            filterLFOFader, filterLFOMixer, amplitudeTremolo, phaser, autoPanner, dryFader,
+            amplitudeEnvelope, amplitudeTremolo, phaser, autoPanner, dryFader,
             delaySendFader, delay, reverbSendFader, reverbHighPass, reverb, effectsMixer, output,
         ]
     }
@@ -324,18 +417,9 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
         ramp(bandPassFader, to: filter.kind == .bandPass ? 1 : 0, duration: duration)
         ramp(highPassFader, to: filter.kind == .highPass ? 1 : 0, duration: duration)
 
-        let amount = abs(filter.envelopeAmount)
-        ramp(filterDryFader, to: 1 - amount * 0.5, duration: duration)
-        ramp(filterEnvelopeFader, to: amount, duration: duration)
     }
 
     private func applyEnvelopes(_ preset: NormalizedSynthVoice, duration: Float) {
-        let filter = preset.filter.envelope
-        ramp(filterEnvelope.$attackDuration, to: filter.attackSeconds, duration: duration)
-        ramp(filterEnvelope.$decayDuration, to: filter.decaySeconds, duration: duration)
-        ramp(filterEnvelope.$sustainLevel, to: filter.sustainLevel, duration: duration)
-        ramp(filterEnvelope.$releaseDuration, to: filter.releaseSeconds, duration: duration)
-
         let amplitude = preset.amplitudeEnvelope
         ramp(amplitudeEnvelope.$attackDuration, to: amplitude.attackSeconds, duration: duration)
         ramp(amplitudeEnvelope.$decayDuration, to: amplitude.decaySeconds, duration: duration)
@@ -344,24 +428,8 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
     }
 
     private func applyLFO(_ lfo: NormalizedSynthVoice.LFO, duration: Float) {
-        let table = Self.lfoTable(lfo.waveform)
-        filterLFOTremolo.setWaveform(table)
-        amplitudeTremolo.setWaveform(table)
-        ramp(pitchVibrato.$speed, to: lfo.rateHz, duration: duration)
-        ramp(filterLFOTremolo.$frequency, to: lfo.rateHz, duration: duration)
+        amplitudeTremolo.setWaveform(Self.lfoTable(lfo.waveform))
         ramp(amplitudeTremolo.$frequency, to: lfo.rateHz, duration: duration)
-
-        ramp(
-            pitchVibrato.$depth,
-            to: lfo.target == .pitch ? lfo.depth * 2 : 0,
-            duration: duration
-        )
-        ramp(
-            filterLFOTremolo.$depth,
-            to: lfo.target == .filter ? lfo.depth : 0,
-            duration: duration
-        )
-        ramp(filterLFOFader, to: lfo.target == .filter ? lfo.depth : 0, duration: duration)
         ramp(
             amplitudeTremolo.$depth,
             to: lfo.target == .amplitude ? lfo.depth : 0,
@@ -389,38 +457,86 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
         rampEffects(duration: duration)
     }
 
-    private func setFrequencies(midiNote: Double, duration: Float) {
+    private func setFrequencies(midiNote: Double, pitchSemitoneOffset: Double, duration: Float) {
         guard let preset = currentPreset else { return }
         ramp(
             oscillator1.$frequency,
-            to: Self.frequency(midiNote + Double(preset.oscillator1.semitoneOffset)),
+            to: Self.frequency(midiNote + Double(preset.oscillator1.semitoneOffset) + pitchSemitoneOffset),
             duration: duration
         )
         ramp(
             oscillator2.$frequency,
-            to: Self.frequency(midiNote + Double(preset.oscillator2.semitoneOffset)),
+            to: Self.frequency(midiNote + Double(preset.oscillator2.semitoneOffset) + pitchSemitoneOffset),
             duration: duration
         )
         ramp(
             subOscillator.$frequency,
-            to: Self.frequency(midiNote + Double(preset.subOscillator.octaveOffset * 12)),
+            to: Self.frequency(midiNote + Double(preset.subOscillator.octaveOffset * 12) + pitchSemitoneOffset),
             duration: duration
         )
     }
 
     private func setFilterCutoff(_ cutoffHz: Double, duration: Float) {
-        guard let preset = currentPreset else { return }
         let bounded = min(max(cutoffHz, DayObjectsAudioParameters.minimumCutoffHz), DayObjectsAudioParameters.maximumCutoffHz)
         ramp(lowPass.$cutoffFrequency, to: bounded, duration: duration)
         ramp(bandPass.$centerFrequency, to: bounded, duration: duration)
         ramp(highPass.$cutoffFrequency, to: bounded, duration: duration)
-        ramp(filterLFOHighPass.$cutoffFrequency, to: bounded, duration: duration)
+    }
 
-        let colorCutoff = min(
-            max(bounded * pow(2, preset.filter.envelopeAmount * 4), DayObjectsAudioParameters.minimumCutoffHz),
-            DayObjectsAudioParameters.maximumCutoffHz
+    private func startModulation() {
+        modulationTimer?.invalidate()
+        let now = Date.timeIntervalSinceReferenceDate
+        noteStartedAt = now
+        releaseStartedAt = nil
+        currentFilterEnvelopeLevel = 0
+        applyModulation(at: now)
+        let timer = Timer(timeInterval: 1.0 / 120, repeats: true) { [weak self] _ in
+            self?.applyModulation(at: Date.timeIntervalSinceReferenceDate)
+        }
+        modulationTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func applyModulation(at now: TimeInterval) {
+        guard let plan = modulationPlan, let noteStartedAt, isGraphAttached else { return }
+
+        let envelopeLevel: Double
+        if let releaseStartedAt {
+            let elapsed = now - releaseStartedAt
+            let release = max(plan.filterEnvelope.releaseSeconds, 0.000_001)
+            envelopeLevel = max(0, releaseStartEnvelopeLevel * (1 - elapsed / release))
+            if elapsed >= release {
+                modulationTimer?.invalidate()
+                modulationTimer = nil
+            }
+        } else {
+            envelopeLevel = filterEnvelopeLevel(at: now - noteStartedAt, plan: plan)
+        }
+        currentFilterEnvelopeLevel = envelopeLevel
+
+        let phase = (now - noteStartedAt) * plan.lfo.rateHz
+        setFrequencies(
+            midiNote: currentMIDINote,
+            pitchSemitoneOffset: plan.pitchSemitoneOffset(phase: phase),
+            duration: Float(DayObjectsAudioParameters.controlRampDuration)
         )
-        ramp(filterColor.$cutoffFrequency, to: colorCutoff, duration: duration)
+        setFilterCutoff(
+            plan.filterCutoff(envelopeLevel: envelopeLevel, lfoPhase: phase),
+            duration: Float(DayObjectsAudioParameters.controlRampDuration)
+        )
+    }
+
+    private func filterEnvelopeLevel(at elapsed: TimeInterval, plan: DayObjectsTonalVoiceModulationPlan) -> Double {
+        let envelope = plan.filterEnvelope
+        if elapsed < envelope.attackSeconds {
+            return elapsed / max(envelope.attackSeconds, 0.000_001)
+        }
+        let decayElapsed = elapsed - envelope.attackSeconds
+        if decayElapsed < envelope.decaySeconds {
+            let progress = decayElapsed / max(envelope.decaySeconds, 0.000_001)
+            return 1 - (1 - envelope.sustainLevel) * progress
+        }
+        return envelope.sustainLevel
     }
 
     private func rampEffects(duration: Float) {
