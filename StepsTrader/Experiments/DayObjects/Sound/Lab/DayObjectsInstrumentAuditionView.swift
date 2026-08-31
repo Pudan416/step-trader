@@ -49,14 +49,17 @@ struct DayObjectsInstrumentAuditionView: View {
                     .buttonStyle(.bordered)
                     .disabled(!controller.allowsNote || controller.soundState != .on)
                     .accessibilityIdentifier("dayObjects.audition.note")
+                    .accessibilityValue(actionAvailability(controller.allowsNote))
                 Button("Chord") { Task { await controller.auditionChord() } }
                     .buttonStyle(.bordered)
                     .disabled(!controller.allowsChord || controller.soundState != .on)
                     .accessibilityIdentifier("dayObjects.audition.chord")
+                    .accessibilityValue(actionAvailability(controller.allowsChord))
                 Button("Hit") { Task { await controller.auditionHit() } }
                     .buttonStyle(.bordered)
                     .disabled(!controller.allowsHit || controller.soundState != .on)
                     .accessibilityIdentifier("dayObjects.audition.hit")
+                    .accessibilityValue(actionAvailability(controller.allowsHit))
             }
             .controlSize(.small)
 
@@ -70,6 +73,10 @@ struct DayObjectsInstrumentAuditionView: View {
                 .accessibilityIdentifier("dayObjects.audition.diagnostics")
         }
         .accessibilityElement(children: .contain)
+    }
+
+    private func actionAvailability(_ allowedForCategory: Bool) -> String {
+        allowedForCategory && controller.soundState == .on ? "enabled" : "disabled"
     }
 }
 #endif

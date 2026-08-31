@@ -106,11 +106,11 @@ final class DayObjectsInstrumentAuditionControllerTests: XCTestCase {
         let controller = DayObjectsInstrumentAuditionController(bank: bank, audioSession: FakeAuditionSession())
         await controller.turnSoundOn()
 
-        await controller.beginLead(at: .init(x: 0, y: 0.5))
+        controller.beginLead(at: .init(x: 0, y: 0.5))
         XCTAssertTrue(bank.pool.noteRequests.isEmpty)
 
         controller.selectCategory(.lead)
-        await controller.beginLead(at: .init(x: 0, y: 0.5))
+        controller.beginLead(at: .init(x: 0, y: 0.5))
         XCTAssertEqual(bank.pool.noteRequests.last?.role, .lead)
         XCTAssertEqual(bank.pool.noteRequests.last?.midiNote, 57)
     }
@@ -121,8 +121,8 @@ final class DayObjectsInstrumentAuditionControllerTests: XCTestCase {
         await controller.turnSoundOn()
         controller.selectCategory(.lead)
 
-        await controller.beginLead(at: .init(x: 0.75, y: 0.1))
-        await controller.beginLead(at: .init(x: 0.25, y: 0.9))
+        controller.beginLead(at: .init(x: 0.75, y: 0.1))
+        controller.beginLead(at: .init(x: 0.25, y: 0.9))
         controller.updateLead(at: .init(x: 1, y: 1))
         controller.updateLead(at: .init(x: 0, y: 0))
         controller.endLead()
@@ -134,6 +134,35 @@ final class DayObjectsInstrumentAuditionControllerTests: XCTestCase {
         XCTAssertEqual(bank.pool.updateRequests[1].midiNote, 57)
         XCTAssertEqual(bank.pool.updateRequests[1].cutoffHz, DayObjectsAudioParameters.maximumCutoffHz)
         XCTAssertEqual(bank.pool.noteOffCount, 2)
+    }
+
+    func testOneLeadSurvivesMoveReturnToOriginAndDuplicateCancellation() async {
+        let bank = FakeAuditionBank()
+        let controller = DayObjectsInstrumentAuditionController(bank: bank, audioSession: FakeAuditionSession())
+        await controller.turnSoundOn()
+        controller.selectCategory(.lead)
+
+        controller.beginLead(at: .init(x: 0.8, y: 0.2))
+        controller.updateLead(at: .init(x: 0.4, y: 0.6))
+        controller.updateLead(at: .init(x: 0, y: 0))
+        controller.endLead()
+        controller.endLead()
+
+        XCTAssertEqual(bank.pool.noteRequests.count, 1)
+        XCTAssertEqual(bank.pool.updateRequests.count, 2)
+        XCTAssertEqual(bank.pool.noteOffCount, 1)
+    }
+
+    func testCategoryAvailabilityChangesForTonalAndDrumControls() async {
+        let controller = DayObjectsInstrumentAuditionController(bank: FakeAuditionBank(), audioSession: FakeAuditionSession())
+        await controller.turnSoundOn()
+        XCTAssertTrue(controller.allowsNote)
+        XCTAssertTrue(controller.allowsChord)
+        XCTAssertFalse(controller.allowsHit)
+        controller.selectCategory(.drums)
+        XCTAssertFalse(controller.allowsNote)
+        XCTAssertFalse(controller.allowsChord)
+        XCTAssertTrue(controller.allowsHit)
     }
 
     func testActionFailureStopsBankAndDeactivatesBeforeRetry() async {

@@ -343,8 +343,8 @@ struct DayObjectsLabView: View {
                             y: value.location.y / max(geometry.size.height, 1)
                         )
                         if !didBeginLeadGesture {
+                            audition.beginLead(at: point)
                             didBeginLeadGesture = true
-                            Task { await audition.beginLead(at: point) }
                         } else {
                             audition.updateLead(at: point)
                         }

@@ -169,7 +169,7 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
         bank.drums.hit(.kickFull, velocity: 0.82)
     }
 
-    func beginLead(at point: DayObjectNormalizedPoint) async {
+    func beginLead(at point: DayObjectNormalizedPoint) {
         guard allowsLeadXY, let descriptor = selectedDescriptor else { return }
         endLead()
         do {
@@ -188,7 +188,9 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
             )) else { return }
             heldLead = (pool, token)
         } catch {
-            await actionFailed("Lead audition is unavailable. Try Sound again.")
+            // Token allocation is synchronous. Cleanup may await the bank, but
+            // no held Lead can be installed after this failure path starts.
+            Task { await self.actionFailed("Lead audition is unavailable. Try Sound again.") }
         }
     }
 
