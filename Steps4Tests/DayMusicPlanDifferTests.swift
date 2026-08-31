@@ -239,6 +239,30 @@ final class DayMusicPlanDifferTests: XCTestCase {
         XCTAssertEqual(change.removedHappeningIDs, [])
     }
 
+    func testAddingHappeningPlusIndependentMixChangeEmitsBothCommands() {
+        let oldPlan = makePlan(happeningIDs: ["one"])
+        let generatedNewPlan = makePlan(happeningIDs: ["one", "two"])
+        let mix = generatedNewPlan.mix
+        let changedMix = LayerMixPlan(
+            rhythmTargetDecibels: mix.rhythmTargetDecibels + 0.5,
+            harmonyTargetDecibels: mix.harmonyTargetDecibels,
+            happeningAggregateTargetDecibels: mix.happeningAggregateTargetDecibels,
+            happeningPerVoiceTargetDecibels: mix.happeningPerVoiceTargetDecibels,
+            happeningCount: mix.happeningCount,
+            leadTargetDecibels: mix.leadTargetDecibels,
+            masterTargetDecibelsBeforeLimiter: mix.masterTargetDecibelsBeforeLimiter,
+            maximumHarmonyDuckingDecibels: mix.maximumHarmonyDuckingDecibels
+        )
+        let newPlan = replacing(generatedNewPlan, mix: changedMix)
+
+        let change = DayMusicPlanDiffer.change(from: oldPlan, to: newPlan)
+
+        XCTAssertEqual(change.continuousPlan, newPlan)
+        XCTAssertNil(change.structuralPlan)
+        XCTAssertEqual(change.addedHappenings.map(\.happeningID), ["two"])
+        XCTAssertEqual(change.removedHappeningIDs, [])
+    }
+
     func testRemovingHappeningsUsesOnlyDedicatedCommandsInOldPlanOrder() {
         let oldPlan = makePlan(happeningIDs: ["one", "two", "three", "four"])
         let newPlan = makePlan(happeningIDs: ["one", "two"])
@@ -249,6 +273,30 @@ final class DayMusicPlanDifferTests: XCTestCase {
         XCTAssertNil(change.structuralPlan)
         XCTAssertEqual(change.addedHappenings, [])
         XCTAssertEqual(change.removedHappeningIDs, ["three", "four"])
+    }
+
+    func testRemovingHappeningPlusIndependentMixChangeEmitsBothCommands() {
+        let oldPlan = makePlan(happeningIDs: ["one", "two"])
+        let generatedNewPlan = makePlan(happeningIDs: ["one"])
+        let mix = generatedNewPlan.mix
+        let changedMix = LayerMixPlan(
+            rhythmTargetDecibels: mix.rhythmTargetDecibels,
+            harmonyTargetDecibels: mix.harmonyTargetDecibels,
+            happeningAggregateTargetDecibels: mix.happeningAggregateTargetDecibels,
+            happeningPerVoiceTargetDecibels: mix.happeningPerVoiceTargetDecibels,
+            happeningCount: mix.happeningCount,
+            leadTargetDecibels: mix.leadTargetDecibels,
+            masterTargetDecibelsBeforeLimiter: mix.masterTargetDecibelsBeforeLimiter - 0.5,
+            maximumHarmonyDuckingDecibels: mix.maximumHarmonyDuckingDecibels
+        )
+        let newPlan = replacing(generatedNewPlan, mix: changedMix)
+
+        let change = DayMusicPlanDiffer.change(from: oldPlan, to: newPlan)
+
+        XCTAssertEqual(change.continuousPlan, newPlan)
+        XCTAssertNil(change.structuralPlan)
+        XCTAssertEqual(change.addedHappenings, [])
+        XCTAssertEqual(change.removedHappeningIDs, ["two"])
     }
 
     func testDuplicateHappeningRecordsEmitOneStableDedicatedCommand() throws {

@@ -14,8 +14,12 @@ enum DayMusicPlanDiffer {
         }
 
         let hasDedicatedHappeningChange = !addedHappenings.isEmpty || !removedHappeningIDs.isEmpty
+        let hasLayerMixChange = hasDedicatedHappeningChange
+            ? NonHappeningLayerMixSignature(plan: oldPlan.mix)
+                != NonHappeningLayerMixSignature(plan: newPlan.mix)
+            : oldPlan.mix != newPlan.mix
         let hasContinuousChange = continuousSignature(of: oldPlan) != continuousSignature(of: newPlan)
-            || (!hasDedicatedHappeningChange && oldPlan.mix != newPlan.mix)
+            || hasLayerMixChange
         let hasStructuralChange = structuralSignature(
             of: oldPlan,
             commonWith: newPlan
@@ -191,6 +195,22 @@ private struct ContinuousGlitchRoleSignature: Equatable {
         pitchDriftCents = plan.pitchDriftCents
         dropoutProbability = plan.dropoutProbability
         delayTimeInstability = plan.delayTimeInstability
+    }
+}
+
+private struct NonHappeningLayerMixSignature: Equatable {
+    let rhythmTargetDecibels: Double
+    let harmonyTargetDecibels: Double
+    let leadTargetDecibels: Double
+    let masterTargetDecibelsBeforeLimiter: Double
+    let maximumHarmonyDuckingDecibels: Double
+
+    init(plan: LayerMixPlan) {
+        rhythmTargetDecibels = plan.rhythmTargetDecibels
+        harmonyTargetDecibels = plan.harmonyTargetDecibels
+        leadTargetDecibels = plan.leadTargetDecibels
+        masterTargetDecibelsBeforeLimiter = plan.masterTargetDecibelsBeforeLimiter
+        maximumHarmonyDuckingDecibels = plan.maximumHarmonyDuckingDecibels
     }
 }
 
