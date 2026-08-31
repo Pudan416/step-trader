@@ -20,14 +20,28 @@ enum RhythmPlanner {
     ) -> RhythmPlan {
         let stepsProgress = unitValue(input.stepsProgress)
         let glitchProgress = unitValue(input.glitchProgress)
-        var tempoRandom = StableMusicRandom(seed: remixSeed, domain: .rhythmFamily)
-        let baseTempoBPM = 58 + Double(tempoRandom.nextInt(upperBound: 25) ?? 0)
+        var familyRandom = StableMusicRandom(seed: remixSeed, domain: .rhythmFamily)
+        let baseTempoBPM = 58 + Double(familyRandom.nextInt(upperBound: 25) ?? 0)
+        let family = familyRandom.choice(from: RhythmFamily.allCases) ?? .grounded
+        var patternRandom = StableMusicRandom(seed: remixSeed, domain: .rhythmPattern)
+        let patternSeed = patternRandom.nextUInt64()
+        let cycleKey = patternRandom.nextUInt64()
+        let patternOffsetSteps = (patternRandom.nextInt(upperBound: 2) ?? 0) * 8
+        var humanizationRandom = StableMusicRandom(seed: remixSeed, domain: .rhythmHumanization)
+        let humanizationSeed = humanizationRandom.nextUInt64()
+        let humanizationProfile = humanizationRandom.choice(
+            from: RhythmHumanizationProfile.allCases
+        ) ?? .tight
 
         let voices = voiceTemplates.map { template in
             RhythmVoicePlan(
                 role: template.role,
                 drumVoice: template.drumVoice,
-                stepProbabilities: template.probabilities,
+                stepProbabilities: transformedPattern(
+                    template.probabilities,
+                    family: family,
+                    offsetSteps: patternOffsetSteps
+                ),
                 velocityRange: template.velocityRange,
                 microtimingMilliseconds: template.microtimingMilliseconds,
                 roomSend: template.roomSend,
@@ -56,6 +70,15 @@ enum RhythmPlanner {
             baseTempoBPM: baseTempoBPM,
             tempoBPM: min(102, baseTempoBPM + (20 * stepsProgress)),
             stepsProgress: stepsProgress,
+            family: family,
+            patternOffsetSteps: patternOffsetSteps,
+            humanizationProfile: humanizationProfile,
+            realization: RhythmRealizationState(
+                patternSeed: patternSeed,
+                humanizationSeed: humanizationSeed,
+                cycleKey: cycleKey,
+                counterMapping: .roleCycleStepParameterV1
+            ),
             voices: voices,
             maximumSimultaneousAttacks: 3,
             maximumFillsPerWindow: 1,
@@ -69,6 +92,20 @@ enum RhythmPlanner {
     private static func unitValue(_ value: Double) -> Double {
         guard value.isFinite else { return 0 }
         return min(max(value, 0), 1)
+    }
+
+    private static func transformedPattern(
+        _ probabilities: [Double],
+        family: RhythmFamily,
+        offsetSteps: Int
+    ) -> [Double] {
+        guard probabilities.count == 16 else { return probabilities }
+        var result = Array(repeating: 0.0, count: probabilities.count)
+        for (sourceStep, probability) in probabilities.enumerated() {
+            let targetStep = (sourceStep * family.stepMultiplier + offsetSteps) % probabilities.count
+            result[targetStep] = probability
+        }
+        return result
     }
 
     private static let voiceTemplates: [VoiceTemplate] = [
@@ -161,5 +198,16 @@ enum RhythmPlanner {
             isTimingAnchor: false
         )
     ]
+}
+
+private extension RhythmFamily {
+    var stepMultiplier: Int {
+        switch self {
+        case .grounded: return 1
+        case .crossPulse: return 3
+        case .orbiting: return 5
+        case .brokenBeat: return 7
+        }
+    }
 }
 #endif

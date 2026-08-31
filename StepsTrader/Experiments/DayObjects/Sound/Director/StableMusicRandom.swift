@@ -1,5 +1,36 @@
 #if DEBUG || INTERNAL_BUILD
+struct MusicEventCounterMapping: Equatable, Sendable {
+    let version: UInt8
+    let cycleStride: UInt64
+    let roleStride: UInt64
+    let stepStride: UInt64
+    let parameterStride: UInt64
+
+    static let roleCycleStepParameterV1 = MusicEventCounterMapping(
+        version: 1,
+        cycleStride: 512,
+        roleStride: 64,
+        stepStride: 4,
+        parameterStride: 1
+    )
+
+    func counter(
+        cycleKey: UInt64,
+        roleIndex: UInt64,
+        cycleIndex: UInt64,
+        stepIndex: UInt64,
+        parameterIndex: UInt64
+    ) -> UInt64 {
+        cycleKey
+            &+ (cycleIndex &* cycleStride)
+            &+ (roleIndex &* roleStride)
+            &+ (stepIndex &* stepStride)
+            &+ (parameterIndex &* parameterStride)
+    }
+}
+
 struct StableMusicRandom: Sendable {
+    private static let stateIncrement: UInt64 = 0x9E37_79B9_7F4A_7C15
     private var state: UInt64
 
     init(seed: UInt64, domain: MusicSeedDomain) {
@@ -7,7 +38,19 @@ struct StableMusicRandom: Sendable {
     }
 
     mutating func nextUInt64() -> UInt64 {
-        state &+= 0x9E37_79B9_7F4A_7C15
+        state &+= Self.stateIncrement
+        return Self.mix(state)
+    }
+
+    static func counterUInt64(seed: UInt64, counter: UInt64) -> UInt64 {
+        mix(seed &+ (stateIncrement &* (counter &+ 1)))
+    }
+
+    static func counterUnitDouble(seed: UInt64, counter: UInt64) -> Double {
+        Double(counterUInt64(seed: seed, counter: counter) >> 11) / 9_007_199_254_740_992
+    }
+
+    private static func mix(_ state: UInt64) -> UInt64 {
         var value = state
         value = (value ^ (value >> 30)) &* 0xBF58_476D_1CE4_E5B9
         value = (value ^ (value >> 27)) &* 0x94D0_49BB_1331_11EB
