@@ -40,6 +40,15 @@
 		D0E600000000000000000006 /* HappeningMusicPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E600000000000000000005 /* HappeningMusicPlan.swift */; };
 		D0E600000000000000000008 /* HappeningMusicPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E600000000000000000007 /* HappeningMusicPlanner.swift */; };
 		D0E60000000000000000000A /* HappeningScheduleAllocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E600000000000000000009 /* HappeningScheduleAllocator.swift */; };
+		D0E700000000000000000002 /* LeadPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E700000000000000000001 /* LeadPlannerTests.swift */; };
+		D0E700000000000000000004 /* GlitchPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E700000000000000000003 /* GlitchPlannerTests.swift */; };
+		D0E700000000000000000006 /* LayerMixPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E700000000000000000005 /* LayerMixPlannerTests.swift */; };
+		D0E700000000000000000008 /* LeadPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E700000000000000000007 /* LeadPlan.swift */; };
+		D0E70000000000000000000A /* LeadPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E700000000000000000009 /* LeadPlanner.swift */; };
+		D0E70000000000000000000C /* GlitchPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E70000000000000000000B /* GlitchPlan.swift */; };
+		D0E70000000000000000000E /* GlitchPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E70000000000000000000D /* GlitchPlanner.swift */; };
+		D0E700000000000000000010 /* LayerMixPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E70000000000000000000F /* LayerMixPlan.swift */; };
+		D0E700000000000000000012 /* LayerMixPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E700000000000000000011 /* LayerMixPlanner.swift */; };
 		D0E100000000000000000007 /* DayMusicInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E100000000000000000003 /* DayMusicInput.swift */; };
 		D0E100000000000000000008 /* NormalizedDayMusicInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E100000000000000000004 /* NormalizedDayMusicInput.swift */; };
 		D0E100000000000000000009 /* DayMusicDiagnostic.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E100000000000000000005 /* DayMusicDiagnostic.swift */; };
@@ -520,6 +529,15 @@
 		D0E600000000000000000005 /* HappeningMusicPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningMusicPlan.swift; sourceTree = "<group>"; };
 		D0E600000000000000000007 /* HappeningMusicPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningMusicPlanner.swift; sourceTree = "<group>"; };
 		D0E600000000000000000009 /* HappeningScheduleAllocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningScheduleAllocator.swift; sourceTree = "<group>"; };
+		D0E700000000000000000001 /* LeadPlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeadPlannerTests.swift; sourceTree = "<group>"; };
+		D0E700000000000000000003 /* GlitchPlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlitchPlannerTests.swift; sourceTree = "<group>"; };
+		D0E700000000000000000005 /* LayerMixPlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayerMixPlannerTests.swift; sourceTree = "<group>"; };
+		D0E700000000000000000007 /* LeadPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeadPlan.swift; sourceTree = "<group>"; };
+		D0E700000000000000000009 /* LeadPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeadPlanner.swift; sourceTree = "<group>"; };
+		D0E70000000000000000000B /* GlitchPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlitchPlan.swift; sourceTree = "<group>"; };
+		D0E70000000000000000000D /* GlitchPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlitchPlanner.swift; sourceTree = "<group>"; };
+		D0E70000000000000000000F /* LayerMixPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayerMixPlan.swift; sourceTree = "<group>"; };
+		D0E700000000000000000011 /* LayerMixPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayerMixPlanner.swift; sourceTree = "<group>"; };
 		D0E100000000000000000003 /* DayMusicInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayMusicInput.swift; sourceTree = "<group>"; };
 		D0E100000000000000000004 /* NormalizedDayMusicInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NormalizedDayMusicInput.swift; sourceTree = "<group>"; };
 		D0E100000000000000000005 /* DayMusicDiagnostic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayMusicDiagnostic.swift; sourceTree = "<group>"; };
@@ -1047,6 +1065,12 @@
 		D0E100000000000000000010 /* Director */ = {
 			isa = PBXGroup;
 			children = (
+				D0E700000000000000000007 /* LeadPlan.swift */,
+				D0E700000000000000000009 /* LeadPlanner.swift */,
+				D0E70000000000000000000B /* GlitchPlan.swift */,
+				D0E70000000000000000000D /* GlitchPlanner.swift */,
+				D0E70000000000000000000F /* LayerMixPlan.swift */,
+				D0E700000000000000000011 /* LayerMixPlanner.swift */,
 				D0E600000000000000000005 /* HappeningMusicPlan.swift */,
 				D0E600000000000000000007 /* HappeningMusicPlanner.swift */,
 				D0E600000000000000000009 /* HappeningScheduleAllocator.swift */,
@@ -1633,6 +1657,9 @@
 		T1E5T5A12E71A18F00ABF5FA /* Steps4Tests */ = {
 			isa = PBXGroup;
 			children = (
+				D0E700000000000000000001 /* LeadPlannerTests.swift */,
+				D0E700000000000000000003 /* GlitchPlannerTests.swift */,
+				D0E700000000000000000005 /* LayerMixPlannerTests.swift */,
 				D0E600000000000000000001 /* HappeningMusicPlannerTests.swift */,
 				D0E600000000000000000003 /* HappeningScheduleAllocatorTests.swift */,
 				D0E500000000000000000001 /* HarmonyPlannerTests.swift */,
@@ -2070,6 +2097,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0E700000000000000000008 /* LeadPlan.swift in Sources */,
+				D0E70000000000000000000A /* LeadPlanner.swift in Sources */,
+				D0E70000000000000000000C /* GlitchPlan.swift in Sources */,
+				D0E70000000000000000000E /* GlitchPlanner.swift in Sources */,
+				D0E700000000000000000010 /* LayerMixPlan.swift in Sources */,
+				D0E700000000000000000012 /* LayerMixPlanner.swift in Sources */,
 				D0E600000000000000000006 /* HappeningMusicPlan.swift in Sources */,
 				D0E600000000000000000008 /* HappeningMusicPlanner.swift in Sources */,
 				D0E60000000000000000000A /* HappeningScheduleAllocator.swift in Sources */,
@@ -2361,6 +2394,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0E700000000000000000002 /* LeadPlannerTests.swift in Sources */,
+				D0E700000000000000000004 /* GlitchPlannerTests.swift in Sources */,
+				D0E700000000000000000006 /* LayerMixPlannerTests.swift in Sources */,
 				D0E600000000000000000002 /* HappeningMusicPlannerTests.swift in Sources */,
 				D0E600000000000000000004 /* HappeningScheduleAllocatorTests.swift in Sources */,
 				D0E500000000000000000002 /* HarmonyPlannerTests.swift in Sources */,
