@@ -63,6 +63,40 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
         }
     }
 
+    func testLiveCutoffUpdateBecomesTheModulationBase() {
+        var state = DayObjectsTonalVoiceModulationState(preset: Self.voice())
+
+        state.updateBaseCutoffHz(1_250)
+
+        XCTAssertEqual(state.baseCutoffHz, 1_250)
+        XCTAssertEqual(state.filterCutoff(envelopeLevel: 0, lfoPhase: 0), 1_250)
+        XCTAssertGreaterThan(state.filterCutoff(envelopeLevel: 1, lfoPhase: 0), 1_250)
+    }
+
+    func testDetachedNoteOffStopsModulationBeforeReturning() {
+        var lifecycle = DayObjectsTonalVoiceModulationLifecycle()
+        lifecycle.start()
+
+        lifecycle.noteOff(isGraphAttached: false)
+
+        XCTAssertFalse(lifecycle.isTimerActive)
+    }
+
+    func testVoiceControlExecutorSerializesSynchronousCallersOnItsQueue() {
+        let executor = DayObjectsTonalVoiceControlExecutor(label: "DayObjectsTonalVoicePoolTests")
+        let completion = expectation(description: "serialized control work")
+        XCTAssertFalse(executor.isCurrentExecutor)
+
+        DispatchQueue.global().async {
+            executor.sync {
+                XCTAssertTrue(executor.isCurrentExecutor)
+                completion.fulfill()
+            }
+        }
+
+        wait(for: [completion], timeout: 1)
+    }
+
     func testDefaultAuditionPoolAllocatesExactlySixVoicesBeforePlayback() {
         let harness = makeHarness()
 
