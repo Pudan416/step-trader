@@ -60,7 +60,7 @@ final class DayObjectsFeltPianoTests: XCTestCase {
         let piano = DayObjectsFeltPiano(
             samples: samples,
             resourceResolver: fixtureURL,
-            playerFactory: { _ in
+            playerFactory: { _, _ in
                 let player = FakeFeltPianoPlayer()
                 players.append(player)
                 return player
@@ -81,6 +81,26 @@ final class DayObjectsFeltPianoTests: XCTestCase {
         XCTAssertEqual(piano.metrics.allocatedPlayerCount, baseline.allocatedPlayerCount)
         XCTAssertEqual(players.count, baseline.allocatedPlayerCount)
         XCTAssertFalse(piano.noteOff(first!))
+        XCTAssertEqual(players.first?.playedNotes.first?.sample.rootMIDINote, 60)
+        XCTAssertEqual(players.first?.playedNotes.first?.pitchCents, 0)
+    }
+
+    func testNearestRootSelectionPassesCentsWithoutChangingPlaybackRate() throws {
+        var players: [FakeFeltPianoPlayer] = []
+        let piano = DayObjectsFeltPiano(
+            samples: try FeltPianoManifest.load(from: Bundle(for: type(of: self))),
+            resourceResolver: fixtureURL,
+            playerFactory: { _, _ in
+                let player = FakeFeltPianoPlayer()
+                players.append(player)
+                return player
+            }
+        )
+
+        _ = piano.noteOn(61, velocity: 0.8)
+
+        let selectedSample = try XCTUnwrap(FeltPianoManifest.sample(for: 61, in: try FeltPianoManifest.load(from: Bundle(for: type(of: self)))))
+        XCTAssertEqual(players.first?.playedNotes, [.init(midiNote: 61, velocity: 0.8, sample: selectedSample, pitchCents: 100)])
     }
 
     func testPreparationResolvesEveryCanonicalSampleBeforeAllocatingTheFixedPool() throws {
@@ -93,7 +113,7 @@ final class DayObjectsFeltPianoTests: XCTestCase {
                 resolved.append(sample.filename)
                 return URL(fileURLWithPath: "/fixtures/\(sample.filename)")
             },
-            playerFactory: { _ in
+            playerFactory: { _, _ in
                 playerCount += 1
                 return FakeFeltPianoPlayer()
             }
@@ -109,7 +129,7 @@ final class DayObjectsFeltPianoTests: XCTestCase {
         let piano = DayObjectsFeltPiano(
             samples: try FeltPianoManifest.load(from: Bundle(for: type(of: self))),
             resourceResolver: fixtureURL,
-            playerFactory: { _ in
+            playerFactory: { _, _ in
                 let player = FakeFeltPianoPlayer()
                 players.append(player)
                 return player
@@ -129,7 +149,7 @@ final class DayObjectsFeltPianoTests: XCTestCase {
         let piano = DayObjectsFeltPiano(
             samples: samples,
             resourceResolver: { $0.rootMIDINote == 60 ? nil : self.fixtureURL($0) },
-            playerFactory: { _ in FakeFeltPianoPlayer() }
+            playerFactory: { _, _ in FakeFeltPianoPlayer() }
         )
 
         XCTAssertFalse(piano.isEnabled)
@@ -138,16 +158,71 @@ final class DayObjectsFeltPianoTests: XCTestCase {
         XCTAssertEqual(DayObjectsInstrumentManifest.descriptors(in: .keys).count, 3)
     }
 
+    func testBackendPreloadFailureDisablesOnlyPianoWithStableDiagnostic() throws {
+        let samples = try FeltPianoManifest.load(from: Bundle(for: type(of: self)))
+        let piano = DayObjectsFeltPiano(
+            samples: samples,
+            resourceResolver: fixtureURL,
+            playerFactory: { _, _ in throw DayObjectsFeltPianoBackendPreparationError.resourcePreloadFailed(samples[6]) }
+        )
+
+        XCTAssertFalse(piano.isEnabled)
+        XCTAssertEqual(piano.preloadedSampleCount, 0)
+        XCTAssertEqual(piano.diagnostics, [.init(id: "day-objects.piano.resource-preload-failed.felt-c4", role: .piano)])
+        XCTAssertEqual(DayObjectsInstrumentManifest.descriptors(in: .keys).count, 3)
+    }
+
+    func testDetachedAudioKitBackendAppliesRecipeAndStopsEveryRootOnStealAndStop() throws {
+        let samples = try FeltPianoManifest.load(from: Bundle(for: type(of: self)))
+        let adapter = DayObjectsAudioKitFeltPiano(samples: samples, resourceResolver: bundledURL)
+        let baseline = adapter.metrics
+
+        XCTAssertTrue(adapter.piano.isEnabled)
+        XCTAssertEqual(baseline.preloadedSampleCount, samples.count)
+        XCTAssertEqual(baseline.loadedPlayerCount, baseline.fixedBackendCount * samples.count)
+        XCTAssertEqual(baseline.appliedRecipe.mechanicalOnsetGain, 1 - DayObjectsFeltPianoRecipe.default.mechanicalNoiseGain)
+        XCTAssertEqual(baseline.appliedRecipe.lowPassCutoffHz, DayObjectsFeltPianoRecipe.default.lowPassCutoffHz)
+
+        _ = adapter.piano.noteOn(61, velocity: 0.8)
+        XCTAssertEqual(adapter.metrics.lastPlayedRootMIDINote, 60)
+        XCTAssertEqual(adapter.metrics.lastPlayedPitchCents, 100)
+        _ = adapter.piano.noteOn(60, velocity: 0.8)
+        _ = adapter.piano.noteOn(64, velocity: 0.8)
+        _ = adapter.piano.noteOn(67, velocity: 0.8)
+        _ = adapter.piano.noteOn(71, velocity: 0.8)
+        let beforeSteal = adapter.metrics.totalPlayerStopCount
+        _ = adapter.piano.noteOn(72, velocity: 0.8)
+        XCTAssertGreaterThanOrEqual(adapter.metrics.totalPlayerStopCount - beforeSteal, samples.count)
+        XCTAssertEqual(adapter.metrics.lastPlayedRootMIDINote, 72)
+        XCTAssertEqual(adapter.metrics.lastPlayedPitchCents, 0)
+        let beforeStop = adapter.metrics.totalPlayerStopCount
+
+        adapter.piano.stop()
+
+        XCTAssertEqual(adapter.metrics.totalPlayerStopCount - beforeStop, baseline.loadedPlayerCount)
+        XCTAssertEqual(adapter.metrics.loadedPlayerCount, baseline.loadedPlayerCount)
+    }
+
     private func fixtureURL(_ sample: FeltPianoSample) -> URL? {
         URL(fileURLWithPath: "/fixtures/\(sample.filename)")
+    }
+
+    private func bundledURL(_ sample: FeltPianoSample) -> URL? {
+        let filename = sample.filename as NSString
+        return Bundle(for: type(of: self)).url(
+            forResource: filename.deletingPathExtension,
+            withExtension: filename.pathExtension,
+            subdirectory: "FeltPiano"
+        )
     }
 }
 
 private final class FakeFeltPianoPlayer: DayObjectsFeltPianoBackend {
     private(set) var releaseCount = 0
     private(set) var allNotesOffCount = 0
+    private(set) var playedNotes: [DayObjectsFeltPianoNote] = []
 
-    func play(_ note: DayObjectsFeltPianoNote) {}
+    func play(_ note: DayObjectsFeltPianoNote) { playedNotes.append(note) }
     func release() { releaseCount += 1 }
     func allNotesOff() { allNotesOffCount += 1 }
 }

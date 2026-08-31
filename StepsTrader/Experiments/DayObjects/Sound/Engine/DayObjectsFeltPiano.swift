@@ -30,7 +30,7 @@ struct DayObjectsFeltPianoNote: Equatable, Sendable {
     let midiNote: UInt8
     let velocity: Double
     let sample: FeltPianoSample
-    let playbackRate: Double
+    let pitchCents: Double
 }
 
 struct DayObjectsFeltPianoToken: Hashable, Sendable {
@@ -49,6 +49,10 @@ struct DayObjectsFeltPianoDiagnostic: Equatable, Sendable {
     let role: DayObjectsInstrumentCategory
 }
 
+enum DayObjectsFeltPianoBackendPreparationError: Error {
+    case resourcePreloadFailed(FeltPianoSample)
+}
+
 protocol DayObjectsFeltPianoBackend: AnyObject {
     func play(_ note: DayObjectsFeltPianoNote)
     func release()
@@ -57,7 +61,7 @@ protocol DayObjectsFeltPianoBackend: AnyObject {
 
 final class DayObjectsFeltPiano {
     typealias ResourceResolver = (FeltPianoSample) -> URL?
-    typealias PlayerFactory = (DayObjectsFeltPianoRecipe) -> any DayObjectsFeltPianoBackend
+    typealias PlayerFactory = (DayObjectsFeltPianoRecipe, [FeltPianoSample: URL]) throws -> any DayObjectsFeltPianoBackend
 
     private struct Slot {
         let backend: any DayObjectsFeltPianoBackend
@@ -86,8 +90,13 @@ final class DayObjectsFeltPiano {
     ) {
         self.samples = samples
         self.recipe = recipe
-        let unresolved = samples.filter { resourceResolver($0) == nil }
-        preloadedSampleCount = samples.count - unresolved.count
+        var resolvedURLs: [FeltPianoSample: URL] = [:]
+        var unresolved: [FeltPianoSample] = []
+        for sample in samples {
+            if let url = resourceResolver(sample) { resolvedURLs[sample] = url }
+            else { unresolved.append(sample) }
+        }
+        preloadedSampleCount = 0
         if !unresolved.isEmpty {
             diagnostics = unresolved.map {
                 .init(id: "day-objects.piano.resource-missing.\(Self.diagnosticComponent($0.filename))", role: .piano)
@@ -95,8 +104,24 @@ final class DayObjectsFeltPiano {
             return
         }
         guard samples.count == 12, recipe.maximumPolyphony > 0 else { return }
-        slots = (0..<recipe.maximumPolyphony).map { _ in Slot(backend: playerFactory(recipe)) }
-        isEnabled = true
+        do {
+            slots = try (0..<recipe.maximumPolyphony).map { _ in
+                Slot(backend: try playerFactory(recipe, resolvedURLs))
+            }
+            preloadedSampleCount = samples.count
+            isEnabled = true
+        } catch let error as DayObjectsFeltPianoBackendPreparationError {
+            slots = []
+            preloadedSampleCount = 0
+            switch error {
+            case let .resourcePreloadFailed(sample):
+                diagnostics = [.init(id: "day-objects.piano.resource-preload-failed.\(Self.diagnosticComponent(sample.filename))", role: .piano)]
+            }
+        } catch {
+            slots = []
+            preloadedSampleCount = 0
+            diagnostics = [.init(id: "day-objects.piano.backend-preload-failed", role: .piano)]
+        }
     }
 
     func noteOn(_ midiNote: UInt8, velocity: Double) -> DayObjectsFeltPianoToken? {
@@ -114,7 +139,7 @@ final class DayObjectsFeltPiano {
             midiNote: midiNote,
             velocity: min(max(velocity, 0), 1),
             sample: sample,
-            playbackRate: pow(2, Double(Int(midiNote) - Int(sample.rootMIDINote)) / 12)
+            pitchCents: Double(Int(midiNote) - Int(sample.rootMIDINote)) * 100
         ))
         return .init(slotID: slotID, generation: slots[slotID].generation)
     }
@@ -149,15 +174,37 @@ final class DayObjectsAudioKitFeltPiano {
     let output: Mixer
     let room: Reverb
     let reverb: Reverb
+    private let backends: [DayObjectsAudioKitFeltPianoBackend]
+    private let sampleCount: Int
+
+    var metrics: DayObjectsAudioKitFeltPianoMetrics {
+        let backendMetrics = backends.map(\.metrics)
+        let mostRecent = backendMetrics.max { $0.lastPlayOrder < $1.lastPlayOrder }
+        return .init(
+            preloadedSampleCount: piano.isEnabled ? sampleCount : 0,
+            fixedBackendCount: backends.count,
+            loadedPlayerCount: backendMetrics.reduce(0) { $0 + $1.loadedPlayerCount },
+            totalPlayerStopCount: backendMetrics.reduce(0) { $0 + $1.playerStopCount },
+            lastPlayedRootMIDINote: mostRecent?.lastPlayedRootMIDINote,
+            lastPlayedPitchCents: mostRecent?.lastPlayedPitchCents,
+            appliedRecipe: .init(recipe: .default)
+        )
+    }
 
     init(samples: [FeltPianoSample], resourceResolver: @escaping DayObjectsFeltPiano.ResourceResolver) {
-        let urls = Dictionary(uniqueKeysWithValues: samples.compactMap { sample in resourceResolver(sample).map { (sample, $0) } })
         var builtBackends: [DayObjectsAudioKitFeltPianoBackend] = []
-        piano = DayObjectsFeltPiano(samples: samples, resourceResolver: { urls[$0] }) { recipe in
-            let backend = DayObjectsAudioKitFeltPianoBackend(recipe: recipe, sampleURLs: urls)
+        var nextPlaybackOrder: UInt64 = 0
+        sampleCount = samples.count
+        piano = DayObjectsFeltPiano(samples: samples, resourceResolver: resourceResolver) { recipe, sampleURLs in
+            let backend = try DayObjectsAudioKitFeltPianoBackend(recipe: recipe, sampleURLs: sampleURLs) {
+                nextPlaybackOrder &+= 1
+                return nextPlaybackOrder
+            }
             builtBackends.append(backend)
             return backend
         }
+        if !piano.isEnabled { builtBackends = [] }
+        backends = builtBackends
         let dry = Mixer(builtBackends.map(\.output), name: "Day Objects felt piano dry")
         room = Reverb(dry, dryWetMix: AUValue(DayObjectsFeltPianoRecipe.default.roomSend))
         reverb = Reverb(room, dryWetMix: AUValue(DayObjectsFeltPianoRecipe.default.reverbSend))
@@ -165,37 +212,101 @@ final class DayObjectsAudioKitFeltPiano {
     }
 }
 
+struct DayObjectsFeltPianoAppliedRecipe: Equatable, Sendable {
+    let attackSeconds: Double
+    let releaseSeconds: Double
+    let lowPassCutoffHz: Double
+    let mechanicalOnsetGain: Double
+    let noteTrimDB: Double
+    let roomSend: Double
+    let reverbSend: Double
+
+    init(recipe: DayObjectsFeltPianoRecipe) {
+        attackSeconds = recipe.attackSeconds
+        releaseSeconds = recipe.releaseSeconds
+        lowPassCutoffHz = recipe.lowPassCutoffHz
+        mechanicalOnsetGain = 1 - recipe.mechanicalNoiseGain
+        noteTrimDB = recipe.noteTrimDB
+        roomSend = recipe.roomSend
+        reverbSend = recipe.reverbSend
+    }
+}
+
+struct DayObjectsAudioKitFeltPianoBackendMetrics: Equatable, Sendable {
+    let loadedPlayerCount: Int
+    let playerStopCount: Int
+    let lastPlayedRootMIDINote: UInt8?
+    let lastPlayedPitchCents: Double?
+    let lastPlayOrder: UInt64
+}
+
+struct DayObjectsAudioKitFeltPianoMetrics: Equatable, Sendable {
+    let preloadedSampleCount: Int
+    let fixedBackendCount: Int
+    let loadedPlayerCount: Int
+    let totalPlayerStopCount: Int
+    let lastPlayedRootMIDINote: UInt8?
+    let lastPlayedPitchCents: Double?
+    let appliedRecipe: DayObjectsFeltPianoAppliedRecipe
+}
+
 private final class DayObjectsAudioKitFeltPianoBackend: DayObjectsFeltPianoBackend {
     let output: Fader
     private let envelope: AmplitudeEnvelope
     private let players: [UInt8: (AudioPlayer, TimePitch)]
+    private(set) var playerStopCount = 0
+    private(set) var lastPlayedRootMIDINote: UInt8?
+    private(set) var lastPlayedPitchCents: Double?
+    private(set) var lastPlayOrder: UInt64 = 0
+    private let nextPlaybackOrder: () -> UInt64
 
-    init(recipe: DayObjectsFeltPianoRecipe, sampleURLs: [FeltPianoSample: URL]) {
+    var metrics: DayObjectsAudioKitFeltPianoBackendMetrics {
+        .init(loadedPlayerCount: players.count, playerStopCount: playerStopCount, lastPlayedRootMIDINote: lastPlayedRootMIDINote, lastPlayedPitchCents: lastPlayedPitchCents, lastPlayOrder: lastPlayOrder)
+    }
+
+    init(recipe: DayObjectsFeltPianoRecipe, sampleURLs: [FeltPianoSample: URL], nextPlaybackOrder: @escaping () -> UInt64) throws {
         var builtPlayers: [UInt8: (AudioPlayer, TimePitch)] = [:]
-        for (sample, url) in sampleURLs {
-            guard let player = AudioPlayer(url: url, buffered: true) else { continue }
+        for sample in sampleURLs.keys.sorted(by: { $0.rootMIDINote < $1.rootMIDINote }) {
+            guard let url = sampleURLs[sample], let player = AudioPlayer(url: url, buffered: true) else {
+                throw DayObjectsFeltPianoBackendPreparationError.resourcePreloadFailed(sample)
+            }
             builtPlayers[sample.rootMIDINote] = (player, TimePitch(player))
         }
         players = builtPlayers
+        self.nextPlaybackOrder = nextPlaybackOrder
         let source = Mixer(builtPlayers.values.map { $0.1 })
         let filtered = LowPassFilter(source, cutoffFrequency: AUValue(recipe.lowPassCutoffHz))
-        envelope = AmplitudeEnvelope(filtered, attackDuration: AUValue(recipe.attackSeconds), decayDuration: 0.08, sustainLevel: 1, releaseDuration: AUValue(recipe.releaseSeconds))
+        let reducedMechanicalOnset = Fader(filtered, gain: AUValue(1 - recipe.mechanicalNoiseGain))
+        envelope = AmplitudeEnvelope(reducedMechanicalOnset, attackDuration: AUValue(recipe.attackSeconds), decayDuration: 0.08, sustainLevel: 1, releaseDuration: AUValue(recipe.releaseSeconds))
         output = Fader(envelope, gain: AUValue(pow(10, recipe.noteTrimDB / 20)))
     }
 
     func play(_ note: DayObjectsFeltPianoNote) {
         guard let (player, pitch) = players[note.sample.rootMIDINote] else { return }
-        player.stop()
-        pitch.rate = AUValue(note.playbackRate)
+        stopEveryRootPlayer()
+        pitch.rate = 1
+        pitch.pitch = AUValue(note.pitchCents)
         player.volume = AUValue(note.velocity)
+        lastPlayedRootMIDINote = note.sample.rootMIDINote
+        lastPlayedPitchCents = note.pitchCents
+        lastPlayOrder = nextPlaybackOrder()
+        guard output.avAudioNode.engine?.isRunning == true else { return }
         player.play()
         envelope.openGate()
     }
 
-    func release() { envelope.closeGate() }
-    func allNotesOff() {
-        players.values.forEach { $0.0.stop() }
+    func release() {
+        stopEveryRootPlayer()
         envelope.closeGate()
+    }
+    func allNotesOff() {
+        stopEveryRootPlayer()
+        envelope.closeGate()
+    }
+
+    private func stopEveryRootPlayer() {
+        players.values.forEach { $0.0.stop() }
+        playerStopCount += players.count
     }
 }
 #endif
