@@ -163,6 +163,107 @@ final class DayObjectsTransportTests: XCTestCase {
         XCTAssertEqual(stoppedSnapshot.activeSchedulingTaskCount, 0)
     }
 
+    func testConcurrentAndReentrantStartsCreateOnlyOneActualSchedulingLoop() async throws {
+        let clock = ManualDayObjectsTransportClock()
+        let barrier = SuspendingEventBarrier()
+        let reference = TransportReference()
+        let transport = DayObjectsTransport(clock: clock) { event in
+            guard event.kind == .subdivision,
+                  event.position.absoluteSubdivision == 0 else { return }
+            let arrival = await barrier.arriveAndSuspend()
+            if arrival == 1 {
+                await reference.start(tempoBPM: 96, harmonicCycleBars: 8)
+            }
+        }
+        await reference.set(transport)
+
+        let firstStart = Task {
+            await transport.start(tempoBPM: 60, harmonicCycleBars: 4)
+        }
+        await barrier.waitForArrival(1)
+
+        await transport.start(tempoBPM: 84, harmonicCycleBars: 6)
+        let suspendedSnapshot = await transport.snapshot
+        XCTAssertEqual(suspendedSnapshot.lifecycle, .starting)
+        XCTAssertEqual(suspendedSnapshot.startedSchedulingLoopCount, 1)
+        XCTAssertEqual(suspendedSnapshot.runningSchedulingLoopCount, 1)
+        XCTAssertEqual(suspendedSnapshot.activeSchedulingTaskCount, 1)
+
+        await barrier.releaseAll()
+        await firstStart.value
+        try await waitForPendingWaiters(1, on: clock)
+
+        let runningSnapshot = await transport.snapshot
+        XCTAssertEqual(runningSnapshot.lifecycle, .running)
+        XCTAssertEqual(runningSnapshot.startedSchedulingLoopCount, 1)
+        XCTAssertEqual(runningSnapshot.runningSchedulingLoopCount, 1)
+        XCTAssertEqual(clock.pendingWaiterCount, 1)
+
+        await transport.stop()
+    }
+
+    func testStopRetainsGenerationUntilJoinAndRejectsStaleCallbackUpdatesBeforeRestart() async throws {
+        let clock = ManualDayObjectsTransportClock()
+        let barrier = SuspendingEventBarrier()
+        let recorder = TransportEventRecorder()
+        let transport = DayObjectsTransport(clock: clock) { event in
+            await recorder.append(event)
+            if event.kind == .subdivision,
+               event.position.absoluteSubdivision == 4 {
+                _ = await barrier.arriveAndSuspend()
+            }
+        }
+
+        await transport.start(tempoBPM: 60, harmonicCycleBars: 4)
+        clock.advance(to: 1)
+        await barrier.waitForArrival(1)
+        let blockedSnapshot = await transport.snapshot
+        XCTAssertEqual(blockedSnapshot.position.absoluteSubdivision, 3)
+
+        let stopTask = Task { await transport.stop() }
+        try await waitForLifecycle(.stopping, on: transport)
+        let stoppingSnapshot = await transport.snapshot
+        XCTAssertEqual(stoppingSnapshot.startedSchedulingLoopCount, 1)
+        XCTAssertEqual(stoppingSnapshot.runningSchedulingLoopCount, 1)
+        XCTAssertEqual(stoppingSnapshot.activeSchedulingTaskCount, 1)
+
+        // A restart request during shutdown must not create another generation.
+        await transport.start(tempoBPM: 90, harmonicCycleBars: 2)
+        let rejectedRestartSnapshot = await transport.snapshot
+        XCTAssertEqual(rejectedRestartSnapshot.startedSchedulingLoopCount, 1)
+
+        await barrier.releaseAll()
+        await stopTask.value
+
+        let stoppedSnapshot = await transport.snapshot
+        XCTAssertEqual(stoppedSnapshot.lifecycle, .stopped)
+        XCTAssertEqual(stoppedSnapshot.position.absoluteSubdivision, 3)
+        XCTAssertEqual(stoppedSnapshot.runningSchedulingLoopCount, 0)
+        XCTAssertEqual(stoppedSnapshot.activeSchedulingTaskCount, 0)
+        let oldBoundaryEvents = await recorder.events.filter {
+            $0.position.absoluteSubdivision == 4
+        }
+        XCTAssertEqual(oldBoundaryEvents.map(\.kind), [.subdivision])
+
+        await transport.start(tempoBPM: 90, harmonicCycleBars: 2)
+        let restartedSnapshot = await transport.snapshot
+        XCTAssertEqual(restartedSnapshot.lifecycle, .running)
+        XCTAssertEqual(restartedSnapshot.position.absoluteSubdivision, 0)
+        XCTAssertEqual(restartedSnapshot.startedSchedulingLoopCount, 2)
+        XCTAssertEqual(restartedSnapshot.runningSchedulingLoopCount, 1)
+        XCTAssertEqual(restartedSnapshot.activeSchedulingTaskCount, 1)
+
+        for _ in 0..<100 { await Task.yield() }
+        let settledRestartSnapshot = await transport.snapshot
+        XCTAssertEqual(settledRestartSnapshot.position.absoluteSubdivision, 0)
+        let finalOldBoundaryEvents = await recorder.events.filter {
+            $0.position.absoluteSubdivision == 4
+        }
+        XCTAssertEqual(finalOldBoundaryEvents.map(\.kind), [.subdivision])
+
+        await transport.stop()
+    }
+
     private func wait(
         for position: MusicalPosition,
         on transport: DayObjectsTransport,
@@ -174,6 +275,30 @@ final class DayObjectsTransportTests: XCTestCase {
         }
         XCTFail("Transport did not reach subdivision \(position.absoluteSubdivision)")
     }
+
+    private func waitForLifecycle(
+        _ lifecycle: DayObjectsTransportLifecycle,
+        on transport: DayObjectsTransport,
+        maximumYields: Int = 20_000
+    ) async throws {
+        for _ in 0..<maximumYields {
+            if await transport.snapshot.lifecycle == lifecycle { return }
+            await Task.yield()
+        }
+        XCTFail("Transport did not reach lifecycle \(lifecycle)")
+    }
+
+    private func waitForPendingWaiters(
+        _ count: Int,
+        on clock: ManualDayObjectsTransportClock,
+        maximumYields: Int = 20_000
+    ) async throws {
+        for _ in 0..<maximumYields {
+            if clock.pendingWaiterCount == count { return }
+            await Task.yield()
+        }
+        XCTFail("Clock did not reach \(count) pending waiters")
+    }
 }
 
 private actor TransportEventRecorder {
@@ -181,6 +306,54 @@ private actor TransportEventRecorder {
 
     func append(_ event: DayObjectsTransportEvent) {
         events.append(event)
+    }
+}
+
+private actor SuspendingEventBarrier {
+    private var arrivalCount = 0
+    private var isReleased = false
+    private var arrivalWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+    private var releaseWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func arriveAndSuspend() async -> Int {
+        arrivalCount += 1
+        let arrival = arrivalCount
+        let readyWaiters = arrivalWaiters.filter { $0.count <= arrivalCount }
+        arrivalWaiters.removeAll { $0.count <= arrivalCount }
+        readyWaiters.forEach { $0.continuation.resume() }
+
+        if !isReleased {
+            await withCheckedContinuation { continuation in
+                releaseWaiters.append(continuation)
+            }
+        }
+        return arrival
+    }
+
+    func waitForArrival(_ count: Int) async {
+        guard arrivalCount < count else { return }
+        await withCheckedContinuation { continuation in
+            arrivalWaiters.append((count, continuation))
+        }
+    }
+
+    func releaseAll() {
+        isReleased = true
+        let waiters = releaseWaiters
+        releaseWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+    }
+}
+
+private actor TransportReference {
+    private var transport: DayObjectsTransport?
+
+    func set(_ transport: DayObjectsTransport) {
+        self.transport = transport
+    }
+
+    func start(tempoBPM: Double, harmonicCycleBars: Int) async {
+        await transport?.start(tempoBPM: tempoBPM, harmonicCycleBars: harmonicCycleBars)
     }
 }
 #endif
