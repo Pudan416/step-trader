@@ -1,5 +1,8 @@
 #if DEBUG || INTERNAL_BUILD
 enum HappeningScheduleAllocator {
+    private static let maximumCycleCount = 16
+    private static let maximumBeatsPerBar = 16
+
     private struct Candidate {
         let plan: HappeningMusicPlan
         let sequenceIndex: Int
@@ -14,21 +17,13 @@ enum HappeningScheduleAllocator {
         cycleCount: Int,
         beatsPerBar: Int = 4
     ) -> HappeningScheduleAllocation {
-        let uniquePlans = uniquePlansByStableID(plans).prefix(10)
-        let activePlans = Array(uniquePlans)
+        let activePlans = uniquePlansByStableID(plans)
         guard
             let intervalBand = intervalBand(for: activePlans.count),
-            cycleCount > 0,
-            beatsPerBar > 0
+            (1...maximumCycleCount).contains(cycleCount),
+            (1...maximumBeatsPerBar).contains(beatsPerBar)
         else {
-            return HappeningScheduleAllocation(
-                cycleBars: 0,
-                horizonBars: 0,
-                beatsPerBar: max(0, beatsPerBar),
-                intervalBandBars: nil,
-                events: [],
-                nextCursors: []
-            )
+            return emptyAllocation(beatsPerBar: beatsPerBar)
         }
 
         let cycleBars = intervalBand.upperBound
@@ -67,16 +62,32 @@ enum HappeningScheduleAllocator {
 
         var scheduled: [HappeningScheduleEvent] = []
         var previousBeatByID: [String: Double] = [:]
+        let lastSequenceByID = candidates.reduce(into: [String: Int]()) { result, candidate in
+            result[candidate.plan.happeningID] = max(
+                result[candidate.plan.happeningID] ?? -1,
+                candidate.sequenceIndex
+            )
+        }
         let maximumGapBeats = Double(intervalBand.upperBound * beatsPerBar)
+        let minimumGapBeats = Double(intervalBand.lowerBound * beatsPerBar)
         for candidate in candidates {
             guard let startBeat = resolvedBeat(
                 for: candidate,
                 scheduled: scheduled,
                 previousBeat: previousBeatByID[candidate.plan.happeningID],
+                minimumGapBeats: minimumGapBeats,
                 maximumGapBeats: maximumGapBeats,
                 cycleBeats: Double(cycleBars * beatsPerBar),
-                horizonBeats: horizonBeats
-            ) else { continue }
+                horizonBeats: horizonBeats,
+                requiresTailCoverage: lastSequenceByID[candidate.plan.happeningID]
+                    == candidate.sequenceIndex
+            ) else {
+                // Under the guarded count/horizon caps, the exhaustive window always has
+                // more legal slots than competing voices can occupy. Reject the complete
+                // allocation rather than publishing a partial, starving schedule if that
+                // invariant is ever broken by a future change.
+                return emptyAllocation(beatsPerBar: beatsPerBar)
+            }
             previousBeatByID[candidate.plan.happeningID] = startBeat
             scheduled.append(HappeningScheduleEvent(
                 happeningID: candidate.plan.happeningID,
@@ -112,11 +123,27 @@ enum HappeningScheduleAllocator {
         }
     }
 
+    private static func emptyAllocation(beatsPerBar: Int) -> HappeningScheduleAllocation {
+        HappeningScheduleAllocation(
+            cycleBars: 0,
+            horizonBars: 0,
+            beatsPerBar: (1...maximumBeatsPerBar).contains(beatsPerBar) ? beatsPerBar : 0,
+            intervalBandBars: nil,
+            events: [],
+            nextCursors: []
+        )
+    }
+
     private static func uniquePlansByStableID(
         _ plans: [HappeningMusicPlan]
     ) -> [HappeningMusicPlan] {
         var seen: Set<String> = []
-        return plans.filter { seen.insert($0.happeningID).inserted }
+        var result: [HappeningMusicPlan] = []
+        for plan in plans where seen.insert(plan.happeningID).inserted {
+            result.append(plan)
+            if result.count == 10 { break }
+        }
+        return result
     }
 
     private static func gridAlignedIDs(in plans: [HappeningMusicPlan]) -> Set<String> {
@@ -187,34 +214,62 @@ enum HappeningScheduleAllocator {
         for candidate: Candidate,
         scheduled: [HappeningScheduleEvent],
         previousBeat: Double?,
+        minimumGapBeats: Double,
         maximumGapBeats: Double,
         cycleBeats: Double,
-        horizonBeats: Double
+        horizonBeats: Double,
+        requiresTailCoverage: Bool
     ) -> Double? {
-        let step = candidate.alignment == .gridAligned ? 1.0 : 0.25
         let cycleStart = Double(Int(candidate.candidateBeat / cycleBeats)) * cycleBeats
         let cycleEnd = min(horizonBeats, cycleStart + cycleBeats)
-        for alternateIndex in 0...32 {
-            let alternateOffset: Double
-            if alternateIndex == 0 {
-                alternateOffset = 0
-            } else {
-                let magnitude = Double((alternateIndex + 1) / 2) * step
-                alternateOffset = alternateIndex.isMultiple(of: 2) ? magnitude : -magnitude
-            }
-            let position = candidate.candidateBeat + alternateOffset
-            guard position >= cycleStart, position < cycleEnd else { continue }
-            if candidate.alignment == .floating, position == position.rounded() {
-                continue
-            }
-            if let previousBeat {
-                guard position - previousBeat >= 0.25 - 0.000_001 else { continue }
-                guard position - previousBeat <= maximumGapBeats + 0.000_001 else { continue }
-            }
+        var lowerBound = cycleStart
+        var upperBound = cycleEnd - 0.25
+        if let previousBeat {
+            lowerBound = max(lowerBound, previousBeat + minimumGapBeats)
+            upperBound = min(upperBound, previousBeat + maximumGapBeats)
+        }
+        if requiresTailCoverage {
+            lowerBound = max(lowerBound, horizonBeats - maximumGapBeats)
+        }
+        guard lowerBound <= upperBound else { return nil }
+
+        let positions = candidatePositions(
+            alignment: candidate.alignment,
+            lowerBound: lowerBound,
+            upperBound: upperBound
+        ).sorted {
+            let leftDistance = abs($0 - candidate.candidateBeat)
+            let rightDistance = abs($1 - candidate.candidateBeat)
+            if leftDistance != rightDistance { return leftDistance < rightDistance }
+            return $0 < $1
+        }
+        for position in positions {
             guard isAvailable(position, among: scheduled) else { continue }
             return position
         }
         return nil
+    }
+
+    private static func candidatePositions(
+        alignment: HappeningRecurrenceAlignment,
+        lowerBound: Double,
+        upperBound: Double
+    ) -> [Double] {
+        switch alignment {
+        case .gridAligned:
+            let first = Int(lowerBound.rounded(.up))
+            let last = Int(upperBound.rounded(.down))
+            guard first <= last else { return [] }
+            return (first...last).map(Double.init)
+        case .floating:
+            let firstQuarter = Int((lowerBound * 4).rounded(.up))
+            let lastQuarter = Int((upperBound * 4).rounded(.down))
+            guard firstQuarter <= lastQuarter else { return [] }
+            return (firstQuarter...lastQuarter).compactMap { quarter in
+                guard !quarter.isMultiple(of: 4) else { return nil }
+                return Double(quarter) / 4
+            }
+        }
     }
 
     private static func isAvailable(

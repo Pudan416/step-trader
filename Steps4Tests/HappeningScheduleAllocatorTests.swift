@@ -29,16 +29,32 @@ final class HappeningScheduleAllocatorTests: XCTestCase {
                 XCTAssertEqual(allocation.intervalBandBars, band)
                 XCTAssertEqual(allocation.cycleBars, band.upperBound)
                 for plan in plans {
-                    let events = allocation.events.filter { $0.happeningID == plan.happeningID }
+                    let events = allocation.events
+                        .filter { $0.happeningID == plan.happeningID }
+                        .sorted { $0.sequenceIndex < $1.sequenceIndex }
+                    let cursor = try XCTUnwrap(
+                        allocation.nextCursors.first { $0.happeningID == plan.happeningID }
+                    )
                     let first = try XCTUnwrap(events.first)
                     XCTAssertLessThan(first.startBeat, Double(allocation.cycleBars * allocation.beatsPerBar))
                     XCTAssertTrue(events.allSatisfy { band.contains($0.intervalBars) })
+                    XCTAssertEqual(events.map(\.sequenceIndex), Array(0..<events.count))
+                    XCTAssertEqual(cursor.nextSequenceIndex, events.count)
                     for pair in zip(events, events.dropFirst()) {
+                        XCTAssertGreaterThanOrEqual(
+                            pair.1.startBeat - pair.0.startBeat,
+                            Double(band.lowerBound * allocation.beatsPerBar) - 0.000_001
+                        )
                         XCTAssertLessThanOrEqual(
                             pair.1.startBeat - pair.0.startBeat,
                             Double(band.upperBound * allocation.beatsPerBar) + 0.000_001
                         )
                     }
+                    XCTAssertLessThanOrEqual(
+                        Double(allocation.horizonBars * allocation.beatsPerBar)
+                            - (try XCTUnwrap(events.last)).startBeat,
+                        Double(band.upperBound * allocation.beatsPerBar) + 0.000_001
+                    )
                 }
             }
         }
@@ -109,6 +125,81 @@ final class HappeningScheduleAllocatorTests: XCTestCase {
             }
             XCTAssertTrue(observed.contains(representative.band.lowerBound))
             XCTAssertTrue(observed.contains(representative.band.upperBound))
+        }
+    }
+
+    func testSeed2159DoesNotDropSequenceIndicesOrStarveTheTail() throws {
+        let allocation = HappeningScheduleAllocator.allocate(
+            plans: makePlans(count: 3, seed: 2_159),
+            remixSeed: 2_159,
+            cycleCount: 4
+        )
+        let maximumGap = Double(12 * allocation.beatsPerBar)
+        let horizonBeat = Double(allocation.horizonBars * allocation.beatsPerBar)
+
+        for cursor in allocation.nextCursors {
+            let events = allocation.events
+                .filter { $0.happeningID == cursor.happeningID }
+                .sorted { $0.sequenceIndex < $1.sequenceIndex }
+            XCTAssertEqual(events.map(\.sequenceIndex), Array(0..<events.count))
+            XCTAssertEqual(cursor.nextSequenceIndex, events.count)
+            let last = try XCTUnwrap(events.last)
+            XCTAssertLessThanOrEqual(horizonBeat - last.startBeat, maximumGap)
+        }
+    }
+
+    func testSeed6052KeepsActualPostCollisionGapsInsideBothBandEndpoints() {
+        let allocation = HappeningScheduleAllocator.allocate(
+            plans: makePlans(count: 4, seed: 6_052),
+            remixSeed: 6_052,
+            cycleCount: 4
+        )
+        let minimumGap = Double(6 * allocation.beatsPerBar)
+        let maximumGap = Double(12 * allocation.beatsPerBar)
+
+        for events in Dictionary(grouping: allocation.events, by: \.happeningID).values {
+            let ordered = events.sorted { $0.sequenceIndex < $1.sequenceIndex }
+            for pair in zip(ordered, ordered.dropFirst()) {
+                let actualGap = pair.1.startBeat - pair.0.startBeat
+                XCTAssertGreaterThanOrEqual(actualGap, minimumGap)
+                XCTAssertLessThanOrEqual(actualGap, maximumGap)
+            }
+        }
+    }
+
+    func testOversizedPublicHorizonInputsAreRejectedBeforeAllocation() {
+        let plans = makePlans(count: 10, seed: 42)
+        let tooManyCycles = HappeningScheduleAllocator.allocate(
+            plans: plans,
+            remixSeed: 42,
+            cycleCount: 17,
+            beatsPerBar: 4
+        )
+        let tooManyBeats = HappeningScheduleAllocator.allocate(
+            plans: plans,
+            remixSeed: 42,
+            cycleCount: 4,
+            beatsPerBar: 17
+        )
+        let overflowingCycles = HappeningScheduleAllocator.allocate(
+            plans: plans,
+            remixSeed: 42,
+            cycleCount: .max,
+            beatsPerBar: 4
+        )
+        let overflowingBeats = HappeningScheduleAllocator.allocate(
+            plans: plans,
+            remixSeed: 42,
+            cycleCount: 4,
+            beatsPerBar: .max
+        )
+
+        for rejected in [tooManyCycles, tooManyBeats, overflowingCycles, overflowingBeats] {
+            XCTAssertEqual(rejected.cycleBars, 0)
+            XCTAssertEqual(rejected.horizonBars, 0)
+            XCTAssertNil(rejected.intervalBandBars)
+            XCTAssertTrue(rejected.events.isEmpty)
+            XCTAssertTrue(rejected.nextCursors.isEmpty)
         }
     }
 
