@@ -136,10 +136,10 @@ struct MaterialDNATests {
             )
             for actor in dna.actors {
                 let topology = try #require(actor.organicTopology)
-                #expect((0.38...0.62).contains(topology.outerCenter.x))
-                #expect((0.38...0.62).contains(topology.outerCenter.y))
-                #expect((0.38...0.62).contains(topology.innerCenter.x))
-                #expect((0.38...0.62).contains(topology.innerCenter.y))
+                #expect((0.28...0.72).contains(topology.outerCenter.x))
+                #expect((0.28...0.72).contains(topology.outerCenter.y))
+                #expect((0.28...0.72).contains(topology.innerCenter.x))
+                #expect((0.28...0.72).contains(topology.innerCenter.y))
                 #expect((0.03...0.50).contains(topology.innerRadius))
                 #expect((0.08...0.50).contains(topology.outerRadius))
                 #expect(hypot(
@@ -148,6 +148,21 @@ struct MaterialDNATests {
                 ) >= 0.030)
                 if family == .outline {
                     #expect(topology.contours.count == actor.contourCount)
+                    #expect(topology.outerCenter == topology.contours.first?.outerCenter)
+                    #expect(topology.outerRadius == topology.contours.first?.outerRadius)
+                    #expect(topology.innerCenter == topology.contours.last?.innerCenter)
+                    #expect(topology.innerRadius == topology.contours.last?.innerRadius)
+                    #expect(topology.contours.allSatisfy { contour in
+                        (0.28...0.72).contains(contour.outerCenter.x)
+                            && (0.28...0.72).contains(contour.outerCenter.y)
+                            && (0.28...0.72).contains(contour.innerCenter.x)
+                            && (0.28...0.72).contains(contour.innerCenter.y)
+                            && (0.02...0.50).contains(contour.innerRadius)
+                            && (0.02...0.50).contains(contour.outerRadius)
+                            && contour.innerRadius < contour.outerRadius
+                            && contour.opacity > 0
+                            && contour.opacity <= 1
+                    })
                 } else {
                     #expect(topology.contours.isEmpty)
                 }

@@ -147,6 +147,16 @@ public struct MaterialSceneScaleActorMetrics: Codable, Equatable, Sendable {
     public let passes: Bool
 }
 
+public struct MaterialAlphaBandTopologyMetrics: Codable, Equatable, Sendable {
+    public let contourIndex: Int
+    public let centerOffset: Double
+    public let thicknessRange: Double
+    public let thicknessVariation: Double
+    public let angularCoverage: Double
+    public let minimumThickness: Double
+    public let passes: Bool
+}
+
 public struct MaterialSceneScaleTopologyMetrics: Codable, Equatable, Sendable {
     public let eventID: String
     public let diameter: Double
@@ -163,6 +173,8 @@ public struct MaterialSceneScaleTopologyMetrics: Codable, Equatable, Sendable {
     public let fullThicknessRange: Double
     public let tileEccentricCenterOffset: Double
     public let tileThicknessRange: Double
+    public let fullAlphaBands: [MaterialAlphaBandTopologyMetrics]
+    public let tileAlphaBands: [MaterialAlphaBandTopologyMetrics]
     public let passes: Bool
 }
 
@@ -493,7 +505,7 @@ public enum MaterialEvidencePackage {
         }
 
         let metrics = MaterialEvidenceMetrics(
-            version: "material-metrics-v7",
+            version: "material-metrics-v8",
             fixtureCount: atlasCoverage.fixtures.count,
             coreImageCount: atlasCoverage.coreImageCount,
             compositionApprovalSHA256: approvalHash,
@@ -534,7 +546,7 @@ public enum MaterialEvidencePackage {
 
         let artifacts = try artifactRecords(in: outputDirectory)
         let packageManifest = MaterialEvidenceManifest(
-            version: "material-evidence-v7",
+            version: "material-evidence-v8",
             sourceCommit: sourceCommit,
             rendererVersion: MaterialRenderer.version,
             toolchain: "Swift 6 / Swift Package Manager",
@@ -606,7 +618,7 @@ public enum MaterialEvidencePackage {
             from: Data(contentsOf: directory.appendingPathComponent("metrics.json"))
         )
         let expectedCoverage = coverage(for: corpus)
-        guard manifest.version == "material-evidence-v7",
+        guard manifest.version == "material-evidence-v8",
               manifest.sourceCommit == expectedSourceCommit,
               manifest.rendererVersion == MaterialRenderer.version,
               manifest.toolchain == "Swift 6 / Swift Package Manager",
@@ -655,7 +667,7 @@ public enum MaterialEvidencePackage {
             frozenRecipes: frozenRecipes,
             renderer: MaterialRenderer()
         )
-        guard metrics.version == "material-metrics-v7",
+        guard metrics.version == "material-metrics-v8",
               metrics.fixtureCount == expectedCoverage.fixtures.count,
               metrics.coreImageCount == expectedCoverage.coreImageCount,
               metrics.compositionApprovalSHA256 == manifest.compositionApprovalSHA256,
@@ -1153,7 +1165,7 @@ public enum MaterialEvidencePackage {
         }
     }
 
-    private static func sceneScaleTopology(
+    static func sceneScaleTopology(
         family: MaterialFamily,
         recipe: SceneRecipe,
         material: DailyMaterialDNA,
@@ -1196,26 +1208,22 @@ public enum MaterialEvidencePackage {
         let fullBands = try topologyBands(
             image: full,
             actor: actor,
+            material: actorMaterial,
             background: background,
             centerYAdjustment: 0
         )
         let tileBands = try topologyBands(
             image: tile,
             actor: actor,
+            material: actorMaterial,
             background: background,
             centerYAdjustment: -229
         )
-        let fullOrganic = try organicTopologyBands(
-            image: full,
+        let alphaTopology = try sceneScaleAlphaTopology(
             actor: actor,
+            material: actorMaterial,
             background: background,
-            centerYAdjustment: 0
-        )
-        let tileOrganic = try organicTopologyBands(
-            image: tile,
-            actor: actor,
-            background: background,
-            centerYAdjustment: -229
+            renderer: renderer
         )
         let requiredRimContrast = 0.25
         let maximumCenterRatio = 0.55
@@ -1228,10 +1236,14 @@ public enum MaterialEvidencePackage {
             && tileBands.margin >= requiredMargin
             && fullBands.ratio <= maximumCenterRatio
             && tileBands.ratio <= maximumCenterRatio
-            && fullOrganic.centerOffset >= requiredEccentricOffset
-            && tileOrganic.centerOffset >= requiredEccentricOffset
-            && fullOrganic.thicknessRange >= requiredThicknessRange
-            && tileOrganic.thicknessRange >= requiredThicknessRange
+            && !alphaTopology.full.isEmpty
+            && alphaTopology.full.count == alphaTopology.tile.count
+            && alphaTopology.full.allSatisfy(\.passes)
+            && alphaTopology.tile.allSatisfy(\.passes)
+            && (alphaTopology.full.map(\.centerOffset).min() ?? 0) >= requiredEccentricOffset
+            && (alphaTopology.tile.map(\.centerOffset).min() ?? 0) >= requiredEccentricOffset
+            && (alphaTopology.full.map(\.thicknessRange).min() ?? 0) >= requiredThicknessRange
+            && (alphaTopology.tile.map(\.thicknessRange).min() ?? 0) >= requiredThicknessRange
 
         return [MaterialSceneScaleTopologyMetrics(
             eventID: exemplarID,
@@ -1245,26 +1257,80 @@ public enum MaterialEvidencePackage {
             tileRimContrast: tileBands.rim,
             tileOpenCenterMargin: tileBands.margin,
             tileCenterToRimRatio: tileBands.ratio,
-            fullEccentricCenterOffset: fullOrganic.centerOffset,
-            fullThicknessRange: fullOrganic.thicknessRange,
-            tileEccentricCenterOffset: tileOrganic.centerOffset,
-            tileThicknessRange: tileOrganic.thicknessRange,
+            fullEccentricCenterOffset: alphaTopology.full.map(\.centerOffset).min() ?? 0,
+            fullThicknessRange: alphaTopology.full.map(\.thicknessRange).min() ?? 0,
+            tileEccentricCenterOffset: alphaTopology.tile.map(\.centerOffset).min() ?? 0,
+            tileThicknessRange: alphaTopology.tile.map(\.thicknessRange).min() ?? 0,
+            fullAlphaBands: alphaTopology.full,
+            tileAlphaBands: alphaTopology.tile,
             passes: actorMaterial.family == family && passes
         )]
     }
 
-    private static func organicTopologyBands(
+    static func sceneScaleAlphaTopology(
+        actor: ActorCompositionRecipe,
+        material: ActorMaterialRecipe,
+        background: BackgroundCondition,
+        renderer: MaterialRenderer
+    ) throws -> (
+        full: [MaterialAlphaBandTopologyMetrics],
+        tile: [MaterialAlphaBandTopologyMetrics]
+    ) {
+        let sourceScale = 2
+        let sourceWidth = 393 * sourceScale
+        let sourceHeight = 852 * sourceScale
+        let sourceDiameter = max(1, Int(ceil(actor.diameter * Double(sourceWidth))))
+        let blurRadius = actor.localBlur * Double(sourceWidth)
+        let layers = try renderer.renderStructuralAlphaLayers(
+            material,
+            pixelSize: sourceDiameter,
+            blurRadius: blurRadius
+        )
+        var fullMetrics = [MaterialAlphaBandTopologyMetrics]()
+        var tileMetrics = [MaterialAlphaBandTopologyMetrics]()
+        for (index, layer) in layers.enumerated() {
+            let layerImage = try decodedPNG(layer.pngData, path: "structural-alpha-layer")
+            let source = try transparentScene(
+                layerImage,
+                actor: actor,
+                width: sourceWidth,
+                height: sourceHeight
+            )
+            let full = try downsampled(source, width: 393, height: 852)
+            guard let tile = full.cropping(
+                to: CGRect(x: 0, y: 229, width: 393, height: 393)
+            ) else {
+                throw MaterialEvidenceError.cannotCreateContactSheet
+            }
+            fullMetrics.append(try organicTopologyBands(
+                image: full,
+                actor: actor,
+                background: background,
+                centerYAdjustment: 0,
+                contourIndex: index,
+                family: material.family
+            ))
+            tileMetrics.append(try organicTopologyBands(
+                image: tile,
+                actor: actor,
+                background: background,
+                centerYAdjustment: -229,
+                contourIndex: index,
+                family: material.family
+            ))
+        }
+        return (fullMetrics, tileMetrics)
+    }
+
+    static func organicTopologyBands(
         image: CGImage,
         actor: ActorCompositionRecipe,
-        background: BackgroundCondition,
-        centerYAdjustment: Double
-    ) throws -> (centerOffset: Double, thicknessRange: Double) {
-        let analysis = AnalysisImage(
-            width: image.width,
-            height: image.height,
-            rgba: try normalizedRGBA(image)
-        )
-        let ground = backgroundRGB(background)
+        background _: BackgroundCondition,
+        centerYAdjustment: Double,
+        contourIndex: Int = 0,
+        family: MaterialFamily = .outline
+    ) throws -> MaterialAlphaBandTopologyMetrics {
+        let rgba = try normalizedRGBA(image)
         let centerX = actor.position.x * 393
         let centerY = actor.position.y * 852 + centerYAdjustment
         let diameter = actor.diameter * 393
@@ -1273,15 +1339,15 @@ public enum MaterialEvidencePackage {
         let maximumX = min(image.width - 1, Int(ceil(centerX + support)))
         let minimumY = max(0, Int(floor(centerY - support)))
         let maximumY = min(image.height - 1, Int(ceil(centerY + support)))
-        var maximumContrast = 0.0
+        var maximumAlpha = 0.0
         var weightedX = 0.0
         var weightedY = 0.0
         var weight = 0.0
         for y in minimumY...maximumY {
             for x in minimumX...maximumX {
-                let contrast = analysis.pixel(x: x, y: y).distance(to: ground)
-                maximumContrast = max(maximumContrast, contrast)
-                let salience = contrast * contrast
+                let alpha = Double(rgba[(y * image.width + x) * 4 + 3]) / 255
+                maximumAlpha = max(maximumAlpha, alpha)
+                let salience = alpha * alpha
                 weight += salience
                 weightedX += (Double(x) + 0.5) * salience
                 weightedY += (Double(y) + 0.5) * salience
@@ -1293,7 +1359,7 @@ public enum MaterialEvidencePackage {
             contributionCenterX - centerX,
             contributionCenterY - centerY
         ) / max(diameter, 1)
-        let threshold = maximumContrast * 0.28
+        let threshold = maximumAlpha * 0.28
         var thicknesses = [Double]()
         for angleIndex in 0..<72 {
             let angle = Double(angleIndex) / 72 * Double.pi * 2
@@ -1303,7 +1369,8 @@ public enum MaterialEvidencePackage {
                 let x = Int((centerX + cos(angle) * radius * diameter).rounded(.down))
                 let y = Int((centerY + sin(angle) * radius * diameter).rounded(.down))
                 guard (0..<image.width).contains(x), (0..<image.height).contains(y) else { continue }
-                if analysis.pixel(x: x, y: y).distance(to: ground) >= threshold {
+                let alpha = Double(rgba[(y * image.width + x) * 4 + 3]) / 255
+                if alpha >= threshold {
                     occupied.append(radius)
                 }
             }
@@ -1311,15 +1378,39 @@ public enum MaterialEvidencePackage {
                 thicknesses.append(last - first)
             }
         }
-        return (
+        let mean = thicknesses.reduce(0, +) / Double(max(thicknesses.count, 1))
+        let variance = thicknesses.map { ($0 - mean) * ($0 - mean) }.reduce(0, +)
+            / Double(max(thicknesses.count, 1))
+        let thicknessRange = (thicknesses.max() ?? 0) - (thicknesses.min() ?? 0)
+        let thicknessVariation = sqrt(variance) / max(mean, 0.000_001)
+        let angularCoverage = Double(thicknesses.count) / 72
+        let minimumThickness = thicknesses.min() ?? 0
+        let requiredCenterOffset: Double = switch family {
+        case .counterform: 0.003
+        case .halo: 0.025
+        default: 0.018
+        }
+        let requiredThicknessRange: Double = family == .counterform ? 0.025 : 0.050
+        let requiredVariation: Double = family == .counterform ? 0.045 : 0.080
+        return MaterialAlphaBandTopologyMetrics(
+            contourIndex: contourIndex,
             centerOffset: centerOffset,
-            thicknessRange: (thicknesses.max() ?? 0) - (thicknesses.min() ?? 0)
+            thicknessRange: thicknessRange,
+            thicknessVariation: thicknessVariation,
+            angularCoverage: angularCoverage,
+            minimumThickness: minimumThickness,
+            passes: centerOffset >= requiredCenterOffset
+                && thicknessRange >= requiredThicknessRange
+                && thicknessVariation >= requiredVariation
+                && angularCoverage >= 0.82
+                && minimumThickness >= 0.006
         )
     }
 
     private static func topologyBands(
         image: CGImage,
         actor: ActorCompositionRecipe,
+        material: ActorMaterialRecipe,
         background: BackgroundCondition,
         centerYAdjustment: Double
     ) throws -> (center: Double, rim: Double, margin: Double, ratio: Double) {
@@ -1329,14 +1420,25 @@ public enum MaterialEvidencePackage {
             rgba: try normalizedRGBA(image)
         )
         let ground = backgroundRGB(background)
-        let centerX = actor.position.x * 393
-        let centerY = actor.position.y * 852 + centerYAdjustment
         let diameter = actor.diameter * 393
-        let outer = diameter * 0.52
-        let minimumX = max(0, Int(floor(centerX - outer)))
-        let maximumX = min(image.width - 1, Int(ceil(centerX + outer)))
-        let minimumY = max(0, Int(floor(centerY - outer)))
-        let maximumY = min(image.height - 1, Int(ceil(centerY + outer)))
+        let actorCenterX = actor.position.x * 393
+        let actorCenterY = actor.position.y * 852 + centerYAdjustment
+        let topology = material.organicTopology
+        let openingAuthority = material.family == .outline
+            ? topology?.contours.last?.innerCenter
+            : topology?.innerCenter
+        let outerAuthority = material.family == .outline
+            ? topology?.contours.first?.outerCenter
+            : topology?.outerCenter
+        let centerX = actorCenterX + ((openingAuthority?.x ?? 0.5) - 0.5) * diameter
+        let centerY = actorCenterY + ((openingAuthority?.y ?? 0.5) - 0.5) * diameter
+        let rimCenterX = actorCenterX + ((outerAuthority?.x ?? 0.5) - 0.5) * diameter
+        let rimCenterY = actorCenterY + ((outerAuthority?.y ?? 0.5) - 0.5) * diameter
+        let outer = diameter * 0.65
+        let minimumX = max(0, Int(floor(actorCenterX - outer)))
+        let maximumX = min(image.width - 1, Int(ceil(actorCenterX + outer)))
+        let minimumY = max(0, Int(floor(actorCenterY - outer)))
+        let maximumY = min(image.height - 1, Int(ceil(actorCenterY + outer)))
         var centerSamples = [Double]()
         var rimSamples = [Double]()
         for y in minimumY...maximumY {
@@ -1345,10 +1447,15 @@ public enum MaterialEvidencePackage {
                     Double(x) + 0.5 - centerX,
                     Double(y) + 0.5 - centerY
                 ) / max(diameter, 1)
+                let rimDistance = hypot(
+                    Double(x) + 0.5 - rimCenterX,
+                    Double(y) + 0.5 - rimCenterY
+                ) / max(diameter, 1)
                 let contrast = analysis.pixel(x: x, y: y).distance(to: ground)
                 if radialDistance <= 0.16 {
                     centerSamples.append(contrast)
-                } else if (0.30...0.49).contains(radialDistance) {
+                }
+                if (0.30...0.49).contains(rimDistance) {
                     rimSamples.append(contrast)
                 }
             }
@@ -2107,7 +2214,9 @@ public enum MaterialEvidencePackage {
     ] = [
         (15, .halo, "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"),
         (15, .halo, "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02"),
+        (16, .halo, "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"),
         (21, .outline, "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"),
+        (22, .outline, "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03"),
         (23, .outline, "4E6B83FD-19A8-4AA2-91FC-D297E6C15405"),
     ]
 
@@ -2308,6 +2417,39 @@ public enum MaterialEvidencePackage {
         }
         context.interpolationQuality = .high
         context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        guard let result = context.makeImage() else {
+            throw MaterialEvidenceError.cannotCreateContactSheet
+        }
+        return result
+    }
+
+    private static func transparentScene(
+        _ layer: CGImage,
+        actor: ActorCompositionRecipe,
+        width: Int,
+        height: Int
+    ) throws -> CGImage {
+        guard let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                | CGBitmapInfo.byteOrder32Big.rawValue
+        ) else {
+            throw MaterialEvidenceError.cannotCreateContactSheet
+        }
+        context.clear(CGRect(x: 0, y: 0, width: width, height: height))
+        let centerX = actor.position.x * Double(width)
+        let centerY = (1 - actor.position.y) * Double(height)
+        context.draw(layer, in: CGRect(
+            x: CGFloat(centerX - Double(layer.width) * 0.5),
+            y: CGFloat(centerY - Double(layer.height) * 0.5),
+            width: CGFloat(layer.width),
+            height: CGFloat(layer.height)
+        ))
         guard let result = context.makeImage() else {
             throw MaterialEvidenceError.cannotCreateContactSheet
         }

@@ -50,7 +50,7 @@ public enum MaterialRendererError: Error, LocalizedError {
 /// recipe. It is intentionally independent from app/Metal code and consumes
 /// immutable composition values without deriving or changing geometry.
 public struct MaterialRenderer {
-    public static let version = "material-coregraphics-radial-v6"
+    public static let version = "material-coregraphics-radial-v7"
 
     public init() {}
 
@@ -88,6 +88,56 @@ public struct MaterialRenderer {
             pixelWidth: pixelSize,
             pixelHeight: pixelSize
         )
+    }
+
+    /// Transparent structural masks rendered through the same actor-local
+    /// Gaussian blur and open-center restoration as a composed scene. Outline
+    /// contours are returned separately so evidence can measure each alpha
+    /// band without allowing palette chroma to impersonate topology.
+    public func renderStructuralAlphaLayers(
+        _ material: ActorMaterialRecipe,
+        pixelSize: Int,
+        blurRadius: Double
+    ) throws -> [NeutralRenderedImage] {
+        guard pixelSize > 0 else { throw MaterialRendererError.invalidPixelSize(pixelSize) }
+        guard blurRadius.isFinite, blurRadius >= 0 else {
+            throw MaterialRendererError.invalidMaterial("blur radius must be finite and nonnegative")
+        }
+        try validate(material)
+        let selectors: [Int?]
+        switch material.family {
+        case .outline:
+            selectors = material.organicTopology?.contours.indices.map(Optional.some) ?? []
+        case .halo, .counterform:
+            selectors = [nil]
+        default:
+            throw MaterialRendererError.invalidMaterial(
+                "alpha topology layers require halo, outline, or counterform"
+            )
+        }
+        return try selectors.map { contourIndex in
+            var image = try makeActorImage(
+                material,
+                pixelSize: pixelSize,
+                contrastBackground: nil,
+                isolatedContourIndex: contourIndex
+            )
+            if blurRadius >= 0.5 {
+                image = try padded(image, by: max(2, Int(ceil(blurRadius * 3))))
+                image = try blurred(image, radius: blurRadius)
+                image = try restoringOpenCenter(
+                    image,
+                    material: material,
+                    sourceDiameter: pixelSize,
+                    blurRadius: blurRadius
+                )
+            }
+            return NeutralRenderedImage(
+                pngData: try pngData(image),
+                pixelWidth: image.width,
+                pixelHeight: image.height
+            )
+        }
     }
 
     public func render(
@@ -235,35 +285,76 @@ public struct MaterialRenderer {
            (material.counterformRadius ?? 0) <= 0 {
             throw MaterialRendererError.invalidMaterial("counterform requires a cut center")
         }
-        if [.halo, .outline, .counterform].contains(material.family) {
+        switch material.family {
+        case .halo, .counterform:
             guard let topology = material.organicTopology,
-                  (0.38...0.62).contains(topology.outerCenter.x),
-                  (0.38...0.62).contains(topology.outerCenter.y),
-                  (0.38...0.62).contains(topology.innerCenter.x),
-                  (0.38...0.62).contains(topology.innerCenter.y),
-                  topology.outerRadius > 0,
-                  topology.outerRadius <= 0.50,
-                  topology.innerRadius > 0,
-                  topology.innerRadius < topology.outerRadius,
-                  topology.contours.count <= 3,
-                  topology.contours.allSatisfy({ contour in
-                      contour.outerRadius > contour.innerRadius
-                          && contour.outerRadius <= 0.50
-                          && contour.innerRadius > 0
-                          && (0...1).contains(contour.opacity)
+                  topology.contours.isEmpty,
+                  validTopologyPoint(topology.outerCenter),
+                  validTopologyPoint(topology.innerCenter),
+                  validRadius(topology.outerRadius),
+                  validRadius(topology.innerRadius),
+                  topology.innerRadius < topology.outerRadius
+            else {
+                throw MaterialRendererError.invalidMaterial(
+                    "halo/counterform requires one bounded radial body and no contour array"
+                )
+            }
+        case .outline:
+            guard let topology = material.organicTopology,
+                  (1...3).contains(material.contourCount),
+                  topology.contours.count == material.contourCount,
+                  let first = topology.contours.first,
+                  let last = topology.contours.last,
+                  topology.outerCenter == first.outerCenter,
+                  topology.outerRadius == first.outerRadius,
+                  topology.innerCenter == last.innerCenter,
+                  topology.innerRadius == last.innerRadius,
+                  topology.contours.allSatisfy(validContour),
+                  zip(topology.contours, topology.contours.dropFirst()).allSatisfy({ pair in
+                      pair.0.outerRadius > pair.1.outerRadius
+                          && pair.0.innerRadius > pair.1.innerRadius
                   })
             else {
                 throw MaterialRendererError.invalidMaterial(
-                    "structural family requires bounded organic radial topology"
+                    "outline contour array is the bounded authoritative topology"
+                )
+            }
+        default:
+            guard material.organicTopology == nil else {
+                throw MaterialRendererError.invalidMaterial(
+                    "non-structural family cannot carry organic topology"
                 )
             }
         }
     }
 
+    private func validTopologyPoint(_ point: CompositionPoint) -> Bool {
+        point.x.isFinite
+            && point.y.isFinite
+            && (0.28...0.72).contains(point.x)
+            && (0.28...0.72).contains(point.y)
+    }
+
+    private func validRadius(_ radius: Double) -> Bool {
+        radius.isFinite && (0.02...0.50).contains(radius)
+    }
+
+    private func validContour(_ contour: OrganicRadialContour) -> Bool {
+        validTopologyPoint(contour.outerCenter)
+            && validTopologyPoint(contour.innerCenter)
+            && validRadius(contour.outerRadius)
+            && validRadius(contour.innerRadius)
+            && contour.innerRadius < contour.outerRadius
+            && contour.opacity.isFinite
+            && contour.opacity > 0
+            && contour.opacity <= 1
+    }
+
     private func makeActorImage(
         _ material: ActorMaterialRecipe,
         pixelSize: Int,
-        contrastBackground: MaterialColor?
+        contrastBackground: MaterialColor?,
+        isolatedContourIndex: Int? = nil
     ) throws -> CGImage {
         let context = try makeContext(width: pixelSize, height: pixelSize)
         guard let rawData = context.data else {
@@ -353,11 +444,13 @@ public struct MaterialRenderer {
                     color = mix(color, RGB.white, 0.025 + (1 - volume) * 0.035)
                     alpha *= 0.58 + volume * 0.42
                 case .halo:
-                    let topology = material.organicTopology
-                    let outerCenter = topology?.outerCenter ?? CompositionPoint(x: 0.5, y: 0.5)
-                    let innerCenter = topology?.innerCenter ?? CompositionPoint(x: 0.5, y: 0.5)
-                    let organicOuterRadius = topology?.outerRadius ?? outerRadius
-                    let organicInnerRadius = topology?.innerRadius ?? outerRadius * 0.32
+                    guard let topology = material.organicTopology else {
+                        throw MaterialRendererError.invalidMaterial("halo topology was not validated")
+                    }
+                    let outerCenter = topology.outerCenter
+                    let innerCenter = topology.innerCenter
+                    let organicOuterRadius = topology.outerRadius
+                    let organicInnerRadius = topology.innerRadius
                     let outerDistance = hypot(u - outerCenter.x, v - outerCenter.y)
                     let innerDistance = hypot(u - innerCenter.x, v - innerCenter.y)
                     let body = 1 - smoothstep(
@@ -407,55 +500,51 @@ public struct MaterialRenderer {
                     alpha *= 0.92 + core * 0.05 + outerCorona * 0.03
                 case .outline:
                     var contourAlpha = 0.0
-                    if let topology = material.organicTopology,
-                       topology.contours.count == max(1, material.contourCount) {
-                        for contour in topology.contours {
-                            let outerDistance = hypot(
-                                u - contour.outerCenter.x,
-                                v - contour.outerCenter.y
-                            )
-                            let innerDistance = hypot(
-                                u - contour.innerCenter.x,
-                                v - contour.innerCenter.y
-                            )
-                            let outerFill = 1 - smoothstep(
-                                contour.outerRadius - antialias * 1.8,
-                                contour.outerRadius + antialias * 1.2,
-                                outerDistance
-                            )
-                            let innerCut = smoothstep(
-                                contour.innerRadius - antialias * 1.4,
-                                contour.innerRadius + antialias * 1.8,
-                                innerDistance
-                            )
-                            contourAlpha = max(
-                                contourAlpha,
-                                outerFill * innerCut * contour.opacity
-                            )
+                    guard let topology = material.organicTopology else {
+                        throw MaterialRendererError.invalidMaterial("outline topology was not validated")
+                    }
+                    let contours: ArraySlice<OrganicRadialContour>
+                    if let isolatedContourIndex {
+                        guard topology.contours.indices.contains(isolatedContourIndex) else {
+                            throw MaterialRendererError.invalidMaterial("outline contour index is invalid")
                         }
+                        contours = topology.contours[isolatedContourIndex...isolatedContourIndex]
                     } else {
-                        let contourCount = max(1, material.contourCount)
-                        for index in 0..<contourCount {
-                            let spacing = material.contourWidth * 1.55 * Double(index)
-                            let centerRadius = outerRadius - material.contourWidth * 0.55 - spacing
-                            let distanceFromContour = abs(shapeDistance - centerRadius)
-                            let oneContour = 1 - smoothstep(
-                                material.contourWidth * 0.48,
-                                material.contourWidth * 0.48 + antialias * 1.5,
-                                distanceFromContour
-                            )
-                            contourAlpha = max(
-                                contourAlpha,
-                                oneContour * (1 - Double(index) * 0.13)
-                            )
-                        }
+                        contours = topology.contours[...]
+                    }
+                    for contour in contours {
+                        let outerDistance = hypot(
+                            u - contour.outerCenter.x,
+                            v - contour.outerCenter.y
+                        )
+                        let innerDistance = hypot(
+                            u - contour.innerCenter.x,
+                            v - contour.innerCenter.y
+                        )
+                        let outerFill = 1 - smoothstep(
+                            contour.outerRadius - antialias * 1.8,
+                            contour.outerRadius + antialias * 1.2,
+                            outerDistance
+                        )
+                        let innerCut = smoothstep(
+                            contour.innerRadius - antialias * 1.4,
+                            contour.innerRadius + antialias * 1.8,
+                            innerDistance
+                        )
+                        contourAlpha = max(
+                            contourAlpha,
+                            outerFill * innerCut * contour.opacity
+                        )
                     }
                     alpha *= contourAlpha
                 case .counterform:
-                    let innerCenter = material.organicTopology?.innerCenter
-                        ?? CompositionPoint(x: 0.5, y: 0.5)
-                    let holeRadius = material.organicTopology?.innerRadius
-                        ?? outerRadius * (material.counterformRadius ?? 0)
+                    guard let topology = material.organicTopology else {
+                        throw MaterialRendererError.invalidMaterial(
+                            "counterform topology was not validated"
+                        )
+                    }
+                    let innerCenter = topology.innerCenter
+                    let holeRadius = topology.innerRadius
                     let holeSoftness = max(material.counterformSoftness, antialias)
                     let innerDistance = hypot(u - innerCenter.x, v - innerCenter.y)
                     let cutout = smoothstep(
@@ -611,26 +700,20 @@ public struct MaterialRenderer {
         let contrastGain: Double
         switch material.family {
         case .halo:
-            openingCenter = material.organicTopology?.innerCenter
-                ?? CompositionPoint(x: 0.5, y: 0.5)
-            openingOuter = max(0.23, (material.organicTopology?.innerRadius ?? 0.22) * 0.98)
+            guard let topology = material.organicTopology else {
+                throw MaterialRendererError.invalidMaterial("halo topology was not validated")
+            }
+            openingCenter = topology.innerCenter
+            openingOuter = max(0.23, topology.innerRadius * 0.98)
             contrastGain = 1 + min(0.18, blurRadius / Double(sourceDiameter) * 1.6)
         case .outline:
-            if let innermost = material.organicTopology?.contours.last {
-                openingCenter = innermost.innerCenter
-                openingOuter = material.contourCount <= 1
-                    ? max(0.27, innermost.innerRadius * 0.92)
-                    : max(0.15, innermost.innerRadius * 0.92)
-            } else if material.contourCount <= 1 {
-                openingCenter = CompositionPoint(x: 0.5, y: 0.5)
-                let innerContourEdge = 0.48 - material.contourWidth * 1.03
-                openingOuter = max(0.27, innerContourEdge * 0.88)
-            } else {
-                openingCenter = CompositionPoint(x: 0.5, y: 0.5)
-                // Multi-contour outlines retain their two outer bands while
-                // the small innermost band yields to a legible open center.
-                openingOuter = 0.20
+            guard let innermost = material.organicTopology?.contours.last else {
+                throw MaterialRendererError.invalidMaterial("outline topology was not validated")
             }
+            openingCenter = innermost.innerCenter
+            openingOuter = material.contourCount <= 1
+                ? max(0.27, innermost.innerRadius * 0.92)
+                : max(0.15, innermost.innerRadius * 0.92)
             let contourPixels = max(1, material.contourWidth * Double(sourceDiameter))
             contrastGain = 1 + min(0.32, blurRadius / contourPixels * 0.16)
         default:

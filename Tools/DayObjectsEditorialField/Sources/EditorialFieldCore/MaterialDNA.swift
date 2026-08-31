@@ -406,7 +406,7 @@ public enum MaterialDNA {
         case .mist:
             return (0.70, mutation == .diffuseMist ? 0.095 : 0.075, 0, 0, nil, 0)
         case .halo:
-            return (mutation == .expandedHalo ? 0.78 : 0.70, 0.072, 0, 0, nil, 0)
+            return (mutation == .expandedHalo ? 0.84 : 0.78, 0.072, 0, 0, nil, 0)
         case .luminous:
             return (mutation == .intenseLuminous ? 0.94 : 0.87, 0.046, 0, 0, nil, 0)
         case .outline:
@@ -449,15 +449,19 @@ public enum MaterialDNA {
         let perpendicularX = -directionY
         let perpendicularY = directionX
         let handedness = actorUnit(actorSeed, salt: 0xECCE_1702) < 0.5 ? -1.0 : 1.0
-        let eccentricity = 0.053 + actorUnit(actorSeed, salt: 0xECCE_1703) * 0.018
-        let outerDrift = 0.010 + actorUnit(actorSeed, salt: 0xECCE_1704) * 0.008
+        // Structural families share the same radial DNA, but their two
+        // circle-derived authorities must be far enough apart to survive an
+        // actual-size depth blur. Keep the displacement in the recipe: a
+        // renderer must never resample a second, implementation-local look.
+        let eccentricity = 0.127 + actorUnit(actorSeed, salt: 0xECCE_1703) * 0.020
+        let outerDrift = 0.025 + actorUnit(actorSeed, salt: 0xECCE_1704) * 0.010
         let outerCenter = boundedTopologyPoint(
-            x: 0.5 - directionX * outerDrift + perpendicularX * handedness * 0.006,
-            y: 0.5 - directionY * outerDrift + perpendicularY * handedness * 0.006
+            x: 0.5 - directionX * outerDrift + perpendicularX * handedness * 0.012,
+            y: 0.5 - directionY * outerDrift + perpendicularY * handedness * 0.012
         )
         let innerCenter = boundedTopologyPoint(
-            x: 0.5 + directionX * eccentricity + perpendicularX * handedness * 0.010,
-            y: 0.5 + directionY * eccentricity + perpendicularY * handedness * 0.010
+            x: 0.5 + directionX * eccentricity + perpendicularX * handedness * 0.022,
+            y: 0.5 + directionY * eccentricity + perpendicularY * handedness * 0.022
         )
 
         switch family {
@@ -470,27 +474,32 @@ public enum MaterialDNA {
                 contours: []
             )
         case .outline:
-            let spacingFactors = [0.0, 1.30, 2.96]
-            let opacityFactors = [1.0, 0.76, 0.57]
-            let widthFactors = [0.92, 0.78, 0.64]
+            let spacingFactors = [0.0, 1.05, 3.42]
+            let opacityFactors = [1.0, 0.69, 0.43]
+            let widthFactors = [1.06, 0.74, 0.51]
+            let alongShifts = [0.0, 0.034, 0.082]
+            let crossShifts = [0.0, -0.023, 0.036]
             let contours = (0..<max(1, contourCount)).map { index in
                 let centerRadius = 0.48
                     - contourWidth * 0.55
                     - contourWidth * spacingFactors[index]
                 let bandWidth = contourWidth * widthFactors[index]
-                let levelShift = Double(index) * 0.012
-                let alternating = index.isMultiple(of: 2) ? 1.0 : -1.0
                 let contourOuterCenter = boundedTopologyPoint(
-                    x: outerCenter.x + directionX * levelShift
-                        + perpendicularX * alternating * 0.006 * Double(index),
-                    y: outerCenter.y + directionY * levelShift
-                        + perpendicularY * alternating * 0.006 * Double(index)
+                    x: outerCenter.x + directionX * alongShifts[index]
+                        + perpendicularX * handedness * crossShifts[index],
+                    y: outerCenter.y + directionY * alongShifts[index]
+                        + perpendicularY * handedness * crossShifts[index]
                 )
+                // The cutout offset scales with its own band so even the
+                // quiet inner contour stays a complete, soft crescent rather
+                // than breaking into a wedge.
+                let cutoutShift = min(0.072, max(0.050, bandWidth * 0.68))
+                let cutoutCross = min(0.026, cutoutShift * (0.20 + Double(index) * 0.08))
                 let contourInnerCenter = boundedTopologyPoint(
-                    x: contourOuterCenter.x + directionX * (0.036 + Double(index) * 0.006)
-                        + perpendicularX * handedness * 0.006,
-                    y: contourOuterCenter.y + directionY * (0.036 + Double(index) * 0.006)
-                        + perpendicularY * handedness * 0.006
+                    x: contourOuterCenter.x + directionX * cutoutShift
+                        + perpendicularX * handedness * cutoutCross,
+                    y: contourOuterCenter.y + directionY * cutoutShift
+                        + perpendicularY * handedness * cutoutCross
                 )
                 return OrganicRadialContour(
                     outerCenter: contourOuterCenter,
@@ -522,8 +531,8 @@ public enum MaterialDNA {
 
     private static func boundedTopologyPoint(x: Double, y: Double) -> CompositionPoint {
         CompositionPoint(
-            x: min(0.62, max(0.38, x)),
-            y: min(0.62, max(0.38, y))
+            x: min(0.70, max(0.30, x)),
+            y: min(0.70, max(0.30, y))
         )
     }
 
