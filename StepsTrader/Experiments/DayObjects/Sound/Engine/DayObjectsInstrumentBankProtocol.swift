@@ -76,6 +76,8 @@ struct DayObjectsInstrumentBankGraphLayout: Equatable, Sendable {
     let tonalBusCount: Int
     let drumBusCount: Int
     let sharedSpatialEffectCount: Int
+    let tonalBusGainDB: Double
+    let drumBusGainDB: Double
     let masterTrimDB: Double
     let finalPeakLimiterCount: Int
 }
@@ -91,6 +93,7 @@ extension DayObjectsInstrumentBankGraph {
 
 protocol DayObjectsInstrumentBankEngine: AnyObject {
     func attach(graph: any DayObjectsInstrumentBankGraph) throws
+    func detach()
     func start() throws
     func stop()
 }

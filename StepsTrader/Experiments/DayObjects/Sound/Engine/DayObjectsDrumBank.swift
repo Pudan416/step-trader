@@ -157,6 +157,11 @@ struct DayObjectsAudioKitDrumBankMetrics: Equatable, Sendable {
 
 protocol DayObjectsDrumPlayerBackend: AnyObject {
     func play(_ hit: DayObjectsDrumHit)
+    func stop()
+}
+
+extension DayObjectsDrumPlayerBackend {
+    func stop() {}
 }
 
 final class DayObjectsDrumBank {
@@ -170,6 +175,7 @@ final class DayObjectsDrumBank {
 
     private let resolvedSamples: [DayObjectsDrumSample: URL]
     private let resolvedVoiceSamples: [DayObjectsDrumVoice: DayObjectsDrumSample]
+    private let recipes: [DayObjectsDrumVoice: DayObjectsDrumRecipe]
     private var slots: [DayObjectsDrumVoice: [Slot]] = [:]
     private(set) var diagnostics: [DayObjectsDrumDiagnostic] = []
 
@@ -179,7 +185,8 @@ final class DayObjectsDrumBank {
 
     var preloadedSampleCount: Int { resolvedSamples.count }
 
-    init(resourceResolver: @escaping ResourceResolver, playerFactory: PlayerFactory) {
+    init(resourceResolver: @escaping ResourceResolver, recipes: [DayObjectsDrumVoice: DayObjectsDrumRecipe]? = nil, playerFactory: PlayerFactory) {
+        self.recipes = recipes ?? Dictionary(uniqueKeysWithValues: DayObjectsDrumVoice.allCases.map { ($0, DayObjectsDrumRecipe.recipe(for: $0)) })
         var samples: [DayObjectsDrumSample: URL] = [:]
         for sample in DayObjectsDrumSample.allCases {
             if let url = resourceResolver(sample) {
@@ -195,7 +202,7 @@ final class DayObjectsDrumBank {
 
         var voiceSamples: [DayObjectsDrumVoice: DayObjectsDrumSample] = [:]
         for voice in DayObjectsDrumVoice.allCases {
-            let recipe = DayObjectsDrumRecipe.recipe(for: voice)
+            let recipe = self.recipes[voice] ?? DayObjectsDrumRecipe.recipe(for: voice)
             guard let primary = recipe.primarySample else {
                 voiceSamples[voice] = nil
                 continue
@@ -216,8 +223,8 @@ final class DayObjectsDrumBank {
             }
         }
 
-        for voice in DayObjectsDrumVoice.allCases where DayObjectsDrumRecipe.recipe(for: voice).primarySample == nil {
-            let recipe = DayObjectsDrumRecipe.recipe(for: voice)
+        for voice in DayObjectsDrumVoice.allCases where (self.recipes[voice] ?? DayObjectsDrumRecipe.recipe(for: voice)).primarySample == nil {
+            let recipe = self.recipes[voice] ?? DayObjectsDrumRecipe.recipe(for: voice)
             slots[voice] = (0..<recipe.overlapCount).map { _ in Slot(player: playerFactory(recipe, nil, nil)) }
         }
         resolvedVoiceSamples = voiceSamples
@@ -233,7 +240,7 @@ final class DayObjectsDrumBank {
 
     func hit(_ voice: DayObjectsDrumVoice, velocity: Double = 0.9) {
         guard var voiceSlots = slots[voice], !voiceSlots.isEmpty else { return }
-        let recipe = DayObjectsDrumRecipe.recipe(for: voice)
+        let recipe = recipes[voice] ?? DayObjectsDrumRecipe.recipe(for: voice)
         let slotID = voiceSlots[0].hitIndex % voiceSlots.count
         let variationIndex = voiceSlots[0].hitIndex % 3
         let variationFraction = Double(variationIndex) / 2
@@ -243,6 +250,10 @@ final class DayObjectsDrumBank {
         voiceSlots[slotID].player.play(.init(voice: voice, velocity: boundedVelocity, pitchRate: pitchRate))
         voiceSlots[0].hitIndex &+= 1
         slots[voice] = voiceSlots
+    }
+
+    func releaseAll() {
+        slots.values.flatMap { $0 }.forEach { $0.player.stop() }
     }
 
     private static func diagnosticComponent(_ sample: DayObjectsDrumSample) -> String {
@@ -286,7 +297,7 @@ final class DayObjectsAudioKitDrumBank {
         )
     }
 
-    init(resourceResolver: @escaping DayObjectsDrumBank.ResourceResolver) {
+    init(resourceResolver: @escaping DayObjectsDrumBank.ResourceResolver, recipes: [DayObjectsDrumVoice: DayObjectsDrumRecipe]? = nil) {
         var builtPlayers: [DayObjectsAudioKitDrumPlayer] = []
         var loadedSamples: [DayObjectsDrumSample: AudioPlayer] = [:]
         var loadedSampleCount = 0
@@ -296,7 +307,7 @@ final class DayObjectsAudioKitDrumBank {
             loadedSampleCount += 1
             return url
         }
-        let builtBank = DayObjectsDrumBank(resourceResolver: preload) { recipe, sample, sampleURL in
+        let builtBank = DayObjectsDrumBank(resourceResolver: preload, recipes: recipes) { recipe, sample, sampleURL in
             let preloadedSamplePlayer = sample.flatMap { loadedSamples.removeValue(forKey: $0) }
             let player = DayObjectsAudioKitDrumPlayer(
                 recipe: recipe,
@@ -312,6 +323,8 @@ final class DayObjectsAudioKitDrumBank {
         preparedSampleCount = loadedSampleCount
         output = Mixer(builtPlayers.map(\.output), name: "Day Objects drums")
     }
+
+    func releaseAll() { bank.releaseAll() }
 }
 
 private final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
@@ -402,6 +415,15 @@ private final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
             noise.amplitude = AUValue(noiseAmplitude)
             noiseEnvelope.openGate()
         }
+    }
+
+    func stop() {
+        output.gain = 0
+        samplePlayer?.stop()
+        sine?.amplitude = 0
+        sineEnvelope?.closeGate()
+        noise?.amplitude = 0
+        noiseEnvelope?.closeGate()
     }
 }
 #endif

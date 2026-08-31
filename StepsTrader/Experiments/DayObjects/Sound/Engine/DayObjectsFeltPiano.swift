@@ -203,13 +203,14 @@ final class DayObjectsAudioKitFeltPiano {
 
     init(
         samples: [FeltPianoSample],
+        recipe: DayObjectsFeltPianoRecipe = .default,
         resourceResolver: @escaping DayObjectsFeltPiano.ResourceResolver,
         bufferedPlayerLoader: @escaping BufferedPlayerLoader = { AudioPlayer(url: $0, buffered: true) }
     ) {
         var builtBackends: [DayObjectsAudioKitFeltPianoBackend] = []
         var nextPlaybackOrder: UInt64 = 0
         sampleCount = samples.count
-        piano = DayObjectsFeltPiano(samples: samples, resourceResolver: resourceResolver) { recipe, sampleURLs in
+        piano = DayObjectsFeltPiano(samples: samples, recipe: recipe, resourceResolver: resourceResolver) { recipe, sampleURLs in
             let backend = try DayObjectsAudioKitFeltPianoBackend(recipe: recipe, sampleURLs: sampleURLs, bufferedPlayerLoader: bufferedPlayerLoader) {
                 nextPlaybackOrder &+= 1
                 return nextPlaybackOrder

@@ -72,21 +72,18 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
                     DayObjectsAudioKitTonalPool(specification: specification, instruments: instruments)
                 )
             },
-            drumBankFactory: { _ in
+            drumBankFactory: { overlapCounts in
                 DayObjectsAudioKitDrumBankAdapter(.init(resourceResolver: { sample in
                     let filename = sample.rawValue as NSString
                     return bundle.url(forResource: filename.deletingPathExtension, withExtension: filename.pathExtension, subdirectory: "Drums")
-                }))
+                }, recipes: Self.drumRecipes(overlapCounts)))
             },
             pianoPoolFactory: { requestedCount in
                 let samples = try FeltPianoManifest.load(from: bundle)
-                let adapter = DayObjectsAudioKitFeltPiano(samples: samples, resourceResolver: { sample in
+                let adapter = DayObjectsAudioKitFeltPiano(samples: samples, recipe: Self.pianoRecipe(voiceCount: requestedCount), resourceResolver: { sample in
                     let filename = sample.filename as NSString
                     return bundle.url(forResource: filename.deletingPathExtension, withExtension: filename.pathExtension, subdirectory: "FeltPiano")
                 })
-                guard adapter.piano.recipe.maximumPolyphony == requestedCount else {
-                    throw DayObjectsInstrumentBankError.invalidPianoVoiceCount
-                }
                 return DayObjectsAudioKitPianoPoolAdapter(adapter)
             },
             graphFactory: { tonalPools, drums, piano in
@@ -158,10 +155,12 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         } catch let error as DayObjectsInstrumentBankError {
             release(builtTonalPools, builtDrums, builtPiano)
             engine.stop()
+            engine.detach()
             throw error
         } catch {
             release(builtTonalPools, builtDrums, builtPiano)
             engine.stop()
+            engine.detach()
             throw DayObjectsInstrumentBankError.preparationFailed(.graph)
         }
     }
@@ -177,11 +176,16 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         guard prepared.state != .started else { return }
         prepared.graph.synchronizeForStart()
         do {
+            if !prepared.isAttached {
+                try engine.attach(graph: prepared.graph)
+                self.prepared?.isAttached = true
+            }
             try engine.start()
             self.prepared?.state = .started
         } catch {
             releaseAll()
             engine.stop()
+            engine.detach()
             self.prepared = nil
             throw DayObjectsInstrumentBankError.startFailed
         }
@@ -190,7 +194,8 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     func stop() async {
         releaseAll()
         engine.stop()
-        if prepared != nil { prepared?.state = .prepared }
+        engine.detach()
+        if prepared != nil { prepared?.state = .prepared; prepared?.isAttached = false }
     }
 
     func releaseAll() {
@@ -201,12 +206,12 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     }
 
     private func validate(_ configuration: DayObjectsInstrumentBankConfiguration) throws {
-        let names = configuration.tonalPools.map(\.name)
-        if Set(names).count != names.count {
-            throw DayObjectsInstrumentBankError.duplicateTonalPoolName(names.sorted().first ?? "")
+        var seen = Set<String>()
+        for name in configuration.tonalPools.map(\.name) where !seen.insert(name).inserted {
+            throw DayObjectsInstrumentBankError.duplicateTonalPoolName(name)
         }
-        guard configuration.pianoVoiceCount > 0 else { throw DayObjectsInstrumentBankError.invalidPianoVoiceCount }
-        if let invalid = configuration.drumOverlapCounts.first(where: { $0.value <= 0 })?.key {
+        guard (1...8).contains(configuration.pianoVoiceCount) else { throw DayObjectsInstrumentBankError.invalidPianoVoiceCount }
+        if let invalid = configuration.drumOverlapCounts.filter({ !(1...8).contains($0.value) }).map(\.key).sorted(by: { $0.rawValue < $1.rawValue }).first {
             throw DayObjectsInstrumentBankError.invalidDrumOverlap(invalid)
         }
     }
@@ -228,6 +233,20 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         let piano: DayObjectsPianoPoolProtocol
         let graph: DayObjectsInstrumentBankGraph
         var state: DayObjectsInstrumentBankState
+        var isAttached: Bool = true
+    }
+
+    private static func drumRecipes(_ requested: [DayObjectsDrumVoice: Int]) -> [DayObjectsDrumVoice: DayObjectsDrumRecipe] {
+        Dictionary(uniqueKeysWithValues: DayObjectsDrumVoice.allCases.map { voice in
+            let base = DayObjectsDrumRecipe.recipe(for: voice)
+            let overlap = requested[voice] ?? base.overlapCount
+            return (voice, .init(voice: base.voice, primarySample: base.primarySample, fallbackSample: base.fallbackSample, synthesis: base.synthesis, sinePitchDrop: base.sinePitchDrop, noiseAmplitude: base.noiseAmplitude, overlapCount: overlap, transientFilterCutoffHz: base.transientFilterCutoffHz, noiseFilterCutoffHz: base.noiseFilterCutoffHz, variation: base.variation, allowsPitchDrift: base.allowsPitchDrift, allowsBroadbandSustainedNoise: base.allowsBroadbandSustainedNoise, usesSawOscillator: base.usesSawOscillator, delayFeedback: base.delayFeedback))
+        })
+    }
+
+    private static func pianoRecipe(voiceCount: Int) -> DayObjectsFeltPianoRecipe {
+        let base = DayObjectsFeltPianoRecipe.default
+        return .init(attackSeconds: base.attackSeconds, releaseSeconds: base.releaseSeconds, lowPassCutoffHz: base.lowPassCutoffHz, mechanicalOnsetHighPassHz: base.mechanicalOnsetHighPassHz, mechanicalNoiseGain: base.mechanicalNoiseGain, noteTrimDB: base.noteTrimDB, roomSend: base.roomSend, reverbSend: base.reverbSend, maximumPolyphony: voiceCount)
     }
 }
 
@@ -253,7 +272,10 @@ private final class DayObjectsCategoryValidatedTonalPool: DayObjectsTonalVoicePo
         try pool.prepareInstrument(id)
     }
 
-    func noteOn(_ request: DayObjectsTonalNoteRequest) -> DayObjectsVoiceToken? { pool.noteOn(request) }
+    func noteOn(_ request: DayObjectsTonalNoteRequest) -> DayObjectsVoiceToken? {
+        guard let descriptor = descriptors[request.instrumentID], descriptor.category != .drums, descriptor.category != .piano, preparedInstruments[request.instrumentID] != nil else { return nil }
+        return pool.noteOn(request)
+    }
     func update(_ token: DayObjectsVoiceToken, with update: DayObjectsVoiceUpdate) { pool.update(token, with: update) }
     func noteOff(_ token: DayObjectsVoiceToken) { pool.noteOff(token) }
     func releaseAll() { pool.releaseAll() }
@@ -288,7 +310,7 @@ private final class DayObjectsAudioKitDrumBankAdapter: DayObjectsDrumBankProtoco
     init(_ adapter: DayObjectsAudioKitDrumBank) { self.adapter = adapter }
     var metrics: DayObjectsDrumBankMetrics { adapter.bank.metrics }
     func hit(_ voice: DayObjectsDrumVoice, velocity: Double) { adapter.bank.hit(voice, velocity: velocity) }
-    func releaseAll() {}
+    func releaseAll() { adapter.releaseAll() }
 }
 
 private final class DayObjectsAudioKitPianoPoolAdapter: DayObjectsPianoPoolProtocol {
@@ -301,13 +323,7 @@ private final class DayObjectsAudioKitPianoPoolAdapter: DayObjectsPianoPoolProto
 }
 
 private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentBankGraph {
-    let layout = DayObjectsInstrumentBankGraphLayout(
-        tonalBusCount: 1,
-        drumBusCount: 1,
-        sharedSpatialEffectCount: 2,
-        masterTrimDB: -8,
-        finalPeakLimiterCount: 1
-    )
+    var layout: DayObjectsInstrumentBankGraphLayout { .init(tonalBusCount: 1, drumBusCount: 1, sharedSpatialEffectCount: 2, tonalBusGainDB: Self.decibels(tonalTrim.leftGain), drumBusGainDB: Self.decibels(drumTrim.leftGain), masterTrimDB: Self.decibels(masterTrim.leftGain), finalPeakLimiterCount: 1) }
     let tonalBus: Mixer
     let drumBus: Mixer
     let tonalTrim: Fader
@@ -335,6 +351,8 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
     func synchronizeForStart() {
         tonalPools.forEach { $0.synchronizeGraphIfAttached() }
     }
+
+    private static func decibels(_ gain: AUValue) -> Double { 20 * log10(Double(gain)) }
 }
 
 private final class DayObjectsAudioKitInstrumentBankEngine: DayObjectsInstrumentBankEngine {
@@ -347,6 +365,7 @@ private final class DayObjectsAudioKitInstrumentBankEngine: DayObjectsInstrument
         engine.output = graph.limiter
     }
 
+    func detach() { engine.output = nil }
     func start() throws { try engine.start() }
     func stop() { engine.stop() }
 }
