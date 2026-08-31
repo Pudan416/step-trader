@@ -3,12 +3,11 @@ enum HappeningScheduleAllocator {
     private static let maximumCycleCount = 16
     private static let maximumBeatsPerBar = 16
 
-    private struct Candidate {
+    private struct VoiceLane {
         let plan: HappeningMusicPlan
-        let sequenceIndex: Int
-        let candidateBeat: Double
-        let intervalBars: Int
         let alignment: HappeningRecurrenceAlignment
+        let intervalBars: Int
+        let phaseBeat: Double
     }
 
     static func allocate(
@@ -30,72 +29,39 @@ enum HappeningScheduleAllocator {
         let horizonBars = cycleBars * cycleCount
         let horizonBeats = Double(horizonBars * beatsPerBar)
         let gridIDs = gridAlignedIDs(in: activePlans)
-        var candidates: [Candidate] = []
-        var cursors: [HappeningScheduleCursor] = []
-
-        for plan in activePlans {
-            let alignment: HappeningRecurrenceAlignment = gridIDs.contains(plan.happeningID)
-                ? .gridAligned
-                : .floating
-            let generated = makeCandidates(
-                for: plan,
-                alignment: alignment,
-                intervalBand: intervalBand,
-                remixSeed: remixSeed,
-                cycleBars: cycleBars,
-                horizonBeats: horizonBeats,
-                beatsPerBar: beatsPerBar
-            )
-            candidates.append(contentsOf: generated.candidates)
-            cursors.append(generated.cursor)
-        }
-
-        candidates.sort {
-            if $0.candidateBeat != $1.candidateBeat {
-                return $0.candidateBeat < $1.candidateBeat
-            }
-            if $0.plan.happeningID != $1.plan.happeningID {
-                return $0.plan.happeningID < $1.plan.happeningID
-            }
-            return $0.sequenceIndex < $1.sequenceIndex
-        }
-
+        let minimumPeriodBeats = intervalBand.lowerBound * beatsPerBar
+        // Every declared upper interval is exactly two minimum periods. Assigning
+        // one collision-free phase per voice, then repeating at one or two periods,
+        // makes all future placements collision-free without greedy horizon state.
+        let lanes = makeVoiceLanes(
+            plans: activePlans,
+            gridIDs: gridIDs,
+            intervalBand: intervalBand,
+            minimumPeriodBeats: minimumPeriodBeats,
+            remixSeed: remixSeed
+        )
         var scheduled: [HappeningScheduleEvent] = []
-        var previousBeatByID: [String: Double] = [:]
-        let lastSequenceByID = candidates.reduce(into: [String: Int]()) { result, candidate in
-            result[candidate.plan.happeningID] = max(
-                result[candidate.plan.happeningID] ?? -1,
-                candidate.sequenceIndex
-            )
-        }
-        let maximumGapBeats = Double(intervalBand.upperBound * beatsPerBar)
-        let minimumGapBeats = Double(intervalBand.lowerBound * beatsPerBar)
-        for candidate in candidates {
-            guard let startBeat = resolvedBeat(
-                for: candidate,
-                scheduled: scheduled,
-                previousBeat: previousBeatByID[candidate.plan.happeningID],
-                minimumGapBeats: minimumGapBeats,
-                maximumGapBeats: maximumGapBeats,
-                cycleBeats: Double(cycleBars * beatsPerBar),
-                horizonBeats: horizonBeats,
-                requiresTailCoverage: lastSequenceByID[candidate.plan.happeningID]
-                    == candidate.sequenceIndex
-            ) else {
-                // Under the guarded count/horizon caps, the exhaustive window always has
-                // more legal slots than competing voices can occupy. Reject the complete
-                // allocation rather than publishing a partial, starving schedule if that
-                // invariant is ever broken by a future change.
-                return emptyAllocation(beatsPerBar: beatsPerBar)
+        var cursors: [HappeningScheduleCursor] = []
+        for lane in lanes {
+            let intervalBeats = Double(lane.intervalBars * beatsPerBar)
+            var sequenceIndex = 0
+            var startBeat = lane.phaseBeat
+            while startBeat < horizonBeats {
+                scheduled.append(HappeningScheduleEvent(
+                    happeningID: lane.plan.happeningID,
+                    sequenceIndex: sequenceIndex,
+                    startBeat: startBeat,
+                    intervalBars: lane.intervalBars,
+                    alignment: lane.alignment,
+                    gain: lane.plan.gain
+                ))
+                sequenceIndex += 1
+                startBeat += intervalBeats
             }
-            previousBeatByID[candidate.plan.happeningID] = startBeat
-            scheduled.append(HappeningScheduleEvent(
-                happeningID: candidate.plan.happeningID,
-                sequenceIndex: candidate.sequenceIndex,
-                startBeat: startBeat,
-                intervalBars: candidate.intervalBars,
-                alignment: candidate.alignment,
-                gain: candidate.plan.gain
+            cursors.append(HappeningScheduleCursor(
+                happeningID: lane.plan.happeningID,
+                nextSequenceIndex: sequenceIndex,
+                nextCandidateBeat: startBeat
             ))
         }
         scheduled.sort {
@@ -161,126 +127,99 @@ enum HappeningScheduleAllocator {
         return Set(ranked.prefix(target).map(\.happeningID))
     }
 
-    private static func makeCandidates(
-        for plan: HappeningMusicPlan,
-        alignment: HappeningRecurrenceAlignment,
+    private static func makeVoiceLanes(
+        plans: [HappeningMusicPlan],
+        gridIDs: Set<String>,
         intervalBand: ClosedRange<Int>,
+        minimumPeriodBeats: Int,
         remixSeed: UInt64,
-        cycleBars: Int,
-        horizonBeats: Double,
-        beatsPerBar: Int
-    ) -> (candidates: [Candidate], cursor: HappeningScheduleCursor) {
-        var random = StableMusicRandom(
-            seed: plan.recurrence.scheduleSeed ^ remixSeed,
-            domain: .happeningSchedule(stableID: plan.happeningID)
-        )
-        let cycleBeats = cycleBars * beatsPerBar
-        let latestInitialBeat = max(1, cycleBeats - 6)
-        let initialWholeBeat = 1 + (random.nextInt(upperBound: latestInitialBeat) ?? 0)
-        let fractionalOffset = alignment == .gridAligned
-            ? 0
-            : plan.recurrence.floatingOffsetBeats
-        var candidateBeat = Double(initialWholeBeat) + fractionalOffset
-        if candidateBeat < 0.25 { candidateBeat = 0.25 }
-
-        var sequenceIndex = 0
-        var result: [Candidate] = []
-        while candidateBeat < horizonBeats {
-            let selectableCount = max(1, intervalBand.upperBound - intervalBand.lowerBound + 1)
-            let intervalBars = intervalBand.lowerBound
-                + (random.nextInt(upperBound: selectableCount) ?? 0)
-            result.append(Candidate(
-                plan: plan,
-                sequenceIndex: sequenceIndex,
-                candidateBeat: candidateBeat,
-                intervalBars: intervalBars,
-                alignment: alignment
-            ))
-            sequenceIndex += 1
-            candidateBeat += Double(intervalBars * beatsPerBar)
-        }
-
-        return (
-            result,
-            HappeningScheduleCursor(
-                happeningID: plan.happeningID,
-                nextSequenceIndex: sequenceIndex,
-                nextCandidateBeat: candidateBeat
+    ) -> [VoiceLane] {
+        var occupiedPhases: [Double] = []
+        return plans.sorted { $0.happeningID < $1.happeningID }.map { plan in
+            let alignment: HappeningRecurrenceAlignment = gridIDs.contains(plan.happeningID)
+                ? .gridAligned
+                : .floating
+            var random = StableMusicRandom(
+                seed: plan.recurrence.scheduleSeed ^ remixSeed,
+                domain: .happeningSchedule(stableID: plan.happeningID)
             )
-        )
+            let intervalBars = random.bernoulli(probability: 0.5)
+                ? intervalBand.lowerBound
+                : intervalBand.upperBound
+            let preferredWholeBeat = random.nextInt(upperBound: minimumPeriodBeats) ?? 0
+            let preferredPhase = wrappedPhase(
+                Double(preferredWholeBeat) + (
+                    alignment == .gridAligned ? 0 : plan.recurrence.floatingOffsetBeats
+                ),
+                periodBeats: minimumPeriodBeats
+            )
+            // Guarded inputs guarantee phase capacity: active voice count is no
+            // greater than the minimum period in beats, grid voices have one slot
+            // per beat, and floating voices have the remaining two-per-beat slots.
+            let phase = candidatePhases(
+                alignment: alignment,
+                periodBeats: minimumPeriodBeats
+            ).filter { isPhaseAvailable($0, among: occupiedPhases) }
+                .min {
+                    let leftDistance = circularDistance(
+                        from: $0,
+                        to: preferredPhase,
+                        period: Double(minimumPeriodBeats)
+                    )
+                    let rightDistance = circularDistance(
+                        from: $1,
+                        to: preferredPhase,
+                        period: Double(minimumPeriodBeats)
+                    )
+                    if leftDistance != rightDistance { return leftDistance < rightDistance }
+                    return $0 < $1
+                } ?? preferredPhase
+            occupiedPhases.append(phase)
+            return VoiceLane(
+                plan: plan,
+                alignment: alignment,
+                intervalBars: intervalBars,
+                phaseBeat: phase
+            )
+        }
     }
 
-    private static func resolvedBeat(
-        for candidate: Candidate,
-        scheduled: [HappeningScheduleEvent],
-        previousBeat: Double?,
-        minimumGapBeats: Double,
-        maximumGapBeats: Double,
-        cycleBeats: Double,
-        horizonBeats: Double,
-        requiresTailCoverage: Bool
-    ) -> Double? {
-        let cycleStart = Double(Int(candidate.candidateBeat / cycleBeats)) * cycleBeats
-        let cycleEnd = min(horizonBeats, cycleStart + cycleBeats)
-        var lowerBound = cycleStart
-        var upperBound = cycleEnd - 0.25
-        if let previousBeat {
-            lowerBound = max(lowerBound, previousBeat + minimumGapBeats)
-            upperBound = min(upperBound, previousBeat + maximumGapBeats)
-        }
-        if requiresTailCoverage {
-            lowerBound = max(lowerBound, horizonBeats - maximumGapBeats)
-        }
-        guard lowerBound <= upperBound else { return nil }
-
-        let positions = candidatePositions(
-            alignment: candidate.alignment,
-            lowerBound: lowerBound,
-            upperBound: upperBound
-        ).sorted {
-            let leftDistance = abs($0 - candidate.candidateBeat)
-            let rightDistance = abs($1 - candidate.candidateBeat)
-            if leftDistance != rightDistance { return leftDistance < rightDistance }
-            return $0 < $1
-        }
-        for position in positions {
-            guard isAvailable(position, among: scheduled) else { continue }
-            return position
-        }
-        return nil
-    }
-
-    private static func candidatePositions(
+    private static func candidatePhases(
         alignment: HappeningRecurrenceAlignment,
-        lowerBound: Double,
-        upperBound: Double
+        periodBeats: Int
     ) -> [Double] {
         switch alignment {
         case .gridAligned:
-            let first = Int(lowerBound.rounded(.up))
-            let last = Int(upperBound.rounded(.down))
-            guard first <= last else { return [] }
-            return (first...last).map(Double.init)
+            return (0..<periodBeats).map(Double.init)
         case .floating:
-            let firstQuarter = Int((lowerBound * 4).rounded(.up))
-            let lastQuarter = Int((upperBound * 4).rounded(.down))
-            guard firstQuarter <= lastQuarter else { return [] }
-            return (firstQuarter...lastQuarter).compactMap { quarter in
+            return (1..<(periodBeats * 4)).compactMap { quarter in
                 guard !quarter.isMultiple(of: 4) else { return nil }
                 return Double(quarter) / 4
             }
         }
     }
 
-    private static func isAvailable(
+    private static func isPhaseAvailable(
         _ position: Double,
-        among scheduled: [HappeningScheduleEvent]
+        among occupied: [Double]
     ) -> Bool {
-        if scheduled.contains(where: { abs($0.startBeat - position) < 0.25 - 0.000_001 }) {
+        if occupied.contains(where: { abs($0 - position) < 0.25 - 0.000_001 }) {
             return false
         }
         let beat = Int(position.rounded(.down))
-        return scheduled.filter { Int($0.startBeat.rounded(.down)) == beat }.count < 2
+        return occupied.filter { Int($0.rounded(.down)) == beat }.count < 2
+    }
+
+    private static func wrappedPhase(_ phase: Double, periodBeats: Int) -> Double {
+        let period = Double(periodBeats)
+        if phase < 0 { return phase + period }
+        if phase >= period { return phase - period }
+        return phase
+    }
+
+    private static func circularDistance(from lhs: Double, to rhs: Double, period: Double) -> Double {
+        let direct = abs(lhs - rhs)
+        return min(direct, period - direct)
     }
 }
 #endif
