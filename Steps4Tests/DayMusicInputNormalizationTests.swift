@@ -65,6 +65,43 @@ final class DayMusicInputNormalizationTests: XCTestCase {
         )
     }
 
+    func testInvalidCountsAreSanitizedToZeroBeforeProgressCalculation() {
+        let normalized = DayMusicInput(
+            countedSteps: .infinity,
+            stepGoal: 5_000,
+            countedSleepHours: .infinity,
+            sleepGoalHours: 4,
+            happeningIDs: [],
+            spentColors: 0
+        ).normalized()
+
+        XCTAssertEqual(normalized.stepsProgress, 0)
+        XCTAssertEqual(normalized.sleepProgress, 0)
+        XCTAssertEqual(normalized.motionEnergy, 0.25)
+        XCTAssertEqual(normalized.visualClarity, 0.35)
+        XCTAssertEqual(
+            normalized.diagnostics,
+            [.invalidCountedSteps, .invalidCountedSleepHours]
+        )
+    }
+
+    func testInvalidGoalsYieldZeroProgressAfterValidCounts() {
+        let normalized = DayMusicInput(
+            countedSteps: 2_500,
+            stepGoal: .infinity,
+            countedSleepHours: 2,
+            sleepGoalHours: 0,
+            happeningIDs: [],
+            spentColors: 0
+        ).normalized()
+
+        XCTAssertEqual(normalized.stepsProgress, 0)
+        XCTAssertEqual(normalized.sleepProgress, 0)
+        XCTAssertEqual(normalized.motionEnergy, 0.25)
+        XCTAssertEqual(normalized.visualClarity, 0.35)
+        XCTAssertEqual(normalized.diagnostics, [.invalidStepGoal, .invalidSleepGoal])
+    }
+
     func testSpentColorsClampBeforeQuadraticGlitchMapping() {
         XCTAssertEqual(normalized(spentColors: -10).glitchProgress, 0)
         XCTAssertEqual(normalized(spentColors: 50).glitchProgress, 0.25)
