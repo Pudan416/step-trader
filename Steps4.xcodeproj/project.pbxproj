@@ -24,6 +24,10 @@
 		D0C300000000000000000014 /* DayObjectsInstrumentManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0C300000000000000000013 /* DayObjectsInstrumentManifest.swift */; };
 		D0C300000000000000000016 /* NormalizedSynthVoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0C300000000000000000015 /* NormalizedSynthVoice.swift */; };
 		D0C300000000000000000018 /* SynthOnePresetAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0C300000000000000000017 /* SynthOnePresetAdapter.swift */; };
+		D0D400000000000000000002 /* DayObjectsTonalVoicePoolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D400000000000000000001 /* DayObjectsTonalVoicePoolTests.swift */; };
+		D0D400000000000000000012 /* DayObjectsTonalVoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D400000000000000000011 /* DayObjectsTonalVoice.swift */; };
+		D0D400000000000000000014 /* DayObjectsTonalVoicePool.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D400000000000000000013 /* DayObjectsTonalVoicePool.swift */; };
+		D0D400000000000000000016 /* DayObjectsAudioParameters.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D400000000000000000015 /* DayObjectsAudioParameters.swift */; };
 		D0A0D2000000000000000011 /* SynthOnePresets in Resources */ = {isa = PBXBuildFile; fileRef = D0A0D2000000000000000001 /* SynthOnePresets */; };
 		D0A0D2000000000000000012 /* SynthOnePresets in Resources */ = {isa = PBXBuildFile; fileRef = D0A0D2000000000000000001 /* SynthOnePresets */; };
 		D0A0D2000000000000000013 /* Drums in Resources */ = {isa = PBXBuildFile; fileRef = D0A0D2000000000000000002 /* Drums */; };
@@ -463,6 +467,10 @@
 		D0C300000000000000000013 /* DayObjectsInstrumentManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsInstrumentManifest.swift; sourceTree = "<group>"; };
 		D0C300000000000000000015 /* NormalizedSynthVoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NormalizedSynthVoice.swift; sourceTree = "<group>"; };
 		D0C300000000000000000017 /* SynthOnePresetAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SynthOnePresetAdapter.swift; sourceTree = "<group>"; };
+		D0D400000000000000000001 /* DayObjectsTonalVoicePoolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsTonalVoicePoolTests.swift; sourceTree = "<group>"; };
+		D0D400000000000000000011 /* DayObjectsTonalVoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsTonalVoice.swift; sourceTree = "<group>"; };
+		D0D400000000000000000013 /* DayObjectsTonalVoicePool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsTonalVoicePool.swift; sourceTree = "<group>"; };
+		D0D400000000000000000015 /* DayObjectsAudioParameters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsAudioParameters.swift; sourceTree = "<group>"; };
 		D0A0D1000000000000000003 /* AudioKitSynthOne-MIT.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "AudioKitSynthOne-MIT.txt"; sourceTree = "<group>"; };
 		D0A0D1000000000000000006 /* AudioKitCookbook-MIT.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "AudioKitCookbook-MIT.txt"; sourceTree = "<group>"; };
 		D0A0D1000000000000000009 /* OsirisPiano-CC0-1.0.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "OsirisPiano-CC0-1.0.txt"; sourceTree = "<group>"; };
@@ -953,10 +961,21 @@
 		D0A0D1000000000000000011 /* Sound */ = {
 			isa = PBXGroup;
 			children = (
+				D0D400000000000000000010 /* Engine */,
 				D0C300000000000000000010 /* Domain */,
 				D0A0D1000000000000000012 /* Resources */,
 			);
 			path = Sound;
+			sourceTree = "<group>";
+		};
+		D0D400000000000000000010 /* Engine */ = {
+			isa = PBXGroup;
+			children = (
+				D0D400000000000000000011 /* DayObjectsTonalVoice.swift */,
+				D0D400000000000000000013 /* DayObjectsTonalVoicePool.swift */,
+				D0D400000000000000000015 /* DayObjectsAudioParameters.swift */,
+			);
+			path = Engine;
 			sourceTree = "<group>";
 		};
 		D0C300000000000000000010 /* Domain */ = {
@@ -1500,6 +1519,7 @@
 		T1E5T5A12E71A18F00ABF5FA /* Steps4Tests */ = {
 			isa = PBXGroup;
 			children = (
+				D0D400000000000000000001 /* DayObjectsTonalVoicePoolTests.swift */,
 				D0C300000000000000000001 /* DayObjectsInstrumentManifestTests.swift */,
 				D0C300000000000000000003 /* SynthOnePresetAdapterTests.swift */,
 				D0A0D1000000000000000001 /* DayObjectsAudioResourceTests.swift */,
@@ -1923,6 +1943,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0D400000000000000000012 /* DayObjectsTonalVoice.swift in Sources */,
+				D0D400000000000000000014 /* DayObjectsTonalVoicePool.swift in Sources */,
+				D0D400000000000000000016 /* DayObjectsAudioParameters.swift in Sources */,
 				D0C300000000000000000012 /* DayObjectsInstrumentID.swift in Sources */,
 				D0C300000000000000000014 /* DayObjectsInstrumentManifest.swift in Sources */,
 				D0C300000000000000000016 /* NormalizedSynthVoice.swift in Sources */,
@@ -2187,6 +2210,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0D400000000000000000002 /* DayObjectsTonalVoicePoolTests.swift in Sources */,
 				D0C300000000000000000002 /* DayObjectsInstrumentManifestTests.swift in Sources */,
 				D0C300000000000000000004 /* SynthOnePresetAdapterTests.swift in Sources */,
 				D0A0D1000000000000000002 /* DayObjectsAudioResourceTests.swift in Sources */,
