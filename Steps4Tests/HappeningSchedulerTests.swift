@@ -132,16 +132,123 @@ final class HappeningSchedulerTests: XCTestCase {
         assertDensityBounds(history, count: 10)
     }
 
+    func testRemovingFromTenToOneRebuildsTheSurvivorIntoTheTwoToFourBarBand() throws {
+        let harness = try makeHarness(count: 10)
+        renderBars(24, through: harness.scheduler, chord: harness.world.progression[0])
+        let survivor = harness.plans[0].happeningID
+        for plan in harness.plans.dropFirst() { harness.scheduler.remove(id: plan.happeningID) }
+        let cutoff = harness.scheduler.metrics.attackHistory.count
+
+        renderBars(20, through: harness.scheduler, chord: harness.world.progression[0], startBar: 24)
+
+        let attacks = Array(harness.scheduler.metrics.attackHistory.dropFirst(cutoff)).filter {
+            $0.happeningID == survivor && !$0.isBirth
+        }
+        XCTAssertFalse(attacks.isEmpty)
+        XCTAssertLessThanOrEqual(try XCTUnwrap(attacks.first).position.bar - 24, 4)
+        for pair in zip(attacks, attacks.dropFirst()) {
+            let gap = pair.1.position.absoluteSubdivision - pair.0.position.absoluteSubdivision
+            XCTAssertTrue((32...64).contains(gap), "gap=\(gap)")
+        }
+    }
+
+    func testRealTransportOrderAppliesStructuralReplacementBeforeBoundarySubdivisionAttack() throws {
+        let harness = try makeHarness(count: 1)
+        render(subdivisions: 0...15, through: harness.scheduler, chord: harness.world.progression[0])
+        let replacement = makePlan(
+            index: 1,
+            seed: 999,
+            family: .bell,
+            instrumentID: .init(rawValue: "keys.boundary")
+        )
+        try harness.scheduler.scheduleStructuralReplacement(
+            plans: [replacement],
+            tonalWorld: harness.world,
+            remixSeed: 999
+        )
+
+        harness.scheduler.render(event(.subdivision, subdivision: 16), currentChord: harness.world.progression[1])
+        harness.scheduler.render(event(.beat, subdivision: 16), currentChord: harness.world.progression[1])
+        harness.scheduler.render(event(.barBoundary, subdivision: 16), currentChord: harness.world.progression[1])
+
+        XCTAssertEqual(
+            harness.scheduler.metrics.planByHappeningID[replacement.happeningID]?.instrumentID,
+            replacement.instrumentID
+        )
+        XCTAssertFalse(harness.scheduler.metrics.attackHistory.contains {
+            $0.position.absoluteSubdivision >= 16 && $0.instrumentID == harness.plans[0].instrumentID
+        })
+    }
+
+    func testDeferredBirthUsesChordAtActualPlaybackTime() throws {
+        let bank = RecordingHappeningBank()
+        let scheduler = HappeningScheduler(worldBank: PlaybackWorldBank(instrumentBank: bank))
+        let world = makeWorld()
+        try scheduler.configure(plans: [], tonalWorld: world, remixSeed: 12)
+        try scheduler.start()
+        let first = makePlan(index: 1, seed: 12)
+        let deferred = makePlan(index: 2, seed: 12)
+        let additionChord = ChordPlan(modalDegree: 0, rootPitchClass: 0, chordPitchClasses: [0], safePassingPitchClasses: [], voicedMIDINotes: [60], durationBars: 4)
+        let playbackChord = ChordPlan(modalDegree: 1, rootPitchClass: 1, chordPitchClasses: [1], safePassingPitchClasses: [], voicedMIDINotes: [61], durationBars: 4)
+
+        try scheduler.add(first, currentChord: additionChord, playBirth: true)
+        try scheduler.add(deferred, currentChord: additionChord, playBirth: true)
+        scheduler.render(event(.subdivision, subdivision: 1), currentChord: playbackChord)
+        scheduler.render(event(.subdivision, subdivision: 2), currentChord: playbackChord)
+
+        let attack = try XCTUnwrap(scheduler.metrics.attackHistory.first {
+            $0.happeningID == deferred.happeningID && $0.isBirth
+        })
+        XCTAssertEqual(Int(attack.midiNote) % 12, 1)
+    }
+
+    func testRapidLiveBirthsRespectDensityAndFixedSixVoiceCapacityWithoutStarvation() throws {
+        let bank = RecordingHappeningBank()
+        let scheduler = HappeningScheduler(worldBank: PlaybackWorldBank(instrumentBank: bank))
+        let world = makeWorld()
+        try scheduler.configure(plans: [], tonalWorld: world, remixSeed: 33)
+        try scheduler.start()
+        let plans = (1...10).map { makePlan(index: $0, seed: 33, releaseSeconds: 2) }
+        for plan in plans {
+            try scheduler.add(plan, currentChord: world.progression[0], playBirth: true)
+        }
+        guard let pool = bank.pools[PlaybackWorldBankConfiguration.PoolName.happenings.rawValue] else {
+            return XCTFail("Missing fixed Happenings pool")
+        }
+
+        for subdivision in Int64(0)...256 {
+            scheduler.render(event(.subdivision, subdivision: subdivision), currentChord: world.progression[0])
+            XCTAssertLessThanOrEqual(scheduler.metrics.activeVoiceCount, 6)
+            XCTAssertLessThanOrEqual(pool.metrics.activeVoiceCount, 6)
+            XCTAssertEqual(scheduler.metrics.activeVoiceCount, pool.metrics.activeVoiceCount)
+        }
+
+        let births = scheduler.metrics.attackHistory.filter(\.isBirth)
+        XCTAssertEqual(Set(births.map(\.happeningID)), Set(plans.map(\.happeningID)))
+        assertDensityBounds(scheduler.metrics.attackHistory, count: 10)
+    }
+
+    func testAttackHistoryIsBoundedAndKeepsTheMostRecentEvents() throws {
+        let harness = try makeHarness(count: 10)
+        renderBars(2_000, through: harness.scheduler, chord: harness.world.progression[0])
+
+        XCTAssertLessThanOrEqual(
+            harness.scheduler.metrics.attackHistory.count,
+            HappeningScheduler.maximumRecordedAttackCount
+        )
+        XCTAssertGreaterThan(try XCTUnwrap(harness.scheduler.metrics.attackHistory.last).position.bar, 1_900)
+    }
+
     private func assertDensityBounds(_ history: [HappeningAttackRecord], count: Int) {
-        let recurring = history.filter { !$0.isBirth }.sorted { $0.position < $1.position }
-        for pair in zip(recurring, recurring.dropFirst()) {
+        let ordered = history.sorted { $0.position < $1.position }
+        for pair in zip(ordered, ordered.dropFirst()) {
             XCTAssertGreaterThanOrEqual(
                 pair.1.position.absoluteSubdivision - pair.0.position.absoluteSubdivision,
                 1,
                 "count=\(count)"
             )
         }
-        let attacksByBeat = Dictionary(grouping: recurring, by: { $0.position.absoluteBeat })
+        let attacksByBeat = Dictionary(grouping: ordered, by: { $0.position.absoluteBeat })
         XCTAssertTrue(attacksByBeat.values.allSatisfy { $0.count <= 2 }, "count=\(count)")
     }
 
@@ -284,6 +391,7 @@ private final class RecordingHappeningPool: DayObjectsTonalVoicePoolProtocol {
     func prepareInstruments(_ ids: [DayObjectsInstrumentID]) throws { preparedIDs.formUnion(ids) }
     func noteOn(_ request: DayObjectsTonalNoteRequest) -> DayObjectsVoiceToken? {
         guard preparedIDs.contains(request.instrumentID) else { return nil }
+        guard active.count < capacity else { return nil }
         nextGeneration += 1
         let token = DayObjectsVoiceToken(slotID: Int(nextGeneration), generation: nextGeneration)
         active[token] = request

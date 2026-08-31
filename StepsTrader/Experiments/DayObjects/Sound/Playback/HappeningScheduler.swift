@@ -21,6 +21,7 @@ struct HappeningSchedulerMetrics: Equatable, Sendable {
 
 @MainActor
 final class HappeningScheduler {
+    static let maximumRecordedAttackCount = 512
     private struct PendingReplacement {
         let plans: [HappeningMusicPlan]
         let tonalWorld: TonalWorldPlan
@@ -105,13 +106,13 @@ final class HappeningScheduler {
         for id in states.keys {
             states[id]?.scheduledOccurrences.removeAll(keepingCapacity: true)
             states[id]?.nextOccurrenceIndex = 0
-            states[id]?.pendingBirthChord = nil
+            states[id]?.isBirthPending = false
         }
     }
 
     func add(
         _ plan: HappeningMusicPlan,
-        currentChord: ChordPlan,
+        currentChord _: ChordPlan,
         playBirth: Bool
     ) throws {
         guard states[plan.happeningID] == nil, states.count < 10 else { return }
@@ -120,10 +121,8 @@ final class HappeningScheduler {
         states[plan.happeningID] = Self.makeState(plan: plan)
         guard isPlaying else { return }
 
-        if playBirth && canAttack(at: currentPosition) {
-            emitAttack(id: plan.happeningID, chord: currentChord, isBirth: true)
-        } else if playBirth {
-            states[plan.happeningID]?.pendingBirthChord = currentChord
+        if playBirth {
+            states[plan.happeningID]?.isBirthPending = true
         }
         rebuildSchedules(startingAt: currentPosition)
     }
@@ -131,6 +130,7 @@ final class HappeningScheduler {
     func remove(id: String) {
         guard let state = states.removeValue(forKey: id) else { return }
         releaseVoices(in: state)
+        if isPlaying { rebuildSchedules(startingAt: currentPosition) }
     }
 
     func scheduleStructuralReplacement(
@@ -149,11 +149,13 @@ final class HappeningScheduler {
     func render(_ event: DayObjectsTransportEvent, currentChord: ChordPlan) {
         currentPosition = event.position
         currentTempoBPM = event.tempoBPM.isFinite ? max(1, event.tempoBPM) : 120
-        releaseExpiredVoices(at: event.position)
 
-        if event.kind == .barBoundary, let replacement = pendingReplacement {
+        if let replacement = pendingReplacement,
+           (event.kind == .barBoundary
+                || (event.kind == .subdivision && event.position.subdivisionInBar == 0)) {
             applyStructuralReplacement(replacement)
         }
+        releaseExpiredVoices(at: event.position)
         guard event.kind == .subdivision, isPlaying else { return }
         while let end = scheduleWindowEndSubdivision,
               event.position.absoluteSubdivision >= end - 1 {
@@ -161,10 +163,11 @@ final class HappeningScheduler {
             if scheduleWindowEndSubdivision == end { break }
         }
 
-        for id in states.keys.sorted() where states[id]?.pendingBirthChord != nil {
-            guard canAttack(at: event.position), let chord = states[id]?.pendingBirthChord else { continue }
-            states[id]?.pendingBirthChord = nil
-            emitAttack(id: id, chord: chord, isBirth: true)
+        for id in states.keys.sorted() where states[id]?.isBirthPending == true {
+            guard canAttack(at: event.position) else { continue }
+            if emitAttack(id: id, chord: currentChord, isBirth: true) {
+                states[id]?.isBirthPending = false
+            }
         }
 
         for id in states.keys.sorted() {
@@ -172,15 +175,15 @@ final class HappeningScheduler {
             while state.nextOccurrenceIndex < state.scheduledOccurrences.count,
                   state.scheduledOccurrences[state.nextOccurrenceIndex].position <= event.position {
                 let occurrence = state.scheduledOccurrences[state.nextOccurrenceIndex]
+                states[id] = state
+                guard canAttack(at: event.position),
+                      emitAttack(id: id, chord: currentChord, isBirth: false, sequenceIndex: occurrence.sequenceIndex)
+                else { break }
+                state = states[id] ?? state
                 state.nextOccurrenceIndex += 1
                 state.nextOccurrence = state.nextOccurrenceIndex < state.scheduledOccurrences.count
                     ? state.scheduledOccurrences[state.nextOccurrenceIndex].position
                     : occurrence.position
-                states[id] = state
-                if canAttack(at: event.position) {
-                    emitAttack(id: id, chord: currentChord, isBirth: false, sequenceIndex: occurrence.sequenceIndex)
-                }
-                state = states[id] ?? state
             }
             states[id] = state
         }
@@ -253,24 +256,25 @@ final class HappeningScheduler {
             + Int64(allocation.horizonBars) * MusicalPosition.subdivisionsPerBar
     }
 
+    @discardableResult
     private func emitAttack(
         id: String,
         chord: ChordPlan,
         isBirth: Bool,
         sequenceIndex: Int = 0
-    ) {
+    ) -> Bool {
         guard let pool = happeningPool,
               let world = tonalWorld,
               var state = states[id],
               !state.plan.motifScaleDegrees.isEmpty
-        else { return }
+        else { return false }
         let motifIndex = isBirth ? 0 : sequenceIndex % state.plan.motifScaleDegrees.count
         guard let note = HappeningPitchResolver.resolve(
             motifScaleDegree: state.plan.motifScaleDegrees[motifIndex],
             octave: state.plan.octave,
             tonalWorld: world,
             chord: chord
-        ) else { return }
+        ) else { return false }
         let gain = isBirth ? state.plan.birthGain : state.plan.gain
         guard let token = pool.noteOn(.init(
             instrumentID: state.plan.instrumentID,
@@ -284,7 +288,7 @@ final class HappeningScheduler {
             pan: state.plan.pan,
             delaySend: state.plan.delaySend,
             reverbSend: state.plan.reverbSend
-        )) else { return }
+        )) else { return false }
 
         nextVoiceID &+= 1
         let releaseSubdivisions = max(
@@ -310,6 +314,10 @@ final class HappeningScheduler {
             instrumentID: state.plan.instrumentID,
             isBirth: isBirth
         ))
+        if attackHistory.count > Self.maximumRecordedAttackCount {
+            attackHistory.removeFirst(attackHistory.count - Self.maximumRecordedAttackCount)
+        }
+        return true
     }
 
     private func canAttack(at position: MusicalPosition) -> Bool {
@@ -355,7 +363,7 @@ final class HappeningScheduler {
             nextOccurrenceIndex: 0,
             activeVoices: [:],
             lastAttackPosition: nil,
-            pendingBirthChord: nil
+            isBirthPending: false
         )
     }
 

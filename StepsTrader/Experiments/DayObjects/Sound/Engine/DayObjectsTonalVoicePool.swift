@@ -94,6 +94,7 @@ final class DayObjectsTonalVoicePool {
     private var slots: [Slot]
     private var preparedInstrumentID: DayObjectsInstrumentID?
     private var preparedInstrumentPresets: [DayObjectsInstrumentID: NormalizedSynthVoice] = [:]
+    private var preservesPreparedSetTails = false
     private var activationCounter: UInt64 = 0
 
     init(
@@ -121,18 +122,23 @@ final class DayObjectsTonalVoicePool {
         }
         preparedInstrumentID = id
         preparedInstrumentPresets = [id: preset]
+        preservesPreparedSetTails = false
     }
 
     func prepareInstruments(_ ids: [DayObjectsInstrumentID]) throws {
         for id in ids where preparedInstrumentPresets[id] == nil {
             preparedInstrumentPresets[id] = DayObjectsAudioParameters.clamped(try instrumentProvider(id))
         }
+        preservesPreparedSetTails = true
     }
 
     func noteOn(_ rawRequest: DayObjectsTonalNoteRequest) -> DayObjectsVoiceToken? {
         guard let preset = preparedInstrumentPresets[rawRequest.instrumentID] else { return nil }
         let request = DayObjectsAudioParameters.clamped(rawRequest)
-        guard let slotID = slotForAllocation(role: request.role) else { return nil }
+        guard let slotID = slotForAllocation(
+            role: request.role,
+            allowsStealing: !preservesPreparedSetTails
+        ) else { return nil }
 
         if slots[slotID].role != nil {
             release(slotID: slotID)
@@ -184,12 +190,16 @@ final class DayObjectsTonalVoicePool {
         }
     }
 
-    private func slotForAllocation(role: DayObjectsTonalVoiceRole) -> Int? {
+    private func slotForAllocation(
+        role: DayObjectsTonalVoiceRole,
+        allowsStealing: Bool = true
+    ) -> Int? {
         if role == .lead {
             if let currentLead = slots.firstIndex(where: { $0.role == .lead }) {
                 return currentLead
             }
-            return slots.firstIndex(where: { $0.role == nil }) ?? oldestNonLeadSlotID()
+            return slots.firstIndex(where: { $0.role == nil })
+                ?? (allowsStealing ? oldestNonLeadSlotID() : nil)
         }
 
         if role == .chord, metrics.activeChordVoiceCount >= DayObjectsAudioParameters.maximumChordVoiceCount {
@@ -202,9 +212,10 @@ final class DayObjectsTonalVoicePool {
             partial + (slot.role != nil && slot.role != .lead ? 1 : 0)
         }
         if activeNonLeadCount >= nonLeadLimit {
-            return oldestNonLeadSlotID()
+            return allowsStealing ? oldestNonLeadSlotID() : nil
         }
-        return slots.firstIndex(where: { $0.role == nil }) ?? oldestNonLeadSlotID()
+        return slots.firstIndex(where: { $0.role == nil })
+            ?? (allowsStealing ? oldestNonLeadSlotID() : nil)
     }
 
     private func oldestNonLeadSlotID() -> Int? {

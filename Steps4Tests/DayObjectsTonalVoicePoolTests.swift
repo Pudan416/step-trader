@@ -420,6 +420,30 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
         XCTAssertNotNil(harness.pool.noteOn(request(note: 60, role: .note, instrumentID: firstID)))
     }
 
+    func testMixedInstrumentModeNeverRetunesOrStealsSixSoundingReleaseTails() throws {
+        let harness = makeHarness(
+            specification: .init(name: "happenings", capacity: 6, reservesLeadVoice: false),
+            instrumentProvider: { _ in Self.safeVoice }
+        )
+        let ids = (0..<7).map { DayObjectsInstrumentID(rawValue: "happening.\($0)") }
+        try harness.pool.prepareInstruments(ids)
+        let tokens = ids.prefix(6).enumerated().compactMap { index, id in
+            harness.pool.noteOn(request(note: UInt8(60 + index), role: .note, instrumentID: id))
+        }
+        let presetIDsBefore = harness.voices.compactMap(\.preparedInstrumentID)
+        let transitionCountsBefore = harness.voices.map(\.presetTransitions.count)
+
+        XCTAssertEqual(tokens.count, 6)
+        XCTAssertNil(harness.pool.noteOn(request(note: 72, role: .note, instrumentID: ids[6])))
+        XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 6)
+        XCTAssertEqual(harness.voices.compactMap(\.preparedInstrumentID), presetIDsBefore)
+        XCTAssertEqual(harness.voices.map(\.presetTransitions.count), transitionCountsBefore)
+
+        harness.pool.noteOff(tokens[2])
+        XCTAssertNotNil(harness.pool.noteOn(request(note: 72, role: .note, instrumentID: ids[6])))
+        XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 6)
+    }
+
     private func request(
         note: UInt8,
         role: DayObjectsTonalVoiceRole,

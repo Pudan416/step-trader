@@ -20,6 +20,6 @@ struct ActiveHappeningState {
     var nextOccurrenceIndex: Int
     var activeVoices: [Int: ActiveHappeningVoice]
     var lastAttackPosition: MusicalPosition?
-    var pendingBirthChord: ChordPlan?
+    var isBirthPending: Bool
 }
 #endif
