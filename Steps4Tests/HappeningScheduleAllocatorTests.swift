@@ -1,0 +1,176 @@
+import XCTest
+@testable import Steps4
+
+final class HappeningScheduleAllocatorTests: XCTestCase {
+    func testCountsZeroThroughTenUseExactBandsAndGuaranteeFirstCycleAndNoStarvation() throws {
+        let expectedBands: [ClosedRange<Int>] = [
+            2...4, 2...4,
+            6...12, 6...12, 6...12, 6...12,
+            12...24, 12...24, 12...24, 12...24
+        ]
+
+        for count in 0...10 {
+            for seed in seeds {
+                let plans = makePlans(count: count, seed: seed)
+                let allocation = HappeningScheduleAllocator.allocate(
+                    plans: plans,
+                    remixSeed: seed,
+                    cycleCount: 4
+                )
+
+                if count == 0 {
+                    XCTAssertEqual(allocation.cycleBars, 0)
+                    XCTAssertTrue(allocation.events.isEmpty)
+                    XCTAssertTrue(allocation.nextCursors.isEmpty)
+                    continue
+                }
+
+                let band = expectedBands[count - 1]
+                XCTAssertEqual(allocation.intervalBandBars, band)
+                XCTAssertEqual(allocation.cycleBars, band.upperBound)
+                for plan in plans {
+                    let events = allocation.events.filter { $0.happeningID == plan.happeningID }
+                    let first = try XCTUnwrap(events.first)
+                    XCTAssertLessThan(first.startBeat, Double(allocation.cycleBars * allocation.beatsPerBar))
+                    XCTAssertTrue(events.allSatisfy { band.contains($0.intervalBars) })
+                    for pair in zip(events, events.dropFirst()) {
+                        XCTAssertLessThanOrEqual(
+                            pair.1.startBeat - pair.0.startBeat,
+                            Double(band.upperBound * allocation.beatsPerBar) + 0.000_001
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    func testAlignmentQuotaFloatingBoundsAndCollisionCapsHoldForAllCountsAndSeeds() {
+        for count in 1...10 {
+            for seed in seeds {
+                let allocation = HappeningScheduleAllocator.allocate(
+                    plans: makePlans(count: count, seed: seed),
+                    remixSeed: seed,
+                    cycleCount: 4
+                )
+                let firstByID = Dictionary(
+                    grouping: allocation.events,
+                    by: \.happeningID
+                ).compactMapValues(\.first)
+                let gridCount = firstByID.values.filter { $0.alignment == .gridAligned }.count
+                let lower = Int(ceil(Double(count) * 0.35))
+                let upper = Int(floor(Double(count) * 0.60))
+                if lower <= upper {
+                    XCTAssertTrue((lower...upper).contains(gridCount), "count=\(count), seed=\(seed)")
+                }
+
+                for event in allocation.events {
+                    let distanceToGrid = abs(event.startBeat - event.startBeat.rounded())
+                    switch event.alignment {
+                    case .gridAligned:
+                        XCTAssertEqual(distanceToGrid, 0, accuracy: 0.000_001)
+                    case .floating:
+                        XCTAssertGreaterThan(distanceToGrid, 0)
+                        XCTAssertLessThanOrEqual(distanceToGrid, 0.5 + 0.000_001)
+                    }
+                }
+
+                let ordered = allocation.events.sorted { $0.startBeat < $1.startBeat }
+                for pair in zip(ordered, ordered.dropFirst()) {
+                    XCTAssertGreaterThanOrEqual(
+                        pair.1.startBeat - pair.0.startBeat,
+                        0.25 - 0.000_001,
+                        "count=\(count), seed=\(seed)"
+                    )
+                }
+                let attacksByBeat = Dictionary(grouping: allocation.events) {
+                    Int(floor($0.startBeat))
+                }
+                XCTAssertTrue(attacksByBeat.values.allSatisfy { $0.count <= 2 })
+            }
+        }
+    }
+
+    func testCandidateStreamsCanUseBothEndpointsOfEveryDeclaredIntervalBand() {
+        let representatives: [(count: Int, band: ClosedRange<Int>)] = [
+            (1, 2...4),
+            (3, 6...12),
+            (7, 12...24)
+        ]
+
+        for representative in representatives {
+            var observed: Set<Int> = []
+            for seed in UInt64(0)..<128 {
+                let allocation = HappeningScheduleAllocator.allocate(
+                    plans: makePlans(count: representative.count, seed: seed),
+                    remixSeed: seed,
+                    cycleCount: 4
+                )
+                observed.formUnion(allocation.events.map(\.intervalBars))
+            }
+            XCTAssertTrue(observed.contains(representative.band.lowerBound))
+            XCTAssertTrue(observed.contains(representative.band.upperBound))
+        }
+    }
+
+    func testAllocationIsRepeatableAndLongerHorizonPreservesPublishedPrefixState() {
+        let plans = makePlans(count: 10, seed: seeds[0])
+        let short = HappeningScheduleAllocator.allocate(
+            plans: plans,
+            remixSeed: seeds[0],
+            cycleCount: 2
+        )
+        let repeated = HappeningScheduleAllocator.allocate(
+            plans: plans,
+            remixSeed: seeds[0],
+            cycleCount: 2
+        )
+        let long = HappeningScheduleAllocator.allocate(
+            plans: plans,
+            remixSeed: seeds[0],
+            cycleCount: 4
+        )
+
+        XCTAssertEqual(short, repeated)
+        XCTAssertEqual(
+            short.events,
+            long.events.filter { $0.startBeat < Double(short.horizonBars * short.beatsPerBar) }
+        )
+        XCTAssertEqual(short.nextCursors.count, plans.count)
+        XCTAssertTrue(short.nextCursors.allSatisfy {
+            $0.nextSequenceIndex > 0 && $0.nextCandidateBeat.isFinite
+        })
+    }
+
+    func testCollisionMovementNeverChangesMusicalIdentity() {
+        let plans = makePlans(count: 10, seed: seeds[1])
+        let allocation = HappeningScheduleAllocator.allocate(
+            plans: plans,
+            remixSeed: seeds[1],
+            cycleCount: 3
+        )
+
+        XCTAssertEqual(Set(allocation.events.map(\.happeningID)), Set(plans.map(\.happeningID)))
+        XCTAssertEqual(plans, makePlans(count: 10, seed: seeds[1]))
+    }
+
+    private let seeds: [UInt64] = [0, 1, 0xD4A0_B1EC_75ED_0001, UInt64.max]
+
+    private func makePlans(count: Int, seed: UInt64) -> [HappeningMusicPlan] {
+        let ids = (0..<count).map { "event-\($0)" }
+        let input = NormalizedDayMusicInput(
+            stepsProgress: 0.61,
+            sleepProgress: 0.74,
+            happeningIDs: ids,
+            glitchProgress: 0.31,
+            motionEnergy: 0.625,
+            visualClarity: 0.625,
+            diagnostics: []
+        )
+        return HappeningMusicPlanner.makePlans(
+            input: input,
+            tonalWorld: TonalWorldPlanner.makePlan(input: input, remixSeed: seed),
+            instrumentDescriptors: DayObjectsInstrumentManifest.defaultDescriptors,
+            remixSeed: seed
+        )
+    }
+}
