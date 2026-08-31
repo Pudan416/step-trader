@@ -1,4 +1,7 @@
+import AudioKit
+import AudioToolbox
 import Foundation
+import SoundpipeAudioKit
 import XCTest
 @testable import Steps4
 
@@ -214,6 +217,74 @@ final class DayObjectsDrumBankTests: XCTestCase {
         XCTAssertEqual(adapter.metrics, baseline)
     }
 
+    func testRealKickBackendSchedulesEveryLogicalLayerAtTheSameFutureHostTime() {
+        let scheduler = RecordingDrumLayerScheduler()
+        let player = DayObjectsAudioKitDrumPlayer(
+            recipe: .recipe(for: .kickFull),
+            sampleURL: nil,
+            preloadedSamplePlayer: AudioPlayer(),
+            layerScheduler: scheduler
+        )
+
+        player.play(.init(
+            voice: .kickFull,
+            velocity: 0.72,
+            pitchRate: 1,
+            scheduledHostTimeSeconds: 42.125,
+            microtimingMilliseconds: 0,
+            roomSend: 0.24,
+            stereoOffset: -0.18
+        ))
+
+        XCTAssertEqual(Set(scheduler.events.map(\.layer)), [
+            .outputGainLeft, .outputGainRight, .stereo, .roomSend,
+            .samplePitch, .sampleTransient,
+            .sineAmplitude, .sinePitchDrop, .sineEnvelope,
+        ])
+        XCTAssertTrue(scheduler.events.allSatisfy { $0.hostTimeSeconds == 42.125 })
+        XCTAssertEqual(scheduler.immediateGateOpenCount, 0)
+    }
+
+    func testRealShakerBackendSchedulesNoiseEnvelopeAndSpatialMetadataAtTheSameFutureHostTime() {
+        let scheduler = RecordingDrumLayerScheduler()
+        let player = DayObjectsAudioKitDrumPlayer(
+            recipe: .recipe(for: .shaker),
+            sampleURL: nil,
+            preloadedSamplePlayer: nil,
+            layerScheduler: scheduler
+        )
+
+        player.play(.init(
+            voice: .shaker,
+            velocity: 0.61,
+            pitchRate: 1,
+            scheduledHostTimeSeconds: 9.75,
+            microtimingMilliseconds: -2,
+            roomSend: 0.4,
+            stereoOffset: 0.25
+        ))
+
+        XCTAssertEqual(Set(scheduler.events.map(\.layer)), [
+            .outputGainLeft, .outputGainRight, .stereo, .roomSend,
+            .noiseAmplitude, .noiseEnvelope,
+        ])
+        XCTAssertTrue(scheduler.events.allSatisfy { $0.hostTimeSeconds == 9.75 })
+        XCTAssertEqual(scheduler.immediateGateOpenCount, 0)
+    }
+
+    func testSystemLayerSchedulerNeverClassifiesAFutureEnvelopeAsImmediate() {
+        let scheduler = DayObjectsAudioKitDrumLayerScheduler(
+            hostTimeProvider: { 100 },
+            sampleRateProvider: { 48_000 }
+        )
+
+        XCTAssertEqual(
+            scheduler.delivery(atHostTime: 100.125),
+            .scheduled(sampleOffset: 6_000)
+        )
+        XCTAssertEqual(scheduler.delivery(atHostTime: 100), .immediate)
+    }
+
     private func bundledDrumURL(for sample: DayObjectsDrumSample) -> URL? {
         let filename = sample.rawValue as NSString
         return Bundle(for: type(of: self)).url(
@@ -222,6 +293,53 @@ final class DayObjectsDrumBankTests: XCTestCase {
             subdirectory: "Drums"
         )
     }
+}
+
+private final class RecordingDrumLayerScheduler: DayObjectsDrumLayerScheduling {
+    private(set) var events: [DayObjectsDrumLayerScheduleEvent] = []
+    private(set) var immediateGateOpenCount = 0
+
+    func isReady(output: Node) -> Bool { true }
+
+    func scheduleSample(
+        _ player: AudioPlayer,
+        layer: DayObjectsDrumScheduledLayer,
+        atHostTime hostTimeSeconds: TimeInterval
+    ) {
+        events.append(.init(layer: layer, hostTimeSeconds: hostTimeSeconds))
+    }
+
+    func scheduleGate(
+        _ envelope: AmplitudeEnvelope,
+        layer: DayObjectsDrumScheduledLayer,
+        atHostTime hostTimeSeconds: TimeInterval
+    ) {
+        events.append(.init(layer: layer, hostTimeSeconds: hostTimeSeconds))
+    }
+
+    func scheduleParameter(
+        _ parameter: NodeParameter,
+        value: AUValue,
+        rampDuration: TimeInterval,
+        layer: DayObjectsDrumScheduledLayer,
+        atHostTime hostTimeSeconds: TimeInterval
+    ) {
+        events.append(.init(layer: layer, hostTimeSeconds: hostTimeSeconds))
+    }
+
+    func scheduleAUParameter(
+        _ node: Node,
+        address: AUParameterAddress,
+        value: AUValue,
+        range: ClosedRange<AUValue>,
+        layer: DayObjectsDrumScheduledLayer,
+        atHostTime hostTimeSeconds: TimeInterval
+    ) {
+        events.append(.init(layer: layer, hostTimeSeconds: hostTimeSeconds))
+    }
+
+    func stop(_ player: AudioPlayer?) {}
+    func closeGate(_ envelope: AmplitudeEnvelope?) {}
 }
 
 private final class FakeDrumPlayer: DayObjectsDrumPlayerBackend {

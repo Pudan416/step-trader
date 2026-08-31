@@ -1,6 +1,7 @@
 #if DEBUG || INTERNAL_BUILD
 import AudioKit
 import AudioKitEX
+import AudioToolbox
 import AVFoundation
 import Foundation
 import SoundpipeAudioKit
@@ -177,6 +178,176 @@ protocol DayObjectsDrumPlayerBackend: AnyObject {
 
 extension DayObjectsDrumPlayerBackend {
     func stop() {}
+}
+
+enum DayObjectsDrumScheduledLayer: Hashable, Sendable {
+    case outputGainLeft
+    case outputGainRight
+    case stereo
+    case roomSend
+    case samplePitch
+    case sampleTransient
+    case sineAmplitude
+    case sinePitchDrop
+    case sineEnvelope
+    case noiseAmplitude
+    case noiseEnvelope
+}
+
+struct DayObjectsDrumLayerScheduleEvent: Equatable, Sendable {
+    let layer: DayObjectsDrumScheduledLayer
+    let hostTimeSeconds: TimeInterval
+}
+
+protocol DayObjectsDrumLayerScheduling: AnyObject {
+    func isReady(output: Node) -> Bool
+    func scheduleSample(
+        _ player: AudioPlayer,
+        layer: DayObjectsDrumScheduledLayer,
+        atHostTime hostTimeSeconds: TimeInterval
+    )
+    func scheduleGate(
+        _ envelope: AmplitudeEnvelope,
+        layer: DayObjectsDrumScheduledLayer,
+        atHostTime hostTimeSeconds: TimeInterval
+    )
+    func scheduleParameter(
+        _ parameter: NodeParameter,
+        value: AUValue,
+        rampDuration: TimeInterval,
+        layer: DayObjectsDrumScheduledLayer,
+        atHostTime hostTimeSeconds: TimeInterval
+    )
+    func scheduleAUParameter(
+        _ node: Node,
+        address: AUParameterAddress,
+        value: AUValue,
+        range: ClosedRange<AUValue>,
+        layer: DayObjectsDrumScheduledLayer,
+        atHostTime hostTimeSeconds: TimeInterval
+    )
+    func stop(_ player: AudioPlayer?)
+    func closeGate(_ envelope: AmplitudeEnvelope?)
+}
+
+enum DayObjectsDrumLayerDelivery: Equatable, Sendable {
+    case immediate
+    case scheduled(sampleOffset: UInt64)
+}
+
+final class DayObjectsAudioKitDrumLayerScheduler: DayObjectsDrumLayerScheduling {
+    typealias HostTimeProvider = () -> TimeInterval
+    typealias SampleRateProvider = () -> Double
+
+    private let hostTimeProvider: HostTimeProvider
+    private let sampleRateProvider: SampleRateProvider
+
+    init(
+        hostTimeProvider: @escaping HostTimeProvider = {
+            TimeInterval(DispatchTime.now().uptimeNanoseconds) / 1_000_000_000
+        },
+        sampleRateProvider: @escaping SampleRateProvider = { Settings.sampleRate }
+    ) {
+        self.hostTimeProvider = hostTimeProvider
+        self.sampleRateProvider = sampleRateProvider
+    }
+
+    func isReady(output: Node) -> Bool {
+        output.avAudioNode.engine?.isRunning == true
+    }
+
+    func delivery(atHostTime hostTimeSeconds: TimeInterval) -> DayObjectsDrumLayerDelivery {
+        let delta = hostTimeSeconds - hostTimeProvider()
+        guard hostTimeSeconds > 0, delta > 0 else { return .immediate }
+        return .scheduled(sampleOffset: UInt64((delta * sampleRateProvider()).rounded()))
+    }
+
+    func scheduleSample(
+        _ player: AudioPlayer,
+        layer: DayObjectsDrumScheduledLayer,
+        atHostTime hostTimeSeconds: TimeInterval
+    ) {
+        switch delivery(atHostTime: hostTimeSeconds) {
+        case .immediate:
+            player.play()
+        case .scheduled:
+            player.play(at: AVAudioTime.secondsToAudioTime(hostTime: 0, time: hostTimeSeconds))
+        }
+    }
+
+    func scheduleGate(
+        _ envelope: AmplitudeEnvelope,
+        layer: DayObjectsDrumScheduledLayer,
+        atHostTime hostTimeSeconds: TimeInterval
+    ) {
+        switch delivery(atHostTime: hostTimeSeconds) {
+        case .immediate:
+            envelope.openGate()
+        case let .scheduled(sampleOffset):
+            envelope.scheduleMIDIEvent(
+                event: MIDIEvent(noteOn: 64, velocity: 127, channel: 0),
+                offset: sampleOffset
+            )
+        }
+    }
+
+    func scheduleParameter(
+        _ parameter: NodeParameter,
+        value: AUValue,
+        rampDuration: TimeInterval,
+        layer: DayObjectsDrumScheduledLayer,
+        atHostTime hostTimeSeconds: TimeInterval
+    ) {
+        switch delivery(atHostTime: hostTimeSeconds) {
+        case .immediate:
+            if rampDuration > 0 {
+                parameter.ramp(to: value, duration: Float(rampDuration))
+            } else {
+                parameter.value = value
+            }
+        case let .scheduled(sampleOffset):
+            let boundedValue = min(max(value, parameter.range.lowerBound), parameter.range.upperBound)
+            parameter.avAudioNode.auAudioUnit.scheduleParameterBlock(
+                AUEventSampleTimeImmediate + AUEventSampleTime(sampleOffset),
+                AUAudioFrameCount(max(0, rampDuration) * sampleRateProvider()),
+                parameter.parameter.address,
+                boundedValue
+            )
+        }
+    }
+
+    func scheduleAUParameter(
+        _ node: Node,
+        address: AUParameterAddress,
+        value: AUValue,
+        range: ClosedRange<AUValue>,
+        layer: DayObjectsDrumScheduledLayer,
+        atHostTime hostTimeSeconds: TimeInterval
+    ) {
+        let boundedValue = min(max(value, range.lowerBound), range.upperBound)
+        switch delivery(atHostTime: hostTimeSeconds) {
+        case .immediate:
+            guard let audioUnit = node.avAudioNode as? AVAudioUnit else { return }
+            AudioUnitSetParameter(
+                audioUnit.audioUnit,
+                AudioUnitParameterID(address),
+                kAudioUnitScope_Global,
+                0,
+                boundedValue,
+                0
+            )
+        case let .scheduled(sampleOffset):
+            node.avAudioNode.auAudioUnit.scheduleParameterBlock(
+                AUEventSampleTimeImmediate + AUEventSampleTime(sampleOffset),
+                0,
+                address,
+                boundedValue
+            )
+        }
+    }
+
+    func stop(_ player: AudioPlayer?) { player?.stop() }
+    func closeGate(_ envelope: AmplitudeEnvelope?) { envelope?.closeGate() }
 }
 
 final class DayObjectsDrumBank {
@@ -368,7 +539,7 @@ final class DayObjectsAudioKitDrumBank {
     func releaseAll() { bank.releaseAll() }
 }
 
-private final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
+final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
     let output: Fader
     let voice: DayObjectsDrumVoice
     let graphLayout: DayObjectsDrumGraphLayout
@@ -384,14 +555,21 @@ private final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
     private let recipe: DayObjectsDrumRecipe
     private let panner: Panner
     private let room: Reverb
+    private let layerScheduler: any DayObjectsDrumLayerScheduling
 
-    init(recipe: DayObjectsDrumRecipe, sampleURL: URL?, preloadedSamplePlayer: AudioPlayer?) {
+    init(
+        recipe: DayObjectsDrumRecipe,
+        sampleURL: URL?,
+        preloadedSamplePlayer: AudioPlayer?,
+        layerScheduler: any DayObjectsDrumLayerScheduling = DayObjectsAudioKitDrumLayerScheduler()
+    ) {
         precondition(recipe.synthesis.contains(.sinePitchDrop) == (recipe.sinePitchDrop != nil))
         precondition(
             recipe.synthesis.contains(.filteredNoise) ==
                 (recipe.noiseFilterCutoffHz != nil && recipe.noiseAmplitude != nil)
         )
         self.recipe = recipe
+        self.layerScheduler = layerScheduler
         voice = recipe.voice
         if let player = preloadedSamplePlayer ?? sampleURL.flatMap({ AudioPlayer(url: $0, buffered: true) }) {
             samplePlayer = player
@@ -444,36 +622,40 @@ private final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
     }
 
     func play(_ hit: DayObjectsDrumHit) {
-        guard output.avAudioNode.engine?.isRunning == true else { return }
-        output.gain = AUValue(hit.velocity)
-        panner.pan = AUValue(hit.stereoOffset)
-        room.dryWetMix = AUValue(hit.roomSend)
-        samplePlayer?.stop()
+        guard layerScheduler.isReady(output: output) else { return }
+        let hostTime = hit.scheduledHostTimeSeconds
+        layerScheduler.scheduleParameter(output.$leftGain, value: AUValue(hit.velocity), rampDuration: 0, layer: .outputGainLeft, atHostTime: hostTime)
+        layerScheduler.scheduleParameter(output.$rightGain, value: AUValue(hit.velocity), rampDuration: 0, layer: .outputGainRight, atHostTime: hostTime)
+        layerScheduler.scheduleParameter(panner.$pan, value: AUValue(hit.stereoOffset), rampDuration: 0, layer: .stereo, atHostTime: hostTime)
+        // Apple's reverb exposes wet/dry mix at Audio Unit parameter address 0.
+        layerScheduler.scheduleAUParameter(room, address: 0, value: AUValue(hit.roomSend * 100), range: 0...100, layer: .roomSend, atHostTime: hostTime)
+        layerScheduler.stop(samplePlayer)
         samplePlayer?.volume = 1
-        sampleTimePitch?.rate = AUValue(hit.pitchRate)
-        let scheduledTime = hit.scheduledHostTimeSeconds > 0
-            ? AVAudioTime.secondsToAudioTime(hostTime: 0, time: hit.scheduledHostTimeSeconds)
-            : nil
-        samplePlayer?.play(at: scheduledTime)
+        if let sampleTimePitch {
+            layerScheduler.scheduleAUParameter(sampleTimePitch, address: AUParameterAddress(kNewTimePitchParam_Rate), value: AUValue(hit.pitchRate), range: 1.0 / 32.0...32, layer: .samplePitch, atHostTime: hostTime)
+        }
+        if let samplePlayer {
+            layerScheduler.scheduleSample(samplePlayer, layer: .sampleTransient, atHostTime: hostTime)
+        }
         if let pitchDrop = recipe.sinePitchDrop, let sine, let sineEnvelope {
-            sine.amplitude = AUValue(pitchDrop.amplitude)
-            sine.frequency = AUValue(pitchDrop.startFrequencyHz * hit.pitchRate)
-            sine.$frequency.ramp(to: AUValue(pitchDrop.endFrequencyHz * hit.pitchRate), duration: 0.09)
-            sineEnvelope.openGate()
+            layerScheduler.scheduleParameter(sine.$amplitude, value: AUValue(pitchDrop.amplitude), rampDuration: 0, layer: .sineAmplitude, atHostTime: hostTime)
+            layerScheduler.scheduleParameter(sine.$frequency, value: AUValue(pitchDrop.startFrequencyHz * hit.pitchRate), rampDuration: 0, layer: .sinePitchDrop, atHostTime: hostTime)
+            layerScheduler.scheduleParameter(sine.$frequency, value: AUValue(pitchDrop.endFrequencyHz * hit.pitchRate), rampDuration: 0.09, layer: .sinePitchDrop, atHostTime: hostTime)
+            layerScheduler.scheduleGate(sineEnvelope, layer: .sineEnvelope, atHostTime: hostTime)
         }
         if let noise, let noiseEnvelope, let noiseAmplitude = recipe.noiseAmplitude {
-            noise.amplitude = AUValue(noiseAmplitude)
-            noiseEnvelope.openGate()
+            layerScheduler.scheduleParameter(noise.$amplitude, value: AUValue(noiseAmplitude), rampDuration: 0, layer: .noiseAmplitude, atHostTime: hostTime)
+            layerScheduler.scheduleGate(noiseEnvelope, layer: .noiseEnvelope, atHostTime: hostTime)
         }
     }
 
     func stop() {
         output.gain = 0
-        samplePlayer?.stop()
+        layerScheduler.stop(samplePlayer)
         sine?.amplitude = 0
-        sineEnvelope?.closeGate()
+        layerScheduler.closeGate(sineEnvelope)
         noise?.amplitude = 0
-        noiseEnvelope?.closeGate()
+        layerScheduler.closeGate(noiseEnvelope)
     }
 }
 #endif
