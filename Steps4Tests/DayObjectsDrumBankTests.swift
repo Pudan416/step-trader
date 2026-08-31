@@ -46,7 +46,7 @@ final class DayObjectsDrumBankTests: XCTestCase {
             resourceResolver: { sample in
                 sample == .stick ? nil : URL(fileURLWithPath: "/fixtures/\(sample.rawValue)")
             },
-            playerFactory: { _, _ in FakeDrumPlayer() }
+            playerFactory: { _, _, _ in FakeDrumPlayer() }
         )
 
         XCTAssertFalse(bank.isEnabled(.stick))
@@ -72,7 +72,7 @@ final class DayObjectsDrumBankTests: XCTestCase {
             resourceResolver: { sample in
                 sample == .closedHat ? nil : URL(fileURLWithPath: "/fixtures/\(sample.rawValue)")
             },
-            playerFactory: { _, _ in FakeDrumPlayer() }
+            playerFactory: { _, _, _ in FakeDrumPlayer() }
         )
 
         XCTAssertTrue(bank.isEnabled(.hatClosed))
@@ -87,7 +87,7 @@ final class DayObjectsDrumBankTests: XCTestCase {
         var players: [FakeDrumPlayer] = []
         let bank = DayObjectsDrumBank(
             resourceResolver: { sample in URL(fileURLWithPath: "/fixtures/\(sample.rawValue)") },
-            playerFactory: { _, _ in
+            playerFactory: { _, _, _ in
                 let player = FakeDrumPlayer()
                 players.append(player)
                 return player
@@ -111,11 +111,84 @@ final class DayObjectsDrumBankTests: XCTestCase {
                 resolved.append(sample)
                 return URL(fileURLWithPath: "/fixtures/\(sample.rawValue)")
             },
-            playerFactory: { _, _ in FakeDrumPlayer() }
+            playerFactory: { _, _, _ in FakeDrumPlayer() }
         )
 
         XCTAssertEqual(resolved, DayObjectsDrumSample.allCases)
         XCTAssertEqual(bank.preloadedSampleCount, 8)
+    }
+
+    func testEveryMissingCanonicalSampleProducesAStableDiagnosticEvenWhenOnlyFallbackUsesIt() {
+        let bank = DayObjectsDrumBank(
+            resourceResolver: { sample in
+                [.closedHat, .cheebHat].contains(sample) ? nil : URL(fileURLWithPath: "/fixtures/\(sample.rawValue)")
+            },
+            playerFactory: { _, _, _ in FakeDrumPlayer() }
+        )
+
+        XCTAssertFalse(bank.isEnabled(.hatClosed))
+        XCTAssertTrue(bank.isEnabled(.hatOpen))
+        XCTAssertEqual(
+            bank.diagnostics,
+            [
+                .init(id: "day-objects.drum.resource-missing.closed-hi-hat-f1", voice: .hatClosed),
+                .init(id: "day-objects.drum.resource-missing.cheeb-hat", voice: .hatClosed),
+                .init(id: "day-objects.drum.voice-disabled.hatClosed", voice: .hatClosed),
+            ]
+        )
+    }
+
+    func testEveryCanonicalMissingSampleHasItsOwnStableResourceDiagnostic() {
+        let bank = DayObjectsDrumBank(
+            resourceResolver: { _ in nil },
+            playerFactory: { _, _, _ in FakeDrumPlayer() }
+        )
+
+        XCTAssertEqual(
+            bank.diagnostics.filter { $0.id.contains(".resource-missing.") }.map(\.id),
+            [
+                "day-objects.drum.resource-missing.bass-drum-c1",
+                "day-objects.drum.resource-missing.closed-hi-hat-f1",
+                "day-objects.drum.resource-missing.open-hi-hat-a1",
+                "day-objects.drum.resource-missing.clap-d1",
+                "day-objects.drum.resource-missing.snare-d1",
+                "day-objects.drum.resource-missing.cheeb-stick",
+                "day-objects.drum.resource-missing.cheeb-hat",
+                "day-objects.drum.resource-missing.cheeb-ch",
+            ]
+        )
+    }
+
+    func testAudioKitAdapterBuildsOnlyRecipeLayersAndRetainsFixedCountsWithoutAnEngine() {
+        let adapter = DayObjectsAudioKitDrumBank(resourceResolver: bundledDrumURL)
+        let baseline = adapter.metrics
+
+        XCTAssertEqual(baseline.preloadedSampleCount, 8)
+        XCTAssertEqual(baseline.fixedPlayerCount, adapter.bank.metrics.allocatedPlayerCount)
+        for voice in DayObjectsDrumVoice.allCases {
+            let recipe = DayObjectsDrumRecipe.recipe(for: voice)
+            let layout = baseline.layout(for: voice)
+
+            XCTAssertEqual(layout.sinePitchDropCount, recipe.synthesis.contains(.sinePitchDrop) ? 1 : 0)
+            XCTAssertEqual(layout.filteredNoiseCount, recipe.synthesis.contains(.filteredNoise) ? 1 : 0)
+            XCTAssertEqual(layout.transientFilterCutoffHz, recipe.primarySample == nil ? nil : recipe.transientFilterCutoffHz)
+            XCTAssertEqual(layout.noiseFilterCutoffHz, recipe.synthesis.contains(.filteredNoise) ? recipe.noiseFilterCutoffHz : nil)
+        }
+
+        for index in 0..<1_000 {
+            adapter.bank.hit(DayObjectsDrumVoice.allCases[index % DayObjectsDrumVoice.allCases.count])
+        }
+
+        XCTAssertEqual(adapter.metrics, baseline)
+    }
+
+    private func bundledDrumURL(for sample: DayObjectsDrumSample) -> URL? {
+        let filename = sample.rawValue as NSString
+        return Bundle(for: type(of: self)).url(
+            forResource: filename.deletingPathExtension,
+            withExtension: filename.pathExtension,
+            subdirectory: "Drums"
+        )
     }
 }
 

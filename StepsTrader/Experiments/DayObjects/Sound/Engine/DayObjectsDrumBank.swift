@@ -20,6 +20,12 @@ enum DayObjectsDrumSynthesisLayer: Hashable, Sendable {
     case filteredNoise
 }
 
+struct DayObjectsDrumSinePitchDrop: Equatable, Sendable {
+    let startFrequencyHz: Double
+    let endFrequencyHz: Double
+    let amplitude: Double
+}
+
 struct DayObjectsDrumVariation: Equatable, Sendable {
     let velocityRange: ClosedRange<Double>
     let pitchRateRange: ClosedRange<Double>
@@ -33,6 +39,8 @@ struct DayObjectsDrumRecipe: Equatable, Sendable {
     let primarySample: DayObjectsDrumSample?
     let fallbackSample: DayObjectsDrumSample?
     let synthesis: Set<DayObjectsDrumSynthesisLayer>
+    let sinePitchDrop: DayObjectsDrumSinePitchDrop?
+    let noiseAmplitude: Double?
     let overlapCount: Int
     let transientFilterCutoffHz: Double?
     let noiseFilterCutoffHz: Double?
@@ -54,7 +62,7 @@ struct DayObjectsDrumRecipe: Equatable, Sendable {
             return sample(voice, .openHat, overlapCount: 2, variation: .percussion)
         case .shaker:
             return .init(
-                voice: voice, primarySample: nil, fallbackSample: nil, synthesis: [.filteredNoise], overlapCount: 2,
+                voice: voice, primarySample: nil, fallbackSample: nil, synthesis: [.filteredNoise], sinePitchDrop: nil, noiseAmplitude: 0.22, overlapCount: 2,
                 transientFilterCutoffHz: nil, noiseFilterCutoffHz: 7_200, variation: .percussion,
                 allowsPitchDrift: false, allowsBroadbandSustainedNoise: false, usesSawOscillator: false, delayFeedback: nil
             )
@@ -71,7 +79,9 @@ struct DayObjectsDrumRecipe: Equatable, Sendable {
 
     private static func kick(_ voice: DayObjectsDrumVoice, overlapCount: Int) -> DayObjectsDrumRecipe {
         .init(
-            voice: voice, primarySample: .bassDrum, fallbackSample: nil, synthesis: [.sinePitchDrop], overlapCount: overlapCount,
+            voice: voice, primarySample: .bassDrum, fallbackSample: nil, synthesis: [.sinePitchDrop],
+            sinePitchDrop: .init(startFrequencyHz: voice == .kickFull ? 140 : 110, endFrequencyHz: voice == .kickFull ? 46 : 52, amplitude: voice == .kickFull ? 0.8 : 0.55),
+            noiseAmplitude: nil, overlapCount: overlapCount,
             transientFilterCutoffHz: 4_000, noiseFilterCutoffHz: nil, variation: .none,
             allowsPitchDrift: false, allowsBroadbandSustainedNoise: false, usesSawOscillator: false, delayFeedback: nil
         )
@@ -85,7 +95,7 @@ struct DayObjectsDrumRecipe: Equatable, Sendable {
         variation: DayObjectsDrumVariation
     ) -> DayObjectsDrumRecipe {
         .init(
-            voice: voice, primarySample: primarySample, fallbackSample: fallback, synthesis: [], overlapCount: overlapCount,
+            voice: voice, primarySample: primarySample, fallbackSample: fallback, synthesis: [], sinePitchDrop: nil, noiseAmplitude: nil, overlapCount: overlapCount,
             transientFilterCutoffHz: 9_000, noiseFilterCutoffHz: nil, variation: variation,
             allowsPitchDrift: false, allowsBroadbandSustainedNoise: false, usesSawOscillator: false, delayFeedback: nil
         )
@@ -108,13 +118,50 @@ struct DayObjectsDrumBankMetrics: Equatable, Sendable {
     let enabledVoiceCount: Int
 }
 
+struct DayObjectsDrumGraphLayout: Equatable, Sendable {
+    let samplePlayerCount: Int
+    let sinePitchDropCount: Int
+    let filteredNoiseCount: Int
+    let transientFilterCutoffHz: Double?
+    let noiseFilterCutoffHz: Double?
+    let allocatedNodeCount: Int
+
+    static let empty = DayObjectsDrumGraphLayout(
+        samplePlayerCount: 0, sinePitchDropCount: 0, filteredNoiseCount: 0,
+        transientFilterCutoffHz: nil, noiseFilterCutoffHz: nil, allocatedNodeCount: 0
+    )
+}
+
+struct DayObjectsAudioKitDrumBankMetrics: Equatable, Sendable {
+    let preloadedSampleCount: Int
+    let fixedPlayerCount: Int
+    let allocatedNodeCount: Int
+    private let layouts: [DayObjectsDrumVoice: DayObjectsDrumGraphLayout]
+
+    init(
+        preloadedSampleCount: Int,
+        fixedPlayerCount: Int,
+        allocatedNodeCount: Int,
+        layouts: [DayObjectsDrumVoice: DayObjectsDrumGraphLayout]
+    ) {
+        self.preloadedSampleCount = preloadedSampleCount
+        self.fixedPlayerCount = fixedPlayerCount
+        self.allocatedNodeCount = allocatedNodeCount
+        self.layouts = layouts
+    }
+
+    func layout(for voice: DayObjectsDrumVoice) -> DayObjectsDrumGraphLayout {
+        layouts[voice] ?? .empty
+    }
+}
+
 protocol DayObjectsDrumPlayerBackend: AnyObject {
     func play(_ hit: DayObjectsDrumHit)
 }
 
 final class DayObjectsDrumBank {
     typealias ResourceResolver = (DayObjectsDrumSample) -> URL?
-    typealias PlayerFactory = (DayObjectsDrumRecipe, URL?) -> any DayObjectsDrumPlayerBackend
+    typealias PlayerFactory = (DayObjectsDrumRecipe, DayObjectsDrumSample?, URL?) -> any DayObjectsDrumPlayerBackend
 
     private struct Slot {
         let player: any DayObjectsDrumPlayerBackend
@@ -137,6 +184,11 @@ final class DayObjectsDrumBank {
         for sample in DayObjectsDrumSample.allCases {
             if let url = resourceResolver(sample) {
                 samples[sample] = url
+            } else {
+                diagnostics.append(.init(
+                    id: "day-objects.drum.resource-missing.\(Self.diagnosticComponent(sample))",
+                    voice: Self.dependentVoice(for: sample)
+                ))
             }
         }
         resolvedSamples = samples
@@ -151,7 +203,6 @@ final class DayObjectsDrumBank {
             if samples[primary] != nil {
                 voiceSamples[voice] = primary
             } else {
-                diagnostics.append(.init(id: "day-objects.drum.resource-missing.\(Self.diagnosticComponent(primary))", voice: voice))
                 if let fallback = recipe.fallbackSample, samples[fallback] != nil {
                     voiceSamples[voice] = fallback
                 } else {
@@ -160,13 +211,14 @@ final class DayObjectsDrumBank {
                 }
             }
             slots[voice] = (0..<recipe.overlapCount).map { _ in
-                Slot(player: playerFactory(recipe, samples[voiceSamples[voice] ?? primary]))
+                let sample = voiceSamples[voice] ?? primary
+                return Slot(player: playerFactory(recipe, sample, samples[sample]))
             }
         }
 
         for voice in DayObjectsDrumVoice.allCases where DayObjectsDrumRecipe.recipe(for: voice).primarySample == nil {
             let recipe = DayObjectsDrumRecipe.recipe(for: voice)
-            slots[voice] = (0..<recipe.overlapCount).map { _ in Slot(player: playerFactory(recipe, nil)) }
+            slots[voice] = (0..<recipe.overlapCount).map { _ in Slot(player: playerFactory(recipe, nil, nil)) }
         }
         resolvedVoiceSamples = voiceSamples
     }
@@ -200,6 +252,18 @@ final class DayObjectsDrumBank {
             .replacingOccurrences(of: "#", with: "")
             .lowercased()
     }
+
+    private static func dependentVoice(for sample: DayObjectsDrumSample) -> DayObjectsDrumVoice {
+        switch sample {
+        case .bassDrum: return .kickSoft
+        case .closedHat, .cheebHat: return .hatClosed
+        case .openHat: return .hatOpen
+        case .clap: return .clapSoft
+        case .snare: return .organicHigh
+        case .stick: return .stick
+        case .cheebCh: return .organicLow
+        }
+    }
 }
 
 final class DayObjectsAudioKitDrumBank {
@@ -208,40 +272,72 @@ final class DayObjectsAudioKitDrumBank {
 
     private let players: [DayObjectsAudioKitDrumPlayer]
     private let preloadedSamples: [DayObjectsDrumSample: AudioPlayer]
+    private let preparedSampleCount: Int
+
+    var metrics: DayObjectsAudioKitDrumBankMetrics {
+        let layouts = Dictionary(uniqueKeysWithValues: DayObjectsDrumVoice.allCases.map { voice in
+            (voice, players.first(where: { $0.voice == voice })?.graphLayout ?? .empty)
+        })
+        return .init(
+            preloadedSampleCount: preparedSampleCount,
+            fixedPlayerCount: players.count,
+            allocatedNodeCount: preloadedSamples.count + players.reduce(0) { $0 + $1.graphLayout.allocatedNodeCount },
+            layouts: layouts
+        )
+    }
 
     init(resourceResolver: @escaping DayObjectsDrumBank.ResourceResolver) {
         var builtPlayers: [DayObjectsAudioKitDrumPlayer] = []
         var loadedSamples: [DayObjectsDrumSample: AudioPlayer] = [:]
+        var loadedSampleCount = 0
         let preload: DayObjectsDrumBank.ResourceResolver = { sample in
             guard let url = resourceResolver(sample), let player = AudioPlayer(url: url, buffered: true) else { return nil }
             loadedSamples[sample] = player
+            loadedSampleCount += 1
             return url
         }
-        bank = DayObjectsDrumBank(resourceResolver: preload) { recipe, sampleURL in
-            let player = DayObjectsAudioKitDrumPlayer(recipe: recipe, sampleURL: sampleURL)
+        let builtBank = DayObjectsDrumBank(resourceResolver: preload) { recipe, sample, sampleURL in
+            let preloadedSamplePlayer = sample.flatMap { loadedSamples.removeValue(forKey: $0) }
+            let player = DayObjectsAudioKitDrumPlayer(
+                recipe: recipe,
+                sampleURL: sampleURL,
+                preloadedSamplePlayer: preloadedSamplePlayer
+            )
             builtPlayers.append(player)
             return player
         }
+        bank = builtBank
         players = builtPlayers
         preloadedSamples = loadedSamples
+        preparedSampleCount = loadedSampleCount
         output = Mixer(builtPlayers.map(\.output), name: "Day Objects drums")
     }
 }
 
 private final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
     let output: Fader
+    let voice: DayObjectsDrumVoice
+    let graphLayout: DayObjectsDrumGraphLayout
 
     private let samplePlayer: AudioPlayer?
     private let sampleTimePitch: TimePitch?
     private let sampleTransient: LowPassFilter?
-    private let sine = Oscillator(waveform: Table(.sine), frequency: 130, amplitude: 0)
-    private let sineEnvelope: AmplitudeEnvelope
-    private let noise = WhiteNoise(amplitude: 0)
-    private let noiseFilter: LowPassFilter
-    private let noiseEnvelope: AmplitudeEnvelope
+    private let sine: Oscillator?
+    private let sineEnvelope: AmplitudeEnvelope?
+    private let noise: WhiteNoise?
+    private let noiseFilter: LowPassFilter?
+    private let noiseEnvelope: AmplitudeEnvelope?
+    private let recipe: DayObjectsDrumRecipe
 
-    init(recipe: DayObjectsDrumRecipe, sampleURL: URL?) {
-        if let sampleURL, let player = AudioPlayer(url: sampleURL, buffered: true) {
+    init(recipe: DayObjectsDrumRecipe, sampleURL: URL?, preloadedSamplePlayer: AudioPlayer?) {
+        precondition(recipe.synthesis.contains(.sinePitchDrop) == (recipe.sinePitchDrop != nil))
+        precondition(
+            recipe.synthesis.contains(.filteredNoise) ==
+                (recipe.noiseFilterCutoffHz != nil && recipe.noiseAmplitude != nil)
+        )
+        self.recipe = recipe
+        voice = recipe.voice
+        if let player = preloadedSamplePlayer ?? sampleURL.flatMap({ AudioPlayer(url: $0, buffered: true) }) {
             samplePlayer = player
             let timePitch = TimePitch(player)
             sampleTimePitch = timePitch
@@ -251,36 +347,60 @@ private final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
             sampleTimePitch = nil
             sampleTransient = nil
         }
-        sineEnvelope = AmplitudeEnvelope(sine, attackDuration: 0.001, decayDuration: 0.09, sustainLevel: 0, releaseDuration: 0.02)
-        noiseFilter = LowPassFilter(noise, cutoffFrequency: 7_200)
-        noiseEnvelope = AmplitudeEnvelope(noiseFilter, attackDuration: 0.001, decayDuration: 0.045, sustainLevel: 0, releaseDuration: 0.01)
-        var inputs: [Node] = [sineEnvelope, noiseEnvelope]
+        if recipe.synthesis.contains(.sinePitchDrop), let pitchDrop = recipe.sinePitchDrop {
+            let sine = Oscillator(waveform: Table(.sine), frequency: AUValue(pitchDrop.startFrequencyHz), amplitude: 0)
+            self.sine = sine
+            sineEnvelope = AmplitudeEnvelope(sine, attackDuration: 0.001, decayDuration: 0.09, sustainLevel: 0, releaseDuration: 0.02)
+        } else {
+            sine = nil
+            sineEnvelope = nil
+        }
+        if recipe.synthesis.contains(.filteredNoise), let noiseFilterCutoffHz = recipe.noiseFilterCutoffHz {
+            let noise = WhiteNoise(amplitude: 0)
+            self.noise = noise
+            let filter = LowPassFilter(noise, cutoffFrequency: AUValue(noiseFilterCutoffHz))
+            noiseFilter = filter
+            noiseEnvelope = AmplitudeEnvelope(filter, attackDuration: 0.001, decayDuration: 0.045, sustainLevel: 0, releaseDuration: 0.01)
+        } else {
+            noise = nil
+            noiseFilter = nil
+            noiseEnvelope = nil
+        }
+        var inputs: [Node] = []
+        if let sineEnvelope { inputs.append(sineEnvelope) }
+        if let noiseEnvelope { inputs.append(noiseEnvelope) }
         if let sampleTransient {
             inputs.append(sampleTransient)
         }
         output = Fader(Mixer(inputs), gain: 0)
-        sine.start()
-        noise.start()
+        sine?.start()
+        noise?.start()
+        graphLayout = .init(
+            samplePlayerCount: samplePlayer == nil ? 0 : 1,
+            sinePitchDropCount: sine == nil ? 0 : 1,
+            filteredNoiseCount: noise == nil ? 0 : 1,
+            transientFilterCutoffHz: sampleTransient == nil ? nil : recipe.transientFilterCutoffHz,
+            noiseFilterCutoffHz: noiseFilter == nil ? nil : recipe.noiseFilterCutoffHz,
+            allocatedNodeCount: (samplePlayer == nil ? 0 : 3) + (sine == nil ? 0 : 2) + (noise == nil ? 0 : 3) + 2
+        )
     }
 
     func play(_ hit: DayObjectsDrumHit) {
+        guard output.avAudioNode.engine?.isRunning == true else { return }
         output.gain = AUValue(hit.velocity)
         samplePlayer?.stop()
         samplePlayer?.volume = AUValue(hit.velocity)
         sampleTimePitch?.rate = AUValue(hit.pitchRate)
         samplePlayer?.play()
-        switch hit.voice {
-        case .kickSoft, .kickFull:
-            sine.amplitude = hit.voice == .kickFull ? 0.8 : 0.55
-            sine.frequency = hit.voice == .kickFull ? 140 : 110
-            sine.$frequency.ramp(to: hit.voice == .kickFull ? 46 : 52, duration: 0.09)
+        if let pitchDrop = recipe.sinePitchDrop, let sine, let sineEnvelope {
+            sine.amplitude = AUValue(pitchDrop.amplitude)
+            sine.frequency = AUValue(pitchDrop.startFrequencyHz)
+            sine.$frequency.ramp(to: AUValue(pitchDrop.endFrequencyHz), duration: 0.09)
             sineEnvelope.openGate()
-        case .shaker:
-            noise.amplitude = 0.22
-            noiseFilter.cutoffFrequency = 7_200
+        }
+        if let noise, let noiseEnvelope, let noiseAmplitude = recipe.noiseAmplitude {
+            noise.amplitude = AUValue(noiseAmplitude)
             noiseEnvelope.openGate()
-        default:
-            break
         }
     }
 }
