@@ -38,6 +38,13 @@ struct DayObjectsFeltPianoNote: Equatable, Sendable {
 struct DayObjectsFeltPianoToken: Hashable, Sendable {
     fileprivate let slotID: Int
     fileprivate let generation: UInt64
+
+    /// Internal test and playback-adapter construction; production tokens
+    /// remain allocated exclusively by the felt-piano pool.
+    init(slotID: Int = 0, generation: UInt64 = 1) {
+        self.slotID = slotID
+        self.generation = generation
+    }
 }
 
 struct DayObjectsFeltPianoMetrics: Equatable, Sendable {
