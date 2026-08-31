@@ -45,7 +45,8 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
     private let audioSession: any DayObjectsInstrumentAuditionSession
     private var isSessionActive = false
     private var bankMayOwnResources = false
-    private var teardownInProgress = false
+    private var teardownTask: Task<Void, Never>?
+    private var requestedTerminalState: DayObjectsInstrumentAuditionState?
     private var heldLead: (pool: DayObjectsTonalVoicePoolProtocol, token: DayObjectsVoiceToken)?
 
     convenience init() {
@@ -76,7 +77,7 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
     var allowsNote: Bool { selectedCategory != .drums }
     var allowsChord: Bool { selectedCategory != .drums }
     var allowsHit: Bool { selectedCategory == .drums }
-    var allowsLeadXY: Bool { soundState == .on && selectedCategory == .lead && !teardownInProgress }
+    var allowsLeadXY: Bool { soundState == .on && selectedCategory == .lead && teardownTask == nil }
 
     var attribution: String {
         guard let descriptor = selectedDescriptor else {
@@ -113,9 +114,9 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
     }
 
     func turnSoundOn() async {
-        guard soundState != .on, soundState != .starting, !teardownInProgress else { return }
+        guard soundState != .on, soundState != .starting, teardownTask == nil else { return }
         if isSessionActive || bankMayOwnResources {
-            await tearDownResources(finalState: .off)
+            await requestTeardown(finalState: .off)
             guard !isSessionActive, !bankMayOwnResources else { return }
         }
         soundState = .starting
@@ -133,7 +134,7 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
 
     func stop() async {
         guard soundState != .off || isSessionActive || bankMayOwnResources || heldLead != nil else { return }
-        await tearDownResources(finalState: .off)
+        await requestTeardown(finalState: .off)
     }
 
     func handleInterruption() async {
@@ -190,7 +191,7 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
         } catch {
             // Token allocation is synchronous. Cleanup may await the bank, but
             // no held Lead can be installed after this failure path starts.
-            Task { await self.actionFailed("Lead audition is unavailable. Try Sound again.") }
+            registerTeardown(finalState: .error("Lead audition is unavailable. Try Sound again."))
         }
     }
 
@@ -240,12 +241,23 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
     }
 
     private func actionFailed(_ message: String) async {
-        await tearDownResources(finalState: .error(message))
+        await requestTeardown(finalState: .error(message))
     }
 
-    private func tearDownResources(finalState: DayObjectsInstrumentAuditionState) async {
-        guard !teardownInProgress else { return }
-        teardownInProgress = true
+    private func registerTeardown(finalState: DayObjectsInstrumentAuditionState) {
+        requestedTerminalState = mergedTerminalState(requestedTerminalState, finalState)
+        guard teardownTask == nil else { return }
+        teardownTask = Task { @MainActor [weak self] in
+            await self?.performTeardown()
+        }
+    }
+
+    private func requestTeardown(finalState: DayObjectsInstrumentAuditionState) async {
+        registerTeardown(finalState: finalState)
+        await teardownTask?.value
+    }
+
+    private func performTeardown() async {
         soundState = .stopping
         releaseHeldGates()
         if bankMayOwnResources {
@@ -257,13 +269,23 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
                 try audioSession.deactivate()
                 isSessionActive = false
             } catch {
-                teardownInProgress = false
                 soundState = .error("Sound session is still active. Try stopping again.")
+                requestedTerminalState = nil
+                teardownTask = nil
                 return
             }
         }
-        teardownInProgress = false
-        soundState = finalState
+        soundState = requestedTerminalState ?? .off
+        requestedTerminalState = nil
+        teardownTask = nil
+    }
+
+    private func mergedTerminalState(
+        _ current: DayObjectsInstrumentAuditionState?,
+        _ incoming: DayObjectsInstrumentAuditionState
+    ) -> DayObjectsInstrumentAuditionState {
+        if current == .off || incoming == .off { return .off }
+        return incoming
     }
 
     private static func leadParameters(

@@ -218,6 +218,27 @@ final class DayObjectsInstrumentAuditionControllerTests: XCTestCase {
         XCTAssertEqual(session.deactivationCount, 1)
         XCTAssertEqual(controller.soundState, .off)
     }
+
+    func testLeadFailureThenStopMergesOneTeardownToOff() async {
+        let bank = FakeAuditionBank()
+        bank.shouldSuspendStop = true
+        bank.pool.shouldFailPrepare = true
+        let session = FakeAuditionSession()
+        let controller = DayObjectsInstrumentAuditionController(bank: bank, audioSession: session)
+        await controller.turnSoundOn()
+        controller.selectCategory(.lead)
+
+        controller.beginLead(at: .init(x: 0.5, y: 0.5))
+        await Task.yield()
+        async let stop: Void = controller.handleInterruption()
+        await Task.yield()
+        XCTAssertEqual(bank.stopCount, 1)
+
+        bank.resumeStop()
+        await stop
+        XCTAssertEqual(session.deactivationCount, 1)
+        XCTAssertEqual(controller.soundState, .off)
+    }
 }
 
 @MainActor
