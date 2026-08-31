@@ -26,6 +26,7 @@ final class DayObjectsSystemAccessibilityStatusSource: DayObjectsAccessibilitySt
         isVoiceOverRunning = voiceOverStatus()
         notificationCancellable = notificationCenter
             .publisher(for: UIAccessibility.voiceOverStatusDidChangeNotification)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 guard let self else { return }
                 self.isVoiceOverRunning = self.voiceOverStatus()

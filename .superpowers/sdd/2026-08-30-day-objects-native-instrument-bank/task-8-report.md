@@ -305,3 +305,58 @@ Result: clean.
 
 - The real detached instrument-bank graph regression continues to print the pre-existing simulator `kAudioUnitErr_InvalidParameter` and mono-to-stereo buffering diagnostics; all 8 bank tests pass.
 - XCUI intentionally leaves Sound off and does not claim to perform a Lead drag or audible-output assertion. This launch path has no injected no-hardware audio bank. Lead token creation/update/release and every runtime cancellation path are exercised in the controller/coordinator suites instead.
+
+## Fix Round 5
+
+### Status and summary
+
+- Scheduled accessibility status notifications onto `DispatchQueue.main` before resampling `UIAccessibility.isVoiceOverRunning` and assigning the adapter's `@Published` state.
+- Added a deterministic integration regression that posts the injected notification from a named background queue, proves both the injected sampler and published `true` value run on the main thread, and proves the real Lead coordinator releases its held token exactly once.
+- Preserved observer ownership and removal: the same stored `AnyCancellable` owns the NotificationCenter subscription, and the existing weak sink capture remains unchanged.
+
+### RED
+
+```sh
+set -o pipefail
+xcodebuild test -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:Steps4Tests/DayObjectsInstrumentAuditionControllerTests/testSystemAccessibilitySourceHandlesBackgroundNotificationOnMainActorAndCancelsLeadOnce | tee /tmp/task8-fix5-red.log
+```
+
+Result: **TEST FAILED** — 1 test, 2 failures. `XCTAssertTrue` failed for both the sampler-thread and publisher-thread checks, demonstrating that the NotificationCenter publisher delivered the sink on the background posting queue.
+
+### GREEN
+
+Focused accessibility path:
+
+```sh
+xcodebuild test -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:Steps4Tests/DayObjectsInstrumentAuditionControllerTests/testSystemAccessibilitySourceResamplesVoiceOverOnStatusNotification -only-testing:Steps4Tests/DayObjectsInstrumentAuditionControllerTests/testSystemAccessibilitySourceHandlesBackgroundNotificationOnMainActorAndCancelsLeadOnce -only-testing:Steps4Tests/DayObjectsInstrumentAuditionControllerTests/testLabViewUsesInjectedAccessibilityStatusToCancelHeldLead
+```
+
+Result: **TEST SUCCEEDED** — 3 tests, 0 failures.
+
+Full controller and scene suites:
+
+```sh
+xcodebuild test -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:Steps4Tests/DayObjectsInstrumentAuditionControllerTests -only-testing:Steps4Tests/DayObjectSceneTests
+```
+
+Result: **TEST SUCCEEDED** — 33 tests, 0 failures (controller 25, scene 8).
+
+Release build:
+
+```sh
+xcodebuild build -project Steps4.xcodeproj -scheme Steps4 -configuration Release -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO
+```
+
+Result: **BUILD SUCCEEDED**.
+
+### Self-review
+
+- The mutation this regression catches is removal of the main-queue delivery operator: both thread assertions fail against the prior source while the real coordinator otherwise still receives the value, so the test distinguishes executor correctness from mere event delivery.
+- `receive(on:)` is applied at the notification boundary, before both the injected main-actor sampler and `@Published` mutation. No `assumeIsolated` or unchecked executor assertion is used.
+- The existing main-thread notification regression now waits for the deliberately scheduled delivery instead of relying on synchronous NotificationCenter behavior.
+- The real coordinator—not a scheduler or coordinator mock—receives the published status and releases a real fake-pool token once. Initial `false` delivery and the background-posted `true` delivery are both exercised.
+- The code change is confined to the accessibility adapter; controller state, gesture lifecycle, audio teardown, UI layout, and Release compile guards are unchanged.
+
+### Concerns
+
+- None specific to this fix. The adapter intentionally makes status propagation asynchronous by one main-queue delivery turn, matching the executor guarantee required for UIKit and `@Published` UI state.

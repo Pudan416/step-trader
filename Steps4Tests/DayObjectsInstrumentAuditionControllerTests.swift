@@ -266,13 +266,19 @@ final class DayObjectsInstrumentAuditionControllerTests: XCTestCase {
         XCTAssertNil(controllerReference.value, "The completed teardown task must break its temporary controller cycle")
     }
 
-    func testSystemAccessibilitySourceResamplesVoiceOverOnStatusNotification() {
+    func testSystemAccessibilitySourceResamplesVoiceOverOnStatusNotification() async {
         let notificationCenter = NotificationCenter()
         var isVoiceOverRunning = false
         let source = DayObjectsSystemAccessibilityStatusSource(
             notificationCenter: notificationCenter,
             voiceOverStatus: { isVoiceOverRunning }
         )
+        let published = expectation(description: "VoiceOver status published")
+        let statusCancellable = source.voiceOverStatusChanges
+            .dropFirst()
+            .sink { status in
+                if status { published.fulfill() }
+            }
 
         XCTAssertFalse(source.isVoiceOverRunning)
         isVoiceOverRunning = true
@@ -280,7 +286,64 @@ final class DayObjectsInstrumentAuditionControllerTests: XCTestCase {
             name: UIAccessibility.voiceOverStatusDidChangeNotification,
             object: nil
         )
-        XCTAssertTrue(source.isVoiceOverRunning)
+        await fulfillment(of: [published], timeout: 1)
+        withExtendedLifetime(statusCancellable) {
+            XCTAssertTrue(source.isVoiceOverRunning)
+        }
+    }
+
+    func testSystemAccessibilitySourceHandlesBackgroundNotificationOnMainActorAndCancelsLeadOnce() async {
+        let bank = FakeAuditionBank()
+        let controller = DayObjectsInstrumentAuditionController(
+            bank: bank,
+            audioSession: FakeAuditionSession()
+        )
+        await controller.turnSoundOn()
+        controller.selectCategory(.lead)
+        controller.beginLead(at: .init(x: 0.5, y: 0.5))
+
+        let notificationCenter = NotificationCenter()
+        var isVoiceOverRunning = false
+        var sampledOnMainThread = false
+        let source = DayObjectsSystemAccessibilityStatusSource(
+            notificationCenter: notificationCenter,
+            voiceOverStatus: {
+                if isVoiceOverRunning {
+                    sampledOnMainThread = Thread.isMainThread
+                }
+                return isVoiceOverRunning
+            }
+        )
+        let coordinator = DayObjectsLeadAuditionCoordinator(
+            controller: controller,
+            accessibilityStatusSource: source
+        )
+        let published = expectation(description: "VoiceOver status published")
+        var publishedOnMainThread = false
+        let statusCancellable = source.voiceOverStatusChanges
+            .dropFirst()
+            .sink { status in
+                guard status else { return }
+                publishedOnMainThread = Thread.isMainThread
+                published.fulfill()
+            }
+
+        isVoiceOverRunning = true
+        DispatchQueue(label: "DayObjectsAccessibilityStatusSourceTests.background").async {
+            notificationCenter.post(
+                name: UIAccessibility.voiceOverStatusDidChangeNotification,
+                object: nil
+            )
+        }
+
+        await fulfillment(of: [published], timeout: 1)
+
+        withExtendedLifetime((coordinator, statusCancellable)) {
+            XCTAssertTrue(sampledOnMainThread)
+            XCTAssertTrue(publishedOnMainThread)
+            XCTAssertTrue(source.isVoiceOverRunning)
+            XCTAssertEqual(bank.pool.noteOffCount, 1)
+        }
     }
 
     func testLabViewUsesInjectedAccessibilityStatusToCancelHeldLead() async {
