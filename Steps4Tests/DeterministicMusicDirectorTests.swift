@@ -65,6 +65,10 @@ final class DeterministicMusicDirectorTests: XCTestCase {
                 remixSeed: seed
             )
         )
+        XCTAssertEqual(
+            try XCTUnwrap(plan.harmony.role(for: .pianoOrKeysAccents)).instrumentTarget,
+            .feltPiano
+        )
         XCTAssertEqual(plan.happenings, expectedHappenings)
         XCTAssertEqual(
             plan.lead,
@@ -142,7 +146,12 @@ final class DeterministicMusicDirectorTests: XCTestCase {
     }
 
     private func selectedInstrumentIDs(in plan: DayMusicPlan) -> [String] {
-        plan.harmony.roles.map(\.instrumentID.rawValue)
+        plan.harmony.roles.map { role in
+            switch role.instrumentTarget {
+            case let .tonal(instrumentID): return instrumentID.rawValue
+            case .feltPiano: return "felt-piano"
+            }
+        }
             + plan.happenings.map(\.instrumentID.rawValue)
             + [plan.lead.instrumentID.rawValue]
     }

@@ -44,31 +44,26 @@ enum HarmonyPlanner {
             excluding: secondaryAlternatives.isEmpty ? [] : Set([primaryID].compactMap { $0 })
         )
 
-        let selectedByRole: [HarmonyRole: DayObjectsInstrumentDescriptor?] = [
+        let selectedByRole: [HarmonyRole: HarmonyInstrumentTarget?] = [
             .drone: selectedDescriptor(
                 for: template(for: .drone),
                 from: sortedDescriptors,
                 seed: remixSeed,
                 excluding: []
-            ),
-            .primaryPad: primaryDescriptor,
-            .secondaryPadOrKeys: secondaryDescriptor,
-            .pianoOrKeysAccents: selectedDescriptor(
-                for: template(for: .pianoOrKeysAccents),
-                from: sortedDescriptors,
-                seed: remixSeed,
-                excluding: []
-            ),
+            ).map { .tonal($0.id) },
+            .primaryPad: primaryDescriptor.map { .tonal($0.id) },
+            .secondaryPadOrKeys: secondaryDescriptor.map { .tonal($0.id) },
+            .pianoOrKeysAccents: .feltPiano,
             .innerMotion: selectedDescriptor(
                 for: template(for: .innerMotion),
                 from: sortedDescriptors,
                 seed: remixSeed,
                 excluding: []
-            )
+            ).map { .tonal($0.id) }
         ]
 
         let roles = roleTemplates.compactMap { template -> HarmonyRolePlan? in
-            guard let descriptor = selectedByRole[template.role] ?? nil else { return nil }
+            guard let instrumentTarget = selectedByRole[template.role] ?? nil else { return nil }
             let amount = activationAmount(
                 for: template.role,
                 sleepProgress: sleepProgress,
@@ -77,7 +72,7 @@ enum HarmonyPlanner {
             )
             return HarmonyRolePlan(
                 role: template.role,
-                instrumentID: descriptor.id,
+                instrumentTarget: instrumentTarget,
                 register: template.register,
                 gain: template.targetGain * amount,
                 attackSeconds: template.attackSeconds,
@@ -254,8 +249,8 @@ enum HarmonyPlanner {
         ),
         RoleTemplate(
             role: .pianoOrKeysAccents,
-            compatibleCategories: [.piano, .keys],
-            preferredCategory: .piano,
+            compatibleCategories: [],
+            preferredCategory: nil,
             register: 60...84,
             targetGain: 0.16,
             attackSeconds: 0.04,
@@ -268,7 +263,7 @@ enum HarmonyPlanner {
         ),
         RoleTemplate(
             role: .innerMotion,
-            compatibleCategories: [.keys, .piano],
+            compatibleCategories: [.keys],
             preferredCategory: .keys,
             register: 55...79,
             targetGain: 0.12,

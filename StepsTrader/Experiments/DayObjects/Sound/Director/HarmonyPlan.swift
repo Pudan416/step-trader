@@ -7,6 +7,11 @@ enum HarmonyRole: CaseIterable, Equatable, Sendable {
     case innerMotion
 }
 
+enum HarmonyInstrumentTarget: Equatable, Sendable {
+    case tonal(DayObjectsInstrumentID)
+    case feltPiano
+}
+
 struct HarmonyActivationPlan: Equatable, Sendable {
     let startProgress: Double
     let fullProgress: Double
@@ -25,7 +30,7 @@ struct HarmonyChordScheduleEntry: Equatable, Sendable {
 
 struct HarmonyRolePlan: Equatable, Sendable {
     let role: HarmonyRole
-    let instrumentID: DayObjectsInstrumentID
+    let instrumentTarget: HarmonyInstrumentTarget
     let register: ClosedRange<UInt8>
     let gain: Double
     let attackSeconds: Double

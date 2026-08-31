@@ -33,7 +33,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 0,
                 spentColors: 0,
                 seed: 0x1,
-                expected: "seed=1|input=0/0/0/0|world=4:mixolydian:12:[4]:[12]|tempo=7200/7200|rhythm=|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=keys.jec-polaroids-2,inner-motion=keys.maschinenmensch|happenings=|lead=lead.bb-silver-screen:[59]:[81]"
+                expected: "seed=1|input=0/0/0/0|world=4:mixolydian:12:[4]:[12]|tempo=7200/7200|rhythm=|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=|lead=lead.bb-silver-screen:[59]:[81]"
             ),
             BoundaryFixture(
                 name: "early-day",
@@ -42,7 +42,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 1,
                 spentColors: 10,
                 seed: 0x2,
-                expected: "seed=2|input=15/35/1/100|world=0:major-pentatonic:16:[0]:[16]|tempo=7100/7400|rhythm=low-pulse,half-time-kick|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=keys.bb-slow-poly,inner-motion=keys.maschinenmensch|happenings=event-0:pluck:pluck.spider-filter-pluck:[4, 2, 0]:5|lead=lead.jec-softwah-2:[60]:[81]"
+                expected: "seed=2|input=15/35/1/100|world=0:major-pentatonic:16:[0]:[16]|tempo=7100/7400|rhythm=low-pulse,half-time-kick|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=event-0:pluck:pluck.spider-filter-pluck:[4, 2, 0]:5|lead=lead.jec-softwah-2:[60]:[81]"
             ),
             BoundaryFixture(
                 name: "mid-day",
@@ -51,7 +51,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 5,
                 spentColors: 25,
                 seed: 0xD4A0_B1EC_75ED_0001,
-                expected: "seed=d4a0b1ec75ed0001|input=35/70/5/625|world=0:dorian:12:[0, 5]:[6, 6]|tempo=7600/8300|rhythm=low-pulse,half-time-kick,closed-hat|harmony=drone=pad.whispering-sands,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.bb-slow-poly,piano-or-keys-accents=keys.bb-slow-poly,inner-motion=keys.bb-slow-poly|happenings=event-0:texture:pad.interstellar:[10]:3,event-1:mallet:keys.bb-slow-poly:[10, 0, 7]:5,event-2:pluck:pluck.jec-ambient-pizz-2:[0]:6,event-3:bell:keys.jec-polaroids-2:[0, 5, 9]:5,event-4:texture:pad.forgotten-stories:[9]:4|lead=lead.bb-silver-screen:[60, 57]:[81, 81]"
+                expected: "seed=d4a0b1ec75ed0001|input=35/70/5/625|world=0:dorian:12:[0, 5]:[6, 6]|tempo=7600/8300|rhythm=low-pulse,half-time-kick,closed-hat|harmony=drone=pad.whispering-sands,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.bb-slow-poly,piano-or-keys-accents=felt-piano,inner-motion=keys.bb-slow-poly|happenings=event-0:texture:pad.interstellar:[10]:3,event-1:mallet:keys.bb-slow-poly:[10, 0, 7]:5,event-2:pluck:pluck.jec-ambient-pizz-2:[0]:6,event-3:bell:keys.jec-polaroids-2:[0, 5, 9]:5,event-4:texture:pad.forgotten-stories:[9]:4|lead=lead.bb-silver-screen:[60, 57]:[81, 81]"
             ),
             BoundaryFixture(
                 name: "full-happenings",
@@ -60,7 +60,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 10,
                 spentColors: 50,
                 seed: 0xFFFF_FFFF_FFFF_FFFF,
-                expected: "seed=ffffffffffffffff|input=60/99/10/2500|world=7:dorian:8:[7, 5, 0]:[3, 3, 2]|tempo=6000/7200|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion|harmony=drone=pad.whispering-sands,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.bb-slow-poly,piano-or-keys-accents=keys.bb-slow-poly,inner-motion=keys.jec-polaroids-2|happenings=event-0:pluck:pluck.spider-filter-pluck:[0]:5,event-1:texture:pad.interstellar:[3, 7, 0]:4,event-2:pluck:pluck.play-something-sad:[5, 7]:4,event-3:mallet:keys.jec-polaroids-2:[9]:4,event-4:soft-one-shot:keys.bb-slow-poly:[2, 0]:5,event-5:mallet:keys.jec-polaroids-2:[5]:4,event-6:soft-one-shot:pluck.play-something-sad:[7, 5]:5,event-7:mallet:keys.bb-slow-poly:[10, 0]:4,event-8:texture:pad.forgotten-stories:[2]:3,event-9:pluck:pluck.spider-filter-pluck:[0, 10, 3]:4|lead=lead.jec-softwah-2:[58, 57, 60]:[81, 81, 81]"
+                expected: "seed=ffffffffffffffff|input=60/99/10/2500|world=7:dorian:8:[7, 5, 0]:[3, 3, 2]|tempo=6000/7200|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion|harmony=drone=pad.whispering-sands,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.bb-slow-poly,piano-or-keys-accents=felt-piano,inner-motion=keys.jec-polaroids-2|happenings=event-0:pluck:pluck.spider-filter-pluck:[0]:5,event-1:texture:pad.interstellar:[3, 7, 0]:4,event-2:pluck:pluck.play-something-sad:[5, 7]:4,event-3:mallet:keys.jec-polaroids-2:[9]:4,event-4:soft-one-shot:keys.bb-slow-poly:[2, 0]:5,event-5:mallet:keys.jec-polaroids-2:[5]:4,event-6:soft-one-shot:pluck.play-something-sad:[7, 5]:5,event-7:mallet:keys.bb-slow-poly:[10, 0]:4,event-8:texture:pad.forgotten-stories:[2]:3,event-9:pluck:pluck.spider-filter-pluck:[0, 10, 3]:4|lead=lead.jec-softwah-2:[58, 57, 60]:[81, 81, 81]"
             ),
             BoundaryFixture(
                 name: "fully-rested",
@@ -69,7 +69,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 0,
                 spentColors: 100,
                 seed: 0x1,
-                expected: "seed=1|input=85/100/0/10000|world=4:mixolydian:8:[4, 11, 2]:[3, 3, 2]|tempo=7200/8900|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion,syncopated-ghost,fills|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=keys.jec-polaroids-2,inner-motion=keys.maschinenmensch|happenings=|lead=lead.bb-silver-screen:[59, 59, 57]:[81, 81, 81]"
+                expected: "seed=1|input=85/100/0/10000|world=4:mixolydian:8:[4, 11, 2]:[3, 3, 2]|tempo=7200/8900|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion,syncopated-ghost,fills|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=|lead=lead.bb-silver-screen:[59, 59, 57]:[81, 81, 81]"
             ),
             BoundaryFixture(
                 name: "steps-goal",
@@ -78,7 +78,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 1,
                 spentColors: 0,
                 seed: 0x2,
-                expected: "seed=2|input=100/0/1/0|world=0:major-pentatonic:16:[0]:[16]|tempo=7100/9100|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion,syncopated-ghost,fills|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=keys.bb-slow-poly,inner-motion=keys.maschinenmensch|happenings=event-0:pluck:pluck.spider-filter-pluck:[4, 2, 0]:5|lead=lead.jec-softwah-2:[60]:[81]"
+                expected: "seed=2|input=100/0/1/0|world=0:major-pentatonic:16:[0]:[16]|tempo=7100/9100|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion,syncopated-ghost,fills|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=event-0:pluck:pluck.spider-filter-pluck:[4, 2, 0]:5|lead=lead.jec-softwah-2:[60]:[81]"
             ),
         ]
 
@@ -263,6 +263,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
             }
         }
 
+        let descriptorIDs = Set(DayObjectsInstrumentManifest.defaultDescriptors.map(\.id))
         require(plan.harmony.cycleBars == plan.world.cycleBars, "harmony cycle")
         require(plan.harmony.chordCount == plan.world.progression.count, "harmony chord count")
         requireFinite([plan.harmony.sleepProgress, plan.harmony.harmonicInformationScore], "harmony finite")
@@ -279,6 +280,13 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
             require(role.gain >= 0, "harmony gain")
             requireUnit([role.delaySend, role.reverbSend, role.activation.amount], "harmony role unit bounds")
             require(role.register.lowerBound <= role.register.upperBound, "harmony register")
+            switch role.instrumentTarget {
+            case let .tonal(instrumentID):
+                require(descriptorIDs.contains(instrumentID), "harmony tonal descriptor")
+                require(role.role != .pianoOrKeysAccents, "accent must use felt piano")
+            case .feltPiano:
+                require(role.role == .pianoOrKeysAccents, "felt piano role")
+            }
             for entry in role.chordSchedule {
                 require(entry.startBar >= 0 && entry.startBar < plan.world.cycleBars, "harmony start bar")
                 require(entry.durationBars > 0, "harmony duration")
@@ -286,7 +294,6 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
             }
         }
 
-        let descriptorIDs = Set(DayObjectsInstrumentManifest.defaultDescriptors.map(\.id))
         for happening in plan.happenings {
             require(!happening.happeningID.isEmpty, "happening ID")
             require(descriptorIDs.contains(happening.instrumentID), "happening descriptor")
@@ -366,7 +373,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
 
     private func snapshot(of plan: DayMusicPlan) -> String {
         let harmony = plan.harmony.roles.map {
-            "\(harmonyRoleName($0.role))=\($0.instrumentID.rawValue)"
+            "\(harmonyRoleName($0.role))=\(harmonyTargetName($0.instrumentTarget))"
         }.joined(separator: ",")
         let happenings = plan.happenings.map {
             "\($0.happeningID):\(familyName($0.family)):\($0.instrumentID.rawValue):\($0.motifScaleDegrees):\($0.octave)"
@@ -416,6 +423,13 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
         case .secondaryPadOrKeys: return "secondary-pad-or-keys"
         case .pianoOrKeysAccents: return "piano-or-keys-accents"
         case .innerMotion: return "inner-motion"
+        }
+    }
+
+    private func harmonyTargetName(_ target: HarmonyInstrumentTarget) -> String {
+        switch target {
+        case let .tonal(instrumentID): return instrumentID.rawValue
+        case .feltPiano: return "felt-piano"
         }
     }
 

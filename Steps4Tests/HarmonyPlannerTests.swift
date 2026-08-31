@@ -2,6 +2,17 @@ import XCTest
 @testable import Steps4
 
 final class HarmonyPlannerTests: XCTestCase {
+    func testActivePianoAccentPublishesTheFeltPianoPlaybackTargetWithTheRealCatalog() throws {
+        let plan = makePlan(
+            sleepProgress: 1,
+            descriptors: DayObjectsInstrumentManifest.defaultDescriptors
+        )
+        let accents = try XCTUnwrap(plan.role(for: .pianoOrKeysAccents))
+
+        XCTAssertGreaterThan(accents.gain, 0)
+        XCTAssertEqual(accents.instrumentTarget, .feltPiano)
+    }
+
     func testEveryRolePublishesTheApprovedActivationWindowAndZeroSleepKeepsAnAudibleOpenFifth() throws {
         let plan = makePlan(sleepProgress: 0)
         let expected: [(HarmonyRole, Double, Double)] = [
@@ -51,32 +62,37 @@ final class HarmonyPlannerTests: XCTestCase {
     }
 
     func testInstrumentSelectionUsesOnlyCompatibleDescriptorsAndAvoidsPrimarySecondaryDuplication() throws {
-        let descriptors = descriptorsWithPiano
+        let descriptors = DayObjectsInstrumentManifest.defaultDescriptors
         let plan = makePlan(sleepProgress: 1, descriptors: descriptors)
         let descriptorByID = Dictionary(uniqueKeysWithValues: descriptors.map { ($0.id, $0) })
         let compatibleCategories: [HarmonyRole: Set<DayObjectsInstrumentCategory>] = [
             .drone: [.pad, .keys],
             .primaryPad: [.pad],
             .secondaryPadOrKeys: [.pad, .keys],
-            .pianoOrKeysAccents: [.piano, .keys],
-            .innerMotion: [.keys, .piano]
+            .innerMotion: [.keys],
         ]
 
         for rolePlan in plan.roles {
-            let descriptor = try XCTUnwrap(descriptorByID[rolePlan.instrumentID])
-            XCTAssertTrue(try XCTUnwrap(compatibleCategories[rolePlan.role]).contains(descriptor.category))
+            switch rolePlan.instrumentTarget {
+            case let .tonal(instrumentID):
+                let descriptor = try XCTUnwrap(descriptorByID[instrumentID])
+                XCTAssertTrue(try XCTUnwrap(compatibleCategories[rolePlan.role]).contains(descriptor.category))
+            case .feltPiano:
+                XCTAssertEqual(rolePlan.role, .pianoOrKeysAccents)
+            }
         }
 
         let primary = try XCTUnwrap(plan.role(for: .primaryPad))
         let secondary = try XCTUnwrap(plan.role(for: .secondaryPadOrKeys))
-        XCTAssertNotEqual(primary.instrumentID, secondary.instrumentID)
+        XCTAssertNotEqual(primary.instrumentTarget, secondary.instrumentTarget)
     }
 
     func testSelectionAndCompletePlanAreStableForSeedAndDescriptorOrder() {
-        let forward = makePlan(sleepProgress: 0.86, descriptors: descriptorsWithPiano, remixSeed: 0xABCD)
+        let descriptors = DayObjectsInstrumentManifest.defaultDescriptors
+        let forward = makePlan(sleepProgress: 0.86, descriptors: descriptors, remixSeed: 0xABCD)
         let reversed = makePlan(
             sleepProgress: 0.86,
-            descriptors: Array(descriptorsWithPiano.reversed()),
+            descriptors: Array(descriptors.reversed()),
             remixSeed: 0xABCD
         )
 
@@ -131,7 +147,7 @@ final class HarmonyPlannerTests: XCTestCase {
                 HarmonyPlanner.makePlan(
                     input: input,
                     tonalWorld: world,
-                    instrumentDescriptors: descriptorsWithPiano,
+                    instrumentDescriptors: DayObjectsInstrumentManifest.defaultDescriptors,
                     remixSeed: remixSeed
                 )
             )
@@ -154,27 +170,13 @@ final class HarmonyPlannerTests: XCTestCase {
         XCTAssertEqual(above, one)
         XCTAssertEqual(nonFinite.sleepProgress, 0)
         XCTAssertEqual(nonFinite.roles.map(\.gain), zero.roles.map(\.gain))
-        XCTAssertTrue(empty.roles.isEmpty)
-        XCTAssertEqual(empty.activeRoleCount, 0)
+        XCTAssertEqual(empty.roles.map(\.role), [.pianoOrKeysAccents])
+        XCTAssertEqual(empty.roles.map(\.instrumentTarget), [.feltPiano])
+        XCTAssertEqual(empty.activeRoleCount, 1)
         XCTAssertTrue(empty.harmonicInformationScore.isFinite)
     }
 
     private let remixSeed: UInt64 = 0xD4A0_B1EC_75ED_0001
-
-    private var descriptorsWithPiano: [DayObjectsInstrumentDescriptor] {
-        DayObjectsInstrumentManifest.defaultDescriptors + [
-            DayObjectsInstrumentDescriptor(
-                id: DayObjectsInstrumentID(rawValue: "piano.felt-test"),
-                category: .piano,
-                displayName: "Felt Test",
-                bankName: "Tests",
-                sourceUID: nil,
-                referenceMIDI: 60,
-                auditionChord: [48, 55, 62, 67],
-                outputTrimDB: -12
-            )
-        ]
-    }
 
     private func makePlan(
         sleepProgress: Double,
