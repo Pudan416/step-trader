@@ -1,3 +1,5 @@
+import AudioKit
+import AVFoundation
 import XCTest
 @testable import Steps4
 
@@ -180,27 +182,66 @@ final class DayObjectsFeltPianoTests: XCTestCase {
         XCTAssertTrue(adapter.piano.isEnabled)
         XCTAssertEqual(baseline.preloadedSampleCount, samples.count)
         XCTAssertEqual(baseline.loadedPlayerCount, baseline.fixedBackendCount * samples.count)
-        XCTAssertEqual(baseline.appliedRecipe.mechanicalOnsetGain, 1 - DayObjectsFeltPianoRecipe.default.mechanicalNoiseGain)
+        XCTAssertEqual(baseline.appliedRecipe.mechanicalOnsetGain, DayObjectsFeltPianoRecipe.default.mechanicalNoiseGain, accuracy: 0.000_001)
         XCTAssertEqual(baseline.appliedRecipe.lowPassCutoffHz, DayObjectsFeltPianoRecipe.default.lowPassCutoffHz)
+        XCTAssertEqual(baseline.appliedRecipe.mechanicalOnsetHighPassHz, DayObjectsFeltPianoRecipe.default.mechanicalOnsetHighPassHz)
+        XCTAssertEqual(baseline.appliedRecipe.mechanicalOnsetBranchInputCount, 2)
 
-        _ = adapter.piano.noteOn(61, velocity: 0.8)
+        let releasedToken = try XCTUnwrap(adapter.piano.noteOn(61, velocity: 0.8))
         XCTAssertEqual(adapter.metrics.lastPlayedRootMIDINote, 60)
         XCTAssertEqual(adapter.metrics.lastPlayedPitchCents, 100)
+        let beforeRelease = adapter.metrics.totalHardStoppedVoiceCount
+        XCTAssertTrue(adapter.piano.noteOff(releasedToken))
+        XCTAssertEqual(adapter.metrics.selectedRootMIDINotes, [60])
+        XCTAssertEqual(adapter.metrics.releaseTailBackendCount, 1)
+        XCTAssertEqual(adapter.metrics.totalHardStoppedVoiceCount, beforeRelease)
+
         _ = adapter.piano.noteOn(60, velocity: 0.8)
         _ = adapter.piano.noteOn(64, velocity: 0.8)
         _ = adapter.piano.noteOn(67, velocity: 0.8)
         _ = adapter.piano.noteOn(71, velocity: 0.8)
-        let beforeSteal = adapter.metrics.totalPlayerStopCount
+        let beforeSteal = adapter.metrics.totalHardStoppedVoiceCount
         _ = adapter.piano.noteOn(72, velocity: 0.8)
-        XCTAssertGreaterThanOrEqual(adapter.metrics.totalPlayerStopCount - beforeSteal, samples.count)
+        XCTAssertEqual(adapter.metrics.totalHardStoppedVoiceCount - beforeSteal, 1)
         XCTAssertEqual(adapter.metrics.lastPlayedRootMIDINote, 72)
         XCTAssertEqual(adapter.metrics.lastPlayedPitchCents, 0)
-        let beforeStop = adapter.metrics.totalPlayerStopCount
+        let beforeStop = adapter.metrics.totalHardStoppedVoiceCount
 
         adapter.piano.stop()
 
-        XCTAssertEqual(adapter.metrics.totalPlayerStopCount - beforeStop, baseline.loadedPlayerCount)
+        XCTAssertEqual(adapter.metrics.totalHardStoppedVoiceCount - beforeStop, baseline.fixedBackendCount)
+        XCTAssertTrue(adapter.metrics.selectedRootMIDINotes.isEmpty)
+        XCTAssertEqual(adapter.metrics.releaseTailBackendCount, 0)
         XCTAssertEqual(adapter.metrics.loadedPlayerCount, baseline.loadedPlayerCount)
+    }
+
+    func testAudioKitBackendRejectsActualNilAndEmptyBufferedPlayersBeforeEnablingPiano() throws {
+        let samples = try FeltPianoManifest.load(from: Bundle(for: type(of: self)))
+        let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1))
+        let emptyBuffer = try XCTUnwrap(AVAudioPCMBuffer(
+            pcmFormat: format,
+            frameCapacity: 1
+        ))
+
+        for makeInvalidPlayer in [
+            { (player: AudioPlayer) in player.buffer = nil },
+            { (player: AudioPlayer) in player.buffer = emptyBuffer },
+        ] {
+            let adapter = DayObjectsAudioKitFeltPiano(
+                samples: samples,
+                resourceResolver: bundledURL,
+                bufferedPlayerLoader: { url in
+                    let player = AudioPlayer(url: url, buffered: true)
+                    if let player { makeInvalidPlayer(player) }
+                    return player
+                }
+            )
+
+            XCTAssertFalse(adapter.piano.isEnabled)
+            XCTAssertEqual(adapter.metrics.preloadedSampleCount, 0)
+            XCTAssertEqual(adapter.metrics.loadedPlayerCount, 0)
+            XCTAssertEqual(adapter.piano.diagnostics, [.init(id: "day-objects.piano.resource-preload-failed.felt-c2", role: .piano)])
+        }
     }
 
     private func fixtureURL(_ sample: FeltPianoSample) -> URL? {
