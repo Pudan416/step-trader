@@ -10,10 +10,17 @@ struct DayObjectsInstrumentBankConfiguration: Equatable, Sendable {
 protocol DayObjectsTonalVoicePoolProtocol: AnyObject {
     var metrics: DayObjectsTonalPoolMetrics { get }
     func prepareInstrument(_ id: DayObjectsInstrumentID) throws
+    func prepareInstruments(_ ids: [DayObjectsInstrumentID]) throws
     func noteOn(_ request: DayObjectsTonalNoteRequest) -> DayObjectsVoiceToken?
     func update(_ token: DayObjectsVoiceToken, with update: DayObjectsVoiceUpdate)
     func noteOff(_ token: DayObjectsVoiceToken)
     func releaseAll()
+}
+
+extension DayObjectsTonalVoicePoolProtocol {
+    func prepareInstruments(_ ids: [DayObjectsInstrumentID]) throws {
+        for id in ids { try prepareInstrument(id) }
+    }
 }
 
 protocol DayObjectsDrumBankProtocol: AnyObject {

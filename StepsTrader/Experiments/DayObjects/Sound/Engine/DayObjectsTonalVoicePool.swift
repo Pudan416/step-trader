@@ -86,12 +86,14 @@ final class DayObjectsTonalVoicePool {
         var role: DayObjectsTonalVoiceRole?
         var midiNote = 60.0
         var releaseSeconds: TimeInterval?
+        var instrumentID: DayObjectsInstrumentID?
     }
 
     private let poolID = UUID()
     private let instrumentProvider: InstrumentProvider
     private var slots: [Slot]
     private var preparedInstrumentID: DayObjectsInstrumentID?
+    private var preparedInstrumentPresets: [DayObjectsInstrumentID: NormalizedSynthVoice] = [:]
     private var activationCounter: UInt64 = 0
 
     init(
@@ -105,27 +107,43 @@ final class DayObjectsTonalVoicePool {
     }
 
     func prepareInstrument(_ id: DayObjectsInstrumentID) throws {
-        guard preparedInstrumentID != id else { return }
+        guard preparedInstrumentID != id || preparedInstrumentPresets.count != 1 else { return }
         let preset = DayObjectsAudioParameters.clamped(try instrumentProvider(id))
 
         releaseAll()
-        for slot in slots {
-            slot.backend.replacePreset(
+        for slotID in slots.indices {
+            slots[slotID].backend.replacePreset(
                 preset,
                 instrumentID: id,
                 transitionDuration: DayObjectsAudioParameters.presetTransitionDuration
             )
+            slots[slotID].instrumentID = id
         }
         preparedInstrumentID = id
+        preparedInstrumentPresets = [id: preset]
+    }
+
+    func prepareInstruments(_ ids: [DayObjectsInstrumentID]) throws {
+        for id in ids where preparedInstrumentPresets[id] == nil {
+            preparedInstrumentPresets[id] = DayObjectsAudioParameters.clamped(try instrumentProvider(id))
+        }
     }
 
     func noteOn(_ rawRequest: DayObjectsTonalNoteRequest) -> DayObjectsVoiceToken? {
-        guard rawRequest.instrumentID == preparedInstrumentID else { return nil }
+        guard let preset = preparedInstrumentPresets[rawRequest.instrumentID] else { return nil }
         let request = DayObjectsAudioParameters.clamped(rawRequest)
         guard let slotID = slotForAllocation(role: request.role) else { return nil }
 
         if slots[slotID].role != nil {
             release(slotID: slotID)
+        }
+        if slots[slotID].instrumentID != request.instrumentID {
+            slots[slotID].backend.replacePreset(
+                preset,
+                instrumentID: request.instrumentID,
+                transitionDuration: 0
+            )
+            slots[slotID].instrumentID = request.instrumentID
         }
 
         activationCounter &+= 1

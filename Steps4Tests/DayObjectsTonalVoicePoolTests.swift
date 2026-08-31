@@ -393,6 +393,33 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
         XCTAssertTrue(harness.voices.allSatisfy { !$0.isGateOpen })
     }
 
+    func testPreparedInstrumentSetUsesDifferentPresetsAcrossFixedIdleVoices() throws {
+        let harness = makeHarness()
+        try harness.pool.prepareInstruments([firstID, secondID])
+
+        let first = harness.pool.noteOn(request(note: 60, role: .note, instrumentID: firstID))
+        let second = harness.pool.noteOn(request(note: 64, role: .note, instrumentID: secondID))
+
+        XCTAssertNotNil(first)
+        XCTAssertNotNil(second)
+        XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 2)
+        XCTAssertEqual(Set(harness.voices.compactMap(\.preparedInstrumentID)), [firstID, secondID])
+        XCTAssertEqual(harness.voices.reduce(0) { $0 + $1.noteOnCallCount }, 2)
+    }
+
+    func testSinglePresetPreparationAfterASetRestoresExclusivePoolSemantics() throws {
+        let harness = makeHarness()
+        try harness.pool.prepareInstrument(firstID)
+        try harness.pool.prepareInstruments([firstID, secondID])
+        XCTAssertNotNil(harness.pool.noteOn(request(note: 64, role: .note, instrumentID: secondID)))
+
+        try harness.pool.prepareInstrument(firstID)
+
+        XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 0)
+        XCTAssertNil(harness.pool.noteOn(request(note: 64, role: .note, instrumentID: secondID)))
+        XCTAssertNotNil(harness.pool.noteOn(request(note: 60, role: .note, instrumentID: firstID)))
+    }
+
     private func request(
         note: UInt8,
         role: DayObjectsTonalVoiceRole,

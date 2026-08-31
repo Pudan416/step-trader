@@ -93,6 +93,11 @@
 		D0F400000000000000000006 /* RhythmPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F400000000000000000005 /* RhythmPlayer.swift */; };
 		D0F400000000000000000008 /* HarmonyPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F400000000000000000007 /* HarmonyPlayer.swift */; };
 		D0F40000000000000000000A /* PlaybackWorldBank.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F400000000000000000009 /* PlaybackWorldBank.swift */; };
+		D0F500000000000000000002 /* HappeningSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F500000000000000000001 /* HappeningSchedulerTests.swift */; };
+		D0F500000000000000000004 /* HappeningPitchResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F500000000000000000003 /* HappeningPitchResolverTests.swift */; };
+		D0F500000000000000000006 /* ActiveHappeningState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F500000000000000000005 /* ActiveHappeningState.swift */; };
+		D0F500000000000000000008 /* HappeningScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F500000000000000000007 /* HappeningScheduler.swift */; };
+		D0F50000000000000000000A /* HappeningPitchResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F500000000000000000009 /* HappeningPitchResolver.swift */; };
 		D0D600000000000000000012 /* FeltPianoManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D600000000000000000011 /* FeltPianoManifest.swift */; };
 		D0D600000000000000000014 /* DayObjectsFeltPiano.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D600000000000000000013 /* DayObjectsFeltPiano.swift */; };
 		D0D700000000000000000012 /* DayObjectsInstrumentBankProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D700000000000000000011 /* DayObjectsInstrumentBankProtocol.swift */; };
@@ -606,6 +611,11 @@
 		D0F400000000000000000005 /* RhythmPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RhythmPlayer.swift; sourceTree = "<group>"; };
 		D0F400000000000000000007 /* HarmonyPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarmonyPlayer.swift; sourceTree = "<group>"; };
 		D0F400000000000000000009 /* PlaybackWorldBank.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackWorldBank.swift; sourceTree = "<group>"; };
+		D0F500000000000000000001 /* HappeningSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningSchedulerTests.swift; sourceTree = "<group>"; };
+		D0F500000000000000000003 /* HappeningPitchResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPitchResolverTests.swift; sourceTree = "<group>"; };
+		D0F500000000000000000005 /* ActiveHappeningState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveHappeningState.swift; sourceTree = "<group>"; };
+		D0F500000000000000000007 /* HappeningScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningScheduler.swift; sourceTree = "<group>"; };
+		D0F500000000000000000009 /* HappeningPitchResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPitchResolver.swift; sourceTree = "<group>"; };
 		D0D600000000000000000011 /* FeltPianoManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeltPianoManifest.swift; sourceTree = "<group>"; };
 		D0D600000000000000000013 /* DayObjectsFeltPiano.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsFeltPiano.swift; sourceTree = "<group>"; };
 		D0D700000000000000000011 /* DayObjectsInstrumentBankProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsInstrumentBankProtocol.swift; sourceTree = "<group>"; };
@@ -1114,6 +1124,9 @@
 		D0F100000000000000000010 /* Playback */ = {
 			isa = PBXGroup;
 			children = (
+				D0F500000000000000000005 /* ActiveHappeningState.swift */,
+				D0F500000000000000000007 /* HappeningScheduler.swift */,
+				D0F500000000000000000009 /* HappeningPitchResolver.swift */,
 				D0F400000000000000000005 /* RhythmPlayer.swift */,
 				D0F400000000000000000007 /* HarmonyPlayer.swift */,
 				D0F400000000000000000009 /* PlaybackWorldBank.swift */,
@@ -1728,6 +1741,8 @@
 		T1E5T5A12E71A18F00ABF5FA /* Steps4Tests */ = {
 			isa = PBXGroup;
 			children = (
+				D0F500000000000000000001 /* HappeningSchedulerTests.swift */,
+				D0F500000000000000000003 /* HappeningPitchResolverTests.swift */,
 				D0F400000000000000000001 /* RhythmPlayerTests.swift */,
 				D0F400000000000000000003 /* HarmonyPlayerTests.swift */,
 				D0F300000000000000000001 /* DayObjectsTransportTests.swift */,
@@ -2178,6 +2193,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0F500000000000000000006 /* ActiveHappeningState.swift in Sources */,
+				D0F500000000000000000008 /* HappeningScheduler.swift in Sources */,
+				D0F50000000000000000000A /* HappeningPitchResolver.swift in Sources */,
 				D0F400000000000000000006 /* RhythmPlayer.swift in Sources */,
 				D0F400000000000000000008 /* HarmonyPlayer.swift in Sources */,
 				D0F40000000000000000000A /* PlaybackWorldBank.swift in Sources */,
@@ -2490,6 +2508,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0F500000000000000000002 /* HappeningSchedulerTests.swift in Sources */,
+				D0F500000000000000000004 /* HappeningPitchResolverTests.swift in Sources */,
 				D0F400000000000000000002 /* RhythmPlayerTests.swift in Sources */,
 				D0F400000000000000000004 /* HarmonyPlayerTests.swift in Sources */,
 				D0F300000000000000000002 /* DayObjectsTransportTests.swift in Sources */,
