@@ -80,7 +80,10 @@ final class DeterministicMusicDirectorTests: XCTestCase {
                 )
             )
         )
-        XCTAssertEqual(plan.glitch, GlitchPlanner.makePlan(input: normalized))
+        XCTAssertEqual(
+            plan.glitch,
+            GlitchPlanner.makePlan(input: normalized, remixSeed: seed)
+        )
         XCTAssertEqual(plan.mix, LayerMixPlanner.makePlan(happeningCount: expectedHappenings.count))
     }
 
@@ -106,6 +109,38 @@ final class DeterministicMusicDirectorTests: XCTestCase {
             DeterministicMusicDirector.makePlan(input: atGoal, remixSeed: 0x2),
             DeterministicMusicDirector.makePlan(input: overGoal, remixSeed: 0x2)
         )
+    }
+
+    func testSpentColorsIsAContinuousGlitchChangeAndDoesNotMutateStructuralPlans() {
+        let clearInput = DayMusicInput(
+            countedSteps: 8_500,
+            stepGoal: 10_000,
+            countedSleepHours: 7,
+            sleepGoalHours: 8,
+            happeningIDs: ["morning", "work", "evening"],
+            spentColors: 0
+        )
+        let damagedInput = DayMusicInput(
+            countedSteps: 8_500,
+            stepGoal: 10_000,
+            countedSleepHours: 7,
+            sleepGoalHours: 8,
+            happeningIDs: ["morning", "work", "evening"],
+            spentColors: 50
+        )
+        let seed: UInt64 = 0xD4A0_B1EC_75ED_0001
+        let clear = DeterministicMusicDirector.makePlan(input: clearInput, remixSeed: seed)
+        let damaged = DeterministicMusicDirector.makePlan(input: damagedInput, remixSeed: seed)
+
+        XCTAssertEqual(clear.world, damaged.world)
+        XCTAssertEqual(clear.rhythm, damaged.rhythm)
+        XCTAssertEqual(clear.harmony, damaged.harmony)
+        XCTAssertEqual(clear.happenings, damaged.happenings)
+        XCTAssertEqual(clear.lead, damaged.lead)
+        XCTAssertEqual(clear.mix, damaged.mix)
+        XCTAssertNotEqual(clear.glitch, damaged.glitch)
+        XCTAssertEqual(clear.glitch.progress, 0)
+        XCTAssertEqual(damaged.glitch.progress, 0.25)
     }
 
     func testHappeningIdentitiesSurviveAdditionsAndRemovals() {

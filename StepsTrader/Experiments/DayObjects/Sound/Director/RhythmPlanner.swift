@@ -19,7 +19,6 @@ enum RhythmPlanner {
         remixSeed: UInt64
     ) -> RhythmPlan {
         let stepsProgress = unitValue(input.stepsProgress)
-        let glitchProgress = unitValue(input.glitchProgress)
         var familyRandom = StableMusicRandom(seed: remixSeed, domain: .rhythmFamily)
         let baseTempoBPM = 58 + Double(familyRandom.nextInt(upperBound: 25) ?? 0)
         let family = familyRandom.choice(from: RhythmFamily.allCases) ?? .grounded
@@ -55,14 +54,7 @@ enum RhythmPlanner {
                     )
                 ),
                 isTimingAnchor: template.isTimingAnchor,
-                isGlitchEligible: template.isGlitchEligible,
-                glitch: template.isGlitchEligible
-                    ? RhythmVoiceGlitchPlan(
-                        pitchDriftCents: 3 * glitchProgress,
-                        dropoutProbability: 0.06 * glitchProgress,
-                        delayInstability: 0.08 * glitchProgress
-                    )
-                    : .neutral
+                isGlitchEligible: template.isGlitchEligible
             )
         }
 

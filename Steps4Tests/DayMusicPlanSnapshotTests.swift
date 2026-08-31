@@ -251,14 +251,11 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 voice.velocityRange.upperBound,
                 voice.microtimingMilliseconds.lowerBound,
                 voice.microtimingMilliseconds.upperBound,
-                voice.glitch.pitchDriftCents,
-                voice.glitch.dropoutProbability,
-                voice.glitch.delayInstability,
             ], "rhythm voice finite")
             require(abs(voice.microtimingMilliseconds.lowerBound) <= 18, "microtiming lower bound")
             require(abs(voice.microtimingMilliseconds.upperBound) <= 18, "microtiming upper bound")
             if voice.isTimingAnchor {
-                require(voice.glitch == .neutral, "timing-anchor glitch exemption")
+                require(!voice.isGlitchEligible, "timing-anchor glitch exemption")
                 require(voice.microtimingMilliseconds == 0...0, "timing-anchor microtiming exemption")
             }
         }
@@ -339,23 +336,63 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
 
         requireFinite([
             plan.glitch.progress,
-            plan.glitch.padPitchDriftCents,
-            plan.glitch.happeningPitchDriftCents,
-            plan.glitch.leadPitchDriftCents,
             plan.glitch.wowFlutterDepth,
-            plan.glitch.delayTimeInstability,
             plan.glitch.stereoSeparationAddition,
-            plan.glitch.softDropoutProbability,
-            plan.glitch.percussionPitchDriftCents,
         ], "glitch finite")
         requireUnit([
             plan.glitch.progress,
             plan.glitch.wowFlutterDepth,
-            plan.glitch.delayTimeInstability,
             plan.glitch.stereoSeparationAddition,
-            plan.glitch.softDropoutProbability,
         ], "glitch unit bounds")
-        require(plan.glitch.timingAnchorKick == .stableKick, "glitch timing anchor")
+        require(plan.glitch.roles.map(\.role) == GlitchRole.allCases, "glitch roles")
+        for rolePlan in plan.glitch.roles {
+            requireFinite([
+                rolePlan.pitchDriftCents,
+                rolePlan.dropoutProbability,
+                rolePlan.delayTimeInstability,
+            ], "glitch role finite")
+            requireUnit(
+                [rolePlan.dropoutProbability, rolePlan.delayTimeInstability],
+                "glitch role unit bounds"
+            )
+            let maximumPitchDrift: Double
+            switch rolePlan.role {
+            case .pad: maximumPitchDrift = 14
+            case .happening: maximumPitchDrift = 10
+            case .lead: maximumPitchDrift = 8
+            case .percussion: maximumPitchDrift = 3
+            case .timingAnchorKick: maximumPitchDrift = 0
+            }
+            require((0...maximumPitchDrift).contains(rolePlan.pitchDriftCents), "glitch pitch drift")
+            require(rolePlan.dropoutProbability <= 0.06, "glitch dropout cap")
+            require(rolePlan.delayTimeInstability <= 0.08, "glitch delay cap")
+            if rolePlan.role == .timingAnchorKick {
+                require(rolePlan == .stableKick, "glitch timing anchor")
+            } else {
+                require(!rolePlan.isTimingAnchor && rolePlan.isGlitchEligible, "glitch role eligibility")
+            }
+
+            if let event = plan.glitch.realizedEvent(
+                for: rolePlan.role,
+                cycleIndex: 0,
+                stepIndex: 0
+            ) {
+                requireFinite(
+                    [event.pitchDriftCents, event.delayTimeVariation],
+                    "realized glitch finite"
+                )
+                require(
+                    abs(event.pitchDriftCents) <= rolePlan.pitchDriftCents,
+                    "realized glitch pitch bound"
+                )
+                require(
+                    abs(event.delayTimeVariation) <= rolePlan.delayTimeInstability,
+                    "realized glitch delay bound"
+                )
+            } else {
+                require(false, "realized glitch event")
+            }
+        }
 
         requireFinite([
             plan.mix.rhythmTargetDecibels,

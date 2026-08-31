@@ -42,7 +42,10 @@ enum DeterministicMusicDirector {
             harmony: harmony,
             happenings: happenings,
             lead: lead,
-            glitch: GlitchPlanner.makePlan(input: normalizedInput),
+            glitch: GlitchPlanner.makePlan(
+                input: normalizedInput,
+                remixSeed: remixSeed
+            ),
             mix: LayerMixPlanner.makePlan(happeningCount: happenings.count)
         )
     }

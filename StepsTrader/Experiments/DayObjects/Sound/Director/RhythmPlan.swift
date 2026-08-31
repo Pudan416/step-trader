@@ -53,18 +53,6 @@ struct RhythmActivationPlan: Equatable, Sendable {
     let amount: Double
 }
 
-struct RhythmVoiceGlitchPlan: Equatable, Sendable {
-    let pitchDriftCents: Double
-    let dropoutProbability: Double
-    let delayInstability: Double
-
-    static let neutral = RhythmVoiceGlitchPlan(
-        pitchDriftCents: 0,
-        dropoutProbability: 0,
-        delayInstability: 0
-    )
-}
-
 struct RhythmVoicePlan: Equatable, Sendable {
     let role: RhythmRole
     let drumVoice: DayObjectsDrumVoice
@@ -75,7 +63,6 @@ struct RhythmVoicePlan: Equatable, Sendable {
     let activation: RhythmActivationPlan
     let isTimingAnchor: Bool
     let isGlitchEligible: Bool
-    let glitch: RhythmVoiceGlitchPlan
 
     func effectiveProbability(at step: Int) -> Double {
         guard stepProbabilities.indices.contains(step) else { return 0 }

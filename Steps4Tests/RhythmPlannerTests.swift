@@ -153,7 +153,10 @@ final class RhythmPlannerTests: XCTestCase {
         XCTAssertEqual(above.tempoBPM, min(102, above.baseTempoBPM + 20))
         XCTAssertTrue(above.voices.allSatisfy { $0.activation.amount == 1 })
         XCTAssertEqual(nonFinite.stepsProgress, 0)
-        XCTAssertTrue(nonFinite.voices.allSatisfy { $0.glitch == .neutral })
+        XCTAssertEqual(
+            nonFinite,
+            makePlan(stepsProgress: .infinity, glitchProgress: 0, remixSeed: 42)
+        )
     }
 
     func testEveryRolePublishesTheExactApprovedActivationWindow() throws {
@@ -235,9 +238,6 @@ final class RhythmPlannerTests: XCTestCase {
             XCTAssertTrue(voice.roomSend.isFinite && (0...1).contains(voice.roomSend))
             XCTAssertTrue(voice.activation.amount.isFinite && (0...1).contains(voice.activation.amount))
             XCTAssertEqual(voice.isGlitchEligible, !voice.isTimingAnchor)
-            XCTAssertTrue(voice.glitch.pitchDriftCents.isFinite && (0...3).contains(voice.glitch.pitchDriftCents))
-            XCTAssertTrue(voice.glitch.dropoutProbability.isFinite && (0...0.06).contains(voice.glitch.dropoutProbability))
-            XCTAssertTrue(voice.glitch.delayInstability.isFinite && (0...0.08).contains(voice.glitch.delayInstability))
         }
 
         for step in 0..<16 {
@@ -263,11 +263,15 @@ final class RhythmPlannerTests: XCTestCase {
                 XCTAssertTrue(kick.isTimingAnchor)
                 XCTAssertFalse(kick.isGlitchEligible)
                 XCTAssertEqual(kick.microtimingMilliseconds, 0...0)
-                XCTAssertEqual(kick.glitch.pitchDriftCents, 0)
-                XCTAssertEqual(kick.glitch.dropoutProbability, 0)
-                XCTAssertEqual(kick.glitch.delayInstability, 0)
             }
         }
+    }
+
+    func testSpentColorsNeverMutatesTheStructuralRhythmPlan() {
+        let clear = makePlan(stepsProgress: 0.73, glitchProgress: 0, remixSeed: 0xABCD)
+        let damaged = makePlan(stepsProgress: 0.73, glitchProgress: 1, remixSeed: 0xABCD)
+
+        XCTAssertEqual(clear, damaged)
     }
 
     func testSameInputAndSeedProduceAnEqualRhythmPlan() {
