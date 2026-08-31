@@ -60,6 +60,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
             XCTAssertEqual(harness.bank.metrics.state, .unprepared)
             XCTAssertEqual(harness.releaseCount, expectedReleaseCount(for: stage))
             XCTAssertEqual(harness.engine.detachCount, 1)
+            XCTAssertNil(harness.engine.attachedGraph)
 
             harness.failingAt = nil
             harness.engine.attachError = nil
@@ -80,6 +81,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(harness.engine.detachCount, 1)
         XCTAssertEqual(harness.releaseCount, 4)
         XCTAssertEqual(harness.bank.metrics.state, .unprepared)
+        XCTAssertNil(harness.engine.attachedGraph)
 
         harness.engine.startError = nil
         try harness.bank.prepare(configuration: configuration())
@@ -110,6 +112,19 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(graph.finalPeakLimiterCount, 1)
         XCTAssertEqual(bank.metrics.drumMetrics.allocatedPlayerCount, DayObjectsDrumVoice.allCases.count)
         XCTAssertEqual(bank.metrics.pianoMetrics.allocatedPlayerCount, 3)
+
+        let pool = try bank.tonalPool(named: "role")
+        try pool.prepareInstrument(.init(rawValue: "pad.interstellar"))
+        let fingerprint = try XCTUnwrap(bank.metrics.allocationFingerprint)
+        for _ in 0..<20 {
+            let token = try XCTUnwrap(pool.noteOn(request(instrumentID: .init(rawValue: "pad.interstellar"))))
+            pool.update(token, with: .init(cutoffHz: 4_000, expression: 0.7, pan: 0.15))
+            pool.noteOff(token)
+            bank.drums.hit(.kickSoft, velocity: 0.7)
+            let pianoToken = try XCTUnwrap(bank.piano.noteOn(60, velocity: 0.7))
+            bank.piano.noteOff(pianoToken)
+        }
+        XCTAssertEqual(bank.metrics.allocationFingerprint, fingerprint)
     }
 
     func testFactoriesReceiveRequestedFixedCountsAndStopCanRestartWithoutReconfiguration() async throws {
@@ -120,7 +135,10 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
             drumOverlapCounts: [.kickSoft: 1, .hatClosed: 2]
         )
         try harness.bank.prepare(configuration: requested)
+        let graphIdentity = ObjectIdentifier(try XCTUnwrap(harness.engine.attachedGraph))
+        harness.engine.events.removeAll()
         let pool = try harness.bank.tonalPool(named: "role")
+        try pool.prepareInstrument(.init(rawValue: "pad.safe"))
         let identity = ObjectIdentifier(pool)
         for _ in 0..<100 {
             _ = pool.noteOn(request(instrumentID: .init(rawValue: "pad.safe")))
@@ -132,14 +150,56 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(harness.tonalFactoryCallCount, 1)
         XCTAssertEqual(harness.drumFactoryCallCount, 1)
         XCTAssertEqual(harness.pianoFactoryCallCount, 1)
+        XCTAssertEqual(harness.tonalNoteOnCount, 100)
+        XCTAssertEqual(harness.drumHitCount, 100)
+        XCTAssertEqual(harness.pianoNoteOnCount, 100)
         XCTAssertEqual(ObjectIdentifier(try harness.bank.tonalPool(named: "role")), identity)
 
         try harness.bank.start()
+        XCTAssertEqual(harness.engine.events, ["synchronize", "start"])
         await harness.bank.stop()
         XCTAssertEqual(harness.releaseCount, 3)
         XCTAssertEqual(harness.engine.detachCount, 1)
+        XCTAssertNil(harness.engine.attachedGraph)
+        harness.engine.events.removeAll()
         try harness.bank.start()
         XCTAssertEqual(harness.engine.attachCount, 2)
+        XCTAssertEqual(harness.engine.events, ["attach", "synchronize", "start"])
+        XCTAssertNotNil(harness.engine.attachedGraph)
+        XCTAssertEqual(ObjectIdentifier(try XCTUnwrap(harness.engine.attachedGraph)), graphIdentity)
+    }
+
+    func testPublicReleaseAllReachesEveryPreparedSubBank() throws {
+        let harness = makeHarness()
+        try harness.bank.prepare(configuration: configuration())
+
+        harness.bank.releaseAll()
+
+        XCTAssertEqual(harness.releaseCount, 4)
+        XCTAssertNotNil(harness.engine.attachedGraph)
+    }
+
+    func testSynchronizationAndStartFailuresDetachTheRetainedGraphAndAreRetryable() throws {
+        let harness = makeHarness()
+        try harness.bank.prepare(configuration: configuration())
+        harness.graphSynchronizeError = InjectedFailure()
+        harness.engine.events.removeAll()
+
+        XCTAssertThrowsError(try harness.bank.start()) {
+            XCTAssertEqual($0 as? DayObjectsInstrumentBankError, .startFailed)
+        }
+        XCTAssertEqual(harness.engine.events, ["synchronize", "stop", "detach"])
+        XCTAssertNil(harness.engine.attachedGraph)
+        XCTAssertEqual(harness.bank.metrics.state, .unprepared)
+
+        harness.graphSynchronizeError = nil
+        try harness.bank.prepare(configuration: configuration())
+        XCTAssertNotNil(harness.engine.attachedGraph)
+        harness.engine.startError = InjectedFailure()
+        harness.engine.events.removeAll()
+        XCTAssertThrowsError(try harness.bank.start())
+        XCTAssertEqual(harness.engine.events, ["synchronize", "start", "stop", "detach"])
+        XCTAssertNil(harness.engine.attachedGraph)
     }
 
     private func configuration() -> DayObjectsInstrumentBankConfiguration {
@@ -183,6 +243,9 @@ private final class InstrumentBankHarness {
     var graphFactoryCallCount = 0
     var releaseCount = 0
     var tonalNoteOnCount = 0
+    var drumHitCount = 0
+    var pianoNoteOnCount = 0
+    var graphSynchronizeError: Error?
     var requestedDrumOverlaps: [DayObjectsDrumVoice: Int] = [:]
     var requestedPianoVoiceCount: Int?
     let engine = FakeInstrumentBankEngine()
@@ -199,7 +262,7 @@ private final class InstrumentBankHarness {
             ],
             tonalInstrumentLoader: { [weak self] in
                 guard self?.failingAt != .tonalInstruments else { throw InjectedFailure() }
-                return [:]
+                return [.init(rawValue: "pad.safe"): Self.safeVoice]
             },
             tonalPoolFactory: { [weak self] specification, _ in
                 guard !(self?.failingAt == .tonalPools && self?.tonalFactoryCallCount == 1) else { throw InjectedFailure() }
@@ -210,22 +273,46 @@ private final class InstrumentBankHarness {
                 guard self?.failingAt != .drums else { throw InjectedFailure() }
                 self?.drumFactoryCallCount += 1
                 self?.requestedDrumOverlaps = counts
-                return FakeDrumBank(onRelease: { self?.releaseCount += 1 })
+                return FakeDrumBank(onHit: { self?.drumHitCount += 1 }, onRelease: { self?.releaseCount += 1 })
             },
             pianoPoolFactory: { [weak self] count in
                 guard self?.failingAt != .piano else { throw InjectedFailure() }
                 self?.pianoFactoryCallCount += 1
                 self?.requestedPianoVoiceCount = count
-                return FakePianoPool(onRelease: { self?.releaseCount += 1 })
+                return FakePianoPool(onNoteOn: { self?.pianoNoteOnCount += 1 }, onRelease: { self?.releaseCount += 1 })
             },
             graphFactory: { [weak self] _, _, _ in
                 guard self?.failingAt != .graph else { throw InjectedFailure() }
                 self?.graphFactoryCallCount += 1
-                return FakeInstrumentBankGraph()
+                return FakeInstrumentBankGraph(
+                    isAttached: { [weak self] in self?.engine.attachedGraph != nil },
+                    synchronizeError: { [weak self] in self?.graphSynchronizeError },
+                    onSynchronize: { [weak self] in self?.engine.events.append("synchronize") }
+                )
             },
             engine: engine
         )
     }
+
+    private static let safeVoice = NormalizedSynthVoice(
+        oscillator1: .init(wavePosition: 0, level: 0.8, semitoneOffset: 0, detuneHz: 0),
+        oscillator2: .init(wavePosition: 0, level: 0, semitoneOffset: 0, detuneHz: 0),
+        oscillatorBalance: 0.5,
+        subOscillator: .init(level: 0, waveform: .sine, octaveOffset: -1),
+        noiseLevel: 0,
+        amplitudeEnvelope: .init(attackSeconds: 0.01, decaySeconds: 0.1, sustainLevel: 0.8, releaseSeconds: 0.2),
+        filter: .init(kind: .lowPass, cutoffHz: 12_000, resonance: 0.1, envelope: .init(attackSeconds: 0.01, decaySeconds: 0.1, sustainLevel: 0.8, releaseSeconds: 0.2), envelopeAmount: 0),
+        glideSeconds: 0,
+        isMonophonic: false,
+        lfo: .init(target: .none, rateHz: 1, depth: 0),
+        delay: .init(isEnabled: false, timeSeconds: 0.2, feedback: 0, mix: 0),
+        reverb: .init(isEnabled: false, feedback: 0.8, highPassHz: 80, mix: 0),
+        phaser: .init(rateHz: 0.5, feedback: 0, mix: 0),
+        autoPan: .init(rateHz: 0.25, depth: 0, stereoWidth: 0),
+        outputTrimDB: -12,
+        referenceMIDI: 60,
+        auditionChord: [60]
+    )
 }
 
 private struct InjectedFailure: Error {}
@@ -246,19 +333,21 @@ private final class FakeTonalPool: DayObjectsTonalVoicePoolProtocol {
 
 @MainActor
 private final class FakeDrumBank: DayObjectsDrumBankProtocol {
+    let onHit: () -> Void
     let onRelease: () -> Void
-    init(onRelease: @escaping () -> Void) { self.onRelease = onRelease }
+    init(onHit: @escaping () -> Void, onRelease: @escaping () -> Void) { self.onHit = onHit; self.onRelease = onRelease }
     var metrics: DayObjectsDrumBankMetrics { .init(allocatedPlayerCount: 0, enabledVoiceCount: 0) }
-    func hit(_ voice: DayObjectsDrumVoice, velocity: Double) {}
+    func hit(_ voice: DayObjectsDrumVoice, velocity: Double) { onHit() }
     func releaseAll() { onRelease() }
 }
 
 @MainActor
 private final class FakePianoPool: DayObjectsPianoPoolProtocol {
+    let onNoteOn: () -> Void
     let onRelease: () -> Void
-    init(onRelease: @escaping () -> Void) { self.onRelease = onRelease }
+    init(onNoteOn: @escaping () -> Void, onRelease: @escaping () -> Void) { self.onNoteOn = onNoteOn; self.onRelease = onRelease }
     var metrics: DayObjectsFeltPianoMetrics { .init(allocatedPlayerCount: 0, activeNoteCount: 0, maximumPolyphony: 4) }
-    func noteOn(_ midiNote: UInt8, velocity: Double) -> DayObjectsFeltPianoToken? { nil }
+    func noteOn(_ midiNote: UInt8, velocity: Double) -> DayObjectsFeltPianoToken? { onNoteOn(); return nil }
     func noteOff(_ token: DayObjectsFeltPianoToken) {}
     func releaseAll() { onRelease() }
 }
@@ -266,6 +355,19 @@ private final class FakePianoPool: DayObjectsPianoPoolProtocol {
 @MainActor
 private final class FakeInstrumentBankGraph: DayObjectsInstrumentBankGraph {
     let layout = DayObjectsInstrumentBankGraphLayout(tonalBusCount: 1, drumBusCount: 1, sharedSpatialEffectCount: 2, tonalBusGainDB: -10, drumBusGainDB: -12, masterTrimDB: -8, finalPeakLimiterCount: 1)
+    let isAttached: () -> Bool
+    let synchronizeError: () -> Error?
+    let onSynchronize: () -> Void
+    init(isAttached: @escaping () -> Bool, synchronizeError: @escaping () -> Error?, onSynchronize: @escaping () -> Void) {
+        self.isAttached = isAttached
+        self.synchronizeError = synchronizeError
+        self.onSynchronize = onSynchronize
+    }
+    func synchronizeForStart() throws {
+        onSynchronize()
+        guard isAttached() else { throw InjectedFailure() }
+        if let error = synchronizeError() { throw error }
+    }
 }
 
 @MainActor
@@ -275,8 +377,19 @@ private final class FakeInstrumentBankEngine: DayObjectsInstrumentBankEngine {
     private(set) var stopCount = 0
     private(set) var attachCount = 0
     private(set) var detachCount = 0
-    func attach(graph: any DayObjectsInstrumentBankGraph) throws { attachCount += 1; if let attachError { throw attachError } }
-    func detach() { detachCount += 1 }
-    func start() throws { if let startError { throw startError } }
-    func stop() { stopCount += 1 }
+    private(set) var attachedGraph: (any DayObjectsInstrumentBankGraph)?
+    var events: [String] = []
+    func attach(graph: any DayObjectsInstrumentBankGraph) throws {
+        events.append("attach")
+        attachCount += 1
+        if let attachError { throw attachError }
+        attachedGraph = graph
+    }
+    func detach() { events.append("detach"); detachCount += 1; attachedGraph = nil }
+    func start() throws {
+        events.append("start")
+        guard attachedGraph != nil else { throw InjectedFailure() }
+        if let startError { throw startError }
+    }
+    func stop() { events.append("stop"); stopCount += 1 }
 }

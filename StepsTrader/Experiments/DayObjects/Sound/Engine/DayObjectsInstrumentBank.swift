@@ -31,6 +31,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
             state: prepared?.state ?? .unprepared,
             tonalPoolCount: prepared?.tonalPools.count ?? 0,
             graph: prepared?.graph.layout,
+            allocationFingerprint: prepared?.graph.allocationFingerprint,
             drumMetrics: drums.metrics,
             pianoMetrics: piano.metrics
         )
@@ -174,12 +175,12 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     func start() throws {
         guard let prepared else { throw DayObjectsInstrumentBankError.notPrepared }
         guard prepared.state != .started else { return }
-        prepared.graph.synchronizeForStart()
         do {
             if !prepared.isAttached {
                 try engine.attach(graph: prepared.graph)
                 self.prepared?.isAttached = true
             }
+            try prepared.graph.synchronizeForStart()
             try engine.start()
             self.prepared?.state = .started
         } catch {
@@ -334,9 +335,27 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
     let masterTrim: Fader
     let limiter: PeakLimiter
     private let tonalPools: [DayObjectsAudioKitTonalPool]
+    private let drums: DayObjectsAudioKitDrumBank
+    private let piano: DayObjectsAudioKitFeltPiano
+
+    var allocationFingerprint: DayObjectsInstrumentBankAllocationFingerprint {
+        let drumMetrics = drums.metrics
+        let pianoMetrics = piano.metrics
+        return .init(
+            tonalNodeIdentities: tonalPools.flatMap(\.voiceNodeIdentities),
+            drumPreloadedSampleCount: drumMetrics.preloadedSampleCount,
+            drumAllocatedNodeCount: drumMetrics.allocatedNodeCount,
+            drumFixedPlayerCount: drumMetrics.fixedPlayerCount,
+            pianoPreloadedSampleCount: pianoMetrics.preloadedSampleCount,
+            pianoLoadedPlayerCount: pianoMetrics.loadedPlayerCount,
+            pianoFixedBackendCount: pianoMetrics.fixedBackendCount
+        )
+    }
 
     init(tonalPools: [DayObjectsAudioKitTonalPool], drums: DayObjectsAudioKitDrumBank, piano: DayObjectsAudioKitFeltPiano) {
         self.tonalPools = tonalPools
+        self.drums = drums
+        self.piano = piano
         tonalBus = Mixer(tonalPools.map(\.output) + [piano.output], name: "Day Objects tonal bus")
         drumBus = Mixer([drums.output], name: "Day Objects drum bus")
         tonalTrim = Fader(tonalBus, gain: AUValue(DayObjectsAudioParameters.linearGain(decibels: -10)))
@@ -348,7 +367,7 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         limiter = PeakLimiter(masterTrim)
     }
 
-    func synchronizeForStart() {
+    func synchronizeForStart() throws {
         tonalPools.forEach { $0.synchronizeGraphIfAttached() }
     }
 

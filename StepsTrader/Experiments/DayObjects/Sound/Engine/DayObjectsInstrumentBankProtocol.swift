@@ -82,13 +82,27 @@ struct DayObjectsInstrumentBankGraphLayout: Equatable, Sendable {
     let finalPeakLimiterCount: Int
 }
 
+struct DayObjectsInstrumentBankAllocationFingerprint: Equatable, Sendable {
+    let tonalNodeIdentities: [ObjectIdentifier]
+    let drumPreloadedSampleCount: Int
+    let drumAllocatedNodeCount: Int
+    let drumFixedPlayerCount: Int
+    let pianoPreloadedSampleCount: Int
+    let pianoLoadedPlayerCount: Int
+    let pianoFixedBackendCount: Int
+}
+
 protocol DayObjectsInstrumentBankGraph: AnyObject {
     var layout: DayObjectsInstrumentBankGraphLayout { get }
-    func synchronizeForStart()
+    var allocationFingerprint: DayObjectsInstrumentBankAllocationFingerprint { get }
+    func synchronizeForStart() throws
 }
 
 extension DayObjectsInstrumentBankGraph {
-    func synchronizeForStart() {}
+    var allocationFingerprint: DayObjectsInstrumentBankAllocationFingerprint {
+        .init(tonalNodeIdentities: [], drumPreloadedSampleCount: 0, drumAllocatedNodeCount: 0, drumFixedPlayerCount: 0, pianoPreloadedSampleCount: 0, pianoLoadedPlayerCount: 0, pianoFixedBackendCount: 0)
+    }
+    func synchronizeForStart() throws {}
 }
 
 protocol DayObjectsInstrumentBankEngine: AnyObject {
@@ -102,6 +116,7 @@ struct DayObjectsInstrumentBankMetrics: Equatable, Sendable {
     let state: DayObjectsInstrumentBankState
     let tonalPoolCount: Int
     let graph: DayObjectsInstrumentBankGraphLayout?
+    let allocationFingerprint: DayObjectsInstrumentBankAllocationFingerprint?
     let drumMetrics: DayObjectsDrumBankMetrics
     let pianoMetrics: DayObjectsFeltPianoMetrics
 }
