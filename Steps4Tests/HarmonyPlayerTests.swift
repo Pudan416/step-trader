@@ -20,12 +20,12 @@ final class HarmonyPlayerTests: XCTestCase {
         ])
         XCTAssertEqual(PlaybackWorldBankConfiguration.playbackWorld.pianoVoiceCount, 6)
         XCTAssertEqual(PlaybackWorldBankConfiguration.playbackWorld.drumOverlapCounts, [
-            .kickSoft: 4, .kickFull: 4, .hatClosed: 6, .hatOpen: 3,
+            .kickSoft: 2, .kickFull: 2, .hatClosed: 6, .hatOpen: 3,
             .shaker: 4, .clapSoft: 3, .stick: 3, .organicHigh: 4, .organicLow: 4,
         ])
         XCTAssertEqual(world.metrics.allocatedTonalVoiceCount, 23)
         XCTAssertEqual(world.metrics.allocatedPianoVoiceCount, 6)
-        XCTAssertEqual(world.metrics.allocatedDrumPlayerCount, 35)
+        XCTAssertEqual(world.metrics.allocatedDrumPlayerCount, 31)
     }
 
     func testInitialAndDeclaredChordChangesUseDirectorVoicingsUnchangedAndCrossfade() throws {

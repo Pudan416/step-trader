@@ -5,7 +5,7 @@ import XCTest
 @MainActor
 final class RhythmPlayerTests: XCTestCase {
     func testSubdivisionRendersDirectorEventsWithPlannedDetailsAndThreeAttackCap() {
-        let drums = RecordingRhythmDrumBank(allocatedPlayerCount: 35)
+        let drums = RecordingRhythmDrumBank(allocatedPlayerCount: 31)
         let player = RhythmPlayer(drumBank: drums)
         let plan = rhythmPlan(voiceCount: 4, timingAnchorIndex: 1)
 
@@ -16,20 +16,20 @@ final class RhythmPlayerTests: XCTestCase {
         )
 
         XCTAssertEqual(frame.hits.count, 3)
-        XCTAssertEqual(drums.hits.count, 3)
-        XCTAssertEqual(frame.hits.map(\.drumVoice), drums.hits.map(\.voice))
+        XCTAssertEqual(drums.scheduledHits.count, 3)
+        XCTAssertEqual(frame.hits.map(\.drumVoice), drums.scheduledHits.map(\.voice))
         XCTAssertTrue(frame.hits.allSatisfy { (0.4...0.8).contains($0.velocity) })
         XCTAssertEqual(Set(frame.hits.map(\.roomSend)), Set([0.1, 0.2, 0.3]))
         XCTAssertTrue(frame.hits.allSatisfy { abs($0.microtimingMilliseconds) <= 12 })
         XCTAssertTrue(frame.hits.allSatisfy {
             abs($0.scheduledHostTimeSeconds - (12 + $0.microtimingMilliseconds / 1_000)) < 0.000_000_001
         })
-        XCTAssertEqual(player.metrics.allocatedDrumPlayerCount, 35)
+        XCTAssertEqual(player.metrics.allocatedDrumPlayerCount, 31)
         XCTAssertEqual(player.metrics.renderedLogicalHitCount, 3)
     }
 
     func testMaximumGlitchCannotMoveDropDelayOrDuplicateTimingAnchorKick() throws {
-        let drums = RecordingRhythmDrumBank(allocatedPlayerCount: 35)
+        let drums = RecordingRhythmDrumBank(allocatedPlayerCount: 31)
         let player = RhythmPlayer(drumBank: drums)
         let plan = rhythmPlan(voiceCount: 1, timingAnchorIndex: 0)
         let glitch = GlitchPlanner.makePlan(
@@ -52,7 +52,7 @@ final class RhythmPlayerTests: XCTestCase {
         )
         let kick = try XCTUnwrap(frame.hits.first)
 
-        XCTAssertEqual(drums.hits.count, 1, "The sample transient and sine body are one semantic bank hit")
+        XCTAssertEqual(drums.scheduledHits.count, 1, "The sample transient and sine body are one semantic bank hit")
         XCTAssertTrue(kick.isTimingAnchor)
         XCTAssertFalse(kick.shouldDropOut)
         XCTAssertEqual(kick.pitchDriftCents, 0)
@@ -60,10 +60,19 @@ final class RhythmPlayerTests: XCTestCase {
         XCTAssertEqual(kick.stereoOffset, 0)
         XCTAssertEqual(kick.microtimingMilliseconds, 0)
         XCTAssertEqual(kick.scheduledHostTimeSeconds, 20)
+        XCTAssertEqual(drums.scheduledHits.first, .init(
+            voice: .organicLow,
+            velocity: kick.velocity,
+            scheduledHostTimeSeconds: 20,
+            microtimingMilliseconds: 0,
+            roomSend: 0.1,
+            stereoOffset: 0,
+            pitchDriftCents: 0
+        ))
     }
 
     func testNonAnchorGlitchUsesOnlyBoundedPlanDerivedTexture() throws {
-        let drums = RecordingRhythmDrumBank(allocatedPlayerCount: 35)
+        let drums = RecordingRhythmDrumBank(allocatedPlayerCount: 31)
         let player = RhythmPlayer(drumBank: drums)
         let plan = rhythmPlan(voiceCount: 1, timingAnchorIndex: nil)
         let glitch = GlitchPlanner.makePlan(
@@ -90,10 +99,16 @@ final class RhythmPlayerTests: XCTestCase {
         XCTAssertLessThanOrEqual(abs(hit.microtimingMilliseconds), plan.maximumMicrotimingMilliseconds)
         XCTAssertFalse(hit.shouldDropOut, "Percussion texture must not punch holes in the rhythm")
         XCTAssertEqual(hit.delayTimeVariation, 0, "Percussion never inherits unstable delay")
+        XCTAssertEqual(drums.scheduledHits.first?.velocity, hit.velocity)
+        XCTAssertEqual(drums.scheduledHits.first?.scheduledHostTimeSeconds, hit.scheduledHostTimeSeconds)
+        XCTAssertEqual(drums.scheduledHits.first?.microtimingMilliseconds, hit.microtimingMilliseconds)
+        XCTAssertEqual(drums.scheduledHits.first?.roomSend, hit.roomSend)
+        XCTAssertEqual(drums.scheduledHits.first?.stereoOffset, hit.stereoOffset)
+        XCTAssertEqual(drums.scheduledHits.first?.pitchDriftCents, hit.pitchDriftCents)
     }
 
     func testDuckingIsSilentAtLowStepsAndNeverExceedsTwoPointFiveDecibels() {
-        let drums = RecordingRhythmDrumBank(allocatedPlayerCount: 35)
+        let drums = RecordingRhythmDrumBank(allocatedPlayerCount: 31)
         let player = RhythmPlayer(drumBank: drums)
         let low = rhythmPlan(voiceCount: 1, timingAnchorIndex: 0, stepsProgress: 0.5)
         let high = rhythmPlan(voiceCount: 1, timingAnchorIndex: 0, stepsProgress: 1)
@@ -103,7 +118,7 @@ final class RhythmPlayerTests: XCTestCase {
     }
 
     func testTenThousandSubdivisionsKeepAllocationConstantAndReleaseEverything() {
-        let drums = RecordingRhythmDrumBank(allocatedPlayerCount: 35)
+        let drums = RecordingRhythmDrumBank(allocatedPlayerCount: 31)
         let player = RhythmPlayer(drumBank: drums)
         let plan = rhythmPlan(voiceCount: 4, timingAnchorIndex: 1)
         let baseline = player.metrics.allocatedDrumPlayerCount
@@ -178,13 +193,8 @@ final class RhythmPlayerTests: XCTestCase {
 }
 
 private final class RecordingRhythmDrumBank: DayObjectsDrumBankProtocol {
-    struct Hit: Equatable {
-        let voice: DayObjectsDrumVoice
-        let velocity: Double
-    }
-
     let metrics: DayObjectsDrumBankMetrics
-    private(set) var hits: [Hit] = []
+    private(set) var scheduledHits: [DayObjectsScheduledDrumHit] = []
     private(set) var releaseAllCount = 0
 
     init(allocatedPlayerCount: Int) {
@@ -192,7 +202,11 @@ private final class RecordingRhythmDrumBank: DayObjectsDrumBankProtocol {
     }
 
     func hit(_ voice: DayObjectsDrumVoice, velocity: Double) {
-        hits.append(.init(voice: voice, velocity: velocity))
+        XCTFail("Rhythm playback must use the typed scheduled-hit path")
+    }
+
+    func schedule(_ hit: DayObjectsScheduledDrumHit) {
+        scheduledHits.append(hit)
     }
 
     func releaseAll() {

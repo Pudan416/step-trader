@@ -19,7 +19,14 @@ protocol DayObjectsTonalVoicePoolProtocol: AnyObject {
 protocol DayObjectsDrumBankProtocol: AnyObject {
     var metrics: DayObjectsDrumBankMetrics { get }
     func hit(_ voice: DayObjectsDrumVoice, velocity: Double)
+    func schedule(_ hit: DayObjectsScheduledDrumHit)
     func releaseAll()
+}
+
+extension DayObjectsDrumBankProtocol {
+    func schedule(_ hit: DayObjectsScheduledDrumHit) {
+        self.hit(hit.voice, velocity: hit.velocity)
+    }
 }
 
 protocol DayObjectsPianoPoolProtocol: AnyObject {

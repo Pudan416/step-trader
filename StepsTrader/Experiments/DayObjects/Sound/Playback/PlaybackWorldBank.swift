@@ -12,8 +12,8 @@ enum PlaybackWorldBankConfiguration {
         ],
         pianoVoiceCount: 6,
         drumOverlapCounts: [
-            .kickSoft: 4,
-            .kickFull: 4,
+            .kickSoft: 2,
+            .kickFull: 2,
             .hatClosed: 6,
             .hatOpen: 3,
             .shaker: 4,

@@ -104,6 +104,38 @@ final class DayObjectsDrumBankTests: XCTestCase {
         XCTAssertEqual(players.reduce(0) { $0 + $1.hitCount }, 1_000)
     }
 
+    func testScheduledPlaybackHitAppliesAuthoritativeMetadataWithoutRecipeVariation() throws {
+        var players: [FakeDrumPlayer] = []
+        let bank = DayObjectsDrumBank(
+            resourceResolver: { sample in URL(fileURLWithPath: "/fixtures/\(sample.rawValue)") },
+            playerFactory: { _, _, _ in
+                let player = FakeDrumPlayer()
+                players.append(player)
+                return player
+            }
+        )
+        let request = DayObjectsScheduledDrumHit(
+            voice: .hatClosed,
+            velocity: 0.73,
+            scheduledHostTimeSeconds: 42.125,
+            microtimingMilliseconds: -3.5,
+            roomSend: 0.21,
+            stereoOffset: -0.17,
+            pitchDriftCents: 2.75
+        )
+
+        bank.schedule(request)
+
+        let applied = try XCTUnwrap(players.flatMap(\.playedHits).first)
+        XCTAssertEqual(applied.voice, .hatClosed)
+        XCTAssertEqual(applied.velocity, 0.73, accuracy: 0.000_001)
+        XCTAssertEqual(applied.scheduledHostTimeSeconds, 42.125, accuracy: 0.000_001)
+        XCTAssertEqual(applied.microtimingMilliseconds, -3.5, accuracy: 0.000_001)
+        XCTAssertEqual(applied.roomSend, 0.21, accuracy: 0.000_001)
+        XCTAssertEqual(applied.stereoOffset, -0.17, accuracy: 0.000_001)
+        XCTAssertEqual(applied.pitchRate, pow(2, 2.75 / 1_200), accuracy: 0.000_001)
+    }
+
     func testPreparationResolvesEveryCanonicalBundledDrumSampleBeforeAnyHit() {
         var resolved: [DayObjectsDrumSample] = []
         let bank = DayObjectsDrumBank(
@@ -194,8 +226,10 @@ final class DayObjectsDrumBankTests: XCTestCase {
 
 private final class FakeDrumPlayer: DayObjectsDrumPlayerBackend {
     private(set) var hitCount = 0
+    private(set) var playedHits: [DayObjectsDrumHit] = []
 
     func play(_ hit: DayObjectsDrumHit) {
         hitCount += 1
+        playedHits.append(hit)
     }
 }

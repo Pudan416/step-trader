@@ -1,6 +1,7 @@
 #if DEBUG || INTERNAL_BUILD
 import AudioKit
 import AudioKitEX
+import AVFoundation
 import Foundation
 import SoundpipeAudioKit
 
@@ -111,6 +112,20 @@ struct DayObjectsDrumHit: Equatable, Sendable {
     let voice: DayObjectsDrumVoice
     let velocity: Double
     let pitchRate: Double
+    let scheduledHostTimeSeconds: TimeInterval
+    let microtimingMilliseconds: Double
+    let roomSend: Double
+    let stereoOffset: Double
+}
+
+struct DayObjectsScheduledDrumHit: Equatable, Sendable {
+    let voice: DayObjectsDrumVoice
+    let velocity: Double
+    let scheduledHostTimeSeconds: TimeInterval
+    let microtimingMilliseconds: Double
+    let roomSend: Double
+    let stereoOffset: Double
+    let pitchDriftCents: Double
 }
 
 struct DayObjectsDrumBankMetrics: Equatable, Sendable {
@@ -247,9 +262,35 @@ final class DayObjectsDrumBank {
         let variation = recipe.variation
         let boundedVelocity = min(max(velocity, 0), 1) * (variation.velocityRange.lowerBound + (variation.velocityRange.upperBound - variation.velocityRange.lowerBound) * variationFraction)
         let pitchRate = variation.pitchRateRange.lowerBound + (variation.pitchRateRange.upperBound - variation.pitchRateRange.lowerBound) * variationFraction
-        voiceSlots[slotID].player.play(.init(voice: voice, velocity: boundedVelocity, pitchRate: pitchRate))
+        voiceSlots[slotID].player.play(.init(
+            voice: voice,
+            velocity: boundedVelocity,
+            pitchRate: pitchRate,
+            scheduledHostTimeSeconds: 0,
+            microtimingMilliseconds: 0,
+            roomSend: 0,
+            stereoOffset: 0
+        ))
         voiceSlots[0].hitIndex &+= 1
         slots[voice] = voiceSlots
+    }
+
+    /// Playback-plan path. All expressive values are authoritative and are
+    /// applied exactly once; audition-only recipe variation is not added.
+    func schedule(_ request: DayObjectsScheduledDrumHit) {
+        guard var voiceSlots = slots[request.voice], !voiceSlots.isEmpty else { return }
+        let slotID = voiceSlots[0].hitIndex % voiceSlots.count
+        voiceSlots[slotID].player.play(.init(
+            voice: request.voice,
+            velocity: min(max(request.velocity, 0), 1),
+            pitchRate: pow(2, min(max(request.pitchDriftCents, -3), 3) / 1_200),
+            scheduledHostTimeSeconds: max(0, request.scheduledHostTimeSeconds),
+            microtimingMilliseconds: request.microtimingMilliseconds,
+            roomSend: min(max(request.roomSend, 0), 1),
+            stereoOffset: min(max(request.stereoOffset, -1), 1)
+        ))
+        voiceSlots[0].hitIndex &+= 1
+        slots[request.voice] = voiceSlots
     }
 
     func releaseAll() {
@@ -341,6 +382,8 @@ private final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
     private let noiseFilter: LowPassFilter?
     private let noiseEnvelope: AmplitudeEnvelope?
     private let recipe: DayObjectsDrumRecipe
+    private let panner: Panner
+    private let room: Reverb
 
     init(recipe: DayObjectsDrumRecipe, sampleURL: URL?, preloadedSamplePlayer: AudioPlayer?) {
         precondition(recipe.synthesis.contains(.sinePitchDrop) == (recipe.sinePitchDrop != nil))
@@ -385,7 +428,9 @@ private final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
         if let sampleTransient {
             inputs.append(sampleTransient)
         }
-        output = Fader(Mixer(inputs), gain: 0)
+        panner = Panner(Mixer(inputs), pan: 0)
+        room = Reverb(panner, dryWetMix: 0)
+        output = Fader(room, gain: 0)
         sine?.start()
         noise?.start()
         graphLayout = .init(
@@ -394,21 +439,26 @@ private final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
             filteredNoiseCount: noise == nil ? 0 : 1,
             transientFilterCutoffHz: sampleTransient == nil ? nil : recipe.transientFilterCutoffHz,
             noiseFilterCutoffHz: noiseFilter == nil ? nil : recipe.noiseFilterCutoffHz,
-            allocatedNodeCount: (samplePlayer == nil ? 0 : 3) + (sine == nil ? 0 : 2) + (noise == nil ? 0 : 3) + 2
+            allocatedNodeCount: (samplePlayer == nil ? 0 : 3) + (sine == nil ? 0 : 2) + (noise == nil ? 0 : 3) + 4
         )
     }
 
     func play(_ hit: DayObjectsDrumHit) {
         guard output.avAudioNode.engine?.isRunning == true else { return }
         output.gain = AUValue(hit.velocity)
+        panner.pan = AUValue(hit.stereoOffset)
+        room.dryWetMix = AUValue(hit.roomSend)
         samplePlayer?.stop()
-        samplePlayer?.volume = AUValue(hit.velocity)
+        samplePlayer?.volume = 1
         sampleTimePitch?.rate = AUValue(hit.pitchRate)
-        samplePlayer?.play()
+        let scheduledTime = hit.scheduledHostTimeSeconds > 0
+            ? AVAudioTime.secondsToAudioTime(hostTime: 0, time: hit.scheduledHostTimeSeconds)
+            : nil
+        samplePlayer?.play(at: scheduledTime)
         if let pitchDrop = recipe.sinePitchDrop, let sine, let sineEnvelope {
             sine.amplitude = AUValue(pitchDrop.amplitude)
-            sine.frequency = AUValue(pitchDrop.startFrequencyHz)
-            sine.$frequency.ramp(to: AUValue(pitchDrop.endFrequencyHz), duration: 0.09)
+            sine.frequency = AUValue(pitchDrop.startFrequencyHz * hit.pitchRate)
+            sine.$frequency.ramp(to: AUValue(pitchDrop.endFrequencyHz * hit.pitchRate), duration: 0.09)
             sineEnvelope.openGate()
         }
         if let noise, let noiseEnvelope, let noiseAmplitude = recipe.noiseAmplitude {

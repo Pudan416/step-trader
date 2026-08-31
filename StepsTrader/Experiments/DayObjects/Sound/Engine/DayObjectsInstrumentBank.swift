@@ -311,6 +311,7 @@ private final class DayObjectsAudioKitDrumBankAdapter: DayObjectsDrumBankProtoco
     init(_ adapter: DayObjectsAudioKitDrumBank) { self.adapter = adapter }
     var metrics: DayObjectsDrumBankMetrics { adapter.bank.metrics }
     func hit(_ voice: DayObjectsDrumVoice, velocity: Double) { adapter.bank.hit(voice, velocity: velocity) }
+    func schedule(_ hit: DayObjectsScheduledDrumHit) { adapter.bank.schedule(hit) }
     func releaseAll() { adapter.releaseAll() }
 }
 

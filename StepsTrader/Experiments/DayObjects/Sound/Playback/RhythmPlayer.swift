@@ -118,7 +118,15 @@ final class RhythmPlayer {
                 shouldDropOut: false,
                 isTimingAnchor: voicePlan.isTimingAnchor
             )
-            drumBank.hit(hit.drumVoice, velocity: hit.velocity)
+            drumBank.schedule(.init(
+                voice: hit.drumVoice,
+                velocity: hit.velocity,
+                scheduledHostTimeSeconds: hit.scheduledHostTimeSeconds,
+                microtimingMilliseconds: hit.microtimingMilliseconds,
+                roomSend: hit.roomSend,
+                stereoOffset: hit.stereoOffset,
+                pitchDriftCents: hit.pitchDriftCents
+            ))
             return hit
         }
         renderedLogicalHitCount += hits.count
