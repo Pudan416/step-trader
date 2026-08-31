@@ -123,11 +123,63 @@ final class DayObjectsLabUITests: XCTestCase {
         XCTAssertTrue(app.buttons["dayObjects.audition.category"].exists)
     }
 
+    func testInstrumentCategoriesExposeDisabledActionsAndThreeTonalPresetsWithoutStartingAudio() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiLab", "dayObjects", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+
+        let sound = app.switches["dayObjects.audition.sound"]
+        let note = app.buttons["dayObjects.audition.note"]
+        let chord = app.buttons["dayObjects.audition.chord"]
+        let hit = app.buttons["dayObjects.audition.hit"]
+        XCTAssertTrue(sound.waitForExistence(timeout: 5))
+        XCTAssertEqual(sound.value as? String, "0")
+
+        for category in ["Pad", "Pluck", "Bass", "Lead", "Keys"] {
+            selectCategory(category, in: app)
+            let preset = app.buttons["dayObjects.audition.preset"]
+            XCTAssertTrue(preset.waitForExistence(timeout: 2))
+            XCTAssertEqual(preset.value as? String, "3 presets", "\(category) must expose exactly three choices")
+            assertDisabled(note, value: "disabled while Sound is off")
+            assertDisabled(chord, value: "disabled while Sound is off")
+            assertDisabled(hit, value: "disabled for \(category)")
+        }
+
+        selectCategory("Drums", in: app)
+        XCTAssertFalse(app.buttons["dayObjects.audition.preset"].exists)
+        assertDisabled(note, value: "disabled for Drums")
+        assertDisabled(chord, value: "disabled for Drums")
+        assertDisabled(hit, value: "disabled while Sound is off")
+    }
+
     private func attachScreenshot(named name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    private func selectCategory(_ category: String, in app: XCUIApplication) {
+        let picker = app.buttons["dayObjects.audition.category"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        picker.tap()
+        let choice = app.buttons[category]
+        XCTAssertTrue(choice.waitForExistence(timeout: 2))
+        choice.tap()
+        let selected = XCTNSPredicateExpectation(
+            predicate: NSPredicate { object, _ in
+                guard let picker = object as? XCUIElement else { return false }
+                return String(describing: picker.value).localizedCaseInsensitiveContains(category)
+            },
+            object: picker
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 2), .completed)
+    }
+
+    private func assertDisabled(_ element: XCUIElement, value: String) {
+        XCTAssertTrue(element.exists)
+        XCTAssertFalse(element.isEnabled)
+        XCTAssertEqual(element.value as? String, value)
     }
 
     private static func figureCount(from accessibilityValue: Any?) -> Int? {

@@ -18,6 +18,85 @@ protocol DayObjectsInstrumentAuditionSession: AnyObject {
 }
 
 @MainActor
+protocol DayObjectsAccessibilityStatusSource: AnyObject {
+    var isVoiceOverRunning: Bool { get }
+    var voiceOverStatusChanges: AnyPublisher<Bool, Never> { get }
+}
+
+@MainActor
+final class DayObjectsLeadAuditionCoordinator: ObservableObject {
+    @Published private(set) var isVoiceOverRunning: Bool
+
+    private let controller: DayObjectsInstrumentAuditionController
+    private let accessibilityStatusSource: any DayObjectsAccessibilityStatusSource
+    private var accessibilityStatusCancellable: AnyCancellable?
+
+    init(
+        controller: DayObjectsInstrumentAuditionController,
+        accessibilityStatusSource: any DayObjectsAccessibilityStatusSource
+    ) {
+        self.controller = controller
+        self.accessibilityStatusSource = accessibilityStatusSource
+        isVoiceOverRunning = accessibilityStatusSource.isVoiceOverRunning
+        accessibilityStatusCancellable = accessibilityStatusSource.voiceOverStatusChanges
+            .removeDuplicates()
+            .sink { [weak self] isVoiceOverRunning in
+                guard let self else { return }
+                self.isVoiceOverRunning = isVoiceOverRunning
+                if isVoiceOverRunning {
+                    self.controller.endLead()
+                }
+            }
+    }
+
+    func allowsLeadGesture(isGridVisible: Bool) -> Bool {
+        !isGridVisible && !isVoiceOverRunning && controller.allowsLeadXY
+    }
+
+    func gridVisibilityChanged(isVisible: Bool) {
+        if isVisible {
+            controller.endLead()
+        }
+    }
+
+    func gestureDidEndOrCancel() {
+        controller.endLead()
+    }
+
+    func overlayDidDisappear() {
+        controller.endLead()
+    }
+
+    @discardableResult
+    func viewDidDisappear() -> Task<Void, Never> {
+        controller.endLead()
+        return Task { @MainActor [controller] in
+            await controller.stop()
+        }
+    }
+
+    @discardableResult
+    func sceneActivityChanged(isActive: Bool) -> Task<Void, Never>? {
+        guard !isActive else {
+            controller.handleForeground()
+            return nil
+        }
+        controller.endLead()
+        return Task { @MainActor [controller] in
+            await controller.stop()
+        }
+    }
+
+    @discardableResult
+    func interruptionBegan() -> Task<Void, Never> {
+        controller.endLead()
+        return Task { @MainActor [controller] in
+            await controller.handleInterruption()
+        }
+    }
+}
+
+@MainActor
 final class DayObjectsSystemInstrumentAuditionSession: DayObjectsInstrumentAuditionSession {
     private let session: AVAudioSession
 
@@ -247,8 +326,8 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
     private func registerTeardown(finalState: DayObjectsInstrumentAuditionState) {
         requestedTerminalState = mergedTerminalState(requestedTerminalState, finalState)
         guard teardownTask == nil else { return }
-        teardownTask = Task { @MainActor [weak self] in
-            await self?.performTeardown()
+        teardownTask = Task { @MainActor [self] in
+            await performTeardown()
         }
     }
 

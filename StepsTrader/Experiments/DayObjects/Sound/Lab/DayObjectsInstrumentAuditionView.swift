@@ -19,6 +19,7 @@ struct DayObjectsInstrumentAuditionView: View {
             }
             .pickerStyle(.menu)
             .accessibilityIdentifier("dayObjects.audition.category")
+            .accessibilityValue(controller.selectedCategory.rawValue.capitalized)
 
             if !controller.presets.isEmpty {
                 Picker("Preset", selection: Binding(
@@ -31,6 +32,7 @@ struct DayObjectsInstrumentAuditionView: View {
                 }
                 .pickerStyle(.menu)
                 .accessibilityIdentifier("dayObjects.audition.preset")
+                .accessibilityValue("\(controller.presets.count) presets")
             }
 
             Toggle("Sound", isOn: Binding(
@@ -76,7 +78,13 @@ struct DayObjectsInstrumentAuditionView: View {
     }
 
     private func actionAvailability(_ allowedForCategory: Bool) -> String {
-        allowedForCategory && controller.soundState == .on ? "enabled" : "disabled"
+        if !allowedForCategory {
+            return "disabled for \(controller.selectedCategory.rawValue.capitalized)"
+        }
+        if controller.soundState != .on {
+            return "disabled while Sound is off"
+        }
+        return "enabled"
     }
 }
 #endif

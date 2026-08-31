@@ -1,4 +1,6 @@
 #if DEBUG || INTERNAL_BUILD
+import Combine
+import UIKit
 import XCTest
 @testable import Steps4
 
@@ -238,6 +240,191 @@ final class DayObjectsInstrumentAuditionControllerTests: XCTestCase {
         await stop
         XCTAssertEqual(session.deactivationCount, 1)
         XCTAssertEqual(controller.soundState, .off)
+    }
+
+    func testLeadFailureTeardownOutlivesDroppedControllerOwnership() async {
+        let bank = FakeAuditionBank()
+        bank.pool.shouldFailPrepare = true
+        let session = FakeAuditionSession()
+        var controller: DayObjectsInstrumentAuditionController? = .init(
+            bank: bank,
+            audioSession: session
+        )
+        await controller?.turnSoundOn()
+        controller?.selectCategory(.lead)
+        let controllerReference = WeakReference(controller)
+
+        controller?.beginLead(at: .init(x: 0.5, y: 0.5))
+        controller = nil
+
+        for _ in 0..<100
+        where bank.stopCount == 0 || session.deactivationCount == 0 || controllerReference.value != nil {
+            await Task.yield()
+        }
+        XCTAssertEqual(bank.stopCount, 1)
+        XCTAssertEqual(session.deactivationCount, 1)
+        XCTAssertNil(controllerReference.value, "The completed teardown task must break its temporary controller cycle")
+    }
+
+    func testSystemAccessibilitySourceResamplesVoiceOverOnStatusNotification() {
+        let notificationCenter = NotificationCenter()
+        var isVoiceOverRunning = false
+        let source = DayObjectsSystemAccessibilityStatusSource(
+            notificationCenter: notificationCenter,
+            voiceOverStatus: { isVoiceOverRunning }
+        )
+
+        XCTAssertFalse(source.isVoiceOverRunning)
+        isVoiceOverRunning = true
+        notificationCenter.post(
+            name: UIAccessibility.voiceOverStatusDidChangeNotification,
+            object: nil
+        )
+        XCTAssertTrue(source.isVoiceOverRunning)
+    }
+
+    func testLabViewUsesInjectedAccessibilityStatusToCancelHeldLead() async {
+        let bank = FakeAuditionBank()
+        let controller = DayObjectsInstrumentAuditionController(
+            bank: bank,
+            audioSession: FakeAuditionSession()
+        )
+        await controller.turnSoundOn()
+        controller.selectCategory(.lead)
+        controller.beginLead(at: .init(x: 0.5, y: 0.5))
+        let accessibilityStatus = FakeAccessibilityStatusSource(isVoiceOverRunning: false)
+        let view = DayObjectsLabView(
+            auditionController: controller,
+            accessibilityStatusSource: accessibilityStatus
+        )
+
+        accessibilityStatus.setVoiceOverRunning(true)
+
+        withExtendedLifetime(view) {
+            XCTAssertEqual(bank.pool.noteOffCount, 1)
+        }
+    }
+
+    func testGridEnableCancelsHeldLeadExactlyOnceAndDisablesAudition() async {
+        let harness = await makeLeadHarness()
+
+        harness.coordinator.gridVisibilityChanged(isVisible: true)
+        harness.coordinator.gridVisibilityChanged(isVisible: true)
+
+        XCTAssertEqual(harness.bank.pool.noteOffCount, 1)
+        XCTAssertFalse(harness.coordinator.allowsLeadGesture(isGridVisible: true))
+        XCTAssertEqual(harness.bank.stopCount, 0, "Grid mode keeps Sound on for the manual buttons")
+    }
+
+    func testVoiceOverEnableCancelsHeldLeadExactlyOnceAndDisablesAudition() async {
+        let harness = await makeLeadHarness()
+
+        harness.accessibilityStatus.setVoiceOverRunning(true)
+        harness.accessibilityStatus.setVoiceOverRunning(true)
+
+        XCTAssertEqual(harness.bank.pool.noteOffCount, 1)
+        XCTAssertFalse(harness.coordinator.allowsLeadGesture(isGridVisible: false))
+    }
+
+    func testGestureCancellationAndOverlayDisappearanceAreIdempotent() async {
+        let gestureHarness = await makeLeadHarness()
+        gestureHarness.coordinator.gestureDidEndOrCancel()
+        gestureHarness.coordinator.gestureDidEndOrCancel()
+        XCTAssertEqual(gestureHarness.bank.pool.noteOffCount, 1)
+
+        let overlayHarness = await makeLeadHarness()
+        overlayHarness.coordinator.overlayDidDisappear()
+        overlayHarness.coordinator.overlayDidDisappear()
+        XCTAssertEqual(overlayHarness.bank.pool.noteOffCount, 1)
+    }
+
+    func testViewDisappearanceCancelsLeadAndStopsOnce() async {
+        let harness = await makeLeadHarness()
+
+        let firstStop = harness.coordinator.viewDidDisappear()
+        let secondStop = harness.coordinator.viewDidDisappear()
+        await firstStop.value
+        await secondStop.value
+
+        XCTAssertEqual(harness.bank.pool.noteOffCount, 1)
+        XCTAssertEqual(harness.bank.stopCount, 1)
+        XCTAssertEqual(harness.session.deactivationCount, 1)
+        XCTAssertEqual(harness.controller.soundState, .off)
+    }
+
+    func testInactiveSceneCancelsLeadAndStopsOnce() async {
+        let harness = await makeLeadHarness()
+
+        let firstStop = try! XCTUnwrap(harness.coordinator.sceneActivityChanged(isActive: false))
+        let secondStop = try! XCTUnwrap(harness.coordinator.sceneActivityChanged(isActive: false))
+        await firstStop.value
+        await secondStop.value
+
+        XCTAssertEqual(harness.bank.pool.noteOffCount, 1)
+        XCTAssertEqual(harness.bank.stopCount, 1)
+        XCTAssertEqual(harness.session.deactivationCount, 1)
+        XCTAssertEqual(harness.controller.soundState, .off)
+    }
+
+    func testInterruptionCancelsLeadAndStopsOnce() async {
+        let harness = await makeLeadHarness()
+
+        let firstStop = harness.coordinator.interruptionBegan()
+        let secondStop = harness.coordinator.interruptionBegan()
+        await firstStop.value
+        await secondStop.value
+
+        XCTAssertEqual(harness.bank.pool.noteOffCount, 1)
+        XCTAssertEqual(harness.bank.stopCount, 1)
+        XCTAssertEqual(harness.session.deactivationCount, 1)
+        XCTAssertEqual(harness.controller.soundState, .off)
+    }
+
+    private func makeLeadHarness() async -> (
+        controller: DayObjectsInstrumentAuditionController,
+        coordinator: DayObjectsLeadAuditionCoordinator,
+        bank: FakeAuditionBank,
+        session: FakeAuditionSession,
+        accessibilityStatus: FakeAccessibilityStatusSource
+    ) {
+        let bank = FakeAuditionBank()
+        let session = FakeAuditionSession()
+        let controller = DayObjectsInstrumentAuditionController(bank: bank, audioSession: session)
+        await controller.turnSoundOn()
+        controller.selectCategory(.lead)
+        controller.beginLead(at: .init(x: 0.5, y: 0.5))
+        let accessibilityStatus = FakeAccessibilityStatusSource(isVoiceOverRunning: false)
+        let coordinator = DayObjectsLeadAuditionCoordinator(
+            controller: controller,
+            accessibilityStatusSource: accessibilityStatus
+        )
+        return (controller, coordinator, bank, session, accessibilityStatus)
+    }
+}
+
+private final class WeakReference<Object: AnyObject> {
+    weak var value: Object?
+
+    init(_ value: Object?) {
+        self.value = value
+    }
+}
+
+@MainActor
+private final class FakeAccessibilityStatusSource: DayObjectsAccessibilityStatusSource {
+    private let subject: CurrentValueSubject<Bool, Never>
+
+    var isVoiceOverRunning: Bool { subject.value }
+    var voiceOverStatusChanges: AnyPublisher<Bool, Never> {
+        subject.eraseToAnyPublisher()
+    }
+
+    init(isVoiceOverRunning: Bool) {
+        subject = .init(isVoiceOverRunning)
+    }
+
+    func setVoiceOverRunning(_ isVoiceOverRunning: Bool) {
+        subject.send(isVoiceOverRunning)
     }
 }
 

@@ -2,7 +2,36 @@ import SwiftUI
 
 #if DEBUG || INTERNAL_BUILD
 import AVFAudio
+import Combine
 import UIKit
+#endif
+
+#if DEBUG || INTERNAL_BUILD
+@MainActor
+final class DayObjectsSystemAccessibilityStatusSource: DayObjectsAccessibilityStatusSource {
+    @Published private(set) var isVoiceOverRunning: Bool
+
+    private let voiceOverStatus: @MainActor () -> Bool
+    private var notificationCancellable: AnyCancellable?
+
+    var voiceOverStatusChanges: AnyPublisher<Bool, Never> {
+        $isVoiceOverRunning.eraseToAnyPublisher()
+    }
+
+    init(
+        notificationCenter: NotificationCenter = .default,
+        voiceOverStatus: @escaping @MainActor () -> Bool = { UIAccessibility.isVoiceOverRunning }
+    ) {
+        self.voiceOverStatus = voiceOverStatus
+        isVoiceOverRunning = voiceOverStatus()
+        notificationCancellable = notificationCenter
+            .publisher(for: UIAccessibility.voiceOverStatusDidChangeNotification)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.isVoiceOverRunning = self.voiceOverStatus()
+            }
+    }
+}
 #endif
 
 /// Interactive bench for the deterministic daily choreography.
@@ -24,10 +53,35 @@ struct DayObjectsLabView: View {
     @State private var showsGrid = false
     @State private var showControls = true
 #if DEBUG || INTERNAL_BUILD
-    @StateObject private var audition = DayObjectsInstrumentAuditionController()
-    @State private var voiceOverEnabled = UIAccessibility.isVoiceOverRunning
+    @StateObject private var audition: DayObjectsInstrumentAuditionController
+    @StateObject private var leadCoordinator: DayObjectsLeadAuditionCoordinator
     @State private var didBeginLeadGesture = false
     @GestureState private var leadGestureActive = false
+#endif
+
+    init() {
+#if DEBUG || INTERNAL_BUILD
+        let auditionController = DayObjectsInstrumentAuditionController()
+        _audition = StateObject(wrappedValue: auditionController)
+        _leadCoordinator = StateObject(wrappedValue: DayObjectsLeadAuditionCoordinator(
+            controller: auditionController,
+            accessibilityStatusSource: DayObjectsSystemAccessibilityStatusSource()
+        ))
+#endif
+    }
+
+#if DEBUG || INTERNAL_BUILD
+    init(
+        auditionController: DayObjectsInstrumentAuditionController,
+        accessibilityStatusSource: any DayObjectsAccessibilityStatusSource
+    ) {
+        let leadCoordinator = DayObjectsLeadAuditionCoordinator(
+            controller: auditionController,
+            accessibilityStatusSource: accessibilityStatusSource
+        )
+        _audition = StateObject(wrappedValue: auditionController)
+        _leadCoordinator = StateObject(wrappedValue: leadCoordinator)
+    }
 #endif
 
     private var dayKey: String { Self.dayKey(for: dayOffset) }
@@ -77,33 +131,22 @@ struct DayObjectsLabView: View {
         .toolbarColorScheme(chromeColorScheme, for: .navigationBar)
 #if DEBUG || INTERNAL_BUILD
         .onDisappear {
-            audition.endLead()
-            Task { await audition.stop() }
+            leadCoordinator.viewDidDisappear()
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { audition.handleForeground() }
-            else {
-                audition.endLead()
-                Task { await audition.stop() }
-            }
+            leadCoordinator.sceneActivityChanged(isActive: phase == .active)
         }
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { _ in
-            audition.endLead()
-            Task { await audition.handleInterruption() }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIAccessibility.voiceOverStatusDidChangeNotification)) { _ in
-            let enabled = UIAccessibility.isVoiceOverRunning
-            if enabled { audition.endLead() }
-            voiceOverEnabled = enabled
+            leadCoordinator.interruptionBegan()
         }
         .onChange(of: leadGestureActive) { wasActive, isActive in
             if wasActive && !isActive {
                 didBeginLeadGesture = false
-                audition.endLead()
+                leadCoordinator.gestureDidEndOrCancel()
             }
         }
         .onChange(of: audition.allowsLeadXY) { _, allowed in
-            if !allowed { audition.endLead() }
+            if !allowed { leadCoordinator.gestureDidEndOrCancel() }
         }
 #endif
     }
@@ -176,12 +219,10 @@ struct DayObjectsLabView: View {
                 .accessibilityIdentifier("dayObjects.nextDay")
 
                 Button {
-                    if !showsGrid {
-#if DEBUG || INTERNAL_BUILD
-                        audition.endLead()
-#endif
-                    }
                     showsGrid.toggle()
+#if DEBUG || INTERNAL_BUILD
+                    leadCoordinator.gridVisibilityChanged(isVisible: showsGrid)
+#endif
                 } label: {
                     Label(showsGrid ? "Single" : "Grid", systemImage: "square.grid.3x3")
                         .frame(maxWidth: .infinity)
@@ -351,13 +392,13 @@ struct DayObjectsLabView: View {
                     }
                     .onEnded { _ in
                         didBeginLeadGesture = false
-                        audition.endLead()
+                        leadCoordinator.gestureDidEndOrCancel()
                     }
                 )
         }
-        .allowsHitTesting(!showsGrid && !voiceOverEnabled && audition.allowsLeadXY)
+        .allowsHitTesting(leadCoordinator.allowsLeadGesture(isGridVisible: showsGrid))
         .accessibilityHidden(true)
-        .onDisappear { audition.endLead() }
+        .onDisappear { leadCoordinator.overlayDidDisappear() }
     }
 #endif
 
