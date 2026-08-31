@@ -112,7 +112,7 @@ final class HappeningScheduler {
 
     func add(
         _ plan: HappeningMusicPlan,
-        currentChord _: ChordPlan,
+        currentChord: ChordPlan,
         playBirth: Bool
     ) throws {
         guard states[plan.happeningID] == nil, states.count < 10 else { return }
@@ -122,7 +122,9 @@ final class HappeningScheduler {
         guard isPlaying else { return }
 
         if playBirth {
-            states[plan.happeningID]?.isBirthPending = true
+            let didEmitImmediately = canAttack(at: currentPosition)
+                && emitAttack(id: plan.happeningID, chord: currentChord, isBirth: true)
+            states[plan.happeningID]?.isBirthPending = !didEmitImmediately
         }
         rebuildSchedules(startingAt: currentPosition)
     }

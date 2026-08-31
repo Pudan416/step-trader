@@ -48,6 +48,32 @@ final class HappeningSchedulerTests: XCTestCase {
         assertDensityBounds(harness.scheduler.metrics.attackHistory, count: 2)
     }
 
+    func testLiveAdditionEmitsBirthImmediatelyAtCurrentPositionWhenAvailable() throws {
+        let bank = RecordingHappeningBank()
+        let scheduler = HappeningScheduler(worldBank: PlaybackWorldBank(instrumentBank: bank))
+        let world = makeWorld()
+        let plan = makePlan(index: 1, seed: 99)
+        let chord = ChordPlan(
+            modalDegree: 1,
+            rootPitchClass: 1,
+            chordPitchClasses: [1],
+            safePassingPitchClasses: [],
+            voicedMIDINotes: [61],
+            durationBars: 4
+        )
+        try scheduler.configure(plans: [], tonalWorld: world, remixSeed: 99)
+        try scheduler.start()
+        scheduler.render(event(.subdivision, subdivision: 7), currentChord: world.progression[0])
+
+        try scheduler.add(plan, currentChord: chord, playBirth: true)
+
+        let birth = try XCTUnwrap(scheduler.metrics.attackHistory.first)
+        XCTAssertTrue(birth.isBirth)
+        XCTAssertEqual(birth.happeningID, plan.happeningID)
+        XCTAssertEqual(birth.position.absoluteSubdivision, 7)
+        XCTAssertEqual(Int(birth.midiNote) % 12, 1)
+    }
+
     func testSoundOffAdditionHasNoBirthButIsGuaranteedAfterStart() throws {
         let bank = RecordingHappeningBank()
         let worldBank = PlaybackWorldBank(instrumentBank: bank)

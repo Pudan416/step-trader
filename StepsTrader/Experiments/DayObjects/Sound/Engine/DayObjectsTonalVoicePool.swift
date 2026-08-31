@@ -42,6 +42,28 @@ struct DayObjectsTonalPoolMetrics: Equatable, Sendable {
     let activeVoiceCount: Int
     let activeLeadVoiceCount: Int
     let activeChordVoiceCount: Int
+    let releasingVoiceCount: Int
+    let occupiedVoiceCount: Int
+
+    init(
+        name: String,
+        allocatedVoiceCount: Int,
+        allocatedNodeCount: Int,
+        activeVoiceCount: Int,
+        activeLeadVoiceCount: Int,
+        activeChordVoiceCount: Int,
+        releasingVoiceCount: Int = 0,
+        occupiedVoiceCount: Int? = nil
+    ) {
+        self.name = name
+        self.allocatedVoiceCount = allocatedVoiceCount
+        self.allocatedNodeCount = allocatedNodeCount
+        self.activeVoiceCount = activeVoiceCount
+        self.activeLeadVoiceCount = activeLeadVoiceCount
+        self.activeChordVoiceCount = activeChordVoiceCount
+        self.releasingVoiceCount = releasingVoiceCount
+        self.occupiedVoiceCount = occupiedVoiceCount ?? activeVoiceCount + releasingVoiceCount
+    }
 }
 
 protocol DayObjectsTonalVoiceBackend: AnyObject {
@@ -65,17 +87,25 @@ extension DayObjectsTonalVoiceBackend {
 final class DayObjectsTonalVoicePool {
     typealias InstrumentProvider = (DayObjectsInstrumentID) throws -> NormalizedSynthVoice
     typealias VoiceFactory = () -> any DayObjectsTonalVoiceBackend
+    typealias MonotonicTime = () -> TimeInterval
 
     let specification: DayObjectsTonalPoolSpecification
 
     var metrics: DayObjectsTonalPoolMetrics {
-        DayObjectsTonalPoolMetrics(
+        let now = monotonicTime()
+        let releasingCount = slots.reduce(0) { partial, slot in
+            partial + ((slot.releasingUntil ?? 0) > now ? 1 : 0)
+        }
+        let activeCount = slots.reduce(0) { $0 + ($1.role == nil ? 0 : 1) }
+        return DayObjectsTonalPoolMetrics(
             name: specification.name,
             allocatedVoiceCount: slots.count,
             allocatedNodeCount: slots.reduce(0) { $0 + $1.backend.allocatedNodeCount },
-            activeVoiceCount: slots.reduce(0) { $0 + ($1.role == nil ? 0 : 1) },
+            activeVoiceCount: activeCount,
             activeLeadVoiceCount: slots.reduce(0) { $0 + ($1.role == .lead ? 1 : 0) },
-            activeChordVoiceCount: slots.reduce(0) { $0 + ($1.role == .chord ? 1 : 0) }
+            activeChordVoiceCount: slots.reduce(0) { $0 + ($1.role == .chord ? 1 : 0) },
+            releasingVoiceCount: releasingCount,
+            occupiedVoiceCount: activeCount + releasingCount
         )
     }
 
@@ -87,10 +117,12 @@ final class DayObjectsTonalVoicePool {
         var midiNote = 60.0
         var releaseSeconds: TimeInterval?
         var instrumentID: DayObjectsInstrumentID?
+        var releasingUntil: TimeInterval?
     }
 
     private let poolID = UUID()
     private let instrumentProvider: InstrumentProvider
+    private let monotonicTime: MonotonicTime
     private var slots: [Slot]
     private var preparedInstrumentID: DayObjectsInstrumentID?
     private var preparedInstrumentPresets: [DayObjectsInstrumentID: NormalizedSynthVoice] = [:]
@@ -100,10 +132,12 @@ final class DayObjectsTonalVoicePool {
     init(
         specification: DayObjectsTonalPoolSpecification = .manualAudition,
         instrumentProvider: @escaping InstrumentProvider,
-        voiceFactory: VoiceFactory
+        voiceFactory: VoiceFactory,
+        monotonicTime: @escaping MonotonicTime = { ProcessInfo.processInfo.systemUptime }
     ) {
         self.specification = specification
         self.instrumentProvider = instrumentProvider
+        self.monotonicTime = monotonicTime
         slots = (0..<specification.capacity).map { _ in Slot(backend: voiceFactory()) }
     }
 
@@ -111,7 +145,7 @@ final class DayObjectsTonalVoicePool {
         guard preparedInstrumentID != id || preparedInstrumentPresets.count != 1 else { return }
         let preset = DayObjectsAudioParameters.clamped(try instrumentProvider(id))
 
-        releaseAll()
+        releaseAll(preservingTails: false)
         for slotID in slots.indices {
             slots[slotID].backend.replacePreset(
                 preset,
@@ -135,9 +169,11 @@ final class DayObjectsTonalVoicePool {
     func noteOn(_ rawRequest: DayObjectsTonalNoteRequest) -> DayObjectsVoiceToken? {
         guard let preset = preparedInstrumentPresets[rawRequest.instrumentID] else { return nil }
         let request = DayObjectsAudioParameters.clamped(rawRequest)
+        let now = monotonicTime()
         guard let slotID = slotForAllocation(
             role: request.role,
-            allowsStealing: !preservesPreparedSetTails
+            allowsStealing: !preservesPreparedSetTails,
+            at: now
         ) else { return nil }
 
         if slots[slotID].role != nil {
@@ -156,6 +192,7 @@ final class DayObjectsTonalVoicePool {
         slots[slotID].generation &+= 1
         slots[slotID].activationOrder = activationCounter
         slots[slotID].role = request.role
+        slots[slotID].releasingUntil = nil
         slots[slotID].midiNote = Double(request.midiNote)
         slots[slotID].releaseSeconds = request.envelopeVariant?.absoluteReleaseSeconds
         slots[slotID].backend.noteOn(request)
@@ -185,20 +222,25 @@ final class DayObjectsTonalVoicePool {
     }
 
     func releaseAll() {
+        releaseAll(preservingTails: preservesPreparedSetTails)
+    }
+
+    private func releaseAll(preservingTails: Bool) {
         for slotID in slots.indices where slots[slotID].role != nil {
-            release(slotID: slotID)
+            release(slotID: slotID, preservingTail: preservingTails)
         }
     }
 
     private func slotForAllocation(
         role: DayObjectsTonalVoiceRole,
-        allowsStealing: Bool = true
+        allowsStealing: Bool = true,
+        at now: TimeInterval
     ) -> Int? {
         if role == .lead {
             if let currentLead = slots.firstIndex(where: { $0.role == .lead }) {
                 return currentLead
             }
-            return slots.firstIndex(where: { $0.role == nil })
+            return slots.firstIndex(where: { isAllocatable($0, at: now) })
                 ?? (allowsStealing ? oldestNonLeadSlotID() : nil)
         }
 
@@ -214,8 +256,12 @@ final class DayObjectsTonalVoicePool {
         if activeNonLeadCount >= nonLeadLimit {
             return allowsStealing ? oldestNonLeadSlotID() : nil
         }
-        return slots.firstIndex(where: { $0.role == nil })
+        return slots.firstIndex(where: { isAllocatable($0, at: now) })
             ?? (allowsStealing ? oldestNonLeadSlotID() : nil)
+    }
+
+    private func isAllocatable(_ slot: Slot, at now: TimeInterval) -> Bool {
+        slot.role == nil && (slot.releasingUntil ?? 0) <= now
     }
 
     private func oldestNonLeadSlotID() -> Int? {
@@ -236,11 +282,18 @@ final class DayObjectsTonalVoicePool {
         return token.slotID
     }
 
-    private func release(slotID: Int) {
+    private func release(slotID: Int, preservingTail: Bool? = nil) {
         guard slots[slotID].role != nil else { return }
-        slots[slotID].backend.noteOff(releaseSeconds: slots[slotID].releaseSeconds)
+        let releaseSeconds = slots[slotID].releaseSeconds
+        slots[slotID].backend.noteOff(releaseSeconds: releaseSeconds)
         slots[slotID].role = nil
         slots[slotID].releaseSeconds = nil
+        let shouldPreserveTail = preservingTail ?? preservesPreparedSetTails
+        if shouldPreserveTail, let releaseSeconds, releaseSeconds > 0 {
+            slots[slotID].releasingUntil = monotonicTime() + releaseSeconds
+        } else {
+            slots[slotID].releasingUntil = nil
+        }
     }
 }
 #endif

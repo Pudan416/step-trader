@@ -421,14 +421,21 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
     }
 
     func testMixedInstrumentModeNeverRetunesOrStealsSixSoundingReleaseTails() throws {
+        let clock = ManualMonotonicClock()
         let harness = makeHarness(
             specification: .init(name: "happenings", capacity: 6, reservesLeadVoice: false),
+            monotonicTime: { clock.now },
             instrumentProvider: { _ in Self.safeVoice }
         )
         let ids = (0..<7).map { DayObjectsInstrumentID(rawValue: "happening.\($0)") }
         try harness.pool.prepareInstruments(ids)
         let tokens = ids.prefix(6).enumerated().compactMap { index, id in
-            harness.pool.noteOn(request(note: UInt8(60 + index), role: .note, instrumentID: id))
+            harness.pool.noteOn(request(
+                note: UInt8(60 + index),
+                role: .note,
+                instrumentID: id,
+                releaseSeconds: 4
+            ))
         }
         let presetIDsBefore = harness.voices.compactMap(\.preparedInstrumentID)
         let transitionCountsBefore = harness.voices.map(\.presetTransitions.count)
@@ -440,21 +447,43 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
         XCTAssertEqual(harness.voices.map(\.presetTransitions.count), transitionCountsBefore)
 
         harness.pool.noteOff(tokens[2])
+        XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 5)
+        XCTAssertEqual(harness.pool.metrics.releasingVoiceCount, 1)
+        XCTAssertEqual(harness.pool.metrics.occupiedVoiceCount, 6)
+        XCTAssertNil(harness.pool.noteOn(request(note: 72, role: .note, instrumentID: ids[6])))
+        XCTAssertEqual(harness.voices.compactMap(\.preparedInstrumentID), presetIDsBefore)
+        XCTAssertEqual(harness.voices.map(\.presetTransitions.count), transitionCountsBefore)
+
+        clock.now = 3.999
+        XCTAssertNil(harness.pool.noteOn(request(note: 72, role: .note, instrumentID: ids[6])))
+        XCTAssertEqual(harness.voices.map(\.presetTransitions.count), transitionCountsBefore)
+
+        clock.now = 4
         XCTAssertNotNil(harness.pool.noteOn(request(note: 72, role: .note, instrumentID: ids[6])))
         XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 6)
+        XCTAssertEqual(harness.pool.metrics.releasingVoiceCount, 0)
+        XCTAssertEqual(harness.pool.metrics.occupiedVoiceCount, 6)
+        XCTAssertTrue(harness.voices.contains { $0.preparedInstrumentID == ids[6] })
+        XCTAssertEqual(
+            harness.voices.map(\.presetTransitions.count).reduce(0, +),
+            transitionCountsBefore.reduce(0, +) + 1
+        )
     }
 
     private func request(
         note: UInt8,
         role: DayObjectsTonalVoiceRole,
-        instrumentID: DayObjectsInstrumentID? = nil
+        instrumentID: DayObjectsInstrumentID? = nil,
+        releaseSeconds: TimeInterval? = nil
     ) -> DayObjectsTonalNoteRequest {
         .init(
             instrumentID: instrumentID ?? firstID,
             midiNote: note,
             velocity: 0.8,
             role: role,
-            envelopeVariant: nil,
+            envelopeVariant: releaseSeconds.map {
+                .absolute(attackSeconds: 0.01, releaseSeconds: $0)
+            },
             pan: 0,
             delaySend: 1,
             reverbSend: 1
@@ -480,6 +509,7 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
 
     private func makeHarness(
         specification: DayObjectsTonalPoolSpecification,
+        monotonicTime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
         instrumentProvider: @escaping (DayObjectsInstrumentID) throws -> NormalizedSynthVoice
     ) -> Harness {
         var voices: [FakeTonalVoice] = []
@@ -490,7 +520,8 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
                 let voice = FakeTonalVoice()
                 voices.append(voice)
                 return voice
-            }
+            },
+            monotonicTime: monotonicTime
         )
         return Harness(pool: pool, voices: voices)
     }
@@ -502,6 +533,10 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
 
     private enum TestError: Error {
         case missingInstrument
+    }
+
+    private final class ManualMonotonicClock {
+        var now: TimeInterval = 0
     }
 
     private final class FakeTonalVoice: DayObjectsTonalVoiceBackend {
