@@ -27,6 +27,14 @@ struct LeadPlan: Equatable, Sendable {
     let delaySend: Double
     let reverbSend: Double
 
+    func regionIndex(forNormalizedX normalizedX: Double) -> Int {
+        guard !pitchRegions.isEmpty, !normalizedX.isNaN else { return 0 }
+        let clampedX = min(max(normalizedX, 0), 1)
+        return pitchRegions.indices.last {
+            pitchRegions[$0].normalizedRange.lowerBound <= clampedX
+        } ?? 0
+    }
+
     func nearestCompatibleNote(to midiNote: UInt8, chordIndex: Int) -> UInt8? {
         guard compatibleChordMIDINotes.indices.contains(chordIndex) else { return nil }
         return compatibleChordMIDINotes[chordIndex].min { left, right in

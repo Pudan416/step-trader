@@ -74,6 +74,35 @@ final class LeadPlannerTests: XCTestCase {
         XCTAssertNil(plan.nearestCompatibleNote(to: 70, chordIndex: world.progression.count))
     }
 
+    func testRegionIndexClampsInputAndOwnsExactBoundariesOnTheRight() throws {
+        let plan = try XCTUnwrap(makePlan())
+        let lastIndex = plan.pitchRegions.count - 1
+
+        XCTAssertEqual(plan.regionIndex(forNormalizedX: -.infinity), 0)
+        XCTAssertEqual(plan.regionIndex(forNormalizedX: -0.1), 0)
+        XCTAssertEqual(plan.regionIndex(forNormalizedX: 0), 0)
+        XCTAssertEqual(plan.regionIndex(forNormalizedX: .nan), 0)
+        XCTAssertEqual(plan.regionIndex(forNormalizedX: 1), lastIndex)
+        XCTAssertEqual(plan.regionIndex(forNormalizedX: 1.1), lastIndex)
+        XCTAssertEqual(plan.regionIndex(forNormalizedX: .infinity), lastIndex)
+
+        for index in 1..<plan.pitchRegions.count {
+            let boundary = plan.pitchRegions[index].normalizedRange.lowerBound
+            XCTAssertEqual(
+                plan.regionIndex(forNormalizedX: boundary.nextDown),
+                index - 1,
+                "The value immediately below boundary \(index) must stay in the preceding region"
+            )
+            XCTAssertEqual(
+                plan.regionIndex(forNormalizedX: boundary),
+                index,
+                "Exact boundary \(index) must belong to the region on its right"
+            )
+        }
+
+        XCTAssertEqual(plan.regionIndex(forNormalizedX: Double(1).nextDown), lastIndex)
+    }
+
     func testExpressionEnvelopeFilterAndGestureValuesAreFiniteAndPlaybackSafe() throws {
         let plan = try XCTUnwrap(makePlan())
 
