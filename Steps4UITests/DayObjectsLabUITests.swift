@@ -112,6 +112,15 @@ final class DayObjectsLabUITests: XCTestCase {
         XCTAssertTrue(app.buttons["dayObjects.audition.hit"].exists)
         XCTAssertTrue(app.staticTexts["dayObjects.audition.attribution"].exists)
         XCTAssertTrue(app.staticTexts["dayObjects.audition.diagnostics"].exists)
+
+        let canvas = app.otherElements["dayObjects.canvas"]
+        let category = app.buttons["dayObjects.audition.category"]
+        XCTAssertTrue(canvas.exists)
+        XCTAssertFalse(canvas.frame.intersects(category.frame), "Controls must be laid out below the Lead canvas")
+
+        app.buttons["dayObjects.gridToggle"].tap()
+        XCTAssertTrue(app.otherElements["dayObjects.grid"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["dayObjects.audition.category"].exists)
     }
 
     private func attachScreenshot(named name: String) {

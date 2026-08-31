@@ -45,15 +45,15 @@ struct DayObjectsInstrumentAuditionView: View {
             .accessibilityIdentifier("dayObjects.audition.sound")
 
             HStack(spacing: 8) {
-                Button("Note", action: controller.auditionNote)
+                Button("Note") { Task { await controller.auditionNote() } }
                     .buttonStyle(.bordered)
                     .disabled(!controller.allowsNote || controller.soundState != .on)
                     .accessibilityIdentifier("dayObjects.audition.note")
-                Button("Chord", action: controller.auditionChord)
+                Button("Chord") { Task { await controller.auditionChord() } }
                     .buttonStyle(.bordered)
                     .disabled(!controller.allowsChord || controller.soundState != .on)
                     .accessibilityIdentifier("dayObjects.audition.chord")
-                Button("Hit", action: controller.auditionHit)
+                Button("Hit") { Task { await controller.auditionHit() } }
                     .buttonStyle(.bordered)
                     .disabled(!controller.allowsHit || controller.soundState != .on)
                     .accessibilityIdentifier("dayObjects.audition.hit")

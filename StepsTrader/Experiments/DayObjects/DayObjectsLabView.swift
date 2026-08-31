@@ -1,6 +1,9 @@
-import AVFAudio
 import SwiftUI
+
+#if DEBUG || INTERNAL_BUILD
+import AVFAudio
 import UIKit
+#endif
 
 /// Interactive bench for the deterministic daily choreography.
 ///
@@ -20,13 +23,14 @@ struct DayObjectsLabView: View {
     @State private var spentColors: Double = 0
     @State private var showsGrid = false
     @State private var showControls = true
+#if DEBUG || INTERNAL_BUILD
     @StateObject private var audition = DayObjectsInstrumentAuditionController()
+    @State private var voiceOverEnabled = UIAccessibility.isVoiceOverRunning
+    @State private var didBeginLeadGesture = false
+    @GestureState private var leadGestureActive = false
+#endif
 
-    private var dayKey: String {
-        Self.dayKey(for: dayOffset)
-    }
-
-    private var voiceOverEnabled: Bool { UIAccessibility.isVoiceOverRunning }
+    private var dayKey: String { Self.dayKey(for: dayOffset) }
 
     private var happeningCount: Int {
         min(max(Int(happenings.rounded()), 0), DayObjectScene.maxActors)
@@ -53,23 +57,16 @@ struct DayObjectsLabView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            if showsGrid {
-                grid
-            } else {
-                ZStack {
-                    DayObjectsView(
-                        sceneInput: currentSceneInput,
-                        digitalImpact: digitalImpact
-                    )
-                    .ignoresSafeArea()
-                    leadAuditionSurface
-                }
-            }
+        ZStack(alignment: .topTrailing) {
+            GeometryReader { _ in
+                VStack(spacing: 0) {
+                    canvasContent
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            if showControls {
-                controls
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    if showControls {
+                        controls
+                    }
+                }
             }
             toggleButton
         }
@@ -78,13 +75,54 @@ struct DayObjectsLabView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbarColorScheme(chromeColorScheme, for: .navigationBar)
-        .onDisappear { Task { await audition.stop() } }
+#if DEBUG || INTERNAL_BUILD
+        .onDisappear {
+            audition.endLead()
+            Task { await audition.stop() }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { audition.handleForeground() }
-            else { Task { await audition.stop() } }
+            else {
+                audition.endLead()
+                Task { await audition.stop() }
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { _ in
+            audition.endLead()
             Task { await audition.handleInterruption() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIAccessibility.voiceOverStatusDidChangeNotification)) { _ in
+            let enabled = UIAccessibility.isVoiceOverRunning
+            if enabled { audition.endLead() }
+            voiceOverEnabled = enabled
+        }
+        .onChange(of: leadGestureActive) { wasActive, isActive in
+            if wasActive && !isActive {
+                didBeginLeadGesture = false
+                audition.endLead()
+            }
+        }
+        .onChange(of: audition.allowsLeadXY) { _, allowed in
+            if !allowed { audition.endLead() }
+        }
+#endif
+    }
+
+    @ViewBuilder
+    private var canvasContent: some View {
+        if showsGrid {
+            grid
+        } else {
+            ZStack {
+                DayObjectsView(
+                    sceneInput: currentSceneInput,
+                    digitalImpact: digitalImpact
+                )
+                .ignoresSafeArea()
+#if DEBUG || INTERNAL_BUILD
+                leadAuditionSurface
+#endif
+            }
         }
     }
 
@@ -138,6 +176,11 @@ struct DayObjectsLabView: View {
                 .accessibilityIdentifier("dayObjects.nextDay")
 
                 Button {
+                    if !showsGrid {
+#if DEBUG || INTERNAL_BUILD
+                        audition.endLead()
+#endif
+                    }
                     showsGrid.toggle()
                 } label: {
                     Label(showsGrid ? "Single" : "Grid", systemImage: "square.grid.3x3")
@@ -172,7 +215,9 @@ struct DayObjectsLabView: View {
                 identifier: "dayObjects.visualClarity"
             )
             digitalImpactControls
+#if DEBUG || INTERNAL_BUILD
             DayObjectsInstrumentAuditionView(controller: audition)
+#endif
 
                 if !showsGrid {
                     Text("\(dayKey) · \(currentScene.composition.summary)")
@@ -186,7 +231,7 @@ struct DayObjectsLabView: View {
         .frame(maxHeight: 420)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22))
         .padding(.horizontal, 12)
-        .padding(.bottom, 60)
+        .padding(.vertical, 12)
         .tint(AppColors.brandAccent)
     }
 
@@ -285,30 +330,36 @@ struct DayObjectsLabView: View {
         }
     }
 
+#if DEBUG || INTERNAL_BUILD
     private var leadAuditionSurface: some View {
         GeometryReader { geometry in
             Color.clear
                 .contentShape(Rectangle())
-                .frame(
-                    width: geometry.size.width,
-                    height: geometry.size.height * DayObjectNormalizedRect.dayObjectsLeadAudition.maxY,
-                    alignment: .top
-                )
                 .gesture(DragGesture(minimumDistance: 0)
+                    .updating($leadGestureActive) { _, state, _ in state = true }
                     .onChanged { value in
                         let point = DayObjectNormalizedPoint(
                             x: value.location.x / max(geometry.size.width, 1),
                             y: value.location.y / max(geometry.size.height, 1)
                         )
-                        if value.translation == .zero { audition.beginLead(at: point) }
-                        else { audition.updateLead(at: point) }
+                        if !didBeginLeadGesture {
+                            didBeginLeadGesture = true
+                            Task { await audition.beginLead(at: point) }
+                        } else {
+                            audition.updateLead(at: point)
+                        }
                     }
-                    .onEnded { _ in audition.endLead() }
+                    .onEnded { _ in
+                        didBeginLeadGesture = false
+                        audition.endLead()
+                    }
                 )
         }
         .allowsHitTesting(!showsGrid && !voiceOverEnabled && audition.allowsLeadXY)
         .accessibilityHidden(true)
+        .onDisappear { audition.endLead() }
     }
+#endif
 
     private func sceneInput(for key: String) -> DayObjectSceneInput {
         DayObjectSceneInput(

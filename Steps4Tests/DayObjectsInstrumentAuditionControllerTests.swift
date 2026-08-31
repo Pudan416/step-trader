@@ -63,12 +63,12 @@ final class DayObjectsInstrumentAuditionControllerTests: XCTestCase {
         let controller = DayObjectsInstrumentAuditionController(bank: bank, audioSession: FakeAuditionSession())
         await controller.turnSoundOn()
 
-        controller.auditionHit()
+        await controller.auditionHit()
         XCTAssertEqual(bank.fakeDrums.hitCount, 0)
         controller.selectCategory(.drums)
-        controller.auditionNote()
-        controller.auditionChord()
-        controller.auditionHit()
+        await controller.auditionNote()
+        await controller.auditionChord()
+        await controller.auditionHit()
 
         XCTAssertEqual(bank.pool.noteRequests.count, 0)
         XCTAssertEqual(bank.fakeDrums.hitCount, 1)
@@ -106,13 +106,88 @@ final class DayObjectsInstrumentAuditionControllerTests: XCTestCase {
         let controller = DayObjectsInstrumentAuditionController(bank: bank, audioSession: FakeAuditionSession())
         await controller.turnSoundOn()
 
-        controller.beginLead(at: .init(x: 0, y: 0.5))
+        await controller.beginLead(at: .init(x: 0, y: 0.5))
         XCTAssertTrue(bank.pool.noteRequests.isEmpty)
 
         controller.selectCategory(.lead)
-        controller.beginLead(at: .init(x: 0, y: 0.5))
+        await controller.beginLead(at: .init(x: 0, y: 0.5))
         XCTAssertEqual(bank.pool.noteRequests.last?.role, .lead)
         XCTAssertEqual(bank.pool.noteRequests.last?.midiNote, 57)
+    }
+
+    func testLeadGestureHoldsOneTokenUpdatesFromNonzeroFirstMoveAndReleasesAtEnd() async {
+        let bank = FakeAuditionBank()
+        let controller = DayObjectsInstrumentAuditionController(bank: bank, audioSession: FakeAuditionSession())
+        await controller.turnSoundOn()
+        controller.selectCategory(.lead)
+
+        await controller.beginLead(at: .init(x: 0.75, y: 0.1))
+        await controller.beginLead(at: .init(x: 0.25, y: 0.9))
+        controller.updateLead(at: .init(x: 1, y: 1))
+        controller.updateLead(at: .init(x: 0, y: 0))
+        controller.endLead()
+
+        XCTAssertEqual(bank.pool.noteRequests.count, 2)
+        XCTAssertEqual(bank.pool.updateRequests.count, 2)
+        XCTAssertEqual(bank.pool.updateRequests[0].midiNote, 81)
+        XCTAssertEqual(bank.pool.updateRequests[0].cutoffHz, DayObjectsAudioParameters.minimumCutoffHz)
+        XCTAssertEqual(bank.pool.updateRequests[1].midiNote, 57)
+        XCTAssertEqual(bank.pool.updateRequests[1].cutoffHz, DayObjectsAudioParameters.maximumCutoffHz)
+        XCTAssertEqual(bank.pool.noteOffCount, 2)
+    }
+
+    func testActionFailureStopsBankAndDeactivatesBeforeRetry() async {
+        let bank = FakeAuditionBank()
+        let session = FakeAuditionSession()
+        let controller = DayObjectsInstrumentAuditionController(bank: bank, audioSession: session)
+        await controller.turnSoundOn()
+        bank.pool.shouldFailPrepare = true
+
+        await controller.auditionNote()
+
+        XCTAssertEqual(controller.soundState, .error("Selected preset is unavailable. Try Sound again."))
+        XCTAssertEqual(bank.stopCount, 1)
+        XCTAssertEqual(session.deactivationCount, 1)
+        bank.pool.shouldFailPrepare = false
+        await controller.turnSoundOn()
+        XCTAssertEqual(controller.soundState, .on)
+    }
+
+    func testDeactivationFailureRetainsOwnershipForExplicitRetry() async {
+        let bank = FakeAuditionBank()
+        let session = FakeAuditionSession()
+        let controller = DayObjectsInstrumentAuditionController(bank: bank, audioSession: session)
+        await controller.turnSoundOn()
+        session.shouldFailDeactivation = true
+
+        await controller.stop()
+        XCTAssertEqual(controller.soundState, .error("Sound session is still active. Try stopping again."))
+        XCTAssertEqual(session.deactivationCount, 1)
+
+        session.shouldFailDeactivation = false
+        await controller.stop()
+        XCTAssertEqual(controller.soundState, .off)
+        XCTAssertEqual(session.deactivationCount, 2)
+    }
+
+    func testConcurrentStopsCoalesceBeforeTheBankStopAwaits() async {
+        let bank = FakeAuditionBank()
+        bank.shouldSuspendStop = true
+        let session = FakeAuditionSession()
+        let controller = DayObjectsInstrumentAuditionController(bank: bank, audioSession: session)
+        await controller.turnSoundOn()
+
+        async let firstStop: Void = controller.stop()
+        await Task.yield()
+        async let secondStop: Void = controller.handleInterruption()
+        await Task.yield()
+        XCTAssertEqual(bank.stopCount, 1)
+
+        bank.resumeStop()
+        await firstStop
+        await secondStop
+        XCTAssertEqual(session.deactivationCount, 1)
+        XCTAssertEqual(controller.soundState, .off)
     }
 }
 
@@ -120,8 +195,12 @@ final class DayObjectsInstrumentAuditionControllerTests: XCTestCase {
 private final class FakeAuditionSession: DayObjectsInstrumentAuditionSession {
     private(set) var activationCount = 0
     private(set) var deactivationCount = 0
+    var shouldFailDeactivation = false
     func activatePlayback() throws { activationCount += 1 }
-    func deactivate() throws { deactivationCount += 1 }
+    func deactivate() throws {
+        deactivationCount += 1
+        if shouldFailDeactivation { throw TestError.startFailed }
+    }
 }
 
 @MainActor
@@ -148,6 +227,8 @@ private final class FakeAuditionBank: DayObjectsInstrumentBankProtocol {
     private(set) var startCount = 0
     private(set) var stopCount = 0
     private(set) var releaseAllCount = 0
+    var shouldSuspendStop = false
+    private var stopContinuation: CheckedContinuation<Void, Never>?
 
     func prepare(configuration: DayObjectsInstrumentBankConfiguration) throws { prepareCount += 1 }
     func tonalPool(named id: String) throws -> DayObjectsTonalVoicePoolProtocol { pool }
@@ -156,20 +237,37 @@ private final class FakeAuditionBank: DayObjectsInstrumentBankProtocol {
         onStart?()
         if shouldFailStart { throw TestError.startFailed }
     }
-    func stop() async { stopCount += 1 }
+    func stop() async {
+        stopCount += 1
+        if shouldSuspendStop {
+            await withCheckedContinuation { continuation in
+                stopContinuation = continuation
+            }
+        }
+    }
     func releaseAll() { releaseAllCount += 1 }
+
+    func resumeStop() {
+        stopContinuation?.resume()
+        stopContinuation = nil
+    }
 }
 
 private final class FakeAuditionPool: DayObjectsTonalVoicePoolProtocol {
     private(set) var noteRequests: [DayObjectsTonalNoteRequest] = []
+    private(set) var updateRequests: [DayObjectsVoiceUpdate] = []
+    private(set) var noteOffCount = 0
+    var shouldFailPrepare = false
     var metrics: DayObjectsTonalPoolMetrics { .init(name: "audition", allocatedVoiceCount: 0, allocatedNodeCount: 0, activeVoiceCount: 0, activeLeadVoiceCount: 0, activeChordVoiceCount: 0) }
-    func prepareInstrument(_ id: DayObjectsInstrumentID) throws {}
+    func prepareInstrument(_ id: DayObjectsInstrumentID) throws {
+        if shouldFailPrepare { throw TestError.startFailed }
+    }
     func noteOn(_ request: DayObjectsTonalNoteRequest) -> DayObjectsVoiceToken? {
         noteRequests.append(request)
-        return nil
+        return .init()
     }
-    func update(_ token: DayObjectsVoiceToken, with update: DayObjectsVoiceUpdate) {}
-    func noteOff(_ token: DayObjectsVoiceToken) {}
+    func update(_ token: DayObjectsVoiceToken, with update: DayObjectsVoiceUpdate) { updateRequests.append(update) }
+    func noteOff(_ token: DayObjectsVoiceToken) { noteOffCount += 1 }
     func releaseAll() {}
 }
 

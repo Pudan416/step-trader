@@ -7,6 +7,7 @@ enum DayObjectsInstrumentAuditionState: Equatable {
     case off
     case starting
     case on
+    case stopping
     case error(String)
 }
 
@@ -43,6 +44,8 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
     let bank: any DayObjectsInstrumentBankProtocol
     private let audioSession: any DayObjectsInstrumentAuditionSession
     private var isSessionActive = false
+    private var bankMayOwnResources = false
+    private var teardownInProgress = false
     private var heldLead: (pool: DayObjectsTonalVoicePoolProtocol, token: DayObjectsVoiceToken)?
 
     convenience init() {
@@ -73,7 +76,7 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
     var allowsNote: Bool { selectedCategory != .drums }
     var allowsChord: Bool { selectedCategory != .drums }
     var allowsHit: Bool { selectedCategory == .drums }
-    var allowsLeadXY: Bool { soundState == .on && selectedCategory == .lead }
+    var allowsLeadXY: Bool { soundState == .on && selectedCategory == .lead && !teardownInProgress }
 
     var attribution: String {
         guard let descriptor = selectedDescriptor else {
@@ -91,6 +94,7 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
         case .off: return "Sound is off"
         case .starting: return "Preparing instrument bank"
         case .on: return "Bank ready · \(bank.metrics.tonalPoolCount) tonal pool"
+        case .stopping: return "Stopping sound"
         case let .error(message): return message
         }
     }
@@ -109,24 +113,27 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
     }
 
     func turnSoundOn() async {
-        guard soundState != .on, soundState != .starting else { return }
+        guard soundState != .on, soundState != .starting, !teardownInProgress else { return }
+        if isSessionActive || bankMayOwnResources {
+            await tearDownResources(finalState: .off)
+            guard !isSessionActive, !bankMayOwnResources else { return }
+        }
         soundState = .starting
         do {
             try audioSession.activatePlayback()
             isSessionActive = true
+            bankMayOwnResources = true
             try bank.prepare(configuration: Self.configuration)
             try bank.start()
             soundState = .on
         } catch {
-            await tearDownResources()
-            soundState = .error("Unable to start sound. Try again.")
+            await actionFailed("Unable to start sound. Try again.")
         }
     }
 
     func stop() async {
-        guard soundState != .off || isSessionActive else { return }
-        await tearDownResources()
-        soundState = .off
+        guard soundState != .off || isSessionActive || bankMayOwnResources || heldLead != nil else { return }
+        await tearDownResources(finalState: .off)
     }
 
     func handleInterruption() async {
@@ -137,32 +144,32 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
         // Foregrounding must never revive sound; the next start remains an explicit user action.
     }
 
-    func auditionNote() {
+    func auditionNote() async {
         guard soundState == .on else { return }
         if selectedCategory == .piano {
             _ = bank.piano.noteOn(60, velocity: 0.82)
             return
         }
         guard let descriptor = selectedDescriptor else { return }
-        playTonal(descriptor, notes: [descriptor.referenceMIDI], role: .note)
+        await playTonal(descriptor, notes: [descriptor.referenceMIDI], role: .note)
     }
 
-    func auditionChord() {
+    func auditionChord() async {
         guard soundState == .on else { return }
         if selectedCategory == .piano {
             [48, 55, 60, 64].forEach { _ = bank.piano.noteOn(UInt8($0), velocity: 0.72) }
             return
         }
         guard let descriptor = selectedDescriptor else { return }
-        playTonal(descriptor, notes: descriptor.auditionChord, role: .chord)
+        await playTonal(descriptor, notes: descriptor.auditionChord, role: .chord)
     }
 
-    func auditionHit() {
+    func auditionHit() async {
         guard soundState == .on, selectedCategory == .drums else { return }
         bank.drums.hit(.kickFull, velocity: 0.82)
     }
 
-    func beginLead(at point: DayObjectNormalizedPoint) {
+    func beginLead(at point: DayObjectNormalizedPoint) async {
         guard allowsLeadXY, let descriptor = selectedDescriptor else { return }
         endLead()
         do {
@@ -181,7 +188,7 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
             )) else { return }
             heldLead = (pool, token)
         } catch {
-            soundState = .error("Lead audition is unavailable. Try Sound again.")
+            await actionFailed("Lead audition is unavailable. Try Sound again.")
         }
     }
 
@@ -204,7 +211,7 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
         _ descriptor: DayObjectsInstrumentDescriptor,
         notes: [UInt8],
         role: DayObjectsTonalVoiceRole
-    ) {
+    ) async {
         do {
             let pool = try bank.tonalPool(named: DayObjectsTonalPoolSpecification.manualAudition.name)
             try pool.prepareInstrument(descriptor.id)
@@ -221,25 +228,40 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
                 ))
             }
         } catch {
-            soundState = .error("Selected preset is unavailable. Try Sound again.")
+            await actionFailed("Selected preset is unavailable. Try Sound again.")
         }
     }
 
     private func releaseHeldGates() {
-        heldLead = nil
+        endLead()
         bank.releaseAll()
     }
 
-    private func tearDownResources() async {
+    private func actionFailed(_ message: String) async {
+        await tearDownResources(finalState: .error(message))
+    }
+
+    private func tearDownResources(finalState: DayObjectsInstrumentAuditionState) async {
+        guard !teardownInProgress else { return }
+        teardownInProgress = true
+        soundState = .stopping
         releaseHeldGates()
-        await bank.stop()
-        guard isSessionActive else { return }
-        do {
-            try audioSession.deactivate()
-        } catch {
-            // Deactivation failure must not leave the controller logically on.
+        if bankMayOwnResources {
+            await bank.stop()
+            bankMayOwnResources = false
         }
-        isSessionActive = false
+        if isSessionActive {
+            do {
+                try audioSession.deactivate()
+                isSessionActive = false
+            } catch {
+                teardownInProgress = false
+                soundState = .error("Sound session is still active. Try stopping again.")
+                return
+            }
+        }
+        teardownInProgress = false
+        soundState = finalState
     }
 
     private static func leadParameters(

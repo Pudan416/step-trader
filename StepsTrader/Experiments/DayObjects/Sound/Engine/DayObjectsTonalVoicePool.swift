@@ -25,6 +25,14 @@ struct DayObjectsVoiceToken: Hashable, Sendable {
     fileprivate let poolID: UUID
     fileprivate let slotID: Int
     fileprivate let generation: UInt64
+
+    /// Internal test and adapter construction; production tokens remain
+    /// allocated exclusively by the tonal pool.
+    init(poolID: UUID = UUID(), slotID: Int = 0, generation: UInt64 = 1) {
+        self.poolID = poolID
+        self.slotID = slotID
+        self.generation = generation
+    }
 }
 
 struct DayObjectsTonalPoolMetrics: Equatable, Sendable {
