@@ -447,10 +447,12 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
 
         let envelope = request.envelopeVariant
         amplitudeEnvelope.attackDuration = value(
-            preset.amplitudeEnvelope.attackSeconds * (envelope?.attackScale ?? 1)
+            envelope?.absoluteAttackSeconds
+                ?? preset.amplitudeEnvelope.attackSeconds * (envelope?.attackScale ?? 1)
         )
         amplitudeEnvelope.releaseDuration = value(
-            preset.amplitudeEnvelope.releaseSeconds * (envelope?.releaseScale ?? 1)
+            envelope?.absoluteReleaseSeconds
+                ?? preset.amplitudeEnvelope.releaseSeconds * (envelope?.releaseScale ?? 1)
         )
         setFrequencies(midiNote: currentMIDINote, pitchSemitoneOffset: 0, duration: Float(preset.glideSeconds))
         rampEffects(duration: Float(DayObjectsAudioParameters.controlRampDuration))

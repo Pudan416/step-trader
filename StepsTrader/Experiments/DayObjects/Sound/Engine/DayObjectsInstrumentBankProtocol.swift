@@ -32,8 +32,18 @@ extension DayObjectsDrumBankProtocol {
 protocol DayObjectsPianoPoolProtocol: AnyObject {
     var metrics: DayObjectsFeltPianoMetrics { get }
     func noteOn(_ midiNote: UInt8, velocity: Double) -> DayObjectsFeltPianoToken?
+    func noteOn(_ request: DayObjectsPianoNoteRequest) -> DayObjectsFeltPianoToken?
+    func updateExpression(_ token: DayObjectsFeltPianoToken, expression: Double)
     func noteOff(_ token: DayObjectsFeltPianoToken)
     func releaseAll()
+}
+
+extension DayObjectsPianoPoolProtocol {
+    func noteOn(_ request: DayObjectsPianoNoteRequest) -> DayObjectsFeltPianoToken? {
+        noteOn(request.midiNote, velocity: request.velocity)
+    }
+
+    func updateExpression(_ token: DayObjectsFeltPianoToken, expression: Double) {}
 }
 
 enum DayObjectsInstrumentBankPreparationStage: String, CaseIterable, Equatable, Sendable {

@@ -320,6 +320,14 @@ private final class DayObjectsAudioKitPianoPoolAdapter: DayObjectsPianoPoolProto
     init(_ adapter: DayObjectsAudioKitFeltPiano) { self.adapter = adapter }
     var metrics: DayObjectsFeltPianoMetrics { adapter.piano.metrics }
     func noteOn(_ midiNote: UInt8, velocity: Double) -> DayObjectsFeltPianoToken? { adapter.piano.noteOn(midiNote, velocity: velocity) }
+    func noteOn(_ request: DayObjectsPianoNoteRequest) -> DayObjectsFeltPianoToken? {
+        adapter.room.dryWetMix = AUValue(min(max(request.roomSend, 0), 1))
+        adapter.reverb.dryWetMix = AUValue(min(max(request.reverbSend, 0), 1))
+        return adapter.piano.noteOn(request)
+    }
+    func updateExpression(_ token: DayObjectsFeltPianoToken, expression: Double) {
+        adapter.piano.updateExpression(token, expression: expression)
+    }
     func noteOff(_ token: DayObjectsFeltPianoToken) { _ = adapter.piano.noteOff(token) }
     func releaseAll() { adapter.piano.stop() }
 }

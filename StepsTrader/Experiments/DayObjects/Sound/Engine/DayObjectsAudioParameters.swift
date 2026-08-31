@@ -142,7 +142,13 @@ enum DayObjectsAudioParameters {
     private static func clamped(_ variant: DayObjectsEnvelopeVariant) -> DayObjectsEnvelopeVariant {
         .init(
             attackScale: finite(variant.attackScale, default: 1, in: 0.25...4),
-            releaseScale: finite(variant.releaseScale, default: 1, in: 0.25...4)
+            releaseScale: finite(variant.releaseScale, default: 1, in: 0.25...4),
+            absoluteAttackSeconds: variant.absoluteAttackSeconds.map {
+                finite($0, default: 0.05, in: 0...30)
+            },
+            absoluteReleaseSeconds: variant.absoluteReleaseSeconds.map {
+                finite($0, default: 0.4, in: 0...30)
+            }
         )
     }
 
@@ -155,6 +161,27 @@ enum DayObjectsAudioParameters {
 struct DayObjectsEnvelopeVariant: Equatable, Sendable {
     let attackScale: Double
     let releaseScale: Double
+    let absoluteAttackSeconds: Double?
+    let absoluteReleaseSeconds: Double?
+
+    init(
+        attackScale: Double = 1,
+        releaseScale: Double = 1,
+        absoluteAttackSeconds: Double? = nil,
+        absoluteReleaseSeconds: Double? = nil
+    ) {
+        self.attackScale = attackScale
+        self.releaseScale = releaseScale
+        self.absoluteAttackSeconds = absoluteAttackSeconds
+        self.absoluteReleaseSeconds = absoluteReleaseSeconds
+    }
+
+    static func absolute(attackSeconds: Double, releaseSeconds: Double) -> Self {
+        .init(
+            absoluteAttackSeconds: attackSeconds,
+            absoluteReleaseSeconds: releaseSeconds
+        )
+    }
 }
 
 enum DayObjectsTonalVoiceRole: Equatable, Sendable {

@@ -43,19 +43,153 @@ final class HarmonyPlayerTests: XCTestCase {
 
         harness.player.render(barBoundary: event(.barBoundary, at: 0))
         XCTAssertEqual(harness.primary.noteOnRequests.map(\.midiNote), [48, 55, 60])
+        XCTAssertEqual(harness.primary.noteOnRequests.map(\.velocity), [0, 0, 0])
+
+        harness.player.render(subdivision: event(.subdivision, at: 16))
+        let chordGain = 0.6 / sqrt(3)
+        XCTAssertEqual(harness.primary.expressions(for: [48, 55, 60]), [chordGain, chordGain, chordGain])
 
         harness.player.render(barBoundary: event(.barBoundary, at: 16))
         XCTAssertEqual(harness.primary.noteOnRequests.map(\.midiNote), [48, 55, 60])
 
         harness.player.render(barBoundary: event(.barBoundary, at: 32))
         XCTAssertEqual(harness.primary.noteOnRequests.map(\.midiNote), [48, 55, 60, 50, 57, 62])
+        XCTAssertEqual(harness.primary.expressions(for: [48, 55, 60]), [chordGain, chordGain, chordGain])
+        XCTAssertEqual(harness.primary.expressions(for: [50, 57, 62]), [0, 0, 0])
         XCTAssertEqual(harness.primary.activeTokenCount, 6, "Old and new chords overlap during the declared crossfade")
         XCTAssertEqual(harness.player.metrics.activeVoiceCount, 6)
         XCTAssertEqual(harness.player.metrics.pendingReleaseTokenCount, 3)
 
+        harness.player.render(subdivision: event(.subdivision, at: 40))
+        XCTAssertEqual(harness.primary.expressions(for: [48, 55, 60]), [chordGain / 2, chordGain / 2, chordGain / 2])
+        XCTAssertEqual(harness.primary.expressions(for: [50, 57, 62]), [chordGain / 2, chordGain / 2, chordGain / 2])
+
         harness.player.render(subdivision: event(.subdivision, at: 48))
         XCTAssertEqual(harness.primary.activeTokenCount, 3)
+        XCTAssertEqual(harness.primary.expressions(for: [50, 57, 62]), [chordGain, chordGain, chordGain])
         XCTAssertEqual(harness.player.metrics.pendingReleaseTokenCount, 0)
+    }
+
+    func testCapacityLimitedDroneStagesReplacementWithoutStealingSoundingVoices() throws {
+        let harness = try makeHarness()
+        let drone = try XCTUnwrap(harness.bank.pools["drone"])
+        let plan = harmonyPlan(
+            role: .drone,
+            target: .tonal(.init(rawValue: "pad.interstellar")),
+            gain: 0.5,
+            schedule: [
+                entry(index: 0, startBar: 0, notes: [42, 49]),
+                entry(index: 1, startBar: 2, notes: [44, 51]),
+            ],
+            crossfadeBars: 1
+        )
+        try harness.player.configure(plan)
+        harness.player.render(barBoundary: event(.barBoundary, at: 0))
+        harness.player.render(subdivision: event(.subdivision, at: 16))
+
+        harness.player.render(barBoundary: event(.barBoundary, at: 32))
+        XCTAssertEqual(drone.noteOnRequests.map(\.midiNote), [42, 49], "A full two-voice pool must not steal before its fade")
+        harness.player.render(subdivision: event(.subdivision, at: 36))
+        let droneGain = 0.5 / sqrt(2)
+        XCTAssertEqual(drone.expressions(for: [42, 49]), [droneGain / 2, droneGain / 2])
+        XCTAssertEqual(drone.noteOffNotes, [])
+
+        harness.player.render(subdivision: event(.subdivision, at: 40))
+        XCTAssertEqual(drone.noteOffNotes, [42, 49])
+        XCTAssertEqual(drone.noteOnRequests.map(\.midiNote), [42, 49, 44, 51])
+        XCTAssertEqual(drone.expressions(for: [44, 51]), [0, 0])
+
+        harness.player.render(subdivision: event(.subdivision, at: 48))
+        XCTAssertEqual(drone.expressions(for: [44, 51]), [droneGain, droneGain])
+        XCTAssertEqual(drone.activeTokenCount, 2)
+    }
+
+    func testFeltPianoCrossfadeUsesTypedRequestsAndContinuousExpression() throws {
+        let harness = try makeHarness()
+        let plan = harmonyPlan(
+            role: .pianoOrKeysAccents,
+            target: .feltPiano,
+            gain: 0.6,
+            schedule: [
+                entry(index: 0, startBar: 0, notes: [60, 64, 67]),
+                entry(index: 1, startBar: 2, notes: [62, 65, 69]),
+            ],
+            crossfadeBars: 1
+        )
+        try harness.player.configure(plan)
+        harness.player.render(barBoundary: event(.barBoundary, at: 0))
+        XCTAssertEqual(harness.bank.pianoRecorder.noteOnRequests.map(\.velocity), [0, 0, 0])
+        XCTAssertTrue(harness.bank.pianoRecorder.noteOnRequests.allSatisfy {
+            $0.attackSeconds == 1 && $0.releaseSeconds == 2 && $0.roomSend == 0.2 && $0.reverbSend == 0.5
+        })
+        harness.player.render(subdivision: event(.subdivision, at: 16))
+        harness.player.render(barBoundary: event(.barBoundary, at: 32))
+        XCTAssertEqual(harness.bank.pianoRecorder.activeTokenCount, 6)
+
+        harness.player.render(subdivision: event(.subdivision, at: 40))
+        let expectedMidpoint = 0.6 / sqrt(3) / 2
+        XCTAssertEqual(harness.bank.pianoRecorder.expressions(for: [60, 64, 67]), [expectedMidpoint, expectedMidpoint, expectedMidpoint])
+        XCTAssertEqual(harness.bank.pianoRecorder.expressions(for: [62, 65, 69]), [expectedMidpoint, expectedMidpoint, expectedMidpoint])
+
+        harness.player.render(subdivision: event(.subdivision, at: 48))
+        XCTAssertEqual(harness.bank.pianoRecorder.noteOffNotes, [60, 64, 67])
+        XCTAssertEqual(harness.bank.pianoRecorder.activeTokenCount, 3)
+    }
+
+    func testContinuousUpdateCannotLeakStructuralScheduleOrInstrumentBeforeBoundary() throws {
+        let harness = try makeHarness()
+        let original = harmonyPlan(
+            target: .tonal(.init(rawValue: "pad.interstellar")),
+            gain: 0.3,
+            schedule: [
+                entry(index: 0, startBar: 0, notes: [48]),
+                entry(index: 1, startBar: 2, notes: [52]),
+            ]
+        )
+        let replacementRole = HarmonyRolePlan(
+            role: .primaryPad,
+            instrumentTarget: .tonal(.init(rawValue: "pad.horizon")),
+            register: 60...84,
+            gain: 0.7,
+            attackSeconds: 0.4,
+            releaseSeconds: 0.8,
+            delaySend: 0.4,
+            reverbSend: 0.7,
+            activation: .init(startProgress: 0.8, fullProgress: 0.9, amount: 1),
+            chordSchedule: [entry(index: 9, startBar: 1, notes: [77])],
+            crossfadeBars: 0.25
+        )
+        let mixedUpdate = HarmonyPlan(sleepProgress: 0.9, cycleBars: 2, chordCount: 1, roles: [replacementRole])
+        try harness.player.configure(original)
+        harness.player.render(barBoundary: event(.barBoundary, at: 0))
+
+        harness.player.applyContinuous(mixedUpdate)
+        harness.player.render(barBoundary: event(.barBoundary, at: 16))
+        harness.player.render(barBoundary: event(.barBoundary, at: 32))
+
+        XCTAssertEqual(harness.primary.preparedInstrument, .init(rawValue: "pad.interstellar"))
+        XCTAssertEqual(harness.primary.noteOnRequests.map(\.midiNote), [48, 52])
+        XCTAssertFalse(harness.primary.noteOnRequests.contains { $0.midiNote == 77 })
+    }
+
+    func testTonalChordUsesRoleEnvelopeEffectsAndEqualPowerAttenuation() throws {
+        let harness = try makeHarness()
+        let plan = harmonyPlan(
+            target: .tonal(.init(rawValue: "pad.interstellar")),
+            gain: 0.6,
+            schedule: [entry(index: 0, startBar: 0, notes: [48, 55, 60])]
+        )
+        try harness.player.configure(plan)
+        harness.player.render(barBoundary: event(.barBoundary, at: 0))
+
+        XCTAssertTrue(harness.primary.noteOnRequests.allSatisfy {
+            $0.envelopeVariant == .absolute(attackSeconds: 1, releaseSeconds: 2)
+                && $0.delaySend == 0.2
+                && $0.reverbSend == 0.5
+        })
+        harness.player.render(subdivision: event(.subdivision, at: 16))
+        let expected = 0.6 / sqrt(3)
+        XCTAssertEqual(harness.primary.expressions(for: [48, 55, 60]), [expected, expected, expected])
     }
 
     func testContinuousRoleGainRampsAcrossExactlyOneBar() throws {
@@ -72,13 +206,14 @@ final class HarmonyPlayerTests: XCTestCase {
         )
         try harness.player.configure(initial)
         harness.player.render(barBoundary: event(.barBoundary, at: 0))
+        harness.player.render(subdivision: event(.subdivision, at: 16))
 
         harness.player.applyContinuous(updated)
-        for subdivision in 1...8 {
+        for subdivision in 17...24 {
             harness.player.render(subdivision: event(.subdivision, at: Int64(subdivision)))
         }
         XCTAssertEqual(harness.primary.latestExpression, 0.5, accuracy: 0.000_001)
-        for subdivision in 9...16 {
+        for subdivision in 25...32 {
             harness.player.render(subdivision: event(.subdivision, at: Int64(subdivision)))
         }
         XCTAssertEqual(harness.primary.latestExpression, 0.8, accuracy: 0.000_001)
@@ -298,9 +433,17 @@ private final class RecordingHarmonyTonalPool: DayObjectsTonalVoicePoolProtocol 
     private(set) var events: [Event] = []
     private var generation: UInt64 = 0
     private var activeTokens: [DayObjectsVoiceToken: DayObjectsTonalNoteRequest] = [:]
+    private var expressionByToken: [DayObjectsVoiceToken: Double] = [:]
 
     var latestExpression: Double { updates.compactMap(\.expression).last ?? noteOnRequests.last?.velocity ?? 0 }
     var activeTokenCount: Int { activeTokens.count }
+    var noteOffNotes: [UInt8] { events.compactMap { $0.kind == .noteOff ? $0.note : nil } }
+    func expressions(for notes: [UInt8]) -> [Double] {
+        notes.map { note in
+            guard let token = activeTokens.first(where: { $0.value.midiNote == note })?.key else { return -1 }
+            return expressionByToken[token] ?? activeTokens[token]?.velocity ?? -1
+        }
+    }
     var metrics: DayObjectsTonalPoolMetrics {
         .init(
             name: name,
@@ -331,6 +474,7 @@ private final class RecordingHarmonyTonalPool: DayObjectsTonalVoicePoolProtocol 
         generation += 1
         let token = DayObjectsVoiceToken(slotID: Int(generation % UInt64(max(1, capacity))), generation: generation)
         activeTokens[token] = request
+        expressionByToken[token] = request.velocity
         noteOnRequests.append(request)
         events.append(.init(kind: .noteOn, note: request.midiNote))
         return token
@@ -339,16 +483,19 @@ private final class RecordingHarmonyTonalPool: DayObjectsTonalVoicePoolProtocol 
     func update(_ token: DayObjectsVoiceToken, with update: DayObjectsVoiceUpdate) {
         guard activeTokens[token] != nil else { return }
         updates.append(update)
+        if let expression = update.expression { expressionByToken[token] = expression }
         events.append(.init(kind: .update, note: activeTokens[token]?.midiNote))
     }
 
     func noteOff(_ token: DayObjectsVoiceToken) {
         guard let request = activeTokens.removeValue(forKey: token) else { return }
+        expressionByToken.removeValue(forKey: token)
         events.append(.init(kind: .noteOff, note: request.midiNote))
     }
 
     func releaseAll() {
         activeTokens.removeAll(keepingCapacity: true)
+        expressionByToken.removeAll(keepingCapacity: true)
         events.append(.init(kind: .releaseAll, note: nil))
     }
 }
@@ -363,13 +510,20 @@ private final class RecordingHarmonyDrumBank: DayObjectsDrumBankProtocol {
 }
 
 private final class RecordingHarmonyPianoPool: DayObjectsPianoPoolProtocol {
-    struct Request: Equatable { let midiNote: UInt8; let velocity: Double }
     var capacity: Int
-    private(set) var noteOnRequests: [Request] = []
+    private(set) var noteOnRequests: [DayObjectsPianoNoteRequest] = []
+    private(set) var noteOffNotes: [UInt8] = []
     private var generation: UInt64 = 0
-    private var activeTokens = Set<DayObjectsFeltPianoToken>()
+    private var activeTokens: [DayObjectsFeltPianoToken: DayObjectsPianoNoteRequest] = [:]
+    private var expressionByToken: [DayObjectsFeltPianoToken: Double] = [:]
 
     var activeTokenCount: Int { activeTokens.count }
+    func expressions(for notes: [UInt8]) -> [Double] {
+        notes.map { note in
+            guard let token = activeTokens.first(where: { $0.value.midiNote == note })?.key else { return -1 }
+            return expressionByToken[token] ?? -1
+        }
+    }
     var metrics: DayObjectsFeltPianoMetrics {
         .init(allocatedPlayerCount: capacity, activeNoteCount: activeTokens.count, maximumPolyphony: capacity)
     }
@@ -377,14 +531,36 @@ private final class RecordingHarmonyPianoPool: DayObjectsPianoPoolProtocol {
     init(capacity: Int) { self.capacity = capacity }
 
     func noteOn(_ midiNote: UInt8, velocity: Double) -> DayObjectsFeltPianoToken? {
+        noteOn(.init(
+            midiNote: midiNote,
+            velocity: velocity,
+            attackSeconds: 0.012,
+            releaseSeconds: 0.42,
+            roomSend: 0.16,
+            reverbSend: 0.12
+        ))
+    }
+
+    func noteOn(_ request: DayObjectsPianoNoteRequest) -> DayObjectsFeltPianoToken? {
         generation += 1
         let token = DayObjectsFeltPianoToken(slotID: Int(generation % UInt64(max(1, capacity))), generation: generation)
-        activeTokens.insert(token)
-        noteOnRequests.append(.init(midiNote: midiNote, velocity: velocity))
+        activeTokens[token] = request
+        expressionByToken[token] = request.velocity
+        noteOnRequests.append(request)
         return token
     }
 
-    func noteOff(_ token: DayObjectsFeltPianoToken) { activeTokens.remove(token) }
-    func releaseAll() { activeTokens.removeAll(keepingCapacity: true) }
+    func updateExpression(_ token: DayObjectsFeltPianoToken, expression: Double) {
+        guard activeTokens[token] != nil else { return }
+        expressionByToken[token] = expression
+    }
+    func noteOff(_ token: DayObjectsFeltPianoToken) {
+        if let request = activeTokens.removeValue(forKey: token) { noteOffNotes.append(request.midiNote) }
+        expressionByToken.removeValue(forKey: token)
+    }
+    func releaseAll() {
+        activeTokens.removeAll(keepingCapacity: true)
+        expressionByToken.removeAll(keepingCapacity: true)
+    }
 }
 #endif

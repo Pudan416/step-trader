@@ -33,6 +33,33 @@ struct DayObjectsFeltPianoNote: Equatable, Sendable {
     let velocity: Double
     let sample: FeltPianoSample
     let pitchCents: Double
+    let attackSeconds: Double
+    let releaseSeconds: Double
+
+    init(
+        midiNote: UInt8,
+        velocity: Double,
+        sample: FeltPianoSample,
+        pitchCents: Double,
+        attackSeconds: Double = DayObjectsFeltPianoRecipe.default.attackSeconds,
+        releaseSeconds: Double = DayObjectsFeltPianoRecipe.default.releaseSeconds
+    ) {
+        self.midiNote = midiNote
+        self.velocity = velocity
+        self.sample = sample
+        self.pitchCents = pitchCents
+        self.attackSeconds = attackSeconds
+        self.releaseSeconds = releaseSeconds
+    }
+}
+
+struct DayObjectsPianoNoteRequest: Equatable, Sendable {
+    let midiNote: UInt8
+    let velocity: Double
+    let attackSeconds: Double
+    let releaseSeconds: Double
+    let roomSend: Double
+    let reverbSend: Double
 }
 
 struct DayObjectsFeltPianoToken: Hashable, Sendable {
@@ -41,7 +68,7 @@ struct DayObjectsFeltPianoToken: Hashable, Sendable {
 
     /// Internal test and playback-adapter construction; production tokens
     /// remain allocated exclusively by the felt-piano pool.
-    init(slotID: Int = 0, generation: UInt64 = 1) {
+    init(slotID: Int, generation: UInt64) {
         self.slotID = slotID
         self.generation = generation
     }
@@ -64,8 +91,13 @@ enum DayObjectsFeltPianoBackendPreparationError: Error {
 
 protocol DayObjectsFeltPianoBackend: AnyObject {
     func play(_ note: DayObjectsFeltPianoNote)
+    func setExpression(_ expression: Double)
     func release()
     func allNotesOff()
+}
+
+extension DayObjectsFeltPianoBackend {
+    func setExpression(_ expression: Double) {}
 }
 
 final class DayObjectsFeltPiano {
@@ -134,9 +166,20 @@ final class DayObjectsFeltPiano {
     }
 
     func noteOn(_ midiNote: UInt8, velocity: Double) -> DayObjectsFeltPianoToken? {
+        noteOn(.init(
+            midiNote: midiNote,
+            velocity: velocity,
+            attackSeconds: recipe.attackSeconds,
+            releaseSeconds: recipe.releaseSeconds,
+            roomSend: recipe.roomSend,
+            reverbSend: recipe.reverbSend
+        ))
+    }
+
+    func noteOn(_ request: DayObjectsPianoNoteRequest) -> DayObjectsFeltPianoToken? {
         guard isEnabled,
-              FeltPianoManifest.playableRange.contains(midiNote),
-              let sample = FeltPianoManifest.sample(for: midiNote, in: samples) else { return nil }
+              FeltPianoManifest.playableRange.contains(request.midiNote),
+              let sample = FeltPianoManifest.sample(for: request.midiNote, in: samples) else { return nil }
         let slotID = slots.firstIndex(where: { !$0.isActive }) ?? oldestSlotID()
         guard let slotID else { return nil }
         if slots[slotID].isActive { slots[slotID].backend.release() }
@@ -145,12 +188,22 @@ final class DayObjectsFeltPiano {
         slots[slotID].activationOrder = activationCounter
         slots[slotID].isActive = true
         slots[slotID].backend.play(.init(
-            midiNote: midiNote,
-            velocity: min(max(velocity, 0), 1),
+            midiNote: request.midiNote,
+            velocity: min(max(request.velocity, 0), 1),
             sample: sample,
-            pitchCents: Double(Int(midiNote) - Int(sample.rootMIDINote)) * 100
+            pitchCents: Double(Int(request.midiNote) - Int(sample.rootMIDINote)) * 100,
+            attackSeconds: min(max(request.attackSeconds, 0), 30),
+            releaseSeconds: min(max(request.releaseSeconds, 0), 30)
         ))
         return .init(slotID: slotID, generation: slots[slotID].generation)
+    }
+
+    func updateExpression(_ token: DayObjectsFeltPianoToken, expression: Double) {
+        guard slots.indices.contains(token.slotID),
+              slots[token.slotID].isActive,
+              slots[token.slotID].generation == token.generation
+        else { return }
+        slots[token.slotID].backend.setExpression(min(max(expression, 0), 1))
     }
 
     @discardableResult
@@ -295,6 +348,7 @@ private final class DayObjectsAudioKitFeltPianoBackend: DayObjectsFeltPianoBacke
     private(set) var lastPlayedPitchCents: Double?
     private(set) var lastPlayOrder: UInt64 = 0
     private let nextPlaybackOrder: () -> UInt64
+    private let noteTrimLinear: AUValue
 
     var attackSeconds: AUValue { envelope.attackDuration }
     var releaseSeconds: AUValue { envelope.releaseDuration }
@@ -340,7 +394,8 @@ private final class DayObjectsAudioKitFeltPianoBackend: DayObjectsFeltPianoBacke
         mechanicalOnset = Fader(mechanicalOnsetHighPass, gain: AUValue(recipe.mechanicalNoiseGain))
         shapedSource = Mixer([bodyLowPass, mechanicalOnset], name: "Day Objects felt piano body and mechanical onset")
         envelope = AmplitudeEnvelope(shapedSource, attackDuration: AUValue(recipe.attackSeconds), decayDuration: 0.08, sustainLevel: 1, releaseDuration: AUValue(recipe.releaseSeconds))
-        output = Fader(envelope, gain: AUValue(pow(10, recipe.noteTrimDB / 20)))
+        noteTrimLinear = AUValue(pow(10, recipe.noteTrimDB / 20))
+        output = Fader(envelope, gain: noteTrimLinear)
     }
 
     func play(_ note: DayObjectsFeltPianoNote) {
@@ -348,7 +403,10 @@ private final class DayObjectsAudioKitFeltPianoBackend: DayObjectsFeltPianoBacke
         if selectedRootMIDINote != nil { hardStopEveryRootPlayer() }
         pitch.rate = 1
         pitch.pitch = AUValue(note.pitchCents)
-        player.volume = AUValue(note.velocity)
+        player.volume = 1
+        envelope.attackDuration = AUValue(note.attackSeconds)
+        envelope.releaseDuration = AUValue(note.releaseSeconds)
+        setExpression(note.velocity)
         selectedRootMIDINote = note.sample.rootMIDINote
         isReleasing = false
         lastPlayedRootMIDINote = note.sample.rootMIDINote
@@ -357,6 +415,12 @@ private final class DayObjectsAudioKitFeltPianoBackend: DayObjectsFeltPianoBacke
         guard output.avAudioNode.engine?.isRunning == true else { return }
         player.play()
         envelope.openGate()
+    }
+
+    func setExpression(_ expression: Double) {
+        let target = noteTrimLinear * AUValue(min(max(expression, 0), 1))
+        output.$leftGain.ramp(to: target, duration: Float(DayObjectsAudioParameters.controlRampDuration))
+        output.$rightGain.ramp(to: target, duration: Float(DayObjectsAudioParameters.controlRampDuration))
     }
 
     func release() {

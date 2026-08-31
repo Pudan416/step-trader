@@ -105,6 +105,33 @@ final class DayObjectsFeltPianoTests: XCTestCase {
         XCTAssertEqual(players.first?.playedNotes, [.init(midiNote: 61, velocity: 0.8, sample: selectedSample, pitchCents: 100)])
     }
 
+    func testTypedPlaybackRequestAppliesEnvelopeAndSupportsLiveExpression() throws {
+        var players: [FakeFeltPianoPlayer] = []
+        let piano = DayObjectsFeltPiano(
+            samples: try FeltPianoManifest.load(from: Bundle(for: type(of: self))),
+            resourceResolver: fixtureURL,
+            playerFactory: { _, _ in
+                let player = FakeFeltPianoPlayer()
+                players.append(player)
+                return player
+            }
+        )
+
+        let token = try XCTUnwrap(piano.noteOn(.init(
+            midiNote: 61,
+            velocity: 0,
+            attackSeconds: 1.25,
+            releaseSeconds: 2.5,
+            roomSend: 0.3,
+            reverbSend: 0.6
+        )))
+        piano.updateExpression(token, expression: 0.42)
+
+        XCTAssertEqual(players.first?.playedNotes.first?.attackSeconds, 1.25)
+        XCTAssertEqual(players.first?.playedNotes.first?.releaseSeconds, 2.5)
+        XCTAssertEqual(players.first?.expressions, [0.42])
+    }
+
     func testPreparationResolvesEveryCanonicalSampleBeforeAllocatingTheFixedPool() throws {
         let samples = try FeltPianoManifest.load(from: Bundle(for: type(of: self)))
         var resolved: [String] = []
@@ -262,8 +289,10 @@ private final class FakeFeltPianoPlayer: DayObjectsFeltPianoBackend {
     private(set) var releaseCount = 0
     private(set) var allNotesOffCount = 0
     private(set) var playedNotes: [DayObjectsFeltPianoNote] = []
+    private(set) var expressions: [Double] = []
 
     func play(_ note: DayObjectsFeltPianoNote) { playedNotes.append(note) }
+    func setExpression(_ expression: Double) { expressions.append(expression) }
     func release() { releaseCount += 1 }
     func allNotesOff() { allNotesOffCount += 1 }
 }
