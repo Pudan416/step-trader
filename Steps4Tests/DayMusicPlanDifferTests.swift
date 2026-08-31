@@ -44,6 +44,130 @@ final class DayMusicPlanDifferTests: XCTestCase {
         XCTAssertEqual(change.removedHappeningIDs, [])
     }
 
+    func testGlitchRealizationOnlyChangeIsStructuralOnly() {
+        let oldPlan = makePlan(spentColors: 50)
+        let oldGlitch = oldPlan.glitch
+        let newGlitch = GlitchPlan(
+            progress: oldGlitch.progress,
+            roles: oldGlitch.roles,
+            wowFlutterDepth: oldGlitch.wowFlutterDepth,
+            stereoSeparationAddition: oldGlitch.stereoSeparationAddition,
+            realization: GlitchRealizationState(
+                dropoutSeed: oldGlitch.realization.dropoutSeed &+ 1,
+                variationSeed: oldGlitch.realization.variationSeed &+ 1,
+                cycleKey: oldGlitch.realization.cycleKey &+ 1,
+                counterMapping: oldGlitch.realization.counterMapping
+            )
+        )
+        let newPlan = replacing(oldPlan, glitch: newGlitch)
+
+        let change = DayMusicPlanDiffer.change(from: oldPlan, to: newPlan)
+
+        XCTAssertNil(change.continuousPlan)
+        XCTAssertEqual(change.structuralPlan, newPlan)
+    }
+
+    func testGlitchEligibilityOnlyChangeIsStructuralOnly() throws {
+        let oldPlan = makePlan(spentColors: 50)
+        let oldRole = try XCTUnwrap(oldPlan.glitch.roles.first)
+        let changedRole = GlitchRolePlan(
+            role: oldRole.role,
+            isTimingAnchor: oldRole.isTimingAnchor,
+            isGlitchEligible: !oldRole.isGlitchEligible,
+            pitchDriftCents: oldRole.pitchDriftCents,
+            dropoutProbability: oldRole.dropoutProbability,
+            delayTimeInstability: oldRole.delayTimeInstability
+        )
+        var roles = oldPlan.glitch.roles
+        roles[0] = changedRole
+        let newGlitch = GlitchPlan(
+            progress: oldPlan.glitch.progress,
+            roles: roles,
+            wowFlutterDepth: oldPlan.glitch.wowFlutterDepth,
+            stereoSeparationAddition: oldPlan.glitch.stereoSeparationAddition,
+            realization: oldPlan.glitch.realization
+        )
+        let newPlan = replacing(oldPlan, glitch: newGlitch)
+
+        let change = DayMusicPlanDiffer.change(from: oldPlan, to: newPlan)
+
+        XCTAssertNil(change.continuousPlan)
+        XCTAssertEqual(change.structuralPlan, newPlan)
+    }
+
+    func testLayerMixOnlyChangeIsContinuousOnly() {
+        let oldPlan = makePlan()
+        let oldMix = oldPlan.mix
+        let newMix = LayerMixPlan(
+            rhythmTargetDecibels: oldMix.rhythmTargetDecibels + 0.5,
+            harmonyTargetDecibels: oldMix.harmonyTargetDecibels,
+            happeningAggregateTargetDecibels: oldMix.happeningAggregateTargetDecibels,
+            happeningPerVoiceTargetDecibels: oldMix.happeningPerVoiceTargetDecibels,
+            happeningCount: oldMix.happeningCount,
+            leadTargetDecibels: oldMix.leadTargetDecibels,
+            masterTargetDecibelsBeforeLimiter: oldMix.masterTargetDecibelsBeforeLimiter,
+            maximumHarmonyDuckingDecibels: oldMix.maximumHarmonyDuckingDecibels
+        )
+        let newPlan = replacing(oldPlan, mix: newMix)
+
+        let change = DayMusicPlanDiffer.change(from: oldPlan, to: newPlan)
+
+        XCTAssertEqual(change.continuousPlan, newPlan)
+        XCTAssertNil(change.structuralPlan)
+    }
+
+    func testRhythmPlaybackLimitsAreContinuousOnly() {
+        let oldPlan = makePlan()
+        let variants = [
+            rhythm(
+                oldPlan.rhythm,
+                maximumMicrotimingMilliseconds: oldPlan.rhythm.maximumMicrotimingMilliseconds + 1
+            ),
+            rhythm(
+                oldPlan.rhythm,
+                velocityHumanizationRange: -0.04...0.04
+            ),
+            rhythm(
+                oldPlan.rhythm,
+                maximumHarmonyDuckingDecibels: oldPlan.rhythm.maximumHarmonyDuckingDecibels + 0.25
+            ),
+        ]
+
+        for newRhythm in variants {
+            let newPlan = replacing(oldPlan, rhythm: newRhythm)
+            let change = DayMusicPlanDiffer.change(from: oldPlan, to: newPlan)
+            XCTAssertEqual(change.continuousPlan, newPlan)
+            XCTAssertNil(change.structuralPlan)
+        }
+    }
+
+    func testRhythmProbabilityOnlyChangeIsContinuousWithoutStructuralReplacement() throws {
+        let oldPlan = makePlan()
+        let oldVoice = try XCTUnwrap(oldPlan.rhythm.voices.first)
+        var probabilities = oldVoice.stepProbabilities
+        probabilities[0] = max(0, probabilities[0] - 0.1)
+        let changedVoice = RhythmVoicePlan(
+            role: oldVoice.role,
+            drumVoice: oldVoice.drumVoice,
+            stepProbabilities: probabilities,
+            velocityRange: oldVoice.velocityRange,
+            microtimingMilliseconds: oldVoice.microtimingMilliseconds,
+            roomSend: oldVoice.roomSend,
+            activation: oldVoice.activation,
+            isTimingAnchor: oldVoice.isTimingAnchor,
+            isGlitchEligible: oldVoice.isGlitchEligible
+        )
+        var voices = oldPlan.rhythm.voices
+        voices[0] = changedVoice
+        let newRhythm = rhythm(oldPlan.rhythm, voices: voices)
+        let newPlan = replacing(oldPlan, rhythm: newRhythm)
+
+        let change = DayMusicPlanDiffer.change(from: oldPlan, to: newPlan)
+
+        XCTAssertEqual(change.continuousPlan, newPlan)
+        XCTAssertNil(change.structuralPlan)
+    }
+
     func testSleepGainChangeWithinOneProgressionBandIsContinuousOnly() {
         let oldPlan = makePlan(sleepProgress: 0.50)
         let newPlan = makePlan(sleepProgress: 0.60)
@@ -177,6 +301,53 @@ final class DayMusicPlanDifferTests: XCTestCase {
                 spentColors: spentColors
             ),
             remixSeed: remixSeed ?? seed
+        )
+    }
+
+    private func replacing(
+        _ plan: DayMusicPlan,
+        rhythm: RhythmPlan? = nil,
+        glitch: GlitchPlan? = nil,
+        mix: LayerMixPlan? = nil
+    ) -> DayMusicPlan {
+        DayMusicPlan(
+            seed: plan.seed,
+            input: plan.input,
+            world: plan.world,
+            rhythm: rhythm ?? plan.rhythm,
+            harmony: plan.harmony,
+            happenings: plan.happenings,
+            lead: plan.lead,
+            glitch: glitch ?? plan.glitch,
+            mix: mix ?? plan.mix
+        )
+    }
+
+    private func rhythm(
+        _ plan: RhythmPlan,
+        voices: [RhythmVoicePlan]? = nil,
+        maximumMicrotimingMilliseconds: Double? = nil,
+        velocityHumanizationRange: ClosedRange<Double>? = nil,
+        maximumHarmonyDuckingDecibels: Double? = nil
+    ) -> RhythmPlan {
+        RhythmPlan(
+            baseTempoBPM: plan.baseTempoBPM,
+            tempoBPM: plan.tempoBPM,
+            stepsProgress: plan.stepsProgress,
+            family: plan.family,
+            patternOffsetSteps: plan.patternOffsetSteps,
+            humanizationProfile: plan.humanizationProfile,
+            realization: plan.realization,
+            voices: voices ?? plan.voices,
+            maximumSimultaneousAttacks: plan.maximumSimultaneousAttacks,
+            maximumFillsPerWindow: plan.maximumFillsPerWindow,
+            fillWindowBars: plan.fillWindowBars,
+            maximumMicrotimingMilliseconds: maximumMicrotimingMilliseconds
+                ?? plan.maximumMicrotimingMilliseconds,
+            velocityHumanizationRange: velocityHumanizationRange
+                ?? plan.velocityHumanizationRange,
+            maximumHarmonyDuckingDecibels: maximumHarmonyDuckingDecibels
+                ?? plan.maximumHarmonyDuckingDecibels
         )
     }
 }

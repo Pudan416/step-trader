@@ -13,7 +13,9 @@ enum DayMusicPlanDiffer {
             newHappeningsByID[$0.happeningID] == nil ? $0.happeningID : nil
         }
 
+        let hasDedicatedHappeningChange = !addedHappenings.isEmpty || !removedHappeningIDs.isEmpty
         let hasContinuousChange = continuousSignature(of: oldPlan) != continuousSignature(of: newPlan)
+            || (!hasDedicatedHappeningChange && oldPlan.mix != newPlan.mix)
         let hasStructuralChange = structuralSignature(
             of: oldPlan,
             commonWith: newPlan
@@ -40,7 +42,7 @@ enum DayMusicPlanDiffer {
             rhythm: ContinuousRhythmSignature(plan: plan.rhythm),
             harmonyRoles: plan.harmony.roles.map(ContinuousHarmonyRoleSignature.init),
             lead: ContinuousLeadSignature(plan: plan.lead),
-            glitch: plan.glitch
+            glitch: ContinuousGlitchSignature(plan: plan.glitch)
         )
     }
 
@@ -59,7 +61,8 @@ enum DayMusicPlanDiffer {
             rhythm: StructuralRhythmSignature(plan: plan.rhythm),
             harmony: StructuralHarmonySignature(plan: plan.harmony),
             existingHappenings: commonHappenings,
-            lead: StructuralLeadSignature(plan: plan.lead)
+            lead: StructuralLeadSignature(plan: plan.lead),
+            glitch: StructuralGlitchSignature(plan: plan.glitch)
         )
     }
 
@@ -88,18 +91,24 @@ private struct ContinuousSignature: Equatable {
     let rhythm: ContinuousRhythmSignature
     let harmonyRoles: [ContinuousHarmonyRoleSignature]
     let lead: ContinuousLeadSignature
-    let glitch: GlitchPlan
+    let glitch: ContinuousGlitchSignature
 }
 
 private struct ContinuousRhythmSignature: Equatable {
     let tempoBPM: Double
     let stepsProgress: Double
     let voices: [ContinuousRhythmVoiceSignature]
+    let maximumMicrotimingMilliseconds: Double
+    let velocityHumanizationRange: ClosedRange<Double>
+    let maximumHarmonyDuckingDecibels: Double
 
     init(plan: RhythmPlan) {
         tempoBPM = plan.tempoBPM
         stepsProgress = plan.stepsProgress
         voices = plan.voices.map(ContinuousRhythmVoiceSignature.init)
+        maximumMicrotimingMilliseconds = plan.maximumMicrotimingMilliseconds
+        velocityHumanizationRange = plan.velocityHumanizationRange
+        maximumHarmonyDuckingDecibels = plan.maximumHarmonyDuckingDecibels
     }
 }
 
@@ -159,6 +168,32 @@ private struct ContinuousLeadSignature: Equatable {
     }
 }
 
+private struct ContinuousGlitchSignature: Equatable {
+    let progress: Double
+    let roleAmounts: [ContinuousGlitchRoleSignature]
+    let wowFlutterDepth: Double
+    let stereoSeparationAddition: Double
+
+    init(plan: GlitchPlan) {
+        progress = plan.progress
+        roleAmounts = plan.roles.map(ContinuousGlitchRoleSignature.init)
+        wowFlutterDepth = plan.wowFlutterDepth
+        stereoSeparationAddition = plan.stereoSeparationAddition
+    }
+}
+
+private struct ContinuousGlitchRoleSignature: Equatable {
+    let pitchDriftCents: Double
+    let dropoutProbability: Double
+    let delayTimeInstability: Double
+
+    init(plan: GlitchRolePlan) {
+        pitchDriftCents = plan.pitchDriftCents
+        dropoutProbability = plan.dropoutProbability
+        delayTimeInstability = plan.delayTimeInstability
+    }
+}
+
 private struct StructuralSignature: Equatable {
     let seed: UInt64
     let world: TonalWorldPlan
@@ -166,6 +201,7 @@ private struct StructuralSignature: Equatable {
     let harmony: StructuralHarmonySignature
     let existingHappenings: [HappeningMusicPlan]
     let lead: StructuralLeadSignature
+    let glitch: StructuralGlitchSignature
 }
 
 private struct StructuralRhythmSignature: Equatable {
@@ -195,7 +231,6 @@ private struct StructuralRhythmSignature: Equatable {
 private struct StructuralRhythmVoiceSignature: Equatable {
     let role: RhythmRole
     let drumVoice: DayObjectsDrumVoice
-    let stepProbabilities: [Double]
     let activationStart: Double
     let activationFull: Double
     let isTimingAnchor: Bool
@@ -204,7 +239,6 @@ private struct StructuralRhythmVoiceSignature: Equatable {
     init(plan: RhythmVoicePlan) {
         role = plan.role
         drumVoice = plan.drumVoice
-        stepProbabilities = plan.stepProbabilities
         activationStart = plan.activation.startProgress
         activationFull = plan.activation.fullProgress
         isTimingAnchor = plan.isTimingAnchor
@@ -263,6 +297,28 @@ private struct StructuralLeadSignature: Equatable {
         portamentoMilliseconds = plan.portamentoMilliseconds
         attackSeconds = plan.attackSeconds
         releaseSeconds = plan.releaseSeconds
+    }
+}
+
+private struct StructuralGlitchSignature: Equatable {
+    let roles: [StructuralGlitchRoleSignature]
+    let realization: GlitchRealizationState
+
+    init(plan: GlitchPlan) {
+        roles = plan.roles.map(StructuralGlitchRoleSignature.init)
+        realization = plan.realization
+    }
+}
+
+private struct StructuralGlitchRoleSignature: Equatable {
+    let role: GlitchRole
+    let isTimingAnchor: Bool
+    let isGlitchEligible: Bool
+
+    init(plan: GlitchRolePlan) {
+        role = plan.role
+        isTimingAnchor = plan.isTimingAnchor
+        isGlitchEligible = plan.isGlitchEligible
     }
 }
 #endif
