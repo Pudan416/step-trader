@@ -76,6 +76,8 @@
 		D0D800000000000000000002 /* DayObjectsInstrumentAuditionControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D800000000000000000001 /* DayObjectsInstrumentAuditionControllerTests.swift */; };
 		D0D900000000000000000002 /* DayObjectsInstrumentAuditionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D900000000000000000001 /* DayObjectsInstrumentAuditionController.swift */; };
 		D0DA00000000000000000002 /* DayObjectsInstrumentAuditionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DA00000000000000000001 /* DayObjectsInstrumentAuditionView.swift */; };
+		D0F100000000000000000004 /* DayObjectsLabMusicState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F100000000000000000003 /* DayObjectsLabMusicState.swift */; };
+		D0F100000000000000000006 /* DayObjectsLabMusicViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F100000000000000000005 /* DayObjectsLabMusicViewModel.swift */; };
 		D0D600000000000000000012 /* FeltPianoManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D600000000000000000011 /* FeltPianoManifest.swift */; };
 		D0D600000000000000000014 /* DayObjectsFeltPiano.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D600000000000000000013 /* DayObjectsFeltPiano.swift */; };
 		D0D700000000000000000012 /* DayObjectsInstrumentBankProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D700000000000000000011 /* DayObjectsInstrumentBankProtocol.swift */; };
@@ -89,6 +91,7 @@
 		D0A0D2000000000000000017 /* audio-assets-manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = D0A0D2000000000000000004 /* audio-assets-manifest.json */; };
 		D0A0D2000000000000000018 /* audio-assets-manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = D0A0D2000000000000000004 /* audio-assets-manifest.json */; };
 		D0B100000000000000000002 /* DayObjectSceneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000001 /* DayObjectSceneTests.swift */; };
+		D0F100000000000000000002 /* DayObjectsLabMusicViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F100000000000000000001 /* DayObjectsLabMusicViewModelTests.swift */; };
 		91F0A0023100000000000002 /* AppTypographyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91F0A0013100000000000001 /* AppTypographyTests.swift */; };
 		91F0A0043100000000000004 /* Unbounded[wght].ttf in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A0033100000000000003 /* Unbounded[wght].ttf */; };
 		91F0A0063100000000000006 /* Unbounded-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A0053100000000000005 /* Unbounded-OFL.txt */; };
@@ -571,6 +574,8 @@
 		D0D800000000000000000001 /* DayObjectsInstrumentAuditionControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsInstrumentAuditionControllerTests.swift; sourceTree = "<group>"; };
 		D0D900000000000000000001 /* DayObjectsInstrumentAuditionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsInstrumentAuditionController.swift; sourceTree = "<group>"; };
 		D0DA00000000000000000001 /* DayObjectsInstrumentAuditionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsInstrumentAuditionView.swift; sourceTree = "<group>"; };
+		D0F100000000000000000003 /* DayObjectsLabMusicState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLabMusicState.swift; sourceTree = "<group>"; };
+		D0F100000000000000000005 /* DayObjectsLabMusicViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLabMusicViewModel.swift; sourceTree = "<group>"; };
 		D0D600000000000000000011 /* FeltPianoManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeltPianoManifest.swift; sourceTree = "<group>"; };
 		D0D600000000000000000013 /* DayObjectsFeltPiano.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsFeltPiano.swift; sourceTree = "<group>"; };
 		D0D700000000000000000011 /* DayObjectsInstrumentBankProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsInstrumentBankProtocol.swift; sourceTree = "<group>"; };
@@ -584,6 +589,7 @@
 		D0A0D2000000000000000003 /* FeltPiano */ = {isa = PBXFileReference; lastKnownFileType = folder; path = FeltPiano; sourceTree = "<group>"; };
 		D0A0D2000000000000000004 /* audio-assets-manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "audio-assets-manifest.json"; sourceTree = "<group>"; };
 		D0B100000000000000000001 /* DayObjectSceneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectSceneTests.swift; sourceTree = "<group>"; };
+		D0F100000000000000000001 /* DayObjectsLabMusicViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLabMusicViewModelTests.swift; sourceTree = "<group>"; };
 		91F0A0013100000000000001 /* AppTypographyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppTypographyTests.swift; path = Steps4Tests/AppTypographyTests.swift; sourceTree = SOURCE_ROOT; };
 		91F0A0033100000000000003 /* Unbounded[wght].ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Unbounded[wght].ttf"; sourceTree = "<group>"; };
 		91F0A0053100000000000005 /* Unbounded-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Unbounded-OFL.txt"; sourceTree = "<group>"; };
@@ -1065,6 +1071,7 @@
 		D0A0D1000000000000000011 /* Sound */ = {
 			isa = PBXGroup;
 			children = (
+				D0F100000000000000000010 /* Playback */,
 				D0E100000000000000000010 /* Director */,
 				D0D400000000000000000010 /* Engine */,
 				D0C300000000000000000010 /* Domain */,
@@ -1072,6 +1079,14 @@
 				D0A0D1000000000000000012 /* Resources */,
 			);
 			path = Sound;
+			sourceTree = "<group>";
+		};
+		D0F100000000000000000010 /* Playback */ = {
+			isa = PBXGroup;
+			children = (
+				D0F100000000000000000003 /* DayObjectsLabMusicState.swift */,
+			);
+			path = Playback;
 			sourceTree = "<group>";
 		};
 		D0E100000000000000000010 /* Director */ = {
@@ -1122,6 +1137,7 @@
 		D0D900000000000000000010 /* Lab */ = {
 			isa = PBXGroup;
 			children = (
+				D0F100000000000000000005 /* DayObjectsLabMusicViewModel.swift */,
 				D0D900000000000000000001 /* DayObjectsInstrumentAuditionController.swift */,
 				D0DA00000000000000000001 /* DayObjectsInstrumentAuditionView.swift */,
 			);
@@ -1695,6 +1711,7 @@
 				D0C300000000000000000001 /* DayObjectsInstrumentManifestTests.swift */,
 				D0C300000000000000000003 /* SynthOnePresetAdapterTests.swift */,
 				D0A0D1000000000000000001 /* DayObjectsAudioResourceTests.swift */,
+				D0F100000000000000000001 /* DayObjectsLabMusicViewModelTests.swift */,
 				D0B100000000000000000001 /* DayObjectSceneTests.swift */,
 				D0B100000000000000000003 /* DayObjectPaletteTests.swift */,
 				D0B100000000000000000005 /* DayObjectChoreographyTests.swift */,
@@ -2116,6 +2133,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0F100000000000000000004 /* DayObjectsLabMusicState.swift in Sources */,
+				D0F100000000000000000006 /* DayObjectsLabMusicViewModel.swift in Sources */,
 				D0E800000000000000000008 /* DayMusicPlan.swift in Sources */,
 				D0E80000000000000000000A /* DeterministicMusicDirector.swift in Sources */,
 				D0E700000000000000000008 /* LeadPlan.swift in Sources */,
@@ -2438,6 +2457,7 @@
 				D0C300000000000000000002 /* DayObjectsInstrumentManifestTests.swift in Sources */,
 				D0C300000000000000000004 /* SynthOnePresetAdapterTests.swift in Sources */,
 				D0A0D1000000000000000002 /* DayObjectsAudioResourceTests.swift in Sources */,
+				D0F100000000000000000002 /* DayObjectsLabMusicViewModelTests.swift in Sources */,
 				D0B100000000000000000002 /* DayObjectSceneTests.swift in Sources */,
 				D0B100000000000000000004 /* DayObjectPaletteTests.swift in Sources */,
 				D0B100000000000000000006 /* DayObjectChoreographyTests.swift in Sources */,

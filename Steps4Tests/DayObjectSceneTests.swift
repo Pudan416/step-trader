@@ -102,6 +102,48 @@ final class DayObjectSceneTests: XCTestCase {
         XCTAssertLessThan(leadRegion.maxY, controls.minY)
         XCTAssertFalse(leadRegion.intersects(controls))
     }
+
+#if DEBUG || INTERNAL_BUILD
+    @MainActor
+    func testLabDayProgressMapsExactlyIntoSceneInput() {
+        let model = DayObjectsLabMusicViewModel()
+
+        for (steps, expectedMotion) in [(0.0, 0.25), (5_000.0, 0.625), (10_000.0, 1.0)] {
+            model.setSteps(steps)
+            XCTAssertEqual(
+                model.sceneInput(dayKey: "2026-08-20", reduceMotion: false).motionEnergy,
+                expectedMotion,
+                accuracy: 0.000_001
+            )
+        }
+
+        for (sleep, expectedClarity) in [(0.0, 0.35), (4.0, 0.625), (8.0, 0.90)] {
+            model.setSleepHours(sleep)
+            XCTAssertEqual(
+                model.sceneInput(dayKey: "2026-08-20", reduceMotion: false).visualClarity,
+                expectedClarity,
+                accuracy: 0.000_001
+            )
+        }
+    }
+
+    @MainActor
+    func testLabHappeningsRemainTheSceneEventSource() {
+        let model = DayObjectsLabMusicViewModel()
+        model.setHappeningCount(3)
+
+        let input = model.sceneInput(dayKey: "2026-08-20", reduceMotion: false)
+        let scene = DayObjectScene.make(input: input)
+
+        XCTAssertEqual(input.eventIDs, [
+            "lab-happening-01",
+            "lab-happening-02",
+            "lab-happening-03",
+        ])
+        XCTAssertFalse(scene.actors.isEmpty)
+        XCTAssertEqual(Set(scene.actors.map(\.eventID)), Set(input.eventIDs))
+    }
+#endif
 }
 
 final class DayObjectCompositionTests: XCTestCase {

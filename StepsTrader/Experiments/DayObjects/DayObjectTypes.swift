@@ -97,6 +97,37 @@ struct DayObjectSceneInput: Equatable {
     }
 }
 
+#if DEBUG || INTERNAL_BUILD
+extension DayObjectSceneInput {
+    /// Keeps lab day-to-visual mapping at the renderer's existing input boundary.
+    static func labPreview(
+        dayKey: String,
+        eventIDs: [String],
+        stepsProgress: Double,
+        sleepProgress: Double,
+        reduceMotion: Bool,
+        uiExclusionRegion: DayObjectNormalizedRect = .dayObjectsLabControls
+    ) -> DayObjectSceneInput {
+        let steps = clampedProgress(stepsProgress)
+        let sleep = clampedProgress(sleepProgress)
+        return DayObjectSceneInput(
+            dayKey: dayKey,
+            identity: "day-objects-lab",
+            eventIDs: eventIDs,
+            motionEnergy: 0.25 + 0.75 * steps,
+            visualClarity: 0.35 + 0.55 * sleep,
+            reduceMotion: reduceMotion,
+            uiExclusionRegion: uiExclusionRegion
+        )
+    }
+
+    private static func clampedProgress(_ value: Double) -> Double {
+        guard value.isFinite else { return 0 }
+        return min(max(value, 0), 1)
+    }
+}
+#endif
+
 struct DayObjectActorID: Hashable, Comparable {
     let eventID: String
     let memberIndex: Int

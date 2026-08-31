@@ -5,7 +5,7 @@ final class DayObjectsLabUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    func testLabExposesChoreographyControlsAndAddsEventsInPlace() throws {
+    func testLabExposesAutomaticDayControlsAndAddsHappeningsInPlace() throws {
         let app = XCUIApplication()
         app.launchArguments = [
             "-uiLab", "dayObjects",
@@ -14,10 +14,25 @@ final class DayObjectsLabUITests: XCTestCase {
         ]
         app.launch()
 
+        let stepsSlider = app.sliders["dayObjects.steps"]
+        let sleepSlider = app.sliders["dayObjects.sleep"]
         let happeningsSlider = app.sliders["dayObjects.happenings"]
-        XCTAssertTrue(happeningsSlider.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.sliders["dayObjects.motionEnergy"].exists)
-        XCTAssertTrue(app.sliders["dayObjects.visualClarity"].exists)
+        let spentSlider = app.sliders["dayObjects.spentColors"]
+        XCTAssertTrue(stepsSlider.waitForExistence(timeout: 5))
+        XCTAssertTrue(sleepSlider.exists)
+        XCTAssertTrue(happeningsSlider.exists)
+        XCTAssertTrue(spentSlider.exists)
+        XCTAssertTrue(String(describing: stepsSlider.value).contains("10,000 / 10,000 steps"))
+        XCTAssertTrue(String(describing: sleepSlider.value).contains("8 / 8 hours"))
+        XCTAssertTrue(String(describing: happeningsSlider.value).contains("8"))
+        XCTAssertTrue(String(describing: spentSlider.value).contains("Spent colors 0"))
+        XCTAssertFalse(app.sliders["dayObjects.motionEnergy"].exists)
+        XCTAssertFalse(app.sliders["dayObjects.visualClarity"].exists)
+
+        stepsSlider.adjust(toNormalizedSliderPosition: 0)
+        sleepSlider.adjust(toNormalizedSliderPosition: 0.5)
+        XCTAssertTrue(String(describing: stepsSlider.value).contains("0 / 10,000 steps"))
+        XCTAssertTrue(String(describing: sleepSlider.value).contains(" / 8 hours"))
 
         happeningsSlider.adjust(toNormalizedSliderPosition: 0)
         XCTAssertTrue(app.otherElements["dayObjects.canvas"].exists)
@@ -32,7 +47,6 @@ final class DayObjectsLabUITests: XCTestCase {
         add(zeroEventScreenshot)
 
         happeningsSlider.adjust(toNormalizedSliderPosition: 0.5)
-        app.sliders["dayObjects.visualClarity"].adjust(toNormalizedSliderPosition: 1)
 
         XCTAssertTrue(app.otherElements["dayObjects.canvas"].exists)
         let populatedFigureCount = XCTNSPredicateExpectation(
@@ -60,6 +74,39 @@ final class DayObjectsLabUITests: XCTestCase {
         gridScreenshot.name = "task-10-day-objects-grid"
         gridScreenshot.lifetime = .keepAlways
         add(gridScreenshot)
+    }
+
+    func testLabExposesRemixSummaryAndCollapsedFineTuning() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-uiLab", "dayObjects",
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        let fineTuning = app.buttons["dayObjects.fineTuning"]
+        let diagnostics = app.buttons["dayObjects.instrumentDiagnostics"]
+        XCTAssertTrue(fineTuning.waitForExistence(timeout: 5))
+        XCTAssertTrue(diagnostics.exists)
+        XCTAssertLessThan(fineTuning.frame.minY, diagnostics.frame.minY)
+        XCTAssertFalse(app.sliders["dayObjects.motionEnergy"].exists)
+        XCTAssertFalse(app.sliders["dayObjects.visualClarity"].exists)
+
+        XCTAssertTrue(app.buttons["dayObjects.remix"].exists)
+        XCTAssertTrue(app.staticTexts["dayObjects.worldSummary"].exists)
+
+        fineTuning.tap()
+        let motion = app.sliders["dayObjects.motionEnergy"]
+        let reset = app.buttons["dayObjects.fineTuning.reset"]
+        XCTAssertTrue(motion.waitForExistence(timeout: 2))
+        XCTAssertTrue(app.sliders["dayObjects.visualClarity"].exists)
+        XCTAssertTrue(reset.exists)
+
+        motion.adjust(toNormalizedSliderPosition: 0)
+        XCTAssertTrue(String(describing: motion.value).contains("0.00"))
+        reset.tap()
+        XCTAssertTrue(String(describing: motion.value).contains("1.00"))
     }
 
     func testLabControlsAbsoluteSpentColorsInSingleAndGridModes() throws {
@@ -103,7 +150,12 @@ final class DayObjectsLabUITests: XCTestCase {
         app.launchArguments = ["-uiLab", "dayObjects", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
 
-        XCTAssertTrue(app.buttons["dayObjects.audition.category"].waitForExistence(timeout: 5))
+        let diagnostics = app.buttons["dayObjects.instrumentDiagnostics"]
+        XCTAssertTrue(diagnostics.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["dayObjects.audition.category"].exists)
+        diagnostics.tap()
+
+        XCTAssertTrue(app.buttons["dayObjects.audition.category"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.buttons["dayObjects.audition.preset"].exists)
         XCTAssertTrue(app.switches["dayObjects.audition.sound"].exists)
         XCTAssertEqual(app.switches["dayObjects.audition.sound"].value as? String, "0")
@@ -127,6 +179,10 @@ final class DayObjectsLabUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-uiLab", "dayObjects", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
+
+        let diagnostics = app.buttons["dayObjects.instrumentDiagnostics"]
+        XCTAssertTrue(diagnostics.waitForExistence(timeout: 5))
+        diagnostics.tap()
 
         let sound = app.switches["dayObjects.audition.sound"]
         let note = app.buttons["dayObjects.audition.note"]
