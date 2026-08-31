@@ -15,18 +15,28 @@ final class HarmonyPlayer {
         case piano(pool: DayObjectsPianoPoolProtocol, token: DayObjectsFeltPianoToken)
 
         func setExpression(_ expression: Double) {
+            update(expression: expression, delaySend: nil, reverbSend: nil)
+        }
+
+        func update(expression: Double?, delaySend: Double?, reverbSend: Double?) {
             switch self {
             case let .tonal(pool, token):
-                pool.update(token, with: .init(expression: expression))
+                pool.update(token, with: .init(
+                    expression: expression,
+                    delaySend: delaySend,
+                    reverbSend: reverbSend
+                ))
             case let .piano(pool, token):
-                pool.updateExpression(token, expression: expression)
+                pool.update(token, with: .init(
+                    expression: expression,
+                    roomSend: delaySend,
+                    reverbSend: reverbSend
+                ))
             }
         }
 
         func updateEffects(delaySend: Double, reverbSend: Double) {
-            if case let .tonal(pool, token) = self {
-                pool.update(token, with: .init(delaySend: delaySend, reverbSend: reverbSend))
-            }
+            update(expression: nil, delaySend: delaySend, reverbSend: reverbSend)
         }
 
         func release() {
@@ -50,7 +60,9 @@ final class HarmonyPlayer {
         let totalNewVoiceCount: Int
         let startSubdivision: Int64
         let endSubdivision: Int64
-        var didOpenStagedVoices = false
+        let totalStagedVoiceCount: Int
+        var completedStagedVoiceCount = 0
+        var isCurrentStagedVoiceOpened = false
     }
 
     private struct GainRamp {
@@ -135,9 +147,8 @@ final class HarmonyPlayer {
             roles[index].plan = patched
             patchedRoles.append(patched)
             let target = Self.unit(update.gain)
-            if target == 0 {
-                deactivateRole(at: index)
-            } else if target != roles[index].currentGain {
+            if target != roles[index].currentGain {
+                if target == 0 { flattenTransitionForDeactivation(at: index) }
                 roles[index].gainRamp = .init(
                     startGain: roles[index].currentGain,
                     targetGain: target,
@@ -172,6 +183,7 @@ final class HarmonyPlayer {
         let cycleBar = Int(event.position.bar % Int64(max(1, plan.cycleBars)))
         for index in roles.indices {
             guard roles[index].currentGain > 0,
+                  Self.unit(roles[index].plan.gain) > 0,
                   roles[index].plan.role != .innerMotion,
                   roles[index].lastScheduledAbsoluteBar != event.position.bar,
                   let chord = roles[index].plan.chordSchedule.first(where: { $0.startBar == cycleBar })
@@ -219,7 +231,8 @@ final class HarmonyPlayer {
             initiallyOpenedVoiceCount: newVoices.count,
             totalNewVoiceCount: min(chord.voicedMIDINotes.count, capacity),
             startSubdivision: subdivision,
-            endSubdivision: subdivision + duration
+            endSubdivision: subdivision + duration,
+            totalStagedVoiceCount: stagedNotes.count
         )
         if !newVoices.isEmpty || !stagedNotes.isEmpty { scheduledChordCount += 1 }
     }
@@ -236,35 +249,38 @@ final class HarmonyPlayer {
                 roleGain: roles[index].currentGain,
                 voiceCount: transition.totalNewVoiceCount
             )
-            if !transition.stagedNotes.isEmpty {
-                transition.oldVoices.forEach {
-                    $0.token.setExpression(target * max(0, 1 - (2 * progress)))
-                }
+            if transition.totalStagedVoiceCount > 0 {
                 transition.newVoices.prefix(transition.initiallyOpenedVoiceCount).forEach {
                     $0.token.setExpression(target * progress)
                 }
-                if progress >= 0.5, !transition.didOpenStagedVoices {
-                    transition.oldVoices.forEach { $0.token.release() }
-                    transition.oldVoices.removeAll(keepingCapacity: true)
-                    let staged = openVoices(
-                        transition.stagedNotes,
-                        for: roles[index].plan,
-                        expression: 0
-                    )
-                    transition.newVoices.append(contentsOf: staged)
-                    roles[index].activeVoices.append(contentsOf: staged)
-                    transition.stagedNotes.removeAll(keepingCapacity: true)
-                    transition.didOpenStagedVoices = true
+                let scaledProgress = progress * Double(transition.totalStagedVoiceCount)
+                let completedTarget = min(
+                    Int(floor(scaledProgress)),
+                    transition.totalStagedVoiceCount
+                )
+                while transition.completedStagedVoiceCount < completedTarget {
+                    if !transition.isCurrentStagedVoiceOpened {
+                        openNextStagedVoice(in: &transition, forRoleAt: index)
+                    }
+                    transition.newVoices.last?.token.setExpression(target)
+                    transition.completedStagedVoiceCount += 1
+                    transition.isCurrentStagedVoiceOpened = false
+                }
+                if transition.completedStagedVoiceCount < transition.totalStagedVoiceCount {
+                    let localProgress = scaledProgress - Double(transition.completedStagedVoiceCount)
+                    transition.oldVoices.dropFirst().forEach { $0.token.setExpression(target) }
+                    if localProgress < 0.5 {
+                        transition.oldVoices.first?.token.setExpression(target * (1 - (2 * localProgress)))
+                    } else {
+                        if !transition.isCurrentStagedVoiceOpened {
+                            openNextStagedVoice(in: &transition, forRoleAt: index)
+                        }
+                        transition.newVoices.last?.token.setExpression(target * ((2 * localProgress) - 1))
+                    }
                 }
             } else {
                 transition.oldVoices.forEach { $0.token.setExpression(target * (1 - progress)) }
                 transition.newVoices.forEach { $0.token.setExpression(target * progress) }
-            }
-            if transition.didOpenStagedVoices {
-                let stagedFactor = max(0, min(1, (2 * progress) - 1))
-                transition.newVoices.dropFirst(transition.initiallyOpenedVoiceCount).forEach {
-                    $0.token.setExpression(target * stagedFactor)
-                }
             }
             if progress >= 1 {
                 transition.oldVoices.forEach { $0.token.release() }
@@ -275,6 +291,19 @@ final class HarmonyPlayer {
                 roles[index].transition = transition
             }
         }
+    }
+
+    private func openNextStagedVoice(in transition: inout ChordTransition, forRoleAt index: Int) {
+        guard let old = transition.oldVoices.first,
+              let note = transition.stagedNotes.first
+        else { return }
+        old.token.release()
+        transition.oldVoices.removeFirst()
+        transition.stagedNotes.removeFirst()
+        let opened = openVoices([note], for: roles[index].plan, expression: 0)
+        transition.newVoices.append(contentsOf: opened)
+        roles[index].activeVoices.append(contentsOf: opened)
+        transition.isCurrentStagedVoiceOpened = !opened.isEmpty
     }
 
     private func openVoices(
@@ -333,13 +362,10 @@ final class HarmonyPlayer {
         roles[index].transition = nil
     }
 
-    private func deactivateRole(at index: Int) {
-        roles[index].activeVoices.forEach { $0.token.setExpression(0); $0.token.release() }
-        roles[index].transition?.oldVoices.forEach { $0.token.setExpression(0); $0.token.release() }
-        roles[index].activeVoices.removeAll(keepingCapacity: true)
+    private func flattenTransitionForDeactivation(at index: Int) {
+        guard let transition = roles[index].transition else { return }
+        roles[index].activeVoices = transition.oldVoices + transition.newVoices
         roles[index].transition = nil
-        roles[index].gainRamp = nil
-        roles[index].currentGain = 0
     }
 
     private func advanceGainRamps(at subdivision: Int64) {
@@ -357,9 +383,21 @@ final class HarmonyPlayer {
                     roleGain: gain,
                     voiceCount: roles[index].activeVoices.count
                 )
-                roles[index].activeVoices.forEach { $0.token.setExpression(voiceGain) }
+                roles[index].activeVoices.forEach {
+                    $0.token.update(
+                        expression: voiceGain,
+                        delaySend: roles[index].plan.delaySend,
+                        reverbSend: roles[index].plan.reverbSend
+                    )
+                }
             }
-            if progress >= 1 { roles[index].gainRamp = nil }
+            if progress >= 1 {
+                roles[index].gainRamp = nil
+                if ramp.targetGain == 0 {
+                    roles[index].activeVoices.forEach { $0.token.release() }
+                    roles[index].activeVoices.removeAll(keepingCapacity: true)
+                }
+            }
         }
     }
 

@@ -1,6 +1,7 @@
 #if DEBUG || INTERNAL_BUILD
 import AudioKit
 import AudioKitEX
+import AudioToolbox
 import Foundation
 import SoundpipeAudioKit
 
@@ -60,6 +61,18 @@ struct DayObjectsPianoNoteRequest: Equatable, Sendable {
     let releaseSeconds: Double
     let roomSend: Double
     let reverbSend: Double
+}
+
+struct DayObjectsPianoVoiceUpdate: Equatable, Sendable {
+    let expression: Double?
+    let roomSend: Double?
+    let reverbSend: Double?
+
+    init(expression: Double? = nil, roomSend: Double? = nil, reverbSend: Double? = nil) {
+        self.expression = expression
+        self.roomSend = roomSend
+        self.reverbSend = reverbSend
+    }
 }
 
 struct DayObjectsFeltPianoToken: Hashable, Sendable {
@@ -199,11 +212,17 @@ final class DayObjectsFeltPiano {
     }
 
     func updateExpression(_ token: DayObjectsFeltPianoToken, expression: Double) {
+        update(token, with: .init(expression: expression))
+    }
+
+    func update(_ token: DayObjectsFeltPianoToken, with update: DayObjectsPianoVoiceUpdate) {
         guard slots.indices.contains(token.slotID),
               slots[token.slotID].isActive,
               slots[token.slotID].generation == token.generation
         else { return }
-        slots[token.slotID].backend.setExpression(min(max(expression, 0), 1))
+        if let expression = update.expression {
+            slots[token.slotID].backend.setExpression(min(max(expression, 0), 1))
+        }
     }
 
     @discardableResult
@@ -240,6 +259,8 @@ final class DayObjectsAudioKitFeltPiano {
     let reverb: Reverb
     private let backends: [DayObjectsAudioKitFeltPianoBackend]
     private let sampleCount: Int
+    private var targetRoomSend: Double
+    private var targetReverbSend: Double
 
     var metrics: DayObjectsAudioKitFeltPianoMetrics {
         let backendMetrics = backends.map(\.metrics)
@@ -253,6 +274,9 @@ final class DayObjectsAudioKitFeltPiano {
             releaseTailBackendCount: backendMetrics.filter(\.isReleasing).count,
             lastPlayedRootMIDINote: mostRecent?.lastPlayedRootMIDINote,
             lastPlayedPitchCents: mostRecent?.lastPlayedPitchCents,
+            activeExpression: mostRecent?.targetExpression,
+            targetRoomSend: targetRoomSend,
+            targetReverbSend: targetReverbSend,
             appliedRecipe: .init(
                 backend: backends.first,
                 room: room,
@@ -270,6 +294,8 @@ final class DayObjectsAudioKitFeltPiano {
         var builtBackends: [DayObjectsAudioKitFeltPianoBackend] = []
         var nextPlaybackOrder: UInt64 = 0
         sampleCount = samples.count
+        targetRoomSend = min(max(recipe.roomSend, 0), 1)
+        targetReverbSend = min(max(recipe.reverbSend, 0), 1)
         piano = DayObjectsFeltPiano(samples: samples, recipe: recipe, resourceResolver: resourceResolver) { recipe, sampleURLs in
             let backend = try DayObjectsAudioKitFeltPianoBackend(recipe: recipe, sampleURLs: sampleURLs, bufferedPlayerLoader: bufferedPlayerLoader) {
                 nextPlaybackOrder &+= 1
@@ -284,6 +310,33 @@ final class DayObjectsAudioKitFeltPiano {
         room = Reverb(dry, dryWetMix: AUValue(piano.recipe.roomSend))
         reverb = Reverb(room, dryWetMix: AUValue(piano.recipe.reverbSend))
         output = Mixer([reverb], name: "Day Objects felt piano")
+    }
+
+    func rampEffects(roomSend: Double?, reverbSend: Double?) {
+        let duration = AUAudioFrameCount(DayObjectsAudioParameters.controlRampDuration * Settings.sampleRate)
+        if let roomSend {
+            targetRoomSend = min(max(roomSend, 0), 1)
+            room.avAudioNode.auAudioUnit.scheduleParameterBlock(
+                AUEventSampleTimeImmediate,
+                duration,
+                0,
+                AUValue(min(max(roomSend, 0), 1) * 100)
+            )
+        }
+        if let reverbSend {
+            targetReverbSend = min(max(reverbSend, 0), 1)
+            reverb.avAudioNode.auAudioUnit.scheduleParameterBlock(
+                AUEventSampleTimeImmediate,
+                duration,
+                0,
+                AUValue(min(max(reverbSend, 0), 1) * 100)
+            )
+        }
+    }
+
+    func update(_ token: DayObjectsFeltPianoToken, with update: DayObjectsPianoVoiceUpdate) {
+        piano.update(token, with: update)
+        rampEffects(roomSend: update.roomSend, reverbSend: update.reverbSend)
     }
 }
 
@@ -319,6 +372,7 @@ struct DayObjectsAudioKitFeltPianoBackendMetrics: Equatable, Sendable {
     let lastPlayedRootMIDINote: UInt8?
     let lastPlayedPitchCents: Double?
     let lastPlayOrder: UInt64
+    let targetExpression: Double
 }
 
 struct DayObjectsAudioKitFeltPianoMetrics: Equatable, Sendable {
@@ -330,6 +384,9 @@ struct DayObjectsAudioKitFeltPianoMetrics: Equatable, Sendable {
     let releaseTailBackendCount: Int
     let lastPlayedRootMIDINote: UInt8?
     let lastPlayedPitchCents: Double?
+    let activeExpression: Double?
+    let targetRoomSend: Double
+    let targetReverbSend: Double
     let appliedRecipe: DayObjectsFeltPianoAppliedRecipe
 }
 
@@ -347,6 +404,7 @@ private final class DayObjectsAudioKitFeltPianoBackend: DayObjectsFeltPianoBacke
     private(set) var lastPlayedRootMIDINote: UInt8?
     private(set) var lastPlayedPitchCents: Double?
     private(set) var lastPlayOrder: UInt64 = 0
+    private(set) var targetExpression = 0.0
     private let nextPlaybackOrder: () -> UInt64
     private let noteTrimLinear: AUValue
 
@@ -366,7 +424,8 @@ private final class DayObjectsAudioKitFeltPianoBackend: DayObjectsFeltPianoBacke
             isReleasing: isReleasing,
             lastPlayedRootMIDINote: lastPlayedRootMIDINote,
             lastPlayedPitchCents: lastPlayedPitchCents,
-            lastPlayOrder: lastPlayOrder
+            lastPlayOrder: lastPlayOrder,
+            targetExpression: targetExpression
         )
     }
 
@@ -418,7 +477,8 @@ private final class DayObjectsAudioKitFeltPianoBackend: DayObjectsFeltPianoBacke
     }
 
     func setExpression(_ expression: Double) {
-        let target = noteTrimLinear * AUValue(min(max(expression, 0), 1))
+        targetExpression = min(max(expression, 0), 1)
+        let target = noteTrimLinear * AUValue(targetExpression)
         output.$leftGain.ramp(to: target, duration: Float(DayObjectsAudioParameters.controlRampDuration))
         output.$rightGain.ramp(to: target, duration: Float(DayObjectsAudioParameters.controlRampDuration))
     }

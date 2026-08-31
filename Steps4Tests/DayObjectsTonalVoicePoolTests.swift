@@ -222,6 +222,25 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
         XCTAssertEqual(harness.voices.reduce(0) { $0 + $1.noteOffCallCount }, 2)
     }
 
+    func testPoolPassesTheNotesAbsoluteRoleReleaseToTheRealVoiceBackend() throws {
+        let harness = makeHarness()
+        try harness.pool.prepareInstrument(firstID)
+        let token = try XCTUnwrap(harness.pool.noteOn(.init(
+            instrumentID: firstID,
+            midiNote: 60,
+            velocity: 0.5,
+            role: .note,
+            envelopeVariant: .absolute(attackSeconds: 1.25, releaseSeconds: 2.75),
+            pan: 0,
+            delaySend: 0.2,
+            reverbSend: 0.5
+        )))
+
+        harness.pool.noteOff(token)
+
+        XCTAssertEqual(harness.voices.flatMap(\.receivedReleaseSeconds), [2.75])
+    }
+
     func testOneHundredPresetSwitchesNeverLeaveAStaleGate() throws {
         let harness = makeHarness(instrumentProvider: { _ in Self.safeVoice })
         try harness.pool.prepareInstrument(firstID)
@@ -444,6 +463,7 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
         private(set) var presetTransitions: [TimeInterval] = []
         private(set) var noteOnCallCount = 0
         private(set) var noteOffCallCount = 0
+        private(set) var receivedReleaseSeconds: [TimeInterval] = []
         private(set) var lastStart: DayObjectsTonalNoteRequest?
         private(set) var lastUpdate: DayObjectsVoiceUpdate?
 
@@ -473,6 +493,11 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
             guard isGateOpen else { return }
             isGateOpen = false
             noteOffCallCount += 1
+        }
+
+        func noteOff(releaseSeconds: TimeInterval?) {
+            if let releaseSeconds { receivedReleaseSeconds.append(releaseSeconds) }
+            noteOff()
         }
     }
 

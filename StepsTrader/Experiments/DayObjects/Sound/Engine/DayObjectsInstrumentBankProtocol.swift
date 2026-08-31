@@ -34,6 +34,7 @@ protocol DayObjectsPianoPoolProtocol: AnyObject {
     func noteOn(_ midiNote: UInt8, velocity: Double) -> DayObjectsFeltPianoToken?
     func noteOn(_ request: DayObjectsPianoNoteRequest) -> DayObjectsFeltPianoToken?
     func updateExpression(_ token: DayObjectsFeltPianoToken, expression: Double)
+    func update(_ token: DayObjectsFeltPianoToken, with update: DayObjectsPianoVoiceUpdate)
     func noteOff(_ token: DayObjectsFeltPianoToken)
     func releaseAll()
 }
@@ -44,6 +45,12 @@ extension DayObjectsPianoPoolProtocol {
     }
 
     func updateExpression(_ token: DayObjectsFeltPianoToken, expression: Double) {}
+
+    func update(_ token: DayObjectsFeltPianoToken, with update: DayObjectsPianoVoiceUpdate) {
+        if let expression = update.expression {
+            updateExpression(token, expression: expression)
+        }
+    }
 }
 
 enum DayObjectsInstrumentBankPreparationStage: String, CaseIterable, Equatable, Sendable {

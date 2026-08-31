@@ -516,12 +516,16 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
     }
 
     func noteOff() {
+        noteOff(releaseSeconds: nil)
+    }
+
+    func noteOff(releaseSeconds: TimeInterval?) {
         controlExecutor.sync {
-            noteOffOnControlExecutor()
+            noteOffOnControlExecutor(releaseSeconds: releaseSeconds)
         }
     }
 
-    private func noteOffOnControlExecutor() {
+    private func noteOffOnControlExecutor(releaseSeconds requestedReleaseSeconds: TimeInterval? = nil) {
         assertOnControlExecutor()
         if modulationLifecycle.noteOff(isGraphAttached: isGraphAttached) {
             stopModulation()
@@ -530,8 +534,13 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
         }
         guard isGateOpen else { return }
         defer { isGateOpen = false }
+        let release = min(max(
+            requestedReleaseSeconds
+                ?? Double(amplitudeEnvelope.releaseDuration),
+            0
+        ), 30)
+        amplitudeEnvelope.releaseDuration = value(release)
         amplitudeEnvelope.closeGate()
-        let release = currentPreset?.amplitudeEnvelope.releaseSeconds ?? 0.05
         rampOutput(expression: 0, pan: pan, duration: Float(release))
         releaseStartedAt = Date.timeIntervalSinceReferenceDate
         releaseStartEnvelopeLevel = currentFilterEnvelopeLevel

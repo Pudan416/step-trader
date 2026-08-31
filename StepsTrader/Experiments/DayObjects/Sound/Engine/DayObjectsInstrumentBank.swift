@@ -328,6 +328,9 @@ private final class DayObjectsAudioKitPianoPoolAdapter: DayObjectsPianoPoolProto
     func updateExpression(_ token: DayObjectsFeltPianoToken, expression: Double) {
         adapter.piano.updateExpression(token, expression: expression)
     }
+    func update(_ token: DayObjectsFeltPianoToken, with update: DayObjectsPianoVoiceUpdate) {
+        adapter.update(token, with: update)
+    }
     func noteOff(_ token: DayObjectsFeltPianoToken) { _ = adapter.piano.noteOff(token) }
     func releaseAll() { adapter.piano.stop() }
 }

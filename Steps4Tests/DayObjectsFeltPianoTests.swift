@@ -242,6 +242,29 @@ final class DayObjectsFeltPianoTests: XCTestCase {
         XCTAssertEqual(adapter.metrics.loadedPlayerCount, baseline.loadedPlayerCount)
     }
 
+    func testAudioKitAdapterAppliesTypedContinuousExpressionAndRampsBothEffectSends() throws {
+        let samples = try FeltPianoManifest.load(from: Bundle(for: type(of: self)))
+        let adapter = DayObjectsAudioKitFeltPiano(samples: samples, resourceResolver: bundledURL)
+        let token = try XCTUnwrap(adapter.piano.noteOn(.init(
+            midiNote: 60,
+            velocity: 0.2,
+            attackSeconds: 0.8,
+            releaseSeconds: 1.6,
+            roomSend: 0.15,
+            reverbSend: 0.25
+        )))
+
+        adapter.update(token, with: .init(
+            expression: 0.45,
+            roomSend: 0.6,
+            reverbSend: 0.75
+        ))
+
+        XCTAssertEqual(adapter.metrics.activeExpression, 0.45)
+        XCTAssertEqual(adapter.metrics.targetRoomSend, 0.6)
+        XCTAssertEqual(adapter.metrics.targetReverbSend, 0.75)
+    }
+
     func testAudioKitBackendRejectsActualNilAndEmptyBufferedPlayersBeforeEnablingPiano() throws {
         let samples = try FeltPianoManifest.load(from: Bundle(for: type(of: self)))
         let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1))

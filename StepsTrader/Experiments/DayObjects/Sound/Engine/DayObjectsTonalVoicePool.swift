@@ -55,6 +55,11 @@ protocol DayObjectsTonalVoiceBackend: AnyObject {
     func noteOn(_ request: DayObjectsTonalNoteRequest)
     func update(_ update: DayObjectsVoiceUpdate)
     func noteOff()
+    func noteOff(releaseSeconds: TimeInterval?)
+}
+
+extension DayObjectsTonalVoiceBackend {
+    func noteOff(releaseSeconds: TimeInterval?) { noteOff() }
 }
 
 final class DayObjectsTonalVoicePool {
@@ -80,6 +85,7 @@ final class DayObjectsTonalVoicePool {
         var activationOrder: UInt64 = 0
         var role: DayObjectsTonalVoiceRole?
         var midiNote = 60.0
+        var releaseSeconds: TimeInterval?
     }
 
     private let poolID = UUID()
@@ -127,6 +133,7 @@ final class DayObjectsTonalVoicePool {
         slots[slotID].activationOrder = activationCounter
         slots[slotID].role = request.role
         slots[slotID].midiNote = Double(request.midiNote)
+        slots[slotID].releaseSeconds = request.envelopeVariant?.absoluteReleaseSeconds
         slots[slotID].backend.noteOn(request)
 
         return DayObjectsVoiceToken(
@@ -202,8 +209,9 @@ final class DayObjectsTonalVoicePool {
 
     private func release(slotID: Int) {
         guard slots[slotID].role != nil else { return }
-        slots[slotID].backend.noteOff()
+        slots[slotID].backend.noteOff(releaseSeconds: slots[slotID].releaseSeconds)
         slots[slotID].role = nil
+        slots[slotID].releaseSeconds = nil
     }
 }
 #endif
