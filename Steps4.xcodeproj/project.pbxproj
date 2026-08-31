@@ -33,6 +33,9 @@
 		D0D500000000000000000014 /* DayObjectsDrumBank.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D500000000000000000013 /* DayObjectsDrumBank.swift */; };
 		D0D600000000000000000002 /* DayObjectsFeltPianoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D600000000000000000001 /* DayObjectsFeltPianoTests.swift */; };
 		D0D700000000000000000002 /* DayObjectsInstrumentBankTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D700000000000000000001 /* DayObjectsInstrumentBankTests.swift */; };
+		D0D800000000000000000002 /* DayObjectsInstrumentAuditionControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D800000000000000000001 /* DayObjectsInstrumentAuditionControllerTests.swift */; };
+		D0D900000000000000000002 /* DayObjectsInstrumentAuditionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D900000000000000000001 /* DayObjectsInstrumentAuditionController.swift */; };
+		D0DA00000000000000000002 /* DayObjectsInstrumentAuditionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DA00000000000000000001 /* DayObjectsInstrumentAuditionView.swift */; };
 		D0D600000000000000000012 /* FeltPianoManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D600000000000000000011 /* FeltPianoManifest.swift */; };
 		D0D600000000000000000014 /* DayObjectsFeltPiano.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D600000000000000000013 /* DayObjectsFeltPiano.swift */; };
 		D0D700000000000000000012 /* DayObjectsInstrumentBankProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D700000000000000000011 /* DayObjectsInstrumentBankProtocol.swift */; };
@@ -485,6 +488,9 @@
 		D0D500000000000000000013 /* DayObjectsDrumBank.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsDrumBank.swift; sourceTree = "<group>"; };
 		D0D600000000000000000001 /* DayObjectsFeltPianoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsFeltPianoTests.swift; sourceTree = "<group>"; };
 		D0D700000000000000000001 /* DayObjectsInstrumentBankTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsInstrumentBankTests.swift; sourceTree = "<group>"; };
+		D0D800000000000000000001 /* DayObjectsInstrumentAuditionControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsInstrumentAuditionControllerTests.swift; sourceTree = "<group>"; };
+		D0D900000000000000000001 /* DayObjectsInstrumentAuditionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsInstrumentAuditionController.swift; sourceTree = "<group>"; };
+		D0DA00000000000000000001 /* DayObjectsInstrumentAuditionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsInstrumentAuditionView.swift; sourceTree = "<group>"; };
 		D0D600000000000000000011 /* FeltPianoManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeltPianoManifest.swift; sourceTree = "<group>"; };
 		D0D600000000000000000013 /* DayObjectsFeltPiano.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsFeltPiano.swift; sourceTree = "<group>"; };
 		D0D700000000000000000011 /* DayObjectsInstrumentBankProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsInstrumentBankProtocol.swift; sourceTree = "<group>"; };
@@ -981,6 +987,7 @@
 			children = (
 				D0D400000000000000000010 /* Engine */,
 				D0C300000000000000000010 /* Domain */,
+				D0D900000000000000000010 /* Lab */,
 				D0A0D1000000000000000012 /* Resources */,
 			);
 			path = Sound;
@@ -998,6 +1005,15 @@
 				D0D700000000000000000013 /* DayObjectsInstrumentBank.swift */,
 			);
 			path = Engine;
+			sourceTree = "<group>";
+		};
+		D0D900000000000000000010 /* Lab */ = {
+			isa = PBXGroup;
+			children = (
+				D0D900000000000000000001 /* DayObjectsInstrumentAuditionController.swift */,
+				D0DA00000000000000000001 /* DayObjectsInstrumentAuditionView.swift */,
+			);
+			path = Lab;
 			sourceTree = "<group>";
 		};
 		D0C300000000000000000010 /* Domain */ = {
@@ -1543,6 +1559,7 @@
 		T1E5T5A12E71A18F00ABF5FA /* Steps4Tests */ = {
 			isa = PBXGroup;
 			children = (
+				D0D800000000000000000001 /* DayObjectsInstrumentAuditionControllerTests.swift */,
 				D0D400000000000000000001 /* DayObjectsTonalVoicePoolTests.swift */,
 				D0D500000000000000000001 /* DayObjectsDrumBankTests.swift */,
 				D0D600000000000000000001 /* DayObjectsFeltPianoTests.swift */,
@@ -1970,6 +1987,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0DA00000000000000000002 /* DayObjectsInstrumentAuditionView.swift in Sources */,
+				D0D900000000000000000002 /* DayObjectsInstrumentAuditionController.swift in Sources */,
 				D0D400000000000000000012 /* DayObjectsTonalVoice.swift in Sources */,
 				D0D400000000000000000014 /* DayObjectsTonalVoicePool.swift in Sources */,
 				D0D400000000000000000016 /* DayObjectsAudioParameters.swift in Sources */,
@@ -2243,6 +2262,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0D800000000000000000002 /* DayObjectsInstrumentAuditionControllerTests.swift in Sources */,
 				D0D400000000000000000002 /* DayObjectsTonalVoicePoolTests.swift in Sources */,
 				D0D500000000000000000002 /* DayObjectsDrumBankTests.swift in Sources */,
 				D0D600000000000000000002 /* DayObjectsFeltPianoTests.swift in Sources */,

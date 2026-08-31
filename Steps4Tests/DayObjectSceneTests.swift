@@ -94,6 +94,14 @@ final class DayObjectSceneTests: XCTestCase {
         XCTAssertEqual(scene.input.uiExclusionRegion, custom)
         XCTAssertEqual(scene.compositionPlan.uiExclusionRegion, custom)
     }
+
+    func testLeadAuditionRegionEndsBeforeTheLabControls() {
+        let leadRegion = DayObjectNormalizedRect.dayObjectsLeadAudition
+        let controls = DayObjectNormalizedRect.dayObjectsLabControls
+
+        XCTAssertLessThan(leadRegion.maxY, controls.minY)
+        XCTAssertFalse(leadRegion.intersects(controls))
+    }
 }
 
 final class DayObjectCompositionTests: XCTestCase {

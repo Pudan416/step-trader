@@ -14,6 +14,14 @@ struct DayObjectNormalizedRect: Equatable {
         maxY: 1
     )
 
+    /// The unobscured canvas area reserved for opt-in Lead audition gestures.
+    static let dayObjectsLeadAudition = DayObjectNormalizedRect(
+        minX: 0,
+        minY: 0,
+        maxX: 1,
+        maxY: 0.57
+    )
+
     init(minX: Double, minY: Double, maxX: Double, maxY: Double) {
         let finiteMinX = minX.isFinite ? minX : 0
         let finiteMinY = minY.isFinite ? minY : 0
@@ -41,6 +49,23 @@ struct DayObjectNormalizedRect: Equatable {
     func intersects(_ other: DayObjectNormalizedRect) -> Bool {
         minX < other.maxX && maxX > other.minX
             && minY < other.maxY && maxY > other.minY
+    }
+}
+
+/// Finite, viewport-normalized coordinates shared by the visual canvas and
+/// optional manual audition surface.
+struct DayObjectNormalizedPoint: Equatable {
+    let x: Double
+    let y: Double
+
+    init(x: Double, y: Double) {
+        self.x = Self.clamped(x)
+        self.y = Self.clamped(y)
+    }
+
+    private static func clamped(_ value: Double) -> Double {
+        guard value.isFinite else { return 0 }
+        return min(max(value, 0), 1)
     }
 }
 

@@ -98,6 +98,22 @@ final class DayObjectsLabUITests: XCTestCase {
         attachScreenshot(named: "day-objects-glitch-grid-spent-100")
     }
 
+    func testLabExposesInstrumentAuditionControlsWithSoundOff() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiLab", "dayObjects", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+
+        XCTAssertTrue(app.buttons["dayObjects.audition.category"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["dayObjects.audition.preset"].exists)
+        XCTAssertTrue(app.switches["dayObjects.audition.sound"].exists)
+        XCTAssertEqual(app.switches["dayObjects.audition.sound"].value as? String, "0")
+        XCTAssertTrue(app.buttons["dayObjects.audition.note"].exists)
+        XCTAssertTrue(app.buttons["dayObjects.audition.chord"].exists)
+        XCTAssertTrue(app.buttons["dayObjects.audition.hit"].exists)
+        XCTAssertTrue(app.staticTexts["dayObjects.audition.attribution"].exists)
+        XCTAssertTrue(app.staticTexts["dayObjects.audition.diagnostics"].exists)
+    }
+
     private func attachScreenshot(named name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name

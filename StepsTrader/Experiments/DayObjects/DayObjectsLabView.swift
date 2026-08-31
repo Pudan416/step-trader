@@ -1,4 +1,6 @@
+import AVFAudio
 import SwiftUI
+import UIKit
 
 /// Interactive bench for the deterministic daily choreography.
 ///
@@ -9,6 +11,7 @@ struct DayObjectsLabView: View {
     static let uiExclusionRegion = DayObjectNormalizedRect.dayObjectsLabControls
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var dayOffset = 0
     @State private var happenings: Double = 8
@@ -17,10 +20,13 @@ struct DayObjectsLabView: View {
     @State private var spentColors: Double = 0
     @State private var showsGrid = false
     @State private var showControls = true
+    @StateObject private var audition = DayObjectsInstrumentAuditionController()
 
     private var dayKey: String {
         Self.dayKey(for: dayOffset)
     }
+
+    private var voiceOverEnabled: Bool { UIAccessibility.isVoiceOverRunning }
 
     private var happeningCount: Int {
         min(max(Int(happenings.rounded()), 0), DayObjectScene.maxActors)
@@ -51,11 +57,14 @@ struct DayObjectsLabView: View {
             if showsGrid {
                 grid
             } else {
-                DayObjectsView(
-                    sceneInput: currentSceneInput,
-                    digitalImpact: digitalImpact
-                )
+                ZStack {
+                    DayObjectsView(
+                        sceneInput: currentSceneInput,
+                        digitalImpact: digitalImpact
+                    )
                     .ignoresSafeArea()
+                    leadAuditionSurface
+                }
             }
 
             if showControls {
@@ -69,6 +78,14 @@ struct DayObjectsLabView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbarColorScheme(chromeColorScheme, for: .navigationBar)
+        .onDisappear { Task { await audition.stop() } }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { audition.handleForeground() }
+            else { Task { await audition.stop() } }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { _ in
+            Task { await audition.handleInterruption() }
+        }
     }
 
     // MARK: - Grid
@@ -108,7 +125,8 @@ struct DayObjectsLabView: View {
     // MARK: - Controls
 
     private var controls: some View {
-        VStack(spacing: 12) {
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(spacing: 12) {
             HStack(spacing: 10) {
                 Button {
                     dayOffset += showsGrid ? 15 : 1
@@ -154,15 +172,18 @@ struct DayObjectsLabView: View {
                 identifier: "dayObjects.visualClarity"
             )
             digitalImpactControls
+            DayObjectsInstrumentAuditionView(controller: audition)
 
-            if !showsGrid {
-                Text("\(dayKey) · \(currentScene.composition.summary)")
-                    .font(.geist(.caption2).monospaced())
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.white.opacity(0.6))
+                if !showsGrid {
+                    Text("\(dayKey) · \(currentScene.composition.summary)")
+                        .font(.geist(.caption2).monospaced())
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.white.opacity(0.6))
+                }
             }
+            .padding(16)
         }
-        .padding(16)
+        .frame(maxHeight: 420)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22))
         .padding(.horizontal, 12)
         .padding(.bottom, 60)
@@ -262,6 +283,31 @@ struct DayObjectsLabView: View {
             }
             Spacer()
         }
+    }
+
+    private var leadAuditionSurface: some View {
+        GeometryReader { geometry in
+            Color.clear
+                .contentShape(Rectangle())
+                .frame(
+                    width: geometry.size.width,
+                    height: geometry.size.height * DayObjectNormalizedRect.dayObjectsLeadAudition.maxY,
+                    alignment: .top
+                )
+                .gesture(DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        let point = DayObjectNormalizedPoint(
+                            x: value.location.x / max(geometry.size.width, 1),
+                            y: value.location.y / max(geometry.size.height, 1)
+                        )
+                        if value.translation == .zero { audition.beginLead(at: point) }
+                        else { audition.updateLead(at: point) }
+                    }
+                    .onEnded { _ in audition.endLead() }
+                )
+        }
+        .allowsHitTesting(!showsGrid && !voiceOverEnabled && audition.allowsLeadXY)
+        .accessibilityHidden(true)
     }
 
     private func sceneInput(for key: String) -> DayObjectSceneInput {
