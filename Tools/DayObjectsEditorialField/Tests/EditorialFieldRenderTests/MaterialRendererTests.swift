@@ -3966,6 +3966,148 @@ struct MaterialRendererTests {
         ))
     }
 
+    @Test("halo nucleus joins its aura without an inner-radius contrast ridge")
+    func haloNucleusHasBroadContinuousSceneScaleTransition() throws {
+        // Production regression caught here: compositing a separately sharpened
+        // compact body after actor-local depth blur creates a pasted-disc edge at
+        // the authored inner radius even though the nucleus and aura both remain.
+        let smoothControl = haloNucleusContinuityControl(.broadTransition)
+        let sharpDiscControl = haloNucleusContinuityControl(.sharpPastedDisc)
+        let missingNucleusControl = haloNucleusContinuityControl(.missingNucleus)
+        let collapsedBlurControl = haloNucleusContinuityControl(.collapsedSingleBlur)
+        #expect(haloNucleusContinuityPasses(smoothControl))
+        #expect(!haloNucleusContinuityPasses(sharpDiscControl))
+        #expect(!haloNucleusContinuityPasses(missingNucleusControl))
+        #expect(!haloNucleusContinuityPasses(collapsedBlurControl))
+
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let renderer = MaterialRenderer()
+        let fixtureCases = [
+            (label: "fixture15", colorCount: 1, layoutIndex: 3, eventID: nil as String?),
+            (label: "fixture16", colorCount: 2, layoutIndex: 4, eventID: nil as String?),
+            (label: "fixture17", colorCount: 3, layoutIndex: 5, eventID: nil as String?),
+            (
+                label: "layout11-c1",
+                colorCount: 1,
+                layoutIndex: 11,
+                eventID: "5FA2D140-7C0E-45B9-BE3D-8124A937EF06"
+            ),
+            (
+                label: "layout11-c2",
+                colorCount: 2,
+                layoutIndex: 11,
+                eventID: "5FA2D140-7C0E-45B9-BE3D-8124A937EF06"
+            ),
+            (
+                label: "layout11-c3",
+                colorCount: 3,
+                layoutIndex: 11,
+                eventID: "5FA2D140-7C0E-45B9-BE3D-8124A937EF06"
+            ),
+        ]
+        var failures = [String]()
+
+        for fixture in fixtureCases {
+            let layout = manifest.breadth[fixture.layoutIndex]
+            let approved = try #require(archive.fixtures.first {
+                $0.fixtureIndex == fixture.layoutIndex
+            }?.recipe)
+            let actors = approved.actors.filter { actor in
+                if let eventID = fixture.eventID { return actor.eventID == eventID }
+                return actor.diameter <= 0.36
+            }
+            #expect(!actors.isEmpty)
+            let dna = MaterialDNA.fixture(
+                daySeed: layout.seed,
+                eventIDs: layout.eventIDs,
+                family: .halo,
+                requestedColorCount: fixture.colorCount
+            )
+
+            for background in [BackgroundCondition.light, .dark, .lowContrast] {
+                for scale in [1, 3] {
+                    for actor in actors {
+                        let material = try #require(dna.actor(actor.eventID))
+                        let topology = try #require(material.organicTopology)
+                        let isolated = CompositionRecipe(
+                            daySeed: approved.daySeed,
+                            grammar: approved.grammar,
+                            viewport: approved.viewport,
+                            actors: [actor]
+                        )
+                        let rendered = try renderer.render(
+                            recipe: isolated,
+                            material: dna,
+                            background: background,
+                            configuration: .init(scale: scale)
+                        )
+                        let image = try pixels(rendered.fullScreen.pngData)
+                        let sceneDiameter = actor.diameter * 393 * Double(scale)
+                        let actorCenterX = actor.position.x * 393 * Double(scale)
+                        let actorCenterY = actor.position.y * 852 * Double(scale)
+                        let metrics = haloNucleusContinuityMetrics(
+                            image,
+                            nucleusCenterX: actorCenterX
+                                + (topology.innerCenter.x - 0.5) * sceneDiameter,
+                            nucleusCenterY: actorCenterY
+                                + (topology.innerCenter.y - 0.5) * sceneDiameter,
+                            innerRadius: topology.innerRadius * sceneDiameter,
+                            background: background
+                        )
+                        if !haloNucleusContinuityPasses(metrics) {
+                            failures.append(
+                                "\(fixture.label)/\(background.rawValue)/\(scale)x/"
+                                    + "\(actor.eventID.prefix(4)) \(metrics)"
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        let cropLayout = manifest.breadth[0]
+        let cropEventID = try #require(cropLayout.eventIDs.first)
+        for colorCount in 1...3 {
+            let cropMaterial = try #require(MaterialDNA.fixture(
+                daySeed: cropLayout.seed,
+                eventIDs: [cropEventID],
+                family: .halo,
+                requestedColorCount: colorCount
+            ).actor(cropEventID))
+            let cropTopology = try #require(cropMaterial.organicTopology)
+            for scale in [1, 3] {
+                let pixelSize = 160 * scale
+                let crop = try pixels(renderer.renderActor(
+                    cropMaterial,
+                    pixelSize: pixelSize,
+                    background: .lowContrast
+                ).pngData)
+                let metrics = haloNucleusContinuityMetrics(
+                    crop,
+                    nucleusCenterX: (0.5 + cropTopology.innerCenter.x - 0.5)
+                        * Double(pixelSize),
+                    nucleusCenterY: (0.5 + cropTopology.innerCenter.y - 0.5)
+                        * Double(pixelSize),
+                    innerRadius: cropTopology.innerRadius * Double(pixelSize),
+                    background: .lowContrast
+                )
+                if !haloNucleusContinuityPasses(metrics) {
+                    failures.append("actor-crop/c\(colorCount)/\(scale)x \(metrics)")
+                }
+            }
+        }
+
+        #expect(failures.isEmpty, Comment(rawValue:
+            "halo inner-radius continuity failures=\(failures.count)\n"
+                + failures.joined(separator: "\n")
+        ))
+    }
+
     @Test("halo split presentation preserves aura alpha and final-pixel compact softness")
     func haloSplitPresentationControlsAreObservable() {
         let background = MaterialRenderer.backgroundColor(for: .light)
@@ -5196,6 +5338,218 @@ private struct HaloBodyAuraMetrics {
     let auraP75: Double
     let auraAngularCoverage: Double
     let bodyChromaP50: Double
+}
+
+private struct HaloNucleusContinuityMetrics: CustomStringConvertible {
+    let nucleusContrastP50: Double
+    let nucleusChromaP50: Double
+    let nucleusAuraDeltaP50: Double
+    let boundaryStepRatioP75: Double
+    let innerRadiusVariationConcentrationP75: Double
+    let ridgeAngularCoverage: Double
+
+    var description: String {
+        "nucleusContrast=\(nucleusContrastP50) nucleusChroma=\(nucleusChromaP50) "
+            + "nucleusAuraDelta=\(nucleusAuraDeltaP50) "
+            + "boundaryStepRatio=\(boundaryStepRatioP75) "
+            + "innerRadiusConcentration=\(innerRadiusVariationConcentrationP75) "
+            + "ridgeCoverage=\(ridgeAngularCoverage)"
+    }
+}
+
+private func haloNucleusContinuityPasses(_ metrics: HaloNucleusContinuityMetrics) -> Bool {
+    metrics.nucleusContrastP50 >= 0.14
+        && metrics.nucleusChromaP50 >= 0.10
+        && metrics.nucleusAuraDeltaP50 >= 0.055
+        && metrics.boundaryStepRatioP75 <= 0.52
+        && metrics.innerRadiusVariationConcentrationP75 <= 0.44
+        && metrics.ridgeAngularCoverage <= 0.42
+}
+
+private func haloNucleusContinuityMetrics(
+    _ image: PixelImage,
+    nucleusCenterX: Double,
+    nucleusCenterY: Double,
+    innerRadius: Double,
+    background: BackgroundCondition
+) -> HaloNucleusContinuityMetrics {
+    let materialBackground = MaterialRenderer.backgroundColor(for: background)
+    let backgroundRGB = StraightRGB(
+        r: materialBackground.red,
+        g: materialBackground.green,
+        b: materialBackground.blue
+    )
+    var nucleusContrasts = [Double]()
+    var nucleusChromas = [Double]()
+    var nucleusAuraDeltas = [Double]()
+    var boundaryStepRatios = [Double]()
+    var innerRadiusVariationConcentrations = [Double]()
+    var ridgeCount = 0
+    let rayCount = 96
+
+    for ray in 0..<rayCount {
+        let angle = Double(ray) / Double(rayCount) * Double.pi * 2
+        let nucleus = haloBilinearSample(
+            image,
+            x: nucleusCenterX + cos(angle) * innerRadius * 0.34,
+            y: nucleusCenterY + sin(angle) * innerRadius * 0.34
+        )
+        let insideBoundary = haloBilinearSample(
+            image,
+            x: nucleusCenterX + cos(angle) * innerRadius * 0.82,
+            y: nucleusCenterY + sin(angle) * innerRadius * 0.82
+        )
+        let outsideBoundary = haloBilinearSample(
+            image,
+            x: nucleusCenterX + cos(angle) * innerRadius * 1.18,
+            y: nucleusCenterY + sin(angle) * innerRadius * 1.18
+        )
+        let aura = haloBilinearSample(
+            image,
+            x: nucleusCenterX + cos(angle) * innerRadius * 1.55,
+            y: nucleusCenterY + sin(angle) * innerRadius * 1.55
+        )
+        let fullDelta = rgbDistance(nucleus, aura)
+        let boundaryStep = rgbDistance(insideBoundary, outsideBoundary)
+        let ratio = boundaryStep / max(fullDelta, 0.000_001)
+        let radialProfile = (0...28).map { step in
+            let radius = innerRadius * (0.30 + Double(step) * 0.05)
+            return haloBilinearSample(
+                image,
+                x: nucleusCenterX + cos(angle) * radius,
+                y: nucleusCenterY + sin(angle) * radius
+            )
+        }
+        let radialVariation = zip(radialProfile, radialProfile.dropFirst()).enumerated().map {
+            index, pair in
+            (
+                midpoint: 0.325 + Double(index) * 0.05,
+                delta: rgbDistance(pair.0, pair.1)
+            )
+        }
+        let totalVariation = radialVariation.map(\.delta).reduce(0, +)
+        let innerRadiusVariation = radialVariation.filter {
+            (0.725...1.075).contains($0.midpoint)
+        }.map(\.delta).reduce(0, +)
+        nucleusContrasts.append(rgbDistance(nucleus, backgroundRGB))
+        nucleusChromas.append(nucleus.chroma)
+        nucleusAuraDeltas.append(fullDelta)
+        boundaryStepRatios.append(ratio)
+        innerRadiusVariationConcentrations.append(
+            innerRadiusVariation / max(totalVariation, 0.000_001)
+        )
+        if fullDelta >= 0.055, ratio > 0.52 { ridgeCount += 1 }
+    }
+
+    nucleusContrasts.sort()
+    nucleusChromas.sort()
+    nucleusAuraDeltas.sort()
+    boundaryStepRatios.sort()
+    innerRadiusVariationConcentrations.sort()
+    return HaloNucleusContinuityMetrics(
+        nucleusContrastP50: percentile(nucleusContrasts, fraction: 0.50),
+        nucleusChromaP50: percentile(nucleusChromas, fraction: 0.50),
+        nucleusAuraDeltaP50: percentile(nucleusAuraDeltas, fraction: 0.50),
+        boundaryStepRatioP75: percentile(boundaryStepRatios, fraction: 0.75),
+        innerRadiusVariationConcentrationP75: percentile(
+            innerRadiusVariationConcentrations,
+            fraction: 0.75
+        ),
+        ridgeAngularCoverage: Double(ridgeCount) / Double(rayCount)
+    )
+}
+
+private func haloBilinearSample(_ image: PixelImage, x: Double, y: Double) -> StraightRGB {
+    let clampedX = min(Double(image.width - 1), max(0, x - 0.5))
+    let clampedY = min(Double(image.height - 1), max(0, y - 0.5))
+    let x0 = Int(floor(clampedX))
+    let y0 = Int(floor(clampedY))
+    let x1 = min(image.width - 1, x0 + 1)
+    let y1 = min(image.height - 1, y0 + 1)
+    let tx = clampedX - Double(x0)
+    let ty = clampedY - Double(y0)
+    let top = haloMix(
+        image.pixel(x: x0, y: y0).straight,
+        image.pixel(x: x1, y: y0).straight,
+        tx
+    )
+    let bottom = haloMix(
+        image.pixel(x: x0, y: y1).straight,
+        image.pixel(x: x1, y: y1).straight,
+        tx
+    )
+    return haloMix(top, bottom, ty)
+}
+
+private func haloMix(_ lhs: StraightRGB, _ rhs: StraightRGB, _ amount: Double) -> StraightRGB {
+    StraightRGB(
+        r: lhs.r + (rhs.r - lhs.r) * amount,
+        g: lhs.g + (rhs.g - lhs.g) * amount,
+        b: lhs.b + (rhs.b - lhs.b) * amount
+    )
+}
+
+private enum HaloNucleusContinuityControl {
+    case broadTransition
+    case sharpPastedDisc
+    case missingNucleus
+    case collapsedSingleBlur
+}
+
+private func haloNucleusContinuityControl(
+    _ control: HaloNucleusContinuityControl
+) -> HaloNucleusContinuityMetrics {
+    let side = 161
+    let center = Double(side) * 0.5
+    let innerRadius = 28.0
+    let background = MaterialRenderer.backgroundColor(for: .dark)
+    let backgroundRGB = StraightRGB(r: background.red, g: background.green, b: background.blue)
+    let auraRGB = StraightRGB(r: 0.16, g: 0.36, b: 0.42)
+    let nucleusRGB = StraightRGB(r: 0.08, g: 0.82, b: 0.72)
+    var rgba = Data(count: side * side * 4)
+    for y in 0..<side {
+        for x in 0..<side {
+            let radius = hypot(Double(x) + 0.5 - center, Double(y) + 0.5 - center)
+            let auraAmount = 0.34 + 0.40 * (1 - haloControlSmoothstep(
+                lower: innerRadius * 1.8,
+                upper: innerRadius * 2.8,
+                value: radius
+            ))
+            let nucleusAmount: Double
+            switch control {
+            case .broadTransition:
+                nucleusAmount = 1 - haloControlSmoothstep(
+                    lower: innerRadius * 0.20,
+                    upper: innerRadius * 1.80,
+                    value: radius
+                )
+            case .sharpPastedDisc:
+                nucleusAmount = radius < innerRadius ? 1 : 0
+            case .missingNucleus:
+                nucleusAmount = 0
+            case .collapsedSingleBlur:
+                nucleusAmount = 0.10 * (1 - haloControlSmoothstep(
+                    lower: 0,
+                    upper: innerRadius * 2.4,
+                    value: radius
+                ))
+            }
+            let auraColor = haloMix(backgroundRGB, auraRGB, auraAmount)
+            let color = haloMix(auraColor, nucleusRGB, nucleusAmount * 0.76)
+            let offset = (y * side + x) * 4
+            rgba[offset] = UInt8((min(1, max(0, color.r)) * 255).rounded())
+            rgba[offset + 1] = UInt8((min(1, max(0, color.g)) * 255).rounded())
+            rgba[offset + 2] = UInt8((min(1, max(0, color.b)) * 255).rounded())
+            rgba[offset + 3] = 255
+        }
+    }
+    return haloNucleusContinuityMetrics(
+        PixelImage(width: side, height: side, rgba: rgba),
+        nucleusCenterX: center,
+        nucleusCenterY: center,
+        innerRadius: innerRadius,
+        background: .dark
+    )
 }
 
 private func haloBodyAuraPasses(_ metrics: HaloBodyAuraMetrics) -> Bool {

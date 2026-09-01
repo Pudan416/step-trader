@@ -206,15 +206,6 @@ public struct MaterialRenderer {
             pixelSize: sourcePixelSize,
             contrastBackground: backgroundColor
         )
-        let haloCompactBody = material.family == .halo
-            ? try makeActorImage(
-                material,
-                pixelSize: sourcePixelSize,
-                contrastBackground: backgroundColor,
-                haloCompactBodyLayer: true,
-                presentationPixelSize: presentationPixelSize
-            )
-            : nil
         if material.family == .mist {
             actorImage = try applyingMistGrain(
                 actorImage,
@@ -222,13 +213,6 @@ public struct MaterialRenderer {
                 sourceDiameter: sourcePixelSize,
                 presentationDiameter: presentationPixelSize,
                 background: backgroundColor.map(RGB.init) ?? .black
-            )
-        }
-        if let haloCompactBody {
-            actorImage = try compositedCenteredSourceAtop(
-                haloCompactBody,
-                over: actorImage,
-                sourceDiameter: sourcePixelSize
             )
         }
         let finalImage: CGImage
@@ -378,15 +362,6 @@ public struct MaterialRenderer {
                 pixelSize: diameter,
                 contrastBackground: backgroundColor
             )
-            let haloCompactBody = actorMaterial.family == .halo
-                ? try makeActorImage(
-                    actorMaterial,
-                    pixelSize: diameter,
-                    contrastBackground: backgroundColor,
-                    haloCompactBodyLayer: true,
-                    presentationPixelSize: presentationDiameter
-                )
-                : nil
             let outlineAccentImage = actorMaterial.family == .outline
                 ? try makeActorImage(
                     actorMaterial,
@@ -415,13 +390,6 @@ public struct MaterialRenderer {
             if let outlineAccentImage {
                 actorImage = try compositedCentered(
                     outlineAccentImage,
-                    over: actorImage,
-                    sourceDiameter: diameter
-                )
-            }
-            if let haloCompactBody {
-                actorImage = try compositedCenteredSourceAtop(
-                    haloCompactBody,
                     over: actorImage,
                     sourceDiameter: diameter
                 )
@@ -1188,9 +1156,7 @@ public struct MaterialRenderer {
         contrastBackground: MaterialColor?,
         isolatedContourIndex: Int? = nil,
         structuralAlphaLayer: Bool = false,
-        outlineAccentLayer: Bool = false,
-        haloCompactBodyLayer: Bool = false,
-        presentationPixelSize: Int? = nil
+        outlineAccentLayer: Bool = false
     ) throws -> CGImage {
         let context = try makeContext(width: pixelSize, height: pixelSize)
         guard let rawData = context.data else {
@@ -1332,36 +1298,21 @@ public struct MaterialRenderer {
                             softness: 0.82
                         )
                         let aura = clamp(0.52 + fieldVolume * 0.18 + innerBloom * 0.17 + outerBloom * 0.13)
-                        alpha = min(alpha, body) * aura
+                        alpha = min(alpha, body) * aura * (0.78 + outerBloom * 0.22)
                         color = mix(color, RGB.white, min(0.14, innerBloom * 0.08 + fieldVolume * 0.06))
-                        if haloCompactBodyLayer {
-                            guard let presentationPixelSize, presentationPixelSize > 0 else {
-                                throw MaterialRendererError.invalidPixelSize(
-                                    presentationPixelSize ?? 0
-                                )
-                            }
-                            let presentationPixel = 1 / Double(presentationPixelSize)
-                            let maximumRamp = max(
-                                presentationPixel,
-                                organicInnerRadius - 2 * presentationPixel
+                        if let contrastBackground {
+                            let nucleus = exp(
+                                -pow(innerDistance / organicInnerRadius, 2)
                             )
-                            let ramp = min(edgeWidth, organicInnerRadius, maximumRamp)
-                            let compactBody = 1 - smoothstep(
-                                organicInnerRadius - ramp,
-                                organicInnerRadius,
-                                innerDistance
+                            let background = RGB(contrastBackground)
+                            let nucleusTarget = Self.outlineVisibilityTargetRGB(
+                                color,
+                                background: background
                             )
-                            alpha *= compactBody
-                            if let contrastBackground {
-                                let background = RGB(contrastBackground)
-                                color = Self.outlineVisibilityTargetRGB(
-                                    color,
-                                    background: background
-                                )
-                            }
-                        } else if presentationPixelSize != nil {
-                            throw MaterialRendererError.invalidMaterial(
-                                "halo presentation size requires the compact body layer"
+                            color = mix(
+                                color,
+                                nucleusTarget,
+                                min(1, nucleus + outerBloom * 0.18)
                             )
                         }
                     }
