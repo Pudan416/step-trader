@@ -37,7 +37,7 @@ final class DayObjectsMusicLabController: ObservableObject {
         if let playback {
             self.playback = playback
         } else {
-            let runtime = try! DayObjectsLivePlaybackRuntime()
+            let runtime = DayObjectsMobilePlaybackRuntime()
             self.playback = DayObjectsMusicPlaybackEngine(
                 audioSession: DayObjectsSystemAudioSession(),
                 runtime: runtime
@@ -143,6 +143,7 @@ final class DayObjectsMusicLabController: ObservableObject {
     }
 
     func viewDidDisappear() async { await stop() }
+    func turnSoundOff() async { await stop() }
     func sceneActivityChanged(isActive: Bool) async {
         if !isActive { await stop() }
     }

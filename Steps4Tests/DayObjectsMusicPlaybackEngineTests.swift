@@ -5,6 +5,39 @@ import XCTest
 
 @MainActor
 final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
+    func testMobileRuntimePreparesOnlyOnePlaybackWorld() throws {
+        let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+
+        try runtime.prepare(plan: makePlaybackEnginePlan(seed: 32))
+
+        XCTAssertEqual(runtime.preparedRhythmBackendCount, 1)
+        XCTAssertEqual(runtime.playbackMetrics.activeTransportCount, 0)
+        XCTAssertEqual(runtime.playbackMetrics.activeTaskCount, 0)
+        XCTAssertEqual(runtime.playbackMetrics.activeVoiceCount, 0)
+        XCTAssertEqual(runtime.playbackMetrics.pendingRemixCount, 0)
+        XCTAssertEqual(runtime.instrumentAllocationCountForTesting, 1)
+    }
+
+    func testMobileRuntimeAppliesRemixInPlaceAtTheNextBarBoundary() throws {
+        let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let initial = makePlaybackEnginePlan(seed: 40)
+        let remixed = makePlaybackEnginePlan(seed: 41)
+        try runtime.prepare(plan: initial)
+        try runtime.startPreparedWorldForTesting()
+
+        runtime.scheduleStructuralPlan(remixed)
+        XCTAssertEqual(runtime.playbackMetrics.pendingRemixCount, 1)
+        runtime.renderForTesting(.init(
+            kind: .barBoundary,
+            position: .init(absoluteSubdivision: 128),
+            hostTimeSeconds: 8,
+            tempoBPM: 100
+        ))
+
+        XCTAssertEqual(runtime.activePlanForTesting?.seed, remixed.seed)
+        XCTAssertEqual(runtime.playbackMetrics.pendingRemixCount, 0)
+    }
+
     func testLiveRuntimePreparesTwoFixedWorldsWithoutStartingTransportOrVoices() throws {
         let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
         let plan = makePlaybackEnginePlan(seed: 33)
@@ -532,7 +565,7 @@ private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntim
             tailDrainContinuation = continuation
         }
     }
-    func stopAudio() { log.values.append("runtime.audio.stop") }
+    func stopAudio() async { log.values.append("runtime.audio.stop") }
     func applyContinuous(_ plan: DayMusicPlan) { continuousCount += 1 }
     func scheduleStructuralPlan(_ plan: DayMusicPlan) {}
     func addHappening(_ plan: HappeningMusicPlan, playBirth: Bool) {}

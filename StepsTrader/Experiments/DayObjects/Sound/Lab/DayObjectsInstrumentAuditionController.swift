@@ -225,7 +225,7 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
     }
 
     func auditionNote() async {
-        guard soundState == .on else { return }
+        guard await ensureSoundIsOn() else { return }
         if selectedCategory == .piano {
             _ = bank.piano.noteOn(60, velocity: 0.82)
             return
@@ -235,7 +235,7 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
     }
 
     func auditionChord() async {
-        guard soundState == .on else { return }
+        guard await ensureSoundIsOn() else { return }
         if selectedCategory == .piano {
             [48, 55, 60, 64].forEach { _ = bank.piano.noteOn(UInt8($0), velocity: 0.72) }
             return
@@ -245,8 +245,15 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
     }
 
     func auditionHit() async {
-        guard soundState == .on, selectedCategory == .drums else { return }
+        guard selectedCategory == .drums, await ensureSoundIsOn() else { return }
         bank.drums.hit(.kickFull, velocity: 0.82)
+    }
+
+    private func ensureSoundIsOn() async -> Bool {
+        if soundState != .on {
+            await turnSoundOn()
+        }
+        return soundState == .on
     }
 
     func beginLead(at point: DayObjectNormalizedPoint) {

@@ -167,7 +167,7 @@ final class DayObjectsLabUITests: XCTestCase {
         attachScreenshot(named: "day-objects-glitch-grid-spent-100")
     }
 
-    func testLabExposesInstrumentAuditionControlsWithSoundOff() throws {
+    func testLabExposesInstrumentAuditionControlsWithoutASecondSoundSwitch() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-uiLab", "dayObjects", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
@@ -179,8 +179,7 @@ final class DayObjectsLabUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["dayObjects.audition.category"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.buttons["dayObjects.audition.preset"].exists)
-        XCTAssertTrue(app.switches["dayObjects.audition.sound"].exists)
-        XCTAssertEqual(app.switches["dayObjects.audition.sound"].value as? String, "0")
+        XCTAssertFalse(app.switches["dayObjects.audition.sound"].exists)
         XCTAssertTrue(app.buttons["dayObjects.audition.note"].exists)
         XCTAssertTrue(app.buttons["dayObjects.audition.chord"].exists)
         XCTAssertTrue(app.buttons["dayObjects.audition.hit"].exists)
@@ -197,7 +196,7 @@ final class DayObjectsLabUITests: XCTestCase {
         XCTAssertTrue(app.buttons["dayObjects.audition.category"].exists)
     }
 
-    func testInstrumentCategoriesExposeDisabledActionsAndThreeTonalPresetsWithoutStartingAudio() throws {
+    func testInstrumentCategoriesExposeAutomaticActionsAndThreeTonalPresets() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-uiLab", "dayObjects", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
@@ -206,20 +205,18 @@ final class DayObjectsLabUITests: XCTestCase {
         XCTAssertTrue(diagnostics.waitForExistence(timeout: 5))
         diagnostics.tap()
 
-        let sound = app.switches["dayObjects.audition.sound"]
         let note = app.buttons["dayObjects.audition.note"]
         let chord = app.buttons["dayObjects.audition.chord"]
         let hit = app.buttons["dayObjects.audition.hit"]
-        XCTAssertTrue(sound.waitForExistence(timeout: 5))
-        XCTAssertEqual(sound.value as? String, "0")
+        XCTAssertTrue(note.waitForExistence(timeout: 5))
 
         for category in ["Pad", "Pluck", "Bass", "Lead", "Keys"] {
             selectCategory(category, in: app)
             let preset = app.buttons["dayObjects.audition.preset"]
             XCTAssertTrue(preset.waitForExistence(timeout: 2))
             XCTAssertEqual(preset.value as? String, "3 presets", "\(category) must expose exactly three choices")
-            assertDisabled(note, value: "disabled while Sound is off")
-            assertDisabled(chord, value: "disabled while Sound is off")
+            assertEnabled(note)
+            assertEnabled(chord)
             assertDisabled(hit, value: "disabled for \(category)")
         }
 
@@ -227,7 +224,7 @@ final class DayObjectsLabUITests: XCTestCase {
         XCTAssertFalse(app.buttons["dayObjects.audition.preset"].exists)
         assertDisabled(note, value: "disabled for Drums")
         assertDisabled(chord, value: "disabled for Drums")
-        assertDisabled(hit, value: "disabled while Sound is off")
+        assertEnabled(hit)
     }
 
     private func attachScreenshot(named name: String) {
@@ -258,6 +255,12 @@ final class DayObjectsLabUITests: XCTestCase {
         XCTAssertTrue(element.exists)
         XCTAssertFalse(element.isEnabled)
         XCTAssertEqual(element.value as? String, value)
+    }
+
+    private func assertEnabled(_ element: XCUIElement) {
+        XCTAssertTrue(element.exists)
+        XCTAssertTrue(element.isEnabled)
+        XCTAssertEqual(element.value as? String, "enabled")
     }
 
     private static func figureCount(from accessibilityValue: Any?) -> Int? {

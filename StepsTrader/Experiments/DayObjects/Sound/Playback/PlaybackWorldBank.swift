@@ -4,23 +4,23 @@ import Foundation
 enum PlaybackWorldBankConfiguration {
     static let playbackWorld = DayObjectsInstrumentBankConfiguration(
         tonalPools: [
-            .init(name: PoolName.drone.rawValue, capacity: 2, reservesLeadVoice: false),
-            .init(name: PoolName.primaryPad.rawValue, capacity: 8, reservesLeadVoice: false),
-            .init(name: PoolName.secondaryPadOrKeys.rawValue, capacity: 6, reservesLeadVoice: false),
-            .init(name: PoolName.happenings.rawValue, capacity: 6, reservesLeadVoice: false),
+            .init(name: PoolName.drone.rawValue, capacity: 1, reservesLeadVoice: false),
+            .init(name: PoolName.primaryPad.rawValue, capacity: 4, reservesLeadVoice: false),
+            .init(name: PoolName.secondaryPadOrKeys.rawValue, capacity: 2, reservesLeadVoice: false),
+            .init(name: PoolName.happenings.rawValue, capacity: 2, reservesLeadVoice: false),
             .init(name: PoolName.lead.rawValue, capacity: 1, reservesLeadVoice: true),
         ],
-        pianoVoiceCount: 6,
+        pianoVoiceCount: 2,
         drumOverlapCounts: [
-            .kickSoft: 2,
-            .kickFull: 2,
-            .hatClosed: 6,
-            .hatOpen: 3,
-            .shaker: 4,
-            .clapSoft: 3,
-            .stick: 3,
-            .organicHigh: 4,
-            .organicLow: 4,
+            .kickSoft: 1,
+            .kickFull: 1,
+            .hatClosed: 2,
+            .hatOpen: 1,
+            .shaker: 1,
+            .clapSoft: 1,
+            .stick: 1,
+            .organicHigh: 1,
+            .organicLow: 1,
         ]
     )
 

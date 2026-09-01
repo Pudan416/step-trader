@@ -3,6 +3,7 @@ import SwiftUI
 
 struct DayObjectsInstrumentAuditionView: View {
     @ObservedObject var controller: DayObjectsInstrumentAuditionController
+    var beforeAudition: @MainActor () async -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -35,31 +36,35 @@ struct DayObjectsInstrumentAuditionView: View {
                 .accessibilityValue("\(controller.presets.count) presets")
             }
 
-            Toggle("Sound", isOn: Binding(
-                get: { controller.soundState == .on || controller.soundState == .starting },
-                set: { enabled in
+            HStack(spacing: 8) {
+                Button("Note") {
                     Task {
-                        if enabled { await controller.turnSoundOn() }
-                        else { await controller.stop() }
+                        await beforeAudition()
+                        await controller.auditionNote()
                     }
                 }
-            ))
-            .accessibilityIdentifier("dayObjects.audition.sound")
-
-            HStack(spacing: 8) {
-                Button("Note") { Task { await controller.auditionNote() } }
                     .buttonStyle(.bordered)
-                    .disabled(!controller.allowsNote || controller.soundState != .on)
+                    .disabled(!controller.allowsNote || controller.soundState == .starting)
                     .accessibilityIdentifier("dayObjects.audition.note")
                     .accessibilityValue(actionAvailability(controller.allowsNote))
-                Button("Chord") { Task { await controller.auditionChord() } }
+                Button("Chord") {
+                    Task {
+                        await beforeAudition()
+                        await controller.auditionChord()
+                    }
+                }
                     .buttonStyle(.bordered)
-                    .disabled(!controller.allowsChord || controller.soundState != .on)
+                    .disabled(!controller.allowsChord || controller.soundState == .starting)
                     .accessibilityIdentifier("dayObjects.audition.chord")
                     .accessibilityValue(actionAvailability(controller.allowsChord))
-                Button("Hit") { Task { await controller.auditionHit() } }
+                Button("Hit") {
+                    Task {
+                        await beforeAudition()
+                        await controller.auditionHit()
+                    }
+                }
                     .buttonStyle(.bordered)
-                    .disabled(!controller.allowsHit || controller.soundState != .on)
+                    .disabled(!controller.allowsHit || controller.soundState == .starting)
                     .accessibilityIdentifier("dayObjects.audition.hit")
                     .accessibilityValue(actionAvailability(controller.allowsHit))
             }
@@ -81,10 +86,7 @@ struct DayObjectsInstrumentAuditionView: View {
         if !allowedForCategory {
             return "disabled for \(controller.selectedCategory.rawValue.capitalized)"
         }
-        if controller.soundState != .on {
-            return "disabled while Sound is off"
-        }
-        return "enabled"
+        return controller.soundState == .starting ? "disabled while loading" : "enabled"
     }
 }
 #endif

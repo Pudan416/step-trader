@@ -186,7 +186,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(baseline.attachedBankCount, 2)
         XCTAssertEqual(baseline.sharedAudioEngineCount, 1)
         XCTAssertEqual(baseline.finalPeakLimiterCount, 1)
-        XCTAssertLessThanOrEqual(baseline.sharedMasterTrimDecibels, -6)
+        XCTAssertEqual(baseline.sharedMasterTrimDecibels, -3, accuracy: 1e-12)
         XCTAssertEqual(pair.bankA.outputGainMetrics.targetLinearGain, 1)
         XCTAssertEqual(pair.bankB.outputGainMetrics.targetLinearGain, 1)
 
@@ -201,6 +201,44 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(pair.bankB.outputGainMetrics.rampCount, 1)
         XCTAssertEqual(pair.metrics.fixedSharedNodeCount, baseline.fixedSharedNodeCount)
         XCTAssertEqual(pair.metrics.allocationFingerprint, baseline.allocationFingerprint)
+    }
+
+    func testPlaybackPairFitsTheMobileRealtimeAllocationBudget() throws {
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(
+            bundle: Bundle(for: type(of: self))
+        )
+
+        try pair.prepare(configuration: .playbackWorld)
+
+        let allocations = pair.metrics.allocationFingerprint.compactMap { $0 }
+        XCTAssertLessThanOrEqual(
+            allocations.reduce(0) { $0 + $1.tonalNodeIdentities.count },
+            500
+        )
+        XCTAssertLessThanOrEqual(
+            allocations.reduce(0) { $0 + $1.pianoLoadedPlayerCount },
+            48
+        )
+        XCTAssertLessThanOrEqual(
+            allocations.reduce(0) { $0 + $1.drumFixedPlayerCount },
+            20
+        )
+    }
+
+    func testPlaybackPairDoesNotStackMoreThanThreeDecibelsOfFixedTrimPerStage() throws {
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(
+            bundle: Bundle(for: type(of: self))
+        )
+
+        try pair.prepare(configuration: .playbackWorld)
+
+        for bank in [pair.bankA, pair.bankB] {
+            let graph = try XCTUnwrap(bank.metrics.graph)
+            XCTAssertGreaterThanOrEqual(graph.tonalBusGainDB, -3.01)
+            XCTAssertGreaterThanOrEqual(graph.drumBusGainDB, -3.01)
+            XCTAssertGreaterThanOrEqual(graph.masterTrimDB, -3.01)
+        }
+        XCTAssertGreaterThanOrEqual(pair.metrics.sharedMasterTrimDecibels, -3.01)
     }
 
     func testPlaybackPairSchedulesBankOutputGainAtAuthoritativeHostTimes() throws {
@@ -268,9 +306,9 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
             tonalBusCount: 1,
             drumBusCount: 1,
             sharedSpatialEffectCount: 2,
-            tonalBusGainDB: -10,
-            drumBusGainDB: -12,
-            masterTrimDB: -8,
+            tonalBusGainDB: -3,
+            drumBusGainDB: -3,
+            masterTrimDB: -3,
             finalPeakLimiterCount: 1
         ))
 
@@ -355,9 +393,9 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(graph.tonalBusCount, 1)
         XCTAssertEqual(graph.drumBusCount, 1)
         XCTAssertEqual(graph.sharedSpatialEffectCount, 2)
-        XCTAssertEqual(graph.tonalBusGainDB, -10, accuracy: 0.001)
-        XCTAssertEqual(graph.drumBusGainDB, -12, accuracy: 0.001)
-        XCTAssertEqual(graph.masterTrimDB, -8, accuracy: 0.001)
+        XCTAssertEqual(graph.tonalBusGainDB, -3, accuracy: 0.001)
+        XCTAssertEqual(graph.drumBusGainDB, -3, accuracy: 0.001)
+        XCTAssertEqual(graph.masterTrimDB, -3, accuracy: 0.001)
         XCTAssertEqual(graph.finalPeakLimiterCount, 1)
         XCTAssertEqual(bank.metrics.drumMetrics.allocatedPlayerCount, DayObjectsDrumVoice.allCases.count)
         XCTAssertEqual(bank.metrics.pianoMetrics.allocatedPlayerCount, 3)
@@ -603,7 +641,7 @@ private final class FakePianoPool: DayObjectsPianoPoolProtocol {
 
 @MainActor
 private final class FakeInstrumentBankGraph: DayObjectsInstrumentBankGraph {
-    let layout = DayObjectsInstrumentBankGraphLayout(tonalBusCount: 1, drumBusCount: 1, sharedSpatialEffectCount: 2, tonalBusGainDB: -10, drumBusGainDB: -12, masterTrimDB: -8, finalPeakLimiterCount: 1)
+    let layout = DayObjectsInstrumentBankGraphLayout(tonalBusCount: 1, drumBusCount: 1, sharedSpatialEffectCount: 2, tonalBusGainDB: -3, drumBusGainDB: -3, masterTrimDB: -3, finalPeakLimiterCount: 1)
     let isAttached: () -> Bool
     let synchronizeError: () -> Error?
     let onSynchronize: () -> Void

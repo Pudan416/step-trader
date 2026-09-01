@@ -29,6 +29,20 @@ final class DayObjectsInstrumentAuditionControllerTests: XCTestCase {
         XCTAssertEqual(bank.startCount, 1)
     }
 
+    func testFirstAuditionActionStartsSoundWithoutASeparateToggle() async {
+        let bank = FakeAuditionBank()
+        let controller = DayObjectsInstrumentAuditionController(
+            bank: bank,
+            audioSession: FakeAuditionSession()
+        )
+
+        await controller.auditionNote()
+
+        XCTAssertEqual(controller.soundState, .on)
+        XCTAssertEqual(bank.startCount, 1)
+        XCTAssertEqual(bank.pool.noteRequests.count, 1)
+    }
+
     func testFailedStartLeavesRetryableErrorAndSecondExplicitStartCanSucceed() async {
         let bank = FakeAuditionBank()
         bank.shouldFailStart = true

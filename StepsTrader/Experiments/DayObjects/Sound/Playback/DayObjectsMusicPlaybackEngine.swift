@@ -17,7 +17,7 @@ protocol DayObjectsPlaybackRuntimeProtocol: AnyObject {
     func releaseLayers()
     func stopTransportAndEffects() async
     func drainTail() async
-    func stopAudio()
+    func stopAudio() async
 
     func applyContinuous(_ plan: DayMusicPlan)
     func scheduleStructuralPlan(_ plan: DayMusicPlan)
@@ -165,7 +165,7 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
         runtime.releaseLayers()
         await runtime.stopTransportAndEffects()
         await runtime.drainTail()
-        runtime.stopAudio()
+        await runtime.stopAudio()
         runtimeMayOwnResources = false
 
         if sessionMayNeedDeactivation {
@@ -192,7 +192,7 @@ struct DayObjectsLivePlaybackAllocationSnapshot: Equatable, Sendable {
 @MainActor
 final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, DayObjectsRemixRuntime {
     @MainActor
-    private final class EffectState: DayObjectsGlitchBackend, DayObjectsMixBackend {
+    fileprivate final class EffectState: DayObjectsGlitchBackend, DayObjectsMixBackend {
         var onGlitch: ((DayObjectsGlitchCommand) -> Void)?
         var onMix: ((DayObjectsMixState) -> Void)?
         private(set) var glitchByRole: [GlitchRole: DayObjectsGlitchCommand] = [:]
@@ -210,7 +210,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
     }
 
     @MainActor
-    private final class WorldState {
+    fileprivate final class WorldState {
         let bank: PlaybackWorldBank
         let effects: EffectState
         private var rhythmPlayer: RhythmPlayer?
@@ -709,7 +709,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         try? await Task.sleep(nanoseconds: 120_000_000)
     }
 
-    func stopAudio() {
+    func stopAudio() async {
         pair.stop()
         worldA.bank.setOutputGain(0, rampDurationSeconds: 0)
         worldB.bank.setOutputGain(0, rampDurationSeconds: 0)
@@ -905,6 +905,151 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
 
     private func slot(for bank: PlaybackWorldBank) -> PlaybackWorldBankSlot {
         bank === worldA.bank ? .a : .b
+    }
+}
+
+/// The iPhone runtime keeps one complete musical world alive. Remix is applied
+/// in place on a bar boundary, which trades the old dual-world crossfade for a
+/// much smaller realtime graph and predictable playback on device speakers.
+@MainActor
+final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
+    private let world: DayObjectsLivePlaybackRuntime.WorldState
+    private var pendingStructuralPlan: DayMusicPlan?
+    private var transportIsRunning = false
+    private var tempoUpdateTask: Task<Void, Never>?
+    private var isPrepared = false
+
+    var preparedRhythmBackendCount: Int { world.hasPreparedRhythmBackend ? 1 : 0 }
+    var instrumentAllocationCountForTesting: Int {
+        world.bank.instrumentBank.metrics.allocationFingerprint == nil ? 0 : 1
+    }
+    var activePlanForTesting: DayMusicPlan? { world.plan }
+
+    func startPreparedWorldForTesting() throws { try world.startScheduling() }
+    func renderForTesting(_ event: DayObjectsTransportEvent) { renderTransportEvent(event) }
+
+    private lazy var transport = DayObjectsTransport { [weak self] event in
+        await self?.renderTransportEvent(event)
+    }
+
+    var playbackMetrics: DayObjectsPlaybackMetrics {
+        let bankMetrics = world.bank.metrics
+        return .init(
+            activeTransportCount: transportIsRunning ? 1 : 0,
+            activeTaskCount: (transportIsRunning ? 1 : 0) + (tempoUpdateTask == nil ? 0 : 1),
+            activeNodeCount: bankMetrics.allocatedTonalVoiceCount
+                + bankMetrics.allocatedPianoVoiceCount
+                + bankMetrics.allocatedDrumPlayerCount,
+            activeVoiceCount: world.activeVoiceCount,
+            activeHappeningCount: isPrepared
+                ? world.happenings.metrics.activeHappeningIDs.count
+                : 0,
+            pendingRemixCount: pendingStructuralPlan == nil ? 0 : 1,
+            leadVoiceCount: isPrepared ? world.lead.metrics.voiceCount : 0
+        )
+    }
+
+    init(bundle: Bundle = .main) {
+        world = DayObjectsLivePlaybackRuntime.WorldState(
+            bank: PlaybackWorldBank(instrumentBank: DayObjectsInstrumentBank(bundle: bundle))
+        )
+    }
+
+    func prepare(plan: DayMusicPlan) throws {
+        try world.bank.prepare()
+        try world.bindPreparedPlayersIfNeeded()
+        world.releaseAll()
+        try world.configure(plan)
+        world.bank.setOutputGain(0, rampDurationSeconds: 0)
+        pendingStructuralPlan = nil
+        isPrepared = true
+    }
+
+    func startAudio() throws {
+        guard isPrepared else { throw DayObjectsInstrumentBankError.notPrepared }
+        try world.bank.instrumentBank.start()
+    }
+
+    func startTransport(plan: DayMusicPlan) async throws {
+        try world.startScheduling()
+        transportIsRunning = true
+        await transport.start(
+            tempoBPM: plan.rhythm.tempoBPM,
+            harmonicCycleBars: plan.world.cycleBars
+        )
+    }
+
+    func fadeMaster(to plan: DayMusicPlan) throws {
+        guard world.bank.instrumentBank.metrics.state == .started else {
+            throw DayObjectsInstrumentBankError.startFailed
+        }
+        world.bank.setOutputGain(1, rampDurationSeconds: 0.35)
+    }
+
+    func stopScheduling() { world.isScheduling = false }
+    func endLead() { world.lead.end() }
+    func cancelRemix() { pendingStructuralPlan = nil }
+    func releaseLayers() { world.releaseAll() }
+
+    func stopTransportAndEffects() async {
+        tempoUpdateTask?.cancel()
+        await tempoUpdateTask?.value
+        tempoUpdateTask = nil
+        await transport.stop()
+        transportIsRunning = false
+    }
+
+    func drainTail() async {
+        try? await Task.sleep(nanoseconds: 120_000_000)
+    }
+
+    func stopAudio() async {
+        await world.bank.instrumentBank.stop()
+        world.bank.setOutputGain(0, rampDurationSeconds: 0)
+    }
+
+    func applyContinuous(_ plan: DayMusicPlan) {
+        world.applyContinuous(plan)
+        updateTransport(for: plan)
+    }
+
+    func scheduleStructuralPlan(_ plan: DayMusicPlan) {
+        pendingStructuralPlan = plan
+    }
+
+    func addHappening(_ plan: HappeningMusicPlan, playBirth: Bool) {
+        guard let tonalPlan = world.plan,
+              let chord = tonalPlan.world.progression[safe: world.currentChordIndex] else { return }
+        try? world.happenings.add(plan, currentChord: chord, playBirth: playBirth)
+    }
+
+    func removeHappening(id: String) { world.happenings.remove(id: id) }
+    func beginLead(_ gesture: LeadGestureSample) { world.lead.begin(gesture) }
+    func updateLead(_ gesture: LeadGestureSample) { world.lead.update(gesture) }
+
+    private func renderTransportEvent(_ event: DayObjectsTransportEvent) {
+        if event.kind == .barBoundary, let plan = pendingStructuralPlan {
+            world.releaseAll()
+            do {
+                try world.configure(plan)
+                try world.happenings.start(at: event.position)
+                world.isScheduling = true
+                pendingStructuralPlan = nil
+                updateTransport(for: plan)
+            } catch {
+                // Keep the last configured world stopped instead of allowing a
+                // partially configured Remix to hammer the realtime thread.
+                world.isScheduling = false
+            }
+        }
+        world.render(event)
+    }
+
+    private func updateTransport(for plan: DayMusicPlan) {
+        tempoUpdateTask?.cancel()
+        tempoUpdateTask = Task { [transport] in
+            await transport.setTempoBPM(plan.rhythm.tempoBPM)
+        }
     }
 }
 

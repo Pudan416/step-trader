@@ -525,12 +525,15 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         self.outputGainSampleRateProvider = outputGainSampleRateProvider
         tonalBus = Mixer(tonalPools.map(\.output) + [piano.output], name: "Day Objects tonal bus")
         drumBus = Mixer([drums.output], name: "Day Objects drum bus")
-        tonalTrim = Fader(tonalBus, gain: AUValue(DayObjectsAudioParameters.linearGain(decibels: -10)))
-        drumTrim = Fader(drumBus, gain: AUValue(DayObjectsAudioParameters.linearGain(decibels: -12)))
+        // These are bus trims, not per-voice output trims. The shared voice
+        // sanitizer intentionally caps voice gain at -6 dB, so using it here
+        // would silently turn every requested -3 dB bus stage into -6 dB.
+        tonalTrim = Fader(tonalBus, gain: AUValue(Self.linearGain(decibels: -3)))
+        drumTrim = Fader(drumBus, gain: AUValue(Self.linearGain(decibels: -3)))
         programBus = Mixer([tonalTrim, drumTrim], name: "Day Objects program bus")
         delay = VariableDelay(programBus, time: 0.28, feedback: 0.35, maximumTime: 2, dryWetMix: 0.14)
         reverb = CostelloReverb(delay, balance: 0.12, feedback: 0.72, cutoffFrequency: 8_000)
-        masterTrim = Fader(reverb, gain: AUValue(DayObjectsAudioParameters.linearGain(decibels: -8)))
+        masterTrim = Fader(reverb, gain: AUValue(Self.linearGain(decibels: -3)))
         worldTrim = Fader(masterTrim, gain: 1)
         limiter = PeakLimiter(worldTrim)
         currentProgramEffectMetrics = .init(
@@ -658,6 +661,7 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
     }
 
     private static func decibels(_ gain: AUValue) -> Double { 20 * log10(Double(gain)) }
+    private static func linearGain(decibels: Double) -> Double { pow(10, decibels / 20) }
 
     private func schedule(
         _ parameter: NodeParameter,
@@ -832,7 +836,7 @@ private final class DayObjectsPairedInstrumentBankEngine: DayObjectsInstrumentBa
 
 @MainActor
 private final class DayObjectsSharedInstrumentBankEngine {
-    private static let masterTrimDecibels = -6.0
+    private static let masterTrimDecibels = -3.0
     private let engine = AudioEngine()
     private var graphs: [DayObjectsPlaybackBankSlot: DayObjectsAudioKitInstrumentBankGraph] = [:]
     private var attachedSlots: Set<DayObjectsPlaybackBankSlot> = []
@@ -843,7 +847,6 @@ private final class DayObjectsSharedInstrumentBankEngine {
     private var pairIsRunning = false
     private var startCount = 0
     private var stopCount = 0
-
     var canAcquirePairOwnership: Bool {
         individuallyStartedSlots.isEmpty && !pairIsRunning
     }
@@ -948,9 +951,7 @@ private final class DayObjectsSharedInstrumentBankEngine {
             let mixer = Mixer([graphA.limiter, graphB.limiter], name: "Day Objects shared worlds")
             let trim = Fader(
                 mixer,
-                gain: AUValue(DayObjectsAudioParameters.linearGain(
-                    decibels: Self.masterTrimDecibels
-                ))
+                gain: AUValue(pow(10, Self.masterTrimDecibels / 20))
             )
             outputMixer = mixer
             masterTrim = trim

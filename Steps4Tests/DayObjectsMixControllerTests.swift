@@ -18,13 +18,13 @@ final class DayObjectsMixControllerTests: XCTestCase {
         )
 
         let state = try XCTUnwrap(backend.states.last)
-        XCTAssertEqual(state.rhythmTargetDecibels, -12, accuracy: 1e-12)
-        XCTAssertEqual(state.harmonyTargetDecibels, -17.25, accuracy: 1e-12)
-        XCTAssertEqual(state.harmonyPerVoiceTargetDecibels, -23.270_599_913_279_625, accuracy: 1e-12)
-        XCTAssertEqual(state.happeningAggregateTargetDecibels, -18, accuracy: 1e-12)
-        XCTAssertEqual(state.happeningPerVoiceTargetDecibels, -24.989_700_043_360_187, accuracy: 1e-12)
-        XCTAssertEqual(state.leadTargetDecibels, -15, accuracy: 1e-12)
-        XCTAssertEqual(state.masterTargetDecibelsBeforeLimiter, -6, accuracy: 1e-12)
+        XCTAssertEqual(state.rhythmTargetDecibels, -6, accuracy: 1e-12)
+        XCTAssertEqual(state.harmonyTargetDecibels, -10.25, accuracy: 1e-12)
+        XCTAssertEqual(state.harmonyPerVoiceTargetDecibels, -16.270_599_913_279_625, accuracy: 1e-12)
+        XCTAssertEqual(state.happeningAggregateTargetDecibels, -10, accuracy: 1e-12)
+        XCTAssertEqual(state.happeningPerVoiceTargetDecibels, -16.989_700_043_360_187, accuracy: 1e-12)
+        XCTAssertEqual(state.leadTargetDecibels, -8, accuracy: 1e-12)
+        XCTAssertEqual(state.masterTargetDecibelsBeforeLimiter, -2, accuracy: 1e-12)
         XCTAssertEqual(state.harmonyDuckingDecibels, 1.25, accuracy: 1e-12)
         XCTAssertEqual(state.delayFeedback, 0.4, accuracy: 1e-12)
         XCTAssertEqual(state.reverbFeedback, 0.7, accuracy: 1e-12)
@@ -46,10 +46,10 @@ final class DayObjectsMixControllerTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(backend.states.map(\.happeningAggregateTargetDecibels), [-18, -18, -18, -18])
+        XCTAssertEqual(backend.states.map(\.happeningAggregateTargetDecibels), [-10, -10, -10, -10])
         XCTAssertEqual(
             backend.states.map(\.happeningPerVoiceTargetDecibels),
-            [-18, -21.010_299_956_639_813, -24.989_700_043_360_187, -28]
+            [-10, -13.010_299_956_639_813, -16.989_700_043_360_187, -20]
         )
         for (state, count) in zip(backend.states, [1.0, 2.0, 5.0, 10.0]) {
             let aggregatePowerDecibels = state.happeningPerVoiceTargetDecibels + 10 * log10(count)
@@ -81,7 +81,7 @@ final class DayObjectsMixControllerTests: XCTestCase {
         )
 
         let state = try XCTUnwrap(backend.states.last)
-        XCTAssertLessThanOrEqual(state.masterTargetDecibelsBeforeLimiter, -6)
+        XCTAssertLessThanOrEqual(state.masterTargetDecibelsBeforeLimiter, -2)
         XCTAssertEqual(state.harmonyDuckingDecibels, 2.5)
         XCTAssertLessThan(state.delayFeedback, DayObjectsAudioParameters.delayFeedbackSafetyLimit)
         XCTAssertLessThan(state.reverbFeedback, DayObjectsAudioParameters.reverbFeedbackSafetyLimit)
@@ -115,7 +115,7 @@ final class DayObjectsMixControllerTests: XCTestCase {
 
         let state = try XCTUnwrap(backend.states.last)
         XCTAssertTrue(state.finiteValues.allSatisfy(\.isFinite))
-        XCTAssertLessThanOrEqual(state.masterTargetDecibelsBeforeLimiter, -6)
+        XCTAssertLessThanOrEqual(state.masterTargetDecibelsBeforeLimiter, -2)
         XCTAssertLessThanOrEqual(state.harmonyDuckingDecibels, 2.5)
         XCTAssertLessThan(state.delayFeedback, DayObjectsAudioParameters.delayFeedbackSafetyLimit)
         XCTAssertLessThan(state.reverbFeedback, DayObjectsAudioParameters.reverbFeedbackSafetyLimit)

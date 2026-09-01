@@ -290,7 +290,10 @@ struct DayObjectsLabView: View {
                 identifier: "dayObjects.instrumentDiagnostics"
             )
             if showsInstrumentDiagnostics {
-                DayObjectsInstrumentAuditionView(controller: audition)
+                DayObjectsInstrumentAuditionView(
+                    controller: audition,
+                    beforeAudition: { await musicController.turnSoundOff() }
+                )
             }
         }
     }
@@ -499,7 +502,10 @@ struct DayObjectsLabView: View {
 
     private var soundButton: some View {
         Button {
-            Task { await musicController.toggleSound() }
+            Task {
+                await audition.stop()
+                await musicController.toggleSound()
+            }
         } label: {
             Image(systemName: soundIcon)
                 .font(.system(size: 17, weight: .semibold))
