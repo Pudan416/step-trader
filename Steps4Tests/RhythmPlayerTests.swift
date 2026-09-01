@@ -107,6 +107,56 @@ final class RhythmPlayerTests: XCTestCase {
         XCTAssertEqual(drums.scheduledHits.first?.pitchDriftCents, hit.pitchDriftCents)
     }
 
+    func testPercussionGlitchHasOneOwnerAndIsAppliedExactlyOnceByRhythmPlayer() throws {
+        let drums = RecordingRhythmDrumBank(allocatedPlayerCount: 31)
+        let player = RhythmPlayer(drumBank: drums)
+        let plan = rhythmPlan(voiceCount: 1, timingAnchorIndex: nil)
+        let glitch = GlitchPlanner.makePlan(
+            input: NormalizedDayMusicInput(
+                stepsProgress: 1,
+                sleepProgress: 1,
+                happeningIDs: [],
+                glitchProgress: 1,
+                motionEnergy: 1,
+                visualClarity: 0.9,
+                diagnostics: []
+            ),
+            remixSeed: 0xBEEF
+        )
+        let backend = RecordingRhythmGlitchBackend()
+        let processor = GlitchProcessor(backend: backend)
+
+        processor.apply(glitch)
+        let processorEvent = processor.applyRealizedEvent(
+            plan: glitch,
+            role: .percussion,
+            cycleIndex: 0,
+            stepIndex: 0
+        )
+        let frame = player.render(
+            transportEvent(at: 0),
+            rhythmPlan: plan,
+            glitchPlan: glitch
+        )
+
+        XCTAssertNil(processorEvent)
+        let percussionCommands = backend.commands.filter { $0.role == .percussion }
+        XCTAssertEqual(percussionCommands.count, 2)
+        XCTAssertTrue(percussionCommands.allSatisfy(\.isBypassed))
+
+        let hit = try XCTUnwrap(frame.hits.first)
+        let rhythmEvent = try XCTUnwrap(plan.realizedEvents(cycleIndex: 0, stepIndex: 0).first)
+        let glitchEvent = try XCTUnwrap(glitch.realizedEvent(for: .percussion, cycleIndex: 0, stepIndex: 0))
+        let expectedTiming = min(max(
+            rhythmEvent.microtimingMilliseconds + glitchEvent.timingDriftMilliseconds,
+            -plan.maximumMicrotimingMilliseconds
+        ), plan.maximumMicrotimingMilliseconds)
+        XCTAssertEqual(hit.pitchDriftCents, glitchEvent.pitchDriftCents, accuracy: 1e-12)
+        XCTAssertEqual(hit.microtimingMilliseconds, expectedTiming, accuracy: 1e-12)
+        XCTAssertEqual(abs(hit.stereoOffset), glitch.sanitizedStereoSeparationAddition, accuracy: 1e-12)
+        XCTAssertTrue(hit.pitchDriftCents != 0 || hit.microtimingMilliseconds != 0 || hit.stereoOffset != 0)
+    }
+
     func testDuckingIsSilentAtLowStepsAndNeverExceedsTwoPointFiveDecibels() {
         let drums = RecordingRhythmDrumBank(allocatedPlayerCount: 31)
         let player = RhythmPlayer(drumBank: drums)
@@ -211,6 +261,15 @@ private final class RecordingRhythmDrumBank: DayObjectsDrumBankProtocol {
 
     func releaseAll() {
         releaseAllCount += 1
+    }
+}
+
+@MainActor
+private final class RecordingRhythmGlitchBackend: DayObjectsGlitchBackend {
+    var commands: [DayObjectsGlitchCommand] = []
+
+    func apply(_ command: DayObjectsGlitchCommand) {
+        commands.append(command)
     }
 }
 #endif

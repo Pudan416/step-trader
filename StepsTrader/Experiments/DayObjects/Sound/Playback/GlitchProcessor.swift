@@ -3,7 +3,6 @@ import Foundation
 
 struct DayObjectsGlitchCommand: Equatable, Sendable {
     let role: GlitchRole
-    let isBypassed: Bool
     let dryGain: Double
     let pitchDriftCents: Double
     let wowFlutterDepth: Double
@@ -14,6 +13,18 @@ struct DayObjectsGlitchCommand: Equatable, Sendable {
     let dropoutAttenuationDecibels: Double
     let dropoutReleaseSeconds: TimeInterval
     let rampDurationSeconds: TimeInterval
+
+    var isBypassed: Bool {
+        dryGain == 1
+            && pitchDriftCents == 0
+            && wowFlutterDepth == 0
+            && stereoSeparationAddition == 0
+            && delayTimeVariation == 0
+            && saturationAmount == 0
+            && timingDriftMilliseconds == 0
+            && dropoutAttenuationDecibels == 0
+            && dropoutReleaseSeconds == 0
+    }
 }
 
 @MainActor
@@ -22,7 +33,8 @@ protocol DayObjectsGlitchBackend: AnyObject {
 }
 
 /// Converts the Director-owned Glitch plan into bounded, role-specific
-/// playback commands. It owns no clock, random generator, task, or audio node.
+/// playback commands. RhythmPlayer remains the sole percussion owner because
+/// it alone has the hit and host-time identity needed to apply that texture.
 @MainActor
 final class GlitchProcessor {
     nonisolated static let rampDurationSeconds: TimeInterval = 0.25
@@ -39,31 +51,40 @@ final class GlitchProcessor {
         }
     }
 
-    /// Applies only the Director's counter-based event realization. The
-    /// processor never samples an additional source of randomness.
+    /// Invalid requests fail closed by emitting neutral state for the exact
+    /// requested route. Only a sanitized command can leave this boundary.
     @discardableResult
     func applyRealizedEvent(
         plan: GlitchPlan,
         role: GlitchRole,
         cycleIndex: Int,
         stepIndex: Int
-    ) -> GlitchRealizedEvent? {
-        guard let event = plan.realizedEvent(
-            for: role,
-            cycleIndex: cycleIndex,
-            stepIndex: stepIndex
-        ) else { return nil }
-
-        if role == .timingAnchorKick || unit(plan.progress) == 0 {
-            backend.apply(.neutral(role: role))
-            return event
+    ) -> DayObjectsGlitchCommand? {
+        guard role != .percussion, role != .timingAnchorKick else {
+            return applyNeutral(role)
+        }
+        guard plan.sanitizedProgress > 0,
+              let rolePlan = plan.validatedRolePlan(for: role),
+              !rolePlan.isTimingAnchor,
+              rolePlan.isGlitchEligible,
+              let event = plan.realizedEvent(
+                for: role,
+                cycleIndex: cycleIndex,
+                stepIndex: stepIndex
+              )
+        else {
+            return applyNeutral(role)
         }
 
         let base = continuousCommand(for: role, plan: plan)
-        let pitchDrift = finite(event.pitchDriftCents)
-        let delayVariation = finite(event.delayTimeVariation)
-        let dropoutDecibels = role == .happening && event.shouldDropOut ? -6.0 : 0
-        let dropoutRelease = role == .happening && event.shouldDropOut ? 0.12 : 0
+        let pitchDrift = signed(event.pitchDriftCents, maximum: rolePlan.pitchDriftCents)
+        let delayVariation = signed(
+            event.delayTimeVariation,
+            maximum: rolePlan.delayTimeInstability
+        )
+        let shouldDropOut = role == .happening && event.shouldDropOut
+        let dropoutDecibels = shouldDropOut ? -6.0 : 0
+        let dropoutRelease = shouldDropOut ? 0.12 : 0
 
         let command: DayObjectsGlitchCommand
         switch role {
@@ -82,42 +103,31 @@ final class GlitchProcessor {
             )
         case .lead:
             command = base.replacing(pitchDriftCents: pitchDrift)
-        case .percussion:
-            command = base.replacing(
-                pitchDriftCents: min(max(pitchDrift, -3), 3),
-                timingDriftMilliseconds: delayVariation * 4
-            )
-        case .timingAnchorKick:
-            command = .neutral(role: role)
+        case .percussion, .timingAnchorKick:
+            return applyNeutral(role)
         }
-        backend.apply(command.withBypassDerivedFromValues())
-        return event
+        backend.apply(command)
+        return command
     }
 
     private func continuousCommand(for role: GlitchRole, plan: GlitchPlan) -> DayObjectsGlitchCommand {
-        guard role != .timingAnchorKick,
-              unit(plan.progress) > 0,
-              let rolePlan = plan.role(for: role),
+        guard role != .percussion,
+              role != .timingAnchorKick,
+              plan.sanitizedProgress > 0,
+              let rolePlan = plan.validatedRolePlan(for: role),
+              !rolePlan.isTimingAnchor,
               rolePlan.isGlitchEligible
         else { return .neutral(role: role) }
 
-        let progress = unit(plan.progress)
-        let plannedPitch = nonnegative(rolePlan.pitchDriftCents)
-        let plannedDelay = nonnegative(rolePlan.delayTimeInstability)
-        let stereo = nonnegative(plan.stereoSeparationAddition)
-        let wowFlutter = nonnegative(plan.wowFlutterDepth)
-
-        let command: DayObjectsGlitchCommand
         switch role {
         case .pad:
-            command = .init(
+            return .init(
                 role: role,
-                isBypassed: false,
                 dryGain: 1,
-                pitchDriftCents: plannedPitch,
-                wowFlutterDepth: wowFlutter,
-                stereoSeparationAddition: stereo,
-                delayTimeVariation: plannedDelay,
+                pitchDriftCents: rolePlan.pitchDriftCents,
+                wowFlutterDepth: plan.sanitizedWowFlutterDepth,
+                stereoSeparationAddition: plan.sanitizedStereoSeparationAddition,
+                delayTimeVariation: rolePlan.delayTimeInstability,
                 saturationAmount: 0,
                 timingDriftMilliseconds: 0,
                 dropoutAttenuationDecibels: 0,
@@ -125,14 +135,13 @@ final class GlitchProcessor {
                 rampDurationSeconds: Self.rampDurationSeconds
             )
         case .happening:
-            command = .init(
+            return .init(
                 role: role,
-                isBypassed: false,
                 dryGain: 1,
-                pitchDriftCents: plannedPitch,
+                pitchDriftCents: rolePlan.pitchDriftCents,
                 wowFlutterDepth: 0,
                 stereoSeparationAddition: 0,
-                delayTimeVariation: plannedDelay,
+                delayTimeVariation: rolePlan.delayTimeInstability,
                 saturationAmount: 0,
                 timingDriftMilliseconds: 0,
                 dropoutAttenuationDecibels: 0,
@@ -140,51 +149,33 @@ final class GlitchProcessor {
                 rampDurationSeconds: Self.rampDurationSeconds
             )
         case .lead:
-            command = .init(
+            return .init(
                 role: role,
-                isBypassed: false,
                 dryGain: 1,
-                pitchDriftCents: plannedPitch,
+                pitchDriftCents: rolePlan.pitchDriftCents,
                 wowFlutterDepth: 0,
                 stereoSeparationAddition: 0,
                 delayTimeVariation: 0,
-                saturationAmount: progress,
+                saturationAmount: rolePlan.saturationAmount,
                 timingDriftMilliseconds: 0,
                 dropoutAttenuationDecibels: 0,
                 dropoutReleaseSeconds: 0,
                 rampDurationSeconds: Self.rampDurationSeconds
             )
-        case .percussion:
-            command = .init(
-                role: role,
-                isBypassed: false,
-                dryGain: 1,
-                pitchDriftCents: min(plannedPitch, 3),
-                wowFlutterDepth: 0,
-                stereoSeparationAddition: stereo,
-                delayTimeVariation: 0,
-                saturationAmount: 0,
-                timingDriftMilliseconds: plannedDelay * 4,
-                dropoutAttenuationDecibels: 0,
-                dropoutReleaseSeconds: 0,
-                rampDurationSeconds: Self.rampDurationSeconds
-            )
-        case .timingAnchorKick:
-            command = .neutral(role: role)
+        case .percussion, .timingAnchorKick:
+            return .neutral(role: role)
         }
-        return command.withBypassDerivedFromValues()
     }
 
-    private func unit(_ value: Double) -> Double {
-        min(max(finite(value), 0), 1)
+    @discardableResult
+    private func applyNeutral(_ role: GlitchRole) -> DayObjectsGlitchCommand? {
+        backend.apply(.neutral(role: role))
+        return nil
     }
 
-    private func nonnegative(_ value: Double) -> Double {
-        max(finite(value), 0)
-    }
-
-    private func finite(_ value: Double) -> Double {
-        value.isFinite ? value : 0
+    private func signed(_ value: Double, maximum: Double) -> Double {
+        guard value.isFinite, maximum.isFinite else { return 0 }
+        return min(max(value, -maximum), maximum)
     }
 
     private static func linearGain(decibels: Double) -> Double {
@@ -196,7 +187,6 @@ private extension DayObjectsGlitchCommand {
     static func neutral(role: GlitchRole) -> Self {
         .init(
             role: role,
-            isBypassed: true,
             dryGain: 1,
             pitchDriftCents: 0,
             wowFlutterDepth: 0,
@@ -214,46 +204,20 @@ private extension DayObjectsGlitchCommand {
         dryGain: Double? = nil,
         pitchDriftCents: Double? = nil,
         delayTimeVariation: Double? = nil,
-        timingDriftMilliseconds: Double? = nil,
         dropoutAttenuationDecibels: Double? = nil,
         dropoutReleaseSeconds: TimeInterval? = nil
     ) -> Self {
         .init(
             role: role,
-            isBypassed: isBypassed,
             dryGain: dryGain ?? self.dryGain,
             pitchDriftCents: pitchDriftCents ?? self.pitchDriftCents,
             wowFlutterDepth: wowFlutterDepth,
             stereoSeparationAddition: stereoSeparationAddition,
             delayTimeVariation: delayTimeVariation ?? self.delayTimeVariation,
             saturationAmount: saturationAmount,
-            timingDriftMilliseconds: timingDriftMilliseconds ?? self.timingDriftMilliseconds,
+            timingDriftMilliseconds: timingDriftMilliseconds,
             dropoutAttenuationDecibels: dropoutAttenuationDecibels ?? self.dropoutAttenuationDecibels,
             dropoutReleaseSeconds: dropoutReleaseSeconds ?? self.dropoutReleaseSeconds,
-            rampDurationSeconds: rampDurationSeconds
-        )
-    }
-
-    func withBypassDerivedFromValues() -> Self {
-        let hasEffect = pitchDriftCents != 0
-            || wowFlutterDepth != 0
-            || stereoSeparationAddition != 0
-            || delayTimeVariation != 0
-            || saturationAmount != 0
-            || timingDriftMilliseconds != 0
-            || dropoutAttenuationDecibels != 0
-        return .init(
-            role: role,
-            isBypassed: !hasEffect,
-            dryGain: dryGain,
-            pitchDriftCents: pitchDriftCents,
-            wowFlutterDepth: wowFlutterDepth,
-            stereoSeparationAddition: stereoSeparationAddition,
-            delayTimeVariation: delayTimeVariation,
-            saturationAmount: saturationAmount,
-            timingDriftMilliseconds: timingDriftMilliseconds,
-            dropoutAttenuationDecibels: dropoutAttenuationDecibels,
-            dropoutReleaseSeconds: dropoutReleaseSeconds,
             rampDurationSeconds: rampDurationSeconds
         )
     }

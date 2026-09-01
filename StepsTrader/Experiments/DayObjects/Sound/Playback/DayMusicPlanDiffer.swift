@@ -190,11 +190,15 @@ private struct ContinuousGlitchRoleSignature: Equatable {
     let pitchDriftCents: Double
     let dropoutProbability: Double
     let delayTimeInstability: Double
+    let saturationAmount: Double
+    let timingDriftMilliseconds: Double
 
     init(plan: GlitchRolePlan) {
         pitchDriftCents = plan.pitchDriftCents
         dropoutProbability = plan.dropoutProbability
         delayTimeInstability = plan.delayTimeInstability
+        saturationAmount = plan.saturationAmount
+        timingDriftMilliseconds = plan.timingDriftMilliseconds
     }
 }
 

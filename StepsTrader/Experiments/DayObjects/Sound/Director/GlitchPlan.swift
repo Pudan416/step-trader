@@ -14,6 +14,28 @@ struct GlitchRolePlan: Equatable, Sendable {
     let pitchDriftCents: Double
     let dropoutProbability: Double
     let delayTimeInstability: Double
+    let saturationAmount: Double
+    let timingDriftMilliseconds: Double
+
+    init(
+        role: GlitchRole,
+        isTimingAnchor: Bool,
+        isGlitchEligible: Bool,
+        pitchDriftCents: Double,
+        dropoutProbability: Double,
+        delayTimeInstability: Double,
+        saturationAmount: Double = 0,
+        timingDriftMilliseconds: Double = 0
+    ) {
+        self.role = role
+        self.isTimingAnchor = isTimingAnchor
+        self.isGlitchEligible = isGlitchEligible
+        self.pitchDriftCents = pitchDriftCents
+        self.dropoutProbability = dropoutProbability
+        self.delayTimeInstability = delayTimeInstability
+        self.saturationAmount = saturationAmount
+        self.timingDriftMilliseconds = timingDriftMilliseconds
+    }
 
     static let stableKick = GlitchRolePlan(
         role: .timingAnchorKick,
@@ -21,8 +43,92 @@ struct GlitchRolePlan: Equatable, Sendable {
         isGlitchEligible: false,
         pitchDriftCents: 0,
         dropoutProbability: 0,
-        delayTimeInstability: 0
+        delayTimeInstability: 0,
+        saturationAmount: 0,
+        timingDriftMilliseconds: 0
     )
+
+    func scaled(by rawProgress: Double) -> Self {
+        let progress = rawProgress.isFinite ? min(max(rawProgress, 0), 1) : 0
+        return .init(
+            role: role,
+            isTimingAnchor: isTimingAnchor,
+            isGlitchEligible: isGlitchEligible,
+            pitchDriftCents: pitchDriftCents * progress,
+            dropoutProbability: dropoutProbability * progress,
+            delayTimeInstability: delayTimeInstability * progress,
+            saturationAmount: saturationAmount * progress,
+            timingDriftMilliseconds: timingDriftMilliseconds * progress
+        )
+    }
+
+    fileprivate func clamped(to limits: Self) -> Self {
+        .init(
+            role: role,
+            isTimingAnchor: isTimingAnchor,
+            isGlitchEligible: isGlitchEligible,
+            pitchDriftCents: Self.bounded(pitchDriftCents, maximum: limits.pitchDriftCents),
+            dropoutProbability: Self.bounded(dropoutProbability, maximum: limits.dropoutProbability),
+            delayTimeInstability: Self.bounded(delayTimeInstability, maximum: limits.delayTimeInstability),
+            saturationAmount: Self.bounded(saturationAmount, maximum: limits.saturationAmount),
+            timingDriftMilliseconds: Self.bounded(
+                timingDriftMilliseconds,
+                maximum: limits.timingDriftMilliseconds
+            )
+        )
+    }
+
+    private static func bounded(_ value: Double, maximum: Double) -> Double {
+        guard value.isFinite else { return 0 }
+        return min(max(value, 0), maximum)
+    }
+}
+
+extension GlitchRole {
+    var safeLimits: GlitchRolePlan {
+        switch self {
+        case .pad:
+            return .init(
+                role: self,
+                isTimingAnchor: false,
+                isGlitchEligible: true,
+                pitchDriftCents: 14,
+                dropoutProbability: 0,
+                delayTimeInstability: 0.08
+            )
+        case .happening:
+            return .init(
+                role: self,
+                isTimingAnchor: false,
+                isGlitchEligible: true,
+                pitchDriftCents: 10,
+                dropoutProbability: 0.06,
+                delayTimeInstability: 0.04
+            )
+        case .lead:
+            return .init(
+                role: self,
+                isTimingAnchor: false,
+                isGlitchEligible: true,
+                pitchDriftCents: 8,
+                dropoutProbability: 0,
+                delayTimeInstability: 0,
+                saturationAmount: 0.18
+            )
+        case .percussion:
+            return .init(
+                role: self,
+                isTimingAnchor: false,
+                isGlitchEligible: true,
+                pitchDriftCents: 3,
+                dropoutProbability: 0,
+                delayTimeInstability: 0,
+                timingDriftMilliseconds: 0.32
+            )
+        case .timingAnchorKick:
+            return .stableKick
+        }
+    }
 }
 
 struct GlitchRealizationState: Equatable, Sendable {
@@ -46,9 +152,13 @@ struct GlitchRealizedEvent: Equatable, Sendable {
     let shouldDropOut: Bool
     let pitchDriftCents: Double
     let delayTimeVariation: Double
+    let timingDriftMilliseconds: Double
 }
 
 struct GlitchPlan: Equatable, Sendable {
+    static let maximumWowFlutterDepth = 0.18
+    static let maximumStereoSeparationAddition = 0.22
+
     let progress: Double
     let roles: [GlitchRolePlan]
     let wowFlutterDepth: Double
@@ -64,7 +174,9 @@ struct GlitchPlan: Equatable, Sendable {
                 isGlitchEligible: true,
                 pitchDriftCents: 0,
                 dropoutProbability: 0,
-                delayTimeInstability: 0
+                delayTimeInstability: 0,
+                saturationAmount: 0,
+                timingDriftMilliseconds: 0
             ),
             GlitchRolePlan(
                 role: .happening,
@@ -72,7 +184,9 @@ struct GlitchPlan: Equatable, Sendable {
                 isGlitchEligible: true,
                 pitchDriftCents: 0,
                 dropoutProbability: 0,
-                delayTimeInstability: 0
+                delayTimeInstability: 0,
+                saturationAmount: 0,
+                timingDriftMilliseconds: 0
             ),
             GlitchRolePlan(
                 role: .lead,
@@ -80,7 +194,9 @@ struct GlitchPlan: Equatable, Sendable {
                 isGlitchEligible: true,
                 pitchDriftCents: 0,
                 dropoutProbability: 0,
-                delayTimeInstability: 0
+                delayTimeInstability: 0,
+                saturationAmount: 0,
+                timingDriftMilliseconds: 0
             ),
             GlitchRolePlan(
                 role: .percussion,
@@ -88,7 +204,9 @@ struct GlitchPlan: Equatable, Sendable {
                 isGlitchEligible: true,
                 pitchDriftCents: 0,
                 dropoutProbability: 0,
-                delayTimeInstability: 0
+                delayTimeInstability: 0,
+                saturationAmount: 0,
+                timingDriftMilliseconds: 0
             ),
             .stableKick,
         ],
@@ -105,6 +223,8 @@ struct GlitchPlan: Equatable, Sendable {
                 $0.pitchDriftCents == 0
                     && $0.dropoutProbability == 0
                     && $0.delayTimeInstability == 0
+                    && $0.saturationAmount == 0
+                    && $0.timingDriftMilliseconds == 0
             }
     }
 
@@ -112,22 +232,53 @@ struct GlitchPlan: Equatable, Sendable {
         roles.first { $0.role == role }
     }
 
+    var sanitizedProgress: Double {
+        guard progress.isFinite else { return 0 }
+        return min(max(progress, 0), 1)
+    }
+
+    var sanitizedWowFlutterDepth: Double {
+        Self.bounded(wowFlutterDepth, maximum: Self.maximumWowFlutterDepth)
+    }
+
+    var sanitizedStereoSeparationAddition: Double {
+        Self.bounded(
+            stereoSeparationAddition,
+            maximum: Self.maximumStereoSeparationAddition
+        )
+    }
+
+    func validatedRolePlan(for role: GlitchRole) -> GlitchRolePlan? {
+        let matches = roles.filter { $0.role == role }
+        guard matches.count == 1, let candidate = matches.first else { return nil }
+        if role == .timingAnchorKick {
+            guard candidate.isTimingAnchor, !candidate.isGlitchEligible else { return nil }
+        } else {
+            guard !candidate.isTimingAnchor, candidate.isGlitchEligible else { return nil }
+        }
+        return candidate.clamped(to: role.safeLimits)
+    }
+
     func realizedEvent(
         for role: GlitchRole,
         cycleIndex: Int,
         stepIndex: Int
     ) -> GlitchRealizedEvent? {
-        guard cycleIndex >= 0, (0..<16).contains(stepIndex), let rolePlan = self.role(for: role) else {
+        guard cycleIndex >= 0,
+              (0..<16).contains(stepIndex),
+              let rolePlan = validatedRolePlan(for: role)
+        else {
             return nil
         }
-        guard rolePlan.isGlitchEligible else {
+        guard sanitizedProgress > 0, rolePlan.isGlitchEligible else {
             return GlitchRealizedEvent(
                 role: role,
                 cycleIndex: cycleIndex,
                 stepIndex: stepIndex,
                 shouldDropOut: false,
                 pitchDriftCents: 0,
-                delayTimeVariation: 0
+                delayTimeVariation: 0,
+                timingDriftMilliseconds: 0
             )
         }
 
@@ -160,8 +311,14 @@ struct GlitchPlan: Equatable, Sendable {
             stepIndex: stepIndex,
             shouldDropOut: dropout,
             pitchDriftCents: ((pitchSample * 2) - 1) * rolePlan.pitchDriftCents,
-            delayTimeVariation: ((delaySample * 2) - 1) * rolePlan.delayTimeInstability
+            delayTimeVariation: ((delaySample * 2) - 1) * rolePlan.delayTimeInstability,
+            timingDriftMilliseconds: ((delaySample * 2) - 1) * rolePlan.timingDriftMilliseconds
         )
+    }
+
+    private static func bounded(_ value: Double, maximum: Double) -> Double {
+        guard value.isFinite else { return 0 }
+        return min(max(value, 0), maximum)
     }
 
     private func sample(

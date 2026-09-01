@@ -9,36 +9,15 @@ enum GlitchPlanner {
 
         return GlitchPlan(
             progress: progress,
-            roles: [
-                rolePlan(role: .pad, maximumPitchDriftCents: 14, progress: progress),
-                rolePlan(role: .happening, maximumPitchDriftCents: 10, progress: progress),
-                rolePlan(role: .lead, maximumPitchDriftCents: 8, progress: progress),
-                rolePlan(role: .percussion, maximumPitchDriftCents: 3, progress: progress),
-                .stableKick,
-            ],
-            wowFlutterDepth: 0.18 * progress,
-            stereoSeparationAddition: 0.22 * progress,
+            roles: GlitchRole.allCases.map { $0.safeLimits.scaled(by: progress) },
+            wowFlutterDepth: GlitchPlan.maximumWowFlutterDepth * progress,
+            stereoSeparationAddition: GlitchPlan.maximumStereoSeparationAddition * progress,
             realization: GlitchRealizationState(
                 dropoutSeed: random.nextUInt64(),
                 variationSeed: random.nextUInt64(),
                 cycleKey: random.nextUInt64(),
                 counterMapping: .roleCycleStepParameterV1
             )
-        )
-    }
-
-    private static func rolePlan(
-        role: GlitchRole,
-        maximumPitchDriftCents: Double,
-        progress: Double
-    ) -> GlitchRolePlan {
-        GlitchRolePlan(
-            role: role,
-            isTimingAnchor: false,
-            isGlitchEligible: true,
-            pitchDriftCents: maximumPitchDriftCents * progress,
-            dropoutProbability: 0.06 * progress,
-            delayTimeInstability: 0.08 * progress
         )
     }
 

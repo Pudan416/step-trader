@@ -76,7 +76,9 @@ final class DayMusicPlanDifferTests: XCTestCase {
             isGlitchEligible: !oldRole.isGlitchEligible,
             pitchDriftCents: oldRole.pitchDriftCents,
             dropoutProbability: oldRole.dropoutProbability,
-            delayTimeInstability: oldRole.delayTimeInstability
+            delayTimeInstability: oldRole.delayTimeInstability,
+            saturationAmount: oldRole.saturationAmount,
+            timingDriftMilliseconds: oldRole.timingDriftMilliseconds
         )
         var roles = oldPlan.glitch.roles
         roles[0] = changedRole
@@ -93,6 +95,39 @@ final class DayMusicPlanDifferTests: XCTestCase {
 
         XCTAssertNil(change.continuousPlan)
         XCTAssertEqual(change.structuralPlan, newPlan)
+    }
+
+    func testDirectorOwnedSaturationAndPercussionTimingChangesAreContinuous() throws {
+        let oldPlan = makePlan(spentColors: 50)
+
+        for role in [GlitchRole.lead, .percussion] {
+            var roles = oldPlan.glitch.roles
+            let index = try XCTUnwrap(roles.firstIndex { $0.role == role })
+            let oldRole = roles[index]
+            roles[index] = GlitchRolePlan(
+                role: oldRole.role,
+                isTimingAnchor: oldRole.isTimingAnchor,
+                isGlitchEligible: oldRole.isGlitchEligible,
+                pitchDriftCents: oldRole.pitchDriftCents,
+                dropoutProbability: oldRole.dropoutProbability,
+                delayTimeInstability: oldRole.delayTimeInstability,
+                saturationAmount: oldRole.saturationAmount + (role == .lead ? 0.01 : 0),
+                timingDriftMilliseconds: oldRole.timingDriftMilliseconds + (role == .percussion ? 0.01 : 0)
+            )
+            let changedGlitch = GlitchPlan(
+                progress: oldPlan.glitch.progress,
+                roles: roles,
+                wowFlutterDepth: oldPlan.glitch.wowFlutterDepth,
+                stereoSeparationAddition: oldPlan.glitch.stereoSeparationAddition,
+                realization: oldPlan.glitch.realization
+            )
+            let newPlan = replacing(oldPlan, glitch: changedGlitch)
+
+            let change = DayMusicPlanDiffer.change(from: oldPlan, to: newPlan)
+
+            XCTAssertEqual(change.continuousPlan, newPlan)
+            XCTAssertNil(change.structuralPlan)
+        }
     }
 
     func testLayerMixOnlyChangeIsContinuousOnly() {

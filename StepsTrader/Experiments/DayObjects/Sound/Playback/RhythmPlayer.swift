@@ -88,12 +88,12 @@ final class RhythmPlayer {
                 pitchDriftCents = 0
                 stereoOffset = 0
             } else {
-                textureTimingMilliseconds = (glitch?.delayTimeVariation ?? 0) * 4
+                textureTimingMilliseconds = glitch?.timingDriftMilliseconds ?? 0
                 pitchDriftCents = min(max(glitch?.pitchDriftCents ?? 0, -3), 3)
                 let direction = pitchDriftCents == 0
                     ? (stepIndex.isMultiple(of: 2) ? -1.0 : 1.0)
                     : (pitchDriftCents < 0 ? -1.0 : 1.0)
-                stereoOffset = direction * glitchPlan.stereoSeparationAddition
+                stereoOffset = direction * glitchPlan.sanitizedStereoSeparationAddition
             }
             let boundedTiming = min(
                 max(

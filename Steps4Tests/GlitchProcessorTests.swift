@@ -94,21 +94,21 @@ final class GlitchProcessorTests: XCTestCase {
 
             let happening = try command(.happening, in: backend)
             XCTAssertEqual(happening.pitchDriftCents, 10 * fixture.progress, accuracy: 1e-12)
-            XCTAssertEqual(happening.delayTimeVariation, 0.08 * fixture.progress, accuracy: 1e-12)
+            XCTAssertEqual(happening.delayTimeVariation, 0.04 * fixture.progress, accuracy: 1e-12)
 
             let lead = try command(.lead, in: backend)
             XCTAssertEqual(lead.pitchDriftCents, 8 * fixture.progress, accuracy: 1e-12)
-            XCTAssertEqual(lead.saturationAmount, fixture.progress, accuracy: 1e-12)
+            XCTAssertEqual(lead.saturationAmount, 0.18 * fixture.progress, accuracy: 1e-12)
 
             let percussion = try command(.percussion, in: backend)
-            XCTAssertEqual(percussion.pitchDriftCents, 3 * fixture.progress, accuracy: 1e-12)
-            XCTAssertEqual(percussion.stereoSeparationAddition, 0.22 * fixture.progress, accuracy: 1e-12)
-            XCTAssertEqual(percussion.timingDriftMilliseconds, 0.32 * fixture.progress, accuracy: 1e-12)
+            XCTAssertTrue(percussion.isBypassed)
+            XCTAssertEqual(percussion.pitchDriftCents, 0)
+            XCTAssertEqual(percussion.stereoSeparationAddition, 0)
+            XCTAssertEqual(percussion.timingDriftMilliseconds, 0)
 
             XCTAssertFalse(pad.isBypassed)
             XCTAssertFalse(happening.isBypassed)
             XCTAssertFalse(lead.isBypassed)
-            XCTAssertFalse(percussion.isBypassed)
             XCTAssertTrue(try command(.timingAnchorKick, in: backend).isBypassed)
         }
     }
@@ -146,18 +146,20 @@ final class GlitchProcessorTests: XCTestCase {
         let backend = RecordingGlitchBackend()
         let processor = GlitchProcessor(backend: backend)
         let plan = planWithCertainHappeningDropout()
-        let expected = try XCTUnwrap(plan.realizedEvent(for: .happening, cycleIndex: 2, stepIndex: 7))
+        let occurrence = try firstHappeningDropout(in: plan)
+        let expected = occurrence.event
         XCTAssertTrue(expected.shouldDropOut)
 
         let realized = processor.applyRealizedEvent(
             plan: plan,
             role: .happening,
-            cycleIndex: 2,
-            stepIndex: 7
+            cycleIndex: occurrence.cycleIndex,
+            stepIndex: occurrence.stepIndex
         )
 
-        XCTAssertEqual(realized, expected)
+        let applied = try XCTUnwrap(realized)
         let command = try XCTUnwrap(backend.commands.last)
+        XCTAssertEqual(applied, command)
         XCTAssertEqual(command.role, .happening)
         XCTAssertEqual(command.pitchDriftCents, expected.pitchDriftCents, accuracy: 1e-12)
         XCTAssertEqual(command.delayTimeVariation, expected.delayTimeVariation, accuracy: 1e-12)
@@ -173,12 +175,13 @@ final class GlitchProcessorTests: XCTestCase {
         let malformed = malformedTimingAnchorPlan()
 
         processor.apply(malformed)
-        _ = processor.applyRealizedEvent(
+        let applied = processor.applyRealizedEvent(
             plan: malformed,
             role: .timingAnchorKick,
             cycleIndex: 0,
             stepIndex: 0
         )
+        XCTAssertNil(applied)
 
         let commands = backend.commands.filter { $0.role == .timingAnchorKick }
         XCTAssertEqual(commands.count, 2)
@@ -224,6 +227,142 @@ final class GlitchProcessorTests: XCTestCase {
         XCTAssertEqual(pad.dryGain, 1)
     }
 
+    func testEventPathFailsClosedForMissingDuplicateZeroInvalidCoordinateAndContradictoryFlags() throws {
+        let backend = RecordingGlitchBackend()
+        let processor = GlitchProcessor(backend: backend)
+        let valid = makePlan(spentColors: 100)
+        processor.apply(valid)
+        XCTAssertFalse(try command(.pad, in: backend).isBypassed)
+
+        let pad = try XCTUnwrap(valid.role(for: .pad))
+        let fixtures: [(GlitchPlan, GlitchRole, Int, Int, Bool)] = [
+            (plan(replacingRoles: [], from: valid), .pad, 0, 0, true),
+            (plan(replacingRoles: [pad, pad], from: valid), .pad, 0, 0, true),
+            (plan(replacingProgress: 0, from: valid), .pad, 0, 0, true),
+            (valid, .pad, -1, 0, false),
+            (valid, .pad, 0, 16, false),
+            (plan(replacingRoles: [rolePlan(.pad, isTimingAnchor: true, isGlitchEligible: true)], from: valid), .pad, 0, 0, true),
+            (plan(replacingRoles: [rolePlan(.pad, isTimingAnchor: false, isGlitchEligible: false)], from: valid), .pad, 0, 0, true),
+            (plan(replacingRoles: [rolePlan(.timingAnchorKick, isTimingAnchor: false, isGlitchEligible: true)], from: valid), .timingAnchorKick, 0, 0, true),
+        ]
+
+        for (fixture, role, cycle, step, continuousShouldBeNeutral) in fixtures {
+            processor.apply(fixture)
+            let continuousNeutral = try command(role, in: backend)
+            XCTAssertEqual(continuousNeutral.isBypassed, continuousShouldBeNeutral)
+            if continuousShouldBeNeutral {
+                XCTAssertEqual(continuousNeutral.dryGain, 1)
+            }
+
+            let applied = processor.applyRealizedEvent(
+                plan: fixture,
+                role: role,
+                cycleIndex: cycle,
+                stepIndex: step
+            )
+            XCTAssertNil(applied)
+            let neutral = try XCTUnwrap(backend.commands.last)
+            XCTAssertEqual(neutral.role, role)
+            XCTAssertTrue(neutral.isBypassed)
+            XCTAssertEqual(neutral.dryGain, 1)
+            XCTAssertTrue(neutral.finiteValues.allSatisfy(\.isFinite))
+        }
+    }
+
+    func testExtremeFiniteRoleValuesClampToDirectorOwnedBoundsForEveryRole() throws {
+        for role in GlitchRole.allCases {
+            for raw in [-1_000.0, 1_000.0] {
+                let backend = RecordingGlitchBackend()
+                let processor = GlitchProcessor(backend: backend)
+                let rawRole = GlitchRolePlan(
+                    role: role,
+                    isTimingAnchor: role == .timingAnchorKick,
+                    isGlitchEligible: role != .timingAnchorKick,
+                    pitchDriftCents: raw,
+                    dropoutProbability: raw,
+                    delayTimeInstability: raw,
+                    saturationAmount: raw,
+                    timingDriftMilliseconds: raw
+                )
+                let fixture = GlitchPlan(
+                    progress: 1,
+                    roles: [rawRole],
+                    wowFlutterDepth: raw,
+                    stereoSeparationAddition: raw,
+                    realization: .init(
+                        dropoutSeed: 1,
+                        variationSeed: 2,
+                        cycleKey: 3,
+                        counterMapping: .roleCycleStepParameterV1
+                    )
+                )
+
+                processor.apply(fixture)
+                let continuous = try command(role, in: backend)
+                let limits = role.safeLimits
+                XCTAssertLessThanOrEqual(abs(continuous.pitchDriftCents), limits.pitchDriftCents)
+                XCTAssertLessThanOrEqual(abs(continuous.delayTimeVariation), limits.delayTimeInstability)
+                XCTAssertLessThanOrEqual(continuous.saturationAmount, limits.saturationAmount)
+                XCTAssertLessThanOrEqual(abs(continuous.timingDriftMilliseconds), limits.timingDriftMilliseconds)
+                XCTAssertLessThanOrEqual(continuous.wowFlutterDepth, GlitchPlan.maximumWowFlutterDepth)
+                XCTAssertLessThanOrEqual(continuous.stereoSeparationAddition, GlitchPlan.maximumStereoSeparationAddition)
+
+                let eventCommand = processor.applyRealizedEvent(
+                    plan: fixture,
+                    role: role,
+                    cycleIndex: 0,
+                    stepIndex: 0
+                )
+                if role == .percussion || role == .timingAnchorKick {
+                    XCTAssertNil(eventCommand)
+                    XCTAssertTrue(try XCTUnwrap(backend.commands.last).isBypassed)
+                } else {
+                    let eventCommand = try XCTUnwrap(eventCommand)
+                    XCTAssertLessThanOrEqual(abs(eventCommand.pitchDriftCents), limits.pitchDriftCents)
+                    XCTAssertLessThanOrEqual(abs(eventCommand.delayTimeVariation), limits.delayTimeInstability)
+                }
+            }
+        }
+    }
+
+    func testDryGainParticipatesInBypassAndNextEventRestoresUnity() throws {
+        let attenuatedOnly = DayObjectsGlitchCommand(
+            role: .happening,
+            dryGain: 0.5,
+            pitchDriftCents: 0,
+            wowFlutterDepth: 0,
+            stereoSeparationAddition: 0,
+            delayTimeVariation: 0,
+            saturationAmount: 0,
+            timingDriftMilliseconds: 0,
+            dropoutAttenuationDecibels: 0,
+            dropoutReleaseSeconds: 0,
+            rampDurationSeconds: 0.25
+        )
+        XCTAssertFalse(attenuatedOnly.isBypassed)
+
+        let backend = RecordingGlitchBackend()
+        let processor = GlitchProcessor(backend: backend)
+        let dropoutPlan = planWithCertainHappeningDropout()
+        let occurrence = try firstHappeningDropout(in: dropoutPlan)
+        _ = processor.applyRealizedEvent(
+            plan: dropoutPlan,
+            role: .happening,
+            cycleIndex: occurrence.cycleIndex,
+            stepIndex: occurrence.stepIndex
+        )
+        XCTAssertLessThan(try XCTUnwrap(backend.commands.last).dryGain, 1)
+
+        let restoration = planWithNoHappeningDropout()
+        _ = processor.applyRealizedEvent(
+            plan: restoration,
+            role: .happening,
+            cycleIndex: occurrence.cycleIndex,
+            stepIndex: occurrence.stepIndex
+        )
+        XCTAssertEqual(try XCTUnwrap(backend.commands.last).dryGain, 1)
+    }
+
     private func makePlan(spentColors: Int) -> GlitchPlan {
         let input = DayMusicInput(
             countedSteps: 0,
@@ -245,8 +384,10 @@ final class GlitchProcessorTests: XCTestCase {
                     isTimingAnchor: false,
                     isGlitchEligible: true,
                     pitchDriftCents: 10,
-                    dropoutProbability: 1,
-                    delayTimeInstability: 0.08
+                    dropoutProbability: 0.06,
+                    delayTimeInstability: 0.04,
+                    saturationAmount: 0,
+                    timingDriftMilliseconds: 0
                 ),
             ],
             wowFlutterDepth: 0.18,
@@ -260,6 +401,89 @@ final class GlitchProcessorTests: XCTestCase {
         )
     }
 
+    private func planWithNoHappeningDropout() -> GlitchPlan {
+        GlitchPlan(
+            progress: 1,
+            roles: [
+                .init(
+                    role: .happening,
+                    isTimingAnchor: false,
+                    isGlitchEligible: true,
+                    pitchDriftCents: 0,
+                    dropoutProbability: 0,
+                    delayTimeInstability: 0,
+                    saturationAmount: 0,
+                    timingDriftMilliseconds: 0
+                ),
+            ],
+            wowFlutterDepth: 0,
+            stereoSeparationAddition: 0,
+            realization: .init(
+                dropoutSeed: 11,
+                variationSeed: 22,
+                cycleKey: 33,
+                counterMapping: .roleCycleStepParameterV1
+            )
+        )
+    }
+
+    private func firstHappeningDropout(
+        in plan: GlitchPlan
+    ) throws -> (cycleIndex: Int, stepIndex: Int, event: GlitchRealizedEvent) {
+        for cycleIndex in 0..<256 {
+            for stepIndex in 0..<16 {
+                if let event = plan.realizedEvent(
+                    for: .happening,
+                    cycleIndex: cycleIndex,
+                    stepIndex: stepIndex
+                ), event.shouldDropOut {
+                    return (cycleIndex, stepIndex, event)
+                }
+            }
+        }
+        throw NSError(
+            domain: "GlitchProcessorTests.MissingDeterministicDropout",
+            code: 1
+        )
+    }
+
+    private func plan(replacingRoles roles: [GlitchRolePlan], from plan: GlitchPlan) -> GlitchPlan {
+        GlitchPlan(
+            progress: plan.progress,
+            roles: roles,
+            wowFlutterDepth: plan.wowFlutterDepth,
+            stereoSeparationAddition: plan.stereoSeparationAddition,
+            realization: plan.realization
+        )
+    }
+
+    private func plan(replacingProgress progress: Double, from plan: GlitchPlan) -> GlitchPlan {
+        GlitchPlan(
+            progress: progress,
+            roles: plan.roles,
+            wowFlutterDepth: plan.wowFlutterDepth,
+            stereoSeparationAddition: plan.stereoSeparationAddition,
+            realization: plan.realization
+        )
+    }
+
+    private func rolePlan(
+        _ role: GlitchRole,
+        isTimingAnchor: Bool,
+        isGlitchEligible: Bool
+    ) -> GlitchRolePlan {
+        .init(
+            role: role,
+            isTimingAnchor: isTimingAnchor,
+            isGlitchEligible: isGlitchEligible,
+            pitchDriftCents: 1,
+            dropoutProbability: 0,
+            delayTimeInstability: 0,
+            saturationAmount: 0,
+            timingDriftMilliseconds: 0
+        )
+    }
+
     private func malformedTimingAnchorPlan() -> GlitchPlan {
         GlitchPlan(
             progress: 1,
@@ -270,7 +494,9 @@ final class GlitchProcessorTests: XCTestCase {
                     isGlitchEligible: true,
                     pitchDriftCents: .infinity,
                     dropoutProbability: 1,
-                    delayTimeInstability: .nan
+                    delayTimeInstability: .nan,
+                    saturationAmount: .infinity,
+                    timingDriftMilliseconds: .infinity
                 ),
             ],
             wowFlutterDepth: 1,

@@ -350,22 +350,19 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 rolePlan.pitchDriftCents,
                 rolePlan.dropoutProbability,
                 rolePlan.delayTimeInstability,
+                rolePlan.saturationAmount,
+                rolePlan.timingDriftMilliseconds,
             ], "glitch role finite")
             requireUnit(
-                [rolePlan.dropoutProbability, rolePlan.delayTimeInstability],
+                [rolePlan.dropoutProbability, rolePlan.delayTimeInstability, rolePlan.saturationAmount],
                 "glitch role unit bounds"
             )
-            let maximumPitchDrift: Double
-            switch rolePlan.role {
-            case .pad: maximumPitchDrift = 14
-            case .happening: maximumPitchDrift = 10
-            case .lead: maximumPitchDrift = 8
-            case .percussion: maximumPitchDrift = 3
-            case .timingAnchorKick: maximumPitchDrift = 0
-            }
-            require((0...maximumPitchDrift).contains(rolePlan.pitchDriftCents), "glitch pitch drift")
-            require(rolePlan.dropoutProbability <= 0.06, "glitch dropout cap")
-            require(rolePlan.delayTimeInstability <= 0.08, "glitch delay cap")
+            let limits = rolePlan.role.safeLimits
+            require((0...limits.pitchDriftCents).contains(rolePlan.pitchDriftCents), "glitch pitch drift")
+            require(rolePlan.dropoutProbability <= limits.dropoutProbability, "glitch dropout cap")
+            require(rolePlan.delayTimeInstability <= limits.delayTimeInstability, "glitch delay cap")
+            require(rolePlan.saturationAmount <= limits.saturationAmount, "glitch saturation cap")
+            require(rolePlan.timingDriftMilliseconds <= limits.timingDriftMilliseconds, "glitch timing cap")
             if rolePlan.role == .timingAnchorKick {
                 require(rolePlan == .stableKick, "glitch timing anchor")
             } else {
@@ -378,7 +375,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 stepIndex: 0
             ) {
                 requireFinite(
-                    [event.pitchDriftCents, event.delayTimeVariation],
+                    [event.pitchDriftCents, event.delayTimeVariation, event.timingDriftMilliseconds],
                     "realized glitch finite"
                 )
                 require(
@@ -388,6 +385,10 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 require(
                     abs(event.delayTimeVariation) <= rolePlan.delayTimeInstability,
                     "realized glitch delay bound"
+                )
+                require(
+                    abs(event.timingDriftMilliseconds) <= rolePlan.timingDriftMilliseconds,
+                    "realized glitch timing bound"
                 )
             } else {
                 require(false, "realized glitch event")
