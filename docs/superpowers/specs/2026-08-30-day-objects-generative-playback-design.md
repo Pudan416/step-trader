@@ -415,3 +415,33 @@ Glitch onset. Repeat interruption and background cycles.
 - Lifecycle operations leave no transport, task, node growth, or stuck voice.
 - Existing Day Objects animation remains smooth.
 - The playback implementation does not leak into production Canvas.
+
+## Verification status — 2026-09-01
+
+Verified in the iPhone 17 Pro simulator:
+
+- the exact final playback suite passed 152/152 and the exact Day Objects Lab UI
+  suite passed 6/6;
+- deterministic load gates passed for 25 Sound cycles, 10 background and 10
+  interruption stops, Happenings 0↔10 loops, 100 Remixes, 1,000 Lead updates,
+  1,000 harmony changes, 10,000 rhythm subdivisions, and 10,000 transport bars;
+- fixed-bank/node/task/token assertions converge without a stuck deterministic
+  token after teardown;
+- Grid and VoiceOver held-Lead cancellation tests pass;
+- a fresh Release simulator build succeeds, the Release app binary contains no
+  audited playback symbols, and production Canvas/store/model/service paths do
+  not reference playback types.
+
+Not yet verified:
+
+- the complete physical-iPhone speaker/headphone matrix;
+- physical CPU, memory, thermal, render-underrun, and audio-glitch behavior;
+- perceptual balance, harmonic motion, every Happening's birth/recurrence,
+  Lead softness, low-Glitch onset, click-free Remix, and physical Metal frame
+  pacing.
+
+Therefore the automated portion is accepted, but the phase completion gate
+remains open. The pending rows are tracked in
+`docs/day-objects-generative-playback-listening-checklist.md`; observed
+simulator/build evidence is recorded in
+`docs/day-objects-generative-playback-performance.md`.

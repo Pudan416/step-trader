@@ -286,6 +286,41 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(runtime.continuousCount, 0)
         XCTAssertEqual(runtime.beginLeadCount, 0)
     }
+
+    func testTwentyFiveSoundCyclesKeepRuntimeMetricsFixedAndLeaveNoActiveTokens() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let plan = makePlaybackEnginePlan(seed: 0x25)
+
+        for cycle in 1...25 {
+            try await engine.start(plan: plan)
+
+            XCTAssertEqual(engine.state, .on, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.engineStartCount, cycle, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.activeTransportCount, 1, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.activeTaskCount, 1, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.activeNodeCount, 64, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.activeVoiceCount, 4, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.activeHappeningCount, 2, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.pendingRemixCount, 0, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.leadVoiceCount, 0, "cycle \(cycle)")
+
+            await engine.stop()
+
+            XCTAssertEqual(engine.state, .off, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.engineStartCount, cycle, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.activeTransportCount, 0, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.activeTaskCount, 0, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.activeNodeCount, 64, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.activeVoiceCount, 0, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.activeHappeningCount, 0, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.pendingRemixCount, 0, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.leadVoiceCount, 0, "cycle \(cycle)")
+            XCTAssertFalse(session.isActive, "cycle \(cycle)")
+        }
+    }
 }
 
 @MainActor

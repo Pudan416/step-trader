@@ -174,6 +174,57 @@ final class DayObjectsMusicLabControllerTests: XCTestCase {
         XCTAssertTrue(playback.commands.isEmpty)
         XCTAssertEqual(playback.beginLeadCount, 0)
     }
+
+    func testTenBackgroundAndInterruptionCyclesConvergeOffWithoutAutomaticRestart() async {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+
+        for cycle in 1...10 {
+            await controller.toggleSound()
+            XCTAssertEqual(controller.soundState, .on, "background cycle \(cycle)")
+            await controller.sceneActivityChanged(isActive: false)
+            XCTAssertEqual(controller.soundState, .off, "background cycle \(cycle)")
+            await controller.sceneActivityChanged(isActive: true)
+            XCTAssertEqual(playback.startPlans.count, cycle * 2 - 1, "foreground must not auto-resume")
+
+            await controller.toggleSound()
+            XCTAssertEqual(controller.soundState, .on, "interruption cycle \(cycle)")
+            await controller.interruptionBegan()
+            XCTAssertEqual(controller.soundState, .off, "interruption cycle \(cycle)")
+            await controller.interruptionEnded()
+            XCTAssertEqual(playback.startPlans.count, cycle * 2, "interruption end must not auto-resume")
+        }
+
+        XCTAssertEqual(playback.stopCount, 20)
+        XCTAssertEqual(controller.soundState, .off)
+        XCTAssertEqual(playback.state, .off)
+    }
+
+    func testHappeningsZeroToTenLoopsKeepStableIDsAndLeaveNoActiveRecords() async {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        await controller.toggleSound()
+
+        for cycle in 1...10 {
+            controller.setHappeningCount(0)
+            XCTAssertEqual(playback.metrics.activeHappeningCount, 0, "remove cycle \(cycle)")
+            XCTAssertTrue(playback.activeHappeningIDs.isEmpty, "remove cycle \(cycle)")
+
+            controller.setHappeningCount(10)
+            XCTAssertEqual(playback.metrics.activeHappeningCount, 10, "add cycle \(cycle)")
+            XCTAssertEqual(
+                playback.activeHappeningIDs,
+                Set((1...10).map { String(format: "lab-happening-%02d", $0) }),
+                "add cycle \(cycle)"
+            )
+        }
+
+        controller.setHappeningCount(0)
+        XCTAssertEqual(playback.metrics.activeHappeningCount, 0)
+        XCTAssertTrue(playback.activeHappeningIDs.isEmpty)
+        await controller.toggleSound()
+        XCTAssertEqual(controller.soundState, .off)
+    }
 }
 
 @MainActor
@@ -188,6 +239,7 @@ private final class RecordingLabPlayback: DayObjectsMusicPlaybackProtocol {
     var beginLeadCount = 0
     var updateLeadCount = 0
     var endLeadCount = 0
+    var activeHappeningIDs: Set<String> = []
     var suspendStop = false
     var stopContinuation: CheckedContinuation<Void, Never>?
     var suspendStart = false
@@ -213,8 +265,16 @@ private final class RecordingLabPlayback: DayObjectsMusicPlaybackProtocol {
         metrics.pendingRemixCount = 1
         commands.append("structural")
     }
-    func addHappening(_ plan: HappeningMusicPlan, playBirth: Bool) { commands.append("add:\(plan.happeningID):\(playBirth)") }
-    func removeHappening(id: String) { commands.append("remove:\(id)") }
+    func addHappening(_ plan: HappeningMusicPlan, playBirth: Bool) {
+        activeHappeningIDs.insert(plan.happeningID)
+        metrics.activeHappeningCount = activeHappeningIDs.count
+        commands.append("add:\(plan.happeningID):\(playBirth)")
+    }
+    func removeHappening(id: String) {
+        activeHappeningIDs.remove(id)
+        metrics.activeHappeningCount = activeHappeningIDs.count
+        commands.append("remove:\(id)")
+    }
     func beginLead(_ gesture: LeadGestureSample) { beginLeadCount += 1 }
     func updateLead(_ gesture: LeadGestureSample) { updateLeadCount += 1 }
     func endLead() { endLeadCount += 1 }
