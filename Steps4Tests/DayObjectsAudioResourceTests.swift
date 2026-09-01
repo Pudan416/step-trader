@@ -31,11 +31,15 @@ final class DayObjectsAudioResourceTests: XCTestCase {
     }
 
     private struct Asset: Decodable {
+        let conversion: RenderFormat?
         let path: String
+        let rootMIDINote: Int?
         let sha256: String
         let sourceKey: String
         let licenseFilename: String
         let sourceFiles: [SourceFile]
+        let offlinePitchTransformSemitones: Int?
+        let renderIdentitySha256: String?
     }
 
     private struct SourceFile: Decodable {
@@ -46,6 +50,8 @@ final class DayObjectsAudioResourceTests: XCTestCase {
     private struct HappeningSourceMap: Decodable {
         let schemaVersion: Int
         let rendererVersion: String
+        let rendererImplementationSha256: String
+        let renderFormat: RenderFormat
         let vcslRevision: String
         let vcslSourceURL: String
         let vcslLicenseFilename: String
@@ -56,9 +62,32 @@ final class DayObjectsAudioResourceTests: XCTestCase {
         let id: Int
         let sourceKey: String
         let seed: Int
+        let rootMIDIs: [Int]
+        let renderIdentitySha256: String
         let definitionSha256: String?
         let input: HappeningInput?
         let outputs: [HappeningOutput]
+    }
+
+    private struct RenderFormat: Decodable, Equatable {
+        let sampleRateHz: Int?
+        let channels: Int?
+        let bitDepth: Int?
+        let peakDBFS: Double?
+        let fadeMilliseconds: Int?
+        let maximumDurationSeconds: Int?
+        let tailTaperMilliseconds: Int?
+        let tailBoundaryRMSDBFS: Double?
+        let resampler: ResamplerFormat?
+        let tool: String?
+    }
+
+    private struct ResamplerFormat: Decodable, Equatable {
+        let algorithm: String
+        let taps: Int
+        let phases: Int
+        let window: String
+        let coefficientDecimalPlaces: Int
     }
 
     private struct HappeningInput: Decodable {
@@ -125,6 +154,18 @@ final class DayObjectsAudioResourceTests: XCTestCase {
             withExtension: filename.pathExtension,
             subdirectory: subdirectory == "." ? nil : subdirectory
         )
+    }
+
+    private func pcm16Samples(from url: URL) throws -> [Int] {
+        let data = try Data(contentsOf: url)
+        XCTAssertGreaterThanOrEqual(data.count, 44, url.lastPathComponent)
+        XCTAssertEqual(String(decoding: data[0..<4], as: UTF8.self), "RIFF")
+        XCTAssertEqual(String(decoding: data[8..<12], as: UTF8.self), "WAVE")
+        XCTAssertEqual(String(decoding: data[36..<40], as: UTF8.self), "data")
+        return stride(from: 44, to: data.count - 1, by: 2).map { offset in
+            let bits = UInt16(data[offset]) | (UInt16(data[offset + 1]) << 8)
+            return Int(Int16(bitPattern: bits))
+        }
     }
 
     func testBundledAudioLicensesAndSourceManifestHavePinnedProvenance() throws {
@@ -195,9 +236,12 @@ final class DayObjectsAudioResourceTests: XCTestCase {
         )
         let manifestURL = try XCTUnwrap(bundle.url(forResource: "audio-assets-manifest", withExtension: "json"))
         let manifest = try JSONDecoder().decode(AssetManifest.self, from: Data(contentsOf: manifestURL))
+        let sourcesURL = try XCTUnwrap(bundle.url(forResource: "SOURCES", withExtension: "json"))
+        let sources = try JSONDecoder().decode([Source].self, from: Data(contentsOf: sourcesURL))
         let manifestAssets = Dictionary(uniqueKeysWithValues: manifest.assets.map { ($0.path, $0) })
         let catalogSources = HappeningSoundCatalog.recipes.flatMap(\.sources)
         let catalogHashes = Dictionary(uniqueKeysWithValues: catalogSources.map { ($0.resourceName, $0.sha256) })
+        let catalogRoots = Dictionary(uniqueKeysWithValues: catalogSources.map { ($0.resourceName, Int($0.rootMIDI)) })
         let mappedOutputs = sourceMap.recipes.flatMap(\.outputs)
         let mappedHashes = Dictionary(uniqueKeysWithValues: mappedOutputs.map { ($0.path, $0.sha256) })
         let expectedVCSLPaths = [
@@ -216,7 +260,13 @@ final class DayObjectsAudioResourceTests: XCTestCase {
         ]
 
         XCTAssertEqual(sourceMap.schemaVersion, 1)
-        XCTAssertEqual(sourceMap.rendererVersion, "happening-bank-v1")
+        XCTAssertEqual(sourceMap.rendererVersion, "happening-bank-v2")
+        XCTAssertNotNil(sourceMap.rendererImplementationSha256.range(of: "^[0-9a-f]{64}$", options: .regularExpression))
+        XCTAssertEqual(sourceMap.renderFormat.sampleRateHz, 44_100)
+        XCTAssertEqual(sourceMap.renderFormat.resampler?.algorithm, "windowed-sinc-bandlimited")
+        XCTAssertEqual(sourceMap.renderFormat.resampler?.taps, 32)
+        XCTAssertEqual(sourceMap.renderFormat.tailTaperMilliseconds, 1_000)
+        XCTAssertEqual(sourceMap.renderFormat.tailBoundaryRMSDBFS, -45)
         XCTAssertEqual(sourceMap.vcslRevision, "c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e")
         XCTAssertEqual(sourceMap.vcslSourceURL, "https://github.com/sgossner/VCSL")
         XCTAssertEqual(sourceMap.vcslLicenseFilename, "VCSL-CC0-1.0.txt")
@@ -224,8 +274,16 @@ final class DayObjectsAudioResourceTests: XCTestCase {
         XCTAssertEqual(sourceMap.recipes.filter { $0.sourceKey == "project-authored" }.map(\.seed),
                        [1, 2, 3, 4, 5, 6] + Array(19...30))
         XCTAssertEqual(sourceMap.recipes.compactMap(\.input).map(\.path), expectedVCSLPaths)
+        let vcslSource = try XCTUnwrap(sources.first { $0.project == "VCSL" })
+        XCTAssertEqual(vcslSource.sourceURL, sourceMap.vcslSourceURL)
+        XCTAssertEqual(vcslSource.revision, sourceMap.vcslRevision)
+        XCTAssertEqual(vcslSource.licenseFilename, sourceMap.vcslLicenseFilename)
+        XCTAssertEqual(vcslSource.selectedPaths, expectedVCSLPaths)
         XCTAssertTrue(sourceMap.recipes.compactMap(\.input).allSatisfy {
             $0.sha256.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil
+        })
+        XCTAssertTrue(sourceMap.recipes.allSatisfy {
+            $0.renderIdentitySha256.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil
         })
         XCTAssertEqual(mappedOutputs.count, 102)
         XCTAssertEqual(mappedHashes, catalogHashes)
@@ -239,10 +297,35 @@ final class DayObjectsAudioResourceTests: XCTestCase {
 
         for output in mappedOutputs {
             let manifestAsset = try XCTUnwrap(manifestAssets[output.path])
+            let conversion = try XCTUnwrap(manifestAsset.conversion, output.path)
             XCTAssertEqual(manifestAsset.sha256, output.sha256, output.path)
             let recipe = try XCTUnwrap(sourceMap.recipes.first { $0.outputs.contains { $0.path == output.path } })
+            XCTAssertEqual(manifestAsset.rootMIDINote, output.rootMIDI, output.path)
+            XCTAssertEqual(catalogRoots[output.path], output.rootMIDI, output.path)
+            XCTAssertEqual(manifestAsset.sourceKey, recipe.sourceKey, output.path)
+            XCTAssertEqual(manifestAsset.licenseFilename,
+                           recipe.input == nil ? "" : sourceMap.vcslLicenseFilename,
+                           output.path)
+            XCTAssertEqual(manifestAsset.offlinePitchTransformSemitones, output.pitchSemitones, output.path)
+            XCTAssertEqual(manifestAsset.renderIdentitySha256, recipe.renderIdentitySha256, output.path)
+            XCTAssertEqual(conversion.sampleRateHz, sourceMap.renderFormat.sampleRateHz, output.path)
+            XCTAssertEqual(conversion.channels, sourceMap.renderFormat.channels, output.path)
+            XCTAssertEqual(conversion.bitDepth, sourceMap.renderFormat.bitDepth, output.path)
+            XCTAssertEqual(conversion.peakDBFS, sourceMap.renderFormat.peakDBFS, output.path)
+            XCTAssertEqual(conversion.fadeMilliseconds, sourceMap.renderFormat.fadeMilliseconds, output.path)
+            XCTAssertEqual(conversion.maximumDurationSeconds,
+                           sourceMap.renderFormat.maximumDurationSeconds, output.path)
+            XCTAssertEqual(conversion.tailTaperMilliseconds,
+                           sourceMap.renderFormat.tailTaperMilliseconds, output.path)
+            XCTAssertEqual(conversion.tailBoundaryRMSDBFS,
+                           sourceMap.renderFormat.tailBoundaryRMSDBFS, output.path)
+            XCTAssertEqual(conversion.resampler, sourceMap.renderFormat.resampler, output.path)
+            XCTAssertEqual(conversion.tool, sourceMap.rendererVersion, output.path)
             XCTAssertEqual(manifestAsset.sourceFiles.first?.sha256,
                            recipe.input?.sha256 ?? recipe.definitionSha256,
+                           output.path)
+            XCTAssertEqual(manifestAsset.sourceFiles.first?.path,
+                           recipe.input?.path ?? "Scripts/day_objects_audio/happening-source-map.json#recipe-\(String(format: "%02d", recipe.id))",
                            output.path)
             let bundledURL = try XCTUnwrap(bundledAssetURL(for: output.path, in: bundle))
             let bundledHash = SHA256.hash(data: try Data(contentsOf: bundledURL))
@@ -270,6 +353,34 @@ final class DayObjectsAudioResourceTests: XCTestCase {
         }
 
         XCTAssertLessThanOrEqual(aggregateBytes, 30 * 1_024 * 1_024)
+    }
+
+    func testBundledHappeningPCMHasNormalizedPeakFadesAndSafeSixSecondTails() throws {
+        let bundle = Bundle(for: type(of: self))
+        let expectedPeak = Int(round(32_767 * pow(10, -3.0 / 20.0)))
+        let tailFrames = Int(44_100 * 0.05)
+        let maximumTailRMS = pow(10, -45.0 / 20.0)
+
+        for source in HappeningSoundCatalog.recipes.flatMap(\.sources) {
+            let url = try XCTUnwrap(bundledAssetURL(for: source.resourceName, in: bundle))
+            let samples = try pcm16Samples(from: url)
+            let absolutePeak = try XCTUnwrap(samples.map(abs).max())
+            XCTAssertEqual(absolutePeak, expectedPeak, source.resourceName)
+            XCTAssertLessThan(absolutePeak, 32_767, source.resourceName)
+            XCTAssertEqual(samples.first, 0, source.resourceName)
+            XCTAssertEqual(samples.last, 0, source.resourceName)
+
+            XCTAssertLessThanOrEqual(samples.prefix(10).map(abs).max() ?? expectedPeak,
+                                     Int(Double(expectedPeak) * 0.04), source.resourceName)
+            XCTAssertLessThanOrEqual(samples.suffix(10).map(abs).max() ?? expectedPeak,
+                                     Int(Double(expectedPeak) * 0.02), source.resourceName)
+
+            if samples.count == 6 * 44_100 {
+                let tail = samples.suffix(tailFrames)
+                let meanSquare = tail.reduce(0.0) { $0 + pow(Double($1) / 32_767.0, 2) } / Double(tail.count)
+                XCTAssertLessThanOrEqual(sqrt(meanSquare), maximumTailRMS, source.resourceName)
+            }
+        }
     }
 
     func testBundledSynthOneSelectionContainsEachApprovedUIDExactlyOnce() throws {

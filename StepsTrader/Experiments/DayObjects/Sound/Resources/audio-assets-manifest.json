@@ -414,14 +414,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/01/A5.wav",
+      "renderIdentitySha256": "55e6f5a1a70addd87d980e6d37db1411ee076ad8563b0247f2a98b7834b3c6bf",
       "rootMIDINote": 81,
-      "sha256": "174b5124eafa5bcac0a9ae2adf31e6f361078aa3ceaeb4788b946c8057bcada4",
+      "sha256": "e415c236f349f2a270ff9acc796e606e5b9c1f807b4287fe135845d49d44886f",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-01",
@@ -435,14 +446,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/01/C5.wav",
+      "renderIdentitySha256": "55e6f5a1a70addd87d980e6d37db1411ee076ad8563b0247f2a98b7834b3c6bf",
       "rootMIDINote": 72,
-      "sha256": "d7e5b13dba0d79dea7837884798cb18222079d03e438b462fe1b2c900e244aa8",
+      "sha256": "f52494e8eae4966d4dd6f909a92c74342b34d93e39d678c7522107e0ca51f8a6",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-01",
@@ -456,14 +478,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/01/DSharp5.wav",
+      "renderIdentitySha256": "55e6f5a1a70addd87d980e6d37db1411ee076ad8563b0247f2a98b7834b3c6bf",
       "rootMIDINote": 75,
-      "sha256": "db8aeb122531d9bd7b90fb3aa1195709fc2ad1fe8ae00ad719019134afc80d59",
+      "sha256": "da33d2781b31c2b1a7dfec14b8a162f942cc29809c3292af538c22abd8dba5e5",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-01",
@@ -477,14 +510,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/01/FSharp5.wav",
+      "renderIdentitySha256": "55e6f5a1a70addd87d980e6d37db1411ee076ad8563b0247f2a98b7834b3c6bf",
       "rootMIDINote": 78,
-      "sha256": "f67d7d399aad4225807cbf3f2e7c4a5290fd0e011e71afa5dbcdad26d17d0bf0",
+      "sha256": "8a0f4f34fc91f6c07a4475086a1fa4ffbf353b61cc8afcb77dc172c2c5679170",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-01",
@@ -498,14 +542,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/02/A5.wav",
+      "renderIdentitySha256": "c4b593ce9130b3c8695789e11a84f959d7ffe73b17bec65b87e78887284936ec",
       "rootMIDINote": 81,
-      "sha256": "83e3b1b91e153deaa0a5bb9fda1e42fd85895dda2551d2efa5ffa25d57d14227",
+      "sha256": "2423d88d5c727ca9641ba82e694d271f78e603380c87f1eeed82c3065ef71687",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-02",
@@ -519,14 +574,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/02/C5.wav",
+      "renderIdentitySha256": "c4b593ce9130b3c8695789e11a84f959d7ffe73b17bec65b87e78887284936ec",
       "rootMIDINote": 72,
-      "sha256": "46a957524c254e171a7bfa38a80cf336a3a19c6077140c516447ada675fd49f8",
+      "sha256": "87fffd74592ced99ff4761bc2a590d2e891e26bf239ba4087fa3fec8581ddd1e",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-02",
@@ -540,14 +606,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/02/DSharp5.wav",
+      "renderIdentitySha256": "c4b593ce9130b3c8695789e11a84f959d7ffe73b17bec65b87e78887284936ec",
       "rootMIDINote": 75,
-      "sha256": "4f85fed1eea7c4fca19776f3f7f97c0d9ab4851ddda5c31573c6d68cfa8df8a6",
+      "sha256": "90d18c52f5afe9bf10a5bedd4d55c0021c7f9211f12b40fc1f87b3b393ebc022",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-02",
@@ -561,14 +638,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/02/FSharp5.wav",
+      "renderIdentitySha256": "c4b593ce9130b3c8695789e11a84f959d7ffe73b17bec65b87e78887284936ec",
       "rootMIDINote": 78,
-      "sha256": "878a8bfea8600964bf70ff22e09509d5115bf02de14d549299f6aa6e983684d5",
+      "sha256": "fffa09456ea34e00ab0dca40748d70b1d5912a09faaeafd0962c35736da3d136",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-02",
@@ -582,14 +670,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/03/A5.wav",
+      "renderIdentitySha256": "6c8257d11595c729973f6b6f23bbaada8e042c9d6da0d63164162951666d8628",
       "rootMIDINote": 81,
-      "sha256": "187b761bd3b8fdd09f58c7cd19c2e15c5f417a73439f77f5a97cd5d160d1f37c",
+      "sha256": "aa0410d0df3eb9a4dd6b2251a0bdce1abc1f7d1f268c7653d98c3a113ec03404",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-03",
@@ -603,14 +702,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/03/C5.wav",
+      "renderIdentitySha256": "6c8257d11595c729973f6b6f23bbaada8e042c9d6da0d63164162951666d8628",
       "rootMIDINote": 72,
-      "sha256": "05a33dc77539f8944c75a8c32fb2d99695d52ecc8638c2664773798de0ce2e48",
+      "sha256": "0e43c3129781ea3ff2255be56d2a867e466b3aca2af189f6cb94c19223800faf",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-03",
@@ -624,14 +734,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/03/DSharp5.wav",
+      "renderIdentitySha256": "6c8257d11595c729973f6b6f23bbaada8e042c9d6da0d63164162951666d8628",
       "rootMIDINote": 75,
-      "sha256": "848694d2b14a7c76fa90a3c65b82b2dac91c62dc72ed611157c5415433c5f220",
+      "sha256": "7f748c35e62437fa381a5662723f0f41c50f6843871fc9567e40ac5a12b94757",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-03",
@@ -645,14 +766,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/03/FSharp5.wav",
+      "renderIdentitySha256": "6c8257d11595c729973f6b6f23bbaada8e042c9d6da0d63164162951666d8628",
       "rootMIDINote": 78,
-      "sha256": "9f774994b53105e8849bd4c6f8396fb96d75b72de664d9632da6049ac16df126",
+      "sha256": "4021a6464051818a0ec0e05245e933654dffd830d5a3f694e26e4a84f64f167d",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-03",
@@ -666,14 +798,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/04/A5.wav",
+      "renderIdentitySha256": "a6bf44dc497cb2e7992034945461d612093ff7ea0d726262611c5a9824675867",
       "rootMIDINote": 81,
-      "sha256": "b324a9b1549e409931ab2868922f5063e9a1a8a4e16c012331cda935fde66f00",
+      "sha256": "b3a930e2eaa00073c1ab828bbcef524ed3f5970dfbbb2e6fd4d95cd7407c071d",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-04",
@@ -687,14 +830,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/04/C5.wav",
+      "renderIdentitySha256": "a6bf44dc497cb2e7992034945461d612093ff7ea0d726262611c5a9824675867",
       "rootMIDINote": 72,
-      "sha256": "68aa6bbf02b6724f06f2844481347151a1423d3de2053accb19b1b40f199033d",
+      "sha256": "75ccc8149ddfc8c94b6bcfa171904d23a333f736f73d30fba7a34bf9464744c4",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-04",
@@ -708,14 +862,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/04/DSharp5.wav",
+      "renderIdentitySha256": "a6bf44dc497cb2e7992034945461d612093ff7ea0d726262611c5a9824675867",
       "rootMIDINote": 75,
-      "sha256": "2fb4ad19b0f2cda20837773fa2ec125f8c483a2aaa3fd27543fcb36be1332a58",
+      "sha256": "4e5a37ffa9acd75df9d2460e2bb0c0b4c86e8f50c7f148c55303ae8a2e75f93a",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-04",
@@ -729,14 +894,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/04/FSharp5.wav",
+      "renderIdentitySha256": "a6bf44dc497cb2e7992034945461d612093ff7ea0d726262611c5a9824675867",
       "rootMIDINote": 78,
-      "sha256": "cf729ca627cbbcc6f61d78aa7c4bc51bbf85eae6b123b0aca7d4f479d2204602",
+      "sha256": "e1fd6adfc5afc6a77fddb2707874ccb67c7c3531934a6cd8e703c0403ae00b21",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-04",
@@ -750,14 +926,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/05/A5.wav",
+      "renderIdentitySha256": "116de493bc4ed6d6f4e6d3313ba9d3fd4a1bd0f3a77b22cdacf3d51e5561c534",
       "rootMIDINote": 81,
-      "sha256": "468cb8bb89f0c42bb9535893c9f041e97f2ead24eaef0fecab48ff4bc67d534c",
+      "sha256": "de8102d86cf51a225092b8a8d5a9708448d2683ba76dbbba3bf0c9b32035b228",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-05",
@@ -771,14 +958,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/05/C5.wav",
+      "renderIdentitySha256": "116de493bc4ed6d6f4e6d3313ba9d3fd4a1bd0f3a77b22cdacf3d51e5561c534",
       "rootMIDINote": 72,
-      "sha256": "2a3edc0bbaf0c7f7d20aeadc28eebe13d2d2cea1373e2d1fd3fb49e3a052316d",
+      "sha256": "7872cb1d146730226ab2da324d87f5fab1e0cc8208dcfc41b61f9980a47f207d",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-05",
@@ -792,14 +990,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/05/DSharp5.wav",
+      "renderIdentitySha256": "116de493bc4ed6d6f4e6d3313ba9d3fd4a1bd0f3a77b22cdacf3d51e5561c534",
       "rootMIDINote": 75,
-      "sha256": "795cf8165ed91816faf72f80c6959b4b355f26010efe46752fabec3808426a27",
+      "sha256": "b391cc5a32e84e9001dff3eb0dfad2682819a7d69201cceaf63914d2ffd16096",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-05",
@@ -813,14 +1022,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/05/FSharp5.wav",
+      "renderIdentitySha256": "116de493bc4ed6d6f4e6d3313ba9d3fd4a1bd0f3a77b22cdacf3d51e5561c534",
       "rootMIDINote": 78,
-      "sha256": "95ffcec88e2504c1df805a61887e063b8c9e14fee296bb0c08f027791587104e",
+      "sha256": "608fa28c6336355257b06c427de03fad37f8d5f05c960bc5be3d9b18ea5fca1a",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-05",
@@ -834,14 +1054,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/06/A5.wav",
+      "renderIdentitySha256": "0d8f0341241cf368726d6dcc137073b2bc5c69a7aa3429fa71bd7b8027c35361",
       "rootMIDINote": 81,
-      "sha256": "52387ca3fd8b9be9fe703ff53fdcd734ac2d33615c227c77416416c0dbf8d87f",
+      "sha256": "17183a06bc4d426c7914e12b9633337829c379ddda07f8f854ff6adc2b691871",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-06",
@@ -855,14 +1086,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/06/C5.wav",
+      "renderIdentitySha256": "0d8f0341241cf368726d6dcc137073b2bc5c69a7aa3429fa71bd7b8027c35361",
       "rootMIDINote": 72,
-      "sha256": "1d3887b5670d9ff55efa27a748e7bcae024051fb11f0680b512b252fe9b8d059",
+      "sha256": "7f8cca8bda9b78269dc6f314e53da979c73cf88cc5bfb07625d6ef39ed886a83",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-06",
@@ -876,14 +1118,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/06/DSharp5.wav",
+      "renderIdentitySha256": "0d8f0341241cf368726d6dcc137073b2bc5c69a7aa3429fa71bd7b8027c35361",
       "rootMIDINote": 75,
-      "sha256": "4a536adb6752047b7e7af020b196346a17088d541c7215c7c11ca92e263e4d7b",
+      "sha256": "e7197095385d9e1fae2a13f818e3acf20ae1c916a40517d924b768cb63b60c4c",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-06",
@@ -897,14 +1150,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/06/FSharp5.wav",
+      "renderIdentitySha256": "0d8f0341241cf368726d6dcc137073b2bc5c69a7aa3429fa71bd7b8027c35361",
       "rootMIDINote": 78,
-      "sha256": "20062c95ad274a3e59a99a1f27dcd5ee5c4dd260ca4a6b67890135f168d4cb73",
+      "sha256": "7c7ba862b1c89b8f7f92bb63290bfbdfcce8b6ed633e5f5ddc0759699c1db7a3",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-06",
@@ -918,15 +1182,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": -3,
       "path": "Happenings/07/A4.wav",
+      "renderIdentitySha256": "85ef28cd68ca6a4a92aae360b6555630f13e24e8740bbe9d7cb01e6e1f44030e",
       "rootMIDINote": 69,
-      "sha256": "8be9a4d37253fa1f8c14454509ac51d8567ff7b6e06acd84b7c9cc0925f6eccf",
+      "sha256": "1614db380aaab2950406553095f2a464d8bfd271101ac0095b3b78a2214ce00f",
       "sourceFiles": [
         {
           "path": "07 Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_C5_v1_rr1_Main.wav",
@@ -940,15 +1215,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": -12,
       "path": "Happenings/07/C4.wav",
+      "renderIdentitySha256": "85ef28cd68ca6a4a92aae360b6555630f13e24e8740bbe9d7cb01e6e1f44030e",
       "rootMIDINote": 60,
-      "sha256": "c18112a5ae032763698bb61372e26b423ac54af509a9457222d118184be7b12d",
+      "sha256": "37107532ec3ca1f21ed3650c5baf0efd1d356e1a2781ff037634e7bf169beb3c",
       "sourceFiles": [
         {
           "path": "07 Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_C5_v1_rr1_Main.wav",
@@ -962,15 +1248,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": -9,
       "path": "Happenings/07/DSharp4.wav",
+      "renderIdentitySha256": "85ef28cd68ca6a4a92aae360b6555630f13e24e8740bbe9d7cb01e6e1f44030e",
       "rootMIDINote": 63,
-      "sha256": "feb0bf5d1cd23be63696f309dcb8b8cc5365219b6af02ecc4a0eb7d85b3a017b",
+      "sha256": "d7ba9a5865cc7feb5d97e74bb2749753f9b5cb266a8c566a1022ae0ad4c02083",
       "sourceFiles": [
         {
           "path": "07 Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_C5_v1_rr1_Main.wav",
@@ -984,15 +1281,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": -6,
       "path": "Happenings/07/FSharp4.wav",
+      "renderIdentitySha256": "85ef28cd68ca6a4a92aae360b6555630f13e24e8740bbe9d7cb01e6e1f44030e",
       "rootMIDINote": 66,
-      "sha256": "d9420d19e904f2bc16a87f4156e68a444bc1359576c8700899f15152ffc1a5c0",
+      "sha256": "24bdccb137cb1613c49a47f5f7cff92f7f92c4149cab54fe7855a8b745d4b2fc",
       "sourceFiles": [
         {
           "path": "07 Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_C5_v1_rr1_Main.wav",
@@ -1006,15 +1314,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 4,
       "path": "Happenings/08/A4.wav",
+      "renderIdentitySha256": "b9779d79cb4339e2fbf6cc1b19af4d1efb384086334db4a655dc4885866354ba",
       "rootMIDINote": 69,
-      "sha256": "e4a4d8879d4fde49c195c7fcdcc51586edf8a9cf1bbcd838e2e34b4998f2cee7",
+      "sha256": "b560f2b5b82e041e2deafc343dd02dc92f7caa7f183316c20d7b435773737d92",
       "sourceFiles": [
         {
           "path": "08 Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_F4_v1_rr1_Main.wav",
@@ -1028,15 +1347,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": -5,
       "path": "Happenings/08/C4.wav",
+      "renderIdentitySha256": "b9779d79cb4339e2fbf6cc1b19af4d1efb384086334db4a655dc4885866354ba",
       "rootMIDINote": 60,
-      "sha256": "164a18e344c2550523a3c5ffe21701930459304f81ef22233c45b5805833319c",
+      "sha256": "bb683d3722b2af87c3b6dbf0a394b113af7948354103cdccd73c7b9fbef268f6",
       "sourceFiles": [
         {
           "path": "08 Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_F4_v1_rr1_Main.wav",
@@ -1050,15 +1380,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": -2,
       "path": "Happenings/08/DSharp4.wav",
+      "renderIdentitySha256": "b9779d79cb4339e2fbf6cc1b19af4d1efb384086334db4a655dc4885866354ba",
       "rootMIDINote": 63,
-      "sha256": "01a141766c9adde31924dfb019bae1e451bc858d50106bc53d650278afe20f41",
+      "sha256": "4c6e7a1f6463a59e17bc64d4a660058d0b391d7ae020cab30664538dbbe751d9",
       "sourceFiles": [
         {
           "path": "08 Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_F4_v1_rr1_Main.wav",
@@ -1072,15 +1413,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 1,
       "path": "Happenings/08/FSharp4.wav",
+      "renderIdentitySha256": "b9779d79cb4339e2fbf6cc1b19af4d1efb384086334db4a655dc4885866354ba",
       "rootMIDINote": 66,
-      "sha256": "d22f57513ed40397175e3f92bd4915bea81b40b4320f6e116d9c0464d004dd2c",
+      "sha256": "6024a7860f96a6abd3bbb125d8a4eb5bdf054e9989c693a589f6a422d36ef003",
       "sourceFiles": [
         {
           "path": "08 Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_F4_v1_rr1_Main.wav",
@@ -1094,15 +1446,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 9,
       "path": "Happenings/09/A4.wav",
+      "renderIdentitySha256": "49802b9d16f42b419b58142af188add886b3aba369ff056e9c65a0f5e0670392",
       "rootMIDINote": 69,
-      "sha256": "4fb2ed57affae3f16b36fc84e5288b546cd83cd995b0e7b8ac6aea4620f70adf",
+      "sha256": "2969e9748b02a279523840f35c440c606b80b080b7d5fcada23bcf46b9dc952a",
       "sourceFiles": [
         {
           "path": "09 Idiophones/Struck Idiophones/Balafon/Soft Mallet/EthnicXylo_softM_C4_vl2_rr1_Mid.wav",
@@ -1116,15 +1479,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 0,
       "path": "Happenings/09/C4.wav",
+      "renderIdentitySha256": "49802b9d16f42b419b58142af188add886b3aba369ff056e9c65a0f5e0670392",
       "rootMIDINote": 60,
-      "sha256": "1445a27ec44ecdd198bf905f38c1d045970d69ed79e621e497bfdbce021c15d7",
+      "sha256": "42b5097430908ed9c1d30c7604d864854e1bf2b2aa56c356b3a2aa55000499b5",
       "sourceFiles": [
         {
           "path": "09 Idiophones/Struck Idiophones/Balafon/Soft Mallet/EthnicXylo_softM_C4_vl2_rr1_Mid.wav",
@@ -1138,15 +1512,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 3,
       "path": "Happenings/09/DSharp4.wav",
+      "renderIdentitySha256": "49802b9d16f42b419b58142af188add886b3aba369ff056e9c65a0f5e0670392",
       "rootMIDINote": 63,
-      "sha256": "6ae2481b4a0f06377e2391bdfdeafdb46dd4f11a5663973f89c4797fd57e8b8a",
+      "sha256": "e8acc6081dd7407d87fd17bc7d6b8851645a584d1041f5e3b7fac0c6a9acc74a",
       "sourceFiles": [
         {
           "path": "09 Idiophones/Struck Idiophones/Balafon/Soft Mallet/EthnicXylo_softM_C4_vl2_rr1_Mid.wav",
@@ -1160,15 +1545,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 6,
       "path": "Happenings/09/FSharp4.wav",
+      "renderIdentitySha256": "49802b9d16f42b419b58142af188add886b3aba369ff056e9c65a0f5e0670392",
       "rootMIDINote": 66,
-      "sha256": "acde56d256046c52f4425ad178c669289f25294e1fe7e81578b69d6e369f45f7",
+      "sha256": "d3a0936cae86b2f486401b7f73fd9735c7945e0fa2db6cc6588cd93d796e1b36",
       "sourceFiles": [
         {
           "path": "09 Idiophones/Struck Idiophones/Balafon/Soft Mallet/EthnicXylo_softM_C4_vl2_rr1_Mid.wav",
@@ -1182,15 +1578,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 4,
       "path": "Happenings/10/A4.wav",
+      "renderIdentitySha256": "edeba8a44e5e562a830b5340fd5e38cefe9158f0fbdb999610432242bd15a68d",
       "rootMIDINote": 69,
-      "sha256": "57a00d2777c97ec35adbbb78536e24a363e665aac69f187f5047adac2208ec13",
+      "sha256": "541ad3fd4f5a42201c70eba5698cf22e2fb114ef5cfa00cb8a573af939a3796e",
       "sourceFiles": [
         {
           "path": "10 Idiophones/Struck Idiophones/Balafon/Soft Mallet/EthnicXylo_softM_F4_vl2_rr1_Mid.wav",
@@ -1204,15 +1611,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": -5,
       "path": "Happenings/10/C4.wav",
+      "renderIdentitySha256": "edeba8a44e5e562a830b5340fd5e38cefe9158f0fbdb999610432242bd15a68d",
       "rootMIDINote": 60,
-      "sha256": "4f552bf937a5abcda571ffe17fdddb7f4f4c61bc640dc96d266561b1b2cb8aba",
+      "sha256": "0ad4365515cccec3e27eb181dd634b6471d7ed070f0f5b1c892068e477a4ed88",
       "sourceFiles": [
         {
           "path": "10 Idiophones/Struck Idiophones/Balafon/Soft Mallet/EthnicXylo_softM_F4_vl2_rr1_Mid.wav",
@@ -1226,15 +1644,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": -2,
       "path": "Happenings/10/DSharp4.wav",
+      "renderIdentitySha256": "edeba8a44e5e562a830b5340fd5e38cefe9158f0fbdb999610432242bd15a68d",
       "rootMIDINote": 63,
-      "sha256": "6c16d9632ff9e52a08031ef8d18d44f4e9adcf9801b340face135cdef2f03e77",
+      "sha256": "87f3525d10e84ce9ab5946de476d505e4fbdf8319d5462ced20c06b90906bdc7",
       "sourceFiles": [
         {
           "path": "10 Idiophones/Struck Idiophones/Balafon/Soft Mallet/EthnicXylo_softM_F4_vl2_rr1_Mid.wav",
@@ -1248,15 +1677,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 1,
       "path": "Happenings/10/FSharp4.wav",
+      "renderIdentitySha256": "edeba8a44e5e562a830b5340fd5e38cefe9158f0fbdb999610432242bd15a68d",
       "rootMIDINote": 66,
-      "sha256": "f2500638027409579d748239925207f609a70f393466fdc672d53a1909af83d3",
+      "sha256": "907b5a3054bdb017c1876d1d9eb73a7b3d1648e1746779c985473a44d8959101",
       "sourceFiles": [
         {
           "path": "10 Idiophones/Struck Idiophones/Balafon/Soft Mallet/EthnicXylo_softM_F4_vl2_rr1_Mid.wav",
@@ -1270,15 +1710,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 9,
       "path": "Happenings/11/A4.wav",
+      "renderIdentitySha256": "d123d85f9325ae08d4121b9eaa4b6ea76cd1d5d5d7cdc9734624108e05235056",
       "rootMIDINote": 69,
-      "sha256": "04a5f666dc5178d70ef6584fa1ca4de42c93925fbebacb9251cf412266e77942",
+      "sha256": "891c6c6a475e45a1c7202b3d931733bcbd6c1e95a958303e24bd0fe0e4bb1cc3",
       "sourceFiles": [
         {
           "path": "11 Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_C4_soft_01.wav",
@@ -1292,15 +1743,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 0,
       "path": "Happenings/11/C4.wav",
+      "renderIdentitySha256": "d123d85f9325ae08d4121b9eaa4b6ea76cd1d5d5d7cdc9734624108e05235056",
       "rootMIDINote": 60,
-      "sha256": "306ca3c86b68408b1094756b149a6aabd9b38aff19f62ab953ecd5edb4f2b05e",
+      "sha256": "2b7523fcabe601bcc318d7133b508cbd9e7c7a2eeaad2f85914c396aeb28f9da",
       "sourceFiles": [
         {
           "path": "11 Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_C4_soft_01.wav",
@@ -1314,15 +1776,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 3,
       "path": "Happenings/11/DSharp4.wav",
+      "renderIdentitySha256": "d123d85f9325ae08d4121b9eaa4b6ea76cd1d5d5d7cdc9734624108e05235056",
       "rootMIDINote": 63,
-      "sha256": "02cd9194bbb2335f95f0ac23fb98c246516aa1732c8bd14947b29432f619479a",
+      "sha256": "eeb16fe86c593fbf52ad49e417c350fe352db77667161ca5a72334a09d1d5d72",
       "sourceFiles": [
         {
           "path": "11 Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_C4_soft_01.wav",
@@ -1336,15 +1809,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 6,
       "path": "Happenings/11/FSharp4.wav",
+      "renderIdentitySha256": "d123d85f9325ae08d4121b9eaa4b6ea76cd1d5d5d7cdc9734624108e05235056",
       "rootMIDINote": 66,
-      "sha256": "e68b10d2eb2a93130bf230774f151b7cd84615670d1a9fb4d7d7727518493931",
+      "sha256": "a2f27895a7c7a1efb4ad55d181d1bf8e41bd87c4bc61b1b7543fbcc3f9f1e6eb",
       "sourceFiles": [
         {
           "path": "11 Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_C4_soft_01.wav",
@@ -1358,15 +1842,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 2,
       "path": "Happenings/12/A4.wav",
+      "renderIdentitySha256": "18adad62fd9deb73130f1740c750adcfe210e4f574a154ea07dacbeb0e92a7d1",
       "rootMIDINote": 69,
-      "sha256": "5b29574ad2ca3fd72ae6f2d9284524897c4be3dc1495e615962bde1047c0154c",
+      "sha256": "7e5fac39ddfd26b55ef1467a90567251fb9b11635bc27f2ccb84e88cacc41749",
       "sourceFiles": [
         {
           "path": "12 Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_G4_soft_01.wav",
@@ -1380,15 +1875,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": -7,
       "path": "Happenings/12/C4.wav",
+      "renderIdentitySha256": "18adad62fd9deb73130f1740c750adcfe210e4f574a154ea07dacbeb0e92a7d1",
       "rootMIDINote": 60,
-      "sha256": "694367737514b84d09e41d7987938ddf8829a48f3381eae5b18e9c3ca9dadcfc",
+      "sha256": "e13c68338532a7455d11b46979722a36dfffc85456bb770ddd3e626f57112e8f",
       "sourceFiles": [
         {
           "path": "12 Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_G4_soft_01.wav",
@@ -1402,15 +1908,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": -4,
       "path": "Happenings/12/DSharp4.wav",
+      "renderIdentitySha256": "18adad62fd9deb73130f1740c750adcfe210e4f574a154ea07dacbeb0e92a7d1",
       "rootMIDINote": 63,
-      "sha256": "e6538f8be5545d90666563aa2f0c14866a609831da5318289a7d6bdd11b0600d",
+      "sha256": "906f0aaa15055070e09757e6c9d1005900a8a8894bcc625d3c563846daa90eca",
       "sourceFiles": [
         {
           "path": "12 Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_G4_soft_01.wav",
@@ -1424,15 +1941,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": -1,
       "path": "Happenings/12/FSharp4.wav",
+      "renderIdentitySha256": "18adad62fd9deb73130f1740c750adcfe210e4f574a154ea07dacbeb0e92a7d1",
       "rootMIDINote": 66,
-      "sha256": "bd24493781879f3df7c4e30c8325a5db233e09acad3717164e24fab6b89fae33",
+      "sha256": "c7ad3f93cde09a4144eba70849f6a213acd0d1a78ee3d3dc8378cb220fdd134b",
       "sourceFiles": [
         {
           "path": "12 Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_G4_soft_01.wav",
@@ -1446,15 +1974,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 9,
       "path": "Happenings/13/A5.wav",
+      "renderIdentitySha256": "17694a179486a27cf7c3a2623294ff156c26f2f038c2c6627f7dc24a853a545d",
       "rootMIDINote": 81,
-      "sha256": "459e084dcf6ad29e3ddd6c57a5a9d7f4930c9884f29eafab87f09fee93517903",
+      "sha256": "25a7ae41524cde41230b94857d01903dde4fff746c650052f931d0e37735fe19",
       "sourceFiles": [
         {
           "path": "13 Idiophones/Struck Idiophones/Glockenspiel/glock_soft_C5_02.wav",
@@ -1468,15 +2007,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 0,
       "path": "Happenings/13/C5.wav",
+      "renderIdentitySha256": "17694a179486a27cf7c3a2623294ff156c26f2f038c2c6627f7dc24a853a545d",
       "rootMIDINote": 72,
-      "sha256": "04c5224adc78f21b404d3351e0ceba43f2a51f40ef6568d11d336674db9de89f",
+      "sha256": "ed1397c59a253763475e8aac65df4e5ca1209223ee1c49e95066f32d62a2af11",
       "sourceFiles": [
         {
           "path": "13 Idiophones/Struck Idiophones/Glockenspiel/glock_soft_C5_02.wav",
@@ -1490,15 +2040,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 3,
       "path": "Happenings/13/DSharp5.wav",
+      "renderIdentitySha256": "17694a179486a27cf7c3a2623294ff156c26f2f038c2c6627f7dc24a853a545d",
       "rootMIDINote": 75,
-      "sha256": "582c9b49446307646ab0369660c41701e7609eb6f943bf179c50185b90696e61",
+      "sha256": "eb90d7c0698ac20a22096b0653c704f2f9038a8aecca5090fc0ac33fdbaf55a7",
       "sourceFiles": [
         {
           "path": "13 Idiophones/Struck Idiophones/Glockenspiel/glock_soft_C5_02.wav",
@@ -1512,15 +2073,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 6,
       "path": "Happenings/13/FSharp5.wav",
+      "renderIdentitySha256": "17694a179486a27cf7c3a2623294ff156c26f2f038c2c6627f7dc24a853a545d",
       "rootMIDINote": 78,
-      "sha256": "0f47fe753ddef1cf152242781f99b92eb57154c467d35e916a63d5ffc9cca632",
+      "sha256": "2d16cb12332a2a0b484174cc1299f92da426913cbce4d182be666f337e81b2d9",
       "sourceFiles": [
         {
           "path": "13 Idiophones/Struck Idiophones/Glockenspiel/glock_soft_C5_02.wav",
@@ -1534,15 +2106,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 2,
       "path": "Happenings/14/A5.wav",
+      "renderIdentitySha256": "8111b1270ac8494952cfccf0aaeed248e3e1ee682e81f08f341692a8091e83e2",
       "rootMIDINote": 81,
-      "sha256": "e2ab9368a3835848ef82553851ea971b738b989753ea5d2b8da9b3b2439941b3",
+      "sha256": "1a6090724d50d5b0288c70ddb1f5ba998b3eb59743e54e2d5c70c772f298cf88",
       "sourceFiles": [
         {
           "path": "14 Idiophones/Struck Idiophones/Glockenspiel/glock_soft_G5_01.wav",
@@ -1556,15 +2139,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": -7,
       "path": "Happenings/14/C5.wav",
+      "renderIdentitySha256": "8111b1270ac8494952cfccf0aaeed248e3e1ee682e81f08f341692a8091e83e2",
       "rootMIDINote": 72,
-      "sha256": "d97af1305d4e3eeb9b8b24cc06f03e6257ef2061333911b8e83761a706109606",
+      "sha256": "f4fe0449d2704b83c015b9862a7a3d8bd24537b69e2b5fed91be60368292e52d",
       "sourceFiles": [
         {
           "path": "14 Idiophones/Struck Idiophones/Glockenspiel/glock_soft_G5_01.wav",
@@ -1578,15 +2172,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": -4,
       "path": "Happenings/14/DSharp5.wav",
+      "renderIdentitySha256": "8111b1270ac8494952cfccf0aaeed248e3e1ee682e81f08f341692a8091e83e2",
       "rootMIDINote": 75,
-      "sha256": "7ab940c0b0d4145a170c3dca9a312e3d482d7f45f4f9a5665ece9c7340dcbef5",
+      "sha256": "9acd5da625e6b0993c1a043655eebfed740174db28adee392ff962c1f8cd54c0",
       "sourceFiles": [
         {
           "path": "14 Idiophones/Struck Idiophones/Glockenspiel/glock_soft_G5_01.wav",
@@ -1600,15 +2205,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": -1,
       "path": "Happenings/14/FSharp5.wav",
+      "renderIdentitySha256": "8111b1270ac8494952cfccf0aaeed248e3e1ee682e81f08f341692a8091e83e2",
       "rootMIDINote": 78,
-      "sha256": "203a4db56fd7c4a5c94c12301fc6a88ec1f834df1d4567e46745b9dd3a3b659d",
+      "sha256": "57e85430d81b6e090b70d3f3a7f9a04b303ebb6683b8b1aa7c841cc5b51692c4",
       "sourceFiles": [
         {
           "path": "14 Idiophones/Struck Idiophones/Glockenspiel/glock_soft_G5_01.wav",
@@ -1622,15 +2238,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 9,
       "path": "Happenings/15/A5.wav",
+      "renderIdentitySha256": "29c02cf11eab76d124189d04a93daadd4833a5e98d71f89fed461aa19f7fc52d",
       "rootMIDINote": 81,
-      "sha256": "a48c7776ba09ffe7b85bcf008f8cee9ae581ea0d06bb81b55d5da819027d1b4c",
+      "sha256": "c5f5f48ebedc9ea8180527bf7128c218955dc62158ad4ad3d48f27ffbb88b29e",
       "sourceFiles": [
         {
           "path": "15 Idiophones/Struck Idiophones/Vibraphone/Hard Mallets/Vibes_hard_C5_v2_rr1_Main.wav",
@@ -1644,15 +2271,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 0,
       "path": "Happenings/15/C5.wav",
+      "renderIdentitySha256": "29c02cf11eab76d124189d04a93daadd4833a5e98d71f89fed461aa19f7fc52d",
       "rootMIDINote": 72,
-      "sha256": "e5b5faf72329044a329d76e87f31bd8998a579e7340bde2be0f63429f65612d5",
+      "sha256": "2e4d12a3e66cc98015e397b5e5a37cdaf9367ceeb9b31dc741426389f17d8634",
       "sourceFiles": [
         {
           "path": "15 Idiophones/Struck Idiophones/Vibraphone/Hard Mallets/Vibes_hard_C5_v2_rr1_Main.wav",
@@ -1666,15 +2304,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 3,
       "path": "Happenings/15/DSharp5.wav",
+      "renderIdentitySha256": "29c02cf11eab76d124189d04a93daadd4833a5e98d71f89fed461aa19f7fc52d",
       "rootMIDINote": 75,
-      "sha256": "d3ed490b3c14cd6b19cdf48cad0bf409263b4f9ffe63741d71a6f308853a675f",
+      "sha256": "c501168fe83e09773efa91a8c6fe7134c90f6de962b33e3d2a37b34d475dcb0e",
       "sourceFiles": [
         {
           "path": "15 Idiophones/Struck Idiophones/Vibraphone/Hard Mallets/Vibes_hard_C5_v2_rr1_Main.wav",
@@ -1688,15 +2337,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 6,
       "path": "Happenings/15/FSharp5.wav",
+      "renderIdentitySha256": "29c02cf11eab76d124189d04a93daadd4833a5e98d71f89fed461aa19f7fc52d",
       "rootMIDINote": 78,
-      "sha256": "bca22214d16a40a652b11a1205da2d1fc1b741db2cf217c3d0df8711ad82093e",
+      "sha256": "82a8a3f0460d1735557acb5675ab767893771aeb7c024f089d0939097af29df9",
       "sourceFiles": [
         {
           "path": "15 Idiophones/Struck Idiophones/Vibraphone/Hard Mallets/Vibes_hard_C5_v2_rr1_Main.wav",
@@ -1710,15 +2370,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 16,
       "path": "Happenings/16/A5.wav",
+      "renderIdentitySha256": "64750983de0b27ebec37883807a0c4118df1f46be542b25bfedf3c7d2620e118",
       "rootMIDINote": 81,
-      "sha256": "8a1831575f3aaf486d0c9b181205a22da4fdf24ca7a6ce892b1cdcfa540966b1",
+      "sha256": "279051da460bfdefd6729bcb4b05616cb33d851a891d03d21ecb114b869034da",
       "sourceFiles": [
         {
           "path": "16 Idiophones/Struck Idiophones/Vibraphone/Hard Mallets/Vibes_hard_F4_v2_rr1_Main.wav",
@@ -1732,15 +2403,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 7,
       "path": "Happenings/16/C5.wav",
+      "renderIdentitySha256": "64750983de0b27ebec37883807a0c4118df1f46be542b25bfedf3c7d2620e118",
       "rootMIDINote": 72,
-      "sha256": "18a39ae171623566f59bf29b1632919ae773c4f61bceef79cbf216e916b137b9",
+      "sha256": "66845036314d1adcba8b83763b620a159e6b3e2d2acfa4c02edb50c18cb700f9",
       "sourceFiles": [
         {
           "path": "16 Idiophones/Struck Idiophones/Vibraphone/Hard Mallets/Vibes_hard_F4_v2_rr1_Main.wav",
@@ -1754,15 +2436,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 10,
       "path": "Happenings/16/DSharp5.wav",
+      "renderIdentitySha256": "64750983de0b27ebec37883807a0c4118df1f46be542b25bfedf3c7d2620e118",
       "rootMIDINote": 75,
-      "sha256": "8e4ff81c7b0c30a2cd43c1490b56d0d5b9a1bf70106cb1ce4f9a9012c5686620",
+      "sha256": "dbd881f780e41661204b176af4da76cf96981a8272094f710c73576dda6fcccd",
       "sourceFiles": [
         {
           "path": "16 Idiophones/Struck Idiophones/Vibraphone/Hard Mallets/Vibes_hard_F4_v2_rr1_Main.wav",
@@ -1776,15 +2469,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 13,
       "path": "Happenings/16/FSharp5.wav",
+      "renderIdentitySha256": "64750983de0b27ebec37883807a0c4118df1f46be542b25bfedf3c7d2620e118",
       "rootMIDINote": 78,
-      "sha256": "82ea486e67cc5177ad61b00f2c2c892f006197947339a0183b04716541cd6f1f",
+      "sha256": "25b6c2b54ecd7d6dd12f0d35aaa102bb1d664f572226a81392902e9f0107be9e",
       "sourceFiles": [
         {
           "path": "16 Idiophones/Struck Idiophones/Vibraphone/Hard Mallets/Vibes_hard_F4_v2_rr1_Main.wav",
@@ -1798,15 +2502,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 21,
       "path": "Happenings/17/A5.wav",
+      "renderIdentitySha256": "16c55b8ec8cdcf644ecd785bfdb86978295b6ceb31d67d439d61094cd04e4074",
       "rootMIDINote": 81,
-      "sha256": "7b2ab73d4723b2b8e93c5dfdb1147a7bd1c1d1c152b74008ffb81a1adff1aecf",
+      "sha256": "20b06bed09a814a4f0c24f612e7b697083d1e234475a037ab15113b740d1d1c0",
       "sourceFiles": [
         {
           "path": "17 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_C4_p_rr1.wav",
@@ -1820,15 +2535,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 12,
       "path": "Happenings/17/C5.wav",
+      "renderIdentitySha256": "16c55b8ec8cdcf644ecd785bfdb86978295b6ceb31d67d439d61094cd04e4074",
       "rootMIDINote": 72,
-      "sha256": "4b080e50d5c7ff98f5273cebc510aac3273a1ef8fa74d591f71ad8500f04cabe",
+      "sha256": "f62a4355b79cc6eb7b31f0667e58343dce4debfb0b3e659ab4940338616833c3",
       "sourceFiles": [
         {
           "path": "17 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_C4_p_rr1.wav",
@@ -1842,15 +2568,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 15,
       "path": "Happenings/17/DSharp5.wav",
+      "renderIdentitySha256": "16c55b8ec8cdcf644ecd785bfdb86978295b6ceb31d67d439d61094cd04e4074",
       "rootMIDINote": 75,
-      "sha256": "436a44640d7ada201c7960137132d51d61a81abd3354ca55da15baef5bff5a22",
+      "sha256": "7d167513b1c7c90c54aa28af5d341151f7c2061415c8758a6ec677665158d8df",
       "sourceFiles": [
         {
           "path": "17 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_C4_p_rr1.wav",
@@ -1864,15 +2601,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 18,
       "path": "Happenings/17/FSharp5.wav",
+      "renderIdentitySha256": "16c55b8ec8cdcf644ecd785bfdb86978295b6ceb31d67d439d61094cd04e4074",
       "rootMIDINote": 78,
-      "sha256": "b06ef147a408dec9498058af1790a06ba64b9804468594e6407c0381f076072a",
+      "sha256": "31524df467ffbf6eddaebbd36ee96a380f224bd8e3548ab775d4cdb4d12c474c",
       "sourceFiles": [
         {
           "path": "17 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_C4_p_rr1.wav",
@@ -1886,15 +2634,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 19,
       "path": "Happenings/18/A5.wav",
+      "renderIdentitySha256": "7455c6814fd1c648022e4e26939d02fe382d3aa868dd7bbe146cdb0c7be0d3a7",
       "rootMIDINote": 81,
-      "sha256": "a8aeba93584b4f4b99c44027d464c5eb4b5150da6a5f16575ceb2bc74402ce4b",
+      "sha256": "2fb728d016555c6e9b3d53f8df6263e62396563f0d2b46b356a25bb63ea3db98",
       "sourceFiles": [
         {
           "path": "18 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_D4_p_rr1.wav",
@@ -1908,15 +2667,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 10,
       "path": "Happenings/18/C5.wav",
+      "renderIdentitySha256": "7455c6814fd1c648022e4e26939d02fe382d3aa868dd7bbe146cdb0c7be0d3a7",
       "rootMIDINote": 72,
-      "sha256": "4b6af905433ca1f95fc93c471858654040e9888f40241ba244b3517eb00259e7",
+      "sha256": "215d620653b6439989bd768e66309d59e29099b2eb4274702155fa38bad59251",
       "sourceFiles": [
         {
           "path": "18 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_D4_p_rr1.wav",
@@ -1930,15 +2700,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 13,
       "path": "Happenings/18/DSharp5.wav",
+      "renderIdentitySha256": "7455c6814fd1c648022e4e26939d02fe382d3aa868dd7bbe146cdb0c7be0d3a7",
       "rootMIDINote": 75,
-      "sha256": "f7a52b55b5421abe9350dc3d0e9d60f9cc94448cbdfe4fdd3de399ccc30ba22c",
+      "sha256": "bcf18636e049b4259d704cc620b57fc9c942a0369c035d29524fb5e8a2559cb4",
       "sourceFiles": [
         {
           "path": "18 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_D4_p_rr1.wav",
@@ -1952,15 +2733,26 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "VCSL-CC0-1.0.txt",
       "offlinePitchTransformSemitones": 16,
       "path": "Happenings/18/FSharp5.wav",
+      "renderIdentitySha256": "7455c6814fd1c648022e4e26939d02fe382d3aa868dd7bbe146cdb0c7be0d3a7",
       "rootMIDINote": 78,
-      "sha256": "eade9917e4d75d87d4828c573fcb84fe58b7fa2d349e40a123730ba1eee63707",
+      "sha256": "6f6d423f990d82433f1d3e2215da38aa5e4e0d9213bfdff72038014021106867",
       "sourceFiles": [
         {
           "path": "18 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_D4_p_rr1.wav",
@@ -1974,14 +2766,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/19/A3.wav",
+      "renderIdentitySha256": "d3ed2795c9aa4c619aab3ed65ee3555c841cd654b67d31dd949d74ef882820bb",
       "rootMIDINote": 57,
-      "sha256": "58194f97ec963e8f16c5c431a4e0e64e8aa569af1070f053f4febff2bcb1b52f",
+      "sha256": "c706d14a2276ab237fe845a9e560342859d97003146279aa39a710e46a3e1ce3",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-19",
@@ -1995,14 +2798,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/19/C3.wav",
+      "renderIdentitySha256": "d3ed2795c9aa4c619aab3ed65ee3555c841cd654b67d31dd949d74ef882820bb",
       "rootMIDINote": 48,
-      "sha256": "a49a9095b5f7cc6bd42c3b36d7c84315f3fa7df5220a73c959d2152399c62da7",
+      "sha256": "d4bb57dd096909491a5243bbadbffbcb732f5106aa1f98f62daec7712645c0c4",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-19",
@@ -2016,14 +2830,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/19/DSharp3.wav",
+      "renderIdentitySha256": "d3ed2795c9aa4c619aab3ed65ee3555c841cd654b67d31dd949d74ef882820bb",
       "rootMIDINote": 51,
-      "sha256": "bfce8d699612a8d0b62aa0373406e97dc95b13daa7994f0de9d05eeb5f15d3f0",
+      "sha256": "accea647e7969881e5bf47aa80ab61a668b88e5595fb4adc595b2b78b0139ed6",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-19",
@@ -2037,14 +2862,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/19/FSharp3.wav",
+      "renderIdentitySha256": "d3ed2795c9aa4c619aab3ed65ee3555c841cd654b67d31dd949d74ef882820bb",
       "rootMIDINote": 54,
-      "sha256": "5913da2e4c65a8038a8c8d9ce8c527a438f6afd85cedc472331b4b312cf6aa68",
+      "sha256": "2e7f95098e798a63b5419b3fc441ee7773b8836c5b0403b67749f537cbc6fe6d",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-19",
@@ -2058,14 +2894,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/20/A3.wav",
+      "renderIdentitySha256": "d6ba411215109be1e3261b8831dc4438bc2fccdf19b43094894e203d49bedcfe",
       "rootMIDINote": 57,
-      "sha256": "cd9e65d54b5172a0642aa48c64d806ee50eb5d26ae35b2f31b8dd1e85213a122",
+      "sha256": "60c578290240aa28bcd002b422a50d4970581c873a4bfa095dfea0e156dfcd98",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-20",
@@ -2079,14 +2926,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/20/C3.wav",
+      "renderIdentitySha256": "d6ba411215109be1e3261b8831dc4438bc2fccdf19b43094894e203d49bedcfe",
       "rootMIDINote": 48,
-      "sha256": "f360dae3fdd9da63a09fca9dac05a3ec0216dda189cd3833b3d90d1bcca8c29f",
+      "sha256": "361aabafe699be473384866cbf51d2c67237d094502b69f28c45526f1f89b165",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-20",
@@ -2100,14 +2958,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/20/DSharp3.wav",
+      "renderIdentitySha256": "d6ba411215109be1e3261b8831dc4438bc2fccdf19b43094894e203d49bedcfe",
       "rootMIDINote": 51,
-      "sha256": "e748251b720b18df7e913a22d23b1e0520d3f2b0eeecd9e9d9d87d9dca13d53e",
+      "sha256": "3c3b4013eb759cbcdc721ffb6a028c57e0ebde49a68dd9c312174bfcb9406133",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-20",
@@ -2121,14 +2990,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/20/FSharp3.wav",
+      "renderIdentitySha256": "d6ba411215109be1e3261b8831dc4438bc2fccdf19b43094894e203d49bedcfe",
       "rootMIDINote": 54,
-      "sha256": "1a76717f7e101a4e90534899c0159f570adc7b602ee5a38891a5bfa24735da28",
+      "sha256": "ff1c70f1eccde05b75c99d171b9ccf0f03263f8d049306d653a4c2742016a29d",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-20",
@@ -2142,14 +3022,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/21/A3.wav",
+      "renderIdentitySha256": "21da83590eaee069ade947c5ba0946ce969721b43c0834fe101950c003a6497d",
       "rootMIDINote": 57,
-      "sha256": "06825a8fe60f96772bf42b54788932b2eaf3096c523319c2c0524ef94052f568",
+      "sha256": "2238fa76d387e4bfc8b6ac187af0a15c7b62ece5d9f84ada62b3fb2de35045de",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-21",
@@ -2163,14 +3054,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/21/C3.wav",
+      "renderIdentitySha256": "21da83590eaee069ade947c5ba0946ce969721b43c0834fe101950c003a6497d",
       "rootMIDINote": 48,
-      "sha256": "c40f0474ba2dce6559033599fe0368f9fe5aa316c57da8aa428faf236569741d",
+      "sha256": "97f411fcefe9897e7ed7b2a6b4a277e57aeef587bd566182a5d8e8626d1c5d74",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-21",
@@ -2184,14 +3086,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/21/DSharp3.wav",
+      "renderIdentitySha256": "21da83590eaee069ade947c5ba0946ce969721b43c0834fe101950c003a6497d",
       "rootMIDINote": 51,
-      "sha256": "aa5264ea7a835b295e5388272c234d3d380a510d8a3ee69832a6a4ff0d152bdf",
+      "sha256": "ab442bc1b54904cf5f1e0ffb610547c8271ee2d1abb361cd4461857c7bb78a23",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-21",
@@ -2205,14 +3118,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/21/FSharp3.wav",
+      "renderIdentitySha256": "21da83590eaee069ade947c5ba0946ce969721b43c0834fe101950c003a6497d",
       "rootMIDINote": 54,
-      "sha256": "469a9b3152648dca04e5dd394872bf3a0e88ebea8135d205eb15f09ca5736487",
+      "sha256": "f589e53eae1d35cfbe6daaa17deb74a1bacb6bfb92654f733260cfa3884bc879",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-21",
@@ -2226,14 +3150,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/22/A3.wav",
+      "renderIdentitySha256": "6eeec9850302e6afca20e14e60d8965b87832e9eac16a0679db7a34de2f49549",
       "rootMIDINote": 57,
-      "sha256": "c0e71d10cc29519fd3b623d4b5c374350682e1ce494062c9dff799e764a11150",
+      "sha256": "917ade1e222d9728889aa5b237a8fe32a9ee892a5a95171e7b581171034dafcc",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-22",
@@ -2247,14 +3182,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/22/C3.wav",
+      "renderIdentitySha256": "6eeec9850302e6afca20e14e60d8965b87832e9eac16a0679db7a34de2f49549",
       "rootMIDINote": 48,
-      "sha256": "e361ea76a6a75ae3199540a3c706f8ba9109e33d89809a8c2e9b761b9b3e7dcb",
+      "sha256": "accdfd406256fe8b0452528c6a6d35e32d161474da813f922fc287c45e432264",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-22",
@@ -2268,14 +3214,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/22/DSharp3.wav",
+      "renderIdentitySha256": "6eeec9850302e6afca20e14e60d8965b87832e9eac16a0679db7a34de2f49549",
       "rootMIDINote": 51,
-      "sha256": "f5dd5678fd8f0b0d366a37e06df6820bd2e5b832f250cd4bed65248442a52a18",
+      "sha256": "ff63e58889d06d74a6ceaeba7087bdb3e4d012a9ba202a76e2982077ffee36c3",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-22",
@@ -2289,14 +3246,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/22/FSharp3.wav",
+      "renderIdentitySha256": "6eeec9850302e6afca20e14e60d8965b87832e9eac16a0679db7a34de2f49549",
       "rootMIDINote": 54,
-      "sha256": "3a180f93744034d4e4a9b2b34e4cbbe74250e3439d1c9a6e3d3693cf33a9fc0f",
+      "sha256": "9aecfd2db7edd9dae98b32475b842867800c363aba9fd3e8cac37b73a0defd5d",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-22",
@@ -2310,14 +3278,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/23/A3.wav",
+      "renderIdentitySha256": "7deb8f80ddd4745c18cdc73855b3e54af19b4b8b2befb1588e9715a1876b78aa",
       "rootMIDINote": 57,
-      "sha256": "fd61eb802fe7f411dbb8277a4ea31c49ae54705ae05118b63c706bad76cded33",
+      "sha256": "700d43fdd94806b2605efa81ffbc60f880adfbc31244958a85c1d3447a51dc02",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-23",
@@ -2331,14 +3310,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/23/C3.wav",
+      "renderIdentitySha256": "7deb8f80ddd4745c18cdc73855b3e54af19b4b8b2befb1588e9715a1876b78aa",
       "rootMIDINote": 48,
-      "sha256": "23319b25c31890a92a37a6f20c2121996098c63ecd78e4e2ddd50b61b1bd43cb",
+      "sha256": "acfb5053036b15809f5f685f6cfce6618ca833e7e292b5e084d8e9547c4c1206",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-23",
@@ -2352,14 +3342,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/23/DSharp3.wav",
+      "renderIdentitySha256": "7deb8f80ddd4745c18cdc73855b3e54af19b4b8b2befb1588e9715a1876b78aa",
       "rootMIDINote": 51,
-      "sha256": "14b97827e2891f3bbe1f94a39f9c8b0b5fcb39f775d3b23278e6b433f59eb35c",
+      "sha256": "e91071ab900f5d416e1e6b50e05e3b8f4c76ff7a7ef2fb4028231e49e4fc4dae",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-23",
@@ -2373,14 +3374,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/23/FSharp3.wav",
+      "renderIdentitySha256": "7deb8f80ddd4745c18cdc73855b3e54af19b4b8b2befb1588e9715a1876b78aa",
       "rootMIDINote": 54,
-      "sha256": "51d476b1de59a0c3822e31c60a4afa4a90d0e47bff10b4ec0241d96657361541",
+      "sha256": "8a5df42e946df8d49cf082c380c8ee795cc516a0ee9127a3812418e696ecdad8",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-23",
@@ -2394,14 +3406,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/24/A3.wav",
+      "renderIdentitySha256": "e35b374e541e7be391d1dafd4d39ad821f01e56bf689bf4c17b0f9e8ada183fc",
       "rootMIDINote": 57,
-      "sha256": "85118cae110c91c65e34695293cc14c7c34b52e0b16f84fad7fea34e6fd1112e",
+      "sha256": "ec54de20cb9ec7b33cf098b3fdc62a2c905adf1fe9fda01ce3d11bc7f2eac31f",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-24",
@@ -2415,14 +3438,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/24/C3.wav",
+      "renderIdentitySha256": "e35b374e541e7be391d1dafd4d39ad821f01e56bf689bf4c17b0f9e8ada183fc",
       "rootMIDINote": 48,
-      "sha256": "15417638f18723ff3f4f072e148fb0189f1747a998a1a5b445eb7b86d0a2fc52",
+      "sha256": "3d9d7545883aa3a00270fe3f9c28cf7f467e440f3a3aef01fa724ed7af72dd0f",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-24",
@@ -2436,14 +3470,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/24/DSharp3.wav",
+      "renderIdentitySha256": "e35b374e541e7be391d1dafd4d39ad821f01e56bf689bf4c17b0f9e8ada183fc",
       "rootMIDINote": 51,
-      "sha256": "fa7ea8dcc522e28ca9efe0e727a878b6574f9fd7d122a71c1df23736ccf45692",
+      "sha256": "873dfc196a5fab0b525f26b8dee1c322cc953ab576ca03729b93bbdc7ba0ffc6",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-24",
@@ -2457,14 +3502,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/24/FSharp3.wav",
+      "renderIdentitySha256": "e35b374e541e7be391d1dafd4d39ad821f01e56bf689bf4c17b0f9e8ada183fc",
       "rootMIDINote": 54,
-      "sha256": "853902719bb3cb018428b67ce84a8b6a922e9a9a3d2b1c26170ff8036ee06381",
+      "sha256": "daf16052dd690a9d76bda864dabeed8655dae3406695d75ecacf5de90eb56110",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-24",
@@ -2478,14 +3534,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/25/noise.wav",
+      "renderIdentitySha256": "be49bd5030b80337928a585648ba086e57857607ba5f2c7468e67d9734949272",
       "rootMIDINote": 60,
-      "sha256": "0fc557bf3a059f5149a9d90383f58ac3b00ee79fb69982debcacb629c25bc452",
+      "sha256": "6155c0a2c5d57d6a5dc6a92bc80626b82670644d99540d0e8c138046cda00fdc",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-25",
@@ -2499,14 +3566,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/26/noise.wav",
+      "renderIdentitySha256": "01e2dc9d006e46869737183c8c02e9a5dba6f01f4d7f18ff1581968550b31545",
       "rootMIDINote": 60,
-      "sha256": "6fbd8b9a7d17066f7401890ba4030a9cc4fc665f4210d03b5962b6802006aadb",
+      "sha256": "5fffcd44afbee21b2db6362a0555762789f44139be7aaf74e16a4815219c379f",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-26",
@@ -2520,14 +3598,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/27/noise.wav",
+      "renderIdentitySha256": "60d8a9fe555384089394d75c06e02d98ecbba341ebc927470e493556b18a5d0f",
       "rootMIDINote": 60,
-      "sha256": "58208747318397d292f651e5d3e4819a597551fd8d015c42667fb439bcc8065a",
+      "sha256": "513c0c32b4e269553f482d812bdac8af78a4842569cabe9a10fc17a281a93d53",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-27",
@@ -2541,14 +3630,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/28/texture.wav",
+      "renderIdentitySha256": "7665f8217b8fff7208563ff4ed83769fab352ff8caed3a4875f849528bcd23e5",
       "rootMIDINote": 60,
-      "sha256": "465804c3eb626e6d340229a4371c5f70af2755871a4a3474588c530a5717299a",
+      "sha256": "3f8f053c824af12a53991ac7798e92013d7fa2fff8d53aba3172b9ce6935699e",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-28",
@@ -2562,14 +3662,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/29/texture.wav",
+      "renderIdentitySha256": "3a113ea8fd1a140a437d7150faae7d39b1dfee838ad3a7d3b1ae634ebad8cfbb",
       "rootMIDINote": 60,
-      "sha256": "ca594fb30379aba4de78602acde4439946083b2d39a2257c8df91d55538446c8",
+      "sha256": "7f24b2eb5a0dcc1736837db5c11e870ab151a38aa020ae91f1e48630037ce916",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-29",
@@ -2583,14 +3694,25 @@
         "bitDepth": 16,
         "channels": 1,
         "fadeMilliseconds": 5,
+        "maximumDurationSeconds": 6,
         "peakDBFS": -3.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
         "sampleRateHz": 44100,
-        "tool": "happening-bank-v1"
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v2"
       },
       "licenseFilename": "",
       "path": "Happenings/30/texture.wav",
+      "renderIdentitySha256": "7a43176241177211a6c53dde6f28daad2d269a8402cd980093c08fd4c4c7f9b5",
       "rootMIDINote": 60,
-      "sha256": "7abfe1120132697ea62a39d74aac95355161903f273ca5d8700383fbdb128e1a",
+      "sha256": "d2a32a7beeb08f4ad86a7d9d937b8f4f39d8ceef305e19189b819b4ec92908f6",
       "sourceFiles": [
         {
           "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-30",
@@ -2620,8 +3742,8 @@
       "creator": "Steps project",
       "licenseFilename": "",
       "licenseIdentifier": "Proprietary project asset",
-      "rendererVersion": "happening-bank-v1",
-      "revision": "happening-bank-v1",
+      "rendererVersion": "happening-bank-v2",
+      "revision": "happening-bank-v2",
       "sourceURL": "project://Scripts/day_objects_audio/happening-source-map.json"
     },
     "sfzinstruments/Osiris_Piano": {
