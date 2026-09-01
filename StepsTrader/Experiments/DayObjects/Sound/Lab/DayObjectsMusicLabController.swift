@@ -20,6 +20,7 @@ final class DayObjectsMusicLabController: ObservableObject {
     private var isLeadHeld = false
     private var stopTask: Task<Void, Never>?
     private var stopID: UUID?
+    private var lifecycleGeneration: UInt64 = 0
 
     init(
         state: DayObjectsLabMusicState = DayObjectsLabMusicState(),
@@ -61,11 +62,25 @@ final class DayObjectsMusicLabController: ObservableObject {
             await stop()
             return
         }
+        let startedPlan = currentPlan
+        lifecycleGeneration &+= 1
+        let generation = lifecycleGeneration
         soundState = .starting
         do {
-            try await playback.start(plan: currentPlan)
+            try await playback.start(plan: startedPlan)
+            guard generation == lifecycleGeneration else {
+                soundState = .off
+                return
+            }
             soundState = playback.state
+            if soundState == .on, currentPlan != startedPlan {
+                routePlaybackChange(from: startedPlan, to: currentPlan)
+            }
         } catch {
+            guard generation == lifecycleGeneration else {
+                soundState = .off
+                return
+            }
             soundState = playback.state
             if soundState == .starting || soundState == .off {
                 soundState = .error(.init(String(describing: error)))
@@ -157,11 +172,24 @@ final class DayObjectsMusicLabController: ObservableObject {
         currentPlan = nextPlan
         guard soundState == .on else { return }
 
+        routePlaybackChange(from: oldPlan, to: nextPlan)
+    }
+
+    private func routePlaybackChange(from oldPlan: DayMusicPlan, to nextPlan: DayMusicPlan) {
         let change = DayMusicPlanDiffer.change(from: oldPlan, to: nextPlan)
         change.removedHappeningIDs.forEach(playback.removeHappening)
         change.addedHappenings.forEach { playback.addHappening($0, playBirth: true) }
-        if let continuous = change.continuousPlan { playback.applyContinuous(continuous) }
-        if let structural = change.structuralPlan { playback.scheduleStructuralPlan(structural) }
+        if let continuous = change.continuousPlan {
+            playback.applyContinuous(continuous)
+        } else if !change.addedHappenings.isEmpty || !change.removedHappeningIDs.isEmpty {
+            // A count-only edit still changes per-voice mix compensation.
+            playback.applyContinuous(nextPlan)
+        }
+        if let structural = change.structuralPlan {
+            playback.scheduleStructuralPlan(structural)
+        } else if playback.metrics.pendingRemixCount > 0 {
+            playback.scheduleStructuralPlan(nextPlan)
+        }
     }
 
     private func stop() async {
@@ -170,6 +198,8 @@ final class DayObjectsMusicLabController: ObservableObject {
             return
         }
         guard soundState != .off else { return }
+        lifecycleGeneration &+= 1
+        soundState = .off
         endLead()
         let id = UUID()
         stopID = id
@@ -177,7 +207,6 @@ final class DayObjectsMusicLabController: ObservableObject {
         stopTask = task
         await task.value
         guard stopID == id else { return }
-        soundState = .off
         stopTask = nil
         stopID = nil
     }

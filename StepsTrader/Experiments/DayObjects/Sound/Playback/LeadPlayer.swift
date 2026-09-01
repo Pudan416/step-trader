@@ -191,6 +191,30 @@ final class LeadPlayer {
         reapplyHeldGesture()
     }
 
+    /// Applies only Director fields classified as continuous; identity,
+    /// register and pitch topology stay owned by the configured world.
+    func applyContinuous(_ update: LeadPlan) {
+        guard let structural = plan else { return }
+        plan = LeadPlan(
+            instrumentID: structural.instrumentID,
+            maximumSimultaneousVoices: structural.maximumSimultaneousVoices,
+            register: structural.register,
+            pitchRegions: structural.pitchRegions,
+            compatibleChordMIDINotes: structural.compatibleChordMIDINotes,
+            portamentoMilliseconds: structural.portamentoMilliseconds,
+            attackSeconds: structural.attackSeconds,
+            releaseSeconds: structural.releaseSeconds,
+            cutoffMultiplierRange: update.cutoffMultiplierRange,
+            pitchSmoothingMilliseconds: update.pitchSmoothingMilliseconds,
+            expressionSmoothingMilliseconds: update.expressionSmoothingMilliseconds,
+            maximumExpressionDepth: update.maximumExpressionDepth,
+            delaySend: update.delaySend,
+            reverbSend: update.reverbSend
+        )
+        if let plan { mapper = LeadGestureMapper(plan: plan) }
+        reapplyHeldGesture()
+    }
+
     func applyGlitch(_ command: DayObjectsGlitchCommand) {
         guard command.role == .lead else { return }
         glitchCommand = command
@@ -227,7 +251,8 @@ final class LeadPlayer {
     ) {
         guard let plan else { return }
         let cutoff = min(max(
-            Self.baseCutoffHz * mapping.cutoffMultiplier,
+            Self.baseCutoffHz * mapping.cutoffMultiplier
+                * (1 + 0.15 * Self.unit(glitchCommand.saturationAmount)),
             DayObjectsAudioParameters.minimumCutoffHz
         ), DayObjectsAudioParameters.maximumCutoffHz)
         pool.update(token, with: .init(

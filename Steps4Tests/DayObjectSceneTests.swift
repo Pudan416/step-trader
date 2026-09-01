@@ -2,6 +2,37 @@ import XCTest
 @testable import Steps4
 
 final class DayObjectSceneTests: XCTestCase {
+    func testLeadSurfaceForwardsLowerCanvasButHonorsActualExclusionAndDisabledModes() {
+        let lowerCanvasPoint = SIMD2<Double>(0.5, 0.8)
+        let sample = LeadGestureSample(normalizedX: 0.5, normalizedY: 0.8, speed: 0)
+        var forwarded: [LeadGestureSample] = []
+
+        XCTAssertTrue(DayObjectsLeadGestureSurface.forwardGestureBeginning(
+            sample,
+            isEnabled: true,
+            uiExclusionRegion: nil,
+            onBegin: { forwarded.append($0) }
+        ))
+        XCTAssertEqual(forwarded, [sample])
+        XCTAssertFalse(DayObjectsLeadGestureSurface.allowsGestureBeginning(
+            at: lowerCanvasPoint,
+            isEnabled: true,
+            uiExclusionRegion: .dayObjectsLabControls
+        ))
+        XCTAssertFalse(DayObjectsLeadGestureSurface.allowsGestureBeginning(
+            at: lowerCanvasPoint,
+            isEnabled: false,
+            uiExclusionRegion: nil
+        ))
+        XCTAssertFalse(DayObjectsLeadGestureSurface.forwardGestureBeginning(
+            sample,
+            isEnabled: true,
+            uiExclusionRegion: .dayObjectsLabControls,
+            onBegin: { forwarded.append($0) }
+        ))
+        XCTAssertEqual(forwarded, [sample])
+    }
+
     private func input(_ ids: [String]) -> DayObjectSceneInput {
         .init(
             dayKey: "2026-08-20",

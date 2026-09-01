@@ -4,6 +4,7 @@ import AudioKitEX
 import AudioToolbox
 import AVFoundation
 import Foundation
+import SoundpipeAudioKit
 
 @MainActor
 final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
@@ -282,6 +283,24 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         )
     }
 
+    var programEffectMetrics: DayObjectsProgramEffectMetrics {
+        prepared?.graph.programEffectMetrics ?? .unsupported
+    }
+
+    func applyProgramEffects(
+        masterLinearGain: Double,
+        delayFeedback: Double,
+        reverbFeedback: Double,
+        rampDurationSeconds: TimeInterval
+    ) {
+        prepared?.graph.applyProgramEffects(
+            masterLinearGain: masterLinearGain,
+            delayFeedback: delayFeedback,
+            reverbFeedback: reverbFeedback,
+            rampDurationSeconds: rampDurationSeconds
+        )
+    }
+
     fileprivate func synchronizePreparedGraphForPlaybackPair() throws {
         guard let prepared else { throw DayObjectsInstrumentBankError.notPrepared }
         try prepared.graph.synchronizeForStart()
@@ -447,8 +466,8 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
     let tonalTrim: Fader
     let drumTrim: Fader
     let programBus: Mixer
-    let room: Reverb
-    let reverb: Reverb
+    let delay: Delay
+    let reverb: CostelloReverb
     let masterTrim: Fader
     let worldTrim: Fader
     let limiter: PeakLimiter
@@ -461,6 +480,9 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
     private var lastScheduledOutputGainAutomation: DayObjectsBankOutputGainAutomation?
     private let outputGainHostTimeProvider: () -> TimeInterval
     private let outputGainSampleRateProvider: () -> Double
+    private var currentProgramEffectMetrics = DayObjectsProgramEffectMetrics.unsupported
+
+    var programEffectMetrics: DayObjectsProgramEffectMetrics { currentProgramEffectMetrics }
 
     var outputGainMetrics: DayObjectsBankOutputGainMetrics {
         .init(
@@ -506,11 +528,41 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         tonalTrim = Fader(tonalBus, gain: AUValue(DayObjectsAudioParameters.linearGain(decibels: -10)))
         drumTrim = Fader(drumBus, gain: AUValue(DayObjectsAudioParameters.linearGain(decibels: -12)))
         programBus = Mixer([tonalTrim, drumTrim], name: "Day Objects program bus")
-        room = Reverb(programBus, dryWetMix: 0.12)
-        reverb = Reverb(room, dryWetMix: 0.10)
+        delay = Delay(programBus, time: 0.28, feedback: 35, dryWetMix: 14)
+        reverb = CostelloReverb(delay, balance: 0.12, feedback: 0.72, cutoffFrequency: 8_000)
         masterTrim = Fader(reverb, gain: AUValue(DayObjectsAudioParameters.linearGain(decibels: -8)))
         worldTrim = Fader(masterTrim, gain: 1)
         limiter = PeakLimiter(worldTrim)
+        currentProgramEffectMetrics = .init(
+            isSupported: true,
+            masterLinearGain: Double(masterTrim.leftGain),
+            delayFeedback: Double(delay.feedback) / 100,
+            reverbFeedback: Double(reverb.feedback),
+            rampDurationSeconds: 0
+        )
+    }
+
+    func applyProgramEffects(
+        masterLinearGain: Double,
+        delayFeedback: Double,
+        reverbFeedback: Double,
+        rampDurationSeconds: TimeInterval
+    ) {
+        let master = min(max(masterLinearGain.isFinite ? masterLinearGain : 0, 0), 1)
+        let delayTarget = min(max(delayFeedback.isFinite ? delayFeedback : 0, 0), DayObjectsAudioParameters.maximumDelayFeedback)
+        let reverbTarget = min(max(reverbFeedback.isFinite ? reverbFeedback : 0, 0), DayObjectsAudioParameters.maximumReverbFeedback)
+        let duration = min(max(rampDurationSeconds.isFinite ? rampDurationSeconds : 0, 0), 2)
+        masterTrim.$leftGain.ramp(to: AUValue(master), duration: Float(duration))
+        masterTrim.$rightGain.ramp(to: AUValue(master), duration: Float(duration))
+        delay.feedback = AUValue(delayTarget * 100)
+        reverb.feedback = AUValue(reverbTarget)
+        currentProgramEffectMetrics = .init(
+            isSupported: true,
+            masterLinearGain: master,
+            delayFeedback: delayTarget,
+            reverbFeedback: reverbTarget,
+            rampDurationSeconds: duration
+        )
     }
 
     func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval) {

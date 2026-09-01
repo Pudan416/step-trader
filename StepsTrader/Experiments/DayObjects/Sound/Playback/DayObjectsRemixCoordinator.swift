@@ -223,9 +223,10 @@ final class DayObjectsRemixCoordinator {
         advanceCrossfade(at: event)
         finishTransitionIfPossible(at: event)
 
-        if isEligibleBoundary(event), transition == nil,
+        if transition == nil,
            lastTransitionBoundarySubdivision != event.position.absoluteSubdivision,
-           let targetPlan = pendingPlan, let oldPlan = currentPlan {
+           let targetPlan = pendingPlan, let oldPlan = currentPlan,
+           isEligibleBoundary(event, from: oldPlan, to: targetPlan) {
             lastTransitionBoundarySubdivision = event.position.absoluteSubdivision
             let oldBank = activeBank
             let newBank = inactiveBank
@@ -432,9 +433,34 @@ final class DayObjectsRemixCoordinator {
         )
     }
 
-    private func isEligibleBoundary(_ event: DayObjectsTransportEvent) -> Bool {
+    private func isEligibleBoundary(
+        _ event: DayObjectsTransportEvent,
+        from oldPlan: DayMusicPlan,
+        to targetPlan: DayMusicPlan
+    ) -> Bool {
+        if targetPlan.seed == oldPlan.seed,
+           Self.hasStructuralHarmonyChange(from: oldPlan.harmony, to: targetPlan.harmony) {
+            return event.kind == .harmonicCycleBoundary
+        }
         guard event.position.subdivisionInBar == 0 else { return false }
         return event.kind == .subdivision || event.kind == .barBoundary
+    }
+
+    private static func hasStructuralHarmonyChange(
+        from old: HarmonyPlan,
+        to new: HarmonyPlan
+    ) -> Bool {
+        guard old.cycleBars == new.cycleBars, old.chordCount == new.chordCount,
+              old.roles.count == new.roles.count else { return true }
+        return zip(old.roles, new.roles).contains { left, right in
+            left.role != right.role
+                || left.instrumentTarget != right.instrumentTarget
+                || left.register != right.register
+                || left.activation.startProgress != right.activation.startProgress
+                || left.activation.fullProgress != right.activation.fullProgress
+                || left.chordSchedule != right.chordSchedule
+                || left.crossfadeBars != right.crossfadeBars
+        }
     }
 
     private func acceptMonotonic(_ event: DayObjectsTransportEvent) -> Bool {

@@ -20,9 +20,12 @@ final class DayObjectsMusicLabControllerTests: XCTestCase {
 
         playback.commands.removeAll()
         controller.setHappeningCount(9)
-        XCTAssertEqual(playback.commands, ["add:lab-happening-09:true"])
+        XCTAssertEqual(playback.commands, ["add:lab-happening-09:true", "continuous"])
         controller.setHappeningCount(8)
-        XCTAssertEqual(playback.commands, ["add:lab-happening-09:true", "remove:lab-happening-09"])
+        XCTAssertEqual(playback.commands, [
+            "add:lab-happening-09:true", "continuous",
+            "remove:lab-happening-09", "continuous",
+        ])
     }
 
     func testRemixPreservesDayInputsAndReplacesPendingStructuralPlan() async {
@@ -95,6 +98,82 @@ final class DayObjectsMusicLabControllerTests: XCTestCase {
         await interruption.value
         XCTAssertEqual(playback.stopCount, 1)
     }
+
+    func testPendingRemixIsReplacedWithEveryNewestDayInputUntilTransitionBegins() async throws {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        await controller.toggleSound()
+        controller.remix()
+        let pendingSeed = controller.currentPlan.seed
+
+        controller.setSteps(3_000)
+        controller.setSleepHours(4)
+        controller.setSpentColors(40)
+        controller.setHappeningCount(9)
+
+        XCTAssertEqual(playback.metrics.pendingRemixCount, 1)
+        XCTAssertEqual(playback.structuralPlans.last?.seed, pendingSeed)
+        XCTAssertEqual(playback.structuralPlans.last?.input.stepsProgress, 0.3)
+        XCTAssertEqual(playback.structuralPlans.last?.input.sleepProgress, 0.5)
+        XCTAssertEqual(playback.structuralPlans.last?.mix.happeningCount, 9)
+        XCTAssertEqual(
+            try XCTUnwrap(playback.structuralPlans.last?.input.glitchProgress),
+            0.16,
+            accuracy: 0.000_001
+        )
+
+        playback.metrics.pendingRemixCount = 0
+        playback.structuralPlans.removeAll()
+        controller.setSteps(4_000)
+        XCTAssertTrue(playback.structuralPlans.isEmpty, "Ordinary continuous edits must not create a Remix")
+    }
+
+    func testEditsDuringSuspendedStartReconcilePlaybackToLatestVisiblePlan() async {
+        let playback = RecordingLabPlayback()
+        playback.suspendStart = true
+        let controller = DayObjectsMusicLabController(playback: playback)
+        let start = Task { await controller.toggleSound() }
+        await Task.yield()
+        XCTAssertEqual(controller.soundState, .starting)
+
+        controller.setSteps(2_500)
+        controller.setHappeningCount(9)
+        controller.remix()
+        XCTAssertTrue(playback.commands.isEmpty)
+
+        playback.resumeStart()
+        await start.value
+        XCTAssertEqual(controller.soundState, .on)
+        XCTAssertTrue(playback.commands.contains("continuous"))
+        XCTAssertTrue(playback.commands.contains("add:lab-happening-09:true"))
+        XCTAssertEqual(playback.structuralPlans.last, controller.currentPlan)
+    }
+
+    func testLifecycleStopRacingSuspendedStartWinsAndRejectsTeardownMutations() async {
+        let playback = RecordingLabPlayback()
+        playback.suspendStart = true
+        let controller = DayObjectsMusicLabController(playback: playback)
+        let start = Task { await controller.toggleSound() }
+        await Task.yield()
+        XCTAssertEqual(controller.soundState, .starting)
+
+        let stop = Task { await controller.viewDidDisappear() }
+        await Task.yield()
+        controller.setSteps(8_000)
+        controller.beginLead(
+            .init(normalizedX: 0.5, normalizedY: 0.8, speed: 0),
+            isGridVisible: false,
+            isVoiceOverRunning: false
+        )
+        playback.resumeStart()
+        await start.value
+        await stop.value
+
+        XCTAssertEqual(controller.soundState, .off)
+        XCTAssertEqual(playback.stopCount, 1)
+        XCTAssertTrue(playback.commands.isEmpty)
+        XCTAssertEqual(playback.beginLeadCount, 0)
+    }
 }
 
 @MainActor
@@ -111,10 +190,13 @@ private final class RecordingLabPlayback: DayObjectsMusicPlaybackProtocol {
     var endLeadCount = 0
     var suspendStop = false
     var stopContinuation: CheckedContinuation<Void, Never>?
+    var suspendStart = false
+    var startContinuation: CheckedContinuation<Void, Never>?
 
     func start(plan: DayMusicPlan) async throws {
         startPlans.append(plan)
         state = .starting
+        if suspendStart { await withCheckedContinuation { startContinuation = $0 } }
         if let startError { state = .error(startError); throw startError }
         state = .on
     }
@@ -124,8 +206,13 @@ private final class RecordingLabPlayback: DayObjectsMusicPlaybackProtocol {
         state = .off
     }
     func resumeStop() { suspendStop = false; stopContinuation?.resume(); stopContinuation = nil }
+    func resumeStart() { suspendStart = false; startContinuation?.resume(); startContinuation = nil }
     func applyContinuous(_ plan: DayMusicPlan) { commands.append("continuous") }
-    func scheduleStructuralPlan(_ plan: DayMusicPlan) { structuralPlans.append(plan); commands.append("structural") }
+    func scheduleStructuralPlan(_ plan: DayMusicPlan) {
+        structuralPlans.append(plan)
+        metrics.pendingRemixCount = 1
+        commands.append("structural")
+    }
     func addHappening(_ plan: HappeningMusicPlan, playBirth: Bool) { commands.append("add:\(plan.happeningID):\(playBirth)") }
     func removeHappening(id: String) { commands.append("remove:\(id)") }
     func beginLead(_ gesture: LeadGestureSample) { beginLeadCount += 1 }

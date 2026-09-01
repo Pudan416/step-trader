@@ -195,6 +195,29 @@ final class HarmonyPlayerTests: XCTestCase {
         XCTAssertEqual(harness.primary.expressions(for: [48, 55, 60]), [expected, expected, expected])
     }
 
+    func testPadGlitchRoutesWowFlutterAndStereoMotionIntoSoundingVoices() throws {
+        let harness = try makeHarness()
+        let plan = harmonyPlan(
+            target: .tonal(.init(rawValue: "pad.interstellar")),
+            gain: 0.5,
+            schedule: [entry(index: 0, startBar: 0, notes: [48])]
+        )
+        try harness.player.configure(plan)
+        harness.player.render(barBoundary: event(.barBoundary, at: 0))
+
+        harness.player.applyGlitch(.init(
+            role: .pad, dryGain: 1, pitchDriftCents: 4,
+            wowFlutterDepth: 0.12, stereoSeparationAddition: 0.2,
+            delayTimeVariation: 0, saturationAmount: 0,
+            timingDriftMilliseconds: 0, dropoutAttenuationDecibels: 0,
+            dropoutReleaseSeconds: 0, rampDurationSeconds: 0.25
+        ))
+
+        let update = try XCTUnwrap(harness.primary.updates.last)
+        XCTAssertNotEqual(update.midiNote, 48.04, "wow/flutter must modulate beyond static pitch drift")
+        XCTAssertNotEqual(update.pan, 0, "stereo separation must reach the tonal backend")
+    }
+
     func testContinuousRoleGainRampsAcrossExactlyOneBar() throws {
         let harness = try makeHarness()
         let initial = harmonyPlan(
@@ -310,6 +333,34 @@ final class HarmonyPlayerTests: XCTestCase {
 
         XCTAssertEqual(harness.bank.pianoRecorder.noteOnRequests.map(\.midiNote), [60, 64, 67])
         XCTAssertTrue(harness.primary.noteOnRequests.isEmpty)
+    }
+
+    func testMaximumSleepInnerMotionRolePreparesAndEmitsSubtleNotes() throws {
+        let harness = try makeHarness()
+        let directorPlan = DeterministicMusicDirector.makePlan(
+            input: .init(
+                countedSteps: 10_000, stepGoal: 10_000,
+                countedSleepHours: 8, sleepGoalHours: 8,
+                happeningIDs: [], spentColors: 0
+            ),
+            remixSeed: 91
+        )
+        let inner = try XCTUnwrap(directorPlan.harmony.role(for: .innerMotion))
+        try harness.player.configure(directorPlan.harmony)
+        for bar in 0..<directorPlan.harmony.cycleBars {
+            let position = Int64(bar) * MusicalPosition.subdivisionsPerBar
+            harness.player.render(subdivision: event(.subdivision, at: position))
+            harness.player.render(barBoundary: event(.barBoundary, at: position))
+        }
+
+        let pool = try XCTUnwrap(harness.bank.pools["secondary-pad-or-keys"])
+        guard case let .tonal(instrumentID) = inner.instrumentTarget else {
+            return XCTFail("innerMotion must be a tonal role")
+        }
+        XCTAssertTrue(pool.preparedInstruments.contains(instrumentID))
+        let innerRequests = pool.noteOnRequests.filter { $0.instrumentID == instrumentID }
+        XCTAssertFalse(innerRequests.isEmpty)
+        XCTAssertTrue(innerRequests.allSatisfy { $0.velocity <= inner.gain })
     }
 
     func testOneThousandChordChangesKeepAllocationConstantAndReleaseEveryToken() throws {
@@ -476,6 +527,7 @@ private final class RecordingHarmonyTonalPool: DayObjectsTonalVoicePoolProtocol 
     let name: String
     let capacity: Int
     private(set) var preparedInstrument: DayObjectsInstrumentID?
+    private(set) var preparedInstruments: Set<DayObjectsInstrumentID> = []
     private(set) var noteOnRequests: [DayObjectsTonalNoteRequest] = []
     private(set) var updates: [DayObjectsVoiceUpdate] = []
     private(set) var events: [Event] = []
@@ -513,11 +565,12 @@ private final class RecordingHarmonyTonalPool: DayObjectsTonalVoicePoolProtocol 
     func prepareInstrument(_ id: DayObjectsInstrumentID) throws {
         XCTAssertTrue(activeTokens.isEmpty, "A sounding pool must not be represet in place")
         preparedInstrument = id
+        preparedInstruments.insert(id)
         events.append(.init(kind: .prepare, note: nil))
     }
 
     func noteOn(_ request: DayObjectsTonalNoteRequest) -> DayObjectsVoiceToken? {
-        guard request.instrumentID == preparedInstrument else { return nil }
+        guard preparedInstruments.contains(request.instrumentID) else { return nil }
         if activeTokens.count >= capacity, let oldest = activeTokens.keys.first {
             activeTokens.removeValue(forKey: oldest)
             expressionByToken.removeValue(forKey: oldest)

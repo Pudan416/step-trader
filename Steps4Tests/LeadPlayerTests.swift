@@ -9,6 +9,7 @@ final class LeadPlayerTests: XCTestCase {
         harness.player.begin(.init(normalizedX: 0.5, normalizedY: 0.5, speed: 0))
         let attackCount = harness.pool.noteOnRequests.count
         let baseNote = try XCTUnwrap(harness.pool.updateRequests.last?.midiNote)
+        let baseCutoff = try XCTUnwrap(harness.pool.updateRequests.last?.cutoffHz)
 
         harness.player.applyMixTargetDecibels(-18)
         harness.player.applyGlitch(.init(
@@ -22,6 +23,7 @@ final class LeadPlayerTests: XCTestCase {
         XCTAssertEqual(harness.pool.noteOnRequests.count, attackCount)
         XCTAssertEqual(try XCTUnwrap(harness.pool.updateRequests.last?.midiNote), baseNote + 0.12, accuracy: 0.000_001)
         XCTAssertLessThan(try XCTUnwrap(harness.pool.updateRequests.last?.expression), 0.2)
+        XCTAssertGreaterThan(try XCTUnwrap(harness.pool.updateRequests.last?.cutoffHz), baseCutoff)
     }
 
     func testSafeRemixHandoffGlidesExistingHeldTokenWithoutRetriggerAndKeepsGestureOwner() throws {

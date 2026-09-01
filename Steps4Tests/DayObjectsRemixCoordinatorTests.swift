@@ -222,6 +222,52 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
         XCTAssertEqual(harness.coordinator.metrics.pendingRemixCount, 0)
     }
 
+    func testSleepStructuralChangeWaitsForHarmonicCycleWhileSeedRemixUsesBar() throws {
+        let sleepHarness = try makeHarness(initialSeed: 910)
+        let sleepUpdate = makePlan(seed: 910, sleep: 8)
+        let sleepTarget = DayMusicPlan(
+            seed: sleepUpdate.seed,
+            input: sleepUpdate.input,
+            world: sleepUpdate.world,
+            rhythm: sleepUpdate.rhythm,
+            harmony: .init(
+                sleepProgress: sleepUpdate.harmony.sleepProgress,
+                cycleBars: sleepUpdate.harmony.cycleBars + 4,
+                chordCount: sleepUpdate.harmony.chordCount,
+                roles: sleepUpdate.harmony.roles
+            ),
+            happenings: sleepUpdate.happenings,
+            lead: sleepUpdate.lead,
+            glitch: sleepUpdate.glitch,
+            mix: sleepUpdate.mix
+        )
+        sleepHarness.coordinator.schedule(sleepTarget)
+
+        sleepHarness.coordinator.render(boundary(position: 16, hostTime: 1))
+        XCTAssertEqual(sleepHarness.coordinator.pendingPlan, sleepTarget)
+        XCTAssertEqual(sleepHarness.coordinator.currentPlan?.seed, 910)
+        XCTAssertEqual(sleepHarness.runtime.configuredPlans.count, 1)
+
+        sleepHarness.coordinator.render(event(
+            .harmonicCycleBoundary,
+            position: 64,
+            hostTime: 4
+        ))
+        XCTAssertEqual(sleepHarness.coordinator.currentPlan, sleepTarget)
+        XCTAssertEqual(sleepHarness.runtime.configuredPlans.count, 2)
+
+        let remixHarness = try makeHarness(initialSeed: 920)
+        remixHarness.coordinator.schedule(makePlan(seed: 921))
+        remixHarness.coordinator.render(boundary(position: 16, hostTime: 1))
+        XCTAssertEqual(remixHarness.coordinator.currentPlan?.seed, 921)
+
+        let happeningHarness = try makeHarness(initialSeed: 930)
+        let happeningTarget = makePlan(seed: 930, ids: ["a", "b", "c"])
+        happeningHarness.coordinator.schedule(happeningTarget)
+        happeningHarness.coordinator.render(boundary(position: 16, hostTime: 1))
+        XCTAssertEqual(happeningHarness.coordinator.currentPlan, happeningTarget)
+    }
+
     func testHappeningHandoffReportsRetainedRemovedAddedAndEveryNewFirstCycleID() throws {
         let harness = try makeHarness(initialSeed: 905)
         harness.coordinator.schedule(makePlan(seed: 906, ids: ["b", "c", "d"]))

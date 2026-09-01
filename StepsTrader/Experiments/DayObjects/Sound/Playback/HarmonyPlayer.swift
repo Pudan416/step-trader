@@ -48,9 +48,13 @@ final class HarmonyPlayer {
         ) {
             switch self {
             case let .tonal(pool, token):
+                let direction = baseMIDINote.isMultiple(of: 2) ? 1.0 : -1.0
                 pool.update(token, with: .init(
-                    midiNote: Double(baseMIDINote) + command.pitchDriftCents / 100,
+                    midiNote: Double(baseMIDINote)
+                        + command.pitchDriftCents / 100
+                        + direction * command.wowFlutterDepth * 0.08,
                     expression: expression,
+                    pan: direction * command.stereoSeparationAddition,
                     delaySend: delaySend,
                     reverbSend: reverbSend,
                     pitchRampSeconds: command.rampDurationSeconds,
@@ -133,10 +137,21 @@ final class HarmonyPlayer {
     func configure(_ plan: HarmonyPlan) throws {
         releaseAll()
         try worldBank.prepare()
-        for role in plan.roles where role.role != .innerMotion {
+        var tonalTargets: [ObjectIdentifier: (
+            pool: DayObjectsTonalVoicePoolProtocol,
+            ids: [DayObjectsInstrumentID]
+        )] = [:]
+        for role in plan.roles {
             if case let .tonal(instrumentID) = role.instrumentTarget {
-                try worldBank.tonalPool(for: role.role).prepareInstrument(instrumentID)
+                let pool = try worldBank.tonalPool(for: role.role)
+                let key = ObjectIdentifier(pool)
+                var target = tonalTargets[key] ?? (pool, [])
+                if !target.ids.contains(instrumentID) { target.ids.append(instrumentID) }
+                tonalTargets[key] = target
             }
+        }
+        for target in tonalTargets.values {
+            try target.pool.prepareInstruments(target.ids)
         }
         self.plan = plan
         roles = plan.roles.map { RoleState(plan: $0, currentGain: Self.unit($0.gain)) }
@@ -223,7 +238,6 @@ final class HarmonyPlayer {
         for index in roles.indices {
             guard roles[index].currentGain > 0,
                   Self.unit(roles[index].plan.gain) > 0,
-                  roles[index].plan.role != .innerMotion,
                   roles[index].lastScheduledAbsoluteBar != event.position.bar,
                   let chord = roles[index].plan.chordSchedule.first(where: { $0.startBar == cycleBar })
             else { continue }
@@ -240,7 +254,6 @@ final class HarmonyPlayer {
             roles[index].transition = nil
             roles[index].gainRamp = nil
         }
-        worldBank.releaseAll()
     }
 
     private func schedule(

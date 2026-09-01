@@ -5,7 +5,7 @@ import SwiftUI
 /// canvas. It reports normalized samples and owns no audio resources.
 struct DayObjectsLeadGestureSurface: View {
     let isEnabled: Bool
-    let uiExclusionRegion: DayObjectNormalizedRect
+    let uiExclusionRegion: DayObjectNormalizedRect?
     let onBegin: @MainActor (LeadGestureSample) -> Void
     let onUpdate: @MainActor (LeadGestureSample) -> Void
     let onEnd: @MainActor () -> Void
@@ -42,14 +42,23 @@ struct DayObjectsLeadGestureSurface: View {
                 let now = Date.timeIntervalSinceReferenceDate
                 let point = normalized(value.location, in: size)
                 if !isTracking && !rejectedBeginning {
-                    guard !uiExclusionRegion.contains(point) else {
+                    guard Self.allowsGestureBeginning(
+                        at: point,
+                        isEnabled: isEnabled,
+                        uiExclusionRegion: uiExclusionRegion
+                    ) else {
                         rejectedBeginning = true
                         return
                     }
                     isTracking = true
                     previousPoint = point
                     previousTime = now
-                    onBegin(sample(point: point, speed: 0))
+                    _ = Self.forwardGestureBeginning(
+                        sample(point: point, speed: 0),
+                        isEnabled: isEnabled,
+                        uiExclusionRegion: uiExclusionRegion,
+                        onBegin: onBegin
+                    )
                     return
                 }
                 guard isTracking else { return }
@@ -100,6 +109,31 @@ struct DayObjectsLeadGestureSurface: View {
         rejectedBeginning = false
         previousPoint = nil
         previousTime = nil
+    }
+
+    static func allowsGestureBeginning(
+        at point: SIMD2<Double>,
+        isEnabled: Bool,
+        uiExclusionRegion: DayObjectNormalizedRect?
+    ) -> Bool {
+        isEnabled && !(uiExclusionRegion?.contains(point) ?? false)
+    }
+
+    @discardableResult
+    static func forwardGestureBeginning(
+        _ sample: LeadGestureSample,
+        isEnabled: Bool,
+        uiExclusionRegion: DayObjectNormalizedRect?,
+        onBegin: (LeadGestureSample) -> Void
+    ) -> Bool {
+        let point = SIMD2(sample.normalizedX, sample.normalizedY)
+        guard allowsGestureBeginning(
+            at: point,
+            isEnabled: isEnabled,
+            uiExclusionRegion: uiExclusionRegion
+        ) else { return false }
+        onBegin(sample)
+        return true
     }
 }
 #endif

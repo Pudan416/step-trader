@@ -19,6 +19,23 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(runtime.playbackMetrics.activeHappeningCount, plan.happenings.count)
         XCTAssertGreaterThan(runtime.playbackMetrics.activeNodeCount, 0)
         XCTAssertEqual(runtime.preparedRhythmBackendCount, 2)
+        let effects = runtime.activeProgramEffectMetricsForTesting
+        XCTAssertTrue(effects.isSupported)
+        XCTAssertEqual(
+            effects.masterLinearGain,
+            pow(10, plan.mix.masterTargetDecibelsBeforeLimiter / 20),
+            accuracy: 0.000_001
+        )
+        let expectedDelay = max(
+            plan.harmony.roles.map(\.delaySend).max() ?? 0,
+            plan.happenings.map(\.delaySend).max() ?? 0
+        )
+        let expectedReverb = max(
+            plan.harmony.roles.map(\.reverbSend).max() ?? 0,
+            plan.happenings.map(\.reverbSend).max() ?? 0
+        )
+        XCTAssertEqual(effects.delayFeedback, expectedDelay, accuracy: 0.000_001)
+        XCTAssertEqual(effects.reverbFeedback, expectedReverb, accuracy: 0.000_001)
     }
 
     func testLiveRuntimeRemixKeepsOldHarmonyThroughP0ThenReleasesBeforeRecycle() throws {
@@ -34,10 +51,90 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         runtime.scheduleStructuralPlan(remixed)
         runtime.renderForTesting(.init(kind: .barBoundary, position: .init(absoluteSubdivision: 128), hostTimeSeconds: 8, tempoBPM: 100))
         XCTAssertEqual(runtime.remixResultForTesting, .transitioned(seed: remixed.seed))
+        XCTAssertTrue(runtime.activeHappeningNextPositionsForTesting.values.allSatisfy {
+            $0.absoluteSubdivision >= 128
+        }, "The new world's first cycle must be aligned to the Remix boundary")
+        XCTAssertTrue(runtime.activeHappeningScheduledPositionsForTesting.values
+            .flatMap { $0 }
+            .allSatisfy { $0.absoluteSubdivision >= 128 })
+        XCTAssertTrue(runtime.activeHappeningAttackHistoryForTesting.allSatisfy {
+            $0.position.absoluteSubdivision >= 128
+        })
         XCTAssertGreaterThan(runtime.inactiveWorldVoiceCountForTesting, 0, "p0 must not cut the old harmony tail")
 
         runtime.renderForTesting(.init(kind: .subdivision, position: .init(absoluteSubdivision: 160), hostTimeSeconds: 10, tempoBPM: 100))
         XCTAssertEqual(runtime.inactiveWorldVoiceCountForTesting, 0, "the recycled world must retain no old tokens")
+    }
+
+    func testLiveContinuousUpdateDoesNotExposeStructuralWorldBeforeBoundary() throws {
+        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let initial = makePlaybackEnginePlan(seed: 601)
+        let mixed = DeterministicMusicDirector.makePlan(
+            input: .init(
+                countedSteps: 10_000,
+                stepGoal: 10_000,
+                countedSleepHours: 8,
+                sleepGoalHours: 8,
+                happeningIDs: ["a", "b"],
+                spentColors: 100
+            ),
+            remixSeed: 602
+        )
+        try runtime.prepare(plan: initial)
+
+        runtime.applyContinuous(mixed)
+
+        let audible = try XCTUnwrap(runtime.activePlanForTesting)
+        XCTAssertEqual(audible.seed, initial.seed)
+        XCTAssertEqual(audible.world, initial.world)
+        XCTAssertEqual(audible.rhythm.family, initial.rhythm.family)
+        XCTAssertEqual(audible.rhythm.realization, initial.rhythm.realization)
+        XCTAssertEqual(audible.lead.instrumentID, initial.lead.instrumentID)
+        XCTAssertEqual(audible.rhythm.tempoBPM, mixed.rhythm.tempoBPM)
+        XCTAssertEqual(audible.rhythm.stepsProgress, mixed.rhythm.stepsProgress)
+        XCTAssertEqual(audible.harmony.sleepProgress, mixed.harmony.sleepProgress)
+        XCTAssertEqual(audible.glitch.progress, mixed.glitch.progress)
+        XCTAssertEqual(audible.mix, mixed.mix)
+    }
+
+    func testLiveSafeHeldLeadKeepsSourceTokenAndDelaysOldBankRecycleUntilRelease() throws {
+        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let initial = makePlaybackEnginePlan(seed: 701)
+        let remixed = DayMusicPlan(
+            seed: 702,
+            input: initial.input,
+            world: initial.world,
+            rhythm: initial.rhythm,
+            harmony: initial.harmony,
+            happenings: initial.happenings,
+            lead: initial.lead,
+            glitch: initial.glitch,
+            mix: initial.mix
+        )
+        try runtime.prepare(plan: initial)
+        try runtime.startPreparedWorldForTesting()
+        runtime.renderForTesting(.init(kind: .barBoundary, position: .init(absoluteSubdivision: 0), hostTimeSeconds: 0, tempoBPM: 100))
+        runtime.beginLead(.init(normalizedX: 0.45, normalizedY: 0.7, speed: 0))
+        XCTAssertEqual(runtime.totalLeadAttackCountForTesting, 1)
+
+        runtime.scheduleStructuralPlan(remixed)
+        runtime.renderForTesting(.init(kind: .barBoundary, position: .init(absoluteSubdivision: 128), hostTimeSeconds: 8, tempoBPM: 100))
+        XCTAssertEqual(runtime.totalLeadAttackCountForTesting, 1)
+        XCTAssertEqual(runtime.totalLeadReleaseCountForTesting, 0)
+        XCTAssertEqual(runtime.inactiveLeadVoiceCountForTesting, 1)
+
+        runtime.renderForTesting(.init(kind: .subdivision, position: .init(absoluteSubdivision: 160), hostTimeSeconds: 10, tempoBPM: 100))
+        XCTAssertEqual(runtime.inactiveWorldRecycleCountForTesting, 0)
+        XCTAssertEqual(runtime.inactiveBankActiveTonalVoiceCountForTesting, 1)
+        XCTAssertEqual(runtime.totalLeadAttackCountForTesting, 1)
+        XCTAssertEqual(runtime.totalLeadReleaseCountForTesting, 0)
+
+        runtime.endLead()
+        runtime.renderForTesting(.init(kind: .subdivision, position: .init(absoluteSubdivision: 161), hostTimeSeconds: 10.1, tempoBPM: 100))
+        XCTAssertEqual(runtime.inactiveWorldRecycleCountForTesting, 1)
+        XCTAssertEqual(runtime.inactiveBankActiveTonalVoiceCountForTesting, 0)
+        XCTAssertEqual(runtime.totalLeadAttackCountForTesting, 1)
+        XCTAssertEqual(runtime.totalLeadReleaseCountForTesting, 1)
     }
 
     func testStartUsesTheApprovedSessionBankTransportAndFadeOrder() async throws {
@@ -160,6 +257,32 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(engine.metrics.activeTransportCount, 0)
         XCTAssertFalse(session.isActive)
     }
+
+    func testStopRacingSuspendedStartWinsAndCannotFadeOrReturnOn() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        runtime.suspendTransportStart = true
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let plan = makePlaybackEnginePlan(seed: 123)
+
+        let start = Task { @MainActor in try await engine.start(plan: plan) }
+        await runtime.waitUntilTransportStartBegins()
+        let stop = Task { @MainActor in await engine.stop() }
+        await Task.yield()
+
+        engine.applyContinuous(makePlaybackEnginePlan(seed: 124))
+        engine.beginLead(.init(normalizedX: 0.4, normalizedY: 0.6, speed: 0))
+        runtime.resumeTransportStart()
+        try await start.value
+        await stop.value
+
+        XCTAssertEqual(engine.state, .off)
+        XCTAssertFalse(session.isActive)
+        XCTAssertFalse(log.values.contains("runtime.master.fade:123"))
+        XCTAssertEqual(runtime.continuousCount, 0)
+        XCTAssertEqual(runtime.beginLeadCount, 0)
+    }
 }
 
 @MainActor
@@ -208,9 +331,14 @@ private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntim
     let log: PlaybackEngineCallLog
     var failureStage: PlaybackEngineFailureStage?
     var suspendTailDrain = false
+    var suspendTransportStart = false
     private var tailDrainContinuation: CheckedContinuation<Void, Never>?
     private var tailDrainWaiters: [CheckedContinuation<Void, Never>] = []
+    private var transportStartContinuation: CheckedContinuation<Void, Never>?
+    private var transportStartWaiters: [CheckedContinuation<Void, Never>] = []
     private(set) var prepareAttempts = 0
+    private(set) var continuousCount = 0
+    private(set) var beginLeadCount = 0
     private var running = false
 
     var playbackMetrics: DayObjectsPlaybackMetrics {
@@ -240,6 +368,11 @@ private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntim
 
     func startTransport(plan: DayMusicPlan) async throws {
         log.values.append("runtime.transport.start:\(plan.seed)")
+        transportStartWaiters.forEach { $0.resume() }
+        transportStartWaiters.removeAll()
+        if suspendTransportStart {
+            await withCheckedContinuation { transportStartContinuation = $0 }
+        }
         if failureStage == .transportStart { throw DayObjectsAudioError("transport") }
         running = true
     }
@@ -269,11 +402,11 @@ private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntim
         }
     }
     func stopAudio() { log.values.append("runtime.audio.stop") }
-    func applyContinuous(_ plan: DayMusicPlan) {}
+    func applyContinuous(_ plan: DayMusicPlan) { continuousCount += 1 }
     func scheduleStructuralPlan(_ plan: DayMusicPlan) {}
     func addHappening(_ plan: HappeningMusicPlan, playBirth: Bool) {}
     func removeHappening(id: String) {}
-    func beginLead(_ gesture: LeadGestureSample) {}
+    func beginLead(_ gesture: LeadGestureSample) { beginLeadCount += 1 }
     func updateLead(_ gesture: LeadGestureSample) {}
 
     func waitUntilTailDrainBegins() async {
@@ -287,6 +420,17 @@ private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntim
         suspendTailDrain = false
         tailDrainContinuation?.resume()
         tailDrainContinuation = nil
+    }
+
+    func waitUntilTransportStartBegins() async {
+        if transportStartContinuation != nil { return }
+        await withCheckedContinuation { transportStartWaiters.append($0) }
+    }
+
+    func resumeTransportStart() {
+        suspendTransportStart = false
+        transportStartContinuation?.resume()
+        transportStartContinuation = nil
     }
 }
 

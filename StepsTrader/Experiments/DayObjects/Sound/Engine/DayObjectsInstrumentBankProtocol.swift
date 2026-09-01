@@ -162,11 +162,28 @@ struct DayObjectsBankOutputGainMetrics: Equatable, Sendable {
     )
 }
 
+struct DayObjectsProgramEffectMetrics: Equatable, Sendable {
+    let isSupported: Bool
+    let masterLinearGain: Double
+    let delayFeedback: Double
+    let reverbFeedback: Double
+    let rampDurationSeconds: TimeInterval
+
+    static let unsupported = DayObjectsProgramEffectMetrics(
+        isSupported: false,
+        masterLinearGain: 1,
+        delayFeedback: 0,
+        reverbFeedback: 0,
+        rampDurationSeconds: 0
+    )
+}
+
 @MainActor
 protocol DayObjectsInstrumentBankGraph: AnyObject {
     var layout: DayObjectsInstrumentBankGraphLayout { get }
     var allocationFingerprint: DayObjectsInstrumentBankAllocationFingerprint { get }
     var outputGainMetrics: DayObjectsBankOutputGainMetrics { get }
+    var programEffectMetrics: DayObjectsProgramEffectMetrics { get }
     func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval)
     func scheduleOutputGain(
         _ linearGain: Double,
@@ -174,6 +191,12 @@ protocol DayObjectsInstrumentBankGraph: AnyObject {
         endingAtHostTime endHostTime: TimeInterval
     )
     func synchronizeForStart() throws
+    func applyProgramEffects(
+        masterLinearGain: Double,
+        delayFeedback: Double,
+        reverbFeedback: Double,
+        rampDurationSeconds: TimeInterval
+    )
 }
 
 extension DayObjectsInstrumentBankGraph {
@@ -181,6 +204,7 @@ extension DayObjectsInstrumentBankGraph {
         .init(tonalNodeIdentities: [], drumPreloadedSampleCount: 0, drumAllocatedNodeCount: 0, drumFixedPlayerCount: 0, pianoPreloadedSampleCount: 0, pianoLoadedPlayerCount: 0, pianoFixedBackendCount: 0)
     }
     var outputGainMetrics: DayObjectsBankOutputGainMetrics { .unsupported }
+    var programEffectMetrics: DayObjectsProgramEffectMetrics { .unsupported }
     func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval) {}
     func scheduleOutputGain(
         _ linearGain: Double,
@@ -190,6 +214,12 @@ extension DayObjectsInstrumentBankGraph {
         setOutputGain(linearGain, rampDurationSeconds: max(endHostTime - startHostTime, 0))
     }
     func synchronizeForStart() throws {}
+    func applyProgramEffects(
+        masterLinearGain: Double,
+        delayFeedback: Double,
+        reverbFeedback: Double,
+        rampDurationSeconds: TimeInterval
+    ) {}
 }
 
 @MainActor
@@ -216,6 +246,7 @@ protocol DayObjectsInstrumentBankProtocol: AnyObject {
     var drums: DayObjectsDrumBankProtocol { get }
     var piano: DayObjectsPianoPoolProtocol { get }
     var outputGainMetrics: DayObjectsBankOutputGainMetrics { get }
+    var programEffectMetrics: DayObjectsProgramEffectMetrics { get }
 
     func prepare(configuration: DayObjectsInstrumentBankConfiguration) throws
     func tonalPool(named id: String) throws -> DayObjectsTonalVoicePoolProtocol
@@ -228,10 +259,17 @@ protocol DayObjectsInstrumentBankProtocol: AnyObject {
         startingAtHostTime startHostTime: TimeInterval,
         endingAtHostTime endHostTime: TimeInterval
     )
+    func applyProgramEffects(
+        masterLinearGain: Double,
+        delayFeedback: Double,
+        reverbFeedback: Double,
+        rampDurationSeconds: TimeInterval
+    )
 }
 
 extension DayObjectsInstrumentBankProtocol {
     var outputGainMetrics: DayObjectsBankOutputGainMetrics { .unsupported }
+    var programEffectMetrics: DayObjectsProgramEffectMetrics { .unsupported }
     func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval) {}
     func scheduleOutputGain(
         _ linearGain: Double,
@@ -240,5 +278,11 @@ extension DayObjectsInstrumentBankProtocol {
     ) {
         setOutputGain(linearGain, rampDurationSeconds: max(endHostTime - startHostTime, 0))
     }
+    func applyProgramEffects(
+        masterLinearGain: Double,
+        delayFeedback: Double,
+        reverbFeedback: Double,
+        rampDurationSeconds: TimeInterval
+    ) {}
 }
 #endif

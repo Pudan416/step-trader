@@ -55,6 +55,9 @@ final class PlaybackWorldBank {
     var outputGainMetrics: DayObjectsBankOutputGainMetrics {
         instrumentBank.outputGainMetrics
     }
+    var programEffectMetrics: DayObjectsProgramEffectMetrics {
+        instrumentBank.programEffectMetrics
+    }
 
     var metrics: PlaybackWorldBankMetrics {
         let tonalMetrics = pools.values.map(\.metrics)
@@ -139,6 +142,20 @@ final class PlaybackWorldBank {
             linearGain,
             startingAtHostTime: startHostTime,
             endingAtHostTime: endHostTime
+        )
+    }
+
+    func applyProgramEffects(
+        masterLinearGain: Double,
+        delayFeedback: Double,
+        reverbFeedback: Double,
+        rampDurationSeconds: TimeInterval
+    ) {
+        instrumentBank.applyProgramEffects(
+            masterLinearGain: masterLinearGain,
+            delayFeedback: delayFeedback,
+            reverbFeedback: reverbFeedback,
+            rampDurationSeconds: rampDurationSeconds
         )
     }
 }

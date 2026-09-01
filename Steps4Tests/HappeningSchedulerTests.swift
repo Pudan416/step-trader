@@ -4,6 +4,25 @@ import XCTest
 
 @MainActor
 final class HappeningSchedulerTests: XCTestCase {
+    func testStartAtNonzeroBoundaryAlignsEveryFirstCycleOccurrenceToThatBoundary() throws {
+        let bank = RecordingHappeningBank()
+        let scheduler = HappeningScheduler(worldBank: PlaybackWorldBank(instrumentBank: bank))
+        let world = makeWorld()
+        let plans = (1...5).map { makePlan(index: $0, seed: 700) }
+        try scheduler.configure(plans: plans, tonalWorld: world, remixSeed: 700)
+        let boundary = MusicalPosition(absoluteSubdivision: 128)
+
+        try scheduler.start(at: boundary)
+
+        XCTAssertEqual(Set(scheduler.metrics.nextOccurrenceByHappeningID.keys), Set(plans.map(\.happeningID)))
+        XCTAssertTrue(scheduler.metrics.nextOccurrenceByHappeningID.values.allSatisfy { $0 >= boundary })
+        XCTAssertTrue(scheduler.metrics.scheduledOccurrencesByHappeningID.values
+            .flatMap { $0 }
+            .allSatisfy { $0 >= boundary })
+        scheduler.render(event(.subdivision, subdivision: 128), currentChord: world.progression[0])
+        XCTAssertTrue(scheduler.metrics.attackHistory.allSatisfy { $0.position >= boundary })
+    }
+
     func testNeutralGlitchPreservesPlannedEffectsAndVariationAddsToBaseDelay() throws {
         let harness = try makeHarness(count: 0)
         let plan = makePlan(index: 1, seed: 44)
@@ -22,6 +41,50 @@ final class HappeningSchedulerTests: XCTestCase {
         let varied = try XCTUnwrap(harness.pool.updateRequests.last)
         XCTAssertEqual(try XCTUnwrap(varied.delaySend), plan.delaySend + 0.05, accuracy: 0.000_001)
         XCTAssertEqual(varied.reverbSend, plan.reverbSend)
+    }
+
+    func testEachHappeningAttackRealizesGlitchForItsActualOccurrenceIdentity() throws {
+        let harness = try makeHarness(count: 0)
+        let backend = RecordingHappeningGlitchBackend()
+        let processor = GlitchProcessor(backend: backend)
+        backend.onApply = { harness.scheduler.applyGlitch($0) }
+        let glitch = DeterministicMusicDirector.makePlan(
+            input: .init(
+                countedSteps: 10_000,
+                stepGoal: 10_000,
+                countedSleepHours: 8,
+                sleepGoalHours: 8,
+                happeningIDs: ["happening-1"],
+                spentColors: 100
+            ),
+            remixSeed: 44
+        ).glitch
+        harness.scheduler.configureGlitch(plan: glitch, processor: processor)
+        let plan = makePlan(index: 1, seed: 44)
+
+        try harness.scheduler.add(plan, currentChord: harness.world.progression[0], playBirth: true)
+
+        let attack = try XCTUnwrap(harness.scheduler.metrics.attackHistory.last)
+        let command = try XCTUnwrap(backend.commands.last { $0.role == .happening })
+        let expected = try XCTUnwrap(glitch.realizedEvent(
+            for: .happening,
+            cycleIndex: Int(attack.position.bar),
+            stepIndex: attack.position.subdivisionInBar
+        ))
+        XCTAssertEqual(command.pitchDriftCents, expected.pitchDriftCents, accuracy: 0.000_001)
+        XCTAssertEqual(command.delayTimeVariation, expected.delayTimeVariation, accuracy: 0.000_001)
+        XCTAssertEqual(command.dropoutAttenuationDecibels, expected.shouldDropOut ? -6 : 0)
+        let audibleUpdate = try XCTUnwrap(harness.pool.updateRequests.last)
+        XCTAssertEqual(
+            try XCTUnwrap(audibleUpdate.midiNote),
+            Double(attack.midiNote) + expected.pitchDriftCents / 100,
+            accuracy: 0.000_001
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(audibleUpdate.delaySend),
+            plan.delaySend + expected.delayTimeVariation,
+            accuracy: 0.000_001
+        )
     }
 
     func testCountsOneFiveAndTenRenderEveryIDInFirstCycleAndStayInsideRecurrenceBands() throws {
@@ -390,6 +453,16 @@ final class HappeningSchedulerTests: XCTestCase {
         let scheduler: HappeningScheduler
         let world: TonalWorldPlan
         let plans: [HappeningMusicPlan]
+    }
+}
+
+@MainActor
+private final class RecordingHappeningGlitchBackend: DayObjectsGlitchBackend {
+    private(set) var commands: [DayObjectsGlitchCommand] = []
+    var onApply: ((DayObjectsGlitchCommand) -> Void)?
+    func apply(_ command: DayObjectsGlitchCommand) {
+        commands.append(command)
+        onApply?(command)
     }
 }
 

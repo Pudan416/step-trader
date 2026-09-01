@@ -539,7 +539,10 @@ struct DayObjectsLabView: View {
             isEnabled: musicController.soundState == .on
                 && !showsGrid
                 && !leadCoordinator.isVoiceOverRunning,
-            uiExclusionRegion: Self.uiExclusionRegion,
+            // This surface is already laid out strictly inside the canvas;
+            // the controls are sibling chrome below it, not part of its local
+            // normalized coordinate space.
+            uiExclusionRegion: nil,
             onBegin: { gesture in
                 musicController.beginLead(
                     gesture,

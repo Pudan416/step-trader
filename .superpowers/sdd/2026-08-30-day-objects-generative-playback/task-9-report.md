@@ -84,3 +84,93 @@ All commands used `platform=iOS Simulator,name=iPhone 17 Pro`.
 Existing Swift concurrency warnings in older instrument-bank test fakes remain
 unchanged and did not fail any build or test. No merge, push, publish, or install
 was performed.
+
+## Post-commit correctness follow-up
+
+Review identified integration gaps, all addressed test-first:
+
+- Remix starts the destination HappeningScheduler at the actual nonzero
+  boundary. Every first-cycle occurrence is boundary-relative, so there is no
+  past-due catch-up burst.
+- While a structural Remix is pending, every newer Steps/Sleep/Spent/Happening
+  edit replaces that single pending plan. Count-only Happening edits also apply
+  the newest per-voice mix compensation without creating a second pending plan.
+- Continuous updates merge only continuous fields into the audible world.
+  Seed, tonal world, rhythm realization/family, instrument identities and
+  schedules remain old until transition. Same-seed structural harmony waits for
+  a harmonic-cycle boundary; Happening-only structure and explicit seed Remix
+  remain bar-eligible.
+- Engine and controller both own lifecycle generations. A suspended start raced
+  by disappearance/inactive/interruption ends off, skips fade, and rejects audio
+  mutation during teardown. A successful suspended start instead reconciles all
+  edits made while starting.
+- Safe held Lead keeps its original token across Remix, does not retrigger or
+  release at p0/p1, and prevents old-bank recycle until finger release. Harmony
+  now releases only its owned tokens, so it cannot silently cut that Lead.
+- Actual event identities drive Happening dropout/pitch/delay realization, and
+  the resulting command reaches the sounding voice update. Pad wow/flutter and
+  stereo motion, Lead saturation, master target, room and reverb targets now
+  reach real player or AudioKit graph parameters. Neutral Happening Glitch still
+  preserves its designed base delay/reverb.
+- The maximum-Sleep Director plan prepares and plays `innerMotion`. Instruments
+  sharing the secondary tonal pool are prepared as one set rather than resetting
+  one another.
+- The Lead surface uses canvas-local coordinates and no longer excludes the
+  lower 42% of an already canvas-confined view. An injectable forwarding test
+  covers y > 0.58, true exclusions and disabled modes; Grid/VoiceOver lifecycle
+  cancellation remains covered at controller/UI level.
+
+### Follow-up RED and GREEN evidence
+
+- Original scheduler/pending/start reconciliation RED:
+  `/tmp/task9-followup-red.log`.
+- Seven-finding review RED: `/tmp/task9-review-red.log` (compile failure at the
+  first missing gesture-forwarding API, after the new assertions were added).
+- First integrated GREEN: `/tmp/task9-review-green-attempt1.log` — 84 tests,
+  zero failures.
+- Corrected focused boundary/event/surface GREEN:
+  `/tmp/task9-review-focused-green2.log` — 3 tests, zero failures.
+- Actual maximum-Sleep `innerMotion` focused GREEN:
+  `/tmp/task9-inner-green.log`.
+
+One intermediate full run, `/tmp/task9-review-full-regression.log`, passed
+146/148. Both failures were in the newly added boundary fixture: the fixture
+assumed that Director Sleep 75%→100% changed harmony structure, while the
+current planner correctly classifies that specific delta as continuous-only.
+The fixture was changed to an explicit same-seed structural harmony-cycle delta;
+no production behavior was weakened.
+
+Final commands/results:
+
+1. Complete playback regression:
+
+   `xcodebuild test -quiet -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:Steps4Tests/DayObjectsLabMusicViewModelTests -only-testing:Steps4Tests/DayMusicPlanDifferTests -only-testing:Steps4Tests/DayObjectsTransportTests -only-testing:Steps4Tests/RhythmPlayerTests -only-testing:Steps4Tests/HarmonyPlayerTests -only-testing:Steps4Tests/HappeningSchedulerTests -only-testing:Steps4Tests/HappeningPitchResolverTests -only-testing:Steps4Tests/LeadGestureMapperTests -only-testing:Steps4Tests/LeadPlayerTests -only-testing:Steps4Tests/GlitchProcessorTests -only-testing:Steps4Tests/DayObjectsMixControllerTests -only-testing:Steps4Tests/DayObjectsRemixCoordinatorTests -only-testing:Steps4Tests/DayObjectsMusicPlaybackEngineTests -only-testing:Steps4Tests/DayObjectsMusicLabControllerTests -only-testing:Steps4Tests/DayObjectSceneTests`
+
+   PASS — 148/148, zero failures. Log:
+   `/tmp/task9-review-full-regression-green.log`; xcresult summary recorded
+   `result: Passed`, `passedTests: 148`.
+
+2. UI regression:
+
+   `xcodebuild test -quiet -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:Steps4UITests/DayObjectsLabUITests`
+
+   PASS — 6/6, zero failures. Log: `/tmp/task9-review-ui-green.log`.
+
+3. Instrument-bank/tonal-pool ownership regression:
+
+   `xcodebuild test -quiet -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:Steps4Tests/DayObjectsInstrumentBankTests -only-testing:Steps4Tests/DayObjectsTonalVoicePoolTests -only-testing:Steps4Tests/HarmonyPlayerTests`
+
+   PASS — 55/55, zero failures. Log:
+   `/tmp/task9-review-bank-regression-green.log`.
+
+4. Fresh Release simulator build:
+
+   `xcodebuild build -quiet -project Steps4.xcodeproj -scheme Steps4 -configuration Release -destination 'generic/platform=iOS Simulator' -derivedDataPath <fresh-mktemp-directory>`
+
+   PASS; `Nowhere.app` exists in the fresh Release products directory and the
+   quiet log is empty. Log: `/tmp/task9-review-release-green.log`.
+
+5. `git diff --check`: PASS.
+
+No merge, push, publish, install, or unrelated documentation staging was
+performed.

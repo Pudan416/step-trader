@@ -39,6 +39,7 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
     private var runtimeMayOwnResources = false
     private var teardownTask: Task<Void, Never>?
     private var teardownID: UUID?
+    private var lifecycleGeneration: UInt64 = 0
 
     private(set) var state: DayObjectsSoundState = .off
     private(set) var currentPlan: DayMusicPlan?
@@ -61,6 +62,8 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
         guard state != .on, state != .starting else { return }
         if let teardownTask { await teardownTask.value }
 
+        lifecycleGeneration &+= 1
+        let generation = lifecycleGeneration
         currentPlan = plan
         state = .starting
         do {
@@ -71,10 +74,18 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
             try runtime.prepare(plan: plan)
             try runtime.startAudio()
             try await runtime.startTransport(plan: plan)
+            guard generation == lifecycleGeneration, state == .starting else {
+                await requestTeardown(finalState: .off, force: true)
+                return
+            }
             try runtime.fadeMaster(to: plan)
             successfulStartCount += 1
             state = .on
         } catch {
+            guard generation == lifecycleGeneration else {
+                await requestTeardown(finalState: .off, force: true)
+                return
+            }
             let audioError = (error as? DayObjectsAudioError)
                 ?? DayObjectsAudioError(String(describing: error))
             await requestTeardown(finalState: .error(audioError), force: true)
@@ -83,6 +94,8 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
     }
 
     func stop() async {
+        lifecycleGeneration &+= 1
+        state = .off
         await requestTeardown(finalState: .off, force: false)
     }
 
@@ -252,6 +265,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 gainDecibels: plan.mix.leadTargetDecibels,
                 currentChordIndex: 0
             )
+            happenings.configureGlitch(plan: plan.glitch, processor: glitch)
             glitch.apply(plan.glitch)
             applyMix(plan, ducking: 0)
             self.plan = plan
@@ -276,6 +290,14 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 rhythmPlan: plan.rhythm,
                 glitchPlan: plan.glitch
             )
+            if event.kind == .barBoundary {
+                glitch.applyRealizedEvent(
+                    plan: plan.glitch,
+                    role: .pad,
+                    cycleIndex: Int(event.position.bar),
+                    stepIndex: event.position.subdivisionInBar
+                )
+            }
             harmony.render(subdivision: event)
             harmony.render(barBoundary: event)
             happenings.render(event, currentChord: chord)
@@ -290,10 +312,14 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         }
 
         func applyContinuous(_ plan: DayMusicPlan) {
-            harmony.applyContinuous(plan.harmony)
-            glitch.apply(plan.glitch)
-            applyMix(plan, ducking: 0)
-            self.plan = plan
+            guard let structuralPlan = self.plan else { return }
+            let audiblePlan = Self.mergingContinuous(from: plan, into: structuralPlan)
+            harmony.applyContinuous(audiblePlan.harmony)
+            lead.applyContinuous(audiblePlan.lead)
+            happenings.configureGlitch(plan: audiblePlan.glitch, processor: glitch)
+            glitch.apply(audiblePlan.glitch)
+            applyMix(audiblePlan, ducking: 0)
+            self.plan = audiblePlan
         }
 
         func stopAttacks() {
@@ -352,6 +378,12 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
             harmonyPlayer?.applyMixTargetDecibels(state.harmonyPerVoiceTargetDecibels)
             happeningScheduler?.applyMixTargetDecibels(state.happeningPerVoiceTargetDecibels)
             leadPlayer?.applyMixTargetDecibels(state.leadTargetDecibels)
+            bank.applyProgramEffects(
+                masterLinearGain: pow(10, state.masterTargetDecibelsBeforeLimiter / 20),
+                delayFeedback: state.delayFeedback,
+                reverbFeedback: state.reverbFeedback,
+                rampDurationSeconds: state.rampDurationSeconds
+            )
         }
 
         private static func chordIndex(at absoluteBar: Int64, in world: TonalWorldPlan) -> Int {
@@ -364,6 +396,119 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 if cycleBar < cursor { return index }
             }
             return world.progression.count - 1
+        }
+
+        private static func mergingContinuous(
+            from update: DayMusicPlan,
+            into structural: DayMusicPlan
+        ) -> DayMusicPlan {
+            let rhythmVoices = structural.rhythm.voices.map { old in
+                let fresh = update.rhythm.voice(for: old.role) ?? old
+                return RhythmVoicePlan(
+                    role: old.role,
+                    drumVoice: old.drumVoice,
+                    stepProbabilities: fresh.stepProbabilities,
+                    velocityRange: fresh.velocityRange,
+                    microtimingMilliseconds: fresh.microtimingMilliseconds,
+                    roomSend: fresh.roomSend,
+                    activation: .init(
+                        startProgress: old.activation.startProgress,
+                        fullProgress: old.activation.fullProgress,
+                        amount: fresh.activation.amount
+                    ),
+                    isTimingAnchor: old.isTimingAnchor,
+                    isGlitchEligible: old.isGlitchEligible
+                )
+            }
+            let rhythm = RhythmPlan(
+                baseTempoBPM: structural.rhythm.baseTempoBPM,
+                tempoBPM: update.rhythm.tempoBPM,
+                stepsProgress: update.rhythm.stepsProgress,
+                family: structural.rhythm.family,
+                patternOffsetSteps: structural.rhythm.patternOffsetSteps,
+                humanizationProfile: structural.rhythm.humanizationProfile,
+                realization: structural.rhythm.realization,
+                voices: rhythmVoices,
+                maximumSimultaneousAttacks: structural.rhythm.maximumSimultaneousAttacks,
+                maximumFillsPerWindow: structural.rhythm.maximumFillsPerWindow,
+                fillWindowBars: structural.rhythm.fillWindowBars,
+                maximumMicrotimingMilliseconds: update.rhythm.maximumMicrotimingMilliseconds,
+                velocityHumanizationRange: update.rhythm.velocityHumanizationRange,
+                maximumHarmonyDuckingDecibels: update.rhythm.maximumHarmonyDuckingDecibels
+            )
+            let harmonyRoles = structural.harmony.roles.map { old in
+                let fresh = update.harmony.role(for: old.role) ?? old
+                return HarmonyRolePlan(
+                    role: old.role,
+                    instrumentTarget: old.instrumentTarget,
+                    register: old.register,
+                    gain: fresh.gain,
+                    attackSeconds: fresh.attackSeconds,
+                    releaseSeconds: fresh.releaseSeconds,
+                    delaySend: fresh.delaySend,
+                    reverbSend: fresh.reverbSend,
+                    activation: .init(
+                        startProgress: old.activation.startProgress,
+                        fullProgress: old.activation.fullProgress,
+                        amount: fresh.activation.amount
+                    ),
+                    chordSchedule: old.chordSchedule,
+                    crossfadeBars: old.crossfadeBars
+                )
+            }
+            let harmony = HarmonyPlan(
+                sleepProgress: update.harmony.sleepProgress,
+                cycleBars: structural.harmony.cycleBars,
+                chordCount: structural.harmony.chordCount,
+                roles: harmonyRoles
+            )
+            let lead = LeadPlan(
+                instrumentID: structural.lead.instrumentID,
+                maximumSimultaneousVoices: structural.lead.maximumSimultaneousVoices,
+                register: structural.lead.register,
+                pitchRegions: structural.lead.pitchRegions,
+                compatibleChordMIDINotes: structural.lead.compatibleChordMIDINotes,
+                portamentoMilliseconds: structural.lead.portamentoMilliseconds,
+                attackSeconds: structural.lead.attackSeconds,
+                releaseSeconds: structural.lead.releaseSeconds,
+                cutoffMultiplierRange: update.lead.cutoffMultiplierRange,
+                pitchSmoothingMilliseconds: update.lead.pitchSmoothingMilliseconds,
+                expressionSmoothingMilliseconds: update.lead.expressionSmoothingMilliseconds,
+                maximumExpressionDepth: update.lead.maximumExpressionDepth,
+                delaySend: update.lead.delaySend,
+                reverbSend: update.lead.reverbSend
+            )
+            let glitchRoles = structural.glitch.roles.map { old in
+                let fresh = update.glitch.role(for: old.role) ?? old
+                return GlitchRolePlan(
+                    role: old.role,
+                    isTimingAnchor: old.isTimingAnchor,
+                    isGlitchEligible: old.isGlitchEligible,
+                    pitchDriftCents: fresh.pitchDriftCents,
+                    dropoutProbability: fresh.dropoutProbability,
+                    delayTimeInstability: fresh.delayTimeInstability,
+                    saturationAmount: fresh.saturationAmount,
+                    timingDriftMilliseconds: fresh.timingDriftMilliseconds
+                )
+            }
+            let glitch = GlitchPlan(
+                progress: update.glitch.progress,
+                roles: glitchRoles,
+                wowFlutterDepth: update.glitch.wowFlutterDepth,
+                stereoSeparationAddition: update.glitch.stereoSeparationAddition,
+                realization: structural.glitch.realization
+            )
+            return DayMusicPlan(
+                seed: structural.seed,
+                input: update.input,
+                world: structural.world,
+                rhythm: rhythm,
+                harmony: harmony,
+                happenings: structural.happenings,
+                lead: lead,
+                glitch: glitch,
+                mix: update.mix
+            )
         }
     }
 
@@ -381,6 +526,34 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
     }
 
     var activeWorldVoiceCountForTesting: Int { activeWorld.activeVoiceCount }
+    var activeHappeningNextPositionsForTesting: [String: MusicalPosition] {
+        activeWorld.happenings.metrics.nextOccurrenceByHappeningID
+    }
+    var activeHappeningScheduledPositionsForTesting: [String: [MusicalPosition]] {
+        activeWorld.happenings.metrics.scheduledOccurrencesByHappeningID
+    }
+    var activeHappeningAttackHistoryForTesting: [HappeningAttackRecord] {
+        activeWorld.happenings.metrics.attackHistory
+    }
+    var activePlanForTesting: DayMusicPlan? { activeWorld.plan }
+    var activeProgramEffectMetricsForTesting: DayObjectsProgramEffectMetrics {
+        activeWorld.bank.programEffectMetrics
+    }
+    var totalLeadAttackCountForTesting: Int {
+        worldA.lead.metrics.amplitudeAttackCount + worldB.lead.metrics.amplitudeAttackCount
+    }
+    var totalLeadReleaseCountForTesting: Int {
+        worldA.lead.metrics.releaseCount + worldB.lead.metrics.releaseCount
+    }
+    var inactiveLeadVoiceCountForTesting: Int {
+        world(for: coordinator.metrics.inactiveBank).lead.metrics.voiceCount
+    }
+    var inactiveWorldRecycleCountForTesting: Int {
+        world(for: coordinator.metrics.inactiveBank).bank.metrics.recycleCount
+    }
+    var inactiveBankActiveTonalVoiceCountForTesting: Int {
+        world(for: coordinator.metrics.inactiveBank).bank.metrics.activeTonalVoiceCount
+    }
     var remixResultForTesting: DayObjectsRemixResult { coordinator.result }
     var inactiveWorldVoiceCountForTesting: Int {
         world(for: coordinator.metrics.inactiveBank).activeVoiceCount
@@ -578,7 +751,8 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         plan: DayMusicPlan,
         at event: DayObjectsTransportEvent
     ) throws {
-        try world(for: bank).startScheduling()
+        try world(for: bank).happenings.start(at: event.position)
+        world(for: bank).isScheduling = true
     }
 
     func beginEqualPowerCrossfade(
@@ -659,17 +833,11 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         if state.isReleasing { state.finishReleaseBeforeRecycle() }
         return state.harmony.metrics.activeVoiceCount == 0
             && state.happenings.metrics.activeVoiceCount == 0
+            && state.lead.metrics.voiceCount == 0
     }
 
     func recycle(_ bank: PlaybackWorldBank) {
         let old = world(for: bank)
-        if gestureOwner == slot(for: bank), old.lead.heldState != nil {
-            let destination = activeWorld
-            let result = old.lead.handoff(to: destination.lead, safeCommonMIDINote: nil)
-            gestureOwner = result.gestureOwner == .destination
-                ? coordinator.metrics.activeBank
-                : nil
-        }
         old.releaseAll()
     }
 

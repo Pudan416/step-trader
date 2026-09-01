@@ -17,6 +17,8 @@ struct HappeningSchedulerMetrics: Equatable, Sendable {
     let planByHappeningID: [String: HappeningMusicPlan]
     let attackHistory: [HappeningAttackRecord]
     let pendingStructuralReplacementCount: Int
+    let nextOccurrenceByHappeningID: [String: MusicalPosition]
+    let scheduledOccurrencesByHappeningID: [String: [MusicalPosition]]
 }
 
 @MainActor
@@ -45,6 +47,8 @@ final class HappeningScheduler {
     private var scheduleWindowEndSubdivision: Int64?
     private var mixGain = 1.0
     private var glitchCommand: DayObjectsGlitchCommand = .neutral(role: .happening)
+    private var glitchPlan: GlitchPlan = .neutral
+    private weak var glitchProcessor: GlitchProcessor?
 
     var metrics: HappeningSchedulerMetrics {
         let ids = states.keys.sorted()
@@ -58,7 +62,13 @@ final class HappeningScheduler {
                 states[id].map { (id, $0.plan) }
             }),
             attackHistory: attackHistory,
-            pendingStructuralReplacementCount: pendingReplacement == nil ? 0 : 1
+            pendingStructuralReplacementCount: pendingReplacement == nil ? 0 : 1,
+            nextOccurrenceByHappeningID: Dictionary(uniqueKeysWithValues: ids.map {
+                ($0, states[$0]?.nextOccurrence ?? currentPosition)
+            }),
+            scheduledOccurrencesByHappeningID: Dictionary(uniqueKeysWithValues: ids.map {
+                ($0, states[$0]?.scheduledOccurrences.map(\.position) ?? [])
+            })
         )
     }
 
@@ -93,12 +103,17 @@ final class HappeningScheduler {
     }
 
     func start() throws {
+        try start(at: currentPosition)
+    }
+
+    func start(at position: MusicalPosition) throws {
         guard tonalWorld != nil, happeningPool != nil else {
             throw DayObjectsInstrumentBankError.notPrepared
         }
+        currentPosition = position
         isPlaying = true
         states.keys.forEach { states[$0]?.didPlaySinceStart = false }
-        rebuildSchedules(startingAt: currentPosition)
+        rebuildSchedules(startingAt: position)
     }
 
     func stop() {
@@ -147,6 +162,11 @@ final class HappeningScheduler {
         guard command.role == .happening else { return }
         glitchCommand = command
         updateActiveVoices()
+    }
+
+    func configureGlitch(plan: GlitchPlan, processor: GlitchProcessor) {
+        glitchPlan = plan
+        glitchProcessor = processor
     }
 
     func scheduleStructuralReplacement(
@@ -284,6 +304,12 @@ final class HappeningScheduler {
               var state = states[id],
               !state.plan.motifScaleDegrees.isEmpty
         else { return false }
+        glitchProcessor?.applyRealizedEvent(
+            plan: glitchPlan,
+            role: .happening,
+            cycleIndex: Int(currentPosition.bar),
+            stepIndex: currentPosition.subdivisionInBar
+        )
         let motifIndex = isBirth ? 0 : sequenceIndex % state.plan.motifScaleDegrees.count
         guard let note = HappeningPitchResolver.resolve(
             motifScaleDegree: state.plan.motifScaleDegrees[motifIndex],
