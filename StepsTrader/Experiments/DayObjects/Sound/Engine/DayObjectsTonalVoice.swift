@@ -12,6 +12,7 @@ struct DayObjectsTonalVoiceGraphLayout: Equatable, Sendable {
     let envelopeCount: Int
     let normalizedLFORouteCount: Int
     let phaserCount: Int
+    let saturationCount: Int
     let autoPanCount: Int
     let delaySendCount: Int
     let reverbSendCount: Int
@@ -246,11 +247,12 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
         envelopeCount: 2,
         normalizedLFORouteCount: 1,
         phaserCount: 1,
+        saturationCount: 1,
         autoPanCount: 1,
         delaySendCount: 1,
         reverbSendCount: 1,
         outputTrimCount: 1,
-        allocatedNodeCount: 24
+        allocatedNodeCount: 25
     )
 
     let output: Fader
@@ -278,6 +280,7 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
     private let amplitudeTremolo: Tremolo
 
     private let phaser: Phaser
+    private let saturation: TanhDistortion
     private let autoPanner: AutoPanner
     private let dryFader: Fader
     private let delaySendFader: Fader
@@ -297,6 +300,7 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
     private var reverbMix = 0.0
     private var delaySend = 1.0
     private var reverbSend = 1.0
+    private var saturationAmount = 0.0
     private var isGateOpen = false
     private var graphLifecycle = DayObjectsTonalVoiceGraphLifecycle()
     private var modulationState: DayObjectsTonalVoiceModulationState?
@@ -333,7 +337,8 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
         amplitudeTremolo = Tremolo(amplitudeEnvelope, frequency: 1, depth: 0)
 
         phaser = Phaser(amplitudeTremolo, dryWetMix: 0)
-        autoPanner = AutoPanner(phaser, frequency: 0.25, depth: 0)
+        saturation = TanhDistortion(phaser, pregain: 1, postgain: 1, dryWetMix: 0)
+        autoPanner = AutoPanner(saturation, frequency: 0.25, depth: 0)
         dryFader = Fader(autoPanner, gain: 1)
         delaySendFader = Fader(autoPanner, gain: 0)
         delay = Delay(delaySendFader, time: 0.25, feedback: 0, dryWetMix: 100)
@@ -496,6 +501,9 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
         if let reverbSend = update.reverbSend {
             self.reverbSend = reverbSend
         }
+        if let saturationAmount = update.saturationAmount {
+            self.saturationAmount = saturationAmount
+        }
         if let cutoffHz = update.cutoffHz {
             modulationState?.updateBaseCutoffHz(cutoffHz)
         }
@@ -519,6 +527,9 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
             cutoffRampEndsAt = Date.timeIntervalSinceReferenceDate + Double(cutoffDuration)
         }
         rampEffects(duration: controlDuration)
+        rampSaturation(duration: Float(
+            update.saturationRampSeconds ?? DayObjectsAudioParameters.controlRampDuration
+        ))
         rampOutput(expression: expression, pan: pan, duration: expressionDuration)
     }
 
@@ -565,7 +576,7 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
         [
             oscillator1, oscillator2, subOscillator, noise, sourceMixer,
             lowPass, bandPass, highPass, lowPassFader, bandPassFader, highPassFader, filterMixer,
-            amplitudeEnvelope, amplitudeTremolo, phaser, autoPanner, dryFader,
+            amplitudeEnvelope, amplitudeTremolo, phaser, saturation, autoPanner, dryFader,
             delaySendFader, delay, reverbSendFader, reverbHighPass, reverb, effectsMixer, output,
         ]
     }
@@ -606,6 +617,8 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
         ramp(phaser.$inverted, to: preset.phaser.feedback < 0 ? 1 : 0, duration: duration)
         ramp(phaser.$lfoBPM, to: min(max(preset.phaser.rateHz * 60, 24), 360), duration: duration)
         ramp(phaser.$dryWetMix, to: preset.phaser.mix, duration: duration)
+        saturationAmount = 0
+        rampSaturation(duration: duration)
 
         ramp(autoPanner.$frequency, to: preset.autoPan.rateHz, duration: duration)
         ramp(
@@ -746,6 +759,16 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
     private func rampEffects(duration: Float) {
         ramp(delaySendFader, to: delayMix * delaySend, duration: duration)
         ramp(reverbSendFader, to: reverbMix * reverbSend, duration: duration)
+    }
+
+    private func rampSaturation(duration: Float) {
+        let amount = min(max(saturationAmount, 0), 1)
+        let pregain = 1 + (6 * amount)
+        let postgain = 1 / sqrt(pregain)
+        let wetMix = min(amount * 2.5, 0.45)
+        ramp(saturation.$pregain, to: pregain, duration: duration)
+        ramp(saturation.$postgain, to: postgain, duration: duration)
+        ramp(saturation.$dryWetMix, to: wetMix, duration: duration)
     }
 
     private func rampOutput(expression: Double, pan: Double, duration: Float) {

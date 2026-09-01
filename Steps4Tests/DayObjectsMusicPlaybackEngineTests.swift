@@ -36,6 +36,9 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         )
         XCTAssertEqual(effects.delayFeedback, expectedDelay, accuracy: 0.000_001)
         XCTAssertEqual(effects.reverbFeedback, expectedReverb, accuracy: 0.000_001)
+        XCTAssertTrue(effects.delayFeedbackWasRamped)
+        XCTAssertTrue(effects.reverbFeedbackWasRamped)
+        XCTAssertEqual(effects.feedbackRampDurationSeconds, 0.25, accuracy: 0.000_001)
     }
 
     func testLiveRuntimeRemixKeepsOldHarmonyThroughP0ThenReleasesBeforeRecycle() throws {

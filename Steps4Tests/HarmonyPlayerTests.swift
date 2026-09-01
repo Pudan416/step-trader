@@ -195,7 +195,7 @@ final class HarmonyPlayerTests: XCTestCase {
         XCTAssertEqual(harness.primary.expressions(for: [48, 55, 60]), [expected, expected, expected])
     }
 
-    func testPadGlitchRoutesWowFlutterAndStereoMotionIntoSoundingVoices() throws {
+    func testPadGlitchRoutesSmoothTimeVaryingWowFlutterWithoutRetrigger() throws {
         let harness = try makeHarness()
         let plan = harmonyPlan(
             target: .tonal(.init(rawValue: "pad.interstellar")),
@@ -204,6 +204,8 @@ final class HarmonyPlayerTests: XCTestCase {
         )
         try harness.player.configure(plan)
         harness.player.render(barBoundary: event(.barBoundary, at: 0))
+        let attackCount = harness.primary.noteOnRequests.count
+        let updateStartIndex = harness.primary.updates.endIndex
 
         harness.player.applyGlitch(.init(
             role: .pad, dryGain: 1, pitchDriftCents: 4,
@@ -212,10 +214,40 @@ final class HarmonyPlayerTests: XCTestCase {
             timingDriftMilliseconds: 0, dropoutAttenuationDecibels: 0,
             dropoutReleaseSeconds: 0, rampDurationSeconds: 0.25
         ))
+        for subdivision: Int64 in [1, 3, 6, 9] {
+            harness.player.render(subdivision: event(.subdivision, at: subdivision))
+        }
 
-        let update = try XCTUnwrap(harness.primary.updates.last)
-        XCTAssertNotEqual(update.midiNote, 48.04, "wow/flutter must modulate beyond static pitch drift")
-        XCTAssertNotEqual(update.pan, 0, "stereo separation must reach the tonal backend")
+        let centerMIDINote = 48.04
+        let pitchUpdates = harness.primary.updates[updateStartIndex...].compactMap(\.midiNote)
+        XCTAssertGreaterThan(Set(pitchUpdates.map { ($0 * 1_000_000).rounded() }).count, 2)
+        XCTAssertTrue(pitchUpdates.allSatisfy {
+            abs($0 - centerMIDINote) <= (0.12 * 0.08) + 0.000_001
+        })
+        XCTAssertEqual(harness.primary.noteOnRequests.count, attackCount)
+        XCTAssertTrue(harness.primary.updates[updateStartIndex...].compactMap(\.pitchRampSeconds).allSatisfy {
+            $0 > 0 && $0 <= 0.25
+        })
+        XCTAssertNotEqual(harness.primary.updates.last?.pan, 0, "stereo separation must reach the tonal backend")
+    }
+
+    func testPadWowFlutterIsExactlyNeutralAtZeroGlitch() throws {
+        let harness = try makeHarness()
+        let plan = harmonyPlan(
+            target: .tonal(.init(rawValue: "pad.interstellar")),
+            gain: 0.5,
+            schedule: [entry(index: 0, startBar: 0, notes: [48])]
+        )
+        try harness.player.configure(plan)
+        harness.player.render(barBoundary: event(.barBoundary, at: 0))
+        harness.player.applyGlitch(.neutral(role: .pad))
+
+        for subdivision: Int64 in [1, 3, 6, 9] {
+            harness.player.render(subdivision: event(.subdivision, at: subdivision))
+        }
+
+        XCTAssertTrue(harness.primary.updates.compactMap(\.midiNote).allSatisfy { $0 == 48 })
+        XCTAssertEqual(harness.primary.noteOnRequests.count, 1)
     }
 
     func testContinuousRoleGainRampsAcrossExactlyOneBar() throws {

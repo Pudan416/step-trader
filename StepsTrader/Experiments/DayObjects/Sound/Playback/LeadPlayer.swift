@@ -251,8 +251,7 @@ final class LeadPlayer {
     ) {
         guard let plan else { return }
         let cutoff = min(max(
-            Self.baseCutoffHz * mapping.cutoffMultiplier
-                * (1 + 0.15 * Self.unit(glitchCommand.saturationAmount)),
+            Self.baseCutoffHz * mapping.cutoffMultiplier,
             DayObjectsAudioParameters.minimumCutoffHz
         ), DayObjectsAudioParameters.maximumCutoffHz)
         pool.update(token, with: .init(
@@ -261,6 +260,7 @@ final class LeadPlayer {
             expression: expressiveGain(depth: mapping.expressionDepth) * Self.unit(glitchCommand.dryGain),
             delaySend: Self.unit(plan.delaySend),
             reverbSend: Self.unit(plan.reverbSend),
+            saturationAmount: Self.unit(glitchCommand.saturationAmount),
             pitchRampSeconds: portamentoSeconds(plan),
             cutoffRampSeconds: smoothingSeconds(
                 plan.pitchSmoothingMilliseconds,
@@ -269,7 +269,14 @@ final class LeadPlayer {
             expressionRampSeconds: smoothingSeconds(
                 plan.expressionSmoothingMilliseconds,
                 fallbackMilliseconds: 80
-            )
+            ),
+            saturationRampSeconds: min(max(
+                Self.finite(
+                    glitchCommand.rampDurationSeconds,
+                    fallback: GlitchProcessor.rampDurationSeconds
+                ),
+                DayObjectsAudioParameters.controlRampDuration
+            ), 2)
         ))
     }
 

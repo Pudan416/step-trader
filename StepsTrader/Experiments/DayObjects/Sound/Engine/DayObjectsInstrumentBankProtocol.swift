@@ -168,13 +168,39 @@ struct DayObjectsProgramEffectMetrics: Equatable, Sendable {
     let delayFeedback: Double
     let reverbFeedback: Double
     let rampDurationSeconds: TimeInterval
+    let delayFeedbackWasRamped: Bool
+    let reverbFeedbackWasRamped: Bool
+    let feedbackRampDurationSeconds: TimeInterval
+
+    init(
+        isSupported: Bool,
+        masterLinearGain: Double,
+        delayFeedback: Double,
+        reverbFeedback: Double,
+        rampDurationSeconds: TimeInterval,
+        delayFeedbackWasRamped: Bool = false,
+        reverbFeedbackWasRamped: Bool = false,
+        feedbackRampDurationSeconds: TimeInterval = 0
+    ) {
+        self.isSupported = isSupported
+        self.masterLinearGain = masterLinearGain
+        self.delayFeedback = delayFeedback
+        self.reverbFeedback = reverbFeedback
+        self.rampDurationSeconds = rampDurationSeconds
+        self.delayFeedbackWasRamped = delayFeedbackWasRamped
+        self.reverbFeedbackWasRamped = reverbFeedbackWasRamped
+        self.feedbackRampDurationSeconds = feedbackRampDurationSeconds
+    }
 
     static let unsupported = DayObjectsProgramEffectMetrics(
         isSupported: false,
         masterLinearGain: 1,
         delayFeedback: 0,
         reverbFeedback: 0,
-        rampDurationSeconds: 0
+        rampDurationSeconds: 0,
+        delayFeedbackWasRamped: false,
+        reverbFeedbackWasRamped: false,
+        feedbackRampDurationSeconds: 0
     )
 }
 

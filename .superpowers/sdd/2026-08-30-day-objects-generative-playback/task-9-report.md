@@ -174,3 +174,63 @@ Final commands/results:
 
 No merge, push, publish, install, or unrelated documentation staging was
 performed.
+
+## Audible modulation semantic follow-up
+
+The final sonic review found three values that reached playback bookkeeping but
+did not yet meet their audible transition contract. They were closed test-first:
+
+- Pad wow/flutter is now a deterministic, musical-time modulation. A bounded
+  slow wow and lighter flutter are evaluated at each transport subdivision and
+  sent to the already sounding tonal tokens with pitch ramps. Glitch zero is
+  exactly neutral, small values scale linearly, and the amplitude envelope is
+  never retriggered.
+- Lead saturation no longer alters filter cutoff. `saturationAmount` and its
+  ramp duration travel through `DayObjectsVoiceUpdate` into a dedicated
+  Soundpipe `TanhDistortion` node between Phaser and AutoPanner. Pregain,
+  compensating postgain, and dry/wet mix move smoothly and remain bounded; a
+  zero amount is transparent.
+- Shared delay and reverb feedback now use real AudioUnit parameter ramps. The
+  non-rampable Apple Delay was replaced by Soundpipe `VariableDelay`, while
+  `CostelloReverb` remains in place. Both feedback parameters use the requested
+  250 ms transition, with capability checks and immediate assignment only for a
+  zero-duration or non-rampable fallback.
+
+### Semantic RED evidence
+
+- `/tmp/task9-wow-red.log`: behavioral failure; repeated musical positions
+  produced only the old static wow pitch value.
+- `/tmp/task9-lead-saturation-red.log`: compiler RED for the absent saturation
+  amount/ramp route and absent saturation node in the tonal graph layout.
+- `/tmp/task9-program-ramp-red.log`: compiler RED for absent observable feedback
+  ramp scheduling.
+
+### Semantic GREEN verification
+
+1. Focused Harmony/Lead/live-program suite:
+
+   `xcodebuild test -quiet -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:Steps4Tests/HarmonyPlayerTests -only-testing:Steps4Tests/LeadPlayerTests -only-testing:Steps4Tests/DayObjectsMusicPlaybackEngineTests`
+
+   PASS — 31/31, zero failures. Log:
+   `/tmp/task9-semantic-focused-green.log`.
+
+2. Complete playback regression command listed above, rerun after these graph
+   changes.
+
+   PASS — 149/149, zero failures. Log:
+   `/tmp/task9-semantic-playback-green.log`; xcresult summary recorded
+   `result: Passed`, `passedTests: 149`.
+
+3. Tonal voice and instrument-bank graph regression:
+
+   `xcodebuild test -quiet -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:Steps4Tests/DayObjectsTonalVoicePoolTests -only-testing:Steps4Tests/DayObjectsInstrumentBankTests`
+
+   PASS — 42/42, zero failures. Log:
+   `/tmp/task9-semantic-bank-green.log`.
+
+4. Fresh Release simulator build:
+
+   `xcodebuild build -quiet -project Steps4.xcodeproj -scheme Steps4 -configuration Release -destination 'generic/platform=iOS Simulator' -derivedDataPath <fresh-mktemp-directory>`
+
+   PASS; `Nowhere.app` exists in the fresh Release products directory. Log:
+   `/tmp/task9-semantic-release-green.log`.

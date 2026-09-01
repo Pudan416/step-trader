@@ -44,6 +44,7 @@ final class HarmonyPlayer {
             expression: Double,
             delaySend: Double,
             reverbSend: Double,
+            wowFlutterSemitoneOffset: Double,
             command: DayObjectsGlitchCommand
         ) {
             switch self {
@@ -52,7 +53,7 @@ final class HarmonyPlayer {
                 pool.update(token, with: .init(
                     midiNote: Double(baseMIDINote)
                         + command.pitchDriftCents / 100
-                        + direction * command.wowFlutterDepth * 0.08,
+                        + wowFlutterSemitoneOffset,
                     expression: expression,
                     pan: direction * command.stereoSeparationAddition,
                     delaySend: delaySend,
@@ -227,6 +228,9 @@ final class HarmonyPlayer {
         currentSubdivision = event.position.absoluteSubdivision
         advanceGainRamps(at: currentSubdivision)
         advanceChordTransitions(at: currentSubdivision)
+        if glitchCommand.wowFlutterDepth > 0 {
+            refreshActiveVoiceControls(at: currentSubdivision)
+        }
     }
 
     func render(barBoundary event: DayObjectsTransportEvent) {
@@ -386,6 +390,11 @@ final class HarmonyPlayer {
                     expression: expression,
                     delaySend: min(max(role.delaySend + glitchCommand.delayTimeVariation, 0), 1),
                     reverbSend: role.reverbSend,
+                    wowFlutterSemitoneOffset: Self.wowFlutterSemitoneOffset(
+                        depth: glitchCommand.wowFlutterDepth,
+                        absoluteSubdivision: currentSubdivision,
+                        midiNote: note
+                    ),
                     command: glitchCommand
                 )
                 return voice
@@ -475,7 +484,8 @@ final class HarmonyPlayer {
         return unit(roleGain) / sqrt(Double(voiceCount))
     }
 
-    private func refreshActiveVoiceControls() {
+    private func refreshActiveVoiceControls(at subdivision: Int64? = nil) {
+        let absoluteSubdivision = subdivision ?? currentSubdivision
         for state in roles {
             let voices = state.activeVoices + (state.transition?.oldVoices ?? [])
             let expression = Self.chordVoiceGain(
@@ -488,10 +498,32 @@ final class HarmonyPlayer {
                     expression: expression,
                     delaySend: min(max(state.plan.delaySend + glitchCommand.delayTimeVariation, 0), 1),
                     reverbSend: state.plan.reverbSend,
+                    wowFlutterSemitoneOffset: Self.wowFlutterSemitoneOffset(
+                        depth: glitchCommand.wowFlutterDepth,
+                        absoluteSubdivision: absoluteSubdivision,
+                        midiNote: voice.midiNote
+                    ),
                     command: glitchCommand
                 )
             }
         }
+    }
+
+    /// Deterministic musical-time motion: a slow wow plus a lighter, quicker
+    /// flutter. Their normalized weights keep the total inside the approved
+    /// `depth * 0.08` semitone envelope, including at maximum Glitch.
+    private static func wowFlutterSemitoneOffset(
+        depth: Double,
+        absoluteSubdivision: Int64,
+        midiNote: UInt8
+    ) -> Double {
+        let boundedDepth = unit(depth)
+        guard boundedDepth > 0 else { return 0 }
+        let position = Double(absoluteSubdivision)
+        let voicePhase = Double(midiNote % 12) / 12 * 2 * Double.pi
+        let wow = sin((position / 48 * 2 * Double.pi) + voicePhase)
+        let flutter = sin((position / 7 * 2 * Double.pi) + (voicePhase * 1.7))
+        return boundedDepth * 0.08 * ((0.7 * wow) + (0.3 * flutter))
     }
 
     private static func unit(_ value: Double) -> Double {

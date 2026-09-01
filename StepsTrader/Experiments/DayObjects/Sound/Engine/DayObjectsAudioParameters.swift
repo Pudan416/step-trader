@@ -114,6 +114,7 @@ enum DayObjectsAudioParameters {
             pan: update.pan.map { finite($0, default: 0, in: -1...1) },
             delaySend: update.delaySend.map { finite($0, default: 0, in: 0...1) },
             reverbSend: update.reverbSend.map { finite($0, default: 0, in: 0...1) },
+            saturationAmount: update.saturationAmount.map { finite($0, default: 0, in: 0...1) },
             pitchRampSeconds: update.pitchRampSeconds.map {
                 finite($0, default: controlRampDuration, in: 0...2)
             },
@@ -121,6 +122,9 @@ enum DayObjectsAudioParameters {
                 finite($0, default: controlRampDuration, in: 0...2)
             },
             expressionRampSeconds: update.expressionRampSeconds.map {
+                finite($0, default: controlRampDuration, in: 0...2)
+            },
+            saturationRampSeconds: update.saturationRampSeconds.map {
                 finite($0, default: controlRampDuration, in: 0...2)
             }
         )
@@ -217,9 +221,11 @@ struct DayObjectsVoiceUpdate: Equatable, Sendable {
     let pan: Double?
     let delaySend: Double?
     let reverbSend: Double?
+    let saturationAmount: Double?
     let pitchRampSeconds: Double?
     let cutoffRampSeconds: Double?
     let expressionRampSeconds: Double?
+    let saturationRampSeconds: Double?
 
     init(
         midiNote: Double? = nil,
@@ -228,9 +234,11 @@ struct DayObjectsVoiceUpdate: Equatable, Sendable {
         pan: Double? = nil,
         delaySend: Double? = nil,
         reverbSend: Double? = nil,
+        saturationAmount: Double? = nil,
         pitchRampSeconds: Double? = nil,
         cutoffRampSeconds: Double? = nil,
-        expressionRampSeconds: Double? = nil
+        expressionRampSeconds: Double? = nil,
+        saturationRampSeconds: Double? = nil
     ) {
         self.midiNote = midiNote
         self.cutoffHz = cutoffHz
@@ -238,9 +246,11 @@ struct DayObjectsVoiceUpdate: Equatable, Sendable {
         self.pan = pan
         self.delaySend = delaySend
         self.reverbSend = reverbSend
+        self.saturationAmount = saturationAmount
         self.pitchRampSeconds = pitchRampSeconds
         self.cutoffRampSeconds = cutoffRampSeconds
         self.expressionRampSeconds = expressionRampSeconds
+        self.saturationRampSeconds = saturationRampSeconds
     }
 }
 #endif

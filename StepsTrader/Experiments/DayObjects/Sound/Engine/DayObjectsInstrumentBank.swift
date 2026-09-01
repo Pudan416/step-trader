@@ -466,7 +466,7 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
     let tonalTrim: Fader
     let drumTrim: Fader
     let programBus: Mixer
-    let delay: Delay
+    let delay: VariableDelay
     let reverb: CostelloReverb
     let masterTrim: Fader
     let worldTrim: Fader
@@ -528,7 +528,7 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         tonalTrim = Fader(tonalBus, gain: AUValue(DayObjectsAudioParameters.linearGain(decibels: -10)))
         drumTrim = Fader(drumBus, gain: AUValue(DayObjectsAudioParameters.linearGain(decibels: -12)))
         programBus = Mixer([tonalTrim, drumTrim], name: "Day Objects program bus")
-        delay = Delay(programBus, time: 0.28, feedback: 35, dryWetMix: 14)
+        delay = VariableDelay(programBus, time: 0.28, feedback: 0.35, maximumTime: 2, dryWetMix: 0.14)
         reverb = CostelloReverb(delay, balance: 0.12, feedback: 0.72, cutoffFrequency: 8_000)
         masterTrim = Fader(reverb, gain: AUValue(DayObjectsAudioParameters.linearGain(decibels: -8)))
         worldTrim = Fader(masterTrim, gain: 1)
@@ -536,9 +536,12 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         currentProgramEffectMetrics = .init(
             isSupported: true,
             masterLinearGain: Double(masterTrim.leftGain),
-            delayFeedback: Double(delay.feedback) / 100,
+            delayFeedback: Double(delay.feedback),
             reverbFeedback: Double(reverb.feedback),
-            rampDurationSeconds: 0
+            rampDurationSeconds: 0,
+            delayFeedbackWasRamped: false,
+            reverbFeedbackWasRamped: false,
+            feedbackRampDurationSeconds: 0
         )
     }
 
@@ -554,15 +557,39 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         let duration = min(max(rampDurationSeconds.isFinite ? rampDurationSeconds : 0, 0), 2)
         masterTrim.$leftGain.ramp(to: AUValue(master), duration: Float(duration))
         masterTrim.$rightGain.ramp(to: AUValue(master), duration: Float(duration))
-        delay.feedback = AUValue(delayTarget * 100)
-        reverb.feedback = AUValue(reverbTarget)
+        let didRampDelay = applyParameterTransition(
+            delay.$feedback,
+            target: AUValue(delayTarget),
+            duration: duration
+        )
+        let didRampReverb = applyParameterTransition(
+            reverb.$feedback,
+            target: AUValue(reverbTarget),
+            duration: duration
+        )
         currentProgramEffectMetrics = .init(
             isSupported: true,
             masterLinearGain: master,
             delayFeedback: delayTarget,
             reverbFeedback: reverbTarget,
-            rampDurationSeconds: duration
+            rampDurationSeconds: duration,
+            delayFeedbackWasRamped: didRampDelay,
+            reverbFeedbackWasRamped: didRampReverb,
+            feedbackRampDurationSeconds: didRampDelay || didRampReverb ? duration : 0
         )
+    }
+
+    private func applyParameterTransition(
+        _ parameter: NodeParameter,
+        target: AUValue,
+        duration: TimeInterval
+    ) -> Bool {
+        guard duration > 0, parameter.parameter.flags.contains(.flag_CanRamp) else {
+            parameter.value = target
+            return false
+        }
+        parameter.ramp(to: target, duration: Float(duration))
+        return true
     }
 
     func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval) {

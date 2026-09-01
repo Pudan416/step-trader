@@ -23,7 +23,10 @@ final class LeadPlayerTests: XCTestCase {
         XCTAssertEqual(harness.pool.noteOnRequests.count, attackCount)
         XCTAssertEqual(try XCTUnwrap(harness.pool.updateRequests.last?.midiNote), baseNote + 0.12, accuracy: 0.000_001)
         XCTAssertLessThan(try XCTUnwrap(harness.pool.updateRequests.last?.expression), 0.2)
-        XCTAssertGreaterThan(try XCTUnwrap(harness.pool.updateRequests.last?.cutoffHz), baseCutoff)
+        XCTAssertEqual(try XCTUnwrap(harness.pool.updateRequests.last?.cutoffHz), baseCutoff, accuracy: 0.000_001)
+        XCTAssertEqual(harness.pool.updateRequests.last?.saturationAmount, 0.2)
+        XCTAssertEqual(harness.pool.updateRequests.last?.saturationRampSeconds, 0.25)
+        XCTAssertEqual(DayObjectsTonalVoice.graphLayout.saturationCount, 1)
     }
 
     func testSafeRemixHandoffGlidesExistingHeldTokenWithoutRetriggerAndKeepsGestureOwner() throws {
