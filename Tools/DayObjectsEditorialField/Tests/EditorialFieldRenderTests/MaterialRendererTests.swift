@@ -3104,6 +3104,275 @@ struct MaterialRendererTests {
             )
         )
     }
+
+    @Test("halo fixtures 15 through 17 retain a compact body and surrounding aura at sealed 1x")
+    func haloFixtures15Through17RetainCompactBodyAndAuraAtSceneScale() throws {
+        // Production regressions caught here, before the body:
+        // - halo collapsing to one soft filled disc with no compact body;
+        // - the surrounding aura disappearing after blur or 1x sampling;
+        // - medium/tiny halo pixels becoming interchangeable with gradient,
+        //   mist, or luminous in any canonical presentation.
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let renderer = MaterialRenderer()
+        let fixtures = [
+            (number: 15, colorCount: 1, layoutIndex: 3),
+            (number: 16, colorCount: 2, layoutIndex: 4),
+            (number: 17, colorCount: 3, layoutIndex: 5),
+        ]
+        let backgrounds: [BackgroundCondition] = [.light, .dark, .lowContrast]
+        let controls: [MaterialFamily] = [.gradient, .mist, .luminous]
+        let families = [MaterialFamily.halo] + controls
+        var observations = [HaloMatrixKey: SealedOpticalSignature]()
+        var identityFailures = [String]()
+        var separationFailures = [String]()
+
+        for fixture in fixtures {
+            let layout = manifest.breadth[fixture.layoutIndex]
+            let approved = try #require(archive.fixtures.first {
+                $0.fixtureIndex == fixture.layoutIndex
+            }?.recipe)
+            let actors = approved.actors.filter { $0.diameter <= 0.36 }
+            #expect(!actors.isEmpty)
+
+            for background in backgrounds {
+                for actor in actors {
+                    let sizeClass = actor.diameter < 0.12 ? "tiny" : "medium"
+                    let isolated = CompositionRecipe(
+                        daySeed: approved.daySeed,
+                        grammar: approved.grammar,
+                        viewport: approved.viewport,
+                        actors: [actor]
+                    )
+                    for family in families {
+                        let dna = MaterialDNA.fixture(
+                            daySeed: layout.seed,
+                            eventIDs: layout.eventIDs,
+                            family: family,
+                            requestedColorCount: fixture.colorCount
+                        )
+                        let material = try #require(dna.actor(actor.eventID))
+                        let rendered = try renderer.render(
+                            recipe: isolated,
+                            material: dna,
+                            background: background,
+                            configuration: .init(scale: 1)
+                        )
+                        let full = try pixels(rendered.fullScreen.pngData)
+                        let tile = try pixels(rendered.calendarTile.pngData)
+                        let centerX = actor.position.x * 393
+                        let centerY = actor.position.y * 852
+                        let diameter = actor.diameter * 393
+                        let actorPixels = try pixels(renderer.renderActor(
+                            material,
+                            pixelSize: actorPixelDiameter(actor),
+                            background: background
+                        ).pngData)
+                        let exactRect = fixture11CenteredCrop(
+                            centerX: centerX,
+                            centerY: centerY,
+                            side: max(1, Int(ceil(diameter * 1.15))),
+                            width: full.width,
+                            height: full.height
+                        )
+                        let exact = full.cropped(
+                            x: exactRect.x,
+                            y: exactRect.y,
+                            width: exactRect.width,
+                            height: exactRect.height
+                        )
+                        let views: [(SealedMaterialView, PixelImage, Double, Double, Double)] = [
+                            (.full, full, centerX, centerY, diameter),
+                            (.tile, tile, centerX, centerY - Double(rendered.tileCrop.y), diameter),
+                            (
+                                .actor,
+                                actorPixels,
+                                Double(actorPixels.width) * 0.5,
+                                Double(actorPixels.height) * 0.5,
+                                Double(actorPixels.width)
+                            ),
+                            (
+                                .exact,
+                                exact,
+                                centerX - Double(exactRect.x),
+                                centerY - Double(exactRect.y),
+                                diameter
+                            ),
+                        ]
+                        for (view, image, viewCenterX, viewCenterY, viewDiameter) in views {
+                            let key = HaloMatrixKey(
+                                fixture: fixture.number,
+                                eventID: actor.eventID,
+                                background: background,
+                                family: family,
+                                view: view
+                            )
+                            observations[key] = sealedSignature(
+                                image,
+                                centerX: viewCenterX,
+                                centerY: viewCenterY,
+                                radius: viewDiameter * 0.48,
+                                background: background
+                            )
+                            guard family == .halo else { continue }
+                            let metrics = haloBodyAuraMetrics(
+                                image,
+                                centerX: viewCenterX,
+                                centerY: viewCenterY,
+                                diameter: viewDiameter,
+                                material: material,
+                                background: background
+                            )
+                            if !haloBodyAuraPasses(metrics) {
+                                identityFailures.append(
+                                    "fixture\(fixture.number)/c\(fixture.colorCount)/\(background.rawValue)/"
+                                        + "\(sizeClass)-\(actor.eventID.prefix(4))/\(view.rawValue) "
+                                        + "bodyP50=\(metrics.bodyP50) auraP50=\(metrics.auraP50) "
+                                        + "auraP75=\(metrics.auraP75) coverage=\(metrics.auraAngularCoverage) "
+                                        + "bodyChroma=\(metrics.bodyChromaP50)"
+                                )
+                            }
+                        }
+                    }
+
+                    for view in SealedMaterialView.allCases {
+                        let haloKey = HaloMatrixKey(
+                            fixture: fixture.number,
+                            eventID: actor.eventID,
+                            background: background,
+                            family: .halo,
+                            view: view
+                        )
+                        let halo = try #require(observations[haloKey])
+                        for control in controls {
+                            let controlKey = HaloMatrixKey(
+                                fixture: fixture.number,
+                                eventID: actor.eventID,
+                                background: background,
+                                family: control,
+                                view: view
+                            )
+                            let distance = sealedDistance(halo, try #require(observations[controlKey]))
+                            if distance < 0.030 {
+                                separationFailures.append(
+                                    "fixture\(fixture.number)/c\(fixture.colorCount)/\(background.rawValue)/"
+                                        + "\(sizeClass)-\(actor.eventID.prefix(4))/\(view.rawValue)/"
+                                        + "halo~\(control.rawValue) distance=\(distance)"
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let readable = HaloBodyAuraMetrics(
+            bodyP50: 0.24,
+            auraP50: 0.10,
+            auraP75: 0.12,
+            auraAngularCoverage: 0.90,
+            bodyChromaP50: 0.18
+        )
+        #expect(haloBodyAuraPasses(readable))
+        #expect(!haloBodyAuraPasses(HaloBodyAuraMetrics(
+            bodyP50: 0.12,
+            auraP50: 0.10,
+            auraP75: 0.12,
+            auraAngularCoverage: 0.90,
+            bodyChromaP50: 0.18
+        )))
+        #expect(!haloBodyAuraPasses(HaloBodyAuraMetrics(
+            bodyP50: 0.24,
+            auraP50: 0.01,
+            auraP75: 0.02,
+            auraAngularCoverage: 0.20,
+            bodyChromaP50: 0.18
+        )))
+        #expect(identityFailures.isEmpty, Comment(rawValue:
+            "halo compact-body/aura failures=\(identityFailures.count)\n"
+                + identityFailures.joined(separator: "\n")
+        ))
+        #expect(separationFailures.isEmpty, Comment(rawValue:
+            "halo matched-control collapse failures=\(separationFailures.count)\n"
+                + separationFailures.joined(separator: "\n")
+        ))
+    }
+
+    @Test("halo split presentation preserves aura alpha and final-pixel compact softness")
+    func haloSplitPresentationControlsAreObservable() {
+        let background = MaterialRenderer.backgroundColor(for: .light)
+        let alphaFixture = (0...255).map { value in
+            let alpha = UInt8(value)
+            return OutlineVisibilityPixel(
+                red: UInt8((Double(alpha) * 0.154_907_887_5).rounded()),
+                green: UInt8((Double(alpha) * 0.934_679_486_5).rounded()),
+                blue: UInt8((Double(alpha) * 0.701_692_491_7).rounded()),
+                alpha: alpha
+            )
+        }
+        let masks = alphaFixture.indices.map { index in
+            Double(index) / Double(max(alphaFixture.count - 1, 1))
+        }
+        let single = haloCompactProjectionWitness(
+            alphaFixture,
+            masks: masks,
+            background: background
+        )
+        let double = haloCompactProjectionWitness(
+            single,
+            masks: masks,
+            background: background
+        )
+        let originalAlpha = alphaFixture.map(\.alpha)
+        let singleAlpha = single.map(\.alpha)
+
+        #expect(originalAlpha == singleAlpha)
+        #expect(fixture11AlphaHistogram(originalAlpha) == fixture11AlphaHistogram(singleAlpha))
+        #expect(fixture11AlphaQuantiles(originalAlpha) == fixture11AlphaQuantiles(singleAlpha))
+        #expect(zip(alphaFixture, single).contains { lhs, rhs in
+            lhs.red != rhs.red || lhs.green != rhs.green || lhs.blue != rhs.blue
+        })
+        #expect(haloCompactProjectionMatchesOneApplication(
+            original: alphaFixture,
+            candidate: single,
+            masks: masks,
+            background: background
+        ))
+        #expect(!haloCompactProjectionMatchesOneApplication(
+            original: alphaFixture,
+            candidate: double,
+            masks: masks,
+            background: background
+        ))
+
+        let finalPixelSide = 12
+        let directProfile = haloCompactMaskBytes(
+            side: finalPixelSide,
+            presentationPixelSide: finalPixelSide,
+            innerRadius: 0.10
+        )
+        let scale1Supersampled2Profile = haloCompactMaskBytes(
+            side: finalPixelSide,
+            presentationPixelSide: finalPixelSide,
+            innerRadius: 0.10
+        )
+        let sourceScaleMutation = haloCompactMaskBytes(
+            side: finalPixelSide,
+            presentationPixelSide: finalPixelSide * 2,
+            innerRadius: 0.10
+        )
+        #expect(directProfile == scale1Supersampled2Profile)
+        #expect(zip(directProfile, scale1Supersampled2Profile).allSatisfy {
+            abs(Int($0) - Int($1)) <= 1
+        })
+        #expect(directProfile.filter { $0 > 0 }.count ==
+            scale1Supersampled2Profile.filter { $0 > 0 }.count)
+        #expect(sourceScaleMutation != directProfile)
+    }
 }
 
 private enum Fixture11PresentationView: String, Hashable {
@@ -3602,6 +3871,120 @@ private struct SealedMaterialKey: Hashable {
     let view: SealedMaterialView
 }
 
+private struct HaloMatrixKey: Hashable {
+    let fixture: Int
+    let eventID: String
+    let background: BackgroundCondition
+    let family: MaterialFamily
+    let view: SealedMaterialView
+}
+
+private struct HaloBodyAuraMetrics {
+    let bodyP50: Double
+    let auraP50: Double
+    let auraP75: Double
+    let auraAngularCoverage: Double
+    let bodyChromaP50: Double
+}
+
+private func haloBodyAuraPasses(_ metrics: HaloBodyAuraMetrics) -> Bool {
+    metrics.bodyP50 >= 0.16
+        && metrics.auraP75 >= 0.075
+        && metrics.bodyP50 - metrics.auraP50 >= 0.06
+        && metrics.auraAngularCoverage >= 0.75
+        && metrics.bodyChromaP50 >= 0.10
+}
+
+private func haloBodyAuraMetrics(
+    _ image: PixelImage,
+    centerX: Double,
+    centerY: Double,
+    diameter: Double,
+    material: ActorMaterialRecipe,
+    background: BackgroundCondition
+) -> HaloBodyAuraMetrics {
+    guard let topology = material.organicTopology else {
+        return HaloBodyAuraMetrics(
+            bodyP50: 0,
+            auraP50: 0,
+            auraP75: 0,
+            auraAngularCoverage: 0,
+            bodyChromaP50: 0
+        )
+    }
+    let backgroundColor = MaterialRenderer.backgroundColor(for: background)
+    let backgroundRGB = StraightRGB(
+        r: backgroundColor.red,
+        g: backgroundColor.green,
+        b: backgroundColor.blue
+    )
+    let bodyCenterX = centerX + (topology.innerCenter.x - 0.5) * diameter
+    let bodyCenterY = centerY + (topology.innerCenter.y - 0.5) * diameter
+    let auraCenterX = centerX + (topology.outerCenter.x - 0.5) * diameter
+    let auraCenterY = centerY + (topology.outerCenter.y - 0.5) * diameter
+    let bodyRadius = topology.innerRadius * diameter
+    let auraRadius = topology.outerRadius * diameter
+    var bodyContrasts = [Double]()
+    var bodyChromas = [Double]()
+    var auraContrasts = [Double]()
+    let minX = max(0, Int(floor(auraCenterX - auraRadius)))
+    let maxX = min(image.width - 1, Int(ceil(auraCenterX + auraRadius)))
+    let minY = max(0, Int(floor(auraCenterY - auraRadius)))
+    let maxY = min(image.height - 1, Int(ceil(auraCenterY + auraRadius)))
+    for y in minY...maxY {
+        for x in minX...maxX {
+            let color = image.pixel(x: x, y: y).straight
+            let contrast = rgbDistance(color, backgroundRGB)
+            let bodyDistance = hypot(Double(x) - bodyCenterX, Double(y) - bodyCenterY)
+            let auraDistance = hypot(Double(x) - auraCenterX, Double(y) - auraCenterY)
+            if bodyDistance <= bodyRadius * 0.72 {
+                bodyContrasts.append(contrast)
+                bodyChromas.append(color.chroma)
+            }
+            if auraDistance >= auraRadius * 0.58,
+               auraDistance <= auraRadius * 0.92,
+               bodyDistance >= bodyRadius * 1.20 {
+                auraContrasts.append(contrast)
+            }
+        }
+    }
+    bodyContrasts.sort()
+    bodyChromas.sort()
+    auraContrasts.sort()
+
+    let rayCount = 72
+    var supportedRays = 0
+    for ray in 0..<rayCount {
+        let angle = Double(ray) / Double(rayCount) * Double.pi * 2
+        var longestRun = 0
+        var currentRun = 0
+        for step in 0..<8 {
+            let radius = auraRadius * (0.58 + Double(step) * 0.05)
+            let x = Int((auraCenterX + cos(angle) * radius).rounded())
+            let y = Int((auraCenterY + sin(angle) * radius).rounded())
+            guard (0..<image.width).contains(x), (0..<image.height).contains(y) else {
+                currentRun = 0
+                continue
+            }
+            let contrast = rgbDistance(image.pixel(x: x, y: y).straight, backgroundRGB)
+            if contrast >= 0.05 {
+                currentRun += 1
+                longestRun = max(longestRun, currentRun)
+            } else {
+                currentRun = 0
+            }
+        }
+        if longestRun >= 2 { supportedRays += 1 }
+    }
+    return HaloBodyAuraMetrics(
+        bodyP50: percentile(bodyContrasts, fraction: 0.50),
+        auraP50: percentile(auraContrasts, fraction: 0.50),
+        auraP75: percentile(auraContrasts, fraction: 0.75),
+        auraAngularCoverage: Double(supportedRays) / Double(rayCount),
+        bodyChromaP50: percentile(bodyChromas, fraction: 0.50)
+    )
+}
+
 private struct SealedOpticalSample {
     let gridX: Int
     let gridY: Int
@@ -3756,6 +4139,82 @@ private func sealedDistance(
         return rgbDistance(leftDelta, rightDelta)
     }
     return sealedMean(distances)
+}
+
+private func haloCompactProjectionWitness(
+    _ pixels: [OutlineVisibilityPixel],
+    masks: [Double],
+    background: MaterialColor
+) -> [OutlineVisibilityPixel] {
+    precondition(pixels.count == masks.count)
+    return zip(pixels, masks).map { pixel, mask in
+        guard pixel.alpha > 0 else { return pixel }
+        let alphaByte = Double(pixel.alpha)
+        let color = MaterialColor(
+            red: Double(pixel.red) / alphaByte,
+            green: Double(pixel.green) / alphaByte,
+            blue: Double(pixel.blue) / alphaByte
+        )
+        let target = MaterialRenderer.outlineVisibilityTarget(
+            color: color,
+            background: background
+        )
+        let amount = min(1, max(0, mask)) * alphaByte / 255
+        let red = color.red + (target.red - color.red) * amount
+        let green = color.green + (target.green - color.green) * amount
+        let blue = color.blue + (target.blue - color.blue) * amount
+        return OutlineVisibilityPixel(
+            red: UInt8((red * alphaByte).rounded()),
+            green: UInt8((green * alphaByte).rounded()),
+            blue: UInt8((blue * alphaByte).rounded()),
+            alpha: pixel.alpha
+        )
+    }
+}
+
+private func haloCompactProjectionMatchesOneApplication(
+    original: [OutlineVisibilityPixel],
+    candidate: [OutlineVisibilityPixel],
+    masks: [Double],
+    background: MaterialColor
+) -> Bool {
+    candidate == haloCompactProjectionWitness(
+        original,
+        masks: masks,
+        background: background
+    )
+}
+
+private func haloCompactMaskBytes(
+    side: Int,
+    presentationPixelSide: Int,
+    innerRadius: Double
+) -> [UInt8] {
+    precondition(side > 0 && presentationPixelSide > 0)
+    let innerCenter = CompositionPoint(x: 0.392_863_117_96, y: 0.409_179_806_84)
+    let edgeWidth = 0.072
+    let presentationPixel = 1 / Double(presentationPixelSide)
+    let maximumRamp = max(presentationPixel, innerRadius - 2 * presentationPixel)
+    let ramp = min(edgeWidth, innerRadius, maximumRamp)
+    return (0..<(side * side)).map { index in
+        let x = index % side
+        let y = index / side
+        let u = (Double(x) + 0.5) / Double(side)
+        let v = (Double(y) + 0.5) / Double(side)
+        let distance = hypot(u - innerCenter.x, v - innerCenter.y)
+        let value = 1 - haloControlSmoothstep(
+            lower: innerRadius - ramp,
+            upper: innerRadius,
+            value: distance
+        )
+        return UInt8((min(1, max(0, value)) * 255).rounded())
+    }
+}
+
+private func haloControlSmoothstep(lower: Double, upper: Double, value: Double) -> Double {
+    guard upper > lower else { return value < lower ? 0 : 1 }
+    let t = min(1, max(0, (value - lower) / (upper - lower)))
+    return t * t * (3 - 2 * t)
 }
 
 private func sealedTransparentBodyIsReadable(

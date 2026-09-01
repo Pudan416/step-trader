@@ -84,6 +84,7 @@ public struct MaterialRenderConfiguration: Equatable, Sendable {
     public let scale: Int
     public let supersampling: Int
     public let presentationEvidenceRequest: MaterialPresentationEvidenceRequest
+    let presentationScale: Int
     let outlineVisibilityPlacement: MaterialOutlineVisibilityPlacement
     let outlineCounterfactualMode: MaterialOutlineCounterfactualMode
     let instrumentation: MaterialRenderInstrumentation?
@@ -97,6 +98,7 @@ public struct MaterialRenderConfiguration: Equatable, Sendable {
         self.scale = scale
         self.supersampling = supersampling
         self.presentationEvidenceRequest = presentationEvidenceRequest
+        self.presentationScale = scale
         self.outlineVisibilityPlacement = .none
         self.outlineCounterfactualMode = .capturedActorReplay
         self.instrumentation = nil
@@ -110,11 +112,13 @@ public struct MaterialRenderConfiguration: Equatable, Sendable {
         outlineCounterfactualMode: MaterialOutlineCounterfactualMode = .capturedActorReplay,
         instrumentation: MaterialRenderInstrumentation? = nil,
         rawSceneCapture: MaterialRawSceneCapture? = nil,
-        presentationEvidenceRequest: MaterialPresentationEvidenceRequest = .none
+        presentationEvidenceRequest: MaterialPresentationEvidenceRequest = .none,
+        presentationScale: Int? = nil
     ) {
         self.scale = scale
         self.supersampling = supersampling
         self.presentationEvidenceRequest = presentationEvidenceRequest
+        self.presentationScale = presentationScale ?? scale
         self.outlineVisibilityPlacement = outlineVisibilityPlacement
         self.outlineCounterfactualMode = outlineCounterfactualMode
         self.instrumentation = instrumentation
@@ -180,31 +184,66 @@ public struct MaterialRenderer {
                 supersampling: supersampling
             )
         }
+        return try renderActorAtSource(
+            material,
+            sourcePixelSize: pixelSize,
+            presentationPixelSize: pixelSize,
+            background: background
+        )
+    }
+
+    private func renderActorAtSource(
+        _ material: ActorMaterialRecipe,
+        sourcePixelSize: Int,
+        presentationPixelSize: Int,
+        background: BackgroundCondition?
+    ) throws -> NeutralRenderedImage {
         try validate(material)
         let backgroundColor = background.map(Self.backgroundColor(for:))
         var actorImage = try makeActorImage(
             material,
-            pixelSize: pixelSize,
+            pixelSize: sourcePixelSize,
             contrastBackground: backgroundColor
         )
+        let haloCompactBody = material.family == .halo
+            ? try makeActorImage(
+                material,
+                pixelSize: sourcePixelSize,
+                contrastBackground: backgroundColor,
+                haloCompactBodyLayer: true,
+                presentationPixelSize: presentationPixelSize
+            )
+            : nil
         if material.family == .mist {
             actorImage = try applyingMistGrain(
                 actorImage,
                 material: material,
-                sourceDiameter: pixelSize
+                sourceDiameter: sourcePixelSize
+            )
+        }
+        if let haloCompactBody {
+            actorImage = try compositedCenteredSourceAtop(
+                haloCompactBody,
+                over: actorImage,
+                sourceDiameter: sourcePixelSize
             )
         }
         let finalImage: CGImage
         if let backgroundColor {
-            let context = try makeContext(width: pixelSize, height: pixelSize)
+            let context = try makeContext(width: sourcePixelSize, height: sourcePixelSize)
             context.setFillColor(
                 red: backgroundColor.red,
                 green: backgroundColor.green,
                 blue: backgroundColor.blue,
                 alpha: 1
             )
-            context.fill(CGRect(x: 0, y: 0, width: pixelSize, height: pixelSize))
-            context.draw(actorImage, in: CGRect(x: 0, y: 0, width: pixelSize, height: pixelSize))
+            context.fill(CGRect(x: 0, y: 0, width: sourcePixelSize, height: sourcePixelSize))
+            context.draw(actorImage, in: CGRect(
+                x: 0,
+                y: 0,
+                width: sourcePixelSize,
+                height: sourcePixelSize
+            ))
             guard let image = context.makeImage() else { throw MaterialRendererError.cannotCreateImage }
             finalImage = image
         } else {
@@ -212,8 +251,8 @@ public struct MaterialRenderer {
         }
         return NeutralRenderedImage(
             pngData: try pngData(finalImage),
-            pixelWidth: pixelSize,
-            pixelHeight: pixelSize
+            pixelWidth: sourcePixelSize,
+            pixelHeight: sourcePixelSize
         )
     }
 
@@ -317,17 +356,34 @@ public struct MaterialRenderer {
             return $0.eventID < $1.eventID
         }
         let shortSide = Double(min(width, height))
+        let presentationShortSide = Double(min(
+            Int(recipe.viewport.width) * configuration.presentationScale,
+            Int(recipe.viewport.height) * configuration.presentationScale
+        ))
         for actor in ordered {
             guard let actorMaterial = material.actor(actor.eventID) else {
                 throw MaterialRendererError.missingActorMaterial(actor.eventID)
             }
             try validate(actorMaterial)
             let diameter = max(1, Int(ceil(actor.diameter * shortSide)))
+            let presentationDiameter = max(
+                1,
+                Int(ceil(actor.diameter * presentationShortSide))
+            )
             var actorImage = try makeActorImage(
                 actorMaterial,
                 pixelSize: diameter,
                 contrastBackground: backgroundColor
             )
+            let haloCompactBody = actorMaterial.family == .halo
+                ? try makeActorImage(
+                    actorMaterial,
+                    pixelSize: diameter,
+                    contrastBackground: backgroundColor,
+                    haloCompactBodyLayer: true,
+                    presentationPixelSize: presentationDiameter
+                )
+                : nil
             let outlineAccentImage = actorMaterial.family == .outline
                 ? try makeActorImage(
                     actorMaterial,
@@ -354,6 +410,13 @@ public struct MaterialRenderer {
             if let outlineAccentImage {
                 actorImage = try compositedCentered(
                     outlineAccentImage,
+                    over: actorImage,
+                    sourceDiameter: diameter
+                )
+            }
+            if let haloCompactBody {
+                actorImage = try compositedCenteredSourceAtop(
+                    haloCompactBody,
                     over: actorImage,
                     sourceDiameter: diameter
                 )
@@ -452,7 +515,8 @@ public struct MaterialRenderer {
             scale: sourceScale,
             outlineVisibilityPlacement: configuration.outlineVisibilityPlacement,
             instrumentation: configuration.instrumentation,
-            rawSceneCapture: rawSceneCapture
+            rawSceneCapture: rawSceneCapture,
+            presentationScale: configuration.presentationScale
         )
         configuration.instrumentation?.canonicalRawSceneRenders += 1
         let source = try render(
@@ -813,9 +877,10 @@ public struct MaterialRenderer {
         supersampling: Int
     ) throws -> NeutralRenderedImage {
         let sourceSize = pixelSize * supersampling
-        let source = try renderActor(
+        let source = try renderActorAtSource(
             material,
-            pixelSize: sourceSize,
+            sourcePixelSize: sourceSize,
+            presentationPixelSize: pixelSize,
             background: background
         )
         var image = try downsampled(
@@ -1118,7 +1183,9 @@ public struct MaterialRenderer {
         contrastBackground: MaterialColor?,
         isolatedContourIndex: Int? = nil,
         structuralAlphaLayer: Bool = false,
-        outlineAccentLayer: Bool = false
+        outlineAccentLayer: Bool = false,
+        haloCompactBodyLayer: Bool = false,
+        presentationPixelSize: Int? = nil
     ) throws -> CGImage {
         let context = try makeContext(width: pixelSize, height: pixelSize)
         guard let rawData = context.data else {
@@ -1262,6 +1329,36 @@ public struct MaterialRenderer {
                         let aura = clamp(0.52 + fieldVolume * 0.18 + innerBloom * 0.17 + outerBloom * 0.13)
                         alpha = min(alpha, body) * aura
                         color = mix(color, RGB.white, min(0.14, innerBloom * 0.08 + fieldVolume * 0.06))
+                        if haloCompactBodyLayer {
+                            guard let presentationPixelSize, presentationPixelSize > 0 else {
+                                throw MaterialRendererError.invalidPixelSize(
+                                    presentationPixelSize ?? 0
+                                )
+                            }
+                            let presentationPixel = 1 / Double(presentationPixelSize)
+                            let maximumRamp = max(
+                                presentationPixel,
+                                organicInnerRadius - 2 * presentationPixel
+                            )
+                            let ramp = min(edgeWidth, organicInnerRadius, maximumRamp)
+                            let compactBody = 1 - smoothstep(
+                                organicInnerRadius - ramp,
+                                organicInnerRadius,
+                                innerDistance
+                            )
+                            alpha *= compactBody
+                            if let contrastBackground {
+                                let background = RGB(contrastBackground)
+                                color = Self.outlineVisibilityTargetRGB(
+                                    color,
+                                    background: background
+                                )
+                            }
+                        } else if presentationPixelSize != nil {
+                            throw MaterialRendererError.invalidMaterial(
+                                "halo presentation size requires the compact body layer"
+                            )
+                        }
                     }
                 case .luminous:
                     let core = radialWeight(
@@ -1821,6 +1918,59 @@ public struct MaterialRenderer {
             width: Double(sourceDiameter),
             height: Double(sourceDiameter)
         ))
+        guard let composited = context.makeImage() else {
+            throw MaterialRendererError.cannotCreateImage
+        }
+        return composited
+    }
+
+    private func compositedCenteredSourceAtop(
+        _ overlay: CGImage,
+        over base: CGImage,
+        sourceDiameter: Int
+    ) throws -> CGImage {
+        let context = try makeContext(width: base.width, height: base.height)
+        context.draw(base, in: CGRect(x: 0, y: 0, width: base.width, height: base.height))
+        guard let rawData = context.data else {
+            throw MaterialRendererError.cannotCreateBitmap(base.width, base.height)
+        }
+        let bytes = rawData.assumingMemoryBound(to: UInt8.self)
+        let bytesPerRow = context.bytesPerRow
+        let overlayContext = try makeContext(width: overlay.width, height: overlay.height)
+        overlayContext.draw(overlay, in: CGRect(
+            x: 0,
+            y: 0,
+            width: overlay.width,
+            height: overlay.height
+        ))
+        guard let overlayData = overlayContext.data else {
+            throw MaterialRendererError.cannotCreateBitmap(overlay.width, overlay.height)
+        }
+        let overlayBytes = overlayData.assumingMemoryBound(to: UInt8.self)
+        let overlayBytesPerRow = overlayContext.bytesPerRow
+        let originX = (base.width - sourceDiameter) / 2
+        let originY = (base.height - sourceDiameter) / 2
+
+        for sourceY in 0..<sourceDiameter {
+            let destinationY = originY + sourceY
+            guard (0..<base.height).contains(destinationY) else { continue }
+            for sourceX in 0..<sourceDiameter {
+                let destinationX = originX + sourceX
+                guard (0..<base.width).contains(destinationX) else { continue }
+                let sourceOffset = sourceY * overlayBytesPerRow + sourceX * 4
+                let sourceAlpha = Double(overlayBytes[sourceOffset + 3]) / 255
+                guard sourceAlpha > 0 else { continue }
+                let destinationOffset = destinationY * bytesPerRow + destinationX * 4
+                let destinationAlpha = Double(bytes[destinationOffset + 3]) / 255
+                for channel in 0..<3 {
+                    let source = Double(overlayBytes[sourceOffset + channel])
+                    let destination = Double(bytes[destinationOffset + channel])
+                    bytes[destinationOffset + channel] = UInt8(clamping: Int(
+                        (source * destinationAlpha + destination * (1 - sourceAlpha)).rounded()
+                    ))
+                }
+            }
+        }
         guard let composited = context.makeImage() else {
             throw MaterialRendererError.cannotCreateImage
         }
