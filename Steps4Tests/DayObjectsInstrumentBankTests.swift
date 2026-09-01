@@ -4,6 +4,41 @@ import XCTest
 
 @MainActor
 final class DayObjectsInstrumentBankTests: XCTestCase {
+    func testPlaybackWorldReplacesTheTonalHappeningPoolWithFourSamplePlayers() throws {
+        let configuration = PlaybackWorldBankConfiguration.playbackWorld
+
+        XCTAssertEqual(configuration.tonalPools.map(\.capacity).reduce(0, +), 8)
+        XCTAssertEqual(configuration.pianoVoiceCount, 2)
+        XCTAssertEqual(configuration.drumOverlapCounts.values.reduce(0, +), 10)
+        XCTAssertEqual(PlaybackWorldBankConfiguration.PoolName.allCases.count, 4)
+        XCTAssertFalse(configuration.tonalPools.map(\.name).contains("happenings"))
+
+        let bank = DayObjectsInstrumentBank(bundle: Bundle(for: type(of: self)))
+        try bank.prepare(configuration: configuration)
+
+        XCTAssertEqual(bank.happenings.metrics.allocatedPlayerCount, 4)
+        XCTAssertEqual(bank.metrics.happeningMetrics.allocatedPlayerCount, 4)
+        XCTAssertLessThanOrEqual(bank.metrics.happeningMetrics.decodedByteCount, 48 * 1_024 * 1_024)
+    }
+
+    func testSampleOnlyPreparationUpgradesToFullMusicWithoutStartingASecondEngine() throws {
+        let bank = DayObjectsInstrumentBank(bundle: Bundle(for: type(of: self)))
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 1))
+
+        try bank.prepare(level: .sampleOnly([recipeID]))
+        XCTAssertEqual(bank.preparationLevel, .sampleOnly([recipeID]))
+        XCTAssertEqual(bank.happenings.metrics.availableRecipeIDs, [recipeID])
+        XCTAssertEqual(bank.metrics.tonalPoolCount, 0)
+
+        try bank.prepare(level: .fullMusic(.playbackWorld))
+        try bank.start()
+
+        XCTAssertEqual(bank.preparationLevel, .fullMusic(.playbackWorld))
+        XCTAssertEqual(bank.metrics.engineInstanceCount, 1)
+        XCTAssertEqual(bank.metrics.engineStartCount, 1)
+        XCTAssertEqual(bank.metrics.happeningMetrics.allocatedPlayerCount, 4)
+    }
+
     func testPairStopIsNoOpWhileAnIndividualBankOwnsTheSharedEngine() async throws {
         let pair = DayObjectsInstrumentBank.makePlaybackPair(
             bundle: Bundle(for: type(of: self))
@@ -366,7 +401,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         }
         XCTAssertEqual(harness.engine.stopCount, 1)
         XCTAssertEqual(harness.engine.detachCount, 1)
-        XCTAssertEqual(harness.releaseCount, 4)
+        XCTAssertEqual(harness.releaseCount, 5)
         XCTAssertEqual(harness.bank.metrics.state, .unprepared)
         XCTAssertNil(harness.engine.attachedGraph)
 
@@ -445,7 +480,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         try harness.bank.start()
         XCTAssertEqual(harness.engine.events, ["synchronize", "start"])
         await harness.bank.stop()
-        XCTAssertEqual(harness.releaseCount, 3)
+        XCTAssertEqual(harness.releaseCount, 4)
         XCTAssertEqual(harness.engine.detachCount, 1)
         XCTAssertNil(harness.engine.attachedGraph)
         harness.engine.events.removeAll()
@@ -462,7 +497,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
 
         harness.bank.releaseAll()
 
-        XCTAssertEqual(harness.releaseCount, 4)
+        XCTAssertEqual(harness.releaseCount, 5)
         XCTAssertNotNil(harness.engine.attachedGraph)
     }
 
@@ -512,11 +547,11 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
 
     private func expectedReleaseCount(for stage: DayObjectsInstrumentBankPreparationStage) -> Int {
         switch stage {
-        case .tonalInstruments: return 0
-        case .tonalPools: return 1
-        case .drums: return 2
-        case .piano: return 3
-        case .graph, .engine: return 4
+        case .tonalInstruments: return 1
+        case .tonalPools: return 2
+        case .drums: return 3
+        case .piano: return 4
+        case .graph, .engine: return 5
         }
     }
 }
@@ -568,7 +603,10 @@ private final class InstrumentBankHarness {
                 self?.requestedPianoVoiceCount = count
                 return FakePianoPool(onNoteOn: { self?.pianoNoteOnCount += 1 }, onRelease: { self?.releaseCount += 1 })
             },
-            graphFactory: { [weak self] _, _, _ in
+            happeningPoolFactory: { [weak self] in
+                FakeHappeningSamplePool(onRelease: { self?.releaseCount += 1 })
+            },
+            graphFactory: { [weak self] _, _, _, _ in
                 guard self?.failingAt != .graph else { throw InjectedFailure() }
                 self?.graphFactoryCallCount += 1
                 return FakeInstrumentBankGraph(
@@ -636,6 +674,37 @@ private final class FakePianoPool: DayObjectsPianoPoolProtocol {
     var metrics: DayObjectsFeltPianoMetrics { .init(allocatedPlayerCount: 0, activeNoteCount: 0, maximumPolyphony: 4) }
     func noteOn(_ midiNote: UInt8, velocity: Double) -> DayObjectsFeltPianoToken? { onNoteOn(); return nil }
     func noteOff(_ token: DayObjectsFeltPianoToken) {}
+    func releaseAll() { onRelease() }
+}
+
+@MainActor
+private final class FakeHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol {
+    let onRelease: () -> Void
+    private var preparedIDs: Set<HappeningSoundRecipeID> = []
+    init(onRelease: @escaping () -> Void) { self.onRelease = onRelease }
+    var metrics: HappeningSamplePoolMetrics {
+        .init(
+            allocatedPlayerCount: 4,
+            fixedPlayerIdentities: [],
+            activeVoiceCount: 0,
+            releasingVoiceCount: 4,
+            stealCount: 0,
+            decodedBufferCount: preparedIDs.count,
+            decodedByteCount: preparedIDs.count * 1_024,
+            availableRecipeIDs: preparedIDs,
+            unavailableRecipeIDs: [],
+            effects: .init(filterCutoffHz: 8_000, delayMix: 0, delayFeedback: 0, reverbMix: 0),
+            lastEffectRampSeconds: 0
+        )
+    }
+    func prepare(recipeIDs: Set<HappeningSoundRecipeID>) throws { preparedIDs.formUnion(recipeIDs) }
+    func play(
+        _ sound: ResolvedHappeningSound,
+        gain: Double,
+        priority: HappeningPlaybackPriority
+    ) throws -> Int { 0 }
+    func applyEffects(_ command: HappeningEffectCommand, rampSeconds: Double) {}
+    func stop(voiceID: Int) {}
     func releaseAll() { onRelease() }
 }
 

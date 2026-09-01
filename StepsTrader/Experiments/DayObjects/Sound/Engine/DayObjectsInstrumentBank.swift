@@ -8,11 +8,17 @@ import SoundpipeAudioKit
 
 @MainActor
 final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
+    enum PreparationLevel: Equatable, Sendable {
+        case sampleOnly(Set<HappeningSoundRecipeID>)
+        case fullMusic(DayObjectsInstrumentBankConfiguration)
+    }
+
     typealias TonalInstrumentLoader = () throws -> [DayObjectsInstrumentID: NormalizedSynthVoice]
     typealias TonalPoolFactory = (DayObjectsTonalPoolSpecification, [DayObjectsInstrumentID: NormalizedSynthVoice]) throws -> DayObjectsTonalVoicePoolProtocol
     typealias DrumBankFactory = ([DayObjectsDrumVoice: Int]) throws -> DayObjectsDrumBankProtocol
     typealias PianoPoolFactory = (Int) throws -> DayObjectsPianoPoolProtocol
-    typealias GraphFactory = ([DayObjectsTonalVoicePoolProtocol], DayObjectsDrumBankProtocol, DayObjectsPianoPoolProtocol) throws -> DayObjectsInstrumentBankGraph
+    typealias HappeningPoolFactory = () -> DayObjectsHappeningSamplePoolProtocol
+    typealias GraphFactory = ([DayObjectsTonalVoicePoolProtocol], DayObjectsDrumBankProtocol?, DayObjectsPianoPoolProtocol?, DayObjectsHappeningSamplePoolProtocol) throws -> DayObjectsInstrumentBankGraph
 
     let descriptors: [DayObjectsInstrumentDescriptor]
     private let descriptorByID: [DayObjectsInstrumentID: DayObjectsInstrumentDescriptor]
@@ -20,14 +26,19 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     private let tonalPoolFactory: TonalPoolFactory
     private let drumBankFactory: DrumBankFactory
     private let pianoPoolFactory: PianoPoolFactory
+    private let happeningPoolFactory: HappeningPoolFactory
     private let graphFactory: GraphFactory
     private let engine: DayObjectsInstrumentBankEngine
     private let inactiveDrums = DayObjectsInactiveDrumBank()
     private let inactivePiano = DayObjectsInactivePianoPool()
+    private let inactiveHappenings = DayObjectsInactiveHappeningSamplePool()
     private var prepared: PreparedState?
+    private var successfulEngineStartCount = 0
 
     var drums: DayObjectsDrumBankProtocol { prepared?.drums ?? inactiveDrums }
     var piano: DayObjectsPianoPoolProtocol { prepared?.piano ?? inactivePiano }
+    var happenings: DayObjectsHappeningSamplePoolProtocol { prepared?.happenings ?? inactiveHappenings }
+    var preparationLevel: PreparationLevel? { prepared?.level }
     var outputGainMetrics: DayObjectsBankOutputGainMetrics {
         prepared?.graph.outputGainMetrics ?? .unsupported
     }
@@ -39,7 +50,10 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
             graph: prepared?.graph.layout,
             allocationFingerprint: prepared?.graph.allocationFingerprint,
             drumMetrics: drums.metrics,
-            pianoMetrics: piano.metrics
+            pianoMetrics: piano.metrics,
+            happeningMetrics: happenings.metrics,
+            engineInstanceCount: 1,
+            engineStartCount: successfulEngineStartCount
         )
     }
 
@@ -49,6 +63,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         tonalPoolFactory: @escaping TonalPoolFactory,
         drumBankFactory: @escaping DrumBankFactory,
         pianoPoolFactory: @escaping PianoPoolFactory,
+        happeningPoolFactory: @escaping HappeningPoolFactory,
         graphFactory: @escaping GraphFactory,
         engine: DayObjectsInstrumentBankEngine
     ) {
@@ -58,6 +73,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         self.tonalPoolFactory = tonalPoolFactory
         self.drumBankFactory = drumBankFactory
         self.pianoPoolFactory = pianoPoolFactory
+        self.happeningPoolFactory = happeningPoolFactory
         self.graphFactory = graphFactory
         self.engine = engine
     }
@@ -105,18 +121,23 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
                 })
                 return DayObjectsAudioKitPianoPoolAdapter(adapter)
             },
-            graphFactory: { tonalPools, drums, piano in
+            happeningPoolFactory: {
+                DayObjectsHappeningSamplePool(bundle: bundle)
+            },
+            graphFactory: { tonalPools, drums, piano, happenings in
                 guard let tonalAdapters = tonalPools.compactMap({
                     (($0 as? DayObjectsCategoryValidatedTonalPool)?.pool as? DayObjectsAudioKitTonalPoolAdapter)?.adapter
                 }) as [DayObjectsAudioKitTonalPool]?,
                       tonalAdapters.count == tonalPools.count,
-                      let drumAdapter = drums as? DayObjectsAudioKitDrumBankAdapter,
-                      let pianoAdapter = piano as? DayObjectsAudioKitPianoPoolAdapter
+                      drums == nil || drums is DayObjectsAudioKitDrumBankAdapter,
+                      piano == nil || piano is DayObjectsAudioKitPianoPoolAdapter,
+                      let happeningPool = happenings as? DayObjectsHappeningSamplePool
                 else { throw DayObjectsInstrumentBankError.preparationFailed(.graph) }
                 return DayObjectsAudioKitInstrumentBankGraph(
                     tonalPools: tonalAdapters,
-                    drums: drumAdapter.adapter,
-                    piano: pianoAdapter.adapter,
+                    drums: (drums as? DayObjectsAudioKitDrumBankAdapter)?.adapter,
+                    piano: (piano as? DayObjectsAudioKitPianoPoolAdapter)?.adapter,
+                    happenings: happeningPool,
                     outputGainHostTimeProvider: outputGainHostTimeProvider
                 )
             },
@@ -151,8 +172,59 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     }
 
     func prepare(configuration: DayObjectsInstrumentBankConfiguration) throws {
-        if let prepared {
-            guard prepared.configuration == configuration else {
+        try prepare(level: .fullMusic(configuration))
+    }
+
+    func prepare(level: PreparationLevel) throws {
+        switch level {
+        case let .sampleOnly(recipeIDs):
+            try prepareSamples(recipeIDs)
+        case let .fullMusic(configuration):
+            try prepareFullMusic(configuration)
+        }
+    }
+
+    private func prepareSamples(_ recipeIDs: Set<HappeningSoundRecipeID>) throws {
+        if var prepared {
+            try prepared.happenings.prepare(recipeIDs: recipeIDs)
+            if case let .sampleOnly(existingIDs) = prepared.level {
+                prepared.level = .sampleOnly(existingIDs.union(recipeIDs))
+                self.prepared = prepared
+            }
+            return
+        }
+
+        let builtHappenings = happeningPoolFactory()
+        do {
+            try builtHappenings.prepare(recipeIDs: recipeIDs)
+            let graph = try graphFactory([], nil, nil, builtHappenings)
+            try engine.attach(graph: graph)
+            prepared = .init(
+                level: .sampleOnly(recipeIDs),
+                configuration: nil,
+                tonalPools: [:],
+                drums: inactiveDrums,
+                piano: inactivePiano,
+                happenings: builtHappenings,
+                graph: graph,
+                state: .prepared
+            )
+        } catch let error as DayObjectsInstrumentBankError {
+            builtHappenings.releaseAll()
+            engine.stop()
+            engine.detach()
+            throw error
+        } catch {
+            builtHappenings.releaseAll()
+            engine.stop()
+            engine.detach()
+            throw DayObjectsInstrumentBankError.preparationFailed(.graph)
+        }
+    }
+
+    private func prepareFullMusic(_ configuration: DayObjectsInstrumentBankConfiguration) throws {
+        if let prepared, let existingConfiguration = prepared.configuration {
+            guard existingConfiguration == configuration else {
                 throw DayObjectsInstrumentBankError.configurationChangedAfterPreparation
             }
             return
@@ -162,7 +234,10 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         var builtTonalPools: [DayObjectsTonalVoicePoolProtocol] = []
         var builtDrums: DayObjectsDrumBankProtocol?
         var builtPiano: DayObjectsPianoPoolProtocol?
+        let builtHappenings = prepared?.happenings ?? happeningPoolFactory()
+        let previousPrepared = prepared
         do {
+            try builtHappenings.prepare(recipeIDs: Set(HappeningSoundCatalog.recipes.map(\.id)))
             let instruments: [DayObjectsInstrumentID: NormalizedSynthVoice]
             do { instruments = try tonalInstrumentLoader() }
             catch { throw DayObjectsInstrumentBankError.preparationFailed(.tonalInstruments) }
@@ -185,28 +260,39 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
             guard let builtDrums, let builtPiano else { throw DayObjectsInstrumentBankError.preparationFailed(.graph) }
 
             let graph: DayObjectsInstrumentBankGraph
-            do { graph = try graphFactory(builtTonalPools, builtDrums, builtPiano) }
+            do { graph = try graphFactory(builtTonalPools, builtDrums, builtPiano, builtHappenings) }
             catch { throw DayObjectsInstrumentBankError.preparationFailed(.graph) }
+            if previousPrepared != nil {
+                previousPrepared?.happenings.releaseAll()
+                engine.stop()
+                engine.detach()
+            }
             do { try engine.attach(graph: graph) }
             catch { throw DayObjectsInstrumentBankError.preparationFailed(.engine) }
 
             prepared = .init(
+                level: .fullMusic(configuration),
                 configuration: configuration,
                 tonalPools: Dictionary(uniqueKeysWithValues: zip(configuration.tonalPools.map(\.name), builtTonalPools)),
                 drums: builtDrums,
                 piano: builtPiano,
+                happenings: builtHappenings,
                 graph: graph,
                 state: .prepared
             )
         } catch let error as DayObjectsInstrumentBankError {
-            release(builtTonalPools, builtDrums, builtPiano)
+            release(builtTonalPools, builtDrums, builtPiano, previousPrepared == nil ? builtHappenings : nil)
             engine.stop()
             engine.detach()
+            prepared = previousPrepared
+            if let previousPrepared { try? engine.attach(graph: previousPrepared.graph) }
             throw error
         } catch {
-            release(builtTonalPools, builtDrums, builtPiano)
+            release(builtTonalPools, builtDrums, builtPiano, previousPrepared == nil ? builtHappenings : nil)
             engine.stop()
             engine.detach()
+            prepared = previousPrepared
+            if let previousPrepared { try? engine.attach(graph: previousPrepared.graph) }
             throw DayObjectsInstrumentBankError.preparationFailed(.graph)
         }
     }
@@ -227,6 +313,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
             }
             try prepared.graph.synchronizeForStart()
             try engine.start()
+            successfulEngineStartCount += 1
             self.prepared?.state = .started
         } catch {
             releaseAll()
@@ -262,6 +349,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         prepared.tonalPools.values.forEach { $0.releaseAll() }
         prepared.drums.releaseAll()
         prepared.piano.releaseAll()
+        prepared.happenings.releaseAll()
     }
 
     func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval) {
@@ -332,18 +420,22 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     private func release(
         _ tonalPools: [DayObjectsTonalVoicePoolProtocol],
         _ drums: DayObjectsDrumBankProtocol?,
-        _ piano: DayObjectsPianoPoolProtocol?
+        _ piano: DayObjectsPianoPoolProtocol?,
+        _ happenings: DayObjectsHappeningSamplePoolProtocol? = nil
     ) {
         tonalPools.forEach { $0.releaseAll() }
         drums?.releaseAll()
         piano?.releaseAll()
+        happenings?.releaseAll()
     }
 
     private struct PreparedState {
-        let configuration: DayObjectsInstrumentBankConfiguration
+        var level: PreparationLevel
+        let configuration: DayObjectsInstrumentBankConfiguration?
         let tonalPools: [String: DayObjectsTonalVoicePoolProtocol]
         let drums: DayObjectsDrumBankProtocol
         let piano: DayObjectsPianoPoolProtocol
+        let happenings: DayObjectsHappeningSamplePoolProtocol
         let graph: DayObjectsInstrumentBankGraph
         var state: DayObjectsInstrumentBankState
         var isAttached: Bool = true
@@ -472,8 +564,9 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
     let worldTrim: Fader
     let limiter: PeakLimiter
     private let tonalPools: [DayObjectsAudioKitTonalPool]
-    private let drums: DayObjectsAudioKitDrumBank
-    private let piano: DayObjectsAudioKitFeltPiano
+    private let drums: DayObjectsAudioKitDrumBank?
+    private let piano: DayObjectsAudioKitFeltPiano?
+    private let happenings: DayObjectsHappeningSamplePool
     private var outputGainTarget = 1.0
     private var outputGainRampDuration: TimeInterval = 0
     private var outputGainRampCount = 0
@@ -495,23 +588,27 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
     }
 
     var allocationFingerprint: DayObjectsInstrumentBankAllocationFingerprint {
-        let drumMetrics = drums.metrics
-        let pianoMetrics = piano.metrics
+        let drumMetrics = drums?.metrics
+        let pianoMetrics = piano?.metrics
+        let happeningMetrics = happenings.metrics
         return .init(
             tonalNodeIdentities: tonalPools.flatMap(\.voiceNodeIdentities),
-            drumPreloadedSampleCount: drumMetrics.preloadedSampleCount,
-            drumAllocatedNodeCount: drumMetrics.allocatedNodeCount,
-            drumFixedPlayerCount: drumMetrics.fixedPlayerCount,
-            pianoPreloadedSampleCount: pianoMetrics.preloadedSampleCount,
-            pianoLoadedPlayerCount: pianoMetrics.loadedPlayerCount,
-            pianoFixedBackendCount: pianoMetrics.fixedBackendCount
+            drumPreloadedSampleCount: drumMetrics?.preloadedSampleCount ?? 0,
+            drumAllocatedNodeCount: drumMetrics?.allocatedNodeCount ?? 0,
+            drumFixedPlayerCount: drumMetrics?.fixedPlayerCount ?? 0,
+            pianoPreloadedSampleCount: pianoMetrics?.preloadedSampleCount ?? 0,
+            pianoLoadedPlayerCount: pianoMetrics?.loadedPlayerCount ?? 0,
+            pianoFixedBackendCount: pianoMetrics?.fixedBackendCount ?? 0,
+            happeningFixedPlayerCount: happeningMetrics.allocatedPlayerCount,
+            happeningDecodedByteCount: happeningMetrics.decodedByteCount
         )
     }
 
     init(
         tonalPools: [DayObjectsAudioKitTonalPool],
-        drums: DayObjectsAudioKitDrumBank,
-        piano: DayObjectsAudioKitFeltPiano,
+        drums: DayObjectsAudioKitDrumBank?,
+        piano: DayObjectsAudioKitFeltPiano?,
+        happenings: DayObjectsHappeningSamplePool,
         outputGainHostTimeProvider: @escaping () -> TimeInterval,
         outputGainSampleRateProvider: @escaping () -> Double = {
             let rate = AVAudioSession.sharedInstance().sampleRate
@@ -521,16 +618,17 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         self.tonalPools = tonalPools
         self.drums = drums
         self.piano = piano
+        self.happenings = happenings
         self.outputGainHostTimeProvider = outputGainHostTimeProvider
         self.outputGainSampleRateProvider = outputGainSampleRateProvider
-        tonalBus = Mixer(tonalPools.map(\.output) + [piano.output], name: "Day Objects tonal bus")
-        drumBus = Mixer([drums.output], name: "Day Objects drum bus")
+        tonalBus = Mixer(tonalPools.map(\.output) + (piano.map { [$0.output] } ?? []), name: "Day Objects tonal bus")
+        drumBus = Mixer(drums.map { [$0.output] } ?? [], name: "Day Objects drum bus")
         // These are bus trims, not per-voice output trims. The shared voice
         // sanitizer intentionally caps voice gain at -6 dB, so using it here
         // would silently turn every requested -3 dB bus stage into -6 dB.
         tonalTrim = Fader(tonalBus, gain: AUValue(Self.linearGain(decibels: -3)))
         drumTrim = Fader(drumBus, gain: AUValue(Self.linearGain(decibels: -3)))
-        programBus = Mixer([tonalTrim, drumTrim], name: "Day Objects program bus")
+        programBus = Mixer([tonalTrim, drumTrim, happenings.output], name: "Day Objects program bus")
         delay = VariableDelay(programBus, time: 0.28, feedback: 0.35, maximumTime: 2, dryWetMix: 0.14)
         reverb = CostelloReverb(delay, balance: 0.12, feedback: 0.72, cutoffFrequency: 8_000)
         masterTrim = Fader(reverb, gain: AUValue(Self.linearGain(decibels: -3)))

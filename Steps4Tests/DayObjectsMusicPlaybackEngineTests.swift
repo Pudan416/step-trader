@@ -447,6 +447,24 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(runtime.metrics.happeningTokenCount, 0)
         XCTAssertTrue(runtime.happeningRecordIDsForTesting.isEmpty)
     }
+
+    func testLiveRuntimeUsesFourSamplePlayersPerPreparedWorldAndOneSharedEngineStart() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+
+        try await engine.start(plan: makePlaybackEnginePlan(seed: 0x404, happeningIDs: []))
+
+        let fingerprints = runtime.allocationSnapshotForTesting.instrumentAllocationFingerprint.compactMap { $0 }
+        XCTAssertEqual(fingerprints.count, 2)
+        XCTAssertTrue(fingerprints.allSatisfy { $0.happeningFixedPlayerCount == 4 })
+        XCTAssertTrue(fingerprints.allSatisfy { $0.happeningDecodedByteCount <= 48 * 1_024 * 1_024 })
+        XCTAssertEqual(runtime.playbackPairMetricsForTesting.sharedAudioEngineCount, 1)
+        XCTAssertEqual(runtime.playbackPairMetricsForTesting.sharedEngineStartCount, 1)
+
+        await engine.stop()
+    }
 }
 
 @MainActor

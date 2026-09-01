@@ -7,7 +7,6 @@ enum PlaybackWorldBankConfiguration {
             .init(name: PoolName.drone.rawValue, capacity: 1, reservesLeadVoice: false),
             .init(name: PoolName.primaryPad.rawValue, capacity: 4, reservesLeadVoice: false),
             .init(name: PoolName.secondaryPadOrKeys.rawValue, capacity: 2, reservesLeadVoice: false),
-            .init(name: PoolName.happenings.rawValue, capacity: 2, reservesLeadVoice: false),
             .init(name: PoolName.lead.rawValue, capacity: 1, reservesLeadVoice: true),
         ],
         pianoVoiceCount: 2,
@@ -28,8 +27,13 @@ enum PlaybackWorldBankConfiguration {
         case drone
         case primaryPad = "primary-pad"
         case secondaryPadOrKeys = "secondary-pad-or-keys"
-        case happenings
         case lead
+
+        // Transitional source compatibility until Task 5 moves the existing
+        // scheduler to the sample pool. This is an alias, not an allocated
+        // Happening tonal pool, and therefore does not change allCases or the
+        // fixed eight-voice tonal budget.
+        static var happenings: Self { .secondaryPadOrKeys }
     }
 }
 
@@ -52,6 +56,7 @@ final class PlaybackWorldBank {
 
     var drums: DayObjectsDrumBankProtocol { instrumentBank.drums }
     var piano: DayObjectsPianoPoolProtocol { instrumentBank.piano }
+    var happenings: DayObjectsHappeningSamplePoolProtocol { instrumentBank.happenings }
     var outputGainMetrics: DayObjectsBankOutputGainMetrics {
         instrumentBank.outputGainMetrics
     }

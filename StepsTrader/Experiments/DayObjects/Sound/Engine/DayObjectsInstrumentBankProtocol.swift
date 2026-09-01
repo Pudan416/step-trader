@@ -121,6 +121,30 @@ struct DayObjectsInstrumentBankAllocationFingerprint: Equatable, Sendable {
     let pianoPreloadedSampleCount: Int
     let pianoLoadedPlayerCount: Int
     let pianoFixedBackendCount: Int
+    let happeningFixedPlayerCount: Int
+    let happeningDecodedByteCount: Int
+
+    init(
+        tonalNodeIdentities: [ObjectIdentifier],
+        drumPreloadedSampleCount: Int,
+        drumAllocatedNodeCount: Int,
+        drumFixedPlayerCount: Int,
+        pianoPreloadedSampleCount: Int,
+        pianoLoadedPlayerCount: Int,
+        pianoFixedBackendCount: Int,
+        happeningFixedPlayerCount: Int = 0,
+        happeningDecodedByteCount: Int = 0
+    ) {
+        self.tonalNodeIdentities = tonalNodeIdentities
+        self.drumPreloadedSampleCount = drumPreloadedSampleCount
+        self.drumAllocatedNodeCount = drumAllocatedNodeCount
+        self.drumFixedPlayerCount = drumFixedPlayerCount
+        self.pianoPreloadedSampleCount = pianoPreloadedSampleCount
+        self.pianoLoadedPlayerCount = pianoLoadedPlayerCount
+        self.pianoFixedBackendCount = pianoFixedBackendCount
+        self.happeningFixedPlayerCount = happeningFixedPlayerCount
+        self.happeningDecodedByteCount = happeningDecodedByteCount
+    }
 }
 
 struct DayObjectsBankOutputGainAutomation: Equatable, Sendable {
@@ -263,6 +287,31 @@ struct DayObjectsInstrumentBankMetrics: Equatable, Sendable {
     let allocationFingerprint: DayObjectsInstrumentBankAllocationFingerprint?
     let drumMetrics: DayObjectsDrumBankMetrics
     let pianoMetrics: DayObjectsFeltPianoMetrics
+    let happeningMetrics: HappeningSamplePoolMetrics
+    let engineInstanceCount: Int
+    let engineStartCount: Int
+
+    init(
+        state: DayObjectsInstrumentBankState,
+        tonalPoolCount: Int,
+        graph: DayObjectsInstrumentBankGraphLayout?,
+        allocationFingerprint: DayObjectsInstrumentBankAllocationFingerprint?,
+        drumMetrics: DayObjectsDrumBankMetrics,
+        pianoMetrics: DayObjectsFeltPianoMetrics,
+        happeningMetrics: HappeningSamplePoolMetrics = .inactive,
+        engineInstanceCount: Int = 1,
+        engineStartCount: Int = 0
+    ) {
+        self.state = state
+        self.tonalPoolCount = tonalPoolCount
+        self.graph = graph
+        self.allocationFingerprint = allocationFingerprint
+        self.drumMetrics = drumMetrics
+        self.pianoMetrics = pianoMetrics
+        self.happeningMetrics = happeningMetrics
+        self.engineInstanceCount = engineInstanceCount
+        self.engineStartCount = engineStartCount
+    }
 }
 
 @MainActor
@@ -271,6 +320,7 @@ protocol DayObjectsInstrumentBankProtocol: AnyObject {
     var metrics: DayObjectsInstrumentBankMetrics { get }
     var drums: DayObjectsDrumBankProtocol { get }
     var piano: DayObjectsPianoPoolProtocol { get }
+    var happenings: DayObjectsHappeningSamplePoolProtocol { get }
     var outputGainMetrics: DayObjectsBankOutputGainMetrics { get }
     var programEffectMetrics: DayObjectsProgramEffectMetrics { get }
 
@@ -294,6 +344,9 @@ protocol DayObjectsInstrumentBankProtocol: AnyObject {
 }
 
 extension DayObjectsInstrumentBankProtocol {
+    var happenings: DayObjectsHappeningSamplePoolProtocol {
+        DayObjectsInactiveHappeningSamplePool()
+    }
     var outputGainMetrics: DayObjectsBankOutputGainMetrics { .unsupported }
     var programEffectMetrics: DayObjectsProgramEffectMetrics { .unsupported }
     func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval) {}
