@@ -281,6 +281,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
                 graph: graph,
                 state: previousPrepared?.state ?? .prepared
             )
+            if previousPrepared != nil { builtHappenings.releaseAll() }
         } catch let error as DayObjectsInstrumentBankError {
             release(builtTonalPools, builtDrums, builtPiano, previousPrepared == nil ? builtHappenings : nil)
             if previousPrepared == nil {

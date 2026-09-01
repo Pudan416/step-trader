@@ -39,15 +39,74 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(bank.metrics.happeningMetrics.allocatedPlayerCount, 4)
     }
 
+    func testSuccessfulSampleOnlyUpgradeHardReleasesManualAuditionsWithoutRebuildingSampleGraph() throws {
+        let bank = DayObjectsInstrumentBank(bundle: Bundle(for: type(of: self)))
+        let allRecipeIDs = Set(HappeningSoundCatalog.recipes.map(\.id))
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 1))
+        let recipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: recipeID))
+        let source = try XCTUnwrap(recipe.sources.first)
+        let sound = ResolvedHappeningSound(
+            recipeID: recipe.id,
+            resourceName: source.resourceName,
+            sourceRootMIDI: source.rootMIDI,
+            targetMIDI: source.rootMIDI,
+            playbackRate: 1,
+            resonantFilterHz: nil
+        )
+
+        try bank.prepare(level: .sampleOnly(allRecipeIDs))
+        try bank.start()
+        let pool = bank.happenings
+        let players = pool.metrics.fixedPlayerIdentities
+        let buffers = pool.metrics.decodedBufferIdentities
+        let bytes = pool.metrics.decodedByteCount
+        let topology = bank.metrics.engineTopology
+        let manualVoices = try Set((0..<4).map { _ in
+            try pool.play(sound, gain: 1, priority: .manualAudition)
+        })
+        XCTAssertEqual(manualVoices.count, 4)
+        XCTAssertEqual(pool.metrics.activeVoiceCount, 4)
+
+        try bank.prepare(level: .fullMusic(.playbackWorld))
+
+        XCTAssertTrue(bank.happenings === pool)
+        XCTAssertEqual(pool.metrics.fixedPlayerIdentities, players)
+        XCTAssertEqual(pool.metrics.decodedBufferIdentities, buffers)
+        XCTAssertEqual(pool.metrics.decodedByteCount, bytes)
+        XCTAssertEqual(bank.metrics.engineTopology, topology)
+        XCTAssertEqual(pool.metrics.activeVoiceCount, 0)
+        XCTAssertEqual(pool.metrics.releasingVoiceCount, 0)
+        XCTAssertNoThrow(try pool.play(sound, gain: 1, priority: .birth))
+        XCTAssertNoThrow(try pool.play(sound, gain: 1, priority: .recurrence))
+        XCTAssertEqual(pool.metrics.activeVoiceCount, 2)
+        bank.releaseAll()
+    }
+
     func testStartedSampleOnlyUpgradeFailuresKeepRunningGraphAndRetryTransactionally() throws {
         for stage in DayObjectsInstrumentBankPreparationStage.allCases {
             let harness = makeHarness()
+            let allRecipeIDs = Set(HappeningSoundCatalog.recipes.map(\.id))
             let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 1))
-            try harness.bank.prepare(level: .sampleOnly([recipeID]))
+            let sound = ResolvedHappeningSound(
+                recipeID: recipeID,
+                resourceName: "one.wav",
+                sourceRootMIDI: 60,
+                targetMIDI: 60,
+                playbackRate: 1,
+                resonantFilterHz: nil
+            )
+            try harness.bank.prepare(level: .sampleOnly(allRecipeIDs))
             try harness.bank.start()
+            let pool = try XCTUnwrap(harness.bank.happenings as? FakeHappeningSamplePool)
+            for _ in 0..<4 {
+                _ = try pool.play(sound, gain: 1, priority: .manualAudition)
+            }
             let originalGraph = try XCTUnwrap(harness.engine.attachedGraph)
             let originalPlayerIdentities = harness.bank.happenings.metrics.fixedPlayerIdentities
+            let originalBufferIdentities = harness.bank.happenings.metrics.decodedBufferIdentities
+            let originalDecodedBytes = harness.bank.happenings.metrics.decodedByteCount
             let originalTopology = harness.bank.metrics.engineTopology
+            XCTAssertEqual(pool.metrics.activeVoiceCount, 4)
 
             harness.failingAt = stage
             harness.engine.attachError = stage == .engine ? InjectedFailure() : nil
@@ -59,8 +118,12 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
             XCTAssertTrue(harness.engine.isRunning, "stage: \(stage)")
             XCTAssertTrue(harness.engine.attachedGraph === originalGraph, "stage: \(stage)")
             XCTAssertEqual(harness.bank.happenings.metrics.fixedPlayerIdentities, originalPlayerIdentities)
+            XCTAssertEqual(harness.bank.happenings.metrics.decodedBufferIdentities, originalBufferIdentities)
+            XCTAssertEqual(harness.bank.happenings.metrics.decodedByteCount, originalDecodedBytes)
             XCTAssertEqual(harness.bank.metrics.engineTopology, originalTopology, "stage: \(stage)")
             XCTAssertEqual(harness.bank.metrics.engineTopology.finalPeakLimiterIdentities.count, 1)
+            XCTAssertEqual(pool.metrics.activeVoiceCount, 4, "stage: \(stage)")
+            XCTAssertEqual(pool.releaseAllCount, 0, "stage: \(stage)")
 
             harness.failingAt = nil
             harness.engine.attachError = nil
@@ -68,7 +131,14 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
             XCTAssertEqual(harness.bank.metrics.state, .started)
             XCTAssertTrue(harness.engine.isRunning)
             XCTAssertEqual(harness.bank.happenings.metrics.fixedPlayerIdentities, originalPlayerIdentities)
+            XCTAssertEqual(harness.bank.happenings.metrics.decodedBufferIdentities, originalBufferIdentities)
+            XCTAssertEqual(harness.bank.happenings.metrics.decodedByteCount, originalDecodedBytes)
             XCTAssertEqual(harness.bank.metrics.engineTopology, originalTopology)
+            XCTAssertEqual(pool.releaseAllCount, 1)
+            XCTAssertEqual(pool.metrics.activeVoiceCount, 0)
+            XCTAssertEqual(pool.metrics.releasingVoiceCount, 0)
+            XCTAssertNoThrow(try pool.play(sound, gain: 1, priority: .birth))
+            XCTAssertNoThrow(try pool.play(sound, gain: 1, priority: .recurrence))
         }
     }
 
@@ -724,17 +794,23 @@ private final class FakePianoPool: DayObjectsPianoPoolProtocol {
 @MainActor
 private final class FakeHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol {
     let onRelease: () -> Void
+    private let playerTokens = (0..<4).map { _ in NSObject() }
     private var preparedIDs: Set<HappeningSoundRecipeID> = []
+    private var bufferTokens: [HappeningSoundRecipeID: NSObject] = [:]
+    private var activePriorities: [Int: HappeningPlaybackPriority] = [:]
+    private(set) var releaseAllCount = 0
     init(onRelease: @escaping () -> Void) { self.onRelease = onRelease }
     var metrics: HappeningSamplePoolMetrics {
         .init(
             allocatedPlayerCount: 4,
-            fixedPlayerIdentities: [],
-            activeVoiceCount: 0,
-            releasingVoiceCount: 4,
+            fixedPlayerIdentities: playerTokens.map(ObjectIdentifier.init),
+            activeVoiceCount: activePriorities.count,
+            releasingVoiceCount: 0,
             stealCount: 0,
             decodedBufferCount: preparedIDs.count,
-            decodedBufferIdentities: [],
+            decodedBufferIdentities: preparedIDs.sorted(by: { $0.rawValue < $1.rawValue }).compactMap {
+                bufferTokens[$0].map(ObjectIdentifier.init)
+            },
             decodedByteCount: preparedIDs.count * 1_024,
             availableRecipeIDs: preparedIDs,
             unavailableRecipeIDs: [],
@@ -742,15 +818,33 @@ private final class FakeHappeningSamplePool: DayObjectsHappeningSamplePoolProtoc
             lastEffectRampSeconds: 0
         )
     }
-    func prepare(recipeIDs: Set<HappeningSoundRecipeID>) throws { preparedIDs.formUnion(recipeIDs) }
+    func prepare(recipeIDs: Set<HappeningSoundRecipeID>) throws {
+        for id in recipeIDs where bufferTokens[id] == nil { bufferTokens[id] = NSObject() }
+        preparedIDs.formUnion(recipeIDs)
+    }
     func play(
         _ sound: ResolvedHappeningSound,
         gain: Double,
         priority: HappeningPlaybackPriority
-    ) throws -> Int { 0 }
+    ) throws -> Int {
+        if let idle = (0..<4).first(where: { activePriorities[$0] == nil }) {
+            activePriorities[idle] = priority
+            return idle
+        }
+        guard let eligible = activePriorities
+            .filter({ $0.value < priority })
+            .map(\.key)
+            .min() else { throw HappeningSamplePoolError.noEligibleVoice }
+        activePriorities[eligible] = priority
+        return eligible
+    }
     func applyEffects(_ command: HappeningEffectCommand, rampSeconds: Double) {}
-    func stop(voiceID: Int) {}
-    func releaseAll() { onRelease() }
+    func stop(voiceID: Int) { activePriorities[voiceID] = nil }
+    func releaseAll() {
+        releaseAllCount += 1
+        activePriorities.removeAll()
+        onRelease()
+    }
 }
 
 @MainActor
