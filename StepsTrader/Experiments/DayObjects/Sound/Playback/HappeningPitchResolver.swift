@@ -16,8 +16,14 @@ enum HappeningPitchResolver {
                 chordPitchClasses: chord.chordPitchClasses,
                 centerPitchClass: tonalWorld.centerPitchClass
             )
-            let source = nearestSource(to: target, in: recipe.sources)
-            let semitoneOffset = min(max(Int(target) - Int(source.rootMIDI), -2), 2)
+            guard let source = nearestSource(
+                to: target,
+                in: recipe.sources,
+                maximumDistance: 2
+            ) else {
+                preconditionFailure("Tonal happening recipes must provide a source within two semitones of the target")
+            }
+            let semitoneOffset = Int(target) - Int(source.rootMIDI)
             return ResolvedHappeningSound(
                 recipeID: recipe.id,
                 resourceName: source.resourceName,
@@ -28,17 +34,15 @@ enum HappeningPitchResolver {
             )
 
         case let .resonantNoise(referenceMIDI, preferredRange, resonatorTargetPitchClasses):
-            let source = nearestSource(to: referenceMIDI, in: recipe.sources)
-            let chordTarget = chordTarget(
+            guard let source = nearestSource(to: referenceMIDI, in: recipe.sources) else {
+                preconditionFailure("Happening recipes must declare a sample source")
+            }
+            let resonantTarget = resonantChordTarget(
                 in: preferredRange,
                 chordPitchClasses: chord.chordPitchClasses,
-                centerPitchClass: tonalWorld.centerPitchClass
+                centerPitchClass: tonalWorld.centerPitchClass,
+                preferredPitchClasses: resonatorTargetPitchClasses.map(Int.init)
             )
-            let resonantTarget = nearestNote(
-                in: preferredRange,
-                pitchClasses: resonatorTargetPitchClasses.map(Int.init),
-                to: chordTarget
-            ) ?? referenceMIDI
             return ResolvedHappeningSound(
                 recipeID: recipe.id,
                 resourceName: source.resourceName,
@@ -112,16 +116,75 @@ enum HappeningPitchResolver {
         chordPitchClasses: [Int],
         centerPitchClass: Int
     ) -> UInt8 {
-        let preferredCenter = nearestNote(
+        let preferredCenter = preferredCenter(
             in: preferredRange,
-            pitchClasses: [centerPitchClass],
-            to: UInt8((Int(preferredRange.lowerBound) + Int(preferredRange.upperBound)) / 2)
-        ) ?? preferredRange.lowerBound
+            centerPitchClass: centerPitchClass
+        )
         return nearestNote(
             in: preferredRange,
             pitchClasses: chordPitchClasses,
             to: preferredCenter
         ) ?? preferredCenter
+    }
+
+    private static func preferredCenter(
+        in preferredRange: ClosedRange<UInt8>,
+        centerPitchClass: Int
+    ) -> UInt8 {
+        nearestNote(
+            in: preferredRange,
+            pitchClasses: [centerPitchClass],
+            to: UInt8((Int(preferredRange.lowerBound) + Int(preferredRange.upperBound)) / 2)
+        ) ?? preferredRange.lowerBound
+    }
+
+    private static func resonantChordTarget(
+        in preferredRange: ClosedRange<UInt8>,
+        chordPitchClasses: [Int],
+        centerPitchClass: Int,
+        preferredPitchClasses: [Int]
+    ) -> UInt8 {
+        let desired = preferredCenter(
+            in: preferredRange,
+            centerPitchClass: centerPitchClass
+        )
+        let allowedPitchClasses = Set(chordPitchClasses.map(normalizedPitchClass))
+        guard let target = (preferredRange
+            .filter { allowedPitchClasses.contains(Int($0) % 12) }
+            .min(by: {
+                let leftCenterDistance = abs(Int($0) - Int(desired))
+                let rightCenterDistance = abs(Int($1) - Int(desired))
+                if leftCenterDistance != rightCenterDistance {
+                    return leftCenterDistance < rightCenterDistance
+                }
+
+                let leftPreferenceDistance = pitchClassDistance(
+                    from: Int($0) % 12,
+                    to: preferredPitchClasses
+                )
+                let rightPreferenceDistance = pitchClassDistance(
+                    from: Int($1) % 12,
+                    to: preferredPitchClasses
+                )
+                if leftPreferenceDistance != rightPreferenceDistance {
+                    return leftPreferenceDistance < rightPreferenceDistance
+                }
+
+                return $0 < $1
+            })) else {
+                preconditionFailure("Resonant happening ranges must contain a current chord tone")
+            }
+        return target
+    }
+
+    private static func pitchClassDistance(from pitchClass: Int, to preferredPitchClasses: [Int]) -> Int {
+        preferredPitchClasses
+            .map(normalizedPitchClass)
+            .map {
+                let distance = abs(normalizedPitchClass(pitchClass) - $0)
+                return min(distance, 12 - distance)
+            }
+            .min() ?? 0
     }
 
     private static func nearestNote(
@@ -142,15 +205,20 @@ enum HappeningPitchResolver {
 
     private static func nearestSource(
         to target: UInt8,
-        in sources: [HappeningSampleSource]
-    ) -> HappeningSampleSource {
-        sources.min {
-            let leftDistance = abs(Int($0.rootMIDI) - Int(target))
-            let rightDistance = abs(Int($1.rootMIDI) - Int(target))
-            if leftDistance != rightDistance { return leftDistance < rightDistance }
-            if $0.rootMIDI != $1.rootMIDI { return $0.rootMIDI < $1.rootMIDI }
-            return $0.resourceName < $1.resourceName
-        }!
+        in sources: [HappeningSampleSource],
+        maximumDistance: Int? = nil
+    ) -> HappeningSampleSource? {
+        sources
+            .filter { source in
+                maximumDistance.map { abs(Int(source.rootMIDI) - Int(target)) <= $0 } ?? true
+            }
+            .min {
+                let leftDistance = abs(Int($0.rootMIDI) - Int(target))
+                let rightDistance = abs(Int($1.rootMIDI) - Int(target))
+                if leftDistance != rightDistance { return leftDistance < rightDistance }
+                if $0.rootMIDI != $1.rootMIDI { return $0.rootMIDI < $1.rootMIDI }
+                return $0.resourceName < $1.resourceName
+            }
     }
 }
 #endif
