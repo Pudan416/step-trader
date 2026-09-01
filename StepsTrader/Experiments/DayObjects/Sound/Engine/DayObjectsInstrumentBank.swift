@@ -52,6 +52,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
             drumMetrics: drums.metrics,
             pianoMetrics: piano.metrics,
             happeningMetrics: happenings.metrics,
+            engineTopology: engine.topologyMetrics,
             engineInstanceCount: 1,
             engineStartCount: successfulEngineStartCount
         )
@@ -79,9 +80,11 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     }
 
     convenience init(bundle: Bundle = .main) {
+        let happenings = DayObjectsHappeningSamplePool(bundle: bundle)
         self.init(
             bundle: bundle,
-            engine: DayObjectsAudioKitInstrumentBankEngine(),
+            engine: DayObjectsAudioKitInstrumentBankEngine(happenings: happenings),
+            happenings: happenings,
             outputGainHostTimeProvider: { ProcessInfo.processInfo.systemUptime }
         )
     }
@@ -89,6 +92,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     private convenience init(
         bundle: Bundle,
         engine: DayObjectsInstrumentBankEngine,
+        happenings: DayObjectsHappeningSamplePool,
         outputGainHostTimeProvider: @escaping () -> TimeInterval
     ) {
         let descriptors = DayObjectsInstrumentManifest.defaultDescriptors
@@ -122,7 +126,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
                 return DayObjectsAudioKitPianoPoolAdapter(adapter)
             },
             happeningPoolFactory: {
-                DayObjectsHappeningSamplePool(bundle: bundle)
+                happenings
             },
             graphFactory: { tonalPools, drums, piano, happenings in
                 guard let tonalAdapters = tonalPools.compactMap({
@@ -131,13 +135,12 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
                       tonalAdapters.count == tonalPools.count,
                       drums == nil || drums is DayObjectsAudioKitDrumBankAdapter,
                       piano == nil || piano is DayObjectsAudioKitPianoPoolAdapter,
-                      let happeningPool = happenings as? DayObjectsHappeningSamplePool
+                      happenings is DayObjectsHappeningSamplePool
                 else { throw DayObjectsInstrumentBankError.preparationFailed(.graph) }
                 return DayObjectsAudioKitInstrumentBankGraph(
                     tonalPools: tonalAdapters,
                     drums: (drums as? DayObjectsAudioKitDrumBankAdapter)?.adapter,
                     piano: (piano as? DayObjectsAudioKitPianoPoolAdapter)?.adapter,
-                    happenings: happeningPool,
                     outputGainHostTimeProvider: outputGainHostTimeProvider
                 )
             },
@@ -152,15 +155,18 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
             ProcessInfo.processInfo.systemUptime
         }
     ) -> DayObjectsPlaybackBankPair {
-        let sharedEngine = DayObjectsSharedInstrumentBankEngine()
+        let happenings = DayObjectsHappeningSamplePool(bundle: bundle)
+        let sharedEngine = DayObjectsSharedInstrumentBankEngine(happenings: happenings)
         let bankA = DayObjectsInstrumentBank(
             bundle: bundle,
             engine: DayObjectsPairedInstrumentBankEngine(slot: .a, shared: sharedEngine),
+            happenings: happenings,
             outputGainHostTimeProvider: outputGainHostTimeProvider
         )
         let bankB = DayObjectsInstrumentBank(
             bundle: bundle,
             engine: DayObjectsPairedInstrumentBankEngine(slot: .b, shared: sharedEngine),
+            happenings: happenings,
             outputGainHostTimeProvider: outputGainHostTimeProvider
         )
         return DayObjectsPlaybackBankPair(
@@ -262,11 +268,6 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
             let graph: DayObjectsInstrumentBankGraph
             do { graph = try graphFactory(builtTonalPools, builtDrums, builtPiano, builtHappenings) }
             catch { throw DayObjectsInstrumentBankError.preparationFailed(.graph) }
-            if previousPrepared != nil {
-                previousPrepared?.happenings.releaseAll()
-                engine.stop()
-                engine.detach()
-            }
             do { try engine.attach(graph: graph) }
             catch { throw DayObjectsInstrumentBankError.preparationFailed(.engine) }
 
@@ -278,21 +279,21 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
                 piano: builtPiano,
                 happenings: builtHappenings,
                 graph: graph,
-                state: .prepared
+                state: previousPrepared?.state ?? .prepared
             )
         } catch let error as DayObjectsInstrumentBankError {
             release(builtTonalPools, builtDrums, builtPiano, previousPrepared == nil ? builtHappenings : nil)
-            engine.stop()
-            engine.detach()
-            prepared = previousPrepared
-            if let previousPrepared { try? engine.attach(graph: previousPrepared.graph) }
+            if previousPrepared == nil {
+                engine.stop()
+                engine.detach()
+            }
             throw error
         } catch {
             release(builtTonalPools, builtDrums, builtPiano, previousPrepared == nil ? builtHappenings : nil)
-            engine.stop()
-            engine.detach()
-            prepared = previousPrepared
-            if let previousPrepared { try? engine.attach(graph: previousPrepared.graph) }
+            if previousPrepared == nil {
+                engine.stop()
+                engine.detach()
+            }
             throw DayObjectsInstrumentBankError.preparationFailed(.graph)
         }
     }
@@ -552,7 +553,7 @@ private final class DayObjectsAudioKitPianoPoolAdapter: DayObjectsPianoPoolProto
 }
 
 private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentBankGraph {
-    var layout: DayObjectsInstrumentBankGraphLayout { .init(tonalBusCount: 1, drumBusCount: 1, sharedSpatialEffectCount: 2, tonalBusGainDB: Self.decibels(tonalTrim.leftGain), drumBusGainDB: Self.decibels(drumTrim.leftGain), masterTrimDB: Self.decibels(masterTrim.leftGain), finalPeakLimiterCount: 1) }
+    var layout: DayObjectsInstrumentBankGraphLayout { .init(tonalBusCount: 1, drumBusCount: 1, sharedSpatialEffectCount: 2, tonalBusGainDB: Self.decibels(tonalTrim.leftGain), drumBusGainDB: Self.decibels(drumTrim.leftGain), masterTrimDB: Self.decibels(masterTrim.leftGain), finalPeakLimiterCount: 0) }
     let tonalBus: Mixer
     let drumBus: Mixer
     let tonalTrim: Fader
@@ -562,11 +563,9 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
     let reverb: CostelloReverb
     let masterTrim: Fader
     let worldTrim: Fader
-    let limiter: PeakLimiter
     private let tonalPools: [DayObjectsAudioKitTonalPool]
     private let drums: DayObjectsAudioKitDrumBank?
     private let piano: DayObjectsAudioKitFeltPiano?
-    private let happenings: DayObjectsHappeningSamplePool
     private var outputGainTarget = 1.0
     private var outputGainRampDuration: TimeInterval = 0
     private var outputGainRampCount = 0
@@ -590,7 +589,6 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
     var allocationFingerprint: DayObjectsInstrumentBankAllocationFingerprint {
         let drumMetrics = drums?.metrics
         let pianoMetrics = piano?.metrics
-        let happeningMetrics = happenings.metrics
         return .init(
             tonalNodeIdentities: tonalPools.flatMap(\.voiceNodeIdentities),
             drumPreloadedSampleCount: drumMetrics?.preloadedSampleCount ?? 0,
@@ -598,9 +596,7 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
             drumFixedPlayerCount: drumMetrics?.fixedPlayerCount ?? 0,
             pianoPreloadedSampleCount: pianoMetrics?.preloadedSampleCount ?? 0,
             pianoLoadedPlayerCount: pianoMetrics?.loadedPlayerCount ?? 0,
-            pianoFixedBackendCount: pianoMetrics?.fixedBackendCount ?? 0,
-            happeningFixedPlayerCount: happeningMetrics.allocatedPlayerCount,
-            happeningDecodedByteCount: happeningMetrics.decodedByteCount
+            pianoFixedBackendCount: pianoMetrics?.fixedBackendCount ?? 0
         )
     }
 
@@ -608,7 +604,6 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         tonalPools: [DayObjectsAudioKitTonalPool],
         drums: DayObjectsAudioKitDrumBank?,
         piano: DayObjectsAudioKitFeltPiano?,
-        happenings: DayObjectsHappeningSamplePool,
         outputGainHostTimeProvider: @escaping () -> TimeInterval,
         outputGainSampleRateProvider: @escaping () -> Double = {
             let rate = AVAudioSession.sharedInstance().sampleRate
@@ -618,7 +613,6 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         self.tonalPools = tonalPools
         self.drums = drums
         self.piano = piano
-        self.happenings = happenings
         self.outputGainHostTimeProvider = outputGainHostTimeProvider
         self.outputGainSampleRateProvider = outputGainSampleRateProvider
         tonalBus = Mixer(tonalPools.map(\.output) + (piano.map { [$0.output] } ?? []), name: "Day Objects tonal bus")
@@ -628,12 +622,11 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         // would silently turn every requested -3 dB bus stage into -6 dB.
         tonalTrim = Fader(tonalBus, gain: AUValue(Self.linearGain(decibels: -3)))
         drumTrim = Fader(drumBus, gain: AUValue(Self.linearGain(decibels: -3)))
-        programBus = Mixer([tonalTrim, drumTrim, happenings.output], name: "Day Objects program bus")
+        programBus = Mixer([tonalTrim, drumTrim], name: "Day Objects program bus")
         delay = VariableDelay(programBus, time: 0.28, feedback: 0.35, maximumTime: 2, dryWetMix: 0.14)
         reverb = CostelloReverb(delay, balance: 0.12, feedback: 0.72, cutoffFrequency: 8_000)
         masterTrim = Fader(reverb, gain: AUValue(Self.linearGain(decibels: -3)))
         worldTrim = Fader(masterTrim, gain: 1)
-        limiter = PeakLimiter(worldTrim)
         currentProgramEffectMetrics = .init(
             isSupported: true,
             masterLinearGain: Double(masterTrim.leftGain),
@@ -783,15 +776,40 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
 
 private final class DayObjectsAudioKitInstrumentBankEngine: DayObjectsInstrumentBankEngine {
     private let engine = AudioEngine()
+    private let outputMixer: Mixer
+    private let masterTrim: Fader
+    private let limiter: PeakLimiter
+    private var graph: DayObjectsAudioKitInstrumentBankGraph?
+
+    var topologyMetrics: DayObjectsInstrumentBankEngineTopologyMetrics {
+        .init(
+            persistentMasterNodeIdentities: [ObjectIdentifier(outputMixer), ObjectIdentifier(masterTrim)],
+            finalPeakLimiterIdentities: [ObjectIdentifier(limiter)]
+        )
+    }
+
+    init(happenings: DayObjectsHappeningSamplePool) {
+        outputMixer = Mixer([happenings.output], name: "Day Objects persistent master")
+        masterTrim = Fader(outputMixer, gain: 1)
+        limiter = PeakLimiter(masterTrim)
+        engine.output = limiter
+    }
 
     func attach(graph: any DayObjectsInstrumentBankGraph) throws {
         guard let graph = graph as? DayObjectsAudioKitInstrumentBankGraph else {
             throw DayObjectsInstrumentBankError.preparationFailed(.engine)
         }
-        engine.output = graph.limiter
+        if let existing = self.graph, existing !== graph {
+            outputMixer.removeInput(existing.worldTrim)
+        }
+        outputMixer.addInput(graph.worldTrim)
+        self.graph = graph
     }
 
-    func detach() { engine.output = nil }
+    func detach() {
+        if let graph { outputMixer.removeInput(graph.worldTrim) }
+        graph = nil
+    }
     func start() throws { try engine.start() }
     func stop() { engine.stop() }
 }
@@ -814,6 +832,10 @@ struct DayObjectsPlaybackBankPairMetrics: Equatable, Sendable {
     let sharedMasterTrimDecibels: Double
     let fixedSharedNodeCount: Int
     let fixedSharedNodeIdentities: [ObjectIdentifier]
+    let happeningFixedPlayerIdentities: [ObjectIdentifier]
+    let happeningDecodedBufferIdentities: [ObjectIdentifier]
+    let happeningDecodedByteCount: Int
+    let finalPeakLimiterIdentities: [ObjectIdentifier]
     let lifecycleState: DayObjectsPlaybackBankPairLifecycleState
     let sharedEngineIsRunning: Bool
     let sharedEngineStartCount: Int
@@ -921,6 +943,10 @@ private final class DayObjectsPairedInstrumentBankEngine: DayObjectsInstrumentBa
         self.shared = shared
     }
 
+    var topologyMetrics: DayObjectsInstrumentBankEngineTopologyMetrics {
+        shared.topologyMetrics
+    }
+
     func attach(graph: any DayObjectsInstrumentBankGraph) throws {
         try shared.attach(graph: graph, slot: slot)
     }
@@ -938,15 +964,34 @@ private final class DayObjectsSharedInstrumentBankEngine {
     private let engine = AudioEngine()
     private var graphs: [DayObjectsPlaybackBankSlot: DayObjectsAudioKitInstrumentBankGraph] = [:]
     private var attachedSlots: Set<DayObjectsPlaybackBankSlot> = []
-    private var outputMixer: Mixer?
-    private var masterTrim: Fader?
-    private var limiter: PeakLimiter?
+    private let outputMixer: Mixer
+    private let masterTrim: Fader
+    private let limiter: PeakLimiter
+    private let happenings: DayObjectsHappeningSamplePool
     private var individuallyStartedSlots: Set<DayObjectsPlaybackBankSlot> = []
     private var pairIsRunning = false
     private var startCount = 0
     private var stopCount = 0
     var canAcquirePairOwnership: Bool {
         individuallyStartedSlots.isEmpty && !pairIsRunning
+    }
+
+    init(happenings: DayObjectsHappeningSamplePool) {
+        self.happenings = happenings
+        outputMixer = Mixer([happenings.output], name: "Day Objects shared persistent master")
+        masterTrim = Fader(
+            outputMixer,
+            gain: AUValue(pow(10, Self.masterTrimDecibels / 20))
+        )
+        limiter = PeakLimiter(masterTrim)
+        engine.output = limiter
+    }
+
+    var topologyMetrics: DayObjectsInstrumentBankEngineTopologyMetrics {
+        .init(
+            persistentMasterNodeIdentities: [ObjectIdentifier(outputMixer), ObjectIdentifier(masterTrim)],
+            finalPeakLimiterIdentities: [ObjectIdentifier(limiter)]
+        )
     }
 
     func attach(
@@ -957,13 +1002,11 @@ private final class DayObjectsSharedInstrumentBankEngine {
             throw DayObjectsInstrumentBankError.preparationFailed(.engine)
         }
         if let existing = graphs[slot], existing !== graph {
-            outputMixer = nil
-            masterTrim = nil
-            limiter = nil
+            outputMixer.removeInput(existing.worldTrim)
         }
         graphs[slot] = graph
         attachedSlots.insert(slot)
-        try connectIfComplete()
+        outputMixer.addInput(graph.worldTrim)
     }
 
     func releaseAttachmentRequest(slot: DayObjectsPlaybackBankSlot) {
@@ -975,7 +1018,7 @@ private final class DayObjectsSharedInstrumentBankEngine {
     func requestIndividualStart(slot: DayObjectsPlaybackBankSlot) throws {
         guard !pairIsRunning else { throw DayObjectsInstrumentBankError.startFailed }
         guard !individuallyStartedSlots.contains(slot) else { return }
-        guard attachedSlots.contains(slot), let limiter else {
+        guard attachedSlots.contains(slot) else {
             throw DayObjectsInstrumentBankError.notPrepared
         }
         engine.output = limiter
@@ -996,7 +1039,7 @@ private final class DayObjectsSharedInstrumentBankEngine {
     }
 
     func startPair() throws {
-        guard attachedSlots.count == 2, let limiter else {
+        guard attachedSlots.count == 2 else {
             throw DayObjectsInstrumentBankError.notPrepared
         }
         guard !pairIsRunning else { return }
@@ -1023,16 +1066,21 @@ private final class DayObjectsSharedInstrumentBankEngine {
         allocationFingerprint: [DayObjectsInstrumentBankAllocationFingerprint?]
     ) -> DayObjectsPlaybackBankPairMetrics {
         var fixedNodeIdentities: [ObjectIdentifier] = []
-        if let outputMixer { fixedNodeIdentities.append(ObjectIdentifier(outputMixer)) }
-        if let masterTrim { fixedNodeIdentities.append(ObjectIdentifier(masterTrim)) }
-        if let limiter { fixedNodeIdentities.append(ObjectIdentifier(limiter)) }
+        fixedNodeIdentities.append(ObjectIdentifier(outputMixer))
+        fixedNodeIdentities.append(ObjectIdentifier(masterTrim))
+        fixedNodeIdentities.append(ObjectIdentifier(limiter))
+        let happeningMetrics = happenings.metrics
         return .init(
             attachedBankCount: attachedSlots.count,
             sharedAudioEngineCount: 1,
-            finalPeakLimiterCount: limiter == nil ? 0 : 1,
+            finalPeakLimiterCount: 1,
             sharedMasterTrimDecibels: Self.masterTrimDecibels,
-            fixedSharedNodeCount: limiter == nil ? 0 : 3,
+            fixedSharedNodeCount: 3,
             fixedSharedNodeIdentities: fixedNodeIdentities,
+            happeningFixedPlayerIdentities: happeningMetrics.fixedPlayerIdentities,
+            happeningDecodedBufferIdentities: happeningMetrics.decodedBufferIdentities,
+            happeningDecodedByteCount: happeningMetrics.decodedByteCount,
+            finalPeakLimiterIdentities: [ObjectIdentifier(limiter)],
             lifecycleState: lifecycleState,
             sharedEngineIsRunning: engine.avEngine.isRunning,
             sharedEngineStartCount: startCount,
@@ -1040,22 +1088,6 @@ private final class DayObjectsSharedInstrumentBankEngine {
             individualStartedBankCount: individuallyStartedSlots.count,
             allocationFingerprint: allocationFingerprint
         )
-    }
-
-    private func connectIfComplete() throws {
-        guard attachedSlots.count == 2,
-              let graphA = graphs[.a], let graphB = graphs[.b] else { return }
-        if limiter == nil {
-            let mixer = Mixer([graphA.limiter, graphB.limiter], name: "Day Objects shared worlds")
-            let trim = Fader(
-                mixer,
-                gain: AUValue(pow(10, Self.masterTrimDecibels / 20))
-            )
-            outputMixer = mixer
-            masterTrim = trim
-            limiter = PeakLimiter(trim)
-        }
-        engine.output = limiter
     }
 
     private func stopEngineIfRunning(countAsPairStop: Bool) {

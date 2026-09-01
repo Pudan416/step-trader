@@ -39,6 +39,39 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(bank.metrics.happeningMetrics.allocatedPlayerCount, 4)
     }
 
+    func testStartedSampleOnlyUpgradeFailuresKeepRunningGraphAndRetryTransactionally() throws {
+        for stage in DayObjectsInstrumentBankPreparationStage.allCases {
+            let harness = makeHarness()
+            let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 1))
+            try harness.bank.prepare(level: .sampleOnly([recipeID]))
+            try harness.bank.start()
+            let originalGraph = try XCTUnwrap(harness.engine.attachedGraph)
+            let originalPlayerIdentities = harness.bank.happenings.metrics.fixedPlayerIdentities
+            let originalTopology = harness.bank.metrics.engineTopology
+
+            harness.failingAt = stage
+            harness.engine.attachError = stage == .engine ? InjectedFailure() : nil
+            XCTAssertThrowsError(try harness.bank.prepare(level: .fullMusic(configuration()))) {
+                XCTAssertEqual($0 as? DayObjectsInstrumentBankError, .preparationFailed(stage))
+            }
+
+            XCTAssertEqual(harness.bank.metrics.state, .started, "stage: \(stage)")
+            XCTAssertTrue(harness.engine.isRunning, "stage: \(stage)")
+            XCTAssertTrue(harness.engine.attachedGraph === originalGraph, "stage: \(stage)")
+            XCTAssertEqual(harness.bank.happenings.metrics.fixedPlayerIdentities, originalPlayerIdentities)
+            XCTAssertEqual(harness.bank.metrics.engineTopology, originalTopology, "stage: \(stage)")
+            XCTAssertEqual(harness.bank.metrics.engineTopology.finalPeakLimiterIdentities.count, 1)
+
+            harness.failingAt = nil
+            harness.engine.attachError = nil
+            try harness.bank.prepare(level: .fullMusic(configuration()))
+            XCTAssertEqual(harness.bank.metrics.state, .started)
+            XCTAssertTrue(harness.engine.isRunning)
+            XCTAssertEqual(harness.bank.happenings.metrics.fixedPlayerIdentities, originalPlayerIdentities)
+            XCTAssertEqual(harness.bank.metrics.engineTopology, originalTopology)
+        }
+    }
+
     func testPairStopIsNoOpWhileAnIndividualBankOwnsTheSharedEngine() async throws {
         let pair = DayObjectsInstrumentBank.makePlaybackPair(
             bundle: Bundle(for: type(of: self))
@@ -221,7 +254,18 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(baseline.attachedBankCount, 2)
         XCTAssertEqual(baseline.sharedAudioEngineCount, 1)
         XCTAssertEqual(baseline.finalPeakLimiterCount, 1)
+        XCTAssertTrue(pair.bankA.happenings === pair.bankB.happenings)
+        XCTAssertEqual(pair.bankA.happenings.metrics.allocatedPlayerCount, 4)
+        XCTAssertEqual(pair.bankA.happenings.metrics.decodedBufferCount, 102)
+        XCTAssertEqual(Set(baseline.happeningFixedPlayerIdentities).count, 4)
+        XCTAssertEqual(baseline.happeningFixedPlayerIdentities.count, 4)
+        XCTAssertEqual(Set(baseline.happeningDecodedBufferIdentities).count, 102)
+        XCTAssertEqual(baseline.happeningDecodedBufferIdentities.count, 102)
+        XCTAssertLessThanOrEqual(baseline.happeningDecodedByteCount, 48 * 1_024 * 1_024)
+        XCTAssertEqual(Set(baseline.finalPeakLimiterIdentities).count, 1)
         XCTAssertEqual(baseline.sharedMasterTrimDecibels, -3, accuracy: 1e-12)
+        XCTAssertEqual(pair.bankA.metrics.graph?.finalPeakLimiterCount, 0)
+        XCTAssertEqual(pair.bankB.metrics.graph?.finalPeakLimiterCount, 0)
         XCTAssertEqual(pair.bankA.outputGainMetrics.targetLinearGain, 1)
         XCTAssertEqual(pair.bankB.outputGainMetrics.targetLinearGain, 1)
 
@@ -344,7 +388,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
             tonalBusGainDB: -3,
             drumBusGainDB: -3,
             masterTrimDB: -3,
-            finalPeakLimiterCount: 1
+            finalPeakLimiterCount: 0
         ))
 
         XCTAssertThrowsError(try harness.bank.prepare(configuration: .init(
@@ -431,7 +475,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(graph.tonalBusGainDB, -3, accuracy: 0.001)
         XCTAssertEqual(graph.drumBusGainDB, -3, accuracy: 0.001)
         XCTAssertEqual(graph.masterTrimDB, -3, accuracy: 0.001)
-        XCTAssertEqual(graph.finalPeakLimiterCount, 1)
+        XCTAssertEqual(graph.finalPeakLimiterCount, 0)
         XCTAssertEqual(bank.metrics.drumMetrics.allocatedPlayerCount, DayObjectsDrumVoice.allCases.count)
         XCTAssertEqual(bank.metrics.pianoMetrics.allocatedPlayerCount, 3)
 
@@ -690,6 +734,7 @@ private final class FakeHappeningSamplePool: DayObjectsHappeningSamplePoolProtoc
             releasingVoiceCount: 4,
             stealCount: 0,
             decodedBufferCount: preparedIDs.count,
+            decodedBufferIdentities: [],
             decodedByteCount: preparedIDs.count * 1_024,
             availableRecipeIDs: preparedIDs,
             unavailableRecipeIDs: [],
@@ -710,7 +755,7 @@ private final class FakeHappeningSamplePool: DayObjectsHappeningSamplePoolProtoc
 
 @MainActor
 private final class FakeInstrumentBankGraph: DayObjectsInstrumentBankGraph {
-    let layout = DayObjectsInstrumentBankGraphLayout(tonalBusCount: 1, drumBusCount: 1, sharedSpatialEffectCount: 2, tonalBusGainDB: -3, drumBusGainDB: -3, masterTrimDB: -3, finalPeakLimiterCount: 1)
+    let layout = DayObjectsInstrumentBankGraphLayout(tonalBusCount: 1, drumBusCount: 1, sharedSpatialEffectCount: 2, tonalBusGainDB: -3, drumBusGainDB: -3, masterTrimDB: -3, finalPeakLimiterCount: 0)
     let isAttached: () -> Bool
     let synchronizeError: () -> Error?
     let onSynchronize: () -> Void
@@ -728,12 +773,21 @@ private final class FakeInstrumentBankGraph: DayObjectsInstrumentBankGraph {
 
 @MainActor
 private final class FakeInstrumentBankEngine: DayObjectsInstrumentBankEngine {
+    private let masterToken = NSObject()
+    private let limiterToken = NSObject()
+    var topologyMetrics: DayObjectsInstrumentBankEngineTopologyMetrics {
+        .init(
+            persistentMasterNodeIdentities: [ObjectIdentifier(masterToken)],
+            finalPeakLimiterIdentities: [ObjectIdentifier(limiterToken)]
+        )
+    }
     var startError: Error?
     var attachError: Error?
     private(set) var stopCount = 0
     private(set) var attachCount = 0
     private(set) var detachCount = 0
     private(set) var attachedGraph: (any DayObjectsInstrumentBankGraph)?
+    private(set) var isRunning = false
     var events: [String] = []
     func attach(graph: any DayObjectsInstrumentBankGraph) throws {
         events.append("attach")
@@ -746,6 +800,7 @@ private final class FakeInstrumentBankEngine: DayObjectsInstrumentBankEngine {
         events.append("start")
         guard attachedGraph != nil else { throw InjectedFailure() }
         if let startError { throw startError }
+        isRunning = true
     }
-    func stop() { events.append("stop"); stopCount += 1 }
+    func stop() { events.append("stop"); stopCount += 1; isRunning = false }
 }

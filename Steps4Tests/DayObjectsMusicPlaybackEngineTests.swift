@@ -456,12 +456,15 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
 
         try await engine.start(plan: makePlaybackEnginePlan(seed: 0x404, happeningIDs: []))
 
-        let fingerprints = runtime.allocationSnapshotForTesting.instrumentAllocationFingerprint.compactMap { $0 }
-        XCTAssertEqual(fingerprints.count, 2)
-        XCTAssertTrue(fingerprints.allSatisfy { $0.happeningFixedPlayerCount == 4 })
-        XCTAssertTrue(fingerprints.allSatisfy { $0.happeningDecodedByteCount <= 48 * 1_024 * 1_024 })
-        XCTAssertEqual(runtime.playbackPairMetricsForTesting.sharedAudioEngineCount, 1)
-        XCTAssertEqual(runtime.playbackPairMetricsForTesting.sharedEngineStartCount, 1)
+        let metrics = runtime.playbackPairMetricsForTesting
+        XCTAssertEqual(Set(metrics.happeningFixedPlayerIdentities).count, 4)
+        XCTAssertEqual(metrics.happeningFixedPlayerIdentities.count, 4)
+        XCTAssertEqual(Set(metrics.happeningDecodedBufferIdentities).count, 102)
+        XCTAssertEqual(metrics.happeningDecodedBufferIdentities.count, 102)
+        XCTAssertLessThanOrEqual(metrics.happeningDecodedByteCount, 48 * 1_024 * 1_024)
+        XCTAssertEqual(Set(metrics.finalPeakLimiterIdentities).count, 1)
+        XCTAssertEqual(metrics.sharedAudioEngineCount, 1)
+        XCTAssertEqual(metrics.sharedEngineStartCount, 1)
 
         await engine.stop()
     }

@@ -274,10 +274,25 @@ extension DayObjectsInstrumentBankGraph {
 
 @MainActor
 protocol DayObjectsInstrumentBankEngine: AnyObject {
+    var topologyMetrics: DayObjectsInstrumentBankEngineTopologyMetrics { get }
     func attach(graph: any DayObjectsInstrumentBankGraph) throws
     func detach()
     func start() throws
     func stop()
+}
+
+struct DayObjectsInstrumentBankEngineTopologyMetrics: Equatable, Sendable {
+    let persistentMasterNodeIdentities: [ObjectIdentifier]
+    let finalPeakLimiterIdentities: [ObjectIdentifier]
+
+    static let unsupported = Self(
+        persistentMasterNodeIdentities: [],
+        finalPeakLimiterIdentities: []
+    )
+}
+
+extension DayObjectsInstrumentBankEngine {
+    var topologyMetrics: DayObjectsInstrumentBankEngineTopologyMetrics { .unsupported }
 }
 
 struct DayObjectsInstrumentBankMetrics: Equatable, Sendable {
@@ -288,6 +303,7 @@ struct DayObjectsInstrumentBankMetrics: Equatable, Sendable {
     let drumMetrics: DayObjectsDrumBankMetrics
     let pianoMetrics: DayObjectsFeltPianoMetrics
     let happeningMetrics: HappeningSamplePoolMetrics
+    let engineTopology: DayObjectsInstrumentBankEngineTopologyMetrics
     let engineInstanceCount: Int
     let engineStartCount: Int
 
@@ -299,6 +315,7 @@ struct DayObjectsInstrumentBankMetrics: Equatable, Sendable {
         drumMetrics: DayObjectsDrumBankMetrics,
         pianoMetrics: DayObjectsFeltPianoMetrics,
         happeningMetrics: HappeningSamplePoolMetrics = .inactive,
+        engineTopology: DayObjectsInstrumentBankEngineTopologyMetrics = .unsupported,
         engineInstanceCount: Int = 1,
         engineStartCount: Int = 0
     ) {
@@ -309,6 +326,7 @@ struct DayObjectsInstrumentBankMetrics: Equatable, Sendable {
         self.drumMetrics = drumMetrics
         self.pianoMetrics = pianoMetrics
         self.happeningMetrics = happeningMetrics
+        self.engineTopology = engineTopology
         self.engineInstanceCount = engineInstanceCount
         self.engineStartCount = engineStartCount
     }

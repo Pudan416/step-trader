@@ -1,9 +1,7 @@
 #if DEBUG || INTERNAL_BUILD
 import AudioKit
-import AudioKitEX
 import AVFoundation
 import Foundation
-import SoundpipeAudioKit
 
 enum HappeningPlaybackPriority: Int, Comparable, Sendable {
     case recurrence = 0
@@ -33,6 +31,7 @@ struct HappeningSamplePoolMetrics: Equatable, Sendable {
     let releasingVoiceCount: Int
     let stealCount: Int
     let decodedBufferCount: Int
+    let decodedBufferIdentities: [ObjectIdentifier]
     let decodedByteCount: Int
     let availableRecipeIDs: Set<HappeningSoundRecipeID>
     let unavailableRecipeIDs: Set<HappeningSoundRecipeID>
@@ -46,6 +45,7 @@ struct HappeningSamplePoolMetrics: Equatable, Sendable {
         releasingVoiceCount: 0,
         stealCount: 0,
         decodedBufferCount: 0,
+        decodedBufferIdentities: [],
         decodedByteCount: 0,
         availableRecipeIDs: [],
         unavailableRecipeIDs: [],
@@ -91,7 +91,8 @@ protocol DayObjectsHappeningSampleVoiceBackend: AnyObject {
         playbackRate: Double,
         gain: Double,
         attackSeconds: Double,
-        releaseSeconds: Double
+        releaseSeconds: Double,
+        resonantFilterHz: Double?
     )
     func release()
     func stop()
@@ -112,10 +113,12 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
     private let resourceResolver: ResourceResolver
     private let bufferLoader: BufferLoader
     private let voices: [DayObjectsHappeningSampleVoiceBackend]
+    private let clock: () -> TimeInterval
     private let dryMixer: Mixer
     private let filter: LowPassFilter
-    private let delay: VariableDelay
-    private let reverb: CostelloReverb
+    private let delay: Delay
+    private let reverb: Reverb
+    private let reverbWet: DayObjectsAppleGainNode
     private var slots: [VoiceSlot]
     private var decodedBuffers: [String: DayObjectsHappeningDecodedBuffer] = [:]
     private var availableRecipeIDs: Set<HappeningSoundRecipeID> = []
@@ -131,13 +134,17 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
     private var lastEffectRampSeconds: TimeInterval = 0
 
     var metrics: HappeningSamplePoolMetrics {
-        HappeningSamplePoolMetrics(
+        refreshReleasedSlots()
+        return HappeningSamplePoolMetrics(
             allocatedPlayerCount: voices.count,
             fixedPlayerIdentities: voices.map(ObjectIdentifier.init),
             activeVoiceCount: slots.filter { $0.state.isActive }.count,
             releasingVoiceCount: slots.filter { $0.state.isReleased }.count,
             stealCount: stealCount,
             decodedBufferCount: decodedBuffers.count,
+            decodedBufferIdentities: decodedBuffers.keys.sorted().compactMap {
+                decodedBuffers[$0].map { ObjectIdentifier($0.buffer) }
+            },
             decodedByteCount: decodedBuffers.values.reduce(0) { $0 + $1.decodedByteCount },
             availableRecipeIDs: availableRecipeIDs,
             unavailableRecipeIDs: unavailableRecipeIDs,
@@ -165,31 +172,30 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
         recipes: [HappeningSoundRecipe],
         resourceResolver: @escaping ResourceResolver,
         bufferLoader: @escaping BufferLoader,
-        voiceFactory: @escaping VoiceFactory
+        voiceFactory: @escaping VoiceFactory,
+        clock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
     ) {
         recipesByID = Dictionary(uniqueKeysWithValues: recipes.map { ($0.id, $0) })
         self.resourceResolver = resourceResolver
         self.bufferLoader = bufferLoader
+        self.clock = clock
         voices = (0..<Self.voiceCount).map(voiceFactory)
         slots = (0..<Self.voiceCount).map {
             VoiceSlot(voiceID: $0, state: .idle)
         }
         dryMixer = Mixer(voices.map(\.output), name: "Day Objects Happening voices")
         filter = LowPassFilter(dryMixer, cutoffFrequency: AUValue(currentEffects.filterCutoffHz))
-        delay = VariableDelay(
+        delay = Delay(
             filter,
             time: 0.24,
-            feedback: AUValue(currentEffects.delayFeedback),
-            maximumTime: 2,
-            dryWetMix: AUValue(currentEffects.delayMix)
+            feedback: AUValue(currentEffects.delayFeedback * 100),
+            lowPassCutoff: 18_000,
+            dryWetMix: AUValue(currentEffects.delayMix * 100)
         )
-        reverb = CostelloReverb(
-            delay,
-            balance: AUValue(currentEffects.reverbMix),
-            feedback: 0.72,
-            cutoffFrequency: 8_000
-        )
-        output = Mixer([reverb], name: "Day Objects Happening bus")
+        reverb = Reverb(delay, dryWetMix: 1)
+        reverb.loadFactoryPreset(.plate)
+        reverbWet = DayObjectsAppleGainNode(input: reverb, gain: currentEffects.reverbMix)
+        output = Mixer([delay, reverbWet], name: "Day Objects Happening bus")
     }
 
     func prepare(recipeIDs: Set<HappeningSoundRecipeID>) throws {
@@ -266,17 +272,19 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
         let recipeGain = pow(10, recipe.gainDB / 20)
         let playbackGain = min(max(requestedGain * recipeGain, 0), 1)
         let rate = min(max(sound.playbackRate.isFinite ? sound.playbackRate : 1, 0.5), 2)
-        if let resonantFilterHz = sound.resonantFilterHz {
-            filter.cutoffFrequency = AUValue(Self.clampFilter(resonantFilterHz))
-        }
         voices[slotIndex].play(
             buffer: decoded.buffer,
             playbackRate: rate,
             gain: playbackGain,
             attackSeconds: recipe.attackSeconds,
+            releaseSeconds: recipe.releaseSeconds,
+            resonantFilterHz: sound.resonantFilterHz
+        )
+        slots[slotIndex].state = .active(
+            priority: priority,
+            startOrder: sequence,
             releaseSeconds: recipe.releaseSeconds
         )
-        slots[slotIndex].state = .active(priority: priority, startOrder: sequence)
         return slots[slotIndex].voiceID
     }
 
@@ -294,24 +302,27 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
         currentEffects = sanitized
         lastEffectRampSeconds = duration
         transition(filter.$cutoffFrequency, to: sanitized.filterCutoffHz, duration: duration)
-        transition(delay.$dryWetMix, to: sanitized.delayMix, duration: duration)
-        transition(delay.$feedback, to: sanitized.delayFeedback, duration: duration)
-        transition(reverb.$balance, to: sanitized.reverbMix, duration: duration)
+        transition(delay.$dryWetMix, to: sanitized.delayMix * 100, duration: duration)
+        transition(delay.$feedback, to: sanitized.delayFeedback * 100, duration: duration)
+        reverbWet.setLinearGain(sanitized.reverbMix, rampSeconds: duration)
     }
 
     func stop(voiceID: Int) {
         guard let slotIndex = slots.firstIndex(where: { $0.voiceID == voiceID }),
-              slots[slotIndex].state.isActive else { return }
+              case let .active(_, _, releaseSeconds) = slots[slotIndex].state else { return }
         voices[slotIndex].release()
         sequence &+= 1
-        slots[slotIndex].state = .released(order: sequence)
+        slots[slotIndex].state = .released(
+            order: sequence,
+            deadline: clock() + releaseSeconds
+        )
+        refreshReleasedSlots()
     }
 
     func releaseAll() {
         for index in voices.indices {
             voices[index].stop()
-            sequence &+= 1
-            slots[index].state = .released(order: sequence)
+            slots[index].state = .idle
         }
     }
 
@@ -329,6 +340,7 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
     }
 
     private func selectSlot(for priority: HappeningPlaybackPriority) throws -> Int {
+        refreshReleasedSlots()
         if let released = slots.indices
             .filter({ !slots[$0].state.isActive })
             .min(by: { slots[$0].state.releaseOrdering < slots[$1].state.releaseOrdering }) {
@@ -336,7 +348,7 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
         }
 
         let eligible = slots.indices.filter {
-            guard case let .active(existingPriority, _) = slots[$0].state else { return false }
+            guard case let .active(existingPriority, _, _) = slots[$0].state else { return false }
             return existingPriority < priority
         }
         guard let selected = eligible.min(by: {
@@ -345,6 +357,16 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
             throw HappeningSamplePoolError.noEligibleVoice
         }
         return selected
+    }
+
+    private func refreshReleasedSlots() {
+        let now = clock()
+        for index in slots.indices {
+            guard case let .released(_, deadline) = slots[index].state,
+                  deadline <= now else { continue }
+            voices[index].stop()
+            slots[index].state = .idle
+        }
     }
 
     private static func decodeBuffer(url: URL) throws -> DayObjectsHappeningDecodedBuffer {
@@ -388,8 +410,12 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
 
     private enum VoiceState {
         case idle
-        case released(order: UInt64)
-        case active(priority: HappeningPlaybackPriority, startOrder: UInt64)
+        case released(order: UInt64, deadline: TimeInterval)
+        case active(
+            priority: HappeningPlaybackPriority,
+            startOrder: UInt64,
+            releaseSeconds: TimeInterval
+        )
 
         var isActive: Bool {
             if case .active = self { return true }
@@ -403,37 +429,107 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
 
         var releaseOrdering: (Int, UInt64) {
             switch self {
-            case .idle: return (0, 0)
-            case let .released(order): return (1, order)
+            case let .released(order, _): return (0, order)
+            case .idle: return (1, 0)
             case .active: return (.max, .max)
             }
         }
 
         var activeOrdering: (Int, UInt64) {
-            guard case let .active(priority, startOrder) = self else { return (.max, .max) }
+            guard case let .active(priority, startOrder, _) = self else { return (.max, .max) }
             return (priority.rawValue, startOrder)
         }
     }
 }
 
+private final class DayObjectsAppleResonanceNode: Node {
+    let input: Node
+    var connections: [Node] { [input] }
+    let avAudioNode: AVAudioNode
+    private let gainUnit = AVAudioUnitEQ(numberOfBands: 1)
+
+    init(input: Node) {
+        self.input = input
+        avAudioNode = gainUnit
+        let resonantBand = gainUnit.bands[0]
+        resonantBand.filterType = .parametric
+        resonantBand.frequency = 1_000
+        resonantBand.bandwidth = 0.35
+        resonantBand.gain = 0
+        resonantBand.bypass = true
+    }
+
+    func setResonance(_ frequency: Double?) {
+        let resonantBand = gainUnit.bands[0]
+        guard let frequency, frequency.isFinite else {
+            resonantBand.bypass = true
+            resonantBand.frequency = 1_000
+            resonantBand.gain = 0
+            return
+        }
+        resonantBand.frequency = Float(min(max(frequency, 80), 18_000))
+        resonantBand.bandwidth = 0.35
+        resonantBand.gain = 20
+        resonantBand.bypass = false
+    }
+
+}
+
+private final class DayObjectsAppleGainNode: Node {
+    let input: Node
+    var connections: [Node] { [input] }
+    let avAudioNode: AVAudioNode
+    private let mixer = AVAudioMixerNode()
+
+    init(input: Node, gain: Double) {
+        self.input = input
+        avAudioNode = mixer
+        mixer.outputVolume = Self.bounded(gain)
+    }
+
+    func setLinearGain(_ gain: Double, rampSeconds: TimeInterval) {
+        let target = Self.bounded(gain)
+        let duration = max(rampSeconds.isFinite ? rampSeconds : 0, 0)
+        guard duration > 0,
+              let parameter = mixer.auAudioUnit.parameterTree?.allParameters
+                .filter({ $0.displayName == "Gain" && $0.flags.contains(.flag_CanRamp) })
+                .max(by: { $0.address < $1.address }) else {
+            mixer.outputVolume = target
+            return
+        }
+        mixer.auAudioUnit.scheduleParameterBlock(
+            AUEventSampleTimeImmediate,
+            AUAudioFrameCount(min(duration * Settings.sampleRate, Double(AUAudioFrameCount.max))),
+            parameter.address,
+            target
+        )
+    }
+
+    private static func bounded(_ gain: Double) -> AUValue {
+        AUValue(min(max(gain.isFinite ? gain : 0, 0), 1))
+    }
+}
+
 @MainActor
 private final class DayObjectsAudioKitHappeningSampleVoice: DayObjectsHappeningSampleVoiceBackend {
-    var output: Node { outputFader }
-    private let outputFader: Fader
+    var output: Node { gainNode }
     private let player = AudioPlayer()
-    private let timePitch: TimePitch
-    private let envelope: AmplitudeEnvelope
+    private let variSpeed: VariSpeed
+    private let resonanceNode: DayObjectsAppleResonanceNode
+    private let gainNode: DayObjectsAppleGainNode
+    private var releaseSeconds: TimeInterval = 0
 
     init(voiceID: Int) {
-        timePitch = TimePitch(player)
-        envelope = AmplitudeEnvelope(
-            timePitch,
-            attackDuration: 0.01,
-            decayDuration: 0.01,
-            sustainLevel: 1,
-            releaseDuration: 0.2
-        )
-        outputFader = Fader(envelope, gain: 1)
+        let seedFormat = AVAudioFormat(
+            standardFormatWithSampleRate: 44_100,
+            channels: 1
+        )!
+        let seedBuffer = AVAudioPCMBuffer(pcmFormat: seedFormat, frameCapacity: 1)!
+        seedBuffer.frameLength = 1
+        player.buffer = seedBuffer
+        variSpeed = VariSpeed(player)
+        resonanceNode = DayObjectsAppleResonanceNode(input: variSpeed)
+        gainNode = DayObjectsAppleGainNode(input: resonanceNode, gain: 0)
     }
 
     func play(
@@ -441,23 +537,27 @@ private final class DayObjectsAudioKitHappeningSampleVoice: DayObjectsHappeningS
         playbackRate: Double,
         gain: Double,
         attackSeconds: Double,
-        releaseSeconds: Double
+        releaseSeconds: Double,
+        resonantFilterHz: Double?
     ) {
         player.buffer = buffer
-        timePitch.rate = AUValue(playbackRate)
-        envelope.attackDuration = AUValue(attackSeconds)
-        envelope.releaseDuration = AUValue(releaseSeconds)
-        outputFader.gain = AUValue(gain)
-        guard outputFader.avAudioNode.engine?.isRunning == true else { return }
+        variSpeed.rate = AUValue(playbackRate)
+        resonanceNode.setResonance(resonantFilterHz)
+        self.releaseSeconds = releaseSeconds
+        setLinearGain(gain, rampSeconds: attackSeconds)
+        guard gainNode.avAudioNode.engine?.isRunning == true else { return }
         player.play()
-        envelope.openGate()
     }
 
-    func release() { envelope.closeGate() }
+    func release() { setLinearGain(0, rampSeconds: releaseSeconds) }
 
     func stop() {
-        envelope.closeGate()
+        setLinearGain(0, rampSeconds: 0)
         player.stop()
+    }
+
+    private func setLinearGain(_ gain: Double, rampSeconds: TimeInterval) {
+        gainNode.setLinearGain(gain, rampSeconds: rampSeconds)
     }
 }
 

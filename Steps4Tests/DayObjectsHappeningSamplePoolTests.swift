@@ -144,8 +144,109 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         harness.pool.releaseAll()
 
         XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 0)
-        XCTAssertEqual(harness.pool.metrics.releasingVoiceCount, 4)
+        XCTAssertEqual(harness.pool.metrics.releasingVoiceCount, 0)
         XCTAssertTrue(harness.voices.allSatisfy { $0.stopCount == 1 })
+    }
+
+    func testGracefulStopWithCompletedReleaseConvergesToIdle() throws {
+        let recipe = makeRecipe(id: 1, resources: ["one.wav"], releaseSeconds: 0)
+        let harness = try makeHarness(recipes: [recipe])
+        try harness.pool.prepare(recipeIDs: [recipe.id])
+        let voiceID = try harness.pool.play(sound(id: 1, resource: "one.wav"), gain: 0.5)
+
+        harness.pool.stop(voiceID: voiceID)
+
+        XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 0)
+        XCTAssertEqual(harness.pool.metrics.releasingVoiceCount, 0)
+        XCTAssertEqual(harness.voices[voiceID].releaseCount, 1)
+        XCTAssertEqual(harness.voices[voiceID].stopCount, 1)
+    }
+
+    func testGracefulStopUsesInjectedMonotonicDeadlineBeforeConvergingToIdle() throws {
+        var now = 10.0
+        let recipe = makeRecipe(id: 1, resources: ["one.wav"], releaseSeconds: 0.25)
+        let harness = try makeHarness(recipes: [recipe], clock: { now })
+        try harness.pool.prepare(recipeIDs: [recipe.id])
+        let voiceID = try harness.pool.play(sound(id: 1, resource: "one.wav"), gain: 0.5)
+
+        harness.pool.stop(voiceID: voiceID)
+        XCTAssertEqual(harness.pool.metrics.releasingVoiceCount, 1)
+        XCTAssertEqual(harness.voices[voiceID].stopCount, 0)
+
+        now += 0.24
+        XCTAssertEqual(harness.pool.metrics.releasingVoiceCount, 1)
+        now += 0.02
+        XCTAssertEqual(harness.pool.metrics.releasingVoiceCount, 0)
+        XCTAssertEqual(harness.voices[voiceID].stopCount, 1)
+    }
+
+    func testProductionPlaybackRateTransposesFundamentalToResolvedTarget() throws {
+        let previousChannelCount = Settings.channelCount
+        Settings.channelCount = 1
+        defer { Settings.channelCount = previousChannelCount }
+        let recipeID = id(1)
+        let recipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: recipeID))
+        let source = try XCTUnwrap(recipe.sources.first(where: { $0.rootMIDI == 72 }))
+        let targetMIDI: UInt8 = 74
+        let targetRate = pow(2, Double(Int(targetMIDI) - Int(source.rootMIDI)) / 12)
+        let pool = DayObjectsHappeningSamplePool(bundle: Bundle(for: type(of: self)))
+        try pool.prepare(recipeIDs: [recipeID])
+        pool.applyEffects(.init(
+            filterCutoffHz: 18_000,
+            delayMix: 0,
+            delayFeedback: 0,
+            reverbMix: 0
+        ), rampSeconds: 0)
+
+        let engine = AudioEngine()
+        engine.output = pool.output
+        _ = engine.startTest(totalDuration: 0.6)
+        _ = try pool.play(.init(
+            recipeID: recipeID,
+            resourceName: source.resourceName,
+            sourceRootMIDI: source.rootMIDI,
+            targetMIDI: targetMIDI,
+            playbackRate: targetRate,
+            resonantFilterHz: nil
+        ), gain: 1, priority: .manualAudition)
+
+        let rendered = engine.render(duration: 0.6)
+        let sourceHz = midiFrequency(source.rootMIDI)
+        let targetHz = midiFrequency(targetMIDI)
+
+        XCTAssertGreaterThan(spectralMagnitude(rendered, frequency: targetHz),
+                             spectralMagnitude(rendered, frequency: sourceHz) * 1.5)
+        XCTAssertGreaterThan(rms(rendered), 0.000_1)
+    }
+
+    func testProductionSharedDelayAndReverbCreateAudibleTail() throws {
+        let recipeID = id(1)
+        let recipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: recipeID))
+        let source = try XCTUnwrap(recipe.sources.first)
+        let sound = ResolvedHappeningSound(
+            recipeID: recipeID,
+            resourceName: source.resourceName,
+            sourceRootMIDI: source.rootMIDI,
+            targetMIDI: source.rootMIDI,
+            playbackRate: 1,
+            resonantFilterHz: nil
+        )
+        let dry = try renderProduction(
+            recipeIDs: [recipeID],
+            sounds: [sound],
+            duration: 1.5,
+            effects: .init(filterCutoffHz: 18_000, delayMix: 0, delayFeedback: 0, reverbMix: 0)
+        )
+        let wet = try renderProduction(
+            recipeIDs: [recipeID],
+            sounds: [sound],
+            duration: 1.5,
+            effects: .init(filterCutoffHz: 18_000, delayMix: 0.8, delayFeedback: 0.65, reverbMix: 0.8)
+        )
+
+        let tailStart = Int(1.1 * wet.format.sampleRate)
+        XCTAssertGreaterThan(rms(wet, startingAt: tailStart), 0.000_1)
+        XCTAssertGreaterThan(differenceRMS(wet, dry), 0.001)
     }
 
     func testSharedEffectsAreSanitizedAndRampWithoutAllocatingPlayers() throws {
@@ -170,6 +271,85 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         XCTAssertEqual(harness.voices.count, 4)
     }
 
+    func testBackendReceivesPreparedBufferRateGainAndEnvelope() throws {
+        let recipe = makeRecipe(id: 1, resources: ["one.wav"], releaseSeconds: 0.4)
+        let harness = try makeHarness(recipes: [recipe])
+        try harness.pool.prepare(recipeIDs: [recipe.id])
+        let resolved = ResolvedHappeningSound(
+            recipeID: recipe.id,
+            resourceName: "one.wav",
+            sourceRootMIDI: 60,
+            targetMIDI: 64,
+            playbackRate: 1.25,
+            resonantFilterHz: nil
+        )
+
+        let voiceID = try harness.pool.play(resolved, gain: 0.5, priority: .birth)
+        let call = try XCTUnwrap(harness.voices[voiceID].playCalls.last)
+
+        XCTAssertTrue(call.buffer === harness.loadedBuffers["one.wav"])
+        XCTAssertEqual(call.playbackRate, 1.25, accuracy: 1e-12)
+        XCTAssertEqual(call.gain, 0.5 * pow(10, recipe.gainDB / 20), accuracy: 1e-12)
+        XCTAssertEqual(call.attackSeconds, recipe.attackSeconds, accuracy: 1e-12)
+        XCTAssertEqual(call.releaseSeconds, 0.4, accuracy: 1e-12)
+        XCTAssertNil(call.resonantFilterHz)
+    }
+
+    func testResonantTargetsArePerVoiceAndNonResonantReuseResetsTheBackend() throws {
+        let harness = try preparedHarness()
+        let low = ResolvedHappeningSound(recipeID: id(1), resourceName: "1.wav", sourceRootMIDI: nil, targetMIDI: 60, playbackRate: 1, resonantFilterHz: 261.63)
+        let high = ResolvedHappeningSound(recipeID: id(2), resourceName: "2.wav", sourceRootMIDI: nil, targetMIDI: 67, playbackRate: 1, resonantFilterHz: 392)
+
+        let lowVoice = try harness.pool.play(low, gain: 0.5, priority: .birth)
+        let highVoice = try harness.pool.play(high, gain: 0.5, priority: .birth)
+        XCTAssertEqual(harness.voices[lowVoice].playCalls.last?.resonantFilterHz, 261.63)
+        XCTAssertEqual(harness.voices[highVoice].playCalls.last?.resonantFilterHz, 392)
+
+        harness.pool.stop(voiceID: lowVoice)
+        let reused = try harness.pool.play(
+            sound(id: 3, resource: "3.wav"),
+            gain: 0.5,
+            priority: .manualAudition
+        )
+        XCTAssertEqual(reused, lowVoice)
+        XCTAssertNil(harness.voices[reused].playCalls.last?.resonantFilterHz)
+        XCTAssertEqual(harness.voices[highVoice].playCalls.last?.resonantFilterHz, 392)
+    }
+
+    func testProductionResonantVoicesCreateIndependentPeaks() throws {
+        let recipeID = id(25)
+        let recipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: recipeID))
+        let source = try XCTUnwrap(recipe.sources.first)
+        let lowTarget = 261.63
+        let highTarget = 392.00
+        let base = ResolvedHappeningSound(
+            recipeID: recipeID,
+            resourceName: source.resourceName,
+            sourceRootMIDI: nil,
+            targetMIDI: nil,
+            playbackRate: 1,
+            resonantFilterHz: nil
+        )
+        let baseline = try renderProduction(
+            recipeIDs: [recipeID],
+            sounds: [base, base],
+            duration: 0.8
+        )
+        let resonant = try renderProduction(
+            recipeIDs: [recipeID],
+            sounds: [
+                .init(recipeID: recipeID, resourceName: source.resourceName, sourceRootMIDI: nil, targetMIDI: 60, playbackRate: 1, resonantFilterHz: lowTarget),
+                .init(recipeID: recipeID, resourceName: source.resourceName, sourceRootMIDI: nil, targetMIDI: 67, playbackRate: 1, resonantFilterHz: highTarget),
+            ],
+            duration: 0.8
+        )
+
+        XCTAssertGreaterThan(spectralMagnitude(resonant, frequency: lowTarget),
+                             spectralMagnitude(baseline, frequency: lowTarget) * 1.5)
+        XCTAssertGreaterThan(spectralMagnitude(resonant, frequency: highTarget),
+                             spectralMagnitude(baseline, frequency: highTarget) * 1.5)
+    }
+
     func testProductionCatalogDecodesWithinFortyEightMiB() throws {
         let pool = DayObjectsHappeningSamplePool(bundle: Bundle(for: type(of: self)))
 
@@ -192,16 +372,22 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
     private func makeHarness(
         recipes: [HappeningSoundRecipe],
         bytesPerResource: Int = 1_024,
-        failingResources: Set<String> = []
+        failingResources: Set<String> = [],
+        clock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
     ) throws -> PoolHarness {
         try PoolHarness(
             recipes: recipes,
             bytesPerResource: bytesPerResource,
-            failingResources: failingResources
+            failingResources: failingResources,
+            clock: clock
         )
     }
 
-    private func makeRecipe(id rawID: Int, resources: [String]) -> HappeningSoundRecipe {
+    private func makeRecipe(
+        id rawID: Int,
+        resources: [String],
+        releaseSeconds: Double = 0.2
+    ) -> HappeningSoundRecipe {
         HappeningSoundRecipe(
             id: id(rawID),
             label: String(format: "%02d", rawID),
@@ -212,7 +398,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
             pitch: .unpitched,
             gainDB: -12,
             attackSeconds: 0.01,
-            releaseSeconds: 0.2,
+            releaseSeconds: releaseSeconds,
             delayMix: 0.1,
             delayFeedback: 0.2,
             reverbMix: 0.15,
@@ -235,19 +421,88 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
     private func id(_ rawValue: Int) -> HappeningSoundRecipeID {
         HappeningSoundRecipeID(rawValue: rawValue)!
     }
+
+    private func midiFrequency(_ midi: UInt8) -> Double {
+        440 * pow(2, (Double(midi) - 69) / 12)
+    }
+
+    private func spectralMagnitude(_ buffer: AVAudioPCMBuffer, frequency: Double) -> Double {
+        guard let samples = buffer.floatChannelData?[0] else { return 0 }
+        let sampleRate = buffer.format.sampleRate
+        let start = min(Int(buffer.frameLength) / 10, Int(buffer.frameLength))
+        let count = Int(buffer.frameLength) - start
+        guard count > 0 else { return 0 }
+        var real = 0.0
+        var imaginary = 0.0
+        for index in 0..<count {
+            let phase = 2 * Double.pi * frequency * Double(index) / sampleRate
+            let sample = Double(samples[start + index])
+            real += sample * cos(phase)
+            imaginary -= sample * sin(phase)
+        }
+        return hypot(real, imaginary)
+    }
+
+    private func rms(_ buffer: AVAudioPCMBuffer, startingAt requestedStart: Int = 0) -> Double {
+        guard let samples = buffer.floatChannelData?[0] else { return 0 }
+        let start = min(max(requestedStart, 0), Int(buffer.frameLength))
+        let count = Int(buffer.frameLength) - start
+        guard count > 0 else { return 0 }
+        let sum = (start..<Int(buffer.frameLength)).reduce(0.0) {
+            $0 + Double(samples[$1] * samples[$1])
+        }
+        return sqrt(sum / Double(count))
+    }
+
+    private func differenceRMS(_ lhs: AVAudioPCMBuffer, _ rhs: AVAudioPCMBuffer) -> Double {
+        guard let left = lhs.floatChannelData?[0],
+              let right = rhs.floatChannelData?[0] else { return 0 }
+        let count = min(Int(lhs.frameLength), Int(rhs.frameLength))
+        guard count > 0 else { return 0 }
+        let sum = (0..<count).reduce(0.0) {
+            let difference = Double(left[$1] - right[$1])
+            return $0 + difference * difference
+        }
+        return sqrt(sum / Double(count))
+    }
+
+    private func renderProduction(
+        recipeIDs: Set<HappeningSoundRecipeID>,
+        sounds: [ResolvedHappeningSound],
+        duration: TimeInterval,
+        effects: HappeningEffectCommand = .init(
+            filterCutoffHz: 18_000,
+            delayMix: 0,
+            delayFeedback: 0,
+            reverbMix: 0
+        )
+    ) throws -> AVAudioPCMBuffer {
+        let pool = DayObjectsHappeningSamplePool(bundle: Bundle(for: type(of: self)))
+        try pool.prepare(recipeIDs: recipeIDs)
+        pool.applyEffects(effects, rampSeconds: 0)
+        let engine = AudioEngine()
+        engine.output = pool.output
+        _ = engine.startTest(totalDuration: duration)
+        for sound in sounds {
+            _ = try pool.play(sound, gain: 1, priority: .manualAudition)
+        }
+        return engine.render(duration: duration)
+    }
 }
 
 @MainActor
 private final class PoolHarness {
     private let recorder: PoolHarnessRecorder
     var decodeCounts: [String: Int] { recorder.decodeCounts }
+    var loadedBuffers: [String: AVAudioPCMBuffer] { recorder.loadedBuffers }
     var voices: [FakeHappeningVoice] { recorder.voices }
     let pool: DayObjectsHappeningSamplePool
 
     init(
         recipes: [HappeningSoundRecipe],
         bytesPerResource: Int,
-        failingResources: Set<String>
+        failingResources: Set<String>,
+        clock: @escaping () -> TimeInterval
     ) throws {
         let recorder = PoolHarnessRecorder()
         self.recorder = recorder
@@ -262,13 +517,15 @@ private final class PoolHarness {
                 let frames = AVAudioFrameCount(max(bytesPerResource / MemoryLayout<Float>.size, 1))
                 let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)!
                 buffer.frameLength = frames
+                recorder.loadedBuffers[resource] = buffer
                 return .init(buffer: buffer, decodedByteCount: bytesPerResource)
             },
             voiceFactory: { voiceID in
                 let voice = FakeHappeningVoice(voiceID: voiceID)
                 recorder.voices.append(voice)
                 return voice
-            }
+            },
+            clock: clock
         )
     }
 }
@@ -276,6 +533,7 @@ private final class PoolHarness {
 @MainActor
 private final class PoolHarnessRecorder {
     var decodeCounts: [String: Int] = [:]
+    var loadedBuffers: [String: AVAudioPCMBuffer] = [:]
     var voices: [FakeHappeningVoice] = []
 }
 
@@ -287,6 +545,7 @@ private final class FakeHappeningVoice: DayObjectsHappeningSampleVoiceBackend {
     private let mixer = Mixer()
     var output: Node { mixer }
     private(set) var playCount = 0
+    private(set) var playCalls: [FakeHappeningVoiceCall] = []
     private(set) var releaseCount = 0
     private(set) var stopCount = 0
 
@@ -297,12 +556,30 @@ private final class FakeHappeningVoice: DayObjectsHappeningSampleVoiceBackend {
         playbackRate: Double,
         gain: Double,
         attackSeconds: Double,
-        releaseSeconds: Double
+        releaseSeconds: Double,
+        resonantFilterHz: Double?
     ) {
         playCount += 1
+        playCalls.append(.init(
+            buffer: buffer,
+            playbackRate: playbackRate,
+            gain: gain,
+            attackSeconds: attackSeconds,
+            releaseSeconds: releaseSeconds,
+            resonantFilterHz: resonantFilterHz
+        ))
     }
 
     func release() { releaseCount += 1 }
     func stop() { stopCount += 1 }
+}
+
+private struct FakeHappeningVoiceCall {
+    let buffer: AVAudioPCMBuffer
+    let playbackRate: Double
+    let gain: Double
+    let attackSeconds: Double
+    let releaseSeconds: Double
+    let resonantFilterHz: Double?
 }
 #endif
