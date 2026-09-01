@@ -123,9 +123,26 @@ struct DayObjectsInstrumentBankAllocationFingerprint: Equatable, Sendable {
     let pianoFixedBackendCount: Int
 }
 
+struct DayObjectsBankOutputGainMetrics: Equatable, Sendable {
+    let isSupported: Bool
+    let targetLinearGain: Double
+    let lastRampDurationSeconds: TimeInterval
+    let rampCount: Int
+
+    static let unsupported = DayObjectsBankOutputGainMetrics(
+        isSupported: false,
+        targetLinearGain: 1,
+        lastRampDurationSeconds: 0,
+        rampCount: 0
+    )
+}
+
+@MainActor
 protocol DayObjectsInstrumentBankGraph: AnyObject {
     var layout: DayObjectsInstrumentBankGraphLayout { get }
     var allocationFingerprint: DayObjectsInstrumentBankAllocationFingerprint { get }
+    var outputGainMetrics: DayObjectsBankOutputGainMetrics { get }
+    func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval)
     func synchronizeForStart() throws
 }
 
@@ -133,9 +150,12 @@ extension DayObjectsInstrumentBankGraph {
     var allocationFingerprint: DayObjectsInstrumentBankAllocationFingerprint {
         .init(tonalNodeIdentities: [], drumPreloadedSampleCount: 0, drumAllocatedNodeCount: 0, drumFixedPlayerCount: 0, pianoPreloadedSampleCount: 0, pianoLoadedPlayerCount: 0, pianoFixedBackendCount: 0)
     }
+    var outputGainMetrics: DayObjectsBankOutputGainMetrics { .unsupported }
+    func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval) {}
     func synchronizeForStart() throws {}
 }
 
+@MainActor
 protocol DayObjectsInstrumentBankEngine: AnyObject {
     func attach(graph: any DayObjectsInstrumentBankGraph) throws
     func detach()
@@ -158,11 +178,18 @@ protocol DayObjectsInstrumentBankProtocol: AnyObject {
     var metrics: DayObjectsInstrumentBankMetrics { get }
     var drums: DayObjectsDrumBankProtocol { get }
     var piano: DayObjectsPianoPoolProtocol { get }
+    var outputGainMetrics: DayObjectsBankOutputGainMetrics { get }
 
     func prepare(configuration: DayObjectsInstrumentBankConfiguration) throws
     func tonalPool(named id: String) throws -> DayObjectsTonalVoicePoolProtocol
     func start() throws
     func stop() async
     func releaseAll()
+    func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval)
+}
+
+extension DayObjectsInstrumentBankProtocol {
+    var outputGainMetrics: DayObjectsBankOutputGainMetrics { .unsupported }
+    func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval) {}
 }
 #endif

@@ -52,6 +52,9 @@ final class PlaybackWorldBank {
 
     var drums: DayObjectsDrumBankProtocol { instrumentBank.drums }
     var piano: DayObjectsPianoPoolProtocol { instrumentBank.piano }
+    var outputGainMetrics: DayObjectsBankOutputGainMetrics {
+        instrumentBank.outputGainMetrics
+    }
 
     var metrics: PlaybackWorldBankMetrics {
         let tonalMetrics = pools.values.map(\.metrics)
@@ -118,6 +121,13 @@ final class PlaybackWorldBank {
         guard isPrepared else { return }
         releaseAll()
         recycleCount += 1
+    }
+
+    func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval) {
+        instrumentBank.setOutputGain(
+            linearGain,
+            rampDurationSeconds: rampDurationSeconds
+        )
     }
 }
 #endif

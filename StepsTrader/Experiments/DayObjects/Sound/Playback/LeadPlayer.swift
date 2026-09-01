@@ -7,6 +7,36 @@ struct LeadPlayerMetrics: Equatable, Sendable {
     let releaseCount: Int
 }
 
+struct LeadPlayerHeldState: Equatable, Sendable {
+    let currentMIDINote: UInt8
+    let lastGesture: LeadGestureSample
+}
+
+enum LeadPlayerGestureOwner: Equatable, Sendable {
+    case none
+    case source
+    case destination
+}
+
+struct LeadPlayerHandoffResult: Equatable, Sendable {
+    let gestureOwner: LeadPlayerGestureOwner
+    let didGlide: Bool
+    let didRestart: Bool
+
+    @MainActor
+    func route(
+        _ gesture: LeadGestureSample,
+        source: LeadPlayer,
+        destination: LeadPlayer
+    ) {
+        switch gestureOwner {
+        case .none: break
+        case .source: source.update(gesture)
+        case .destination: destination.update(gesture)
+        }
+    }
+}
+
 /// Owns the single preallocated Lead voice in a playback world. Gesture
 /// updates mutate that voice; they never allocate or retrigger it.
 @MainActor
@@ -20,6 +50,7 @@ final class LeadPlayer {
     private var mapper: LeadGestureMapper?
     private var currentChordIndex = 0
     private var currentMIDINote: UInt8?
+    private var lastGesture: LeadGestureSample?
     private var baseGain = 0.25
     private var amplitudeAttackCount = 0
     private var releaseCount = 0
@@ -30,6 +61,11 @@ final class LeadPlayer {
             amplitudeAttackCount: amplitudeAttackCount,
             releaseCount: releaseCount
         )
+    }
+
+    var heldState: LeadPlayerHeldState? {
+        guard token != nil, let currentMIDINote, let lastGesture else { return nil }
+        return .init(currentMIDINote: currentMIDINote, lastGesture: lastGesture)
     }
 
     init(worldBank: PlaybackWorldBank) {
@@ -51,6 +87,7 @@ final class LeadPlayer {
         self.currentChordIndex = Self.safeChordIndex(currentChordIndex, plan: plan)
         baseGain = Self.softSaturatedGain(Self.linearGain(decibels: gainDecibels))
         currentMIDINote = nil
+        lastGesture = nil
     }
 
     func begin(_ gesture: LeadGestureSample) {
@@ -78,6 +115,7 @@ final class LeadPlayer {
         )) else { return }
         self.token = token
         currentMIDINote = mapping.midiNote
+        lastGesture = gesture
         amplitudeAttackCount += 1
         apply(mapping, to: token, pool: pool)
     }
@@ -87,7 +125,35 @@ final class LeadPlayer {
         let mapping = mapper.map(gesture, chordIndex: currentChordIndex)
         self.mapper = mapper
         currentMIDINote = mapping.midiNote
+        lastGesture = gesture
         apply(mapping, to: token, pool: pool)
+    }
+
+    /// Moves ownership of a held Lead gesture without exposing the voice pool.
+    /// A common pitch keeps the existing source token alive through the tail;
+    /// otherwise the old token is released before one destination attack.
+    func handoff(
+        to destination: LeadPlayer,
+        safeCommonMIDINote: UInt8?
+    ) -> LeadPlayerHandoffResult {
+        guard let heldState else {
+            return .init(gestureOwner: .none, didGlide: false, didRestart: false)
+        }
+        if let safeCommonMIDINote,
+           canHold(safeCommonMIDINote),
+           destination.canHold(safeCommonMIDINote) {
+            glideHeldVoice(to: safeCommonMIDINote)
+            return .init(gestureOwner: .source, didGlide: true, didRestart: false)
+        }
+
+        end()
+        destination.begin(heldState.lastGesture)
+        let restarted = destination.heldState != nil
+        return .init(
+            gestureOwner: restarted ? .destination : .none,
+            didGlide: false,
+            didRestart: restarted
+        )
     }
 
     func setCurrentChordIndex(_ chordIndex: Int) {
@@ -112,7 +178,24 @@ final class LeadPlayer {
         pool.noteOff(token)
         self.token = nil
         currentMIDINote = nil
+        lastGesture = nil
         releaseCount += 1
+    }
+
+    private func glideHeldVoice(to midiNote: UInt8) {
+        guard let token, let pool, let plan else { return }
+        currentMIDINote = midiNote
+        pool.update(token, with: .init(
+            midiNote: Double(midiNote),
+            pitchRampSeconds: portamentoSeconds(plan)
+        ))
+    }
+
+    private func canHold(_ midiNote: UInt8) -> Bool {
+        guard let plan,
+              plan.compatibleChordMIDINotes.indices.contains(currentChordIndex)
+        else { return false }
+        return plan.compatibleChordMIDINotes[currentChordIndex].contains(midiNote)
     }
 
     private func apply(

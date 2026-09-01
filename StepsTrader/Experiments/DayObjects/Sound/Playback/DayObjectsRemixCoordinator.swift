@@ -10,6 +10,13 @@ struct DayObjectsRemixRuntimeMetrics: Equatable, Sendable {
     let happeningTokenCount: Int
 }
 
+struct DayObjectsHappeningHandoffState: Equatable, Sendable {
+    let retainedAndReplacedIDs: [String]
+    let removedAndCanceledIDs: [String]
+    let addedIDs: [String]
+    let firstCycleScheduledIDs: [String]
+}
+
 enum DayObjectsRemixLeadCompatibility: Equatable, Sendable {
     case notHeld
     case safeCommonPitch(UInt8)
@@ -25,6 +32,23 @@ enum DayObjectsRemixResult: Equatable, Sendable {
 
 enum PlaybackWorldBankSlot: Equatable, Sendable { case a, b }
 
+enum DayObjectsRemixCoordinatorError: Error, Equatable, Sendable {
+    case duplicateInstrumentBank
+}
+
+struct DayObjectsEqualPowerCrossfadeState: Equatable, Sendable {
+    let progress: Double
+    let oldGain: Double
+    let newGain: Double
+
+    init(progress: Double) {
+        let bounded = min(max(progress.isFinite ? progress : 0, 0), 1)
+        self.progress = bounded
+        oldGain = cos(.pi * 0.5 * bounded)
+        newGain = sin(.pi * 0.5 * bounded)
+    }
+}
+
 struct DayObjectsRemixCoordinatorMetrics: Equatable, Sendable {
     let allocatedBankCount: Int
     let preparedBankCount: Int
@@ -33,6 +57,8 @@ struct DayObjectsRemixCoordinatorMetrics: Equatable, Sendable {
     let activeBank: PlaybackWorldBankSlot
     let inactiveBank: PlaybackWorldBankSlot
     let inactiveBankIsAvailable: Bool
+    let crossfadeState: DayObjectsEqualPowerCrossfadeState?
+    let happeningHandoffState: DayObjectsHappeningHandoffState?
     let allocatedTonalVoiceCount: Int
     let allocatedPianoVoiceCount: Int
     let allocatedDrumPlayerCount: Int
@@ -43,7 +69,14 @@ struct DayObjectsRemixCoordinatorMetrics: Equatable, Sendable {
 protocol DayObjectsRemixRuntime: AnyObject {
     var metrics: DayObjectsRemixRuntimeMetrics { get }
 
+    func prepare(bank: PlaybackWorldBank) throws
     func configure(bank: PlaybackWorldBank, plan: DayMusicPlan) throws
+    func rollbackInitialConfiguration(in bank: PlaybackWorldBank)
+    func renderTransport(
+        _ event: DayObjectsTransportEvent,
+        activeBank: PlaybackWorldBank,
+        releasingBank: PlaybackWorldBank?
+    )
     func stopAttackScheduling(in bank: PlaybackWorldBank, at event: DayObjectsTransportEvent)
     func beginRelease(in bank: PlaybackWorldBank, at event: DayObjectsTransportEvent)
     func startRhythm(
@@ -64,7 +97,7 @@ protocol DayObjectsRemixRuntime: AnyObject {
         oldPlan: DayMusicPlan,
         newPlan: DayMusicPlan,
         at event: DayObjectsTransportEvent
-    )
+    ) throws -> DayObjectsHappeningHandoffState
     func leadCompatibility(
         from oldBank: PlaybackWorldBank,
         to newBank: PlaybackWorldBank,
@@ -97,7 +130,11 @@ protocol DayObjectsRemixRuntime: AnyObject {
 final class DayObjectsRemixCoordinator {
     private struct Transition {
         let oldSlot: PlaybackWorldBankSlot
+        let startSubdivision: Int64
         let crossfadeEndSubdivision: Int64
+        var crossfadeState: DayObjectsEqualPowerCrossfadeState
+        var lastAppliedSubdivision: Int64
+        var lastHostTimeSeconds: TimeInterval
     }
 
     private let bankA: PlaybackWorldBank
@@ -106,6 +143,9 @@ final class DayObjectsRemixCoordinator {
     private var activeSlot: PlaybackWorldBankSlot = .a
     private var transition: Transition?
     private var lastTransitionBoundarySubdivision: Int64?
+    private var highWaterSubdivision: Int64?
+    private var highWaterHostTimeSeconds: TimeInterval?
+    private var latestHappeningHandoffState: DayObjectsHappeningHandoffState?
     private(set) var currentPlan: DayMusicPlan?
     private(set) var pendingPlan: DayMusicPlan?
     private(set) var result: DayObjectsRemixResult = .idle
@@ -120,6 +160,8 @@ final class DayObjectsRemixCoordinator {
             activeBank: activeSlot,
             inactiveBank: activeSlot == .a ? .b : .a,
             inactiveBankIsAvailable: transition == nil,
+            crossfadeState: transition?.crossfadeState,
+            happeningHandoffState: latestHappeningHandoffState,
             allocatedTonalVoiceCount: bankMetrics.reduce(0) { $0 + $1.allocatedTonalVoiceCount },
             allocatedPianoVoiceCount: bankMetrics.reduce(0) { $0 + $1.allocatedPianoVoiceCount },
             allocatedDrumPlayerCount: bankMetrics.reduce(0) { $0 + $1.allocatedDrumPlayerCount },
@@ -127,8 +169,10 @@ final class DayObjectsRemixCoordinator {
         )
     }
 
-    init(bankA: PlaybackWorldBank, bankB: PlaybackWorldBank, runtime: DayObjectsRemixRuntime) {
-        precondition(bankA !== bankB, "Remix requires two distinct preallocated world banks")
+    init(bankA: PlaybackWorldBank, bankB: PlaybackWorldBank, runtime: DayObjectsRemixRuntime) throws {
+        guard bankA !== bankB,
+              bankA.instrumentBank !== bankB.instrumentBank
+        else { throw DayObjectsRemixCoordinatorError.duplicateInstrumentBank }
         self.bankA = bankA
         self.bankB = bankB
         self.runtime = runtime
@@ -136,12 +180,30 @@ final class DayObjectsRemixCoordinator {
 
     func prepare(initialPlan: DayMusicPlan) throws {
         try bankA.prepare()
+        try runtime.prepare(bank: bankA)
         try bankB.prepare()
-        try runtime.configure(bank: bankA, plan: initialPlan)
+        try runtime.prepare(bank: bankB)
+        do {
+            try runtime.configure(bank: bankA, plan: initialPlan)
+        } catch {
+            runtime.rollbackInitialConfiguration(in: bankA)
+            bankA.setOutputGain(0, rampDurationSeconds: 0)
+            bankB.setOutputGain(0, rampDurationSeconds: 0)
+            currentPlan = nil
+            pendingPlan = nil
+            transition = nil
+            result = .failed(.init(String(describing: error)))
+            throw error
+        }
+        bankA.setOutputGain(1, rampDurationSeconds: 0)
+        bankB.setOutputGain(0, rampDurationSeconds: 0)
         currentPlan = initialPlan
         pendingPlan = nil
         transition = nil
         lastTransitionBoundarySubdivision = nil
+        highWaterSubdivision = nil
+        highWaterHostTimeSeconds = nil
+        latestHappeningHandoffState = nil
         activeSlot = .a
         result = .idle
     }
@@ -152,69 +214,97 @@ final class DayObjectsRemixCoordinator {
     }
 
     func render(_ event: DayObjectsTransportEvent) {
+        guard acceptMonotonic(event) else { return }
+        advanceCrossfade(at: event)
         finishTransitionIfPossible(at: event)
 
-        guard isEligibleBoundary(event), transition == nil,
-              lastTransitionBoundarySubdivision != event.position.absoluteSubdivision,
-              let targetPlan = pendingPlan, let oldPlan = currentPlan else { return }
-        lastTransitionBoundarySubdivision = event.position.absoluteSubdivision
-        let oldBank = activeBank
-        let newBank = inactiveBank
-        let oldSlot = activeSlot
-        let newSlot: PlaybackWorldBankSlot = activeSlot == .a ? .b : .a
-        do {
-            runtime.stopAttackScheduling(in: oldBank, at: event)
-            runtime.beginRelease(in: oldBank, at: event)
-            try runtime.configure(bank: newBank, plan: targetPlan)
-            try runtime.startRhythm(in: newBank, plan: targetPlan, at: event)
-            runtime.beginEqualPowerCrossfade(
-                from: oldBank,
-                to: newBank,
-                plan: targetPlan,
-                startingAt: event,
-                durationBars: 2
-            )
-            runtime.replaceHappeningsAndScheduleFirstCycle(
-                from: oldBank,
-                to: newBank,
-                oldPlan: oldPlan,
-                newPlan: targetPlan,
-                at: event
-            )
-            switch runtime.leadCompatibility(from: oldBank, to: newBank, oldPlan: oldPlan, newPlan: targetPlan) {
-            case .notHeld: break
-            case let .safeCommonPitch(note):
-                runtime.glideHeldLead(from: oldBank, to: newBank, midiNote: note, newPlan: targetPlan)
-            case .requiresRestart:
-                runtime.releaseAndRestartHeldLead(from: oldBank, to: newBank, newPlan: targetPlan)
+        if isEligibleBoundary(event), transition == nil,
+           lastTransitionBoundarySubdivision != event.position.absoluteSubdivision,
+           let targetPlan = pendingPlan, let oldPlan = currentPlan {
+            lastTransitionBoundarySubdivision = event.position.absoluteSubdivision
+            let oldBank = activeBank
+            let newBank = inactiveBank
+            let oldSlot = activeSlot
+            let newSlot: PlaybackWorldBankSlot = activeSlot == .a ? .b : .a
+            do {
+                runtime.stopAttackScheduling(in: oldBank, at: event)
+                runtime.beginRelease(in: oldBank, at: event)
+                try runtime.configure(bank: newBank, plan: targetPlan)
+                try runtime.startRhythm(in: newBank, plan: targetPlan, at: event)
+                runtime.beginEqualPowerCrossfade(
+                    from: oldBank,
+                    to: newBank,
+                    plan: targetPlan,
+                    startingAt: event,
+                    durationBars: 2
+                )
+                let happeningState = try runtime.replaceHappeningsAndScheduleFirstCycle(
+                    from: oldBank,
+                    to: newBank,
+                    oldPlan: oldPlan,
+                    newPlan: targetPlan,
+                    at: event
+                )
+                try validate(happeningState, oldPlan: oldPlan, newPlan: targetPlan)
+                switch runtime.leadCompatibility(from: oldBank, to: newBank, oldPlan: oldPlan, newPlan: targetPlan) {
+                case .notHeld: break
+                case let .safeCommonPitch(note):
+                    runtime.glideHeldLead(from: oldBank, to: newBank, midiNote: note, newPlan: targetPlan)
+                case .requiresRestart:
+                    runtime.releaseAndRestartHeldLead(from: oldBank, to: newBank, newPlan: targetPlan)
+                }
+                activeSlot = newSlot
+                currentPlan = targetPlan
+                pendingPlan = nil
+                latestHappeningHandoffState = happeningState
+                transition = .init(
+                    oldSlot: oldSlot,
+                    startSubdivision: event.position.absoluteSubdivision,
+                    crossfadeEndSubdivision: event.position.absoluteSubdivision
+                        + 2 * MusicalPosition.subdivisionsPerBar,
+                    crossfadeState: .init(progress: 0),
+                    lastAppliedSubdivision: event.position.absoluteSubdivision,
+                    lastHostTimeSeconds: event.hostTimeSeconds
+                )
+                applyCrossfadeGains(
+                    .init(progress: 0),
+                    oldBank: oldBank,
+                    newBank: newBank,
+                    rampDurationSeconds: 0
+                )
+                result = .transitioned(seed: targetPlan.seed)
+            } catch {
+                runtime.rollbackFailedTransition(
+                    newBank: newBank,
+                    restoring: oldBank,
+                    currentPlan: oldPlan,
+                    at: event
+                )
+                oldBank.setOutputGain(1, rampDurationSeconds: 0)
+                newBank.setOutputGain(0, rampDurationSeconds: 0)
+                pendingPlan = nil
+                result = .failed(.init(String(describing: error)))
             }
-            activeSlot = newSlot
-            currentPlan = targetPlan
-            pendingPlan = nil
-            transition = .init(
-                oldSlot: oldSlot,
-                crossfadeEndSubdivision: event.position.absoluteSubdivision
-                    + 2 * MusicalPosition.subdivisionsPerBar
-            )
-            result = .transitioned(seed: targetPlan.seed)
-        } catch {
-            runtime.rollbackFailedTransition(
-                newBank: newBank,
-                restoring: oldBank,
-                currentPlan: oldPlan,
-                at: event
-            )
-            pendingPlan = nil
-            result = .failed(.init(String(describing: error)))
         }
+
+        runtime.renderTransport(
+            event,
+            activeBank: activeBank,
+            releasingBank: transition.map { bank(for: $0.oldSlot) }
+        )
     }
 
     func stop() {
         pendingPlan = nil
         transition = nil
         lastTransitionBoundarySubdivision = nil
+        highWaterSubdivision = nil
+        highWaterHostTimeSeconds = nil
+        latestHappeningHandoffState = nil
         runtime.stop(bankA)
         runtime.stop(bankB)
+        bankA.setOutputGain(0, rampDurationSeconds: 0)
+        bankB.setOutputGain(0, rampDurationSeconds: 0)
         bankA.releaseAll()
         bankB.releaseAll()
         currentPlan = nil
@@ -232,9 +322,87 @@ final class DayObjectsRemixCoordinator {
         self.transition = nil
     }
 
+    private func advanceCrossfade(at event: DayObjectsTransportEvent) {
+        guard var transition else { return }
+        guard event.position.absoluteSubdivision > transition.lastAppliedSubdivision else { return }
+        let elapsed = max(
+            event.position.absoluteSubdivision - transition.startSubdivision,
+            0
+        )
+        let duration = max(
+            transition.crossfadeEndSubdivision - transition.startSubdivision,
+            1
+        )
+        let state = DayObjectsEqualPowerCrossfadeState(
+            progress: Double(elapsed) / Double(duration)
+        )
+        guard state.progress >= transition.crossfadeState.progress else { return }
+        let rampDuration = max(
+            event.hostTimeSeconds - transition.lastHostTimeSeconds,
+            0
+        )
+        applyCrossfadeGains(
+            state,
+            oldBank: bank(for: transition.oldSlot),
+            newBank: activeBank,
+            rampDurationSeconds: rampDuration
+        )
+        transition.crossfadeState = state
+        transition.lastAppliedSubdivision = event.position.absoluteSubdivision
+        transition.lastHostTimeSeconds = max(
+            transition.lastHostTimeSeconds,
+            event.hostTimeSeconds
+        )
+        self.transition = transition
+    }
+
+    private func applyCrossfadeGains(
+        _ state: DayObjectsEqualPowerCrossfadeState,
+        oldBank: PlaybackWorldBank,
+        newBank: PlaybackWorldBank,
+        rampDurationSeconds: TimeInterval
+    ) {
+        oldBank.setOutputGain(
+            state.oldGain,
+            rampDurationSeconds: rampDurationSeconds
+        )
+        newBank.setOutputGain(
+            state.newGain,
+            rampDurationSeconds: rampDurationSeconds
+        )
+    }
+
     private func isEligibleBoundary(_ event: DayObjectsTransportEvent) -> Bool {
         guard event.position.subdivisionInBar == 0 else { return false }
         return event.kind == .subdivision || event.kind == .barBoundary
+    }
+
+    private func acceptMonotonic(_ event: DayObjectsTransportEvent) -> Bool {
+        let position = event.position.absoluteSubdivision
+        let hostTime = event.hostTimeSeconds
+        if let highWaterSubdivision, position < highWaterSubdivision { return false }
+        if let highWaterHostTimeSeconds, hostTime < highWaterHostTimeSeconds { return false }
+        highWaterSubdivision = max(highWaterSubdivision ?? position, position)
+        highWaterHostTimeSeconds = max(highWaterHostTimeSeconds ?? hostTime, hostTime)
+        return true
+    }
+
+    private func validate(
+        _ state: DayObjectsHappeningHandoffState,
+        oldPlan: DayMusicPlan,
+        newPlan: DayMusicPlan
+    ) throws {
+        let oldIDs = Set(oldPlan.happenings.map(\.happeningID))
+        let newIDs = Set(newPlan.happenings.map(\.happeningID))
+        let expected = DayObjectsHappeningHandoffState(
+            retainedAndReplacedIDs: oldIDs.intersection(newIDs).sorted(),
+            removedAndCanceledIDs: oldIDs.subtracting(newIDs).sorted(),
+            addedIDs: newIDs.subtracting(oldIDs).sorted(),
+            firstCycleScheduledIDs: newIDs.sorted()
+        )
+        guard state == expected else {
+            throw DayObjectsAudioError("Invalid Happening handoff state")
+        }
     }
 
     private func bank(for slot: PlaybackWorldBankSlot) -> PlaybackWorldBank {

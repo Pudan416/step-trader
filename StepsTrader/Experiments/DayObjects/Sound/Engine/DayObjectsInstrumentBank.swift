@@ -25,6 +25,9 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
 
     var drums: DayObjectsDrumBankProtocol { prepared?.drums ?? inactiveDrums }
     var piano: DayObjectsPianoPoolProtocol { prepared?.piano ?? inactivePiano }
+    var outputGainMetrics: DayObjectsBankOutputGainMetrics {
+        prepared?.graph.outputGainMetrics ?? .unsupported
+    }
 
     var metrics: DayObjectsInstrumentBankMetrics {
         .init(
@@ -57,6 +60,13 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     }
 
     convenience init(bundle: Bundle = .main) {
+        self.init(bundle: bundle, engine: DayObjectsAudioKitInstrumentBankEngine())
+    }
+
+    private convenience init(
+        bundle: Bundle,
+        engine: DayObjectsInstrumentBankEngine
+    ) {
         let descriptors = DayObjectsInstrumentManifest.defaultDescriptors
         self.init(
             descriptors: descriptors,
@@ -101,8 +111,21 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
                     piano: pianoAdapter.adapter
                 )
             },
-            engine: DayObjectsAudioKitInstrumentBankEngine()
+            engine: engine
         )
+    }
+
+    static func makePlaybackPair(bundle: Bundle = .main) -> DayObjectsPlaybackBankPair {
+        let sharedEngine = DayObjectsSharedInstrumentBankEngine()
+        let bankA = DayObjectsInstrumentBank(
+            bundle: bundle,
+            engine: DayObjectsPairedInstrumentBankEngine(slot: .a, shared: sharedEngine)
+        )
+        let bankB = DayObjectsInstrumentBank(
+            bundle: bundle,
+            engine: DayObjectsPairedInstrumentBankEngine(slot: .b, shared: sharedEngine)
+        )
+        return DayObjectsPlaybackBankPair(bankA: bankA, bankB: bankB, sharedEngine: sharedEngine)
     }
 
     func prepare(configuration: DayObjectsInstrumentBankConfiguration) throws {
@@ -204,6 +227,13 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         prepared.tonalPools.values.forEach { $0.releaseAll() }
         prepared.drums.releaseAll()
         prepared.piano.releaseAll()
+    }
+
+    func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval) {
+        prepared?.graph.setOutputGain(
+            linearGain,
+            rampDurationSeconds: rampDurationSeconds
+        )
     }
 
     private func validate(_ configuration: DayObjectsInstrumentBankConfiguration) throws {
@@ -357,10 +387,23 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
     let room: Reverb
     let reverb: Reverb
     let masterTrim: Fader
+    let worldTrim: Fader
     let limiter: PeakLimiter
     private let tonalPools: [DayObjectsAudioKitTonalPool]
     private let drums: DayObjectsAudioKitDrumBank
     private let piano: DayObjectsAudioKitFeltPiano
+    private var outputGainTarget = 1.0
+    private var outputGainRampDuration: TimeInterval = 0
+    private var outputGainRampCount = 0
+
+    var outputGainMetrics: DayObjectsBankOutputGainMetrics {
+        .init(
+            isSupported: true,
+            targetLinearGain: outputGainTarget,
+            lastRampDurationSeconds: outputGainRampDuration,
+            rampCount: outputGainRampCount
+        )
+    }
 
     var allocationFingerprint: DayObjectsInstrumentBankAllocationFingerprint {
         let drumMetrics = drums.metrics
@@ -388,7 +431,18 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         room = Reverb(programBus, dryWetMix: 0.12)
         reverb = Reverb(room, dryWetMix: 0.10)
         masterTrim = Fader(reverb, gain: AUValue(DayObjectsAudioParameters.linearGain(decibels: -8)))
-        limiter = PeakLimiter(masterTrim)
+        worldTrim = Fader(masterTrim, gain: 1)
+        limiter = PeakLimiter(worldTrim)
+    }
+
+    func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval) {
+        let target = min(max(linearGain.isFinite ? linearGain : 0, 0), 1)
+        let duration = max(rampDurationSeconds.isFinite ? rampDurationSeconds : 0, 0)
+        outputGainTarget = target
+        outputGainRampDuration = duration
+        outputGainRampCount += 1
+        worldTrim.$leftGain.ramp(to: AUValue(target), duration: Float(duration))
+        worldTrim.$rightGain.ramp(to: AUValue(target), duration: Float(duration))
     }
 
     func synchronizeForStart() throws {
@@ -411,5 +465,139 @@ private final class DayObjectsAudioKitInstrumentBankEngine: DayObjectsInstrument
     func detach() { engine.output = nil }
     func start() throws { try engine.start() }
     func stop() { engine.stop() }
+}
+
+struct DayObjectsPlaybackBankPairMetrics: Equatable, Sendable {
+    let attachedBankCount: Int
+    let sharedAudioEngineCount: Int
+    let finalPeakLimiterCount: Int
+    let sharedMasterTrimDecibels: Double
+    let fixedSharedNodeCount: Int
+    let allocationFingerprint: [DayObjectsInstrumentBankAllocationFingerprint?]
+}
+
+@MainActor
+final class DayObjectsPlaybackBankPair {
+    let bankA: DayObjectsInstrumentBank
+    let bankB: DayObjectsInstrumentBank
+    private let sharedEngine: DayObjectsSharedInstrumentBankEngine
+
+    var metrics: DayObjectsPlaybackBankPairMetrics {
+        sharedEngine.metrics(
+            allocationFingerprint: [
+                bankA.metrics.allocationFingerprint,
+                bankB.metrics.allocationFingerprint,
+            ]
+        )
+    }
+
+    fileprivate init(
+        bankA: DayObjectsInstrumentBank,
+        bankB: DayObjectsInstrumentBank,
+        sharedEngine: DayObjectsSharedInstrumentBankEngine
+    ) {
+        self.bankA = bankA
+        self.bankB = bankB
+        self.sharedEngine = sharedEngine
+    }
+
+    func prepare(configuration: DayObjectsInstrumentBankConfiguration) throws {
+        try bankA.prepare(configuration: configuration)
+        try bankB.prepare(configuration: configuration)
+    }
+}
+
+private enum DayObjectsPlaybackBankSlot: Hashable { case a, b }
+
+@MainActor
+private final class DayObjectsPairedInstrumentBankEngine: DayObjectsInstrumentBankEngine {
+    private let slot: DayObjectsPlaybackBankSlot
+    private let shared: DayObjectsSharedInstrumentBankEngine
+
+    init(slot: DayObjectsPlaybackBankSlot, shared: DayObjectsSharedInstrumentBankEngine) {
+        self.slot = slot
+        self.shared = shared
+    }
+
+    func attach(graph: any DayObjectsInstrumentBankGraph) throws {
+        try shared.attach(graph: graph, slot: slot)
+    }
+    func detach() { shared.detach(slot: slot) }
+    func start() throws { try shared.start() }
+    func stop() { shared.stop() }
+}
+
+@MainActor
+private final class DayObjectsSharedInstrumentBankEngine {
+    private static let masterTrimDecibels = -6.0
+    private let engine = AudioEngine()
+    private var graphs: [DayObjectsPlaybackBankSlot: DayObjectsAudioKitInstrumentBankGraph] = [:]
+    private var attachedSlots: Set<DayObjectsPlaybackBankSlot> = []
+    private var outputMixer: Mixer?
+    private var masterTrim: Fader?
+    private var limiter: PeakLimiter?
+
+    func attach(
+        graph: any DayObjectsInstrumentBankGraph,
+        slot: DayObjectsPlaybackBankSlot
+    ) throws {
+        guard let graph = graph as? DayObjectsAudioKitInstrumentBankGraph else {
+            throw DayObjectsInstrumentBankError.preparationFailed(.engine)
+        }
+        if let existing = graphs[slot], existing !== graph {
+            outputMixer = nil
+            masterTrim = nil
+            limiter = nil
+        }
+        graphs[slot] = graph
+        attachedSlots.insert(slot)
+        try connectIfComplete()
+    }
+
+    func detach(slot: DayObjectsPlaybackBankSlot) {
+        attachedSlots.remove(slot)
+        engine.output = nil
+    }
+
+    func start() throws {
+        guard attachedSlots.count == 2, let limiter else {
+            throw DayObjectsInstrumentBankError.notPrepared
+        }
+        engine.output = limiter
+        if !engine.avEngine.isRunning { try engine.start() }
+    }
+
+    func stop() { engine.stop() }
+
+    func metrics(
+        allocationFingerprint: [DayObjectsInstrumentBankAllocationFingerprint?]
+    ) -> DayObjectsPlaybackBankPairMetrics {
+        .init(
+            attachedBankCount: attachedSlots.count,
+            sharedAudioEngineCount: 1,
+            finalPeakLimiterCount: limiter == nil ? 0 : 1,
+            sharedMasterTrimDecibels: Self.masterTrimDecibels,
+            fixedSharedNodeCount: limiter == nil ? 0 : 3,
+            allocationFingerprint: allocationFingerprint
+        )
+    }
+
+    private func connectIfComplete() throws {
+        guard attachedSlots.count == 2,
+              let graphA = graphs[.a], let graphB = graphs[.b] else { return }
+        if limiter == nil {
+            let mixer = Mixer([graphA.limiter, graphB.limiter], name: "Day Objects shared worlds")
+            let trim = Fader(
+                mixer,
+                gain: AUValue(DayObjectsAudioParameters.linearGain(
+                    decibels: Self.masterTrimDecibels
+                ))
+            )
+            outputMixer = mixer
+            masterTrim = trim
+            limiter = PeakLimiter(trim)
+        }
+        engine.output = limiter
+    }
 }
 #endif

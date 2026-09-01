@@ -4,6 +4,67 @@ import XCTest
 
 @MainActor
 final class LeadPlayerTests: XCTestCase {
+    func testSafeRemixHandoffGlidesExistingHeldTokenWithoutRetriggerAndKeepsGestureOwner() throws {
+        let source = try makeHarness()
+        let destination = try makeHarness()
+        let birthGesture = LeadGestureSample(normalizedX: 0.32, normalizedY: 0.64, speed: 0.2)
+        source.player.begin(birthGesture)
+        let heldToken = try XCTUnwrap(source.pool.activeToken)
+
+        let handoff = source.player.handoff(
+            to: destination.player,
+            safeCommonMIDINote: 64
+        )
+
+        XCTAssertEqual(handoff.gestureOwner, .source)
+        XCTAssertTrue(handoff.didGlide)
+        XCTAssertFalse(handoff.didRestart)
+        XCTAssertEqual(source.pool.activeToken, heldToken)
+        XCTAssertEqual(source.pool.noteOnRequests.count, 1)
+        XCTAssertEqual(destination.pool.noteOnRequests.count, 0)
+        XCTAssertEqual(source.player.metrics.amplitudeAttackCount, 1)
+        XCTAssertEqual(destination.player.metrics.amplitudeAttackCount, 0)
+        XCTAssertEqual(source.player.heldState?.currentMIDINote, 64)
+        XCTAssertEqual(source.player.heldState?.lastGesture, birthGesture)
+        XCTAssertEqual(source.player.metrics.voiceCount + destination.player.metrics.voiceCount, 1)
+
+        let moved = LeadGestureSample(normalizedX: 0.81, normalizedY: 0.18, speed: 1.4)
+        handoff.route(moved, source: source.player, destination: destination.player)
+        XCTAssertEqual(source.player.heldState?.lastGesture, moved)
+        XCTAssertNil(destination.player.heldState)
+
+        source.player.end()
+        XCTAssertNil(source.pool.activeToken, "The old-bank token must be absent before that bank can recycle")
+    }
+
+    func testUnsafeRemixHandoffSynchronouslyReleasesOnceRestartsOnceAndRoutesGesturesToDestination() throws {
+        let source = try makeHarness()
+        let destination = try makeHarness()
+        let birthGesture = LeadGestureSample(normalizedX: 0.45, normalizedY: 0.72, speed: 0.3)
+        source.player.begin(birthGesture)
+
+        let handoff = source.player.handoff(
+            to: destination.player,
+            safeCommonMIDINote: nil
+        )
+
+        XCTAssertEqual(handoff.gestureOwner, .destination)
+        XCTAssertFalse(handoff.didGlide)
+        XCTAssertTrue(handoff.didRestart)
+        XCTAssertEqual(source.pool.noteOffCount, 1)
+        XCTAssertEqual(destination.pool.noteOnRequests.count, 1)
+        XCTAssertNil(source.pool.activeToken)
+        XCTAssertNotNil(destination.pool.activeToken)
+        XCTAssertEqual(source.player.metrics.voiceCount + destination.player.metrics.voiceCount, 1)
+
+        let moved = LeadGestureSample(normalizedX: 0.9, normalizedY: 0.1, speed: 2)
+        handoff.route(moved, source: source.player, destination: destination.player)
+        XCTAssertNil(source.player.heldState)
+        XCTAssertEqual(destination.player.heldState?.lastGesture, moved)
+        XCTAssertEqual(source.pool.noteOffCount, 1)
+        XCTAssertEqual(destination.pool.noteOnRequests.count, 1)
+    }
+
     func testOneThousandUpdatesKeepOneReservedVoiceAndOneAmplitudeAttack() throws {
         let harness = try makeHarness()
 
@@ -164,6 +225,7 @@ private final class RecordingLeadPool: DayObjectsTonalVoicePoolProtocol {
     private(set) var updateRequests: [DayObjectsVoiceUpdate] = []
     private(set) var noteOffCount = 0
     private var token: DayObjectsVoiceToken?
+    var activeToken: DayObjectsVoiceToken? { token }
     var metrics: DayObjectsTonalPoolMetrics {
         .init(
             name: name,

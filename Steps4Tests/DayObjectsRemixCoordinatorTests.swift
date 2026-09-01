@@ -4,6 +4,113 @@ import XCTest
 
 @MainActor
 final class DayObjectsRemixCoordinatorTests: XCTestCase {
+    func testInitRejectsTwoWorldWrappersAroundSameUnderlyingInstrumentBank() {
+        let sharedBank = RecordingRemixInstrumentBank()
+        XCTAssertThrowsError(try DayObjectsRemixCoordinator(
+            bankA: PlaybackWorldBank(instrumentBank: sharedBank),
+            bankB: PlaybackWorldBank(instrumentBank: sharedBank),
+            runtime: RecordingRemixRuntime()
+        )) { error in
+            XCTAssertEqual(error as? DayObjectsRemixCoordinatorError, .duplicateInstrumentBank)
+        }
+    }
+
+    func testPrepareCanRetryAfterSecondBankFailsWithoutRepreparingFirstBank() throws {
+        let runtime = RecordingRemixRuntime()
+        let instrumentA = RecordingRemixInstrumentBank()
+        let instrumentB = RecordingRemixInstrumentBank()
+        instrumentB.failPrepare = true
+        let worldA = PlaybackWorldBank(instrumentBank: instrumentA)
+        let worldB = PlaybackWorldBank(instrumentBank: instrumentB)
+        let coordinator = try DayObjectsRemixCoordinator(
+            bankA: worldA,
+            bankB: worldB,
+            runtime: runtime
+        )
+        let initialPlan = makePlan(seed: 880)
+
+        XCTAssertThrowsError(try coordinator.prepare(initialPlan: initialPlan))
+        XCTAssertEqual(instrumentA.prepareCount, 1)
+        XCTAssertEqual(instrumentB.prepareAttemptCount, 1)
+        XCTAssertTrue(runtime.configuredPlans.isEmpty)
+        XCTAssertEqual(runtime.preparedAggregateCount, 1)
+        XCTAssertNil(coordinator.currentPlan)
+
+        instrumentB.failPrepare = false
+        try coordinator.prepare(initialPlan: initialPlan)
+        XCTAssertEqual(instrumentA.prepareCount, 1)
+        XCTAssertEqual(instrumentB.prepareCount, 1)
+        XCTAssertEqual(instrumentB.prepareAttemptCount, 2)
+        XCTAssertEqual(runtime.preparedAggregateCount, 2)
+        XCTAssertEqual(coordinator.currentPlan, initialPlan)
+    }
+
+    func testPrepareCanRetryAfterInitialRuntimeConfigureFailureCoherently() throws {
+        let runtime = RecordingRemixRuntime()
+        runtime.failureStage = .configure
+        let instrumentA = RecordingRemixInstrumentBank()
+        let instrumentB = RecordingRemixInstrumentBank()
+        let worldA = PlaybackWorldBank(instrumentBank: instrumentA)
+        let worldB = PlaybackWorldBank(instrumentBank: instrumentB)
+        let coordinator = try DayObjectsRemixCoordinator(
+            bankA: worldA,
+            bankB: worldB,
+            runtime: runtime
+        )
+        let initialPlan = makePlan(seed: 881)
+
+        XCTAssertThrowsError(try coordinator.prepare(initialPlan: initialPlan))
+        XCTAssertNil(coordinator.currentPlan)
+        XCTAssertTrue(runtime.configuredPlans.isEmpty)
+        XCTAssertEqual(runtime.preparedAggregateCount, 2)
+        XCTAssertNil(runtime.configuredSeed(for: worldA))
+        XCTAssertFalse(runtime.isScheduling(worldA))
+        XCTAssertTrue(runtime.isSilenced(worldA))
+
+        runtime.failureStage = nil
+        try coordinator.prepare(initialPlan: initialPlan)
+        XCTAssertEqual(coordinator.currentPlan, initialPlan)
+        XCTAssertEqual(runtime.configuredPlans.map(\.seed), [881])
+        XCTAssertEqual(instrumentA.prepareCount, 1)
+        XCTAssertEqual(instrumentB.prepareCount, 1)
+        XCTAssertEqual(runtime.preparedAggregateCount, 2)
+    }
+
+    func testCrossfadeAdvancesEqualPowerGainsAcrossExactlyTwoBars() throws {
+        let harness = try makeHarness(initialSeed: 900)
+        harness.runtime.drained = false
+        harness.coordinator.schedule(makePlan(seed: 901))
+
+        harness.coordinator.render(boundary(position: 16, hostTime: 10))
+        assertEqualPower(
+            harness.coordinator.metrics.crossfadeState,
+            progress: 0,
+            oldGain: 1,
+            newGain: 0
+        )
+
+        harness.coordinator.render(event(.beat, position: 32, hostTime: 12))
+        let midpoint = sqrt(0.5)
+        assertEqualPower(
+            harness.coordinator.metrics.crossfadeState,
+            progress: 0.5,
+            oldGain: midpoint,
+            newGain: midpoint
+        )
+
+        harness.coordinator.render(boundary(position: 48, hostTime: 14))
+        assertEqualPower(
+            harness.coordinator.metrics.crossfadeState,
+            progress: 1,
+            oldGain: 0,
+            newGain: 1
+        )
+        XCTAssertEqual(harness.banks[0].outputGainMetrics.targetLinearGain, 0, accuracy: 1e-12)
+        XCTAssertEqual(harness.banks[1].outputGainMetrics.targetLinearGain, 1, accuracy: 1e-12)
+        XCTAssertEqual(harness.coordinator.metrics.crossfadeState!.oldGain * harness.coordinator.metrics.crossfadeState!.oldGain
+            + harness.coordinator.metrics.crossfadeState!.newGain * harness.coordinator.metrics.crossfadeState!.newGain, 1, accuracy: 1e-12)
+    }
+
     func testNewestPendingPlanWinsAndPreservesSubmittedDayInput() throws {
         let harness = try makeHarness(initialSeed: 1)
         let planA = makePlan(seed: 2, steps: 1_500, sleep: 2, ids: ["a"], spent: 10)
@@ -31,6 +138,20 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
         XCTAssertEqual(harness.coordinator.metrics.pendingRemixCount, 0)
     }
 
+    func testHappeningHandoffReportsRetainedRemovedAddedAndEveryNewFirstCycleID() throws {
+        let harness = try makeHarness(initialSeed: 905)
+        harness.coordinator.schedule(makePlan(seed: 906, ids: ["b", "c", "d"]))
+
+        harness.coordinator.render(boundary(position: 16, hostTime: 11))
+
+        XCTAssertEqual(harness.coordinator.metrics.happeningHandoffState, .init(
+            retainedAndReplacedIDs: ["b"],
+            removedAndCanceledIDs: ["a"],
+            addedIDs: ["c", "d"],
+            firstCycleScheduledIDs: ["b", "c", "d"]
+        ))
+    }
+
     func testBoundaryOperationsHaveExactOrderAndSamePositionIsDeduplicated() throws {
         let harness = try makeHarness(initialSeed: 10)
         harness.runtime.resetLog()
@@ -52,6 +173,7 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
         ])
         XCTAssertEqual(harness.coordinator.metrics.transitionCount, 1)
         XCTAssertEqual(harness.runtime.startedRhythmHostTimes, [91.125])
+        XCTAssertEqual(harness.banks.map { $0.outputGainMetrics.rampCount }, [2, 2], "Duplicate event kinds at one transport position must not restart output ramps")
     }
 
     func testOldBankRecyclesOnlyAfterTwoBarsAndRuntimeTailsDrain() throws {
@@ -109,6 +231,23 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
         XCTAssertLessThanOrEqual(harness.runtime.metrics.leadTokenCount, 1)
     }
 
+    func testSafeHeldLeadBlocksOldBankRecycleUntilItsTokenIsReleased() throws {
+        let harness = try makeHarness(initialSeed: 42)
+        harness.runtime.compatibility = .safeCommonPitch(64)
+        harness.runtime.leadTokenCount = 1
+        harness.runtime.drained = true
+        harness.coordinator.schedule(makePlan(seed: 43))
+        harness.coordinator.render(boundary(position: 16, hostTime: 5))
+
+        harness.coordinator.render(boundary(position: 48, hostTime: 7))
+        XCTAssertEqual(harness.runtime.recycleCount, 0)
+
+        harness.runtime.releaseHeldLead(in: harness.worldBanks[0])
+        harness.coordinator.render(event(.subdivision, position: 49, hostTime: 7.1))
+        XCTAssertEqual(harness.runtime.recycleCount, 1)
+        XCTAssertEqual(harness.runtime.recycleWithHeldTokenViolationCount, 0)
+    }
+
     func testConfigureAndStartFailuresRollbackWithoutClaimingFailedPlanActive() throws {
         for stage in [RecordingRemixRuntime.FailureStage.configure, .startRhythm] {
             let harness = try makeHarness(initialSeed: 50)
@@ -124,10 +263,42 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
             XCTAssertEqual(harness.coordinator.metrics.transitionCount, 0, "failed \(stage)")
             XCTAssertEqual(harness.runtime.rollbackCount, 1, "failed \(stage)")
             XCTAssertEqual(harness.coordinator.metrics.allocatedBankCount, baseline.allocatedBankCount)
+            XCTAssertEqual(harness.coordinator.metrics.runtime, baseline.runtime)
+            XCTAssertEqual(harness.runtime.configuredSeed(for: harness.worldBanks[0]), 50)
+            XCTAssertTrue(harness.runtime.isScheduling(harness.worldBanks[0]))
+            XCTAssertFalse(harness.runtime.isSilenced(harness.worldBanks[0]))
+            XCTAssertNil(harness.runtime.configuredSeed(for: harness.worldBanks[1]))
+            XCTAssertFalse(harness.runtime.isScheduling(harness.worldBanks[1]))
+            XCTAssertTrue(harness.runtime.isSilenced(harness.worldBanks[1]))
             guard case .failed = harness.coordinator.result else {
                 return XCTFail("failure must be observable for \(stage)")
             }
+
+            harness.runtime.failureStage = nil
+            harness.coordinator.schedule(makePlan(seed: 52))
+            harness.coordinator.render(boundary(position: 32, hostTime: 7))
+            XCTAssertEqual(harness.coordinator.currentPlan?.seed, 52)
+            XCTAssertEqual(harness.coordinator.metrics.activeBank, .b)
         }
+    }
+
+    func testStalePositionAndHostTimeCannotConsumePendingPlanAfterRecycle() throws {
+        let harness = try makeHarness(initialSeed: 70)
+        harness.runtime.drained = true
+        harness.coordinator.schedule(makePlan(seed: 71))
+        harness.coordinator.render(boundary(position: 16, hostTime: 1))
+        harness.coordinator.render(boundary(position: 48, hostTime: 3))
+        harness.coordinator.schedule(makePlan(seed: 72))
+
+        harness.coordinator.render(boundary(position: 32, hostTime: 4))
+        harness.coordinator.render(boundary(position: 64, hostTime: 2))
+
+        XCTAssertEqual(harness.coordinator.currentPlan?.seed, 71)
+        XCTAssertEqual(harness.coordinator.pendingPlan?.seed, 72)
+        XCTAssertFalse(harness.runtime.configuredPlans.contains { $0.seed == 72 })
+
+        harness.coordinator.render(boundary(position: 64, hostTime: 5))
+        XCTAssertEqual(harness.coordinator.currentPlan?.seed, 72)
     }
 
     func testStopClearsPendingAndTransitionAndReleasesBothBanks() throws {
@@ -175,21 +346,34 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
         XCTAssertEqual(harness.runtime.oldAttackCountAfterCutoff, 0)
     }
 
+    func testStressEvidenceDetectsOldAttacksIfRuntimeIgnoresCutoff() throws {
+        let harness = try makeHarness(initialSeed: 810)
+        harness.runtime.ignoreStopAttackScheduling = true
+        harness.coordinator.schedule(makePlan(seed: 811))
+
+        harness.coordinator.render(boundary(position: 16, hostTime: 1))
+
+        XCTAssertGreaterThan(harness.runtime.oldAttackCountAfterCutoff, 0)
+    }
+
     private func makeHarness(initialSeed: UInt64) throws -> (
         coordinator: DayObjectsRemixCoordinator,
         runtime: RecordingRemixRuntime,
-        banks: [RecordingRemixInstrumentBank]
+        banks: [RecordingRemixInstrumentBank],
+        worldBanks: [PlaybackWorldBank]
     ) {
         let runtime = RecordingRemixRuntime()
         let bankA = RecordingRemixInstrumentBank()
         let bankB = RecordingRemixInstrumentBank()
-        let coordinator = DayObjectsRemixCoordinator(
-            bankA: PlaybackWorldBank(instrumentBank: bankA),
-            bankB: PlaybackWorldBank(instrumentBank: bankB),
+        let worldA = PlaybackWorldBank(instrumentBank: bankA)
+        let worldB = PlaybackWorldBank(instrumentBank: bankB)
+        let coordinator = try DayObjectsRemixCoordinator(
+            bankA: worldA,
+            bankB: worldB,
             runtime: runtime
         )
         try coordinator.prepare(initialPlan: makePlan(seed: initialSeed))
-        return (coordinator, runtime, [bankA, bankB])
+        return (coordinator, runtime, [bankA, bankB], [worldA, worldB])
     }
 
     private func makePlan(
@@ -210,6 +394,24 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
             ),
             remixSeed: seed
         )
+    }
+
+    private func assertEqualPower(
+        _ state: DayObjectsEqualPowerCrossfadeState?,
+        progress: Double,
+        oldGain: Double,
+        newGain: Double,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let state else {
+            XCTFail("Missing equal-power crossfade state", file: file, line: line)
+            return
+        }
+        XCTAssertEqual(state.progress, progress, accuracy: 1e-12, file: file, line: line)
+        XCTAssertEqual(state.oldGain, oldGain, accuracy: 1e-12, file: file, line: line)
+        XCTAssertEqual(state.newGain, newGain, accuracy: 1e-12, file: file, line: line)
+        XCTAssertEqual(state.oldGain * state.oldGain + state.newGain * state.newGain, 1, accuracy: 1e-12, file: file, line: line)
     }
 
     private func boundary(position: Int64, hostTime: TimeInterval) -> DayObjectsTransportEvent {
@@ -236,6 +438,19 @@ private final class RecordingRemixRuntime: DayObjectsRemixRuntime {
         var description: String { self == .configure ? "configure" : "start-rhythm" }
     }
 
+    private final class Aggregate {
+        var plan: DayMusicPlan?
+        var schedulingEnabled = false
+        var isSilenced = true
+        var cutoffSubdivision: Int64?
+        var leadTokenCount = 0
+        var happeningTokenCount = 0
+        var scheduledAttackCount = 0
+        var activeHappeningIDs: Set<String> = []
+    }
+
+    private var aggregates: [ObjectIdentifier: Aggregate] = [:]
+    private var preparationOrder: [ObjectIdentifier] = []
     private(set) var configuredPlans: [DayMusicPlan] = []
     private(set) var log: [String] = []
     private(set) var startedRhythmHostTimes: [TimeInterval] = []
@@ -245,42 +460,178 @@ private final class RecordingRemixRuntime: DayObjectsRemixRuntime {
     private(set) var glideCount = 0
     private(set) var releaseRestartCount = 0
     private(set) var oldAttackCountAfterCutoff = 0
+    private(set) var recycleWithHeldTokenViolationCount = 0
     var drained = true
+    var ignoreStopAttackScheduling = false
     var compatibility: DayObjectsRemixLeadCompatibility = .notHeld
-    var leadTokenCount = 0
-    var happeningTokenCount = 0
+    var leadTokenCount: Int {
+        get { aggregates.values.reduce(0) { $0 + $1.leadTokenCount } }
+        set { mutationAggregate?.leadTokenCount = newValue }
+    }
+    var happeningTokenCount: Int {
+        get { aggregates.values.reduce(0) { $0 + $1.happeningTokenCount } }
+        set { mutationAggregate?.happeningTokenCount = newValue }
+    }
     var failureStage: FailureStage?
 
     var metrics: DayObjectsRemixRuntimeMetrics {
-        .init(nodeCount: 200, poolCount: 12, taskCount: 0, transportCount: 1, leadTokenCount: leadTokenCount, happeningTokenCount: happeningTokenCount)
+        .init(
+            nodeCount: aggregates.count * 100,
+            poolCount: aggregates.count * 6,
+            taskCount: 0,
+            transportCount: aggregates.isEmpty ? 0 : 1,
+            leadTokenCount: leadTokenCount,
+            happeningTokenCount: happeningTokenCount
+        )
+    }
+
+    func prepare(bank: PlaybackWorldBank) throws {
+        let id = ObjectIdentifier(bank)
+        guard aggregates[id] == nil else { return }
+        aggregates[id] = Aggregate()
+        preparationOrder.append(id)
     }
 
     func configure(bank: PlaybackWorldBank, plan: DayMusicPlan) throws {
+        let aggregate = aggregate(for: bank)
+        let hasOtherConfiguredBank = aggregates.contains { $0.key != ObjectIdentifier(bank) && $0.value.plan != nil }
+        aggregate.plan = plan
+        aggregate.activeHappeningIDs = Set(plan.happenings.map(\.happeningID))
+        aggregate.isSilenced = hasOtherConfiguredBank
+        aggregate.schedulingEnabled = !hasOtherConfiguredBank
+        aggregate.cutoffSubdivision = nil
         if failureStage == .configure { throw DayObjectsAudioError("configure") }
         configuredPlans.append(plan)
         log.append("configure:\(plan.seed)")
     }
 
-    func stopAttackScheduling(in bank: PlaybackWorldBank, at event: DayObjectsTransportEvent) { log.append("stop-attacks@\(event.position.absoluteSubdivision)") }
+    func rollbackInitialConfiguration(in bank: PlaybackWorldBank) {
+        let aggregate = aggregate(for: bank)
+        aggregate.plan = nil
+        aggregate.schedulingEnabled = false
+        aggregate.isSilenced = true
+        aggregate.cutoffSubdivision = nil
+        aggregate.leadTokenCount = 0
+        aggregate.happeningTokenCount = 0
+        aggregate.activeHappeningIDs = []
+    }
+
+    func renderTransport(
+        _ event: DayObjectsTransportEvent,
+        activeBank: PlaybackWorldBank,
+        releasingBank: PlaybackWorldBank?
+    ) {
+        var ids = [ObjectIdentifier(activeBank)]
+        if let releasingBank { ids.append(ObjectIdentifier(releasingBank)) }
+        for id in Set(ids) {
+            guard let aggregate = aggregates[id], aggregate.schedulingEnabled else { continue }
+            aggregate.scheduledAttackCount += 1
+            if let cutoff = aggregate.cutoffSubdivision,
+               event.position.absoluteSubdivision >= cutoff {
+                oldAttackCountAfterCutoff += 1
+            }
+        }
+    }
+
+    func stopAttackScheduling(in bank: PlaybackWorldBank, at event: DayObjectsTransportEvent) {
+        let aggregate = aggregate(for: bank)
+        aggregate.cutoffSubdivision = event.position.absoluteSubdivision
+        if !ignoreStopAttackScheduling { aggregate.schedulingEnabled = false }
+        log.append("stop-attacks@\(event.position.absoluteSubdivision)")
+    }
     func beginRelease(in bank: PlaybackWorldBank, at event: DayObjectsTransportEvent) { log.append("release@\(event.position.absoluteSubdivision)") }
     func startRhythm(in bank: PlaybackWorldBank, plan: DayMusicPlan, at event: DayObjectsTransportEvent) throws {
+        let aggregate = aggregate(for: bank)
+        aggregate.isSilenced = false
+        aggregate.schedulingEnabled = true
         if failureStage == .startRhythm { throw DayObjectsAudioError("rhythm") }
         startedRhythmHostTimes.append(event.hostTimeSeconds)
         log.append("rhythm:\(plan.seed)@\(event.hostTimeSeconds)")
     }
     func beginEqualPowerCrossfade(from oldBank: PlaybackWorldBank, to newBank: PlaybackWorldBank, plan: DayMusicPlan, startingAt event: DayObjectsTransportEvent, durationBars: Int) { log.append("crossfade:\(durationBars)") }
-    func replaceHappeningsAndScheduleFirstCycle(from oldBank: PlaybackWorldBank, to newBank: PlaybackWorldBank, oldPlan: DayMusicPlan, newPlan: DayMusicPlan, at event: DayObjectsTransportEvent) {
+    func replaceHappeningsAndScheduleFirstCycle(from oldBank: PlaybackWorldBank, to newBank: PlaybackWorldBank, oldPlan: DayMusicPlan, newPlan: DayMusicPlan, at event: DayObjectsTransportEvent) throws -> DayObjectsHappeningHandoffState {
         log.append("happenings:\(oldPlan.happenings.map(\.happeningID).joined(separator: ","))->\(newPlan.happenings.map(\.happeningID).joined(separator: ","))@\(event.position.absoluteSubdivision)")
+        let oldIDs = Set(oldPlan.happenings.map(\.happeningID))
+        let newIDs = Set(newPlan.happenings.map(\.happeningID))
+        aggregate(for: newBank).activeHappeningIDs = newIDs
+        return .init(
+            retainedAndReplacedIDs: oldIDs.intersection(newIDs).sorted(),
+            removedAndCanceledIDs: oldIDs.subtracting(newIDs).sorted(),
+            addedIDs: newIDs.subtracting(oldIDs).sorted(),
+            firstCycleScheduledIDs: newIDs.sorted()
+        )
     }
     func leadCompatibility(from oldBank: PlaybackWorldBank, to newBank: PlaybackWorldBank, oldPlan: DayMusicPlan, newPlan: DayMusicPlan) -> DayObjectsRemixLeadCompatibility { compatibility }
     func glideHeldLead(from oldBank: PlaybackWorldBank, to newBank: PlaybackWorldBank, midiNote: UInt8, newPlan: DayMusicPlan) { glideCount += 1; log.append("lead-glide:\(midiNote)") }
-    func releaseAndRestartHeldLead(from oldBank: PlaybackWorldBank, to newBank: PlaybackWorldBank, newPlan: DayMusicPlan) { releaseRestartCount += 1; leadTokenCount = min(leadTokenCount, 1); log.append("lead-restart") }
-    func isDrained(_ bank: PlaybackWorldBank) -> Bool { drained }
-    func recycle(_ bank: PlaybackWorldBank) { recycleCount += 1; leadTokenCount = 0; happeningTokenCount = 0; log.append("recycle") }
-    func rollbackFailedTransition(newBank: PlaybackWorldBank, restoring oldBank: PlaybackWorldBank, currentPlan: DayMusicPlan, at event: DayObjectsTransportEvent) { rollbackCount += 1; log.append("rollback") }
-    func stop(_ bank: PlaybackWorldBank) { stopCount += 1; leadTokenCount = 0; happeningTokenCount = 0 }
+    func releaseAndRestartHeldLead(from oldBank: PlaybackWorldBank, to newBank: PlaybackWorldBank, newPlan: DayMusicPlan) {
+        releaseRestartCount += 1
+        aggregate(for: oldBank).leadTokenCount = 0
+        aggregate(for: newBank).leadTokenCount = 1
+        log.append("lead-restart")
+    }
+    func isDrained(_ bank: PlaybackWorldBank) -> Bool {
+        let aggregate = aggregate(for: bank)
+        return drained && aggregate.leadTokenCount == 0 && aggregate.happeningTokenCount == 0
+    }
+    func recycle(_ bank: PlaybackWorldBank) {
+        recycleCount += 1
+        let aggregate = aggregate(for: bank)
+        if aggregate.leadTokenCount > 0 { recycleWithHeldTokenViolationCount += 1 }
+        aggregate.plan = nil
+        aggregate.schedulingEnabled = false
+        aggregate.isSilenced = true
+        aggregate.cutoffSubdivision = nil
+        aggregate.leadTokenCount = 0
+        aggregate.happeningTokenCount = 0
+        aggregate.activeHappeningIDs = []
+        log.append("recycle")
+    }
+    func rollbackFailedTransition(newBank: PlaybackWorldBank, restoring oldBank: PlaybackWorldBank, currentPlan: DayMusicPlan, at event: DayObjectsTransportEvent) {
+        rollbackCount += 1
+        let failed = aggregate(for: newBank)
+        failed.plan = nil
+        failed.schedulingEnabled = false
+        failed.isSilenced = true
+        failed.cutoffSubdivision = nil
+        failed.leadTokenCount = 0
+        failed.happeningTokenCount = 0
+        failed.activeHappeningIDs = []
+        let restored = aggregate(for: oldBank)
+        restored.plan = currentPlan
+        restored.schedulingEnabled = true
+        restored.isSilenced = false
+        restored.cutoffSubdivision = nil
+        log.append("rollback")
+    }
+    func stop(_ bank: PlaybackWorldBank) {
+        stopCount += 1
+        let aggregate = aggregate(for: bank)
+        aggregate.schedulingEnabled = false
+        aggregate.isSilenced = true
+        aggregate.leadTokenCount = 0
+        aggregate.happeningTokenCount = 0
+    }
+
+    func configuredSeed(for bank: PlaybackWorldBank) -> UInt64? { aggregate(for: bank).plan?.seed }
+    func isScheduling(_ bank: PlaybackWorldBank) -> Bool { aggregate(for: bank).schedulingEnabled }
+    func isSilenced(_ bank: PlaybackWorldBank) -> Bool { aggregate(for: bank).isSilenced }
+    func releaseHeldLead(in bank: PlaybackWorldBank) { aggregate(for: bank).leadTokenCount = 0 }
+    var preparedAggregateCount: Int { aggregates.count }
 
     func resetLog() { log.removeAll(); startedRhythmHostTimes.removeAll() }
+
+    private var mutationAggregate: Aggregate? {
+        aggregates.values.first(where: { $0.schedulingEnabled })
+            ?? preparationOrder.last.flatMap { aggregates[$0] }
+    }
+
+    private func aggregate(for bank: PlaybackWorldBank) -> Aggregate {
+        let id = ObjectIdentifier(bank)
+        guard let aggregate = aggregates[id] else {
+            preconditionFailure("Runtime bank must be prepared before use")
+        }
+        return aggregate
+    }
 }
 
 @MainActor
@@ -291,10 +642,23 @@ private final class RecordingRemixInstrumentBank: DayObjectsInstrumentBankProtoc
     private let drumBank = RecordingRemixDrums()
     private let pianoBank = RecordingRemixPiano()
     private(set) var prepareCount = 0
+    private(set) var prepareAttemptCount = 0
     private(set) var releaseAllCount = 0
+    var failPrepare = false
+    private var outputGainTarget = 1.0
+    private var outputGainRampDuration: TimeInterval = 0
+    private var outputGainRampCount = 0
 
     var drums: DayObjectsDrumBankProtocol { drumBank }
     var piano: DayObjectsPianoPoolProtocol { pianoBank }
+    var outputGainMetrics: DayObjectsBankOutputGainMetrics {
+        .init(
+            isSupported: true,
+            targetLinearGain: outputGainTarget,
+            lastRampDurationSeconds: outputGainRampDuration,
+            rampCount: outputGainRampCount
+        )
+    }
     var metrics: DayObjectsInstrumentBankMetrics {
         .init(
             state: configuration == nil ? .unprepared : .prepared,
@@ -308,6 +672,8 @@ private final class RecordingRemixInstrumentBank: DayObjectsInstrumentBankProtoc
 
     func prepare(configuration: DayObjectsInstrumentBankConfiguration) throws {
         guard self.configuration == nil else { return }
+        prepareAttemptCount += 1
+        if failPrepare { throw DayObjectsAudioError("prepare") }
         prepareCount += 1
         self.configuration = configuration
         pools = Dictionary(uniqueKeysWithValues: configuration.tonalPools.map {
@@ -327,6 +693,11 @@ private final class RecordingRemixInstrumentBank: DayObjectsInstrumentBankProtoc
         pools.values.forEach { $0.releaseAll() }
         drums.releaseAll()
         piano.releaseAll()
+    }
+    func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval) {
+        outputGainTarget = linearGain
+        outputGainRampDuration = rampDurationSeconds
+        outputGainRampCount += 1
     }
 }
 

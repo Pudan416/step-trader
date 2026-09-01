@@ -4,6 +4,41 @@ import XCTest
 
 @MainActor
 final class DayObjectsInstrumentBankTests: XCTestCase {
+    func testPlaybackPairUsesOneSharedEngineLimiterAndFixedRampableBankOutputs() throws {
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(
+            bundle: Bundle(for: type(of: self))
+        )
+        let smallFixedWorld = DayObjectsInstrumentBankConfiguration(
+            tonalPools: [.init(name: "world", capacity: 1, reservesLeadVoice: true)],
+            pianoVoiceCount: 1,
+            drumOverlapCounts: Dictionary(uniqueKeysWithValues: DayObjectsDrumVoice.allCases.map {
+                ($0, 1)
+            })
+        )
+
+        try pair.prepare(configuration: smallFixedWorld)
+        let baseline = pair.metrics
+
+        XCTAssertEqual(baseline.attachedBankCount, 2)
+        XCTAssertEqual(baseline.sharedAudioEngineCount, 1)
+        XCTAssertEqual(baseline.finalPeakLimiterCount, 1)
+        XCTAssertLessThanOrEqual(baseline.sharedMasterTrimDecibels, -6)
+        XCTAssertEqual(pair.bankA.outputGainMetrics.targetLinearGain, 1)
+        XCTAssertEqual(pair.bankB.outputGainMetrics.targetLinearGain, 1)
+
+        pair.bankA.setOutputGain(0.25, rampDurationSeconds: 0.5)
+        pair.bankB.setOutputGain(0.75, rampDurationSeconds: 0.5)
+
+        XCTAssertEqual(pair.bankA.outputGainMetrics.targetLinearGain, 0.25)
+        XCTAssertEqual(pair.bankB.outputGainMetrics.targetLinearGain, 0.75)
+        XCTAssertEqual(pair.bankA.outputGainMetrics.lastRampDurationSeconds, 0.5)
+        XCTAssertEqual(pair.bankB.outputGainMetrics.lastRampDurationSeconds, 0.5)
+        XCTAssertEqual(pair.bankA.outputGainMetrics.rampCount, 1)
+        XCTAssertEqual(pair.bankB.outputGainMetrics.rampCount, 1)
+        XCTAssertEqual(pair.metrics.fixedSharedNodeCount, baseline.fixedSharedNodeCount)
+        XCTAssertEqual(pair.metrics.allocationFingerprint, baseline.allocationFingerprint)
+    }
+
     func testEqualPreparationBuildsTheFixedGraphOnlyOnceAndChangedConfigurationIsRejected() throws {
         let harness = makeHarness()
         let configuration = configuration()
