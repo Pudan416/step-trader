@@ -712,7 +712,7 @@ final class DayObjectsPlaybackBankPair {
     }
 
     func stop() {
-        guard lifecycleState != .unprepared else { return }
+        guard lifecycleState == .started else { return }
         bankA.releaseAll()
         bankB.releaseAll()
         sharedEngine.stopPair()

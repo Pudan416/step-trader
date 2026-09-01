@@ -4,6 +4,31 @@ import XCTest
 
 @MainActor
 final class DayObjectsInstrumentBankTests: XCTestCase {
+    func testPairStopIsNoOpWhileAnIndividualBankOwnsTheSharedEngine() async throws {
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(
+            bundle: Bundle(for: type(of: self))
+        )
+        try pair.prepare(configuration: smallPlaybackPairConfiguration())
+        let baseline = pair.metrics
+        try pair.bankA.start()
+
+        pair.stop()
+
+        XCTAssertEqual(pair.metrics.lifecycleState, .prepared)
+        XCTAssertTrue(pair.metrics.sharedEngineIsRunning)
+        XCTAssertEqual(pair.metrics.individualStartedBankCount, 1)
+        XCTAssertEqual(pair.bankA.metrics.state, .started)
+        XCTAssertEqual(pair.bankB.metrics.state, .prepared)
+        XCTAssertEqual(pair.metrics.attachedBankCount, 2)
+        XCTAssertEqual(pair.metrics.fixedSharedNodeIdentities, baseline.fixedSharedNodeIdentities)
+        XCTAssertEqual(pair.metrics.allocationFingerprint, baseline.allocationFingerprint)
+
+        await pair.bankA.stop()
+        XCTAssertFalse(pair.metrics.sharedEngineIsRunning)
+        XCTAssertEqual(pair.metrics.individualStartedBankCount, 0)
+        XCTAssertEqual(pair.bankA.metrics.state, .prepared)
+    }
+
     func testIndividualPlaybackBankOwnersStartOnFirstAndStopOnLastWithoutDetachingGraphs() async throws {
         let pair = DayObjectsInstrumentBank.makePlaybackPair(
             bundle: Bundle(for: type(of: self))
