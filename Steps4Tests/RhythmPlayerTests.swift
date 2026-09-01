@@ -4,6 +4,18 @@ import XCTest
 
 @MainActor
 final class RhythmPlayerTests: XCTestCase {
+    func testLiveMixTargetScalesScheduledPercussionWithoutChangingPattern() {
+        let drums = RecordingRhythmDrumBank(allocatedPlayerCount: 31)
+        let player = RhythmPlayer(drumBank: drums)
+        let plan = rhythmPlan(voiceCount: 1, timingAnchorIndex: 0)
+        let baseline = player.render(transportEvent(at: 0), rhythmPlan: plan, glitchPlan: .neutral)
+        player.applyMixTargetDecibels(-6)
+        let attenuated = player.render(transportEvent(at: 0), rhythmPlan: plan, glitchPlan: .neutral)
+
+        XCTAssertEqual(attenuated.hits.map(\.role), baseline.hits.map(\.role))
+        XCTAssertEqual(attenuated.hits.first!.velocity, baseline.hits.first!.velocity * pow(10, -6.0 / 20), accuracy: 0.000_001)
+    }
+
     func testSubdivisionRendersDirectorEventsWithPlannedDetailsAndThreeAttackCap() {
         let drums = RecordingRhythmDrumBank(allocatedPlayerCount: 31)
         let player = RhythmPlayer(drumBank: drums)

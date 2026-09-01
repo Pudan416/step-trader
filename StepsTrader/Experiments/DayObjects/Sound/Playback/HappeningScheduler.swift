@@ -43,6 +43,8 @@ final class HappeningScheduler {
     private var attackHistory: [HappeningAttackRecord] = []
     private var pendingReplacement: PendingReplacement?
     private var scheduleWindowEndSubdivision: Int64?
+    private var mixGain = 1.0
+    private var glitchCommand: DayObjectsGlitchCommand = .neutral(role: .happening)
 
     var metrics: HappeningSchedulerMetrics {
         let ids = states.keys.sorted()
@@ -133,6 +135,18 @@ final class HappeningScheduler {
         guard let state = states.removeValue(forKey: id) else { return }
         releaseVoices(in: state)
         if isPlaying { rebuildSchedules(startingAt: currentPosition) }
+    }
+
+    func applyMixTargetDecibels(_ decibels: Double) {
+        guard decibels.isFinite else { mixGain = 0; return }
+        mixGain = pow(10, min(max(decibels, -60), 0) / 20)
+        updateActiveVoices()
+    }
+
+    func applyGlitch(_ command: DayObjectsGlitchCommand) {
+        guard command.role == .happening else { return }
+        glitchCommand = command
+        updateActiveVoices()
     }
 
     func scheduleStructuralReplacement(
@@ -277,7 +291,8 @@ final class HappeningScheduler {
             tonalWorld: world,
             chord: chord
         ) else { return false }
-        let gain = isBirth ? state.plan.birthGain : state.plan.gain
+        let baseGain = isBirth ? state.plan.birthGain : state.plan.gain
+        let gain = baseGain * mixGain
         guard let token = pool.noteOn(.init(
             instrumentID: state.plan.instrumentID,
             midiNote: note,
@@ -291,6 +306,12 @@ final class HappeningScheduler {
             delaySend: state.plan.delaySend,
             reverbSend: state.plan.reverbSend
         )) else { return false }
+        applyCurrentEffects(
+            to: token, midiNote: note, baseGain: baseGain,
+            baseDelaySend: state.plan.delaySend,
+            baseReverbSend: state.plan.reverbSend,
+            pool: pool
+        )
 
         nextVoiceID &+= 1
         let releaseSubdivisions = max(
@@ -301,6 +322,10 @@ final class HappeningScheduler {
         state.activeVoices[nextVoiceID] = .init(
             pool: pool,
             token: token,
+            midiNote: note,
+            baseGain: baseGain,
+            baseDelaySend: state.plan.delaySend,
+            baseReverbSend: state.plan.reverbSend,
             releaseAt: .init(absoluteSubdivision: currentPosition.absoluteSubdivision + releaseSubdivisions)
         )
         state.didPlaySinceStart = true
@@ -353,6 +378,37 @@ final class HappeningScheduler {
             states[id]?.activeVoiceIDs.removeAll(keepingCapacity: true)
             states[id]?.activeVoices.removeAll(keepingCapacity: true)
         }
+    }
+
+    private func updateActiveVoices() {
+        for state in states.values {
+            for voice in state.activeVoices.values {
+                applyCurrentEffects(
+                    to: voice.token, midiNote: voice.midiNote, baseGain: voice.baseGain,
+                    baseDelaySend: voice.baseDelaySend,
+                    baseReverbSend: voice.baseReverbSend,
+                    pool: voice.pool
+                )
+            }
+        }
+    }
+
+    private func applyCurrentEffects(
+        to token: DayObjectsVoiceToken,
+        midiNote: UInt8,
+        baseGain: Double,
+        baseDelaySend: Double,
+        baseReverbSend: Double,
+        pool: DayObjectsTonalVoicePoolProtocol
+    ) {
+        pool.update(token, with: .init(
+            midiNote: Double(midiNote) + glitchCommand.pitchDriftCents / 100,
+            expression: baseGain * mixGain * glitchCommand.dryGain,
+            delaySend: min(max(baseDelaySend + glitchCommand.delayTimeVariation, 0), 1),
+            reverbSend: min(max(baseReverbSend, 0), 1),
+            pitchRampSeconds: glitchCommand.rampDurationSeconds,
+            expressionRampSeconds: glitchCommand.rampDurationSeconds
+        ))
     }
 
     private static func makeState(plan: HappeningMusicPlan) -> ActiveHappeningState {

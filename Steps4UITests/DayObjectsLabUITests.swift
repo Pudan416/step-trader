@@ -5,6 +5,23 @@ final class DayObjectsLabUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    func testSoundControlIsExplicitAndRemainsVisibleOutsideCollapsedControls() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiLab", "dayObjects", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+
+        let sound = app.buttons["dayObjects.sound"]
+        XCTAssertTrue(sound.waitForExistence(timeout: 5))
+        XCTAssertEqual(sound.value as? String, "off")
+        XCTAssertTrue(sound.isEnabled)
+        XCTAssertTrue(app.buttons["dayObjects.remix"].isEnabled)
+        XCTAssertEqual(app.buttons["dayObjects.instrumentDiagnostics"].value as? String, "collapsed")
+
+        app.buttons["dayObjects.controlsToggle"].tap()
+        XCTAssertTrue(sound.exists)
+        XCTAssertFalse(app.buttons["dayObjects.remix"].exists)
+    }
+
     func testLabExposesAutomaticDayControlsAndAddsHappeningsInPlace() throws {
         let app = XCUIApplication()
         app.launchArguments = [

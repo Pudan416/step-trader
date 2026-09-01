@@ -4,6 +4,19 @@ import XCTest
 
 @MainActor
 final class DayObjectsRemixCoordinatorTests: XCTestCase {
+    func testCancelPendingRemixLeavesCurrentWorldRunningAndClearsOnlyQueuedPlan() throws {
+        let harness = try makeHarness(initialSeed: 700)
+        harness.runtime.resetLog()
+        harness.coordinator.schedule(makePlan(seed: 701))
+
+        harness.coordinator.cancelPending()
+
+        XCTAssertNil(harness.coordinator.pendingPlan)
+        XCTAssertEqual(harness.coordinator.currentPlan?.seed, 700)
+        XCTAssertEqual(harness.coordinator.metrics.pendingRemixCount, 0)
+        XCTAssertTrue(harness.runtime.log.isEmpty)
+    }
+
     func testInitRejectsTwoWorldWrappersAroundSameUnderlyingInstrumentBank() {
         let sharedBank = RecordingRemixInstrumentBank()
         XCTAssertThrowsError(try DayObjectsRemixCoordinator(

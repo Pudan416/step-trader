@@ -213,6 +213,11 @@ final class DayObjectsRemixCoordinator {
         result = .scheduled(seed: plan.seed)
     }
 
+    func cancelPending() {
+        pendingPlan = nil
+        if transition == nil { result = .idle }
+    }
+
     func render(_ event: DayObjectsTransportEvent) {
         guard acceptMonotonic(event) else { return }
         advanceCrossfade(at: event)

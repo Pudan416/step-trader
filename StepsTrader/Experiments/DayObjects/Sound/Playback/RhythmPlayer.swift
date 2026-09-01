@@ -36,6 +36,7 @@ final class RhythmPlayer {
     private var processedSubdivisionCount = 0
     private var renderedLogicalHitCount = 0
     private var activeLogicalHitCount = 0
+    private var mixGain = 1.0
 
     var metrics: RhythmPlayerMetrics {
         .init(
@@ -108,7 +109,7 @@ final class RhythmPlayer {
                 drumVoice: event.drumVoice,
                 cycleIndex: cycleIndex,
                 stepIndex: stepIndex,
-                velocity: event.velocity,
+                velocity: event.velocity * mixGain,
                 microtimingMilliseconds: voicePlan.isTimingAnchor ? 0 : boundedTiming,
                 scheduledHostTimeSeconds: transportEvent.hostTimeSeconds
                     + ((voicePlan.isTimingAnchor ? 0 : boundedTiming) / 1_000),
@@ -145,9 +146,18 @@ final class RhythmPlayer {
         activeLogicalHitCount = 0
     }
 
+    func applyMixTargetDecibels(_ decibels: Double) {
+        mixGain = Self.linearGain(decibels: decibels)
+    }
+
     private func ducking(for plan: RhythmPlan) -> Double {
         let highStepsAmount = smoothActivation(plan.stepsProgress, start: 0.75, end: 1)
         return min(max(plan.maximumHarmonyDuckingDecibels, 0), 2.5) * highStepsAmount
+    }
+
+    private static func linearGain(decibels: Double) -> Double {
+        guard decibels.isFinite else { return 0 }
+        return pow(10, min(max(decibels, -60), 0) / 20)
     }
 }
 #endif

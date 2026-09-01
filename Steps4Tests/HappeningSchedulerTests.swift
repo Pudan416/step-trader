@@ -4,6 +4,26 @@ import XCTest
 
 @MainActor
 final class HappeningSchedulerTests: XCTestCase {
+    func testNeutralGlitchPreservesPlannedEffectsAndVariationAddsToBaseDelay() throws {
+        let harness = try makeHarness(count: 0)
+        let plan = makePlan(index: 1, seed: 44)
+        try harness.scheduler.add(plan, currentChord: harness.world.progression[0], playBirth: true)
+        let neutral = try XCTUnwrap(harness.pool.updateRequests.last)
+        XCTAssertEqual(neutral.delaySend, plan.delaySend)
+        XCTAssertEqual(neutral.reverbSend, plan.reverbSend)
+
+        harness.scheduler.applyGlitch(.init(
+            role: .happening, dryGain: 1, pitchDriftCents: 2,
+            wowFlutterDepth: 0, stereoSeparationAddition: 0,
+            delayTimeVariation: 0.05, saturationAmount: 0,
+            timingDriftMilliseconds: 0, dropoutAttenuationDecibels: 0,
+            dropoutReleaseSeconds: 0, rampDurationSeconds: 0.25
+        ))
+        let varied = try XCTUnwrap(harness.pool.updateRequests.last)
+        XCTAssertEqual(try XCTUnwrap(varied.delaySend), plan.delaySend + 0.05, accuracy: 0.000_001)
+        XCTAssertEqual(varied.reverbSend, plan.reverbSend)
+    }
+
     func testCountsOneFiveAndTenRenderEveryIDInFirstCycleAndStayInsideRecurrenceBands() throws {
         for (count, band) in [(1, 2...4), (5, 6...12), (10, 12...24)] {
             let harness = try makeHarness(count: count)
@@ -283,7 +303,9 @@ final class HappeningSchedulerTests: XCTestCase {
         let worldBank = PlaybackWorldBank(instrumentBank: bank)
         let scheduler = HappeningScheduler(worldBank: worldBank)
         let world = makeWorld()
-        let plans = (1...count).map { makePlan(index: $0, seed: 42, releaseSeconds: releaseSeconds) }
+        let plans = count > 0
+            ? (1...count).map { makePlan(index: $0, seed: 42, releaseSeconds: releaseSeconds) }
+            : []
         try scheduler.configure(plans: plans, tonalWorld: world, remixSeed: 42)
         try scheduler.start()
         return Harness(
@@ -406,6 +428,7 @@ private final class RecordingHappeningPool: DayObjectsTonalVoicePoolProtocol {
     private(set) var preparedIDs: Set<DayObjectsInstrumentID> = []
     private(set) var noteOnRequests: [DayObjectsTonalNoteRequest] = []
     private(set) var noteOffRequests: [DayObjectsTonalNoteRequest] = []
+    private(set) var updateRequests: [DayObjectsVoiceUpdate] = []
     private var active: [DayObjectsVoiceToken: DayObjectsTonalNoteRequest] = [:]
     private var nextGeneration: UInt64 = 0
     var metrics: DayObjectsTonalPoolMetrics {
@@ -424,7 +447,10 @@ private final class RecordingHappeningPool: DayObjectsTonalVoicePoolProtocol {
         noteOnRequests.append(request)
         return token
     }
-    func update(_ token: DayObjectsVoiceToken, with update: DayObjectsVoiceUpdate) {}
+    func update(_ token: DayObjectsVoiceToken, with update: DayObjectsVoiceUpdate) {
+        guard active[token] != nil else { return }
+        updateRequests.append(update)
+    }
     func noteOff(_ token: DayObjectsVoiceToken) {
         if let request = active.removeValue(forKey: token) { noteOffRequests.append(request) }
     }

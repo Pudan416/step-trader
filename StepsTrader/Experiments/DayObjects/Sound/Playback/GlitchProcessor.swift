@@ -183,7 +183,7 @@ final class GlitchProcessor {
     }
 }
 
-private extension DayObjectsGlitchCommand {
+extension DayObjectsGlitchCommand {
     static func neutral(role: GlitchRole) -> Self {
         .init(
             role: role,

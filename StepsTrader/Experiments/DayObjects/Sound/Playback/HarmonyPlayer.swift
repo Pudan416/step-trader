@@ -39,6 +39,32 @@ final class HarmonyPlayer {
             update(expression: nil, delaySend: delaySend, reverbSend: reverbSend)
         }
 
+        func applyGlitch(
+            baseMIDINote: UInt8,
+            expression: Double,
+            delaySend: Double,
+            reverbSend: Double,
+            command: DayObjectsGlitchCommand
+        ) {
+            switch self {
+            case let .tonal(pool, token):
+                pool.update(token, with: .init(
+                    midiNote: Double(baseMIDINote) + command.pitchDriftCents / 100,
+                    expression: expression,
+                    delaySend: delaySend,
+                    reverbSend: reverbSend,
+                    pitchRampSeconds: command.rampDurationSeconds,
+                    expressionRampSeconds: command.rampDurationSeconds
+                ))
+            case let .piano(pool, token):
+                pool.update(token, with: .init(
+                    expression: expression,
+                    roomSend: delaySend,
+                    reverbSend: reverbSend
+                ))
+            }
+        }
+
         func release() {
             switch self {
             case let .tonal(pool, token): pool.noteOff(token)
@@ -86,6 +112,8 @@ final class HarmonyPlayer {
     private var roles: [RoleState] = []
     private var currentSubdivision: Int64 = 0
     private var scheduledChordCount = 0
+    private var mixGain = 1.0
+    private var glitchCommand: DayObjectsGlitchCommand = .neutral(role: .pad)
 
     var metrics: HarmonyPlayerMetrics {
         .init(
@@ -168,6 +196,17 @@ final class HarmonyPlayer {
         )
     }
 
+    func applyMixTargetDecibels(_ decibels: Double) {
+        mixGain = decibels.isFinite ? pow(10, min(max(decibels, -60), 0) / 20) : 0
+        refreshActiveVoiceControls()
+    }
+
+    func applyGlitch(_ command: DayObjectsGlitchCommand) {
+        guard command.role == .pad else { return }
+        glitchCommand = command
+        refreshActiveVoiceControls()
+    }
+
     func render(subdivision event: DayObjectsTransportEvent) {
         guard event.kind == .subdivision else { return }
         currentSubdivision = event.position.absoluteSubdivision
@@ -248,7 +287,7 @@ final class HarmonyPlayer {
             let target = Self.chordVoiceGain(
                 roleGain: roles[index].currentGain,
                 voiceCount: transition.totalNewVoiceCount
-            )
+            ) * mixGain * glitchCommand.dryGain
             if transition.totalStagedVoiceCount > 0 {
                 transition.newVoices.prefix(transition.initiallyOpenedVoiceCount).forEach {
                     $0.token.setExpression(target * progress)
@@ -315,7 +354,7 @@ final class HarmonyPlayer {
         case let .tonal(instrumentID):
             guard let pool = try? worldBank.tonalPool(for: role.role) else { return [] }
             return notes.compactMap { note in
-                pool.noteOn(.init(
+                guard let token = pool.noteOn(.init(
                     instrumentID: instrumentID,
                     midiNote: note,
                     velocity: expression,
@@ -327,7 +366,16 @@ final class HarmonyPlayer {
                     pan: 0,
                     delaySend: role.delaySend,
                     reverbSend: role.reverbSend
-                )).map { ActiveVoice(midiNote: note, token: .tonal(pool: pool, token: $0)) }
+                )) else { return nil }
+                let voice = ActiveVoice(midiNote: note, token: .tonal(pool: pool, token: token))
+                voice.token.applyGlitch(
+                    baseMIDINote: note,
+                    expression: expression,
+                    delaySend: min(max(role.delaySend + glitchCommand.delayTimeVariation, 0), 1),
+                    reverbSend: role.reverbSend,
+                    command: glitchCommand
+                )
+                return voice
             }
         case .feltPiano:
             let piano = worldBank.piano
@@ -355,7 +403,7 @@ final class HarmonyPlayer {
                 expression: Self.chordVoiceGain(
                     roleGain: roles[index].currentGain,
                     voiceCount: transition.totalNewVoiceCount
-                )
+                ) * mixGain * glitchCommand.dryGain
             ))
         }
         roles[index].activeVoices = voices
@@ -382,7 +430,7 @@ final class HarmonyPlayer {
                 let voiceGain = Self.chordVoiceGain(
                     roleGain: gain,
                     voiceCount: roles[index].activeVoices.count
-                )
+                ) * mixGain * glitchCommand.dryGain
                 roles[index].activeVoices.forEach {
                     $0.token.update(
                         expression: voiceGain,
@@ -412,6 +460,25 @@ final class HarmonyPlayer {
     private static func chordVoiceGain(roleGain: Double, voiceCount: Int) -> Double {
         guard voiceCount > 0 else { return 0 }
         return unit(roleGain) / sqrt(Double(voiceCount))
+    }
+
+    private func refreshActiveVoiceControls() {
+        for state in roles {
+            let voices = state.activeVoices + (state.transition?.oldVoices ?? [])
+            let expression = Self.chordVoiceGain(
+                roleGain: state.currentGain,
+                voiceCount: max(voices.count, 1)
+            ) * mixGain * glitchCommand.dryGain
+            for voice in voices {
+                voice.token.applyGlitch(
+                    baseMIDINote: voice.midiNote,
+                    expression: expression,
+                    delaySend: min(max(state.plan.delaySend + glitchCommand.delayTimeVariation, 0), 1),
+                    reverbSend: state.plan.reverbSend,
+                    command: glitchCommand
+                )
+            }
+        }
     }
 
     private static func unit(_ value: Double) -> Double {

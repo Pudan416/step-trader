@@ -52,6 +52,8 @@ final class LeadPlayer {
     private var currentMIDINote: UInt8?
     private var lastGesture: LeadGestureSample?
     private var baseGain = 0.25
+    private var mixTargetDecibels = -12.0
+    private var glitchCommand: DayObjectsGlitchCommand = .neutral(role: .lead)
     private var amplitudeAttackCount = 0
     private var releaseCount = 0
 
@@ -85,6 +87,7 @@ final class LeadPlayer {
         self.plan = plan
         mapper = LeadGestureMapper(plan: plan)
         self.currentChordIndex = Self.safeChordIndex(currentChordIndex, plan: plan)
+        mixTargetDecibels = gainDecibels
         baseGain = Self.softSaturatedGain(Self.linearGain(decibels: gainDecibels))
         currentMIDINote = nil
         lastGesture = nil
@@ -182,6 +185,25 @@ final class LeadPlayer {
         releaseCount += 1
     }
 
+    func applyMixTargetDecibels(_ decibels: Double) {
+        mixTargetDecibels = decibels
+        baseGain = Self.softSaturatedGain(Self.linearGain(decibels: decibels))
+        reapplyHeldGesture()
+    }
+
+    func applyGlitch(_ command: DayObjectsGlitchCommand) {
+        guard command.role == .lead else { return }
+        glitchCommand = command
+        reapplyHeldGesture()
+    }
+
+    private func reapplyHeldGesture() {
+        guard let gesture = lastGesture, let token, let pool, var mapper else { return }
+        let mapping = mapper.map(gesture, chordIndex: currentChordIndex)
+        self.mapper = mapper
+        apply(mapping, to: token, pool: pool)
+    }
+
     private func glideHeldVoice(to midiNote: UInt8) {
         guard let token, let pool, let plan else { return }
         currentMIDINote = midiNote
@@ -209,9 +231,9 @@ final class LeadPlayer {
             DayObjectsAudioParameters.minimumCutoffHz
         ), DayObjectsAudioParameters.maximumCutoffHz)
         pool.update(token, with: .init(
-            midiNote: Double(mapping.midiNote),
+            midiNote: Double(mapping.midiNote) + glitchCommand.pitchDriftCents / 100,
             cutoffHz: cutoff,
-            expression: expressiveGain(depth: mapping.expressionDepth),
+            expression: expressiveGain(depth: mapping.expressionDepth) * Self.unit(glitchCommand.dryGain),
             delaySend: Self.unit(plan.delaySend),
             reverbSend: Self.unit(plan.reverbSend),
             pitchRampSeconds: portamentoSeconds(plan),

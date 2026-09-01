@@ -4,6 +4,26 @@ import XCTest
 
 @MainActor
 final class LeadPlayerTests: XCTestCase {
+    func testLiveMixAndGlitchCommandsMutateHeldVoiceWithoutRetrigger() throws {
+        let harness = try makeHarness(gainDecibels: -6)
+        harness.player.begin(.init(normalizedX: 0.5, normalizedY: 0.5, speed: 0))
+        let attackCount = harness.pool.noteOnRequests.count
+        let baseNote = try XCTUnwrap(harness.pool.updateRequests.last?.midiNote)
+
+        harness.player.applyMixTargetDecibels(-18)
+        harness.player.applyGlitch(.init(
+            role: .lead, dryGain: 0.8, pitchDriftCents: 12,
+            wowFlutterDepth: 0, stereoSeparationAddition: 0,
+            delayTimeVariation: 0, saturationAmount: 0.2,
+            timingDriftMilliseconds: 0, dropoutAttenuationDecibels: 0,
+            dropoutReleaseSeconds: 0, rampDurationSeconds: 0.25
+        ))
+
+        XCTAssertEqual(harness.pool.noteOnRequests.count, attackCount)
+        XCTAssertEqual(try XCTUnwrap(harness.pool.updateRequests.last?.midiNote), baseNote + 0.12, accuracy: 0.000_001)
+        XCTAssertLessThan(try XCTUnwrap(harness.pool.updateRequests.last?.expression), 0.2)
+    }
+
     func testSafeRemixHandoffGlidesExistingHeldTokenWithoutRetriggerAndKeepsGestureOwner() throws {
         let source = try makeHarness()
         let destination = try makeHarness()
