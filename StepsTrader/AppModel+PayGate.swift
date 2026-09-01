@@ -59,6 +59,19 @@ extension AppModel {
     // MARK: - PayGate Payment Handling
     @MainActor
     func handlePayGatePaymentForGroup(groupId: String, window: AccessWindow, costOverride: Int?) async {
+        // Checked before anything else, including whether the group exists: without
+        // Screen Time access every ManagedSettingsStore write below is inert, so the
+        // purchase cannot succeed no matter what else is true. The cached flag only
+        // refreshes on foreground and revocation arrives without notice, so re-read it
+        // rather than trusting it.
+        familyControlsService.refreshAuthorizationStatus()
+        guard familyControlsService.isAuthorized else {
+            AppLogger.shield.error("❌ PayGate: Screen Time access missing — refusing before charging")
+            payGateError = UsageBudgetMonitoringError.notAuthorized.userFacingMessage
+            dismissPayGate(reason: .programmatic)
+            return
+        }
+
         guard let group = ticketGroups.first(where: { $0.id == groupId }) else {
             AppLogger.shield.debug("⚠️ PayGate: Group \(groupId) not found for payment")
             return
