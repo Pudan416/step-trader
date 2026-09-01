@@ -32,4 +32,14 @@ final class UsageBudgetMonitoringErrorTests: XCTestCase {
         let message = UsageBudgetMonitoringError.other("boom").userFacingMessage
         XCTAssertTrue(message.lowercased().contains("refunded"))
     }
+
+    /// This one is raised *before* any charge, so it must not claim a refund the way the
+    /// post-charge failures do — saying "refunded" here would tell the user colors moved
+    /// when none did.
+    func testNotAuthorizedMessageNamesTheRemedyAndPromisesNoRefund() {
+        let message = UsageBudgetMonitoringError.notAuthorized.userFacingMessage.lowercased()
+        XCTAssertTrue(message.contains("screen time"), "the message must name what is missing")
+        XCTAssertTrue(message.contains("settings"), "the message must say where to fix it")
+        XCTAssertFalse(message.contains("refunded"), "nothing was charged, so nothing was refunded")
+    }
 }
