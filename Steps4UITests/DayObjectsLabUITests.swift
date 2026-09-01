@@ -26,6 +26,9 @@ final class DayObjectsLabUITests: XCTestCase {
         XCTAssertTrue(String(describing: sleepSlider.value).contains("8 / 8 hours"))
         XCTAssertTrue(String(describing: happeningsSlider.value).contains("8"))
         XCTAssertTrue(String(describing: spentSlider.value).contains("Spent colors 0"))
+        let leadSurface = app.otherElements["dayObjects.leadSurface"]
+        XCTAssertTrue(leadSurface.exists)
+        XCTAssertEqual(leadSurface.label, "Canvas Lead")
         XCTAssertFalse(app.sliders["dayObjects.motionEnergy"].exists)
         XCTAssertFalse(app.sliders["dayObjects.visualClarity"].exists)
 
@@ -68,6 +71,8 @@ final class DayObjectsLabUITests: XCTestCase {
 
         app.buttons["dayObjects.gridToggle"].tap()
         XCTAssertTrue(app.otherElements["dayObjects.grid"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.otherElements["dayObjects.leadSurface"].exists)
+        XCTAssertTrue(String(describing: app.otherElements["dayObjects.grid"].value).contains("Touch performance unavailable"))
 
         Thread.sleep(forTimeInterval: 1.5)
         let gridScreenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())

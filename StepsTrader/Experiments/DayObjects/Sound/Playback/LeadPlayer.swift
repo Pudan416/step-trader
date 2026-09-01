@@ -1,0 +1,188 @@
+#if DEBUG || INTERNAL_BUILD
+import Foundation
+
+struct LeadPlayerMetrics: Equatable, Sendable {
+    let voiceCount: Int
+    let amplitudeAttackCount: Int
+    let releaseCount: Int
+}
+
+/// Owns the single preallocated Lead voice in a playback world. Gesture
+/// updates mutate that voice; they never allocate or retrigger it.
+@MainActor
+final class LeadPlayer {
+    private static let baseCutoffHz = 3_200.0
+
+    private let worldBank: PlaybackWorldBank
+    private var pool: DayObjectsTonalVoicePoolProtocol?
+    private var token: DayObjectsVoiceToken?
+    private var plan: LeadPlan?
+    private var mapper: LeadGestureMapper?
+    private var currentChordIndex = 0
+    private var currentMIDINote: UInt8?
+    private var baseGain = 0.25
+    private var amplitudeAttackCount = 0
+    private var releaseCount = 0
+
+    var metrics: LeadPlayerMetrics {
+        .init(
+            voiceCount: token == nil ? 0 : 1,
+            amplitudeAttackCount: amplitudeAttackCount,
+            releaseCount: releaseCount
+        )
+    }
+
+    init(worldBank: PlaybackWorldBank) {
+        self.worldBank = worldBank
+    }
+
+    func configure(
+        plan: LeadPlan,
+        gainDecibels: Double,
+        currentChordIndex: Int
+    ) throws {
+        end()
+        try worldBank.prepare()
+        let pool = try worldBank.tonalPool(named: .lead)
+        try pool.prepareInstrument(plan.instrumentID)
+        self.pool = pool
+        self.plan = plan
+        mapper = LeadGestureMapper(plan: plan)
+        self.currentChordIndex = Self.safeChordIndex(currentChordIndex, plan: plan)
+        baseGain = Self.softSaturatedGain(Self.linearGain(decibels: gainDecibels))
+        currentMIDINote = nil
+    }
+
+    func begin(_ gesture: LeadGestureSample) {
+        guard var mapper, let plan, let pool else { return }
+        if token != nil {
+            update(gesture)
+            return
+        }
+        mapper.reset()
+        let mapping = mapper.map(gesture, chordIndex: currentChordIndex)
+        self.mapper = mapper
+        let expression = expressiveGain(depth: mapping.expressionDepth)
+        guard let token = pool.noteOn(.init(
+            instrumentID: plan.instrumentID,
+            midiNote: mapping.midiNote,
+            velocity: expression,
+            role: .lead,
+            envelopeVariant: .absolute(
+                attackSeconds: max(Self.finite(plan.attackSeconds, fallback: 0.035), 0.001),
+                releaseSeconds: max(Self.finite(plan.releaseSeconds, fallback: 0.65), 0.05)
+            ),
+            pan: 0,
+            delaySend: Self.unit(plan.delaySend),
+            reverbSend: Self.unit(plan.reverbSend)
+        )) else { return }
+        self.token = token
+        currentMIDINote = mapping.midiNote
+        amplitudeAttackCount += 1
+        apply(mapping, to: token, pool: pool)
+    }
+
+    func update(_ gesture: LeadGestureSample) {
+        guard let token, let pool, var mapper else { return }
+        let mapping = mapper.map(gesture, chordIndex: currentChordIndex)
+        self.mapper = mapper
+        currentMIDINote = mapping.midiNote
+        apply(mapping, to: token, pool: pool)
+    }
+
+    func setCurrentChordIndex(_ chordIndex: Int) {
+        guard let plan else { return }
+        currentChordIndex = Self.safeChordIndex(chordIndex, plan: plan)
+        guard let currentMIDINote,
+              let compatible = plan.nearestCompatibleNote(
+                to: currentMIDINote,
+                chordIndex: currentChordIndex
+              )
+        else { return }
+        self.currentMIDINote = compatible
+        guard let token, let pool else { return }
+        pool.update(token, with: .init(
+            midiNote: Double(compatible),
+            pitchRampSeconds: portamentoSeconds(plan)
+        ))
+    }
+
+    func end() {
+        guard let token, let pool else { return }
+        pool.noteOff(token)
+        self.token = nil
+        currentMIDINote = nil
+        releaseCount += 1
+    }
+
+    private func apply(
+        _ mapping: LeadGestureMapping,
+        to token: DayObjectsVoiceToken,
+        pool: DayObjectsTonalVoicePoolProtocol
+    ) {
+        guard let plan else { return }
+        let cutoff = min(max(
+            Self.baseCutoffHz * mapping.cutoffMultiplier,
+            DayObjectsAudioParameters.minimumCutoffHz
+        ), DayObjectsAudioParameters.maximumCutoffHz)
+        pool.update(token, with: .init(
+            midiNote: Double(mapping.midiNote),
+            cutoffHz: cutoff,
+            expression: expressiveGain(depth: mapping.expressionDepth),
+            delaySend: Self.unit(plan.delaySend),
+            reverbSend: Self.unit(plan.reverbSend),
+            pitchRampSeconds: portamentoSeconds(plan),
+            cutoffRampSeconds: smoothingSeconds(
+                plan.pitchSmoothingMilliseconds,
+                fallbackMilliseconds: 45
+            ),
+            expressionRampSeconds: smoothingSeconds(
+                plan.expressionSmoothingMilliseconds,
+                fallbackMilliseconds: 80
+            )
+        ))
+    }
+
+    private func expressiveGain(depth: Double) -> Double {
+        let boundedDepth = min(max(Self.finite(depth, fallback: 0), 0), 0.25)
+        return Self.softSaturatedGain(baseGain * (1 + boundedDepth))
+    }
+
+    private func portamentoSeconds(_ plan: LeadPlan) -> Double {
+        let milliseconds = min(max(
+            Self.finite(plan.portamentoMilliseconds, fallback: 110),
+            60
+        ), 160)
+        return milliseconds / 1_000
+    }
+
+    private func smoothingSeconds(_ milliseconds: Double, fallbackMilliseconds: Double) -> Double {
+        min(max(Self.finite(milliseconds, fallback: fallbackMilliseconds), 10), 250) / 1_000
+    }
+
+    private static func safeChordIndex(_ index: Int, plan: LeadPlan) -> Int {
+        guard !plan.compatibleChordMIDINotes.isEmpty else { return 0 }
+        return min(max(index, 0), plan.compatibleChordMIDINotes.count - 1)
+    }
+
+    private static func linearGain(decibels: Double) -> Double {
+        let bounded = min(max(finite(decibels, fallback: -12), -60), 0)
+        return pow(10, bounded / 20)
+    }
+
+    /// A gentle static transfer curve keeps fast gestures from producing the
+    /// hard edge of an unrestricted linear gain increase.
+    private static func softSaturatedGain(_ value: Double) -> Double {
+        let bounded = min(max(finite(value, fallback: 0), 0), 1.25)
+        return min(max(bounded / sqrt(1 + 0.35 * bounded * bounded), 0), 1)
+    }
+
+    private static func unit(_ value: Double) -> Double {
+        min(max(finite(value, fallback: 0), 0), 1)
+    }
+
+    private static func finite(_ value: Double, fallback: Double) -> Double {
+        value.isFinite ? value : fallback
+    }
+}
+#endif

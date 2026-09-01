@@ -98,6 +98,11 @@
 		D0F500000000000000000006 /* ActiveHappeningState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F500000000000000000005 /* ActiveHappeningState.swift */; };
 		D0F500000000000000000008 /* HappeningScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F500000000000000000007 /* HappeningScheduler.swift */; };
 		D0F50000000000000000000A /* HappeningPitchResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F500000000000000000009 /* HappeningPitchResolver.swift */; };
+		D0F600000000000000000002 /* LeadGestureMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F600000000000000000001 /* LeadGestureMapperTests.swift */; };
+		D0F600000000000000000004 /* LeadPlayerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F600000000000000000003 /* LeadPlayerTests.swift */; };
+		D0F600000000000000000006 /* LeadGestureMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F600000000000000000005 /* LeadGestureMapper.swift */; };
+		D0F600000000000000000008 /* LeadPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F600000000000000000007 /* LeadPlayer.swift */; };
+		D0F60000000000000000000A /* DayObjectsLeadGestureSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F600000000000000000009 /* DayObjectsLeadGestureSurface.swift */; };
 		D0D600000000000000000012 /* FeltPianoManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D600000000000000000011 /* FeltPianoManifest.swift */; };
 		D0D600000000000000000014 /* DayObjectsFeltPiano.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D600000000000000000013 /* DayObjectsFeltPiano.swift */; };
 		D0D700000000000000000012 /* DayObjectsInstrumentBankProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D700000000000000000011 /* DayObjectsInstrumentBankProtocol.swift */; };
@@ -616,6 +621,11 @@
 		D0F500000000000000000005 /* ActiveHappeningState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveHappeningState.swift; sourceTree = "<group>"; };
 		D0F500000000000000000007 /* HappeningScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningScheduler.swift; sourceTree = "<group>"; };
 		D0F500000000000000000009 /* HappeningPitchResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPitchResolver.swift; sourceTree = "<group>"; };
+		D0F600000000000000000001 /* LeadGestureMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeadGestureMapperTests.swift; sourceTree = "<group>"; };
+		D0F600000000000000000003 /* LeadPlayerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeadPlayerTests.swift; sourceTree = "<group>"; };
+		D0F600000000000000000005 /* LeadGestureMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeadGestureMapper.swift; sourceTree = "<group>"; };
+		D0F600000000000000000007 /* LeadPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeadPlayer.swift; sourceTree = "<group>"; };
+		D0F600000000000000000009 /* DayObjectsLeadGestureSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLeadGestureSurface.swift; sourceTree = "<group>"; };
 		D0D600000000000000000011 /* FeltPianoManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeltPianoManifest.swift; sourceTree = "<group>"; };
 		D0D600000000000000000013 /* DayObjectsFeltPiano.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsFeltPiano.swift; sourceTree = "<group>"; };
 		D0D700000000000000000011 /* DayObjectsInstrumentBankProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsInstrumentBankProtocol.swift; sourceTree = "<group>"; };
@@ -1124,6 +1134,8 @@
 		D0F100000000000000000010 /* Playback */ = {
 			isa = PBXGroup;
 			children = (
+				D0F600000000000000000005 /* LeadGestureMapper.swift */,
+				D0F600000000000000000007 /* LeadPlayer.swift */,
 				D0F500000000000000000005 /* ActiveHappeningState.swift */,
 				D0F500000000000000000007 /* HappeningScheduler.swift */,
 				D0F500000000000000000009 /* HappeningPitchResolver.swift */,
@@ -1192,6 +1204,7 @@
 			isa = PBXGroup;
 			children = (
 				D0F100000000000000000005 /* DayObjectsLabMusicViewModel.swift */,
+				D0F600000000000000000009 /* DayObjectsLeadGestureSurface.swift */,
 				D0D900000000000000000001 /* DayObjectsInstrumentAuditionController.swift */,
 				D0DA00000000000000000001 /* DayObjectsInstrumentAuditionView.swift */,
 			);
@@ -1741,6 +1754,8 @@
 		T1E5T5A12E71A18F00ABF5FA /* Steps4Tests */ = {
 			isa = PBXGroup;
 			children = (
+				D0F600000000000000000001 /* LeadGestureMapperTests.swift */,
+				D0F600000000000000000003 /* LeadPlayerTests.swift */,
 				D0F500000000000000000001 /* HappeningSchedulerTests.swift */,
 				D0F500000000000000000003 /* HappeningPitchResolverTests.swift */,
 				D0F400000000000000000001 /* RhythmPlayerTests.swift */,
@@ -2193,6 +2208,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0F600000000000000000006 /* LeadGestureMapper.swift in Sources */,
+				D0F600000000000000000008 /* LeadPlayer.swift in Sources */,
+				D0F60000000000000000000A /* DayObjectsLeadGestureSurface.swift in Sources */,
 				D0F500000000000000000006 /* ActiveHappeningState.swift in Sources */,
 				D0F500000000000000000008 /* HappeningScheduler.swift in Sources */,
 				D0F50000000000000000000A /* HappeningPitchResolver.swift in Sources */,
@@ -2508,6 +2526,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0F600000000000000000002 /* LeadGestureMapperTests.swift in Sources */,
+				D0F600000000000000000004 /* LeadPlayerTests.swift in Sources */,
 				D0F500000000000000000002 /* HappeningSchedulerTests.swift in Sources */,
 				D0F500000000000000000004 /* HappeningPitchResolverTests.swift in Sources */,
 				D0F400000000000000000002 /* RhythmPlayerTests.swift in Sources */,

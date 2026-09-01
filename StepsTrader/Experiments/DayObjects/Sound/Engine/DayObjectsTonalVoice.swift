@@ -307,6 +307,8 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
     private var releaseStartEnvelopeLevel = 0.0
     private var currentFilterEnvelopeLevel = 0.0
     private var currentModulationPhase = 0.0
+    private var pitchRampEndsAt: TimeInterval?
+    private var cutoffRampEndsAt: TimeInterval?
 
     init() {
         let morphTables = [Table(.sine), Table(.triangle), Table(.square), Table(.sawtooth)]
@@ -475,7 +477,10 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
     private func updateOnControlExecutor(_ update: DayObjectsVoiceUpdate) {
         assertOnControlExecutor()
         guard currentPreset != nil else { return }
-        let duration = Float(DayObjectsAudioParameters.controlRampDuration)
+        let controlDuration = Float(DayObjectsAudioParameters.controlRampDuration)
+        let pitchDuration = Float(update.pitchRampSeconds ?? DayObjectsAudioParameters.controlRampDuration)
+        let cutoffDuration = Float(update.cutoffRampSeconds ?? DayObjectsAudioParameters.controlRampDuration)
+        let expressionDuration = Float(update.expressionRampSeconds ?? DayObjectsAudioParameters.controlRampDuration)
         if let midiNote = update.midiNote {
             currentMIDINote = midiNote
         }
@@ -502,17 +507,19 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
         )
 
         if let midiNote = update.midiNote {
-            setFrequencies(midiNote: midiNote, pitchSemitoneOffset: 0, duration: duration)
+            setFrequencies(midiNote: midiNote, pitchSemitoneOffset: 0, duration: pitchDuration)
+            pitchRampEndsAt = Date.timeIntervalSinceReferenceDate + Double(pitchDuration)
         }
         if let cutoffHz = update.cutoffHz {
             let currentCutoff = modulationState?.filterCutoff(
                 envelopeLevel: currentFilterEnvelopeLevel,
                 lfoPhase: currentModulationPhase
             ) ?? cutoffHz
-            setFilterCutoff(currentCutoff, duration: duration)
+            setFilterCutoff(currentCutoff, duration: cutoffDuration)
+            cutoffRampEndsAt = Date.timeIntervalSinceReferenceDate + Double(cutoffDuration)
         }
-        rampEffects(duration: duration)
-        rampOutput(expression: expression, pan: pan, duration: duration)
+        rampEffects(duration: controlDuration)
+        rampOutput(expression: expression, pan: pan, duration: expressionDuration)
     }
 
     func noteOff() {
@@ -681,14 +688,22 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
 
         let phase = (now - noteStartedAt) * plan.lfo.rateHz
         currentModulationPhase = phase
+        let pitchDuration = remainingRampDuration(
+            endingAt: &pitchRampEndsAt,
+            now: now
+        )
+        let cutoffDuration = remainingRampDuration(
+            endingAt: &cutoffRampEndsAt,
+            now: now
+        )
         setFrequencies(
             midiNote: currentMIDINote,
             pitchSemitoneOffset: plan.pitchSemitoneOffset(phase: phase),
-            duration: Float(DayObjectsAudioParameters.controlRampDuration)
+            duration: pitchDuration
         )
         setFilterCutoff(
             modulationState.filterCutoff(envelopeLevel: envelopeLevel, lfoPhase: phase),
-            duration: Float(DayObjectsAudioParameters.controlRampDuration)
+            duration: cutoffDuration
         )
     }
 
@@ -700,6 +715,19 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
         modulationLifecycle.stop()
         noteStartedAt = nil
         releaseStartedAt = nil
+        pitchRampEndsAt = nil
+        cutoffRampEndsAt = nil
+    }
+
+    private func remainingRampDuration(
+        endingAt: inout TimeInterval?,
+        now: TimeInterval
+    ) -> Float {
+        guard let end = endingAt, end > now else {
+            endingAt = nil
+            return Float(DayObjectsAudioParameters.controlRampDuration)
+        }
+        return Float(end - now)
     }
 
     private func filterEnvelopeLevel(at elapsed: TimeInterval, plan: DayObjectsTonalVoiceModulationPlan) -> Double {

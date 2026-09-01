@@ -57,8 +57,6 @@ struct DayObjectsLabView: View {
     @StateObject private var musicModel: DayObjectsLabMusicViewModel
     @StateObject private var audition: DayObjectsInstrumentAuditionController
     @StateObject private var leadCoordinator: DayObjectsLeadAuditionCoordinator
-    @State private var didBeginLeadGesture = false
-    @GestureState private var leadGestureActive = false
 
     init() {
         _musicModel = StateObject(wrappedValue: DayObjectsLabMusicViewModel())
@@ -137,12 +135,6 @@ struct DayObjectsLabView: View {
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { _ in
             leadCoordinator.interruptionBegan()
         }
-        .onChange(of: leadGestureActive) { wasActive, isActive in
-            if wasActive && !isActive {
-                didBeginLeadGesture = false
-                leadCoordinator.gestureDidEndOrCancel()
-            }
-        }
         .onChange(of: audition.allowsLeadXY) { _, allowed in
             if !allowed { leadCoordinator.gestureDidEndOrCancel() }
         }
@@ -194,7 +186,7 @@ struct DayObjectsLabView: View {
         .ignoresSafeArea()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Day Objects grid")
-        .accessibilityValue("Spent colors \(spentColorCount)")
+        .accessibilityValue("Spent colors \(spentColorCount). Touch performance unavailable")
         .accessibilityIdentifier("dayObjects.grid")
     }
 
@@ -491,32 +483,25 @@ struct DayObjectsLabView: View {
     }
 
     private var leadAuditionSurface: some View {
-        GeometryReader { geometry in
-            Color.clear
-                .contentShape(Rectangle())
-                .gesture(DragGesture(minimumDistance: 0)
-                    .updating($leadGestureActive) { _, state, _ in state = true }
-                    .onChanged { value in
-                        let point = DayObjectNormalizedPoint(
-                            x: value.location.x / max(geometry.size.width, 1),
-                            y: value.location.y / max(geometry.size.height, 1)
-                        )
-                        if !didBeginLeadGesture {
-                            audition.beginLead(at: point)
-                            didBeginLeadGesture = true
-                        } else {
-                            audition.updateLead(at: point)
-                        }
-                    }
-                    .onEnded { _ in
-                        didBeginLeadGesture = false
-                        leadCoordinator.gestureDidEndOrCancel()
-                    }
-                )
-        }
-        .allowsHitTesting(leadCoordinator.allowsLeadGesture(isGridVisible: showsGrid))
-        .accessibilityHidden(true)
-        .onDisappear { leadCoordinator.overlayDidDisappear() }
+        DayObjectsLeadGestureSurface(
+            isEnabled: leadCoordinator.allowsLeadGesture(isGridVisible: showsGrid),
+            uiExclusionRegion: Self.uiExclusionRegion,
+            onBegin: { gesture in
+                audition.beginLead(at: .init(
+                    x: gesture.normalizedX,
+                    y: gesture.normalizedY
+                ))
+            },
+            onUpdate: { gesture in
+                audition.updateLead(at: .init(
+                    x: gesture.normalizedX,
+                    y: gesture.normalizedY
+                ))
+            },
+            onEnd: {
+                leadCoordinator.gestureDidEndOrCancel()
+            }
+        )
     }
 
     private func sceneInput(for key: String) -> DayObjectSceneInput {

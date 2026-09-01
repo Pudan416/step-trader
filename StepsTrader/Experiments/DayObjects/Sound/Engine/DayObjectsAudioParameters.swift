@@ -113,7 +113,16 @@ enum DayObjectsAudioParameters {
             expression: update.expression.map { finite($0, default: 1, in: 0...1) },
             pan: update.pan.map { finite($0, default: 0, in: -1...1) },
             delaySend: update.delaySend.map { finite($0, default: 0, in: 0...1) },
-            reverbSend: update.reverbSend.map { finite($0, default: 0, in: 0...1) }
+            reverbSend: update.reverbSend.map { finite($0, default: 0, in: 0...1) },
+            pitchRampSeconds: update.pitchRampSeconds.map {
+                finite($0, default: controlRampDuration, in: 0...2)
+            },
+            cutoffRampSeconds: update.cutoffRampSeconds.map {
+                finite($0, default: controlRampDuration, in: 0...2)
+            },
+            expressionRampSeconds: update.expressionRampSeconds.map {
+                finite($0, default: controlRampDuration, in: 0...2)
+            }
         )
     }
 
@@ -208,6 +217,9 @@ struct DayObjectsVoiceUpdate: Equatable, Sendable {
     let pan: Double?
     let delaySend: Double?
     let reverbSend: Double?
+    let pitchRampSeconds: Double?
+    let cutoffRampSeconds: Double?
+    let expressionRampSeconds: Double?
 
     init(
         midiNote: Double? = nil,
@@ -215,7 +227,10 @@ struct DayObjectsVoiceUpdate: Equatable, Sendable {
         expression: Double? = nil,
         pan: Double? = nil,
         delaySend: Double? = nil,
-        reverbSend: Double? = nil
+        reverbSend: Double? = nil,
+        pitchRampSeconds: Double? = nil,
+        cutoffRampSeconds: Double? = nil,
+        expressionRampSeconds: Double? = nil
     ) {
         self.midiNote = midiNote
         self.cutoffHz = cutoffHz
@@ -223,6 +238,9 @@ struct DayObjectsVoiceUpdate: Equatable, Sendable {
         self.pan = pan
         self.delaySend = delaySend
         self.reverbSend = reverbSend
+        self.pitchRampSeconds = pitchRampSeconds
+        self.cutoffRampSeconds = cutoffRampSeconds
+        self.expressionRampSeconds = expressionRampSeconds
     }
 }
 #endif
