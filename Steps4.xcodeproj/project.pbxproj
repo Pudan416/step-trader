@@ -64,6 +64,9 @@
 		D0C300000000000000000014 /* DayObjectsInstrumentManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0C300000000000000000013 /* DayObjectsInstrumentManifest.swift */; };
 		D0C300000000000000000016 /* NormalizedSynthVoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0C300000000000000000015 /* NormalizedSynthVoice.swift */; };
 		D0C300000000000000000018 /* SynthOnePresetAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0C300000000000000000017 /* SynthOnePresetAdapter.swift */; };
+		D0C30000000000000000001A /* HappeningSoundCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0C300000000000000000019 /* HappeningSoundCatalogTests.swift */; };
+		D0C30000000000000000001C /* HappeningSoundRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0C30000000000000000001B /* HappeningSoundRecipe.swift */; };
+		D0C30000000000000000001E /* HappeningSoundCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0C30000000000000000001D /* HappeningSoundCatalog.swift */; };
 		D0D400000000000000000002 /* DayObjectsTonalVoicePoolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D400000000000000000001 /* DayObjectsTonalVoicePoolTests.swift */; };
 		D0D400000000000000000012 /* DayObjectsTonalVoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D400000000000000000011 /* DayObjectsTonalVoice.swift */; };
 		D0D400000000000000000014 /* DayObjectsTonalVoicePool.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D400000000000000000013 /* DayObjectsTonalVoicePool.swift */; };
@@ -598,6 +601,9 @@
 		D0C300000000000000000013 /* DayObjectsInstrumentManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsInstrumentManifest.swift; sourceTree = "<group>"; };
 		D0C300000000000000000015 /* NormalizedSynthVoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NormalizedSynthVoice.swift; sourceTree = "<group>"; };
 		D0C300000000000000000017 /* SynthOnePresetAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SynthOnePresetAdapter.swift; sourceTree = "<group>"; };
+		D0C300000000000000000019 /* HappeningSoundCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningSoundCatalogTests.swift; sourceTree = "<group>"; };
+		D0C30000000000000000001B /* HappeningSoundRecipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningSoundRecipe.swift; sourceTree = "<group>"; };
+		D0C30000000000000000001D /* HappeningSoundCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningSoundCatalog.swift; sourceTree = "<group>"; };
 		D0D400000000000000000001 /* DayObjectsTonalVoicePoolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsTonalVoicePoolTests.swift; sourceTree = "<group>"; };
 		D0D400000000000000000011 /* DayObjectsTonalVoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsTonalVoice.swift; sourceTree = "<group>"; };
 		D0D400000000000000000013 /* DayObjectsTonalVoicePool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsTonalVoicePool.swift; sourceTree = "<group>"; };
@@ -1242,6 +1248,8 @@
 		D0C300000000000000000010 /* Domain */ = {
 			isa = PBXGroup;
 			children = (
+				D0C30000000000000000001B /* HappeningSoundRecipe.swift */,
+				D0C30000000000000000001D /* HappeningSoundCatalog.swift */,
 				D0C300000000000000000011 /* DayObjectsInstrumentID.swift */,
 				D0C300000000000000000013 /* DayObjectsInstrumentManifest.swift */,
 				D0C300000000000000000015 /* NormalizedSynthVoice.swift */,
@@ -1818,6 +1826,7 @@
 				D0D700000000000000000001 /* DayObjectsInstrumentBankTests.swift */,
 				D0C300000000000000000001 /* DayObjectsInstrumentManifestTests.swift */,
 				D0C300000000000000000003 /* SynthOnePresetAdapterTests.swift */,
+				D0C300000000000000000019 /* HappeningSoundCatalogTests.swift */,
 				D0A0D1000000000000000001 /* DayObjectsAudioResourceTests.swift */,
 				D0F100000000000000000001 /* DayObjectsLabMusicViewModelTests.swift */,
 				D0B100000000000000000001 /* DayObjectSceneTests.swift */,
@@ -2305,6 +2314,8 @@
 				D0C300000000000000000014 /* DayObjectsInstrumentManifest.swift in Sources */,
 				D0C300000000000000000016 /* NormalizedSynthVoice.swift in Sources */,
 				D0C300000000000000000018 /* SynthOnePresetAdapter.swift in Sources */,
+				D0C30000000000000000001C /* HappeningSoundRecipe.swift in Sources */,
+				D0C30000000000000000001E /* HappeningSoundCatalog.swift in Sources */,
 				A16C90010000000000000001 /* ExperimentalFeatures.swift in Sources */,
 				A16C90010000000000000002 /* RichFigureModels.swift in Sources */,
 				A16C90010000000000000003 /* RichFigureAssignment.swift in Sources */,
@@ -2600,6 +2611,7 @@
 				D0D700000000000000000002 /* DayObjectsInstrumentBankTests.swift in Sources */,
 				D0C300000000000000000002 /* DayObjectsInstrumentManifestTests.swift in Sources */,
 				D0C300000000000000000004 /* SynthOnePresetAdapterTests.swift in Sources */,
+				D0C30000000000000000001A /* HappeningSoundCatalogTests.swift in Sources */,
 				D0A0D1000000000000000002 /* DayObjectsAudioResourceTests.swift in Sources */,
 				D0F100000000000000000002 /* DayObjectsLabMusicViewModelTests.swift in Sources */,
 				D0B100000000000000000002 /* DayObjectSceneTests.swift in Sources */,
