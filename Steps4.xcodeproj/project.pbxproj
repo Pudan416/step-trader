@@ -101,6 +101,7 @@
 		D0F500000000000000000006 /* ActiveHappeningState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F500000000000000000005 /* ActiveHappeningState.swift */; };
 		D0F500000000000000000008 /* HappeningScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F500000000000000000007 /* HappeningScheduler.swift */; };
 		D0F50000000000000000000A /* HappeningPitchResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F500000000000000000009 /* HappeningPitchResolver.swift */; };
+		D0F50000000000000000000C /* ResolvedHappeningSound.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F50000000000000000000B /* ResolvedHappeningSound.swift */; };
 		D0F600000000000000000002 /* LeadGestureMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F600000000000000000001 /* LeadGestureMapperTests.swift */; };
 		D0F600000000000000000004 /* LeadPlayerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F600000000000000000003 /* LeadPlayerTests.swift */; };
 		D0F600000000000000000006 /* LeadGestureMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F600000000000000000005 /* LeadGestureMapper.swift */; };
@@ -643,6 +644,7 @@
 		D0F500000000000000000005 /* ActiveHappeningState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveHappeningState.swift; sourceTree = "<group>"; };
 		D0F500000000000000000007 /* HappeningScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningScheduler.swift; sourceTree = "<group>"; };
 		D0F500000000000000000009 /* HappeningPitchResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPitchResolver.swift; sourceTree = "<group>"; };
+		D0F50000000000000000000B /* ResolvedHappeningSound.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResolvedHappeningSound.swift; sourceTree = "<group>"; };
 		D0F600000000000000000001 /* LeadGestureMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeadGestureMapperTests.swift; sourceTree = "<group>"; };
 		D0F600000000000000000003 /* LeadPlayerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeadPlayerTests.swift; sourceTree = "<group>"; };
 		D0F600000000000000000005 /* LeadGestureMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeadGestureMapper.swift; sourceTree = "<group>"; };
@@ -1180,6 +1182,7 @@
 				D0F500000000000000000005 /* ActiveHappeningState.swift */,
 				D0F500000000000000000007 /* HappeningScheduler.swift */,
 				D0F500000000000000000009 /* HappeningPitchResolver.swift */,
+				D0F50000000000000000000B /* ResolvedHappeningSound.swift */,
 				D0F400000000000000000005 /* RhythmPlayer.swift */,
 				D0F400000000000000000007 /* HarmonyPlayer.swift */,
 				D0F400000000000000000009 /* PlaybackWorldBank.swift */,
@@ -2278,6 +2281,7 @@
 				D0F500000000000000000006 /* ActiveHappeningState.swift in Sources */,
 				D0F500000000000000000008 /* HappeningScheduler.swift in Sources */,
 				D0F50000000000000000000A /* HappeningPitchResolver.swift in Sources */,
+				D0F50000000000000000000C /* ResolvedHappeningSound.swift in Sources */,
 				D0F400000000000000000006 /* RhythmPlayer.swift in Sources */,
 				D0F400000000000000000008 /* HarmonyPlayer.swift in Sources */,
 				D0F40000000000000000000A /* PlaybackWorldBank.swift in Sources */,
