@@ -64,6 +64,17 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         return Date().timeIntervalSince(sentAt) < 30
     }
     
+    /// Whether the most recent unlock tap could not produce a push, within the same
+    /// window as `wasPushRecentlySent`. Written by ShieldAction when notifications are
+    /// denied or the request failed.
+    private func pushRecentlyUnavailable() -> Bool {
+        let defaults = sharedDefaults()
+        guard let at = defaults.object(forKey: SharedKeys.shieldPushUnavailableAt) as? Date else {
+            return false
+        }
+        return Date().timeIntervalSince(at) < 30
+    }
+    
     /// Base configuration with our brand styling
     private func baseConfiguration(
         title: String,
@@ -105,6 +116,18 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         }
         
         let title = String(format: NSLocalizedString("%@ is locked\nby Nowhere.", comment: "Shield title for blocked app"), appName)
+
+        // Checked before the "we sent you a push" copy: when the last tap could not
+        // deliver one, claiming otherwise leaves the user waiting for a notification
+        // that is never coming, with no way out of the shield.
+        if pushRecentlyUnavailable() {
+            return baseConfiguration(
+                title: title,
+                subtitle: String(format: NSLocalizedString("\nNotifications are off, so we\ncan't reach you. Open Nowhere\nto unlock %@.", comment: "Shield subtitle when no push could be delivered"), appName),
+                primaryButtonText: NSLocalizedString("try again", comment: "Shield primary button — retry the push after enabling notifications"),
+                secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button")
+            )
+        }
 
         if wasPushRecentlySent() {
             return baseConfiguration(

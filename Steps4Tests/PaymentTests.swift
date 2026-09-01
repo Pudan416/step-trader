@@ -17,6 +17,46 @@ final class PaymentTests: XCTestCase {
         super.tearDown()
     }
 
+    // MARK: - PayGate request freshness
+
+    /// `payGateRequestedAt` was written by two callers and read by none, so a shield tap
+    /// the user walked away from still opened the PayGate whenever they next launched
+    /// the app — hours or days later, on top of whatever they came in to do.
+    func testPayGateRequest_recentTapIsStillActionable() {
+        let now = Date()
+        XCTAssertTrue(
+            AppModel.isPayGateRequestFresh(requestedAt: now.addingTimeInterval(-60), now: now)
+        )
+    }
+
+    func testPayGateRequest_abandonedTapExpires() {
+        let now = Date()
+        let stale = now.addingTimeInterval(-(AppModel.payGateRequestMaxAge + 60))
+        XCTAssertFalse(AppModel.isPayGateRequestFresh(requestedAt: stale, now: now))
+    }
+
+    /// The boundary is inclusive — a request exactly at the limit still counts.
+    func testPayGateRequest_boundaryIsInclusive() {
+        let now = Date()
+        let edge = now.addingTimeInterval(-AppModel.payGateRequestMaxAge)
+        XCTAssertTrue(AppModel.isPayGateRequestFresh(requestedAt: edge, now: now))
+    }
+
+    /// Flags written before this rule existed carry no timestamp; they should still work
+    /// once rather than being silently swallowed on upgrade.
+    func testPayGateRequest_missingTimestampIsTreatedAsFresh() {
+        XCTAssertTrue(AppModel.isPayGateRequestFresh(requestedAt: nil, now: Date()))
+    }
+
+    /// A timestamp in the future means the clock moved backwards, not that the request
+    /// is old — refusing it would strand a user who had just tapped the shield.
+    func testPayGateRequest_futureTimestampIsNotTreatedAsStale() {
+        let now = Date()
+        XCTAssertTrue(
+            AppModel.isPayGateRequestFresh(requestedAt: now.addingTimeInterval(3600), now: now)
+        )
+    }
+
     // MARK: - pay()
 
     func testPay_debitsBaseBeforeBonus() {

@@ -560,6 +560,13 @@ struct StepsTraderApp: App {
             clearPayGateFlags(userDefaults)
             return
         }
+
+        let requestedAt = userDefaults.object(forKey: SharedKeys.payGateRequestedAt) as? Date
+        guard AppModel.isPayGateRequestFresh(requestedAt: requestedAt) else {
+            AppLogger.app.debug("⌛️ PayGate flags ignored: request older than \(Int(AppModel.payGateRequestMaxAge / 60)) min")
+            clearPayGateFlags(userDefaults)
+            return
+        }
         
         // User explicitly tapped a notification → override any dismiss cooldown.
         // The 10s cooldown exists to prevent re-open loops after manual dismiss,
@@ -595,6 +602,9 @@ struct StepsTraderApp: App {
         userDefaults.removeObject(forKey: SharedKeys.shouldShowPayGate)
         userDefaults.removeObject(forKey: SharedKeys.payGateTargetGroupId)
         userDefaults.removeObject(forKey: SharedKeys.payGateTargetBundleId)
+        // Cleared with the rest of the request, so a consumed flag cannot leave its
+        // timestamp behind for the next one to be judged against.
+        userDefaults.removeObject(forKey: SharedKeys.payGateRequestedAt)
     }
 
     private func isRecentPayGateOpen(groupId: String, userDefaults: UserDefaults) -> Bool {
