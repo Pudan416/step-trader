@@ -1,5 +1,6 @@
 import CoreGraphics
 import CoreImage
+import CryptoKit
 import Foundation
 import ImageIO
 import UniformTypeIdentifiers
@@ -218,7 +219,9 @@ public struct MaterialRenderer {
             actorImage = try applyingMistGrain(
                 actorImage,
                 material: material,
-                sourceDiameter: sourcePixelSize
+                sourceDiameter: sourcePixelSize,
+                presentationDiameter: presentationPixelSize,
+                background: backgroundColor.map(RGB.init) ?? .black
             )
         }
         if let haloCompactBody {
@@ -404,7 +407,9 @@ public struct MaterialRenderer {
                 actorImage = try applyingMistGrain(
                     actorImage,
                     material: actorMaterial,
-                    sourceDiameter: diameter
+                    sourceDiameter: diameter,
+                    presentationDiameter: presentationDiameter,
+                    background: RGB(backgroundColor)
                 )
             }
             if let outlineAccentImage {
@@ -1593,42 +1598,50 @@ public struct MaterialRenderer {
         return result.clamped
     }
 
-    private func mistGrain(
-        material: ActorMaterialRecipe,
-        u: Double,
-        v: Double
-    ) -> Double {
-        var seed: UInt64 = 0x6D69_7374_6772_6169
+    private func mistSeed(material: ActorMaterialRecipe) -> UInt64 {
+        var bytes = Data("editorial-mist-grain-seed-v1\0".utf8)
+
+        func appendUInt32(_ value: UInt32) {
+            var bigEndian = value.bigEndian
+            withUnsafeBytes(of: &bigEndian) { bytes.append(contentsOf: $0) }
+        }
+        func appendString(_ value: String) {
+            let encoded = Data(value.utf8)
+            appendUInt32(UInt32(encoded.count))
+            bytes.append(encoded)
+        }
+        func appendDouble(_ value: Double) {
+            let canonical = value == 0 ? 0.0 : value
+            var bigEndian = canonical.bitPattern.bigEndian
+            withUnsafeBytes(of: &bigEndian) { bytes.append(contentsOf: $0) }
+        }
+
+        appendString(material.family.rawValue)
+        appendUInt32(UInt32(material.colors.count))
         for color in material.colors {
-            seed ^= UInt64((color.red * 255).rounded()) &* 0x9E37_79B1
-            seed ^= UInt64((color.green * 255).rounded()) &* 0x85EB_CA77
-            seed ^= UInt64((color.blue * 255).rounded()) &* 0xC2B2_AE3D
-            seed = (seed << 17) | (seed >> 47)
+            appendDouble(color.red)
+            appendDouble(color.green)
+            appendDouble(color.blue)
         }
-        if let focus = material.fields.first?.focus {
-            seed ^= UInt64((focus.x * 65_535).rounded()) << 16
-            seed ^= UInt64((focus.y * 65_535).rounded())
+        appendUInt32(UInt32(material.fields.count))
+        for field in material.fields {
+            appendDouble(field.focus.x)
+            appendDouble(field.focus.y)
+            appendDouble(field.radius)
+            appendDouble(field.softness)
+            appendDouble(field.opacity)
+            appendUInt32(UInt32(field.colorIndex))
+            appendString(field.blend.rawValue)
         }
-        let coarse = valueNoise(x: u * 14, y: v * 14, seed: seed)
-        let fine = valueNoise(x: u * 29, y: v * 29, seed: seed ^ 0xA5A5_7E57)
-        return coarse * 0.42 + fine * 0.58
+        appendDouble(material.baseOpacity)
+        appendDouble(material.edgeSoftness)
+
+        return SHA256.hash(data: bytes).prefix(8).reduce(UInt64(0)) { seed, byte in
+            (seed << 8) | UInt64(byte)
+        }
     }
 
-    private func valueNoise(x: Double, y: Double, seed: UInt64) -> Double {
-        let x0 = Int(floor(x))
-        let y0 = Int(floor(y))
-        let tx = smoothstep(0, 1, x - Double(x0))
-        let ty = smoothstep(0, 1, y - Double(y0))
-        let lower = latticeNoise(x: x0, y: y0, seed: seed)
-            + (latticeNoise(x: x0 + 1, y: y0, seed: seed)
-                - latticeNoise(x: x0, y: y0, seed: seed)) * tx
-        let upper = latticeNoise(x: x0, y: y0 + 1, seed: seed)
-            + (latticeNoise(x: x0 + 1, y: y0 + 1, seed: seed)
-                - latticeNoise(x: x0, y: y0 + 1, seed: seed)) * tx
-        return lower + (upper - lower) * ty
-    }
-
-    private func latticeNoise(x: Int, y: Int, seed: UInt64) -> Double {
+    private func mistGradient(x: Int, y: Int, seed: UInt64) -> (Double, Double) {
         var value = seed
             ^ UInt64(bitPattern: Int64(x)) &* 0x9E37_79B9_7F4A_7C15
             ^ UInt64(bitPattern: Int64(y)) &* 0xBF58_476D_1CE4_E5B9
@@ -1637,7 +1650,62 @@ public struct MaterialRenderer {
         value ^= value >> 27
         value &*= 0x94D0_49BB_1331_11EB
         value ^= value >> 31
-        return Double(value >> 11) / 4_503_599_627_370_496 - 1
+        let angle = Double(value >> 11) / 9_007_199_254_740_992 * Double.pi * 2
+        return (cos(angle), sin(angle))
+    }
+
+    private func mistSimplexGradientNoise(x: Double, y: Double, seed: UInt64) -> Double {
+        let skew = (sqrt(3) - 1) * 0.5
+        let unskew = (3 - sqrt(3)) / 6
+        let cellX = Int(floor(x + (x + y) * skew))
+        let cellY = Int(floor(y + (x + y) * skew))
+        let origin = Double(cellX + cellY) * unskew
+        let x0 = x - (Double(cellX) - origin)
+        let y0 = y - (Double(cellY) - origin)
+        let first = x0 > y0 ? (1, 0) : (0, 1)
+        let x1 = x0 - Double(first.0) + unskew
+        let y1 = y0 - Double(first.1) + unskew
+        let x2 = x0 - 1 + 2 * unskew
+        let y2 = y0 - 1 + 2 * unskew
+
+        func contribution(_ dx: Double, _ dy: Double, _ ix: Int, _ iy: Int) -> Double {
+            let kernel = 0.5 - dx * dx - dy * dy
+            guard kernel > 0 else { return 0 }
+            let gradient = mistGradient(x: ix, y: iy, seed: seed)
+            let compact = kernel * kernel * kernel * kernel
+            return compact * (gradient.0 * dx + gradient.1 * dy)
+        }
+        return 70 * (
+            contribution(x0, y0, cellX, cellY)
+                + contribution(x1, y1, cellX + first.0, cellY + first.1)
+                + contribution(x2, y2, cellX + 1, cellY + 1)
+        )
+    }
+
+    private func mistFineField(
+        x: Double,
+        y: Double,
+        seed: UInt64
+    ) -> Double {
+        // A final presentation pixel has a Nyquist period of two pixels. The
+        // two positive compact-gradient octaves sit at 2x Nyquist and Nyquist,
+        // independent of actor diameter and supersampling source scale.
+        let nyquistPeriod = 2.0
+        let broad = mistSimplexGradientNoise(
+            x: x / (nyquistPeriod * 2),
+            y: y / (nyquistPeriod * 2),
+            seed: seed
+        )
+        let fine = mistSimplexGradientNoise(
+            x: x / nyquistPeriod,
+            y: y / nyquistPeriod,
+            seed: seed ^ 0xA5A5_7E57
+        )
+        let broadFrequency = 1 / (nyquistPeriod * 2)
+        let fineFrequency = 1 / nyquistPeriod
+        let frequencySum = broadFrequency + fineFrequency
+        return broad * (broadFrequency / frequencySum)
+            + fine * (fineFrequency / frequencySum)
     }
 
     private func radialWeight(
@@ -1802,6 +1870,12 @@ public struct MaterialRenderer {
         if direction > 0 { return (1 - background) / direction }
         if direction < 0 { return (0 - background) / direction }
         return .infinity
+    }
+
+    private static func projectionLowerLimit(background: Double, direction: Double) -> Double {
+        if direction > 0 { return (0 - background) / direction }
+        if direction < 0 { return (1 - background) / direction }
+        return -.infinity
     }
 
     private func blurred(_ image: CGImage, radius: Double) throws -> CGImage {
@@ -1980,7 +2054,9 @@ public struct MaterialRenderer {
     private func applyingMistGrain(
         _ image: CGImage,
         material: ActorMaterialRecipe,
-        sourceDiameter: Int
+        sourceDiameter: Int,
+        presentationDiameter: Int,
+        background: RGB
     ) throws -> CGImage {
         let context = try makeContext(width: image.width, height: image.height)
         context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
@@ -1991,21 +2067,66 @@ public struct MaterialRenderer {
         let bytesPerRow = context.bytesPerRow
         let originX = (Double(image.width) - Double(sourceDiameter)) * 0.5
         let originY = (Double(image.height) - Double(sourceDiameter)) * 0.5
+        let presentationRatio = Double(sourceDiameter) / Double(max(presentationDiameter, 1))
+        let seed = mistSeed(material: material)
+        var field = [Double](repeating: 0, count: image.width * image.height)
+        var weightedSum = 0.0
+        var alphaWeight = 0.0
+
+        for y in 0..<image.height {
+            for x in 0..<image.width {
+                let offset = y * bytesPerRow + x * 4
+                let alpha = Double(bytes[offset + 3]) / 255
+                guard alpha > 0 else { continue }
+                let presentationX = (Double(x) + 0.5 - originX) / presentationRatio
+                let presentationY = (Double(y) + 0.5 - originY) / presentationRatio
+                let value = mistFineField(x: presentationX, y: presentationY, seed: seed)
+                field[y * image.width + x] = value
+                weightedSum += value * alpha
+                alphaWeight += alpha
+            }
+        }
+        let supportMean = weightedSum / max(alphaWeight, Double.ulpOfOne)
 
         for y in 0..<image.height {
             for x in 0..<image.width {
                 let offset = y * bytesPerRow + x * 4
                 let alpha = bytes[offset + 3]
                 guard alpha > 0 else { continue }
-                let u = (Double(x) + 0.5 - originX) / Double(sourceDiameter)
-                let v = (Double(y) + 0.5 - originY) / Double(sourceDiameter)
-                let factor = 1 + mistGrain(material: material, u: u, v: v) * 0.16
-                for channel in 0..<3 {
-                    bytes[offset + channel] = UInt8(min(
-                        Double(alpha),
-                        max(0, (Double(bytes[offset + channel]) * factor).rounded())
-                    ))
-                }
+                let alphaValue = Double(alpha)
+                let color = RGB(
+                    r: Double(bytes[offset]) / alphaValue,
+                    g: Double(bytes[offset + 1]) / alphaValue,
+                    b: Double(bytes[offset + 2]) / alphaValue
+                )
+                let direction = RGB(
+                    r: color.r - background.r,
+                    g: color.g - background.g,
+                    b: color.b - background.b
+                )
+                let lower = max(
+                    Self.projectionLowerLimit(background: background.r, direction: direction.r),
+                    Self.projectionLowerLimit(background: background.g, direction: direction.g),
+                    Self.projectionLowerLimit(background: background.b, direction: direction.b)
+                )
+                let upper = min(
+                    Self.projectionLimit(background: background.r, direction: direction.r),
+                    Self.projectionLimit(background: background.g, direction: direction.g),
+                    Self.projectionLimit(background: background.b, direction: direction.b)
+                )
+                let symmetricSpan = max(0, min(1 - lower, upper - 1))
+                let delta = max(
+                    -symmetricSpan,
+                    min(symmetricSpan, (field[y * image.width + x] - supportMean) * 0.16)
+                )
+                let adjusted = RGB(
+                    r: background.r + direction.r * (1 + delta),
+                    g: background.g + direction.g * (1 + delta),
+                    b: background.b + direction.b * (1 + delta)
+                ).clamped
+                bytes[offset] = UInt8((adjusted.r * alphaValue).rounded())
+                bytes[offset + 1] = UInt8((adjusted.g * alphaValue).rounded())
+                bytes[offset + 2] = UInt8((adjusted.b * alphaValue).rounded())
             }
         }
         guard let textured = context.makeImage() else {

@@ -2976,9 +2976,6 @@ struct MaterialRendererTests {
                                 )
                             }
                         }
-                        if family == .mist, metrics.grainEnergy < 0.006 {
-                            failures.append("mist-grain \(label) energy=\(metrics.grainEnergy)")
-                        }
                     }
                 }
             }
@@ -3053,15 +3050,6 @@ struct MaterialRendererTests {
                 .supportedAngularCoverage < 0.82
         )
 
-        let mistKey = SealedMaterialKey(
-            colorCount: 3,
-            background: .lowContrast,
-            family: .mist,
-            view: .actor
-        )
-        let mistControl = try #require(observations[mistKey])
-        #expect(sealedMetrics(sealedGrainMutation(mistControl)).grainEnergy >= 0.006)
-
         let radialActor = fixtureActor(
             colors: [
                 .init(red: 0.94, green: 0.18, blue: 0.24),
@@ -3103,6 +3091,682 @@ struct MaterialRendererTests {
                     + failures.prefix(160).joined(separator: "\n")
             )
         )
+    }
+
+    @Test("mist fixtures 12 through 14 keep fine actor-local grain at native 1x")
+    func mistFixtures12Through14RejectCoarseCheckerGrainAtNativeScale() throws {
+        // Production regressions caught here, before the body:
+        // - post-blur lattice noise expanding into visible square/checker cells;
+        // - antialiasing or downsampling erasing tactile high-frequency grain;
+        // - grain leaking into the background or changing between identical renders;
+        // - c2/c3 mist losing shifted radial color ownership;
+        // - local blur no longer separating soft and sharp depth planes.
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let renderer = MaterialRenderer()
+        let fixtures = [
+            (number: 12, colorCount: 1, layoutIndex: 0),
+            (number: 13, colorCount: 2, layoutIndex: 1),
+            (number: 14, colorCount: 3, layoutIndex: 2),
+        ]
+        let backgrounds: [BackgroundCondition] = [.light, .dark, .lowContrast]
+        var failures = [String]()
+        var observationCount = 0
+
+        let fineControl = mistFineStableControl(side: 48)
+        let fineMetrics = mistTextureMetrics(luminance: fineControl, side: 48)
+        #expect(mistFineGrainPasses(fineMetrics), Comment(rawValue: "fine control \(fineMetrics)"))
+        #expect(!mistFineGrainPasses(mistTextureMetrics(
+            luminance: mistBrokenGrainMutation(fineControl),
+            side: 48
+        )))
+        #expect(!mistFineGrainPasses(mistTextureMetrics(
+            luminance: mistCoarseCellMutation(fineControl, side: 48, cellSide: 6),
+            side: 48
+        )))
+        #expect(!mistFineGrainPasses(mistTextureMetrics(
+            luminance: mistCheckerMutation(fineControl, side: 48, cellSide: 4),
+            side: 48
+        )))
+
+        for fixture in fixtures {
+            let layout = manifest.breadth[fixture.layoutIndex]
+            let approved = try #require(archive.fixtures.first {
+                $0.fixtureIndex == fixture.layoutIndex
+            }?.recipe)
+            let material = MaterialDNA.fixture(
+                daySeed: layout.seed,
+                eventIDs: layout.eventIDs,
+                family: .mist,
+                requestedColorCount: fixture.colorCount
+            )
+            let previousMaterial = fixture.colorCount > 1 ? MaterialDNA.fixture(
+                daySeed: layout.seed,
+                eventIDs: layout.eventIDs,
+                family: .mist,
+                requestedColorCount: fixture.colorCount - 1
+            ) : nil
+
+            for background in backgrounds {
+                for actor in approved.actors {
+                    let isolated = CompositionRecipe(
+                        daySeed: approved.daySeed,
+                        grammar: approved.grammar,
+                        viewport: approved.viewport,
+                        actors: [actor]
+                    )
+                    let rendered = try renderer.render(
+                        recipe: isolated,
+                        material: material,
+                        background: background,
+                        configuration: .init(scale: 1, supersampling: 2)
+                    )
+                    let repeated = try renderer.render(
+                        recipe: isolated,
+                        material: material,
+                        background: background,
+                        configuration: .init(scale: 1, supersampling: 2)
+                    )
+                    #expect(rendered.fullScreen.pngData == repeated.fullScreen.pngData)
+                    #expect(rendered.calendarTile.pngData == repeated.calendarTile.pngData)
+
+                    let full = try pixels(rendered.fullScreen.pngData)
+                    let tile = try pixels(rendered.calendarTile.pngData)
+                    let centerX = actor.position.x * 393
+                    let centerY = actor.position.y * 852
+                    let diameter = actor.diameter * 393
+                    let actorRect = fixture11CenteredCrop(
+                        centerX: centerX,
+                        centerY: centerY,
+                        side: max(16, Int(ceil(diameter * 1.16))),
+                        width: full.width,
+                        height: full.height
+                    )
+                    let zoomRect = fixture11CenteredCrop(
+                        centerX: centerX,
+                        centerY: centerY,
+                        side: max(16, Int(ceil(diameter * 0.54))),
+                        width: full.width,
+                        height: full.height
+                    )
+                    let actorCrop = full.cropped(
+                        x: actorRect.x,
+                        y: actorRect.y,
+                        width: actorRect.width,
+                        height: actorRect.height
+                    )
+                    let zoomDetail = full.cropped(
+                        x: zoomRect.x,
+                        y: zoomRect.y,
+                        width: zoomRect.width,
+                        height: zoomRect.height
+                    )
+                    let views: [(String, PixelImage, Double, Double)] = [
+                        ("full", full, centerX, centerY),
+                        ("tile", tile, centerX, centerY - Double(rendered.tileCrop.y)),
+                        (
+                            "actor-crop",
+                            actorCrop,
+                            centerX - Double(actorRect.x),
+                            centerY - Double(actorRect.y)
+                        ),
+                        (
+                            "zoom-detail",
+                            zoomDetail,
+                            centerX - Double(zoomRect.x),
+                            centerY - Double(zoomRect.y)
+                        ),
+                    ]
+                    let previousViews: [String: PixelImage]
+                    if let previousMaterial {
+                        let previous = try renderer.render(
+                            recipe: isolated,
+                            material: previousMaterial,
+                            background: background,
+                            configuration: .init(scale: 1, supersampling: 2)
+                        )
+                        let previousFull = try pixels(previous.fullScreen.pngData)
+                        let previousTile = try pixels(previous.calendarTile.pngData)
+                        previousViews = [
+                            "full": previousFull,
+                            "tile": previousTile,
+                            "actor-crop": previousFull.cropped(
+                                x: actorRect.x,
+                                y: actorRect.y,
+                                width: actorRect.width,
+                                height: actorRect.height
+                            ),
+                            "zoom-detail": previousFull.cropped(
+                                x: zoomRect.x,
+                                y: zoomRect.y,
+                                width: zoomRect.width,
+                                height: zoomRect.height
+                            ),
+                        ]
+                    } else {
+                        previousViews = [:]
+                    }
+
+                    let eventLabel = String(actor.eventID.prefix(4))
+                    for (viewName, image, viewCenterX, viewCenterY) in views {
+                        observationCount += 1
+                        let label = "fixture\(fixture.number)/c\(fixture.colorCount)/"
+                            + "\(background.rawValue)/\(eventLabel)/\(viewName)"
+                        let texture = mistTextureMetrics(
+                            image: image,
+                            centerX: viewCenterX,
+                            centerY: viewCenterY,
+                            diameter: diameter,
+                            background: background
+                        )
+                        if !mistFineGrainPasses(texture) {
+                            failures.append("coarse-grain \(label) \(texture)")
+                        }
+                        let signature = sealedSignature(
+                            image,
+                            centerX: viewCenterX,
+                            centerY: viewCenterY,
+                            radius: diameter * 0.48,
+                            background: background
+                        )
+                        if !sealedTransparentBodyIsReadable(
+                            sealedMetrics(signature),
+                            family: .mist
+                        ) {
+                            failures.append("silhouette \(label) \(sealedMetrics(signature))")
+                        }
+                        if let previousImage = previousViews[viewName] {
+                            let previousSignature = sealedSignature(
+                                previousImage,
+                                centerX: viewCenterX,
+                                centerY: viewCenterY,
+                                radius: diameter * 0.48,
+                                background: background
+                            )
+                            let radialShift = sealedDistance(signature, previousSignature)
+                            if radialShift < 0.012 {
+                                failures.append("radial-palette \(label) distance=\(radialShift)")
+                            }
+                        }
+                    }
+
+                    for (viewName, image, backgroundCenterY) in [
+                        ("full", full, centerY),
+                        ("tile", tile, centerY - Double(rendered.tileCrop.y)),
+                    ] {
+                        let cleanliness = mistBackgroundCleanliness(
+                            image,
+                            centerX: centerX,
+                            centerY: backgroundCenterY,
+                            diameter: diameter,
+                            localBlur: actor.localBlur,
+                            background: background
+                        )
+                        if cleanliness.contaminated > 0 {
+                            failures.append(
+                                "background \(fixture.number)/\(background.rawValue)/"
+                                    + "\(eventLabel)/\(viewName) eligible=\(cleanliness.eligible) "
+                                    + "contaminated=\(cleanliness.contaminated)"
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        let depthFixture = manifest.breadth[0]
+        let depthApproved = try #require(archive.fixtures.first {
+            $0.fixtureIndex == 0
+        }?.recipe)
+        let depthActor = try #require(depthApproved.actors.first)
+        let sharpActor = ActorCompositionRecipe(
+            eventID: depthActor.eventID,
+            position: depthActor.position,
+            diameter: depthActor.diameter,
+            depth: 0.15,
+            localBlur: 0.006,
+            cropAllowance: depthActor.cropAllowance,
+            drawOrder: depthActor.drawOrder
+        )
+        let softActor = ActorCompositionRecipe(
+            eventID: depthActor.eventID,
+            position: depthActor.position,
+            diameter: depthActor.diameter,
+            depth: 0.85,
+            localBlur: 0.060,
+            cropAllowance: depthActor.cropAllowance,
+            drawOrder: depthActor.drawOrder
+        )
+        let depthMaterial = MaterialDNA.fixture(
+            daySeed: depthFixture.seed,
+            eventIDs: depthFixture.eventIDs,
+            family: .mist,
+            requestedColorCount: 3
+        )
+        let sharp = try renderer.render(
+            recipe: CompositionRecipe(
+                daySeed: depthApproved.daySeed,
+                grammar: depthApproved.grammar,
+                viewport: depthApproved.viewport,
+                actors: [sharpActor]
+            ),
+            material: depthMaterial,
+            background: .lowContrast,
+            configuration: .init(scale: 1, supersampling: 2)
+        )
+        let soft = try renderer.render(
+            recipe: CompositionRecipe(
+                daySeed: depthApproved.daySeed,
+                grammar: depthApproved.grammar,
+                viewport: depthApproved.viewport,
+                actors: [softActor]
+            ),
+            material: depthMaterial,
+            background: .lowContrast,
+            configuration: .init(scale: 1, supersampling: 2)
+        )
+        let sharpPixels = try pixels(sharp.fullScreen.pngData)
+        let softPixels = try pixels(soft.fullScreen.pngData)
+        let depthCenterX = depthActor.position.x * 393
+        let depthCenterY = depthActor.position.y * 852
+        let depthDiameter = depthActor.diameter * 393
+        let sharpness = mistRadialEdgeSharpness(
+            sharpPixels,
+            centerX: depthCenterX,
+            centerY: depthCenterY,
+            diameter: depthDiameter,
+            background: .lowContrast
+        )
+        let softness = mistRadialEdgeSharpness(
+            softPixels,
+            centerX: depthCenterX,
+            centerY: depthCenterY,
+            diameter: depthDiameter,
+            background: .lowContrast
+        )
+        #expect(sharpness >= softness * 1.20, "sharp=\(sharpness) soft=\(softness)")
+        #expect(observationCount == 48)
+
+        let failureClasses = Dictionary(grouping: failures) {
+            $0.split(separator: " ").first.map(String.init) ?? "unknown"
+        }.mapValues(\.count)
+        #expect(failures.isEmpty, Comment(rawValue:
+            "mist native-1x failures=\(failures.count) classes=\(failureClasses)\n"
+                + failures.prefix(160).joined(separator: "\n")
+        ))
+    }
+
+    @Test("mist fine-field invariants preserve alpha scale isotropy and radial ownership")
+    func mistFineFieldInvariantControlsAreObservable() {
+        let side = 48
+        let background = MaterialRenderer.backgroundColor(for: .lowContrast)
+        let fixture = mistRadialColorFixture(side: side, background: background)
+        let actorID = "mist-invariant-actor"
+        let directField = mistIsotropicFineField(
+            side: side,
+            presentationScale: 1,
+            actorID: actorID,
+            alpha: fixture.pixels.map(\.alpha)
+        )
+        let supersampledAlpha = mistUpsampledAlpha(fixture.pixels.map(\.alpha), side: side, scale: 2)
+        let supersampledField = mistIsotropicFineField(
+            side: side * 2,
+            presentationScale: 2,
+            actorID: actorID,
+            alpha: supersampledAlpha
+        )
+        let downsampledField = mistDownsampledField(supersampledField, side: side * 2, scale: 2)
+        let direct = mistRayGrainWitness(
+            fixture.pixels,
+            radialColors: fixture.radialColors,
+            field: directField,
+            background: background
+        )
+        let originalAlpha = fixture.pixels.map(\.alpha)
+        let finalAlpha = direct.map(\.alpha)
+
+        #expect(originalAlpha == finalAlpha)
+        #expect(fixture11AlphaHistogram(originalAlpha) == fixture11AlphaHistogram(finalAlpha))
+        #expect(fixture11AlphaQuantiles(originalAlpha) == fixture11AlphaQuantiles(finalAlpha))
+
+        let dc = mistAlphaWeightedDC(directField, alpha: originalAlpha)
+        let quantizationBound = 1.0 / (255.0 * sqrt(Double(max(originalAlpha.filter { $0 > 0 }.count, 1))))
+        #expect(abs(dc) <= quantizationBound, "dc=\(dc) bound=\(quantizationBound)")
+        #expect(mistAllSamplesRemainOnRadialRay(
+            original: fixture.pixels,
+            candidate: direct,
+            radialColors: fixture.radialColors,
+            background: background
+        ))
+
+        let directionalSpread = mistDirectionalEnergySpread(directField, side: side)
+        let rotatedSpread = mistDirectionalEnergySpread(
+            mistRotatedQuarterTurn(directField, side: side),
+            side: side
+        )
+        #expect(directionalSpread <= 0.35, "directional spread=\(directionalSpread)")
+        #expect(abs(directionalSpread - rotatedSpread) <= 0.000_000_001)
+        #expect(zip(directField, downsampledField).allSatisfy {
+            abs($0 - $1) <= Double.ulpOfOne * 8
+        })
+        let directMetrics = mistTextureMetrics(luminance: directField, side: side)
+        let downsampledMetrics = mistTextureMetrics(luminance: downsampledField, side: side)
+        #expect(mistFineGrainPasses(directMetrics), Comment(rawValue: "direct \(directMetrics)"))
+        #expect(mistFineGrainPasses(downsampledMetrics), Comment(rawValue: "ss2 \(downsampledMetrics)"))
+
+        let tinySide = 16
+        let tinyAlpha = Array(repeating: UInt8.max, count: tinySide * tinySide)
+        let tinyDirect = mistIsotropicFineField(
+            side: tinySide,
+            presentationScale: 1,
+            actorID: actorID,
+            alpha: tinyAlpha
+        )
+        let tinySupersampled = mistIsotropicFineField(
+            side: tinySide * 2,
+            presentationScale: 2,
+            actorID: actorID,
+            alpha: mistUpsampledAlpha(tinyAlpha, side: tinySide, scale: 2)
+        )
+        let tinyDownsampled = mistDownsampledField(
+            tinySupersampled,
+            side: tinySide * 2,
+            scale: 2
+        )
+        #expect(mistFineGrainPasses(mistTextureMetrics(luminance: tinyDirect, side: tinySide)))
+        #expect(mistFineGrainPasses(mistTextureMetrics(
+            luminance: tinyDownsampled,
+            side: tinySide
+        )))
+
+        let repeated = mistIsotropicFineField(
+            side: side,
+            presentationScale: 1,
+            actorID: actorID,
+            alpha: originalAlpha
+        )
+        let siblingInserted = mistIsotropicFineField(
+            side: side,
+            presentationScale: 1,
+            actorID: actorID,
+            alpha: originalAlpha,
+            siblingEventIDs: ["unrelated-before", actorID, "unrelated-after"]
+        )
+        #expect(directField == repeated)
+        #expect(directField == siblingInserted)
+
+        #expect(!mistFineGrainPasses(mistTextureMetrics(
+            luminance: mistBrokenGrainMutation(directField),
+            side: side
+        )))
+        #expect(!mistFineGrainPasses(mistTextureMetrics(
+            luminance: mistCoarseCellMutation(directField, side: side, cellSide: 6),
+            side: side
+        )))
+        #expect(!mistFineGrainPasses(mistTextureMetrics(
+            luminance: mistCheckerMutation(directField, side: side, cellSide: 4),
+            side: side
+        )))
+    }
+
+    @Test("mist canonical grain seed follows appearance rather than actor labels")
+    func mistCanonicalGrainSeedContractIsObservable() throws {
+        let renderer = MaterialRenderer()
+        let source = try #require(MaterialDNA.fixture(
+            daySeed: 0x5157_5EED,
+            eventIDs: ["mist-seed-source"],
+            family: .mist,
+            requestedColorCount: 3
+        ).actor("mist-seed-source"))
+
+        func copy(
+            _ actor: ActorMaterialRecipe,
+            eventID: String? = nil,
+            family: MaterialFamily? = nil,
+            mutation: MaterialMutation?? = nil,
+            colors: [MaterialColor]? = nil,
+            fields: [RadialField]? = nil,
+            baseOpacity: Double? = nil,
+            edgeSoftness: Double? = nil,
+            contourWidth: Double? = nil,
+            contourCount: Int? = nil,
+            counterformRadius: Double?? = nil,
+            counterformSoftness: Double? = nil
+        ) -> ActorMaterialRecipe {
+            ActorMaterialRecipe(
+                eventID: eventID ?? actor.eventID,
+                family: family ?? actor.family,
+                mutation: mutation ?? actor.mutation,
+                colors: colors ?? actor.colors,
+                fields: fields ?? actor.fields,
+                baseOpacity: baseOpacity ?? actor.baseOpacity,
+                edgeSoftness: edgeSoftness ?? actor.edgeSoftness,
+                contourWidth: contourWidth ?? actor.contourWidth,
+                contourCount: contourCount ?? actor.contourCount,
+                counterformRadius: counterformRadius ?? actor.counterformRadius,
+                counterformSoftness: counterformSoftness ?? actor.counterformSoftness,
+                organicTopology: nil
+            )
+        }
+
+        let ascii = copy(source, eventID: "mist-label-ascii")
+        let unicode = copy(source, eventID: "туман-霧-🌫️")
+        let asciiBytes = try renderer.renderActor(ascii, pixelSize: 128).pngData
+        let unicodeBytes = try renderer.renderActor(unicode, pixelSize: 128).pngData
+        let repeatedAsciiBytes = try renderer.renderActor(ascii, pixelSize: 128).pngData
+        #expect(mistCanonicalSeedDigest(ascii) == mistCanonicalSeedDigest(unicode))
+        #expect(asciiBytes == unicodeBytes, "label-only eventID change rerolled grain")
+        #expect(asciiBytes == repeatedAsciiBytes)
+
+        let firstField = try #require(source.fields.first)
+        func replacingFirstField(_ replacement: RadialField) -> [RadialField] {
+            [replacement] + source.fields.dropFirst()
+        }
+        let appearanceVariants = [
+            copy(source, family: .gradient, mutation: .some(nil)),
+            copy(source, colors: source.colors.reversed()),
+            copy(source, fields: source.fields.reversed()),
+            copy(source, fields: replacingFirstField(.init(
+                focus: .init(x: firstField.focus.x + 0.03125, y: firstField.focus.y),
+                radius: firstField.radius,
+                softness: firstField.softness,
+                opacity: firstField.opacity,
+                colorIndex: firstField.colorIndex,
+                blend: firstField.blend
+            ))),
+            copy(source, fields: replacingFirstField(.init(
+                focus: .init(x: firstField.focus.x, y: firstField.focus.y + 0.03125),
+                radius: firstField.radius,
+                softness: firstField.softness,
+                opacity: firstField.opacity,
+                colorIndex: firstField.colorIndex,
+                blend: firstField.blend
+            ))),
+            copy(source, fields: replacingFirstField(.init(
+                focus: firstField.focus,
+                radius: firstField.radius * 0.91,
+                softness: firstField.softness,
+                opacity: firstField.opacity,
+                colorIndex: firstField.colorIndex,
+                blend: firstField.blend
+            ))),
+            copy(source, fields: replacingFirstField(.init(
+                focus: firstField.focus,
+                radius: firstField.radius,
+                softness: firstField.softness * 0.89,
+                opacity: firstField.opacity,
+                colorIndex: firstField.colorIndex,
+                blend: firstField.blend
+            ))),
+            copy(source, fields: replacingFirstField(.init(
+                focus: firstField.focus,
+                radius: firstField.radius,
+                softness: firstField.softness,
+                opacity: firstField.opacity * 0.87,
+                colorIndex: firstField.colorIndex,
+                blend: firstField.blend
+            ))),
+            copy(source, fields: replacingFirstField(.init(
+                focus: firstField.focus,
+                radius: firstField.radius,
+                softness: firstField.softness,
+                opacity: firstField.opacity,
+                colorIndex: (firstField.colorIndex + 1) % source.colors.count,
+                blend: firstField.blend
+            ))),
+            copy(source, fields: replacingFirstField(.init(
+                focus: firstField.focus,
+                radius: firstField.radius,
+                softness: firstField.softness,
+                opacity: firstField.opacity,
+                colorIndex: firstField.colorIndex,
+                blend: firstField.blend == .screen ? .multiply : .screen
+            ))),
+            copy(source, baseOpacity: source.baseOpacity * 0.83),
+            copy(source, edgeSoftness: source.edgeSoftness + 0.0275),
+        ]
+        let sourceSeed = mistCanonicalSeedDigest(source)
+        let sourcePixels = try renderer.renderActor(
+            source,
+            pixelSize: 128,
+            background: .lowContrast
+        ).pngData
+        for variant in appearanceVariants {
+            #expect(mistCanonicalSeedDigest(variant) != sourceSeed)
+            let variantPixels = try renderer.renderActor(
+                variant,
+                pixelSize: 128,
+                background: .lowContrast
+            ).pngData
+            #expect(variantPixels != sourcePixels)
+        }
+
+        let provenanceOnly = copy(source, mutation: .some(nil))
+        let unusedStructureOnly = copy(
+            source,
+            contourWidth: 0.37,
+            contourCount: 3,
+            counterformRadius: .some(0.21),
+            counterformSoftness: 0.19
+        )
+        for equivalent in [provenanceOnly, unusedStructureOnly] {
+            #expect(mistCanonicalSeedDigest(equivalent) == sourceSeed)
+            let equivalentPixels = try renderer.renderActor(
+                equivalent,
+                pixelSize: 128,
+                background: .lowContrast
+            ).pngData
+            #expect(equivalentPixels == sourcePixels)
+        }
+
+        let retained = copy(source, eventID: "retained")
+        let sibling = copy(source, eventID: "sibling")
+        let retainedActor = ActorCompositionRecipe(
+            eventID: retained.eventID,
+            position: .init(x: 0.24, y: 0.28),
+            diameter: 0.20,
+            depth: 0.25,
+            localBlur: 0.012,
+            cropAllowance: 0,
+            drawOrder: 1
+        )
+        let siblingActor = ActorCompositionRecipe(
+            eventID: sibling.eventID,
+            position: .init(x: 0.78, y: 0.72),
+            diameter: 0.16,
+            depth: 0.70,
+            localBlur: 0.018,
+            cropAllowance: 0,
+            drawOrder: 2
+        )
+        func scene(_ actors: [ActorCompositionRecipe], materialActors: [ActorMaterialRecipe]) throws -> PixelImage {
+            let recipe = CompositionRecipe(
+                daySeed: 17,
+                grammar: .openField,
+                viewport: .phone,
+                actors: actors
+            )
+            let dna = DailyMaterialDNA(
+                daySeed: 17,
+                family: .mist,
+                accentMutation: .diffuseMist,
+                requestedColorCount: 3,
+                actors: materialActors
+            )
+            return try pixels(renderer.render(
+                recipe: recipe,
+                material: dna,
+                background: .dark,
+                configuration: .init(scale: 1, supersampling: 2)
+            ).fullScreen.pngData)
+        }
+        let isolatedScene = try scene([retainedActor], materialActors: [retained])
+        let insertedScene = try scene(
+            [retainedActor, siblingActor],
+            materialActors: [retained, sibling]
+        )
+        let reorderedScene = try scene(
+            [siblingActor, retainedActor],
+            materialActors: [sibling, retained]
+        )
+        let crop = fixture11CenteredCrop(
+            centerX: retainedActor.position.x * 393,
+            centerY: retainedActor.position.y * 852,
+            side: 96,
+            width: isolatedScene.width,
+            height: isolatedScene.height
+        )
+        let isolatedCrop = isolatedScene.cropped(
+            x: crop.x, y: crop.y, width: crop.width, height: crop.height
+        ).rgba
+        #expect(insertedScene.cropped(
+            x: crop.x, y: crop.y, width: crop.width, height: crop.height
+        ).rgba == isolatedCrop)
+        #expect(reorderedScene.cropped(
+            x: crop.x, y: crop.y, width: crop.width, height: crop.height
+        ).rgba == isolatedCrop)
+
+        let representative = ActorMaterialRecipe(
+            eventID: "excluded-label",
+            family: .mist,
+            mutation: .diffuseMist,
+            colors: [
+                .init(red: 0.125, green: 0.5, blue: 0.875),
+                .init(red: 1, green: 0, blue: 0.25),
+            ],
+            fields: [.init(
+                focus: .init(x: 0.25, y: 0.75),
+                radius: 0.625,
+                softness: 0.5,
+                opacity: 0.875,
+                colorIndex: 1,
+                blend: .screen
+            )],
+            baseOpacity: 0.7,
+            edgeSoftness: 0.095,
+            contourWidth: 0,
+            contourCount: 0,
+            counterformRadius: nil,
+            counterformSoftness: 0
+        )
+        #expect(mistCanonicalSeedBytes(representative).count == 163)
+        #expect(mistCanonicalSeedDigest(representative) ==
+            "50a633c7b812775d8788c0eaeaf963a4e95bae096e1b9d213a3a751732faa95d")
+
+        let distinctDigests = Set((0..<2_048).map { index in
+            copy(source, colors: [
+                .init(
+                    red: Double(index + 1) / 2_049,
+                    green: source.colors[0].green,
+                    blue: source.colors[0].blue
+                ),
+            ] + source.colors.dropFirst())
+        }.map(mistCanonicalSeedDigest))
+        #expect(distinctDigests.count == 2_048)
     }
 
     @Test("halo fixtures 15 through 17 retain a compact body and surrounding aura at sealed 1x")
@@ -3871,6 +4535,653 @@ private struct SealedMaterialKey: Hashable {
     let view: SealedMaterialView
 }
 
+private struct MistTextureMetrics: CustomStringConvertible {
+    let fineEnergy: Double
+    let maximumAxisAutocorrelation: Double
+    let coarseAxisSpectrumFraction: Double
+    let maximumAxisSpectrumBinFraction: Double
+
+    var description: String {
+        "energy=\(fineEnergy) autocorrelation=\(maximumAxisAutocorrelation) "
+            + "coarseSpectrum=\(coarseAxisSpectrumFraction) "
+            + "axisPeak=\(maximumAxisSpectrumBinFraction)"
+    }
+}
+
+private func mistCanonicalSeedDigest(_ material: ActorMaterialRecipe) -> String {
+    sha256Hex(mistCanonicalSeedBytes(material))
+}
+
+private func mistCanonicalSeedBytes(_ material: ActorMaterialRecipe) -> Data {
+    var bytes = Data("editorial-mist-grain-seed-v1\0".utf8)
+
+    func appendUInt32(_ value: UInt32) {
+        var bigEndian = value.bigEndian
+        withUnsafeBytes(of: &bigEndian) { bytes.append(contentsOf: $0) }
+    }
+    func appendString(_ value: String) {
+        let encoded = Data(value.utf8)
+        appendUInt32(UInt32(encoded.count))
+        bytes.append(encoded)
+    }
+    func appendDouble(_ value: Double) {
+        let canonical = value == 0 ? 0.0 : value
+        var bigEndian = canonical.bitPattern.bigEndian
+        withUnsafeBytes(of: &bigEndian) { bytes.append(contentsOf: $0) }
+    }
+
+    appendString(material.family.rawValue)
+    appendUInt32(UInt32(material.colors.count))
+    for color in material.colors {
+        appendDouble(color.red)
+        appendDouble(color.green)
+        appendDouble(color.blue)
+    }
+    appendUInt32(UInt32(material.fields.count))
+    for field in material.fields {
+        appendDouble(field.focus.x)
+        appendDouble(field.focus.y)
+        appendDouble(field.radius)
+        appendDouble(field.softness)
+        appendDouble(field.opacity)
+        appendUInt32(UInt32(field.colorIndex))
+        appendString(field.blend.rawValue)
+    }
+    appendDouble(material.baseOpacity)
+    appendDouble(material.edgeSoftness)
+    return bytes
+}
+
+private func mistFineGrainPasses(_ metrics: MistTextureMetrics) -> Bool {
+    metrics.fineEnergy >= 0.0025
+        && metrics.maximumAxisAutocorrelation <= 0.45
+        && metrics.coarseAxisSpectrumFraction <= 0.62
+        && metrics.maximumAxisSpectrumBinFraction <= 0.14
+}
+
+private struct MistRadialColorFixture {
+    let pixels: [OutlineVisibilityPixel]
+    let radialColors: [MaterialColor]
+}
+
+private func mistRadialColorFixture(
+    side: Int,
+    background: MaterialColor
+) -> MistRadialColorFixture {
+    let inner = MaterialColor(red: 0.92, green: 0.24, blue: 0.38)
+    let outer = MaterialColor(red: 0.14, green: 0.58, blue: 0.94)
+    var pixels = [OutlineVisibilityPixel]()
+    var radialColors = [MaterialColor]()
+    pixels.reserveCapacity(side * side)
+    radialColors.reserveCapacity(side * side)
+    for y in 0..<side {
+        for x in 0..<side {
+            let dx = (Double(x) + 0.5) / Double(side) - 0.5
+            let dy = (Double(y) + 0.5) / Double(side) - 0.5
+            let radius = hypot(dx, dy) / 0.5
+            let radialWeight = min(1, max(0, (radius - 0.12) / 0.76))
+            let color = MaterialColor(
+                red: inner.red + (outer.red - inner.red) * radialWeight,
+                green: inner.green + (outer.green - inner.green) * radialWeight,
+                blue: inner.blue + (outer.blue - inner.blue) * radialWeight
+            )
+            let alpha = radius < 0.94
+                ? UInt8((255 * min(1, max(0, (0.94 - radius) / 0.16))).rounded())
+                : 0
+            let a = Double(alpha) / 255
+            radialColors.append(color)
+            pixels.append(OutlineVisibilityPixel(
+                red: UInt8((color.red * a * 255).rounded()),
+                green: UInt8((color.green * a * 255).rounded()),
+                blue: UInt8((color.blue * a * 255).rounded()),
+                alpha: alpha
+            ))
+        }
+    }
+    _ = background
+    return MistRadialColorFixture(pixels: pixels, radialColors: radialColors)
+}
+
+private func mistIsotropicFineField(
+    side: Int,
+    presentationScale: Int,
+    actorID: String,
+    alpha: [UInt8],
+    siblingEventIDs: [String] = []
+) -> [Double] {
+    precondition(side > 0 && presentationScale > 0 && alpha.count == side * side)
+    // Actor identity is the only seed authority. Sibling presence/order is
+    // deliberately accepted but excluded from the field seed.
+    _ = siblingEventIDs
+    let seed = actorID.utf8.reduce(UInt64(0xCBF2_9CE4_8422_2325)) {
+        ($0 ^ UInt64($1)) &* 0x0000_0100_0000_01B3
+    }
+    let finalSide = side / presentationScale
+    var final = [Double]()
+    final.reserveCapacity(finalSide * finalSide)
+    for y in 0..<finalSide {
+        for x in 0..<finalSide {
+            var value = seed
+            value ^= UInt64(x) &* 0x9E37_79B9_7F4A_7C15
+            value ^= UInt64(y) &* 0xD1B5_4A32_D192_ED03
+            value ^= value >> 30
+            value &*= 0xBF58_476D_1CE4_E5B9
+            value ^= value >> 27
+            value &*= 0x94D0_49BB_1331_11EB
+            value ^= value >> 31
+            final.append(Double(value & 0xFFFF) / 32_767.5 - 1)
+        }
+    }
+    var expanded = [Double](repeating: 0, count: side * side)
+    for y in 0..<side {
+        for x in 0..<side {
+            expanded[y * side + x] = final[(y / presentationScale) * finalSide + x / presentationScale]
+        }
+    }
+    let weighted = zip(expanded, alpha).reduce(into: (sum: 0.0, weight: 0.0)) { result, sample in
+        let weight = Double(sample.1) / 255
+        result.sum += sample.0 * weight
+        result.weight += weight
+    }
+    let mean = weighted.sum / max(weighted.weight, Double.ulpOfOne)
+    return expanded.map { $0 - mean }
+}
+
+private func mistRayGrainWitness(
+    _ pixels: [OutlineVisibilityPixel],
+    radialColors: [MaterialColor],
+    field: [Double],
+    background: MaterialColor
+) -> [OutlineVisibilityPixel] {
+    precondition(pixels.count == radialColors.count && pixels.count == field.count)
+    return zip(zip(pixels, radialColors), field).map { pair, grain in
+        let pixel = pair.0
+        let color = pair.1
+        guard pixel.alpha > 0 else { return pixel }
+        let direction = (
+            color.red - background.red,
+            color.green - background.green,
+            color.blue - background.blue
+        )
+        var maximum = Double.greatestFiniteMagnitude
+        for component in [direction.0, direction.1, direction.2] where abs(component) > 0.000_001 {
+            let origin = component == direction.0 ? background.red
+                : component == direction.1 ? background.green : background.blue
+            maximum = min(maximum, component > 0 ? (1 - origin) / component : -origin / component)
+        }
+        let amount = min(maximum, max(0, 1 + grain * 0.12))
+        let projected = MaterialColor(
+            red: background.red + direction.0 * amount,
+            green: background.green + direction.1 * amount,
+            blue: background.blue + direction.2 * amount
+        )
+        let alpha = Double(pixel.alpha) / 255
+        return OutlineVisibilityPixel(
+            red: UInt8((projected.red * alpha * 255).rounded()),
+            green: UInt8((projected.green * alpha * 255).rounded()),
+            blue: UInt8((projected.blue * alpha * 255).rounded()),
+            alpha: pixel.alpha
+        )
+    }
+}
+
+private func mistAlphaWeightedDC(_ field: [Double], alpha: [UInt8]) -> Double {
+    let weighted = zip(field, alpha).reduce(into: (sum: 0.0, weight: 0.0)) { result, sample in
+        let weight = Double(sample.1) / 255
+        result.sum += sample.0 * weight
+        result.weight += weight
+    }
+    return weighted.sum / max(weighted.weight, Double.ulpOfOne)
+}
+
+private func mistAllSamplesRemainOnRadialRay(
+    original: [OutlineVisibilityPixel],
+    candidate: [OutlineVisibilityPixel],
+    radialColors: [MaterialColor],
+    background: MaterialColor
+) -> Bool {
+    zip(zip(original, candidate), radialColors).allSatisfy { pair, radial in
+        let before = pair.0
+        let after = pair.1
+        guard before.alpha >= 16 else { return after.alpha == before.alpha }
+        let alpha = Double(after.alpha) / 255
+        let observed = MaterialColor(
+            red: Double(after.red) / 255 / alpha,
+            green: Double(after.green) / 255 / alpha,
+            blue: Double(after.blue) / 255 / alpha
+        )
+        let direction = (
+            radial.red - background.red,
+            radial.green - background.green,
+            radial.blue - background.blue
+        )
+        let offset = (
+            observed.red - background.red,
+            observed.green - background.green,
+            observed.blue - background.blue
+        )
+        let cross = hypot(
+            offset.1 * direction.2 - offset.2 * direction.1,
+            hypot(
+                offset.2 * direction.0 - offset.0 * direction.2,
+                offset.0 * direction.1 - offset.1 * direction.0
+            )
+        )
+        let quantization = sqrt(3) * 0.5 / Double(after.alpha)
+        return after.alpha == before.alpha && cross <= quantization * 1.75
+    }
+}
+
+private func mistDirectionalEnergySpread(_ field: [Double], side: Int) -> Double {
+    precondition(field.count == side * side)
+    let directions = [(1, 0), (0, 1), (1, 1), (1, -1)]
+    let energies = directions.map { dx, dy in
+        var energy = 0.0
+        var count = 0
+        for y in 0..<side {
+            for x in 0..<side {
+                let sx = x + dx
+                let sy = y + dy
+                guard (0..<side).contains(sx), (0..<side).contains(sy) else { continue }
+                let delta = field[sy * side + sx] - field[y * side + x]
+                // A one-pixel lattice step in any sampled direction is the
+                // presentation observable; diagonal energy is not divided by
+                // Euclidean distance because that would make isotropic white
+                // detail appear artificially axis-heavy by construction.
+                energy += delta * delta
+                count += 1
+            }
+        }
+        return energy / Double(max(count, 1))
+    }
+    let mean = energies.reduce(0, +) / Double(energies.count)
+    return ((energies.max() ?? 0) - (energies.min() ?? 0)) / max(mean, Double.ulpOfOne)
+}
+
+private func mistRotatedQuarterTurn(_ field: [Double], side: Int) -> [Double] {
+    var rotated = [Double](repeating: 0, count: field.count)
+    for y in 0..<side {
+        for x in 0..<side {
+            rotated[x * side + (side - 1 - y)] = field[y * side + x]
+        }
+    }
+    return rotated
+}
+
+private func mistUpsampledAlpha(_ alpha: [UInt8], side: Int, scale: Int) -> [UInt8] {
+    precondition(alpha.count == side * side)
+    let resultSide = side * scale
+    return (0..<(resultSide * resultSide)).map { index in
+        let x = index % resultSide
+        let y = index / resultSide
+        return alpha[(y / scale) * side + x / scale]
+    }
+}
+
+private func mistDownsampledField(_ field: [Double], side: Int, scale: Int) -> [Double] {
+    precondition(field.count == side * side && side.isMultiple(of: scale))
+    let resultSide = side / scale
+    return (0..<(resultSide * resultSide)).map { index in
+        let x = index % resultSide
+        let y = index / resultSide
+        var sum = 0.0
+        for oy in 0..<scale {
+            for ox in 0..<scale {
+                sum += field[(y * scale + oy) * side + x * scale + ox]
+            }
+        }
+        return sum / Double(scale * scale)
+    }
+}
+
+private func mistTextureMetrics(
+    image: PixelImage,
+    centerX: Double,
+    centerY: Double,
+    diameter: Double,
+    background: BackgroundCondition
+) -> MistTextureMetrics {
+    let side = min(64, max(16, Int(floor(diameter * 0.42))))
+    let originX = min(
+        image.width - side,
+        max(0, Int(floor(centerX - Double(side) * 0.5)))
+    )
+    let originY = min(
+        image.height - side,
+        max(0, Int(floor(centerY - Double(side) * 0.5)))
+    )
+    var colors = [StraightRGB]()
+    colors.reserveCapacity(side * side)
+    for y in originY..<(originY + side) {
+        for x in originX..<(originX + side) {
+            colors.append(image.pixel(x: x, y: y).straight)
+        }
+    }
+    let materialBackground = MaterialRenderer.backgroundColor(for: background)
+    let backgroundColor = StraightRGB(
+        r: materialBackground.red,
+        g: materialBackground.green,
+        b: materialBackground.blue
+    )
+    let smoothingRadius = max(2, min(4, side / 12))
+    var residual = [Double](repeating: 0, count: colors.count)
+    for y in 0..<side {
+        for x in 0..<side {
+            var localRed = 0.0
+            var localGreen = 0.0
+            var localBlue = 0.0
+            var count = 0
+            for sampleY in max(0, y - smoothingRadius)...min(side - 1, y + smoothingRadius) {
+                for sampleX in max(0, x - smoothingRadius)...min(side - 1, x + smoothingRadius) {
+                    let sample = colors[sampleY * side + sampleX]
+                    localRed += sample.r
+                    localGreen += sample.g
+                    localBlue += sample.b
+                    count += 1
+                }
+            }
+            let inverseCount = 1 / Double(max(count, 1))
+            let local = StraightRGB(
+                r: localRed * inverseCount,
+                g: localGreen * inverseCount,
+                b: localBlue * inverseCount
+            )
+            let direction = (
+                local.r - backgroundColor.r,
+                local.g - backgroundColor.g,
+                local.b - backgroundColor.b
+            )
+            let length = hypot(direction.0, hypot(direction.1, direction.2))
+            guard length > 1.0 / 255 else { continue }
+            let current = colors[y * side + x]
+            residual[y * side + x] = (
+                (current.r - local.r) * direction.0
+                    + (current.g - local.g) * direction.1
+                    + (current.b - local.b) * direction.2
+            ) / length
+        }
+    }
+    return mistTextureMetrics(residual: residual, side: side)
+}
+
+private func mistTextureMetrics(
+    luminance: [Double],
+    side: Int
+) -> MistTextureMetrics {
+    precondition(luminance.count == side * side)
+    let smoothingRadius = max(2, min(4, side / 12))
+    var residual = Array(repeating: 0.0, count: luminance.count)
+    for y in 0..<side {
+        for x in 0..<side {
+            var local = 0.0
+            var count = 0
+            for sampleY in max(0, y - smoothingRadius)...min(side - 1, y + smoothingRadius) {
+                for sampleX in max(0, x - smoothingRadius)...min(side - 1, x + smoothingRadius) {
+                    local += luminance[sampleY * side + sampleX]
+                    count += 1
+                }
+            }
+            residual[y * side + x] = luminance[y * side + x] - local / Double(count)
+        }
+    }
+    return mistTextureMetrics(residual: residual, side: side)
+}
+
+private func mistTextureMetrics(
+    residual inputResidual: [Double],
+    side: Int
+) -> MistTextureMetrics {
+    precondition(inputResidual.count == side * side)
+    let mean = inputResidual.reduce(0, +) / Double(max(inputResidual.count, 1))
+    let residual = inputResidual.map { $0 - mean }
+    let fineEnergy = residual.map(abs).reduce(0, +) / Double(max(residual.count, 1))
+
+    func correlation(dx: Int, dy: Int) -> (value: Double, pairCount: Int) {
+        var covariance = 0.0
+        var lhsEnergy = 0.0
+        var rhsEnergy = 0.0
+        var count = 0
+        for y in 0..<(side - dy) {
+            for x in 0..<(side - dx) {
+                let lhs = residual[y * side + x]
+                let rhs = residual[(y + dy) * side + x + dx]
+                covariance += lhs * rhs
+                lhsEnergy += lhs * lhs
+                rhsEnergy += rhs * rhs
+                count += 1
+            }
+        }
+        guard count > 0, lhsEnergy > 0, rhsEnergy > 0 else { return (1, count) }
+        return (covariance / sqrt(lhsEnergy * rhsEnergy), count)
+    }
+    let maximumLag = max(1, min(4, side / 8))
+    let maximumAxisAutocorrelation = (1...maximumLag).flatMap { lag in
+        [correlation(dx: lag, dy: 0), correlation(dx: 0, dy: lag)]
+    }.map { sample in
+        mistFamilyWiseAutocorrelationLowerBound(
+            sample.value,
+            pairCount: sample.pairCount,
+            comparisonCount: maximumLag * 2
+        )
+    }.max() ?? 1
+
+    let half = side / 2
+    var axisPower = Array(repeating: 0.0, count: half + 1)
+    var diagonalPower = Array(repeating: 0.0, count: half + 1)
+    guard half >= 2 else {
+        return MistTextureMetrics(
+            fineEnergy: fineEnergy,
+            maximumAxisAutocorrelation: maximumAxisAutocorrelation,
+            coarseAxisSpectrumFraction: 1,
+            maximumAxisSpectrumBinFraction: 1
+        )
+    }
+    for fixed in 0..<side {
+        for frequency in 1...half {
+            var rowReal = 0.0
+            var rowImaginary = 0.0
+            var columnReal = 0.0
+            var columnImaginary = 0.0
+            var risingReal = 0.0
+            var risingImaginary = 0.0
+            var fallingReal = 0.0
+            var fallingImaginary = 0.0
+            for offset in 0..<side {
+                let angle = Double.pi * 2 * Double(frequency * offset) / Double(side)
+                let cosine = cos(angle)
+                let sine = sin(angle)
+                let rowValue = residual[fixed * side + offset]
+                let columnValue = residual[offset * side + fixed]
+                rowReal += rowValue * cosine
+                rowImaginary -= rowValue * sine
+                columnReal += columnValue * cosine
+                columnImaginary -= columnValue * sine
+                let risingValue = residual[((fixed + offset) % side) * side + offset]
+                let fallingValue = residual[((fixed - offset + side) % side) * side + offset]
+                risingReal += risingValue * cosine
+                risingImaginary -= risingValue * sine
+                fallingReal += fallingValue * cosine
+                fallingImaginary -= fallingValue * sine
+            }
+            axisPower[frequency] += rowReal * rowReal + rowImaginary * rowImaginary
+                + columnReal * columnReal + columnImaginary * columnImaginary
+            diagonalPower[frequency] += risingReal * risingReal + risingImaginary * risingImaginary
+                + fallingReal * fallingReal + fallingImaginary * fallingImaginary
+        }
+    }
+    let totalPower = max(
+        axisPower[1...half].reduce(0, +) + diagonalPower[1...half].reduce(0, +),
+        0.000_000_001
+    )
+    let coarseFrequencies = (1...half).filter { frequency in
+        let period = Double(side) / Double(frequency)
+        return (4...16).contains(period)
+    }
+    let coarseAxis = coarseFrequencies.map { axisPower[$0] }.reduce(0, +)
+    let coarseDiagonal = coarseFrequencies.map { diagonalPower[$0] }.reduce(0, +)
+    let coarseAxisExcess = max(0, coarseAxis - coarseDiagonal)
+        / max(coarseAxis + coarseDiagonal, 0.000_000_001)
+    let maximumAxisBinExcess = (1...half).map { frequency in
+        max(0, axisPower[frequency] - diagonalPower[frequency]) / totalPower
+    }.max() ?? 0
+    return MistTextureMetrics(
+        fineEnergy: fineEnergy,
+        maximumAxisAutocorrelation: maximumAxisAutocorrelation,
+        coarseAxisSpectrumFraction: coarseAxisExcess,
+        maximumAxisSpectrumBinFraction: maximumAxisBinExcess
+    )
+}
+
+private func mistFamilyWiseAutocorrelationLowerBound(
+    _ correlation: Double,
+    pairCount: Int,
+    comparisonCount: Int
+) -> Double {
+    guard pairCount > 3, comparisonCount > 0 else { return 1 }
+    let targetProbability = 1 - 0.05 / Double(comparisonCount)
+    var lowerZ = 0.0
+    var upperZ = 8.0
+    for _ in 0..<64 {
+        let candidate = (lowerZ + upperZ) * 0.5
+        let probability = 0.5 * (1 + erf(candidate / sqrt(2)))
+        if probability < targetProbability {
+            lowerZ = candidate
+        } else {
+            upperZ = candidate
+        }
+    }
+    let criticalZ = (lowerZ + upperZ) * 0.5
+    let bounded = min(1 - Double.ulpOfOne, max(-1 + Double.ulpOfOne, correlation))
+    return tanh(atanh(bounded) - criticalZ / sqrt(Double(pairCount - 3)))
+}
+
+private func mistFineStableControl(side: Int) -> [Double] {
+    (0..<(side * side)).map { index in
+        let x = index % side
+        let y = index / side
+        var value = UInt64(index) &* 0x9E37_79B9_7F4A_7C15
+        value ^= value >> 30
+        value &*= 0xBF58_476D_1CE4_E5B9
+        value ^= value >> 27
+        let noise = Double(value & 0xFFFF) / 65_535 - 0.5
+        let radial = hypot(
+            (Double(x) + 0.5) / Double(side) - 0.5,
+            (Double(y) + 0.5) / Double(side) - 0.5
+        )
+        return 0.54 - radial * 0.035 + noise * 0.070
+    }
+}
+
+private func mistBrokenGrainMutation(_ luminance: [Double]) -> [Double] {
+    Array(repeating: luminance.reduce(0, +) / Double(max(luminance.count, 1)), count: luminance.count)
+}
+
+private func mistCoarseCellMutation(
+    _ luminance: [Double],
+    side: Int,
+    cellSide: Int
+) -> [Double] {
+    precondition(luminance.count == side * side)
+    var result = luminance
+    for cellY in stride(from: 0, to: side, by: cellSide) {
+        for cellX in stride(from: 0, to: side, by: cellSide) {
+            let maxY = min(side, cellY + cellSide)
+            let maxX = min(side, cellX + cellSide)
+            var sum = 0.0
+            var count = 0
+            for y in cellY..<maxY {
+                for x in cellX..<maxX {
+                    sum += luminance[y * side + x]
+                    count += 1
+                }
+            }
+            let value = sum / Double(max(count, 1))
+            for y in cellY..<maxY {
+                for x in cellX..<maxX {
+                    result[y * side + x] = value
+                }
+            }
+        }
+    }
+    return result
+}
+
+private func mistCheckerMutation(
+    _ luminance: [Double],
+    side: Int,
+    cellSide: Int
+) -> [Double] {
+    precondition(luminance.count == side * side)
+    let mean = luminance.reduce(0, +) / Double(max(luminance.count, 1))
+    return (0..<(side * side)).map { index in
+        let x = index % side
+        let y = index / side
+        let parity = (x / cellSide + y / cellSide).isMultiple(of: 2)
+        return mean + (parity ? 0.045 : -0.045)
+    }
+}
+
+private struct MistBackgroundCleanliness {
+    let eligible: Int
+    let contaminated: Int
+}
+
+private func mistBackgroundCleanliness(
+    _ image: PixelImage,
+    centerX: Double,
+    centerY: Double,
+    diameter: Double,
+    localBlur: Double,
+    background: BackgroundCondition
+) -> MistBackgroundCleanliness {
+    let color = MaterialRenderer.backgroundColor(for: background)
+    let expected = StraightRGB(r: color.red, g: color.green, b: color.blue)
+    let supportRadius = diameter * 0.5 + max(3, localBlur * 393 * 3)
+    var eligible = 0
+    var contaminated = 0
+    for gridY in 0...8 {
+        for gridX in 0...8 {
+            let x = Int((Double(gridX) / 8 * Double(image.width - 1)).rounded())
+            let y = Int((Double(gridY) / 8 * Double(image.height - 1)).rounded())
+            guard hypot(Double(x) - centerX, Double(y) - centerY) > supportRadius else {
+                continue
+            }
+            eligible += 1
+            if rgbDistance(image.pixel(x: x, y: y).straight, expected) > 1.5 / 255 {
+                contaminated += 1
+            }
+        }
+    }
+    return MistBackgroundCleanliness(eligible: eligible, contaminated: contaminated)
+}
+
+private func mistRadialEdgeSharpness(
+    _ image: PixelImage,
+    centerX: Double,
+    centerY: Double,
+    diameter: Double,
+    background: BackgroundCondition
+) -> Double {
+    let color = MaterialRenderer.backgroundColor(for: background)
+    let expected = StraightRGB(r: color.red, g: color.green, b: color.blue)
+    var rayPeaks = [Double]()
+    for ray in 0..<72 {
+        let angle = Double(ray) / 72 * Double.pi * 2
+        var previous: Double?
+        var peak = 0.0
+        for step in 0...32 {
+            let radius = diameter * (0.30 + Double(step) / 32 * 0.36)
+            let x = min(image.width - 1, max(0, Int((centerX + cos(angle) * radius).rounded())))
+            let y = min(image.height - 1, max(0, Int((centerY + sin(angle) * radius).rounded())))
+            let contrast = rgbDistance(image.pixel(x: x, y: y).straight, expected)
+            if let previous { peak = max(peak, abs(contrast - previous)) }
+            previous = contrast
+        }
+        rayPeaks.append(peak)
+    }
+    return percentile(rayPeaks, fraction: 0.50)
+}
+
 private struct HaloMatrixKey: Hashable {
     let fixture: Int
     let eventID: String
@@ -4270,19 +5581,6 @@ private func sealedDesaturatedSilhouetteMutation(
             b: sample.color.luminance
         )
         return sealedMix(sample.background, gray, 0.08)
-    }
-}
-
-private func sealedGrainMutation(
-    _ signature: SealedOpticalSignature
-) -> SealedOpticalSignature {
-    sealedMap(signature) { sample in
-        let sign = (sample.gridX &+ sample.gridY).isMultiple(of: 2) ? 1.0 : -1.0
-        return StraightRGB(
-            r: min(1, max(0, sample.color.r + sign * 0.035)),
-            g: min(1, max(0, sample.color.g + sign * 0.035)),
-            b: min(1, max(0, sample.color.b + sign * 0.035))
-        )
     }
 }
 
