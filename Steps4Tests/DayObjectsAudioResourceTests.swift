@@ -168,6 +168,19 @@ final class DayObjectsAudioResourceTests: XCTestCase {
         }
     }
 
+    private func hasFiveMillisecondFade(_ samples: [Int], quantizedPeak: Int) -> Bool {
+        let fadeFrames = Int(44_100 * 0.005)
+        guard samples.count >= fadeFrames * 2, samples.first == 0, samples.last == 0 else { return false }
+        let maximumAdjacentStep = quantizedPeak * 2 / 3
+        let hasBoundedSlope: (ArraySlice<Int>) -> Bool = { window in
+            zip(window, window.dropFirst()).allSatisfy { abs($1 - $0) <= maximumAdjacentStep }
+        }
+        return (samples.prefix(10).map(abs).max() ?? quantizedPeak) <= Int(Double(quantizedPeak) * 0.04)
+            && (samples.suffix(10).map(abs).max() ?? quantizedPeak) <= Int(Double(quantizedPeak) * 0.02)
+            && hasBoundedSlope(samples.prefix(fadeFrames))
+            && hasBoundedSlope(samples.suffix(fadeFrames))
+    }
+
     func testBundledAudioLicensesAndSourceManifestHavePinnedProvenance() throws {
         let bundle = Bundle(for: type(of: self))
         let licenseFilenames = [
@@ -355,6 +368,19 @@ final class DayObjectsAudioResourceTests: XCTestCase {
         XCTAssertLessThanOrEqual(aggregateBytes, 30 * 1_024 * 1_024)
     }
 
+    func testFiveMillisecondFadeRejectsHardDiscontinuitiesBeyondSafeTenSampleEdges() {
+        let quantizedPeak = 23_197
+        var hardStart = [Int](repeating: 0, count: 1_000)
+        hardStart.replaceSubrange(110..<780, with: repeatElement(quantizedPeak, count: 670))
+        for offset in 0..<110 {
+            hardStart[780 + offset] = quantizedPeak * (109 - offset) / 109
+        }
+        let hardEnd = Array(hardStart.reversed())
+
+        XCTAssertFalse(hasFiveMillisecondFade(hardStart, quantizedPeak: quantizedPeak), "start fade")
+        XCTAssertFalse(hasFiveMillisecondFade(hardEnd, quantizedPeak: quantizedPeak), "end fade")
+    }
+
     func testBundledHappeningPCMHasNormalizedPeakFadesAndSafeSixSecondTails() throws {
         let bundle = Bundle(for: type(of: self))
         let expectedPeak = Int(round(32_767 * pow(10, -3.0 / 20.0)))
@@ -367,13 +393,7 @@ final class DayObjectsAudioResourceTests: XCTestCase {
             let absolutePeak = try XCTUnwrap(samples.map(abs).max())
             XCTAssertEqual(absolutePeak, expectedPeak, source.resourceName)
             XCTAssertLessThan(absolutePeak, 32_767, source.resourceName)
-            XCTAssertEqual(samples.first, 0, source.resourceName)
-            XCTAssertEqual(samples.last, 0, source.resourceName)
-
-            XCTAssertLessThanOrEqual(samples.prefix(10).map(abs).max() ?? expectedPeak,
-                                     Int(Double(expectedPeak) * 0.04), source.resourceName)
-            XCTAssertLessThanOrEqual(samples.suffix(10).map(abs).max() ?? expectedPeak,
-                                     Int(Double(expectedPeak) * 0.02), source.resourceName)
+            XCTAssertTrue(hasFiveMillisecondFade(samples, quantizedPeak: expectedPeak), source.resourceName)
 
             if samples.count == 6 * 44_100 {
                 let tail = samples.suffix(tailFrames)
