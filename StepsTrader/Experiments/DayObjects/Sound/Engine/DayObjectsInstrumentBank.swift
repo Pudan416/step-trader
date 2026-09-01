@@ -1,6 +1,8 @@
 #if DEBUG || INTERNAL_BUILD
 import AudioKit
 import AudioKitEX
+import AudioToolbox
+import AVFoundation
 import Foundation
 
 @MainActor
@@ -60,12 +62,17 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     }
 
     convenience init(bundle: Bundle = .main) {
-        self.init(bundle: bundle, engine: DayObjectsAudioKitInstrumentBankEngine())
+        self.init(
+            bundle: bundle,
+            engine: DayObjectsAudioKitInstrumentBankEngine(),
+            outputGainHostTimeProvider: { ProcessInfo.processInfo.systemUptime }
+        )
     }
 
     private convenience init(
         bundle: Bundle,
-        engine: DayObjectsInstrumentBankEngine
+        engine: DayObjectsInstrumentBankEngine,
+        outputGainHostTimeProvider: @escaping () -> TimeInterval
     ) {
         let descriptors = DayObjectsInstrumentManifest.defaultDescriptors
         self.init(
@@ -108,24 +115,38 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
                 return DayObjectsAudioKitInstrumentBankGraph(
                     tonalPools: tonalAdapters,
                     drums: drumAdapter.adapter,
-                    piano: pianoAdapter.adapter
+                    piano: pianoAdapter.adapter,
+                    outputGainHostTimeProvider: outputGainHostTimeProvider
                 )
             },
             engine: engine
         )
     }
 
-    static func makePlaybackPair(bundle: Bundle = .main) -> DayObjectsPlaybackBankPair {
+    static func makePlaybackPair(
+        bundle: Bundle = .main,
+        startFailureProvider: @escaping () -> DayObjectsPlaybackBankPairStartFailure? = { nil },
+        outputGainHostTimeProvider: @escaping () -> TimeInterval = {
+            ProcessInfo.processInfo.systemUptime
+        }
+    ) -> DayObjectsPlaybackBankPair {
         let sharedEngine = DayObjectsSharedInstrumentBankEngine()
         let bankA = DayObjectsInstrumentBank(
             bundle: bundle,
-            engine: DayObjectsPairedInstrumentBankEngine(slot: .a, shared: sharedEngine)
+            engine: DayObjectsPairedInstrumentBankEngine(slot: .a, shared: sharedEngine),
+            outputGainHostTimeProvider: outputGainHostTimeProvider
         )
         let bankB = DayObjectsInstrumentBank(
             bundle: bundle,
-            engine: DayObjectsPairedInstrumentBankEngine(slot: .b, shared: sharedEngine)
+            engine: DayObjectsPairedInstrumentBankEngine(slot: .b, shared: sharedEngine),
+            outputGainHostTimeProvider: outputGainHostTimeProvider
         )
-        return DayObjectsPlaybackBankPair(bankA: bankA, bankB: bankB, sharedEngine: sharedEngine)
+        return DayObjectsPlaybackBankPair(
+            bankA: bankA,
+            bankB: bankB,
+            sharedEngine: sharedEngine,
+            startFailureProvider: startFailureProvider
+        )
     }
 
     func prepare(configuration: DayObjectsInstrumentBankConfiguration) throws {
@@ -234,6 +255,35 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
             linearGain,
             rampDurationSeconds: rampDurationSeconds
         )
+    }
+
+    func scheduleOutputGain(
+        _ linearGain: Double,
+        startingAtHostTime startHostTime: TimeInterval,
+        endingAtHostTime endHostTime: TimeInterval
+    ) {
+        prepared?.graph.scheduleOutputGain(
+            linearGain,
+            startingAtHostTime: startHostTime,
+            endingAtHostTime: endHostTime
+        )
+    }
+
+    fileprivate func synchronizePreparedGraphForPlaybackPair() throws {
+        guard let prepared else { throw DayObjectsInstrumentBankError.notPrepared }
+        try prepared.graph.synchronizeForStart()
+    }
+
+    fileprivate func markPlaybackPairPrepared() {
+        guard prepared != nil else { return }
+        prepared?.state = .prepared
+        prepared?.isAttached = true
+    }
+
+    fileprivate func markPlaybackPairStarted() {
+        guard prepared != nil else { return }
+        prepared?.state = .started
+        prepared?.isAttached = true
     }
 
     private func validate(_ configuration: DayObjectsInstrumentBankConfiguration) throws {
@@ -395,13 +445,17 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
     private var outputGainTarget = 1.0
     private var outputGainRampDuration: TimeInterval = 0
     private var outputGainRampCount = 0
+    private var lastScheduledOutputGainAutomation: DayObjectsBankOutputGainAutomation?
+    private let outputGainHostTimeProvider: () -> TimeInterval
+    private let outputGainSampleRateProvider: () -> Double
 
     var outputGainMetrics: DayObjectsBankOutputGainMetrics {
         .init(
             isSupported: true,
             targetLinearGain: outputGainTarget,
             lastRampDurationSeconds: outputGainRampDuration,
-            rampCount: outputGainRampCount
+            rampCount: outputGainRampCount,
+            lastScheduledAutomation: lastScheduledOutputGainAutomation
         )
     }
 
@@ -419,10 +473,21 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         )
     }
 
-    init(tonalPools: [DayObjectsAudioKitTonalPool], drums: DayObjectsAudioKitDrumBank, piano: DayObjectsAudioKitFeltPiano) {
+    init(
+        tonalPools: [DayObjectsAudioKitTonalPool],
+        drums: DayObjectsAudioKitDrumBank,
+        piano: DayObjectsAudioKitFeltPiano,
+        outputGainHostTimeProvider: @escaping () -> TimeInterval,
+        outputGainSampleRateProvider: @escaping () -> Double = {
+            let rate = AVAudioSession.sharedInstance().sampleRate
+            return rate > 0 ? rate : 48_000
+        }
+    ) {
         self.tonalPools = tonalPools
         self.drums = drums
         self.piano = piano
+        self.outputGainHostTimeProvider = outputGainHostTimeProvider
+        self.outputGainSampleRateProvider = outputGainSampleRateProvider
         tonalBus = Mixer(tonalPools.map(\.output) + [piano.output], name: "Day Objects tonal bus")
         drumBus = Mixer([drums.output], name: "Day Objects drum bus")
         tonalTrim = Fader(tonalBus, gain: AUValue(DayObjectsAudioParameters.linearGain(decibels: -10)))
@@ -441,8 +506,59 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         outputGainTarget = target
         outputGainRampDuration = duration
         outputGainRampCount += 1
+        lastScheduledOutputGainAutomation = nil
         worldTrim.$leftGain.ramp(to: AUValue(target), duration: Float(duration))
         worldTrim.$rightGain.ramp(to: AUValue(target), duration: Float(duration))
+    }
+
+    func scheduleOutputGain(
+        _ linearGain: Double,
+        startingAtHostTime startHostTime: TimeInterval,
+        endingAtHostTime endHostTime: TimeInterval
+    ) {
+        let target = min(max(linearGain.isFinite ? linearGain : 0, 0), 1)
+        let nowValue = outputGainHostTimeProvider()
+        let now = nowValue.isFinite ? nowValue : 0
+        let requestedStart = startHostTime.isFinite ? startHostTime : now
+        let requestedEndValue = endHostTime.isFinite ? endHostTime : requestedStart
+        let requestedEnd = max(requestedEndValue, requestedStart)
+        let wasForcedImmediate = requestedEnd <= now
+        let effectiveStart = wasForcedImmediate ? now : max(requestedStart, now)
+        let effectiveEnd = wasForcedImmediate ? now : max(requestedEnd, effectiveStart)
+
+        let automation = DayObjectsBankOutputGainAutomation(
+            targetLinearGain: target,
+            requestedStartHostTimeSeconds: requestedStart,
+            requestedEndHostTimeSeconds: requestedEnd,
+            effectiveStartHostTimeSeconds: effectiveStart,
+            effectiveEndHostTimeSeconds: effectiveEnd,
+            wasForcedImmediate: wasForcedImmediate
+        )
+        outputGainTarget = target
+        outputGainRampDuration = effectiveEnd - effectiveStart
+        outputGainRampCount += 1
+        lastScheduledOutputGainAutomation = automation
+
+        if wasForcedImmediate {
+            worldTrim.$leftGain.value = AUValue(target)
+            worldTrim.$rightGain.value = AUValue(target)
+            return
+        }
+
+        schedule(
+            worldTrim.$leftGain,
+            target: AUValue(target),
+            startingAtHostTime: effectiveStart,
+            endingAtHostTime: effectiveEnd,
+            now: now
+        )
+        schedule(
+            worldTrim.$rightGain,
+            target: AUValue(target),
+            startingAtHostTime: effectiveStart,
+            endingAtHostTime: effectiveEnd,
+            now: now
+        )
     }
 
     func synchronizeForStart() throws {
@@ -450,6 +566,25 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
     }
 
     private static func decibels(_ gain: AUValue) -> Double { 20 * log10(Double(gain)) }
+
+    private func schedule(
+        _ parameter: NodeParameter,
+        target: AUValue,
+        startingAtHostTime startHostTime: TimeInterval,
+        endingAtHostTime endHostTime: TimeInterval,
+        now: TimeInterval
+    ) {
+        let sampleRate = max(outputGainSampleRateProvider(), 1)
+        let startOffset = max(startHostTime - now, 0) * sampleRate
+        let duration = max(endHostTime - startHostTime, 0) * sampleRate
+        let maximumFrameCount = Double(AUAudioFrameCount.max)
+        parameter.avAudioNode.auAudioUnit.scheduleParameterBlock(
+            AUEventSampleTimeImmediate + AUEventSampleTime(min(startOffset, Double(Int64.max))),
+            AUAudioFrameCount(min(duration, maximumFrameCount)),
+            parameter.parameter.address,
+            target
+        )
+    }
 }
 
 private final class DayObjectsAudioKitInstrumentBankEngine: DayObjectsInstrumentBankEngine {
@@ -467,12 +602,28 @@ private final class DayObjectsAudioKitInstrumentBankEngine: DayObjectsInstrument
     func stop() { engine.stop() }
 }
 
+enum DayObjectsPlaybackBankPairLifecycleState: Equatable, Sendable {
+    case unprepared
+    case prepared
+    case started
+}
+
+enum DayObjectsPlaybackBankPairStartFailure: Equatable, Sendable {
+    case secondBankSynchronization
+    case sharedEngineStart
+}
+
 struct DayObjectsPlaybackBankPairMetrics: Equatable, Sendable {
     let attachedBankCount: Int
     let sharedAudioEngineCount: Int
     let finalPeakLimiterCount: Int
     let sharedMasterTrimDecibels: Double
     let fixedSharedNodeCount: Int
+    let fixedSharedNodeIdentities: [ObjectIdentifier]
+    let lifecycleState: DayObjectsPlaybackBankPairLifecycleState
+    let sharedEngineIsRunning: Bool
+    let sharedEngineStartCount: Int
+    let sharedEngineStopCount: Int
     let allocationFingerprint: [DayObjectsInstrumentBankAllocationFingerprint?]
 }
 
@@ -481,9 +632,12 @@ final class DayObjectsPlaybackBankPair {
     let bankA: DayObjectsInstrumentBank
     let bankB: DayObjectsInstrumentBank
     private let sharedEngine: DayObjectsSharedInstrumentBankEngine
+    private let startFailureProvider: () -> DayObjectsPlaybackBankPairStartFailure?
+    private var lifecycleState: DayObjectsPlaybackBankPairLifecycleState = .unprepared
 
     var metrics: DayObjectsPlaybackBankPairMetrics {
         sharedEngine.metrics(
+            lifecycleState: lifecycleState,
             allocationFingerprint: [
                 bankA.metrics.allocationFingerprint,
                 bankB.metrics.allocationFingerprint,
@@ -494,16 +648,60 @@ final class DayObjectsPlaybackBankPair {
     fileprivate init(
         bankA: DayObjectsInstrumentBank,
         bankB: DayObjectsInstrumentBank,
-        sharedEngine: DayObjectsSharedInstrumentBankEngine
+        sharedEngine: DayObjectsSharedInstrumentBankEngine,
+        startFailureProvider: @escaping () -> DayObjectsPlaybackBankPairStartFailure?
     ) {
         self.bankA = bankA
         self.bankB = bankB
         self.sharedEngine = sharedEngine
+        self.startFailureProvider = startFailureProvider
     }
 
     func prepare(configuration: DayObjectsInstrumentBankConfiguration) throws {
         try bankA.prepare(configuration: configuration)
         try bankB.prepare(configuration: configuration)
+        lifecycleState = .prepared
+    }
+
+    func start() throws {
+        guard lifecycleState != .unprepared else {
+            throw DayObjectsInstrumentBankError.notPrepared
+        }
+        guard lifecycleState != .started else { return }
+
+        let injectedFailure = startFailureProvider()
+        do {
+            try bankA.synchronizePreparedGraphForPlaybackPair()
+            if injectedFailure == .secondBankSynchronization {
+                throw DayObjectsInstrumentBankError.startFailed
+            }
+            try bankB.synchronizePreparedGraphForPlaybackPair()
+            if injectedFailure == .sharedEngineStart {
+                throw DayObjectsInstrumentBankError.startFailed
+            }
+            try sharedEngine.startPair()
+            bankA.markPlaybackPairStarted()
+            bankB.markPlaybackPairStarted()
+            lifecycleState = .started
+        } catch {
+            bankA.releaseAll()
+            bankB.releaseAll()
+            sharedEngine.rollbackFailedPairStart()
+            bankA.markPlaybackPairPrepared()
+            bankB.markPlaybackPairPrepared()
+            lifecycleState = .prepared
+            throw DayObjectsInstrumentBankError.startFailed
+        }
+    }
+
+    func stop() {
+        guard lifecycleState != .unprepared else { return }
+        bankA.releaseAll()
+        bankB.releaseAll()
+        sharedEngine.stopPair()
+        bankA.markPlaybackPairPrepared()
+        bankB.markPlaybackPairPrepared()
+        lifecycleState = .prepared
     }
 }
 
@@ -522,9 +720,9 @@ private final class DayObjectsPairedInstrumentBankEngine: DayObjectsInstrumentBa
     func attach(graph: any DayObjectsInstrumentBankGraph) throws {
         try shared.attach(graph: graph, slot: slot)
     }
-    func detach() { shared.detach(slot: slot) }
-    func start() throws { try shared.start() }
-    func stop() { shared.stop() }
+    func detach() { shared.releaseAttachmentRequest(slot: slot) }
+    func start() throws { try shared.requestIndividualStart(slot: slot) }
+    func stop() { shared.requestIndividualStop(slot: slot) }
 }
 
 @MainActor
@@ -536,6 +734,10 @@ private final class DayObjectsSharedInstrumentBankEngine {
     private var outputMixer: Mixer?
     private var masterTrim: Fader?
     private var limiter: PeakLimiter?
+    private var individuallyStartedSlots: Set<DayObjectsPlaybackBankSlot> = []
+    private var pairIsRunning = false
+    private var startCount = 0
+    private var stopCount = 0
 
     func attach(
         graph: any DayObjectsInstrumentBankGraph,
@@ -554,30 +756,66 @@ private final class DayObjectsSharedInstrumentBankEngine {
         try connectIfComplete()
     }
 
-    func detach(slot: DayObjectsPlaybackBankSlot) {
-        attachedSlots.remove(slot)
-        engine.output = nil
+    func releaseAttachmentRequest(slot: DayObjectsPlaybackBankSlot) {
+        // Playback-pair graphs are retained for the pair's lifetime. An individual
+        // bank cannot tear down the other slot's shared output topology.
+        individuallyStartedSlots.remove(slot)
     }
 
-    func start() throws {
+    func requestIndividualStart(slot: DayObjectsPlaybackBankSlot) throws {
+        individuallyStartedSlots.insert(slot)
+        guard individuallyStartedSlots == Set([.a, .b]) else { return }
+        try startPair()
+    }
+
+    func requestIndividualStop(slot: DayObjectsPlaybackBankSlot) {
+        individuallyStartedSlots.remove(slot)
+        guard individuallyStartedSlots.isEmpty, !pairIsRunning else { return }
+        stopEngineIfRunning(countAsPairStop: false)
+    }
+
+    func startPair() throws {
         guard attachedSlots.count == 2, let limiter else {
             throw DayObjectsInstrumentBankError.notPrepared
         }
+        guard !pairIsRunning else { return }
         engine.output = limiter
         if !engine.avEngine.isRunning { try engine.start() }
+        pairIsRunning = true
+        startCount += 1
     }
 
-    func stop() { engine.stop() }
+    func stopPair() {
+        guard pairIsRunning else { return }
+        pairIsRunning = false
+        stopEngineIfRunning(countAsPairStop: true)
+    }
+
+    func rollbackFailedPairStart() {
+        pairIsRunning = false
+        if engine.avEngine.isRunning { engine.stop() }
+        engine.output = limiter
+    }
 
     func metrics(
+        lifecycleState: DayObjectsPlaybackBankPairLifecycleState,
         allocationFingerprint: [DayObjectsInstrumentBankAllocationFingerprint?]
     ) -> DayObjectsPlaybackBankPairMetrics {
-        .init(
+        var fixedNodeIdentities: [ObjectIdentifier] = []
+        if let outputMixer { fixedNodeIdentities.append(ObjectIdentifier(outputMixer)) }
+        if let masterTrim { fixedNodeIdentities.append(ObjectIdentifier(masterTrim)) }
+        if let limiter { fixedNodeIdentities.append(ObjectIdentifier(limiter)) }
+        return .init(
             attachedBankCount: attachedSlots.count,
             sharedAudioEngineCount: 1,
             finalPeakLimiterCount: limiter == nil ? 0 : 1,
             sharedMasterTrimDecibels: Self.masterTrimDecibels,
             fixedSharedNodeCount: limiter == nil ? 0 : 3,
+            fixedSharedNodeIdentities: fixedNodeIdentities,
+            lifecycleState: lifecycleState,
+            sharedEngineIsRunning: pairIsRunning && engine.avEngine.isRunning,
+            sharedEngineStartCount: startCount,
+            sharedEngineStopCount: stopCount,
             allocationFingerprint: allocationFingerprint
         )
     }
@@ -597,6 +835,12 @@ private final class DayObjectsSharedInstrumentBankEngine {
             masterTrim = trim
             limiter = PeakLimiter(trim)
         }
+        engine.output = limiter
+    }
+
+    private func stopEngineIfRunning(countAsPairStop: Bool) {
+        if engine.avEngine.isRunning { engine.stop() }
+        if countAsPairStop { stopCount += 1 }
         engine.output = limiter
     }
 }

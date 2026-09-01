@@ -109,6 +109,38 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
         XCTAssertEqual(harness.banks[1].outputGainMetrics.targetLinearGain, 1, accuracy: 1e-12)
         XCTAssertEqual(harness.coordinator.metrics.crossfadeState!.oldGain * harness.coordinator.metrics.crossfadeState!.oldGain
             + harness.coordinator.metrics.crossfadeState!.newGain * harness.coordinator.metrics.crossfadeState!.newGain, 1, accuracy: 1e-12)
+
+        let oldCommands = harness.banks[0].outputGainAutomationCommands
+        let newCommands = harness.banks[1].outputGainAutomationCommands
+        XCTAssertEqual(oldCommands.count, 5)
+        XCTAssertEqual(newCommands.count, 5)
+        assertAutomationPair(oldCommands[0], newCommands[0], progress: 0, start: 10, end: 10)
+        assertAutomationPair(
+            oldCommands[1],
+            newCommands[1],
+            progress: 1.0 / 32.0,
+            start: 10,
+            end: 10 + 15.0 / 72.0
+        )
+        assertAutomationPair(oldCommands[2], newCommands[2], progress: 0.5, start: 12, end: 12)
+        assertAutomationPair(
+            oldCommands[3],
+            newCommands[3],
+            progress: 17.0 / 32.0,
+            start: 12,
+            end: 12 + 15.0 / 72.0
+        )
+        assertAutomationPair(oldCommands[4], newCommands[4], progress: 1, start: 14, end: 14)
+
+        for position in 49...80 {
+            harness.coordinator.render(event(
+                .subdivision,
+                position: Int64(position),
+                hostTime: 14 + Double(position - 48) * 15.0 / 72.0
+            ))
+        }
+        XCTAssertEqual(harness.banks[0].outputGainAutomationCommands.count, 5)
+        XCTAssertEqual(harness.banks[1].outputGainAutomationCommands.count, 5)
     }
 
     func testNewestPendingPlanWinsAndPreservesSubmittedDayInput() throws {
@@ -173,7 +205,8 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
         ])
         XCTAssertEqual(harness.coordinator.metrics.transitionCount, 1)
         XCTAssertEqual(harness.runtime.startedRhythmHostTimes, [91.125])
-        XCTAssertEqual(harness.banks.map { $0.outputGainMetrics.rampCount }, [2, 2], "Duplicate event kinds at one transport position must not restart output ramps")
+        XCTAssertEqual(harness.banks.map { $0.outputGainMetrics.rampCount }, [3, 3], "Duplicate event kinds at one transport position must not restart output ramps")
+        XCTAssertEqual(harness.banks.map { $0.outputGainAutomationCommands.count }, [2, 2])
     }
 
     func testOldBankRecyclesOnlyAfterTwoBarsAndRuntimeTailsDrain() throws {
@@ -414,6 +447,26 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
         XCTAssertEqual(state.oldGain * state.oldGain + state.newGain * state.newGain, 1, accuracy: 1e-12, file: file, line: line)
     }
 
+    private func assertAutomationPair(
+        _ old: DayObjectsBankOutputGainAutomation,
+        _ new: DayObjectsBankOutputGainAutomation,
+        progress: Double,
+        start: TimeInterval,
+        end: TimeInterval,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let state = DayObjectsEqualPowerCrossfadeState(progress: progress)
+        XCTAssertEqual(old.targetLinearGain, state.oldGain, accuracy: 1e-12, file: file, line: line)
+        XCTAssertEqual(new.targetLinearGain, state.newGain, accuracy: 1e-12, file: file, line: line)
+        XCTAssertEqual(old.requestedStartHostTimeSeconds, start, accuracy: 1e-12, file: file, line: line)
+        XCTAssertEqual(new.requestedStartHostTimeSeconds, start, accuracy: 1e-12, file: file, line: line)
+        XCTAssertEqual(old.requestedEndHostTimeSeconds, end, accuracy: 1e-12, file: file, line: line)
+        XCTAssertEqual(new.requestedEndHostTimeSeconds, end, accuracy: 1e-12, file: file, line: line)
+        XCTAssertEqual(old.targetLinearGain * old.targetLinearGain
+            + new.targetLinearGain * new.targetLinearGain, 1, accuracy: 1e-12, file: file, line: line)
+    }
+
     private func boundary(position: Int64, hostTime: TimeInterval) -> DayObjectsTransportEvent {
         event(.barBoundary, position: position, hostTime: hostTime)
     }
@@ -648,6 +701,7 @@ private final class RecordingRemixInstrumentBank: DayObjectsInstrumentBankProtoc
     private var outputGainTarget = 1.0
     private var outputGainRampDuration: TimeInterval = 0
     private var outputGainRampCount = 0
+    private(set) var outputGainAutomationCommands: [DayObjectsBankOutputGainAutomation] = []
 
     var drums: DayObjectsDrumBankProtocol { drumBank }
     var piano: DayObjectsPianoPoolProtocol { pianoBank }
@@ -656,7 +710,8 @@ private final class RecordingRemixInstrumentBank: DayObjectsInstrumentBankProtoc
             isSupported: true,
             targetLinearGain: outputGainTarget,
             lastRampDurationSeconds: outputGainRampDuration,
-            rampCount: outputGainRampCount
+            rampCount: outputGainRampCount,
+            lastScheduledAutomation: outputGainAutomationCommands.last
         )
     }
     var metrics: DayObjectsInstrumentBankMetrics {
@@ -698,6 +753,24 @@ private final class RecordingRemixInstrumentBank: DayObjectsInstrumentBankProtoc
         outputGainTarget = linearGain
         outputGainRampDuration = rampDurationSeconds
         outputGainRampCount += 1
+    }
+    func scheduleOutputGain(
+        _ linearGain: Double,
+        startingAtHostTime startHostTime: TimeInterval,
+        endingAtHostTime endHostTime: TimeInterval
+    ) {
+        let command = DayObjectsBankOutputGainAutomation(
+            targetLinearGain: linearGain,
+            requestedStartHostTimeSeconds: startHostTime,
+            requestedEndHostTimeSeconds: endHostTime,
+            effectiveStartHostTimeSeconds: startHostTime,
+            effectiveEndHostTimeSeconds: endHostTime,
+            wasForcedImmediate: startHostTime == endHostTime
+        )
+        outputGainTarget = linearGain
+        outputGainRampDuration = max(endHostTime - startHostTime, 0)
+        outputGainRampCount += 1
+        outputGainAutomationCommands.append(command)
     }
 }
 

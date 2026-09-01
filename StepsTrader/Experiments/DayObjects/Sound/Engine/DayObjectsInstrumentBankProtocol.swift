@@ -123,17 +123,42 @@ struct DayObjectsInstrumentBankAllocationFingerprint: Equatable, Sendable {
     let pianoFixedBackendCount: Int
 }
 
+struct DayObjectsBankOutputGainAutomation: Equatable, Sendable {
+    let targetLinearGain: Double
+    let requestedStartHostTimeSeconds: TimeInterval
+    let requestedEndHostTimeSeconds: TimeInterval
+    let effectiveStartHostTimeSeconds: TimeInterval
+    let effectiveEndHostTimeSeconds: TimeInterval
+    let wasForcedImmediate: Bool
+}
+
 struct DayObjectsBankOutputGainMetrics: Equatable, Sendable {
     let isSupported: Bool
     let targetLinearGain: Double
     let lastRampDurationSeconds: TimeInterval
     let rampCount: Int
+    let lastScheduledAutomation: DayObjectsBankOutputGainAutomation?
+
+    init(
+        isSupported: Bool,
+        targetLinearGain: Double,
+        lastRampDurationSeconds: TimeInterval,
+        rampCount: Int,
+        lastScheduledAutomation: DayObjectsBankOutputGainAutomation? = nil
+    ) {
+        self.isSupported = isSupported
+        self.targetLinearGain = targetLinearGain
+        self.lastRampDurationSeconds = lastRampDurationSeconds
+        self.rampCount = rampCount
+        self.lastScheduledAutomation = lastScheduledAutomation
+    }
 
     static let unsupported = DayObjectsBankOutputGainMetrics(
         isSupported: false,
         targetLinearGain: 1,
         lastRampDurationSeconds: 0,
-        rampCount: 0
+        rampCount: 0,
+        lastScheduledAutomation: nil
     )
 }
 
@@ -143,6 +168,11 @@ protocol DayObjectsInstrumentBankGraph: AnyObject {
     var allocationFingerprint: DayObjectsInstrumentBankAllocationFingerprint { get }
     var outputGainMetrics: DayObjectsBankOutputGainMetrics { get }
     func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval)
+    func scheduleOutputGain(
+        _ linearGain: Double,
+        startingAtHostTime startHostTime: TimeInterval,
+        endingAtHostTime endHostTime: TimeInterval
+    )
     func synchronizeForStart() throws
 }
 
@@ -152,6 +182,13 @@ extension DayObjectsInstrumentBankGraph {
     }
     var outputGainMetrics: DayObjectsBankOutputGainMetrics { .unsupported }
     func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval) {}
+    func scheduleOutputGain(
+        _ linearGain: Double,
+        startingAtHostTime startHostTime: TimeInterval,
+        endingAtHostTime endHostTime: TimeInterval
+    ) {
+        setOutputGain(linearGain, rampDurationSeconds: max(endHostTime - startHostTime, 0))
+    }
     func synchronizeForStart() throws {}
 }
 
@@ -186,10 +223,22 @@ protocol DayObjectsInstrumentBankProtocol: AnyObject {
     func stop() async
     func releaseAll()
     func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval)
+    func scheduleOutputGain(
+        _ linearGain: Double,
+        startingAtHostTime startHostTime: TimeInterval,
+        endingAtHostTime endHostTime: TimeInterval
+    )
 }
 
 extension DayObjectsInstrumentBankProtocol {
     var outputGainMetrics: DayObjectsBankOutputGainMetrics { .unsupported }
     func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval) {}
+    func scheduleOutputGain(
+        _ linearGain: Double,
+        startingAtHostTime startHostTime: TimeInterval,
+        endingAtHostTime endHostTime: TimeInterval
+    ) {
+        setOutputGain(linearGain, rampDurationSeconds: max(endHostTime - startHostTime, 0))
+    }
 }
 #endif

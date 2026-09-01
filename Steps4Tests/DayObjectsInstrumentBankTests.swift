@@ -4,6 +4,66 @@ import XCTest
 
 @MainActor
 final class DayObjectsInstrumentBankTests: XCTestCase {
+    func testPlaybackPairLifecycleStartsAndStopsSharedEngineOnceWithoutChangingTopology() throws {
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(
+            bundle: Bundle(for: type(of: self))
+        )
+        try pair.prepare(configuration: smallPlaybackPairConfiguration())
+        let baseline = pair.metrics
+
+        for cycle in 1...3 {
+            try pair.start()
+            XCTAssertEqual(pair.metrics.lifecycleState, .started)
+            XCTAssertTrue(pair.metrics.sharedEngineIsRunning)
+            XCTAssertEqual(pair.metrics.sharedEngineStartCount, cycle)
+
+            pair.stop()
+            XCTAssertEqual(pair.metrics.lifecycleState, .prepared)
+            XCTAssertFalse(pair.metrics.sharedEngineIsRunning)
+            XCTAssertEqual(pair.metrics.sharedEngineStopCount, cycle)
+            XCTAssertEqual(pair.metrics.attachedBankCount, 2)
+            XCTAssertEqual(pair.metrics.fixedSharedNodeIdentities, baseline.fixedSharedNodeIdentities)
+            XCTAssertEqual(pair.metrics.allocationFingerprint, baseline.allocationFingerprint)
+            XCTAssertEqual(pair.bankA.metrics.state, .prepared)
+            XCTAssertEqual(pair.bankB.metrics.state, .prepared)
+        }
+    }
+
+    func testPlaybackPairStartFailuresRollbackWithoutLosingPreparedGraphsAndRetryWithoutAllocation() throws {
+        for failure in [
+            DayObjectsPlaybackBankPairStartFailure.secondBankSynchronization,
+            .sharedEngineStart,
+        ] {
+            var pendingFailure: DayObjectsPlaybackBankPairStartFailure? = failure
+            let pair = DayObjectsInstrumentBank.makePlaybackPair(
+                bundle: Bundle(for: type(of: self)),
+                startFailureProvider: {
+                    defer { pendingFailure = nil }
+                    return pendingFailure
+                }
+            )
+            try pair.prepare(configuration: smallPlaybackPairConfiguration())
+            let baseline = pair.metrics
+
+            XCTAssertThrowsError(try pair.start()) {
+                XCTAssertEqual($0 as? DayObjectsInstrumentBankError, .startFailed)
+            }
+            XCTAssertEqual(pair.metrics.lifecycleState, .prepared)
+            XCTAssertFalse(pair.metrics.sharedEngineIsRunning)
+            XCTAssertEqual(pair.metrics.attachedBankCount, 2)
+            XCTAssertEqual(pair.bankA.metrics.state, .prepared)
+            XCTAssertEqual(pair.bankB.metrics.state, .prepared)
+            XCTAssertEqual(pair.metrics.fixedSharedNodeIdentities, baseline.fixedSharedNodeIdentities)
+            XCTAssertEqual(pair.metrics.allocationFingerprint, baseline.allocationFingerprint)
+
+            try pair.start()
+            XCTAssertEqual(pair.metrics.lifecycleState, .started)
+            XCTAssertEqual(pair.metrics.fixedSharedNodeIdentities, baseline.fixedSharedNodeIdentities)
+            XCTAssertEqual(pair.metrics.allocationFingerprint, baseline.allocationFingerprint)
+            pair.stop()
+        }
+    }
+
     func testPlaybackPairUsesOneSharedEngineLimiterAndFixedRampableBankOutputs() throws {
         let pair = DayObjectsInstrumentBank.makePlaybackPair(
             bundle: Bundle(for: type(of: self))
@@ -37,6 +97,56 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(pair.bankB.outputGainMetrics.rampCount, 1)
         XCTAssertEqual(pair.metrics.fixedSharedNodeCount, baseline.fixedSharedNodeCount)
         XCTAssertEqual(pair.metrics.allocationFingerprint, baseline.allocationFingerprint)
+    }
+
+    func testPlaybackPairSchedulesBankOutputGainAtAuthoritativeHostTimes() throws {
+        var currentHostTime: TimeInterval = 100
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(
+            bundle: Bundle(for: type(of: self)),
+            outputGainHostTimeProvider: { currentHostTime }
+        )
+        try pair.prepare(configuration: smallPlaybackPairConfiguration())
+
+        pair.bankA.scheduleOutputGain(
+            0.5,
+            startingAtHostTime: 101,
+            endingAtHostTime: 102
+        )
+
+        XCTAssertEqual(pair.bankA.outputGainMetrics.lastScheduledAutomation, .init(
+            targetLinearGain: 0.5,
+            requestedStartHostTimeSeconds: 101,
+            requestedEndHostTimeSeconds: 102,
+            effectiveStartHostTimeSeconds: 101,
+            effectiveEndHostTimeSeconds: 102,
+            wasForcedImmediate: false
+        ))
+
+        currentHostTime = 103
+        pair.bankA.scheduleOutputGain(
+            0.25,
+            startingAtHostTime: 101,
+            endingAtHostTime: 102
+        )
+        XCTAssertEqual(pair.bankA.outputGainMetrics.lastScheduledAutomation, .init(
+            targetLinearGain: 0.25,
+            requestedStartHostTimeSeconds: 101,
+            requestedEndHostTimeSeconds: 102,
+            effectiveStartHostTimeSeconds: 103,
+            effectiveEndHostTimeSeconds: 103,
+            wasForcedImmediate: true
+        ))
+        XCTAssertEqual(pair.bankA.outputGainMetrics.rampCount, 2)
+    }
+
+    private func smallPlaybackPairConfiguration() -> DayObjectsInstrumentBankConfiguration {
+        .init(
+            tonalPools: [.init(name: "world", capacity: 1, reservesLeadVoice: true)],
+            pianoVoiceCount: 1,
+            drumOverlapCounts: Dictionary(uniqueKeysWithValues: DayObjectsDrumVoice.allCases.map {
+                ($0, 1)
+            })
+        )
     }
 
     func testEqualPreparationBuildsTheFixedGraphOnlyOnceAndChangedConfigurationIsRejected() throws {

@@ -133,8 +133,8 @@ final class DayObjectsRemixCoordinator {
         let startSubdivision: Int64
         let crossfadeEndSubdivision: Int64
         var crossfadeState: DayObjectsEqualPowerCrossfadeState
-        var lastAppliedSubdivision: Int64
-        var lastHostTimeSeconds: TimeInterval
+        var lastObservedSubdivision: Int64
+        var scheduledThroughSubdivision: Int64
     }
 
     private let bankA: PlaybackWorldBank
@@ -257,21 +257,29 @@ final class DayObjectsRemixCoordinator {
                 currentPlan = targetPlan
                 pendingPlan = nil
                 latestHappeningHandoffState = happeningState
-                transition = .init(
+                var newTransition = Transition(
                     oldSlot: oldSlot,
                     startSubdivision: event.position.absoluteSubdivision,
                     crossfadeEndSubdivision: event.position.absoluteSubdivision
                         + 2 * MusicalPosition.subdivisionsPerBar,
                     crossfadeState: .init(progress: 0),
-                    lastAppliedSubdivision: event.position.absoluteSubdivision,
-                    lastHostTimeSeconds: event.hostTimeSeconds
+                    lastObservedSubdivision: event.position.absoluteSubdivision,
+                    scheduledThroughSubdivision: event.position.absoluteSubdivision
                 )
-                applyCrossfadeGains(
+                scheduleCrossfadeGains(
                     .init(progress: 0),
                     oldBank: oldBank,
                     newBank: newBank,
-                    rampDurationSeconds: 0
+                    startingAtHostTime: event.hostTimeSeconds,
+                    endingAtHostTime: event.hostTimeSeconds
                 )
+                scheduleNextCrossfadePoint(
+                    transition: &newTransition,
+                    from: event,
+                    oldBank: oldBank,
+                    newBank: newBank
+                )
+                transition = newTransition
                 result = .transitioned(seed: targetPlan.seed)
             } catch {
                 runtime.rollbackFailedTransition(
@@ -324,11 +332,13 @@ final class DayObjectsRemixCoordinator {
 
     private func advanceCrossfade(at event: DayObjectsTransportEvent) {
         guard var transition else { return }
-        guard event.position.absoluteSubdivision > transition.lastAppliedSubdivision else { return }
-        let elapsed = max(
-            event.position.absoluteSubdivision - transition.startSubdivision,
-            0
+        guard transition.crossfadeState.progress < 1 else { return }
+        guard event.position.absoluteSubdivision > transition.lastObservedSubdivision else { return }
+        let observedSubdivision = min(
+            event.position.absoluteSubdivision,
+            transition.crossfadeEndSubdivision
         )
+        let elapsed = max(observedSubdivision - transition.startSubdivision, 0)
         let duration = max(
             transition.crossfadeEndSubdivision - transition.startSubdivision,
             1
@@ -337,38 +347,84 @@ final class DayObjectsRemixCoordinator {
             progress: Double(elapsed) / Double(duration)
         )
         guard state.progress >= transition.crossfadeState.progress else { return }
-        let rampDuration = max(
-            event.hostTimeSeconds - transition.lastHostTimeSeconds,
-            0
-        )
-        applyCrossfadeGains(
-            state,
-            oldBank: bank(for: transition.oldSlot),
-            newBank: activeBank,
-            rampDurationSeconds: rampDuration
-        )
+        let oldBank = bank(for: transition.oldSlot)
+        let newBank = activeBank
+
+        if observedSubdivision > transition.scheduledThroughSubdivision {
+            // A skipped callback cannot start a late ramp toward a point whose
+            // musical host time has already passed. Realize that point now.
+            scheduleCrossfadeGains(
+                state,
+                oldBank: oldBank,
+                newBank: newBank,
+                startingAtHostTime: event.hostTimeSeconds,
+                endingAtHostTime: event.hostTimeSeconds
+            )
+            transition.scheduledThroughSubdivision = observedSubdivision
+        }
         transition.crossfadeState = state
-        transition.lastAppliedSubdivision = event.position.absoluteSubdivision
-        transition.lastHostTimeSeconds = max(
-            transition.lastHostTimeSeconds,
-            event.hostTimeSeconds
+        transition.lastObservedSubdivision = event.position.absoluteSubdivision
+        scheduleNextCrossfadePoint(
+            transition: &transition,
+            from: event,
+            oldBank: oldBank,
+            newBank: newBank
         )
         self.transition = transition
     }
 
-    private func applyCrossfadeGains(
+    private func scheduleNextCrossfadePoint(
+        transition: inout Transition,
+        from event: DayObjectsTransportEvent,
+        oldBank: PlaybackWorldBank,
+        newBank: PlaybackWorldBank
+    ) {
+        let currentSubdivision = min(
+            event.position.absoluteSubdivision,
+            transition.crossfadeEndSubdivision
+        )
+        guard currentSubdivision < transition.crossfadeEndSubdivision else { return }
+        let nextSubdivision = currentSubdivision + 1
+        guard nextSubdivision > transition.scheduledThroughSubdivision else { return }
+        let duration = max(
+            transition.crossfadeEndSubdivision - transition.startSubdivision,
+            1
+        )
+        let state = DayObjectsEqualPowerCrossfadeState(
+            progress: Double(nextSubdivision - transition.startSubdivision) / Double(duration)
+        )
+        let subdivisionDuration: TimeInterval
+        if event.tempoBPM.isFinite, event.tempoBPM > 0 {
+            subdivisionDuration = 15 / event.tempoBPM
+        } else {
+            subdivisionDuration = 0
+        }
+        scheduleCrossfadeGains(
+            state,
+            oldBank: oldBank,
+            newBank: newBank,
+            startingAtHostTime: event.hostTimeSeconds,
+            endingAtHostTime: event.hostTimeSeconds + subdivisionDuration
+        )
+        transition.scheduledThroughSubdivision = nextSubdivision
+    }
+
+    private func scheduleCrossfadeGains(
         _ state: DayObjectsEqualPowerCrossfadeState,
         oldBank: PlaybackWorldBank,
         newBank: PlaybackWorldBank,
-        rampDurationSeconds: TimeInterval
+        startingAtHostTime startHostTime: TimeInterval,
+        endingAtHostTime endHostTime: TimeInterval
     ) {
-        oldBank.setOutputGain(
+        oldBank.scheduleOutputGain(
             state.oldGain,
-            rampDurationSeconds: rampDurationSeconds
+            startingAtHostTime: startHostTime,
+            endingAtHostTime: endHostTime
         )
-        newBank.setOutputGain(
+        newBank.scheduleOutputGain(
             state.newGain,
-            rampDurationSeconds: rampDurationSeconds
+            startingAtHostTime: startHostTime,
+            endingAtHostTime: endHostTime
         )
     }
 

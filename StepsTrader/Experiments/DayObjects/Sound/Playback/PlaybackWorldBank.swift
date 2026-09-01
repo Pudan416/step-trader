@@ -129,5 +129,17 @@ final class PlaybackWorldBank {
             rampDurationSeconds: rampDurationSeconds
         )
     }
+
+    func scheduleOutputGain(
+        _ linearGain: Double,
+        startingAtHostTime startHostTime: TimeInterval,
+        endingAtHostTime endHostTime: TimeInterval
+    ) {
+        instrumentBank.scheduleOutputGain(
+            linearGain,
+            startingAtHostTime: startHostTime,
+            endingAtHostTime: endHostTime
+        )
+    }
 }
 #endif
