@@ -75,7 +75,19 @@ final class LeadGestureMapperTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(held.expressionDepth, 0)
     }
 
-    private func makeLeadPlan() -> LeadPlan {
+    func testExpressionNeverExceedsTwentyFivePercentWhenPlanRequestsMore() {
+        let plan = makeLeadPlan(maximumExpressionDepth: 0.75)
+        var mapper = LeadGestureMapper(plan: plan)
+
+        let mapping = mapper.map(
+            .init(normalizedX: 0.5, normalizedY: 0.5, speed: 999),
+            chordIndex: 0
+        )
+
+        XCTAssertLessThanOrEqual(mapping.expressionDepth, 0.25)
+    }
+
+    private func makeLeadPlan(maximumExpressionDepth: Double = 0.25) -> LeadPlan {
         let lowerBounds = (0..<21).map { index in
             index == 10 ? 0.39 : Double(index) / 21
         }
@@ -99,7 +111,7 @@ final class LeadGestureMapperTests: XCTestCase {
             cutoffMultiplierRange: 0.55...1.35,
             pitchSmoothingMilliseconds: 45,
             expressionSmoothingMilliseconds: 80,
-            maximumExpressionDepth: 0.25,
+            maximumExpressionDepth: maximumExpressionDepth,
             delaySend: 0.24,
             reverbSend: 0.38
         )

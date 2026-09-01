@@ -57,7 +57,10 @@ struct LeadGestureMapper: Sendable {
         previousCutoffMultiplier = cutoff
 
         let speed = sample.speed.isFinite ? max(sample.speed, 0) : 0
-        let maximumExpression = Self.finiteUnit(plan.maximumExpressionDepth, fallback: 0)
+        let maximumExpression = min(
+            Self.finiteUnit(plan.maximumExpressionDepth, fallback: 0),
+            0.25
+        )
         let expressionTarget = min(speed / Self.referenceSpeed, 1) * maximumExpression
         let expression = smoothed(
             target: expressionTarget,
