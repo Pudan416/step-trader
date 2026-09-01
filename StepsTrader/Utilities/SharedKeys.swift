@@ -47,6 +47,11 @@ enum SharedKeys {
     // MARK: - Shield state
     static let shieldState = "doomShieldState_v1"
     static let shieldPushSentAt = "shieldPushSentAt_v1"
+    /// Set by ShieldAction when an unlock tap could *not* produce a push — notifications
+    /// are denied, or `UNUserNotificationCenter.add` failed. ShieldConfiguration reads it
+    /// so the shield can say so instead of pointing at a notification that never arrived.
+    /// Mutually exclusive with `shieldPushSentAt`; whichever is written clears the other.
+    static let shieldPushUnavailableAt = "shieldPushUnavailableAt_v1"
     static let shieldActionLogs = "shieldActionLogs_v1"
     static let lastBlockedAppBundleId = "lastBlockedAppBundleId"
     static let lastBlockedGroupId = "lastBlockedGroupId"

@@ -57,6 +57,25 @@ extension AppModel {
     }
     
     // MARK: - PayGate Payment Handling
+    /// How long a shield-tap unlock request stays actionable.
+    ///
+    /// Long enough to survive a push the user notices a few minutes late, short enough
+    /// that abandoning the tap does not ambush them the next time they open the app.
+    static let payGateRequestMaxAge: TimeInterval = 15 * 60
+
+    /// `payGateRequestedAt` has been written by both ShieldAction and NotificationDelegate
+    /// since the flag was introduced, and read by nobody — so a tap the user walked away
+    /// from still opened the PayGate days later, on top of whatever they had actually
+    /// opened the app to do.
+    ///
+    /// A missing timestamp counts as fresh, so flags written before this rule existed
+    /// still work once. A timestamp in the future counts as fresh too: that means the
+    /// clock moved backwards, not that the request is stale.
+    static func isPayGateRequestFresh(requestedAt: Date?, now: Date = Date()) -> Bool {
+        guard let requestedAt else { return true }
+        return now.timeIntervalSince(requestedAt) <= payGateRequestMaxAge
+    }
+
     @MainActor
     func handlePayGatePaymentForGroup(groupId: String, window: AccessWindow, costOverride: Int?) async {
         guard let group = ticketGroups.first(where: { $0.id == groupId }) else {

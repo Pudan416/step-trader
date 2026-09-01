@@ -49,8 +49,8 @@ class ShieldActionExtension: ShieldActionDelegate {
             defaults.set(now, forKey: lastRequestKey)
             
             persistPayGateIntent(groupId: resolved.groupId, bundleId: resolved.bundleId, defaults: defaults)
-            sendUnlockNotification(for: resolved, defaults: defaults) {
-                defaults.set(Date(), forKey: SharedKeys.shieldPushSentAt)
+            sendUnlockNotification(for: resolved, defaults: defaults) { delivered in
+                self.recordPushOutcome(delivered: delivered, defaults: defaults)
                 completionHandler(.defer)
             }
         case .secondaryButtonPressed:
@@ -97,8 +97,8 @@ class ShieldActionExtension: ShieldActionDelegate {
             defaults.set(now, forKey: lastRequestKey)
 
             persistPayGateIntent(groupId: resolved.groupId, bundleId: nil, defaults: defaults)
-            sendUnlockNotification(for: (bundleId: resolved.groupName, groupId: resolved.groupId), defaults: defaults) {
-                defaults.set(Date(), forKey: SharedKeys.shieldPushSentAt)
+            sendUnlockNotification(for: (bundleId: resolved.groupName, groupId: resolved.groupId), defaults: defaults) { delivered in
+                self.recordPushOutcome(delivered: delivered, defaults: defaults)
                 completionHandler(.defer)
             }
         case .secondaryButtonPressed:
@@ -124,7 +124,38 @@ class ShieldActionExtension: ShieldActionDelegate {
         logToDefaults("💾 PayGate intent persisted (groupId=\(groupId ?? "nil"), bundleId=\(bundleId ?? "nil"))")
     }
     
-    private func sendUnlockNotification(for resolved: (bundleId: String?, groupId: String?), defaults: UserDefaults, then done: @escaping () -> Void) {
+    /// Records whether the tap actually produced a notification. The two keys are
+    /// mutually exclusive, so the shield always reflects the most recent attempt rather
+    /// than a stale claim left by an earlier one.
+    private func recordPushOutcome(delivered: Bool, defaults: UserDefaults) {
+        if delivered {
+            defaults.set(Date(), forKey: SharedKeys.shieldPushSentAt)
+            defaults.removeObject(forKey: SharedKeys.shieldPushUnavailableAt)
+        } else {
+            defaults.set(Date(), forKey: SharedKeys.shieldPushUnavailableAt)
+            defaults.removeObject(forKey: SharedKeys.shieldPushSentAt)
+        }
+    }
+
+    /// Calls `done(true)` only when a notification was genuinely handed to the system.
+    ///
+    /// `UNUserNotificationCenter.add` succeeds even when the app has no notification
+    /// authorization: nothing is shown and no error is reported. The outcome used to be
+    /// assumed successful, so a user who had declined notifications tapped "unlock with
+    /// push", saw nothing, and was then told by the shield that a push had been sent.
+    private func sendUnlockNotification(for resolved: (bundleId: String?, groupId: String?), defaults: UserDefaults, then done: @escaping (Bool) -> Void) {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .authorized, .provisional, .ephemeral:
+                self.deliverUnlockNotification(for: resolved, then: done)
+            default:
+                self.logToDefaults("🚫 Notifications not authorized (status \(settings.authorizationStatus.rawValue)) — no push can arrive")
+                done(false)
+            }
+        }
+    }
+
+    private func deliverUnlockNotification(for resolved: (bundleId: String?, groupId: String?), then done: @escaping (Bool) -> Void) {
         let center = UNUserNotificationCenter.current()
         
         let blockedTargetName: String = {
@@ -159,10 +190,11 @@ class ShieldActionExtension: ShieldActionDelegate {
         center.add(request) { [self] error in
             if let error = error {
                 self.logToDefaults("❌ Notification failed: \(error.localizedDescription)")
+                done(false)
             } else {
                 self.logToDefaults("✅ Notification committed")
+                done(true)
             }
-            done()
         }
     }
     
