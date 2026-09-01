@@ -129,6 +129,11 @@
 		D0A0D2000000000000000016 /* FeltPiano in Resources */ = {isa = PBXBuildFile; fileRef = D0A0D2000000000000000003 /* FeltPiano */; };
 		D0A0D2000000000000000017 /* audio-assets-manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = D0A0D2000000000000000004 /* audio-assets-manifest.json */; };
 		D0A0D2000000000000000018 /* audio-assets-manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = D0A0D2000000000000000004 /* audio-assets-manifest.json */; };
+		D0C400000000000000000002 /* Happenings in Resources */ = {isa = PBXBuildFile; fileRef = D0C400000000000000000001 /* Happenings */; };
+		D0C400000000000000000003 /* Happenings in Resources */ = {isa = PBXBuildFile; fileRef = D0C400000000000000000001 /* Happenings */; };
+		D0C400000000000000000005 /* VCSL-CC0-1.0.txt in Resources */ = {isa = PBXBuildFile; fileRef = D0C400000000000000000004 /* VCSL-CC0-1.0.txt */; };
+		D0C400000000000000000006 /* VCSL-CC0-1.0.txt in Resources */ = {isa = PBXBuildFile; fileRef = D0C400000000000000000004 /* VCSL-CC0-1.0.txt */; };
+		D0C400000000000000000008 /* happening-source-map.json in Resources */ = {isa = PBXBuildFile; fileRef = D0C400000000000000000007 /* happening-source-map.json */; };
 		D0B100000000000000000002 /* DayObjectSceneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000001 /* DayObjectSceneTests.swift */; };
 		D0F100000000000000000002 /* DayObjectsLabMusicViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F100000000000000000001 /* DayObjectsLabMusicViewModelTests.swift */; };
 		91F0A0023100000000000002 /* AppTypographyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91F0A0013100000000000001 /* AppTypographyTests.swift */; };
@@ -666,6 +671,9 @@
 		D0A0D2000000000000000002 /* Drums */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Drums; sourceTree = "<group>"; };
 		D0A0D2000000000000000003 /* FeltPiano */ = {isa = PBXFileReference; lastKnownFileType = folder; path = FeltPiano; sourceTree = "<group>"; };
 		D0A0D2000000000000000004 /* audio-assets-manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "audio-assets-manifest.json"; sourceTree = "<group>"; };
+		D0C400000000000000000001 /* Happenings */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Happenings; sourceTree = "<group>"; };
+		D0C400000000000000000004 /* VCSL-CC0-1.0.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "VCSL-CC0-1.0.txt"; sourceTree = "<group>"; };
+		D0C400000000000000000007 /* happening-source-map.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = "happening-source-map.json"; path = Scripts/day_objects_audio/happening-source-map.json; sourceTree = SOURCE_ROOT; };
 		D0B100000000000000000001 /* DayObjectSceneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectSceneTests.swift; sourceTree = "<group>"; };
 		D0F100000000000000000001 /* DayObjectsLabMusicViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLabMusicViewModelTests.swift; sourceTree = "<group>"; };
 		91F0A0013100000000000001 /* AppTypographyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppTypographyTests.swift; path = Steps4Tests/AppTypographyTests.swift; sourceTree = SOURCE_ROOT; };
@@ -1267,7 +1275,9 @@
 				D0A0D2000000000000000001 /* SynthOnePresets */,
 				D0A0D2000000000000000002 /* Drums */,
 				D0A0D2000000000000000003 /* FeltPiano */,
+				D0C400000000000000000001 /* Happenings */,
 				D0A0D2000000000000000004 /* audio-assets-manifest.json */,
+				D0C400000000000000000007 /* happening-source-map.json */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -1278,6 +1288,7 @@
 				D0A0D1000000000000000003 /* AudioKitSynthOne-MIT.txt */,
 				D0A0D1000000000000000006 /* AudioKitCookbook-MIT.txt */,
 				D0A0D1000000000000000009 /* OsirisPiano-CC0-1.0.txt */,
+				D0C400000000000000000004 /* VCSL-CC0-1.0.txt */,
 				D0A0D100000000000000000C /* SOURCES.json */,
 			);
 			path = AudioLicenses;
@@ -2174,7 +2185,9 @@
 				D0A0D2000000000000000011 /* SynthOnePresets in Resources */,
 				D0A0D2000000000000000013 /* Drums in Resources */,
 				D0A0D2000000000000000015 /* FeltPiano in Resources */,
+				D0C400000000000000000002 /* Happenings in Resources */,
 				D0A0D2000000000000000017 /* audio-assets-manifest.json in Resources */,
+				D0C400000000000000000005 /* VCSL-CC0-1.0.txt in Resources */,
 				91F0A00E310000000000000E /* Geist-Medium.ttf in Resources */,
 				91F0A00A310000000000000A /* GeistMono-Medium.ttf in Resources */,
 				91F0A00C310000000000000C /* GeistMono-OFL.txt in Resources */,
@@ -2200,7 +2213,10 @@
 				D0A0D2000000000000000012 /* SynthOnePresets in Resources */,
 				D0A0D2000000000000000014 /* Drums in Resources */,
 				D0A0D2000000000000000016 /* FeltPiano in Resources */,
+				D0C400000000000000000003 /* Happenings in Resources */,
 				D0A0D2000000000000000018 /* audio-assets-manifest.json in Resources */,
+				D0C400000000000000000006 /* VCSL-CC0-1.0.txt in Resources */,
+				D0C400000000000000000008 /* happening-source-map.json in Resources */,
 				DA0002000200020002000021 /* canvas_legacy_categorised.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
