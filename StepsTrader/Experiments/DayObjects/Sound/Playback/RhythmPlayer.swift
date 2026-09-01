@@ -73,27 +73,28 @@ final class RhythmPlayer {
         )
         let hits = realized.compactMap { event -> RhythmPlaybackHit? in
             guard let voicePlan = rhythmPlan.voice(for: event.role) else { return nil }
-            let glitchRole: GlitchRole = voicePlan.isTimingAnchor ? .timingAnchorKick : .percussion
-            let glitch = glitchPlan.realizedEvent(
-                for: glitchRole,
-                cycleIndex: cycleIndex,
-                stepIndex: stepIndex
-            )
+            let glitch = !voicePlan.isTimingAnchor && glitchPlan.sanitizedProgress > 0
+                ? glitchPlan.realizedEvent(
+                    for: .percussion,
+                    cycleIndex: cycleIndex,
+                    stepIndex: stepIndex
+                )
+                : nil
 
             let textureTimingMilliseconds: Double
             let pitchDriftCents: Double
             let stereoOffset: Double
-            if voicePlan.isTimingAnchor {
-                textureTimingMilliseconds = 0
-                pitchDriftCents = 0
-                stereoOffset = 0
-            } else {
-                textureTimingMilliseconds = glitch?.timingDriftMilliseconds ?? 0
-                pitchDriftCents = min(max(glitch?.pitchDriftCents ?? 0, -3), 3)
+            if let glitch {
+                textureTimingMilliseconds = glitch.timingDriftMilliseconds
+                pitchDriftCents = glitch.pitchDriftCents
                 let direction = pitchDriftCents == 0
                     ? (stepIndex.isMultiple(of: 2) ? -1.0 : 1.0)
                     : (pitchDriftCents < 0 ? -1.0 : 1.0)
                 stereoOffset = direction * glitchPlan.sanitizedStereoSeparationAddition
+            } else {
+                textureTimingMilliseconds = 0
+                pitchDriftCents = 0
+                stereoOffset = 0
             }
             let boundedTiming = min(
                 max(

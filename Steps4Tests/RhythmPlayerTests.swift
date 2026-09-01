@@ -157,6 +157,73 @@ final class RhythmPlayerTests: XCTestCase {
         XCTAssertTrue(hit.pitchDriftCents != 0 || hit.microtimingMilliseconds != 0 || hit.stereoOffset != 0)
     }
 
+    func testMalformedPercussionPlansCannotLeakPitchTimingOrStereo() throws {
+        let validPercussion = GlitchRole.percussion.safeLimits
+        let contradictoryPercussion = GlitchRolePlan(
+            role: .percussion,
+            isTimingAnchor: true,
+            isGlitchEligible: true,
+            pitchDriftCents: validPercussion.pitchDriftCents,
+            dropoutProbability: validPercussion.dropoutProbability,
+            delayTimeInstability: validPercussion.delayTimeInstability,
+            saturationAmount: validPercussion.saturationAmount,
+            timingDriftMilliseconds: validPercussion.timingDriftMilliseconds
+        )
+        let fixtures: [(name: String, plan: GlitchPlan)] = [
+            ("zero progress", glitchPlan(progress: 0, roles: [validPercussion], stereo: 0.22)),
+            ("missing percussion", glitchPlan(progress: 1, roles: [], stereo: 0.22)),
+            ("duplicate percussion", glitchPlan(progress: 1, roles: [validPercussion, validPercussion], stereo: 0.22)),
+            ("percussion marked timing anchor", glitchPlan(progress: 1, roles: [contradictoryPercussion], stereo: 0.22)),
+        ]
+
+        for fixture in fixtures {
+            let drums = RecordingRhythmDrumBank(allocatedPlayerCount: 31)
+            let player = RhythmPlayer(drumBank: drums)
+            let hit = try XCTUnwrap(player.render(
+                transportEvent(at: 0),
+                rhythmPlan: rhythmPlan(
+                    voiceCount: 1,
+                    timingAnchorIndex: nil,
+                    microtimingMilliseconds: 0...0
+                ),
+                glitchPlan: fixture.plan
+            ).hits.first, fixture.name)
+
+            XCTAssertEqual(hit.pitchDriftCents, 0, fixture.name)
+            XCTAssertEqual(hit.microtimingMilliseconds, 0, fixture.name)
+            XCTAssertEqual(hit.stereoOffset, 0, fixture.name)
+        }
+    }
+
+    func testContradictoryTimingAnchorRoleCannotMoveTheAnchor() throws {
+        let invalidAnchor = GlitchRolePlan(
+            role: .timingAnchorKick,
+            isTimingAnchor: false,
+            isGlitchEligible: true,
+            pitchDriftCents: 3,
+            dropoutProbability: 0.06,
+            delayTimeInstability: 0.08,
+            saturationAmount: 0.18,
+            timingDriftMilliseconds: 0.32
+        )
+        let drums = RecordingRhythmDrumBank(allocatedPlayerCount: 31)
+        let player = RhythmPlayer(drumBank: drums)
+
+        let hit = try XCTUnwrap(player.render(
+            transportEvent(at: 0),
+            rhythmPlan: rhythmPlan(
+                voiceCount: 1,
+                timingAnchorIndex: 0,
+                microtimingMilliseconds: 0...0
+            ),
+            glitchPlan: glitchPlan(progress: 1, roles: [invalidAnchor], stereo: 0.22)
+        ).hits.first)
+
+        XCTAssertEqual(hit.pitchDriftCents, 0)
+        XCTAssertEqual(hit.microtimingMilliseconds, 0)
+        XCTAssertEqual(hit.stereoOffset, 0)
+    }
+
     func testDuckingIsSilentAtLowStepsAndNeverExceedsTwoPointFiveDecibels() {
         let drums = RecordingRhythmDrumBank(allocatedPlayerCount: 31)
         let player = RhythmPlayer(drumBank: drums)
@@ -190,7 +257,8 @@ final class RhythmPlayerTests: XCTestCase {
     private func rhythmPlan(
         voiceCount: Int,
         timingAnchorIndex: Int?,
-        stepsProgress: Double = 1
+        stepsProgress: Double = 1,
+        microtimingMilliseconds: ClosedRange<Double> = -12...12
     ) -> RhythmPlan {
         let roles = Array(RhythmRole.allCases.prefix(voiceCount))
         let drumVoices: [DayObjectsDrumVoice] = [.organicLow, .kickFull, .hatClosed, .shaker]
@@ -213,7 +281,7 @@ final class RhythmPlayerTests: XCTestCase {
                     drumVoice: drumVoices[index],
                     stepProbabilities: [1] + Array(repeating: 0, count: 15),
                     velocityRange: (0.4 + Double(index) * 0.1)...(0.5 + Double(index) * 0.1),
-                    microtimingMilliseconds: -12...12,
+                    microtimingMilliseconds: microtimingMilliseconds,
                     roomSend: Double(index + 1) / 10,
                     activation: .init(startProgress: 0, fullProgress: 1, amount: 1),
                     isTimingAnchor: timingAnchorIndex == index,
@@ -226,6 +294,25 @@ final class RhythmPlayerTests: XCTestCase {
             maximumMicrotimingMilliseconds: 18,
             velocityHumanizationRange: -0.08...0.08,
             maximumHarmonyDuckingDecibels: 2.5
+        )
+    }
+
+    private func glitchPlan(
+        progress: Double,
+        roles: [GlitchRolePlan],
+        stereo: Double
+    ) -> GlitchPlan {
+        GlitchPlan(
+            progress: progress,
+            roles: roles,
+            wowFlutterDepth: 0.18,
+            stereoSeparationAddition: stereo,
+            realization: .init(
+                dropoutSeed: 11,
+                variationSeed: 22,
+                cycleKey: 33,
+                counterMapping: .roleCycleStepParameterV1
+            )
         )
     }
 
