@@ -95,8 +95,15 @@ extension AppModel {
 
         let dayEndH = defaults.object(forKey: SharedKeys.dayEndHour) as? Int ?? 0
         let dayEndM = defaults.object(forKey: SharedKeys.dayEndMinute) as? Int ?? 0
-        let endOfDay = DayBoundary.nextBoundary(after: Date.now, dayEndHour: dayEndH, dayEndMinute: dayEndM)
-        defaults.set(endOfDay, forKey: SharedKeys.usageBudgetExpiryKey(groupId))
+        // The window expires `totalMinutes` from now, not at the end of the day. Anchored
+        // to the same instant as `startedKey` above, so this agrees with
+        // `remainingUsageBudget`'s `initial - elapsedSince(started)`.
+        let expiry = DayBoundary.purchaseExpiry(
+            minutes: totalMinutes,
+            dayEndHour: dayEndH,
+            dayEndMinute: dayEndM
+        )
+        defaults.set(expiry, forKey: SharedKeys.usageBudgetExpiryKey(groupId))
 
         if let failure = startUsageBudgetMonitoring(groupId: groupId, minutes: totalMinutes) {
             // DeviceActivity wouldn't start — refund the colors, clear the keys, and

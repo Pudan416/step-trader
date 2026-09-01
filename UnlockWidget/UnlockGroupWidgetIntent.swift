@@ -93,8 +93,14 @@ struct UnlockGroupWidgetIntent: AppIntent {
         g.set(totalMinutes, forKey: SharedKeys.usageBudgetInitialKey(groupId))
         g.set(Date(), forKey: SharedKeys.usageBudgetStartedKey(groupId))
 
-        let endOfDay = DayBoundary.nextBoundary(after: Date(), dayEndHour: dayEndHour, dayEndMinute: dayEndMinute)
-        g.set(endOfDay, forKey: SharedKeys.usageBudgetExpiryKey(groupId))
+        // Same deadline rule as the in-app purchase path — see
+        // DayBoundary.purchaseExpiry.
+        let expiry = DayBoundary.purchaseExpiry(
+            minutes: totalMinutes,
+            dayEndHour: dayEndHour,
+            dayEndMinute: dayEndMinute
+        )
+        g.set(expiry, forKey: SharedKeys.usageBudgetExpiryKey(groupId))
 
         g.set(true, forKey: SharedKeys.pendingBudgetMonitoringPrefix + groupId)
         g.set(totalMinutes, forKey: SharedKeys.pendingBudgetMinutesPrefix + groupId)
