@@ -13,6 +13,15 @@ final class HappeningSoundCatalogTests: XCTestCase {
         XCTAssertNil(HappeningSoundRecipeID(rawValue: 31))
     }
 
+    func testRecipeIDDecodingRejectsValuesOutsideTheValidatedBoundary() throws {
+        XCTAssertEqual(
+            try JSONDecoder().decode(HappeningSoundRecipeID.self, from: Data("1".utf8)),
+            HappeningSoundRecipeID(rawValue: 1)
+        )
+        XCTAssertThrowsError(try JSONDecoder().decode(HappeningSoundRecipeID.self, from: Data("0".utf8)))
+        XCTAssertThrowsError(try JSONDecoder().decode(HappeningSoundRecipeID.self, from: Data("31".utf8)))
+    }
+
     func testCatalogKeepsSixRecipesInEachStableFamilyBlock() {
         let recipes = HappeningSoundCatalog.recipes
         let expectedFamilies: [HappeningRecipeFamily] = [
@@ -76,16 +85,34 @@ final class HappeningSoundCatalogTests: XCTestCase {
             XCTAssertEqual(Set(recipe.sources.map { $0.rootMIDI % 12 }), Set([0, 3, 6, 9]), recipe.label)
         }
         for recipe in recipes[24..<27] {
-            guard case .resonantNoise = recipe.pitch else {
+            guard case let .resonantNoise(_, preferredRange, resonatorTargetPitchClasses) = recipe.pitch else {
                 return XCTFail("\(recipe.label) must be resonant noise")
             }
             XCTAssertEqual(recipe.sources.count, 1, recipe.label)
+            XCTAssertEqual(resonatorTargetPitchClasses.count, 4, recipe.label)
+            XCTAssertEqual(Set(resonatorTargetPitchClasses).count, 4, recipe.label)
+            XCTAssertTrue(resonatorTargetPitchClasses.allSatisfy { (0...11).contains($0) }, recipe.label)
+            let preferredPitchClasses = Set(preferredRange.map { $0 % 12 })
+            XCTAssertTrue(preferredPitchClasses.isSuperset(of: Set(resonatorTargetPitchClasses)), recipe.label)
         }
         for recipe in recipes.suffix(3) {
             guard case .unpitched = recipe.pitch else {
                 return XCTFail("\(recipe.label) must be unpitched")
             }
             XCTAssertEqual(recipe.sources.count, 1, recipe.label)
+        }
+    }
+
+    func testResonantTexturesDeclareTheFourStableResonatorTargets() {
+        let resonantRecipes = HappeningSoundCatalog.recipes[24..<27]
+
+        XCTAssertEqual(resonantRecipes.map(\.label), ["25", "26", "27"])
+        for recipe in resonantRecipes {
+            guard case let .resonantNoise(referenceMIDI, _, resonatorTargetPitchClasses) = recipe.pitch else {
+                return XCTFail("\(recipe.label) must be resonant noise")
+            }
+            XCTAssertEqual(referenceMIDI, 60, recipe.label)
+            XCTAssertEqual(resonatorTargetPitchClasses, [0, 3, 6, 9], recipe.label)
         }
     }
 }

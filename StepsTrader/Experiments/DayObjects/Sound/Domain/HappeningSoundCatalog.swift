@@ -31,9 +31,9 @@ enum HappeningSoundCatalog {
         tonal(23, family: .softOneShot, range: 48...59, gainDB: -11.9, attack: 0.009, release: 1.40, delayMix: 0.14, feedback: 0.19, reverbMix: 0.42, filterStart: 560, filterEnd: 5_300),
         tonal(24, family: .softOneShot, range: 48...59, gainDB: -12.3, attack: 0.012, release: 1.70, delayMix: 0.17, feedback: 0.22, reverbMix: 0.46, filterStart: 480, filterEnd: 4_800),
 
-        resonant(25, referenceMIDI: 60, range: 60...71, gainDB: -15.0, attack: 0.080, release: 4.20, delayMix: 0.30, feedback: 0.36, reverbMix: 0.68, filterStart: 260, filterEnd: 6_800),
-        resonant(26, referenceMIDI: 60, range: 60...71, gainDB: -14.5, attack: 0.120, release: 4.80, delayMix: 0.34, feedback: 0.40, reverbMix: 0.72, filterStart: 220, filterEnd: 5_900),
-        resonant(27, referenceMIDI: 60, range: 60...71, gainDB: -15.5, attack: 0.150, release: 5.20, delayMix: 0.38, feedback: 0.44, reverbMix: 0.76, filterStart: 180, filterEnd: 5_200),
+        resonant(25, referenceMIDI: 60, range: 60...71, resonatorTargetPitchClasses: [0, 3, 6, 9], gainDB: -15.0, attack: 0.080, release: 4.20, delayMix: 0.30, feedback: 0.36, reverbMix: 0.68, filterStart: 260, filterEnd: 6_800),
+        resonant(26, referenceMIDI: 60, range: 60...71, resonatorTargetPitchClasses: [0, 3, 6, 9], gainDB: -14.5, attack: 0.120, release: 4.80, delayMix: 0.34, feedback: 0.40, reverbMix: 0.72, filterStart: 220, filterEnd: 5_900),
+        resonant(27, referenceMIDI: 60, range: 60...71, resonatorTargetPitchClasses: [0, 3, 6, 9], gainDB: -15.5, attack: 0.150, release: 5.20, delayMix: 0.38, feedback: 0.44, reverbMix: 0.76, filterStart: 180, filterEnd: 5_200),
         unpitched(28, gainDB: -14.0, attack: 0.050, release: 2.40, delayMix: 0.22, feedback: 0.28, reverbMix: 0.60, filterStart: 400, filterEnd: 7_200),
         unpitched(29, gainDB: -14.8, attack: 0.090, release: 3.10, delayMix: 0.28, feedback: 0.34, reverbMix: 0.68, filterStart: 300, filterEnd: 6_000),
         unpitched(30, gainDB: -15.2, attack: 0.110, release: 3.60, delayMix: 0.32, feedback: 0.38, reverbMix: 0.72, filterStart: 240, filterEnd: 5_400),
@@ -87,6 +87,7 @@ enum HappeningSoundCatalog {
         _ rawID: Int,
         referenceMIDI: UInt8,
         range: ClosedRange<UInt8>,
+        resonatorTargetPitchClasses: [UInt8],
         gainDB: Double,
         attack: Double,
         release: Double,
@@ -101,7 +102,11 @@ enum HappeningSoundCatalog {
             label: label(for: rawID),
             family: .texture,
             sources: [source(id: rawID, index: 0, name: "\(label(for: rawID))/noise.wav", rootMIDI: referenceMIDI)],
-            pitch: .resonantNoise(referenceMIDI: referenceMIDI, preferredRange: range),
+            pitch: .resonantNoise(
+                referenceMIDI: referenceMIDI,
+                preferredRange: range,
+                resonatorTargetPitchClasses: resonatorTargetPitchClasses
+            ),
             gainDB: gainDB,
             attackSeconds: attack,
             releaseSeconds: release,
