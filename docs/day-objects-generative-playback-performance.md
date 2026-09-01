@@ -20,11 +20,12 @@
 
 | Gate | Observed result |
 |---|---|
-| Exact final Task 10 playback suite | 152 passed, 0 failed; selected suite time 122.576 s; includes the three added lifecycle/load gates |
-| Exact final Day Objects Lab UI suite | 6 passed, 0 failed; selected suite time 104.203 s |
-| Added lifecycle/load gates | 3 passed, 0 failed inside the exact final playback suite: 25 Sound cycles; 10 combined background/interruption cycles; ten Happenings 0↔10 loops plus final removal |
-| Grid/VoiceOver held-Lead cancellation | 2 passed, 0 failed; each policy releases once and disables the gesture path |
-| Fresh Release simulator build | `BUILD SUCCEEDED` from `/tmp/day-objects-task10-release.NjSZvy` with code signing disabled |
+| Exact final Task 10 playback suite | 156 passed, 0 failed; selected suite time 198.240 s; log `/tmp/day-objects-task10-followup-final-playback.log` |
+| Exact final Day Objects Lab UI suite | 6 passed, 0 failed; selected suite time 104.535 s; log `/tmp/day-objects-task10-followup-ui.log` |
+| Focused review follow-up | 4 passed, 0 failed in 78.443 s: two live-runtime allocation/lifecycle tests and two integrated controller-policy tests; log `/tmp/day-objects-task10-followup-focused-green.log` |
+| Existing fake command/lifecycle gates | 3 passed, 0 failed inside the baseline exact playback suite: 25 Sound command cycles; 10 combined background/interruption cycles; ten Happenings 0↔10 command-routing loops plus final removal |
+| Grid/VoiceOver held-Lead cancellation | 2 integrated controller tests passed; each invokes the same policy method used by the view, forwards exactly one release to the recording playback boundary, and blocks later updates |
+| Fresh Release simulator build | `BUILD SUCCEEDED` from `/tmp/day-objects-task10-followup-release.MAZIch` with code signing disabled |
 | Release symbol audit | No `DayObjectsMusicPlaybackEngine`, live runtime, lab controller, Rhythm/Harmony/Happening/Lead/Glitch playback symbols or Sound/Lead runtime strings found in the built app binary |
 | Production Canvas/store/model import scan | No playback-type references found in `StepsTrader/Views/Canvas`, `StepsTrader/Models`, `StepsTrader/Stores`, or `StepsTrader/Services` |
 
@@ -36,23 +37,37 @@ failure or as proof that physical playback is clean.
 
 ## Deterministic fixed-allocation/load evidence
 
+### Live runtime with real fixed bank pair
+
 | Exercise | Observed invariant |
 |---|---|
-| 25 Sound starts/stops | On every start: 1 transport, 1 task, 64 fake-runtime nodes, 4 active voices, 2 active Happenings, 0 pending Remix, 0 Lead voices. After every stop: transport/task/voice/Happening/pending Remix/Lead counts all 0; node allocation remains 64; session inactive. Engine start count ends at 25. |
-| 10 background plus 10 interruption stops | 20 explicit starts and 20 stops; every inactive/interruption path converges to Sound off; foreground and interruption end never add a start. |
-| Happenings 0↔10 | Ten full loops preserve exactly `lab-happening-01` through `lab-happening-10`; every zero state has 0 active records; final state has no active Happening record. |
+| 25 Sound-equivalent starts/stops | `DayObjectsMusicPlaybackEngine` drove an actual `DayObjectsLivePlaybackRuntime` and actual AudioKit shared bank pair/transport, with only the system audio-session boundary replaced by a recording session. A real allocation baseline was captured after graph preparation rather than hardcoded. Across all 25 cycles, node/pool counts, shared-node identities, instrument allocation fingerprints, and per-world tonal/piano/drum player allocations equaled baseline. Every stop returned the pair to prepared/not-running and left 0 transport, tasks, voices, Lead tokens, Happening tokens, and Happening records. |
+| Happenings 0↔10 | With the live runtime and actual engine running from an empty Happening plan, ten add/remove loops reached the exact ten real scheduler record IDs and returned to 0 records and 0 Happening tokens each time. The aggregate ambient voice count, which also includes the still-running harmony/rhythm scene, stayed fixed after every removal and reached 0 on final stop. The same captured node/pool/fingerprint/player allocation snapshot survived every add/remove and final stop. |
+
+This is simulator evidence for the real debug/internal runtime graph and
+transport lifecycle. It does not exercise the real `AVAudioSession`, physical
+audio hardware, or perceptual output.
+
+### Controller and component boundaries
+
+| Exercise | Observed invariant and test layer |
+|---|---|
+| Original 25 Sound starts/stops | Recording runtime/session only. Confirms engine command order, cumulative start accounting, and teardown convergence; it is not allocation evidence. |
+| 10 background plus 10 interruption stops | `DayObjectsMusicLabController` plus recording playback. Confirms 20 explicit starts/stops, Sound-off convergence, and no automatic foreground/interruption restart; it does not run the live audio graph. |
+| Original Happenings 0↔10 | Controller plus recording playback. Confirms stable Lab IDs and dedicated add/remove command routing; live scheduler allocation/removal is covered separately above. |
 | 100 Remixes | 2 allocated/prepared banks; tonal, piano, drum, node and pool counts equal baseline; 1 transport; 0 extra tasks; 0 Lead/Happening tokens; 100 old-bank recycles; 0 post-cutoff old attacks. |
 | 1,000 Lead updates | 1 reserved active Lead voice, 1 amplitude attack, 1,001 control updates including begin, no envelope retrigger. |
-| Grid and VoiceOver cancellation | Each repeated enable path releases the held Lead exactly once and leaves gesture audition disabled. |
+| Grid and VoiceOver cancellation | Controller plus recording playback. The tests begin a generative Lead, invoke the exact `leadAvailabilityChanged` policy method wired to both view change sites, then repeat policy/end/update calls. Each forwards exactly one `endLead` and no post-disable update. |
 | 10 active Happenings | Active voices never exceed the fixed six-voice pool; all ten IDs receive births; deterministic density bounds hold. |
 | 2,000 Happening bars | Recorded attack history remains bounded and retains recent events. |
 | 1,000 harmony chord changes | Tonal, piano and drum allocations remain baseline; release leaves 0 active voices, pending release tokens, tonal tokens and piano tokens. |
 | 10,000 rhythm subdivisions | Drum allocation remains baseline; release leaves 0 active logical hits. |
 | 10,000 transport bars | Exact integer position 160,000 subdivisions / 10,000 bars; 1 scheduling task while running, 0 after stop. |
 
-These are deterministic simulator/fake-backend invariants. They do not measure
-real-time physical CPU, memory pressure, render underruns, thermal behavior, or
-perceptual balance.
+The table explicitly separates live-runtime evidence from recording/fake
+boundaries and deterministic component coverage. None of these tests measures
+physical CPU, memory pressure, render underruns, thermal behavior, or perceptual
+balance.
 
 ## Release and product boundary
 

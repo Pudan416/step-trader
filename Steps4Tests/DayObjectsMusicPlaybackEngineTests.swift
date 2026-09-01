@@ -321,6 +321,99 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
             XCTAssertFalse(session.isActive, "cycle \(cycle)")
         }
     }
+
+    func testLiveRuntimeTwentyFiveSoundCyclesPreserveRealFixedAllocationsAndDrain() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let plan = makePlaybackEnginePlan(seed: 0x2500, happeningIDs: [])
+        try runtime.prepare(plan: plan)
+        let baseline = runtime.allocationSnapshotForTesting
+
+        XCTAssertGreaterThan(baseline.activeNodeCount, 0)
+        XCTAssertGreaterThan(baseline.poolCount, 0)
+        XCTAssertFalse(baseline.fixedSharedNodeIdentities.isEmpty)
+        XCTAssertEqual(baseline.instrumentAllocationFingerprint.count, 2)
+        XCTAssertTrue(baseline.instrumentAllocationFingerprint.allSatisfy { $0 != nil })
+        XCTAssertTrue(baseline.allocatedTonalVoiceCounts.allSatisfy { $0 > 0 })
+        XCTAssertTrue(baseline.allocatedPianoVoiceCounts.allSatisfy { $0 > 0 })
+        XCTAssertTrue(baseline.allocatedDrumPlayerCounts.allSatisfy { $0 > 0 })
+
+        for cycle in 1...25 {
+            try await engine.start(plan: plan)
+
+            XCTAssertEqual(runtime.allocationSnapshotForTesting, baseline, "started cycle \(cycle)")
+            XCTAssertEqual(runtime.playbackPairMetricsForTesting.lifecycleState, .started, "cycle \(cycle)")
+            XCTAssertTrue(runtime.playbackPairMetricsForTesting.sharedEngineIsRunning, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.activeTransportCount, 1, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.activeTaskCount, 1, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.activeNodeCount, baseline.activeNodeCount, "cycle \(cycle)")
+
+            await engine.stop()
+
+            XCTAssertEqual(runtime.allocationSnapshotForTesting, baseline, "stopped cycle \(cycle)")
+            XCTAssertEqual(runtime.playbackPairMetricsForTesting.lifecycleState, .prepared, "cycle \(cycle)")
+            XCTAssertFalse(runtime.playbackPairMetricsForTesting.sharedEngineIsRunning, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.activeTransportCount, 0, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.activeTaskCount, 0, "cycle \(cycle)")
+            XCTAssertEqual(engine.metrics.activeVoiceCount, 0, "cycle \(cycle)")
+            XCTAssertEqual(runtime.metrics.leadTokenCount, 0, "cycle \(cycle)")
+            XCTAssertEqual(runtime.metrics.happeningTokenCount, 0, "cycle \(cycle)")
+            XCTAssertTrue(runtime.happeningRecordIDsForTesting.isEmpty, "cycle \(cycle)")
+            XCTAssertFalse(session.isActive, "cycle \(cycle)")
+        }
+    }
+
+    func testLiveRuntimeHappeningsZeroToTenLoopsPreserveRealAllocationsAndRemoveRecords() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let emptyPlan = makePlaybackEnginePlan(seed: 0x10, happeningIDs: [])
+        let fullPlan = makePlaybackEnginePlan(
+            seed: 0x10,
+            happeningIDs: (1...10).map { "live-happening-\($0)" }
+        )
+        try await engine.start(plan: emptyPlan)
+        let baseline = runtime.allocationSnapshotForTesting
+        var ambientVoiceCountAfterRemoval: Int?
+
+        for cycle in 1...10 {
+            fullPlan.happenings.forEach { engine.addHappening($0, playBirth: true) }
+            XCTAssertEqual(runtime.happeningRecordIDsForTesting, Set(fullPlan.happenings.map(\.happeningID)), "add cycle \(cycle)")
+            XCTAssertEqual(runtime.playbackMetrics.activeHappeningCount, 10, "add cycle \(cycle)")
+            XCTAssertEqual(runtime.allocationSnapshotForTesting, baseline, "add cycle \(cycle)")
+            XCTAssertEqual(runtime.playbackMetrics.activeTransportCount, 1, "add cycle \(cycle)")
+            XCTAssertEqual(runtime.playbackMetrics.activeTaskCount, 1, "add cycle \(cycle)")
+
+            fullPlan.happenings.forEach { engine.removeHappening(id: $0.happeningID) }
+            XCTAssertTrue(runtime.happeningRecordIDsForTesting.isEmpty, "remove cycle \(cycle)")
+            XCTAssertEqual(runtime.playbackMetrics.activeHappeningCount, 0, "remove cycle \(cycle)")
+            XCTAssertEqual(runtime.metrics.happeningTokenCount, 0, "remove cycle \(cycle)")
+            if let ambientVoiceCountAfterRemoval {
+                XCTAssertEqual(
+                    runtime.playbackMetrics.activeVoiceCount,
+                    ambientVoiceCountAfterRemoval,
+                    "remove cycle \(cycle)"
+                )
+            } else {
+                ambientVoiceCountAfterRemoval = runtime.playbackMetrics.activeVoiceCount
+            }
+            XCTAssertEqual(runtime.allocationSnapshotForTesting, baseline, "remove cycle \(cycle)")
+            XCTAssertEqual(runtime.playbackMetrics.activeTransportCount, 1, "remove cycle \(cycle)")
+            XCTAssertEqual(runtime.playbackMetrics.activeTaskCount, 1, "remove cycle \(cycle)")
+        }
+
+        await engine.stop()
+        XCTAssertEqual(runtime.allocationSnapshotForTesting, baseline)
+        XCTAssertEqual(runtime.playbackMetrics.activeTaskCount, 0)
+        XCTAssertEqual(runtime.playbackMetrics.activeTransportCount, 0)
+        XCTAssertEqual(runtime.playbackMetrics.activeVoiceCount, 0)
+        XCTAssertEqual(runtime.metrics.leadTokenCount, 0)
+        XCTAssertEqual(runtime.metrics.happeningTokenCount, 0)
+        XCTAssertTrue(runtime.happeningRecordIDsForTesting.isEmpty)
+    }
 }
 
 @MainActor
@@ -472,14 +565,17 @@ private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntim
     }
 }
 
-private func makePlaybackEnginePlan(seed: UInt64) -> DayMusicPlan {
+private func makePlaybackEnginePlan(
+    seed: UInt64,
+    happeningIDs: [String] = ["a", "b"]
+) -> DayMusicPlan {
     DeterministicMusicDirector.makePlan(
         input: DayMusicInput(
             countedSteps: 7_500,
             stepGoal: 10_000,
             countedSleepHours: 6,
             sleepGoalHours: 8,
-            happeningIDs: ["a", "b"],
+            happeningIDs: happeningIDs,
             spentColors: 20
         ),
         remixSeed: seed

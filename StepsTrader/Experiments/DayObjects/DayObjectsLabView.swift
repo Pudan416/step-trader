@@ -143,7 +143,10 @@ struct DayObjectsLabView: View {
             Task { await musicController.interruptionBegan() }
         }
         .onChange(of: leadCoordinator.isVoiceOverRunning) { _, running in
-            if running { musicController.endLead() }
+            musicController.leadAvailabilityChanged(
+                isGridVisible: showsGrid,
+                isVoiceOverRunning: running
+            )
         }
     }
 
@@ -346,7 +349,10 @@ struct DayObjectsLabView: View {
             Button {
                 showsGrid.toggle()
                 leadCoordinator.gridVisibilityChanged(isVisible: showsGrid)
-                if showsGrid { musicController.endLead() }
+                musicController.leadAvailabilityChanged(
+                    isGridVisible: showsGrid,
+                    isVoiceOverRunning: leadCoordinator.isVoiceOverRunning
+                )
             } label: {
                 Label(showsGrid ? "Single" : "Grid", systemImage: "square.grid.3x3")
                     .frame(maxWidth: .infinity)

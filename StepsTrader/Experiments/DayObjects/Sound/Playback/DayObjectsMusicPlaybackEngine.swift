@@ -179,6 +179,16 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
 /// The production runtime: one shared AudioKit bank pair, one transport, and
 /// one set of preallocated players per Remix world. Transport callbacks are
 /// the only clock source used by rhythm, harmony, and Happenings.
+struct DayObjectsLivePlaybackAllocationSnapshot: Equatable, Sendable {
+    let activeNodeCount: Int
+    let poolCount: Int
+    let fixedSharedNodeIdentities: [ObjectIdentifier]
+    let instrumentAllocationFingerprint: [DayObjectsInstrumentBankAllocationFingerprint?]
+    let allocatedTonalVoiceCounts: [Int]
+    let allocatedPianoVoiceCounts: [Int]
+    let allocatedDrumPlayerCounts: [Int]
+}
+
 @MainActor
 final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, DayObjectsRemixRuntime {
     @MainActor
@@ -557,6 +567,27 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
     var remixResultForTesting: DayObjectsRemixResult { coordinator.result }
     var inactiveWorldVoiceCountForTesting: Int {
         world(for: coordinator.metrics.inactiveBank).activeVoiceCount
+    }
+    var allocationSnapshotForTesting: DayObjectsLivePlaybackAllocationSnapshot {
+        let pairMetrics = pair.metrics
+        let worldMetrics = [worldA.bank.metrics, worldB.bank.metrics]
+        return .init(
+            activeNodeCount: metrics.nodeCount,
+            poolCount: metrics.poolCount,
+            fixedSharedNodeIdentities: pairMetrics.fixedSharedNodeIdentities,
+            instrumentAllocationFingerprint: pairMetrics.allocationFingerprint,
+            allocatedTonalVoiceCounts: worldMetrics.map(\.allocatedTonalVoiceCount),
+            allocatedPianoVoiceCounts: worldMetrics.map(\.allocatedPianoVoiceCount),
+            allocatedDrumPlayerCounts: worldMetrics.map(\.allocatedDrumPlayerCount)
+        )
+    }
+    var playbackPairMetricsForTesting: DayObjectsPlaybackBankPairMetrics { pair.metrics }
+    var happeningRecordIDsForTesting: Set<String> {
+        guard isPrepared else { return [] }
+        return Set(
+            worldA.happenings.metrics.activeHappeningIDs
+                + worldB.happenings.metrics.activeHappeningIDs
+        )
     }
 
     func startPreparedWorldForTesting() throws { try activeWorld.startScheduling() }

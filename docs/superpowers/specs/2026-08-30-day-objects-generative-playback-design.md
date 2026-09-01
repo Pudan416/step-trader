@@ -363,7 +363,24 @@ Controller tests:
 - scene lifecycle calls one stop path;
 - reopening resets Sound off.
 
-Transport/player tests with a fake backend:
+Live-runtime integration tests:
+
+- 25 Sound-equivalent cycles through the actual fixed AudioKit bank pair and
+  transport preserve a captured post-prepare allocation fingerprint;
+- live Happenings 0↔10→0 loops preserve that allocation and clear real scheduler
+  records and tokens after removal;
+- every live-runtime stop clears tasks, transport, voices, and Lead/Happening
+  tokens. The system audio-session boundary is recorded in these simulator
+  tests, so they are not physical-device evidence.
+
+Controller tests with a recording playback boundary:
+
+- background/interruption lifecycle convergence and no automatic resume;
+- stable Lab Happening IDs and dedicated add/remove command routing;
+- Grid/VoiceOver cancellation through the controller policy method also used
+  by both view change sites, with exactly one release and no disabled update.
+
+Deterministic transport/player component tests:
 
 - single transport;
 - tempo ramp at bar boundary;
@@ -374,8 +391,7 @@ Transport/player tests with a fake backend:
 - first-cycle guarantee for 1, 5, and 10 Happenings;
 - global attack cap and no starvation;
 - one Lead voice through hundreds of updates;
-- Grid/VoiceOver cancellation;
-- constant node/task metrics over start/stop and Remix loops.
+- constant node/task metrics over Remix loops.
 
 UI tests:
 
@@ -420,14 +436,18 @@ Glitch onset. Repeat interruption and background cycles.
 
 Verified in the iPhone 17 Pro simulator:
 
-- the exact final playback suite passed 152/152 and the exact Day Objects Lab UI
-  suite passed 6/6;
-- deterministic load gates passed for 25 Sound cycles, 10 background and 10
-  interruption stops, Happenings 0↔10 loops, 100 Remixes, 1,000 Lead updates,
+- the final exact playback suite passed 156/156 and the exact Day Objects Lab
+  UI suite passed 6/6;
+- live-runtime gates passed for 25 Sound-equivalent cycles and ten Happenings
+  0↔10→0 loops against a captured real allocation baseline; fixed nodes,
+  pools, identities, instrument fingerprints, and tonal/piano/drum player
+  allocations remain unchanged, with no stopped/removed task, transport,
+  voice, token, or scheduler record;
+- controller/recording-playback gates passed for 10 background and 10
+  interruption stops, stable Happenings command loops, and the actual shared
+  Grid/VoiceOver Lead policy path;
+- deterministic component gates passed for 100 Remixes, 1,000 Lead updates,
   1,000 harmony changes, 10,000 rhythm subdivisions, and 10,000 transport bars;
-- fixed-bank/node/task/token assertions converge without a stuck deterministic
-  token after teardown;
-- Grid and VoiceOver held-Lead cancellation tests pass;
 - a fresh Release simulator build succeeds, the Release app binary contains no
   audited playback symbols, and production Canvas/store/model/service paths do
   not reference playback types.

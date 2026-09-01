@@ -7,6 +7,10 @@ builds cannot complete any row below. A row may be marked PASS only after every
 speaker and headphone field has a written observation and no unresolved click,
 stuck note, lifecycle, or balance blocker remains.
 
+Automated live-runtime allocation tests and integrated controller-policy tests
+do not change this status: they verify internal simulator state, not what the
+built-in speaker or headphones sound like.
+
 ## Device record
 
 - Tester: PENDING

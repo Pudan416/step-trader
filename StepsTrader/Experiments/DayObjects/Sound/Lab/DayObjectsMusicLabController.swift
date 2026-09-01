@@ -18,6 +18,7 @@ final class DayObjectsMusicLabController: ObservableObject {
 
     private let playback: any DayObjectsMusicPlaybackProtocol
     private var isLeadHeld = false
+    private var isLeadAvailable = true
     private var stopTask: Task<Void, Never>?
     private var stopID: UUID?
     private var lifecycleGeneration: UInt64 = 0
@@ -113,14 +114,26 @@ final class DayObjectsMusicLabController: ObservableObject {
         isGridVisible: Bool,
         isVoiceOverRunning: Bool
     ) {
-        guard soundState == .on, !isGridVisible, !isVoiceOverRunning else { return }
+        leadAvailabilityChanged(
+            isGridVisible: isGridVisible,
+            isVoiceOverRunning: isVoiceOverRunning
+        )
+        guard soundState == .on, isLeadAvailable else { return }
         isLeadHeld = true
         playback.beginLead(gesture)
     }
 
     func updateLead(_ gesture: LeadGestureSample) {
-        guard soundState == .on, isLeadHeld else { return }
+        guard soundState == .on, isLeadAvailable, isLeadHeld else { return }
         playback.updateLead(gesture)
+    }
+
+    func leadAvailabilityChanged(
+        isGridVisible: Bool,
+        isVoiceOverRunning: Bool
+    ) {
+        isLeadAvailable = !isGridVisible && !isVoiceOverRunning
+        if !isLeadAvailable { endLead() }
     }
 
     func endLead() {

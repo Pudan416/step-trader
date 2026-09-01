@@ -66,6 +66,40 @@ final class DayObjectsMusicLabControllerTests: XCTestCase {
         XCTAssertEqual(playback.startPlans.count, 1, "Foreground and interruption end must never auto-resume")
     }
 
+    func testGridPolicyEndsHeldGenerativeLeadExactlyOnceAndBlocksFurtherUpdates() async {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        let gesture = LeadGestureSample(normalizedX: 0.4, normalizedY: 0.6, speed: 0)
+        await controller.toggleSound()
+        controller.beginLead(gesture, isGridVisible: false, isVoiceOverRunning: false)
+
+        controller.leadAvailabilityChanged(isGridVisible: true, isVoiceOverRunning: false)
+        controller.updateLead(gesture)
+        controller.leadAvailabilityChanged(isGridVisible: true, isVoiceOverRunning: false)
+        controller.endLead()
+
+        XCTAssertEqual(playback.beginLeadCount, 1)
+        XCTAssertEqual(playback.updateLeadCount, 0)
+        XCTAssertEqual(playback.endLeadCount, 1)
+    }
+
+    func testVoiceOverPolicyEndsHeldGenerativeLeadExactlyOnceAndBlocksFurtherUpdates() async {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        let gesture = LeadGestureSample(normalizedX: 0.4, normalizedY: 0.6, speed: 0)
+        await controller.toggleSound()
+        controller.beginLead(gesture, isGridVisible: false, isVoiceOverRunning: false)
+
+        controller.leadAvailabilityChanged(isGridVisible: false, isVoiceOverRunning: true)
+        controller.updateLead(gesture)
+        controller.leadAvailabilityChanged(isGridVisible: false, isVoiceOverRunning: true)
+        controller.endLead()
+
+        XCTAssertEqual(playback.beginLeadCount, 1)
+        XCTAssertEqual(playback.updateLeadCount, 0)
+        XCTAssertEqual(playback.endLeadCount, 1)
+    }
+
     func testErrorIsRetryableAndStartingSuppressesDuplicateToggle() async {
         let playback = RecordingLabPlayback()
         playback.startError = DayObjectsAudioError("route")
