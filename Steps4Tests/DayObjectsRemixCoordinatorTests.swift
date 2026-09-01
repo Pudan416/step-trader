@@ -143,6 +143,45 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
         XCTAssertEqual(harness.banks[1].outputGainAutomationCommands.count, 5)
     }
 
+    func testTempoRampCrossfadeEndpointsUseTransportEmittedLookaheadAtMidpointAndFinal() async throws {
+        let clock = ManualDayObjectsTransportClock()
+        let recorder = RemixTransportSubdivisionRecorder()
+        let transport = DayObjectsTransport(clock: clock) { event in
+            if event.kind == .subdivision { await recorder.append(event) }
+        }
+
+        await transport.start(tempoBPM: 60, harmonicCycleBars: 4)
+        clock.advance(to: 1.5)
+        try await waitForTransport(position: 6, transport: transport)
+        await transport.setTempoBPM(100)
+        clock.advance(to: 20)
+        try await waitForTransport(position: 49, transport: transport)
+        await transport.stop()
+
+        let events = await recorder.events
+        XCTAssertGreaterThan(events.count, 48)
+        let harness = try makeHarness(initialSeed: 902)
+        harness.runtime.drained = false
+        for event in events where event.position.absoluteSubdivision < 16 {
+            harness.coordinator.render(event)
+        }
+        harness.coordinator.schedule(makePlan(seed: 903))
+        for event in events where (16...48).contains(event.position.absoluteSubdivision) {
+            harness.coordinator.render(event)
+        }
+
+        let oldCommands = harness.banks[0].outputGainAutomationCommands
+        let newCommands = harness.banks[1].outputGainAutomationCommands
+        XCTAssertEqual(oldCommands.count, 33)
+        XCTAssertEqual(newCommands.count, 33)
+        XCTAssertEqual(oldCommands[16].requestedEndHostTimeSeconds, events[32].hostTimeSeconds, accuracy: 1e-12)
+        XCTAssertEqual(newCommands[16].requestedEndHostTimeSeconds, events[32].hostTimeSeconds, accuracy: 1e-12)
+        XCTAssertEqual(oldCommands[32].requestedEndHostTimeSeconds, events[48].hostTimeSeconds, accuracy: 1e-12)
+        XCTAssertEqual(newCommands[32].requestedEndHostTimeSeconds, events[48].hostTimeSeconds, accuracy: 1e-12)
+        XCTAssertEqual(events[31].nextSubdivisionHostTimeSeconds, events[32].hostTimeSeconds, accuracy: 1e-12)
+        XCTAssertEqual(events[47].nextSubdivisionHostTimeSeconds, events[48].hostTimeSeconds, accuracy: 1e-12)
+    }
+
     func testNewestPendingPlanWinsAndPreservesSubmittedDayInput() throws {
         let harness = try makeHarness(initialSeed: 1)
         let planA = makePlan(seed: 2, steps: 1_500, sleep: 2, ids: ["a"], spent: 10)
@@ -471,6 +510,18 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
         event(.barBoundary, position: position, hostTime: hostTime)
     }
 
+    private func waitForTransport(
+        position: Int64,
+        transport: DayObjectsTransport,
+        maximumYields: Int = 30_000
+    ) async throws {
+        for _ in 0..<maximumYields {
+            if await transport.snapshot.position.absoluteSubdivision >= position { return }
+            await Task.yield()
+        }
+        XCTFail("Transport did not reach subdivision \(position)")
+    }
+
     private func event(
         _ kind: DayObjectsTransportEventKind,
         position: Int64,
@@ -483,6 +534,11 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
             tempoBPM: 72
         )
     }
+}
+
+private actor RemixTransportSubdivisionRecorder {
+    private(set) var events: [DayObjectsTransportEvent] = []
+    func append(_ event: DayObjectsTransportEvent) { events.append(event) }
 }
 
 @MainActor

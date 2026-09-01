@@ -229,6 +229,11 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
             self.prepared?.state = .started
         } catch {
             releaseAll()
+            if engine is any DayObjectsPairedInstrumentBankLifecycleGate {
+                self.prepared?.state = .prepared
+                self.prepared?.isAttached = true
+                throw DayObjectsInstrumentBankError.startFailed
+            }
             engine.stop()
             engine.detach()
             self.prepared = nil
@@ -237,6 +242,14 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     }
 
     func stop() async {
+        if let pairedGate = engine as? any DayObjectsPairedInstrumentBankLifecycleGate {
+            guard prepared?.state == .started else { return }
+            guard pairedGate.requestIndividualStop() else { return }
+            releaseAll()
+            prepared?.state = .prepared
+            prepared?.isAttached = true
+            return
+        }
         releaseAll()
         engine.stop()
         engine.detach()
@@ -624,6 +637,7 @@ struct DayObjectsPlaybackBankPairMetrics: Equatable, Sendable {
     let sharedEngineIsRunning: Bool
     let sharedEngineStartCount: Int
     let sharedEngineStopCount: Int
+    let individualStartedBankCount: Int
     let allocationFingerprint: [DayObjectsInstrumentBankAllocationFingerprint?]
 }
 
@@ -668,6 +682,9 @@ final class DayObjectsPlaybackBankPair {
             throw DayObjectsInstrumentBankError.notPrepared
         }
         guard lifecycleState != .started else { return }
+        guard sharedEngine.canAcquirePairOwnership else {
+            throw DayObjectsInstrumentBankError.startFailed
+        }
 
         let injectedFailure = startFailureProvider()
         do {
@@ -708,7 +725,13 @@ final class DayObjectsPlaybackBankPair {
 private enum DayObjectsPlaybackBankSlot: Hashable { case a, b }
 
 @MainActor
-private final class DayObjectsPairedInstrumentBankEngine: DayObjectsInstrumentBankEngine {
+private protocol DayObjectsPairedInstrumentBankLifecycleGate: AnyObject {
+    func requestIndividualStop() -> Bool
+}
+
+@MainActor
+private final class DayObjectsPairedInstrumentBankEngine: DayObjectsInstrumentBankEngine,
+    DayObjectsPairedInstrumentBankLifecycleGate {
     private let slot: DayObjectsPlaybackBankSlot
     private let shared: DayObjectsSharedInstrumentBankEngine
 
@@ -722,7 +745,10 @@ private final class DayObjectsPairedInstrumentBankEngine: DayObjectsInstrumentBa
     }
     func detach() { shared.releaseAttachmentRequest(slot: slot) }
     func start() throws { try shared.requestIndividualStart(slot: slot) }
-    func stop() { shared.requestIndividualStop(slot: slot) }
+    func stop() { _ = shared.requestIndividualStop(slot: slot) }
+    func requestIndividualStop() -> Bool {
+        shared.requestIndividualStop(slot: slot)
+    }
 }
 
 @MainActor
@@ -738,6 +764,10 @@ private final class DayObjectsSharedInstrumentBankEngine {
     private var pairIsRunning = false
     private var startCount = 0
     private var stopCount = 0
+
+    var canAcquirePairOwnership: Bool {
+        individuallyStartedSlots.isEmpty && !pairIsRunning
+    }
 
     func attach(
         graph: any DayObjectsInstrumentBankGraph,
@@ -763,15 +793,26 @@ private final class DayObjectsSharedInstrumentBankEngine {
     }
 
     func requestIndividualStart(slot: DayObjectsPlaybackBankSlot) throws {
+        guard !pairIsRunning else { throw DayObjectsInstrumentBankError.startFailed }
+        guard !individuallyStartedSlots.contains(slot) else { return }
+        guard attachedSlots.contains(slot), let limiter else {
+            throw DayObjectsInstrumentBankError.notPrepared
+        }
+        engine.output = limiter
+        if individuallyStartedSlots.isEmpty, !engine.avEngine.isRunning {
+            try engine.start()
+        }
         individuallyStartedSlots.insert(slot)
-        guard individuallyStartedSlots == Set([.a, .b]) else { return }
-        try startPair()
     }
 
-    func requestIndividualStop(slot: DayObjectsPlaybackBankSlot) {
-        individuallyStartedSlots.remove(slot)
-        guard individuallyStartedSlots.isEmpty, !pairIsRunning else { return }
-        stopEngineIfRunning(countAsPairStop: false)
+    func requestIndividualStop(slot: DayObjectsPlaybackBankSlot) -> Bool {
+        guard !pairIsRunning, individuallyStartedSlots.remove(slot) != nil else {
+            return false
+        }
+        if individuallyStartedSlots.isEmpty {
+            stopEngineIfRunning(countAsPairStop: false)
+        }
+        return true
     }
 
     func startPair() throws {
@@ -813,9 +854,10 @@ private final class DayObjectsSharedInstrumentBankEngine {
             fixedSharedNodeCount: limiter == nil ? 0 : 3,
             fixedSharedNodeIdentities: fixedNodeIdentities,
             lifecycleState: lifecycleState,
-            sharedEngineIsRunning: pairIsRunning && engine.avEngine.isRunning,
+            sharedEngineIsRunning: engine.avEngine.isRunning,
             sharedEngineStartCount: startCount,
             sharedEngineStopCount: stopCount,
+            individualStartedBankCount: individuallyStartedSlots.count,
             allocationFingerprint: allocationFingerprint
         )
     }

@@ -97,6 +97,14 @@ final class DayObjectsTransportTests: XCTestCase {
         subdivisionEvents = await recorder.events.filter { $0.kind == .subdivision }
         let rampTempos = Array(subdivisionEvents[17...32].map(\.tempoBPM))
         XCTAssertEqual(rampTempos, stride(from: 62.5, through: 100, by: 2.5).map { $0 })
+        for (current, following) in zip(subdivisionEvents, subdivisionEvents.dropFirst()) {
+            XCTAssertEqual(
+                current.nextSubdivisionHostTimeSeconds,
+                following.hostTimeSeconds,
+                accuracy: 0.000_000_001,
+                "Transport lookahead must use the exact following interval during the tempo ramp"
+            )
+        }
         XCTAssertTrue(zip(subdivisionEvents, subdivisionEvents.dropFirst()).allSatisfy {
             $0.hostTimeSeconds < $1.hostTimeSeconds
         })

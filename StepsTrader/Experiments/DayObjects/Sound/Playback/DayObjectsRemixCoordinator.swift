@@ -393,18 +393,17 @@ final class DayObjectsRemixCoordinator {
         let state = DayObjectsEqualPowerCrossfadeState(
             progress: Double(nextSubdivision - transition.startSubdivision) / Double(duration)
         )
-        let subdivisionDuration: TimeInterval
-        if event.tempoBPM.isFinite, event.tempoBPM > 0 {
-            subdivisionDuration = 15 / event.tempoBPM
-        } else {
-            subdivisionDuration = 0
-        }
+        let authoritativeNextHostTime = event.nextSubdivisionHostTimeSeconds
+        let nextHostTime = authoritativeNextHostTime.isFinite
+            && authoritativeNextHostTime >= event.hostTimeSeconds
+            ? authoritativeNextHostTime
+            : event.hostTimeSeconds
         scheduleCrossfadeGains(
             state,
             oldBank: oldBank,
             newBank: newBank,
             startingAtHostTime: event.hostTimeSeconds,
-            endingAtHostTime: event.hostTimeSeconds + subdivisionDuration
+            endingAtHostTime: nextHostTime
         )
         transition.scheduledThroughSubdivision = nextSubdivision
     }

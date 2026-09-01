@@ -4,6 +4,85 @@ import XCTest
 
 @MainActor
 final class DayObjectsInstrumentBankTests: XCTestCase {
+    func testIndividualPlaybackBankOwnersStartOnFirstAndStopOnLastWithoutDetachingGraphs() async throws {
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(
+            bundle: Bundle(for: type(of: self))
+        )
+        try pair.prepare(configuration: smallPlaybackPairConfiguration())
+        let baseline = pair.metrics
+
+        try pair.bankA.start()
+        XCTAssertTrue(pair.metrics.sharedEngineIsRunning)
+        XCTAssertEqual(pair.metrics.individualStartedBankCount, 1)
+        XCTAssertEqual(pair.bankA.metrics.state, .started)
+        XCTAssertEqual(pair.bankB.metrics.state, .prepared)
+
+        try pair.bankB.start()
+        XCTAssertTrue(pair.metrics.sharedEngineIsRunning)
+        XCTAssertEqual(pair.metrics.individualStartedBankCount, 2)
+
+        await pair.bankA.stop()
+        XCTAssertTrue(pair.metrics.sharedEngineIsRunning)
+        XCTAssertEqual(pair.metrics.individualStartedBankCount, 1)
+        XCTAssertEqual(pair.bankA.metrics.state, .prepared)
+        XCTAssertEqual(pair.bankB.metrics.state, .started)
+
+        await pair.bankB.stop()
+        XCTAssertFalse(pair.metrics.sharedEngineIsRunning)
+        XCTAssertEqual(pair.metrics.individualStartedBankCount, 0)
+        XCTAssertEqual(pair.metrics.attachedBankCount, 2)
+        XCTAssertEqual(pair.metrics.fixedSharedNodeIdentities, baseline.fixedSharedNodeIdentities)
+        XCTAssertEqual(pair.metrics.allocationFingerprint, baseline.allocationFingerprint)
+    }
+
+    func testPairOwnershipRejectsIndividualStopsWithoutCorruptingBankStates() async throws {
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(
+            bundle: Bundle(for: type(of: self))
+        )
+        try pair.prepare(configuration: smallPlaybackPairConfiguration())
+        try pair.start()
+
+        try pair.bankA.start()
+        await pair.bankA.stop()
+        await pair.bankB.stop()
+
+        XCTAssertEqual(pair.metrics.lifecycleState, .started)
+        XCTAssertTrue(pair.metrics.sharedEngineIsRunning)
+        XCTAssertEqual(pair.metrics.individualStartedBankCount, 0)
+        XCTAssertEqual(pair.bankA.metrics.state, .started)
+        XCTAssertEqual(pair.bankB.metrics.state, .started)
+        XCTAssertEqual(pair.metrics.attachedBankCount, 2)
+
+        pair.stop()
+        XCTAssertEqual(pair.metrics.lifecycleState, .prepared)
+        XCTAssertFalse(pair.metrics.sharedEngineIsRunning)
+    }
+
+    func testIndividualOwnershipRejectsPairStartAndRecoversAfterLastOwnerStops() async throws {
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(
+            bundle: Bundle(for: type(of: self))
+        )
+        try pair.prepare(configuration: smallPlaybackPairConfiguration())
+        let baseline = pair.metrics
+        try pair.bankA.start()
+
+        XCTAssertThrowsError(try pair.start()) {
+            XCTAssertEqual($0 as? DayObjectsInstrumentBankError, .startFailed)
+        }
+        XCTAssertEqual(pair.metrics.lifecycleState, .prepared)
+        XCTAssertTrue(pair.metrics.sharedEngineIsRunning)
+        XCTAssertEqual(pair.metrics.individualStartedBankCount, 1)
+        XCTAssertEqual(pair.bankA.metrics.state, .started)
+        XCTAssertEqual(pair.bankB.metrics.state, .prepared)
+
+        await pair.bankA.stop()
+        try pair.start()
+        XCTAssertEqual(pair.metrics.lifecycleState, .started)
+        XCTAssertEqual(pair.metrics.fixedSharedNodeIdentities, baseline.fixedSharedNodeIdentities)
+        XCTAssertEqual(pair.metrics.allocationFingerprint, baseline.allocationFingerprint)
+        pair.stop()
+    }
+
     func testPlaybackPairLifecycleStartsAndStopsSharedEngineOnceWithoutChangingTopology() throws {
         let pair = DayObjectsInstrumentBank.makePlaybackPair(
             bundle: Bundle(for: type(of: self))

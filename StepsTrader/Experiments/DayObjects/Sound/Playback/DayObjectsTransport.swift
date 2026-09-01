@@ -128,6 +128,7 @@ actor DayObjectsTransport {
         guard await emitEvents(
             at: currentPosition,
             hostTime: currentHostTime,
+            nextSubdivisionHostTime: currentHostTime + 15 / tempoForFollowingInterval(),
             generation: runGeneration
         ), isActive(runGeneration) else { return }
         lifecycle = .running
@@ -151,9 +152,11 @@ actor DayObjectsTransport {
             if nextPosition.subdivisionInBar == 0 {
                 beginPendingTempoRampIfNeeded()
             }
+            let followingHostTime = nextHostTime + 15 / tempoForFollowingInterval()
             guard await emitEvents(
                 at: nextPosition,
                 hostTime: nextHostTime,
+                nextSubdivisionHostTime: followingHostTime,
                 generation: runGeneration
             ), isActive(runGeneration) else { return }
             currentHostTime = nextHostTime
@@ -177,6 +180,17 @@ actor DayObjectsTransport {
         return currentTempoBPM
     }
 
+    private func tempoForFollowingInterval() -> Double {
+        guard let ramp = tempoRamp else { return currentTempoBPM }
+        let followingCompletedIntervals = min(
+            ramp.completedIntervals + 1,
+            Int(MusicalPosition.subdivisionsPerBar)
+        )
+        let progress = Double(followingCompletedIntervals)
+            / Double(MusicalPosition.subdivisionsPerBar)
+        return ramp.startBPM + ((ramp.targetBPM - ramp.startBPM) * progress)
+    }
+
     private func beginPendingTempoRampIfNeeded() {
         guard let targetBPM = pendingTempoBPM else { return }
         pendingTempoBPM = nil
@@ -195,6 +209,7 @@ actor DayObjectsTransport {
     private func emitEvents(
         at position: MusicalPosition,
         hostTime: TimeInterval,
+        nextSubdivisionHostTime: TimeInterval,
         generation runGeneration: UInt64
     ) async -> Bool {
         guard isActive(runGeneration) else { return false }
@@ -204,6 +219,7 @@ actor DayObjectsTransport {
             kind: .subdivision,
             at: position,
             hostTime: hostTime,
+            nextSubdivisionHostTime: nextSubdivisionHostTime,
             generation: runGeneration,
             to: eventHandler
         ) else { return false }
@@ -212,6 +228,7 @@ actor DayObjectsTransport {
                 kind: .beat,
                 at: position,
                 hostTime: hostTime,
+                nextSubdivisionHostTime: nextSubdivisionHostTime,
                 generation: runGeneration,
                 to: eventHandler
             ) else { return false }
@@ -221,6 +238,7 @@ actor DayObjectsTransport {
                 kind: .barBoundary,
                 at: position,
                 hostTime: hostTime,
+                nextSubdivisionHostTime: nextSubdivisionHostTime,
                 generation: runGeneration,
                 to: eventHandler
             ) else { return false }
@@ -231,6 +249,7 @@ actor DayObjectsTransport {
                 kind: .harmonicCycleBoundary,
                 at: position,
                 hostTime: hostTime,
+                nextSubdivisionHostTime: nextSubdivisionHostTime,
                 generation: runGeneration,
                 to: eventHandler
             ) else { return false }
@@ -242,24 +261,32 @@ actor DayObjectsTransport {
         kind: DayObjectsTransportEventKind,
         at position: MusicalPosition,
         hostTime: TimeInterval,
+        nextSubdivisionHostTime: TimeInterval,
         generation runGeneration: UInt64,
         to eventHandler: EventHandler
     ) async -> Bool {
         guard isActive(runGeneration) else { return false }
-        await eventHandler(event(kind: kind, at: position, hostTime: hostTime))
+        await eventHandler(event(
+            kind: kind,
+            at: position,
+            hostTime: hostTime,
+            nextSubdivisionHostTime: nextSubdivisionHostTime
+        ))
         return isActive(runGeneration)
     }
 
     private func event(
         kind: DayObjectsTransportEventKind,
         at position: MusicalPosition,
-        hostTime: TimeInterval
+        hostTime: TimeInterval,
+        nextSubdivisionHostTime: TimeInterval
     ) -> DayObjectsTransportEvent {
         DayObjectsTransportEvent(
             kind: kind,
             position: position,
             hostTimeSeconds: hostTime,
-            tempoBPM: currentTempoBPM
+            tempoBPM: currentTempoBPM,
+            nextSubdivisionHostTimeSeconds: nextSubdivisionHostTime
         )
     }
 
