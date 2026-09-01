@@ -142,11 +142,16 @@ struct MaterialDNATests {
                 #expect((0.28...0.72).contains(topology.innerCenter.y))
                 #expect((0.03...0.50).contains(topology.innerRadius))
                 #expect((0.08...0.50).contains(topology.outerRadius))
-                #expect(hypot(
-                    topology.innerCenter.x - topology.outerCenter.x,
-                    topology.innerCenter.y - topology.outerCenter.y
-                ) >= 0.030)
                 if family == .outline {
+                    for contour in topology.contours {
+                        let bandWidth = contour.outerRadius - contour.innerRadius
+                        let offset = hypot(
+                            contour.innerCenter.x - contour.outerCenter.x,
+                            contour.innerCenter.y - contour.outerCenter.y
+                        )
+                        #expect(offset >= bandWidth * 0.45)
+                        #expect(offset < bandWidth)
+                    }
                     #expect(topology.contours.count == actor.contourCount)
                     #expect(topology.outerCenter == topology.contours.first?.outerCenter)
                     #expect(topology.outerRadius == topology.contours.first?.outerRadius)
@@ -164,6 +169,10 @@ struct MaterialDNATests {
                             && contour.opacity <= 1
                     })
                 } else {
+                    #expect(hypot(
+                        topology.innerCenter.x - topology.outerCenter.x,
+                        topology.innerCenter.y - topology.outerCenter.y
+                    ) >= 0.030)
                     #expect(topology.contours.isEmpty)
                 }
                 let encoded = try JSONEncoder().encode(actor)

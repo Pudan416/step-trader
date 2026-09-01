@@ -144,7 +144,18 @@ public struct MaterialSceneScaleActorMetrics: Codable, Equatable, Sendable {
     public let meanContrast: Double
     public let percentile90Contrast: Double
     public let visibleAreaFraction: Double
+    public let fullPresentation: MaterialOutlinePresentationMetadata?
+    public let tilePresentation: MaterialOutlinePresentationMetadata?
     public let passes: Bool
+}
+
+public struct MaterialOutlinePresentationMetadata: Codable, Equatable, Sendable {
+    public let inFrameRayCount: Int
+    public let croppedRayCount: Int
+    public let observableOwnedRayCount: Int
+    public let occludedRayCount: Int
+    public let supportedRayCount: Int
+    public let angularCoverage: Double
 }
 
 public struct MaterialAlphaBandTopologyMetrics: Codable, Equatable, Sendable {
@@ -336,6 +347,13 @@ public enum MaterialEvidencePackage {
     private struct ExactTopologyCropEvidence {
         let metrics: [MaterialExactTopologyCropMetrics]
         let images: [String: Data]
+    }
+
+    private struct OutlineReadabilityImages {
+        let isolatedFull: Data
+        let removedFull: Data
+        let isolatedTile: Data
+        let removedTile: Data
     }
 
     struct C3ActorAssessment {
@@ -1022,25 +1040,32 @@ public enum MaterialEvidencePackage {
                     requestedColorCount: colorCount
                 )
                 for background in backgrounds {
-                    let source = try renderer.render(
+                    let source = try sceneScaleRenderedScene(
                         recipe: recipe,
                         material: material,
                         background: background,
-                        configuration: .init(scale: 2)
+                        renderer: renderer,
+                        presentationEvidenceRequest: family == .outline ? .perActor : .none
                     )
-                    let sourceImage = try decodedPNG(
+                    let fullImage = try decodedPNG(
                         source.fullScreen.pngData,
                         path: "scene-scale-source"
                     )
-                    let fullImage = try downsampled(
-                        sourceImage,
-                        width: 393,
-                        height: 852
+                    let tileImage = try decodedPNG(
+                        source.calendarTile.pngData,
+                        path: "scene-scale-tile"
                     )
-                    guard let tileImage = fullImage.cropping(
-                        to: CGRect(x: 0, y: 229, width: 393, height: 393)
-                    ) else {
-                        throw MaterialEvidenceError.cannotCreateContactSheet
+                    guard source.tileCrop == PixelRect(x: 0, y: 229, width: 393, height: 393),
+                          source.drawSequence == recipe.actors.sorted(by: {
+                              if $0.drawOrder != $1.drawOrder { return $0.drawOrder < $1.drawOrder }
+                              if $0.depth != $1.depth { return $0.depth < $1.depth }
+                              if $0.diameter != $1.diameter { return $0.diameter < $1.diameter }
+                              return $0.eventID < $1.eventID
+                          }).map(\.eventID)
+                    else {
+                        throw MaterialEvidenceError.invalidPackage(
+                            "scene-scale renderer changed frozen crop or draw order"
+                        )
                     }
                     let stem = sceneScaleStem(
                         family: family,
@@ -1049,14 +1074,31 @@ public enum MaterialEvidencePackage {
                     )
                     let fullPath = "scene-scale/\(family.rawValue)/\(stem)-full@1x.png"
                     let tilePath = "scene-scale/\(family.rawValue)/\(stem)-tile@1x.png"
-                    fullImages[fullPath] = try encodedPNG(fullImage)
-                    tileImages[tilePath] = try encodedPNG(tileImage)
-                    let actorReadability = try sceneScaleReadability(
-                        image: fullImage,
-                        recipe: recipe,
-                        material: material,
-                        background: background
-                    )
+                    fullImages[fullPath] = source.fullScreen.pngData
+                    tileImages[tilePath] = source.calendarTile.pngData
+                    let actorReadability: [MaterialSceneScaleActorMetrics]
+                    if family == .outline {
+                        guard let payloadReadability = try presentationSceneScaleReadability(
+                            source: source,
+                            recipe: recipe,
+                            material: material,
+                            background: background
+                        ) else {
+                            throw MaterialEvidenceError.invalidPackage(
+                                "outline scene-scale render omitted requested presentation evidence"
+                            )
+                        }
+                        actorReadability = payloadReadability
+                    } else {
+                        actorReadability = try sceneScaleReadability(
+                            image: fullImage,
+                            tileImage: tileImage,
+                            recipe: recipe,
+                            material: material,
+                            background: background,
+                            outlineImages: nil
+                        )
+                    }
                     let topology = try sceneScaleTopology(
                         family: family,
                         recipe: recipe,
@@ -1088,11 +1130,125 @@ public enum MaterialEvidencePackage {
         )
     }
 
-    private static func sceneScaleReadability(
-        image: CGImage,
+    static func sceneScaleRenderedScene(
+        recipe: SceneRecipe,
+        material: DailyMaterialDNA,
+        background: BackgroundCondition,
+        renderer: MaterialRenderer,
+        presentationEvidenceRequest: MaterialPresentationEvidenceRequest = .none
+    ) throws -> MaterialRenderedScene {
+        try renderer.render(
+            recipe: recipe,
+            material: material,
+            background: background,
+            configuration: .init(
+                scale: 1,
+                supersampling: 2,
+                presentationEvidenceRequest: presentationEvidenceRequest
+            )
+        )
+    }
+
+    static func legacySceneScaleReadabilityForTesting(
+        source: MaterialRenderedScene,
+        recipe: SceneRecipe,
+        material: DailyMaterialDNA,
+        background: BackgroundCondition,
+        renderer: MaterialRenderer
+    ) throws -> [MaterialSceneScaleActorMetrics] {
+        try sceneScaleReadability(
+            image: decodedPNG(source.fullScreen.pngData, path: "scene-scale-source"),
+            tileImage: decodedPNG(source.calendarTile.pngData, path: "scene-scale-tile"),
+            recipe: recipe,
+            material: material,
+            background: background,
+            outlineImages: { actor in
+                let isolatedRecipe = SceneRecipe(
+                    daySeed: recipe.daySeed,
+                    grammar: recipe.grammar,
+                    viewport: recipe.viewport,
+                    actors: [actor]
+                )
+                let removedRecipe = SceneRecipe(
+                    daySeed: recipe.daySeed,
+                    grammar: recipe.grammar,
+                    viewport: recipe.viewport,
+                    actors: recipe.actors.filter { $0.eventID != actor.eventID }
+                )
+                let isolated = try sceneScaleRenderedScene(
+                    recipe: isolatedRecipe,
+                    material: material,
+                    background: background,
+                    renderer: renderer
+                )
+                let removed = try sceneScaleRenderedScene(
+                    recipe: removedRecipe,
+                    material: material,
+                    background: background,
+                    renderer: renderer
+                )
+                return OutlineReadabilityImages(
+                    isolatedFull: isolated.fullScreen.pngData,
+                    removedFull: removed.fullScreen.pngData,
+                    isolatedTile: isolated.calendarTile.pngData,
+                    removedTile: removed.calendarTile.pngData
+                )
+            }
+        )
+    }
+
+    static func presentationSceneScaleReadabilityForTesting(
+        source: MaterialRenderedScene,
         recipe: SceneRecipe,
         material: DailyMaterialDNA,
         background: BackgroundCondition
+    ) throws -> [MaterialSceneScaleActorMetrics]? {
+        try presentationSceneScaleReadability(
+            source: source,
+            recipe: recipe,
+            material: material,
+            background: background
+        )
+    }
+
+    private static func presentationSceneScaleReadability(
+        source: MaterialRenderedScene,
+        recipe: SceneRecipe,
+        material: DailyMaterialDNA,
+        background: BackgroundCondition
+    ) throws -> [MaterialSceneScaleActorMetrics]? {
+        guard let presentationEvidence = source.presentationEvidence else { return nil }
+        return try sceneScaleReadability(
+            image: decodedPNG(source.fullScreen.pngData, path: "scene-scale-source"),
+            tileImage: decodedPNG(source.calendarTile.pngData, path: "scene-scale-tile"),
+            recipe: recipe,
+            material: material,
+            background: background,
+            outlineImages: { actor in
+                guard let actorEvidence = presentationEvidence.actors.first(where: {
+                    $0.eventID == actor.eventID
+                }) else {
+                    throw MaterialEvidenceError.invalidPackage(
+                        "missing outline presentation evidence for \(actor.eventID)"
+                    )
+                }
+                return OutlineReadabilityImages(
+                    isolatedFull: actorEvidence.isolated.fullScreen.pngData,
+                    removedFull: actorEvidence.removed.fullScreen.pngData,
+                    isolatedTile: actorEvidence.isolated.calendarTile.pngData,
+                    removedTile: actorEvidence.removed.calendarTile.pngData
+                )
+            }
+        )
+    }
+
+    private static func sceneScaleReadability(
+        image: CGImage,
+        tileImage: CGImage,
+        recipe: SceneRecipe,
+        material: DailyMaterialDNA,
+        background: BackgroundCondition,
+        outlineImages: ((ActorCompositionRecipe) throws -> OutlineReadabilityImages)?
     ) throws -> [MaterialSceneScaleActorMetrics] {
         let analysis = AnalysisImage(
             width: image.width,
@@ -1100,7 +1256,12 @@ public enum MaterialEvidencePackage {
             rgba: try normalizedRGBA(image)
         )
         let backgroundColor = Self.backgroundRGB(background)
-        return recipe.actors.map { actor in
+        let tileAnalysis = AnalysisImage(
+            width: tileImage.width,
+            height: tileImage.height,
+            rgba: try normalizedRGBA(tileImage)
+        )
+        return try recipe.actors.map { actor in
             let actorMaterial = material.actor(actor.eventID)
             let centerX = actor.position.x * 393
             // normalizedRGBA exposes the bitmap's bottom-origin row order, the
@@ -1111,6 +1272,90 @@ public enum MaterialEvidencePackage {
             let maximumX = min(392, Int(ceil(centerX + nominalRadius * 1.08)))
             let minimumY = max(0, Int(floor(centerY - nominalRadius * 1.08)))
             let maximumY = min(851, Int(ceil(centerY + nominalRadius * 1.08)))
+            if material.family == .outline {
+                guard let outlineImages else {
+                    throw MaterialEvidenceError.invalidPackage(
+                        "outline scene-scale readability requires presentation images"
+                    )
+                }
+                let actorImages = try outlineImages(actor)
+                let isolatedFull = try decodedPNG(
+                    actorImages.isolatedFull,
+                    path: "scene-scale-isolated"
+                )
+                let removedFull = try decodedPNG(
+                    actorImages.removedFull,
+                    path: "scene-scale-removed"
+                )
+                let isolatedTile = try decodedPNG(
+                    actorImages.isolatedTile,
+                    path: "scene-scale-isolated-tile"
+                )
+                let removedTile = try decodedPNG(
+                    actorImages.removedTile,
+                    path: "scene-scale-removed-tile"
+                )
+                let isolatedAnalysis = AnalysisImage(
+                    width: isolatedFull.width,
+                    height: isolatedFull.height,
+                    rgba: try normalizedRGBA(isolatedFull)
+                )
+                let removedAnalysis = AnalysisImage(
+                    width: removedFull.width,
+                    height: removedFull.height,
+                    rgba: try normalizedRGBA(removedFull)
+                )
+                let isolatedTileAnalysis = AnalysisImage(
+                    width: isolatedTile.width,
+                    height: isolatedTile.height,
+                    rgba: try normalizedRGBA(isolatedTile)
+                )
+                let removedTileAnalysis = AnalysisImage(
+                    width: removedTile.width,
+                    height: removedTile.height,
+                    rgba: try normalizedRGBA(removedTile)
+                )
+                let fullPresentation = outlineActorPresentation(
+                    isolated: isolatedAnalysis,
+                    composed: analysis,
+                    removed: removedAnalysis,
+                    actor: actor,
+                    background: backgroundColor,
+                    centerYAdjustment: 0
+                )
+                let tilePresentation = outlineActorPresentation(
+                    isolated: isolatedTileAnalysis,
+                    composed: tileAnalysis,
+                    removed: removedTileAnalysis,
+                    actor: actor,
+                    background: backgroundColor,
+                    centerYAdjustment: -229
+                )
+                let fullMetadata = fullPresentation.metadata
+                let tileMetadata = tilePresentation.metadata
+                let fullPasses = fullMetadata.observableOwnedRayCount == 0
+                    || fullMetadata.angularCoverage >= 0.82
+                let tilePasses = tileMetadata.observableOwnedRayCount == 0
+                    || tileMetadata.angularCoverage >= 0.82
+                return MaterialSceneScaleActorMetrics(
+                    eventID: actor.eventID,
+                    diameter: actor.diameter,
+                    eligible: actor.diameter >= 0.15,
+                    sampleCount: fullPresentation.sampleCount,
+                    meanContrast: fullPresentation.meanContrast,
+                    percentile90Contrast: fullPresentation.percentile90Contrast,
+                    visibleAreaFraction: fullPresentation.identityAngularCoverage,
+                    fullPresentation: fullMetadata,
+                    tilePresentation: tileMetadata,
+                    passes: actor.diameter < 0.15 || (
+                        fullPresentation.sampleCount >= 8
+                            && fullPresentation.percentile90Contrast >= 0.16
+                            && fullPresentation.identityAngularCoverage >= 0.82
+                            && fullPasses
+                            && tilePasses
+                    )
+                )
+            }
             var contrasts = [Double]()
             for y in minimumY...maximumY {
                 for x in minimumX...maximumX {
@@ -1119,8 +1364,6 @@ public enum MaterialEvidencePackage {
                         (Double(y) + 0.5 - centerY) / max(nominalRadius, 1)
                     )
                     let sample: Bool = switch material.family {
-                    case .outline:
-                        (0.58...1.04).contains(normalizedRadius)
                     case .counterform:
                         normalizedRadius >= (actorMaterial?.counterformRadius ?? 0.30) * 0.90
                             && normalizedRadius <= 1.02
@@ -1156,6 +1399,8 @@ public enum MaterialEvidencePackage {
                 meanContrast: mean,
                 percentile90Contrast: percentile90,
                 visibleAreaFraction: visibleArea,
+                fullPresentation: nil,
+                tilePresentation: nil,
                 passes: actor.diameter < 0.15 || (
                     contrasts.count >= 8
                         && percentile90 >= thresholds.contrast
@@ -1163,6 +1408,169 @@ public enum MaterialEvidencePackage {
                 )
             )
         }
+    }
+
+    private static func outlineContourPresentation(
+        image: AnalysisImage,
+        actor: ActorCompositionRecipe,
+        background: AnalysisPixel,
+        centerYAdjustment: Double
+    ) -> (
+        sampleCount: Int,
+        meanContrast: Double,
+        percentile90Contrast: Double,
+        angularCoverage: Double
+    ) {
+        let centerX = actor.position.x * 393
+        let centerY = actor.position.y * 852 + centerYAdjustment
+        let pixelRadius = max(actor.diameter * 393 * 0.48, 1)
+        var supportedContrasts = [Double]()
+        var supportedRays = 0
+        for angleIndex in 0..<96 {
+            let angle = Double(angleIndex) / 96 * Double.pi * 2
+            var longestRun = 0
+            var currentRun = 0
+            var rayContrasts = [Double]()
+            let radialSteps = max(1, Int(ceil((1.08 - 0.52) * pixelRadius)))
+            for step in 0...radialSteps {
+                let radius = 0.52 + Double(step) / pixelRadius
+                let x = Int((centerX + cos(angle) * radius * pixelRadius).rounded(.down))
+                let y = Int((centerY + sin(angle) * radius * pixelRadius).rounded(.down))
+                guard (0..<image.width).contains(x), (0..<image.height).contains(y) else {
+                    currentRun = 0
+                    continue
+                }
+                let contrast = image.pixel(x: x, y: y).distance(to: background)
+                if contrast >= 0.075 {
+                    currentRun += 1
+                    longestRun = max(longestRun, currentRun)
+                    rayContrasts.append(contrast)
+                } else {
+                    currentRun = 0
+                }
+            }
+            if longestRun >= 2 {
+                supportedRays += 1
+                supportedContrasts.append(contentsOf: rayContrasts)
+            }
+        }
+        supportedContrasts.sort()
+        let percentileIndex = min(
+            max(supportedContrasts.count - 1, 0),
+            Int(Double(max(supportedContrasts.count - 1, 0)) * 0.90)
+        )
+        return (
+            sampleCount: supportedContrasts.count,
+            meanContrast: supportedContrasts.reduce(0, +)
+                / Double(max(supportedContrasts.count, 1)),
+            percentile90Contrast: supportedContrasts.isEmpty ? 0 : supportedContrasts[percentileIndex],
+            angularCoverage: Double(supportedRays) / 96
+        )
+    }
+
+    private struct OutlineActorPresentation {
+        let sampleCount: Int
+        let meanContrast: Double
+        let percentile90Contrast: Double
+        let identityAngularCoverage: Double
+        let metadata: MaterialOutlinePresentationMetadata
+    }
+
+    private static func outlineActorPresentation(
+        isolated: AnalysisImage,
+        composed: AnalysisImage,
+        removed: AnalysisImage,
+        actor: ActorCompositionRecipe,
+        background: AnalysisPixel,
+        centerYAdjustment: Double
+    ) -> OutlineActorPresentation {
+        let centerX = actor.position.x * 393
+        let centerY = actor.position.y * 852 + centerYAdjustment
+        let pixelRadius = max(actor.diameter * 393 * 0.48, 1)
+        let radialSteps = max(1, Int(ceil((1.08 - 0.52) * pixelRadius)))
+        var identityContrasts = [Double]()
+        var identitySupportedRays = 0
+        var inFrameRays = 0
+        var observableOwnedRays = 0
+        var occludedRays = 0
+        var presentationSupportedRays = 0
+
+        for angleIndex in 0..<96 {
+            let angle = Double(angleIndex) / 96 * Double.pi * 2
+            var inFrame = true
+            var identityRun = 0
+            var longestIdentityRun = 0
+            var contributionRun = 0
+            var longestContributionRun = 0
+            var presentationRun = 0
+            var longestPresentationRun = 0
+            var rayIdentityContrasts = [Double]()
+            for step in 0...radialSteps {
+                let radius = 0.52 + Double(step) / pixelRadius
+                let x = Int((centerX + cos(angle) * radius * pixelRadius).rounded(.down))
+                let y = Int((centerY + sin(angle) * radius * pixelRadius).rounded(.down))
+                guard (0..<isolated.width).contains(x), (0..<isolated.height).contains(y) else {
+                    inFrame = false
+                    identityRun = 0
+                    contributionRun = 0
+                    presentationRun = 0
+                    continue
+                }
+                let isolatedPixel = isolated.pixel(x: x, y: y)
+                let composedPixel = composed.pixel(x: x, y: y)
+                let isolatedContrast = isolatedPixel.distance(to: background)
+                let actorOwned = isolatedContrast >= 0.075
+                let actorContributes = composedPixel.distance(to: removed.pixel(x: x, y: y))
+                    >= 1.0 / 255.0
+                let visible = actorOwned
+                    && actorContributes
+                    && composedPixel.distance(to: background) >= 0.075
+
+                identityRun = actorOwned ? identityRun + 1 : 0
+                contributionRun = actorOwned && actorContributes ? contributionRun + 1 : 0
+                presentationRun = visible ? presentationRun + 1 : 0
+                longestIdentityRun = max(longestIdentityRun, identityRun)
+                longestContributionRun = max(longestContributionRun, contributionRun)
+                longestPresentationRun = max(longestPresentationRun, presentationRun)
+                if actorOwned { rayIdentityContrasts.append(isolatedContrast) }
+            }
+            guard inFrame else { continue }
+            inFrameRays += 1
+            if longestIdentityRun >= 2 {
+                identitySupportedRays += 1
+                identityContrasts.append(contentsOf: rayIdentityContrasts)
+                if longestContributionRun >= 2 {
+                    observableOwnedRays += 1
+                    if longestPresentationRun >= 2 { presentationSupportedRays += 1 }
+                } else {
+                    occludedRays += 1
+                }
+            }
+        }
+
+        identityContrasts.sort()
+        let percentileIndex = min(
+            max(identityContrasts.count - 1, 0),
+            Int(Double(max(identityContrasts.count - 1, 0)) * 0.90)
+        )
+        let identityCoverage = Double(identitySupportedRays) / Double(max(inFrameRays, 1))
+        let presentationCoverage = Double(presentationSupportedRays)
+            / Double(max(observableOwnedRays, 1))
+        return OutlineActorPresentation(
+            sampleCount: identityContrasts.count,
+            meanContrast: identityContrasts.reduce(0, +)
+                / Double(max(identityContrasts.count, 1)),
+            percentile90Contrast: identityContrasts.isEmpty ? 0 : identityContrasts[percentileIndex],
+            identityAngularCoverage: identityCoverage,
+            metadata: MaterialOutlinePresentationMetadata(
+                inFrameRayCount: inFrameRays,
+                croppedRayCount: 96 - inFrameRays,
+                observableOwnedRayCount: observableOwnedRays,
+                occludedRayCount: occludedRays,
+                supportedRayCount: presentationSupportedRays,
+                angularCoverage: presentationCoverage
+            )
+        )
     }
 
     static func sceneScaleTopology(
@@ -1189,22 +1597,20 @@ public enum MaterialEvidencePackage {
             viewport: recipe.viewport,
             actors: [actor]
         )
-        let source = try renderer.render(
+        let source = try sceneScaleRenderedScene(
             recipe: isolated,
             material: material,
             background: background,
-            configuration: .init(scale: 2)
+            renderer: renderer
         )
-        let sourceImage = try decodedPNG(
+        let full = try decodedPNG(
             source.fullScreen.pngData,
             path: "scene-scale-topology-source"
         )
-        let full = try downsampled(sourceImage, width: 393, height: 852)
-        guard let tile = full.cropping(
-            to: CGRect(x: 0, y: 229, width: 393, height: 393)
-        ) else {
-            throw MaterialEvidenceError.cannotCreateContactSheet
-        }
+        let tile = try decodedPNG(
+            source.calendarTile.pngData,
+            path: "scene-scale-topology-tile"
+        )
         let fullBands = try topologyBands(
             image: full,
             actor: actor,
@@ -1225,6 +1631,26 @@ public enum MaterialEvidencePackage {
             background: background,
             renderer: renderer
         )
+        let fullOutline = outlineContourPresentation(
+            image: AnalysisImage(
+                width: full.width,
+                height: full.height,
+                rgba: try normalizedRGBA(full)
+            ),
+            actor: actor,
+            background: backgroundRGB(background),
+            centerYAdjustment: 0
+        )
+        let tileOutline = outlineContourPresentation(
+            image: AnalysisImage(
+                width: tile.width,
+                height: tile.height,
+                rgba: try normalizedRGBA(tile)
+            ),
+            actor: actor,
+            background: backgroundRGB(background),
+            centerYAdjustment: -229
+        )
         let normalRenderPasses: Bool
         switch family {
         case .halo:
@@ -1235,14 +1661,12 @@ public enum MaterialEvidencePackage {
                 && fullBands.margin <= 0.18
                 && tileBands.margin <= 0.18
         case .outline:
-            normalRenderPasses = fullBands.center >= 0.075
-                && tileBands.center >= 0.075
-                && fullBands.rim >= 0.13
-                && tileBands.rim >= 0.13
-                && fullBands.ratio >= 0.34
-                && tileBands.ratio >= 0.34
-                && fullBands.margin <= 0.40
-                && tileBands.margin <= 0.40
+            normalRenderPasses = fullBands.rim >= 0.040
+                && tileBands.rim >= 0.040
+                && fullBands.ratio <= 0.22
+                && tileBands.ratio <= 0.22
+                && fullOutline.angularCoverage >= 0.82
+                && tileOutline.angularCoverage >= 0.82
         case .counterform:
             let requiredRimContrast = 0.25
             let maximumCenterRatio = 0.55
@@ -1258,11 +1682,14 @@ public enum MaterialEvidencePackage {
         }
         let requiredEccentricOffset = family == .counterform ? 0.003 : 0.010
         let requiredThicknessRange = 0.025
+        let alphaBandsPass = family == .outline || (
+            alphaTopology.full.allSatisfy(\.passes)
+                && alphaTopology.tile.allSatisfy(\.passes)
+        )
         let passes = normalRenderPasses
             && !alphaTopology.full.isEmpty
             && alphaTopology.full.count == alphaTopology.tile.count
-            && alphaTopology.full.allSatisfy(\.passes)
-            && alphaTopology.tile.allSatisfy(\.passes)
+            && alphaBandsPass
             && (alphaTopology.full.map(\.centerOffset).min() ?? 0) >= requiredEccentricOffset
             && (alphaTopology.tile.map(\.centerOffset).min() ?? 0) >= requiredEccentricOffset
             && (alphaTopology.full.map(\.thicknessRange).min() ?? 0) >= requiredThicknessRange

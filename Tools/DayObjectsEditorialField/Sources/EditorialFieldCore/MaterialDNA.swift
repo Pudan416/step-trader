@@ -413,10 +413,9 @@ public enum MaterialDNA {
             let count = mutation == .multiOutline
                 ? 2 + Int(actorUnit(actorSeed, salt: 0x0A71) * 2)
                 : 1
-            // A contour must remain a contour after the approved depth blur is
-            // sampled onto the 393 pt canvas. This is material topology, not a
-            // change to the frozen actor diameter or placement.
-            let width = 0.092 + actorUnit(actorSeed, salt: 0x0A72) * 0.022
+            // Keep the authored band thin enough to retain an open center at
+            // actual scene scale while still surviving the approved depth blur.
+            let width = 0.050 + actorUnit(actorSeed, salt: 0x0A72) * 0.012
             return (0.98, 0.014, width, count, nil, 0)
         case .counterform:
             let base = 0.30 + actorUnit(actorSeed, salt: 0xC017) * 0.10
@@ -474,38 +473,39 @@ public enum MaterialDNA {
                 contours: []
             )
         case .outline:
-            let spacingFactors = [0.0, 1.05, 3.42]
-            let opacityFactors = [1.0, 0.69, 0.43]
-            let widthFactors = [1.06, 0.74, 0.51]
-            let alongShifts = [0.0, 0.034, 0.082]
-            let crossShifts = [0.0, -0.023, 0.036]
+            // `contourWidth` is the complete outer envelope. The first band
+            // owns the silhouette; optional contours are hairlines contained
+            // inside that same envelope rather than nested body-sized rings.
+            let outerInsetFactors = [0.0, 0.60, 0.86]
+            let widthFactors = [0.48, 0.16, 0.10]
+            let opacityFactors = [1.0, 0.72, 0.50]
+            let alongShiftFactors = [0.0, 0.10, 0.16]
+            let crossShiftFactors = [0.0, -0.04, 0.06]
             let contours = (0..<max(1, contourCount)).map { index in
-                let centerRadius = 0.48
-                    - contourWidth * 0.55
-                    - contourWidth * spacingFactors[index]
                 let bandWidth = contourWidth * widthFactors[index]
                 let contourOuterCenter = boundedTopologyPoint(
-                    x: outerCenter.x + directionX * alongShifts[index]
-                        + perpendicularX * handedness * crossShifts[index],
-                    y: outerCenter.y + directionY * alongShifts[index]
-                        + perpendicularY * handedness * crossShifts[index]
+                    x: outerCenter.x + directionX * contourWidth * alongShiftFactors[index]
+                        + perpendicularX * handedness * contourWidth * crossShiftFactors[index],
+                    y: outerCenter.y + directionY * contourWidth * alongShiftFactors[index]
+                        + perpendicularY * handedness * contourWidth * crossShiftFactors[index]
                 )
-                // The cutout offset scales with its own band so even the
-                // quiet inner contour stays a complete, soft crescent rather
-                // than breaking into a wedge.
-                let cutoutShift = min(0.072, max(0.050, bandWidth * 0.68))
-                let cutoutCross = min(0.026, cutoutShift * (0.20 + Double(index) * 0.08))
+                let displacementFraction = 0.62
+                    + actorUnit(actorSeed, salt: UInt64(0xECCE_1710 + index)) * 0.06
+                let displacementAngle = 0.12 + Double(index) * 0.08
+                let cutoutShift = bandWidth * displacementFraction * cos(displacementAngle)
+                let cutoutCross = bandWidth * displacementFraction * sin(displacementAngle)
                 let contourInnerCenter = boundedTopologyPoint(
                     x: contourOuterCenter.x + directionX * cutoutShift
                         + perpendicularX * handedness * cutoutCross,
                     y: contourOuterCenter.y + directionY * cutoutShift
                         + perpendicularY * handedness * cutoutCross
                 )
+                let contourOuterRadius = 0.475 - contourWidth * outerInsetFactors[index]
                 return OrganicRadialContour(
                     outerCenter: contourOuterCenter,
-                    outerRadius: centerRadius + bandWidth * 0.5,
+                    outerRadius: contourOuterRadius,
                     innerCenter: contourInnerCenter,
-                    innerRadius: max(0.035, centerRadius - bandWidth * 0.5),
+                    innerRadius: contourOuterRadius - bandWidth,
                     opacity: opacityFactors[index]
                 )
             }

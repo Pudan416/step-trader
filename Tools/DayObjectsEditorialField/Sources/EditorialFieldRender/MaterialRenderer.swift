@@ -5,11 +5,120 @@ import ImageIO
 import UniformTypeIdentifiers
 import EditorialFieldCore
 
+enum MaterialOutlineVisibilityPlacement: Equatable, Sendable {
+    case none
+    case actorLayerPreComposite
+}
+
+enum MaterialOutlineCounterfactualMode: Equatable, Sendable {
+    case actorRemovedReference
+    case capturedActorReplay
+}
+
+public enum MaterialPresentationEvidenceRequest: Equatable, Sendable {
+    case none
+    case perActor
+}
+
+public struct MaterialPresentationOwnership: Sendable {
+    public let width: Int
+    public let height: Int
+    public let ownerEventIDs: [String]
+    public let ownerLabels: Data
+    public let counterfactualBackgroundRGBA: Data
+}
+
+public struct MaterialPresentationEvidenceScene: Sendable {
+    public let fullScreen: NeutralRenderedImage
+    public let calendarTile: NeutralRenderedImage
+    public let tileCrop: PixelRect
+    public let drawSequence: [String]
+    public let ownership: MaterialPresentationOwnership
+}
+
+public struct MaterialActorPresentationEvidence: Sendable {
+    public let eventID: String
+    public let isolated: MaterialPresentationEvidenceScene
+    public let removed: MaterialPresentationEvidenceScene
+}
+
+public struct MaterialPresentationEvidence: Sendable {
+    public let actors: [MaterialActorPresentationEvidence]
+}
+
+struct MaterialOutlineOwnershipTrace: Equatable, Sendable {
+    let width: Int
+    let height: Int
+    let ownerEventIDs: [String]
+    let ownerLabels: Data
+    let counterfactualBackgroundRGBA: Data
+}
+
+final class MaterialRenderInstrumentation: @unchecked Sendable, Equatable {
+    var canonicalRawSceneRenders = 0
+    var actorRemovedFullSceneRenders = 0
+    var capturedActorLayerBuilds = 0
+    var counterfactualCompositePasses = 0
+    var isolatedPresentationComposites = 0
+    var ownershipTrace: MaterialOutlineOwnershipTrace?
+
+    static func == (lhs: MaterialRenderInstrumentation, rhs: MaterialRenderInstrumentation) -> Bool {
+        lhs === rhs
+    }
+}
+
+struct MaterialCapturedActorLayer: @unchecked Sendable {
+    let image: CGImage
+    let drawRect: CGRect
+}
+
+final class MaterialRawSceneCapture: @unchecked Sendable, Equatable {
+    var actorLayers = [MaterialCapturedActorLayer]()
+
+    static func == (lhs: MaterialRawSceneCapture, rhs: MaterialRawSceneCapture) -> Bool {
+        lhs === rhs
+    }
+}
+
 public struct MaterialRenderConfiguration: Equatable, Sendable {
     public let scale: Int
+    public let supersampling: Int
+    public let presentationEvidenceRequest: MaterialPresentationEvidenceRequest
+    let outlineVisibilityPlacement: MaterialOutlineVisibilityPlacement
+    let outlineCounterfactualMode: MaterialOutlineCounterfactualMode
+    let instrumentation: MaterialRenderInstrumentation?
+    let rawSceneCapture: MaterialRawSceneCapture?
 
-    public init(scale: Int = 3) {
+    public init(
+        scale: Int = 3,
+        supersampling: Int = 1,
+        presentationEvidenceRequest: MaterialPresentationEvidenceRequest = .none
+    ) {
         self.scale = scale
+        self.supersampling = supersampling
+        self.presentationEvidenceRequest = presentationEvidenceRequest
+        self.outlineVisibilityPlacement = .none
+        self.outlineCounterfactualMode = .capturedActorReplay
+        self.instrumentation = nil
+        self.rawSceneCapture = nil
+    }
+
+    init(
+        scale: Int,
+        supersampling: Int = 1,
+        outlineVisibilityPlacement: MaterialOutlineVisibilityPlacement,
+        outlineCounterfactualMode: MaterialOutlineCounterfactualMode = .capturedActorReplay,
+        instrumentation: MaterialRenderInstrumentation? = nil,
+        rawSceneCapture: MaterialRawSceneCapture? = nil,
+        presentationEvidenceRequest: MaterialPresentationEvidenceRequest = .none
+    ) {
+        self.scale = scale
+        self.supersampling = supersampling
+        self.presentationEvidenceRequest = presentationEvidenceRequest
+        self.outlineVisibilityPlacement = outlineVisibilityPlacement
+        self.outlineCounterfactualMode = outlineCounterfactualMode
+        self.instrumentation = instrumentation
+        self.rawSceneCapture = rawSceneCapture
     }
 }
 
@@ -18,6 +127,7 @@ public struct MaterialRenderedScene: Sendable {
     public let calendarTile: NeutralRenderedImage
     public let tileCrop: PixelRect
     public let drawSequence: [String]
+    public let presentationEvidence: MaterialPresentationEvidence?
 }
 
 public enum MaterialRendererError: Error, LocalizedError {
@@ -57,16 +167,33 @@ public struct MaterialRenderer {
     public func renderActor(
         _ material: ActorMaterialRecipe,
         pixelSize: Int,
-        background: BackgroundCondition? = nil
+        background: BackgroundCondition? = nil,
+        supersampling: Int = 1
     ) throws -> NeutralRenderedImage {
         guard pixelSize > 0 else { throw MaterialRendererError.invalidPixelSize(pixelSize) }
+        guard supersampling > 0 else { throw MaterialRendererError.invalidScale(supersampling) }
+        if supersampling > 1 {
+            return try renderSupersampledActor(
+                material,
+                pixelSize: pixelSize,
+                background: background,
+                supersampling: supersampling
+            )
+        }
         try validate(material)
         let backgroundColor = background.map(Self.backgroundColor(for:))
-        let actorImage = try makeActorImage(
+        var actorImage = try makeActorImage(
             material,
             pixelSize: pixelSize,
             contrastBackground: backgroundColor
         )
+        if material.family == .mist {
+            actorImage = try applyingMistGrain(
+                actorImage,
+                material: material,
+                sourceDiameter: pixelSize
+            )
+        }
         let finalImage: CGImage
         if let backgroundColor {
             let context = try makeContext(width: pixelSize, height: pixelSize)
@@ -150,6 +277,17 @@ public struct MaterialRenderer {
         guard configuration.scale > 0 else {
             throw MaterialRendererError.invalidScale(configuration.scale)
         }
+        guard configuration.supersampling > 0 else {
+            throw MaterialRendererError.invalidScale(configuration.supersampling)
+        }
+        if configuration.supersampling > 1 {
+            return try renderSupersampled(
+                recipe: recipe,
+                material: material,
+                background: background,
+                configuration: configuration
+            )
+        }
         guard recipe.viewport == .phone else {
             throw MaterialRendererError.unsupportedViewport(recipe.viewport)
         }
@@ -172,7 +310,6 @@ public struct MaterialRenderer {
             alpha: 1
         )
         context.fill(CGRect(x: 0, y: 0, width: width, height: height))
-
         let ordered = recipe.actors.sorted {
             if $0.drawOrder != $1.drawOrder { return $0.drawOrder < $1.drawOrder }
             if $0.depth != $1.depth { return $0.depth < $1.depth }
@@ -207,11 +344,25 @@ public struct MaterialRenderer {
                 )
                 actorImage = try blurred(actorImage, radius: blur)
             }
+            if actorMaterial.family == .mist {
+                actorImage = try applyingMistGrain(
+                    actorImage,
+                    material: actorMaterial,
+                    sourceDiameter: diameter
+                )
+            }
             if let outlineAccentImage {
                 actorImage = try compositedCentered(
                     outlineAccentImage,
                     over: actorImage,
                     sourceDiameter: diameter
+                )
+            }
+            if actorMaterial.family == .outline,
+               configuration.outlineVisibilityPlacement == .actorLayerPreComposite {
+                actorImage = try applyingFinalVisibility(
+                    actorImage,
+                    background: backgroundColor
                 )
             }
             let center = CGPoint(
@@ -220,12 +371,20 @@ public struct MaterialRenderer {
             )
             let layerWidth = Double(actorImage.width)
             let layerHeight = Double(actorImage.height)
-            context.draw(actorImage, in: CGRect(
+            let layerRect = CGRect(
                 x: center.x - layerWidth * 0.5,
                 y: center.y - layerHeight * 0.5,
                 width: layerWidth,
                 height: layerHeight
-            ))
+            )
+            if let rawSceneCapture = configuration.rawSceneCapture {
+                rawSceneCapture.actorLayers.append(MaterialCapturedActorLayer(
+                    image: actorImage,
+                    drawRect: layerRect
+                ))
+                configuration.instrumentation?.capturedActorLayerBuilds += 1
+            }
+            context.draw(actorImage, in: layerRect)
         }
 
         guard let fullImage = context.makeImage() else { throw MaterialRendererError.cannotCreateImage }
@@ -255,7 +414,8 @@ public struct MaterialRenderer {
                 pixelHeight: tileSide
             ),
             tileCrop: tileCrop,
-            drawSequence: ordered.map(\.eventID)
+            drawSequence: ordered.map(\.eventID),
+            presentationEvidence: nil
         )
     }
 
@@ -268,6 +428,598 @@ public struct MaterialRenderer {
         case .saturated: MaterialColor(red: 0.21, green: 0.045, blue: 0.29)
         case .lowContrast: MaterialColor(red: 0.49, green: 0.50, blue: 0.47)
         }
+    }
+
+    private struct FinalOutlineOwnership {
+        let eventID: String
+        let isolatedAlpha: CGImage
+        let actorRemoved: CGImage
+    }
+
+    private func renderSupersampled(
+        recipe: CompositionRecipe,
+        material: DailyMaterialDNA,
+        background: BackgroundCondition,
+        configuration: MaterialRenderConfiguration
+    ) throws -> MaterialRenderedScene {
+        let sourceScale = configuration.scale * configuration.supersampling
+        let rawSceneCapture = material.family == .outline
+            && configuration.outlineVisibilityPlacement == .none
+            && configuration.outlineCounterfactualMode == .capturedActorReplay
+            ? MaterialRawSceneCapture()
+            : nil
+        let sourceConfiguration = MaterialRenderConfiguration(
+            scale: sourceScale,
+            outlineVisibilityPlacement: configuration.outlineVisibilityPlacement,
+            instrumentation: configuration.instrumentation,
+            rawSceneCapture: rawSceneCapture
+        )
+        configuration.instrumentation?.canonicalRawSceneRenders += 1
+        let source = try render(
+            recipe: recipe,
+            material: material,
+            background: background,
+            configuration: sourceConfiguration
+        )
+        let outputWidth = Int(recipe.viewport.width) * configuration.scale
+        let outputHeight = Int(recipe.viewport.height) * configuration.scale
+        var fullImage = try downsampled(
+            try decodedPNG(source.fullScreen.pngData),
+            width: outputWidth,
+            height: outputHeight
+        )
+        var presentationEvidence: MaterialPresentationEvidence?
+
+        if material.family == .outline,
+           configuration.outlineVisibilityPlacement == .none {
+            var owners = [FinalOutlineOwnership]()
+            owners.reserveCapacity(source.drawSequence.count)
+            switch configuration.outlineCounterfactualMode {
+            case .actorRemovedReference:
+                for eventID in source.drawSequence {
+                    guard let actor = recipe.actors.first(where: { $0.eventID == eventID }),
+                          let actorMaterial = material.actor(eventID)
+                    else { throw MaterialRendererError.missingActorMaterial(eventID) }
+                    let removedRecipe = CompositionRecipe(
+                        daySeed: recipe.daySeed,
+                        grammar: recipe.grammar,
+                        viewport: recipe.viewport,
+                        actors: recipe.actors.filter { $0.eventID != eventID }
+                    )
+                    configuration.instrumentation?.actorRemovedFullSceneRenders += 1
+                    let removed = try render(
+                        recipe: removedRecipe,
+                        material: material,
+                        background: background,
+                        configuration: .init(scale: sourceScale)
+                    )
+                    let actorRemoved = try downsampled(
+                        try decodedPNG(removed.fullScreen.pngData),
+                        width: outputWidth,
+                        height: outputHeight
+                    )
+                    configuration.instrumentation?.capturedActorLayerBuilds += 1
+                    let isolatedAlpha = try downsampled(
+                        try outlineActorLayerScene(
+                            actor: actor,
+                            material: actorMaterial,
+                            background: Self.backgroundColor(for: background),
+                            width: Int(recipe.viewport.width) * sourceScale,
+                            height: Int(recipe.viewport.height) * sourceScale
+                        ),
+                        width: outputWidth,
+                        height: outputHeight
+                    )
+                    owners.append(FinalOutlineOwnership(
+                        eventID: eventID,
+                        isolatedAlpha: isolatedAlpha,
+                        actorRemoved: actorRemoved
+                    ))
+                }
+            case .capturedActorReplay:
+                guard let rawSceneCapture,
+                      rawSceneCapture.actorLayers.count == source.drawSequence.count
+                else { throw MaterialRendererError.cannotCreateImage }
+                var isolatedImages = [CGImage]()
+                var singleRemovedImages = [CGImage]()
+                isolatedImages.reserveCapacity(source.drawSequence.count)
+                singleRemovedImages.reserveCapacity(source.drawSequence.count)
+                for actorIndex in source.drawSequence.indices {
+                    let isolatedContext = try makeContext(
+                        width: Int(recipe.viewport.width) * sourceScale,
+                        height: Int(recipe.viewport.height) * sourceScale
+                    )
+                    isolatedContext.clear(CGRect(
+                        x: 0,
+                        y: 0,
+                        width: isolatedContext.width,
+                        height: isolatedContext.height
+                    ))
+                    let isolatedLayer = rawSceneCapture.actorLayers[actorIndex]
+                    isolatedContext.draw(isolatedLayer.image, in: isolatedLayer.drawRect)
+                    guard let isolatedAlphaSource = isolatedContext.makeImage() else {
+                        throw MaterialRendererError.cannotCreateImage
+                    }
+
+                    let removedContext = try makeContext(
+                        width: Int(recipe.viewport.width) * sourceScale,
+                        height: Int(recipe.viewport.height) * sourceScale
+                    )
+                    let backgroundColor = Self.backgroundColor(for: background)
+                    removedContext.setFillColor(
+                        red: backgroundColor.red,
+                        green: backgroundColor.green,
+                        blue: backgroundColor.blue,
+                        alpha: 1
+                    )
+                    removedContext.fill(CGRect(
+                        x: 0,
+                        y: 0,
+                        width: removedContext.width,
+                        height: removedContext.height
+                    ))
+                    for replayIndex in rawSceneCapture.actorLayers.indices
+                    where replayIndex != actorIndex {
+                        let layer = rawSceneCapture.actorLayers[replayIndex]
+                        removedContext.draw(layer.image, in: layer.drawRect)
+                    }
+                    guard let actorRemovedSource = removedContext.makeImage() else {
+                        throw MaterialRendererError.cannotCreateImage
+                    }
+                    configuration.instrumentation?.counterfactualCompositePasses += 1
+                    let isolatedImage = try downsampled(
+                        isolatedAlphaSource,
+                        width: outputWidth,
+                        height: outputHeight
+                    )
+                    let singleRemovedImage = try downsampled(
+                        actorRemovedSource,
+                        width: outputWidth,
+                        height: outputHeight
+                    )
+                    isolatedImages.append(isolatedImage)
+                    singleRemovedImages.append(singleRemovedImage)
+                    owners.append(FinalOutlineOwnership(
+                        eventID: source.drawSequence[actorIndex],
+                        isolatedAlpha: isolatedImage,
+                        actorRemoved: singleRemovedImage
+                    ))
+                }
+                if configuration.presentationEvidenceRequest == .perActor {
+                    let sourceWidth = Int(recipe.viewport.width) * sourceScale
+                    let sourceHeight = Int(recipe.viewport.height) * sourceScale
+                    let backgroundColor = Self.backgroundColor(for: background)
+                    let flatBackground = try downsampled(
+                        try compositedCapturedScene(
+                            layers: [],
+                            excluding: [],
+                            width: sourceWidth,
+                            height: sourceHeight,
+                            background: backgroundColor
+                        ),
+                        width: outputWidth,
+                        height: outputHeight
+                    )
+                    var doubleRemovedImages = [Int: CGImage]()
+                    for firstIndex in source.drawSequence.indices {
+                        for secondIndex in source.drawSequence.indices where secondIndex > firstIndex {
+                            let pairKey = firstIndex * source.drawSequence.count + secondIndex
+                            doubleRemovedImages[pairKey] = try downsampled(
+                                try compositedCapturedScene(
+                                    layers: rawSceneCapture.actorLayers,
+                                    excluding: [firstIndex, secondIndex],
+                                    width: sourceWidth,
+                                    height: sourceHeight,
+                                    background: backgroundColor
+                                ),
+                                width: outputWidth,
+                                height: outputHeight
+                            )
+                            configuration.instrumentation?.counterfactualCompositePasses += 1
+                        }
+                    }
+
+                    var actorEvidence = [MaterialActorPresentationEvidence]()
+                    actorEvidence.reserveCapacity(source.drawSequence.count)
+                    for actorIndex in source.drawSequence.indices {
+                        let isolatedSource = try compositedCapturedScene(
+                            layers: [rawSceneCapture.actorLayers[actorIndex]],
+                            excluding: [],
+                            width: sourceWidth,
+                            height: sourceHeight,
+                            background: backgroundColor
+                        )
+                        configuration.instrumentation?.isolatedPresentationComposites += 1
+                        let isolatedCanonical = try downsampled(
+                            isolatedSource,
+                            width: outputWidth,
+                            height: outputHeight
+                        )
+                        let isolatedInstrumentation = MaterialRenderInstrumentation()
+                        let isolatedPresented = try applyingActorOwnedFinalVisibility(
+                            isolatedCanonical,
+                            owners: [FinalOutlineOwnership(
+                                eventID: source.drawSequence[actorIndex],
+                                isolatedAlpha: isolatedImages[actorIndex],
+                                actorRemoved: flatBackground
+                            )],
+                            instrumentation: isolatedInstrumentation
+                        )
+                        let isolatedTrace = try requiredOwnershipTrace(isolatedInstrumentation)
+
+                        let removedOrder = source.drawSequence.enumerated().compactMap {
+                            index, eventID in index == actorIndex ? nil : eventID
+                        }
+                        var removedOwners = [FinalOutlineOwnership]()
+                        removedOwners.reserveCapacity(removedOrder.count)
+                        for ownerIndex in source.drawSequence.indices where ownerIndex != actorIndex {
+                            let firstIndex = min(actorIndex, ownerIndex)
+                            let secondIndex = max(actorIndex, ownerIndex)
+                            let pairKey = firstIndex * source.drawSequence.count + secondIndex
+                            guard let doubleRemoved = doubleRemovedImages[pairKey] else {
+                                throw MaterialRendererError.cannotCreateImage
+                            }
+                            removedOwners.append(FinalOutlineOwnership(
+                                eventID: source.drawSequence[ownerIndex],
+                                isolatedAlpha: isolatedImages[ownerIndex],
+                                actorRemoved: doubleRemoved
+                            ))
+                        }
+                        let removedInstrumentation = MaterialRenderInstrumentation()
+                        let removedPresented = try applyingActorOwnedFinalVisibility(
+                            singleRemovedImages[actorIndex],
+                            owners: removedOwners,
+                            instrumentation: removedInstrumentation
+                        )
+                        let removedTrace = try requiredOwnershipTrace(removedInstrumentation)
+                        actorEvidence.append(MaterialActorPresentationEvidence(
+                            eventID: source.drawSequence[actorIndex],
+                            isolated: try presentationEvidenceScene(
+                                image: isolatedPresented,
+                                drawSequence: [source.drawSequence[actorIndex]],
+                                ownership: isolatedTrace,
+                                outputWidth: outputWidth,
+                                outputHeight: outputHeight
+                            ),
+                            removed: try presentationEvidenceScene(
+                                image: removedPresented,
+                                drawSequence: removedOrder,
+                                ownership: removedTrace,
+                                outputWidth: outputWidth,
+                                outputHeight: outputHeight
+                            )
+                        ))
+                    }
+                    presentationEvidence = MaterialPresentationEvidence(actors: actorEvidence)
+                }
+            }
+            fullImage = try applyingActorOwnedFinalVisibility(
+                fullImage,
+                owners: owners,
+                instrumentation: configuration.instrumentation
+            )
+        }
+
+        let tileSide = outputWidth
+        let tileCrop = PixelRect(
+            x: 0,
+            y: (outputHeight - tileSide) / 2,
+            width: tileSide,
+            height: tileSide
+        )
+        guard let tileImage = fullImage.cropping(to: CGRect(
+            x: tileCrop.x,
+            y: tileCrop.y,
+            width: tileCrop.width,
+            height: tileCrop.height
+        )) else { throw MaterialRendererError.cannotCreateImage }
+
+        return MaterialRenderedScene(
+            fullScreen: NeutralRenderedImage(
+                pngData: try pngData(fullImage),
+                pixelWidth: outputWidth,
+                pixelHeight: outputHeight
+            ),
+            calendarTile: NeutralRenderedImage(
+                pngData: try pngData(tileImage),
+                pixelWidth: tileSide,
+                pixelHeight: tileSide
+            ),
+            tileCrop: tileCrop,
+            drawSequence: source.drawSequence,
+            presentationEvidence: presentationEvidence
+        )
+    }
+
+    private func compositedCapturedScene(
+        layers: [MaterialCapturedActorLayer],
+        excluding excludedIndices: Set<Int>,
+        width: Int,
+        height: Int,
+        background: MaterialColor
+    ) throws -> CGImage {
+        let context = try makeContext(width: width, height: height)
+        context.setFillColor(
+            red: background.red,
+            green: background.green,
+            blue: background.blue,
+            alpha: 1
+        )
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        for index in layers.indices where !excludedIndices.contains(index) {
+            context.draw(layers[index].image, in: layers[index].drawRect)
+        }
+        guard let image = context.makeImage() else {
+            throw MaterialRendererError.cannotCreateImage
+        }
+        return image
+    }
+
+    private func requiredOwnershipTrace(
+        _ instrumentation: MaterialRenderInstrumentation
+    ) throws -> MaterialOutlineOwnershipTrace {
+        guard let trace = instrumentation.ownershipTrace else {
+            throw MaterialRendererError.cannotCreateImage
+        }
+        return trace
+    }
+
+    private func presentationEvidenceScene(
+        image: CGImage,
+        drawSequence: [String],
+        ownership: MaterialOutlineOwnershipTrace,
+        outputWidth: Int,
+        outputHeight: Int
+    ) throws -> MaterialPresentationEvidenceScene {
+        let tileCrop = PixelRect(
+            x: 0,
+            y: (outputHeight - outputWidth) / 2,
+            width: outputWidth,
+            height: outputWidth
+        )
+        guard let tileImage = image.cropping(to: CGRect(
+            x: tileCrop.x,
+            y: tileCrop.y,
+            width: tileCrop.width,
+            height: tileCrop.height
+        )) else { throw MaterialRendererError.cannotCreateImage }
+        return MaterialPresentationEvidenceScene(
+            fullScreen: NeutralRenderedImage(
+                pngData: try pngData(image),
+                pixelWidth: outputWidth,
+                pixelHeight: outputHeight
+            ),
+            calendarTile: NeutralRenderedImage(
+                pngData: try pngData(tileImage),
+                pixelWidth: outputWidth,
+                pixelHeight: outputWidth
+            ),
+            tileCrop: tileCrop,
+            drawSequence: drawSequence,
+            ownership: MaterialPresentationOwnership(
+                width: ownership.width,
+                height: ownership.height,
+                ownerEventIDs: ownership.ownerEventIDs,
+                ownerLabels: ownership.ownerLabels,
+                counterfactualBackgroundRGBA: ownership.counterfactualBackgroundRGBA
+            )
+        )
+    }
+
+    private func renderSupersampledActor(
+        _ material: ActorMaterialRecipe,
+        pixelSize: Int,
+        background: BackgroundCondition?,
+        supersampling: Int
+    ) throws -> NeutralRenderedImage {
+        let sourceSize = pixelSize * supersampling
+        let source = try renderActor(
+            material,
+            pixelSize: sourceSize,
+            background: background
+        )
+        var image = try downsampled(
+            try decodedPNG(source.pngData),
+            width: pixelSize,
+            height: pixelSize
+        )
+        if material.family == .outline, let background {
+            let isolated = try renderActor(material, pixelSize: sourceSize)
+            let isolatedAlpha = try downsampled(
+                try decodedPNG(isolated.pngData),
+                width: pixelSize,
+                height: pixelSize
+            )
+            let actorRemoved = try flatImage(
+                width: pixelSize,
+                height: pixelSize,
+                color: Self.backgroundColor(for: background)
+            )
+            image = try applyingActorOwnedFinalVisibility(
+                image,
+                owners: [FinalOutlineOwnership(
+                    eventID: material.eventID,
+                    isolatedAlpha: isolatedAlpha,
+                    actorRemoved: actorRemoved
+                )],
+                instrumentation: nil
+            )
+        }
+        return NeutralRenderedImage(
+            pngData: try pngData(image),
+            pixelWidth: pixelSize,
+            pixelHeight: pixelSize
+        )
+    }
+
+    private func outlineActorLayerScene(
+        actor: ActorCompositionRecipe,
+        material: ActorMaterialRecipe,
+        background: MaterialColor,
+        width: Int,
+        height: Int
+    ) throws -> CGImage {
+        let shortSide = Double(min(width, height))
+        let diameter = max(1, Int(ceil(actor.diameter * shortSide)))
+        var actorImage = try makeActorImage(
+            material,
+            pixelSize: diameter,
+            contrastBackground: background
+        )
+        let accent = try makeActorImage(
+            material,
+            pixelSize: diameter,
+            contrastBackground: background,
+            outlineAccentLayer: true
+        )
+        let blur = max(0, actor.localBlur * shortSide)
+        if blur >= 0.5 {
+            actorImage = try padded(actorImage, by: max(2, Int(ceil(blur * 3))))
+            actorImage = try blurred(actorImage, radius: blur)
+        }
+        actorImage = try compositedCentered(
+            accent,
+            over: actorImage,
+            sourceDiameter: diameter
+        )
+        let context = try makeContext(width: width, height: height)
+        context.clear(CGRect(x: 0, y: 0, width: width, height: height))
+        let center = CGPoint(
+            x: actor.position.x * Double(width),
+            y: (1 - actor.position.y) * Double(height)
+        )
+        let layerWidth = Double(actorImage.width)
+        let layerHeight = Double(actorImage.height)
+        context.draw(actorImage, in: CGRect(
+            x: center.x - layerWidth * 0.5,
+            y: center.y - layerHeight * 0.5,
+            width: layerWidth,
+            height: layerHeight
+        ))
+        guard let image = context.makeImage() else {
+            throw MaterialRendererError.cannotCreateImage
+        }
+        return image
+    }
+
+    /// Final-resolution outline presentation. Ownership is resolved from the
+    /// already-downsampled actor layers in reverse canonical draw order. This
+    /// stage changes RGB only; canonical alpha and compositing stay untouched.
+    private func applyingActorOwnedFinalVisibility(
+        _ image: CGImage,
+        owners: [FinalOutlineOwnership],
+        instrumentation: MaterialRenderInstrumentation?
+    ) throws -> CGImage {
+        let output = try makeContext(width: image.width, height: image.height)
+        output.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        guard let outputData = output.data else {
+            throw MaterialRendererError.cannotCreateBitmap(image.width, image.height)
+        }
+        let outputBytes = outputData.assumingMemoryBound(to: UInt8.self)
+        let outputRow = output.bytesPerRow
+        let ownerContexts = try owners.map { owner -> (CGContext, CGContext) in
+            let isolated = try makeContext(width: image.width, height: image.height)
+            isolated.draw(
+                owner.isolatedAlpha,
+                in: CGRect(x: 0, y: 0, width: image.width, height: image.height)
+            )
+            let removed = try makeContext(width: image.width, height: image.height)
+            removed.draw(
+                owner.actorRemoved,
+                in: CGRect(x: 0, y: 0, width: image.width, height: image.height)
+            )
+            return (isolated, removed)
+        }
+        var ownerLabels = instrumentation.map { _ in
+            Data(repeating: 255, count: image.width * image.height)
+        }
+        var counterfactualBackground = instrumentation.map { _ in
+            Data(repeating: 0, count: image.width * image.height * 4)
+        }
+        for y in 0..<image.height {
+            for x in 0..<image.width {
+                let offset = y * outputRow + x * 4
+                guard outputBytes[offset + 3] > 0 else { continue }
+                for ownerIndex in ownerContexts.indices.reversed() {
+                    let (isolated, removed) = ownerContexts[ownerIndex]
+                    guard let isolatedData = isolated.data, let removedData = removed.data else {
+                        throw MaterialRendererError.cannotCreateBitmap(image.width, image.height)
+                    }
+                    let isolatedOffset = y * isolated.bytesPerRow + x * 4
+                    let isolatedBytes = isolatedData.assumingMemoryBound(to: UInt8.self)
+                    guard isolatedBytes[isolatedOffset + 3] > 0 else { continue }
+                    let removedOffset = y * removed.bytesPerRow + x * 4
+                    let removedBytes = removedData.assumingMemoryBound(to: UInt8.self)
+                    let pixelIndex = y * image.width + x
+                    ownerLabels?[pixelIndex] = UInt8(ownerIndex)
+                    for channel in 0..<4 {
+                        counterfactualBackground?[pixelIndex * 4 + channel] =
+                            removedBytes[removedOffset + channel]
+                    }
+                    if outputBytes[offset] != removedBytes[removedOffset]
+                        || outputBytes[offset + 1] != removedBytes[removedOffset + 1]
+                        || outputBytes[offset + 2] != removedBytes[removedOffset + 2] {
+                        let adjusted = Self.outlineVisibilityPixel(
+                            OutlineVisibilityPixel(
+                                red: outputBytes[offset],
+                                green: outputBytes[offset + 1],
+                                blue: outputBytes[offset + 2],
+                                alpha: outputBytes[offset + 3]
+                            ),
+                            background: MaterialColor(
+                                red: Double(removedBytes[removedOffset]) / 255,
+                                green: Double(removedBytes[removedOffset + 1]) / 255,
+                                blue: Double(removedBytes[removedOffset + 2]) / 255
+                            )
+                        )
+                        outputBytes[offset] = adjusted.red
+                        outputBytes[offset + 1] = adjusted.green
+                        outputBytes[offset + 2] = adjusted.blue
+                    }
+                    break
+                }
+            }
+        }
+        if let ownerLabels, let counterfactualBackground {
+            instrumentation?.ownershipTrace = MaterialOutlineOwnershipTrace(
+                width: image.width,
+                height: image.height,
+                ownerEventIDs: owners.map(\.eventID),
+                ownerLabels: ownerLabels,
+                counterfactualBackgroundRGBA: counterfactualBackground
+            )
+        }
+        guard let adjusted = output.makeImage() else {
+            throw MaterialRendererError.cannotCreateImage
+        }
+        return adjusted
+    }
+
+    private func downsampled(_ image: CGImage, width: Int, height: Int) throws -> CGImage {
+        let context = try makeContext(width: width, height: height)
+        context.interpolationQuality = .high
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        guard let result = context.makeImage() else {
+            throw MaterialRendererError.cannotCreateImage
+        }
+        return result
+    }
+
+    private func decodedPNG(_ data: Data) throws -> CGImage {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+        else { throw MaterialRendererError.cannotCreateImage }
+        return image
+    }
+
+    private func flatImage(width: Int, height: Int, color: MaterialColor) throws -> CGImage {
+        let context = try makeContext(width: width, height: height)
+        context.setFillColor(red: color.red, green: color.green, blue: color.blue, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        guard let image = context.makeImage() else {
+            throw MaterialRendererError.cannotCreateImage
+        }
+        return image
     }
 
     private func validate(_ material: ActorMaterialRecipe) throws {
@@ -449,9 +1201,6 @@ public struct MaterialRenderer {
                     let peakVolume = radialVolumes.max() ?? 1
                     let sharedVolume = radialVolumes.reduce(0, +)
                         / Double(max(radialVolumes.count, 1))
-                    // Mist is translucent depth made only from the same broad,
-                    // overlapping radial fields as its color surface. There is
-                    // intentionally no actor-seeded texture or 2D noise here.
                     let volume = clamp(peakVolume * 0.58 + sharedVolume * 0.42)
                     color = mix(color, RGB.white, 0.025 + (1 - volume) * 0.035)
                     alpha *= 0.58 + volume * 0.42
@@ -569,7 +1318,36 @@ public struct MaterialRenderer {
                             softness: max(0.72, field.softness)
                         ) * clamp(field.opacity)
                     }.reduce(0, +) / Double(max(material.fields.count, 1))
+                    let minimumContourWidth = 2 / Double(pixelSize)
+                    let envelopeOuterRadius = topology.contours.first?.outerRadius
+                        ?? topology.outerRadius
+                    let envelopeInnerRadius = topology.contours.last?.innerRadius
+                        ?? topology.innerRadius
                     for contour in contours {
+                        let authoredWidth = contour.outerRadius - contour.innerRadius
+                        let presentedWidth = max(authoredWidth, minimumContourWidth)
+                        let midpoint = (contour.outerRadius + contour.innerRadius) * 0.5
+                        var presentedOuterRadius = min(
+                            envelopeOuterRadius,
+                            midpoint + presentedWidth * 0.5
+                        )
+                        var presentedInnerRadius = max(
+                            envelopeInnerRadius,
+                            midpoint - presentedWidth * 0.5
+                        )
+                        if presentedOuterRadius - presentedInnerRadius < presentedWidth {
+                            if presentedOuterRadius == envelopeOuterRadius {
+                                presentedInnerRadius = max(
+                                    envelopeInnerRadius,
+                                    presentedOuterRadius - presentedWidth
+                                )
+                            } else {
+                                presentedOuterRadius = min(
+                                    envelopeOuterRadius,
+                                    presentedInnerRadius + presentedWidth
+                                )
+                            }
+                        }
                         let outerDistance = hypot(
                             u - contour.outerCenter.x,
                             v - contour.outerCenter.y
@@ -579,13 +1357,13 @@ public struct MaterialRenderer {
                             v - contour.innerCenter.y
                         )
                         let outerFill = 1 - smoothstep(
-                            contour.outerRadius - antialias * 1.8,
-                            contour.outerRadius + antialias * 1.2,
+                            presentedOuterRadius - antialias * 1.8,
+                            presentedOuterRadius + antialias * 1.2,
                             outerDistance
                         )
                         let innerCut = smoothstep(
-                            contour.innerRadius - antialias * 1.4,
-                            contour.innerRadius + antialias * 1.8,
+                            presentedInnerRadius - antialias * 1.4,
+                            presentedInnerRadius + antialias * 1.8,
                             innerDistance
                         )
                         let contourPresence: Double
@@ -604,17 +1382,17 @@ public struct MaterialRenderer {
                         if !structuralAlphaLayer || outlineAccentLayer {
                             let ridgeWidth = max(
                                 antialias * 2.0,
-                                (contour.outerRadius - contour.innerRadius) * 0.22
+                                (presentedOuterRadius - presentedInnerRadius) * 0.22
                             )
                             let outerRidge = 1 - smoothstep(
                                 ridgeWidth * 0.36,
                                 ridgeWidth * 1.35,
-                                abs(outerDistance - contour.outerRadius)
+                                abs(outerDistance - presentedOuterRadius)
                             )
                             let innerRidge = 1 - smoothstep(
                                 ridgeWidth * 0.36,
                                 ridgeWidth * 1.35,
-                                abs(innerDistance - contour.innerRadius)
+                                abs(innerDistance - presentedInnerRadius)
                             )
                             let ridge = outlineAccentLayer
                                 ? outerRidge * innerCut
@@ -628,64 +1406,32 @@ public struct MaterialRenderer {
                         }
                     }
                     if structuralAlphaLayer {
-                        alpha *= contourAlpha
+                        alpha = contourAlpha
                     } else if outlineAccentLayer {
                         let baseInk = RGB(material.colors[0])
                         let ridgeInk = if material.colors.count > 1 {
-                            RGB(material.colors[min(material.colors.count - 1, 1)])
+                            color
                         } else {
                             baseInk.scaled(baseInk.luminance > 0.58 ? 0.72 : 1.45)
                         }
-                        alpha *= clamp(contourAlpha * 0.06 + ridgeAlpha * 0.82)
+                        alpha = clamp(contourAlpha * 0.06 + ridgeAlpha * 0.82)
                         color = mix(
                             color,
                             ridgeInk,
                             min(0.82, ridgeAlpha * 0.74 + contourAlpha * 0.05)
                         )
                     } else {
-                        let innerCenter = topology.innerCenter
-                        let outerCenter = topology.outerCenter
-                        let bodyDistance = hypot(u - outerCenter.x, v - outerCenter.y)
-                        let body = 1 - smoothstep(
-                            topology.outerRadius - edgeWidth * 1.8,
-                            topology.outerRadius + edgeWidth * 0.8,
-                            bodyDistance
-                        )
-                        let innerBloom = radialWeight(
-                            u: u,
-                            v: v,
-                            focusX: innerCenter.x,
-                            focusY: innerCenter.y,
-                            radius: max(0.28, topology.innerRadius * 1.85),
-                            softness: 0.84
-                        )
-                        let bodyAlpha = body * clamp(0.22 + fieldVolume * 0.14 + innerBloom * 0.10)
-                        alpha *= clamp(bodyAlpha + contourAlpha * 0.10 + ridgeAlpha * 0.95)
+                        alpha = clamp(contourAlpha * 0.72 + ridgeAlpha * 0.82)
                         let baseInk = RGB(material.colors[0])
                         let ridgeInk = if material.colors.count > 1 {
-                            RGB(material.colors[min(material.colors.count - 1, 1)])
+                            color
                         } else {
                             baseInk.scaled(baseInk.luminance > 0.58 ? 0.72 : 1.45)
                         }
                         color = mix(
                             color,
                             ridgeInk,
-                            min(0.62, ridgeAlpha * 0.54 + contourAlpha * 0.04)
-                        )
-                        let baseOwnership = material.fields.first.map { field in
-                            radialWeight(
-                                u: u,
-                                v: v,
-                                focusX: field.focus.x,
-                                focusY: field.focus.y,
-                                radius: max(0.36, field.radius * 0.62),
-                                softness: max(0.72, field.softness)
-                            )
-                        } ?? 1
-                        color = mix(
-                            color,
-                            baseInk.scaled(baseInk.luminance > 0.58 ? 0.94 : 1.06),
-                            min(0.16, baseOwnership * 0.10 + innerBloom * 0.04)
+                            min(0.82, ridgeAlpha * 0.68 + contourAlpha * 0.16)
                         )
                     }
                 case .counterform:
@@ -750,6 +1496,53 @@ public struct MaterialRenderer {
         return result.clamped
     }
 
+    private func mistGrain(
+        material: ActorMaterialRecipe,
+        u: Double,
+        v: Double
+    ) -> Double {
+        var seed: UInt64 = 0x6D69_7374_6772_6169
+        for color in material.colors {
+            seed ^= UInt64((color.red * 255).rounded()) &* 0x9E37_79B1
+            seed ^= UInt64((color.green * 255).rounded()) &* 0x85EB_CA77
+            seed ^= UInt64((color.blue * 255).rounded()) &* 0xC2B2_AE3D
+            seed = (seed << 17) | (seed >> 47)
+        }
+        if let focus = material.fields.first?.focus {
+            seed ^= UInt64((focus.x * 65_535).rounded()) << 16
+            seed ^= UInt64((focus.y * 65_535).rounded())
+        }
+        let coarse = valueNoise(x: u * 14, y: v * 14, seed: seed)
+        let fine = valueNoise(x: u * 29, y: v * 29, seed: seed ^ 0xA5A5_7E57)
+        return coarse * 0.42 + fine * 0.58
+    }
+
+    private func valueNoise(x: Double, y: Double, seed: UInt64) -> Double {
+        let x0 = Int(floor(x))
+        let y0 = Int(floor(y))
+        let tx = smoothstep(0, 1, x - Double(x0))
+        let ty = smoothstep(0, 1, y - Double(y0))
+        let lower = latticeNoise(x: x0, y: y0, seed: seed)
+            + (latticeNoise(x: x0 + 1, y: y0, seed: seed)
+                - latticeNoise(x: x0, y: y0, seed: seed)) * tx
+        let upper = latticeNoise(x: x0, y: y0 + 1, seed: seed)
+            + (latticeNoise(x: x0 + 1, y: y0 + 1, seed: seed)
+                - latticeNoise(x: x0, y: y0 + 1, seed: seed)) * tx
+        return lower + (upper - lower) * ty
+    }
+
+    private func latticeNoise(x: Int, y: Int, seed: UInt64) -> Double {
+        var value = seed
+            ^ UInt64(bitPattern: Int64(x)) &* 0x9E37_79B9_7F4A_7C15
+            ^ UInt64(bitPattern: Int64(y)) &* 0xBF58_476D_1CE4_E5B9
+        value ^= value >> 30
+        value &*= 0xBF58_476D_1CE4_E5B9
+        value ^= value >> 27
+        value &*= 0x94D0_49BB_1331_11EB
+        value ^= value >> 31
+        return Double(value >> 11) / 4_503_599_627_370_496 - 1
+    }
+
     private func radialWeight(
         u: Double,
         v: Double,
@@ -803,6 +1596,13 @@ public struct MaterialRenderer {
         background: RGB,
         family: MaterialFamily
     ) -> RGB {
+        if family == .outline {
+            return Self.outlineVisibilityAdjustedRGB(
+                color,
+                alpha: alpha,
+                background: background
+            )
+        }
         let composited = mix(background, color, alpha)
         let contrast = distance(composited, background)
         let visibilityNeed = 1 - smoothstep(0.075, 0.235, contrast)
@@ -821,6 +1621,90 @@ public struct MaterialRenderer {
             }
         }
         return mix(color, target, strength * visibilityNeed)
+    }
+
+    static func outlineVisibilityTarget(
+        color: MaterialColor,
+        background: MaterialColor
+    ) -> MaterialColor {
+        let target = outlineVisibilityTargetRGB(RGB(color), background: RGB(background))
+        return MaterialColor(red: target.r, green: target.g, blue: target.b)
+    }
+
+    static func outlineVisibilityAdjustedColor(
+        _ color: MaterialColor,
+        alpha: Double,
+        background: MaterialColor
+    ) -> MaterialColor {
+        let adjusted = outlineVisibilityAdjustedRGB(
+            RGB(color),
+            alpha: alpha,
+            background: RGB(background)
+        )
+        return MaterialColor(red: adjusted.r, green: adjusted.g, blue: adjusted.b)
+    }
+
+    static func outlineVisibilityPixel(
+        _ pixel: OutlineVisibilityPixel,
+        background: MaterialColor
+    ) -> OutlineVisibilityPixel {
+        guard pixel.alpha > 0 else { return pixel }
+        let alphaByte = Double(pixel.alpha)
+        let adjusted = outlineVisibilityAdjustedRGB(
+            RGB(
+                r: Double(pixel.red) / alphaByte,
+                g: Double(pixel.green) / alphaByte,
+                b: Double(pixel.blue) / alphaByte
+            ),
+            alpha: alphaByte / 255,
+            background: RGB(background)
+        )
+        return OutlineVisibilityPixel(
+            red: UInt8((clamp(adjusted.r) * alphaByte).rounded()),
+            green: UInt8((clamp(adjusted.g) * alphaByte).rounded()),
+            blue: UInt8((clamp(adjusted.b) * alphaByte).rounded()),
+            alpha: pixel.alpha
+        )
+    }
+
+    private static func outlineVisibilityAdjustedRGB(
+        _ color: RGB,
+        alpha: Double,
+        background: RGB
+    ) -> RGB {
+        let composited = mix(background, color, alpha)
+        let contrast = distance(composited, background)
+        let visibilityNeed = 1 - smoothstep(0.075, 0.235, contrast)
+        let target = outlineVisibilityTargetRGB(color, background: background)
+        return mix(color, target, 0.62 * visibilityNeed)
+    }
+
+    private static func outlineVisibilityTargetRGB(
+        _ color: RGB,
+        background: RGB
+    ) -> RGB {
+        let direction = RGB(
+            r: color.r - background.r,
+            g: color.g - background.g,
+            b: color.b - background.b
+        )
+        let limits = [
+            projectionLimit(background: background.r, direction: direction.r),
+            projectionLimit(background: background.g, direction: direction.g),
+            projectionLimit(background: background.b, direction: direction.b),
+        ].filter(\.isFinite)
+        guard let furthest = limits.min(), furthest >= 1 else { return color }
+        return RGB(
+            r: background.r + direction.r * furthest,
+            g: background.g + direction.g * furthest,
+            b: background.b + direction.b * furthest
+        ).clamped
+    }
+
+    private static func projectionLimit(background: Double, direction: Double) -> Double {
+        if direction > 0 { return (1 - background) / direction }
+        if direction < 0 { return (0 - background) / direction }
+        return .infinity
     }
 
     private func blurred(_ image: CGImage, radius: Double) throws -> CGImage {
@@ -943,6 +1827,81 @@ public struct MaterialRenderer {
         return composited
     }
 
+    private func applyingMistGrain(
+        _ image: CGImage,
+        material: ActorMaterialRecipe,
+        sourceDiameter: Int
+    ) throws -> CGImage {
+        let context = try makeContext(width: image.width, height: image.height)
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        guard let rawData = context.data else {
+            throw MaterialRendererError.cannotCreateBitmap(image.width, image.height)
+        }
+        let bytes = rawData.assumingMemoryBound(to: UInt8.self)
+        let bytesPerRow = context.bytesPerRow
+        let originX = (Double(image.width) - Double(sourceDiameter)) * 0.5
+        let originY = (Double(image.height) - Double(sourceDiameter)) * 0.5
+
+        for y in 0..<image.height {
+            for x in 0..<image.width {
+                let offset = y * bytesPerRow + x * 4
+                let alpha = bytes[offset + 3]
+                guard alpha > 0 else { continue }
+                let u = (Double(x) + 0.5 - originX) / Double(sourceDiameter)
+                let v = (Double(y) + 0.5 - originY) / Double(sourceDiameter)
+                let factor = 1 + mistGrain(material: material, u: u, v: v) * 0.16
+                for channel in 0..<3 {
+                    bytes[offset + channel] = UInt8(min(
+                        Double(alpha),
+                        max(0, (Double(bytes[offset + channel]) * factor).rounded())
+                    ))
+                }
+            }
+        }
+        guard let textured = context.makeImage() else {
+            throw MaterialRendererError.cannotCreateImage
+        }
+        return textured
+    }
+
+    /// Local blur works on premultiplied pixels and can reduce a thin contour's
+    /// final contrast after the authored visibility adjustment. Reapply the
+    /// same background-aware RGB transfer to the presented outline layer while
+    /// leaving every alpha byte untouched.
+    private func applyingFinalVisibility(
+        _ image: CGImage,
+        background: MaterialColor
+    ) throws -> CGImage {
+        let context = try makeContext(width: image.width, height: image.height)
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        guard let rawData = context.data else {
+            throw MaterialRendererError.cannotCreateBitmap(image.width, image.height)
+        }
+        let bytes = rawData.assumingMemoryBound(to: UInt8.self)
+        let bytesPerRow = context.bytesPerRow
+        for y in 0..<image.height {
+            for x in 0..<image.width {
+                let offset = y * bytesPerRow + x * 4
+                let adjusted = Self.outlineVisibilityPixel(
+                    OutlineVisibilityPixel(
+                        red: bytes[offset],
+                        green: bytes[offset + 1],
+                        blue: bytes[offset + 2],
+                        alpha: bytes[offset + 3]
+                    ),
+                    background: background
+                )
+                bytes[offset] = adjusted.red
+                bytes[offset + 1] = adjusted.green
+                bytes[offset + 2] = adjusted.blue
+            }
+        }
+        guard let adjusted = context.makeImage() else {
+            throw MaterialRendererError.cannotCreateImage
+        }
+        return adjusted
+    }
+
     private func makeContext(width: Int, height: Int) throws -> CGContext {
         guard let context = CGContext(
             data: nil,
@@ -978,6 +1937,13 @@ public struct MaterialRenderer {
         }
         return data as Data
     }
+}
+
+struct OutlineVisibilityPixel: Equatable, Sendable {
+    let red: UInt8
+    let green: UInt8
+    let blue: UInt8
+    let alpha: UInt8
 }
 
 private struct RGB {

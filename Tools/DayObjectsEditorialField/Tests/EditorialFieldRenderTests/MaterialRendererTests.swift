@@ -455,15 +455,17 @@ struct MaterialRendererTests {
             [.halo, .outline, .counterform].contains($0.family)
         }
         #expect(structuralSceneScale.count == 27)
-        #expect(structuralSceneScale.allSatisfy {
-            !$0.topology.isEmpty
-                && $0.topology.contains(where: \.eligible)
-                && $0.topology.allSatisfy { topology in
+        #expect(structuralSceneScale.allSatisfy { scene in
+            !scene.topology.isEmpty
+                && scene.topology.contains(where: \.eligible)
+                && scene.topology.allSatisfy { topology in
                     topology.passes
                         && !topology.fullAlphaBands.isEmpty
                         && topology.fullAlphaBands.count == topology.tileAlphaBands.count
-                        && topology.fullAlphaBands.allSatisfy(\.passes)
-                        && topology.tileAlphaBands.allSatisfy(\.passes)
+                        && (scene.family == .outline || (
+                            topology.fullAlphaBands.allSatisfy(\.passes)
+                                && topology.tileAlphaBands.allSatisfy(\.passes)
+                        ))
                         && topology.fullThicknessRange >= 0.025
                         && topology.tileThicknessRange >= 0.025
                 }
@@ -860,7 +862,7 @@ struct MaterialRendererTests {
         #expect(accepted == 1, "attack must not preserve the legacy 4/4 false-positive")
     }
 
-    @Test("same-layout c2 crops expose two broad regions for every non-solid family")
+    @Test("same-layout c2 crops preserve two owned regions, including contour pixels")
     func sameLayoutC2CropsExposeTwoBroadRegions() throws {
         let exemplar = CorpusManifest.visibleV1().breadth[0]
         let eventID = try #require(exemplar.eventIDs.first)
@@ -900,7 +902,7 @@ struct MaterialRendererTests {
         }
     }
 
-    @Test("mist rendering depends only on radial recipe, never event identity texture")
+    @Test("mist keeps radial color ownership while stable actor-local grain survives")
     func mistRenderingIsRadialAndEventIdentityInvariant() throws {
         let source = try #require(MaterialDNA.fixture(
             daySeed: 0x5157_5EED,
@@ -913,9 +915,14 @@ struct MaterialRendererTests {
         let second = replacingEventID(source, with: "mist-b")
         let firstData = try renderer.renderActor(first, pixelSize: 192).pngData
         let secondData = try renderer.renderActor(second, pixelSize: 192).pngData
+        let repeatedData = try renderer.renderActor(first, pixelSize: 192).pngData
         #expect(
             sha256Hex(firstData) == sha256Hex(secondData),
             "event identity changed pixels for an otherwise identical radial recipe"
+        )
+        #expect(
+            sha256Hex(firstData) == sha256Hex(repeatedData),
+            "actor-local grain was not deterministic"
         )
 
         let radial = ActorMaterialRecipe(
@@ -939,13 +946,30 @@ struct MaterialRendererTests {
             counterformSoftness: 0
         )
         let radialImage = try pixels(renderer.renderActor(radial, pixelSize: 192).pngData)
-        let equalRadius = radialSamples(radialImage, radius: 0.24, count: 32)
-        let maximumPairDistance = equalRadius.indices.flatMap { lhs in
-            equalRadius.indices.filter { $0 > lhs }.map { rhs in
-                rgbDistance(equalRadius[lhs], equalRadius[rhs])
-            }
+        let signature = sealedSignature(
+            radialImage,
+            centerX: 96,
+            centerY: 96,
+            radius: 192 * 0.48,
+            background: .light
+        )
+        #expect(sealedMetrics(signature).grainEnergy >= 0.006)
+
+        let sectorMeans = radialSectorMeans(
+            radialImage,
+            radialBand: 0.18...0.36,
+            sectorCount: 16
+        )
+        let maximumAngularHueStep = sectorMeans.indices.map { index in
+            circularHueDistance(
+                sectorMeans[index].hue,
+                sectorMeans[(index + 1) % sectorMeans.count].hue
+            )
         }.max() ?? 0
-        #expect(maximumPairDistance <= 0.008, "mist introduced non-radial texture: \(maximumPairDistance)")
+        #expect(
+            maximumAngularHueStep <= 0.008,
+            "mist introduced an angular color seam: \(maximumAngularHueStep)"
+        )
     }
 
     @Test("luminous has a legible shifted core and outer emission unlike sphere")
@@ -1079,7 +1103,7 @@ struct MaterialRendererTests {
         #expect(jump <= 0.10, "hard scene-scale wedge jump \(jump)")
     }
 
-    @Test("normal halo and outline actors keep filled centers after frozen depth blur")
+    @Test("normal halo stays filled while outline keeps a cut center after frozen depth blur")
     func structuralFamiliesKeepFilledCentersAtExactSceneScale() throws {
         let authority = try canonicalCompositionAuthority()
         let archive = try JSONDecoder().decode(
@@ -1138,24 +1162,20 @@ struct MaterialRendererTests {
                 background: fixture.background,
                 centerYAdjustment: -229
             )
-            let requiredCenterContrast = actorMaterial.family == .halo ? 0.11 : 0.075
-            let minimumCenterRatio = actorMaterial.family == .halo ? 0.64 : 0.34
-            let maximumOpenCenterMargin = actorMaterial.family == .halo ? 0.18 : 0.34
             let context = "fixture=\(item.fixtureIndex) actor=\(item.eventID.prefix(8)) "
                 + "full=\(fullMetrics) tile=\(tileMetrics)"
 
-            #expect(fullMetrics.centerContrast >= requiredCenterContrast, Comment(rawValue: context))
-            #expect(fullMetrics.centerToRimRatio >= minimumCenterRatio, Comment(rawValue: context))
-            #expect(
-                fullMetrics.openCenterMargin <= maximumOpenCenterMargin,
-                Comment(rawValue: context)
-            )
-            #expect(tileMetrics.centerContrast >= requiredCenterContrast, Comment(rawValue: context))
-            #expect(tileMetrics.centerToRimRatio >= minimumCenterRatio, Comment(rawValue: context))
-            #expect(
-                tileMetrics.openCenterMargin <= maximumOpenCenterMargin,
-                Comment(rawValue: context)
-            )
+            if actorMaterial.family == .halo {
+                #expect(fullMetrics.centerContrast >= 0.11, Comment(rawValue: context))
+                #expect(fullMetrics.centerToRimRatio >= 0.64, Comment(rawValue: context))
+                #expect(fullMetrics.openCenterMargin <= 0.18, Comment(rawValue: context))
+                #expect(tileMetrics.centerContrast >= 0.11, Comment(rawValue: context))
+                #expect(tileMetrics.centerToRimRatio >= 0.64, Comment(rawValue: context))
+                #expect(tileMetrics.openCenterMargin <= 0.18, Comment(rawValue: context))
+            } else {
+                #expect(fullMetrics.centerToRimRatio <= 0.22, Comment(rawValue: context))
+                #expect(tileMetrics.centerToRimRatio <= 0.22, Comment(rawValue: context))
+            }
 
             if item.fixtureIndex == 23 {
                 let removedRecipe = CompositionRecipe(
@@ -1195,23 +1215,13 @@ struct MaterialRendererTests {
                     reference: removedPixels
                 )
                 let contributionContext = context + " contribution=\(contribution)"
-                #expect(
-                    contribution.centerContrast >= requiredCenterContrast,
-                    Comment(rawValue: contributionContext)
-                )
-                #expect(
-                    contribution.centerToRimRatio >= minimumCenterRatio,
-                    Comment(rawValue: contributionContext)
-                )
-                #expect(
-                    contribution.openCenterMargin <= maximumOpenCenterMargin,
-                    Comment(rawValue: contributionContext)
-                )
+                #expect(contribution.rimContrast >= 0.040, Comment(rawValue: contributionContext))
+                #expect(contribution.centerToRimRatio <= 0.22, Comment(rawValue: contributionContext))
             }
         }
     }
 
-    @Test("normal exact outlines keep a visible palette contour over filled bodies")
+    @Test("normal exact outlines keep a visible cut contour distinct from filled bodies and counterform")
     func exactOutlinesKeepVisibleContourAccentAtSceneScale() throws {
         let authority = try canonicalCompositionAuthority()
         let archive = try JSONDecoder().decode(
@@ -1260,11 +1270,48 @@ struct MaterialRendererTests {
                 material: actorMaterial,
                 centerYAdjustment: 0
             )
+            let outlineSignature = sealedSignature(
+                full,
+                centerX: actor.position.x * 393,
+                centerY: actor.position.y * 852,
+                radius: actor.diameter * 393 * 0.48,
+                background: fixture.background
+            )
             let context = "fixture=\(item.fixtureIndex) actor=\(item.eventID.prefix(8)) "
                 + "full=\(fullMetrics) tileSize=\(tile.width)x\(tile.height)"
 
             #expect(fullMetrics.ridgeSeparation >= 0.055, Comment(rawValue: context))
             #expect(fullMetrics.angularPresence >= 0.30, Comment(rawValue: context))
+            for comparisonFamily in [MaterialFamily.gradient, .counterform] {
+                let comparisonMaterial = MaterialDNA.fixture(
+                    daySeed: layout.seed,
+                    eventIDs: layout.eventIDs,
+                    family: comparisonFamily,
+                    requestedColorCount: fixture.requestedColorCount
+                )
+                let comparisonRendered = try MaterialRenderer().render(
+                    recipe: isolated,
+                    material: comparisonMaterial,
+                    background: fixture.background,
+                    configuration: .init(scale: 2)
+                )
+                let comparisonFull = try downsampledPixels(
+                    comparisonRendered.fullScreen.pngData,
+                    width: 393,
+                    height: 852
+                )
+                let comparisonSignature = sealedSignature(
+                    comparisonFull,
+                    centerX: actor.position.x * 393,
+                    centerY: actor.position.y * 852,
+                    radius: actor.diameter * 393 * 0.48,
+                    background: fixture.background
+                )
+                #expect(
+                    sealedDistance(outlineSignature, comparisonSignature) >= 0.020,
+                    Comment(rawValue: context + " comparison=\(comparisonFamily.rawValue)")
+                )
+            }
         }
     }
 
@@ -1352,32 +1399,63 @@ struct MaterialRendererTests {
             }
             let topology = try #require(actorMaterial.organicTopology)
             let authorityOffset: Double
+            let authorityBandWidth: Double?
             if actorMaterial.family == .outline {
                 let outermost = try #require(topology.contours.first)
                 authorityOffset = hypot(
                     outermost.innerCenter.x - outermost.outerCenter.x,
                     outermost.innerCenter.y - outermost.outerCenter.y
                 )
+                authorityBandWidth = outermost.outerRadius - outermost.innerRadius
             } else {
                 authorityOffset = hypot(
                     topology.innerCenter.x - topology.outerCenter.x,
                     topology.innerCenter.y - topology.outerCenter.y
                 )
+                authorityBandWidth = nil
             }
 
-            let requiredCentroidOffset = actorMaterial.family == .halo ? 0.045 : 0.025
-            let requiredAuthorityOffset = actorMaterial.family == .halo ? 0.10 : 0.055
-            for (bandIndex, image) in renderedBands.enumerated() {
-                let metrics = organicRimMetrics(image)
-                let context = "fixture=\(item.fixtureIndex) actor=\(item.eventID.prefix(8)) band=\(bandIndex) \(metrics)"
-                #expect(metrics.alphaCentroidOffset >= requiredCentroidOffset, Comment(rawValue: context))
-                #expect(metrics.alphaCentroidOffset <= 0.16, Comment(rawValue: context))
-                #expect(metrics.thicknessRange >= 0.080, Comment(rawValue: context))
-                #expect(metrics.thicknessVariation >= 0.18, Comment(rawValue: context))
-                #expect(metrics.angularCoverage >= 0.88, Comment(rawValue: context))
-                #expect(metrics.minimumThickness >= 0.010, Comment(rawValue: context))
+            if actorMaterial.family == .outline {
+                let output = try pixels(MaterialRenderer().renderActor(
+                    actorMaterial,
+                    pixelSize: 384,
+                    background: .light
+                ).pngData)
+                let signature = sealedSignature(
+                    output,
+                    centerX: 192,
+                    centerY: 192,
+                    radius: 384 * 0.48,
+                    background: .light
+                )
+                let metrics = sealedMetrics(signature)
+                let context = "fixture=\(item.fixtureIndex) actor=\(item.eventID.prefix(8)) \(metrics)"
+                #expect(metrics.centerToRimRatio <= 0.22, Comment(rawValue: context))
+                #expect(metrics.activeAreaFraction <= 0.34, Comment(rawValue: context))
+                #expect(
+                    sealedOutlineContinuity(signature).supportedAngularCoverage >= 0.82,
+                    Comment(rawValue: context)
+                )
+            } else {
+                for (bandIndex, image) in renderedBands.enumerated() {
+                    let metrics = organicRimMetrics(image)
+                    let context = "fixture=\(item.fixtureIndex) actor=\(item.eventID.prefix(8)) band=\(bandIndex) \(metrics)"
+                    #expect(metrics.alphaCentroidOffset >= 0.045, Comment(rawValue: context))
+                    #expect(metrics.alphaCentroidOffset <= 0.16, Comment(rawValue: context))
+                    #expect(metrics.thicknessRange >= 0.080, Comment(rawValue: context))
+                    #expect(metrics.thicknessVariation >= 0.18, Comment(rawValue: context))
+                    #expect(metrics.angularCoverage >= 0.88, Comment(rawValue: context))
+                    #expect(metrics.minimumThickness >= 0.010, Comment(rawValue: context))
+                }
             }
-            #expect(authorityOffset >= requiredAuthorityOffset)
+            if let authorityBandWidth {
+                let presentationFloor = 2.0 / 384.0
+                let authoredFractionFloor = authorityBandWidth * 0.45
+                #expect(authorityOffset >= max(presentationFloor, authoredFractionFloor))
+                #expect(authorityOffset < authorityBandWidth)
+            } else {
+                #expect(authorityOffset >= 0.10)
+            }
         }
     }
 
@@ -1403,6 +1481,7 @@ struct MaterialRendererTests {
         ).map { try pixels($0.pngData) }
         let image = try #require(combinedAlphaImage(layers))
         let imbalance = maximumContourSpacingImbalance(image)
+        let normalizedImbalance = imbalance / max(actor.contourWidth, 0.000_001)
 
         let topology = try #require(actor.organicTopology)
         let outerCenters = topology.contours.map(\.outerCenter)
@@ -1412,8 +1491,42 @@ struct MaterialRendererTests {
             }
         }.max() ?? 0
 
-        #expect(imbalance >= 0.075, "mechanical equal contour spacing: \(imbalance)")
-        #expect(centerSpan >= 0.055, "nested contours share one target center: \(centerSpan)")
+        let controlCenter = CompositionPoint(x: 0.5, y: 0.5)
+        let controlBandWidth = actor.contourWidth * 0.10
+        let controlCenterGap = actor.contourWidth * 0.32
+        let controlContours = (0..<actor.contourCount).map { index in
+            let outerRadius = 0.475 - Double(index) * (controlBandWidth + controlCenterGap)
+            return OrganicRadialContour(
+                outerCenter: controlCenter,
+                outerRadius: outerRadius,
+                innerCenter: controlCenter,
+                innerRadius: outerRadius - controlBandWidth,
+                opacity: 1
+            )
+        }
+        let controlActor = replacingOrganicTopology(
+            actor,
+            with: OrganicRadialTopology(
+                outerCenter: controlCenter,
+                outerRadius: controlContours[0].outerRadius,
+                innerCenter: controlCenter,
+                innerRadius: controlContours[controlContours.count - 1].innerRadius,
+                contours: controlContours
+            )
+        )
+        let controlLayers = try MaterialRenderer().renderStructuralAlphaLayers(
+            controlActor,
+            pixelSize: 512,
+            blurRadius: 0
+        ).map { try pixels($0.pngData) }
+        let controlImage = try #require(combinedAlphaImage(controlLayers))
+        let controlNormalizedImbalance = maximumContourSpacingImbalance(controlImage)
+            / max(controlActor.contourWidth, 0.000_001)
+
+        #expect(normalizedImbalance >= 0.25, "mechanical equal contour spacing: \(normalizedImbalance)")
+        #expect(controlNormalizedImbalance < 0.25)
+        #expect(centerSpan >= 2.0 / 512.0, "nested contours share one target center: \(centerSpan)")
+        #expect(centerSpan < actor.contourWidth)
     }
 
     @Test("organic topology proxy rejects a perfect mechanical torus")
@@ -1546,8 +1659,10 @@ struct MaterialRendererTests {
                 let context = "\(family.rawValue)/c\(colorCount) full=\(topology.full) tile=\(topology.tile)"
                 #expect(!topology.full.isEmpty, Comment(rawValue: context))
                 #expect(topology.full.count == topology.tile.count, Comment(rawValue: context))
-                #expect(topology.full.allSatisfy { $0.passes }, Comment(rawValue: context))
-                #expect(topology.tile.allSatisfy { $0.passes }, Comment(rawValue: context))
+                if family != .outline {
+                    #expect(topology.full.allSatisfy { $0.passes }, Comment(rawValue: context))
+                    #expect(topology.tile.allSatisfy { $0.passes }, Comment(rawValue: context))
+                }
                 for background in [BackgroundCondition.light, .dark, .lowContrast] {
                     let sceneTopology = try MaterialEvidencePackage.sceneScaleTopology(
                         family: family,
@@ -1558,10 +1673,2237 @@ struct MaterialRendererTests {
                     )
                     let sceneContext = "\(family.rawValue)/c\(colorCount)/\(background.rawValue) \(sceneTopology)"
                     #expect(sceneTopology.allSatisfy { $0.passes }, Comment(rawValue: sceneContext))
+                    #expect(!sceneTopology.isEmpty, Comment(rawValue: sceneContext))
+                    let containsEligibleTopology = sceneTopology.contains { $0.eligible }
+                    #expect(containsEligibleTopology, Comment(rawValue: sceneContext))
+                    for topology in sceneTopology {
+                        let aggregateContext = [
+                            "family=\(family.rawValue)",
+                            "c\(colorCount)",
+                            "background=\(background.rawValue)",
+                            "event=\(topology.eventID)",
+                            "eligible=\(topology.eligible)",
+                            "passes=\(topology.passes)",
+                            "fullAlphaBands=\(topology.fullAlphaBands)",
+                            "tileAlphaBands=\(topology.tileAlphaBands)",
+                            "fullThicknessRange=\(topology.fullThicknessRange)",
+                            "tileThicknessRange=\(topology.tileThicknessRange)",
+                        ].joined(separator: " ")
+                        #expect(topology.passes, Comment(rawValue: aggregateContext))
+                        #expect(!topology.fullAlphaBands.isEmpty, Comment(rawValue: aggregateContext))
+                        #expect(
+                            topology.fullAlphaBands.count == topology.tileAlphaBands.count,
+                            Comment(rawValue: aggregateContext)
+                        )
+                        if family != .outline {
+                            let fullAlphaBandsPass = topology.fullAlphaBands.allSatisfy { $0.passes }
+                            let tileAlphaBandsPass = topology.tileAlphaBands.allSatisfy { $0.passes }
+                            #expect(
+                                fullAlphaBandsPass,
+                                Comment(rawValue: aggregateContext)
+                            )
+                            #expect(
+                                tileAlphaBandsPass,
+                                Comment(rawValue: aggregateContext)
+                            )
+                        }
+                        #expect(
+                            topology.fullThicknessRange >= 0.025,
+                            Comment(rawValue: aggregateContext)
+                        )
+                        #expect(
+                            topology.tileThicknessRange >= 0.025,
+                            Comment(rawValue: aggregateContext)
+                        )
+                    }
                 }
             }
         }
     }
+
+    @Test("fixture 11 outline presentation separates identity from intentional crop and overlap")
+    func fixture11OutlinePresentationSeparatesIdentityFromCropAndOverlap() throws {
+        // Regressions caught here: deliberate crop being mistaken for a broken
+        // contour, an overlapping neighbour impersonating actor ownership, a
+        // true in-frame arc break passing continuity, and final low-contrast
+        // blur erasing an otherwise authored/open contour.
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let layout = manifest.breadth[11]
+        let recipe = try #require(archive.fixtures.first { $0.fixtureIndex == 11 }?.recipe)
+        let actors = recipe.actors.filter { $0.diameter >= 0.15 }
+        let renderer = MaterialRenderer()
+        let backgrounds: [BackgroundCondition] = [.light, .dark, .lowContrast]
+        var failures = [String]()
+        var observations = [String: Fixture11OutlinePresentationMetrics]()
+
+        for colorCount in 1...3 {
+            let dna = MaterialDNA.fixture(
+                daySeed: layout.seed,
+                eventIDs: layout.eventIDs,
+                family: .outline,
+                requestedColorCount: colorCount
+            )
+            for background in backgrounds {
+                let presented = try renderer.render(
+                    recipe: recipe,
+                    material: dna,
+                    background: background,
+                    configuration: .init(
+                        scale: 1,
+                        supersampling: 2,
+                        presentationEvidenceRequest: .perActor
+                    )
+                )
+                let composed = try pixels(presented.fullScreen.pngData)
+                let presentationEvidence = try #require(presented.presentationEvidence)
+                for actor in actors {
+                    let material = try #require(dna.actor(actor.eventID))
+                    let actorEvidence = try #require(
+                        presentationEvidence.actors.first { $0.eventID == actor.eventID }
+                    )
+                    let isolated = try pixels(actorEvidence.isolated.fullScreen.pngData)
+                    let alphaLayers = try renderer.renderStructuralAlphaLayers(
+                        material,
+                        pixelSize: actorPixelDiameter(actor),
+                        blurRadius: actor.localBlur * 393
+                    ).map { try pixels($0.pngData) }
+                    let alpha = try #require(combinedAlphaImage(alphaLayers))
+                    let metrics = fixture11OutlinePresentationMetrics(
+                        alpha: alpha,
+                        isolated: isolated,
+                        composed: composed,
+                        actor: actor,
+                        background: background
+                    )
+                    let key = "c\(colorCount)/\(background.rawValue)/\(actor.eventID.prefix(4))"
+                    observations[key] = metrics
+                    if metrics.identityCoverage < 0.82 || metrics.percentile90Contrast < 0.16 {
+                        failures.append(
+                            "\(key) p90=\(metrics.percentile90Contrast) "
+                                + "identityCoverage=\(metrics.identityCoverage) "
+                                + "eligible=\(metrics.eligibleRays) owned=\(metrics.identitySupportedRays) "
+                                + "composedOwned=\(metrics.composedOwnedCoverage) "
+                                + "rawComposed=\(metrics.rawComposedCoverage)"
+                        )
+                    }
+
+                    let direct = try pixels(renderer.renderActor(
+                        material,
+                        pixelSize: actorPixelDiameter(actor),
+                        background: background
+                    ).pngData)
+                    let signature = sealedSignature(
+                        direct,
+                        centerX: Double(direct.width) * 0.5,
+                        centerY: Double(direct.height) * 0.5,
+                        radius: Double(actorPixelDiameter(actor)) * 0.48,
+                        background: background
+                    )
+                    #expect(sealedMetrics(signature).centerToRimRatio <= 0.22)
+                    #expect(material.colors.count == colorCount)
+                }
+            }
+        }
+
+        for prefix in ["0A9B", "4E6B", "71E4"] {
+            for (key, metrics) in observations
+            where key.hasSuffix(prefix) && metrics.percentile90Contrast >= 0.16 {
+                #expect(
+                    metrics.identityCoverage >= 0.82,
+                    Comment(rawValue: "intentional crop failed identity \(key): \(metrics)")
+                )
+            }
+        }
+
+        let controlActor = try #require(actors.first { $0.eventID.hasPrefix("82F5") })
+        let controlDNA = MaterialDNA.fixture(
+            daySeed: layout.seed,
+            eventIDs: layout.eventIDs,
+            family: .outline,
+            requestedColorCount: 3
+        )
+        let controlMaterial = try #require(controlDNA.actor(controlActor.eventID))
+        let controlRecipe = CompositionRecipe(
+            daySeed: recipe.daySeed,
+            grammar: recipe.grammar,
+            viewport: recipe.viewport,
+            actors: [controlActor]
+        )
+        let controlImage = try pixels(renderer.render(
+            recipe: controlRecipe,
+            material: controlDNA,
+            background: .dark,
+            configuration: .init(scale: 1)
+        ).fullScreen.pngData)
+        let controlAlpha = try #require(combinedAlphaImage(
+            try renderer.renderStructuralAlphaLayers(
+                controlMaterial,
+                pixelSize: actorPixelDiameter(controlActor),
+                blurRadius: controlActor.localBlur * 393
+            ).map { try pixels($0.pngData) }
+        ))
+        let brokenAlpha = fixture11BrokenArcMutation(controlAlpha)
+        let brokenImage = fixture11ArcColorMutation(
+            controlImage,
+            actor: controlActor,
+            color: MaterialRenderer.backgroundColor(for: .dark)
+        )
+        let neighbourImage = fixture11ArcColorMutation(
+            brokenImage,
+            actor: controlActor,
+            color: .init(red: 1, green: 1, blue: 1)
+        )
+        let broken = fixture11OutlinePresentationMetrics(
+            alpha: brokenAlpha,
+            isolated: brokenImage,
+            composed: brokenImage,
+            actor: controlActor,
+            background: .dark
+        )
+        let overlap = fixture11OutlinePresentationMetrics(
+            alpha: brokenAlpha,
+            isolated: brokenImage,
+            composed: neighbourImage,
+            actor: controlActor,
+            background: .dark
+        )
+        #expect(broken.identityCoverage < 0.82)
+        #expect(overlap.rawComposedCoverage > broken.rawComposedCoverage)
+        #expect(overlap.composedOwnedCoverage < 0.82)
+
+        let alphaFixture = (0...255).map { alphaValue in
+            let alpha = UInt8(alphaValue)
+            return OutlineVisibilityPixel(
+                red: UInt8(alphaValue * 193 / 255),
+                green: UInt8(alphaValue * 117 / 255),
+                blue: UInt8(alphaValue * 61 / 255),
+                alpha: alpha
+            )
+        }
+        let adjustedAlphaFixture = alphaFixture.map {
+            MaterialRenderer.outlineVisibilityPixel($0, background: .init(
+                red: 0.49,
+                green: 0.50,
+                blue: 0.47
+            ))
+        }
+        let originalAlpha = alphaFixture.map(\.alpha)
+        let adjustedAlpha = adjustedAlphaFixture.map(\.alpha)
+        #expect(originalAlpha == adjustedAlpha)
+        #expect(fixture11AlphaHistogram(originalAlpha) == fixture11AlphaHistogram(adjustedAlpha))
+        #expect(fixture11AlphaQuantiles(originalAlpha) == fixture11AlphaQuantiles(adjustedAlpha))
+        #expect(zip(alphaFixture, adjustedAlphaFixture).contains { lhs, rhs in
+            lhs.red != rhs.red || lhs.green != rhs.green || lhs.blue != rhs.blue
+        })
+        let alphaScalingMutation = adjustedAlphaFixture.map { pixel in
+            OutlineVisibilityPixel(
+                red: pixel.red,
+                green: pixel.green,
+                blue: pixel.blue,
+                alpha: UInt8((Double(pixel.alpha) * 0.75).rounded())
+            )
+        }
+        #expect(alphaScalingMutation.map(\.alpha) != adjustedAlpha)
+
+        let lowContrast = MaterialColor(red: 0.49, green: 0.50, blue: 0.47)
+        let representativeColors = [
+            MaterialColor(red: 0.812, green: 0.938, blue: 0.188),
+            MaterialColor(red: 0.438, green: 0.594, blue: 0.125),
+            MaterialColor(red: 0.412, green: 0.559, blue: 0.088),
+            MaterialColor(red: 0.083, green: 0.222, blue: 0.611),
+        ]
+        for color in representativeColors {
+            let target = MaterialRenderer.outlineVisibilityTarget(
+                color: color,
+                background: lowContrast
+            )
+            let adjusted = MaterialRenderer.outlineVisibilityAdjustedColor(
+                color,
+                alpha: 0.125,
+                background: lowContrast
+            )
+            #expect(fixture11CompositedDistance(
+                adjusted,
+                alpha: 0.125,
+                background: lowContrast
+            ) >= fixture11CompositedDistance(
+                color,
+                alpha: 0.125,
+                background: lowContrast
+            ))
+            #expect((0...1).contains(target.red))
+            #expect((0...1).contains(target.green))
+            #expect((0...1).contains(target.blue))
+            #expect(fixture11ProjectionCrossMagnitude(
+                color: color,
+                target: target,
+                background: lowContrast
+            ) <= 0.000_001)
+        }
+
+        #expect(
+            failures.isEmpty,
+            Comment(rawValue: "fixture11 presentation failures=\(failures.count)\n" + failures.joined(separator: "\n"))
+        )
+    }
+
+    @Test("default outline visibility placement is byte-identical to explicit none")
+    func defaultOutlineVisibilityPlacementIsExplicitRawOutput() throws {
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let layout = manifest.breadth[11]
+        let recipe = try #require(archive.fixtures.first { $0.fixtureIndex == 11 }?.recipe)
+        let dna = MaterialDNA.fixture(
+            daySeed: layout.seed,
+            eventIDs: layout.eventIDs,
+            family: .outline,
+            requestedColorCount: 3
+        )
+        let renderer = MaterialRenderer()
+        let defaultOutput = try renderer.render(
+            recipe: recipe,
+            material: dna,
+            background: .lowContrast,
+            configuration: .init(scale: 2)
+        )
+        let explicitRaw = try renderer.render(
+            recipe: recipe,
+            material: dna,
+            background: .lowContrast,
+            configuration: .init(
+                scale: 2,
+                outlineVisibilityPlacement: .none
+            )
+        )
+
+        #expect(defaultOutput.fullScreen.pngData == explicitRaw.fullScreen.pngData)
+        #expect(defaultOutput.calendarTile.pngData == explicitRaw.calendarTile.pngData)
+        #expect(sha256Hex(defaultOutput.fullScreen.pngData) ==
+            "0fb4432f23e8f850cbbdecfc07b15bc65509fb7ba0ef9679c7bb8444e8668555")
+        #expect(sha256Hex(defaultOutput.calendarTile.pngData) ==
+            "7a91334a807fe3c0773ba156a494540edea5cb339af51ba6e9b987a05e6c2029")
+        #expect(defaultOutput.tileCrop == explicitRaw.tileCrop)
+        #expect(defaultOutput.drawSequence == explicitRaw.drawSequence)
+    }
+
+    @Test("scene-scale evidence consumes renderer-owned presentation bytes")
+    func sceneScaleEvidenceMatchesRendererPresentationBytes() throws {
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let layout = manifest.breadth[11]
+        let recipe = try #require(archive.fixtures.first { $0.fixtureIndex == 11 }?.recipe)
+        let material = MaterialDNA.fixture(
+            daySeed: layout.seed,
+            eventIDs: layout.eventIDs,
+            family: .outline,
+            requestedColorCount: 3
+        )
+        let renderer = MaterialRenderer()
+        let direct = try renderer.render(
+            recipe: recipe,
+            material: material,
+            background: .lowContrast,
+            configuration: .init(scale: 1, supersampling: 2)
+        )
+        let evidence = try MaterialEvidencePackage.sceneScaleRenderedScene(
+            recipe: recipe,
+            material: material,
+            background: .lowContrast,
+            renderer: renderer
+        )
+
+        #expect(evidence.fullScreen.pngData == direct.fullScreen.pngData)
+        #expect(evidence.calendarTile.pngData == direct.calendarTile.pngData)
+        #expect(evidence.tileCrop == direct.tileCrop)
+        #expect(evidence.drawSequence == direct.drawSequence)
+        let full = try pixels(direct.fullScreen.pngData)
+        #expect(try pixels(direct.calendarTile.pngData) ==
+            full.cropped(x: 0, y: 229, width: 393, height: 393))
+
+        let actor = try #require(recipe.actors.first { $0.eventID.hasPrefix("4E6B") })
+        let actorMaterial = try #require(material.actor(actor.eventID))
+        let directActor = try pixels(renderer.renderActor(
+            actorMaterial,
+            pixelSize: actorPixelDiameter(actor),
+            background: .lowContrast,
+            supersampling: 2
+        ).pngData)
+        let signature = sealedSignature(
+            directActor,
+            centerX: Double(directActor.width) * 0.5,
+            centerY: Double(directActor.height) * 0.5,
+            radius: Double(directActor.width) * 0.48,
+            background: .lowContrast
+        )
+        #expect(sealedMetrics(signature).centerToRimRatio <= 0.22)
+        #expect(sealedOutlineContinuity(signature).supportedAngularCoverage >= 0.82)
+    }
+
+    @Test("fixture 11 outline captured actor replay eliminates recursive counterfactual renders")
+    func fixture11OutlineCapturedPrefixesEliminateRecursiveCounterfactualRenders() throws {
+        // Production regression caught: rebuilding the complete scene once per
+        // outline actor makes package generation scale with actor count. The
+        // retained reference freezes ownership/background/output semantics;
+        // captured actor replay must reproduce them without material rebuilds.
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let layout = manifest.breadth[11]
+        let recipe = try #require(archive.fixtures.first { $0.fixtureIndex == 11 }?.recipe)
+        #expect(recipe.actors.count == 10)
+        let material = MaterialDNA.fixture(
+            daySeed: layout.seed,
+            eventIDs: layout.eventIDs,
+            family: .outline,
+            requestedColorCount: 3
+        )
+        let renderer = MaterialRenderer()
+        let referenceInstrumentation = MaterialRenderInstrumentation()
+        let reference = try renderer.render(
+            recipe: recipe,
+            material: material,
+            background: .lowContrast,
+            configuration: .init(
+                scale: 1,
+                supersampling: 2,
+                outlineVisibilityPlacement: .none,
+                outlineCounterfactualMode: .actorRemovedReference,
+                instrumentation: referenceInstrumentation
+            )
+        )
+        let capturedInstrumentation = MaterialRenderInstrumentation()
+        let captured = try renderer.render(
+            recipe: recipe,
+            material: material,
+            background: .lowContrast,
+            configuration: .init(
+                scale: 1,
+                supersampling: 2,
+                outlineVisibilityPlacement: .none,
+                outlineCounterfactualMode: .capturedActorReplay,
+                instrumentation: capturedInstrumentation
+            )
+        )
+        let expectedOrder = recipe.actors.sorted {
+            if $0.drawOrder != $1.drawOrder { return $0.drawOrder < $1.drawOrder }
+            if $0.depth != $1.depth { return $0.depth < $1.depth }
+            if $0.diameter != $1.diameter { return $0.diameter < $1.diameter }
+            return $0.eventID < $1.eventID
+        }.map(\.eventID)
+        let referenceTrace = try #require(referenceInstrumentation.ownershipTrace)
+        let capturedTrace = try #require(capturedInstrumentation.ownershipTrace)
+        let referenceAlpha = try alphaBytes(reference.fullScreen.pngData)
+        let capturedAlpha = try alphaBytes(captured.fullScreen.pngData)
+
+        let referencePixels = try pixels(reference.fullScreen.pngData)
+        let capturedPixels = try pixels(captured.fullScreen.pngData)
+        if let firstPixelIndex = (0..<(referencePixels.width * referencePixels.height)).first(
+            where: { pixelIndex in
+                let offset = pixelIndex * 4
+                return (0..<4).contains { channel in
+                    referencePixels.rgba[offset + channel] != capturedPixels.rgba[offset + channel]
+                }
+            }
+        ) {
+            let x = firstPixelIndex % referencePixels.width
+            let y = firstPixelIndex / referencePixels.width
+            let referencePixel = referencePixels.pixel(x: x, y: y)
+            let capturedPixel = capturedPixels.pixel(x: x, y: y)
+            let referenceOwner = referenceTrace.ownerLabels[firstPixelIndex]
+            let capturedOwner = capturedTrace.ownerLabels[firstPixelIndex]
+            let ownerName: (UInt8, MaterialOutlineOwnershipTrace) -> String = { label, trace in
+                label == 255 ? "unowned" : trace.ownerEventIDs[Int(label)]
+            }
+            let rgbaDescription: (SampledRGBA) -> String = { pixel in
+                "[\(pixel.redByte),\(pixel.greenByte),\(pixel.blueByte),\(pixel.alphaByte)]"
+            }
+            let traceBackground: (MaterialOutlineOwnershipTrace, Int) -> SampledRGBA = {
+                trace, pixelIndex in
+                let offset = pixelIndex * 4
+                return SampledRGBA(
+                    redByte: trace.counterfactualBackgroundRGBA[offset],
+                    greenByte: trace.counterfactualBackgroundRGBA[offset + 1],
+                    blueByte: trace.counterfactualBackgroundRGBA[offset + 2],
+                    alphaByte: trace.counterfactualBackgroundRGBA[offset + 3]
+                )
+            }
+            let firstOwnerLabelDiff = referenceTrace.ownerLabels.indices.first {
+                referenceTrace.ownerLabels[$0] != capturedTrace.ownerLabels[$0]
+            }
+            let firstBackgroundByteDiff = referenceTrace.counterfactualBackgroundRGBA.indices.first {
+                referenceTrace.counterfactualBackgroundRGBA[$0]
+                    != capturedTrace.counterfactualBackgroundRGBA[$0]
+            }
+
+            let rawCapture = MaterialRawSceneCapture()
+            let raw = try renderer.render(
+                recipe: recipe,
+                material: material,
+                background: .lowContrast,
+                configuration: .init(
+                    scale: 2,
+                    outlineVisibilityPlacement: .none,
+                    rawSceneCapture: rawCapture
+                )
+            )
+            let canonicalPixels = try downsampledPixels(
+                raw.fullScreen.pngData,
+                width: 393,
+                height: 852
+            )
+            let sourceLayers = try rawCapture.actorLayers.map { layer in
+                PixelImage(
+                    width: layer.image.width,
+                    height: layer.image.height,
+                    rgba: try rgbaBytes(layer.image)
+                )
+            }
+            let downsampledLayers = try sourceLayers.map { layer in
+                try fixture11Resized(
+                    layer,
+                    width: 393,
+                    height: 852
+                )
+            }
+            let selectedOwnerIndex = referenceOwner == 255 ? nil : Int(referenceOwner)
+            let selectedAlpha = selectedOwnerIndex.map {
+                downsampledLayers[$0].pixel(x: x, y: y).alphaByte
+            }
+            let laterSupport = selectedOwnerIndex.map { ownerIndex in
+                ((ownerIndex + 1)..<downsampledLayers.count).map { actorIndex in
+                    let downsampled = downsampledLayers[actorIndex].pixel(x: x, y: y).alphaByte
+                    let sourcePixels = sourceLayers[actorIndex]
+                    let sourceX = min(sourcePixels.width - 1, x * 2)
+                    let sourceY = min(sourcePixels.height - 1, y * 2)
+                    let sourceSupport = (sourceY...min(sourcePixels.height - 1, sourceY + 1)).flatMap {
+                        sampleY in
+                        (sourceX...min(sourcePixels.width - 1, sourceX + 1)).map {
+                            sampleX in sourcePixels.pixel(x: sampleX, y: sampleY).alphaByte
+                        }
+                    }
+                    return "\(actorIndex):\(expectedOrder[actorIndex]) down=\(downsampled) source2x=\(sourceSupport)"
+                }
+            } ?? []
+            let ownerDiffDescription = firstOwnerLabelDiff.map { pixelIndex in
+                let ownerX = pixelIndex % referencePixels.width
+                let ownerY = pixelIndex / referencePixels.width
+                return "(\(ownerX),\(ownerY)) ref=\(referenceTrace.ownerLabels[pixelIndex]):\(ownerName(referenceTrace.ownerLabels[pixelIndex], referenceTrace)) cap=\(capturedTrace.ownerLabels[pixelIndex]):\(ownerName(capturedTrace.ownerLabels[pixelIndex], capturedTrace))"
+            } ?? "none"
+            let backgroundDiffDescription = firstBackgroundByteDiff.map { byteIndex in
+                let pixelIndex = byteIndex / 4
+                let backgroundX = pixelIndex % referencePixels.width
+                let backgroundY = pixelIndex / referencePixels.width
+                return "(\(backgroundX),\(backgroundY)) channel=\(byteIndex % 4) ref=\(rgbaDescription(traceBackground(referenceTrace, pixelIndex))) cap=\(rgbaDescription(traceBackground(capturedTrace, pixelIndex)))"
+            } ?? "none"
+            let diagnostic = [
+                "first-final-pixel=(\(x),\(y))",
+                "canonical=\(rgbaDescription(canonicalPixels.pixel(x: x, y: y)))",
+                "reference=\(rgbaDescription(referencePixel))",
+                "captured=\(rgbaDescription(capturedPixel))",
+                "reference-owner=\(referenceOwner):\(ownerName(referenceOwner, referenceTrace))",
+                "captured-owner=\(capturedOwner):\(ownerName(capturedOwner, capturedTrace))",
+                "reference-background=\(rgbaDescription(traceBackground(referenceTrace, firstPixelIndex)))",
+                "captured-prefix-background=\(rgbaDescription(traceBackground(capturedTrace, firstPixelIndex)))",
+                "selected-owner-alpha=\(selectedAlpha.map(String.init) ?? "none")",
+                "later-support=\(laterSupport)",
+                "first-owner-label-diff=\(ownerDiffDescription)",
+                "first-counterfactual-background-diff=\(backgroundDiffDescription)",
+            ].joined(separator: "\n")
+            #expect(referencePixel == capturedPixel, Comment(rawValue: diagnostic))
+            return
+        }
+
+        // The future implementation may change only how actor-removed
+        // counterfactuals are obtained, never their observable semantics.
+        #expect(captured.fullScreen.pngData == reference.fullScreen.pngData)
+        #expect(captured.calendarTile.pngData == reference.calendarTile.pngData)
+        #expect(capturedAlpha == referenceAlpha)
+        #expect(captured.drawSequence == reference.drawSequence)
+        #expect(captured.tileCrop == reference.tileCrop)
+        #expect(capturedTrace == referenceTrace)
+        #expect(reference.drawSequence == expectedOrder)
+        #expect(referenceTrace.ownerEventIDs == expectedOrder)
+        #expect(referenceTrace.width == 393)
+        #expect(referenceTrace.height == 852)
+        #expect(referenceTrace.ownerLabels.count == 393 * 852)
+        #expect(referenceTrace.counterfactualBackgroundRGBA.count == 393 * 852 * 4)
+
+        var ownedPixelCount = 0
+        for pixelIndex in referenceTrace.ownerLabels.indices {
+            let owner = referenceTrace.ownerLabels[pixelIndex]
+            guard owner != 255 else { continue }
+            ownedPixelCount += 1
+            #expect(Int(owner) < expectedOrder.count)
+            #expect(referenceTrace.counterfactualBackgroundRGBA[pixelIndex * 4 + 3] == 255)
+        }
+        #expect(ownedPixelCount > 0)
+
+        let referenceFull = try pixels(reference.fullScreen.pngData)
+        #expect(try pixels(reference.calendarTile.pngData) == referenceFull.cropped(
+            x: reference.tileCrop.x,
+            y: reference.tileCrop.y,
+            width: reference.tileCrop.width,
+            height: reference.tileCrop.height
+        ))
+
+        #expect(sha256Hex(reference.fullScreen.pngData) ==
+            "12dfaabad17090eee177fd7d0beb84a26a3f0f7d7147bc591745c2d47d430c42")
+        #expect(sha256Hex(reference.calendarTile.pngData) ==
+            "d31177d42675f2e7f55c910c7469443c078f3348e9fc51cacfdf0ece2de7fc05")
+        #expect(sha256Hex(referenceAlpha) ==
+            "180035a2d810c6118f95235d7fd255ea2e1fb5c7f910c0648e6aad4eca344879")
+        #expect(sha256Hex(referenceTrace.ownerLabels) ==
+            "235eb188a5f27778d984b7ff1580dc3dae32faf10c0f450250a9384a969ff922")
+        #expect(sha256Hex(referenceTrace.counterfactualBackgroundRGBA) ==
+            "5eb5a73164a25057d646d757425817564bd657440091a5ca8a7b56dad3c25856")
+        #expect(ownedPixelCount == 145_735)
+
+        #expect(referenceInstrumentation.canonicalRawSceneRenders == 1)
+        #expect(referenceInstrumentation.actorRemovedFullSceneRenders == 10)
+        #expect(referenceInstrumentation.capturedActorLayerBuilds == 10)
+        #expect(referenceInstrumentation.counterfactualCompositePasses == 0)
+
+        // Required optimized contract: one material pass captures each actor;
+        // N composite-only replays replace N recursive material renders.
+        #expect(capturedInstrumentation.canonicalRawSceneRenders == 1)
+        #expect(capturedInstrumentation.actorRemovedFullSceneRenders == 0)
+        #expect(capturedInstrumentation.capturedActorLayerBuilds == 10)
+        #expect(capturedInstrumentation.counterfactualCompositePasses == 10)
+    }
+
+    @Test("fixture 11 presentation evidence is captured once by the renderer")
+    func fixture11PresentationEvidencePayloadMatchesLegacyActorRenders() throws {
+        // Production regression caught: evidence rebuilding isolated and
+        // actor-removed scenes per actor repeats material construction and can
+        // drift from the renderer-owned presentation pixels. The optional
+        // payload must reuse one canonical actor build while preserving every
+        // legacy pixel and ownership byte.
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let layout = manifest.breadth[11]
+        let recipe = try #require(archive.fixtures.first { $0.fixtureIndex == 11 }?.recipe)
+        #expect(recipe.actors.count == 10)
+        let material = MaterialDNA.fixture(
+            daySeed: layout.seed,
+            eventIDs: layout.eventIDs,
+            family: .outline,
+            requestedColorCount: 3
+        )
+        let renderer = MaterialRenderer()
+        let expectedOrder = recipe.actors.sorted {
+            if $0.drawOrder != $1.drawOrder { return $0.drawOrder < $1.drawOrder }
+            if $0.depth != $1.depth { return $0.depth < $1.depth }
+            if $0.diameter != $1.diameter { return $0.diameter < $1.diameter }
+            return $0.eventID < $1.eventID
+        }.map(\.eventID)
+
+        let defaultOff = try renderer.render(
+            recipe: recipe,
+            material: material,
+            background: .lowContrast,
+            configuration: .init(
+                scale: 1,
+                supersampling: 2,
+                presentationEvidenceRequest: .none
+            )
+        )
+        let requestedInstrumentation = MaterialRenderInstrumentation()
+        let requestOn = try renderer.render(
+            recipe: recipe,
+            material: material,
+            background: .lowContrast,
+            configuration: .init(
+                scale: 1,
+                supersampling: 2,
+                outlineVisibilityPlacement: .none,
+                outlineCounterfactualMode: .capturedActorReplay,
+                instrumentation: requestedInstrumentation,
+                presentationEvidenceRequest: .perActor
+            )
+        )
+
+        #expect(requestOn.fullScreen.pngData == defaultOff.fullScreen.pngData)
+        #expect(requestOn.calendarTile.pngData == defaultOff.calendarTile.pngData)
+        #expect(try alphaBytes(requestOn.fullScreen.pngData) == alphaBytes(defaultOff.fullScreen.pngData))
+        #expect(try alphaBytes(requestOn.calendarTile.pngData) == alphaBytes(defaultOff.calendarTile.pngData))
+        #expect(requestOn.tileCrop == defaultOff.tileCrop)
+        #expect(requestOn.drawSequence == defaultOff.drawSequence)
+        #expect(requestOn.drawSequence == expectedOrder)
+
+        var legacyDigests = [String: String]()
+        var legacyCanonicalRenders = 0
+        var legacyActorRemovedRenders = 0
+        var legacyActorBuilds = 0
+        var legacyCounterfactualComposites = 0
+        for eventID in expectedOrder {
+            let actor = try #require(recipe.actors.first { $0.eventID == eventID })
+            let isolatedRecipe = CompositionRecipe(
+                daySeed: recipe.daySeed,
+                grammar: recipe.grammar,
+                viewport: recipe.viewport,
+                actors: [actor]
+            )
+            let removedRecipe = CompositionRecipe(
+                daySeed: recipe.daySeed,
+                grammar: recipe.grammar,
+                viewport: recipe.viewport,
+                actors: recipe.actors.filter { $0.eventID != eventID }
+            )
+            let isolatedInstrumentation = MaterialRenderInstrumentation()
+            let isolated = try renderer.render(
+                recipe: isolatedRecipe,
+                material: material,
+                background: .lowContrast,
+                configuration: .init(
+                    scale: 1,
+                    supersampling: 2,
+                    outlineVisibilityPlacement: .none,
+                    outlineCounterfactualMode: .capturedActorReplay,
+                    instrumentation: isolatedInstrumentation
+                )
+            )
+            let removedInstrumentation = MaterialRenderInstrumentation()
+            let removed = try renderer.render(
+                recipe: removedRecipe,
+                material: material,
+                background: .lowContrast,
+                configuration: .init(
+                    scale: 1,
+                    supersampling: 2,
+                    outlineVisibilityPlacement: .none,
+                    outlineCounterfactualMode: .capturedActorReplay,
+                    instrumentation: removedInstrumentation
+                )
+            )
+            let isolatedTrace = try #require(isolatedInstrumentation.ownershipTrace)
+            let removedTrace = try #require(removedInstrumentation.ownershipTrace)
+            legacyDigests[eventID] = try fixture11PresentationEvidenceDigest(
+                eventID: eventID,
+                isolated: isolated,
+                isolatedTrace: isolatedTrace,
+                removed: removed,
+                removedTrace: removedTrace
+            )
+            for instrumentation in [isolatedInstrumentation, removedInstrumentation] {
+                legacyCanonicalRenders += instrumentation.canonicalRawSceneRenders
+                legacyActorRemovedRenders += instrumentation.actorRemovedFullSceneRenders
+                legacyActorBuilds += instrumentation.capturedActorLayerBuilds
+                legacyCounterfactualComposites += instrumentation.counterfactualCompositePasses
+            }
+        }
+        let expectedLegacyDigests = [
+            "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801":
+                "8fdb02cc8beea34884c93d64daa9fd1746b251aefa587d259516e62308d7e0d1",
+            "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02":
+                "41f39540779f29e61da1bd915b03bd9f559852ef39ce9ab481662455d55554d4",
+            "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03":
+                "06aaa0917cfcb97d6338620cecb4e58885e5d1124b01af9b4b88d7bee43b989d",
+            "3D247E01-C609-43C1-A5B2-3E0D9CF8B504":
+                "8261165d96a1a48c99a4f8a7820abff7b19fab355738f007a3dc6a21b6409e6e",
+            "4E6B83FD-19A8-4AA2-91FC-D297E6C15405":
+                "30ba9c9a9aa05b88339fc5b321f70e1134463cb697b921266428e2a651acd0aa",
+            "5FA2D140-7C0E-45B9-BE3D-8124A937EF06":
+                "9f3914555835418919b04445452d73c49ee4c682c2d3624810d2dab8f6c55dd3",
+            "60D319B7-3E21-4E8A-879F-5C6B24FA0A07":
+                "a576685122f2730ea0284d6691c9e5fd92516e7a98cb476b5f5c7cafdfb718d4",
+            "71E4AC82-5F36-4B19-9D48-A7C2E60B1D08":
+                "c3d60e91e3d4bba23041df652bac9b7c99f311dfe19bc120096fec79b0e257c3",
+            "82F5B06C-6A47-4C2E-8E51-B93D17CA2F09":
+                "7778531892d5020108b5646c4934ee82c8cbdee63a969e0b569bf6c32a563810",
+            "9346C9D1-7B58-4D3F-A062-CE4B28D03A10":
+                "426c8819bb1e69b5f0e9c824287cb81d64ff16e07ffd0ae8298ddb7ef22b19ff",
+        ]
+        #expect(
+            legacyDigests == expectedLegacyDigests,
+            Comment(rawValue: "legacy presentation digests=\(legacyDigests.sorted { $0.key < $1.key })")
+        )
+        #expect(legacyDigests.count == 10)
+        #expect(legacyCanonicalRenders == 20)
+        #expect(legacyActorRemovedRenders == 0)
+        #expect(legacyActorBuilds == 100)
+        #expect(legacyCounterfactualComposites == 100)
+
+        if let payload = requestOn.presentationEvidence {
+            #expect(payload.actors.map(\.eventID) == expectedOrder)
+            #expect(payload.actors.count == 10)
+            for actorPayload in payload.actors {
+                let payloadDigest = try fixture11PresentationEvidenceDigest(
+                    eventID: actorPayload.eventID,
+                    isolated: actorPayload.isolated,
+                    removed: actorPayload.removed
+                )
+                #expect(payloadDigest == legacyDigests[actorPayload.eventID])
+            }
+        }
+        #expect(requestOn.presentationEvidence != nil)
+
+        // Desired payload cost: all single/double-removal backgrounds and all
+        // isolated actor composites derive from one canonical actor capture.
+        #expect(requestedInstrumentation.canonicalRawSceneRenders == 1)
+        #expect(requestedInstrumentation.actorRemovedFullSceneRenders == 0)
+        #expect(requestedInstrumentation.capturedActorLayerBuilds == 10)
+        #expect(requestedInstrumentation.counterfactualCompositePasses == 55)
+        #expect(requestedInstrumentation.isolatedPresentationComposites == 10)
+
+        // A source-scale prefix approximation was proven wrong at this pixel:
+        // one rounded counterfactual byte changes the final visibility result.
+        let finalPixel = try pixels(requestOn.fullScreen.pngData).pixel(x: 201, y: 246)
+        #expect(finalPixel == SampledRGBA(redByte: 125, greenByte: 127, blueByte: 120, alphaByte: 255))
+        let prefixMutation = MaterialRenderer.outlineVisibilityPixel(
+            OutlineVisibilityPixel(red: 125, green: 127, blue: 120, alpha: 255),
+            background: MaterialColor(
+                red: 125.0 / 255.0,
+                green: 128.0 / 255.0,
+                blue: 120.0 / 255.0
+            )
+        )
+        #expect(prefixMutation == OutlineVisibilityPixel(red: 125, green: 48, blue: 120, alpha: 255))
+        #expect(prefixMutation != OutlineVisibilityPixel(red: 125, green: 127, blue: 120, alpha: 255))
+    }
+
+    @Test("fixture 11 payload readability matches legacy metrics without renderer work")
+    func fixture11PayloadReadabilityMatchesLegacyMetricsWithoutRerenders() throws {
+        // Production regression caught: scene-scale evidence recomputes every
+        // isolated and removed outline scene after the renderer has already
+        // returned byte-exact presentation evidence for those same actors.
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let layout = manifest.breadth[11]
+        let recipe = try #require(archive.fixtures.first { $0.fixtureIndex == 11 }?.recipe)
+        let material = MaterialDNA.fixture(
+            daySeed: layout.seed,
+            eventIDs: layout.eventIDs,
+            family: .outline,
+            requestedColorCount: 3
+        )
+        let renderer = MaterialRenderer()
+        let instrumentation = MaterialRenderInstrumentation()
+        let source = try renderer.render(
+            recipe: recipe,
+            material: material,
+            background: .lowContrast,
+            configuration: .init(
+                scale: 1,
+                supersampling: 2,
+                outlineVisibilityPlacement: .none,
+                outlineCounterfactualMode: .capturedActorReplay,
+                instrumentation: instrumentation,
+                presentationEvidenceRequest: .perActor
+            )
+        )
+        #expect(source.presentationEvidence != nil)
+        #expect(instrumentation.canonicalRawSceneRenders == 1)
+        #expect(instrumentation.actorRemovedFullSceneRenders == 0)
+        #expect(instrumentation.capturedActorLayerBuilds == 10)
+        #expect(instrumentation.counterfactualCompositePasses == 55)
+        #expect(instrumentation.isolatedPresentationComposites == 10)
+
+        let legacy = try MaterialEvidencePackage.legacySceneScaleReadabilityForTesting(
+            source: source,
+            recipe: recipe,
+            material: material,
+            background: .lowContrast,
+            renderer: renderer
+        )
+        #expect(legacy.count == 10)
+        #expect(legacy.map(\.eventID) == recipe.actors.map(\.eventID))
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let legacyDigests = try Dictionary(uniqueKeysWithValues: legacy.map { metric in
+            (metric.eventID, sha256Hex(try encoder.encode(metric)))
+        })
+        let expectedLegacyDigests = [
+            "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801":
+                "8603d1cd703c6331d2a6629e7d5cd14dee4a9ea7b4a5daf6dd1bc7e3314dfceb",
+            "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02":
+                "01f8426d2838292db073c4528d72c06b26bb6508fd62c67d18d292e74ec6a676",
+            "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03":
+                "f98fd912dcdc8a49250911adf2e07dd8c55486f80376ec51fa2f0ebbad4ec81c",
+            "3D247E01-C609-43C1-A5B2-3E0D9CF8B504":
+                "84cbf73501fcf6293cb71f4cda15c674ee2d0ee3a071f362c602c9f395c4830d",
+            "4E6B83FD-19A8-4AA2-91FC-D297E6C15405":
+                "ded1a0a436c23f59a8106b4c9400a000a4ef17aebc1ef1cbdf7fa0104be37b62",
+            "5FA2D140-7C0E-45B9-BE3D-8124A937EF06":
+                "acb645d424178e0f6b8d8e55903293aaf574d3a8b213aa7e8adbccc8b62ca0c0",
+            "60D319B7-3E21-4E8A-879F-5C6B24FA0A07":
+                "e275fa402007be9447ba7c54220439c3b266f9eb133bf8ecbfddfad30e7968e0",
+            "71E4AC82-5F36-4B19-9D48-A7C2E60B1D08":
+                "a747a9c7dc3b333e3a57adc737acfc41f7a25ca4cf0e3a1bb8d8aaf69aae25c2",
+            "82F5B06C-6A47-4C2E-8E51-B93D17CA2F09":
+                "8d825797adba804a69761916a3fe64fb46a2433510aef59a757986b56033f9c6",
+            "9346C9D1-7B58-4D3F-A062-CE4B28D03A10":
+                "9b380826ba32d39d1b680279b866c3346f8722119385e7224fc5bf82dafa65b9",
+        ]
+        #expect(
+            legacyDigests == expectedLegacyDigests,
+            Comment(rawValue: "legacy readability digests=\(legacyDigests.sorted { $0.key < $1.key })")
+        )
+
+        let countersBeforePayload = [
+            instrumentation.canonicalRawSceneRenders,
+            instrumentation.actorRemovedFullSceneRenders,
+            instrumentation.capturedActorLayerBuilds,
+            instrumentation.counterfactualCompositePasses,
+            instrumentation.isolatedPresentationComposites,
+        ]
+        let payload = try MaterialEvidencePackage.presentationSceneScaleReadabilityForTesting(
+            source: source,
+            recipe: recipe,
+            material: material,
+            background: .lowContrast
+        )
+        let countersAfterPayload = [
+            instrumentation.canonicalRawSceneRenders,
+            instrumentation.actorRemovedFullSceneRenders,
+            instrumentation.capturedActorLayerBuilds,
+            instrumentation.counterfactualCompositePasses,
+            instrumentation.isolatedPresentationComposites,
+        ]
+        #expect(countersAfterPayload == countersBeforePayload)
+        if let payload {
+            #expect(try encoder.encode(payload) == encoder.encode(legacy))
+            #expect(payload == legacy)
+        }
+        #expect(payload != nil)
+    }
+
+    @Test("fixture 11 outline visibility is owned by the renderer after whole-scene downsampling")
+    func fixture11OutlineVisibilityIsPostDownsampleAndRendererOwned() throws {
+        // Regression caught: applying the correct RGB transfer only to the
+        // supersampled actor still lets 1x filtering erase outline identity.
+        // Evidence may consume final renderer pixels, but may not repair them.
+        let authority = try canonicalCompositionAuthority()
+        #expect(sha256Hex(authority.approval) ==
+            "c4f4c95c2431701587a3c366dcc4d82ae21b9a5735d840a995a0aae52346124c")
+        #expect(sha256Hex(authority.recipes) ==
+            "7faef26a612768b67b73b520c7889e569594516bde3745f8a75b4ff2a24aeccd")
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let layout = manifest.breadth[11]
+        let recipe = try #require(archive.fixtures.first { $0.fixtureIndex == 11 }?.recipe)
+        let renderer = MaterialRenderer()
+        let cases: [(colorCount: Int, eventPrefix: String)] = [
+            (1, "4E6B"), (2, "4E6B"), (3, "4E6B"),
+            (1, "71E4"), (2, "71E4"), (3, "71E4"),
+            (3, "9346"),
+        ]
+        let expectedPreFailures = Set(cases.map {
+            "c\($0.colorCount)/lowContrast/\($0.eventPrefix)"
+        })
+        let expectedRawFailures = Set(cases.dropLast().map {
+            "c\($0.colorCount)/lowContrast/\($0.eventPrefix)"
+        })
+        var currentFailures = Set<String>()
+        var preOnlyFailures = Set<String>()
+        var postWitnessFailures = Set<String>()
+        var failuresByView = [Fixture11PresentationView: Int]()
+
+        for colorCount in Set(cases.map(\.colorCount)).sorted() {
+            let dna = MaterialDNA.fixture(
+                daySeed: layout.seed,
+                eventIDs: layout.eventIDs,
+                family: .outline,
+                requestedColorCount: colorCount
+            )
+            let composed = try renderer.render(
+                recipe: recipe,
+                material: dna,
+                background: .lowContrast,
+                configuration: .init(scale: 2)
+            )
+            let expectedOrder = recipe.actors.sorted {
+                if $0.drawOrder != $1.drawOrder { return $0.drawOrder < $1.drawOrder }
+                if $0.depth != $1.depth { return $0.depth < $1.depth }
+                if $0.diameter != $1.diameter { return $0.diameter < $1.diameter }
+                return $0.eventID < $1.eventID
+            }.map(\.eventID)
+            #expect(composed.drawSequence == expectedOrder)
+        }
+
+        for item in cases {
+            let actor = try #require(recipe.actors.first { $0.eventID.hasPrefix(item.eventPrefix) })
+            let dna = MaterialDNA.fixture(
+                daySeed: layout.seed,
+                eventIDs: layout.eventIDs,
+                family: .outline,
+                requestedColorCount: item.colorCount
+            )
+            let material = try #require(dna.actor(actor.eventID))
+            let isolatedRecipe = CompositionRecipe(
+                daySeed: recipe.daySeed,
+                grammar: recipe.grammar,
+                viewport: recipe.viewport,
+                actors: [actor]
+            )
+            let removedRecipe = CompositionRecipe(
+                daySeed: recipe.daySeed,
+                grammar: recipe.grammar,
+                viewport: recipe.viewport,
+                actors: []
+            )
+            let source = try renderer.render(
+                recipe: isolatedRecipe,
+                material: dna,
+                background: .lowContrast,
+                configuration: .init(scale: 2)
+            )
+            let removedSource = try renderer.render(
+                recipe: removedRecipe,
+                material: dna,
+                background: .lowContrast,
+                configuration: .init(scale: 2)
+            )
+            let preSource = try renderer.render(
+                recipe: isolatedRecipe,
+                material: dna,
+                background: .lowContrast,
+                configuration: .init(
+                    scale: 2,
+                    outlineVisibilityPlacement: .actorLayerPreComposite
+                )
+            )
+            let presented = try renderer.render(
+                recipe: isolatedRecipe,
+                material: dna,
+                background: .lowContrast,
+                configuration: .init(scale: 1, supersampling: 2)
+            )
+            #expect(source.drawSequence == [actor.eventID])
+            #expect(removedSource.drawSequence.isEmpty)
+            #expect(preSource.drawSequence == source.drawSequence)
+            #expect(preSource.tileCrop == source.tileCrop)
+
+            let alpha2x = try #require(combinedAlphaImage(
+                try renderer.renderStructuralAlphaLayers(
+                    material,
+                    pixelSize: actorPixelDiameter(actor) * 2,
+                    blurRadius: actor.localBlur * 786
+                ).map { try pixels($0.pngData) }
+            ))
+            let alpha1x = try fixture11Resized(
+                alpha2x,
+                width: max(1, alpha2x.width / 2),
+                height: max(1, alpha2x.height / 2)
+            )
+            // The internal renderer seam invokes the transfer exactly once on
+            // the real fractional-alpha actor layer. The post witness invokes
+            // that same transfer exactly once after raw whole-scene downsample.
+            let preOnly1x = try downsampledPixels(
+                preSource.fullScreen.pngData,
+                width: 393,
+                height: 852
+            )
+            let current1x = try downsampledPixels(
+                source.fullScreen.pngData,
+                width: 393,
+                height: 852
+            )
+            let removed1x = try downsampledPixels(
+                removedSource.fullScreen.pngData,
+                width: 393,
+                height: 852
+            )
+            let localPostWitness1x = fixture11OwnedVisibilityWitness(
+                canonical: current1x,
+                owners: [.init(actor: actor, alpha: alpha1x, removed: removed1x)]
+            )
+            let presented1x = try pixels(presented.fullScreen.pngData)
+            let localPostIdentity = fixture11IsolatedIdentityMetrics(
+                alpha: alpha1x,
+                image: localPostWitness1x,
+                centerX: actor.position.x * 393,
+                centerY: actor.position.y * 852,
+                pixelRadius: actor.diameter * 393 * 0.48,
+                background: .lowContrast
+            )
+            #expect(localPostIdentity.passes)
+            #expect(presented.drawSequence == source.drawSequence)
+            #expect(presented.tileCrop == PixelRect(x: 0, y: 229, width: 393, height: 393))
+
+            #expect(fixture11AlphaBytes(current1x) == fixture11AlphaBytes(presented1x))
+            #expect(fixture11AlphaHistogram(fixture11AlphaBytes(current1x)) ==
+                fixture11AlphaHistogram(fixture11AlphaBytes(presented1x)))
+            #expect(fixture11DifferenceBounds(current1x, removed1x) ==
+                fixture11DifferenceBounds(presented1x, removed1x))
+
+            let key = "c\(item.colorCount)/lowContrast/\(item.eventPrefix)"
+            let views = fixture11PresentationViews(
+                current: current1x,
+                preOnly: preOnly1x,
+                postWitness: presented1x,
+                alpha: alpha1x,
+                actor: actor
+            )
+            for view in views {
+                let current = fixture11IsolatedIdentityMetrics(
+                    alpha: view.alpha,
+                    image: view.current,
+                    centerX: view.centerX,
+                    centerY: view.centerY,
+                    pixelRadius: view.pixelRadius,
+                    background: .lowContrast
+                )
+                let preOnly = fixture11IsolatedIdentityMetrics(
+                    alpha: view.alpha,
+                    image: view.preOnly,
+                    centerX: view.centerX,
+                    centerY: view.centerY,
+                    pixelRadius: view.pixelRadius,
+                    background: .lowContrast
+                )
+                let postWitness = fixture11IsolatedIdentityMetrics(
+                    alpha: view.alpha,
+                    image: view.postWitness,
+                    centerX: view.centerX,
+                    centerY: view.centerY,
+                    pixelRadius: view.pixelRadius,
+                    background: .lowContrast
+                )
+                if !current.passes {
+                    currentFailures.insert(key)
+                    failuresByView[view.view, default: 0] += 1
+                }
+                if !preOnly.passes { preOnlyFailures.insert(key) }
+                if !postWitness.passes { postWitnessFailures.insert(key) }
+            }
+
+            let tile = presented1x.cropped(x: 0, y: 229, width: 393, height: 393)
+            #expect(tile == views.first { $0.view == .tile }?.postWitness)
+            #expect(try pixels(presented.calendarTile.pngData) == tile)
+            let exact = try #require(views.first { $0.view == .exact })
+            #expect(exact.postWitness == presented1x.cropped(
+                x: exact.originX,
+                y: exact.originY,
+                width: exact.postWitness.width,
+                height: exact.postWitness.height
+            ))
+        }
+
+        // A lower actor must never claim a pixel already owned by a top actor,
+        // even when the top actor's exact canonical-minus-removed delta is zero.
+        let opaque = fixture11SolidPixel(red: 120, green: 126, blue: 118, alpha: 255)
+        let lowerRemoved = fixture11SolidPixel(red: 10, green: 20, blue: 30, alpha: 255)
+        let topAlpha = fixture11SolidPixel(red: 1, green: 1, blue: 1, alpha: 1)
+        let lowerAlpha = fixture11SolidPixel(red: 255, green: 255, blue: 255, alpha: 255)
+        let noFallthrough = fixture11OwnedVisibilityWitness(
+            canonical: opaque,
+            owners: [
+                .init(actor: recipe.actors[0], alpha: lowerAlpha, removed: lowerRemoved),
+                .init(actor: recipe.actors[1], alpha: topAlpha, removed: opaque),
+            ]
+        )
+        #expect(noFallthrough == opaque)
+
+        #expect(postWitnessFailures.isEmpty, Comment(rawValue:
+            "test-local post-downsample witness failures=\(postWitnessFailures.sorted())"
+        ))
+        #expect(preOnlyFailures == expectedPreFailures, Comment(rawValue:
+            "pre-downsample-only mutation failures=\(preOnlyFailures.sorted())"
+        ))
+        #expect(currentFailures == expectedRawFailures, Comment(rawValue:
+            "renderer-owned final presentation missing cells=\(currentFailures.sorted()) "
+                + "views=\(failuresByView)"
+        ))
+        #expect(!currentFailures.contains("c3/lowContrast/9346"))
+        #expect(preOnlyFailures.contains("c3/lowContrast/9346"))
+    }
+
+    @Test("sealed 1x material families remain optically identifiable in every presentation")
+    func sealedSceneScaleMaterialIdentityMatrix() throws {
+        // Production regressions caught here, before the body:
+        // - a family branch reusing another family's pixels;
+        // - solid gaining a hidden brightness ramp;
+        // - radial ownership becoming directional;
+        // - mist losing its fine tactile grain;
+        // - transparent bodies losing readable saturated silhouettes;
+        // - filled families acquiring a hole;
+        // - outline becoming a softly filled disc or counterform becoming filled.
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let layoutIndex = 10
+        let eventID = "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03"
+        let layout = manifest.breadth[layoutIndex]
+        let approved = try #require(archive.fixtures.first {
+            $0.fixtureIndex == layoutIndex
+        }?.recipe)
+        let actor = try #require(approved.actor(eventID))
+        let isolated = CompositionRecipe(
+            daySeed: approved.daySeed,
+            grammar: approved.grammar,
+            viewport: approved.viewport,
+            actors: [actor]
+        )
+        let renderer = MaterialRenderer()
+        let backgrounds: [BackgroundCondition] = [.light, .dark, .lowContrast]
+        var observations = [SealedMaterialKey: SealedOpticalSignature]()
+        var failures = [String]()
+
+        for colorCount in 1...3 {
+            for background in backgrounds {
+                for family in MaterialFamily.allCases {
+                    let dna = MaterialDNA.fixture(
+                        daySeed: layout.seed,
+                        eventIDs: layout.eventIDs,
+                        family: family,
+                        requestedColorCount: colorCount
+                    )
+                    let material = try #require(dna.actor(eventID))
+                    let rendered = try renderer.render(
+                        recipe: isolated,
+                        material: dna,
+                        background: background,
+                        configuration: .init(scale: 1)
+                    )
+                    let full = try pixels(rendered.fullScreen.pngData)
+                    let tile = try pixels(rendered.calendarTile.pngData)
+                    let sceneCenterX = actor.position.x * 393
+                    let sceneCenterY = actor.position.y * 852
+                    let sceneRadius = actor.diameter * 393 * 0.48
+                    let actorPixelSize = max(1, Int(ceil(actor.diameter * 393)))
+                    let actorImage = try pixels(renderer.renderActor(
+                        material,
+                        pixelSize: actorPixelSize,
+                        background: background
+                    ).pngData)
+                    let cropPadding = sceneRadius * 1.35
+                    let cropX = max(0, Int(floor(sceneCenterX - cropPadding)))
+                    let cropY = max(0, Int(floor(sceneCenterY - cropPadding)))
+                    let cropMaxX = min(full.width, Int(ceil(sceneCenterX + cropPadding)))
+                    let cropMaxY = min(full.height, Int(ceil(sceneCenterY + cropPadding)))
+                    let exact = full.cropped(
+                        x: cropX,
+                        y: cropY,
+                        width: cropMaxX - cropX,
+                        height: cropMaxY - cropY
+                    )
+                    let viewImages: [(SealedMaterialView, PixelImage, Double, Double, Double)] = [
+                        (.full, full, sceneCenterX, sceneCenterY, sceneRadius),
+                        (.tile, tile, sceneCenterX, sceneCenterY - Double(rendered.tileCrop.y), sceneRadius),
+                        (
+                            .actor,
+                            actorImage,
+                            Double(actorImage.width) * 0.5,
+                            Double(actorImage.height) * 0.5,
+                            Double(actorPixelSize) * 0.48
+                        ),
+                        (
+                            .exact,
+                            exact,
+                            sceneCenterX - Double(cropX),
+                            sceneCenterY - Double(cropY),
+                            sceneRadius
+                        ),
+                    ]
+                    for (view, image, centerX, centerY, radius) in viewImages {
+                        let key = SealedMaterialKey(
+                            colorCount: colorCount,
+                            background: background,
+                            family: family,
+                            view: view
+                        )
+                        let signature = sealedSignature(
+                            image,
+                            centerX: centerX,
+                            centerY: centerY,
+                            radius: radius,
+                            background: background
+                        )
+                        observations[key] = signature
+                        let metrics = sealedMetrics(signature)
+                        let label = "c\(colorCount)/\(background.rawValue)/\(family.rawValue)/\(view.rawValue)"
+
+                        if family == .solid, metrics.coreRange > 0.018 {
+                            failures.append("solid-flat \(label) range=\(metrics.coreRange)")
+                        }
+                        if [.gradient, .solid, .sphere, .glass, .mist, .halo, .luminous].contains(family),
+                           metrics.centerToRimRatio < 0.42 {
+                            failures.append("filled-center \(label) ratio=\(metrics.centerToRimRatio)")
+                        }
+                        if family == .outline,
+                           metrics.centerToRimRatio > 0.22 || metrics.activeAreaFraction > 0.34 {
+                            failures.append(
+                                "outline-opening \(label) ratio=\(metrics.centerToRimRatio) area=\(metrics.activeAreaFraction)"
+                            )
+                        }
+                        if family == .counterform,
+                           metrics.centerToRimRatio > 0.24 || metrics.activeAreaFraction < 0.22 {
+                            failures.append(
+                                "counterform-opening \(label) ratio=\(metrics.centerToRimRatio) area=\(metrics.activeAreaFraction)"
+                            )
+                        }
+                        if [.glass, .mist, .halo, .luminous, .outline, .counterform].contains(family),
+                           !sealedTransparentBodyIsReadable(metrics, family: family) {
+                            failures.append(
+                                "transparent-silhouette \(label) peak=\(metrics.peakContrast) area=\(metrics.activeAreaFraction) chroma=\(metrics.meanChroma)"
+                            )
+                        }
+                        if family == .outline {
+                            let continuity = sealedOutlineContinuity(signature)
+                            if continuity.supportedAngularCoverage < 0.82 {
+                                failures.append(
+                                    "outline-continuity \(label) coverage=\(continuity.supportedAngularCoverage) minSupport=\(continuity.minimumNormalizedSupport)"
+                                )
+                            }
+                        }
+                        if family == .mist, metrics.grainEnergy < 0.006 {
+                            failures.append("mist-grain \(label) energy=\(metrics.grainEnergy)")
+                        }
+                    }
+                }
+            }
+        }
+
+        for colorCount in 1...3 {
+            for background in backgrounds {
+                for view in SealedMaterialView.allCases {
+                    for (index, lhs) in MaterialFamily.allCases.enumerated() {
+                        for rhs in MaterialFamily.allCases.dropFirst(index + 1) {
+                            let lhsKey = SealedMaterialKey(
+                                colorCount: colorCount,
+                                background: background,
+                                family: lhs,
+                                view: view
+                            )
+                            let rhsKey = SealedMaterialKey(
+                                colorCount: colorCount,
+                                background: background,
+                                family: rhs,
+                                view: view
+                            )
+                            let lhsSignature = try #require(observations[lhsKey])
+                            let rhsSignature = try #require(observations[rhsKey])
+                            let separation = sealedDistance(lhsSignature, rhsSignature)
+                            if separation < 0.020 {
+                                failures.append(
+                                    "family-collapse c\(colorCount)/\(background.rawValue)/\(view.rawValue)/\(lhs.rawValue)~\(rhs.rawValue) distance=\(separation)"
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Mutation controls prove these pixel predicates reject the named
+        // regressions rather than merely accepting the current renderer.
+        let controlKey = SealedMaterialKey(
+            colorCount: 3,
+            background: .lowContrast,
+            family: .solid,
+            view: .actor
+        )
+        let solidControl = try #require(observations[controlKey])
+        #expect(sealedMetrics(solidControl).coreRange <= 0.018)
+        #expect(sealedMetrics(sealedRadialRampMutation(solidControl)).coreRange > 0.018)
+        #expect(sealedDistance(solidControl, solidControl) < 0.020)
+
+        let transparentKey = SealedMaterialKey(
+            colorCount: 3,
+            background: .lowContrast,
+            family: .glass,
+            view: .actor
+        )
+        let transparentControl = try #require(observations[transparentKey])
+        #expect(!sealedTransparentBodyIsReadable(
+            sealedMetrics(sealedDesaturatedSilhouetteMutation(transparentControl)),
+            family: .glass
+        ))
+
+        let outlineKey = SealedMaterialKey(
+            colorCount: 3,
+            background: .lowContrast,
+            family: .outline,
+            view: .actor
+        )
+        let outlineControl = try #require(observations[outlineKey])
+        #expect(sealedOutlineContinuity(outlineControl).supportedAngularCoverage >= 0.82)
+        #expect(
+            sealedOutlineContinuity(sealedBrokenContourMutation(outlineControl))
+                .supportedAngularCoverage < 0.82
+        )
+
+        let mistKey = SealedMaterialKey(
+            colorCount: 3,
+            background: .lowContrast,
+            family: .mist,
+            view: .actor
+        )
+        let mistControl = try #require(observations[mistKey])
+        #expect(sealedMetrics(sealedGrainMutation(mistControl)).grainEnergy >= 0.006)
+
+        let radialActor = fixtureActor(
+            colors: [
+                .init(red: 0.94, green: 0.18, blue: 0.24),
+                .init(red: 0.08, green: 0.54, blue: 0.96),
+            ],
+            fields: [
+                .init(
+                    focus: .init(x: 0.5, y: 0.5),
+                    radius: 0.58,
+                    softness: 0.72,
+                    opacity: 1,
+                    colorIndex: 1,
+                    blend: .normal
+                ),
+            ]
+        )
+        let radialPixels = try pixels(renderer.renderActor(
+            radialActor,
+            pixelSize: actorPixelDiameter(actor),
+            background: .dark
+        ).pngData)
+        let radialControl = sealedSignature(
+            radialPixels,
+            centerX: Double(radialPixels.width) * 0.5,
+            centerY: Double(radialPixels.height) * 0.5,
+            radius: Double(radialPixels.width) * 0.48,
+            background: .dark
+        )
+        #expect(sealedAngularResidual(radialControl) < 0.012)
+        #expect(sealedAngularResidual(sealedDirectionalMutation(radialControl)) > 0.035)
+
+        let countsByDimension = Dictionary(grouping: failures) { failure in
+            failure.split(separator: " ").first.map(String.init) ?? "unknown"
+        }.mapValues(\.count)
+        #expect(
+            failures.isEmpty,
+            Comment(rawValue:
+                "sealed 1x matrix failures=\(failures.count) dimensions=\(countsByDimension)\n"
+                    + failures.prefix(160).joined(separator: "\n")
+            )
+        )
+    }
+}
+
+private enum Fixture11PresentationView: String, Hashable {
+    case full
+    case tile
+    case actor
+    case exact
+}
+
+private struct Fixture11OwnedLayer {
+    let actor: ActorCompositionRecipe
+    let alpha: PixelImage
+    let removed: PixelImage
+}
+
+private struct Fixture11PresentationSample {
+    let view: Fixture11PresentationView
+    let current: PixelImage
+    let preOnly: PixelImage
+    let postWitness: PixelImage
+    let alpha: PixelImage
+    let centerX: Double
+    let centerY: Double
+    let pixelRadius: Double
+    let originX: Int
+    let originY: Int
+}
+
+private struct Fixture11IsolatedIdentityMetrics {
+    let eligibleRays: Int
+    let supportedRays: Int
+    let percentile90Contrast: Double
+
+    var coverage: Double { Double(supportedRays) / Double(max(eligibleRays, 1)) }
+    var passes: Bool { eligibleRays > 0 && coverage >= 0.82 && percentile90Contrast >= 0.16 }
+}
+
+private func fixture11OwnedVisibilityWitness(
+    canonical: PixelImage,
+    owners: [Fixture11OwnedLayer]
+) -> PixelImage {
+    precondition(owners.allSatisfy {
+        $0.removed.width == canonical.width && $0.removed.height == canonical.height
+    })
+    var rgba = canonical.rgba
+    for y in 0..<canonical.height {
+        for x in 0..<canonical.width {
+            for owner in owners.reversed() {
+                let centerX = owner.actor.position.x * Double(canonical.width)
+                let centerY = owner.actor.position.y * Double(canonical.height)
+                let alphaX = Int(floor(Double(x) + 0.5 - centerX + Double(owner.alpha.width) * 0.5))
+                let alphaY = Int(floor(Double(y) + 0.5 - centerY + Double(owner.alpha.height) * 0.5))
+                guard (0..<owner.alpha.width).contains(alphaX),
+                      (0..<owner.alpha.height).contains(alphaY),
+                      owner.alpha.pixel(x: alphaX, y: alphaY).alphaByte > 0
+                else { continue }
+
+                let offset = (y * canonical.width + x) * 4
+                let removed = owner.removed.pixel(x: x, y: y)
+                if rgba[offset] != removed.redByte
+                    || rgba[offset + 1] != removed.greenByte
+                    || rgba[offset + 2] != removed.blueByte {
+                    let adjusted = MaterialRenderer.outlineVisibilityPixel(
+                        OutlineVisibilityPixel(
+                            red: rgba[offset],
+                            green: rgba[offset + 1],
+                            blue: rgba[offset + 2],
+                            alpha: rgba[offset + 3]
+                        ),
+                        background: MaterialColor(
+                            red: removed.straight.r,
+                            green: removed.straight.g,
+                            blue: removed.straight.b
+                        )
+                    )
+                    rgba[offset] = adjusted.red
+                    rgba[offset + 1] = adjusted.green
+                    rgba[offset + 2] = adjusted.blue
+                }
+                // The first topmost isolated-alpha owner is authoritative even
+                // when its exact counterfactual RGB delta rounds to zero.
+                break
+            }
+        }
+    }
+    return PixelImage(width: canonical.width, height: canonical.height, rgba: rgba)
+}
+
+private func fixture11PresentationViews(
+    current: PixelImage,
+    preOnly: PixelImage,
+    postWitness: PixelImage,
+    alpha: PixelImage,
+    actor: ActorCompositionRecipe
+) -> [Fixture11PresentationSample] {
+    let centerX = actor.position.x * 393
+    let centerY = actor.position.y * 852
+    let diameter = actorPixelDiameter(actor)
+    let actorRect = fixture11CenteredCrop(
+        centerX: centerX,
+        centerY: centerY,
+        side: diameter,
+        width: 393,
+        height: 852
+    )
+    let exactRect = fixture11CenteredCrop(
+        centerX: centerX,
+        centerY: centerY,
+        side: max(diameter, alpha.width),
+        width: 393,
+        height: 852
+    )
+    let definitions: [(Fixture11PresentationView, Int, Int, Int, Int)] = [
+        (.full, 0, 0, 393, 852),
+        (.tile, 0, 229, 393, 393),
+        (.actor, actorRect.x, actorRect.y, actorRect.width, actorRect.height),
+        (.exact, exactRect.x, exactRect.y, exactRect.width, exactRect.height),
+    ]
+    return definitions.map { view, x, y, width, height in
+        Fixture11PresentationSample(
+            view: view,
+            current: current.cropped(x: x, y: y, width: width, height: height),
+            preOnly: preOnly.cropped(x: x, y: y, width: width, height: height),
+            postWitness: postWitness.cropped(x: x, y: y, width: width, height: height),
+            alpha: alpha,
+            centerX: centerX - Double(x),
+            centerY: centerY - Double(y),
+            pixelRadius: actor.diameter * 393 * 0.48,
+            originX: x,
+            originY: y
+        )
+    }
+}
+
+private func fixture11CenteredCrop(
+    centerX: Double,
+    centerY: Double,
+    side: Int,
+    width: Int,
+    height: Int
+) -> (x: Int, y: Int, width: Int, height: Int) {
+    let cropWidth = min(side, width)
+    let cropHeight = min(side, height)
+    return (
+        x: min(width - cropWidth, max(0, Int(floor(centerX - Double(cropWidth) * 0.5)))),
+        y: min(height - cropHeight, max(0, Int(floor(centerY - Double(cropHeight) * 0.5)))),
+        width: cropWidth,
+        height: cropHeight
+    )
+}
+
+private func fixture11IsolatedIdentityMetrics(
+    alpha: PixelImage,
+    image: PixelImage,
+    centerX: Double,
+    centerY: Double,
+    pixelRadius: Double,
+    background: BackgroundCondition
+) -> Fixture11IsolatedIdentityMetrics {
+    let backgroundColor = MaterialRenderer.backgroundColor(for: background)
+    let backgroundRGB = StraightRGB(
+        r: backgroundColor.red,
+        g: backgroundColor.green,
+        b: backgroundColor.blue
+    )
+    let alphaCenterX = Double(alpha.width) * 0.5
+    let alphaCenterY = Double(alpha.height) * 0.5
+    let radialSteps = max(1, Int(ceil((1.08 - 0.52) * pixelRadius)))
+    var eligibleRays = 0
+    var supportedRays = 0
+    var contrasts = [Double]()
+    for angleIndex in 0..<96 {
+        let angle = Double(angleIndex) / 96 * Double.pi * 2
+        var samples = [(owned: Bool, contrast: Double)]()
+        var inFrame = true
+        for step in 0...radialSteps {
+            let radius = 0.52 + Double(step) / pixelRadius
+            let x = Int(floor(centerX + cos(angle) * radius * pixelRadius))
+            let y = Int(floor(centerY + sin(angle) * radius * pixelRadius))
+            guard (0..<image.width).contains(x), (0..<image.height).contains(y) else {
+                inFrame = false
+                continue
+            }
+            let alphaX = Int(floor(alphaCenterX + cos(angle) * radius * pixelRadius))
+            let alphaY = Int(floor(alphaCenterY + sin(angle) * radius * pixelRadius))
+            let owned = (0..<alpha.width).contains(alphaX)
+                && (0..<alpha.height).contains(alphaY)
+                && alpha.pixel(x: alphaX, y: alphaY).alphaByte > 0
+            samples.append((
+                owned: owned,
+                contrast: rgbDistance(image.pixel(x: x, y: y).straight, backgroundRGB)
+            ))
+        }
+        guard inFrame else { continue }
+        eligibleRays += 1
+        let support = samples.map { $0.owned && $0.contrast >= 0.075 }
+        if fixture11LongestRun(support) >= 2 {
+            supportedRays += 1
+            contrasts.append(contentsOf: samples.compactMap {
+                $0.owned && $0.contrast >= 0.075 ? $0.contrast : nil
+            })
+        }
+    }
+    return Fixture11IsolatedIdentityMetrics(
+        eligibleRays: eligibleRays,
+        supportedRays: supportedRays,
+        percentile90Contrast: percentile(contrasts.sorted(), fraction: 0.90)
+    )
+}
+
+private func fixture11Resized(
+    _ image: PixelImage,
+    width: Int,
+    height: Int
+) throws -> PixelImage {
+    let provider = try #require(CGDataProvider(data: image.rgba as CFData))
+    let source = try #require(CGImage(
+        width: image.width,
+        height: image.height,
+        bitsPerComponent: 8,
+        bitsPerPixel: 32,
+        bytesPerRow: image.width * 4,
+        space: CGColorSpace(name: CGColorSpace.sRGB)!,
+        bitmapInfo: CGBitmapInfo(
+            rawValue: CGImageAlphaInfo.premultipliedLast.rawValue
+                | CGBitmapInfo.byteOrder32Big.rawValue
+        ),
+        provider: provider,
+        decode: nil,
+        shouldInterpolate: true,
+        intent: .defaultIntent
+    ))
+    var rgba = Data(count: width * height * 4)
+    let rendered = rgba.withUnsafeMutableBytes { bytes -> Bool in
+        guard let context = CGContext(
+            data: bytes.baseAddress,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                | CGBitmapInfo.byteOrder32Big.rawValue
+        ) else { return false }
+        context.interpolationQuality = .high
+        context.draw(source, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return true
+    }
+    #expect(rendered)
+    return PixelImage(width: width, height: height, rgba: rgba)
+}
+
+private func fixture11AlphaBytes(_ image: PixelImage) -> [UInt8] {
+    stride(from: 3, to: image.rgba.count, by: 4).map { image.rgba[$0] }
+}
+
+private func fixture11DifferenceBounds(_ image: PixelImage, _ removed: PixelImage) -> [Int] {
+    precondition(image.width == removed.width && image.height == removed.height)
+    var minimumX = image.width
+    var minimumY = image.height
+    var maximumX = -1
+    var maximumY = -1
+    for y in 0..<image.height {
+        for x in 0..<image.width {
+            let pixel = image.pixel(x: x, y: y)
+            let counterfactual = removed.pixel(x: x, y: y)
+            guard pixel.redByte != counterfactual.redByte
+                || pixel.greenByte != counterfactual.greenByte
+                || pixel.blueByte != counterfactual.blueByte
+            else { continue }
+            minimumX = min(minimumX, x)
+            minimumY = min(minimumY, y)
+            maximumX = max(maximumX, x)
+            maximumY = max(maximumY, y)
+        }
+    }
+    return [minimumX, minimumY, maximumX, maximumY]
+}
+
+private func fixture11SolidPixel(
+    red: UInt8,
+    green: UInt8,
+    blue: UInt8,
+    alpha: UInt8
+) -> PixelImage {
+    PixelImage(width: 1, height: 1, rgba: Data([red, green, blue, alpha]))
+}
+
+private struct Fixture11OutlinePresentationMetrics: CustomStringConvertible {
+    let eligibleRays: Int
+    let identitySupportedRays: Int
+    let percentile90Contrast: Double
+    let composedOwnedCoverage: Double
+    let rawComposedCoverage: Double
+
+    var identityCoverage: Double {
+        Double(identitySupportedRays) / Double(max(eligibleRays, 1))
+    }
+
+    var description: String {
+        "eligible=\(eligibleRays), identity=\(identityCoverage), p90=\(percentile90Contrast), "
+            + "composedOwned=\(composedOwnedCoverage), rawComposed=\(rawComposedCoverage)"
+    }
+}
+
+private func fixture11OutlinePresentationMetrics(
+    alpha: PixelImage,
+    isolated: PixelImage,
+    composed: PixelImage,
+    actor: ActorCompositionRecipe,
+    background: BackgroundCondition
+) -> Fixture11OutlinePresentationMetrics {
+    let backgroundColor = MaterialRenderer.backgroundColor(for: background)
+    let backgroundRGB = StraightRGB(
+        r: backgroundColor.red,
+        g: backgroundColor.green,
+        b: backgroundColor.blue
+    )
+    let centerX = actor.position.x * 393
+    let centerY = actor.position.y * 852
+    let pixelRadius = actor.diameter * 393 * 0.48
+    let alphaCenterX = Double(alpha.width) * 0.5
+    let alphaCenterY = Double(alpha.height) * 0.5
+    let radialSteps = max(1, Int(ceil((1.08 - 0.52) * pixelRadius)))
+    var eligibleRays = 0
+    var identitySupported = 0
+    var composedOwnedSupported = 0
+    var rawComposedSupported = 0
+    var isolatedContrasts = [Double]()
+
+    for angleIndex in 0..<96 {
+        let angle = Double(angleIndex) / 96 * Double.pi * 2
+        var samples = [(alpha: Double, isolated: Double, composed: Double)]()
+        var inFrame = true
+        for step in 0...radialSteps {
+            let radius = 0.52 + Double(step) / pixelRadius
+            let sceneX = Int((centerX + cos(angle) * radius * pixelRadius).rounded(.down))
+            let sceneY = Int((centerY + sin(angle) * radius * pixelRadius).rounded(.down))
+            guard (0..<isolated.width).contains(sceneX),
+                  (0..<isolated.height).contains(sceneY)
+            else {
+                inFrame = false
+                continue
+            }
+            let alphaX = Int((alphaCenterX + cos(angle) * radius * pixelRadius).rounded(.down))
+            let alphaY = Int((alphaCenterY + sin(angle) * radius * pixelRadius).rounded(.down))
+            let alphaValue = (0..<alpha.width).contains(alphaX) && (0..<alpha.height).contains(alphaY)
+                ? alpha.pixel(x: alphaX, y: alphaY).alpha
+                : 0
+            samples.append((
+                alpha: alphaValue,
+                isolated: rgbDistance(isolated.pixel(x: sceneX, y: sceneY).straight, backgroundRGB),
+                composed: rgbDistance(composed.pixel(x: sceneX, y: sceneY).straight, backgroundRGB)
+            ))
+        }
+        guard inFrame else { continue }
+        eligibleRays += 1
+        // Isolated same-scale pixels are the material-identity authority.
+        // Structural alpha proves actor ownership; composed RGB is metadata
+        // only and cannot create or erase isolated continuity.
+        let identityRun = fixture11LongestRun(samples.map {
+            $0.alpha >= 1.0 / 255.0 && $0.isolated >= 0.075
+        })
+        let composedOwnedRun = fixture11LongestRun(samples.map {
+            $0.alpha >= 1.0 / 255.0 && $0.composed >= 0.075
+        })
+        let rawComposedRun = fixture11LongestRun(samples.map { $0.composed >= 0.075 })
+        if identityRun >= 2 {
+            identitySupported += 1
+            isolatedContrasts.append(contentsOf: samples.compactMap {
+                $0.alpha >= 1.0 / 255.0 && $0.isolated >= 0.075 ? $0.isolated : nil
+            })
+        }
+        if composedOwnedRun >= 2 { composedOwnedSupported += 1 }
+        if rawComposedRun >= 2 { rawComposedSupported += 1 }
+    }
+
+    return Fixture11OutlinePresentationMetrics(
+        eligibleRays: eligibleRays,
+        identitySupportedRays: identitySupported,
+        percentile90Contrast: percentile(isolatedContrasts.sorted(), fraction: 0.90),
+        composedOwnedCoverage: Double(composedOwnedSupported) / Double(max(eligibleRays, 1)),
+        rawComposedCoverage: Double(rawComposedSupported) / Double(max(eligibleRays, 1))
+    )
+}
+
+private func fixture11LongestRun(_ values: [Bool]) -> Int {
+    var longest = 0
+    var current = 0
+    for value in values {
+        current = value ? current + 1 : 0
+        longest = max(longest, current)
+    }
+    return longest
+}
+
+private func fixture11AlphaHistogram(_ values: [UInt8]) -> [Int] {
+    var histogram = [Int](repeating: 0, count: 256)
+    for value in values { histogram[Int(value)] += 1 }
+    return histogram
+}
+
+private func fixture11AlphaQuantiles(_ values: [UInt8]) -> [UInt8] {
+    let sorted = values.sorted()
+    return [0.0, 0.10, 0.50, 0.90, 1.0].map { fraction in
+        sorted[Int(Double(sorted.count - 1) * fraction)]
+    }
+}
+
+private func fixture11CompositedDistance(
+    _ color: MaterialColor,
+    alpha: Double,
+    background: MaterialColor
+) -> Double {
+    let red = background.red + (color.red - background.red) * alpha
+    let green = background.green + (color.green - background.green) * alpha
+    let blue = background.blue + (color.blue - background.blue) * alpha
+    return hypot(
+        red - background.red,
+        hypot(green - background.green, blue - background.blue)
+    )
+}
+
+private func fixture11ProjectionCrossMagnitude(
+    color: MaterialColor,
+    target: MaterialColor,
+    background: MaterialColor
+) -> Double {
+    let ax = color.red - background.red
+    let ay = color.green - background.green
+    let az = color.blue - background.blue
+    let bx = target.red - background.red
+    let by = target.green - background.green
+    let bz = target.blue - background.blue
+    return hypot(
+        ay * bz - az * by,
+        hypot(az * bx - ax * bz, ax * by - ay * bx)
+    )
+}
+
+private func fixture11BrokenArcMutation(_ image: PixelImage) -> PixelImage {
+    var rgba = image.rgba
+    let centerX = Double(image.width) * 0.5
+    let centerY = Double(image.height) * 0.5
+    for y in 0..<image.height {
+        for x in 0..<image.width {
+            let angle = atan2(Double(y) + 0.5 - centerY, Double(x) + 0.5 - centerX)
+            guard abs(angle) < Double.pi * 0.34 else { continue }
+            let offset = (y * image.width + x) * 4
+            rgba[offset] = 0
+            rgba[offset + 1] = 0
+            rgba[offset + 2] = 0
+            rgba[offset + 3] = 0
+        }
+    }
+    return PixelImage(width: image.width, height: image.height, rgba: rgba)
+}
+
+private func fixture11ArcColorMutation(
+    _ image: PixelImage,
+    actor: ActorCompositionRecipe,
+    color: MaterialColor
+) -> PixelImage {
+    var rgba = image.rgba
+    let centerX = actor.position.x * 393
+    let centerY = actor.position.y * 852
+    let pixelRadius = actor.diameter * 393 * 0.48
+    for y in 0..<image.height {
+        for x in 0..<image.width {
+            let dx = Double(x) + 0.5 - centerX
+            let dy = Double(y) + 0.5 - centerY
+            let radius = hypot(dx, dy) / max(pixelRadius, 1)
+            let angle = atan2(dy, dx)
+            guard (0.52...1.08).contains(radius), abs(angle) < Double.pi * 0.34 else { continue }
+            let offset = (y * image.width + x) * 4
+            rgba[offset] = UInt8((color.red * 255).rounded())
+            rgba[offset + 1] = UInt8((color.green * 255).rounded())
+            rgba[offset + 2] = UInt8((color.blue * 255).rounded())
+            rgba[offset + 3] = 255
+        }
+    }
+    return PixelImage(width: image.width, height: image.height, rgba: rgba)
+}
+
+private enum SealedMaterialView: String, CaseIterable, Hashable {
+    case full
+    case tile
+    case actor
+    case exact
+}
+
+private struct SealedMaterialKey: Hashable {
+    let colorCount: Int
+    let background: BackgroundCondition
+    let family: MaterialFamily
+    let view: SealedMaterialView
+}
+
+private struct SealedOpticalSample {
+    let gridX: Int
+    let gridY: Int
+    let normalizedX: Double
+    let normalizedY: Double
+    let color: StraightRGB
+    let background: StraightRGB
+
+    var radius: Double { hypot(normalizedX, normalizedY) }
+    var contrast: Double { rgbDistance(color, background) }
+}
+
+private struct SealedOpticalSignature {
+    let gridSide: Int
+    let samples: [SealedOpticalSample]
+    let pixelRadius: Double
+    let contourRays: [[SealedOpticalSample]]
+}
+
+private struct SealedOpticalMetrics {
+    let centerToRimRatio: Double
+    let activeAreaFraction: Double
+    let peakContrast: Double
+    let meanChroma: Double
+    let coreRange: Double
+    let grainEnergy: Double
+}
+
+private struct SealedOutlineContinuity {
+    let supportedAngularCoverage: Double
+    let minimumNormalizedSupport: Double
+}
+
+private func actorPixelDiameter(_ actor: ActorCompositionRecipe) -> Int {
+    max(1, Int(ceil(actor.diameter * 393)))
+}
+
+private func sealedSignature(
+    _ image: PixelImage,
+    centerX: Double,
+    centerY: Double,
+    radius: Double,
+    background: BackgroundCondition,
+    gridSide: Int = 33
+) -> SealedOpticalSignature {
+    let backgroundColor = MaterialRenderer.backgroundColor(for: background)
+    let backgroundRGB = StraightRGB(
+        r: backgroundColor.red,
+        g: backgroundColor.green,
+        b: backgroundColor.blue
+    )
+    var samples = [SealedOpticalSample]()
+    samples.reserveCapacity(gridSide * gridSide)
+    for gridY in 0..<gridSide {
+        for gridX in 0..<gridSide {
+            let normalizedX = (Double(gridX) / Double(gridSide - 1) * 2 - 1) * 1.04
+            let normalizedY = (Double(gridY) / Double(gridSide - 1) * 2 - 1) * 1.04
+            guard hypot(normalizedX, normalizedY) <= 1.04 else { continue }
+            let x = min(image.width - 1, max(0, Int((centerX + normalizedX * radius).rounded())))
+            let y = min(image.height - 1, max(0, Int((centerY + normalizedY * radius).rounded())))
+            samples.append(SealedOpticalSample(
+                gridX: gridX,
+                gridY: gridY,
+                normalizedX: normalizedX,
+                normalizedY: normalizedY,
+                color: image.pixel(x: x, y: y).straight,
+                background: backgroundRGB
+            ))
+        }
+    }
+    let rayCount = 96
+    let radialStepCount = max(1, Int(ceil(radius * 0.52)))
+    let contourRays = (0..<rayCount).map { angleIndex in
+        let angle = Double(angleIndex) / Double(rayCount) * Double.pi * 2
+        return (0...radialStepCount).map { radialIndex in
+            let normalizedRadius = 0.52 + Double(radialIndex) / max(radius, 1)
+            let normalizedX = cos(angle) * normalizedRadius
+            let normalizedY = sin(angle) * normalizedRadius
+            let x = min(image.width - 1, max(0, Int((centerX + normalizedX * radius).rounded())))
+            let y = min(image.height - 1, max(0, Int((centerY + normalizedY * radius).rounded())))
+            return SealedOpticalSample(
+                gridX: radialIndex,
+                gridY: angleIndex,
+                normalizedX: normalizedX,
+                normalizedY: normalizedY,
+                color: image.pixel(x: x, y: y).straight,
+                background: backgroundRGB
+            )
+        }
+    }
+    return SealedOpticalSignature(
+        gridSide: gridSide,
+        samples: samples,
+        pixelRadius: radius,
+        contourRays: contourRays
+    )
+}
+
+private func sealedMetrics(_ signature: SealedOpticalSignature) -> SealedOpticalMetrics {
+    let center = signature.samples.filter { $0.radius <= 0.20 }.map(\.contrast)
+    let rim = signature.samples.filter { (0.76...0.98).contains($0.radius) }.map(\.contrast)
+    let body = signature.samples.filter { $0.radius <= 0.92 }
+    let active = body.filter { $0.contrast >= 0.075 }
+    let centerContrast = sealedMean(center)
+    let rimContrast = sealedMean(rim)
+    let chroma = active.map { $0.color.chroma }
+    let core = body.filter { $0.radius <= 0.46 }.map { $0.color }
+    let redRange = (core.map(\.r).max() ?? 0) - (core.map(\.r).min() ?? 0)
+    let greenRange = (core.map(\.g).max() ?? 0) - (core.map(\.g).min() ?? 0)
+    let blueRange = (core.map(\.b).max() ?? 0) - (core.map(\.b).min() ?? 0)
+    let byCoordinate = Dictionary(uniqueKeysWithValues: signature.samples.map {
+        ("\($0.gridX),\($0.gridY)", $0)
+    })
+    var residuals = [Double]()
+    for sample in body where sample.radius <= 0.72 {
+        let neighbours = [
+            "\(sample.gridX - 1),\(sample.gridY)",
+            "\(sample.gridX + 1),\(sample.gridY)",
+            "\(sample.gridX),\(sample.gridY - 1)",
+            "\(sample.gridX),\(sample.gridY + 1)",
+        ].compactMap { byCoordinate[$0] }
+        guard neighbours.count == 4 else { continue }
+        let localMean = sealedMean(neighbours.map { $0.color.luminance })
+        residuals.append(abs(sample.color.luminance - localMean))
+    }
+    return SealedOpticalMetrics(
+        centerToRimRatio: centerContrast / max(rimContrast, 0.000_001),
+        activeAreaFraction: Double(active.count) / Double(max(body.count, 1)),
+        peakContrast: body.map(\.contrast).max() ?? 0,
+        meanChroma: sealedMean(chroma),
+        coreRange: max(redRange, greenRange, blueRange),
+        grainEnergy: sealedMean(residuals)
+    )
+}
+
+private func sealedDistance(
+    _ lhs: SealedOpticalSignature,
+    _ rhs: SealedOpticalSignature
+) -> Double {
+    precondition(lhs.samples.count == rhs.samples.count)
+    let distances = zip(lhs.samples, rhs.samples).map { left, right in
+        let leftDelta = StraightRGB(
+            r: left.color.r - left.background.r,
+            g: left.color.g - left.background.g,
+            b: left.color.b - left.background.b
+        )
+        let rightDelta = StraightRGB(
+            r: right.color.r - right.background.r,
+            g: right.color.g - right.background.g,
+            b: right.color.b - right.background.b
+        )
+        return rgbDistance(leftDelta, rightDelta)
+    }
+    return sealedMean(distances)
+}
+
+private func sealedTransparentBodyIsReadable(
+    _ metrics: SealedOpticalMetrics,
+    family: MaterialFamily
+) -> Bool {
+    metrics.peakContrast >= 0.16
+        && (family == .outline || metrics.activeAreaFraction >= 0.18)
+        && metrics.meanChroma >= 0.10
+}
+
+private func sealedOutlineContinuity(
+    _ signature: SealedOpticalSignature
+) -> SealedOutlineContinuity {
+    let minimumNormalizedSupport = 2 / max(signature.pixelRadius, 1)
+    let normalizedPixelStep = 1 / max(signature.pixelRadius, 1)
+    let supportedRayCount = signature.contourRays.filter { ray in
+        var longestRun = 0
+        var currentRun = 0
+        for sample in ray {
+            if sample.contrast >= 0.075 {
+                currentRun += 1
+                longestRun = max(longestRun, currentRun)
+            } else {
+                currentRun = 0
+            }
+        }
+        return Double(longestRun) * normalizedPixelStep >= minimumNormalizedSupport
+    }.count
+    return SealedOutlineContinuity(
+        supportedAngularCoverage: Double(supportedRayCount)
+            / Double(max(signature.contourRays.count, 1)),
+        minimumNormalizedSupport: minimumNormalizedSupport
+    )
+}
+
+private func sealedRadialRampMutation(
+    _ signature: SealedOpticalSignature
+) -> SealedOpticalSignature {
+    sealedMap(signature) { sample in
+        let amount = min(0.24, sample.radius * 0.24)
+        return sealedMix(sample.color, sample.background, amount)
+    }
+}
+
+private func sealedDesaturatedSilhouetteMutation(
+    _ signature: SealedOpticalSignature
+) -> SealedOpticalSignature {
+    sealedMap(signature) { sample in
+        let gray = StraightRGB(
+            r: sample.color.luminance,
+            g: sample.color.luminance,
+            b: sample.color.luminance
+        )
+        return sealedMix(sample.background, gray, 0.08)
+    }
+}
+
+private func sealedGrainMutation(
+    _ signature: SealedOpticalSignature
+) -> SealedOpticalSignature {
+    sealedMap(signature) { sample in
+        let sign = (sample.gridX &+ sample.gridY).isMultiple(of: 2) ? 1.0 : -1.0
+        return StraightRGB(
+            r: min(1, max(0, sample.color.r + sign * 0.035)),
+            g: min(1, max(0, sample.color.g + sign * 0.035)),
+            b: min(1, max(0, sample.color.b + sign * 0.035))
+        )
+    }
+}
+
+private func sealedDirectionalMutation(
+    _ signature: SealedOpticalSignature
+) -> SealedOpticalSignature {
+    sealedMap(signature) { sample in
+        sealedMix(sample.color, sample.background, max(0, sample.normalizedX) * 0.34)
+    }
+}
+
+private func sealedBrokenContourMutation(
+    _ signature: SealedOpticalSignature
+) -> SealedOpticalSignature {
+    sealedMap(signature) { sample in
+        let angle = atan2(sample.normalizedY, sample.normalizedX)
+        let breaksContinuity = abs(angle) < Double.pi * 0.34
+        let leavesOnlySubpixelDashes = !sample.gridX.isMultiple(of: 3)
+        return breaksContinuity || leavesOnlySubpixelDashes
+            ? sample.background
+            : sample.color
+    }
+}
+
+private func sealedAngularResidual(_ signature: SealedOpticalSignature) -> Double {
+    let rings = Dictionary(grouping: signature.samples.filter { $0.radius <= 0.82 }) {
+        let center = (signature.gridSide - 1) / 2
+        let x = $0.gridX - center
+        let y = $0.gridY - center
+        return x * x + y * y
+    }
+    return rings.values.map { ring in
+        let luminances = ring.map { $0.color.luminance }
+        return (luminances.max() ?? 0) - (luminances.min() ?? 0)
+    }.max() ?? 0
+}
+
+private func sealedMap(
+    _ signature: SealedOpticalSignature,
+    transform: (SealedOpticalSample) -> StraightRGB
+) -> SealedOpticalSignature {
+    SealedOpticalSignature(
+        gridSide: signature.gridSide,
+        samples: signature.samples.map { sample in
+            SealedOpticalSample(
+                gridX: sample.gridX,
+                gridY: sample.gridY,
+                normalizedX: sample.normalizedX,
+                normalizedY: sample.normalizedY,
+                color: transform(sample),
+                background: sample.background
+            )
+        },
+        pixelRadius: signature.pixelRadius,
+        contourRays: signature.contourRays.map { ray in
+            ray.map { sample in
+                SealedOpticalSample(
+                    gridX: sample.gridX,
+                    gridY: sample.gridY,
+                    normalizedX: sample.normalizedX,
+                    normalizedY: sample.normalizedY,
+                    color: transform(sample),
+                    background: sample.background
+                )
+            }
+        }
+    )
+}
+
+private func sealedMix(_ lhs: StraightRGB, _ rhs: StraightRGB, _ amount: Double) -> StraightRGB {
+    let t = min(1, max(0, amount))
+    return StraightRGB(
+        r: lhs.r + (rhs.r - lhs.r) * t,
+        g: lhs.g + (rhs.g - lhs.g) * t,
+        b: lhs.b + (rhs.b - lhs.b) * t
+    )
+}
+
+private func sealedMean(_ values: [Double]) -> Double {
+    values.reduce(0, +) / Double(max(values.count, 1))
 }
 
 private func fixtureActor(
@@ -2348,6 +4690,43 @@ private func radialSamples(_ image: PixelImage, radius: Double, count: Int) -> [
     }
 }
 
+private func radialSectorMeans(
+    _ image: PixelImage,
+    radialBand: ClosedRange<Double>,
+    sectorCount: Int
+) -> [StraightRGB] {
+    var red = Array(repeating: 0.0, count: sectorCount)
+    var green = Array(repeating: 0.0, count: sectorCount)
+    var blue = Array(repeating: 0.0, count: sectorCount)
+    var counts = Array(repeating: 0, count: sectorCount)
+    for y in 0..<image.height {
+        for x in 0..<image.width {
+            let u = (Double(x) + 0.5) / Double(image.width) - 0.5
+            let v = (Double(y) + 0.5) / Double(image.height) - 0.5
+            guard radialBand.contains(hypot(u, v)) else { continue }
+            let normalizedAngle = (atan2(v, u) + Double.pi * 2)
+                .truncatingRemainder(dividingBy: Double.pi * 2)
+            let index = min(
+                sectorCount - 1,
+                Int(normalizedAngle / (Double.pi * 2) * Double(sectorCount))
+            )
+            let color = image.pixel(x: x, y: y).straight
+            red[index] += color.r
+            green[index] += color.g
+            blue[index] += color.b
+            counts[index] += 1
+        }
+    }
+    return (0..<sectorCount).map { index in
+        let divisor = Double(max(counts[index], 1))
+        return StraightRGB(
+            r: red[index] / divisor,
+            g: green[index] / divisor,
+            b: blue[index] / divisor
+        )
+    }
+}
+
 private func circularHueDistance(_ lhs: Double, _ rhs: Double) -> Double {
     let delta = abs(lhs - rhs)
     return min(delta, 1 - delta)
@@ -2381,6 +4760,114 @@ private func alphaBytes(_ data: Data) throws -> Data {
         }
     }
     return alpha
+}
+
+private func fixture11PresentationEvidenceDigest(
+    eventID: String,
+    isolated: MaterialRenderedScene,
+    isolatedTrace: MaterialOutlineOwnershipTrace,
+    removed: MaterialRenderedScene,
+    removedTrace: MaterialOutlineOwnershipTrace
+) throws -> String {
+    sha256Hex(Data([
+        eventID,
+        try fixture11PresentationSceneDigest(scene: isolated, trace: isolatedTrace),
+        try fixture11PresentationSceneDigest(scene: removed, trace: removedTrace),
+    ].joined(separator: "|").utf8))
+}
+
+private func fixture11PresentationEvidenceDigest(
+    eventID: String,
+    isolated: MaterialPresentationEvidenceScene,
+    removed: MaterialPresentationEvidenceScene
+) throws -> String {
+    sha256Hex(Data([
+        eventID,
+        try fixture11PresentationSceneDigest(scene: isolated),
+        try fixture11PresentationSceneDigest(scene: removed),
+    ].joined(separator: "|").utf8))
+}
+
+private func fixture11PresentationSceneDigest(
+    scene: MaterialRenderedScene,
+    trace: MaterialOutlineOwnershipTrace
+) throws -> String {
+    try fixture11PresentationSceneDigest(
+        fullScreen: scene.fullScreen,
+        calendarTile: scene.calendarTile,
+        tileCrop: scene.tileCrop,
+        drawSequence: scene.drawSequence,
+        ownerEventIDs: trace.ownerEventIDs,
+        ownerLabels: trace.ownerLabels,
+        counterfactualBackgroundRGBA: trace.counterfactualBackgroundRGBA
+    )
+}
+
+private func fixture11PresentationSceneDigest(
+    scene: MaterialPresentationEvidenceScene
+) throws -> String {
+    try fixture11PresentationSceneDigest(
+        fullScreen: scene.fullScreen,
+        calendarTile: scene.calendarTile,
+        tileCrop: scene.tileCrop,
+        drawSequence: scene.drawSequence,
+        ownerEventIDs: scene.ownership.ownerEventIDs,
+        ownerLabels: scene.ownership.ownerLabels,
+        counterfactualBackgroundRGBA: scene.ownership.counterfactualBackgroundRGBA
+    )
+}
+
+private func fixture11PresentationSceneDigest(
+    fullScreen: NeutralRenderedImage,
+    calendarTile: NeutralRenderedImage,
+    tileCrop: PixelRect,
+    drawSequence: [String],
+    ownerEventIDs: [String],
+    ownerLabels: Data,
+    counterfactualBackgroundRGBA: Data
+) throws -> String {
+    let fullAlpha = try alphaBytes(fullScreen.pngData)
+    let tileAlpha = try alphaBytes(calendarTile.pngData)
+    let tileOwnerLabels = fixture11CroppedBytes(
+        ownerLabels,
+        sourceWidth: fullScreen.pixelWidth,
+        crop: tileCrop,
+        bytesPerPixel: 1
+    )
+    let tileBackground = fixture11CroppedBytes(
+        counterfactualBackgroundRGBA,
+        sourceWidth: fullScreen.pixelWidth,
+        crop: tileCrop,
+        bytesPerPixel: 4
+    )
+    return [
+        sha256Hex(fullScreen.pngData),
+        sha256Hex(calendarTile.pngData),
+        sha256Hex(fullAlpha),
+        sha256Hex(tileAlpha),
+        "\(tileCrop.x),\(tileCrop.y),\(tileCrop.width),\(tileCrop.height)",
+        drawSequence.joined(separator: ","),
+        ownerEventIDs.joined(separator: ","),
+        sha256Hex(ownerLabels),
+        sha256Hex(tileOwnerLabels),
+        sha256Hex(counterfactualBackgroundRGBA),
+        sha256Hex(tileBackground),
+    ].joined(separator: "|")
+}
+
+private func fixture11CroppedBytes(
+    _ source: Data,
+    sourceWidth: Int,
+    crop: PixelRect,
+    bytesPerPixel: Int
+) -> Data {
+    var result = Data()
+    result.reserveCapacity(crop.width * crop.height * bytesPerPixel)
+    for y in crop.y..<(crop.y + crop.height) {
+        let lower = (y * sourceWidth + crop.x) * bytesPerPixel
+        result.append(source[lower..<(lower + crop.width * bytesPerPixel)])
+    }
+    return result
 }
 
 private func downsampledPixels(_ data: Data, width: Int, height: Int) throws -> PixelImage {
