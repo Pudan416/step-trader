@@ -107,6 +107,8 @@
 		D0F700000000000000000004 /* DayObjectsMixControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F700000000000000000003 /* DayObjectsMixControllerTests.swift */; };
 		D0F700000000000000000006 /* GlitchProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F700000000000000000005 /* GlitchProcessor.swift */; };
 		D0F700000000000000000008 /* DayObjectsMixController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F700000000000000000007 /* DayObjectsMixController.swift */; };
+		D0F800000000000000000002 /* DayObjectsRemixCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F800000000000000000001 /* DayObjectsRemixCoordinatorTests.swift */; };
+		D0F800000000000000000004 /* DayObjectsRemixCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F800000000000000000003 /* DayObjectsRemixCoordinator.swift */; };
 		D0D600000000000000000012 /* FeltPianoManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D600000000000000000011 /* FeltPianoManifest.swift */; };
 		D0D600000000000000000014 /* DayObjectsFeltPiano.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D600000000000000000013 /* DayObjectsFeltPiano.swift */; };
 		D0D700000000000000000012 /* DayObjectsInstrumentBankProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D700000000000000000011 /* DayObjectsInstrumentBankProtocol.swift */; };
@@ -634,6 +636,8 @@
 		D0F700000000000000000003 /* DayObjectsMixControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsMixControllerTests.swift; sourceTree = "<group>"; };
 		D0F700000000000000000005 /* GlitchProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlitchProcessor.swift; sourceTree = "<group>"; };
 		D0F700000000000000000007 /* DayObjectsMixController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsMixController.swift; sourceTree = "<group>"; };
+		D0F800000000000000000001 /* DayObjectsRemixCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsRemixCoordinatorTests.swift; sourceTree = "<group>"; };
+		D0F800000000000000000003 /* DayObjectsRemixCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsRemixCoordinator.swift; sourceTree = "<group>"; };
 		D0D600000000000000000011 /* FeltPianoManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeltPianoManifest.swift; sourceTree = "<group>"; };
 		D0D600000000000000000013 /* DayObjectsFeltPiano.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsFeltPiano.swift; sourceTree = "<group>"; };
 		D0D700000000000000000011 /* DayObjectsInstrumentBankProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsInstrumentBankProtocol.swift; sourceTree = "<group>"; };
@@ -1142,6 +1146,7 @@
 		D0F100000000000000000010 /* Playback */ = {
 			isa = PBXGroup;
 			children = (
+				D0F800000000000000000003 /* DayObjectsRemixCoordinator.swift */,
 				D0F700000000000000000005 /* GlitchProcessor.swift */,
 				D0F700000000000000000007 /* DayObjectsMixController.swift */,
 				D0F600000000000000000005 /* LeadGestureMapper.swift */,
@@ -1764,6 +1769,7 @@
 		T1E5T5A12E71A18F00ABF5FA /* Steps4Tests */ = {
 			isa = PBXGroup;
 			children = (
+				D0F800000000000000000001 /* DayObjectsRemixCoordinatorTests.swift */,
 				D0F700000000000000000001 /* GlitchProcessorTests.swift */,
 				D0F700000000000000000003 /* DayObjectsMixControllerTests.swift */,
 				D0F600000000000000000001 /* LeadGestureMapperTests.swift */,
@@ -2220,6 +2226,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0F800000000000000000004 /* DayObjectsRemixCoordinator.swift in Sources */,
 				D0F700000000000000000006 /* GlitchProcessor.swift in Sources */,
 				D0F700000000000000000008 /* DayObjectsMixController.swift in Sources */,
 				D0F600000000000000000006 /* LeadGestureMapper.swift in Sources */,
@@ -2540,6 +2547,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0F800000000000000000002 /* DayObjectsRemixCoordinatorTests.swift in Sources */,
 				D0F700000000000000000002 /* GlitchProcessorTests.swift in Sources */,
 				D0F700000000000000000004 /* DayObjectsMixControllerTests.swift in Sources */,
 				D0F600000000000000000002 /* LeadGestureMapperTests.swift in Sources */,

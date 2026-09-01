@@ -43,6 +43,7 @@ struct PlaybackWorldBankMetrics: Equatable, Sendable {
     let allocatedDrumPlayerCount: Int
     let activeTonalVoiceCount: Int
     let activePianoVoiceCount: Int
+    let recycleCount: Int
 }
 
 @MainActor
@@ -60,12 +61,14 @@ final class PlaybackWorldBank {
             allocatedPianoVoiceCount: pianoMetrics.allocatedPlayerCount,
             allocatedDrumPlayerCount: drums.metrics.allocatedPlayerCount,
             activeTonalVoiceCount: tonalMetrics.reduce(0) { $0 + $1.activeVoiceCount },
-            activePianoVoiceCount: pianoMetrics.activeNoteCount
+            activePianoVoiceCount: pianoMetrics.activeNoteCount,
+            recycleCount: recycleCount
         )
     }
 
     private var pools: [PlaybackWorldBankConfiguration.PoolName: DayObjectsTonalVoicePoolProtocol] = [:]
     private(set) var isPrepared = false
+    private(set) var recycleCount = 0
 
     init(instrumentBank: DayObjectsInstrumentBankProtocol) {
         self.instrumentBank = instrumentBank
@@ -109,6 +112,12 @@ final class PlaybackWorldBank {
 
     func releaseAll() {
         instrumentBank.releaseAll()
+    }
+
+    func recycleAfterTailsDrain() {
+        guard isPrepared else { return }
+        releaseAll()
+        recycleCount += 1
     }
 }
 #endif
