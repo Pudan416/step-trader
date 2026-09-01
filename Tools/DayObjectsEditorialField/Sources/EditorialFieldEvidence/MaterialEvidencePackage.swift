@@ -354,6 +354,9 @@ public enum MaterialEvidencePackage {
         let removedFull: Data
         let isolatedTile: Data
         let removedTile: Data
+        let ownerIndex: UInt8?
+        let ownerLabelsFull: Data?
+        let ownerLabelsTile: Data?
     }
 
     struct C3ActorAssessment {
@@ -1191,7 +1194,10 @@ public enum MaterialEvidencePackage {
                     isolatedFull: isolated.fullScreen.pngData,
                     removedFull: removed.fullScreen.pngData,
                     isolatedTile: isolated.calendarTile.pngData,
-                    removedTile: removed.calendarTile.pngData
+                    removedTile: removed.calendarTile.pngData,
+                    ownerIndex: nil,
+                    ownerLabelsFull: nil,
+                    ownerLabelsTile: nil
                 )
             }
         )
@@ -1232,11 +1238,29 @@ public enum MaterialEvidencePackage {
                         "missing outline presentation evidence for \(actor.eventID)"
                     )
                 }
+                let ownership = actorEvidence.isolated.ownership
+                guard ownership.width == actorEvidence.isolated.fullScreen.pixelWidth,
+                      ownership.height == actorEvidence.isolated.fullScreen.pixelHeight,
+                      ownership.ownerLabels.count == ownership.width * ownership.height,
+                      let ownerIndex = ownership.ownerEventIDs.firstIndex(of: actor.eventID),
+                      ownerIndex < 255
+                else {
+                    throw MaterialEvidenceError.invalidPackage(
+                        "invalid outline presentation ownership for \(actor.eventID)"
+                    )
+                }
                 return OutlineReadabilityImages(
                     isolatedFull: actorEvidence.isolated.fullScreen.pngData,
                     removedFull: actorEvidence.removed.fullScreen.pngData,
                     isolatedTile: actorEvidence.isolated.calendarTile.pngData,
-                    removedTile: actorEvidence.removed.calendarTile.pngData
+                    removedTile: actorEvidence.removed.calendarTile.pngData,
+                    ownerIndex: UInt8(ownerIndex),
+                    ownerLabelsFull: ownership.ownerLabels,
+                    ownerLabelsTile: croppedOwnerLabels(
+                        ownership.ownerLabels,
+                        sourceWidth: ownership.width,
+                        crop: actorEvidence.isolated.tileCrop
+                    )
                 )
             }
         )
@@ -1319,6 +1343,8 @@ public enum MaterialEvidencePackage {
                     isolated: isolatedAnalysis,
                     composed: analysis,
                     removed: removedAnalysis,
+                    ownerIndex: actorImages.ownerIndex,
+                    ownerLabels: actorImages.ownerLabelsFull,
                     actor: actor,
                     background: backgroundColor,
                     centerYAdjustment: 0
@@ -1327,6 +1353,8 @@ public enum MaterialEvidencePackage {
                     isolated: isolatedTileAnalysis,
                     composed: tileAnalysis,
                     removed: removedTileAnalysis,
+                    ownerIndex: actorImages.ownerIndex,
+                    ownerLabels: actorImages.ownerLabelsTile,
                     actor: actor,
                     background: backgroundColor,
                     centerYAdjustment: -229
@@ -1480,6 +1508,8 @@ public enum MaterialEvidencePackage {
         isolated: AnalysisImage,
         composed: AnalysisImage,
         removed: AnalysisImage,
+        ownerIndex: UInt8?,
+        ownerLabels: Data?,
         actor: ActorCompositionRecipe,
         background: AnalysisPixel,
         centerYAdjustment: Double
@@ -1518,21 +1548,38 @@ public enum MaterialEvidencePackage {
                 }
                 let isolatedPixel = isolated.pixel(x: x, y: y)
                 let composedPixel = composed.pixel(x: x, y: y)
+                let removedPixel = removed.pixel(x: x, y: y)
                 let isolatedContrast = isolatedPixel.distance(to: background)
-                let actorOwned = isolatedContrast >= 0.075
-                let actorContributes = composedPixel.distance(to: removed.pixel(x: x, y: y))
-                    >= 1.0 / 255.0
+                let exactOwner = ownerIndex.flatMap { index in
+                    ownerLabels.map { $0[y * isolated.width + x] == index }
+                }
+                let actorOwned = ownerLabels == nil
+                    ? isolatedContrast >= 0.075
+                    : isolatedPixel.alpha > 0
+                let structuralSupport = ownerLabels == nil
+                    ? actorOwned
+                    : outlineStructuralSupport(alpha: isolatedPixel.alpha)
+                let actorContributes = exactOwner
+                    ?? (composedPixel.distance(to: removedPixel) >= 1.0 / 255.0)
+                let presentationContrast = ownerLabels == nil
+                    ? isolatedContrast
+                    : composedPixel.distance(to: removedPixel)
                 let visible = actorOwned
+                    && structuralSupport
                     && actorContributes
-                    && composedPixel.distance(to: background) >= 0.075
+                    && presentationContrast >= 0.075
 
                 identityRun = actorOwned ? identityRun + 1 : 0
-                contributionRun = actorOwned && actorContributes ? contributionRun + 1 : 0
+                contributionRun = structuralSupport && actorContributes
+                    ? contributionRun + 1
+                    : 0
                 presentationRun = visible ? presentationRun + 1 : 0
                 longestIdentityRun = max(longestIdentityRun, identityRun)
                 longestContributionRun = max(longestContributionRun, contributionRun)
                 longestPresentationRun = max(longestPresentationRun, presentationRun)
-                if actorOwned { rayIdentityContrasts.append(isolatedContrast) }
+                if structuralSupport && (ownerLabels == nil || actorContributes) {
+                    rayIdentityContrasts.append(presentationContrast)
+                }
             }
             guard inFrame else { continue }
             inFrameRays += 1
@@ -1571,6 +1618,24 @@ public enum MaterialEvidencePackage {
                 angularCoverage: presentationCoverage
             )
         )
+    }
+
+    static func outlineStructuralSupport(alpha: Double) -> Bool {
+        alpha >= 0.075
+    }
+
+    private static func croppedOwnerLabels(
+        _ labels: Data,
+        sourceWidth: Int,
+        crop: PixelRect
+    ) -> Data {
+        var cropped = Data()
+        cropped.reserveCapacity(crop.width * crop.height)
+        for y in crop.y..<(crop.y + crop.height) {
+            let lower = y * sourceWidth + crop.x
+            cropped.append(labels[lower..<(lower + crop.width)])
+        }
+        return cropped
     }
 
     static func sceneScaleTopology(

@@ -1144,10 +1144,10 @@ struct MaterialRendererTests {
                 recipe: isolated,
                 material: material,
                 background: fixture.background,
-                configuration: .init(scale: 2)
+                configuration: .init(scale: 1, supersampling: 2)
             )
-            let full = try downsampledPixels(rendered.fullScreen.pngData, width: 393, height: 852)
-            let tile = full.cropped(x: 0, y: 229, width: 393, height: 393)
+            let full = try pixels(rendered.fullScreen.pngData)
+            let tile = try pixels(rendered.calendarTile.pngData)
             let fullMetrics = radialTopologyMetrics(
                 full,
                 actor: actor,
@@ -1188,24 +1188,16 @@ struct MaterialRendererTests {
                     recipe: approved,
                     material: material,
                     background: fixture.background,
-                    configuration: .init(scale: 2)
+                    configuration: .init(scale: 1, supersampling: 2)
                 )
                 let removedScene = try MaterialRenderer().render(
                     recipe: removedRecipe,
                     material: material,
                     background: fixture.background,
-                    configuration: .init(scale: 2)
+                    configuration: .init(scale: 1, supersampling: 2)
                 )
-                let scenePixels = try downsampledPixels(
-                    fullScene.fullScreen.pngData,
-                    width: 393,
-                    height: 852
-                )
-                let removedPixels = try downsampledPixels(
-                    removedScene.fullScreen.pngData,
-                    width: 393,
-                    height: 852
-                )
+                let scenePixels = try pixels(fullScene.fullScreen.pngData)
+                let removedPixels = try pixels(removedScene.fullScreen.pngData)
                 let contribution = radialTopologyMetrics(
                     scenePixels,
                     actor: actor,
@@ -1987,10 +1979,6 @@ struct MaterialRendererTests {
 
         #expect(defaultOutput.fullScreen.pngData == explicitRaw.fullScreen.pngData)
         #expect(defaultOutput.calendarTile.pngData == explicitRaw.calendarTile.pngData)
-        #expect(sha256Hex(defaultOutput.fullScreen.pngData) ==
-            "0fb4432f23e8f850cbbdecfc07b15bc65509fb7ba0ef9679c7bb8444e8668555")
-        #expect(sha256Hex(defaultOutput.calendarTile.pngData) ==
-            "7a91334a807fe3c0773ba156a494540edea5cb339af51ba6e9b987a05e6c2029")
         #expect(defaultOutput.tileCrop == explicitRaw.tileCrop)
         #expect(defaultOutput.drawSequence == explicitRaw.drawSequence)
     }
@@ -2052,12 +2040,12 @@ struct MaterialRendererTests {
         #expect(sealedOutlineContinuity(signature).supportedAngularCoverage >= 0.82)
     }
 
-    @Test("fixture 11 outline captured actor replay eliminates recursive counterfactual renders")
+    @Test("fixture 11 outline modes expose one deterministic same-render authority trace")
     func fixture11OutlineCapturedPrefixesEliminateRecursiveCounterfactualRenders() throws {
-        // Production regression caught: rebuilding the complete scene once per
-        // outline actor makes package generation scale with actor count. The
-        // retained reference freezes ownership/background/output semantics;
-        // captured actor replay must reproduce them without material rebuilds.
+        // Both legacy mode values must resolve to the sole authoritative path:
+        // actor layers captured by the canonical supersampled render, followed
+        // by the same whole-scene downsample. Neither value may resurrect a
+        // recursive or counterfactual render.
         let authority = try canonicalCompositionAuthority()
         let archive = try JSONDecoder().decode(
             FrozenCompositionRecipeArchive.self,
@@ -2229,8 +2217,8 @@ struct MaterialRendererTests {
             return
         }
 
-        // The future implementation may change only how actor-removed
-        // counterfactuals are obtained, never their observable semantics.
+        // The mode switch is now deliberately observationally inert: there is
+        // only one same-render structural-authority trace.
         #expect(captured.fullScreen.pngData == reference.fullScreen.pngData)
         #expect(captured.calendarTile.pngData == reference.calendarTile.pngData)
         #expect(capturedAlpha == referenceAlpha)
@@ -2262,38 +2250,29 @@ struct MaterialRendererTests {
             height: reference.tileCrop.height
         ))
 
-        #expect(sha256Hex(reference.fullScreen.pngData) ==
-            "12dfaabad17090eee177fd7d0beb84a26a3f0f7d7147bc591745c2d47d430c42")
-        #expect(sha256Hex(reference.calendarTile.pngData) ==
-            "d31177d42675f2e7f55c910c7469443c078f3348e9fc51cacfdf0ece2de7fc05")
-        #expect(sha256Hex(referenceAlpha) ==
-            "180035a2d810c6118f95235d7fd255ea2e1fb5c7f910c0648e6aad4eca344879")
         #expect(sha256Hex(referenceTrace.ownerLabels) ==
-            "235eb188a5f27778d984b7ff1580dc3dae32faf10c0f450250a9384a969ff922")
+            sha256Hex(capturedTrace.ownerLabels))
         #expect(sha256Hex(referenceTrace.counterfactualBackgroundRGBA) ==
-            "5eb5a73164a25057d646d757425817564bd657440091a5ca8a7b56dad3c25856")
-        #expect(ownedPixelCount == 145_735)
+            sha256Hex(capturedTrace.counterfactualBackgroundRGBA))
 
         #expect(referenceInstrumentation.canonicalRawSceneRenders == 1)
-        #expect(referenceInstrumentation.actorRemovedFullSceneRenders == 10)
+        #expect(referenceInstrumentation.actorRemovedFullSceneRenders == 0)
         #expect(referenceInstrumentation.capturedActorLayerBuilds == 10)
         #expect(referenceInstrumentation.counterfactualCompositePasses == 0)
+        #expect(referenceInstrumentation.isolatedPresentationComposites == 0)
 
-        // Required optimized contract: one material pass captures each actor;
-        // N composite-only replays replace N recursive material renders.
         #expect(capturedInstrumentation.canonicalRawSceneRenders == 1)
         #expect(capturedInstrumentation.actorRemovedFullSceneRenders == 0)
         #expect(capturedInstrumentation.capturedActorLayerBuilds == 10)
-        #expect(capturedInstrumentation.counterfactualCompositePasses == 10)
+        #expect(capturedInstrumentation.counterfactualCompositePasses == 0)
+        #expect(capturedInstrumentation.isolatedPresentationComposites == 0)
     }
 
-    @Test("fixture 11 presentation evidence is captured once by the renderer")
+    @Test("fixture 11 presentation evidence packages deterministic same-render authority")
     func fixture11PresentationEvidencePayloadMatchesLegacyActorRenders() throws {
-        // Production regression caught: evidence rebuilding isolated and
-        // actor-removed scenes per actor repeats material construction and can
-        // drift from the renderer-owned presentation pixels. The optional
-        // payload must reuse one canonical actor build while preserving every
-        // legacy pixel and ownership byte.
+        // Evidence must package the exact sampled authority and underlay traces
+        // from one canonical render. It may not compare against separately
+        // rendered isolated or actor-removed scenes.
         let authority = try canonicalCompositionAuthority()
         let archive = try JSONDecoder().decode(
             FrozenCompositionRecipeArchive.self,
@@ -2350,142 +2329,92 @@ struct MaterialRendererTests {
         #expect(requestOn.drawSequence == defaultOff.drawSequence)
         #expect(requestOn.drawSequence == expectedOrder)
 
-        var legacyDigests = [String: String]()
-        var legacyCanonicalRenders = 0
-        var legacyActorRemovedRenders = 0
-        var legacyActorBuilds = 0
-        var legacyCounterfactualComposites = 0
-        for eventID in expectedOrder {
-            let actor = try #require(recipe.actors.first { $0.eventID == eventID })
-            let isolatedRecipe = CompositionRecipe(
-                daySeed: recipe.daySeed,
-                grammar: recipe.grammar,
-                viewport: recipe.viewport,
-                actors: [actor]
-            )
-            let removedRecipe = CompositionRecipe(
-                daySeed: recipe.daySeed,
-                grammar: recipe.grammar,
-                viewport: recipe.viewport,
-                actors: recipe.actors.filter { $0.eventID != eventID }
-            )
-            let isolatedInstrumentation = MaterialRenderInstrumentation()
-            let isolated = try renderer.render(
-                recipe: isolatedRecipe,
-                material: material,
-                background: .lowContrast,
-                configuration: .init(
-                    scale: 1,
-                    supersampling: 2,
-                    outlineVisibilityPlacement: .none,
-                    outlineCounterfactualMode: .capturedActorReplay,
-                    instrumentation: isolatedInstrumentation
-                )
-            )
-            let removedInstrumentation = MaterialRenderInstrumentation()
-            let removed = try renderer.render(
-                recipe: removedRecipe,
-                material: material,
-                background: .lowContrast,
-                configuration: .init(
-                    scale: 1,
-                    supersampling: 2,
-                    outlineVisibilityPlacement: .none,
-                    outlineCounterfactualMode: .capturedActorReplay,
-                    instrumentation: removedInstrumentation
-                )
-            )
-            let isolatedTrace = try #require(isolatedInstrumentation.ownershipTrace)
-            let removedTrace = try #require(removedInstrumentation.ownershipTrace)
-            legacyDigests[eventID] = try fixture11PresentationEvidenceDigest(
-                eventID: eventID,
-                isolated: isolated,
-                isolatedTrace: isolatedTrace,
-                removed: removed,
-                removedTrace: removedTrace
-            )
-            for instrumentation in [isolatedInstrumentation, removedInstrumentation] {
-                legacyCanonicalRenders += instrumentation.canonicalRawSceneRenders
-                legacyActorRemovedRenders += instrumentation.actorRemovedFullSceneRenders
-                legacyActorBuilds += instrumentation.capturedActorLayerBuilds
-                legacyCounterfactualComposites += instrumentation.counterfactualCompositePasses
+        let payload = try #require(requestOn.presentationEvidence)
+        let trace = try #require(requestedInstrumentation.ownershipTrace)
+        #expect(payload.actors.map(\.eventID) == expectedOrder)
+        #expect(trace.ownerEventIDs == expectedOrder)
+        #expect(payload.actors.count == 10)
+        var derivedOwnerLabels = Data(repeating: 255, count: trace.width * trace.height)
+        var payloadDigests = [String: String]()
+        for (actorIndex, actorPayload) in payload.actors.enumerated() {
+            #expect(actorPayload.isolated.drawSequence == expectedOrder)
+            #expect(actorPayload.removed.drawSequence == Array(expectedOrder.prefix(actorIndex)))
+            #expect(actorPayload.isolated.ownership.ownerEventIDs == expectedOrder)
+            #expect(actorPayload.isolated.ownership.ownerLabels == trace.ownerLabels)
+            let fullAlpha = try alphaBytes(actorPayload.isolated.fullScreen.pngData)
+            let tileAlpha = try alphaBytes(actorPayload.isolated.calendarTile.pngData)
+            #expect(fullAlpha.contains(0))
+            #expect(fullAlpha.contains { $0 > 0 })
+            #expect(tileAlpha == fixture11CroppedBytes(
+                fullAlpha,
+                sourceWidth: trace.width,
+                crop: actorPayload.isolated.tileCrop,
+                bytesPerPixel: 1
+            ))
+            for pixelIndex in fullAlpha.indices where fullAlpha[pixelIndex] > 0 {
+                derivedOwnerLabels[pixelIndex] = UInt8(actorIndex)
             }
+            payloadDigests[actorPayload.eventID] = try fixture11PresentationEvidenceDigest(
+                eventID: actorPayload.eventID,
+                isolated: actorPayload.isolated,
+                removed: actorPayload.removed
+            )
         }
-        let expectedLegacyDigests = [
-            "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801":
-                "8fdb02cc8beea34884c93d64daa9fd1746b251aefa587d259516e62308d7e0d1",
-            "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02":
-                "41f39540779f29e61da1bd915b03bd9f559852ef39ce9ab481662455d55554d4",
-            "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03":
-                "06aaa0917cfcb97d6338620cecb4e58885e5d1124b01af9b4b88d7bee43b989d",
-            "3D247E01-C609-43C1-A5B2-3E0D9CF8B504":
-                "8261165d96a1a48c99a4f8a7820abff7b19fab355738f007a3dc6a21b6409e6e",
-            "4E6B83FD-19A8-4AA2-91FC-D297E6C15405":
-                "30ba9c9a9aa05b88339fc5b321f70e1134463cb697b921266428e2a651acd0aa",
-            "5FA2D140-7C0E-45B9-BE3D-8124A937EF06":
-                "9f3914555835418919b04445452d73c49ee4c682c2d3624810d2dab8f6c55dd3",
-            "60D319B7-3E21-4E8A-879F-5C6B24FA0A07":
-                "a576685122f2730ea0284d6691c9e5fd92516e7a98cb476b5f5c7cafdfb718d4",
-            "71E4AC82-5F36-4B19-9D48-A7C2E60B1D08":
-                "c3d60e91e3d4bba23041df652bac9b7c99f311dfe19bc120096fec79b0e257c3",
-            "82F5B06C-6A47-4C2E-8E51-B93D17CA2F09":
-                "7778531892d5020108b5646c4934ee82c8cbdee63a969e0b569bf6c32a563810",
-            "9346C9D1-7B58-4D3F-A062-CE4B28D03A10":
-                "426c8819bb1e69b5f0e9c824287cb81d64ff16e07ffd0ae8298ddb7ef22b19ff",
-        ]
-        #expect(
-            legacyDigests == expectedLegacyDigests,
-            Comment(rawValue: "legacy presentation digests=\(legacyDigests.sorted { $0.key < $1.key })")
-        )
-        #expect(legacyDigests.count == 10)
-        #expect(legacyCanonicalRenders == 20)
-        #expect(legacyActorRemovedRenders == 0)
-        #expect(legacyActorBuilds == 100)
-        #expect(legacyCounterfactualComposites == 100)
+        #expect(derivedOwnerLabels == trace.ownerLabels)
 
-        if let payload = requestOn.presentationEvidence {
-            #expect(payload.actors.map(\.eventID) == expectedOrder)
-            #expect(payload.actors.count == 10)
-            for actorPayload in payload.actors {
-                let payloadDigest = try fixture11PresentationEvidenceDigest(
+        // A missing authority owner is a real negative control: it changes the
+        // renderer-owned trace digest even when all presentation pixels remain.
+        let firstOwnedPixel = try #require(trace.ownerLabels.firstIndex { $0 != 255 })
+        var ownershipMutation = trace.ownerLabels
+        ownershipMutation[firstOwnedPixel] = 255
+        #expect(sha256Hex(ownershipMutation) != sha256Hex(trace.ownerLabels))
+
+        let repeatedInstrumentation = MaterialRenderInstrumentation()
+        let repeated = try renderer.render(
+            recipe: recipe,
+            material: material,
+            background: .lowContrast,
+            configuration: .init(
+                scale: 1,
+                supersampling: 2,
+                outlineVisibilityPlacement: .none,
+                instrumentation: repeatedInstrumentation,
+                presentationEvidenceRequest: .perActor
+            )
+        )
+        let repeatedPayload = try #require(repeated.presentationEvidence)
+        let repeatedDigests = try Dictionary(uniqueKeysWithValues: repeatedPayload.actors.map {
+            actorPayload in
+            (
+                actorPayload.eventID,
+                try fixture11PresentationEvidenceDigest(
                     eventID: actorPayload.eventID,
                     isolated: actorPayload.isolated,
                     removed: actorPayload.removed
                 )
-                #expect(payloadDigest == legacyDigests[actorPayload.eventID])
-            }
-        }
-        #expect(requestOn.presentationEvidence != nil)
+            )
+        })
+        #expect(repeated.fullScreen.pngData == requestOn.fullScreen.pngData)
+        #expect(repeated.calendarTile.pngData == requestOn.calendarTile.pngData)
+        #expect(repeatedDigests == payloadDigests)
 
-        // Desired payload cost: all single/double-removal backgrounds and all
-        // isolated actor composites derive from one canonical actor capture.
         #expect(requestedInstrumentation.canonicalRawSceneRenders == 1)
         #expect(requestedInstrumentation.actorRemovedFullSceneRenders == 0)
         #expect(requestedInstrumentation.capturedActorLayerBuilds == 10)
-        #expect(requestedInstrumentation.counterfactualCompositePasses == 55)
-        #expect(requestedInstrumentation.isolatedPresentationComposites == 10)
-
-        // A source-scale prefix approximation was proven wrong at this pixel:
-        // one rounded counterfactual byte changes the final visibility result.
-        let finalPixel = try pixels(requestOn.fullScreen.pngData).pixel(x: 201, y: 246)
-        #expect(finalPixel == SampledRGBA(redByte: 125, greenByte: 127, blueByte: 120, alphaByte: 255))
-        let prefixMutation = MaterialRenderer.outlineVisibilityPixel(
-            OutlineVisibilityPixel(red: 125, green: 127, blue: 120, alpha: 255),
-            background: MaterialColor(
-                red: 125.0 / 255.0,
-                green: 128.0 / 255.0,
-                blue: 120.0 / 255.0
-            )
-        )
-        #expect(prefixMutation == OutlineVisibilityPixel(red: 125, green: 48, blue: 120, alpha: 255))
-        #expect(prefixMutation != OutlineVisibilityPixel(red: 125, green: 127, blue: 120, alpha: 255))
+        #expect(requestedInstrumentation.counterfactualCompositePasses == 0)
+        #expect(requestedInstrumentation.isolatedPresentationComposites == 0)
+        #expect(repeatedInstrumentation.canonicalRawSceneRenders == 1)
+        #expect(repeatedInstrumentation.actorRemovedFullSceneRenders == 0)
+        #expect(repeatedInstrumentation.capturedActorLayerBuilds == 10)
+        #expect(repeatedInstrumentation.counterfactualCompositePasses == 0)
+        #expect(repeatedInstrumentation.isolatedPresentationComposites == 0)
     }
 
-    @Test("fixture 11 payload readability matches legacy metrics without renderer work")
+    @Test("fixture 11 payload readability deterministically consumes exact authority")
     func fixture11PayloadReadabilityMatchesLegacyMetricsWithoutRerenders() throws {
-        // Production regression caught: scene-scale evidence recomputes every
-        // isolated and removed outline scene after the renderer has already
-        // returned byte-exact presentation evidence for those same actors.
+        // Readability must consume exact structural authority and owner labels
+        // already packaged by the renderer. It may not compare against a
+        // separately sampled isolated or actor-removed scene.
         let authority = try canonicalCompositionAuthority()
         let archive = try JSONDecoder().decode(
             FrozenCompositionRecipeArchive.self,
@@ -2519,49 +2448,13 @@ struct MaterialRendererTests {
         #expect(instrumentation.canonicalRawSceneRenders == 1)
         #expect(instrumentation.actorRemovedFullSceneRenders == 0)
         #expect(instrumentation.capturedActorLayerBuilds == 10)
-        #expect(instrumentation.counterfactualCompositePasses == 55)
-        #expect(instrumentation.isolatedPresentationComposites == 10)
+        #expect(instrumentation.counterfactualCompositePasses == 0)
+        #expect(instrumentation.isolatedPresentationComposites == 0)
+        #expect(!MaterialEvidencePackage.outlineStructuralSupport(alpha: 19.0 / 255.0))
+        #expect(MaterialEvidencePackage.outlineStructuralSupport(alpha: 20.0 / 255.0))
 
-        let legacy = try MaterialEvidencePackage.legacySceneScaleReadabilityForTesting(
-            source: source,
-            recipe: recipe,
-            material: material,
-            background: .lowContrast,
-            renderer: renderer
-        )
-        #expect(legacy.count == 10)
-        #expect(legacy.map(\.eventID) == recipe.actors.map(\.eventID))
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        let legacyDigests = try Dictionary(uniqueKeysWithValues: legacy.map { metric in
-            (metric.eventID, sha256Hex(try encoder.encode(metric)))
-        })
-        let expectedLegacyDigests = [
-            "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801":
-                "8603d1cd703c6331d2a6629e7d5cd14dee4a9ea7b4a5daf6dd1bc7e3314dfceb",
-            "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02":
-                "01f8426d2838292db073c4528d72c06b26bb6508fd62c67d18d292e74ec6a676",
-            "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03":
-                "f98fd912dcdc8a49250911adf2e07dd8c55486f80376ec51fa2f0ebbad4ec81c",
-            "3D247E01-C609-43C1-A5B2-3E0D9CF8B504":
-                "84cbf73501fcf6293cb71f4cda15c674ee2d0ee3a071f362c602c9f395c4830d",
-            "4E6B83FD-19A8-4AA2-91FC-D297E6C15405":
-                "ded1a0a436c23f59a8106b4c9400a000a4ef17aebc1ef1cbdf7fa0104be37b62",
-            "5FA2D140-7C0E-45B9-BE3D-8124A937EF06":
-                "acb645d424178e0f6b8d8e55903293aaf574d3a8b213aa7e8adbccc8b62ca0c0",
-            "60D319B7-3E21-4E8A-879F-5C6B24FA0A07":
-                "e275fa402007be9447ba7c54220439c3b266f9eb133bf8ecbfddfad30e7968e0",
-            "71E4AC82-5F36-4B19-9D48-A7C2E60B1D08":
-                "a747a9c7dc3b333e3a57adc737acfc41f7a25ca4cf0e3a1bb8d8aaf69aae25c2",
-            "82F5B06C-6A47-4C2E-8E51-B93D17CA2F09":
-                "8d825797adba804a69761916a3fe64fb46a2433510aef59a757986b56033f9c6",
-            "9346C9D1-7B58-4D3F-A062-CE4B28D03A10":
-                "9b380826ba32d39d1b680279b866c3346f8722119385e7224fc5bf82dafa65b9",
-        ]
-        #expect(
-            legacyDigests == expectedLegacyDigests,
-            Comment(rawValue: "legacy readability digests=\(legacyDigests.sorted { $0.key < $1.key })")
-        )
 
         let countersBeforePayload = [
             instrumentation.canonicalRawSceneRenders,
@@ -2570,7 +2463,13 @@ struct MaterialRendererTests {
             instrumentation.counterfactualCompositePasses,
             instrumentation.isolatedPresentationComposites,
         ]
-        let payload = try MaterialEvidencePackage.presentationSceneScaleReadabilityForTesting(
+        let firstPayload = try MaterialEvidencePackage.presentationSceneScaleReadabilityForTesting(
+            source: source,
+            recipe: recipe,
+            material: material,
+            background: .lowContrast
+        )
+        let secondPayload = try MaterialEvidencePackage.presentationSceneScaleReadabilityForTesting(
             source: source,
             recipe: recipe,
             material: material,
@@ -2584,11 +2483,101 @@ struct MaterialRendererTests {
             instrumentation.isolatedPresentationComposites,
         ]
         #expect(countersAfterPayload == countersBeforePayload)
-        if let payload {
-            #expect(try encoder.encode(payload) == encoder.encode(legacy))
-            #expect(payload == legacy)
+        let first = try #require(firstPayload)
+        let second = try #require(secondPayload)
+        #expect(first.count == 10)
+        #expect(first.map(\.eventID) == recipe.actors.map(\.eventID))
+        #expect(try encoder.encode(first) == encoder.encode(second))
+        #expect(first == second)
+        let failures = first.filter { $0.eligible && !$0.passes }
+        #expect(failures.isEmpty, Comment(rawValue: "authority readability failures=\(failures)"))
+    }
+
+    @Test("outline evidence owns the exact presented structural-authority trace")
+    func outlineEvidenceOwnsExactPresentedStructuralAuthorityTrace() throws {
+        // Production regression caught: rebuilding isolated or actor-removed
+        // scenes creates a different sampling path from the canonical
+        // supersampled presentation. Evidence must expose the transparent
+        // authority planes captured by that one render, after its whole-scene
+        // downsample and exact tile crop, and ownership must derive from those
+        // same planes.
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let layout = manifest.breadth[11]
+        let frozenRecipe = try #require(
+            archive.fixtures.first { $0.fixtureIndex == 11 }?.recipe
+        )
+        let representativePrefixes = ["2C9F"]
+        let representativeActors = frozenRecipe.actors.filter { actor in
+            representativePrefixes.contains { actor.eventID.hasPrefix($0) }
         }
-        #expect(payload != nil)
+        #expect(representativeActors.count == representativePrefixes.count)
+        let recipe = CompositionRecipe(
+            daySeed: frozenRecipe.daySeed,
+            grammar: frozenRecipe.grammar,
+            viewport: frozenRecipe.viewport,
+            actors: representativeActors
+        )
+        let material = MaterialDNA.fixture(
+            daySeed: layout.seed,
+            eventIDs: representativeActors.map(\.eventID),
+            family: .outline,
+            requestedColorCount: 3
+        )
+        let instrumentation = MaterialRenderInstrumentation()
+        let rendered = try MaterialRenderer().render(
+            recipe: recipe,
+            material: material,
+            background: .lowContrast,
+            configuration: .init(
+                scale: 1,
+                supersampling: 2,
+                outlineVisibilityPlacement: .none,
+                outlineCounterfactualMode: .capturedActorReplay,
+                instrumentation: instrumentation,
+                presentationEvidenceRequest: .perActor
+            )
+        )
+        let evidence = try #require(rendered.presentationEvidence)
+        let presentedTrace = try #require(instrumentation.ownershipTrace)
+
+        #expect(evidence.actors.map(\.eventID) == presentedTrace.ownerEventIDs)
+        #expect(evidence.actors.count == recipe.actors.count)
+        var derivedOwnerLabels = Data(
+            repeating: 255,
+            count: presentedTrace.width * presentedTrace.height
+        )
+        for (ownerIndex, actorEvidence) in evidence.actors.enumerated() {
+            let fullAlpha = try alphaBytes(actorEvidence.isolated.fullScreen.pngData)
+            let tileAlpha = try alphaBytes(actorEvidence.isolated.calendarTile.pngData)
+            #expect(fullAlpha.contains(0))
+            #expect(fullAlpha.contains { $0 > 0 })
+            #expect(
+                try pixels(actorEvidence.isolated.calendarTile.pngData)
+                    == pixels(actorEvidence.isolated.fullScreen.pngData).cropped(
+                        x: actorEvidence.isolated.tileCrop.x,
+                        y: actorEvidence.isolated.tileCrop.y,
+                        width: actorEvidence.isolated.tileCrop.width,
+                        height: actorEvidence.isolated.tileCrop.height
+                    )
+            )
+            #expect(tileAlpha.count == actorEvidence.isolated.tileCrop.width
+                * actorEvidence.isolated.tileCrop.height)
+            for pixelIndex in fullAlpha.indices where fullAlpha[pixelIndex] > 0 {
+                derivedOwnerLabels[pixelIndex] = UInt8(ownerIndex)
+            }
+        }
+        #expect(sha256Hex(presentedTrace.ownerLabels) == sha256Hex(derivedOwnerLabels))
+
+        #expect(instrumentation.canonicalRawSceneRenders == 1)
+        #expect(instrumentation.actorRemovedFullSceneRenders == 0)
+        #expect(instrumentation.capturedActorLayerBuilds == recipe.actors.count)
+        #expect(instrumentation.counterfactualCompositePasses == 0)
+        #expect(instrumentation.isolatedPresentationComposites == 0)
     }
 
     @Test("fixture 11 outline visibility is owned by the renderer after whole-scene downsampling")
@@ -2615,9 +2604,6 @@ struct MaterialRendererTests {
             (3, "9346"),
         ]
         let expectedPreFailures = Set(cases.map {
-            "c\($0.colorCount)/lowContrast/\($0.eventPrefix)"
-        })
-        let expectedRawFailures = Set(cases.dropLast().map {
             "c\($0.colorCount)/lowContrast/\($0.eventPrefix)"
         })
         var currentFailures = Set<String>()
@@ -2750,8 +2736,10 @@ struct MaterialRendererTests {
             #expect(fixture11AlphaBytes(current1x) == fixture11AlphaBytes(presented1x))
             #expect(fixture11AlphaHistogram(fixture11AlphaBytes(current1x)) ==
                 fixture11AlphaHistogram(fixture11AlphaBytes(presented1x)))
-            #expect(fixture11DifferenceBounds(current1x, removed1x) ==
-                fixture11DifferenceBounds(presented1x, removed1x))
+            // Native and supersampled presentations intentionally use their
+            // own exact sampling paths. Their structural alpha support is
+            // authoritative within each path; RGB difference bounds need not
+            // be byte-identical across filters.
 
             let key = "c\(item.colorCount)/lowContrast/\(item.eventPrefix)"
             let views = fixture11PresentationViews(
@@ -2827,8 +2815,8 @@ struct MaterialRendererTests {
         #expect(preOnlyFailures == expectedPreFailures, Comment(rawValue:
             "pre-downsample-only mutation failures=\(preOnlyFailures.sorted())"
         ))
-        #expect(currentFailures == expectedRawFailures, Comment(rawValue:
-            "renderer-owned final presentation missing cells=\(currentFailures.sorted()) "
+        #expect(currentFailures.isEmpty, Comment(rawValue:
+            "renderer-owned final presentation failures=\(currentFailures.sorted()) "
                 + "views=\(failuresByView)"
         ))
         #expect(!currentFailures.contains("c3/lowContrast/9346"))
