@@ -470,6 +470,254 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(session.activationCount, 1)
     }
 
+    func testStopWhileFullStartAwaitsCancelledColdPreparationCannotFormTeardownCycle() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        runtime.suspendSamplePreparation = true
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 7))
+        let stalePlan = makePlaybackEnginePlan(seed: 0xC01D)
+        let freshPlan = makePlaybackEnginePlan(seed: 0xC01E)
+
+        let audition = Task { @MainActor in try await engine.auditionHappening(recipeID) }
+        await runtime.waitUntilSamplePreparationBegins()
+        let staleStart = Task { @MainActor in try await engine.start(plan: stalePlan) }
+        try await waitUntil(timeout: .seconds(1)) { engine.hasFullStartTaskForTesting }
+
+        let stopCompleted = expectation(description: "stop completes after cancelled cold preparation fails")
+        let stop = Task { @MainActor in
+            await engine.stop()
+            stopCompleted.fulfill()
+        }
+        try await waitUntil(timeout: .seconds(1)) {
+            engine.hasTeardownTaskForTesting && runtime.samplePreparationWasCancelled
+        }
+        runtime.resumeSamplePreparation()
+
+        await fulfillment(of: [stopCompleted], timeout: 1)
+        guard !engine.hasTeardownTaskForTesting else {
+            audition.cancel()
+            staleStart.cancel()
+            stop.cancel()
+            return
+        }
+        _ = try? await audition.value
+        _ = try? await staleStart.value
+        await stop.value
+
+        XCTAssertEqual(engine.state, .off)
+        XCTAssertEqual(engine.runtimeState, .stopped)
+        XCTAssertFalse(engine.hasFullStartTaskForTesting)
+        XCTAssertFalse(engine.hasSamplePreparationTaskForTesting)
+        XCTAssertFalse(engine.hasTeardownTaskForTesting)
+        XCTAssertFalse(session.isActive)
+
+        try await engine.start(plan: freshPlan)
+
+        XCTAssertFalse(log.values.contains("runtime.master.fade:\(stalePlan.seed)"))
+        XCTAssertEqual(
+            log.values.filter { $0 == "runtime.master.fade:\(freshPlan.seed)" }.count,
+            1
+        )
+        XCTAssertEqual(engine.currentPlan, freshPlan)
+        XCTAssertEqual(engine.state, .on)
+        await engine.stop()
+    }
+
+    func testPreStopStartWaitingOnOlderBarrierIsInvalidatedWhilePostStopStartOwnsPlan() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let initialPlan = makePlaybackEnginePlan(seed: 0xB001)
+        let preStopPlan = makePlaybackEnginePlan(seed: 0xB002)
+        let postStopPlan = makePlaybackEnginePlan(seed: 0xB003)
+        try await engine.start(plan: initialPlan)
+        runtime.suspendTailDrain = true
+
+        let firstStop = Task { @MainActor in await engine.stop() }
+        await runtime.waitUntilTailDrainBegins()
+
+        let preStopEntered = expectation(description: "pre-stop start entered old barrier")
+        let preStopStart = Task { @MainActor in
+            preStopEntered.fulfill()
+            try await engine.start(plan: preStopPlan)
+        }
+        await fulfillment(of: [preStopEntered], timeout: 1)
+
+        let secondStopEntered = expectation(description: "second stop advanced the lifecycle epoch")
+        let secondStop = Task { @MainActor in
+            secondStopEntered.fulfill()
+            await engine.stop()
+        }
+        await fulfillment(of: [secondStopEntered], timeout: 1)
+
+        let postStopEntered = expectation(description: "post-stop start entered the new epoch")
+        let postStopStart = Task { @MainActor in
+            postStopEntered.fulfill()
+            try await engine.start(plan: postStopPlan)
+        }
+        await fulfillment(of: [postStopEntered], timeout: 1)
+
+        runtime.resumeTailDrain()
+        await firstStop.value
+        await secondStop.value
+        do {
+            try await preStopStart.value
+            XCTFail("A start intent that predates the second stop must be cancelled")
+        } catch is CancellationError {
+        } catch {
+            XCTFail("Expected cancellation for the invalidated start intent, got \(error)")
+        }
+        try await postStopStart.value
+
+        XCTAssertFalse(log.values.contains("runtime.prepare:\(preStopPlan.seed)"))
+        XCTAssertFalse(log.values.contains("runtime.master.fade:\(preStopPlan.seed)"))
+        XCTAssertEqual(
+            log.values.filter { $0 == "runtime.prepare:\(postStopPlan.seed)" }.count,
+            1
+        )
+        XCTAssertEqual(
+            log.values.filter { $0 == "runtime.master.fade:\(postStopPlan.seed)" }.count,
+            1
+        )
+        XCTAssertEqual(runtime.prepareAttempts, 2, "Only the initial and post-stop plans may prepare")
+        XCTAssertEqual(engine.currentPlan, postStopPlan)
+        XCTAssertEqual(engine.state, .on)
+        await engine.stop()
+    }
+
+    func testAuditionArrivingDuringFailedUpgradeRegistersBeforeAwaitAndAttacksReferenceOnce() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        runtime.suspendSamplePreparation = true
+        runtime.suspendTransportStart = true
+        runtime.failureStage = .transportStart
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let cancelledID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 1))
+        let retainedID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 2))
+
+        let cancelled = Task { @MainActor in try await engine.auditionHappening(cancelledID) }
+        await runtime.waitUntilSamplePreparationBegins()
+        let start = Task { @MainActor in
+            try await engine.start(plan: makePlaybackEnginePlan(seed: 0xF411))
+        }
+        runtime.resumeSamplePreparation()
+        await runtime.waitUntilTransportStartBegins()
+        cancelled.cancel()
+        try await waitUntil(timeout: .seconds(1)) { engine.auditionWaiterCountForTesting == 0 }
+
+        let retainedEntered = expectation(description: "new audition entered during failed upgrade")
+        let retained = Task { @MainActor in
+            retainedEntered.fulfill()
+            try await engine.auditionHappening(retainedID)
+        }
+        await fulfillment(of: [retainedEntered], timeout: 1)
+        XCTAssertEqual(
+            engine.auditionWaiterCountForTesting,
+            1,
+            "An arrived tap must be visible to full-start reconciliation before it awaits"
+        )
+
+        runtime.resumeTransportStart()
+        _ = try? await cancelled.value
+        _ = try? await start.value
+        try await retained.value
+
+        XCTAssertEqual(runtime.auditionRequests, ["2:referenceC4"])
+        XCTAssertEqual(engine.auditionWaiterCountForTesting, 0)
+        XCTAssertEqual(engine.runtimeState, .sampleOnly)
+        XCTAssertTrue(session.isActive)
+        await engine.stop()
+    }
+
+    func testAuditionArrivingDuringSuccessfulUpgradeRegistersBeforeAwaitAndAttacksCurrentHarmonyOnce() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        runtime.suspendSamplePreparation = true
+        runtime.suspendTransportStart = true
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let cancelledID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 1))
+        let retainedID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 19))
+
+        let cancelled = Task { @MainActor in try await engine.auditionHappening(cancelledID) }
+        await runtime.waitUntilSamplePreparationBegins()
+        let start = Task { @MainActor in
+            try await engine.start(plan: makePlaybackEnginePlan(seed: 0xF412))
+        }
+        runtime.resumeSamplePreparation()
+        await runtime.waitUntilTransportStartBegins()
+        cancelled.cancel()
+        try await waitUntil(timeout: .seconds(1)) { engine.auditionWaiterCountForTesting == 0 }
+
+        let retainedEntered = expectation(description: "new audition entered during successful upgrade")
+        let retained = Task { @MainActor in
+            retainedEntered.fulfill()
+            try await engine.auditionHappening(retainedID)
+        }
+        await fulfillment(of: [retainedEntered], timeout: 1)
+        XCTAssertEqual(engine.auditionWaiterCountForTesting, 1)
+
+        runtime.resumeTransportStart()
+        _ = try? await cancelled.value
+        try await start.value
+        try await retained.value
+
+        XCTAssertEqual(runtime.auditionRequests, ["19:currentHarmony"])
+        XCTAssertEqual(engine.auditionWaiterCountForTesting, 0)
+        XCTAssertEqual(engine.runtimeState, .fullMusic)
+        XCTAssertEqual(engine.state, .on)
+        await engine.stop()
+    }
+
+    func testCancellingAuditionArrivingDuringUpgradeRemovesWaiterWithoutAttackOrLeak() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        runtime.suspendSamplePreparation = true
+        runtime.suspendTransportStart = true
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let firstID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 1))
+        let cancelledID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 2))
+
+        let first = Task { @MainActor in try await engine.auditionHappening(firstID) }
+        await runtime.waitUntilSamplePreparationBegins()
+        let start = Task { @MainActor in
+            try await engine.start(plan: makePlaybackEnginePlan(seed: 0xF413))
+        }
+        runtime.resumeSamplePreparation()
+        await runtime.waitUntilTransportStartBegins()
+        first.cancel()
+        try await waitUntil(timeout: .seconds(1)) { engine.auditionWaiterCountForTesting == 0 }
+
+        let cancelledEntered = expectation(description: "cancelled audition entered during upgrade")
+        let cancelled = Task { @MainActor in
+            cancelledEntered.fulfill()
+            try await engine.auditionHappening(cancelledID)
+        }
+        await fulfillment(of: [cancelledEntered], timeout: 1)
+        XCTAssertEqual(engine.auditionWaiterCountForTesting, 1)
+        cancelled.cancel()
+        try await waitUntil(timeout: .seconds(1)) { engine.auditionWaiterCountForTesting == 0 }
+
+        runtime.resumeTransportStart()
+        _ = try? await first.value
+        _ = try? await cancelled.value
+        try await start.value
+
+        XCTAssertTrue(runtime.auditionRequests.isEmpty)
+        XCTAssertEqual(engine.auditionWaiterCountForTesting, 0)
+        XCTAssertFalse(engine.hasFullStartTaskForTesting)
+        XCTAssertFalse(engine.hasSamplePreparationTaskForTesting)
+        await engine.stop()
+        XCTAssertEqual(engine.runtimeState, .stopped)
+        XCTAssertFalse(engine.hasTeardownTaskForTesting)
+        XCTAssertFalse(session.isActive)
+    }
+
     func testStopQuiescesDetachedOldStartBeforeImmediateNewPlanCommits() async throws {
         let log = PlaybackEngineCallLog()
         let session = RecordingDayObjectsAudioSession(log: log)
@@ -1161,7 +1409,13 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         engine.applyContinuous(makePlaybackEnginePlan(seed: 124))
         engine.beginLead(.init(normalizedX: 0.4, normalizedY: 0.6, speed: 0))
         runtime.resumeTransportStart()
-        try await start.value
+        do {
+            try await start.value
+            XCTFail("A start invalidated by stop must throw cancellation")
+        } catch is CancellationError {
+        } catch {
+            XCTFail("Expected cancellation for the invalidated start, got \(error)")
+        }
         await stop.value
 
         XCTAssertEqual(engine.state, .off)

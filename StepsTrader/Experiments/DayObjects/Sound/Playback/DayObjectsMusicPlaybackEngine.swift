@@ -124,47 +124,66 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
     }
 
     func start(plan: DayMusicPlan) async throws {
+        let generation = lifecycleGeneration
         await awaitExistingTeardownBarrier()
-        try Task.checkCancellation()
+        try checkLifecycleOperation(generation)
         guard state != .on else { return }
         if let fullStartTask {
-            try await fullStartTask.value
+            do {
+                try await fullStartTask.value
+                try checkLifecycleOperation(generation)
+            } catch {
+                guard generation == lifecycleGeneration else {
+                    throw CancellationError()
+                }
+                try Task.checkCancellation()
+                throw error
+            }
             return
         }
         let id = UUID()
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
-            try await self.performFullStart(plan: plan)
+            try await self.performFullStart(plan: plan, generation: generation)
         }
         fullStartID = id
         fullStartTask = task
         do {
             try await task.value
+            try checkLifecycleOperation(generation)
             await finishFullStart(id: id)
         } catch {
+            let wasInvalidated = generation != lifecycleGeneration
             await finishFullStart(id: id)
+            if wasInvalidated { throw CancellationError() }
+            try Task.checkCancellation()
             throw error
         }
     }
 
-    private func performFullStart(plan: DayMusicPlan) async throws {
-        try Task.checkCancellation()
+    private func performFullStart(plan: DayMusicPlan, generation: UInt64) async throws {
+        try checkLifecycleOperation(generation)
 
         if let samplePreparationTask {
             do {
                 try await samplePreparationTask.value
+                try checkLifecycleOperation(generation)
                 if runtimeState == .preparingSamples { runtimeState = .sampleOnly }
                 self.samplePreparationTask = nil
             } catch {
+                guard generation == lifecycleGeneration else {
+                    throw CancellationError()
+                }
+                try Task.checkCancellation()
                 self.samplePreparationTask = nil
                 if runtimeState == .preparingSamples {
-                    await requestTeardown(finalState: .off, force: true)
+                    await performTeardown(finalState: .off, operationGeneration: generation)
+                    try checkLifecycleOperation(generation)
                 }
             }
         }
 
-        lifecycleGeneration &+= 1
-        let generation = lifecycleGeneration
+        try checkLifecycleOperation(generation)
         let upgradingSampleOnly = runtimeState == .sampleOnly
         currentPlan = plan
         state = .starting
@@ -183,18 +202,17 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
             }
             try runtime.startAudio()
             try await runtime.startTransport(plan: plan)
-            try Task.checkCancellation()
-            guard generation == lifecycleGeneration, state == .starting else {
-                return
-            }
+            try checkLifecycleOperation(generation)
+            guard state == .starting else { throw CancellationError() }
             try runtime.fadeMaster(to: plan)
             successfulStartCount += 1
             runtimeState = .fullMusic
             state = .on
         } catch {
             guard generation == lifecycleGeneration else {
-                return
+                throw CancellationError()
             }
+            try Task.checkCancellation()
             let audioError = (error as? DayObjectsAudioError)
                 ?? DayObjectsAudioError(String(describing: error))
             if upgradingSampleOnly {
@@ -203,45 +221,59 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
                 runtime.cancelRemix()
                 runtime.releaseLayers()
                 await runtime.stopTransportAndEffects()
+                try checkLifecycleOperation(generation)
                 runtime.rollbackFullStartToSampleOnly()
                 runtimeState = .sampleOnly
                 state = .error(audioError)
                 throw audioError
             }
-            await requestTeardown(finalState: .error(audioError), force: true)
+            await performTeardown(
+                finalState: .error(audioError),
+                operationGeneration: generation
+            )
+            try checkLifecycleOperation(generation)
             throw audioError
         }
     }
 
     func auditionHappening(_ recipeID: HappeningSoundRecipeID) async throws {
-        await awaitExistingTeardownBarrier()
-        try Task.checkCancellation()
-        guard HappeningSoundCatalog.recipe(for: recipeID) != nil else {
-            throw HappeningSamplePoolError.recipeUnavailable(recipeID)
-        }
-        try await awaitFullStartIfNeeded()
-        if runtimeState == .fullMusic {
-            try runtime.auditionHappening(recipeID, harmony: .currentHarmony)
-            hasAuditionVoices = true
-            return
-        }
-        if runtimeState == .sampleOnly {
-            try Task.checkCancellation()
-            try runtime.auditionHappening(recipeID, harmony: .referenceC4)
-            hasAuditionVoices = true
-            return
-        }
-
         let waiterID = UUID()
+        let generation = lifecycleGeneration
         auditionWaiters.insert(waiterID)
+        needsIdleSampleOnlyReconciliation = false
         do {
             try await withTaskCancellationHandler {
+                await awaitExistingTeardownBarrier()
+                try checkAuditionIntent(waiterID, generation: generation)
+                guard HappeningSoundCatalog.recipe(for: recipeID) != nil else {
+                    throw HappeningSamplePoolError.recipeUnavailable(recipeID)
+                }
+                try await awaitFullStartIfNeeded(
+                    waiterID: waiterID,
+                    generation: generation
+                )
+                try checkAuditionIntent(waiterID, generation: generation)
+                if runtimeState == .fullMusic {
+                    try runtime.auditionHappening(recipeID, harmony: .currentHarmony)
+                    hasAuditionVoices = true
+                    return
+                }
+                if runtimeState == .sampleOnly {
+                    try runtime.auditionHappening(recipeID, harmony: .referenceC4)
+                    hasAuditionVoices = true
+                    return
+                }
+
                 let task = try samplePreparationTask ?? beginSamplePreparation()
                 try await task.value
-                try Task.checkCancellation()
+                try checkAuditionIntent(waiterID, generation: generation)
                 if runtimeState == .preparingSamples { runtimeState = .sampleOnly }
                 samplePreparationTask = nil
-                try await awaitFullStartIfNeeded()
+                try await awaitFullStartIfNeeded(
+                    waiterID: waiterID,
+                    generation: generation
+                )
+                try checkAuditionIntent(waiterID, generation: generation)
                 let harmony: DayObjectsHappeningAuditionHarmony = runtimeState == .fullMusic
                     ? .currentHarmony
                     : .referenceC4
@@ -249,12 +281,14 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
                 hasAuditionVoices = true
             } onCancel: {
                 Task { @MainActor [weak self] in
-                    await self?.finishAuditionWaiter(waiterID)
+                    await self?.finishAuditionWaiter(waiterID, generation: generation)
                 }
             }
-            await finishAuditionWaiter(waiterID)
+            await finishAuditionWaiter(waiterID, generation: generation)
         } catch {
-            await finishAuditionWaiter(waiterID)
+            let wasInvalidated = generation != lifecycleGeneration
+            await finishAuditionWaiter(waiterID, generation: generation)
+            if wasInvalidated { throw CancellationError() }
             throw error
         }
     }
@@ -360,7 +394,7 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
         teardownID = id
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
-            await self.performTeardown(finalState: finalState)
+            await self.performTeardown(finalState: finalState, operationGeneration: nil)
         }
         teardownTask = task
         await task.value
@@ -382,7 +416,22 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
         }
     }
 
-    private func performTeardown(finalState: DayObjectsSoundState) async {
+    private func checkLifecycleOperation(_ generation: UInt64) throws {
+        guard generation == lifecycleGeneration else { throw CancellationError() }
+        try Task.checkCancellation()
+    }
+
+    private func checkAuditionIntent(_ waiterID: UUID, generation: UInt64) throws {
+        guard generation == lifecycleGeneration, auditionWaiters.contains(waiterID) else {
+            throw CancellationError()
+        }
+        try Task.checkCancellation()
+    }
+
+    private func performTeardown(
+        finalState: DayObjectsSoundState,
+        operationGeneration: UInt64? = nil
+    ) async {
         runtime.stopScheduling()
         runtime.endLead()
         runtime.cancelRemix()
@@ -401,7 +450,9 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
             try? audioSession.deactivate(options: .notifyOthersOnDeactivation)
             sessionMayNeedDeactivation = false
         }
-        state = finalState
+        if operationGeneration == nil || operationGeneration == lifecycleGeneration {
+            state = finalState
+        }
     }
 
     private func beginSamplePreparation() throws -> Task<Void, Error> {
@@ -428,7 +479,8 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
         return task
     }
 
-    private func finishAuditionWaiter(_ waiterID: UUID) async {
+    private func finishAuditionWaiter(_ waiterID: UUID, generation: UInt64) async {
+        guard generation == lifecycleGeneration else { return }
         auditionWaiters.remove(waiterID)
         await reconcileIdleSampleOnly(requestedByWaiterCompletion: true)
     }
@@ -460,15 +512,15 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
         await reconcileIdleSampleOnly(requestedByWaiterCompletion: false)
     }
 
-    private func awaitFullStartIfNeeded() async throws {
+    private func awaitFullStartIfNeeded(waiterID: UUID, generation: UInt64) async throws {
         guard let task = fullStartTask else { return }
         do {
             try await task.value
         } catch {
-            try Task.checkCancellation()
+            try checkAuditionIntent(waiterID, generation: generation)
             guard runtimeState == .sampleOnly else { throw error }
         }
-        try Task.checkCancellation()
+        try checkAuditionIntent(waiterID, generation: generation)
     }
 }
 
