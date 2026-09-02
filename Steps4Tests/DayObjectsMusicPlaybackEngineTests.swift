@@ -5,27 +5,42 @@ import XCTest
 
 @MainActor
 final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
-    func testMobileRuntimeReferenceC4AuditionResolvesTonalResonantAndUnpitchedRecipes() async throws {
+    func testMobileRuntimeReferenceC4AuditionLegallyResolvesEveryCatalogRecipe() async throws {
         let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
-        let recipeIDs = try Set([7, 25, 28].map {
-            try XCTUnwrap(HappeningSoundRecipeID(rawValue: $0))
-        })
+        let recipes = HappeningSoundCatalog.recipes
+        let recipeIDs = Set(recipes.map(\.id))
 
         try await runtime.prepareSamples(recipeIDs: recipeIDs)
         try runtime.startAudio()
         for recipeID in recipeIDs.sorted(by: { $0.rawValue < $1.rawValue }) {
             try runtime.auditionHappening(recipeID, harmony: .referenceC4)
+            runtime.releaseAuditions()
         }
 
         let records = runtime.auditionRecordsForTesting
-        XCTAssertEqual(records.map(\.resolvedSound.targetMIDI), [60, 60, nil])
-        XCTAssertEqual(records.map(\.resolvedSound.playbackRate), [1, 1, 1])
-        XCTAssertNil(records[0].resolvedSound.resonantFilterHz)
-        XCTAssertEqual(records[1].resolvedSound.resonantFilterHz ?? 0, 261.625_565, accuracy: 0.001)
-        XCTAssertNil(records[2].resolvedSound.resonantFilterHz)
+        XCTAssertEqual(records.count, 30)
         XCTAssertTrue(records.allSatisfy { $0.priority == .manualAudition })
         for record in records {
             let recipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: record.resolvedSound.recipeID))
+            switch recipe.pitch {
+            case .tonal(let range):
+                let target = try XCTUnwrap(record.resolvedSound.targetMIDI)
+                XCTAssertTrue(range.contains(target), "recipe \(recipe.id.rawValue)")
+                XCTAssertTrue([0, 2, 4, 7, 9].contains(target % 12))
+                XCTAssertNotNil(record.resolvedSound.sourceRootMIDI)
+                XCTAssertGreaterThan(record.resolvedSound.playbackRate, 0)
+                XCTAssertNil(record.resolvedSound.resonantFilterHz)
+            case .resonantNoise(_, let range, let targetPitchClasses):
+                let target = try XCTUnwrap(record.resolvedSound.targetMIDI)
+                XCTAssertTrue(range.contains(target), "recipe \(recipe.id.rawValue)")
+                XCTAssertTrue(targetPitchClasses.contains(target % 12))
+                XCTAssertGreaterThan(record.resolvedSound.playbackRate, 0)
+                XCTAssertGreaterThan(try XCTUnwrap(record.resolvedSound.resonantFilterHz), 0)
+            case .unpitched:
+                XCTAssertNil(record.resolvedSound.targetMIDI)
+                XCTAssertEqual(record.resolvedSound.playbackRate, 1)
+                XCTAssertNil(record.resolvedSound.resonantFilterHz)
+            }
             XCTAssertEqual(record.effects, .init(
                 filterCutoffHz: recipe.filterEndHz,
                 delayMix: recipe.delayMix,
@@ -34,7 +49,6 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
             ))
         }
 
-        runtime.releaseAuditions()
         await runtime.stopAudio()
     }
 
@@ -112,6 +126,12 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         try await second.value
         try await third.value
 
+        XCTAssertEqual(runtime.auditionRequests.count, 3)
+        XCTAssertEqual(Dictionary(grouping: runtime.auditionRequests, by: { $0 }).mapValues(\.count), [
+            "7:referenceC4": 1,
+            "25:referenceC4": 1,
+            "28:referenceC4": 1,
+        ])
         XCTAssertEqual(Set(runtime.auditionRequests), Set([
             "7:referenceC4", "25:referenceC4", "28:referenceC4",
         ]))
@@ -183,6 +203,8 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(session.activationCount, 1)
         XCTAssertEqual(runtime.audioStartCount, 1, "The already-running sample engine must be upgraded in place")
         XCTAssertEqual(runtime.prepareAttempts, 1)
+        XCTAssertEqual(runtime.auditionRequests, ["9:referenceC4"])
+        XCTAssertTrue(runtime.activeAuditionRequests.isEmpty, "A successful full commit must clear reference tails")
         XCTAssertEqual(engine.state, .on)
         XCTAssertEqual(engine.metrics.engineStartCount, 1)
     }
@@ -224,6 +246,228 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(runtime.releaseAuditionCount, 1)
         XCTAssertFalse(session.isActive)
         XCTAssertEqual(engine.state, .off)
+    }
+
+    func testFreshMobileRuntimeColdAuditionThenRepeatedStopIsSafeAndTruthful() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 28))
+
+        try await engine.auditionHappening(recipeID)
+        await engine.stop()
+        await engine.stop()
+
+        XCTAssertEqual(engine.runtimeState, .stopped)
+        XCTAssertEqual(engine.metrics.activeTaskCount, 0)
+        XCTAssertEqual(engine.metrics.activeVoiceCount, 0)
+        XCTAssertEqual(runtime.auditionHandleCountForTesting, 0)
+        XCTAssertEqual(runtime.auditionReleaseTaskCountForTesting, 0)
+        XCTAssertFalse(runtime.audioEngineIsRunningForTesting)
+        XCTAssertFalse(session.isActive)
+    }
+
+    func testFreshLiveRuntimeColdAuditionThenRepeatedStopIsSafeAndTruthful() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 25))
+
+        try await engine.auditionHappening(recipeID)
+        await engine.stop()
+        await engine.stop()
+
+        XCTAssertEqual(engine.runtimeState, .stopped)
+        XCTAssertEqual(engine.metrics.activeTaskCount, 0)
+        XCTAssertEqual(engine.metrics.activeVoiceCount, 0)
+        XCTAssertEqual(runtime.auditionHandleCountForTesting, 0)
+        XCTAssertEqual(runtime.auditionReleaseTaskCountForTesting, 0)
+        XCTAssertFalse(runtime.audioEngineIsRunningForTesting)
+        XCTAssertFalse(session.isActive)
+    }
+
+    func testRealRuntimeLifecycleDisappearanceAndInterruptionAreSafeAndIdempotent() async throws {
+        let mobileLog = PlaybackEngineCallLog()
+        let mobileSession = RecordingDayObjectsAudioSession(log: mobileLog)
+        let mobileRuntime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let mobileEngine = DayObjectsMusicPlaybackEngine(audioSession: mobileSession, runtime: mobileRuntime)
+        let mobileController = DayObjectsMusicLabController(playback: mobileEngine)
+        let unpitched = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 28))
+        try await mobileController.auditionHappening(unpitched)
+
+        await mobileController.viewDidDisappear()
+        await mobileController.viewDidDisappear()
+
+        XCTAssertEqual(mobileEngine.runtimeState, .stopped)
+        XCTAssertEqual(mobileRuntime.auditionHandleCountForTesting, 0)
+        XCTAssertEqual(mobileRuntime.auditionReleaseTaskCountForTesting, 0)
+        XCTAssertFalse(mobileRuntime.audioEngineIsRunningForTesting)
+        XCTAssertFalse(mobileSession.isActive)
+
+        let liveLog = PlaybackEngineCallLog()
+        let liveSession = RecordingDayObjectsAudioSession(log: liveLog)
+        let liveRuntime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let liveEngine = DayObjectsMusicPlaybackEngine(audioSession: liveSession, runtime: liveRuntime)
+        let liveController = DayObjectsMusicLabController(playback: liveEngine)
+        let resonant = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 25))
+        try await liveController.auditionHappening(resonant)
+
+        await liveController.interruptionBegan()
+        await liveController.interruptionBegan()
+
+        XCTAssertEqual(liveEngine.runtimeState, .stopped)
+        XCTAssertEqual(liveRuntime.auditionHandleCountForTesting, 0)
+        XCTAssertEqual(liveRuntime.auditionReleaseTaskCountForTesting, 0)
+        XCTAssertFalse(liveRuntime.audioEngineIsRunningForTesting)
+        XCTAssertFalse(liveSession.isActive)
+    }
+
+    func testRealRuntimeInjectedColdAndUpgradeFailuresLeaveTruthfulCleanup() async throws {
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 25))
+
+        for stage in RealRuntimeFailureStage.allCases {
+            let log = PlaybackEngineCallLog()
+            let session = RecordingDayObjectsAudioSession(log: log)
+            let mobile = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+            let runtime = FaultInjectingRealPlaybackRuntime(base: mobile, failureStage: stage)
+            let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+
+            if stage == .sessionActivation {
+                session.failureStage = .activateSession
+                _ = try? await engine.auditionHappening(recipeID)
+                XCTAssertEqual(engine.runtimeState, .stopped, "\(stage)")
+                XCTAssertFalse(session.isActive, "\(stage)")
+            } else if stage == .samplePreparation {
+                _ = try? await engine.auditionHappening(recipeID)
+                XCTAssertEqual(engine.runtimeState, .stopped, "\(stage)")
+                XCTAssertFalse(session.isActive, "\(stage)")
+            } else {
+                try await engine.auditionHappening(recipeID)
+                _ = try? await engine.start(plan: makePlaybackEnginePlan(seed: 0xFA11))
+                XCTAssertEqual(engine.runtimeState, .sampleOnly, "\(stage)")
+                XCTAssertTrue(session.isActive, "\(stage)")
+                await engine.stop()
+                XCTAssertEqual(engine.runtimeState, .stopped, "\(stage)")
+                XCTAssertFalse(session.isActive, "\(stage)")
+            }
+
+            XCTAssertEqual(mobile.auditionHandleCountForTesting, 0, "\(stage)")
+            XCTAssertEqual(mobile.auditionReleaseTaskCountForTesting, 0, "\(stage)")
+            XCTAssertFalse(mobile.audioEngineIsRunningForTesting, "\(stage)")
+        }
+    }
+
+    func testColdWaiterAwaitsSuccessfulFullStartAndAttacksCurrentHarmonyExactlyOnce() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        runtime.suspendSamplePreparation = true
+        runtime.suspendTransportStart = true
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 7))
+
+        let audition = Task { @MainActor in try await engine.auditionHappening(recipeID) }
+        await runtime.waitUntilSamplePreparationBegins()
+        let start = Task { @MainActor in
+            try await engine.start(plan: makePlaybackEnginePlan(seed: 0xA771))
+        }
+        await Task.yield()
+        runtime.resumeSamplePreparation()
+        await runtime.waitUntilTransportStartBegins()
+
+        XCTAssertTrue(runtime.auditionRequests.isEmpty)
+        runtime.resumeTransportStart()
+        try await start.value
+        try await audition.value
+
+        XCTAssertEqual(runtime.auditionRequests, ["7:currentHarmony"])
+        XCTAssertEqual(session.activationCount, 1)
+        XCTAssertEqual(runtime.audioStartCount, 1)
+        XCTAssertEqual(engine.runtimeState, .fullMusic)
+    }
+
+    func testAuditionArrivingDuringSuspendedFullStartAwaitsCurrentHarmony() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        runtime.suspendTransportStart = true
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 19))
+
+        let start = Task { @MainActor in
+            try await engine.start(plan: makePlaybackEnginePlan(seed: 0xA772))
+        }
+        await runtime.waitUntilTransportStartBegins()
+        let audition = Task { @MainActor in try await engine.auditionHappening(recipeID) }
+        await Task.yield()
+
+        XCTAssertTrue(runtime.auditionRequests.isEmpty)
+        runtime.resumeTransportStart()
+        try await start.value
+        try await audition.value
+
+        XCTAssertEqual(runtime.auditionRequests, ["19:currentHarmony"])
+        XCTAssertEqual(session.activationCount, 1)
+        XCTAssertEqual(engine.runtimeState, .fullMusic)
+    }
+
+    func testColdWaiterAttacksReferenceExactlyOnceAfterFailedFullStart() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        runtime.suspendSamplePreparation = true
+        runtime.suspendTransportStart = true
+        runtime.failureStage = .transportStart
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 25))
+
+        let audition = Task { @MainActor in try await engine.auditionHappening(recipeID) }
+        await runtime.waitUntilSamplePreparationBegins()
+        let start = Task { @MainActor in
+            try await engine.start(plan: makePlaybackEnginePlan(seed: 0xFA17))
+        }
+        runtime.resumeSamplePreparation()
+        await runtime.waitUntilTransportStartBegins()
+        XCTAssertTrue(runtime.auditionRequests.isEmpty)
+        runtime.resumeTransportStart()
+        _ = try? await start.value
+        try await audition.value
+
+        XCTAssertEqual(runtime.auditionRequests, ["25:referenceC4"])
+        XCTAssertEqual(engine.runtimeState, .sampleOnly)
+        XCTAssertTrue(session.isActive)
+    }
+
+    func testCancellingOneWaiterDuringFullStartDoesNotCancelStartOrOtherWaiter() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        runtime.suspendSamplePreparation = true
+        runtime.suspendTransportStart = true
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let cancelledID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 1))
+        let retainedID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 2))
+
+        let cancelled = Task { @MainActor in try await engine.auditionHappening(cancelledID) }
+        await runtime.waitUntilSamplePreparationBegins()
+        let retained = Task { @MainActor in try await engine.auditionHappening(retainedID) }
+        let start = Task { @MainActor in
+            try await engine.start(plan: makePlaybackEnginePlan(seed: 0xA773))
+        }
+        cancelled.cancel()
+        runtime.resumeSamplePreparation()
+        await runtime.waitUntilTransportStartBegins()
+        runtime.resumeTransportStart()
+        _ = try? await cancelled.value
+        try await retained.value
+        try await start.value
+
+        XCTAssertEqual(runtime.auditionRequests, ["2:currentHarmony"])
+        XCTAssertFalse(runtime.samplePreparationWasCancelled)
+        XCTAssertEqual(engine.runtimeState, .fullMusic)
+        XCTAssertEqual(session.activationCount, 1)
     }
 
     func testMobileRuntimePreparesOnlyOnePlaybackWorld() throws {
@@ -705,6 +949,69 @@ private enum PlaybackEngineFailureStage: CaseIterable {
     case masterFade
 }
 
+private enum RealRuntimeFailureStage: CaseIterable {
+    case sessionActivation
+    case samplePreparation
+    case fullPreparation
+    case transportStart
+}
+
+@MainActor
+private final class FaultInjectingRealPlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
+    let base: any DayObjectsPlaybackRuntimeProtocol
+    let failureStage: RealRuntimeFailureStage
+
+    init(base: any DayObjectsPlaybackRuntimeProtocol, failureStage: RealRuntimeFailureStage) {
+        self.base = base
+        self.failureStage = failureStage
+    }
+
+    var playbackMetrics: DayObjectsPlaybackMetrics { base.playbackMetrics }
+
+    func prepare(plan: DayMusicPlan) throws {
+        if failureStage == .fullPreparation { throw DayObjectsAudioError("injected full prepare") }
+        try base.prepare(plan: plan)
+    }
+
+    func startAudio() throws { try base.startAudio() }
+
+    func startTransport(plan: DayMusicPlan) async throws {
+        if failureStage == .transportStart { throw DayObjectsAudioError("injected transport") }
+        try await base.startTransport(plan: plan)
+    }
+
+    func fadeMaster(to plan: DayMusicPlan) throws { try base.fadeMaster(to: plan) }
+
+    func prepareSamples(recipeIDs: Set<HappeningSoundRecipeID>) async throws {
+        if failureStage == .samplePreparation { throw DayObjectsAudioError("injected sample prepare") }
+        try await base.prepareSamples(recipeIDs: recipeIDs)
+    }
+
+    func auditionHappening(
+        _ recipeID: HappeningSoundRecipeID,
+        harmony: DayObjectsHappeningAuditionHarmony
+    ) throws {
+        try base.auditionHappening(recipeID, harmony: harmony)
+    }
+
+    func releaseAuditions() { base.releaseAuditions() }
+    func stopScheduling() { base.stopScheduling() }
+    func endLead() { base.endLead() }
+    func cancelRemix() { base.cancelRemix() }
+    func releaseLayers() { base.releaseLayers() }
+    func stopTransportAndEffects() async { await base.stopTransportAndEffects() }
+    func drainTail() async { await base.drainTail() }
+    func stopAudio() async { await base.stopAudio() }
+    func applyContinuous(_ plan: DayMusicPlan) { base.applyContinuous(plan) }
+    func scheduleStructuralPlan(_ plan: DayMusicPlan) { base.scheduleStructuralPlan(plan) }
+    func addHappening(_ plan: HappeningMusicPlan, playBirth: Bool) {
+        base.addHappening(plan, playBirth: playBirth)
+    }
+    func removeHappening(id: String) { base.removeHappening(id: id) }
+    func beginLead(_ gesture: LeadGestureSample) { base.beginLead(gesture) }
+    func updateLead(_ gesture: LeadGestureSample) { base.updateLead(gesture) }
+}
+
 @MainActor
 private final class RecordingDayObjectsAudioSession: DayObjectsAudioSessionProtocol {
     let log: PlaybackEngineCallLog
@@ -751,6 +1058,7 @@ private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntim
     private(set) var samplePreparationAttempts = 0
     private(set) var samplePreparationWasCancelled = false
     private(set) var auditionRequests: [String] = []
+    private(set) var activeAuditionRequests: [String] = []
     private(set) var releaseAuditionCount = 0
     private(set) var audioStartCount = 0
     private(set) var continuousCount = 0
@@ -775,6 +1083,7 @@ private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntim
         prepareAttempts += 1
         log.values.append("runtime.prepare:\(plan.seed)")
         if failureStage == .prepare { throw DayObjectsAudioError("prepare") }
+        activeAuditionRequests.removeAll()
     }
 
     func startAudio() throws {
@@ -840,10 +1149,12 @@ private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntim
     ) throws {
         let value = "\(recipeID.rawValue):\(harmony)"
         auditionRequests.append(value)
+        activeAuditionRequests.append(value)
         log.values.append("runtime.audition:\(value)")
     }
     func releaseAuditions() {
         releaseAuditionCount += 1
+        activeAuditionRequests.removeAll()
         log.values.append("runtime.auditions.release")
     }
     func applyContinuous(_ plan: DayMusicPlan) { continuousCount += 1 }
