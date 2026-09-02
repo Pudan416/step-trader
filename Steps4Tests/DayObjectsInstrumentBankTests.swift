@@ -392,6 +392,26 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(pair.metrics.sharedEngineStopCount, 1)
     }
 
+    func testPreparingAnAlreadyStartedPairPreservesStartedOwnershipInvariant() throws {
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(
+            bundle: Bundle(for: type(of: self))
+        )
+        let configuration = smallPlaybackPairConfiguration()
+        try pair.prepare(configuration: configuration)
+        try pair.start()
+        let started = pair.metrics
+
+        try pair.prepare(configuration: configuration)
+
+        XCTAssertEqual(pair.metrics.lifecycleState, .started)
+        XCTAssertTrue(pair.metrics.sharedEngineIsRunning)
+        XCTAssertEqual(pair.metrics.individualStartedBankCount, 0)
+        XCTAssertEqual(pair.metrics.sharedEngineStartCount, started.sharedEngineStartCount)
+        XCTAssertEqual(pair.metrics.fixedSharedNodeIdentities, started.fixedSharedNodeIdentities)
+        pair.stop()
+        XCTAssertFalse(pair.metrics.sharedEngineIsRunning)
+    }
+
     func testPlaybackPairLifecycleStartsAndStopsSharedEngineOnceWithoutChangingTopology() throws {
         let pair = DayObjectsInstrumentBank.makePlaybackPair(
             bundle: Bundle(for: type(of: self))

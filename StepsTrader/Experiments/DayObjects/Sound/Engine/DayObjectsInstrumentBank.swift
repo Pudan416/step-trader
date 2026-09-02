@@ -893,7 +893,13 @@ final class DayObjectsPlaybackBankPair {
     func prepare(configuration: DayObjectsInstrumentBankConfiguration) throws {
         try bankA.prepare(configuration: configuration)
         try bankB.prepare(configuration: configuration)
-        lifecycleState = .prepared
+        if sharedEngine.hasPairOwnership {
+            bankA.markPlaybackPairStarted()
+            bankB.markPlaybackPairStarted()
+            lifecycleState = .started
+        } else {
+            lifecycleState = .prepared
+        }
     }
 
     func start() throws {
@@ -1018,6 +1024,7 @@ private final class DayObjectsSharedInstrumentBankEngine {
     var canAcquirePairOwnership: Bool {
         individuallyStartedSlots.isEmpty && !pairIsRunning
     }
+    var hasPairOwnership: Bool { pairIsRunning }
     var canPromoteBankAOwnershipToPair: Bool {
         individuallyStartedSlots == [.a]
             && !pairIsRunning

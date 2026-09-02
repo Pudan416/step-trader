@@ -537,6 +537,75 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertNil(weakEngine)
     }
 
+    func testStopBeforeFullStartInnerDispatchCompletesAndImmediateRestartUsesNewPlan() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let oldPlan = makePlaybackEnginePlan(seed: 0xD15A)
+        let newPlan = makePlaybackEnginePlan(seed: 0xD15B)
+        let completed = expectation(description: "stop and restart complete without a task cycle")
+
+        let oldStart = Task { @MainActor in try await engine.start(plan: oldPlan) }
+        let stop = Task { @MainActor in await engine.stop() }
+        let newStart = Task { @MainActor in
+            defer { completed.fulfill() }
+            try await engine.start(plan: newPlan)
+        }
+
+        await fulfillment(of: [completed], timeout: 1)
+        guard !engine.hasTeardownTaskForTesting else {
+            oldStart.cancel()
+            stop.cancel()
+            newStart.cancel()
+            return
+        }
+        _ = try? await oldStart.value
+        await stop.value
+        try await newStart.value
+
+        XCTAssertFalse(log.values.contains("runtime.master.fade:\(oldPlan.seed)"))
+        XCTAssertTrue(log.values.contains("runtime.master.fade:\(newPlan.seed)"))
+        XCTAssertEqual(engine.currentPlan, newPlan)
+        XCTAssertEqual(engine.state, .on)
+        XCTAssertFalse(engine.hasFullStartTaskForTesting)
+        XCTAssertFalse(engine.hasTeardownTaskForTesting)
+    }
+
+    func testStartFailureAfterAwaitedStopBarrierOwnsFreshTeardownAndLeavesNoTasks() async throws {
+        for failure in [PlaybackEngineFailureStage.prepare, .audioStart] {
+            let log = PlaybackEngineCallLog()
+            let session = RecordingDayObjectsAudioSession(log: log)
+            let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+            runtime.suspendTransportStart = true
+            let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+            let oldStart = Task { @MainActor in
+                try await engine.start(plan: makePlaybackEnginePlan(seed: 0xBAA0))
+            }
+            await runtime.waitUntilTransportStartBegins()
+            let stop = Task { @MainActor in await engine.stop() }
+            try await waitUntil(timeout: .seconds(1)) { engine.hasTeardownTaskForTesting }
+            runtime.failureStage = failure
+            let failedStart = Task { @MainActor in
+                try await engine.start(plan: makePlaybackEnginePlan(seed: 0xBAA1))
+            }
+
+            runtime.resumeTransportStart()
+            _ = try? await oldStart.value
+            await stop.value
+            do {
+                try await failedStart.value
+                XCTFail("Expected \(failure) after the prior stop barrier")
+            } catch {}
+
+            XCTAssertEqual(engine.runtimeState, .stopped, "\(failure)")
+            XCTAssertFalse(session.isActive, "\(failure)")
+            XCTAssertFalse(engine.hasFullStartTaskForTesting, "\(failure)")
+            XCTAssertFalse(engine.hasSamplePreparationTaskForTesting, "\(failure)")
+            XCTAssertFalse(engine.hasTeardownTaskForTesting, "\(failure)")
+        }
+    }
+
     func testCancelledSoleColdWaiterFailedUpgradeReconcilesOrphanedSampleOnly() async throws {
         for failure in [PlaybackEngineFailureStage.prepare, .transportStart] {
             let log = PlaybackEngineCallLog()
@@ -567,6 +636,70 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
             XCTAssertEqual(engine.metrics.activeTaskCount, 0, "\(failure)")
             XCTAssertFalse(session.isActive, "\(failure)")
         }
+    }
+
+    func testCancelledSoleWaiterReconcilesWhenUpgradeFailureFinishesBeforeCancellationHandler() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        runtime.suspendSamplePreparation = true
+        runtime.suspendTransportStart = true
+        runtime.failureStage = .transportStart
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 25))
+
+        let audition = Task { @MainActor in try await engine.auditionHappening(recipeID) }
+        await runtime.waitUntilSamplePreparationBegins()
+        let start = Task { @MainActor in
+            try await engine.start(plan: makePlaybackEnginePlan(seed: 0x0A11))
+        }
+        runtime.resumeSamplePreparation()
+        await runtime.waitUntilTransportStartBegins()
+        runtime.resumeTransportStart()
+        audition.cancel()
+        _ = try? await start.value
+        _ = try? await audition.value
+        try await waitUntil(timeout: .seconds(1)) { engine.runtimeState == .stopped }
+
+        XCTAssertTrue(runtime.auditionRequests.isEmpty)
+        XCTAssertEqual(engine.auditionWaiterCountForTesting, 0)
+        XCTAssertEqual(engine.runtimeState, .stopped)
+        XCTAssertFalse(session.isActive)
+        XCTAssertFalse(engine.hasFullStartTaskForTesting)
+        XCTAssertFalse(engine.hasSamplePreparationTaskForTesting)
+        XCTAssertFalse(engine.hasTeardownTaskForTesting)
+    }
+
+    func testCancelledSoleWaiterReconcilesWhenCancellationHandlerRunsBeforeUpgradeFailure() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        runtime.suspendSamplePreparation = true
+        runtime.suspendTransportStart = true
+        runtime.failureStage = .transportStart
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 25))
+
+        let audition = Task { @MainActor in try await engine.auditionHappening(recipeID) }
+        await runtime.waitUntilSamplePreparationBegins()
+        let start = Task { @MainActor in
+            try await engine.start(plan: makePlaybackEnginePlan(seed: 0x0A12))
+        }
+        runtime.resumeSamplePreparation()
+        await runtime.waitUntilTransportStartBegins()
+        audition.cancel()
+        try await waitUntil(timeout: .seconds(1)) { engine.auditionWaiterCountForTesting == 0 }
+        runtime.resumeTransportStart()
+        _ = try? await start.value
+        _ = try? await audition.value
+        try await waitUntil(timeout: .seconds(1)) { engine.runtimeState == .stopped }
+
+        XCTAssertTrue(runtime.auditionRequests.isEmpty)
+        XCTAssertEqual(engine.runtimeState, .stopped)
+        XCTAssertFalse(session.isActive)
+        XCTAssertFalse(engine.hasFullStartTaskForTesting)
+        XCTAssertFalse(engine.hasSamplePreparationTaskForTesting)
+        XCTAssertFalse(engine.hasTeardownTaskForTesting)
     }
 
     func testCancelledOneOfMultipleWaitersFailedUpgradePreservesOtherReferenceTapExactlyOnce() async throws {
@@ -657,6 +790,70 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
             XCTAssertEqual(live.playbackPairMetricsForTesting.individualStartedBankCount, 0, "\(failure)")
             XCTAssertFalse(session.isActive, "\(failure)")
         }
+    }
+
+    func testLiveRuntimeRepeatedColdFullEpochsKeepExplicitOwnershipAndStableCache() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let live = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let runtime = FaultInjectingRealPlaybackRuntime(base: live, failureStage: nil)
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let controller = DayObjectsMusicLabController(playback: engine)
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 25))
+        let retryID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 28))
+
+        try await engine.auditionHappening(recipeID)
+        XCTAssertEqual(live.playbackPairMetricsForTesting.individualStartedBankCount, 1)
+        try await engine.start(plan: makePlaybackEnginePlan(seed: 0xE001, happeningIDs: []))
+        let baseline = live.allocationSnapshotForTesting
+        XCTAssertEqual(live.playbackPairMetricsForTesting.lifecycleState, .started)
+        XCTAssertEqual(live.playbackPairMetricsForTesting.sharedEngineStartCount, 1)
+        await engine.stop()
+        XCTAssertEqual(live.playbackPairMetricsForTesting.lifecycleState, .prepared)
+        XCTAssertEqual(live.playbackPairMetricsForTesting.sharedEngineStopCount, 1)
+        XCTAssertFalse(session.isActive)
+
+        try await engine.auditionHappening(recipeID)
+        XCTAssertEqual(live.playbackPairMetricsForTesting.lifecycleState, .prepared)
+        XCTAssertEqual(live.playbackPairMetricsForTesting.individualStartedBankCount, 1)
+        XCTAssertEqual(live.playbackPairMetricsForTesting.sharedEngineStartCount, 2)
+        XCTAssertEqual(live.allocationSnapshotForTesting, baseline)
+        runtime.failureStage = .transportStart
+        _ = try? await engine.start(plan: makePlaybackEnginePlan(seed: 0xE002, happeningIDs: []))
+        XCTAssertEqual(engine.runtimeState, .sampleOnly)
+        XCTAssertEqual(live.playbackPairMetricsForTesting.lifecycleState, .prepared)
+        XCTAssertEqual(live.playbackPairMetricsForTesting.individualStartedBankCount, 1)
+        XCTAssertTrue(live.playbackPairMetricsForTesting.sharedEngineIsRunning)
+        XCTAssertEqual(live.playbackPairMetricsForTesting.sharedEngineStartCount, 2)
+        XCTAssertEqual(live.allocationSnapshotForTesting, baseline)
+
+        runtime.failureStage = nil
+        try await engine.auditionHappening(retryID)
+        try await engine.start(plan: makePlaybackEnginePlan(seed: 0xE003, happeningIDs: []))
+        XCTAssertEqual(live.playbackPairMetricsForTesting.lifecycleState, .started)
+        XCTAssertEqual(live.playbackPairMetricsForTesting.individualStartedBankCount, 0)
+        XCTAssertEqual(live.playbackPairMetricsForTesting.sharedEngineStartCount, 2)
+        XCTAssertEqual(live.allocationSnapshotForTesting, baseline)
+        await controller.interruptionBegan()
+        XCTAssertEqual(live.playbackPairMetricsForTesting.lifecycleState, .prepared)
+        XCTAssertEqual(live.playbackPairMetricsForTesting.sharedEngineStopCount, 2)
+        XCTAssertFalse(session.isActive)
+
+        try await engine.auditionHappening(recipeID)
+        XCTAssertEqual(live.playbackPairMetricsForTesting.lifecycleState, .prepared)
+        XCTAssertEqual(live.playbackPairMetricsForTesting.individualStartedBankCount, 1)
+        XCTAssertEqual(live.playbackPairMetricsForTesting.sharedEngineStartCount, 3)
+        XCTAssertEqual(live.allocationSnapshotForTesting, baseline)
+        try await engine.start(plan: makePlaybackEnginePlan(seed: 0xE004, happeningIDs: []))
+        XCTAssertEqual(live.playbackPairMetricsForTesting.lifecycleState, .started)
+        XCTAssertEqual(live.playbackPairMetricsForTesting.individualStartedBankCount, 0)
+        XCTAssertEqual(live.playbackPairMetricsForTesting.sharedEngineStartCount, 3)
+        await engine.stop()
+        XCTAssertEqual(live.playbackPairMetricsForTesting.lifecycleState, .prepared)
+        XCTAssertEqual(live.playbackPairMetricsForTesting.sharedEngineStopCount, 3)
+        XCTAssertFalse(live.playbackPairMetricsForTesting.sharedEngineIsRunning)
+        XCTAssertFalse(session.isActive)
+        XCTAssertEqual(live.allocationSnapshotForTesting, baseline)
     }
 
     func testMobileRuntimePreparesOnlyOnePlaybackWorld() throws {
@@ -1148,9 +1345,9 @@ private enum RealRuntimeFailureStage: CaseIterable {
 @MainActor
 private final class FaultInjectingRealPlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
     let base: any DayObjectsPlaybackRuntimeProtocol
-    let failureStage: RealRuntimeFailureStage
+    var failureStage: RealRuntimeFailureStage?
 
-    init(base: any DayObjectsPlaybackRuntimeProtocol, failureStage: RealRuntimeFailureStage) {
+    init(base: any DayObjectsPlaybackRuntimeProtocol, failureStage: RealRuntimeFailureStage?) {
         self.base = base
         self.failureStage = failureStage
     }
@@ -1397,6 +1594,21 @@ private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntim
         suspendSamplePreparation = false
         samplePreparationContinuation?.resume()
         samplePreparationContinuation = nil
+    }
+}
+
+@MainActor
+private func waitUntil(
+    timeout: Duration,
+    condition: @MainActor () -> Bool
+) async throws {
+    let clock = ContinuousClock()
+    let deadline = clock.now.advanced(by: timeout)
+    while !condition() {
+        guard clock.now < deadline else {
+            throw DayObjectsAudioError("Timed out waiting for test condition")
+        }
+        try await clock.sleep(for: .milliseconds(1))
     }
 }
 
