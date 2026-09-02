@@ -6,12 +6,13 @@ enum HappeningMusicPlanner {
         instrumentDescriptors: [DayObjectsInstrumentDescriptor],
         remixSeed: UInt64
     ) -> [HappeningMusicPlan] {
-        let descriptors = instrumentDescriptors.sorted { $0.id.rawValue < $1.id.rawValue }
-        return input.happeningIDs.compactMap { happeningID in
+        _ = instrumentDescriptors
+        let recipes = recipePermutation(remixSeed: remixSeed)
+        return zip(input.happeningIDs, recipes).map { happeningID, recipe in
             makePlan(
                 happeningID: happeningID,
                 tonalWorld: tonalWorld,
-                descriptors: descriptors,
+                recipe: recipe,
                 remixSeed: remixSeed
             )
         }
@@ -20,29 +21,19 @@ enum HappeningMusicPlanner {
     private static func makePlan(
         happeningID: String,
         tonalWorld: TonalWorldPlan,
-        descriptors: [DayObjectsInstrumentDescriptor],
+        recipe: HappeningSoundRecipe,
         remixSeed: UInt64
-    ) -> HappeningMusicPlan? {
+    ) -> HappeningMusicPlan {
         var identityRandom = StableMusicRandom(
             seed: remixSeed,
             domain: .happeningIdentity(stableID: happeningID)
         )
-        guard let family = identityRandom.choice(from: HappeningSoundFamily.allCases) else {
-            return nil
-        }
-        let compatibleDescriptors = descriptors.filter {
-            family.compatibleCategories.contains($0.category)
-        }
-        guard let instrument = identityRandom.choice(from: compatibleDescriptors) else {
-            return nil
-        }
+        let family = soundFamily(for: recipe.family)
 
         let motifLength = 1 + (identityRandom.nextInt(upperBound: 3) ?? 0)
         let motif = Array(
             identityRandom.shuffled(tonalWorld.mode.scaleIntervals).prefix(motifLength)
         )
-        let envelope = envelopeRange(for: family)
-        let effects = effectRange(for: family)
         let gain = 0.18 + (0.12 * identityRandom.nextUnitDouble())
         let birthGain = min(0.38, gain + 0.04 + (0.04 * identityRandom.nextUnitDouble()))
 
@@ -58,22 +49,56 @@ enum HappeningMusicPlanner {
         return HappeningMusicPlan(
             happeningID: happeningID,
             family: family,
-            instrumentID: instrument.id,
+            recipeID: recipe.id,
             motifScaleDegrees: motif,
             octave: octave(for: family, random: &identityRandom),
             pan: -0.85 + (1.70 * identityRandom.nextUnitDouble()),
             gain: gain,
             birthGain: birthGain,
-            attackSeconds: interpolate(envelope.attack, random: &identityRandom),
-            releaseSeconds: interpolate(envelope.release, random: &identityRandom),
-            delaySend: interpolate(effects.delay, random: &identityRandom),
-            reverbSend: interpolate(effects.reverb, random: &identityRandom),
+            attackSeconds: recipe.attackSeconds,
+            releaseSeconds: recipe.releaseSeconds,
+            delaySend: recipe.delayMix,
+            reverbSend: recipe.reverbMix,
             recurrence: HappeningRecurrencePlan(
                 scheduleSeed: scheduleSeed,
                 alignmentRank: alignmentRank,
                 floatingOffsetBeats: floatingOffset
             )
         )
+    }
+
+    private static func recipePermutation(remixSeed: UInt64) -> [HappeningSoundRecipe] {
+        var random = StableMusicRandom(
+            seed: remixSeed,
+            domain: .happeningIdentity(stableID: "recipe-permutation")
+        )
+        let familyOrder = random.shuffled(HappeningRecipeFamily.allCases)
+        var remaining = familyOrder.map { family in
+            (family: family, recipes: random.shuffled(
+                HappeningSoundCatalog.recipes.filter { $0.family == family }
+            ))
+        }
+        var result: [HappeningSoundRecipe] = []
+        result.reserveCapacity(HappeningSoundCatalog.recipes.count)
+        while result.count < HappeningSoundCatalog.recipes.count {
+            var appended = false
+            for index in remaining.indices where !remaining[index].recipes.isEmpty {
+                result.append(remaining[index].recipes.removeFirst())
+                appended = true
+            }
+            if !appended { break }
+        }
+        return result
+    }
+
+    private static func soundFamily(for family: HappeningRecipeFamily) -> HappeningSoundFamily {
+        switch family {
+        case .synthPluck: return .pluck
+        case .acousticMallet: return .mallet
+        case .acousticBell: return .bell
+        case .softOneShot: return .softOneShot
+        case .texture: return .texture
+        }
     }
 
     private static func octave(
@@ -92,35 +117,5 @@ enum HappeningMusicPlanner {
         return range.lowerBound + (random.nextInt(upperBound: range.count) ?? 0)
     }
 
-    private static func envelopeRange(
-        for family: HappeningSoundFamily
-    ) -> (attack: ClosedRange<Double>, release: ClosedRange<Double>) {
-        switch family {
-        case .pluck: return (0.006...0.025, 0.70...1.60)
-        case .mallet: return (0.008...0.035, 1.00...2.20)
-        case .bell: return (0.003...0.018, 2.20...4.80)
-        case .softOneShot: return (0.025...0.090, 1.20...2.80)
-        case .texture: return (0.30...0.80, 3.20...6.00)
-        }
-    }
-
-    private static func effectRange(
-        for family: HappeningSoundFamily
-    ) -> (delay: ClosedRange<Double>, reverb: ClosedRange<Double>) {
-        switch family {
-        case .pluck: return (0.18...0.38, 0.28...0.48)
-        case .mallet: return (0.10...0.30, 0.36...0.58)
-        case .bell: return (0.28...0.52, 0.48...0.72)
-        case .softOneShot: return (0.08...0.24, 0.30...0.52)
-        case .texture: return (0.22...0.46, 0.55...0.75)
-        }
-    }
-
-    private static func interpolate(
-        _ range: ClosedRange<Double>,
-        random: inout StableMusicRandom
-    ) -> Double {
-        range.lowerBound + ((range.upperBound - range.lowerBound) * random.nextUnitDouble())
-    }
 }
 #endif

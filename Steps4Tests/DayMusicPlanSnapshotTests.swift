@@ -42,7 +42,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 1,
                 spentColors: 10,
                 seed: 0x2,
-                expected: "seed=2|input=15/35/1/100|world=0:major-pentatonic:16:[0]:[16]|tempo=7100/7400|rhythm=low-pulse,half-time-kick|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=event-0:pluck:pluck.spider-filter-pluck:[4, 2, 0]:5|lead=lead.jec-softwah-2:[60]:[81]"
+                expected: "seed=2|input=15/35/1/100|world=0:major-pentatonic:16:[0]:[16]|tempo=7100/7400|rhythm=low-pulse,half-time-kick|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=event-0:pluck:recipe-3:[9, 7]:5|lead=lead.jec-softwah-2:[60]:[81]"
             ),
             BoundaryFixture(
                 name: "mid-day",
@@ -51,7 +51,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 5,
                 spentColors: 25,
                 seed: 0xD4A0_B1EC_75ED_0001,
-                expected: "seed=d4a0b1ec75ed0001|input=35/70/5/625|world=0:dorian:12:[0, 5]:[6, 6]|tempo=7600/8300|rhythm=low-pulse,half-time-kick,closed-hat|harmony=drone=pad.whispering-sands,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.bb-slow-poly,piano-or-keys-accents=felt-piano,inner-motion=keys.bb-slow-poly|happenings=event-0:texture:pad.interstellar:[10]:3,event-1:mallet:keys.bb-slow-poly:[10, 0, 7]:5,event-2:pluck:pluck.jec-ambient-pizz-2:[0]:6,event-3:bell:keys.jec-polaroids-2:[0, 5, 9]:5,event-4:texture:pad.forgotten-stories:[9]:4|lead=lead.bb-silver-screen:[60, 57]:[81, 81]"
+                expected: "seed=d4a0b1ec75ed0001|input=35/70/5/625|world=0:dorian:12:[0, 5]:[6, 6]|tempo=7600/8300|rhythm=low-pulse,half-time-kick,closed-hat|harmony=drone=pad.whispering-sands,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.bb-slow-poly,piano-or-keys-accents=felt-piano,inner-motion=keys.bb-slow-poly|happenings=event-0:mallet:recipe-8:[9, 5, 2]:5,event-1:pluck:recipe-3:[0, 2, 3]:5,event-2:bell:recipe-13:[9, 3, 7]:6,event-3:texture:recipe-28:[0, 10]:3,event-4:soft-one-shot:recipe-19:[5]:5|lead=lead.bb-silver-screen:[60, 57]:[81, 81]"
             ),
             BoundaryFixture(
                 name: "full-happenings",
@@ -60,7 +60,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 10,
                 spentColors: 50,
                 seed: 0xFFFF_FFFF_FFFF_FFFF,
-                expected: "seed=ffffffffffffffff|input=60/99/10/2500|world=7:dorian:8:[7, 5, 0]:[3, 3, 2]|tempo=6000/7200|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion|harmony=drone=pad.whispering-sands,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.bb-slow-poly,piano-or-keys-accents=felt-piano,inner-motion=keys.jec-polaroids-2|happenings=event-0:pluck:pluck.spider-filter-pluck:[0]:5,event-1:texture:pad.interstellar:[3, 7, 0]:4,event-2:pluck:pluck.play-something-sad:[5, 7]:4,event-3:mallet:keys.jec-polaroids-2:[9]:4,event-4:soft-one-shot:keys.bb-slow-poly:[2, 0]:5,event-5:mallet:keys.jec-polaroids-2:[5]:4,event-6:soft-one-shot:pluck.play-something-sad:[7, 5]:5,event-7:mallet:keys.bb-slow-poly:[10, 0]:4,event-8:texture:pad.forgotten-stories:[2]:3,event-9:pluck:pluck.spider-filter-pluck:[0, 10, 3]:4|lead=lead.jec-softwah-2:[58, 57, 60]:[81, 81, 81]"
+                expected: "seed=ffffffffffffffff|input=60/99/10/2500|world=7:dorian:8:[7, 5, 0]:[3, 3, 2]|tempo=6000/7200|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion|harmony=drone=pad.whispering-sands,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.bb-slow-poly,piano-or-keys-accents=felt-piano,inner-motion=keys.jec-polaroids-2|happenings=event-0:mallet:recipe-8:[3, 5, 10]:4,event-1:bell:recipe-16:[0, 9, 2]:5,event-2:pluck:recipe-4:[5, 3]:4,event-3:texture:recipe-29:[3]:3,event-4:soft-one-shot:recipe-20:[3]:5,event-5:mallet:recipe-12:[9]:4,event-6:bell:recipe-14:[0, 3, 10]:5,event-7:pluck:recipe-3:[0, 3]:6,event-8:texture:recipe-25:[3]:3,event-9:soft-one-shot:recipe-21:[0, 2]:4|lead=lead.jec-softwah-2:[58, 57, 60]:[81, 81, 81]"
             ),
             BoundaryFixture(
                 name: "fully-rested",
@@ -78,7 +78,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 1,
                 spentColors: 0,
                 seed: 0x2,
-                expected: "seed=2|input=100/0/1/0|world=0:major-pentatonic:16:[0]:[16]|tempo=7100/9100|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion,syncopated-ghost,fills|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=event-0:pluck:pluck.spider-filter-pluck:[4, 2, 0]:5|lead=lead.jec-softwah-2:[60]:[81]"
+                expected: "seed=2|input=100/0/1/0|world=0:major-pentatonic:16:[0]:[16]|tempo=7100/9100|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion,syncopated-ghost,fills|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=event-0:pluck:recipe-3:[9, 7]:5|lead=lead.jec-softwah-2:[60]:[81]"
             ),
         ]
 
@@ -293,7 +293,19 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
 
         for happening in plan.happenings {
             require(!happening.happeningID.isEmpty, "happening ID")
-            require(descriptorIDs.contains(happening.instrumentID), "happening descriptor")
+            guard let recipe = HappeningSoundCatalog.recipe(for: happening.recipeID) else {
+                require(false, "happening recipe")
+                continue
+            }
+            require(recipe.sources.isEmpty == false, "happening recipe sources")
+            require(Set(recipe.sources.map(\.resourceName)).count == recipe.sources.count, "happening source identities")
+            require(happening.family == soundFamily(for: recipe.family), "happening recipe family")
+            require(happening.attackSeconds == recipe.attackSeconds, "happening recipe attack")
+            require(happening.releaseSeconds == recipe.releaseSeconds, "happening recipe release")
+            require(happening.delaySend == recipe.delayMix, "happening recipe delay")
+            require(happening.reverbSend == recipe.reverbMix, "happening recipe reverb")
+            requireUnit([recipe.delayMix, recipe.delayFeedback, recipe.reverbMix], "happening recipe effects")
+            require(recipe.filterStartHz > 0 && recipe.filterEndHz > 0, "happening recipe filters")
             require((1...3).contains(happening.motifScaleDegrees.count), "happening motif length")
             require(happening.motifScaleDegrees.allSatisfy(plan.world.mode.scaleIntervals.contains), "happening motif tones")
             requireFinite([
@@ -414,7 +426,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
             "\(harmonyRoleName($0.role))=\(harmonyTargetName($0.instrumentTarget))"
         }.joined(separator: ",")
         let happenings = plan.happenings.map {
-            "\($0.happeningID):\(familyName($0.family)):\($0.instrumentID.rawValue):\($0.motifScaleDegrees):\($0.octave)"
+            "\($0.happeningID):\(familyName($0.family)):recipe-\($0.recipeID.rawValue):\($0.motifScaleDegrees):\($0.octave)"
         }.joined(separator: ",")
         let activeRhythm = plan.rhythm.voices
             .filter { $0.activation.amount > 0 }
@@ -438,6 +450,16 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
         case .aeolian: return "aeolian"
         case .mixolydian: return "mixolydian"
         case .majorPentatonic: return "major-pentatonic"
+        }
+    }
+
+    private func soundFamily(for family: HappeningRecipeFamily) -> HappeningSoundFamily {
+        switch family {
+        case .synthPluck: return .pluck
+        case .acousticMallet: return .mallet
+        case .acousticBell: return .bell
+        case .softOneShot: return .softOneShot
+        case .texture: return .texture
         }
     }
 

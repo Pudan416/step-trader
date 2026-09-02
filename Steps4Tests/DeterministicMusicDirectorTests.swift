@@ -31,12 +31,12 @@ final class DeterministicMusicDirectorTests: XCTestCase {
         XCTAssertNotEqual(first.seed, remixed.seed)
 
         let tonalWorldChanged = first.world != remixed.world
-        let instrumentsChanged = selectedInstrumentIDs(in: first) != selectedInstrumentIDs(in: remixed)
+        let soundsChanged = selectedSoundIDs(in: first) != selectedSoundIDs(in: remixed)
         let rhythmPatternChanged = first.rhythm.voices.map(\.stepProbabilities)
             != remixed.rhythm.voices.map(\.stepProbabilities)
         XCTAssertTrue(
-            tonalWorldChanged || instrumentsChanged || rhythmPatternChanged,
-            "A Remix seed must alter at least the tonal world, instruments, or rhythm pattern"
+            tonalWorldChanged || soundsChanged || rhythmPatternChanged,
+            "A Remix seed must alter at least the tonal world, sounds, or rhythm pattern"
         )
     }
 
@@ -143,19 +143,24 @@ final class DeterministicMusicDirectorTests: XCTestCase {
         XCTAssertEqual(damaged.glitch.progress, 0.25)
     }
 
-    func testHappeningIdentitiesSurviveAdditionsAndRemovals() {
+    func testHappeningRecipeBindingsAreDeterministicStableForPrefixesAndRemixable() {
         let seed: UInt64 = 0xD4A0_B1EC_75ED_0001
-        let smaller = input(happeningIDs: ["bravo", "delta"])
-        let larger = input(happeningIDs: ["alpha", "bravo", "charlie", "delta"])
+        let smaller = input(happeningIDs: ["event-0", "event-1"])
+        let larger = input(happeningIDs: ["event-0", "event-1", "event-2", "event-3"])
         let smallerPlan = DeterministicMusicDirector.makePlan(input: smaller, remixSeed: seed)
+        let repeatedPlan = DeterministicMusicDirector.makePlan(input: smaller, remixSeed: seed)
         let largerPlan = DeterministicMusicDirector.makePlan(input: larger, remixSeed: seed)
-        let largerByID = Dictionary(uniqueKeysWithValues: largerPlan.happenings.map {
-            ($0.happeningID, $0)
-        })
+        let remixedPlan = DeterministicMusicDirector.makePlan(input: smaller, remixSeed: seed &+ 1)
 
-        for happening in smallerPlan.happenings {
-            XCTAssertEqual(happening, largerByID[happening.happeningID])
-        }
+        XCTAssertEqual(smallerPlan.happenings, repeatedPlan.happenings)
+        XCTAssertEqual(
+            smallerPlan.happenings,
+            Array(largerPlan.happenings.prefix(smallerPlan.happenings.count))
+        )
+        XCTAssertNotEqual(
+            smallerPlan.happenings.map(\.recipeID),
+            remixedPlan.happenings.map(\.recipeID)
+        )
     }
 
     private func representativeInput() -> DayMusicInput {
@@ -180,14 +185,14 @@ final class DeterministicMusicDirectorTests: XCTestCase {
         )
     }
 
-    private func selectedInstrumentIDs(in plan: DayMusicPlan) -> [String] {
+    private func selectedSoundIDs(in plan: DayMusicPlan) -> [String] {
         plan.harmony.roles.map { role in
             switch role.instrumentTarget {
             case let .tonal(instrumentID): return instrumentID.rawValue
             case .feltPiano: return "felt-piano"
             }
         }
-            + plan.happenings.map(\.instrumentID.rawValue)
+            + plan.happenings.map { "happening-recipe-\($0.recipeID.rawValue)" }
             + [plan.lead.instrumentID.rawValue]
     }
 }

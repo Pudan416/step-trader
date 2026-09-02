@@ -28,12 +28,6 @@ enum PlaybackWorldBankConfiguration {
         case primaryPad = "primary-pad"
         case secondaryPadOrKeys = "secondary-pad-or-keys"
         case lead
-
-        // Transitional source compatibility until Task 5 moves the existing
-        // scheduler to the sample pool. This is an alias, not an allocated
-        // Happening tonal pool, and therefore does not change allCases or the
-        // fixed eight-voice tonal budget.
-        static var happenings: Self { .secondaryPadOrKeys }
     }
 }
 

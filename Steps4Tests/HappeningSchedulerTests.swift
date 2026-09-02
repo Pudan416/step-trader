@@ -4,90 +4,120 @@ import XCTest
 
 @MainActor
 final class HappeningSchedulerTests: XCTestCase {
-    func testStartAtNonzeroBoundaryAlignsEveryFirstCycleOccurrenceToThatBoundary() throws {
+    func testConfigurePreparesRecipesOnSharedSamplePoolWithoutUsingATonalHappeningPool() throws {
         let bank = RecordingHappeningBank()
         let scheduler = HappeningScheduler(worldBank: PlaybackWorldBank(instrumentBank: bank))
-        let world = makeWorld()
-        let plans = (1...5).map { makePlan(index: $0, seed: 700) }
-        try scheduler.configure(plans: plans, tonalWorld: world, remixSeed: 700)
-        let boundary = MusicalPosition(absoluteSubdivision: 128)
+        let plans = [makePlan(index: 1, seed: 42), makePlan(index: 2, seed: 42)]
 
-        try scheduler.start(at: boundary)
+        try scheduler.configure(plans: plans, tonalWorld: makeWorld(), remixSeed: 42)
 
-        XCTAssertEqual(Set(scheduler.metrics.nextOccurrenceByHappeningID.keys), Set(plans.map(\.happeningID)))
-        XCTAssertTrue(scheduler.metrics.nextOccurrenceByHappeningID.values.allSatisfy { $0 >= boundary })
-        XCTAssertTrue(scheduler.metrics.scheduledOccurrencesByHappeningID.values
-            .flatMap { $0 }
-            .allSatisfy { $0 >= boundary })
-        scheduler.render(event(.subdivision, subdivision: 128), currentChord: world.progression[0])
-        XCTAssertTrue(scheduler.metrics.attackHistory.allSatisfy { $0.position >= boundary })
+        XCTAssertEqual(bank.samplePool.preparedRecipeIDs, Set(plans.map(\.recipeID)))
+        XCTAssertEqual(bank.tonalPools.count, PlaybackWorldBankConfiguration.PoolName.allCases.count)
+        XCTAssertTrue(bank.tonalPools.values.allSatisfy { $0.noteOnRequests.isEmpty })
     }
 
-    func testNeutralGlitchPreservesPlannedEffectsAndVariationAddsToBaseDelay() throws {
+    func testBirthAndRecurrenceResolveAtAttackTimeThroughSameRecipeAndEffectPath() throws {
         let harness = try makeHarness(count: 0)
         let plan = makePlan(index: 1, seed: 44)
-        try harness.scheduler.add(plan, currentChord: harness.world.progression[0], playBirth: true)
-        let neutral = try XCTUnwrap(harness.pool.updateRequests.last)
-        XCTAssertEqual(neutral.delaySend, plan.delaySend)
-        XCTAssertEqual(neutral.reverbSend, plan.reverbSend)
+        let birthChord = chord(pitchClass: 1)
+        let recurrenceChord = chord(pitchClass: 5)
+        harness.scheduler.render(event(.subdivision, subdivision: 7), currentChord: harness.world.progression[0])
 
-        harness.scheduler.applyGlitch(.init(
-            role: .happening, dryGain: 1, pitchDriftCents: 2,
-            wowFlutterDepth: 0, stereoSeparationAddition: 0,
-            delayTimeVariation: 0.05, saturationAmount: 0,
-            timingDriftMilliseconds: 0, dropoutAttenuationDecibels: 0,
-            dropoutReleaseSeconds: 0, rampDurationSeconds: 0.25
-        ))
-        let varied = try XCTUnwrap(harness.pool.updateRequests.last)
-        XCTAssertEqual(try XCTUnwrap(varied.delaySend), plan.delaySend + 0.05, accuracy: 0.000_001)
-        XCTAssertEqual(varied.reverbSend, plan.reverbSend)
+        try harness.scheduler.add(plan, currentChord: birthChord, playBirth: true)
+        render(subdivisions: 8...512, through: harness.scheduler, chord: recurrenceChord)
+
+        let calls = harness.pool.successfulPlayCalls.filter { $0.sound.recipeID == plan.recipeID }
+        let birth = try XCTUnwrap(calls.first { $0.priority == .birth })
+        let recurrence = try XCTUnwrap(calls.first { $0.priority == .recurrence })
+        XCTAssertEqual(birth.sound.targetMIDI, 73)
+        XCTAssertEqual(recurrence.sound.targetMIDI, 77)
+        XCTAssertEqual(birth.sound.recipeID, recurrence.sound.recipeID)
+
+        let recipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: plan.recipeID))
+        let expectedEffects = HappeningEffectCommand(
+            filterCutoffHz: recipe.filterEndHz,
+            delayMix: recipe.delayMix,
+            delayFeedback: recipe.delayFeedback,
+            reverbMix: recipe.reverbMix
+        )
+        XCTAssertGreaterThanOrEqual(harness.pool.effectCalls.count, 2)
+        XCTAssertEqual(harness.pool.effectCalls[0].command, expectedEffects)
+        XCTAssertTrue(harness.pool.effectCalls.allSatisfy { $0.command == expectedEffects })
+
+        let attacks = harness.scheduler.metrics.attackHistory.filter { $0.happeningID == plan.happeningID }
+        XCTAssertEqual(attacks.first(where: \.isBirth)?.resolvedSound, birth.sound)
+        XCTAssertEqual(attacks.first(where: { !$0.isBirth })?.resolvedSound, recurrence.sound)
+        XCTAssertEqual(attacks.first(where: \.isBirth)?.effectCommand, expectedEffects)
+        XCTAssertEqual(attacks.first(where: { !$0.isBirth })?.effectCommand, expectedEffects)
     }
 
-    func testEachHappeningAttackRealizesGlitchForItsActualOccurrenceIdentity() throws {
+    func testDeferredBirthUsesCurrentChordWhenItActuallyGetsAVoice() throws {
         let harness = try makeHarness(count: 0)
-        let backend = RecordingHappeningGlitchBackend()
-        let processor = GlitchProcessor(backend: backend)
-        backend.onApply = { harness.scheduler.applyGlitch($0) }
-        let glitch = DeterministicMusicDirector.makePlan(
-            input: .init(
-                countedSteps: 10_000,
-                stepGoal: 10_000,
-                countedSleepHours: 8,
-                sleepGoalHours: 8,
-                happeningIDs: ["happening-1"],
-                spentColors: 100
-            ),
-            remixSeed: 44
-        ).glitch
-        harness.scheduler.configureGlitch(plan: glitch, processor: processor)
-        let plan = makePlan(index: 1, seed: 44)
+        let first = makePlan(index: 1, seed: 12)
+        let deferred = makePlan(index: 2, seed: 12)
 
-        try harness.scheduler.add(plan, currentChord: harness.world.progression[0], playBirth: true)
+        try harness.scheduler.add(first, currentChord: chord(pitchClass: 0), playBirth: true)
+        try harness.scheduler.add(deferred, currentChord: chord(pitchClass: 0), playBirth: true)
+        harness.scheduler.render(event(.subdivision, subdivision: 1), currentChord: chord(pitchClass: 1))
 
-        let attack = try XCTUnwrap(harness.scheduler.metrics.attackHistory.last)
-        let command = try XCTUnwrap(backend.commands.last { $0.role == .happening })
-        let expected = try XCTUnwrap(glitch.realizedEvent(
-            for: .happening,
-            cycleIndex: Int(attack.position.bar),
-            stepIndex: attack.position.subdivisionInBar
-        ))
-        XCTAssertEqual(command.pitchDriftCents, expected.pitchDriftCents, accuracy: 0.000_001)
-        XCTAssertEqual(command.delayTimeVariation, expected.delayTimeVariation, accuracy: 0.000_001)
-        XCTAssertEqual(command.dropoutAttenuationDecibels, expected.shouldDropOut ? -6 : 0)
-        let audibleUpdate = try XCTUnwrap(harness.pool.updateRequests.last)
-        XCTAssertEqual(
-            try XCTUnwrap(audibleUpdate.midiNote),
-            Double(attack.midiNote) + expected.pitchDriftCents / 100,
-            accuracy: 0.000_001
-        )
-        XCTAssertEqual(
-            try XCTUnwrap(audibleUpdate.delaySend),
-            plan.delaySend + expected.delayTimeVariation,
-            accuracy: 0.000_001
-        )
+        let attack = try XCTUnwrap(harness.scheduler.metrics.attackHistory.first {
+            $0.happeningID == deferred.happeningID && $0.isBirth
+        })
+        XCTAssertEqual(attack.resolvedSound.targetMIDI.map { Int($0) % 12 }, 1)
+        XCTAssertEqual(attack.playbackPriority, .birth)
     }
 
-    func testCountsOneFiveAndTenRenderEveryIDInFirstCycleAndStayInsideRecurrenceBands() throws {
+    func testBirthStealsRecurrenceButCannotStealManualAuditionAtFourVoicePressure() throws {
+        let harness = try makeHarness(count: 0)
+        let recurringSound = resolvedSound(recipeID: recipeID(1), chord: chord(pitchClass: 0), world: harness.world)
+        try harness.pool.prepare(recipeIDs: [recurringSound.recipeID])
+        for _ in 0..<4 {
+            _ = try harness.pool.play(recurringSound, gain: 1, priority: .recurrence)
+        }
+
+        let birthPlan = makePlan(index: 2, seed: 90)
+        try harness.scheduler.add(birthPlan, currentChord: chord(pitchClass: 1), playBirth: true)
+
+        XCTAssertEqual(harness.pool.successfulPlayCalls.last?.priority, .birth)
+        XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 4)
+        XCTAssertTrue(harness.scheduler.metrics.attackHistory.contains {
+            $0.happeningID == birthPlan.happeningID && $0.playbackPriority == .birth
+        })
+
+        harness.pool.releaseAll()
+        for _ in 0..<4 {
+            _ = try harness.pool.play(recurringSound, gain: 1, priority: .manualAudition)
+        }
+        let blockedPlan = makePlan(index: 3, seed: 90)
+        try harness.scheduler.add(blockedPlan, currentChord: chord(pitchClass: 2), playBirth: true)
+
+        XCTAssertFalse(harness.scheduler.metrics.attackHistory.contains {
+            $0.happeningID == blockedPlan.happeningID
+        })
+        XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 4)
+        XCTAssertTrue(harness.pool.currentPriorities.allSatisfy { $0 == .manualAudition })
+    }
+
+    func testBlockedRecurrenceRetriesAfterManualPressureClearsInsteadOfBeingUnscheduled() throws {
+        let harness = try makeHarness(count: 1)
+        let sound = resolvedSound(recipeID: harness.plans[0].recipeID, chord: chord(pitchClass: 0), world: harness.world)
+        let manualVoiceIDs = try (0..<4).map { _ in
+            try harness.pool.play(sound, gain: 1, priority: .manualAudition)
+        }
+
+        renderBars(8, through: harness.scheduler, chord: chord(pitchClass: 0))
+        XCTAssertTrue(harness.scheduler.metrics.attackHistory.isEmpty)
+
+        harness.pool.stop(voiceID: manualVoiceIDs[0])
+        renderBars(4, through: harness.scheduler, chord: chord(pitchClass: 0), startBar: 8)
+
+        let recurrence = try XCTUnwrap(harness.scheduler.metrics.attackHistory.first)
+        XCTAssertFalse(recurrence.isBirth)
+        XCTAssertEqual(recurrence.playbackPriority, .recurrence)
+        XCTAssertLessThanOrEqual(recurrence.position.bar - 8, 1)
+    }
+
+    func testCountsOneFiveAndTenStayInsideRecurrenceBandsAndDensityCaps() throws {
         for (count, band) in [(1, 2...4), (5, 6...12), (10, 12...24)] {
             let harness = try makeHarness(count: count)
             let horizonBars = band.upperBound * 4
@@ -115,237 +145,61 @@ final class HappeningSchedulerTests: XCTestCase {
         }
     }
 
-    func testLiveAdditionPlaysOneBirthAgainstCurrentChordAndThenRecurs() throws {
+    func testLiveAdditionBirthsOnceThenRecursWithSameRecipe() throws {
         let harness = try makeHarness(count: 1)
         render(subdivisions: 0...8, through: harness.scheduler, chord: harness.world.progression[0])
         let added = makePlan(index: 2, seed: 9_012)
 
         try harness.scheduler.add(added, currentChord: harness.world.progression[1], playBirth: true)
-        render(subdivisions: 9...256, through: harness.scheduler, chord: harness.world.progression[1])
+        render(subdivisions: 9...512, through: harness.scheduler, chord: harness.world.progression[1])
 
         let attacks = harness.scheduler.metrics.attackHistory.filter { $0.happeningID == added.happeningID }
         XCTAssertEqual(attacks.filter(\.isBirth).count, 1)
         XCTAssertFalse(attacks.filter { !$0.isBirth }.isEmpty)
-        let allowed = Set(harness.world.progression[1].chordPitchClasses + harness.world.progression[1].safePassingPitchClasses)
-        XCTAssertTrue(attacks.allSatisfy { allowed.contains(Int($0.midiNote) % 12) })
+        XCTAssertTrue(attacks.allSatisfy { $0.resolvedSound.recipeID == added.recipeID })
         assertDensityBounds(harness.scheduler.metrics.attackHistory, count: 2)
     }
 
-    func testLiveAdditionEmitsBirthImmediatelyAtCurrentPositionWhenAvailable() throws {
-        let bank = RecordingHappeningBank()
-        let scheduler = HappeningScheduler(worldBank: PlaybackWorldBank(instrumentBank: bank))
-        let world = makeWorld()
-        let plan = makePlan(index: 1, seed: 99)
-        let chord = ChordPlan(
-            modalDegree: 1,
-            rootPitchClass: 1,
-            chordPitchClasses: [1],
-            safePassingPitchClasses: [],
-            voicedMIDINotes: [61],
-            durationBars: 4
-        )
-        try scheduler.configure(plans: [], tonalWorld: world, remixSeed: 99)
-        try scheduler.start()
-        scheduler.render(event(.subdivision, subdivision: 7), currentChord: world.progression[0])
-
-        try scheduler.add(plan, currentChord: chord, playBirth: true)
-
-        let birth = try XCTUnwrap(scheduler.metrics.attackHistory.first)
-        XCTAssertTrue(birth.isBirth)
-        XCTAssertEqual(birth.happeningID, plan.happeningID)
-        XCTAssertEqual(birth.position.absoluteSubdivision, 7)
-        XCTAssertEqual(Int(birth.midiNote) % 12, 1)
-    }
-
-    func testSoundOffAdditionHasNoBirthButIsGuaranteedAfterStart() throws {
-        let bank = RecordingHappeningBank()
-        let worldBank = PlaybackWorldBank(instrumentBank: bank)
-        let scheduler = HappeningScheduler(worldBank: worldBank)
-        let world = makeWorld()
-        let plan = makePlan(index: 1, seed: 4)
-
-        try scheduler.configure(plans: [], tonalWorld: world, remixSeed: 4)
-        try scheduler.add(plan, currentChord: world.progression[0], playBirth: false)
-        XCTAssertTrue(scheduler.metrics.attackHistory.isEmpty)
-
-        try scheduler.start()
-        renderBars(4, through: scheduler, chord: world.progression[0])
-        XCTAssertTrue(scheduler.metrics.attackHistory.contains {
-            $0.happeningID == plan.happeningID && !$0.isBirth
-        })
-    }
-
-    func testRemovalCancelsFutureAttacksAndReleasesOnlyOwnedTokens() throws {
-        let harness = try makeHarness(count: 2, releaseSeconds: 20)
-        renderBars(4, through: harness.scheduler, chord: harness.world.progression[0])
-        let removedID = harness.plans[0].happeningID
-        let survivorID = harness.plans[1].happeningID
-        let cutoff = harness.scheduler.metrics.attackHistory.count
-
-        harness.scheduler.remove(id: removedID)
-        XCTAssertTrue(harness.pool.noteOffRequests.allSatisfy {
-            $0.instrumentID == harness.plans[0].instrumentID
-        })
-        renderBars(4, through: harness.scheduler, chord: harness.world.progression[0], startBar: 4)
-
-        XCTAssertFalse(harness.scheduler.metrics.attackHistory.dropFirst(cutoff).contains { $0.happeningID == removedID })
-        XCTAssertTrue(harness.pool.noteOffRequests.allSatisfy {
-            $0.instrumentID == harness.plans[0].instrumentID
-        })
-        XCTAssertGreaterThan(harness.scheduler.metrics.activeVoiceCountByHappeningID[survivorID, default: 0], 0)
-        XCTAssertEqual(harness.scheduler.metrics.activeHappeningIDs, [survivorID])
-    }
-
-    func testStructuralReplacementWaitsForBoundaryAndRetainsStableID() throws {
+    func testStructuralReplacementWaitsForBoundaryAndSwitchesRecipe() throws {
         let harness = try makeHarness(count: 1)
-        let id = harness.plans[0].happeningID
-        let replacement = makePlan(index: 1, seed: 700, family: .bell, instrumentID: .init(rawValue: "keys.bell"))
+        let original = harness.plans[0]
+        let replacement = makePlan(index: 1, seed: 700, recipeID: recipeID(13))
 
         try harness.scheduler.scheduleStructuralReplacement(
-            plans: [replacement],
-            tonalWorld: harness.world,
-            remixSeed: 700
+            plans: [replacement], tonalWorld: harness.world, remixSeed: 700
         )
         harness.scheduler.render(event(.subdivision, subdivision: 1), currentChord: harness.world.progression[0])
-        XCTAssertEqual(harness.scheduler.metrics.planByHappeningID[id]?.family, harness.plans[0].family)
+        XCTAssertEqual(harness.scheduler.metrics.planByHappeningID[original.happeningID]?.recipeID, original.recipeID)
 
         harness.scheduler.render(event(.barBoundary, subdivision: 16), currentChord: harness.world.progression[0])
-        XCTAssertEqual(harness.scheduler.metrics.activeHappeningIDs, [id])
-        XCTAssertEqual(harness.scheduler.metrics.planByHappeningID[id]?.family, .bell)
-        XCTAssertEqual(harness.scheduler.metrics.planByHappeningID[id]?.instrumentID, .init(rawValue: "keys.bell"))
+        XCTAssertEqual(harness.scheduler.metrics.planByHappeningID[replacement.happeningID]?.recipeID, replacement.recipeID)
+        XCTAssertTrue(harness.pool.preparedRecipeIDs.contains(replacement.recipeID))
     }
 
-    func testDifferentHappeningInstrumentsUseTheFixedPoolWithoutGenericFallback() throws {
+    func testRemovalCancelsFutureAttacksAndStopsOnlyOwnedSampleVoices() throws {
         let harness = try makeHarness(count: 2)
         renderBars(4, through: harness.scheduler, chord: harness.world.progression[0])
-
-        let requestedIDs = Set(harness.pool.noteOnRequests.map(\.instrumentID))
-        XCTAssertTrue(requestedIDs.contains(harness.plans[0].instrumentID))
-        XCTAssertTrue(requestedIDs.contains(harness.plans[1].instrumentID))
-        XCTAssertEqual(harness.bank.preparedConfigurations, [.playbackWorld])
-        XCTAssertEqual(harness.bank.pools.count, PlaybackWorldBankConfiguration.PoolName.allCases.count)
-    }
-
-    func testRecurringScheduleReplenishesPastTheInitialAllocationWindowWithoutStarvation() throws {
-        let harness = try makeHarness(count: 10)
-        renderBars(500, through: harness.scheduler, chord: harness.world.progression[0])
-
-        let history = harness.scheduler.metrics.attackHistory.filter { !$0.isBirth }
-        for id in harness.plans.map(\.happeningID) {
-            let attacks = history.filter { $0.happeningID == id }
-            XCTAssertGreaterThan(try XCTUnwrap(attacks.last).position.bar, 400, "id=\(id)")
-            for pair in zip(attacks, attacks.dropFirst()) {
-                XCTAssertTrue((12...24).contains(Int(pair.1.position.bar - pair.0.position.bar)))
-            }
-        }
-        assertDensityBounds(history, count: 10)
-    }
-
-    func testRemovingFromTenToOneRebuildsTheSurvivorIntoTheTwoToFourBarBand() throws {
-        let harness = try makeHarness(count: 10)
-        renderBars(24, through: harness.scheduler, chord: harness.world.progression[0])
-        let survivor = harness.plans[0].happeningID
-        for plan in harness.plans.dropFirst() { harness.scheduler.remove(id: plan.happeningID) }
+        let removed = harness.plans[0]
         let cutoff = harness.scheduler.metrics.attackHistory.count
 
-        renderBars(20, through: harness.scheduler, chord: harness.world.progression[0], startBar: 24)
+        harness.scheduler.remove(id: removed.happeningID)
+        renderBars(4, through: harness.scheduler, chord: harness.world.progression[0], startBar: 4)
 
-        let attacks = Array(harness.scheduler.metrics.attackHistory.dropFirst(cutoff)).filter {
-            $0.happeningID == survivor && !$0.isBirth
-        }
-        XCTAssertFalse(attacks.isEmpty)
-        XCTAssertLessThanOrEqual(try XCTUnwrap(attacks.first).position.bar - 24, 4)
-        for pair in zip(attacks, attacks.dropFirst()) {
-            let gap = pair.1.position.absoluteSubdivision - pair.0.position.absoluteSubdivision
-            XCTAssertTrue((32...64).contains(gap), "gap=\(gap)")
-        }
-    }
-
-    func testRealTransportOrderAppliesStructuralReplacementBeforeBoundarySubdivisionAttack() throws {
-        let harness = try makeHarness(count: 1)
-        render(subdivisions: 0...15, through: harness.scheduler, chord: harness.world.progression[0])
-        let replacement = makePlan(
-            index: 1,
-            seed: 999,
-            family: .bell,
-            instrumentID: .init(rawValue: "keys.boundary")
-        )
-        try harness.scheduler.scheduleStructuralReplacement(
-            plans: [replacement],
-            tonalWorld: harness.world,
-            remixSeed: 999
-        )
-
-        harness.scheduler.render(event(.subdivision, subdivision: 16), currentChord: harness.world.progression[1])
-        harness.scheduler.render(event(.beat, subdivision: 16), currentChord: harness.world.progression[1])
-        harness.scheduler.render(event(.barBoundary, subdivision: 16), currentChord: harness.world.progression[1])
-
-        XCTAssertEqual(
-            harness.scheduler.metrics.planByHappeningID[replacement.happeningID]?.instrumentID,
-            replacement.instrumentID
-        )
-        XCTAssertFalse(harness.scheduler.metrics.attackHistory.contains {
-            $0.position.absoluteSubdivision >= 16 && $0.instrumentID == harness.plans[0].instrumentID
+        XCTAssertTrue(harness.pool.stopCalls.contains { $0.play.sound.recipeID == removed.recipeID })
+        XCTAssertFalse(harness.scheduler.metrics.attackHistory.dropFirst(cutoff).contains {
+            $0.happeningID == removed.happeningID
         })
+        XCTAssertFalse(harness.scheduler.metrics.activeHappeningIDs.contains(removed.happeningID))
     }
 
-    func testDeferredBirthUsesChordAtActualPlaybackTime() throws {
-        let bank = RecordingHappeningBank()
-        let scheduler = HappeningScheduler(worldBank: PlaybackWorldBank(instrumentBank: bank))
-        let world = makeWorld()
-        try scheduler.configure(plans: [], tonalWorld: world, remixSeed: 12)
-        try scheduler.start()
-        let first = makePlan(index: 1, seed: 12)
-        let deferred = makePlan(index: 2, seed: 12)
-        let additionChord = ChordPlan(modalDegree: 0, rootPitchClass: 0, chordPitchClasses: [0], safePassingPitchClasses: [], voicedMIDINotes: [60], durationBars: 4)
-        let playbackChord = ChordPlan(modalDegree: 1, rootPitchClass: 1, chordPitchClasses: [1], safePassingPitchClasses: [], voicedMIDINotes: [61], durationBars: 4)
-
-        try scheduler.add(first, currentChord: additionChord, playBirth: true)
-        try scheduler.add(deferred, currentChord: additionChord, playBirth: true)
-        scheduler.render(event(.subdivision, subdivision: 1), currentChord: playbackChord)
-        scheduler.render(event(.subdivision, subdivision: 2), currentChord: playbackChord)
-
-        let attack = try XCTUnwrap(scheduler.metrics.attackHistory.first {
-            $0.happeningID == deferred.happeningID && $0.isBirth
-        })
-        XCTAssertEqual(Int(attack.midiNote) % 12, 1)
-    }
-
-    func testRapidLiveBirthsRespectDensityAndFixedSixVoiceCapacityWithoutStarvation() throws {
-        let bank = RecordingHappeningBank()
-        let scheduler = HappeningScheduler(worldBank: PlaybackWorldBank(instrumentBank: bank))
-        let world = makeWorld()
-        try scheduler.configure(plans: [], tonalWorld: world, remixSeed: 33)
-        try scheduler.start()
-        let plans = (1...10).map { makePlan(index: $0, seed: 33, releaseSeconds: 2) }
-        for plan in plans {
-            try scheduler.add(plan, currentChord: world.progression[0], playBirth: true)
-        }
-        guard let pool = bank.pools[PlaybackWorldBankConfiguration.PoolName.happenings.rawValue] else {
-            return XCTFail("Missing fixed Happenings pool")
-        }
-
-        for subdivision in Int64(0)...256 {
-            scheduler.render(event(.subdivision, subdivision: subdivision), currentChord: world.progression[0])
-            XCTAssertLessThanOrEqual(scheduler.metrics.activeVoiceCount, 6)
-            XCTAssertLessThanOrEqual(pool.metrics.activeVoiceCount, 6)
-            XCTAssertEqual(scheduler.metrics.activeVoiceCount, pool.metrics.activeVoiceCount)
-        }
-
-        let births = scheduler.metrics.attackHistory.filter(\.isBirth)
-        XCTAssertEqual(Set(births.map(\.happeningID)), Set(plans.map(\.happeningID)))
-        assertDensityBounds(scheduler.metrics.attackHistory, count: 10)
-    }
-
-    func testAttackHistoryIsBoundedAndKeepsTheMostRecentEvents() throws {
+    func testAttackHistoryIsBoundedAndKeepsMostRecentResolvedEvents() throws {
         let harness = try makeHarness(count: 10)
         renderBars(2_000, through: harness.scheduler, chord: harness.world.progression[0])
 
-        XCTAssertLessThanOrEqual(
-            harness.scheduler.metrics.attackHistory.count,
-            HappeningScheduler.maximumRecordedAttackCount
-        )
-        XCTAssertGreaterThan(try XCTUnwrap(harness.scheduler.metrics.attackHistory.last).position.bar, 1_900)
+        let history = harness.scheduler.metrics.attackHistory
+        XCTAssertLessThanOrEqual(history.count, HappeningScheduler.maximumRecordedAttackCount)
+        XCTAssertGreaterThan(try XCTUnwrap(history.last).position.bar, 1_900)
+        XCTAssertTrue(history.allSatisfy { HappeningSoundCatalog.recipe(for: $0.resolvedSound.recipeID) != nil })
     }
 
     private func assertDensityBounds(_ history: [HappeningAttackRecord], count: Int) {
@@ -361,23 +215,14 @@ final class HappeningSchedulerTests: XCTestCase {
         XCTAssertTrue(attacksByBeat.values.allSatisfy { $0.count <= 2 }, "count=\(count)")
     }
 
-    private func makeHarness(count: Int, releaseSeconds: Double = 0.5) throws -> Harness {
+    private func makeHarness(count: Int) throws -> Harness {
         let bank = RecordingHappeningBank()
-        let worldBank = PlaybackWorldBank(instrumentBank: bank)
-        let scheduler = HappeningScheduler(worldBank: worldBank)
+        let scheduler = HappeningScheduler(worldBank: PlaybackWorldBank(instrumentBank: bank))
         let world = makeWorld()
-        let plans = count > 0
-            ? (1...count).map { makePlan(index: $0, seed: 42, releaseSeconds: releaseSeconds) }
-            : []
+        let plans = count > 0 ? (1...count).map { makePlan(index: $0, seed: 42) } : []
         try scheduler.configure(plans: plans, tonalWorld: world, remixSeed: 42)
         try scheduler.start()
-        return Harness(
-            bank: bank,
-            pool: try XCTUnwrap(bank.pools[PlaybackWorldBankConfiguration.PoolName.happenings.rawValue]),
-            scheduler: scheduler,
-            world: world,
-            plans: plans
-        )
+        return Harness(bank: bank, pool: bank.samplePool, scheduler: scheduler, world: world, plans: plans)
     }
 
     private func renderBars(
@@ -416,40 +261,81 @@ final class HappeningSchedulerTests: XCTestCase {
             mode: .dorian,
             scalePitchClasses: [0, 2, 3, 5, 7, 9, 10],
             progression: [
-                .init(modalDegree: 0, rootPitchClass: 0, chordPitchClasses: [0, 3, 7], safePassingPitchClasses: [2, 5, 9, 10], voicedMIDINotes: [48, 51, 55], durationBars: 4),
-                .init(modalDegree: 5, rootPitchClass: 5, chordPitchClasses: [0, 5, 9], safePassingPitchClasses: [2, 3, 7, 10], voicedMIDINotes: [53, 57, 60], durationBars: 4),
+                chord(pitchClass: 0),
+                chord(pitchClass: 5),
             ],
             cycleBars: 8
+        )
+    }
+
+    private func chord(pitchClass: Int) -> ChordPlan {
+        .init(
+            modalDegree: pitchClass,
+            rootPitchClass: pitchClass,
+            chordPitchClasses: [pitchClass],
+            safePassingPitchClasses: [],
+            voicedMIDINotes: [UInt8(60 + pitchClass)],
+            durationBars: 4
         )
     }
 
     private func makePlan(
         index: Int,
         seed: UInt64,
-        family: HappeningSoundFamily = .pluck,
-        instrumentID: DayObjectsInstrumentID? = nil,
-        releaseSeconds: Double = 0.5
+        recipeID: HappeningSoundRecipeID? = nil
     ) -> HappeningMusicPlan {
-        .init(
+        let selectedID = recipeID ?? self.recipeID(((index - 1) % 30) + 1)
+        let recipe = HappeningSoundCatalog.recipe(for: selectedID)!
+        return .init(
             happeningID: "happening-\(index)",
-            family: family,
-            instrumentID: instrumentID ?? .init(rawValue: index.isMultiple(of: 2) ? "keys.soft" : "pluck.air"),
+            family: soundFamily(for: recipe.family),
+            recipeID: selectedID,
             motifScaleDegrees: [0, 2, 7],
             octave: 4,
             pan: index.isMultiple(of: 2) ? 0.4 : -0.4,
             gain: 0.24,
             birthGain: 0.32,
             attackSeconds: 0.02,
-            releaseSeconds: releaseSeconds,
-            delaySend: 0.31,
-            reverbSend: 0.58,
-            recurrence: .init(scheduleSeed: seed &+ UInt64(index), alignmentRank: UInt64(index), floatingOffsetBeats: 0.25)
+            releaseSeconds: 0.5,
+            delaySend: 0.99,
+            reverbSend: 0.99,
+            recurrence: .init(
+                scheduleSeed: seed &+ UInt64(index),
+                alignmentRank: UInt64(index),
+                floatingOffsetBeats: 0.25
+            )
         )
+    }
+
+    private func resolvedSound(
+        recipeID: HappeningSoundRecipeID,
+        chord: ChordPlan,
+        world: TonalWorldPlan
+    ) -> ResolvedHappeningSound {
+        HappeningPitchResolver.resolve(
+            recipe: HappeningSoundCatalog.recipe(for: recipeID)!,
+            chord: chord,
+            tonalWorld: world
+        )
+    }
+
+    private func recipeID(_ rawValue: Int) -> HappeningSoundRecipeID {
+        HappeningSoundRecipeID(rawValue: rawValue)!
+    }
+
+    private func soundFamily(for family: HappeningRecipeFamily) -> HappeningSoundFamily {
+        switch family {
+        case .synthPluck: return .pluck
+        case .acousticMallet: return .mallet
+        case .acousticBell: return .bell
+        case .softOneShot: return .softOneShot
+        case .texture: return .texture
+        }
     }
 
     private struct Harness {
         let bank: RecordingHappeningBank
-        let pool: RecordingHappeningPool
+        let pool: RecordingHappeningSamplePool
         let scheduler: HappeningScheduler
         let world: TonalWorldPlan
         let plans: [HappeningMusicPlan]
@@ -457,87 +343,187 @@ final class HappeningSchedulerTests: XCTestCase {
 }
 
 @MainActor
-private final class RecordingHappeningGlitchBackend: DayObjectsGlitchBackend {
-    private(set) var commands: [DayObjectsGlitchCommand] = []
-    var onApply: ((DayObjectsGlitchCommand) -> Void)?
-    func apply(_ command: DayObjectsGlitchCommand) {
-        commands.append(command)
-        onApply?(command)
-    }
-}
-
-@MainActor
 private final class RecordingHappeningBank: DayObjectsInstrumentBankProtocol {
     let descriptors: [DayObjectsInstrumentDescriptor] = []
+    let samplePool = RecordingHappeningSamplePool()
     private(set) var preparedConfigurations: [DayObjectsInstrumentBankConfiguration] = []
-    private(set) var pools: [String: RecordingHappeningPool] = [:]
+    private(set) var tonalPools: [String: RecordingHappeningTonalPool] = [:]
     let drumsRecorder = RecordingHappeningDrums()
     let pianoRecorder = RecordingHappeningPiano()
 
     var drums: DayObjectsDrumBankProtocol { drumsRecorder }
     var piano: DayObjectsPianoPoolProtocol { pianoRecorder }
+    var happenings: DayObjectsHappeningSamplePoolProtocol { samplePool }
     var metrics: DayObjectsInstrumentBankMetrics {
-        .init(state: .prepared, tonalPoolCount: pools.count, graph: nil, allocationFingerprint: nil, drumMetrics: drums.metrics, pianoMetrics: piano.metrics)
+        .init(
+            state: .prepared,
+            tonalPoolCount: tonalPools.count,
+            graph: nil,
+            allocationFingerprint: nil,
+            drumMetrics: drums.metrics,
+            pianoMetrics: piano.metrics,
+            happeningMetrics: samplePool.metrics
+        )
     }
 
     func prepare(configuration: DayObjectsInstrumentBankConfiguration) throws {
         preparedConfigurations.append(configuration)
-        pools = Dictionary(uniqueKeysWithValues: configuration.tonalPools.map {
-            ($0.name, RecordingHappeningPool(name: $0.name, capacity: $0.capacity))
+        tonalPools = Dictionary(uniqueKeysWithValues: configuration.tonalPools.map {
+            ($0.name, RecordingHappeningTonalPool(name: $0.name, capacity: $0.capacity))
         })
     }
+
     func tonalPool(named id: String) throws -> DayObjectsTonalVoicePoolProtocol {
-        guard let pool = pools[id] else { throw DayObjectsInstrumentBankError.unknownTonalPool(id) }
+        guard let pool = tonalPools[id] else { throw DayObjectsInstrumentBankError.unknownTonalPool(id) }
         return pool
     }
+
     func start() throws {}
     func stop() async {}
-    func releaseAll() { pools.values.forEach { $0.releaseAll() } }
+    func releaseAll() {
+        tonalPools.values.forEach { $0.releaseAll() }
+        samplePool.releaseAll()
+    }
 }
 
-private final class RecordingHappeningPool: DayObjectsTonalVoicePoolProtocol {
-    let name: String
-    let capacity: Int
-    private(set) var preparedIDs: Set<DayObjectsInstrumentID> = []
-    private(set) var noteOnRequests: [DayObjectsTonalNoteRequest] = []
-    private(set) var noteOffRequests: [DayObjectsTonalNoteRequest] = []
-    private(set) var updateRequests: [DayObjectsVoiceUpdate] = []
-    private var active: [DayObjectsVoiceToken: DayObjectsTonalNoteRequest] = [:]
-    private var nextGeneration: UInt64 = 0
-    var metrics: DayObjectsTonalPoolMetrics {
-        .init(name: name, allocatedVoiceCount: capacity, allocatedNodeCount: capacity, activeVoiceCount: active.count, activeLeadVoiceCount: 0, activeChordVoiceCount: 0)
+@MainActor
+private final class RecordingHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol {
+    struct PlayCall: Equatable {
+        let sound: ResolvedHappeningSound
+        let gain: Double
+        let priority: HappeningPlaybackPriority
     }
 
-    init(name: String, capacity: Int) { self.name = name; self.capacity = capacity }
-    func prepareInstrument(_ id: DayObjectsInstrumentID) throws { preparedIDs.insert(id) }
-    func prepareInstruments(_ ids: [DayObjectsInstrumentID]) throws { preparedIDs.formUnion(ids) }
-    func noteOn(_ request: DayObjectsTonalNoteRequest) -> DayObjectsVoiceToken? {
-        guard preparedIDs.contains(request.instrumentID) else { return nil }
-        guard active.count < capacity else { return nil }
-        nextGeneration += 1
-        let token = DayObjectsVoiceToken(slotID: Int(nextGeneration), generation: nextGeneration)
-        active[token] = request
-        noteOnRequests.append(request)
-        return token
+    struct EffectCall: Equatable {
+        let command: HappeningEffectCommand
+        let rampSeconds: Double
     }
-    func update(_ token: DayObjectsVoiceToken, with update: DayObjectsVoiceUpdate) {
-        guard active[token] != nil else { return }
-        updateRequests.append(update)
+
+    struct StopCall {
+        let voiceID: Int
+        let play: PlayCall
     }
-    func noteOff(_ token: DayObjectsVoiceToken) {
-        if let request = active.removeValue(forKey: token) { noteOffRequests.append(request) }
+
+    private var active: [Int: PlayCall] = [:]
+    private(set) var preparedRecipeIDs: Set<HappeningSoundRecipeID> = []
+    private(set) var playAttempts: [PlayCall] = []
+    private(set) var successfulPlayCalls: [PlayCall] = []
+    private(set) var effectCalls: [EffectCall] = []
+    private(set) var stopCalls: [StopCall] = []
+    private var stealCount = 0
+
+    var currentPriorities: [HappeningPlaybackPriority] {
+        active.keys.sorted().compactMap { active[$0]?.priority }
     }
+
+    var metrics: HappeningSamplePoolMetrics {
+        .init(
+            allocatedPlayerCount: 4,
+            fixedPlayerIdentities: [],
+            activeVoiceCount: active.count,
+            releasingVoiceCount: 0,
+            stealCount: stealCount,
+            decodedBufferCount: preparedRecipeIDs.count,
+            decodedBufferIdentities: [],
+            decodedByteCount: preparedRecipeIDs.count * 1_024,
+            availableRecipeIDs: preparedRecipeIDs,
+            unavailableRecipeIDs: [],
+            effects: effectCalls.last?.command ?? .init(
+                filterCutoffHz: 8_000,
+                delayMix: 0,
+                delayFeedback: 0,
+                reverbMix: 0
+            ),
+            lastEffectRampSeconds: effectCalls.last?.rampSeconds ?? 0
+        )
+    }
+
+    func prepare(recipeIDs: Set<HappeningSoundRecipeID>) throws {
+        preparedRecipeIDs.formUnion(recipeIDs)
+    }
+
+    func play(
+        _ sound: ResolvedHappeningSound,
+        gain: Double,
+        priority: HappeningPlaybackPriority
+    ) throws -> Int {
+        guard preparedRecipeIDs.contains(sound.recipeID) else {
+            throw HappeningSamplePoolError.recipeUnavailable(sound.recipeID)
+        }
+        let call = PlayCall(sound: sound, gain: gain, priority: priority)
+        playAttempts.append(call)
+        let voiceID: Int
+        if let idle = (0..<4).first(where: { active[$0] == nil }) {
+            voiceID = idle
+        } else if let eligible = active
+            .filter({ $0.value.priority < priority })
+            .map(\.key)
+            .min() {
+            voiceID = eligible
+            stealCount += 1
+        } else {
+            throw HappeningSamplePoolError.noEligibleVoice
+        }
+        active[voiceID] = call
+        successfulPlayCalls.append(call)
+        return voiceID
+    }
+
+    func applyEffects(_ command: HappeningEffectCommand, rampSeconds: Double) {
+        effectCalls.append(.init(command: command, rampSeconds: rampSeconds))
+    }
+
+    func stop(voiceID: Int) {
+        if let play = active.removeValue(forKey: voiceID) {
+            stopCalls.append(.init(voiceID: voiceID, play: play))
+        }
+    }
+
     func releaseAll() { active.removeAll() }
 }
 
+private final class RecordingHappeningTonalPool: DayObjectsTonalVoicePoolProtocol {
+    let name: String
+    let capacity: Int
+    private(set) var noteOnRequests: [DayObjectsTonalNoteRequest] = []
+    var metrics: DayObjectsTonalPoolMetrics {
+        .init(
+            name: name,
+            allocatedVoiceCount: capacity,
+            allocatedNodeCount: capacity,
+            activeVoiceCount: 0,
+            activeLeadVoiceCount: 0,
+            activeChordVoiceCount: 0
+        )
+    }
+
+    init(name: String, capacity: Int) {
+        self.name = name
+        self.capacity = capacity
+    }
+
+    func prepareInstrument(_ id: DayObjectsInstrumentID) throws {}
+    func noteOn(_ request: DayObjectsTonalNoteRequest) -> DayObjectsVoiceToken? {
+        noteOnRequests.append(request)
+        return nil
+    }
+    func update(_ token: DayObjectsVoiceToken, with update: DayObjectsVoiceUpdate) {}
+    func noteOff(_ token: DayObjectsVoiceToken) {}
+    func releaseAll() {}
+}
+
 private final class RecordingHappeningDrums: DayObjectsDrumBankProtocol {
-    var metrics: DayObjectsDrumBankMetrics { .init(allocatedPlayerCount: 0, enabledVoiceCount: 0) }
+    var metrics: DayObjectsDrumBankMetrics {
+        .init(allocatedPlayerCount: 0, enabledVoiceCount: 0)
+    }
     func hit(_ voice: DayObjectsDrumVoice, velocity: Double) {}
     func releaseAll() {}
 }
 
 private final class RecordingHappeningPiano: DayObjectsPianoPoolProtocol {
-    var metrics: DayObjectsFeltPianoMetrics { .init(allocatedPlayerCount: 0, activeNoteCount: 0, maximumPolyphony: 0) }
+    var metrics: DayObjectsFeltPianoMetrics {
+        .init(allocatedPlayerCount: 0, activeNoteCount: 0, maximumPolyphony: 0)
+    }
     func noteOn(_ midiNote: UInt8, velocity: Double) -> DayObjectsFeltPianoToken? { nil }
     func noteOff(_ token: DayObjectsFeltPianoToken) {}
     func releaseAll() {}

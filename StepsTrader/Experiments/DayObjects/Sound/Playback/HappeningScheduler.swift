@@ -4,9 +4,9 @@ import Foundation
 struct HappeningAttackRecord: Equatable, Sendable {
     let happeningID: String
     let position: MusicalPosition
-    let midiNote: UInt8
-    let family: HappeningSoundFamily
-    let instrumentID: DayObjectsInstrumentID
+    let resolvedSound: ResolvedHappeningSound
+    let effectCommand: HappeningEffectCommand
+    let playbackPriority: HappeningPlaybackPriority
     let isBirth: Bool
 }
 
@@ -32,7 +32,7 @@ final class HappeningScheduler {
 
     private static let allocationCycleCount = 16
     private let worldBank: PlaybackWorldBank
-    private var happeningPool: DayObjectsTonalVoicePoolProtocol?
+    private var happeningPool: DayObjectsHappeningSamplePoolProtocol?
     private var states: [String: ActiveHappeningState] = [:]
     private var tonalWorld: TonalWorldPlan?
     private var remixSeed: UInt64 = 0
@@ -83,9 +83,9 @@ final class HappeningScheduler {
     ) throws {
         releaseAllOwnedVoices()
         try worldBank.prepare()
-        let pool = try worldBank.tonalPool(named: .happenings)
+        let pool = worldBank.happenings
         let uniquePlans = Self.uniquePlans(plans)
-        try pool.prepareInstruments(uniquePlans.map(\.instrumentID))
+        try pool.prepare(recipeIDs: Set(uniquePlans.map(\.recipeID)))
         happeningPool = pool
         self.tonalWorld = tonalWorld
         self.remixSeed = remixSeed
@@ -134,7 +134,7 @@ final class HappeningScheduler {
     ) throws {
         guard states[plan.happeningID] == nil, states.count < 10 else { return }
         guard let happeningPool else { throw DayObjectsInstrumentBankError.notPrepared }
-        try happeningPool.prepareInstruments([plan.instrumentID])
+        try happeningPool.prepare(recipeIDs: [plan.recipeID])
         states[plan.happeningID] = Self.makeState(plan: plan)
         guard isPlaying else { return }
 
@@ -230,7 +230,7 @@ final class HappeningScheduler {
         let oldStates = states
         let newPlans = Self.uniquePlans(replacement.plans)
         do {
-            try happeningPool.prepareInstruments(newPlans.map(\.instrumentID))
+            try happeningPool.prepare(recipeIDs: Set(newPlans.map(\.recipeID)))
         } catch {
             return
         }
@@ -302,7 +302,7 @@ final class HappeningScheduler {
         guard let pool = happeningPool,
               let world = tonalWorld,
               var state = states[id],
-              !state.plan.motifScaleDegrees.isEmpty
+              let recipe = HappeningSoundCatalog.recipe(for: state.plan.recipeID)
         else { return false }
         glitchProcessor?.applyRealizedEvent(
             plan: glitchPlan,
@@ -310,48 +310,39 @@ final class HappeningScheduler {
             cycleIndex: Int(currentPosition.bar),
             stepIndex: currentPosition.subdivisionInBar
         )
-        let motifIndex = isBirth ? 0 : sequenceIndex % state.plan.motifScaleDegrees.count
-        guard let note = HappeningPitchResolver.resolve(
-            motifScaleDegree: state.plan.motifScaleDegrees[motifIndex],
-            octave: state.plan.octave,
-            tonalWorld: world,
-            chord: chord
-        ) else { return false }
-        let baseGain = isBirth ? state.plan.birthGain : state.plan.gain
-        let gain = baseGain * mixGain
-        guard let token = pool.noteOn(.init(
-            instrumentID: state.plan.instrumentID,
-            midiNote: note,
-            velocity: gain,
-            role: .note,
-            envelopeVariant: .absolute(
-                attackSeconds: state.plan.attackSeconds,
-                releaseSeconds: state.plan.releaseSeconds
-            ),
-            pan: state.plan.pan,
-            delaySend: state.plan.delaySend,
-            reverbSend: state.plan.reverbSend
-        )) else { return false }
-        applyCurrentEffects(
-            to: token, midiNote: note, baseGain: baseGain,
-            baseDelaySend: state.plan.delaySend,
-            baseReverbSend: state.plan.reverbSend,
-            pool: pool
+        _ = sequenceIndex
+        let resolvedSound = HappeningPitchResolver.resolve(
+            recipe: recipe,
+            chord: chord,
+            tonalWorld: world
         )
+        let baseGain = isBirth ? state.plan.birthGain : state.plan.gain
+        let gain = baseGain * mixGain * glitchCommand.dryGain
+        let priority: HappeningPlaybackPriority = isBirth ? .birth : .recurrence
+        let voiceID: Int
+        do {
+            voiceID = try pool.play(resolvedSound, gain: gain, priority: priority)
+        } catch {
+            return false
+        }
+        let effectCommand = currentEffectCommand(for: recipe)
+        pool.applyEffects(effectCommand, rampSeconds: glitchCommand.rampDurationSeconds)
+
+        removeStaleOwnership(of: voiceID)
+        state = states[id] ?? state
 
         nextVoiceID &+= 1
         let releaseSubdivisions = max(
             1,
-            Int64(ceil(state.plan.releaseSeconds * currentTempoBPM / 60 * Double(MusicalPosition.subdivisionsPerBeat)))
+            Int64(ceil(recipe.releaseSeconds * currentTempoBPM / 60 * Double(MusicalPosition.subdivisionsPerBeat)))
         )
         state.activeVoiceIDs.insert(nextVoiceID)
         state.activeVoices[nextVoiceID] = .init(
             pool: pool,
-            token: token,
-            midiNote: note,
+            voiceID: voiceID,
+            resolvedSound: resolvedSound,
+            effectCommand: effectCommand,
             baseGain: baseGain,
-            baseDelaySend: state.plan.delaySend,
-            baseReverbSend: state.plan.reverbSend,
             releaseAt: .init(absoluteSubdivision: currentPosition.absoluteSubdivision + releaseSubdivisions)
         )
         state.didPlaySinceStart = true
@@ -362,9 +353,9 @@ final class HappeningScheduler {
         attackHistory.append(.init(
             happeningID: id,
             position: currentPosition,
-            midiNote: note,
-            family: state.plan.family,
-            instrumentID: state.plan.instrumentID,
+            resolvedSound: resolvedSound,
+            effectCommand: effectCommand,
+            playbackPriority: priority,
             isBirth: isBirth
         ))
         if attackHistory.count > Self.maximumRecordedAttackCount {
@@ -384,7 +375,7 @@ final class HappeningScheduler {
             guard var state = states[id] else { continue }
             let expired = state.activeVoices.filter { $0.value.releaseAt <= position }
             for (voiceID, voice) in expired {
-                voice.pool.noteOff(voice.token)
+                voice.pool.stop(voiceID: voice.voiceID)
                 state.activeVoiceIDs.remove(voiceID)
                 state.activeVoices.removeValue(forKey: voiceID)
             }
@@ -395,7 +386,7 @@ final class HappeningScheduler {
     }
 
     private func releaseVoices(in state: ActiveHappeningState) {
-        state.activeVoices.values.forEach { $0.pool.noteOff($0.token) }
+        state.activeVoices.values.forEach { $0.pool.stop(voiceID: $0.voiceID) }
     }
 
     private func releaseAllOwnedVoices() {
@@ -407,34 +398,38 @@ final class HappeningScheduler {
     }
 
     private func updateActiveVoices() {
-        for state in states.values {
-            for voice in state.activeVoices.values {
-                applyCurrentEffects(
-                    to: voice.token, midiNote: voice.midiNote, baseGain: voice.baseGain,
-                    baseDelaySend: voice.baseDelaySend,
-                    baseReverbSend: voice.baseReverbSend,
-                    pool: voice.pool
-                )
-            }
-        }
+        guard let voice = states.values
+            .flatMap({ $0.activeVoices.values })
+            .max(by: { $0.releaseAt < $1.releaseAt }),
+              let recipe = HappeningSoundCatalog.recipe(for: voice.resolvedSound.recipeID)
+        else { return }
+        voice.pool.applyEffects(
+            currentEffectCommand(for: recipe),
+            rampSeconds: glitchCommand.rampDurationSeconds
+        )
     }
 
-    private func applyCurrentEffects(
-        to token: DayObjectsVoiceToken,
-        midiNote: UInt8,
-        baseGain: Double,
-        baseDelaySend: Double,
-        baseReverbSend: Double,
-        pool: DayObjectsTonalVoicePoolProtocol
-    ) {
-        pool.update(token, with: .init(
-            midiNote: Double(midiNote) + glitchCommand.pitchDriftCents / 100,
-            expression: baseGain * mixGain * glitchCommand.dryGain,
-            delaySend: min(max(baseDelaySend + glitchCommand.delayTimeVariation, 0), 1),
-            reverbSend: min(max(baseReverbSend, 0), 1),
-            pitchRampSeconds: glitchCommand.rampDurationSeconds,
-            expressionRampSeconds: glitchCommand.rampDurationSeconds
-        ))
+    private func currentEffectCommand(for recipe: HappeningSoundRecipe) -> HappeningEffectCommand {
+        .init(
+            filterCutoffHz: recipe.filterEndHz,
+            delayMix: min(max(recipe.delayMix + glitchCommand.delayTimeVariation, 0), 1),
+            delayFeedback: recipe.delayFeedback,
+            reverbMix: recipe.reverbMix
+        )
+    }
+
+    private func removeStaleOwnership(of poolVoiceID: Int) {
+        for id in states.keys {
+            guard var state = states[id] else { continue }
+            let staleVoiceIDs = state.activeVoices.compactMap { voiceID, voice in
+                voice.voiceID == poolVoiceID ? voiceID : nil
+            }
+            for voiceID in staleVoiceIDs {
+                state.activeVoiceIDs.remove(voiceID)
+                state.activeVoices.removeValue(forKey: voiceID)
+            }
+            states[id] = state
+        }
     }
 
     private static func makeState(plan: HappeningMusicPlan) -> ActiveHappeningState {

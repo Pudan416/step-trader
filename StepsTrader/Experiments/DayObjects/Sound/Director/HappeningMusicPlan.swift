@@ -37,7 +37,7 @@ struct HappeningMusicPlan: Equatable, Sendable {
 
     let happeningID: String
     let family: HappeningSoundFamily
-    let instrumentID: DayObjectsInstrumentID
+    let recipeID: HappeningSoundRecipeID
     let motifScaleDegrees: [Int]
     let octave: Int
     let pan: Double

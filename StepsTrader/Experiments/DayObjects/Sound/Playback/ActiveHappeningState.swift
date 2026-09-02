@@ -6,12 +6,11 @@ struct HappeningScheduledOccurrence: Equatable, Sendable {
 }
 
 struct ActiveHappeningVoice {
-    let pool: DayObjectsTonalVoicePoolProtocol
-    let token: DayObjectsVoiceToken
-    let midiNote: UInt8
+    let pool: DayObjectsHappeningSamplePoolProtocol
+    let voiceID: Int
+    let resolvedSound: ResolvedHappeningSound
+    let effectCommand: HappeningEffectCommand
     let baseGain: Double
-    let baseDelaySend: Double
-    let baseReverbSend: Double
     let releaseAt: MusicalPosition
 }
 
