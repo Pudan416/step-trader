@@ -60,8 +60,38 @@ final class GlitchProcessor {
         cycleIndex: Int,
         stepIndex: Int
     ) -> DayObjectsGlitchCommand? {
+        let preview = realizedEventPreview(
+            plan: plan,
+            role: role,
+            cycleIndex: cycleIndex,
+            stepIndex: stepIndex
+        )
+        commitRealizedEvent(preview.command)
+        return preview.isRealized ? preview.command : nil
+    }
+
+    func previewRealizedEvent(
+        plan: GlitchPlan,
+        role: GlitchRole,
+        cycleIndex: Int,
+        stepIndex: Int
+    ) -> DayObjectsGlitchCommand {
+        realizedEventPreview(
+            plan: plan,
+            role: role,
+            cycleIndex: cycleIndex,
+            stepIndex: stepIndex
+        ).command
+    }
+
+    private func realizedEventPreview(
+        plan: GlitchPlan,
+        role: GlitchRole,
+        cycleIndex: Int,
+        stepIndex: Int
+    ) -> (command: DayObjectsGlitchCommand, isRealized: Bool) {
         guard role != .percussion, role != .timingAnchorKick else {
-            return applyNeutral(role)
+            return (.neutral(role: role), false)
         }
         guard plan.sanitizedProgress > 0,
               let rolePlan = plan.validatedRolePlan(for: role),
@@ -73,7 +103,7 @@ final class GlitchProcessor {
                 stepIndex: stepIndex
               )
         else {
-            return applyNeutral(role)
+            return (.neutral(role: role), false)
         }
 
         let base = continuousCommand(for: role, plan: plan)
@@ -104,10 +134,13 @@ final class GlitchProcessor {
         case .lead:
             command = base.replacing(pitchDriftCents: pitchDrift)
         case .percussion, .timingAnchorKick:
-            return applyNeutral(role)
+            return (.neutral(role: role), false)
         }
+        return (command, true)
+    }
+
+    func commitRealizedEvent(_ command: DayObjectsGlitchCommand) {
         backend.apply(command)
-        return command
     }
 
     private func continuousCommand(for role: GlitchRole, plan: GlitchPlan) -> DayObjectsGlitchCommand {
@@ -165,12 +198,6 @@ final class GlitchProcessor {
         case .percussion, .timingAnchorKick:
             return .neutral(role: role)
         }
-    }
-
-    @discardableResult
-    private func applyNeutral(_ role: GlitchRole) -> DayObjectsGlitchCommand? {
-        backend.apply(.neutral(role: role))
-        return nil
     }
 
     private func signed(_ value: Double, maximum: Double) -> Double {

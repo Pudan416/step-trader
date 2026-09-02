@@ -80,6 +80,43 @@ final class HappeningMusicPlannerTests: XCTestCase {
         XCTAssertLessThan(plans.reduce(0) { $0 + $1.birthGain }, 4)
     }
 
+    func testOversizedArbitraryOrderedInputUsesOnlyItsFirstTenIDs() {
+        let ordered = ["zulu", "alpha", "echo", "bravo", "hotel", "charlie", "golf", "delta", "india", "foxtrot", "kilo", "juliet"]
+
+        let plans = makePlans(ids: ordered)
+
+        XCTAssertEqual(plans.map(\.happeningID), Array(ordered.prefix(10)))
+        XCTAssertEqual(Set(plans.map(\.recipeID)).count, 10)
+    }
+
+    func testRecipeMigrationPreservesFrozenPreMigrationIdentityAndScheduleValues() throws {
+        struct Fixture {
+            let id: String
+            let pan: Double
+            let gain: Double
+            let birthGain: Double
+            let scheduleSeed: UInt64
+            let alignmentRank: UInt64
+            let floatingOffset: Double
+        }
+        let fixtures = [
+            Fixture(id: "event-0", pan: -0.41656545531320505, gain: 0.21389347528688357, birthGain: 0.272616108732068, scheduleSeed: 18_087_808_294_331_211_280, alignmentRank: 14_812_916_986_981_494_135, floatingOffset: -0.5),
+            Fixture(id: "event-4", pan: 0.43740676647220422, gain: 0.2731477296135163, birthGain: 0.3162248629399153, scheduleSeed: 2_137_261_057_161_796_335, alignmentRank: 10_822_951_049_026_308_331, floatingOffset: -0.5),
+            Fixture(id: "morning", pan: -0.2539172236500712, gain: 0.2759388572689173, birthGain: 0.345547302272706, scheduleSeed: 17_792_516_803_595_872_528, alignmentRank: 17_815_431_101_816_481_277, floatingOffset: 0.25),
+        ]
+        let plans = makePlans(ids: fixtures.map(\.id))
+
+        for fixture in fixtures {
+            let plan = try XCTUnwrap(plans.first { $0.happeningID == fixture.id })
+            XCTAssertEqual(plan.pan, fixture.pan, accuracy: 1e-15, fixture.id)
+            XCTAssertEqual(plan.gain, fixture.gain, accuracy: 1e-15, fixture.id)
+            XCTAssertEqual(plan.birthGain, fixture.birthGain, accuracy: 1e-15, fixture.id)
+            XCTAssertEqual(plan.recurrence.scheduleSeed, fixture.scheduleSeed, fixture.id)
+            XCTAssertEqual(plan.recurrence.alignmentRank, fixture.alignmentRank, fixture.id)
+            XCTAssertEqual(plan.recurrence.floatingOffsetBeats, fixture.floatingOffset, fixture.id)
+        }
+    }
+
     private let defaultSeed: UInt64 = 0xD4A0_B1EC_75ED_0001
 
     private func makePlans(ids: [String], remixSeed: UInt64? = nil) -> [HappeningMusicPlan] {
@@ -96,7 +133,6 @@ final class HappeningMusicPlannerTests: XCTestCase {
         return HappeningMusicPlanner.makePlans(
             input: input,
             tonalWorld: TonalWorldPlanner.makePlan(input: input, remixSeed: seed),
-            instrumentDescriptors: DayObjectsInstrumentManifest.defaultDescriptors,
             remixSeed: seed
         )
     }

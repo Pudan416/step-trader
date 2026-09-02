@@ -49,7 +49,6 @@ final class DeterministicMusicDirectorTests: XCTestCase {
         let expectedHappenings = HappeningMusicPlanner.makePlans(
             input: normalized,
             tonalWorld: world,
-            instrumentDescriptors: descriptors,
             remixSeed: seed
         )
         let plan = DeterministicMusicDirector.makePlan(input: input, remixSeed: seed)

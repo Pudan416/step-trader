@@ -350,7 +350,6 @@ final class HappeningScheduleAllocatorTests: XCTestCase {
         return HappeningMusicPlanner.makePlans(
             input: input,
             tonalWorld: TonalWorldPlanner.makePlan(input: input, remixSeed: seed),
-            instrumentDescriptors: DayObjectsInstrumentManifest.defaultDescriptors,
             remixSeed: seed
         )
     }

@@ -3,6 +3,24 @@ import XCTest
 
 @MainActor
 final class GlitchProcessorTests: XCTestCase {
+    func testRealizedEventPreviewIsPureUntilExplicitCommit() throws {
+        let backend = RecordingGlitchBackend()
+        let processor = GlitchProcessor(backend: backend)
+        let plan = planWithCertainHappeningDropout()
+        let occurrence = try firstHappeningDropout(in: plan)
+
+        let preview = processor.previewRealizedEvent(
+            plan: plan,
+            role: .happening,
+            cycleIndex: occurrence.cycleIndex,
+            stepIndex: occurrence.stepIndex
+        )
+
+        XCTAssertTrue(backend.commands.isEmpty)
+        processor.commitRealizedEvent(preview)
+        XCTAssertEqual(backend.commands, [preview])
+    }
+
     func testZeroPlanBypassesEveryRoleAndLeavesDryPathUnchanged() {
         let backend = RecordingGlitchBackend()
         let processor = GlitchProcessor(backend: backend)

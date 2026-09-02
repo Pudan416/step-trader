@@ -6,6 +6,132 @@ import XCTest
 
 @MainActor
 final class DayObjectsHappeningSamplePoolTests: XCTestCase {
+    func testStaleHandleCannotStopOrUpdateManualVoiceThatStoleItsSlot() throws {
+        let harness = try preparedHarness()
+        let automatic = try (1...4).map {
+            try harness.pool.play(
+                sound(id: $0, resource: "\($0).wav"),
+                gain: 0.5,
+                priority: .recurrence,
+                effects: effects(Double($0))
+            )
+        }
+        let stolen = automatic[0]
+        let manual = try harness.pool.play(
+            sound(id: 5, resource: "5.wav"),
+            gain: 0.8,
+            priority: .manualAudition,
+            effects: effects(5)
+        )
+
+        XCTAssertEqual(manual.voiceID, stolen.voiceID)
+        XCTAssertNotEqual(manual.generation, stolen.generation)
+        let updateCount = harness.voices[manual.voiceID].updateCalls.count
+
+        harness.pool.update(stolen, gain: 0.1, playbackRate: 0.5)
+        harness.pool.stop(stolen)
+
+        XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 4)
+        XCTAssertEqual(harness.voices[manual.voiceID].updateCalls.count, updateCount)
+        XCTAssertEqual(harness.voices[manual.voiceID].releaseCount, 0)
+    }
+
+    func testOverlappingRecipeEffectsAggregateIndependentOfAttackOrder() throws {
+        let firstEffects = effects(1)
+        let secondEffects = effects(2)
+        let forward = try preparedHarness()
+        _ = try forward.pool.play(sound(id: 1, resource: "1.wav"), gain: 1, priority: .birth, effects: firstEffects)
+        _ = try forward.pool.play(sound(id: 2, resource: "2.wav"), gain: 1, priority: .manualAudition, effects: secondEffects)
+
+        let reverse = try preparedHarness()
+        _ = try reverse.pool.play(sound(id: 2, resource: "2.wav"), gain: 1, priority: .manualAudition, effects: secondEffects)
+        _ = try reverse.pool.play(sound(id: 1, resource: "1.wav"), gain: 1, priority: .birth, effects: firstEffects)
+
+        let expected = HappeningEffectCommand(
+            filterCutoffHz: 1_500,
+            delayMix: 0.15,
+            delayFeedback: 0.075,
+            reverbMix: 0.225
+        )
+        assertEffects(forward.pool.metrics.effects, equalTo: expected)
+        assertEffects(reverse.pool.metrics.effects, equalTo: expected)
+    }
+
+    func testStoppingAndReusingHandlesRecomputesActiveEffectAggregate() throws {
+        let harness = try preparedHarness()
+        let first = try harness.pool.play(sound(id: 1, resource: "1.wav"), gain: 1, priority: .birth, effects: effects(1))
+        _ = try harness.pool.play(sound(id: 2, resource: "2.wav"), gain: 1, priority: .manualAudition, effects: effects(2))
+
+        harness.pool.stop(first)
+        XCTAssertEqual(harness.pool.metrics.effects, effects(2))
+
+        _ = try harness.pool.play(sound(id: 3, resource: "3.wav"), gain: 1, priority: .birth, effects: effects(3))
+        XCTAssertEqual(harness.pool.metrics.effects, .init(
+            filterCutoffHz: 2_500,
+            delayMix: 0.25,
+            delayFeedback: 0.125,
+            reverbMix: 0.375
+        ))
+    }
+
+    func testRejectedPlayLeavesSharedEffectAggregateUnchanged() throws {
+        let harness = try preparedHarness()
+        for recipeID in 1...4 {
+            _ = try harness.pool.play(
+                sound(id: recipeID, resource: "\(recipeID).wav"),
+                gain: 1,
+                priority: .manualAudition,
+                effects: effects(Double(recipeID))
+            )
+        }
+        let before = harness.pool.metrics.effects
+
+        XCTAssertThrowsError(try harness.pool.play(
+            sound(id: 5, resource: "5.wav"),
+            gain: 1,
+            priority: .recurrence,
+            effects: .init(filterCutoffHz: 18_000, delayMix: 1, delayFeedback: 0.9, reverbMix: 1)
+        ))
+
+        XCTAssertEqual(harness.pool.metrics.effects, before)
+    }
+
+    func testExplicitGlobalEffectUpdateDoesNotSuppressLaterHandleAggregation() throws {
+        let harness = try preparedHarness()
+        harness.pool.applyEffects(effects(6), rampSeconds: 0.25)
+
+        _ = try harness.pool.play(
+            sound(id: 1, resource: "1.wav"),
+            gain: 1,
+            priority: .birth,
+            effects: effects(1)
+        )
+
+        XCTAssertEqual(harness.pool.metrics.effects, effects(1))
+    }
+
+    func testHandleUpdateChangesGainAndRateNonCumulativelyAndStaleUpdateIsIgnored() throws {
+        let harness = try preparedHarness()
+        let original = try harness.pool.play(
+            sound(id: 1, resource: "1.wav"),
+            gain: 0.5,
+            priority: .recurrence,
+            effects: effects(1)
+        )
+        harness.pool.update(original, gain: 0.25, playbackRate: 1.01)
+        let update = try XCTUnwrap(harness.voices[original.voiceID].updateCalls.last)
+        XCTAssertEqual(update.gain, 0.25 * pow(10, -12.0 / 20), accuracy: 1e-12)
+        XCTAssertEqual(update.playbackRate, 1.01, accuracy: 1e-12)
+
+        for recipeID in 2...4 {
+            _ = try harness.pool.play(sound(id: recipeID, resource: "\(recipeID).wav"), gain: 1, priority: .recurrence, effects: effects(Double(recipeID)))
+        }
+        let replacement = try harness.pool.play(sound(id: 5, resource: "5.wav"), gain: 1, priority: .manualAudition, effects: effects(5))
+        let count = harness.voices[replacement.voiceID].updateCalls.count
+        harness.pool.update(original, gain: 0, playbackRate: 2)
+        XCTAssertEqual(harness.voices[replacement.voiceID].updateCalls.count, count)
+    }
+
     func testAllocatesExactlyFourPlayersAndNeverCreatesAFifthOnPlay() throws {
         let harness = try makeHarness(recipes: [makeRecipe(id: 1, resources: ["one.wav"])])
 
@@ -16,7 +142,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         try harness.pool.prepare(recipeIDs: [id(1)])
         for _ in 0..<20 {
             let voiceID = try harness.pool.play(sound(id: 1, resource: "one.wav"), gain: 0.5, priority: .manualAudition)
-            harness.pool.stop(voiceID: voiceID)
+            harness.pool.stop(voiceID)
         }
 
         XCTAssertEqual(harness.voices.count, 4)
@@ -28,7 +154,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         let voiceIDs = try (1...4).map {
             try harness.pool.play(sound(id: $0, resource: "\($0).wav"), gain: 0.5)
         }
-        harness.pool.stop(voiceID: voiceIDs[2])
+        harness.pool.stop(voiceIDs[2])
 
         let reused = try harness.pool.play(
             sound(id: 5, resource: "5.wav"),
@@ -36,7 +162,8 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
             priority: .birth
         )
 
-        XCTAssertEqual(reused, voiceIDs[2])
+        XCTAssertEqual(reused.voiceID, voiceIDs[2].voiceID)
+        XCTAssertNotEqual(reused.generation, voiceIDs[2].generation)
         XCTAssertEqual(harness.pool.metrics.stealCount, 0)
     }
 
@@ -57,8 +184,8 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
             priority: .manualAudition
         )
 
-        XCTAssertEqual(birth, recurrenceIDs[0])
-        XCTAssertEqual(manual, recurrenceIDs[1])
+        XCTAssertEqual(birth.voiceID, recurrenceIDs[0].voiceID)
+        XCTAssertEqual(manual.voiceID, recurrenceIDs[1].voiceID)
         XCTAssertEqual(harness.pool.metrics.stealCount, 2)
     }
 
@@ -154,12 +281,12 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         try harness.pool.prepare(recipeIDs: [recipe.id])
         let voiceID = try harness.pool.play(sound(id: 1, resource: "one.wav"), gain: 0.5)
 
-        harness.pool.stop(voiceID: voiceID)
+        harness.pool.stop(voiceID)
 
         XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 0)
         XCTAssertEqual(harness.pool.metrics.releasingVoiceCount, 0)
-        XCTAssertEqual(harness.voices[voiceID].releaseCount, 1)
-        XCTAssertEqual(harness.voices[voiceID].stopCount, 1)
+        XCTAssertEqual(harness.voices[voiceID.voiceID].releaseCount, 1)
+        XCTAssertEqual(harness.voices[voiceID.voiceID].stopCount, 1)
     }
 
     func testGracefulStopUsesInjectedMonotonicDeadlineBeforeConvergingToIdle() throws {
@@ -169,18 +296,18 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         try harness.pool.prepare(recipeIDs: [recipe.id])
         let voiceID = try harness.pool.play(sound(id: 1, resource: "one.wav"), gain: 0.5)
 
-        harness.pool.stop(voiceID: voiceID)
+        harness.pool.stop(voiceID)
         XCTAssertEqual(harness.pool.metrics.releasingVoiceCount, 1)
-        XCTAssertEqual(harness.voices[voiceID].stopCount, 0)
+        XCTAssertEqual(harness.voices[voiceID.voiceID].stopCount, 0)
 
         now += 0.24
         XCTAssertEqual(harness.pool.metrics.releasingVoiceCount, 1)
         now += 0.02
         XCTAssertEqual(harness.pool.metrics.releasingVoiceCount, 0)
-        XCTAssertEqual(harness.voices[voiceID].stopCount, 1)
+        XCTAssertEqual(harness.voices[voiceID.voiceID].stopCount, 1)
     }
 
-    func testProductionPlaybackRateTransposesFundamentalToResolvedTarget() throws {
+    func testProductionHandleUpdateTransposesFundamentalToResolvedTarget() throws {
         let previousChannelCount = Settings.channelCount
         Settings.channelCount = 1
         defer { Settings.channelCount = previousChannelCount }
@@ -191,24 +318,25 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         let targetRate = pow(2, Double(Int(targetMIDI) - Int(source.rootMIDI)) / 12)
         let pool = DayObjectsHappeningSamplePool(bundle: Bundle(for: type(of: self)))
         try pool.prepare(recipeIDs: [recipeID])
-        pool.applyEffects(.init(
+        let dryEffects = HappeningEffectCommand(
             filterCutoffHz: 18_000,
             delayMix: 0,
             delayFeedback: 0,
             reverbMix: 0
-        ), rampSeconds: 0)
+        )
 
         let engine = AudioEngine()
         engine.output = pool.output
         _ = engine.startTest(totalDuration: 0.6)
-        _ = try pool.play(.init(
+        let handle = try pool.play(.init(
             recipeID: recipeID,
             resourceName: source.resourceName,
             sourceRootMIDI: source.rootMIDI,
             targetMIDI: targetMIDI,
-            playbackRate: targetRate,
+            playbackRate: 1,
             resonantFilterHz: nil
-        ), gain: 1, priority: .manualAudition)
+        ), gain: 1, priority: .manualAudition, effects: dryEffects)
+        pool.update(handle, gain: 1, playbackRate: targetRate)
 
         let rendered = engine.render(duration: 0.6)
         let sourceHz = midiFrequency(source.rootMIDI)
@@ -285,7 +413,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         )
 
         let voiceID = try harness.pool.play(resolved, gain: 0.5, priority: .birth)
-        let call = try XCTUnwrap(harness.voices[voiceID].playCalls.last)
+        let call = try XCTUnwrap(harness.voices[voiceID.voiceID].playCalls.last)
 
         XCTAssertTrue(call.buffer === harness.loadedBuffers["one.wav"])
         XCTAssertEqual(call.playbackRate, 1.25, accuracy: 1e-12)
@@ -302,18 +430,19 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
 
         let lowVoice = try harness.pool.play(low, gain: 0.5, priority: .birth)
         let highVoice = try harness.pool.play(high, gain: 0.5, priority: .birth)
-        XCTAssertEqual(harness.voices[lowVoice].playCalls.last?.resonantFilterHz, 261.63)
-        XCTAssertEqual(harness.voices[highVoice].playCalls.last?.resonantFilterHz, 392)
+        XCTAssertEqual(harness.voices[lowVoice.voiceID].playCalls.last?.resonantFilterHz, 261.63)
+        XCTAssertEqual(harness.voices[highVoice.voiceID].playCalls.last?.resonantFilterHz, 392)
 
-        harness.pool.stop(voiceID: lowVoice)
+        harness.pool.stop(lowVoice)
         let reused = try harness.pool.play(
             sound(id: 3, resource: "3.wav"),
             gain: 0.5,
             priority: .manualAudition
         )
-        XCTAssertEqual(reused, lowVoice)
-        XCTAssertNil(harness.voices[reused].playCalls.last?.resonantFilterHz)
-        XCTAssertEqual(harness.voices[highVoice].playCalls.last?.resonantFilterHz, 392)
+        XCTAssertEqual(reused.voiceID, lowVoice.voiceID)
+        XCTAssertNotEqual(reused.generation, lowVoice.generation)
+        XCTAssertNil(harness.voices[reused.voiceID].playCalls.last?.resonantFilterHz)
+        XCTAssertEqual(harness.voices[highVoice.voiceID].playCalls.last?.resonantFilterHz, 392)
     }
 
     func testProductionResonantVoicesCreateIndependentPeaks() throws {
@@ -422,6 +551,15 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         HappeningSoundRecipeID(rawValue: rawValue)!
     }
 
+    private func effects(_ value: Double) -> HappeningEffectCommand {
+        .init(
+            filterCutoffHz: value * 1_000,
+            delayMix: value * 0.1,
+            delayFeedback: value * 0.05,
+            reverbMix: value * 0.15
+        )
+    }
+
     private func midiFrequency(_ midi: UInt8) -> Double {
         440 * pow(2, (Double(midi) - 69) / 12)
     }
@@ -466,6 +604,18 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         return sqrt(sum / Double(count))
     }
 
+    private func assertEffects(
+        _ actual: HappeningEffectCommand,
+        equalTo expected: HappeningEffectCommand,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(actual.filterCutoffHz, expected.filterCutoffHz, accuracy: 1e-12, file: file, line: line)
+        XCTAssertEqual(actual.delayMix, expected.delayMix, accuracy: 1e-12, file: file, line: line)
+        XCTAssertEqual(actual.delayFeedback, expected.delayFeedback, accuracy: 1e-12, file: file, line: line)
+        XCTAssertEqual(actual.reverbMix, expected.reverbMix, accuracy: 1e-12, file: file, line: line)
+    }
+
     private func renderProduction(
         recipeIDs: Set<HappeningSoundRecipeID>,
         sounds: [ResolvedHappeningSound],
@@ -484,7 +634,12 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         engine.output = pool.output
         _ = engine.startTest(totalDuration: duration)
         for sound in sounds {
-            _ = try pool.play(sound, gain: 1, priority: .manualAudition)
+            _ = try pool.play(
+                sound,
+                gain: 1,
+                priority: .manualAudition,
+                effects: effects
+            )
         }
         return engine.render(duration: duration)
     }
@@ -548,6 +703,7 @@ private final class FakeHappeningVoice: DayObjectsHappeningSampleVoiceBackend {
     private(set) var playCalls: [FakeHappeningVoiceCall] = []
     private(set) var releaseCount = 0
     private(set) var stopCount = 0
+    private(set) var updateCalls: [(gain: Double, playbackRate: Double, rampSeconds: Double)] = []
 
     init(voiceID: Int) { self.voiceID = voiceID }
 
@@ -572,6 +728,9 @@ private final class FakeHappeningVoice: DayObjectsHappeningSampleVoiceBackend {
 
     func release() { releaseCount += 1 }
     func stop() { stopCount += 1 }
+    func update(gain: Double, playbackRate: Double, rampSeconds: Double) {
+        updateCalls.append((gain, playbackRate, rampSeconds))
+    }
 }
 
 private struct FakeHappeningVoiceCall {
@@ -581,5 +740,27 @@ private struct FakeHappeningVoiceCall {
     let attackSeconds: Double
     let releaseSeconds: Double
     let resonantFilterHz: Double?
+}
+
+private extension DayObjectsHappeningSamplePoolProtocol {
+    func play(
+        _ sound: ResolvedHappeningSound,
+        gain: Double,
+        priority: HappeningPlaybackPriority
+    ) throws -> HappeningPlaybackHandle {
+        try play(
+            sound,
+            gain: gain,
+            priority: priority,
+            effects: .init(filterCutoffHz: 8_000, delayMix: 0, delayFeedback: 0, reverbMix: 0)
+        )
+    }
+
+    func play(
+        _ sound: ResolvedHappeningSound,
+        gain: Double
+    ) throws -> HappeningPlaybackHandle {
+        try play(sound, gain: gain, priority: .recurrence)
+    }
 }
 #endif

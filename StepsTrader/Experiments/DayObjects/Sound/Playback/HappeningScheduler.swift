@@ -31,6 +31,10 @@ final class HappeningScheduler {
     }
 
     private static let allocationCycleCount = 16
+    private static let maximumAdmissionRetryAttempts = 4
+    private static let admissionRetrySpacingSubdivisions: Int64 = MusicalPosition.subdivisionsPerBeat
+    private static let admissionRetryHorizonSubdivisions: Int64 = MusicalPosition.subdivisionsPerBar
+    private static let birthRetryRearmSubdivisions: Int64 = MusicalPosition.subdivisionsPerBar
     private let worldBank: PlaybackWorldBank
     private var happeningPool: DayObjectsHappeningSamplePoolProtocol?
     private var states: [String: ActiveHappeningState] = [:]
@@ -84,8 +88,9 @@ final class HappeningScheduler {
         releaseAllOwnedVoices()
         try worldBank.prepare()
         let pool = worldBank.happenings
-        let uniquePlans = Self.uniquePlans(plans)
-        try pool.prepare(recipeIDs: Set(uniquePlans.map(\.recipeID)))
+        let requestedPlans = Self.uniquePlans(plans)
+        try pool.prepare(recipeIDs: Set(requestedPlans.map(\.recipeID)))
+        let uniquePlans = requestedPlans.filter { pool.metrics.availableRecipeIDs.contains($0.recipeID) }
         happeningPool = pool
         self.tonalWorld = tonalWorld
         self.remixSeed = remixSeed
@@ -135,13 +140,18 @@ final class HappeningScheduler {
         guard states[plan.happeningID] == nil, states.count < 10 else { return }
         guard let happeningPool else { throw DayObjectsInstrumentBankError.notPrepared }
         try happeningPool.prepare(recipeIDs: [plan.recipeID])
+        guard happeningPool.metrics.availableRecipeIDs.contains(plan.recipeID) else { return }
         states[plan.happeningID] = Self.makeState(plan: plan)
         guard isPlaying else { return }
 
         if playBirth {
-            let didEmitImmediately = canAttack(at: currentPosition)
-                && emitAttack(id: plan.happeningID, chord: currentChord, isBirth: true)
-            states[plan.happeningID]?.isBirthPending = !didEmitImmediately
+            states[plan.happeningID]?.isBirthPending = true
+            states[plan.happeningID]?.birthNextRetryPosition = currentPosition
+            states[plan.happeningID]?.birthRetryDeadline = .init(
+                absoluteSubdivision: currentPosition.absoluteSubdivision
+                    + Self.admissionRetryHorizonSubdivisions
+            )
+            attemptPendingBirth(id: plan.happeningID, chord: currentChord)
         }
         rebuildSchedules(startingAt: currentPosition)
     }
@@ -153,8 +163,9 @@ final class HappeningScheduler {
     }
 
     func applyMixTargetDecibels(_ decibels: Double) {
-        guard decibels.isFinite else { mixGain = 0; return }
-        mixGain = pow(10, min(max(decibels, -60), 0) / 20)
+        mixGain = decibels.isFinite
+            ? pow(10, min(max(decibels, -60), 0) / 20)
+            : 0
         updateActiveVoices()
     }
 
@@ -200,26 +211,38 @@ final class HappeningScheduler {
         }
 
         for id in states.keys.sorted() where states[id]?.isBirthPending == true {
-            guard canAttack(at: event.position) else { continue }
-            if emitAttack(id: id, chord: currentChord, isBirth: true) {
-                states[id]?.isBirthPending = false
-            }
+            attemptPendingBirth(id: id, chord: currentChord)
         }
 
         for id in states.keys.sorted() {
             guard var state = states[id] else { continue }
             while state.nextOccurrenceIndex < state.scheduledOccurrences.count,
                   state.scheduledOccurrences[state.nextOccurrenceIndex].position <= event.position {
-                let occurrence = state.scheduledOccurrences[state.nextOccurrenceIndex]
+                var occurrence = state.scheduledOccurrences[state.nextOccurrenceIndex]
+                guard occurrence.nextRetryPosition <= event.position else { break }
                 states[id] = state
-                guard canAttack(at: event.position),
-                      emitAttack(id: id, chord: currentChord, isBirth: false, sequenceIndex: occurrence.sequenceIndex)
-                else { break }
+                let didEmit = canAttack(at: event.position)
+                    && emitAttack(id: id, chord: currentChord, isBirth: false)
                 state = states[id] ?? state
-                state.nextOccurrenceIndex += 1
+                if didEmit {
+                    state.nextOccurrenceIndex += 1
+                } else {
+                    occurrence.retryAttemptCount += 1
+                    if occurrence.retryAttemptCount >= Self.maximumAdmissionRetryAttempts
+                        || event.position >= occurrence.retryDeadline {
+                        state.nextOccurrenceIndex += 1
+                    } else {
+                        occurrence.nextRetryPosition = .init(
+                            absoluteSubdivision: event.position.absoluteSubdivision
+                                + Self.admissionRetrySpacingSubdivisions
+                        )
+                        state.scheduledOccurrences[state.nextOccurrenceIndex] = occurrence
+                    }
+                }
                 state.nextOccurrence = state.nextOccurrenceIndex < state.scheduledOccurrences.count
                     ? state.scheduledOccurrences[state.nextOccurrenceIndex].position
                     : occurrence.position
+                break
             }
             states[id] = state
         }
@@ -228,11 +251,14 @@ final class HappeningScheduler {
     private func applyStructuralReplacement(_ replacement: PendingReplacement) {
         guard let happeningPool else { return }
         let oldStates = states
-        let newPlans = Self.uniquePlans(replacement.plans)
+        let requestedPlans = Self.uniquePlans(replacement.plans)
         do {
-            try happeningPool.prepare(recipeIDs: Set(newPlans.map(\.recipeID)))
+            try happeningPool.prepare(recipeIDs: Set(requestedPlans.map(\.recipeID)))
         } catch {
             return
+        }
+        let newPlans = requestedPlans.filter {
+            happeningPool.metrics.availableRecipeIDs.contains($0.recipeID)
         }
         var replaced: [String: ActiveHappeningState] = [:]
         for plan in newPlans {
@@ -281,7 +307,17 @@ final class HappeningScheduler {
                         absoluteSubdivision: origin.absoluteSubdivision
                             + Int64((event.startBeat * Double(MusicalPosition.subdivisionsPerBeat)).rounded())
                     ),
-                    intervalBars: event.intervalBars
+                    intervalBars: event.intervalBars,
+                    retryAttemptCount: 0,
+                    nextRetryPosition: .init(
+                        absoluteSubdivision: origin.absoluteSubdivision
+                            + Int64((event.startBeat * Double(MusicalPosition.subdivisionsPerBeat)).rounded())
+                    ),
+                    retryDeadline: .init(
+                        absoluteSubdivision: origin.absoluteSubdivision
+                            + Int64((event.startBeat * Double(MusicalPosition.subdivisionsPerBeat)).rounded())
+                            + Self.admissionRetryHorizonSubdivisions
+                    )
                 )
             }
             state.scheduledOccurrences.append(contentsOf: occurrences)
@@ -296,39 +332,50 @@ final class HappeningScheduler {
     private func emitAttack(
         id: String,
         chord: ChordPlan,
-        isBirth: Bool,
-        sequenceIndex: Int = 0
+        isBirth: Bool
     ) -> Bool {
         guard let pool = happeningPool,
               let world = tonalWorld,
               var state = states[id],
               let recipe = HappeningSoundCatalog.recipe(for: state.plan.recipeID)
         else { return false }
-        glitchProcessor?.applyRealizedEvent(
+        let eventGlitch = glitchProcessor?.previewRealizedEvent(
             plan: glitchPlan,
             role: .happening,
             cycleIndex: Int(currentPosition.bar),
             stepIndex: currentPosition.subdivisionInBar
-        )
-        _ = sequenceIndex
+        ) ?? glitchCommand
         let resolvedSound = HappeningPitchResolver.resolve(
             recipe: recipe,
             chord: chord,
             tonalWorld: world
         )
         let baseGain = isBirth ? state.plan.birthGain : state.plan.gain
-        let gain = baseGain * mixGain * glitchCommand.dryGain
+        let gain = baseGain * mixGain * eventGlitch.dryGain
+        let playbackRate = resolvedSound.playbackRate * Self.pitchMultiplier(for: eventGlitch)
+        let realizedSound = ResolvedHappeningSound(
+            recipeID: resolvedSound.recipeID,
+            resourceName: resolvedSound.resourceName,
+            sourceRootMIDI: resolvedSound.sourceRootMIDI,
+            targetMIDI: resolvedSound.targetMIDI,
+            playbackRate: playbackRate,
+            resonantFilterHz: resolvedSound.resonantFilterHz
+        )
         let priority: HappeningPlaybackPriority = isBirth ? .birth : .recurrence
-        let voiceID: Int
+        let effectCommand = effectCommand(for: recipe, glitch: eventGlitch)
+        let handle: HappeningPlaybackHandle
         do {
-            voiceID = try pool.play(resolvedSound, gain: gain, priority: priority)
+            handle = try pool.play(
+                realizedSound,
+                gain: gain,
+                priority: priority,
+                effects: effectCommand
+            )
         } catch {
             return false
         }
-        let effectCommand = currentEffectCommand(for: recipe)
-        pool.applyEffects(effectCommand, rampSeconds: glitchCommand.rampDurationSeconds)
 
-        removeStaleOwnership(of: voiceID)
+        removeStaleOwnership(of: handle.voiceID)
         state = states[id] ?? state
 
         nextVoiceID &+= 1
@@ -339,21 +386,23 @@ final class HappeningScheduler {
         state.activeVoiceIDs.insert(nextVoiceID)
         state.activeVoices[nextVoiceID] = .init(
             pool: pool,
-            voiceID: voiceID,
-            resolvedSound: resolvedSound,
+            handle: handle,
+            resolvedSound: realizedSound,
             effectCommand: effectCommand,
             baseGain: baseGain,
+            basePlaybackRate: resolvedSound.playbackRate,
             releaseAt: .init(absoluteSubdivision: currentPosition.absoluteSubdivision + releaseSubdivisions)
         )
         state.didPlaySinceStart = true
         state.lastAttackPosition = currentPosition
         states[id] = state
+        if let glitchProcessor { glitchProcessor.commitRealizedEvent(eventGlitch) }
         attacksPerBeat[currentPosition.absoluteBeat, default: 0] += 1
         lastGlobalAttackPosition = currentPosition
         attackHistory.append(.init(
             happeningID: id,
             position: currentPosition,
-            resolvedSound: resolvedSound,
+            resolvedSound: realizedSound,
             effectCommand: effectCommand,
             playbackPriority: priority,
             isBirth: isBirth
@@ -375,7 +424,7 @@ final class HappeningScheduler {
             guard var state = states[id] else { continue }
             let expired = state.activeVoices.filter { $0.value.releaseAt <= position }
             for (voiceID, voice) in expired {
-                voice.pool.stop(voiceID: voice.voiceID)
+                voice.pool.stop(voice.handle)
                 state.activeVoiceIDs.remove(voiceID)
                 state.activeVoices.removeValue(forKey: voiceID)
             }
@@ -386,7 +435,7 @@ final class HappeningScheduler {
     }
 
     private func releaseVoices(in state: ActiveHappeningState) {
-        state.activeVoices.values.forEach { $0.pool.stop(voiceID: $0.voiceID) }
+        state.activeVoices.values.forEach { $0.pool.stop($0.handle) }
     }
 
     private func releaseAllOwnedVoices() {
@@ -398,21 +447,22 @@ final class HappeningScheduler {
     }
 
     private func updateActiveVoices() {
-        guard let voice = states.values
-            .flatMap({ $0.activeVoices.values })
-            .max(by: { $0.releaseAt < $1.releaseAt }),
-              let recipe = HappeningSoundCatalog.recipe(for: voice.resolvedSound.recipeID)
-        else { return }
-        voice.pool.applyEffects(
-            currentEffectCommand(for: recipe),
-            rampSeconds: glitchCommand.rampDurationSeconds
-        )
+        for voice in states.values.flatMap({ $0.activeVoices.values }) {
+            voice.pool.update(
+                voice.handle,
+                gain: voice.baseGain * mixGain * glitchCommand.dryGain,
+                playbackRate: voice.basePlaybackRate * Self.pitchMultiplier(for: glitchCommand)
+            )
+        }
     }
 
-    private func currentEffectCommand(for recipe: HappeningSoundRecipe) -> HappeningEffectCommand {
+    private func effectCommand(
+        for recipe: HappeningSoundRecipe,
+        glitch: DayObjectsGlitchCommand
+    ) -> HappeningEffectCommand {
         .init(
             filterCutoffHz: recipe.filterEndHz,
-            delayMix: min(max(recipe.delayMix + glitchCommand.delayTimeVariation, 0), 1),
+            delayMix: min(max(recipe.delayMix + glitch.delayTimeVariation, 0), 1),
             delayFeedback: recipe.delayFeedback,
             reverbMix: recipe.reverbMix
         )
@@ -422,7 +472,7 @@ final class HappeningScheduler {
         for id in states.keys {
             guard var state = states[id] else { continue }
             let staleVoiceIDs = state.activeVoices.compactMap { voiceID, voice in
-                voice.voiceID == poolVoiceID ? voiceID : nil
+                voice.handle.voiceID == poolVoiceID ? voiceID : nil
             }
             for voiceID in staleVoiceIDs {
                 state.activeVoiceIDs.remove(voiceID)
@@ -442,8 +492,50 @@ final class HappeningScheduler {
             nextOccurrenceIndex: 0,
             activeVoices: [:],
             lastAttackPosition: nil,
-            isBirthPending: false
+            isBirthPending: false,
+            birthRetryAttemptCount: 0,
+            birthNextRetryPosition: .init(absoluteSubdivision: 0),
+            birthRetryDeadline: .init(absoluteSubdivision: 0)
         )
+    }
+
+    private func attemptPendingBirth(id: String, chord: ChordPlan) {
+        guard var state = states[id], state.isBirthPending,
+              state.birthNextRetryPosition <= currentPosition else { return }
+        let didEmit = canAttack(at: currentPosition)
+            && emitAttack(id: id, chord: chord, isBirth: true)
+        state = states[id] ?? state
+        if didEmit {
+            state.isBirthPending = false
+            state.birthRetryAttemptCount = 0
+        } else {
+            state.birthRetryAttemptCount += 1
+            if state.birthRetryAttemptCount >= Self.maximumAdmissionRetryAttempts
+                || currentPosition >= state.birthRetryDeadline {
+                state.birthRetryAttemptCount = 0
+                state.birthNextRetryPosition = .init(
+                    absoluteSubdivision: currentPosition.absoluteSubdivision
+                        + Self.birthRetryRearmSubdivisions
+                )
+                state.birthRetryDeadline = .init(
+                    absoluteSubdivision: state.birthNextRetryPosition.absoluteSubdivision
+                        + Self.admissionRetryHorizonSubdivisions
+                )
+            } else {
+                state.birthNextRetryPosition = .init(
+                    absoluteSubdivision: currentPosition.absoluteSubdivision
+                        + Self.admissionRetrySpacingSubdivisions
+                )
+            }
+        }
+        states[id] = state
+    }
+
+    private static func pitchMultiplier(for command: DayObjectsGlitchCommand) -> Double {
+        let cents = command.pitchDriftCents.isFinite
+            ? min(max(command.pitchDriftCents, -GlitchRole.happening.safeLimits.pitchDriftCents), GlitchRole.happening.safeLimits.pitchDriftCents)
+            : 0
+        return pow(2, cents / 1_200)
     }
 
     private static func uniquePlans(_ plans: [HappeningMusicPlan]) -> [HappeningMusicPlan] {

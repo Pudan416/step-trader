@@ -23,7 +23,6 @@ enum DeterministicMusicDirector {
         let happenings = HappeningMusicPlanner.makePlans(
             input: normalizedInput,
             tonalWorld: world,
-            instrumentDescriptors: descriptors,
             remixSeed: remixSeed
         )
         guard let lead = LeadPlanner.makePlan(

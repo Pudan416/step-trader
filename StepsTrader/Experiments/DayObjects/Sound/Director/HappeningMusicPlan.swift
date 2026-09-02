@@ -6,18 +6,6 @@ enum HappeningSoundFamily: CaseIterable, Equatable, Hashable, Sendable {
     case softOneShot
     case texture
 
-    var compatibleCategories: [DayObjectsInstrumentCategory] {
-        switch self {
-        case .pluck:
-            return [.pluck]
-        case .mallet, .bell:
-            return [.keys]
-        case .softOneShot:
-            return [.pluck, .keys]
-        case .texture:
-            return [.pad]
-        }
-    }
 }
 
 enum HappeningRecurrenceAlignment: Equatable, Sendable {
@@ -38,8 +26,6 @@ struct HappeningMusicPlan: Equatable, Sendable {
     let happeningID: String
     let family: HappeningSoundFamily
     let recipeID: HappeningSoundRecipeID
-    let motifScaleDegrees: [Int]
-    let octave: Int
     let pan: Double
     let gain: Double
     let birthGain: Double

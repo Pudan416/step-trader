@@ -3,12 +3,10 @@ enum HappeningMusicPlanner {
     static func makePlans(
         input: NormalizedDayMusicInput,
         tonalWorld: TonalWorldPlan,
-        instrumentDescriptors: [DayObjectsInstrumentDescriptor],
         remixSeed: UInt64
     ) -> [HappeningMusicPlan] {
-        _ = instrumentDescriptors
         let recipes = recipePermutation(remixSeed: remixSeed)
-        return zip(input.happeningIDs, recipes).map { happeningID, recipe in
+        return zip(input.happeningIDs.prefix(10), recipes).map { happeningID, recipe in
             makePlan(
                 happeningID: happeningID,
                 tonalWorld: tonalWorld,
@@ -29,13 +27,18 @@ enum HappeningMusicPlanner {
             domain: .happeningIdentity(stableID: happeningID)
         )
         let family = soundFamily(for: recipe.family)
-
-        let motifLength = 1 + (identityRandom.nextInt(upperBound: 3) ?? 0)
-        let motif = Array(
-            identityRandom.shuffled(tonalWorld.mode.scaleIntervals).prefix(motifLength)
-        )
+        let legacyFamilyIndex = identityRandom.nextInt(
+            upperBound: HappeningSoundFamily.allCases.count
+        ) ?? 0
+        _ = identityRandom.nextInt(upperBound: legacyFamilyIndex == 3 ? 6 : 3)
+        let legacyMotifLength = 1 + (identityRandom.nextInt(upperBound: 3) ?? 0)
+        _ = Array(identityRandom.shuffled(tonalWorld.mode.scaleIntervals).prefix(legacyMotifLength))
         let gain = 0.18 + (0.12 * identityRandom.nextUnitDouble())
         let birthGain = min(0.38, gain + 0.04 + (0.04 * identityRandom.nextUnitDouble()))
+        _ = identityRandom.nextInt(
+            upperBound: legacyFamilyIndex == 0 || legacyFamilyIndex == 2 ? 3 : 2
+        )
+        let pan = -0.85 + (1.70 * identityRandom.nextUnitDouble())
 
         var scheduleRandom = StableMusicRandom(
             seed: remixSeed,
@@ -50,9 +53,7 @@ enum HappeningMusicPlanner {
             happeningID: happeningID,
             family: family,
             recipeID: recipe.id,
-            motifScaleDegrees: motif,
-            octave: octave(for: family, random: &identityRandom),
-            pan: -0.85 + (1.70 * identityRandom.nextUnitDouble()),
+            pan: pan,
             gain: gain,
             birthGain: birthGain,
             attackSeconds: recipe.attackSeconds,
@@ -99,22 +100,6 @@ enum HappeningMusicPlanner {
         case .softOneShot: return .softOneShot
         case .texture: return .texture
         }
-    }
-
-    private static func octave(
-        for family: HappeningSoundFamily,
-        random: inout StableMusicRandom
-    ) -> Int {
-        let range: ClosedRange<Int>
-        switch family {
-        case .texture:
-            range = 3...4
-        case .mallet, .softOneShot:
-            range = 4...5
-        case .pluck, .bell:
-            range = 4...6
-        }
-        return range.lowerBound + (random.nextInt(upperBound: range.count) ?? 0)
     }
 
 }
