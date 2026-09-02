@@ -14,13 +14,22 @@ def full_scale_sine_fixture() -> list[float]:
     ]
 
 
+def dc_biased_sine_fixture() -> list[float]:
+    return [
+        0.05 + 0.02 * math.sin(math.tau * 441 * index / SAMPLE_RATE)
+        for index in range(SAMPLE_RATE)
+    ]
+
+
 def rendered_transient_fixture() -> list[float]:
     transient_frames = round(SAMPLE_RATE * 0.020)
     tail_frames = round(SAMPLE_RATE * 0.480)
     return (
         [0.0]
-        + [0.05] * transient_frames
-        + [0.025] * tail_frames
+        + [0.05 * math.sin(math.tau * 800 * index / SAMPLE_RATE)
+           for index in range(transient_frames)]
+        + [0.04 * math.sin(math.tau * 230 * index / SAMPLE_RATE)
+           for index in range(tail_frames)]
         + [0.0]
     )
 
@@ -67,6 +76,29 @@ class HappeningAudioMetricsTests(unittest.TestCase):
         self.assertGreaterEqual(result.audible_rms_dbfs, -22.0 - 0.05)
         self.assertLessEqual(result.audible_rms_dbfs, -18.0 + 0.05)
         self.assertLessEqual(max(abs(value) for value in mastered), 0.05 * 10.0 ** (12.0 / 20.0) + 1e-9)
+        self.assertEqual(mastered[0], 0.0)
+        self.assertEqual(mastered[-1], 0.0)
+
+    def test_mastering_full_scale_sine_obeys_bounded_family_gates(self):
+        mastered = metrics.master_event(full_scale_sine_fixture(), metrics.MasteringTarget(-22, -18))
+        result = metrics.measure_event(mastered)
+
+        self.assertLessEqual(result.sample_peak_dbfs, -6.0 + 0.05)
+        self.assertLessEqual(result.onset_rms_dbfs, -15.0 + 0.05)
+        self.assertGreaterEqual(result.audible_rms_dbfs, -22.0 - 0.05)
+        self.assertLessEqual(result.audible_rms_dbfs, -18.0 + 0.05)
+        self.assertEqual(mastered[0], 0.0)
+        self.assertEqual(mastered[-1], 0.0)
+
+    def test_mastering_removes_dc_bias_while_preserving_all_mastering_gates(self):
+        mastered = metrics.master_event(dc_biased_sine_fixture(), metrics.MasteringTarget(-30, -28))
+        result = metrics.measure_event(mastered)
+
+        self.assertLessEqual(result.dc_dbfs, -50.0)
+        self.assertLessEqual(result.sample_peak_dbfs, -6.0 + 0.05)
+        self.assertLessEqual(result.onset_rms_dbfs, -15.0 + 0.05)
+        self.assertGreaterEqual(result.audible_rms_dbfs, -30.0 - 0.05)
+        self.assertLessEqual(result.audible_rms_dbfs, -28.0 + 0.05)
         self.assertEqual(mastered[0], 0.0)
         self.assertEqual(mastered[-1], 0.0)
 

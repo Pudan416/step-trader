@@ -8,6 +8,7 @@ import math
 
 AUDIBLE_THRESHOLD = 10.0 ** (-60.0 / 20.0)
 DBFS_FLOOR = -120.0
+DC_CEILING_DBFS = -50.0
 BOUNDARY_FADE_SECONDS = 0.005
 ONSET_SECONDS = 0.050
 SPECTRAL_BAND_COUNT = 24
@@ -127,19 +128,35 @@ def measure_event(samples: list[float], sample_rate: int = 44_100) -> EventMetri
     )
 
 
-def _apply_boundary_fades(samples: list[float], sample_rate: int) -> list[float]:
-    faded = samples.copy()
-    fade_frames = min(round(sample_rate * BOUNDARY_FADE_SECONDS), len(faded) // 2)
+def _boundary_fade_weights(frame_count: int, sample_rate: int) -> list[float]:
+    weights = [1.0] * frame_count
+    fade_frames = min(round(sample_rate * BOUNDARY_FADE_SECONDS), frame_count // 2)
     if fade_frames:
         denominator = max(fade_frames - 1, 1)
         for index in range(fade_frames):
             gain = index / denominator
-            faded[index] *= gain
-            faded[-1 - index] *= gain
-    if faded:
-        faded[0] = 0.0
-        faded[-1] = 0.0
-    return faded
+            weights[index] = gain
+            weights[-1 - index] = gain
+    if weights:
+        weights[0] = 0.0
+        weights[-1] = 0.0
+    return weights
+
+
+def _apply_boundary_fades(samples: list[float], sample_rate: int) -> list[float]:
+    return [
+        sample * weight
+        for sample, weight in zip(samples, _boundary_fade_weights(len(samples), sample_rate))
+    ]
+
+
+def _remove_dc_preserving_boundaries(samples: list[float], sample_rate: int) -> list[float]:
+    weights = _boundary_fade_weights(len(samples), sample_rate)
+    total_weight = sum(weights)
+    if total_weight == 0.0:
+        return samples.copy()
+    correction = sum(samples) / total_weight
+    return [sample - correction * weight for sample, weight in zip(samples, weights)]
 
 
 def _gain_limit_for_dbfs(current_dbfs: float, ceiling_dbfs: float) -> float:
@@ -160,6 +177,7 @@ def master_event(
     if bounds is None:
         raise AudioMetricError("cannot master silent event")
     trimmed = _apply_boundary_fades(samples[bounds[0] : bounds[1] + 1], sample_rate)
+    trimmed = _remove_dc_preserving_boundaries(trimmed, sample_rate)
     before = measure_event(trimmed, sample_rate)
     if before.audible_rms_dbfs <= DBFS_FLOOR:
         raise AudioMetricError("cannot master silent event after boundary fades")
@@ -175,6 +193,8 @@ def master_event(
     result = measure_event(mastered, sample_rate)
     if not target.rms_min_dbfs <= result.audible_rms_dbfs <= target.rms_max_dbfs:
         raise AudioMetricError("event cannot reach the requested RMS range within mastering limits")
+    if result.dc_dbfs > DC_CEILING_DBFS:
+        raise AudioMetricError("event exceeds the DC ceiling after mastering")
     return mastered
 
 
