@@ -541,12 +541,13 @@ private final class RecordingPlaybackInstrumentBank: DayObjectsInstrumentBankPro
     }
 
     func start() throws { state = .started }
-    func stop() async { releaseAll(); state = .prepared }
-    func releaseAll() {
+    func stop() async { releaseAllIncludingSharedHappenings(); state = .prepared }
+    func releaseWorldLocalVoices() {
         pools.values.forEach { $0.releaseAll() }
         drumsRecorder.releaseAll()
         pianoRecorder.releaseAll()
     }
+    func releaseAllIncludingSharedHappenings() { releaseWorldLocalVoices() }
 }
 
 private final class RecordingHarmonyTonalPool: DayObjectsTonalVoicePoolProtocol {

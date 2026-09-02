@@ -346,7 +346,8 @@ protocol DayObjectsInstrumentBankProtocol: AnyObject {
     func tonalPool(named id: String) throws -> DayObjectsTonalVoicePoolProtocol
     func start() throws
     func stop() async
-    func releaseAll()
+    func releaseWorldLocalVoices()
+    func releaseAllIncludingSharedHappenings()
     func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval)
     func scheduleOutputGain(
         _ linearGain: Double,

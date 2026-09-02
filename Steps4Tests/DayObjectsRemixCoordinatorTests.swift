@@ -207,7 +207,7 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(harness.coordinator.metrics.allocatedBankCount, 2)
         XCTAssertEqual(harness.coordinator.metrics.preparedBankCount, 2)
-        XCTAssertEqual(harness.coordinator.metrics.allocatedTonalVoiceCount, 46)
+        XCTAssertEqual(harness.coordinator.metrics.allocatedTonalVoiceCount, 16)
         XCTAssertEqual(harness.coordinator.metrics.allocatedPianoVoiceCount, 12)
         XCTAssertEqual(harness.coordinator.metrics.allocatedDrumPlayerCount, 62)
         XCTAssertEqual(harness.coordinator.metrics.pendingRemixCount, 1)
@@ -445,7 +445,38 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
         XCTAssertEqual(harness.coordinator.metrics.transitionCount, 0)
         XCTAssertNil(harness.coordinator.currentPlan)
         XCTAssertEqual(harness.runtime.stopCount, 2)
-        XCTAssertEqual(harness.banks.map(\.releaseAllCount), [1, 1])
+        XCTAssertEqual(harness.banks.map(\.worldLocalReleaseCount), [1, 1])
+        XCTAssertEqual(harness.banks.map(\.sharedInclusiveReleaseCount), [1, 0])
+        XCTAssertEqual(harness.sharedHappenings.releaseAllCount, 1)
+    }
+
+    func testWholeRuntimeStopClearsAllSharedHappeningContributionsExactlyOnce() throws {
+        let harness = try makeHarness(initialSeed: 63)
+        let recipes = Array(HappeningSoundCatalog.recipes.prefix(4))
+        try harness.sharedHappenings.prepare(recipeIDs: Set(recipes.map(\.id)))
+        for (index, recipe) in recipes.enumerated() {
+            _ = try harness.sharedHappenings.play(
+                resolvedSound(recipe: recipe),
+                gain: 0.5,
+                priority: .manualAudition,
+                effects: .init(
+                    filterCutoffHz: 4_000 + Double(index) * 1_000,
+                    delayMix: 0.1 + Double(index) * 0.05,
+                    delayFeedback: 0.2,
+                    reverbMix: 0.25
+                )
+            )
+        }
+        XCTAssertEqual(harness.sharedHappenings.metrics.activeVoiceCount, 4)
+        XCTAssertNotEqual(harness.sharedHappenings.metrics.effects, RecordingRemixHappeningPool.neutralEffects)
+
+        harness.coordinator.stop()
+
+        XCTAssertEqual(harness.sharedHappenings.metrics.activeVoiceCount, 0)
+        XCTAssertEqual(harness.sharedHappenings.metrics.effects, RecordingRemixHappeningPool.neutralEffects)
+        XCTAssertEqual(harness.sharedHappenings.releaseAllCount, 1)
+        XCTAssertEqual(harness.banks.map(\.worldLocalReleaseCount), [1, 1])
+        XCTAssertEqual(harness.banks.map(\.sharedInclusiveReleaseCount), [1, 0])
     }
 
     func testOneHundredRemixesKeepBanksPoolsNodesTasksAndTransportConstant() throws {
@@ -491,11 +522,13 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
         coordinator: DayObjectsRemixCoordinator,
         runtime: RecordingRemixRuntime,
         banks: [RecordingRemixInstrumentBank],
-        worldBanks: [PlaybackWorldBank]
+        worldBanks: [PlaybackWorldBank],
+        sharedHappenings: RecordingRemixHappeningPool
     ) {
         let runtime = RecordingRemixRuntime()
-        let bankA = RecordingRemixInstrumentBank()
-        let bankB = RecordingRemixInstrumentBank()
+        let sharedHappenings = RecordingRemixHappeningPool()
+        let bankA = RecordingRemixInstrumentBank(happenings: sharedHappenings)
+        let bankB = RecordingRemixInstrumentBank(happenings: sharedHappenings)
         let worldA = PlaybackWorldBank(instrumentBank: bankA)
         let worldB = PlaybackWorldBank(instrumentBank: bankB)
         let coordinator = try DayObjectsRemixCoordinator(
@@ -504,7 +537,18 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
             runtime: runtime
         )
         try coordinator.prepare(initialPlan: makePlan(seed: initialSeed))
-        return (coordinator, runtime, [bankA, bankB], [worldA, worldB])
+        return (coordinator, runtime, [bankA, bankB], [worldA, worldB], sharedHappenings)
+    }
+
+    private func resolvedSound(recipe: HappeningSoundRecipe) -> ResolvedHappeningSound {
+        .init(
+            recipeID: recipe.id,
+            resourceName: recipe.sources[0].resourceName,
+            sourceRootMIDI: recipe.sources[0].rootMIDI,
+            targetMIDI: recipe.sources[0].rootMIDI,
+            playbackRate: 1,
+            resonantFilterHz: nil
+        )
     }
 
     private func makePlan(
@@ -809,17 +853,24 @@ private final class RecordingRemixInstrumentBank: DayObjectsInstrumentBankProtoc
     private var pools: [String: RecordingRemixPool] = [:]
     private let drumBank = RecordingRemixDrums()
     private let pianoBank = RecordingRemixPiano()
+    private let happeningPool: RecordingRemixHappeningPool
     private(set) var prepareCount = 0
     private(set) var prepareAttemptCount = 0
-    private(set) var releaseAllCount = 0
+    private(set) var worldLocalReleaseCount = 0
+    private(set) var sharedInclusiveReleaseCount = 0
     var failPrepare = false
     private var outputGainTarget = 1.0
     private var outputGainRampDuration: TimeInterval = 0
     private var outputGainRampCount = 0
     private(set) var outputGainAutomationCommands: [DayObjectsBankOutputGainAutomation] = []
 
+    init(happenings: RecordingRemixHappeningPool? = nil) {
+        happeningPool = happenings ?? RecordingRemixHappeningPool()
+    }
+
     var drums: DayObjectsDrumBankProtocol { drumBank }
     var piano: DayObjectsPianoPoolProtocol { pianoBank }
+    var happenings: DayObjectsHappeningSamplePoolProtocol { happeningPool }
     var outputGainMetrics: DayObjectsBankOutputGainMetrics {
         .init(
             isSupported: true,
@@ -857,12 +908,17 @@ private final class RecordingRemixInstrumentBank: DayObjectsInstrumentBankProtoc
     }
 
     func start() throws {}
-    func stop() async { releaseAll() }
-    func releaseAll() {
-        releaseAllCount += 1
+    func stop() async { releaseAllIncludingSharedHappenings() }
+    func releaseWorldLocalVoices() {
+        worldLocalReleaseCount += 1
         pools.values.forEach { $0.releaseAll() }
         drums.releaseAll()
         piano.releaseAll()
+    }
+    func releaseAllIncludingSharedHappenings() {
+        sharedInclusiveReleaseCount += 1
+        releaseWorldLocalVoices()
+        happenings.releaseAll()
     }
     func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval) {
         outputGainTarget = linearGain
@@ -886,6 +942,91 @@ private final class RecordingRemixInstrumentBank: DayObjectsInstrumentBankProtoc
         outputGainRampDuration = max(endHostTime - startHostTime, 0)
         outputGainRampCount += 1
         outputGainAutomationCommands.append(command)
+    }
+}
+
+@MainActor
+private final class RecordingRemixHappeningPool: DayObjectsHappeningSamplePoolProtocol {
+    static let neutralEffects = HappeningEffectCommand(
+        filterCutoffHz: 8_000,
+        delayMix: 0,
+        delayFeedback: 0,
+        reverbMix: 0
+    )
+
+    private struct ActiveVoice {
+        let handle: HappeningPlaybackHandle
+        let effects: HappeningEffectCommand
+    }
+
+    private var preparedRecipeIDs: Set<HappeningSoundRecipeID> = []
+    private var active: [Int: ActiveVoice] = [:]
+    private var generation: UInt64 = 0
+    private(set) var releaseAllCount = 0
+
+    var metrics: HappeningSamplePoolMetrics {
+        .init(
+            allocatedPlayerCount: 4,
+            fixedPlayerIdentities: [],
+            activeVoiceCount: active.count,
+            releasingVoiceCount: 0,
+            stealCount: 0,
+            decodedBufferCount: preparedRecipeIDs.count,
+            decodedBufferIdentities: [],
+            decodedByteCount: preparedRecipeIDs.count,
+            availableRecipeIDs: preparedRecipeIDs,
+            unavailableRecipeIDs: [],
+            effects: aggregateEffects,
+            lastEffectRampSeconds: 0
+        )
+    }
+
+    func prepare(recipeIDs: Set<HappeningSoundRecipeID>) throws {
+        preparedRecipeIDs.formUnion(recipeIDs)
+    }
+
+    func play(
+        _ sound: ResolvedHappeningSound,
+        gain: Double,
+        priority: HappeningPlaybackPriority,
+        effects: HappeningEffectCommand
+    ) throws -> HappeningPlaybackHandle {
+        guard preparedRecipeIDs.contains(sound.recipeID) else {
+            throw HappeningSamplePoolError.recipeUnavailable(sound.recipeID)
+        }
+        guard let voiceID = (0..<4).first(where: { active[$0] == nil }) else {
+            throw HappeningSamplePoolError.noEligibleVoice
+        }
+        generation &+= 1
+        let handle = HappeningPlaybackHandle(voiceID: voiceID, generation: generation)
+        active[voiceID] = .init(handle: handle, effects: effects)
+        return handle
+    }
+
+    func applyEffects(_ command: HappeningEffectCommand, rampSeconds: Double) {}
+
+    func update(_ handle: HappeningPlaybackHandle, gain: Double, playbackRate: Double) {}
+
+    func stop(_ handle: HappeningPlaybackHandle) {
+        guard active[handle.voiceID]?.handle == handle else { return }
+        active[handle.voiceID] = nil
+    }
+
+    func releaseAll() {
+        releaseAllCount += 1
+        active.removeAll()
+    }
+
+    private var aggregateEffects: HappeningEffectCommand {
+        let commands = active.values.map(\.effects)
+        guard commands.isEmpty == false else { return Self.neutralEffects }
+        let divisor = Double(commands.count)
+        return .init(
+            filterCutoffHz: commands.reduce(0) { $0 + $1.filterCutoffHz } / divisor,
+            delayMix: commands.reduce(0) { $0 + $1.delayMix } / divisor,
+            delayFeedback: commands.reduce(0) { $0 + $1.delayFeedback } / divisor,
+            reverbMix: commands.reduce(0) { $0 + $1.reverbMix } / divisor
+        )
     }
 }
 

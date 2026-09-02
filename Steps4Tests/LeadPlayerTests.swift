@@ -238,8 +238,9 @@ private final class RecordingLeadInstrumentBank: DayObjectsInstrumentBankProtoco
         return pool
     }
     func start() throws {}
-    func stop() async { releaseAll() }
-    func releaseAll() { pools.values.forEach { $0.releaseAll() } }
+    func stop() async { releaseAllIncludingSharedHappenings() }
+    func releaseWorldLocalVoices() { pools.values.forEach { $0.releaseAll() } }
+    func releaseAllIncludingSharedHappenings() { releaseWorldLocalVoices() }
 }
 
 private final class RecordingLeadPool: DayObjectsTonalVoicePoolProtocol {

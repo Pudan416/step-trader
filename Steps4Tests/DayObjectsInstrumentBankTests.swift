@@ -11,6 +11,119 @@ private let testHappeningEffects = HappeningEffectCommand(
 
 @MainActor
 final class DayObjectsInstrumentBankTests: XCTestCase {
+    func testWorldRecyclePreservesNewerSchedulerAndManualSharedHappeningsAfterExactOldCleanup() throws {
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(bundle: Bundle(for: type(of: self)))
+        try pair.prepare(configuration: .playbackWorld)
+        let oldWorld = PlaybackWorldBank(instrumentBank: pair.bankA)
+        let newWorld = PlaybackWorldBank(instrumentBank: pair.bankB)
+        try oldWorld.prepare()
+        try newWorld.prepare()
+        let tonalWorld = lifecycleWorld()
+        let chord = try XCTUnwrap(tonalWorld.progression.first)
+        let oldScheduler = HappeningScheduler(worldBank: oldWorld)
+        let newScheduler = HappeningScheduler(worldBank: newWorld)
+        try oldScheduler.configure(plans: [], tonalWorld: tonalWorld, remixSeed: 1)
+        try newScheduler.configure(plans: [], tonalWorld: tonalWorld, remixSeed: 2)
+        try oldScheduler.start()
+        try newScheduler.start()
+
+        let oldPlan = lifecycleHappeningPlan(id: "old", recipeRawValue: 1)
+        let newPlan = lifecycleHappeningPlan(id: "new", recipeRawValue: 2)
+        try oldScheduler.add(oldPlan, currentChord: chord, playBirth: true)
+        try newScheduler.add(newPlan, currentChord: chord, playBirth: true)
+
+        let pool = oldWorld.happenings
+        XCTAssertTrue(pool === newWorld.happenings)
+        let manualRecipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: lifecycleRecipeID(3)))
+        let manualSound = HappeningPitchResolver.resolve(
+            recipe: manualRecipe,
+            chord: chord,
+            tonalWorld: tonalWorld
+        )
+        let manualHandle = try pool.play(
+            manualSound,
+            gain: 1,
+            priority: .manualAudition,
+            effects: lifecycleEffects(for: manualRecipe)
+        )
+        XCTAssertEqual(pool.metrics.activeVoiceCount, 3)
+
+        oldScheduler.remove(id: oldPlan.happeningID)
+        let survivingEffects = pool.metrics.effects
+        XCTAssertEqual(oldScheduler.metrics.activeVoiceCount, 0)
+        XCTAssertEqual(newScheduler.metrics.activeVoiceCount, 1)
+        XCTAssertEqual(pool.metrics.activeVoiceCount, 2)
+
+        oldWorld.recycleAfterTailsDrain()
+
+        XCTAssertEqual(pool.metrics.activeVoiceCount, 2)
+        XCTAssertEqual(pool.metrics.effects, survivingEffects)
+        XCTAssertEqual(newScheduler.metrics.activeVoiceCount, 1)
+        pool.update(manualHandle, gain: 0.5, playbackRate: manualSound.playbackRate)
+        XCTAssertEqual(pool.metrics.activeVoiceCount, 2)
+    }
+
+    func testRepeatedWorldRecycleKeepsSharedPlayersBuffersAndLiveEffectAggregateStable() throws {
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(bundle: Bundle(for: type(of: self)))
+        try pair.prepare(configuration: .playbackWorld)
+        let worlds = [
+            PlaybackWorldBank(instrumentBank: pair.bankA),
+            PlaybackWorldBank(instrumentBank: pair.bankB),
+        ]
+        try worlds.forEach { try $0.prepare() }
+        let pool = worlds[0].happenings
+        let playerIdentities = pool.metrics.fixedPlayerIdentities
+        let bufferIdentities = pool.metrics.decodedBufferIdentities
+        XCTAssertEqual(bufferIdentities.count, 102)
+
+        for cycle in 0..<8 {
+            let firstRecipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: lifecycleRecipeID((cycle % 10) + 1)))
+            let secondRecipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: lifecycleRecipeID(((cycle + 1) % 10) + 1)))
+            let firstSound = lifecycleResolvedSound(recipe: firstRecipe)
+            let secondSound = lifecycleResolvedSound(recipe: secondRecipe)
+            let first = try pool.play(firstSound, gain: 1, priority: .birth, effects: lifecycleEffects(for: firstRecipe))
+            let secondEffects = lifecycleEffects(for: secondRecipe)
+            let second = try pool.play(secondSound, gain: 1, priority: .manualAudition, effects: secondEffects)
+            pool.stop(first)
+
+            worlds[cycle % 2].recycleAfterTailsDrain()
+
+            XCTAssertEqual(pool.metrics.activeVoiceCount, 1, "cycle \(cycle)")
+            XCTAssertEqual(pool.metrics.effects, secondEffects, "cycle \(cycle)")
+            pool.stop(second)
+            XCTAssertEqual(pool.metrics.activeVoiceCount, 0, "cycle \(cycle)")
+            XCTAssertEqual(pool.metrics.fixedPlayerIdentities, playerIdentities, "cycle \(cycle)")
+            XCTAssertEqual(pool.metrics.decodedBufferIdentities, bufferIdentities, "cycle \(cycle)")
+        }
+    }
+
+    func testPlaybackPairStopClearsAllSharedHappeningHandlesAndEffectContributions() throws {
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(bundle: Bundle(for: type(of: self)))
+        try pair.prepare(configuration: .playbackWorld)
+        try pair.start()
+        let pool = pair.bankA.happenings
+        let baselineEffects = pool.metrics.effects
+        let recipes = Array(HappeningSoundCatalog.recipes.prefix(4))
+
+        for recipe in recipes {
+            _ = try pool.play(
+                lifecycleResolvedSound(recipe: recipe),
+                gain: 1,
+                priority: .manualAudition,
+                effects: lifecycleEffects(for: recipe)
+            )
+        }
+        XCTAssertEqual(pool.metrics.activeVoiceCount, 4)
+        XCTAssertNotEqual(pool.metrics.effects, baselineEffects)
+
+        pair.stop()
+
+        XCTAssertEqual(pool.metrics.activeVoiceCount, 0)
+        XCTAssertEqual(pool.metrics.releasingVoiceCount, 0)
+        XCTAssertEqual(pool.metrics.effects, baselineEffects)
+        XCTAssertFalse(pair.metrics.sharedEngineIsRunning)
+    }
+
     func testPlaybackWorldReplacesTheTonalHappeningPoolWithFourSamplePlayers() throws {
         let configuration = PlaybackWorldBankConfiguration.playbackWorld
 
@@ -86,7 +199,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertNoThrow(try pool.play(sound, gain: 1, priority: .birth, effects: testHappeningEffects))
         XCTAssertNoThrow(try pool.play(sound, gain: 1, priority: .recurrence, effects: testHappeningEffects))
         XCTAssertEqual(pool.metrics.activeVoiceCount, 2)
-        bank.releaseAll()
+        bank.releaseAllIncludingSharedHappenings()
     }
 
     func testStartedSampleOnlyUpgradeFailuresKeepRunningGraphAndRetryTransactionally() throws {
@@ -447,6 +560,75 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         )
     }
 
+    private func lifecycleWorld() -> TonalWorldPlan {
+        .init(
+            centerPitchClass: 0,
+            mode: .dorian,
+            scalePitchClasses: [0, 2, 3, 5, 7, 9, 10],
+            progression: [lifecycleChord()],
+            cycleBars: 8
+        )
+    }
+
+    private func lifecycleChord() -> ChordPlan {
+        .init(
+            modalDegree: 0,
+            rootPitchClass: 0,
+            chordPitchClasses: [0, 3, 7],
+            safePassingPitchClasses: [2, 5],
+            voicedMIDINotes: [60, 63, 67],
+            durationBars: 8
+        )
+    }
+
+    private func lifecycleHappeningPlan(id: String, recipeRawValue: Int) -> HappeningMusicPlan {
+        let recipe = HappeningSoundCatalog.recipe(for: lifecycleRecipeID(recipeRawValue))!
+        return .init(
+            happeningID: id,
+            family: lifecycleFamily(for: recipe.family),
+            recipeID: recipe.id,
+            pan: 0,
+            gain: 0.24,
+            birthGain: 0.32,
+            attackSeconds: recipe.attackSeconds,
+            releaseSeconds: recipe.releaseSeconds,
+            delaySend: recipe.delayMix,
+            reverbSend: recipe.reverbMix,
+            recurrence: .init(scheduleSeed: UInt64(recipeRawValue), alignmentRank: UInt64(recipeRawValue), floatingOffsetBeats: 0.25)
+        )
+    }
+
+    private func lifecycleResolvedSound(recipe: HappeningSoundRecipe) -> ResolvedHappeningSound {
+        HappeningPitchResolver.resolve(
+            recipe: recipe,
+            chord: lifecycleChord(),
+            tonalWorld: lifecycleWorld()
+        )
+    }
+
+    private func lifecycleEffects(for recipe: HappeningSoundRecipe) -> HappeningEffectCommand {
+        .init(
+            filterCutoffHz: recipe.filterEndHz,
+            delayMix: recipe.delayMix,
+            delayFeedback: recipe.delayFeedback,
+            reverbMix: recipe.reverbMix
+        )
+    }
+
+    private func lifecycleRecipeID(_ rawValue: Int) -> HappeningSoundRecipeID {
+        HappeningSoundRecipeID(rawValue: rawValue)!
+    }
+
+    private func lifecycleFamily(for family: HappeningRecipeFamily) -> HappeningSoundFamily {
+        switch family {
+        case .synthPluck: return .pluck
+        case .acousticMallet: return .mallet
+        case .acousticBell: return .bell
+        case .softOneShot: return .softOneShot
+        case .texture: return .texture
+        }
+    }
+
     func testEqualPreparationBuildsTheFixedGraphOnlyOnceAndChangedConfigurationIsRejected() throws {
         let harness = makeHarness()
         let configuration = configuration()
@@ -616,7 +798,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         let harness = makeHarness()
         try harness.bank.prepare(configuration: configuration())
 
-        harness.bank.releaseAll()
+        harness.bank.releaseAllIncludingSharedHappenings()
 
         XCTAssertEqual(harness.releaseCount, 5)
         XCTAssertNotNil(harness.engine.attachedGraph)

@@ -115,13 +115,17 @@ final class PlaybackWorldBank {
         return pool
     }
 
-    func releaseAll() {
-        instrumentBank.releaseAll()
+    func releaseWorldLocalVoices() {
+        instrumentBank.releaseWorldLocalVoices()
+    }
+
+    func releaseAllIncludingSharedHappenings() {
+        instrumentBank.releaseAllIncludingSharedHappenings()
     }
 
     func recycleAfterTailsDrain() {
         guard isPrepared else { return }
-        releaseAll()
+        releaseWorldLocalVoices()
         recycleCount += 1
     }
 

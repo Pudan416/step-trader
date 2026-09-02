@@ -319,8 +319,8 @@ final class DayObjectsRemixCoordinator {
         runtime.stop(bankB)
         bankA.setOutputGain(0, rampDurationSeconds: 0)
         bankB.setOutputGain(0, rampDurationSeconds: 0)
-        bankA.releaseAll()
-        bankB.releaseAll()
+        bankA.releaseAllIncludingSharedHappenings()
+        bankB.releaseWorldLocalVoices()
         currentPlan = nil
         activeSlot = .a
         result = .idle

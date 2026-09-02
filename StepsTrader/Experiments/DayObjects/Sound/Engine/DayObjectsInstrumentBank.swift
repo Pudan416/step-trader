@@ -318,7 +318,11 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
             successfulEngineStartCount += 1
             self.prepared?.state = .started
         } catch {
-            releaseAll()
+            if engine is any DayObjectsPairedInstrumentBankLifecycleGate {
+                releaseWorldLocalVoices()
+            } else {
+                releaseAllIncludingSharedHappenings()
+            }
             if engine is any DayObjectsPairedInstrumentBankLifecycleGate {
                 self.prepared?.state = .prepared
                 self.prepared?.isAttached = true
@@ -334,23 +338,34 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     func stop() async {
         if let pairedGate = engine as? any DayObjectsPairedInstrumentBankLifecycleGate {
             guard prepared?.state == .started else { return }
-            guard pairedGate.requestIndividualStop() else { return }
-            releaseAll()
+            switch pairedGate.requestIndividualStop() {
+            case .rejected:
+                return
+            case .worldStopped:
+                releaseWorldLocalVoices()
+            case .sharedRuntimeStopped:
+                releaseAllIncludingSharedHappenings()
+            }
             prepared?.state = .prepared
             prepared?.isAttached = true
             return
         }
-        releaseAll()
+        releaseAllIncludingSharedHappenings()
         engine.stop()
         engine.detach()
         if prepared != nil { prepared?.state = .prepared; prepared?.isAttached = false }
     }
 
-    func releaseAll() {
+    func releaseWorldLocalVoices() {
         guard let prepared else { return }
         prepared.tonalPools.values.forEach { $0.releaseAll() }
         prepared.drums.releaseAll()
         prepared.piano.releaseAll()
+    }
+
+    func releaseAllIncludingSharedHappenings() {
+        releaseWorldLocalVoices()
+        guard let prepared else { return }
         prepared.happenings.releaseAll()
     }
 
@@ -905,8 +920,8 @@ final class DayObjectsPlaybackBankPair {
             bankB.markPlaybackPairStarted()
             lifecycleState = .started
         } catch {
-            bankA.releaseAll()
-            bankB.releaseAll()
+            bankA.releaseAllIncludingSharedHappenings()
+            bankB.releaseWorldLocalVoices()
             sharedEngine.rollbackFailedPairStart()
             bankA.markPlaybackPairPrepared()
             bankB.markPlaybackPairPrepared()
@@ -917,8 +932,8 @@ final class DayObjectsPlaybackBankPair {
 
     func stop() {
         guard lifecycleState == .started else { return }
-        bankA.releaseAll()
-        bankB.releaseAll()
+        bankA.releaseAllIncludingSharedHappenings()
+        bankB.releaseWorldLocalVoices()
         sharedEngine.stopPair()
         bankA.markPlaybackPairPrepared()
         bankB.markPlaybackPairPrepared()
@@ -928,9 +943,15 @@ final class DayObjectsPlaybackBankPair {
 
 private enum DayObjectsPlaybackBankSlot: Hashable { case a, b }
 
+private enum DayObjectsPairedInstrumentBankStopResult {
+    case rejected
+    case worldStopped
+    case sharedRuntimeStopped
+}
+
 @MainActor
 private protocol DayObjectsPairedInstrumentBankLifecycleGate: AnyObject {
-    func requestIndividualStop() -> Bool
+    func requestIndividualStop() -> DayObjectsPairedInstrumentBankStopResult
 }
 
 @MainActor
@@ -954,7 +975,7 @@ private final class DayObjectsPairedInstrumentBankEngine: DayObjectsInstrumentBa
     func detach() { shared.releaseAttachmentRequest(slot: slot) }
     func start() throws { try shared.requestIndividualStart(slot: slot) }
     func stop() { _ = shared.requestIndividualStop(slot: slot) }
-    func requestIndividualStop() -> Bool {
+    func requestIndividualStop() -> DayObjectsPairedInstrumentBankStopResult {
         shared.requestIndividualStop(slot: slot)
     }
 }
@@ -1029,14 +1050,15 @@ private final class DayObjectsSharedInstrumentBankEngine {
         individuallyStartedSlots.insert(slot)
     }
 
-    func requestIndividualStop(slot: DayObjectsPlaybackBankSlot) -> Bool {
+    func requestIndividualStop(slot: DayObjectsPlaybackBankSlot) -> DayObjectsPairedInstrumentBankStopResult {
         guard !pairIsRunning, individuallyStartedSlots.remove(slot) != nil else {
-            return false
+            return .rejected
         }
         if individuallyStartedSlots.isEmpty {
             stopEngineIfRunning(countAsPairStop: false)
+            return .sharedRuntimeStopped
         }
-        return true
+        return .worldStopped
     }
 
     func startPair() throws {

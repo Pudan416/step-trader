@@ -529,8 +529,11 @@ private final class RecordingHappeningBank: DayObjectsInstrumentBankProtocol {
 
     func start() throws {}
     func stop() async {}
-    func releaseAll() {
+    func releaseWorldLocalVoices() {
         tonalPools.values.forEach { $0.releaseAll() }
+    }
+    func releaseAllIncludingSharedHappenings() {
+        releaseWorldLocalVoices()
         samplePool.releaseAll()
     }
 }

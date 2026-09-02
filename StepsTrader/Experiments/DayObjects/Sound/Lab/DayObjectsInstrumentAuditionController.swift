@@ -323,7 +323,7 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
 
     private func releaseHeldGates() {
         endLead()
-        bank.releaseAll()
+        bank.releaseAllIncludingSharedHappenings()
     }
 
     private func actionFailed(_ message: String) async {

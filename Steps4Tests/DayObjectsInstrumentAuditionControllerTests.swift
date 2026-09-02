@@ -559,7 +559,8 @@ private final class FakeAuditionBank: DayObjectsInstrumentBankProtocol {
             }
         }
     }
-    func releaseAll() { releaseAllCount += 1 }
+    func releaseWorldLocalVoices() { releaseAllCount += 1 }
+    func releaseAllIncludingSharedHappenings() { releaseWorldLocalVoices() }
 
     func resumeStop() {
         stopContinuation?.resume()
