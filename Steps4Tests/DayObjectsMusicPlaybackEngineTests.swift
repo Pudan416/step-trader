@@ -5,6 +5,227 @@ import XCTest
 
 @MainActor
 final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
+    func testMobileRuntimeReferenceC4AuditionResolvesTonalResonantAndUnpitchedRecipes() async throws {
+        let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let recipeIDs = try Set([7, 25, 28].map {
+            try XCTUnwrap(HappeningSoundRecipeID(rawValue: $0))
+        })
+
+        try await runtime.prepareSamples(recipeIDs: recipeIDs)
+        try runtime.startAudio()
+        for recipeID in recipeIDs.sorted(by: { $0.rawValue < $1.rawValue }) {
+            try runtime.auditionHappening(recipeID, harmony: .referenceC4)
+        }
+
+        let records = runtime.auditionRecordsForTesting
+        XCTAssertEqual(records.map(\.resolvedSound.targetMIDI), [60, 60, nil])
+        XCTAssertEqual(records.map(\.resolvedSound.playbackRate), [1, 1, 1])
+        XCTAssertNil(records[0].resolvedSound.resonantFilterHz)
+        XCTAssertEqual(records[1].resolvedSound.resonantFilterHz ?? 0, 261.625_565, accuracy: 0.001)
+        XCTAssertNil(records[2].resolvedSound.resonantFilterHz)
+        XCTAssertTrue(records.allSatisfy { $0.priority == .manualAudition })
+        for record in records {
+            let recipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: record.resolvedSound.recipeID))
+            XCTAssertEqual(record.effects, .init(
+                filterCutoffHz: recipe.filterEndHz,
+                delayMix: recipe.delayMix,
+                delayFeedback: recipe.delayFeedback,
+                reverbMix: recipe.reverbMix
+            ))
+        }
+
+        runtime.releaseAuditions()
+        await runtime.stopAudio()
+    }
+
+    func testMobileRuntimeRunningAuditionResolvesAgainstChordSoundingAtAttackTime() throws {
+        let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let plan = makePlaybackEnginePlan(seed: 0xC4, happeningIDs: [])
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 7))
+        try runtime.prepare(plan: plan)
+        try runtime.startPreparedWorldForTesting()
+        let targetChordIndex = min(1, plan.world.progression.count - 1)
+        let targetBar = plan.world.progression.prefix(targetChordIndex)
+            .reduce(0) { $0 + max($1.durationBars, 1) }
+        runtime.renderForTesting(.init(
+            kind: .barBoundary,
+            position: .init(absoluteSubdivision: Int64(targetBar) * MusicalPosition.subdivisionsPerBar),
+            hostTimeSeconds: 1,
+            tempoBPM: plan.rhythm.tempoBPM
+        ))
+
+        let schedulerHistory = runtime.activeHappeningAttackHistoryForTesting
+        try runtime.auditionHappening(recipeID, harmony: .currentHarmony)
+
+        let record = try XCTUnwrap(runtime.auditionRecordsForTesting.last)
+        let recipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: recipeID))
+        XCTAssertEqual(
+            record.resolvedSound,
+            HappeningPitchResolver.resolve(
+                recipe: recipe,
+                chord: plan.world.progression[targetChordIndex],
+                tonalWorld: plan.world
+            )
+        )
+        XCTAssertEqual(record.priority, .manualAudition)
+        XCTAssertEqual(runtime.activeHappeningAttackHistoryForTesting, schedulerHistory)
+    }
+
+    func testRunningAuditionUsesCurrentHarmonyWithoutRestartingMusic() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 7))
+        try await engine.start(plan: makePlaybackEnginePlan(seed: 6))
+        log.values.removeAll()
+
+        try await engine.auditionHappening(recipeID)
+
+        XCTAssertEqual(runtime.auditionRequests, ["7:currentHarmony"])
+        XCTAssertEqual(log.values, ["runtime.audition:7:currentHarmony"])
+        XCTAssertEqual(engine.state, .on)
+        XCTAssertEqual(engine.metrics.engineStartCount, 1)
+        XCTAssertEqual(session.activationCount, 1)
+    }
+
+    func testColdAuditionsCoalescePreparationKeepPublicStateOffAndPreserveDistinctTaps() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        runtime.suspendSamplePreparation = true
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let tonal = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 7))
+        let resonant = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 25))
+        let unpitched = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 28))
+
+        let first = Task { @MainActor in try await engine.auditionHappening(tonal) }
+        await runtime.waitUntilSamplePreparationBegins()
+        let second = Task { @MainActor in try await engine.auditionHappening(resonant) }
+        let third = Task { @MainActor in try await engine.auditionHappening(unpitched) }
+        await Task.yield()
+
+        XCTAssertEqual(runtime.samplePreparationAttempts, 1)
+        XCTAssertEqual(engine.state, .off)
+        runtime.resumeSamplePreparation()
+        try await first.value
+        try await second.value
+        try await third.value
+
+        XCTAssertEqual(Set(runtime.auditionRequests), Set([
+            "7:referenceC4", "25:referenceC4", "28:referenceC4",
+        ]))
+        XCTAssertEqual(runtime.audioStartCount, 1)
+        XCTAssertEqual(session.activationCount, 1)
+        XCTAssertEqual(engine.state, .off)
+        XCTAssertEqual(engine.metrics.engineStartCount, 0)
+    }
+
+    func testCancellingOneColdWaiterDoesNotCancelSharedPreparationOrLoseOtherTap() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        runtime.suspendSamplePreparation = true
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let firstID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 1))
+        let secondID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 2))
+
+        let cancelled = Task { @MainActor in try await engine.auditionHappening(firstID) }
+        await runtime.waitUntilSamplePreparationBegins()
+        let retained = Task { @MainActor in try await engine.auditionHappening(secondID) }
+        await Task.yield()
+        cancelled.cancel()
+        await Task.yield()
+        runtime.resumeSamplePreparation()
+        _ = try? await cancelled.value
+        try await retained.value
+
+        XCTAssertEqual(runtime.samplePreparationAttempts, 1)
+        XCTAssertEqual(runtime.auditionRequests, ["2:referenceC4"])
+        XCTAssertFalse(runtime.samplePreparationWasCancelled)
+        XCTAssertTrue(session.isActive)
+    }
+
+    func testCancellingLastColdWaiterCancelsPreparationAndDeactivatesSession() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        runtime.suspendSamplePreparation = true
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 3))
+
+        let audition = Task { @MainActor in try await engine.auditionHappening(recipeID) }
+        await runtime.waitUntilSamplePreparationBegins()
+        XCTAssertEqual(engine.runtimeState, .preparingSamples)
+        audition.cancel()
+        await Task.yield()
+        runtime.resumeSamplePreparation()
+        _ = try? await audition.value
+        for _ in 0..<5 { await Task.yield() }
+
+        XCTAssertTrue(runtime.samplePreparationWasCancelled)
+        XCTAssertTrue(runtime.auditionRequests.isEmpty)
+        XCTAssertEqual(engine.runtimeState, .stopped)
+        XCTAssertFalse(session.isActive)
+    }
+
+    func testFullStartUpgradesSampleOnlyRuntimeWithoutReactivatingSession() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 9))
+
+        try await engine.auditionHappening(recipeID)
+        XCTAssertEqual(engine.state, .off)
+        try await engine.start(plan: makePlaybackEnginePlan(seed: 77))
+
+        XCTAssertEqual(session.activationCount, 1)
+        XCTAssertEqual(runtime.audioStartCount, 1, "The already-running sample engine must be upgraded in place")
+        XCTAssertEqual(runtime.prepareAttempts, 1)
+        XCTAssertEqual(engine.state, .on)
+        XCTAssertEqual(engine.metrics.engineStartCount, 1)
+    }
+
+    func testFailedFullUpgradePreservesSampleOnlyRuntimeAndAllowsAnotherAudition() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let firstID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 9))
+        let secondID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 10))
+        try await engine.auditionHappening(firstID)
+        runtime.failureStage = .prepare
+
+        do {
+            try await engine.start(plan: makePlaybackEnginePlan(seed: 88))
+            XCTFail("Expected full upgrade to fail")
+        } catch {}
+
+        XCTAssertEqual(engine.runtimeState, .sampleOnly)
+        XCTAssertTrue(session.isActive)
+        runtime.failureStage = nil
+        try await engine.auditionHappening(secondID)
+        XCTAssertEqual(runtime.samplePreparationAttempts, 1)
+        XCTAssertEqual(runtime.audioStartCount, 1)
+        XCTAssertEqual(runtime.auditionRequests.last, "10:referenceC4")
+    }
+
+    func testStoppingSampleOnlyReleasesAuditionsAndDeactivatesSession() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 28))
+        try await engine.auditionHappening(recipeID)
+
+        await engine.stop()
+
+        XCTAssertEqual(runtime.releaseAuditionCount, 1)
+        XCTAssertFalse(session.isActive)
+        XCTAssertEqual(engine.state, .off)
+    }
+
     func testMobileRuntimePreparesOnlyOnePlaybackWorld() throws {
         let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
 
@@ -489,6 +710,7 @@ private final class RecordingDayObjectsAudioSession: DayObjectsAudioSessionProto
     let log: PlaybackEngineCallLog
     var failureStage: PlaybackEngineFailureStage?
     private(set) var isActive = false
+    private(set) var activationCount = 0
     private(set) var deactivationOptions: [AVAudioSession.SetActiveOptions] = []
 
     init(log: PlaybackEngineCallLog) { self.log = log }
@@ -502,6 +724,7 @@ private final class RecordingDayObjectsAudioSession: DayObjectsAudioSessionProto
         log.values.append("session.activate")
         if failureStage == .activateSession { throw DayObjectsAudioError("activate") }
         isActive = true
+        activationCount += 1
     }
 
     func deactivate(options: AVAudioSession.SetActiveOptions) throws {
@@ -517,11 +740,19 @@ private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntim
     var failureStage: PlaybackEngineFailureStage?
     var suspendTailDrain = false
     var suspendTransportStart = false
+    var suspendSamplePreparation = false
     private var tailDrainContinuation: CheckedContinuation<Void, Never>?
     private var tailDrainWaiters: [CheckedContinuation<Void, Never>] = []
     private var transportStartContinuation: CheckedContinuation<Void, Never>?
     private var transportStartWaiters: [CheckedContinuation<Void, Never>] = []
+    private var samplePreparationContinuation: CheckedContinuation<Void, Never>?
+    private var samplePreparationWaiters: [CheckedContinuation<Void, Never>] = []
     private(set) var prepareAttempts = 0
+    private(set) var samplePreparationAttempts = 0
+    private(set) var samplePreparationWasCancelled = false
+    private(set) var auditionRequests: [String] = []
+    private(set) var releaseAuditionCount = 0
+    private(set) var audioStartCount = 0
     private(set) var continuousCount = 0
     private(set) var beginLeadCount = 0
     private var running = false
@@ -549,6 +780,7 @@ private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntim
     func startAudio() throws {
         log.values.append("runtime.audio.start")
         if failureStage == .audioStart { throw DayObjectsAudioError("audio") }
+        audioStartCount += 1
     }
 
     func startTransport(plan: DayMusicPlan) async throws {
@@ -587,6 +819,33 @@ private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntim
         }
     }
     func stopAudio() async { log.values.append("runtime.audio.stop") }
+    func prepareSamples(recipeIDs: Set<HappeningSoundRecipeID>) async throws {
+        samplePreparationAttempts += 1
+        log.values.append("runtime.samples.prepare")
+        samplePreparationWaiters.forEach { $0.resume() }
+        samplePreparationWaiters.removeAll()
+        if suspendSamplePreparation {
+            await withTaskCancellationHandler {
+                await withCheckedContinuation { samplePreparationContinuation = $0 }
+            } onCancel: {
+                Task { @MainActor [weak self] in
+                    self?.samplePreparationWasCancelled = true
+                }
+            }
+        }
+    }
+    func auditionHappening(
+        _ recipeID: HappeningSoundRecipeID,
+        harmony: DayObjectsHappeningAuditionHarmony
+    ) throws {
+        let value = "\(recipeID.rawValue):\(harmony)"
+        auditionRequests.append(value)
+        log.values.append("runtime.audition:\(value)")
+    }
+    func releaseAuditions() {
+        releaseAuditionCount += 1
+        log.values.append("runtime.auditions.release")
+    }
     func applyContinuous(_ plan: DayMusicPlan) { continuousCount += 1 }
     func scheduleStructuralPlan(_ plan: DayMusicPlan) {}
     func addHappening(_ plan: HappeningMusicPlan, playBirth: Bool) {}
@@ -616,6 +875,17 @@ private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntim
         suspendTransportStart = false
         transportStartContinuation?.resume()
         transportStartContinuation = nil
+    }
+
+    func waitUntilSamplePreparationBegins() async {
+        if samplePreparationContinuation != nil { return }
+        await withCheckedContinuation { samplePreparationWaiters.append($0) }
+    }
+
+    func resumeSamplePreparation() {
+        suspendSamplePreparation = false
+        samplePreparationContinuation?.resume()
+        samplePreparationContinuation = nil
     }
 }
 

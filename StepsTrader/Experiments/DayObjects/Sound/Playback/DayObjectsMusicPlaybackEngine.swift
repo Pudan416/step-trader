@@ -2,6 +2,46 @@
 import AVFAudio
 import Foundation
 
+enum DayObjectsHappeningAuditionHarmony: String, Equatable, Sendable, CustomStringConvertible {
+    case referenceC4
+    case currentHarmony
+
+    var description: String { rawValue }
+}
+
+struct DayObjectsHappeningAuditionRecord: Equatable, Sendable {
+    let resolvedSound: ResolvedHappeningSound
+    let effects: HappeningEffectCommand
+    let priority: HappeningPlaybackPriority
+}
+
+private enum DayObjectsHappeningAuditionReference {
+    static let c4World = TonalWorldPlan(
+        centerPitchClass: 0,
+        mode: .majorPentatonic,
+        scalePitchClasses: [0, 2, 4, 7, 9],
+        progression: [c4Chord],
+        cycleBars: 4
+    )
+    static let c4Chord = ChordPlan(
+        modalDegree: 0,
+        rootPitchClass: 0,
+        chordPitchClasses: [0, 4, 7],
+        safePassingPitchClasses: [2, 9],
+        voicedMIDINotes: [48, 60, 64, 67],
+        durationBars: 4
+    )
+
+    static func effects(for recipe: HappeningSoundRecipe) -> HappeningEffectCommand {
+        .init(
+            filterCutoffHz: recipe.filterEndHz,
+            delayMix: recipe.delayMix,
+            delayFeedback: recipe.delayFeedback,
+            reverbMix: recipe.reverbMix
+        )
+    }
+}
+
 @MainActor
 protocol DayObjectsPlaybackRuntimeProtocol: AnyObject {
     var playbackMetrics: DayObjectsPlaybackMetrics { get }
@@ -10,6 +50,12 @@ protocol DayObjectsPlaybackRuntimeProtocol: AnyObject {
     func startAudio() throws
     func startTransport(plan: DayMusicPlan) async throws
     func fadeMaster(to plan: DayMusicPlan) throws
+    func prepareSamples(recipeIDs: Set<HappeningSoundRecipeID>) async throws
+    func auditionHappening(
+        _ recipeID: HappeningSoundRecipeID,
+        harmony: DayObjectsHappeningAuditionHarmony
+    ) throws
+    func releaseAuditions()
 
     func stopScheduling()
     func endLead()
@@ -32,6 +78,13 @@ protocol DayObjectsPlaybackRuntimeProtocol: AnyObject {
 /// converges on exactly one ordered teardown.
 @MainActor
 final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
+    enum RuntimeState: Equatable, Sendable {
+        case stopped
+        case preparingSamples
+        case sampleOnly
+        case fullMusic
+    }
+
     private let audioSession: any DayObjectsAudioSessionProtocol
     private let runtime: any DayObjectsPlaybackRuntimeProtocol
     private var successfulStartCount = 0
@@ -40,9 +93,13 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
     private var teardownTask: Task<Void, Never>?
     private var teardownID: UUID?
     private var lifecycleGeneration: UInt64 = 0
+    private var samplePreparationTask: Task<Void, Error>?
+    private var auditionWaiters: Set<UUID> = []
+    private var hasAuditionVoices = false
 
     private(set) var state: DayObjectsSoundState = .off
     private(set) var currentPlan: DayMusicPlan?
+    private(set) var runtimeState: RuntimeState = .stopped
 
     var metrics: DayObjectsPlaybackMetrics {
         var result = runtime.playbackMetrics
@@ -62,17 +119,38 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
         guard state != .on, state != .starting else { return }
         if let teardownTask { await teardownTask.value }
 
+        if let samplePreparationTask {
+            do {
+                try await samplePreparationTask.value
+                if runtimeState == .preparingSamples { runtimeState = .sampleOnly }
+                self.samplePreparationTask = nil
+            } catch {
+                self.samplePreparationTask = nil
+                if runtimeState == .preparingSamples {
+                    await requestTeardown(finalState: .off, force: true)
+                }
+            }
+        }
+
         lifecycleGeneration &+= 1
         let generation = lifecycleGeneration
+        let upgradingSampleOnly = runtimeState == .sampleOnly
         currentPlan = plan
         state = .starting
         do {
-            try audioSession.configurePlayback()
-            sessionMayNeedDeactivation = true
-            try audioSession.activate()
+            if !upgradingSampleOnly {
+                try audioSession.configurePlayback()
+                sessionMayNeedDeactivation = true
+                try audioSession.activate()
+            }
             runtimeMayOwnResources = true
             try runtime.prepare(plan: plan)
-            try runtime.startAudio()
+            if hasAuditionVoices {
+                // The bank's successful full-preparation commit owns clearing
+                // sample-only voices. A failed prepare leaves this truth intact.
+                hasAuditionVoices = false
+            }
+            if !upgradingSampleOnly { try runtime.startAudio() }
             try await runtime.startTransport(plan: plan)
             guard generation == lifecycleGeneration, state == .starting else {
                 await requestTeardown(finalState: .off, force: true)
@@ -80,6 +158,7 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
             }
             try runtime.fadeMaster(to: plan)
             successfulStartCount += 1
+            runtimeState = .fullMusic
             state = .on
         } catch {
             guard generation == lifecycleGeneration else {
@@ -88,14 +167,80 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
             }
             let audioError = (error as? DayObjectsAudioError)
                 ?? DayObjectsAudioError(String(describing: error))
+            if upgradingSampleOnly {
+                runtime.stopScheduling()
+                runtime.endLead()
+                runtime.cancelRemix()
+                runtime.releaseLayers()
+                await runtime.stopTransportAndEffects()
+                runtimeState = .sampleOnly
+                state = .error(audioError)
+                throw audioError
+            }
             await requestTeardown(finalState: .error(audioError), force: true)
             throw audioError
+        }
+    }
+
+    func auditionHappening(_ recipeID: HappeningSoundRecipeID) async throws {
+        if let teardownTask { await teardownTask.value }
+        guard HappeningSoundCatalog.recipe(for: recipeID) != nil else {
+            throw HappeningSamplePoolError.recipeUnavailable(recipeID)
+        }
+        guard state != .starting else {
+            throw DayObjectsAudioError("Music playback is still starting")
+        }
+        if runtimeState == .fullMusic {
+            try runtime.auditionHappening(recipeID, harmony: .currentHarmony)
+            hasAuditionVoices = true
+            return
+        }
+        if runtimeState == .sampleOnly {
+            try Task.checkCancellation()
+            try runtime.auditionHappening(recipeID, harmony: .referenceC4)
+            hasAuditionVoices = true
+            return
+        }
+
+        let waiterID = UUID()
+        auditionWaiters.insert(waiterID)
+        do {
+            try await withTaskCancellationHandler {
+                let task = try samplePreparationTask ?? beginSamplePreparation()
+                try await task.value
+                try Task.checkCancellation()
+                if runtimeState == .preparingSamples { runtimeState = .sampleOnly }
+                samplePreparationTask = nil
+                let harmony: DayObjectsHappeningAuditionHarmony = runtimeState == .fullMusic
+                    ? .currentHarmony
+                    : .referenceC4
+                try runtime.auditionHappening(recipeID, harmony: harmony)
+                hasAuditionVoices = true
+            } onCancel: {
+                Task { @MainActor [weak self] in
+                    await self?.cancelAuditionWaiter(waiterID)
+                }
+            }
+            auditionWaiters.remove(waiterID)
+        } catch {
+            auditionWaiters.remove(waiterID)
+            let shouldTearDownPreparation = runtimeState == .preparingSamples
+                || (runtimeState == .stopped && sessionMayNeedDeactivation)
+            if auditionWaiters.isEmpty, shouldTearDownPreparation {
+                samplePreparationTask?.cancel()
+                samplePreparationTask = nil
+                await requestTeardown(finalState: .off, force: true)
+            }
+            throw error
         }
     }
 
     func stop() async {
         lifecycleGeneration &+= 1
         state = .off
+        auditionWaiters.removeAll()
+        samplePreparationTask?.cancel()
+        samplePreparationTask = nil
         await requestTeardown(finalState: .off, force: false)
     }
 
@@ -162,17 +307,54 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
         runtime.stopScheduling()
         runtime.endLead()
         runtime.cancelRemix()
+        if hasAuditionVoices {
+            runtime.releaseAuditions()
+            hasAuditionVoices = false
+        }
         runtime.releaseLayers()
         await runtime.stopTransportAndEffects()
         await runtime.drainTail()
         await runtime.stopAudio()
         runtimeMayOwnResources = false
+        runtimeState = .stopped
 
         if sessionMayNeedDeactivation {
             try? audioSession.deactivate(options: .notifyOthersOnDeactivation)
             sessionMayNeedDeactivation = false
         }
         state = finalState
+    }
+
+    private func beginSamplePreparation() throws -> Task<Void, Error> {
+        guard runtimeState == .stopped else {
+            throw DayObjectsAudioError("Invalid sample preparation state")
+        }
+        runtimeState = .preparingSamples
+        do {
+            try audioSession.configurePlayback()
+            sessionMayNeedDeactivation = true
+            try audioSession.activate()
+            runtimeMayOwnResources = true
+        } catch {
+            runtimeState = .stopped
+            throw error
+        }
+        let recipeIDs = Set(HappeningSoundCatalog.recipes.map(\.id))
+        let task = Task { @MainActor [runtime] in
+            try await runtime.prepareSamples(recipeIDs: recipeIDs)
+            try Task.checkCancellation()
+            try runtime.startAudio()
+        }
+        samplePreparationTask = task
+        return task
+    }
+
+    private func cancelAuditionWaiter(_ waiterID: UUID) async {
+        guard auditionWaiters.remove(waiterID) != nil else { return }
+        guard auditionWaiters.isEmpty, runtimeState == .preparingSamples else { return }
+        samplePreparationTask?.cancel()
+        samplePreparationTask = nil
+        await requestTeardown(finalState: .off, force: true)
     }
 }
 
@@ -530,6 +712,10 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
     private var tempoUpdateTask: Task<Void, Never>?
     private var gestureOwner: PlaybackWorldBankSlot?
     private var isPrepared = false
+    private var isSamplePrepared = false
+    private var auditionHandles: [HappeningPlaybackHandle] = []
+    private var auditionReleaseTasks: [HappeningPlaybackHandle: Task<Void, Never>] = [:]
+    private(set) var auditionRecordsForTesting: [DayObjectsHappeningAuditionRecord] = []
 
     var preparedRhythmBackendCount: Int {
         [worldA, worldB].filter(\.hasPreparedRhythmBackend).count
@@ -649,16 +835,66 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
 
     func prepare(plan: DayMusicPlan) throws {
         try pair.prepare(configuration: .playbackWorld)
+        auditionReleaseTasks.values.forEach { $0.cancel() }
+        auditionReleaseTasks.removeAll()
+        auditionHandles.removeAll()
+        auditionRecordsForTesting.removeAll()
         try coordinator.prepare(initialPlan: plan)
         worldA.bank.setOutputGain(0, rampDurationSeconds: 0)
         worldB.bank.setOutputGain(0, rampDurationSeconds: 0)
         gestureOwner = nil
         isPrepared = true
+        isSamplePrepared = false
+    }
+
+    func prepareSamples(recipeIDs: Set<HappeningSoundRecipeID>) async throws {
+        try pair.bankA.prepare(level: .sampleOnly(recipeIDs))
+        isSamplePrepared = true
     }
 
     func startAudio() throws {
-        guard isPrepared else { throw DayObjectsInstrumentBankError.notPrepared }
-        try pair.start()
+        if isPrepared {
+            try pair.start()
+        } else if isSamplePrepared {
+            try pair.bankA.start()
+        } else {
+            throw DayObjectsInstrumentBankError.notPrepared
+        }
+    }
+
+    func auditionHappening(
+        _ recipeID: HappeningSoundRecipeID,
+        harmony: DayObjectsHappeningAuditionHarmony
+    ) throws {
+        let recipe = try Self.recipe(recipeID)
+        let reference = try auditionReference(harmony)
+        let sound = HappeningPitchResolver.resolve(
+            recipe: recipe,
+            chord: reference.chord,
+            tonalWorld: reference.world
+        )
+        let effects = DayObjectsHappeningAuditionReference.effects(for: recipe)
+        let handle = try pair.bankA.happenings.play(
+            sound,
+            gain: 1,
+            priority: .manualAudition,
+            effects: effects
+        )
+        auditionHandles.append(handle)
+        scheduleAuditionRelease(handle, after: recipe.releaseSeconds, pool: pair.bankA.happenings)
+        auditionRecordsForTesting.append(.init(
+            resolvedSound: sound,
+            effects: effects,
+            priority: .manualAudition
+        ))
+    }
+
+    func releaseAuditions() {
+        let pool = pair.bankA.happenings
+        auditionReleaseTasks.values.forEach { $0.cancel() }
+        auditionReleaseTasks.removeAll()
+        auditionHandles.forEach(pool.stop)
+        auditionHandles.removeAll()
     }
 
     func startTransport(plan: DayMusicPlan) async throws {
@@ -710,7 +946,11 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
     }
 
     func stopAudio() async {
-        pair.stop()
+        if isPrepared {
+            pair.stop()
+        } else if isSamplePrepared {
+            await pair.bankA.stop()
+        }
         worldA.bank.setOutputGain(0, rampDurationSeconds: 0)
         worldB.bank.setOutputGain(0, rampDurationSeconds: 0)
     }
@@ -891,6 +1131,42 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         world(for: coordinator.metrics.activeBank)
     }
 
+    private func auditionReference(
+        _ harmony: DayObjectsHappeningAuditionHarmony
+    ) throws -> (chord: ChordPlan, world: TonalWorldPlan) {
+        switch harmony {
+        case .referenceC4:
+            return (DayObjectsHappeningAuditionReference.c4Chord, DayObjectsHappeningAuditionReference.c4World)
+        case .currentHarmony:
+            guard let plan = activeWorld.plan,
+                  let chord = plan.world.progression[safe: activeWorld.currentChordIndex] else {
+                throw DayObjectsAudioError("No sounding harmony for Happening audition")
+            }
+            return (chord, plan.world)
+        }
+    }
+
+    private static func recipe(_ recipeID: HappeningSoundRecipeID) throws -> HappeningSoundRecipe {
+        guard let recipe = HappeningSoundCatalog.recipe(for: recipeID) else {
+            throw HappeningSamplePoolError.recipeUnavailable(recipeID)
+        }
+        return recipe
+    }
+
+    private func scheduleAuditionRelease(
+        _ handle: HappeningPlaybackHandle,
+        after seconds: Double,
+        pool: DayObjectsHappeningSamplePoolProtocol
+    ) {
+        auditionReleaseTasks[handle] = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(max(seconds, 0) * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            pool.stop(handle)
+            self?.auditionHandles.removeAll { $0 == handle }
+            self?.auditionReleaseTasks[handle] = nil
+        }
+    }
+
     private func renderTransportEvent(_ event: DayObjectsTransportEvent) {
         coordinator.render(event)
     }
@@ -918,12 +1194,19 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
     private var transportIsRunning = false
     private var tempoUpdateTask: Task<Void, Never>?
     private var isPrepared = false
+    private var isSamplePrepared = false
+    private var auditionHandles: [HappeningPlaybackHandle] = []
+    private var auditionReleaseTasks: [HappeningPlaybackHandle: Task<Void, Never>] = [:]
+    private(set) var auditionRecordsForTesting: [DayObjectsHappeningAuditionRecord] = []
 
     var preparedRhythmBackendCount: Int { world.hasPreparedRhythmBackend ? 1 : 0 }
     var instrumentAllocationCountForTesting: Int {
         world.bank.instrumentBank.metrics.allocationFingerprint == nil ? 0 : 1
     }
     var activePlanForTesting: DayMusicPlan? { world.plan }
+    var activeHappeningAttackHistoryForTesting: [HappeningAttackRecord] {
+        world.happenings.metrics.attackHistory
+    }
 
     func startPreparedWorldForTesting() throws { try world.startScheduling() }
     func renderForTesting(_ event: DayObjectsTransportEvent) { renderTransportEvent(event) }
@@ -957,17 +1240,80 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
 
     func prepare(plan: DayMusicPlan) throws {
         try world.bank.prepare()
+        auditionReleaseTasks.values.forEach { $0.cancel() }
+        auditionReleaseTasks.removeAll()
+        auditionHandles.removeAll()
+        auditionRecordsForTesting.removeAll()
         try world.bindPreparedPlayersIfNeeded()
         world.releaseAll()
         try world.configure(plan)
         world.bank.setOutputGain(0, rampDurationSeconds: 0)
         pendingStructuralPlan = nil
         isPrepared = true
+        isSamplePrepared = false
+    }
+
+    func prepareSamples(recipeIDs: Set<HappeningSoundRecipeID>) async throws {
+        guard let bank = world.bank.instrumentBank as? DayObjectsInstrumentBank else {
+            throw DayObjectsAudioError("Sample-only preparation requires the shared instrument bank")
+        }
+        try bank.prepare(level: .sampleOnly(recipeIDs))
+        isSamplePrepared = true
     }
 
     func startAudio() throws {
-        guard isPrepared else { throw DayObjectsInstrumentBankError.notPrepared }
+        guard isPrepared || isSamplePrepared else { throw DayObjectsInstrumentBankError.notPrepared }
         try world.bank.instrumentBank.start()
+    }
+
+    func auditionHappening(
+        _ recipeID: HappeningSoundRecipeID,
+        harmony: DayObjectsHappeningAuditionHarmony
+    ) throws {
+        guard let recipe = HappeningSoundCatalog.recipe(for: recipeID) else {
+            throw HappeningSamplePoolError.recipeUnavailable(recipeID)
+        }
+        let reference: (chord: ChordPlan, world: TonalWorldPlan)
+        switch harmony {
+        case .referenceC4:
+            reference = (
+                DayObjectsHappeningAuditionReference.c4Chord,
+                DayObjectsHappeningAuditionReference.c4World
+            )
+        case .currentHarmony:
+            guard let plan = world.plan,
+                  let chord = plan.world.progression[safe: world.currentChordIndex] else {
+                throw DayObjectsAudioError("No sounding harmony for Happening audition")
+            }
+            reference = (chord, plan.world)
+        }
+        let sound = HappeningPitchResolver.resolve(
+            recipe: recipe,
+            chord: reference.chord,
+            tonalWorld: reference.world
+        )
+        let effects = DayObjectsHappeningAuditionReference.effects(for: recipe)
+        let handle = try world.bank.happenings.play(
+            sound,
+            gain: 1,
+            priority: .manualAudition,
+            effects: effects
+        )
+        auditionHandles.append(handle)
+        scheduleAuditionRelease(handle, after: recipe.releaseSeconds, pool: world.bank.happenings)
+        auditionRecordsForTesting.append(.init(
+            resolvedSound: sound,
+            effects: effects,
+            priority: .manualAudition
+        ))
+    }
+
+    func releaseAuditions() {
+        let pool = world.bank.happenings
+        auditionReleaseTasks.values.forEach { $0.cancel() }
+        auditionReleaseTasks.removeAll()
+        auditionHandles.forEach(pool.stop)
+        auditionHandles.removeAll()
     }
 
     func startTransport(plan: DayMusicPlan) async throws {
@@ -1049,6 +1395,20 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
         tempoUpdateTask?.cancel()
         tempoUpdateTask = Task { [transport] in
             await transport.setTempoBPM(plan.rhythm.tempoBPM)
+        }
+    }
+
+    private func scheduleAuditionRelease(
+        _ handle: HappeningPlaybackHandle,
+        after seconds: Double,
+        pool: DayObjectsHappeningSamplePoolProtocol
+    ) {
+        auditionReleaseTasks[handle] = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(max(seconds, 0) * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            pool.stop(handle)
+            self?.auditionHandles.removeAll { $0 == handle }
+            self?.auditionReleaseTasks[handle] = nil
         }
     }
 }

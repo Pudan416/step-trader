@@ -89,6 +89,10 @@ final class DayObjectsMusicLabController: ObservableObject {
         }
     }
 
+    func auditionHappening(_ recipeID: HappeningSoundRecipeID) async throws {
+        try await playback.auditionHappening(recipeID)
+    }
+
     func setSteps(_ value: Double) {
         updateState { $0.steps = Self.clamp(value, to: 0...Self.maximumSteps) }
     }
@@ -142,12 +146,12 @@ final class DayObjectsMusicLabController: ObservableObject {
         playback.endLead()
     }
 
-    func viewDidDisappear() async { await stop() }
-    func turnSoundOff() async { await stop() }
+    func viewDidDisappear() async { await stop(includingSampleOnly: true) }
+    func turnSoundOff() async { await stop(includingSampleOnly: true) }
     func sceneActivityChanged(isActive: Bool) async {
-        if !isActive { await stop() }
+        if !isActive { await stop(includingSampleOnly: true) }
     }
-    func interruptionBegan() async { await stop() }
+    func interruptionBegan() async { await stop(includingSampleOnly: true) }
     func interruptionEnded() async {}
 
     func sceneInput(
@@ -206,12 +210,12 @@ final class DayObjectsMusicLabController: ObservableObject {
         }
     }
 
-    private func stop() async {
+    private func stop(includingSampleOnly: Bool = false) async {
         if let stopTask {
             await stopTask.value
             return
         }
-        guard soundState != .off else { return }
+        guard soundState != .off || includingSampleOnly else { return }
         lifecycleGeneration &+= 1
         soundState = .off
         endLead()

@@ -31,6 +31,7 @@ protocol DayObjectsMusicPlaybackProtocol: AnyObject {
     var metrics: DayObjectsPlaybackMetrics { get }
 
     func start(plan: DayMusicPlan) async throws
+    func auditionHappening(_ recipeID: HappeningSoundRecipeID) async throws
     func stop() async
     func applyContinuous(_ plan: DayMusicPlan)
     func scheduleStructuralPlan(_ plan: DayMusicPlan)

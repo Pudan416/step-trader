@@ -4,6 +4,41 @@ import XCTest
 
 @MainActor
 final class DayObjectsMusicLabControllerTests: XCTestCase {
+    func testHappeningPadAuditionForwardsWithoutMutatingLabOrSchedulingState() async throws {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 25))
+        let state = controller.state
+        let plan = controller.currentPlan
+        let happeningIDs = controller.happeningIDs
+        let seed = controller.state.remixSeed
+        let metrics = controller.metrics
+
+        try await controller.auditionHappening(recipeID)
+
+        XCTAssertEqual(playback.auditionedRecipeIDs, [recipeID])
+        XCTAssertEqual(controller.state, state)
+        XCTAssertEqual(controller.currentPlan, plan)
+        XCTAssertEqual(controller.happeningIDs, happeningIDs)
+        XCTAssertEqual(controller.state.remixSeed, seed)
+        XCTAssertEqual(controller.metrics, metrics)
+        XCTAssertEqual(controller.soundState, .off)
+        XCTAssertTrue(playback.commands.isEmpty)
+    }
+
+    func testViewDisappearanceStopsSampleOnlyAuditionWhilePublicSoundRemainsOff() async throws {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 28))
+        try await controller.auditionHappening(recipeID)
+        XCTAssertEqual(controller.soundState, .off)
+
+        await controller.viewDidDisappear()
+
+        XCTAssertEqual(playback.stopCount, 1)
+        XCTAssertEqual(controller.soundState, .off)
+    }
+
     func testStartsOnlyAfterExplicitTapAndRoutesContinuousAndDedicatedHappeningChanges() async {
         let playback = RecordingLabPlayback()
         let controller = DayObjectsMusicLabController(playback: playback)
@@ -274,6 +309,7 @@ private final class RecordingLabPlayback: DayObjectsMusicPlaybackProtocol {
     var updateLeadCount = 0
     var endLeadCount = 0
     var activeHappeningIDs: Set<String> = []
+    var auditionedRecipeIDs: [HappeningSoundRecipeID] = []
     var suspendStop = false
     var stopContinuation: CheckedContinuation<Void, Never>?
     var suspendStart = false
@@ -312,5 +348,8 @@ private final class RecordingLabPlayback: DayObjectsMusicPlaybackProtocol {
     func beginLead(_ gesture: LeadGestureSample) { beginLeadCount += 1 }
     func updateLead(_ gesture: LeadGestureSample) { updateLeadCount += 1 }
     func endLead() { endLeadCount += 1 }
+    func auditionHappening(_ recipeID: HappeningSoundRecipeID) async throws {
+        auditionedRecipeIDs.append(recipeID)
+    }
 }
 #endif
