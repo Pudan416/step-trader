@@ -42,7 +42,6 @@ struct HappeningSoundPadGrid: View {
     private func pad(for recipe: HappeningSoundRecipe) -> some View {
         let status = controller.happeningPadStatus(for: recipe.id)
         let isLoading = status == .loading
-        let isUnavailable = status == .unavailable
 
         return Button {
             controller.beginHappeningPadAudition(recipe.id, beforeAudition: beforeAudition)
@@ -60,17 +59,20 @@ struct HappeningSoundPadGrid: View {
             .frame(maxWidth: .infinity, minHeight: 34)
         }
         .buttonStyle(HappeningSoundPadButtonStyle())
-        .disabled(isLoading || isUnavailable)
+        .disabled(status != .ready)
         .accessibilityLabel("Happening sound \(recipe.label), \(familyName(recipe.family))")
         .accessibilityHint("Plays this sound without adding a figure")
-        .accessibilityValue(accessibilityValue(isLoading: isLoading, isUnavailable: isUnavailable))
+        .accessibilityValue(accessibilityValue(status))
         .accessibilityIdentifier("dayObjects.happeningPad.\(recipe.label)")
     }
 
-    private func accessibilityValue(isLoading: Bool, isUnavailable: Bool) -> String {
-        if isUnavailable { return "Sound unavailable" }
-        if isLoading { return "Loading" }
-        return "Ready"
+    private func accessibilityValue(_ status: HappeningPadAuditionStatus) -> String {
+        switch status {
+        case .ready: "Ready"
+        case .loading: "Loading"
+        case .soundStopping: "Sound stopping"
+        case .unavailable: "Sound unavailable"
+        }
     }
 
     private func familyName(_ family: HappeningRecipeFamily) -> String {

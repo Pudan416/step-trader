@@ -173,7 +173,7 @@ final class DayObjectsMusicLabControllerTests: XCTestCase {
 
         let soundOff = try XCTUnwrap(controller.acceptSoundButtonIntent())
 
-        XCTAssertEqual(controller.happeningPadStatus(for: recipeID), .ready)
+        XCTAssertEqual(controller.happeningPadStatus(for: recipeID), .soundStopping)
         XCTAssertNil(controller.acceptSoundButtonIntent(), "Repeated UI taps must share one accepted intent")
         XCTAssertEqual(controller.soundState, .on, "The audio toggle must still wait for diagnostics teardown")
         preflight.resumeStop()
@@ -182,6 +182,41 @@ final class DayObjectsMusicLabControllerTests: XCTestCase {
 
         XCTAssertTrue(playback.auditionedRecipeIDs.isEmpty)
         XCTAssertEqual(controller.soundState, .off)
+    }
+
+    func testPendingSoundOffIntentRejectsNewPadBeforeAsyncCompletion() async throws {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        let completionGate = CheckedContinuationGate()
+        let padGate = CheckedContinuationGate()
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 14))
+        await controller.toggleSound()
+        let soundOff = try XCTUnwrap(controller.acceptSoundButtonIntent())
+        let delayedCompletion = Task { @MainActor in
+            await completionGate.suspend()
+            await controller.completeSoundButtonIntent(soundOff)
+        }
+        await completionGate.waitUntilSuspended()
+
+        let padTask = controller.beginHappeningPadAudition(recipeID) {
+            await padGate.suspend()
+        }
+        if padTask != nil { await padGate.waitUntilSuspended() }
+
+        XCTAssertNil(padTask)
+        XCTAssertEqual(controller.happeningPadStatus(for: recipeID), .soundStopping)
+        XCTAssertTrue(controller.loadingHappeningRecipeIDs.isEmpty)
+        XCTAssertTrue(playback.auditionedRecipeIDs.isEmpty)
+        if let padTask {
+            padGate.resume()
+            await padTask.value
+        }
+        completionGate.resume()
+        await delayedCompletion.value
+
+        XCTAssertTrue(playback.auditionedRecipeIDs.isEmpty)
+        XCTAssertEqual(controller.soundState, .off)
+        XCTAssertEqual(controller.happeningPadStatus(for: recipeID), .ready)
     }
 
     func testAcceptedSoundOnIntentDoesNotCancelPendingPadAndCoalescesRepeatedTap() async throws {

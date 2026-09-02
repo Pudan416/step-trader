@@ -5,6 +5,7 @@ import Foundation
 enum HappeningPadAuditionStatus: Equatable, Sendable {
     case ready
     case loading
+    case soundStopping
     case unavailable
 }
 
@@ -67,7 +68,7 @@ final class DayObjectsMusicLabController: ObservableObject {
     private var happeningPadLifecycleIsActive = true
     private var happeningPadTasks: [HappeningSoundRecipeID: HappeningPadTask] = [:]
     private var lifecycleEventGeneration: UInt64 = 0
-    private var acceptedSoundButtonIntent: DayObjectsSoundButtonIntent?
+    @Published private var acceptedSoundButtonIntent: DayObjectsSoundButtonIntent?
 
     private struct HappeningPadTask {
         let id: UUID
@@ -180,6 +181,7 @@ final class DayObjectsMusicLabController: ObservableObject {
     ) -> Task<Void, Never>? {
         guard happeningPadLifecycleIsActive,
               stopTask == nil,
+              acceptedSoundButtonIntent?.action != .turnOff,
               !unavailableHappeningRecipeIDs.contains(recipeID),
               happeningPadTasks[recipeID] == nil else { return nil }
 
@@ -205,6 +207,7 @@ final class DayObjectsMusicLabController: ObservableObject {
 
     func happeningPadStatus(for recipeID: HappeningSoundRecipeID) -> HappeningPadAuditionStatus {
         if unavailableHappeningRecipeIDs.contains(recipeID) { return .unavailable }
+        if acceptedSoundButtonIntent?.action == .turnOff { return .soundStopping }
         if loadingHappeningRecipeIDs.contains(recipeID) { return .loading }
         return .ready
     }
