@@ -80,6 +80,7 @@
 		D0D800000000000000000002 /* DayObjectsInstrumentAuditionControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D800000000000000000001 /* DayObjectsInstrumentAuditionControllerTests.swift */; };
 		D0D900000000000000000002 /* DayObjectsInstrumentAuditionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D900000000000000000001 /* DayObjectsInstrumentAuditionController.swift */; };
 		D0DA00000000000000000002 /* DayObjectsInstrumentAuditionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DA00000000000000000001 /* DayObjectsInstrumentAuditionView.swift */; };
+		D0DB00000000000000000002 /* HappeningSoundPadGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DB00000000000000000001 /* HappeningSoundPadGrid.swift */; };
 		D0F100000000000000000004 /* DayObjectsLabMusicState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F100000000000000000003 /* DayObjectsLabMusicState.swift */; };
 		D0F100000000000000000006 /* DayObjectsLabMusicViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F100000000000000000005 /* DayObjectsLabMusicViewModel.swift */; };
 		D0F200000000000000000002 /* DayMusicPlanDifferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F200000000000000000001 /* DayMusicPlanDifferTests.swift */; };
@@ -625,6 +626,7 @@
 		D0D800000000000000000001 /* DayObjectsInstrumentAuditionControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsInstrumentAuditionControllerTests.swift; sourceTree = "<group>"; };
 		D0D900000000000000000001 /* DayObjectsInstrumentAuditionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsInstrumentAuditionController.swift; sourceTree = "<group>"; };
 		D0DA00000000000000000001 /* DayObjectsInstrumentAuditionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsInstrumentAuditionView.swift; sourceTree = "<group>"; };
+		D0DB00000000000000000001 /* HappeningSoundPadGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningSoundPadGrid.swift; sourceTree = "<group>"; };
 		D0F100000000000000000003 /* DayObjectsLabMusicState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLabMusicState.swift; sourceTree = "<group>"; };
 		D0F100000000000000000005 /* DayObjectsLabMusicViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLabMusicViewModel.swift; sourceTree = "<group>"; };
 		D0F200000000000000000001 /* DayMusicPlanDifferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayMusicPlanDifferTests.swift; sourceTree = "<group>"; };
@@ -1257,6 +1259,7 @@
 				D0F600000000000000000009 /* DayObjectsLeadGestureSurface.swift */,
 				D0D900000000000000000001 /* DayObjectsInstrumentAuditionController.swift */,
 				D0DA00000000000000000001 /* DayObjectsInstrumentAuditionView.swift */,
+				D0DB00000000000000000001 /* HappeningSoundPadGrid.swift */,
 			);
 			path = Lab;
 			sourceTree = "<group>";
@@ -2326,6 +2329,7 @@
 				D0E100000000000000000008 /* NormalizedDayMusicInput.swift in Sources */,
 				D0E100000000000000000009 /* DayMusicDiagnostic.swift in Sources */,
 				D0DA00000000000000000002 /* DayObjectsInstrumentAuditionView.swift in Sources */,
+				D0DB00000000000000000002 /* HappeningSoundPadGrid.swift in Sources */,
 				D0D900000000000000000002 /* DayObjectsInstrumentAuditionController.swift in Sources */,
 				D0D400000000000000000012 /* DayObjectsTonalVoice.swift in Sources */,
 				D0D400000000000000000014 /* DayObjectsTonalVoicePool.swift in Sources */,

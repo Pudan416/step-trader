@@ -242,6 +242,10 @@ struct DayObjectsLabView: View {
                 )
 
                 digitalImpactControls
+                HappeningSoundPadGrid { recipeID in
+                    await audition.stop()
+                    try await musicController.auditionHappening(recipeID)
+                }
                 remixControls
                 fineTuning
                 instrumentDiagnostics

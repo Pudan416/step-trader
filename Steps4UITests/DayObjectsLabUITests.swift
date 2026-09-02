@@ -167,6 +167,65 @@ final class DayObjectsLabUITests: XCTestCase {
         attachScreenshot(named: "day-objects-glitch-grid-spent-100")
     }
 
+    func testHappeningPadsExposeThirtyStableAccessibleRecipesInFiveColumns() throws {
+        let app = launchDayObjectsLab()
+        let grid = app.otherElements["dayObjects.happeningPads"]
+
+        XCTAssertTrue(scrollToElement(grid, in: app), "The pad grid must be reachable on a phone-sized viewport")
+
+        let pads = (1...30).map { index in
+            app.buttons[String(format: "dayObjects.happeningPad.%02d", index)]
+        }
+        XCTAssertTrue(scrollToElement(pads[0], in: app))
+        for index in 0...4 {
+            XCTAssertTrue(pads[index].exists, "Missing first-row Happening pad \(index + 1)")
+        }
+        XCTAssertEqual(pads[0].label, "Happening sound 01, synth pluck")
+
+        let firstRowY = pads[0].frame.midY
+        for pad in pads[1...4] {
+            XCTAssertEqual(pad.frame.midY, firstRowY, accuracy: 1)
+        }
+        XCTAssertTrue(scrollToElement(pads[5], in: app))
+        XCTAssertGreaterThan(pads[5].frame.midY, firstRowY)
+
+        for (index, pad) in pads.enumerated() {
+            XCTAssertTrue(scrollToElement(pad, in: app), "Missing Happening pad \(index + 1)")
+        }
+        XCTAssertEqual(pads[6].label, "Happening sound 07, acoustic mallet")
+        XCTAssertEqual(pads[12].label, "Happening sound 13, acoustic bell")
+        XCTAssertEqual(pads[18].label, "Happening sound 19, soft one-shot")
+        XCTAssertEqual(pads[24].label, "Happening sound 25, texture")
+        XCTAssertFalse(app.buttons["dayObjects.happeningPad.31"].exists)
+    }
+
+    func testHappeningPadsAuditionWithSoundOffAndOnWithoutChangingSceneCount() throws {
+        let app = launchDayObjectsLab()
+        let sound = app.buttons["dayObjects.sound"]
+        let happenings = app.sliders["dayObjects.happenings"]
+        let initialReadout = String(describing: happenings.value)
+        let firstPad = app.buttons["dayObjects.happeningPad.01"]
+
+        XCTAssertTrue(scrollToElement(firstPad, in: app))
+        firstPad.tap()
+        XCTAssertEqual(sound.value as? String, "off", "Sample-only audition must not turn on the composition")
+        XCTAssertEqual(String(describing: happenings.value), initialReadout)
+
+        sound.tap()
+        let soundOn = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "on"),
+            object: sound
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [soundOn], timeout: 12), .completed)
+
+        let lastPad = app.buttons["dayObjects.happeningPad.30"]
+        XCTAssertTrue(scrollToElement(lastPad, in: app))
+        lastPad.tap()
+        XCTAssertEqual(String(describing: happenings.value), initialReadout)
+        XCTAssertTrue(scrollToElement(app.buttons["dayObjects.remix"], in: app))
+        XCTAssertTrue(app.buttons["dayObjects.remix"].isEnabled)
+    }
+
     func testLabExposesInstrumentAuditionControlsWithoutASecondSoundSwitch() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-uiLab", "dayObjects", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
@@ -232,6 +291,41 @@ final class DayObjectsLabUITests: XCTestCase {
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    @discardableResult
+    private func launchDayObjectsLab() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-uiLab", "dayObjects",
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+        XCTAssertTrue(app.buttons["dayObjects.sound"].waitForExistence(timeout: 5))
+        return app
+    }
+
+    private func scrollToElement(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+        if element.exists, element.isHittable { return true }
+        if element.waitForExistence(timeout: 1), element.isHittable { return true }
+
+        let scrollView = app.scrollViews.firstMatch
+        for _ in 0..<12 {
+            drag(scrollView, fromY: 0.72, toY: 0.52)
+            if element.exists, element.isHittable { return true }
+        }
+        for _ in 0..<12 {
+            drag(scrollView, fromY: 0.40, toY: 0.60)
+            if element.exists, element.isHittable { return true }
+        }
+        return element.exists && element.isHittable
+    }
+
+    private func drag(_ element: XCUIElement, fromY: CGFloat, toY: CGFloat) {
+        let start = element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: fromY))
+        let end = element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: toY))
+        start.press(forDuration: 0.01, thenDragTo: end)
     }
 
     private func selectCategory(_ category: String, in app: XCUIApplication) {
