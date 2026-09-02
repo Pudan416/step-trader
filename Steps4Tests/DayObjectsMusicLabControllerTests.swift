@@ -39,6 +39,127 @@ final class DayObjectsMusicLabControllerTests: XCTestCase {
         XCTAssertEqual(controller.soundState, .off)
     }
 
+    func testPadTapSuspendedBeforeControllerCannotAuditionAfterViewDisappears() async throws {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        let preflight = SuspendedHappeningPadPreflight()
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 12))
+        let staleTap = Task { @MainActor in
+            await preflight.stopDiagnostics()
+            try? await controller.auditionHappening(recipeID)
+        }
+        await preflight.waitUntilStopBegins()
+
+        await controller.viewDidDisappear()
+        preflight.resumeStop()
+        await staleTap.value
+
+        XCTAssertEqual(playback.stopCount, 1)
+        XCTAssertTrue(
+            playback.auditionedRecipeIDs.isEmpty,
+            "A tap that predates disappearance must not restart sample-only playback"
+        )
+    }
+
+    func testSynchronousViewDeactivationInvalidatesPadBeforeAsyncStopCanStart() async throws {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        let preflight = SuspendedHappeningPadPreflight()
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 13))
+        let task = try XCTUnwrap(controller.beginHappeningPadAudition(recipeID) {
+            await preflight.stopDiagnostics()
+        })
+        await preflight.waitUntilStopBegins()
+
+        controller.setHappeningPadLifecycleActive(false)
+        preflight.resumeStop()
+        await task.value
+        await controller.viewDidDisappear()
+
+        XCTAssertTrue(playback.auditionedRecipeIDs.isEmpty)
+        XCTAssertEqual(playback.stopCount, 1)
+    }
+
+    func testControllerOwnedPadTaskCannotReenterAfterBackgroundForegroundEpoch() async throws {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        let preflight = SuspendedHappeningPadPreflight()
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 6))
+        let task = try XCTUnwrap(controller.beginHappeningPadAudition(recipeID) {
+            await preflight.stopDiagnostics()
+        })
+        await preflight.waitUntilStopBegins()
+
+        await controller.sceneActivityChanged(isActive: false)
+        await controller.sceneActivityChanged(isActive: true)
+        preflight.resumeStop()
+        await task.value
+
+        XCTAssertTrue(playback.auditionedRecipeIDs.isEmpty)
+        XCTAssertEqual(controller.happeningPadStatus(for: recipeID), .ready)
+    }
+
+    func testSoundOffCancelsSuspendedPadTaskWithoutDisablingLaterAuditions() async throws {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        let preflight = SuspendedHappeningPadPreflight()
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 7))
+        await controller.toggleSound()
+        let staleTask = try XCTUnwrap(controller.beginHappeningPadAudition(recipeID) {
+            await preflight.stopDiagnostics()
+        })
+        await preflight.waitUntilStopBegins()
+
+        await controller.toggleSound()
+        preflight.resumeStop()
+        await staleTask.value
+        let freshTask = try XCTUnwrap(controller.beginHappeningPadAudition(recipeID) {})
+        await freshTask.value
+
+        XCTAssertEqual(playback.auditionedRecipeIDs, [recipeID])
+        XCTAssertEqual(controller.soundState, .off)
+    }
+
+    func testForegroundCannotBeginPadAuditionUntilSuspendedLifecycleStopCompletes() async throws {
+        let playback = RecordingLabPlayback()
+        playback.suspendStop = true
+        let controller = DayObjectsMusicLabController(playback: playback)
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 8))
+        let inactive = Task { @MainActor in
+            await controller.sceneActivityChanged(isActive: false)
+        }
+        await playback.waitUntilStopBegins()
+
+        await controller.sceneActivityChanged(isActive: true)
+        let duringStop = controller.beginHappeningPadAudition(recipeID) {}
+        playback.resumeStop()
+        await inactive.value
+        let afterStop = try XCTUnwrap(controller.beginHappeningPadAudition(recipeID) {})
+        await afterStop.value
+
+        XCTAssertNil(duringStop)
+        XCTAssertEqual(playback.auditionedRecipeIDs, [recipeID])
+    }
+
+    func testPermanentHappeningDecodeFailureIsRememberedForControllerLifetime() async throws {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 19))
+        playback.auditionError = HappeningSamplePoolError.recipeUnavailable(recipeID)
+
+        _ = try? await controller.auditionHappening(recipeID)
+        await controller.sceneActivityChanged(isActive: false)
+        await controller.sceneActivityChanged(isActive: true)
+        _ = try? await controller.auditionHappening(recipeID)
+
+        XCTAssertEqual(
+            playback.auditionedRecipeIDs,
+            [recipeID],
+            "Hide/show and lifecycle re-entry must not re-enable a permanently unavailable recipe"
+        )
+        XCTAssertEqual(controller.happeningPadStatus(for: recipeID), .unavailable)
+    }
+
     func testStartsOnlyAfterExplicitTapAndRoutesContinuousAndDedicatedHappeningChanges() async {
         let playback = RecordingLabPlayback()
         let controller = DayObjectsMusicLabController(playback: playback)
@@ -310,8 +431,10 @@ private final class RecordingLabPlayback: DayObjectsMusicPlaybackProtocol {
     var endLeadCount = 0
     var activeHappeningIDs: Set<String> = []
     var auditionedRecipeIDs: [HappeningSoundRecipeID] = []
+    var auditionError: Error?
     var suspendStop = false
     var stopContinuation: CheckedContinuation<Void, Never>?
+    var stopWaiters: [CheckedContinuation<Void, Never>] = []
     var suspendStart = false
     var startContinuation: CheckedContinuation<Void, Never>?
 
@@ -324,8 +447,14 @@ private final class RecordingLabPlayback: DayObjectsMusicPlaybackProtocol {
     }
     func stop() async {
         stopCount += 1
+        stopWaiters.forEach { $0.resume() }
+        stopWaiters.removeAll()
         if suspendStop { await withCheckedContinuation { stopContinuation = $0 } }
         state = .off
+    }
+    func waitUntilStopBegins() async {
+        if stopCount > 0 { return }
+        await withCheckedContinuation { stopWaiters.append($0) }
     }
     func resumeStop() { suspendStop = false; stopContinuation?.resume(); stopContinuation = nil }
     func resumeStart() { suspendStart = false; startContinuation?.resume(); startContinuation = nil }
@@ -350,6 +479,29 @@ private final class RecordingLabPlayback: DayObjectsMusicPlaybackProtocol {
     func endLead() { endLeadCount += 1 }
     func auditionHappening(_ recipeID: HappeningSoundRecipeID) async throws {
         auditionedRecipeIDs.append(recipeID)
+        if let auditionError { throw auditionError }
+    }
+}
+
+@MainActor
+private final class SuspendedHappeningPadPreflight {
+    private var stopContinuation: CheckedContinuation<Void, Never>?
+    private var stopWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func stopDiagnostics() async {
+        stopWaiters.forEach { $0.resume() }
+        stopWaiters.removeAll()
+        await withCheckedContinuation { stopContinuation = $0 }
+    }
+
+    func waitUntilStopBegins() async {
+        if stopContinuation != nil { return }
+        await withCheckedContinuation { stopWaiters.append($0) }
+    }
+
+    func resumeStop() {
+        stopContinuation?.resume()
+        stopContinuation = nil
     }
 }
 #endif

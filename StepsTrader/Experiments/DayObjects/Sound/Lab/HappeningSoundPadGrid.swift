@@ -2,25 +2,23 @@
 import SwiftUI
 
 struct HappeningSoundPadGrid: View {
-    typealias Audition = @MainActor (HappeningSoundRecipeID) async throws -> Void
-
     private static let columns = Array(
         repeating: GridItem(.flexible(minimum: 44), spacing: 7),
         count: 5
     )
 
     private let recipes: [HappeningSoundRecipe]
-    private let audition: Audition
-
-    @State private var loadingRecipeIDs: Set<HappeningSoundRecipeID> = []
-    @State private var unavailableRecipeIDs: Set<HappeningSoundRecipeID> = []
+    @ObservedObject private var controller: DayObjectsMusicLabController
+    private let beforeAudition: @MainActor () async -> Void
 
     init(
         recipes: [HappeningSoundRecipe] = HappeningSoundCatalog.recipes,
-        audition: @escaping Audition
+        controller: DayObjectsMusicLabController,
+        beforeAudition: @escaping @MainActor () async -> Void
     ) {
         self.recipes = recipes
-        self.audition = audition
+        self.controller = controller
+        self.beforeAudition = beforeAudition
     }
 
     var body: some View {
@@ -42,11 +40,12 @@ struct HappeningSoundPadGrid: View {
     }
 
     private func pad(for recipe: HappeningSoundRecipe) -> some View {
-        let isLoading = loadingRecipeIDs.contains(recipe.id)
-        let isUnavailable = unavailableRecipeIDs.contains(recipe.id)
+        let status = controller.happeningPadStatus(for: recipe.id)
+        let isLoading = status == .loading
+        let isUnavailable = status == .unavailable
 
         return Button {
-            beginAudition(recipe.id)
+            controller.beginHappeningPadAudition(recipe.id, beforeAudition: beforeAudition)
         } label: {
             ZStack {
                 Text(recipe.label)
@@ -66,23 +65,6 @@ struct HappeningSoundPadGrid: View {
         .accessibilityHint("Plays this sound without adding a figure")
         .accessibilityValue(accessibilityValue(isLoading: isLoading, isUnavailable: isUnavailable))
         .accessibilityIdentifier("dayObjects.happeningPad.\(recipe.label)")
-    }
-
-    private func beginAudition(_ recipeID: HappeningSoundRecipeID) {
-        guard loadingRecipeIDs.insert(recipeID).inserted else { return }
-
-        Task { @MainActor in
-            defer { loadingRecipeIDs.remove(recipeID) }
-            do {
-                try await audition(recipeID)
-            } catch HappeningSamplePoolError.recipeUnavailable,
-                    HappeningSamplePoolError.resourceUnavailable {
-                unavailableRecipeIDs.insert(recipeID)
-            } catch {
-                // Session and lifecycle failures remain retryable. Only a
-                // recipe/resource decode failure permanently disables a pad.
-            }
-        }
     }
 
     private func accessibilityValue(isLoading: Bool, isUnavailable: Bool) -> String {

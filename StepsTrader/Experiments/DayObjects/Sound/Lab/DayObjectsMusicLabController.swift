@@ -2,6 +2,12 @@
 import Combine
 import Foundation
 
+enum HappeningPadAuditionStatus: Equatable, Sendable {
+    case ready
+    case loading
+    case unavailable
+}
+
 /// Single state and command boundary for the Day Objects lab. Visual changes
 /// are published synchronously; audio receives only the typed plan delta while
 /// Sound is explicitly on.
@@ -15,6 +21,8 @@ final class DayObjectsMusicLabController: ObservableObject {
     @Published private(set) var state: DayObjectsLabMusicState
     @Published private(set) var currentPlan: DayMusicPlan
     @Published private(set) var soundState: DayObjectsSoundState = .off
+    @Published private(set) var loadingHappeningRecipeIDs: Set<HappeningSoundRecipeID> = []
+    @Published private(set) var unavailableHappeningRecipeIDs: Set<HappeningSoundRecipeID> = []
 
     private let playback: any DayObjectsMusicPlaybackProtocol
     private var isLeadHeld = false
@@ -22,6 +30,14 @@ final class DayObjectsMusicLabController: ObservableObject {
     private var stopTask: Task<Void, Never>?
     private var stopID: UUID?
     private var lifecycleGeneration: UInt64 = 0
+    private var happeningPadGeneration: UInt64 = 0
+    private var happeningPadLifecycleIsActive = true
+    private var happeningPadTasks: [HappeningSoundRecipeID: HappeningPadTask] = [:]
+
+    private struct HappeningPadTask {
+        let id: UUID
+        let task: Task<Void, Never>
+    }
 
     init(
         state: DayObjectsLabMusicState = DayObjectsLabMusicState(),
@@ -60,6 +76,7 @@ final class DayObjectsMusicLabController: ObservableObject {
     func toggleSound() async {
         guard soundState != .starting else { return }
         if soundState == .on {
+            cancelHappeningPadTasks(deactivate: false)
             await stop()
             return
         }
@@ -90,7 +107,43 @@ final class DayObjectsMusicLabController: ObservableObject {
     }
 
     func auditionHappening(_ recipeID: HappeningSoundRecipeID) async throws {
-        try await playback.auditionHappening(recipeID)
+        try await auditionHappening(recipeID, generation: happeningPadGeneration)
+    }
+
+    @discardableResult
+    func beginHappeningPadAudition(
+        _ recipeID: HappeningSoundRecipeID,
+        beforeAudition: @escaping @MainActor () async -> Void
+    ) -> Task<Void, Never>? {
+        guard happeningPadLifecycleIsActive,
+              stopTask == nil,
+              !unavailableHappeningRecipeIDs.contains(recipeID),
+              happeningPadTasks[recipeID] == nil else { return nil }
+
+        let generation = happeningPadGeneration
+        let operationID = UUID()
+        loadingHappeningRecipeIDs.insert(recipeID)
+        let task = Task { @MainActor [weak self] in
+            guard !Task.isCancelled else { return }
+            await beforeAudition()
+            guard let self else { return }
+            guard !Task.isCancelled,
+                  self.happeningPadLifecycleIsActive,
+                  self.happeningPadGeneration == generation else {
+                self.finishHappeningPadTask(recipeID, operationID: operationID)
+                return
+            }
+            _ = try? await self.auditionHappening(recipeID, generation: generation)
+            self.finishHappeningPadTask(recipeID, operationID: operationID)
+        }
+        happeningPadTasks[recipeID] = .init(id: operationID, task: task)
+        return task
+    }
+
+    func happeningPadStatus(for recipeID: HappeningSoundRecipeID) -> HappeningPadAuditionStatus {
+        if unavailableHappeningRecipeIDs.contains(recipeID) { return .unavailable }
+        if loadingHappeningRecipeIDs.contains(recipeID) { return .loading }
+        return .ready
     }
 
     func setSteps(_ value: Double) {
@@ -146,13 +199,36 @@ final class DayObjectsMusicLabController: ObservableObject {
         playback.endLead()
     }
 
-    func viewDidDisappear() async { await stop(includingSampleOnly: true) }
-    func turnSoundOff() async { await stop(includingSampleOnly: true) }
-    func sceneActivityChanged(isActive: Bool) async {
-        if !isActive { await stop(includingSampleOnly: true) }
+    func setHappeningPadLifecycleActive(_ isActive: Bool) {
+        if isActive {
+            activateHappeningPadLifecycle()
+        } else if happeningPadLifecycleIsActive || !happeningPadTasks.isEmpty {
+            cancelHappeningPadTasks(deactivate: true)
+        }
     }
-    func interruptionBegan() async { await stop(includingSampleOnly: true) }
-    func interruptionEnded() async {}
+
+    func viewDidAppear() { setHappeningPadLifecycleActive(true) }
+    func viewDidDisappear() async {
+        setHappeningPadLifecycleActive(false)
+        await stop(includingSampleOnly: true)
+    }
+    func turnSoundOff() async {
+        cancelHappeningPadTasks(deactivate: false)
+        await stop(includingSampleOnly: true)
+    }
+    func sceneActivityChanged(isActive: Bool) async {
+        if isActive {
+            setHappeningPadLifecycleActive(true)
+        } else {
+            setHappeningPadLifecycleActive(false)
+            await stop(includingSampleOnly: true)
+        }
+    }
+    func interruptionBegan() async {
+        setHappeningPadLifecycleActive(false)
+        await stop(includingSampleOnly: true)
+    }
+    func interruptionEnded() async { setHappeningPadLifecycleActive(true) }
 
     func sceneInput(
         dayKey: String,
@@ -227,6 +303,64 @@ final class DayObjectsMusicLabController: ObservableObject {
         guard stopID == id else { return }
         stopTask = nil
         stopID = nil
+    }
+
+    private func auditionHappening(
+        _ recipeID: HappeningSoundRecipeID,
+        generation: UInt64
+    ) async throws {
+        guard happeningPadLifecycleIsActive,
+              stopTask == nil,
+              generation == happeningPadGeneration else { throw CancellationError() }
+        guard !unavailableHappeningRecipeIDs.contains(recipeID) else {
+            throw HappeningSamplePoolError.recipeUnavailable(recipeID)
+        }
+        try Task.checkCancellation()
+        do {
+            try await playback.auditionHappening(recipeID)
+            try Task.checkCancellation()
+            guard happeningPadLifecycleIsActive,
+                  generation == happeningPadGeneration else { throw CancellationError() }
+        } catch {
+            if Self.isPermanentHappeningFailure(error) {
+                unavailableHappeningRecipeIDs.insert(recipeID)
+            }
+            throw error
+        }
+    }
+
+    private func finishHappeningPadTask(
+        _ recipeID: HappeningSoundRecipeID,
+        operationID: UUID
+    ) {
+        guard happeningPadTasks[recipeID]?.id == operationID else { return }
+        happeningPadTasks.removeValue(forKey: recipeID)
+        loadingHappeningRecipeIDs.remove(recipeID)
+    }
+
+    private func cancelHappeningPadTasks(deactivate: Bool) {
+        happeningPadGeneration &+= 1
+        if deactivate { happeningPadLifecycleIsActive = false }
+        let tasks = happeningPadTasks.values.map(\.task)
+        happeningPadTasks.removeAll()
+        loadingHappeningRecipeIDs.removeAll()
+        tasks.forEach { $0.cancel() }
+    }
+
+    private func activateHappeningPadLifecycle() {
+        guard !happeningPadLifecycleIsActive else { return }
+        happeningPadGeneration &+= 1
+        happeningPadLifecycleIsActive = true
+    }
+
+    private static func isPermanentHappeningFailure(_ error: Error) -> Bool {
+        switch error {
+        case HappeningSamplePoolError.recipeUnavailable,
+             HappeningSamplePoolError.resourceUnavailable:
+            true
+        default:
+            false
+        }
     }
 
     private static func makePlan(for state: DayObjectsLabMusicState) -> DayMusicPlan {

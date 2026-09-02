@@ -126,13 +126,17 @@ struct DayObjectsLabView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbarColorScheme(chromeColorScheme, for: .navigationBar)
+        .onAppear { musicController.viewDidAppear() }
         .onDisappear {
             leadCoordinator.viewDidDisappear()
+            musicController.setHappeningPadLifecycleActive(false)
             Task { await musicController.viewDidDisappear() }
         }
         .onChange(of: scenePhase) { _, phase in
-            leadCoordinator.sceneActivityChanged(isActive: phase == .active)
-            Task { await musicController.sceneActivityChanged(isActive: phase == .active) }
+            let isActive = phase == .active
+            leadCoordinator.sceneActivityChanged(isActive: isActive)
+            musicController.setHappeningPadLifecycleActive(isActive)
+            Task { await musicController.sceneActivityChanged(isActive: isActive) }
         }
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { notification in
             let raw = (notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.uintValue
@@ -140,6 +144,7 @@ struct DayObjectsLabView: View {
             guard let raw,
                   AVAudioSession.InterruptionType(rawValue: raw) == .began else { return }
             leadCoordinator.interruptionBegan()
+            musicController.setHappeningPadLifecycleActive(false)
             Task { await musicController.interruptionBegan() }
         }
         .onChange(of: leadCoordinator.isVoiceOverRunning) { _, running in
@@ -242,10 +247,10 @@ struct DayObjectsLabView: View {
                 )
 
                 digitalImpactControls
-                HappeningSoundPadGrid { recipeID in
-                    await audition.stop()
-                    try await musicController.auditionHappening(recipeID)
-                }
+                HappeningSoundPadGrid(
+                    controller: musicController,
+                    beforeAudition: { await audition.stop() }
+                )
                 remixControls
                 fineTuning
                 instrumentDiagnostics
