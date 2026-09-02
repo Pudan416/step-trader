@@ -13,6 +13,8 @@ import random
 
 
 SAMPLE_RATE = 44_100
+MAX_RENDER_SECONDS = 4.5
+MAX_RENDER_FRAMES = round(SAMPLE_RATE * MAX_RENDER_SECONDS)
 _BOUND = 1.999
 
 
@@ -246,7 +248,7 @@ def _pitched_body(frequency_hz: float, frames: int, seed: int, construction: str
     if construction == "sub":
         body = _mix(_scaled(_tone(frequency_hz * 0.5, frames, "sine", 0.42, 0.080), 0.32),
                     _scaled(_tone(frequency_hz, frames, "sine", 0.24, 0.080), 0.36))
-        opening = raised_cosine_envelope(frames, 0.25, 0.18)
+        opening = raised_cosine_envelope(frames, 0.055, 0.18)
         return [sample * amount for sample, amount in zip(body, opening)]
     return _tone(frequency_hz, frames, "sine", 0.23)
 
@@ -408,7 +410,7 @@ def render_granular_shimmer(root_midi: int, seed: int) -> tuple[list[float], str
 def render_reverse_glass_unpitched(root_midi: int, seed: int) -> tuple[list[float], str, str]:
     frames = round(SAMPLE_RATE * 0.62)
     noise = one_pole_lowpass(seeded_white_noise(frames, seed), 2_600.0)
-    envelope = raised_cosine_envelope(frames, 0.30, 0.045)
+    envelope = raised_cosine_envelope(frames, 0.060, 0.045)
     body = [sample * amount * 0.23 for sample, amount in zip(reverse(noise), envelope)]
     return _render(frames, body, "reversed-filtered-glass-partials", "reverse-bloom")
 
@@ -416,17 +418,19 @@ def render_reverse_glass_unpitched(root_midi: int, seed: int) -> tuple[list[floa
 def render_dust_impact(root_midi: int, seed: int) -> tuple[list[float], str, str]:
     frames = round(SAMPLE_RATE * 0.46)
     dust = one_pole_highpass(_impulse(frames, seed, 0.055), 1_300.0)
-    modal = _modal_body(190.0, frames, seed + 1, (1.0, 1.76))
-    return _render(frames, _mix(_scaled(dust, 0.18), _scaled(modal, 0.20)), "particulate-under-120ms", "modal-decay")
+    low_dust = one_pole_lowpass(seeded_brown_noise(frames, seed + 1), 650.0)
+    decay = exponential_envelope(frames, 0.085, 0.003)
+    particulate = [sample * amount * 0.085 for sample, amount in zip(low_dust, decay)]
+    return _render(frames, _mix(_scaled(dust, 0.18), particulate), "particulate-under-120ms", "filtered-breath")
 
 
 def render_breath_exhale(root_midi: int, seed: int) -> tuple[list[float], str, str]:
     frames = round(SAMPLE_RATE * 0.64)
     breath = one_pole_lowpass(seeded_brown_noise(frames, seed), 1_100.0)
     envelope = raised_cosine_envelope(frames, 0.045, 0.24)
-    formant = biquad_modal_resonator([sample * amount * 0.18 for sample, amount in zip(breath, envelope)],
-                                     920.0, 0.16)
-    return _render(frames, _mix(_scaled(breath, 0.08), _scaled(formant, 0.38)), "breath-formant-crossfade", "filtered-breath")
+    formant = one_pole_highpass(one_pole_lowpass(breath, 1_550.0), 480.0)
+    shaped = [sample * amount * 0.24 for sample, amount in zip(formant, envelope)]
+    return _render(frames, _mix(_scaled(breath, 0.08), shaped), "breath-formant-crossfade", "filtered-breath")
 
 
 AUTHORED_RENDERERS = {
@@ -458,12 +462,50 @@ AUTHORED_RENDERERS = {
 }
 
 
+def _frames_for_seconds(seconds: float) -> int:
+    if not math.isfinite(seconds) or seconds < 0.0:
+        raise ValueError("tail duration must be a finite nonnegative number of seconds")
+    total_frames = round(seconds * SAMPLE_RATE)
+    if total_frames > MAX_RENDER_FRAMES:
+        raise ValueError(f"render duration may not exceed {MAX_RENDER_SECONDS} seconds")
+    return total_frames
+
+
+def _pad_to_frames(samples: list[float], total_frames: int) -> list[float]:
+    if not isinstance(total_frames, int) or isinstance(total_frames, bool) or total_frames < 0:
+        raise ValueError("total_frames must be a nonnegative integer")
+    if len(samples) > MAX_RENDER_FRAMES or total_frames > MAX_RENDER_FRAMES:
+        raise ValueError(f"render duration may not exceed {MAX_RENDER_SECONDS} seconds")
+    retained = list(samples[:total_frames])
+    return retained + [0.0] * (total_frames - len(retained))
+
+
 def _tail_frames(samples: list[float], seconds: float) -> list[float]:
-    return list(samples) + [0.0] * max(0, round(seconds * SAMPLE_RATE) - len(samples))
+    return _pad_to_frames(samples, _frames_for_seconds(seconds))
+
+
+def _damped_continuation(samples: list[float], total_frames: int, decay_seconds: float) -> list[float]:
+    """Extend a rendered body from its final short waveform segment.
+
+    The repeated segment is deliberately short and strongly decayed: it is an
+    offline damping continuation, not a stationary sustain or a new oscillator.
+    """
+    if len(samples) > MAX_RENDER_FRAMES or total_frames > MAX_RENDER_FRAMES:
+        raise ValueError(f"render duration may not exceed {MAX_RENDER_SECONDS} seconds")
+    output = list(samples)
+    if len(output) >= total_frames or not output:
+        return output[:total_frames]
+    period = min(len(output), max(16, round(SAMPLE_RATE * 0.032)))
+    seed = output[-period:]
+    for frame in range(total_frames - len(output)):
+        amount = math.exp(-frame / max(1.0, decay_seconds * SAMPLE_RATE))
+        output.append(seed[frame % period] * amount)
+    return output
 
 
 def tail_dry_damping(samples: list[float], root_midi: int, seed: int, tail: dict) -> list[float]:
-    output = _tail_frames(samples, float(tail.get("durationSeconds", 0.86)))
+    total_frames = max(len(samples), round(float(tail.get("durationSeconds", 0.86)) * SAMPLE_RATE))
+    output = _damped_continuation(samples, total_frames, 0.20)
     return [sample * math.exp(-frame / (SAMPLE_RATE * 0.85)) for frame, sample in enumerate(output)]
 
 
@@ -484,8 +526,10 @@ def tail_dark_diffusion(samples: list[float], root_midi: int, seed: int, tail: d
 
 def tail_reverse_bloom(samples: list[float], root_midi: int, seed: int, tail: dict) -> list[float]:
     bloom = reverse(one_pole_lowpass(samples, 3_200.0))
-    output = _mix(_scaled(samples, 0.72), _scaled(bloom, 0.24))
-    return _tail_frames(output, float(tail.get("durationSeconds", 1.00)))
+    total_frames = max(len(samples), _frames_for_seconds(float(tail.get("durationSeconds", 1.00))))
+    source = _pad_to_frames(samples, total_frames)
+    blooming = _damped_continuation(bloom, total_frames, 0.27)
+    return _mix(_scaled(source, 0.72), _scaled(blooming, 0.24))
 
 
 def tail_chorus_decay(samples: list[float], root_midi: int, seed: int, tail: dict) -> list[float]:
@@ -494,9 +538,14 @@ def tail_chorus_decay(samples: list[float], root_midi: int, seed: int, tail: dic
 
 
 def tail_modal_decay(samples: list[float], root_midi: int, seed: int, tail: dict) -> list[float]:
-    output = _mix(_scaled(samples, 0.70),
-                  _scaled(biquad_modal_resonator(samples, midi_to_hz(root_midi) * 1.91, 0.38), 0.13))
-    return _tail_frames(one_pole_lowpass(output, 3_700.0), float(tail.get("durationSeconds", 1.36)))
+    total_frames = max(len(samples), _frames_for_seconds(float(tail.get("durationSeconds", 1.36))))
+    if tail.get("unpitched"):
+        output = bounded_feedback_echo(samples, 0.061, 0.29, 8)
+        return _pad_to_frames(one_pole_lowpass(output, 2_800.0), total_frames)
+    excitation = _pad_to_frames(samples, total_frames)
+    output = _mix(_scaled(excitation, 0.70),
+                  _scaled(biquad_modal_resonator(excitation, midi_to_hz(root_midi) * 1.91, 0.38), 0.13))
+    return one_pole_lowpass(output, 3_700.0)
 
 
 def tail_filtered_breath(samples: list[float], root_midi: int, seed: int, tail: dict) -> list[float]:
@@ -527,6 +576,10 @@ def _tail_kind(tail: dict) -> str:
 
 def apply_rendered_tail(samples: list[float], root_midi: int, tail: dict, seed: int) -> list[float]:
     """Apply one bounded offline tail and return deterministic mono samples."""
+    if len(samples) > MAX_RENDER_FRAMES:
+        raise ValueError(f"render duration may not exceed {MAX_RENDER_SECONDS} seconds")
+    if "durationSeconds" in tail:
+        _frames_for_seconds(float(tail["durationSeconds"]))
     kind = _tail_kind(tail)
     return clamp_samples(TAIL_RENDERERS[kind](list(samples), root_midi, seed, tail))
 
@@ -537,11 +590,15 @@ def render_authored(definition: dict, root_midi: int, seed: int) -> RenderedEven
     if not isinstance(kind, str) or kind not in AUTHORED_RENDERERS:
         raise ValueError(f"unknown authored topology: {kind!r}")
     recipe_id = definition.get("id")
-    render_root = 60 if isinstance(recipe_id, int) and recipe_id >= 25 else root_midi
+    render_root = 60 if recipe_id in (25, 26, 27) else root_midi
     body, default_attack, default_tail = AUTHORED_RENDERERS[kind](render_root, seed)
     tail = definition.get("tail")
     if not isinstance(tail, dict):
         tail = {"kind": definition.get("tailTopology", default_tail)}
+    else:
+        tail = dict(tail)
+    if recipe_id in (28, 29, 30):
+        tail["unpitched"] = True
     tail_kind = _tail_kind(tail)
     attack = definition.get("attackTopology", default_attack)
     if not isinstance(attack, str):
