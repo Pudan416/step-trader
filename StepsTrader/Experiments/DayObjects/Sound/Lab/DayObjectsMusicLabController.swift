@@ -8,6 +8,39 @@ enum HappeningPadAuditionStatus: Equatable, Sendable {
     case unavailable
 }
 
+enum DayObjectsLabLifecycleEvent: Sendable {
+    case viewAppeared
+    case viewDisappeared
+    case sceneActive
+    case sceneInactive
+    case interruptionBegan
+    case interruptionEnded
+
+    fileprivate var isActive: Bool {
+        switch self {
+        case .viewAppeared, .sceneActive, .interruptionEnded: true
+        case .viewDisappeared, .sceneInactive, .interruptionBegan: false
+        }
+    }
+
+    fileprivate var requiresAudioStop: Bool { !isActive }
+}
+
+struct DayObjectsLabLifecycleIntent: Sendable {
+    fileprivate let generation: UInt64
+    fileprivate let event: DayObjectsLabLifecycleEvent
+}
+
+struct DayObjectsSoundButtonIntent: Sendable {
+    fileprivate enum Action: Sendable {
+        case turnOn
+        case turnOff
+    }
+
+    fileprivate let id: UUID
+    fileprivate let action: Action
+}
+
 /// Single state and command boundary for the Day Objects lab. Visual changes
 /// are published synchronously; audio receives only the typed plan delta while
 /// Sound is explicitly on.
@@ -33,6 +66,8 @@ final class DayObjectsMusicLabController: ObservableObject {
     private var happeningPadGeneration: UInt64 = 0
     private var happeningPadLifecycleIsActive = true
     private var happeningPadTasks: [HappeningSoundRecipeID: HappeningPadTask] = [:]
+    private var lifecycleEventGeneration: UInt64 = 0
+    private var acceptedSoundButtonIntent: DayObjectsSoundButtonIntent?
 
     private struct HappeningPadTask {
         let id: UUID
@@ -74,12 +109,40 @@ final class DayObjectsMusicLabController: ObservableObject {
     }
 
     func toggleSound() async {
-        guard soundState != .starting else { return }
-        if soundState == .on {
+        guard let intent = acceptSoundButtonIntent() else { return }
+        await completeSoundButtonIntent(intent)
+    }
+
+    func acceptSoundButtonIntent() -> DayObjectsSoundButtonIntent? {
+        guard acceptedSoundButtonIntent == nil,
+              soundState != .starting else { return nil }
+        let action: DayObjectsSoundButtonIntent.Action = soundState == .on ? .turnOff : .turnOn
+        let intent = DayObjectsSoundButtonIntent(id: UUID(), action: action)
+        acceptedSoundButtonIntent = intent
+        if action == .turnOff {
             cancelHappeningPadTasks(deactivate: false)
-            await stop()
-            return
         }
+        return intent
+    }
+
+    func completeSoundButtonIntent(_ intent: DayObjectsSoundButtonIntent) async {
+        guard acceptedSoundButtonIntent?.id == intent.id else { return }
+        defer {
+            if acceptedSoundButtonIntent?.id == intent.id {
+                acceptedSoundButtonIntent = nil
+            }
+        }
+        switch intent.action {
+        case .turnOff:
+            guard soundState == .on else { return }
+            await stop()
+        case .turnOn:
+            guard soundState != .on, soundState != .starting else { return }
+            await startSound()
+        }
+    }
+
+    private func startSound() async {
         let startedPlan = currentPlan
         lifecycleGeneration &+= 1
         let generation = lifecycleGeneration
@@ -207,28 +270,50 @@ final class DayObjectsMusicLabController: ObservableObject {
         }
     }
 
-    func viewDidAppear() { setHappeningPadLifecycleActive(true) }
-    func viewDidDisappear() async {
-        setHappeningPadLifecycleActive(false)
+    @discardableResult
+    func acceptLifecycleEvent(_ event: DayObjectsLabLifecycleEvent) -> DayObjectsLabLifecycleIntent {
+        lifecycleEventGeneration &+= 1
+        let intent = DayObjectsLabLifecycleIntent(
+            generation: lifecycleEventGeneration,
+            event: event
+        )
+        if !event.isActive {
+            acceptedSoundButtonIntent = nil
+        }
+        setHappeningPadLifecycleActive(event.isActive)
+        return intent
+    }
+
+    func completeLifecycleEvent(_ intent: DayObjectsLabLifecycleIntent) async {
+        guard intent.generation == lifecycleEventGeneration,
+              intent.event.requiresAudioStop else { return }
         await stop(includingSampleOnly: true)
     }
+
+    func viewDidAppear() {
+        _ = acceptLifecycleEvent(.viewAppeared)
+    }
+    func viewDidDisappear() async {
+        let intent = acceptLifecycleEvent(.viewDisappeared)
+        await completeLifecycleEvent(intent)
+    }
     func turnSoundOff() async {
+        acceptedSoundButtonIntent = nil
         cancelHappeningPadTasks(deactivate: false)
         await stop(includingSampleOnly: true)
     }
     func sceneActivityChanged(isActive: Bool) async {
-        if isActive {
-            setHappeningPadLifecycleActive(true)
-        } else {
-            setHappeningPadLifecycleActive(false)
-            await stop(includingSampleOnly: true)
-        }
+        let intent = acceptLifecycleEvent(isActive ? .sceneActive : .sceneInactive)
+        await completeLifecycleEvent(intent)
     }
     func interruptionBegan() async {
-        setHappeningPadLifecycleActive(false)
-        await stop(includingSampleOnly: true)
+        let intent = acceptLifecycleEvent(.interruptionBegan)
+        await completeLifecycleEvent(intent)
     }
-    func interruptionEnded() async { setHappeningPadLifecycleActive(true) }
+    func interruptionEnded() async {
+        let intent = acceptLifecycleEvent(.interruptionEnded)
+        await completeLifecycleEvent(intent)
+    }
 
     func sceneInput(
         dayKey: String,

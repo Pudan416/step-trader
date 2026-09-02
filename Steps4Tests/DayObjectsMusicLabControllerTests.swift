@@ -160,6 +160,98 @@ final class DayObjectsMusicLabControllerTests: XCTestCase {
         XCTAssertEqual(controller.happeningPadStatus(for: recipeID), .unavailable)
     }
 
+    func testAcceptedSoundOffIntentCancelsPendingPadBeforeDiagnosticsAwait() async throws {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        let preflight = SuspendedHappeningPadPreflight()
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 9))
+        await controller.toggleSound()
+        let padTask = try XCTUnwrap(controller.beginHappeningPadAudition(recipeID) {
+            await preflight.stopDiagnostics()
+        })
+        await preflight.waitUntilStopBegins()
+
+        let soundOff = try XCTUnwrap(controller.acceptSoundButtonIntent())
+
+        XCTAssertEqual(controller.happeningPadStatus(for: recipeID), .ready)
+        XCTAssertNil(controller.acceptSoundButtonIntent(), "Repeated UI taps must share one accepted intent")
+        XCTAssertEqual(controller.soundState, .on, "The audio toggle must still wait for diagnostics teardown")
+        preflight.resumeStop()
+        await padTask.value
+        await controller.completeSoundButtonIntent(soundOff)
+
+        XCTAssertTrue(playback.auditionedRecipeIDs.isEmpty)
+        XCTAssertEqual(controller.soundState, .off)
+    }
+
+    func testAcceptedSoundOnIntentDoesNotCancelPendingPadAndCoalescesRepeatedTap() async throws {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        let preflight = SuspendedHappeningPadPreflight()
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 10))
+        let padTask = try XCTUnwrap(controller.beginHappeningPadAudition(recipeID) {
+            await preflight.stopDiagnostics()
+        })
+        await preflight.waitUntilStopBegins()
+
+        let soundOn = try XCTUnwrap(controller.acceptSoundButtonIntent())
+
+        XCTAssertEqual(controller.happeningPadStatus(for: recipeID), .loading)
+        XCTAssertNil(controller.acceptSoundButtonIntent())
+        preflight.resumeStop()
+        await padTask.value
+        await controller.completeSoundButtonIntent(soundOn)
+
+        XCTAssertEqual(playback.auditionedRecipeIDs, [recipeID])
+        XCTAssertEqual(controller.soundState, .on)
+    }
+
+    func testStaleSceneInactiveCompletionAfterActiveEventCannotDeactivatePads() async throws {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        let gate = CheckedContinuationGate()
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 11))
+        let inactive = controller.acceptLifecycleEvent(.sceneInactive)
+        let staleCompletion = Task { @MainActor in
+            await gate.suspend()
+            await controller.completeLifecycleEvent(inactive)
+        }
+        await gate.waitUntilSuspended()
+
+        let active = controller.acceptLifecycleEvent(.sceneActive)
+        await controller.completeLifecycleEvent(active)
+        gate.resume()
+        await staleCompletion.value
+        let padTask = try XCTUnwrap(controller.beginHappeningPadAudition(recipeID) {})
+        await padTask.value
+
+        XCTAssertEqual(playback.stopCount, 0, "A stale inactive completion must not tear down newer active state")
+        XCTAssertEqual(playback.auditionedRecipeIDs, [recipeID])
+    }
+
+    func testStaleViewDisappearCompletionAfterAppearCannotDeactivatePads() async throws {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        let gate = CheckedContinuationGate()
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 12))
+        let disappear = controller.acceptLifecycleEvent(.viewDisappeared)
+        let staleCompletion = Task { @MainActor in
+            await gate.suspend()
+            await controller.completeLifecycleEvent(disappear)
+        }
+        await gate.waitUntilSuspended()
+
+        let appear = controller.acceptLifecycleEvent(.viewAppeared)
+        await controller.completeLifecycleEvent(appear)
+        gate.resume()
+        await staleCompletion.value
+        let padTask = try XCTUnwrap(controller.beginHappeningPadAudition(recipeID) {})
+        await padTask.value
+
+        XCTAssertEqual(playback.stopCount, 0, "A stale disappear completion must not overwrite a newer appearance")
+        XCTAssertEqual(playback.auditionedRecipeIDs, [recipeID])
+    }
+
     func testStartsOnlyAfterExplicitTapAndRoutesContinuousAndDedicatedHappeningChanges() async {
         let playback = RecordingLabPlayback()
         let controller = DayObjectsMusicLabController(playback: playback)
@@ -502,6 +594,28 @@ private final class SuspendedHappeningPadPreflight {
     func resumeStop() {
         stopContinuation?.resume()
         stopContinuation = nil
+    }
+}
+
+@MainActor
+private final class CheckedContinuationGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func suspend() async {
+        waiters.forEach { $0.resume() }
+        waiters.removeAll()
+        await withCheckedContinuation { continuation = $0 }
+    }
+
+    func waitUntilSuspended() async {
+        if continuation != nil { return }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+
+    func resume() {
+        continuation?.resume()
+        continuation = nil
     }
 }
 #endif

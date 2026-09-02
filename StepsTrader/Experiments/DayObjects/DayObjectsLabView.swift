@@ -126,17 +126,19 @@ struct DayObjectsLabView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbarColorScheme(chromeColorScheme, for: .navigationBar)
-        .onAppear { musicController.viewDidAppear() }
+        .onAppear {
+            _ = musicController.acceptLifecycleEvent(.viewAppeared)
+        }
         .onDisappear {
             leadCoordinator.viewDidDisappear()
-            musicController.setHappeningPadLifecycleActive(false)
-            Task { await musicController.viewDidDisappear() }
+            let intent = musicController.acceptLifecycleEvent(.viewDisappeared)
+            Task { await musicController.completeLifecycleEvent(intent) }
         }
         .onChange(of: scenePhase) { _, phase in
             let isActive = phase == .active
             leadCoordinator.sceneActivityChanged(isActive: isActive)
-            musicController.setHappeningPadLifecycleActive(isActive)
-            Task { await musicController.sceneActivityChanged(isActive: isActive) }
+            let intent = musicController.acceptLifecycleEvent(isActive ? .sceneActive : .sceneInactive)
+            Task { await musicController.completeLifecycleEvent(intent) }
         }
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { notification in
             let raw = (notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.uintValue
@@ -144,8 +146,8 @@ struct DayObjectsLabView: View {
             guard let raw,
                   AVAudioSession.InterruptionType(rawValue: raw) == .began else { return }
             leadCoordinator.interruptionBegan()
-            musicController.setHappeningPadLifecycleActive(false)
-            Task { await musicController.interruptionBegan() }
+            let intent = musicController.acceptLifecycleEvent(.interruptionBegan)
+            Task { await musicController.completeLifecycleEvent(intent) }
         }
         .onChange(of: leadCoordinator.isVoiceOverRunning) { _, running in
             musicController.leadAvailabilityChanged(
@@ -511,9 +513,10 @@ struct DayObjectsLabView: View {
 
     private var soundButton: some View {
         Button {
+            guard let intent = musicController.acceptSoundButtonIntent() else { return }
             Task {
                 await audition.stop()
-                await musicController.toggleSound()
+                await musicController.completeSoundButtonIntent(intent)
             }
         } label: {
             Image(systemName: soundIcon)
