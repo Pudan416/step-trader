@@ -56,6 +56,7 @@ protocol DayObjectsPlaybackRuntimeProtocol: AnyObject {
         harmony: DayObjectsHappeningAuditionHarmony
     ) throws
     func releaseAuditions()
+    func rollbackFullStartToSampleOnly()
 
     func stopScheduling()
     func endLead()
@@ -98,10 +99,14 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
     private var fullStartID: UUID?
     private var auditionWaiters: Set<UUID> = []
     private var hasAuditionVoices = false
+    private var orphanedSampleOnlyAfterWaiterCancellation = false
 
     private(set) var state: DayObjectsSoundState = .off
     private(set) var currentPlan: DayMusicPlan?
     private(set) var runtimeState: RuntimeState = .stopped
+    var hasFullStartTaskForTesting: Bool { fullStartTask != nil }
+    var hasSamplePreparationTaskForTesting: Bool { samplePreparationTask != nil }
+    var hasTeardownTaskForTesting: Bool { teardownTask != nil }
 
     var metrics: DayObjectsPlaybackMetrics {
         var result = runtime.playbackMetrics
@@ -132,21 +137,16 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
         fullStartTask = task
         do {
             try await task.value
-            if fullStartID == id {
-                fullStartTask = nil
-                fullStartID = nil
-            }
+            await finishFullStart(id: id)
         } catch {
-            if fullStartID == id {
-                fullStartTask = nil
-                fullStartID = nil
-            }
+            await finishFullStart(id: id)
             throw error
         }
     }
 
     private func performFullStart(plan: DayMusicPlan) async throws {
         if let teardownTask { await teardownTask.value }
+        try Task.checkCancellation()
 
         if let samplePreparationTask {
             do {
@@ -179,11 +179,10 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
                 // sample-only voices. A failed prepare leaves this truth intact.
                 hasAuditionVoices = false
             }
-            if !upgradingSampleOnly { try runtime.startAudio() }
+            try runtime.startAudio()
             try await runtime.startTransport(plan: plan)
             try Task.checkCancellation()
             guard generation == lifecycleGeneration, state == .starting else {
-                await requestTeardown(finalState: .off, force: true)
                 return
             }
             try runtime.fadeMaster(to: plan)
@@ -192,7 +191,6 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
             state = .on
         } catch {
             guard generation == lifecycleGeneration else {
-                await requestTeardown(finalState: .off, force: true)
                 return
             }
             let audioError = (error as? DayObjectsAudioError)
@@ -203,6 +201,7 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
                 runtime.cancelRemix()
                 runtime.releaseLayers()
                 await runtime.stopTransportAndEffects()
+                runtime.rollbackFullStartToSampleOnly()
                 runtimeState = .sampleOnly
                 state = .error(audioError)
                 throw audioError
@@ -265,13 +264,40 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
     }
 
     func stop() async {
+        if let teardownTask, fullStartTask == nil, samplePreparationTask == nil {
+            await teardownTask.value
+            return
+        }
+        let needsTeardown = state != .off || sessionMayNeedDeactivation || runtimeMayOwnResources
         lifecycleGeneration &+= 1
         state = .off
         auditionWaiters.removeAll()
-        samplePreparationTask?.cancel()
+        orphanedSampleOnlyAfterWaiterCancellation = false
+        let staleSamplePreparation = samplePreparationTask
         samplePreparationTask = nil
-        fullStartTask?.cancel()
-        await requestTeardown(finalState: .off, force: false)
+        let staleFullStart = fullStartTask
+        fullStartTask = nil
+        fullStartID = nil
+        staleSamplePreparation?.cancel()
+        staleFullStart?.cancel()
+        guard needsTeardown || staleSamplePreparation != nil || staleFullStart != nil else { return }
+
+        let priorBarrier = teardownTask
+        let id = UUID()
+        teardownID = id
+        let task = Task { @MainActor [weak self] in
+            if let priorBarrier { await priorBarrier.value }
+            _ = try? await staleSamplePreparation?.value
+            _ = try? await staleFullStart?.value
+            guard let self else { return }
+            await self.performTeardown(finalState: .off)
+        }
+        teardownTask = task
+        await task.value
+        if teardownID == id {
+            teardownTask = nil
+            teardownID = nil
+        }
     }
 
     func applyContinuous(_ plan: DayMusicPlan) {
@@ -381,11 +407,27 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
 
     private func cancelAuditionWaiter(_ waiterID: UUID) async {
         guard auditionWaiters.remove(waiterID) != nil else { return }
-        guard auditionWaiters.isEmpty,
-              fullStartTask == nil,
-              runtimeState == .preparingSamples else { return }
+        guard auditionWaiters.isEmpty else { return }
+        if fullStartTask != nil {
+            orphanedSampleOnlyAfterWaiterCancellation = true
+            return
+        }
+        guard runtimeState == .preparingSamples
+                || (runtimeState == .sampleOnly && !hasAuditionVoices) else { return }
         samplePreparationTask?.cancel()
         samplePreparationTask = nil
+        await requestTeardown(finalState: .off, force: true)
+    }
+
+    private func finishFullStart(id: UUID) async {
+        guard fullStartID == id else { return }
+        fullStartTask = nil
+        fullStartID = nil
+        guard orphanedSampleOnlyAfterWaiterCancellation,
+              auditionWaiters.isEmpty,
+              !hasAuditionVoices,
+              runtimeState == .sampleOnly else { return }
+        orphanedSampleOnlyAfterWaiterCancellation = false
         await requestTeardown(finalState: .off, force: true)
     }
 
@@ -952,6 +994,10 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         auditionHandles.removeAll()
     }
 
+    func rollbackFullStartToSampleOnly() {
+        pair.demoteToBankASampleOnlyOwnership()
+    }
+
     func startTransport(plan: DayMusicPlan) async throws {
         try activeWorld.startScheduling()
         transportIsRunning = true
@@ -1001,9 +1047,9 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
     }
 
     func stopAudio() async {
-        if isPrepared {
+        if pair.metrics.lifecycleState == .started {
             pair.stop()
-        } else if isSamplePrepared {
+        } else if pair.metrics.individualStartedBankCount > 0 {
             await pair.bankA.stop()
         }
         worldA.bank.setOutputGain(0, rampDurationSeconds: 0)
@@ -1376,6 +1422,8 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
         auditionHandles.forEach(pool.stop)
         auditionHandles.removeAll()
     }
+
+    func rollbackFullStartToSampleOnly() {}
 
     func startTransport(plan: DayMusicPlan) async throws {
         try world.startScheduling()

@@ -901,7 +901,8 @@ final class DayObjectsPlaybackBankPair {
             throw DayObjectsInstrumentBankError.notPrepared
         }
         guard lifecycleState != .started else { return }
-        guard sharedEngine.canAcquirePairOwnership else {
+        let promotesBankAOwner = sharedEngine.canPromoteBankAOwnershipToPair
+        guard sharedEngine.canAcquirePairOwnership || promotesBankAOwner else {
             throw DayObjectsInstrumentBankError.startFailed
         }
 
@@ -915,19 +916,39 @@ final class DayObjectsPlaybackBankPair {
             if injectedFailure == .sharedEngineStart {
                 throw DayObjectsInstrumentBankError.startFailed
             }
-            try sharedEngine.startPair()
+            if promotesBankAOwner {
+                try sharedEngine.promoteBankAOwnershipToPair()
+            } else {
+                try sharedEngine.startPair()
+            }
             bankA.markPlaybackPairStarted()
             bankB.markPlaybackPairStarted()
             lifecycleState = .started
         } catch {
-            bankA.releaseAllIncludingSharedHappenings()
-            bankB.releaseWorldLocalVoices()
-            sharedEngine.rollbackFailedPairStart()
-            bankA.markPlaybackPairPrepared()
-            bankB.markPlaybackPairPrepared()
+            if promotesBankAOwner {
+                bankA.releaseWorldLocalVoices()
+                bankB.releaseWorldLocalVoices()
+                sharedEngine.demotePairOwnershipToBankA()
+                bankA.markPlaybackPairStarted()
+                bankB.markPlaybackPairPrepared()
+            } else {
+                bankA.releaseAllIncludingSharedHappenings()
+                bankB.releaseWorldLocalVoices()
+                sharedEngine.rollbackFailedPairStart()
+                bankA.markPlaybackPairPrepared()
+                bankB.markPlaybackPairPrepared()
+            }
             lifecycleState = .prepared
             throw DayObjectsInstrumentBankError.startFailed
         }
+    }
+
+    func demoteToBankASampleOnlyOwnership() {
+        guard lifecycleState == .started else { return }
+        sharedEngine.demotePairOwnershipToBankA()
+        bankA.markPlaybackPairStarted()
+        bankB.markPlaybackPairPrepared()
+        lifecycleState = .prepared
     }
 
     func stop() {
@@ -997,6 +1018,12 @@ private final class DayObjectsSharedInstrumentBankEngine {
     var canAcquirePairOwnership: Bool {
         individuallyStartedSlots.isEmpty && !pairIsRunning
     }
+    var canPromoteBankAOwnershipToPair: Bool {
+        individuallyStartedSlots == [.a]
+            && !pairIsRunning
+            && attachedSlots.count == 2
+            && engine.avEngine.isRunning
+    }
 
     init(happenings: DayObjectsHappeningSamplePool) {
         self.happenings = happenings
@@ -1046,6 +1073,7 @@ private final class DayObjectsSharedInstrumentBankEngine {
         engine.output = limiter
         if individuallyStartedSlots.isEmpty, !engine.avEngine.isRunning {
             try engine.start()
+            startCount += 1
         }
         individuallyStartedSlots.insert(slot)
     }
@@ -1055,7 +1083,7 @@ private final class DayObjectsSharedInstrumentBankEngine {
             return .rejected
         }
         if individuallyStartedSlots.isEmpty {
-            stopEngineIfRunning(countAsPairStop: false)
+            stopEngineIfRunning()
             return .sharedRuntimeStopped
         }
         return .worldStopped
@@ -1067,20 +1095,36 @@ private final class DayObjectsSharedInstrumentBankEngine {
         }
         guard !pairIsRunning else { return }
         engine.output = limiter
-        if !engine.avEngine.isRunning { try engine.start() }
+        if !engine.avEngine.isRunning {
+            try engine.start()
+            startCount += 1
+        }
         pairIsRunning = true
-        startCount += 1
+    }
+
+    func promoteBankAOwnershipToPair() throws {
+        guard canPromoteBankAOwnershipToPair else {
+            throw DayObjectsInstrumentBankError.startFailed
+        }
+        individuallyStartedSlots.remove(.a)
+        pairIsRunning = true
+    }
+
+    func demotePairOwnershipToBankA() {
+        guard pairIsRunning else { return }
+        pairIsRunning = false
+        individuallyStartedSlots = [.a]
     }
 
     func stopPair() {
         guard pairIsRunning else { return }
         pairIsRunning = false
-        stopEngineIfRunning(countAsPairStop: true)
+        stopEngineIfRunning()
     }
 
     func rollbackFailedPairStart() {
         pairIsRunning = false
-        if engine.avEngine.isRunning { engine.stop() }
+        stopEngineIfRunning()
         engine.output = limiter
     }
 
@@ -1113,9 +1157,11 @@ private final class DayObjectsSharedInstrumentBankEngine {
         )
     }
 
-    private func stopEngineIfRunning(countAsPairStop: Bool) {
-        if engine.avEngine.isRunning { engine.stop() }
-        if countAsPairStop { stopCount += 1 }
+    private func stopEngineIfRunning() {
+        if engine.avEngine.isRunning {
+            engine.stop()
+            stopCount += 1
+        }
         engine.output = limiter
     }
 }

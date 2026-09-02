@@ -341,13 +341,13 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertFalse(pair.metrics.sharedEngineIsRunning)
     }
 
-    func testIndividualOwnershipRejectsPairStartAndRecoversAfterLastOwnerStops() async throws {
+    func testNonPromotableBankBOwnershipRejectsPairStartAndRecoversAfterLastOwnerStops() async throws {
         let pair = DayObjectsInstrumentBank.makePlaybackPair(
             bundle: Bundle(for: type(of: self))
         )
         try pair.prepare(configuration: smallPlaybackPairConfiguration())
         let baseline = pair.metrics
-        try pair.bankA.start()
+        try pair.bankB.start()
 
         XCTAssertThrowsError(try pair.start()) {
             XCTAssertEqual($0 as? DayObjectsInstrumentBankError, .startFailed)
@@ -355,15 +355,41 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(pair.metrics.lifecycleState, .prepared)
         XCTAssertTrue(pair.metrics.sharedEngineIsRunning)
         XCTAssertEqual(pair.metrics.individualStartedBankCount, 1)
-        XCTAssertEqual(pair.bankA.metrics.state, .started)
-        XCTAssertEqual(pair.bankB.metrics.state, .prepared)
+        XCTAssertEqual(pair.bankA.metrics.state, .prepared)
+        XCTAssertEqual(pair.bankB.metrics.state, .started)
 
-        await pair.bankA.stop()
+        await pair.bankB.stop()
         try pair.start()
         XCTAssertEqual(pair.metrics.lifecycleState, .started)
         XCTAssertEqual(pair.metrics.fixedSharedNodeIdentities, baseline.fixedSharedNodeIdentities)
         XCTAssertEqual(pair.metrics.allocationFingerprint, baseline.allocationFingerprint)
         pair.stop()
+    }
+
+    func testPairStartPromotesSoleBankAOwnerWithoutRestartingSharedEngineOrChangingTopology() async throws {
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(
+            bundle: Bundle(for: type(of: self))
+        )
+        try pair.bankA.prepare(level: .sampleOnly(Set(HappeningSoundCatalog.recipes.map(\.id))))
+        try pair.bankA.start()
+        try pair.prepare(configuration: smallPlaybackPairConfiguration())
+        let beforePromotion = pair.metrics
+
+        try pair.start()
+
+        XCTAssertEqual(pair.metrics.lifecycleState, .started)
+        XCTAssertTrue(pair.metrics.sharedEngineIsRunning)
+        XCTAssertEqual(pair.metrics.individualStartedBankCount, 0)
+        XCTAssertEqual(pair.metrics.sharedEngineStartCount, beforePromotion.sharedEngineStartCount)
+        XCTAssertGreaterThan(beforePromotion.sharedEngineStartCount, 0)
+        XCTAssertEqual(pair.metrics.fixedSharedNodeIdentities, beforePromotion.fixedSharedNodeIdentities)
+        XCTAssertEqual(pair.metrics.allocationFingerprint, beforePromotion.allocationFingerprint)
+        XCTAssertEqual(pair.bankA.metrics.state, .started)
+        XCTAssertEqual(pair.bankB.metrics.state, .started)
+
+        pair.stop()
+        XCTAssertFalse(pair.metrics.sharedEngineIsRunning)
+        XCTAssertEqual(pair.metrics.sharedEngineStopCount, 1)
     }
 
     func testPlaybackPairLifecycleStartsAndStopsSharedEngineOnceWithoutChangingTopology() throws {
