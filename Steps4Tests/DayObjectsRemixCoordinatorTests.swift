@@ -479,6 +479,42 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
         XCTAssertEqual(harness.banks.map(\.sharedInclusiveReleaseCount), [1, 0])
     }
 
+    func testRepeatedStopIsNoOpUntilPrepareBeginsANewLifecycleEpoch() throws {
+        let harness = try makeHarness(initialSeed: 64)
+
+        harness.coordinator.stop()
+        harness.coordinator.stop()
+        harness.coordinator.stop()
+
+        XCTAssertEqual(harness.runtime.stopCount, 2)
+        XCTAssertEqual(harness.banks.map(\.worldLocalReleaseCount), [1, 1])
+        XCTAssertEqual(harness.banks.map(\.sharedInclusiveReleaseCount), [1, 0])
+        XCTAssertEqual(harness.sharedHappenings.releaseAllCount, 1)
+
+        try harness.coordinator.prepare(initialPlan: makePlan(seed: 65))
+        harness.coordinator.stop()
+        harness.coordinator.stop()
+
+        XCTAssertEqual(harness.runtime.stopCount, 4)
+        XCTAssertEqual(harness.banks.map(\.worldLocalReleaseCount), [2, 2])
+        XCTAssertEqual(harness.banks.map(\.sharedInclusiveReleaseCount), [2, 0])
+        XCTAssertEqual(harness.sharedHappenings.releaseAllCount, 2)
+    }
+
+    func testFailedReconfigureRetainsActiveEpochCleanupOwnership() throws {
+        let harness = try makeHarness(initialSeed: 66)
+        harness.runtime.failureStage = .configure
+
+        XCTAssertThrowsError(try harness.coordinator.prepare(initialPlan: makePlan(seed: 67)))
+        harness.coordinator.stop()
+        harness.coordinator.stop()
+
+        XCTAssertEqual(harness.runtime.stopCount, 2)
+        XCTAssertEqual(harness.banks.map(\.worldLocalReleaseCount), [1, 1])
+        XCTAssertEqual(harness.banks.map(\.sharedInclusiveReleaseCount), [1, 0])
+        XCTAssertEqual(harness.sharedHappenings.releaseAllCount, 1)
+    }
+
     func testOneHundredRemixesKeepBanksPoolsNodesTasksAndTransportConstant() throws {
         let harness = try makeHarness(initialSeed: 100)
         let baseline = harness.coordinator.metrics

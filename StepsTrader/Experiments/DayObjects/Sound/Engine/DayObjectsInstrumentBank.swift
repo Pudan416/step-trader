@@ -336,8 +336,8 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     }
 
     func stop() async {
+        guard prepared?.state == .started else { return }
         if let pairedGate = engine as? any DayObjectsPairedInstrumentBankLifecycleGate {
-            guard prepared?.state == .started else { return }
             switch pairedGate.requestIndividualStop() {
             case .rejected:
                 return

@@ -380,6 +380,8 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
             XCTAssertEqual(pair.metrics.sharedEngineStartCount, cycle)
 
             pair.stop()
+            pair.stop()
+            pair.stop()
             XCTAssertEqual(pair.metrics.lifecycleState, .prepared)
             XCTAssertFalse(pair.metrics.sharedEngineIsRunning)
             XCTAssertEqual(pair.metrics.sharedEngineStopCount, cycle)
@@ -389,6 +391,51 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
             XCTAssertEqual(pair.bankA.metrics.state, .prepared)
             XCTAssertEqual(pair.bankB.metrics.state, .prepared)
         }
+    }
+
+    func testStandaloneStopIsIdempotentAcrossDistinctStartedEpochs() async throws {
+        let harness = makeHarness()
+        try harness.bank.prepare(configuration: configuration())
+        try harness.bank.start()
+
+        await harness.bank.stop()
+        await harness.bank.stop()
+        await harness.bank.stop()
+
+        XCTAssertEqual(harness.releaseCount, 5)
+        XCTAssertEqual(harness.engine.stopCount, 1)
+        XCTAssertEqual(harness.engine.detachCount, 1)
+        XCTAssertEqual(harness.bank.metrics.state, .prepared)
+
+        try harness.bank.start()
+        await harness.bank.stop()
+        await harness.bank.stop()
+
+        XCTAssertEqual(harness.releaseCount, 10)
+        XCTAssertEqual(harness.engine.stopCount, 2)
+        XCTAssertEqual(harness.engine.detachCount, 2)
+        XCTAssertEqual(harness.bank.metrics.state, .prepared)
+    }
+
+    func testRealStandaloneRepeatedStopDoesNotClearPreparedAuditionUntilNextStartedEpochStops() async throws {
+        let bank = DayObjectsInstrumentBank(bundle: Bundle(for: type(of: self)))
+        try bank.prepare(configuration: .playbackWorld)
+        try bank.start()
+        let pool = bank.happenings
+        let recipe = try XCTUnwrap(HappeningSoundCatalog.recipes.first)
+        let sound = lifecycleResolvedSound(recipe: recipe)
+
+        _ = try pool.play(sound, gain: 1, priority: .manualAudition, effects: lifecycleEffects(for: recipe))
+        await bank.stop()
+        XCTAssertEqual(pool.metrics.activeVoiceCount, 0)
+
+        _ = try pool.play(sound, gain: 1, priority: .manualAudition, effects: lifecycleEffects(for: recipe))
+        await bank.stop()
+        XCTAssertEqual(pool.metrics.activeVoiceCount, 1)
+
+        try bank.start()
+        await bank.stop()
+        XCTAssertEqual(pool.metrics.activeVoiceCount, 0)
     }
 
     func testPlaybackPairStartFailuresRollbackWithoutLosingPreparedGraphsAndRetryWithoutAllocation() throws {
@@ -406,10 +453,19 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
             )
             try pair.prepare(configuration: smallPlaybackPairConfiguration())
             let baseline = pair.metrics
+            let pool = pair.bankA.happenings
+            let recipe = try XCTUnwrap(HappeningSoundCatalog.recipes.first)
+            _ = try pool.play(
+                lifecycleResolvedSound(recipe: recipe),
+                gain: 1,
+                priority: .manualAudition,
+                effects: lifecycleEffects(for: recipe)
+            )
 
             XCTAssertThrowsError(try pair.start()) {
                 XCTAssertEqual($0 as? DayObjectsInstrumentBankError, .startFailed)
             }
+            XCTAssertEqual(pool.metrics.activeVoiceCount, 0)
             XCTAssertEqual(pair.metrics.lifecycleState, .prepared)
             XCTAssertFalse(pair.metrics.sharedEngineIsRunning)
             XCTAssertEqual(pair.metrics.attachedBankCount, 2)
@@ -418,11 +474,22 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
             XCTAssertEqual(pair.metrics.fixedSharedNodeIdentities, baseline.fixedSharedNodeIdentities)
             XCTAssertEqual(pair.metrics.allocationFingerprint, baseline.allocationFingerprint)
 
+            _ = try pool.play(
+                lifecycleResolvedSound(recipe: recipe),
+                gain: 1,
+                priority: .manualAudition,
+                effects: lifecycleEffects(for: recipe)
+            )
+            pair.stop()
+            XCTAssertEqual(pool.metrics.activeVoiceCount, 1)
+
             try pair.start()
             XCTAssertEqual(pair.metrics.lifecycleState, .started)
             XCTAssertEqual(pair.metrics.fixedSharedNodeIdentities, baseline.fixedSharedNodeIdentities)
             XCTAssertEqual(pair.metrics.allocationFingerprint, baseline.allocationFingerprint)
             pair.stop()
+            pair.stop()
+            XCTAssertEqual(pool.metrics.activeVoiceCount, 0)
         }
     }
 

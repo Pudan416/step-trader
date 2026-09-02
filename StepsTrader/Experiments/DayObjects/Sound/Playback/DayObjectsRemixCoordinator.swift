@@ -146,6 +146,7 @@ final class DayObjectsRemixCoordinator {
     private var highWaterSubdivision: Int64?
     private var highWaterHostTimeSeconds: TimeInterval?
     private var latestHappeningHandoffState: DayObjectsHappeningHandoffState?
+    private var hasActiveLifecycleEpoch = false
     private(set) var currentPlan: DayMusicPlan?
     private(set) var pendingPlan: DayMusicPlan?
     private(set) var result: DayObjectsRemixResult = .idle
@@ -179,6 +180,7 @@ final class DayObjectsRemixCoordinator {
     }
 
     func prepare(initialPlan: DayMusicPlan) throws {
+        let wasActiveLifecycleEpoch = hasActiveLifecycleEpoch
         try bankA.prepare()
         try runtime.prepare(bank: bankA)
         try bankB.prepare()
@@ -192,6 +194,7 @@ final class DayObjectsRemixCoordinator {
             currentPlan = nil
             pendingPlan = nil
             transition = nil
+            hasActiveLifecycleEpoch = wasActiveLifecycleEpoch
             result = .failed(.init(String(describing: error)))
             throw error
         }
@@ -205,6 +208,7 @@ final class DayObjectsRemixCoordinator {
         highWaterHostTimeSeconds = nil
         latestHappeningHandoffState = nil
         activeSlot = .a
+        hasActiveLifecycleEpoch = true
         result = .idle
     }
 
@@ -309,6 +313,8 @@ final class DayObjectsRemixCoordinator {
     }
 
     func stop() {
+        guard hasActiveLifecycleEpoch else { return }
+        hasActiveLifecycleEpoch = false
         pendingPlan = nil
         transition = nil
         lastTransitionBoundarySubdivision = nil
