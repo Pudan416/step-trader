@@ -14,7 +14,6 @@ import functools
 import hashlib
 import json
 import math
-import random
 import re
 import shutil
 import struct
@@ -24,19 +23,28 @@ import tempfile
 import wave
 from pathlib import Path
 
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from Scripts.day_objects_audio import happening_audio_metrics as metrics
+from Scripts.day_objects_audio import happening_synthesis as synthesis
+
 
 PINNED_VCSL_REVISION = "c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e"
-RENDERER_VERSION = "happening-bank-v2"
+RENDERER_VERSION = "happening-bank-v3"
 SAMPLE_RATE = 44_100
-PEAK_AMPLITUDE = 10.0 ** (-3.0 / 20.0)
 FADE_FRAMES = round(SAMPLE_RATE * 0.005)
 MIN_DURATION_FRAMES = round(SAMPLE_RATE * 0.12)
-MAX_DURATION_FRAMES = SAMPLE_RATE * 6
+MAX_DURATION_FRAMES = synthesis.MAX_RENDER_FRAMES
 TAIL_TAPER_FRAMES = SAMPLE_RATE
 TAIL_BOUNDARY_RMS_DBFS = -45.0
 RESAMPLER_TAPS = 32
 RESAMPLER_PHASES = 1024
 RESAMPLER_WINDOW = "blackman"
+MASTERING_TARGETS = {
+    "tonal-organic": metrics.MasteringTarget(-22.0, -18.0),
+    "texture": metrics.MasteringTarget(-26.0, -21.0),
+}
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPOSITORY_ROOT = SCRIPT_DIR.parents[1]
@@ -99,11 +107,18 @@ def expected_render_format() -> dict:
         "sampleRateHz": SAMPLE_RATE,
         "channels": 1,
         "bitDepth": 16,
-        "peakDBFS": -3.0,
+        "peakDBFS": -6.0,
         "fadeMilliseconds": 5,
-        "maximumDurationSeconds": 6,
+        "maximumDurationSeconds": synthesis.MAX_RENDER_SECONDS,
         "tailTaperMilliseconds": 1000,
         "tailBoundaryRMSDBFS": TAIL_BOUNDARY_RMS_DBFS,
+        "onsetRMSDBFS": -15.0,
+        "dcCeilingDBFS": metrics.DC_CEILING_DBFS,
+        "maximumGainDB": 12.0,
+        "masteringTargets": {
+            "tonal-organic": {"rmsMinDBFS": -22.0, "rmsMaxDBFS": -18.0},
+            "texture": {"rmsMinDBFS": -26.0, "rmsMaxDBFS": -21.0},
+        },
         "resampler": {
             "algorithm": "windowed-sinc-bandlimited",
             "taps": RESAMPLER_TAPS,
@@ -121,6 +136,13 @@ def render_identity_for_recipe(recipe: dict, source_map: dict) -> str:
         "renderFormat": source_map.get("renderFormat"),
         "recipe": {
             "id": recipe.get("id"),
+            "workingName": recipe.get("workingName"),
+            "paletteKind": recipe.get("paletteKind"),
+            "topology": recipe.get("topology"),
+            "attackTopology": recipe.get("attackTopology"),
+            "tailTopology": recipe.get("tailTopology"),
+            "masteringFamily": recipe.get("masteringFamily"),
+            "tail": recipe.get("tail"),
             "sourceKey": recipe.get("sourceKey"),
             "seed": recipe.get("seed"),
             "rootMIDIs": recipe.get("rootMIDIs"),
@@ -148,6 +170,10 @@ def validate_source_map(source_map: object, *, allow_stale_derived: bool = False
     require(isinstance(recipes, list), "recipes must be an array")
     require(len(recipes) == 30, "source map must contain 30 recipes")
     ids: list[int] = []
+    palette_counts = {"synth": 0, "organic": 0, "hybrid": 0}
+    topologies: list[str] = []
+    attack_tail_pairs: set[tuple[str, str]] = set()
+    vcsl_ids: set[int] = set()
     output_count = 0
     for index, recipe in enumerate(recipes):
         label = f"recipes[{index}]"
@@ -155,13 +181,43 @@ def validate_source_map(source_map: object, *, allow_stale_derived: bool = False
         recipe_id = recipe.get("id")
         require(isinstance(recipe_id, int) and not isinstance(recipe_id, bool), f"{label}.id must be an integer")
         ids.append(recipe_id)
+        for field in ("workingName", "topology", "attackTopology", "tailTopology"):
+            require(isinstance(recipe.get(field), str) and bool(recipe[field].strip()),
+                    f"{label}.{field} must be a non-empty string")
+        palette = recipe.get("paletteKind")
+        require(palette in palette_counts, f"{label}.paletteKind is invalid")
+        palette_counts[palette] += 1
+        topology = recipe["topology"]
+        topologies.append(topology)
+        pair = (recipe["attackTopology"], recipe["tailTopology"])
+        require(pair not in attack_tail_pairs, f"{label} duplicates attack/tail topology pair {pair}")
+        attack_tail_pairs.add(pair)
+        mastering_family = recipe.get("masteringFamily")
+        expected_family = "tonal-organic" if recipe_id <= 24 else "texture"
+        require(mastering_family == expected_family,
+                f"{label}.masteringFamily must be {expected_family}")
+        tail = recipe.get("tail")
+        require(isinstance(tail, dict), f"{label}.tail must be an object")
+        require(tail.get("kind") == recipe["tailTopology"],
+                f"{label}.tail.kind must match tailTopology")
+        require(isinstance(tail.get("durationSeconds"), (int, float))
+                and not isinstance(tail.get("durationSeconds"), bool)
+                and 0.0 < float(tail["durationSeconds"]) <= synthesis.MAX_RENDER_SECONDS,
+                f"{label}.tail.durationSeconds is invalid")
         require(recipe.get("sourceKey") in ("vcsl", "project-authored"),
                 f"{label}.sourceKey is invalid")
+        if recipe["sourceKey"] == "vcsl":
+            vcsl_ids.add(recipe_id)
         require(isinstance(recipe.get("seed"), int) and not isinstance(recipe.get("seed"), bool),
                 f"{label}.seed must be an integer")
         roots = recipe.get("rootMIDIs")
         require(isinstance(roots, list) and roots and all(isinstance(root, int) for root in roots),
                 f"{label}.rootMIDIs must be a non-empty integer array")
+        require(len(roots) == (4 if recipe_id <= 24 else 1),
+                f"{label}.rootMIDIs must contain {'four roots' if recipe_id <= 24 else 'one root'}")
+        if recipe_id <= 24:
+            require({root % 12 for root in roots} == {0, 3, 6, 9},
+                    f"{label}.rootMIDIs must use C/D-sharp/F-sharp/A pitch classes")
         output_count += len(roots)
         input_record = recipe.get("input")
         definition = recipe.get("definition")
@@ -172,9 +228,18 @@ def validate_source_map(source_map: object, *, allow_stale_derived: bool = False
             require(isinstance(input_record.get("path"), str), f"{label}.input.path must be a string")
             require(isinstance(input_record.get("rootMIDI"), int), f"{label}.input.rootMIDI must be an integer")
             require_sha256(input_record.get("sha256"), f"{label}.input.sha256")
+            require(isinstance(input_record.get("processingGainDB"), (int, float))
+                    and not isinstance(input_record.get("processingGainDB"), bool)
+                    and 0.0 <= float(input_record["processingGainDB"]) <= 36.0,
+                    f"{label}.input.processingGainDB must be within 0...36 dB")
         else:
             require(isinstance(definition, dict) and isinstance(definition.get("kind"), str),
                     f"{label}.definition must be an object with a kind")
+            require(definition.get("id") == recipe_id, f"{label}.definition.id must match id")
+            require(definition.get("kind") == topology, f"{label}.definition.kind must match topology")
+            require(definition.get("attackTopology") == recipe["attackTopology"],
+                    f"{label}.definition.attackTopology must match attackTopology")
+            require(definition.get("tail") == tail, f"{label}.definition.tail must match tail")
             if not allow_stale_derived:
                 require_sha256(recipe.get("definitionSha256"), f"{label}.definitionSha256")
         outputs = recipe.get("outputs")
@@ -184,10 +249,20 @@ def validate_source_map(source_map: object, *, allow_stale_derived: bool = False
             require(isinstance(output, dict), f"{label}.outputs[{output_index}] must be an object")
             require(isinstance(output.get("path"), str), f"{label}.outputs[{output_index}].path must be a string")
             require(isinstance(output.get("rootMIDI"), int), f"{label}.outputs[{output_index}].rootMIDI must be an integer")
+            require(output.get("rootMIDI") == roots[output_index],
+                    f"{label}.outputs[{output_index}].rootMIDI must match rootMIDIs")
             require_sha256(output.get("sha256"), f"{label}.outputs[{output_index}].sha256")
         if not allow_stale_derived:
             require_sha256(recipe.get("renderIdentitySha256"), f"{label}.renderIdentitySha256")
     require(ids == list(range(1, 31)), "source map must contain stable recipe IDs 1...30 in order")
+    require(palette_counts == {"synth": 10, "organic": 10, "hybrid": 10},
+            "source map must contain ten recipes per palette kind")
+    require(len(set(topologies)) >= 12, "source map must contain at least twelve topologies")
+    require(all(not (topologies[index] == topologies[index + 1] == topologies[index + 2])
+                for index in range(len(topologies) - 2)),
+            "source map may not contain three adjacent equal topologies")
+    require(vcsl_ids == {9, 10, 11, 17, 18},
+            "only recipes 09, 10, 11, 17, and 18 may use VCSL")
     require(output_count == 102, "source map must declare exactly 102 output roots")
 
 
@@ -344,130 +419,148 @@ def resampler_coefficient_table(source_step: float) -> tuple[tuple[float, ...], 
     return tuple(phases)
 
 
-def midi_frequency(midi: int) -> float:
-    return 440.0 * (2.0 ** ((midi - 69) / 12.0))
+def render_generated(recipe: dict, root_midi: int) -> synthesis.RenderedEvent:
+    return synthesis.render_authored(
+        recipe["definition"], root_midi=root_midi, seed=recipe["seed"]
+    )
 
 
-def render_additive(recipe: dict, root_midi: int) -> list[float]:
-    definition = recipe["definition"]
-    count = round(definition["durationSeconds"] * SAMPLE_RATE)
-    frequency = midi_frequency(root_midi)
-    decay = definition["decay"]
-    brightness = definition["brightness"]
-    rng = random.Random(recipe["seed"] * 1000 + root_midi)
-    phases = [rng.random() * math.tau for _ in range(5)]
-    samples: list[float] = []
-    for index in range(count):
-        time = index / SAMPLE_RATE
-        attack = min(1.0, time / 0.004)
-        envelope = attack * math.exp(-decay * time)
-        value = 0.0
-        for harmonic in range(1, 6):
-            amplitude = (brightness ** (harmonic - 1)) / harmonic
-            value += amplitude * math.sin(math.tau * frequency * harmonic * time + phases[harmonic - 1])
-        samples.append(value * envelope)
-    return samples
+def _audible_samples(samples: list[float]) -> list[float]:
+    first = next(
+        (index for index, value in enumerate(samples) if abs(value) >= metrics.AUDIBLE_THRESHOLD),
+        None,
+    )
+    if first is None:
+        raise BuildError("recorded source contains no audible samples")
+    last = next(
+        index for index in range(len(samples) - 1, -1, -1)
+        if abs(samples[index]) >= metrics.AUDIBLE_THRESHOLD
+    )
+    return samples[first : last + 1]
 
 
-def render_fm(recipe: dict, root_midi: int) -> list[float]:
-    definition = recipe["definition"]
-    count = round(definition["durationSeconds"] * SAMPLE_RATE)
-    frequency = midi_frequency(root_midi)
-    decay = definition["decay"]
-    modulation_index = definition["modulationIndex"]
-    phase = random.Random(recipe["seed"] * 1000 + root_midi).random() * math.tau
-    samples: list[float] = []
-    for index in range(count):
-        time = index / SAMPLE_RATE
-        attack = min(1.0, time / 0.010)
-        envelope = attack * math.exp(-decay * time)
-        modulator = math.sin(math.tau * frequency * 1.5 * time + phase)
-        carrier = math.sin(math.tau * frequency * time + modulation_index * envelope * modulator)
-        sub = math.sin(math.tau * frequency * 0.5 * time + phase * 0.5)
-        samples.append((carrier * 0.78 + sub * 0.22) * envelope)
-    return samples
+def render_recorded(recipe: dict, samples: list[float], root_midi: int) -> synthesis.RenderedEvent:
+    settings = {
+        "vcsl-marimba-dark": (0.62, 2_600.0, 0.30, 0.012, 1),
+        "vcsl-balafon-dry": (0.54, 3_900.0, 0.22, 0.006, 1),
+        "vcsl-vibe-chorus": (0.70, 3_000.0, 0.38, 0.020, 1),
+        "vcsl-tubular-dark": (0.86, 3_100.0, 0.48, 0.035, 2),
+        "vcsl-chime-dark": (0.92, 2_600.0, 0.56, 0.060, 2),
+    }
+    topology = recipe["topology"]
+    if topology not in settings:
+        raise BuildError(f"unknown recorded topology: {topology}")
+    duration, cutoff, decay, attack, lowpass_passes = settings[topology]
+    body = _audible_samples(samples)[: round(duration * SAMPLE_RATE)]
+    input_gain = 10.0 ** (float(recipe["input"]["processingGainDB"]) / 20.0)
+    body = [sample * input_gain for sample in body]
+    envelope = synthesis.exponential_envelope(len(body), decay, attack)
+    body = [sample * amount for sample, amount in zip(body, envelope)]
+    for _ in range(lowpass_passes):
+        body = synthesis.one_pole_lowpass(body, cutoff)
+    rendered = synthesis.apply_rendered_tail(
+        body, root_midi=root_midi, tail=recipe["tail"], seed=recipe["seed"]
+    )
+    if topology in {"vcsl-tubular-dark", "vcsl-chime-dark"}:
+        final_lowpass_passes = 2 if topology == "vcsl-tubular-dark" else 8
+        for _ in range(final_lowpass_passes):
+            rendered = synthesis.one_pole_lowpass(rendered, 2_200.0)
+        if topology == "vcsl-chime-dark":
+            rendered = [sample * (10.0 ** (1.5 / 20.0)) for sample in rendered]
+    return synthesis.RenderedEvent(
+        samples=rendered,
+        topology=topology,
+        attack_topology=recipe["attackTopology"],
+        tail_topology=recipe["tailTopology"],
+    )
 
 
-def render_resonant_noise(recipe: dict) -> list[float]:
-    definition = recipe["definition"]
-    count = round(definition["durationSeconds"] * SAMPLE_RATE)
-    decay = definition["decay"]
-    rng = random.Random(recipe["seed"])
-    frequencies = [midi_frequency(60 + pitch_class) for pitch_class in definition["resonatorPitchClasses"]]
-    phases = [rng.random() * math.tau for _ in frequencies]
-    filtered_noise = 0.0
-    samples: list[float] = []
-    for index in range(count):
-        time = index / SAMPLE_RATE
-        filtered_noise += 0.08 * (rng.uniform(-1.0, 1.0) - filtered_noise)
-        resonators = sum(
-            math.sin(math.tau * frequency * time + phase) / (tone + 1)
-            for tone, (frequency, phase) in enumerate(zip(frequencies, phases))
-        )
-        envelope = min(1.0, time / 0.080) * math.exp(-decay * time)
-        samples.append((0.30 * filtered_noise + 0.70 * resonators) * envelope)
-    return samples
+def mastering_target(recipe: dict) -> metrics.MasteringTarget:
+    family = recipe.get("masteringFamily")
+    if family not in MASTERING_TARGETS:
+        raise BuildError(f"unknown mastering family: {family}")
+    return MASTERING_TARGETS[family]
 
 
-def render_texture_noise(recipe: dict) -> list[float]:
-    definition = recipe["definition"]
-    count = round(definition["durationSeconds"] * SAMPLE_RATE)
-    coefficient = definition["lowpass"]
-    pulse_rate = definition["pulseRateHz"]
-    rng = random.Random(recipe["seed"])
-    low = 0.0
-    samples: list[float] = []
-    for index in range(count):
-        time = index / SAMPLE_RATE
-        low += coefficient * (rng.uniform(-1.0, 1.0) - low)
-        pulse = 0.55 + 0.45 * math.sin(math.tau * pulse_rate * time) ** 2
-        envelope = min(1.0, time / 0.050) * min(1.0, (count - index) / (0.20 * SAMPLE_RATE))
-        samples.append(low * pulse * envelope)
-    return samples
-
-
-def render_generated(recipe: dict, root_midi: int) -> list[float]:
-    kind = recipe["definition"].get("kind")
-    if kind == "additive-pluck":
-        return render_additive(recipe, root_midi)
-    if kind == "fm-soft":
-        return render_fm(recipe, root_midi)
-    if kind == "resonant-noise":
-        return render_resonant_noise(recipe)
-    if kind == "texture-noise":
-        return render_texture_noise(recipe)
-    raise BuildError(f"unknown generator kind: {kind}")
-
-
-def trim_fade_normalize(samples: list[float]) -> list[int]:
-    threshold = 10.0 ** (-60.0 / 20.0)
-    first = next((index for index, value in enumerate(samples) if abs(value) >= threshold), None)
-    last = next((index for index in range(len(samples) - 1, -1, -1) if abs(samples[index]) >= threshold), None)
-    if first is None or last is None:
+def _level_snapshot(samples: list[float]) -> tuple[float, float, float]:
+    audible = [sample for sample in samples if abs(sample) >= metrics.AUDIBLE_THRESHOLD]
+    if not audible:
         raise BuildError("renderer produced silence")
-    trimmed = samples[first : last + 1]
-    if len(trimmed) < MIN_DURATION_FRAMES:
-        raise BuildError(f"renderer produced only {len(trimmed)} non-silent frames")
-    if len(trimmed) > MAX_DURATION_FRAMES:
-        trimmed = trimmed[:MAX_DURATION_FRAMES]
-        taper_count = min(TAIL_TAPER_FRAMES, len(trimmed))
-        taper_start = len(trimmed) - taper_count
-        for index in range(taper_count):
-            phase = index / (taper_count - 1)
-            trimmed[taper_start + index] *= 0.5 * (1.0 + math.cos(math.pi * phase))
-    fade_count = min(FADE_FRAMES, len(trimmed) // 2)
-    for index in range(fade_count):
-        gain = index / (fade_count - 1)
-        trimmed[index] *= gain
-        trimmed[-1 - index] *= gain
-    peak = max(abs(value) for value in trimmed)
-    if not math.isfinite(peak) or peak <= 0.0:
-        raise BuildError("renderer produced an invalid peak")
-    gain = PEAK_AMPLITUDE / peak
-    pcm = [int(round(max(-1.0, min(1.0, value * gain)) * 32767.0)) for value in trimmed]
-    if max(abs(value) for value in pcm) >= 32767:
-        raise BuildError("normalization clipped the output")
-    return pcm
+    first = next(index for index, sample in enumerate(samples)
+                 if abs(sample) >= metrics.AUDIBLE_THRESHOLD)
+    onset = samples[first : first + round(SAMPLE_RATE * metrics.ONSET_SECONDS)]
+    return (
+        metrics.amplitude_to_dbfs(max(abs(sample) for sample in samples)),
+        metrics.amplitude_to_dbfs(metrics.rms(audible)),
+        metrics.amplitude_to_dbfs(metrics.rms(onset)),
+    )
+
+
+def prepare_for_mastering(
+    samples: list[float], target: metrics.MasteringTarget
+) -> list[float]:
+    """Condition crest and onset ratios that scalar mastering cannot repair."""
+    prepared = list(samples)
+    if not prepared or len(prepared) > MAX_DURATION_FRAMES:
+        raise BuildError("rendered event has an invalid frame count")
+    margin_db = 0.30
+    for _ in range(8):
+        peak_dbfs, rms_dbfs, onset_dbfs = _level_snapshot(prepared)
+        required_gain_db = target.rms_min_dbfs - rms_dbfs
+        peak_allowance_db = target.peak_ceiling_dbfs - peak_dbfs
+        onset_allowance_db = target.onset_ceiling_dbfs - onset_dbfs
+        if (
+            peak_allowance_db >= required_gain_db + margin_db
+            and onset_allowance_db >= required_gain_db
+            and target.maximum_gain_db >= required_gain_db
+        ):
+            # Freeze the audible set before scalar mastering. Without this
+            # deterministic floor, bounded gain can pull a long sub-threshold
+            # recorded tail above -60 dBFS and lower the measured result after
+            # the gain was chosen from the pre-master audible set.
+            return [
+                sample if abs(sample) >= metrics.AUDIBLE_THRESHOLD else 0.0
+                for sample in prepared
+            ]
+
+        if peak_allowance_db < required_gain_db + margin_db:
+            maximum_peak_dbfs = target.peak_ceiling_dbfs - required_gain_db - margin_db
+            ceiling = 10.0 ** (maximum_peak_dbfs / 20.0)
+            prepared = [ceiling * math.tanh(sample / ceiling) for sample in prepared]
+
+        peak_dbfs, rms_dbfs, onset_dbfs = _level_snapshot(prepared)
+        required_gain_db = target.rms_min_dbfs - rms_dbfs
+        onset_allowance_db = target.onset_ceiling_dbfs - onset_dbfs
+        if onset_allowance_db < required_gain_db:
+            attenuation_db = required_gain_db - onset_allowance_db + margin_db
+            onset_gain = 10.0 ** (-attenuation_db / 20.0)
+            first = next(index for index, sample in enumerate(prepared)
+                         if abs(sample) >= metrics.AUDIBLE_THRESHOLD)
+            onset_frames = round(SAMPLE_RATE * metrics.ONSET_SECONDS)
+            transition_frames = round(SAMPLE_RATE * 0.015)
+            for index in range(first, min(len(prepared), first + onset_frames + transition_frames)):
+                relative = index - first
+                if relative < onset_frames:
+                    gain = onset_gain
+                else:
+                    progress = (relative - onset_frames) / max(transition_frames - 1, 1)
+                    gain = onset_gain + (1.0 - onset_gain) * progress
+                prepared[index] *= gain
+    raise BuildError("rendered event cannot be conditioned for bounded mastering")
+
+
+def trim_fade_master(samples: list[float], target: metrics.MasteringTarget) -> list[int]:
+    if len(samples) > MAX_DURATION_FRAMES:
+        raise BuildError(
+            f"renderer produced {len(samples)} frames; maximum is {MAX_DURATION_FRAMES}"
+        )
+    mastered = metrics.master_event(samples, target=target, sample_rate=SAMPLE_RATE)
+    if len(mastered) < MIN_DURATION_FRAMES:
+        raise BuildError(f"renderer produced only {len(mastered)} non-silent frames")
+    return [
+        int(round(max(-1.0, min(1.0, sample)) * 32767.0))
+        for sample in mastered
+    ]
 
 
 def wav_bytes(pcm: list[int]) -> bytes:
@@ -508,7 +601,9 @@ def validate_wav_bytes(data: bytes, path: str) -> None:
         raise BuildError(f"wrong output WAV format: {path}")
     frames = (len(data) - 44) // 2
     if not MIN_DURATION_FRAMES <= frames <= MAX_DURATION_FRAMES:
-        raise BuildError(f"output duration outside 0.12...6.0 seconds: {path}")
+        raise BuildError(
+            f"output duration outside 0.12...{synthesis.MAX_RENDER_SECONDS:.1f} seconds: {path}"
+        )
 
 
 def render_bank(source_map: dict, checkout: Path, output_root: Path) -> dict[str, dict]:
@@ -530,11 +625,20 @@ def render_bank(source_map: dict, checkout: Path, output_root: Path) -> dict[str
             if input_record:
                 pitch_semitones = root_midi - input_record["rootMIDI"]
                 assert source_samples is not None
-                samples = resample_and_pitch(source_samples, source_rate, pitch_semitones)
+                pitched = resample_and_pitch(source_samples, source_rate, pitch_semitones)
+                rendered = render_recorded(recipe, pitched, root_midi)
             else:
                 pitch_semitones = None
-                samples = render_generated(recipe, root_midi)
-            data = wav_bytes(trim_fade_normalize(samples))
+                rendered = render_generated(recipe, root_midi)
+            require(rendered.topology == recipe["topology"],
+                    f"recipe {recipe_id:02d} rendered unexpected topology {rendered.topology}")
+            require(rendered.attack_topology == recipe["attackTopology"],
+                    f"recipe {recipe_id:02d} rendered unexpected attack topology")
+            require(rendered.tail_topology == recipe["tailTopology"],
+                    f"recipe {recipe_id:02d} rendered unexpected tail topology")
+            target = mastering_target(recipe)
+            prepared = prepare_for_mastering(rendered.samples, target)
+            data = wav_bytes(trim_fade_master(prepared, target))
             validate_wav_bytes(data, relative_path)
             destination = output_root / f"{recipe_id:02d}" / output_name(recipe_id, root_midi)
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -590,6 +694,28 @@ def update_manifest(source_map: dict, records: dict[str, dict]) -> None:
     manifest["assets"] = assets
     MANIFEST_PATH.write_text(
         json.dumps(manifest, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+
+def update_sources(source_map: dict) -> None:
+    with SOURCES_PATH.open("r", encoding="utf-8") as handle:
+        sources = json.load(handle)
+    vcsl_record = {
+        "project": "VCSL",
+        "sourceURL": source_map["vcslSourceURL"],
+        "revision": source_map["vcslRevision"],
+        "licenseFilename": source_map["vcslLicenseFilename"],
+        "selectedPaths": [
+            recipe["input"]["path"]
+            for recipe in source_map["recipes"]
+            if recipe.get("input")
+        ],
+    }
+    updated = [item for item in sources if item.get("project") != "VCSL"]
+    updated.append(vcsl_record)
+    SOURCES_PATH.write_text(
+        json.dumps(updated, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
 
@@ -741,7 +867,13 @@ def reproduce_and_compare_outputs(source_map: dict, checkout: Path, output_root:
                 raise BuildError(f"fresh reproduction rendered bytes differ from checked output: {relative}")
 
 
-def verify_checked_output(source_map: dict, checkout: Path, output_root: Path) -> None:
+def verify_checked_output(
+    source_map: dict,
+    checkout: Path,
+    output_root: Path,
+    *,
+    reproduce: bool = True,
+) -> None:
     for recipe in source_map["recipes"]:
         if recipe.get("input"):
             actual_input_hash = sha256_file(vcsl_input_path(checkout, recipe))
@@ -761,7 +893,8 @@ def verify_checked_output(source_map: dict, checkout: Path, output_root: Path) -
     catalog_hashes = dict(re.findall(r'        "(Happenings/[^"]+)": "([0-9a-f]{64})",', catalog_text))
     require(catalog_hashes == expected,
             "HappeningSoundCatalog does not match source map processed paths and hashes")
-    reproduce_and_compare_outputs(source_map, checkout, output_root)
+    if reproduce:
+        reproduce_and_compare_outputs(source_map, checkout, output_root)
 
 
 def compare_temporary_render(source_map: dict, records: dict[str, dict]) -> None:
@@ -814,8 +947,12 @@ def main() -> int:
         if output_root == DEFAULT_OUTPUT_ROOT.resolve():
             write_source_map(source_map)
             update_manifest(source_map, records)
+            update_sources(source_map)
             update_catalog(records)
-            verify_checked_output(source_map, checkout, output_root)
+            # The explicit --verify-only pass below performs the independent
+            # reproduction. Avoid rendering all 102 assets twice in one
+            # process so a bounded build remains inside the 60-second gate.
+            verify_checked_output(source_map, checkout, output_root, reproduce=False)
         else:
             compare_temporary_render(load_source_map(), records)
         total_bytes = sum(record["bytes"] for record in records.values())

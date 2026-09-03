@@ -60,7 +60,7 @@ struct HappeningSoundPadGrid: View {
         }
         .buttonStyle(HappeningSoundPadButtonStyle())
         .disabled(status != .ready)
-        .accessibilityLabel("Happening sound \(recipe.label), \(familyName(recipe.family))")
+        .accessibilityLabel("Happening \(recipe.label), \(recipe.workingName)")
         .accessibilityHint("Plays this sound without adding a figure")
         .accessibilityValue(accessibilityValue(status))
         .accessibilityIdentifier("dayObjects.happeningPad.\(recipe.label)")
@@ -75,15 +75,6 @@ struct HappeningSoundPadGrid: View {
         }
     }
 
-    private func familyName(_ family: HappeningRecipeFamily) -> String {
-        switch family {
-        case .synthPluck: "synth pluck"
-        case .acousticMallet: "acoustic mallet"
-        case .acousticBell: "acoustic bell"
-        case .softOneShot: "soft one-shot"
-        case .texture: "texture"
-        }
-    }
 }
 
 private struct HappeningSoundPadButtonStyle: ButtonStyle {

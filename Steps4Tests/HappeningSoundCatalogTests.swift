@@ -22,19 +22,46 @@ final class HappeningSoundCatalogTests: XCTestCase {
         XCTAssertThrowsError(try JSONDecoder().decode(HappeningSoundRecipeID.self, from: Data("31".utf8)))
     }
 
-    func testCatalogKeepsSixRecipesInEachStableFamilyBlock() {
+    func testRetimbreCatalogHasExactIdentityPaletteAndTopology() {
         let recipes = HappeningSoundCatalog.recipes
-        let expectedFamilies: [HappeningRecipeFamily] = [
-            .synthPluck, .acousticMallet, .acousticBell, .softOneShot, .texture,
+        let expectedNames = [
+            "Warm analog ping", "Glass FM droplet", "Muted pulse pluck",
+            "Hollow string", "Air reed blip", "Reverse pluck bloom",
+            "Wooden kalimba", "Ceramic knock", "Soft marimba", "Balafon brush",
+            "Muted vibraphone", "Felt key", "Soft metal bowl", "Glass tap bloom",
+            "Chorus kalimba", "Nylon pizzicato", "Dark tubular bell", "Distant chime",
+            "Sub bloom", "Analog filter ping", "Vocal droplet", "Phase-distortion bead",
+            "Rubber FM bubble", "Bowed harmonic stab", "Breath resonator",
+            "Bowed glass cloud", "Granular shimmer", "Reverse glass gesture",
+            "Soft dust impact", "Airy exhale",
         ]
-
-        XCTAssertEqual(
-            recipes.map(\.family),
-            expectedFamilies.flatMap { Array(repeating: $0, count: 6) }
-        )
-        for family in expectedFamilies {
-            XCTAssertEqual(recipes.filter { $0.family == family }.count, 6)
+        let expectedTopologies = [
+            "analog-ping", "fm-droplet", "pulse-pluck", "waveguide-string", "reed-blip",
+            "reverse-pluck", "kalimba-modal", "ceramic-modal", "vcsl-marimba-dark",
+            "vcsl-balafon-dry", "vcsl-vibe-chorus", "felt-key", "metal-bowl-modal",
+            "glass-reverse", "chorus-kalimba", "nylon-waveguide", "vcsl-tubular-dark",
+            "vcsl-chime-dark", "sub-bloom", "filter-ping", "formant-droplet",
+            "phase-distortion", "rubber-fm", "harmonic-stab", "breath-resonator",
+            "modal-glass-cloud", "granular-shimmer", "reverse-glass-unpitched",
+            "dust-impact", "breath-exhale",
+        ]
+        let synthIDs: Set<Int> = [1, 2, 3, 4, 5, 8, 19, 20, 21, 22]
+        let organicIDs: Set<Int> = [7, 9, 10, 12, 16, 17, 18, 28, 29, 30]
+        let expectedPaletteKinds: [HappeningPaletteKind] = (1...30).map {
+            synthIDs.contains($0) ? .synth : organicIDs.contains($0) ? .organic : .hybrid
         }
+
+        XCTAssertEqual(recipes.map(\.workingName), expectedNames)
+        XCTAssertEqual(recipes.map(\.paletteKind), expectedPaletteKinds)
+        XCTAssertEqual(recipes.map(\.topology), expectedTopologies)
+        XCTAssertEqual(Dictionary(grouping: recipes, by: \.paletteKind).mapValues(\.count),
+                       [.synth: 10, .organic: 10, .hybrid: 10])
+        XCTAssertEqual(Set(recipes.map(\.topology)).count, 30)
+        XCTAssertEqual(Set(recipes.map { "\($0.attackTopology)|\($0.tailTopology)" }).count, 30)
+        XCTAssertTrue(recipes.allSatisfy { !$0.workingName.isEmpty })
+        XCTAssertTrue(recipes.allSatisfy { !$0.topology.isEmpty && $0.topology != "test-fixture" })
+        XCTAssertTrue(recipes.allSatisfy { !$0.attackTopology.isEmpty && $0.attackTopology != "test-attack" })
+        XCTAssertTrue(recipes.allSatisfy { !$0.tailTopology.isEmpty && $0.tailTopology != "test-tail" })
     }
 
     func testCatalogSourcesHaveUniquePathsAndChecksums() {

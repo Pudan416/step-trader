@@ -60,6 +60,12 @@ final class DayObjectsAudioResourceTests: XCTestCase {
 
     private struct HappeningSourceRecipe: Decodable {
         let id: Int
+        let workingName: String
+        let paletteKind: String
+        let topology: String
+        let attackTopology: String
+        let tailTopology: String
+        let masteringFamily: String
         let sourceKey: String
         let seed: Int
         let rootMIDIs: [Int]
@@ -75,11 +81,20 @@ final class DayObjectsAudioResourceTests: XCTestCase {
         let bitDepth: Int?
         let peakDBFS: Double?
         let fadeMilliseconds: Int?
-        let maximumDurationSeconds: Int?
+        let maximumDurationSeconds: Double?
         let tailTaperMilliseconds: Int?
         let tailBoundaryRMSDBFS: Double?
+        let onsetRMSDBFS: Double?
+        let dcCeilingDBFS: Double?
+        let maximumGainDB: Double?
+        let masteringTargets: [String: MasteringFormat]?
         let resampler: ResamplerFormat?
         let tool: String?
+    }
+
+    private struct MasteringFormat: Decodable, Equatable {
+        let rmsMinDBFS: Double
+        let rmsMaxDBFS: Double
     }
 
     private struct ResamplerFormat: Decodable, Equatable {
@@ -258,34 +273,36 @@ final class DayObjectsAudioResourceTests: XCTestCase {
         let mappedOutputs = sourceMap.recipes.flatMap(\.outputs)
         let mappedHashes = Dictionary(uniqueKeysWithValues: mappedOutputs.map { ($0.path, $0.sha256) })
         let expectedVCSLPaths = [
-            "07 Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_C5_v1_rr1_Main.wav",
-            "08 Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_F4_v1_rr1_Main.wav",
-            "09 Idiophones/Struck Idiophones/Balafon/Soft Mallet/EthnicXylo_softM_C4_vl2_rr1_Mid.wav",
-            "10 Idiophones/Struck Idiophones/Balafon/Soft Mallet/EthnicXylo_softM_F4_vl2_rr1_Mid.wav",
-            "11 Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_C4_soft_01.wav",
-            "12 Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_G4_soft_01.wav",
-            "13 Idiophones/Struck Idiophones/Glockenspiel/glock_soft_C5_02.wav",
-            "14 Idiophones/Struck Idiophones/Glockenspiel/glock_soft_G5_01.wav",
-            "15 Idiophones/Struck Idiophones/Vibraphone/Hard Mallets/Vibes_hard_C5_v2_rr1_Main.wav",
-            "16 Idiophones/Struck Idiophones/Vibraphone/Hard Mallets/Vibes_hard_F4_v2_rr1_Main.wav",
+            "09 Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_C4_soft_01.wav",
+            "10 Idiophones/Struck Idiophones/Balafon/Soft Mallet/EthnicXylo_softM_C4_vl2_rr1_Mid.wav",
+            "11 Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_C5_v1_rr1_Main.wav",
             "17 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_C4_p_rr1.wav",
             "18 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_D4_p_rr1.wav",
         ]
 
         XCTAssertEqual(sourceMap.schemaVersion, 1)
-        XCTAssertEqual(sourceMap.rendererVersion, "happening-bank-v2")
+        XCTAssertEqual(sourceMap.rendererVersion, "happening-bank-v3")
         XCTAssertNotNil(sourceMap.rendererImplementationSha256.range(of: "^[0-9a-f]{64}$", options: .regularExpression))
         XCTAssertEqual(sourceMap.renderFormat.sampleRateHz, 44_100)
         XCTAssertEqual(sourceMap.renderFormat.resampler?.algorithm, "windowed-sinc-bandlimited")
         XCTAssertEqual(sourceMap.renderFormat.resampler?.taps, 32)
         XCTAssertEqual(sourceMap.renderFormat.tailTaperMilliseconds, 1_000)
         XCTAssertEqual(sourceMap.renderFormat.tailBoundaryRMSDBFS, -45)
+        XCTAssertEqual(sourceMap.renderFormat.peakDBFS, -6)
+        XCTAssertEqual(sourceMap.renderFormat.onsetRMSDBFS, -15)
+        XCTAssertEqual(sourceMap.renderFormat.dcCeilingDBFS, -50)
+        XCTAssertEqual(sourceMap.renderFormat.maximumGainDB, 12)
+        XCTAssertEqual(sourceMap.renderFormat.maximumDurationSeconds, 4.5)
+        XCTAssertEqual(sourceMap.renderFormat.masteringTargets?["tonal-organic"],
+                       MasteringFormat(rmsMinDBFS: -22, rmsMaxDBFS: -18))
+        XCTAssertEqual(sourceMap.renderFormat.masteringTargets?["texture"],
+                       MasteringFormat(rmsMinDBFS: -26, rmsMaxDBFS: -21))
         XCTAssertEqual(sourceMap.vcslRevision, "c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e")
         XCTAssertEqual(sourceMap.vcslSourceURL, "https://github.com/sgossner/VCSL")
         XCTAssertEqual(sourceMap.vcslLicenseFilename, "VCSL-CC0-1.0.txt")
         XCTAssertEqual(sourceMap.recipes.map(\.id), Array(1...30))
         XCTAssertEqual(sourceMap.recipes.filter { $0.sourceKey == "project-authored" }.map(\.seed),
-                       [1, 2, 3, 4, 5, 6] + Array(19...30))
+                       Array(1...8) + Array(12...16) + Array(19...30))
         XCTAssertEqual(sourceMap.recipes.compactMap(\.input).map(\.path), expectedVCSLPaths)
         let vcslSource = try XCTUnwrap(sources.first { $0.project == "VCSL" })
         XCTAssertEqual(vcslSource.sourceURL, sourceMap.vcslSourceURL)
@@ -381,24 +398,42 @@ final class DayObjectsAudioResourceTests: XCTestCase {
         XCTAssertFalse(hasFiveMillisecondFade(hardEnd, quantizedPeak: quantizedPeak), "end fade")
     }
 
-    func testBundledHappeningPCMHasNormalizedPeakFadesAndSafeSixSecondTails() throws {
+    func testBundledHappeningPCMMeetsMasteringFadesAndSafeTailGates() throws {
         let bundle = Bundle(for: type(of: self))
-        let expectedPeak = Int(round(32_767 * pow(10, -3.0 / 20.0)))
+        let maximumPeak = Int(round(32_767 * pow(10, -6.0 / 20.0)))
         let tailFrames = Int(44_100 * 0.05)
         let maximumTailRMS = pow(10, -45.0 / 20.0)
 
-        for source in HappeningSoundCatalog.recipes.flatMap(\.sources) {
-            let url = try XCTUnwrap(bundledAssetURL(for: source.resourceName, in: bundle))
-            let samples = try pcm16Samples(from: url)
-            let absolutePeak = try XCTUnwrap(samples.map(abs).max())
-            XCTAssertEqual(absolutePeak, expectedPeak, source.resourceName)
-            XCTAssertLessThan(absolutePeak, 32_767, source.resourceName)
-            XCTAssertTrue(hasFiveMillisecondFade(samples, quantizedPeak: expectedPeak), source.resourceName)
+        for recipe in HappeningSoundCatalog.recipes {
+            let rmsBounds = recipe.id.rawValue <= 24 ? -22.0 ... -18.0 : -26.0 ... -21.0
+            for source in recipe.sources {
+                let url = try XCTUnwrap(bundledAssetURL(for: source.resourceName, in: bundle))
+                let samples = try pcm16Samples(from: url)
+                let absolutePeak = try XCTUnwrap(samples.map(abs).max())
+                let audibleThreshold = Int(round(32_767 * pow(10, -60.0 / 20.0)))
+                let audible = samples.filter { abs($0) >= audibleThreshold }
+                let firstAudible = try XCTUnwrap(samples.firstIndex { abs($0) >= audibleThreshold })
+                let onset = samples[firstAudible..<min(samples.count, firstAudible + Int(44_100 * 0.05))]
+                let rmsDBFS: ([Int]) -> Double = { values in
+                    let meanSquare = values.reduce(0.0) {
+                        $0 + pow(Double($1) / 32_767.0, 2)
+                    } / Double(values.count)
+                    return 20 * log10(max(sqrt(meanSquare), 1e-6))
+                }
+                let dc = samples.reduce(0.0) { $0 + Double($1) / 32_767.0 } / Double(samples.count)
+                let dcDBFS = 20 * log10(max(abs(dc), 1e-6))
 
-            if samples.count == 6 * 44_100 {
-                let tail = samples.suffix(tailFrames)
-                let meanSquare = tail.reduce(0.0) { $0 + pow(Double($1) / 32_767.0, 2) } / Double(tail.count)
-                XCTAssertLessThanOrEqual(sqrt(meanSquare), maximumTailRMS, source.resourceName)
+                XCTAssertLessThanOrEqual(absolutePeak, maximumPeak + 1, source.resourceName)
+                XCTAssertTrue(rmsBounds.contains(rmsDBFS(audible)), source.resourceName)
+                XCTAssertLessThanOrEqual(rmsDBFS(Array(onset)), -14.95, source.resourceName)
+                XCTAssertLessThanOrEqual(dcDBFS, -49.95, source.resourceName)
+                XCTAssertTrue(hasFiveMillisecondFade(samples, quantizedPeak: maximumPeak), source.resourceName)
+
+                if samples.count == 6 * 44_100 {
+                    let tail = samples.suffix(tailFrames)
+                    let meanSquare = tail.reduce(0.0) { $0 + pow(Double($1) / 32_767.0, 2) } / Double(tail.count)
+                    XCTAssertLessThanOrEqual(sqrt(meanSquare), maximumTailRMS, source.resourceName)
+                }
             }
         }
     }

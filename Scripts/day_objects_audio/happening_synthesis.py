@@ -376,13 +376,14 @@ def render_rubber_fm(root_midi: int, seed: int) -> tuple[list[float], str, str]:
 
 
 def render_harmonic_stab(root_midi: int, seed: int) -> tuple[list[float], str, str]:
-    frames = round(SAMPLE_RATE * 0.48)
+    frames = round(SAMPLE_RATE * 0.52)
     frequency = midi_to_hz(root_midi)
-    envelope = exponential_envelope(frames, 0.13, 0.030)
-    body = [sum(math.sin(math.tau * frequency * harmonic * frame / SAMPLE_RATE) / harmonic
-                for harmonic in (1, 2, 3, 5)) * envelope[frame] * 0.48
+    envelope = exponential_envelope(frames, 0.22, 0.030)
+    partials = ((1.0, 1.0), (2.5, 0.38), (4.75, 0.22), (7.1, 0.08))
+    body = [sum(gain * math.sin(math.tau * frequency * harmonic * frame / SAMPLE_RATE)
+                for harmonic, gain in partials) * envelope[frame] * 0.42
             for frame in range(frames)]
-    return _render(frames, one_pole_lowpass(body, 3_600.0), "slow-bowed-harmonic-onset", "dry-damping")
+    return _render(frames, one_pole_lowpass(body, 3_000.0), "slow-bowed-harmonic-onset", "dry-damping")
 
 
 def render_breath_resonator(root_midi: int, seed: int) -> tuple[list[float], str, str]:
@@ -417,11 +418,19 @@ def render_reverse_glass_unpitched(root_midi: int, seed: int) -> tuple[list[floa
 
 def render_dust_impact(root_midi: int, seed: int) -> tuple[list[float], str, str]:
     frames = round(SAMPLE_RATE * 0.46)
-    dust = one_pole_highpass(_impulse(frames, seed, 0.055), 1_300.0)
+    dust = one_pole_lowpass(
+        one_pole_highpass(_impulse(frames, seed, 0.055), 1_300.0),
+        10_000.0,
+    )
+    soft_attack_frames = round(SAMPLE_RATE * 0.008)
+    dust = [
+        sample * min(1.0, frame / max(1, soft_attack_frames - 1))
+        for frame, sample in enumerate(dust)
+    ]
     low_dust = one_pole_lowpass(seeded_brown_noise(frames, seed + 1), 650.0)
     decay = exponential_envelope(frames, 0.085, 0.003)
     particulate = [sample * amount * 0.085 for sample, amount in zip(low_dust, decay)]
-    return _render(frames, _mix(_scaled(dust, 0.18), particulate), "particulate-under-120ms", "filtered-breath")
+    return _render(frames, _mix(_scaled(dust, 0.24), particulate), "particulate-under-120ms", "filtered-breath")
 
 
 def render_breath_exhale(root_midi: int, seed: int) -> tuple[list[float], str, str]:
