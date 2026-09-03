@@ -86,23 +86,22 @@ final class HappeningSoundCatalogTests: XCTestCase {
         }
     }
 
-    func testRenderedTailRecipesUseOnlyConservativeRuntimeGlue() {
+    func testRenderedTailRecipesUseDarkSpatialRuntimeGlue() {
         for recipe in HappeningSoundCatalog.recipes {
             XCTAssertLessThanOrEqual(recipe.delayMix, 0.10, recipe.label)
             XCTAssertLessThanOrEqual(recipe.delayFeedback, 0.18, recipe.label)
-            XCTAssertLessThanOrEqual(recipe.reverbMix, 0.14, recipe.label)
+            XCTAssertTrue((0.55...0.78).contains(recipe.reverbMix), recipe.label)
 
-            let bounds: (ClosedRange<Double>, ClosedRange<Double>, ClosedRange<Double>)
+            let bounds: (ClosedRange<Double>, ClosedRange<Double>)
             switch recipe.id.rawValue {
-            case 1...6: bounds = (0.02...0.08, 0.06...0.15, 0.04...0.10)
-            case 7...12: bounds = (0.01...0.06, 0.04...0.12, 0.03...0.08)
-            case 13...18: bounds = (0.02...0.07, 0.05...0.14, 0.04...0.10)
-            case 19...24: bounds = (0.02...0.08, 0.06...0.15, 0.04...0.09)
-            default: bounds = (0.01...0.06, 0.04...0.12, 0.03...0.08)
+            case 1...6: bounds = (0.02...0.08, 0.06...0.15)
+            case 7...12: bounds = (0.01...0.06, 0.04...0.12)
+            case 13...18: bounds = (0.02...0.07, 0.05...0.14)
+            case 19...24: bounds = (0.02...0.08, 0.06...0.15)
+            default: bounds = (0.01...0.06, 0.04...0.12)
             }
             XCTAssertTrue(bounds.0.contains(recipe.delayMix), recipe.label)
             XCTAssertTrue(bounds.1.contains(recipe.delayFeedback), recipe.label)
-            XCTAssertTrue(bounds.2.contains(recipe.reverbMix), recipe.label)
         }
         XCTAssertLessThanOrEqual(HappeningSoundCatalog.recipes[16].filterEndHz, 7_500)
         XCTAssertLessThanOrEqual(HappeningSoundCatalog.recipes[17].filterEndHz, 7_500)

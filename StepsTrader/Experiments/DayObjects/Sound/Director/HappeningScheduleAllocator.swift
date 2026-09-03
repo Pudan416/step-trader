@@ -38,6 +38,7 @@ enum HappeningScheduleAllocator {
             gridIDs: gridIDs,
             intervalBand: intervalBand,
             minimumPeriodBeats: minimumPeriodBeats,
+            beatsPerBar: beatsPerBar,
             remixSeed: remixSeed
         )
         var scheduled: [HappeningScheduleEvent] = []
@@ -82,9 +83,9 @@ enum HappeningScheduleAllocator {
 
     private static func intervalBand(for count: Int) -> ClosedRange<Int>? {
         switch count {
-        case 1...2: return 2...4
-        case 3...6: return 6...12
-        case 7...10: return 12...24
+        case 1...2: return 6...10
+        case 3...6: return 14...24
+        case 7...10: return 28...48
         default: return nil
         }
     }
@@ -132,10 +133,11 @@ enum HappeningScheduleAllocator {
         gridIDs: Set<String>,
         intervalBand: ClosedRange<Int>,
         minimumPeriodBeats: Int,
+        beatsPerBar: Int,
         remixSeed: UInt64,
     ) -> [VoiceLane] {
-        var occupiedPhases: [Double] = []
-        return plans.sorted { $0.happeningID < $1.happeningID }.map { plan in
+        var lanes: [VoiceLane] = []
+        for plan in plans.sorted(by: { $0.happeningID < $1.happeningID }) {
             let alignment: HappeningRecurrenceAlignment = gridIDs.contains(plan.happeningID)
                 ? .gridAligned
                 : .floating
@@ -143,7 +145,7 @@ enum HappeningScheduleAllocator {
                 seed: plan.recurrence.scheduleSeed ^ remixSeed,
                 domain: .happeningSchedule(stableID: plan.happeningID)
             )
-            let intervalBars = random.bernoulli(probability: 0.5)
+            let preferredIntervalBars = random.bernoulli(probability: 0.5)
                 ? intervalBand.lowerBound
                 : intervalBand.upperBound
             let preferredWholeBeat = random.nextInt(upperBound: minimumPeriodBeats) ?? 0
@@ -153,14 +155,10 @@ enum HappeningScheduleAllocator {
                 ),
                 periodBeats: minimumPeriodBeats
             )
-            // Guarded inputs guarantee phase capacity: active voice count is no
-            // greater than the minimum period in beats, grid voices have one slot
-            // per beat, and floating voices have the remaining two-per-beat slots.
-            let phase = candidatePhases(
+            let candidates = candidatePhases(
                 alignment: alignment,
                 periodBeats: minimumPeriodBeats
-            ).filter { isPhaseAvailable($0, among: occupiedPhases) }
-                .min {
+            ).sorted {
                     let leftDistance = circularDistance(
                         from: $0,
                         to: preferredPhase,
@@ -173,15 +171,36 @@ enum HappeningScheduleAllocator {
                     )
                     if leftDistance != rightDistance { return leftDistance < rightDistance }
                     return $0 < $1
-                } ?? preferredPhase
-            occupiedPhases.append(phase)
-            return VoiceLane(
+                }
+            // Different interval endpoints are not necessarily harmonics of one
+            // another. Validate the repeating common horizon so two otherwise
+            // distinct phases cannot converge into a later cluster.
+            let alternateIntervalBars = preferredIntervalBars == intervalBand.lowerBound
+                ? intervalBand.upperBound
+                : intervalBand.lowerBound
+            var selected: (intervalBars: Int, phaseBeat: Double)?
+            for intervalBars in [preferredIntervalBars, alternateIntervalBars] {
+                guard let phase = candidates.first(where: {
+                    isLaneAvailable(
+                        phaseBeat: $0,
+                        intervalBars: intervalBars,
+                        among: lanes,
+                        beatsPerBar: beatsPerBar
+                    )
+                }) else { continue }
+                selected = (intervalBars, phase)
+                break
+            }
+            let intervalBars = selected?.intervalBars ?? preferredIntervalBars
+            let phase = selected?.phaseBeat ?? preferredPhase
+            lanes.append(VoiceLane(
                 plan: plan,
                 alignment: alignment,
                 intervalBars: intervalBars,
                 phaseBeat: phase
-            )
+            ))
         }
+        return lanes
     }
 
     private static func candidatePhases(
@@ -199,15 +218,56 @@ enum HappeningScheduleAllocator {
         }
     }
 
-    private static func isPhaseAvailable(
-        _ position: Double,
-        among occupied: [Double]
+    private static func isLaneAvailable(
+        phaseBeat: Double,
+        intervalBars: Int,
+        among lanes: [VoiceLane],
+        beatsPerBar: Int
     ) -> Bool {
-        if occupied.contains(where: { abs($0 - position) < 0.25 - 0.000_001 }) {
+        let candidatePeriod = intervalBars * beatsPerBar
+        let horizon = lanes.reduce(candidatePeriod) { partial, lane in
+            leastCommonMultiple(partial, lane.intervalBars * beatsPerBar)
+        }
+        var positions: [Double] = []
+        for lane in lanes {
+            let period = Double(lane.intervalBars * beatsPerBar)
+            var position = lane.phaseBeat
+            while position < Double(horizon) {
+                positions.append(position)
+                position += period
+            }
+        }
+        var candidatePosition = phaseBeat
+        while candidatePosition < Double(horizon) {
+            positions.append(candidatePosition)
+            candidatePosition += Double(candidatePeriod)
+        }
+        positions.sort()
+
+        for pair in zip(positions, positions.dropFirst())
+            where pair.1 - pair.0 < 0.25 - 0.000_001 {
             return false
         }
-        let beat = Int(position.rounded(.down))
-        return occupied.filter { Int($0.rounded(.down)) == beat }.count < 2
+        if let first = positions.first,
+           let last = positions.last,
+           first + Double(horizon) - last < 0.25 - 0.000_001 {
+            return false
+        }
+        let attacksByBeat = Dictionary(grouping: positions) { Int($0.rounded(.down)) }
+        return attacksByBeat.values.allSatisfy { $0.count <= 2 }
+    }
+
+    private static func leastCommonMultiple(_ lhs: Int, _ rhs: Int) -> Int {
+        lhs / greatestCommonDivisor(lhs, rhs) * rhs
+    }
+
+    private static func greatestCommonDivisor(_ lhs: Int, _ rhs: Int) -> Int {
+        var left = lhs
+        var right = rhs
+        while right != 0 {
+            (left, right) = (right, left % right)
+        }
+        return left
     }
 
     private static func wrappedPhase(_ phase: Double, periodBeats: Int) -> Double {

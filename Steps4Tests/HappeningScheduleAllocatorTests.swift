@@ -4,9 +4,9 @@ import XCTest
 final class HappeningScheduleAllocatorTests: XCTestCase {
     func testCountsZeroThroughTenUseExactBandsAndGuaranteeFirstCycleAndNoStarvation() throws {
         let expectedBands: [ClosedRange<Int>] = [
-            2...4, 2...4,
-            6...12, 6...12, 6...12, 6...12,
-            12...24, 12...24, 12...24, 12...24
+            6...10, 6...10,
+            14...24, 14...24, 14...24, 14...24,
+            28...48, 28...48, 28...48, 28...48
         ]
 
         for count in 0...10 {
@@ -108,9 +108,9 @@ final class HappeningScheduleAllocatorTests: XCTestCase {
 
     func testCandidateStreamsCanUseBothEndpointsOfEveryDeclaredIntervalBand() {
         let representatives: [(count: Int, band: ClosedRange<Int>)] = [
-            (1, 2...4),
-            (3, 6...12),
-            (7, 12...24)
+            (1, 6...10),
+            (3, 14...24),
+            (7, 28...48)
         ]
 
         for representative in representatives {
@@ -134,7 +134,7 @@ final class HappeningScheduleAllocatorTests: XCTestCase {
             remixSeed: 2_159,
             cycleCount: 4
         )
-        let maximumGap = Double(12 * allocation.beatsPerBar)
+        let maximumGap = Double(24 * allocation.beatsPerBar)
         let horizonBeat = Double(allocation.horizonBars * allocation.beatsPerBar)
 
         for cursor in allocation.nextCursors {
@@ -154,8 +154,8 @@ final class HappeningScheduleAllocatorTests: XCTestCase {
             remixSeed: 6_052,
             cycleCount: 4
         )
-        let minimumGap = Double(6 * allocation.beatsPerBar)
-        let maximumGap = Double(12 * allocation.beatsPerBar)
+        let minimumGap = Double(14 * allocation.beatsPerBar)
+        let maximumGap = Double(24 * allocation.beatsPerBar)
 
         for events in Dictionary(grouping: allocation.events, by: \.happeningID).values {
             let ordered = events.sorted { $0.sequenceIndex < $1.sequenceIndex }
@@ -176,7 +176,7 @@ final class HappeningScheduleAllocatorTests: XCTestCase {
             beatsPerBar: 4
         )
 
-        XCTAssertEqual(allocation.cycleBars, 12)
+        XCTAssertEqual(allocation.cycleBars, 24)
         XCTAssertEqual(Set(allocation.events.map(\.happeningID)), Set(plans.map(\.happeningID)))
         XCTAssertEqual(allocation.nextCursors.count, plans.count)
         for plan in plans {
@@ -186,10 +186,10 @@ final class HappeningScheduleAllocatorTests: XCTestCase {
             XCTAssertFalse(events.isEmpty)
             XCTAssertEqual(events.map(\.sequenceIndex), Array(0..<events.count))
             for pair in zip(events, events.dropFirst()) {
-                XCTAssertTrue((24.0...48.0).contains(pair.1.startBeat - pair.0.startBeat))
+                XCTAssertTrue((56.0...96.0).contains(pair.1.startBeat - pair.0.startBeat))
             }
-            XCTAssertLessThan(try XCTUnwrap(events.first).startBeat, 48)
-            XCTAssertLessThanOrEqual(48 - (try XCTUnwrap(events.last)).startBeat, 48)
+            XCTAssertLessThan(try XCTUnwrap(events.first).startBeat, 96)
+            XCTAssertLessThanOrEqual(96 - (try XCTUnwrap(events.last)).startBeat, 96)
         }
     }
 
@@ -214,7 +214,8 @@ final class HappeningScheduleAllocatorTests: XCTestCase {
                         for pair in zip(ordered, ordered.dropFirst()) {
                             XCTAssertGreaterThanOrEqual(
                                 pair.1.startBeat - pair.0.startBeat,
-                                0.25 - 0.000_001
+                                0.25 - 0.000_001,
+                                "count=\(count), seed=\(seed), cycles=\(cycleCount), beats=\(beatsPerBar)"
                             )
                         }
                         let attacksByBeat = Dictionary(grouping: allocation.events) {

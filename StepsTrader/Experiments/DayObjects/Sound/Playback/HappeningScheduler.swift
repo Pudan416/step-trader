@@ -120,10 +120,11 @@ final class HappeningScheduler {
         }
         currentPosition = position
         isPlaying = true
+        let initialBirthID = playInitialBirths ? states.keys.sorted().first : nil
         for id in states.keys {
             states[id]?.didPlaySinceStart = false
-            guard playInitialBirths else { continue }
-            states[id]?.isBirthPending = true
+            states[id]?.isBirthPending = id == initialBirthID
+            guard id == initialBirthID else { continue }
             states[id]?.birthRetryAttemptCount = 0
             states[id]?.birthNextRetryPosition = position
             states[id]?.birthRetryDeadline = .init(

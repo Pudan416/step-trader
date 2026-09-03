@@ -412,6 +412,69 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         XCTAssertGreaterThan(differenceRMS(wet, dry), 0.001)
     }
 
+    func testProductionSpatialMixPushesTheDryTransientBehindTheReverb() throws {
+        let recipeID = id(1)
+        let recipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: recipeID))
+        let source = try XCTUnwrap(recipe.sources.first)
+        let sound = ResolvedHappeningSound(
+            recipeID: recipeID,
+            resourceName: source.resourceName,
+            sourceRootMIDI: source.rootMIDI,
+            targetMIDI: source.rootMIDI,
+            playbackRate: 1,
+            resonantFilterHz: nil
+        )
+        let dry = try renderProduction(
+            recipeIDs: [recipeID],
+            sounds: [sound],
+            duration: 1,
+            effects: .init(filterCutoffHz: 18_000, delayMix: 0, delayFeedback: 0, reverbMix: 0)
+        )
+        let spatial = try renderProduction(
+            recipeIDs: [recipeID],
+            sounds: [sound],
+            duration: 1,
+            effects: .init(
+                filterCutoffHz: recipe.filterEndHz,
+                delayMix: recipe.delayMix,
+                delayFeedback: recipe.delayFeedback,
+                reverbMix: recipe.reverbMix
+            )
+        )
+
+        XCTAssertLessThan(
+            rms(spatial, from: 0, to: 0.25),
+            rms(dry, from: 0, to: 0.25) * 0.75
+        )
+    }
+
+    func testProductionCatalogReverbRemainsAudibleFiveSecondsAfterAttack() throws {
+        let recipeID = id(1)
+        let recipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: recipeID))
+        let source = try XCTUnwrap(recipe.sources.first)
+        let sound = ResolvedHappeningSound(
+            recipeID: recipeID,
+            resourceName: source.resourceName,
+            sourceRootMIDI: source.rootMIDI,
+            targetMIDI: source.rootMIDI,
+            playbackRate: 1,
+            resonantFilterHz: nil
+        )
+        let spatial = try renderProduction(
+            recipeIDs: [recipeID],
+            sounds: [sound],
+            duration: 6,
+            effects: .init(
+                filterCutoffHz: recipe.filterEndHz,
+                delayMix: recipe.delayMix,
+                delayFeedback: recipe.delayFeedback,
+                reverbMix: recipe.reverbMix
+            )
+        )
+
+        XCTAssertGreaterThan(rms(spatial, from: 5, to: 6), 0.000_02)
+    }
+
     func testSharedEffectsAreSanitizedAndRampWithoutAllocatingPlayers() throws {
         let harness = try preparedHarness()
         let identities = harness.pool.metrics.fixedPlayerIdentities
@@ -630,6 +693,22 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
             $0 + Double(samples[$1] * samples[$1])
         }
         return sqrt(sum / Double(count))
+    }
+
+    private func rms(
+        _ buffer: AVAudioPCMBuffer,
+        from startSeconds: Double,
+        to endSeconds: Double
+    ) -> Double {
+        guard let samples = buffer.floatChannelData?[0] else { return 0 }
+        let sampleRate = buffer.format.sampleRate
+        let start = min(max(Int(startSeconds * sampleRate), 0), Int(buffer.frameLength))
+        let end = min(max(Int(endSeconds * sampleRate), start), Int(buffer.frameLength))
+        guard end > start else { return 0 }
+        let sum = (start..<end).reduce(0.0) {
+            $0 + Double(samples[$1] * samples[$1])
+        }
+        return sqrt(sum / Double(end - start))
     }
 
     private func differenceRMS(_ lhs: AVAudioPCMBuffer, _ rhs: AVAudioPCMBuffer) -> Double {

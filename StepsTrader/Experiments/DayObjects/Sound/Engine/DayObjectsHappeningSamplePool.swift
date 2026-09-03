@@ -115,6 +115,7 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
     private let dryMixer: Mixer
     private let filter: LowPassFilter
     private let delay: Delay
+    private let directGain: DayObjectsAppleGainNode
     private let reverb: Reverb
     private let reverbWet: DayObjectsAppleGainNode
     private var slots: [VoiceSlot]
@@ -192,10 +193,14 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
             lowPassCutoff: 18_000,
             dryWetMix: AUValue(currentEffects.delayMix * 100)
         )
+        directGain = DayObjectsAppleGainNode(
+            input: delay,
+            gain: Self.directPresence(for: currentEffects.reverbMix)
+        )
         reverb = Reverb(delay, dryWetMix: 1)
-        reverb.loadFactoryPreset(.plate)
+        reverb.loadFactoryPreset(.cathedral)
         reverbWet = DayObjectsAppleGainNode(input: reverb, gain: currentEffects.reverbMix)
-        output = Mixer([delay, reverbWet], name: "Day Objects Happening bus")
+        output = Mixer([directGain, reverbWet], name: "Day Objects Happening bus")
     }
 
     func prepare(recipeIDs: Set<HappeningSoundRecipeID>) throws {
@@ -339,7 +344,12 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
         transition(filter.$cutoffFrequency, to: sanitized.filterCutoffHz, duration: duration)
         transition(delay.$dryWetMix, to: sanitized.delayMix * 100, duration: duration)
         transition(delay.$feedback, to: sanitized.delayFeedback * 100, duration: duration)
+        directGain.setLinearGain(Self.directPresence(for: sanitized.reverbMix), rampSeconds: duration)
         reverbWet.setLinearGain(sanitized.reverbMix, rampSeconds: duration)
+    }
+
+    private static func directPresence(for reverbMix: Double) -> Double {
+        min(max(1 - reverbMix * 0.95, 0.32), 1)
     }
 
     func releaseAll() {

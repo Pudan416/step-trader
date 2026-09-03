@@ -7,14 +7,20 @@ final class HappeningSchedulerTests: XCTestCase {
     func testStartingWithExistingHappeningsIntroducesThemAsBirthSounds() throws {
         let harness = try makeHarness(count: 10, playInitialBirths: true)
 
-        harness.scheduler.render(
-            event(.subdivision, subdivision: 0),
-            currentChord: harness.world.progression[0]
+        render(
+            subdivisions: 0...MusicalPosition.subdivisionsPerBar,
+            through: harness.scheduler,
+            chord: harness.world.progression[0]
         )
 
         let firstAttack = try XCTUnwrap(harness.scheduler.metrics.attackHistory.first)
         XCTAssertTrue(firstAttack.isBirth)
         XCTAssertEqual(firstAttack.position, MusicalPosition(absoluteSubdivision: 0))
+        XCTAssertEqual(
+            harness.scheduler.metrics.attackHistory.filter(\.isBirth).count,
+            1,
+            "Existing happenings must not fire as a ten-sound cluster when Sound starts"
+        )
     }
 
     func testMixedAvailableAndUnavailablePlansKeepValidHappeningsAudible() throws {
@@ -256,20 +262,38 @@ final class HappeningSchedulerTests: XCTestCase {
             try harness.pool.play(sound, gain: 1, priority: .manualAudition, effects: effectCommand(for: recipe))
         }
 
-        renderBars(8, through: harness.scheduler, chord: chord(pitchClass: 0))
+        var blockedAt: Int64?
+        for subdivision in Int64(0)...Int64(10 * MusicalPosition.subdivisionsPerBar) {
+            harness.scheduler.render(
+                event(.subdivision, subdivision: subdivision),
+                currentChord: chord(pitchClass: 0)
+            )
+            if harness.pool.playAttempts.contains(where: { $0.priority == .recurrence }) {
+                blockedAt = subdivision
+                break
+            }
+        }
+        let retryOrigin = try XCTUnwrap(blockedAt)
         XCTAssertTrue(harness.scheduler.metrics.attackHistory.isEmpty)
 
         harness.pool.stop(manualVoiceIDs[0])
-        renderBars(4, through: harness.scheduler, chord: chord(pitchClass: 0), startBar: 8)
+        render(
+            subdivisions: (retryOrigin + 1)...(retryOrigin + MusicalPosition.subdivisionsPerBar),
+            through: harness.scheduler,
+            chord: chord(pitchClass: 0)
+        )
 
         let recurrence = try XCTUnwrap(harness.scheduler.metrics.attackHistory.first)
         XCTAssertFalse(recurrence.isBirth)
         XCTAssertEqual(recurrence.playbackPriority, .recurrence)
-        XCTAssertLessThanOrEqual(recurrence.position.bar - 8, 1)
+        XCTAssertLessThanOrEqual(
+            recurrence.position.absoluteSubdivision - retryOrigin,
+            MusicalPosition.subdivisionsPerBar
+        )
     }
 
     func testCountsOneFiveAndTenStayInsideRecurrenceBandsAndDensityCaps() throws {
-        for (count, band) in [(1, 2...4), (5, 6...12), (10, 12...24)] {
+        for (count, band) in [(1, 6...10), (5, 14...24), (10, 28...48)] {
             let harness = try makeHarness(count: count)
             let horizonBars = band.upperBound * 4
             renderBars(horizonBars, through: harness.scheduler, chord: harness.world.progression[0])
@@ -329,12 +353,32 @@ final class HappeningSchedulerTests: XCTestCase {
 
     func testRemovalCancelsFutureAttacksAndStopsOnlyOwnedSampleVoices() throws {
         let harness = try makeHarness(count: 2)
-        renderBars(4, through: harness.scheduler, chord: harness.world.progression[0])
-        let removed = harness.plans[0]
+        var firstAttack: HappeningAttackRecord?
+        for subdivision in Int64(0)...Int64(10 * MusicalPosition.subdivisionsPerBar) {
+            harness.scheduler.render(
+                event(.subdivision, subdivision: subdivision),
+                currentChord: harness.world.progression[0]
+            )
+            if let attack = harness.scheduler.metrics.attackHistory.first {
+                firstAttack = attack
+                break
+            }
+        }
+        let attack = try XCTUnwrap(firstAttack)
+        let removalPosition = attack.position
+        let removed = try XCTUnwrap(
+            harness.plans.first { $0.happeningID == attack.happeningID }
+        )
         let cutoff = harness.scheduler.metrics.attackHistory.count
 
         harness.scheduler.remove(id: removed.happeningID)
-        renderBars(4, through: harness.scheduler, chord: harness.world.progression[0], startBar: 4)
+        render(
+            subdivisions: (removalPosition.absoluteSubdivision + 1)...(
+                removalPosition.absoluteSubdivision + Int64(10 * MusicalPosition.subdivisionsPerBar)
+            ),
+            through: harness.scheduler,
+            chord: harness.world.progression[0]
+        )
 
         XCTAssertTrue(harness.pool.stopCalls.contains { $0.play.sound.recipeID == removed.recipeID })
         XCTAssertFalse(harness.scheduler.metrics.attackHistory.dropFirst(cutoff).contains {

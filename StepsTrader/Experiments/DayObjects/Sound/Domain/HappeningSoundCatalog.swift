@@ -91,7 +91,7 @@ enum HappeningSoundCatalog {
             releaseSeconds: release,
             delayMix: delayMix,
             delayFeedback: feedback,
-            reverbMix: reverbMix,
+            reverbMix: spatialReverbMix(reverbMix),
             filterStartHz: filterStart,
             filterEndHz: filterEnd
         )
@@ -132,7 +132,7 @@ enum HappeningSoundCatalog {
             releaseSeconds: release,
             delayMix: delayMix,
             delayFeedback: feedback,
-            reverbMix: reverbMix,
+            reverbMix: spatialReverbMix(reverbMix),
             filterStartHz: filterStart,
             filterEndHz: filterEnd
         )
@@ -166,10 +166,14 @@ enum HappeningSoundCatalog {
             releaseSeconds: release,
             delayMix: delayMix,
             delayFeedback: feedback,
-            reverbMix: reverbMix,
+            reverbMix: spatialReverbMix(reverbMix),
             filterStartHz: filterStart,
             filterEndHz: filterEnd
         )
+    }
+
+    private static func spatialReverbMix(_ legacyMix: Double) -> Double {
+        min(max(0.50 + legacyMix * 2.5, 0.55), 0.78)
     }
 
     private static let processedSHA256ByResourceName: [String: String] = [
