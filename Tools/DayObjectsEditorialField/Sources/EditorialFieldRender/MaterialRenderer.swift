@@ -41,6 +41,8 @@ public struct MaterialActorPresentationEvidence: Sendable {
     public let eventID: String
     public let isolated: MaterialPresentationEvidenceScene
     public let removed: MaterialPresentationEvidenceScene
+    public let projected: MaterialPresentationEvidenceScene
+    public let palettePoles: [MaterialPresentationEvidenceScene]
 }
 
 public struct MaterialPresentationEvidence: Sendable {
@@ -62,6 +64,10 @@ final class MaterialRenderInstrumentation: @unchecked Sendable, Equatable {
     var counterfactualCompositePasses = 0
     var isolatedPresentationComposites = 0
     var ownershipTrace: MaterialOutlineOwnershipTrace?
+    var preProjectionAuthorityAlphaPlanes = [Data]()
+    var projectedActorLayers = [CGImage]()
+    var outlineVisibilityPalettePoleLayers = [[CGImage]]()
+    var outlineVisibilitySelectedPaletteIndices = [Int]()
 
     static func == (lhs: MaterialRenderInstrumentation, rhs: MaterialRenderInstrumentation) -> Bool {
         lhs === rhs
@@ -70,7 +76,10 @@ final class MaterialRenderInstrumentation: @unchecked Sendable, Equatable {
 
 struct MaterialCapturedActorLayer: @unchecked Sendable {
     let image: CGImage
+    let presentationSupport: CGImage
+    let presentationColors: [MaterialColor]
     let drawRect: CGRect
+    let presentationSupportDrawRect: CGRect
     let presentedUnderlay: CGImage
 }
 
@@ -378,6 +387,7 @@ public struct MaterialRenderer {
                     outlineAccentLayer: true
                 )
                 : nil
+            let outlinePresentationSupport = outlineAccentImage
             let blur = max(0, actor.localBlur * shortSide)
             if blur >= 0.5 {
                 actorImage = try padded(
@@ -422,13 +432,24 @@ public struct MaterialRenderer {
                 width: layerWidth,
                 height: layerHeight
             )
+            let presentationSupportRect = CGRect(
+                x: center.x - Double(diameter) * 0.5,
+                y: center.y - Double(diameter) * 0.5,
+                width: Double(diameter),
+                height: Double(diameter)
+            )
             if let rawSceneCapture = activeRawSceneCapture {
                 guard let presentedUnderlay = context.makeImage() else {
                     throw MaterialRendererError.cannotCreateImage
                 }
                 rawSceneCapture.actorLayers.append(MaterialCapturedActorLayer(
                     image: actorImage,
+                    presentationSupport: try requiredOutlinePresentationSupport(
+                        outlinePresentationSupport
+                    ),
+                    presentationColors: actorMaterial.colors,
                     drawRect: layerRect,
+                    presentationSupportDrawRect: presentationSupportRect,
                     presentedUnderlay: presentedUnderlay
                 ))
                 configuration.instrumentation?.capturedActorLayerBuilds += 1
@@ -448,10 +469,21 @@ public struct MaterialRenderer {
                 guard let authority = authorityContext.makeImage() else {
                     throw MaterialRendererError.cannotCreateImage
                 }
+                let supportContext = try makeContext(width: width, height: height)
+                supportContext.clear(CGRect(x: 0, y: 0, width: width, height: height))
+                supportContext.draw(
+                    captured.presentationSupport,
+                    in: captured.presentationSupportDrawRect
+                )
+                guard let presentationSupport = supportContext.makeImage() else {
+                    throw MaterialRendererError.cannotCreateImage
+                }
                 owners.append(FinalOutlineOwnership(
                     eventID: eventID,
                     isolatedAlpha: authority,
-                    actorRemoved: captured.presentedUnderlay
+                    actorRemoved: captured.presentedUnderlay,
+                    presentationSupport: presentationSupport,
+                    colors: captured.presentationColors
                 ))
             }
             fullImage = try applyingActorOwnedFinalVisibility(
@@ -506,6 +538,13 @@ public struct MaterialRenderer {
         let eventID: String
         let isolatedAlpha: CGImage
         let actorRemoved: CGImage
+        let presentationSupport: CGImage?
+        let colors: [MaterialColor]
+    }
+
+    private struct OutlinePaletteProjection {
+        let layers: [CGImage]
+        let selectedIndex: Int
     }
 
     private func renderSupersampled(
@@ -573,16 +612,35 @@ public struct MaterialRenderer {
                     width: outputWidth,
                     height: outputHeight
                 )
+                let supportContext = try makeContext(width: sourceWidth, height: sourceHeight)
+                supportContext.clear(CGRect(x: 0, y: 0, width: sourceWidth, height: sourceHeight))
+                supportContext.draw(
+                    captured.presentationSupport,
+                    in: captured.presentationSupportDrawRect
+                )
+                guard let supportSource = supportContext.makeImage() else {
+                    throw MaterialRendererError.cannotCreateImage
+                }
+                let presentationSupport = try downsampled(
+                    supportSource,
+                    width: outputWidth,
+                    height: outputHeight
+                )
                 authorityImages.append(authorityImage)
                 underlayImages.append(underlayImage)
                 owners.append(FinalOutlineOwnership(
                     eventID: source.drawSequence[actorIndex],
                     isolatedAlpha: authorityImage,
-                    actorRemoved: underlayImage
+                    actorRemoved: underlayImage,
+                    presentationSupport: presentationSupport,
+                    colors: captured.presentationColors
                 ))
             }
             let traceInstrumentation = configuration.instrumentation
                 ?? MaterialRenderInstrumentation()
+            traceInstrumentation.preProjectionAuthorityAlphaPlanes = try authorityImages.map(
+                alphaPlane
+            )
             fullImage = try applyingActorOwnedFinalVisibility(
                 fullImage,
                 owners: owners,
@@ -607,7 +665,24 @@ public struct MaterialRenderer {
                                 ownership: trace,
                                 outputWidth: outputWidth,
                                 outputHeight: outputHeight
-                            )
+                            ),
+                            projected: try presentationEvidenceScene(
+                                image: traceInstrumentation.projectedActorLayers[actorIndex],
+                                drawSequence: [source.drawSequence[actorIndex]],
+                                ownership: trace,
+                                outputWidth: outputWidth,
+                                outputHeight: outputHeight
+                            ),
+                            palettePoles: try traceInstrumentation
+                                .outlineVisibilityPalettePoleLayers[actorIndex].map { pole in
+                                    try presentationEvidenceScene(
+                                        image: pole,
+                                        drawSequence: [source.drawSequence[actorIndex]],
+                                        ownership: trace,
+                                        outputWidth: outputWidth,
+                                        outputHeight: outputHeight
+                                    )
+                                }
                         )
                     }
                 )
@@ -755,7 +830,9 @@ public struct MaterialRenderer {
                 owners: [FinalOutlineOwnership(
                     eventID: material.eventID,
                     isolatedAlpha: isolatedAlpha,
-                    actorRemoved: actorRemoved
+                    actorRemoved: actorRemoved,
+                    presentationSupport: nil,
+                    colors: material.colors
                 )],
                 instrumentation: nil
             )
@@ -817,22 +894,31 @@ public struct MaterialRenderer {
         return image
     }
 
-    /// Final-resolution outline presentation. Ownership is resolved from the
-    /// already-downsampled actor layers in reverse canonical draw order. This
-    /// stage changes RGB only; canonical alpha and compositing stay untouched.
+    /// Final-resolution outline presentation. Every already-downsampled actor
+    /// layer receives its own continuous authored accent projection, then the
+    /// unchanged-alpha layers are source-over composited in canonical order.
+    /// Exclusive last-nonzero ownership remains provenance only.
     private func applyingActorOwnedFinalVisibility(
         _ image: CGImage,
         owners: [FinalOutlineOwnership],
         instrumentation: MaterialRenderInstrumentation?
     ) throws -> CGImage {
-        let output = try makeContext(width: image.width, height: image.height)
-        output.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
-        guard let outputData = output.data else {
+        guard let firstOwner = owners.first else { return image }
+        let composed = try makeContext(width: image.width, height: image.height)
+        composed.draw(
+            firstOwner.actorRemoved,
+            in: CGRect(x: 0, y: 0, width: image.width, height: image.height)
+        )
+        guard composed.data != nil else {
             throw MaterialRendererError.cannotCreateBitmap(image.width, image.height)
         }
-        let outputBytes = outputData.assumingMemoryBound(to: UInt8.self)
-        let outputRow = output.bytesPerRow
-        let ownerContexts = try owners.map { owner -> (CGContext, CGContext, Double) in
+        let ownerContexts = try owners.map {
+            owner -> (
+                isolated: CGContext,
+                removed: CGContext,
+                support: CGContext,
+                colors: [MaterialColor]
+            ) in
             let isolated = try makeContext(width: image.width, height: image.height)
             isolated.draw(
                 owner.isolatedAlpha,
@@ -843,20 +929,34 @@ public struct MaterialRenderer {
                 owner.actorRemoved,
                 in: CGRect(x: 0, y: 0, width: image.width, height: image.height)
             )
-            guard let isolatedData = isolated.data else {
-                throw MaterialRendererError.cannotCreateBitmap(image.width, image.height)
-            }
-            let isolatedBytes = isolatedData.assumingMemoryBound(to: UInt8.self)
-            var peakAlpha = UInt8.zero
-            for y in 0..<image.height {
-                for x in 0..<image.width {
-                    peakAlpha = max(
-                        peakAlpha,
-                        isolatedBytes[y * isolated.bytesPerRow + x * 4 + 3]
-                    )
-                }
-            }
-            return (isolated, removed, Double(peakAlpha) / 255)
+            let support = try makeContext(width: image.width, height: image.height)
+            support.draw(
+                owner.presentationSupport ?? owner.isolatedAlpha,
+                in: CGRect(x: 0, y: 0, width: image.width, height: image.height)
+            )
+            return (isolated, removed, support, owner.colors)
+        }
+        instrumentation?.projectedActorLayers.removeAll(keepingCapacity: true)
+        instrumentation?.outlineVisibilityPalettePoleLayers.removeAll(keepingCapacity: true)
+        instrumentation?.outlineVisibilitySelectedPaletteIndices.removeAll(keepingCapacity: true)
+        for ownerIndex in ownerContexts.indices {
+            let owner = ownerContexts[ownerIndex]
+            let projection = try projectedOutlinePalettePoleLayers(
+                authority: owner.isolated,
+                support: owner.support,
+                over: composed,
+                laterAuthorities: ownerContexts.dropFirst(ownerIndex + 1).map(\.isolated),
+                colors: owner.colors,
+                width: image.width,
+                height: image.height
+            )
+            let projected = projection.layers[projection.selectedIndex]
+            instrumentation?.projectedActorLayers.append(projected)
+            instrumentation?.outlineVisibilityPalettePoleLayers.append(projection.layers)
+            instrumentation?.outlineVisibilitySelectedPaletteIndices.append(
+                projection.selectedIndex
+            )
+            try sourceOver(projected, into: composed)
         }
         var ownerLabels = instrumentation.map { _ in
             Data(repeating: 255, count: image.width * image.height)
@@ -866,11 +966,11 @@ public struct MaterialRenderer {
         }
         for y in 0..<image.height {
             for x in 0..<image.width {
-                let offset = y * outputRow + x * 4
-                guard outputBytes[offset + 3] > 0 else { continue }
                 for ownerIndex in ownerContexts.indices.reversed() {
-                    let (isolated, removed, peakAuthorityAlpha) = ownerContexts[ownerIndex]
-                    guard let isolatedData = isolated.data, let removedData = removed.data else {
+                    let (isolated, removed, _, _) = ownerContexts[ownerIndex]
+                    guard let isolatedData = isolated.data,
+                          let removedData = removed.data
+                    else {
                         throw MaterialRendererError.cannotCreateBitmap(image.width, image.height)
                     }
                     let isolatedOffset = y * isolated.bytesPerRow + x * 4
@@ -883,66 +983,6 @@ public struct MaterialRenderer {
                     for channel in 0..<4 {
                         counterfactualBackground?[pixelIndex * 4 + channel] =
                             removedBytes[removedOffset + channel]
-                    }
-                    if outputBytes[offset] != removedBytes[removedOffset]
-                        || outputBytes[offset + 1] != removedBytes[removedOffset + 1]
-                        || outputBytes[offset + 2] != removedBytes[removedOffset + 2] {
-                        let authorityAlpha = Double(
-                            isolatedBytes[isolatedOffset + 3]
-                        ) / 255
-                        let background = RGB(
-                            r: Double(removedBytes[removedOffset]) / 255,
-                            g: Double(removedBytes[removedOffset + 1]) / 255,
-                            b: Double(removedBytes[removedOffset + 2]) / 255
-                        )
-                        let presented = RGB(
-                            r: Double(outputBytes[offset]) / 255,
-                            g: Double(outputBytes[offset + 1]) / 255,
-                            b: Double(outputBytes[offset + 2]) / 255
-                        )
-                        let inverseAlpha = 1 - authorityAlpha
-                        let foreground = RGB(
-                            r: (presented.r - background.r * inverseAlpha) / authorityAlpha,
-                            g: (presented.g - background.g * inverseAlpha) / authorityAlpha,
-                            b: (presented.b - background.b * inverseAlpha) / authorityAlpha
-                        ).clamped
-                        let projected = Self.outlineVisibilityTargetRGB(
-                            foreground,
-                            background: background
-                        )
-                        let sourceAtop = mix(background, projected, authorityAlpha).clamped
-                        let adjustedScenePixel = Self.outlineVisibilityPixel(
-                            OutlineVisibilityPixel(
-                                red: outputBytes[offset],
-                                green: outputBytes[offset + 1],
-                                blue: outputBytes[offset + 2],
-                                alpha: outputBytes[offset + 3]
-                            ),
-                            background: MaterialColor(
-                                red: background.r,
-                                green: background.g,
-                                blue: background.b
-                            )
-                        )
-                        let adjustedScene = RGB(
-                            r: Double(adjustedScenePixel.red) / 255,
-                            g: Double(adjustedScenePixel.green) / 255,
-                            b: Double(adjustedScenePixel.blue) / 255
-                        )
-                        // Normalize only the RGB projection strength. The
-                        // exact sampled authority still owns alpha unchanged:
-                        // peak contour support receives the full presentation
-                        // transfer while blur tails decay continuously to zero.
-                        let authorityWeight = authorityAlpha
-                            / max(peakAuthorityAlpha, Double.ulpOfOne)
-                        let presentedProjection = mix(
-                            sourceAtop,
-                            adjustedScene,
-                            authorityWeight
-                        ).clamped
-                        outputBytes[offset] = UInt8((presentedProjection.r * 255).rounded())
-                        outputBytes[offset + 1] = UInt8((presentedProjection.g * 255).rounded())
-                        outputBytes[offset + 2] = UInt8((presentedProjection.b * 255).rounded())
                     }
                     break
                 }
@@ -957,10 +997,183 @@ public struct MaterialRenderer {
                 counterfactualBackgroundRGBA: counterfactualBackground
             )
         }
-        guard let adjusted = output.makeImage() else {
+        guard let adjusted = composed.makeImage() else {
             throw MaterialRendererError.cannotCreateImage
         }
         return adjusted
+    }
+
+    private func projectedOutlinePalettePoleLayers(
+        authority: CGContext,
+        support: CGContext,
+        over background: CGContext,
+        laterAuthorities: [CGContext],
+        colors: [MaterialColor],
+        width: Int,
+        height: Int
+    ) throws -> OutlinePaletteProjection {
+        guard let authorityData = authority.data,
+              let supportData = support.data,
+              let backgroundData = background.data,
+              !colors.isEmpty
+        else { throw MaterialRendererError.cannotCreateBitmap(width, height) }
+        let authorityBytes = authorityData.assumingMemoryBound(to: UInt8.self)
+        let supportBytes = supportData.assumingMemoryBound(to: UInt8.self)
+        let backgroundBytes = backgroundData.assumingMemoryBound(to: UInt8.self)
+        let laterAuthorityBytes = try laterAuthorities.map { later -> UnsafeMutablePointer<UInt8> in
+            guard let data = later.data else {
+                throw MaterialRendererError.cannotCreateBitmap(width, height)
+            }
+            return data.assumingMemoryBound(to: UInt8.self)
+        }
+        var peakRGBContribution = 0.0
+        var positiveSupportAlphaSum = 0.0
+        var positiveSupportAlphaCount = 0
+        for y in 0..<height {
+            for x in 0..<width {
+                let authorityOffset = y * authority.bytesPerRow + x * 4
+                guard authorityBytes[authorityOffset + 3] > 0 else { continue }
+                let supportOffset = y * support.bytesPerRow + x * 4
+                let supportAlpha = Double(supportBytes[supportOffset + 3]) / 255
+                guard supportAlpha > 0 else { continue }
+                positiveSupportAlphaSum += supportAlpha
+                positiveSupportAlphaCount += 1
+                let backgroundOffset = y * background.bytesPerRow + x * 4
+                let backgroundRGB = RGB(
+                    r: Double(backgroundBytes[backgroundOffset]) / 255,
+                    g: Double(backgroundBytes[backgroundOffset + 1]) / 255,
+                    b: Double(backgroundBytes[backgroundOffset + 2]) / 255
+                )
+                let supportPresented = RGB(
+                    r: Double(supportBytes[supportOffset]) / 255
+                        + backgroundRGB.r * (1 - supportAlpha),
+                    g: Double(supportBytes[supportOffset + 1]) / 255
+                        + backgroundRGB.g * (1 - supportAlpha),
+                    b: Double(supportBytes[supportOffset + 2]) / 255
+                        + backgroundRGB.b * (1 - supportAlpha)
+                )
+                peakRGBContribution = max(
+                    peakRGBContribution,
+                    distance(supportPresented, backgroundRGB)
+                )
+            }
+        }
+        let meanPositiveSupportAlpha = positiveSupportAlphaSum
+            / Double(max(positiveSupportAlphaCount, 1))
+
+        let projectedContexts = try colors.map { _ in
+            let context = try makeContext(width: width, height: height)
+            context.clear(CGRect(x: 0, y: 0, width: width, height: height))
+            return context
+        }
+        let projectedBytes = try projectedContexts.map { context -> UnsafeMutablePointer<UInt8> in
+            guard let data = context.data else {
+                throw MaterialRendererError.cannotCreateBitmap(width, height)
+            }
+            return data.assumingMemoryBound(to: UInt8.self)
+        }
+        var scores = [Double](repeating: 0, count: colors.count)
+        for y in 0..<height {
+            for x in 0..<width {
+                let authorityOffset = y * authority.bytesPerRow + x * 4
+                let alphaByte = authorityBytes[authorityOffset + 3]
+                guard alphaByte > 0 else { continue }
+                let authorityAlpha = Double(alphaByte) / 255
+                let backgroundOffset = y * background.bytesPerRow + x * 4
+                let backgroundRGB = RGB(
+                    r: Double(backgroundBytes[backgroundOffset]) / 255,
+                    g: Double(backgroundBytes[backgroundOffset + 1]) / 255,
+                    b: Double(backgroundBytes[backgroundOffset + 2]) / 255
+                )
+                let supportOffset = y * support.bytesPerRow + x * 4
+                let supportAlpha = Double(supportBytes[supportOffset + 3]) / 255
+                let supportPresented = RGB(
+                    r: Double(supportBytes[supportOffset]) / 255
+                        + backgroundRGB.r * (1 - supportAlpha),
+                    g: Double(supportBytes[supportOffset + 1]) / 255
+                        + backgroundRGB.g * (1 - supportAlpha),
+                    b: Double(supportBytes[supportOffset + 2]) / 255
+                        + backgroundRGB.b * (1 - supportAlpha)
+                )
+                let rgbWeight = clamp(
+                    distance(supportPresented, backgroundRGB)
+                        / max(peakRGBContribution, Double.ulpOfOne)
+                )
+                let alphaWeight = supportAlpha
+                    / max(meanPositiveSupportAlpha, Double.ulpOfOne)
+                let weight = clamp(1 - (1 - rgbWeight) * (1 - alphaWeight))
+                var suffixTransmission = 1.0
+                for laterIndex in laterAuthorities.indices {
+                    let laterOffset = y * laterAuthorities[laterIndex].bytesPerRow + x * 4
+                    suffixTransmission *= 1
+                        - Double(laterAuthorityBytes[laterIndex][laterOffset + 3]) / 255
+                }
+                for colorIndex in colors.indices {
+                    let target = Self.outlineVisibilityTargetRGB(
+                        RGB(colors[colorIndex]),
+                        background: backgroundRGB
+                    )
+                    let projectedForeground = mix(backgroundRGB, target, weight).clamped
+                    let projected = projectedContexts[colorIndex]
+                    let projectedOffset = y * projected.bytesPerRow + x * 4
+                    projectedBytes[colorIndex][projectedOffset] = UInt8(
+                        (projectedForeground.r * authorityAlpha * 255).rounded()
+                    )
+                    projectedBytes[colorIndex][projectedOffset + 1] = UInt8(
+                        (projectedForeground.g * authorityAlpha * 255).rounded()
+                    )
+                    projectedBytes[colorIndex][projectedOffset + 2] = UInt8(
+                        (projectedForeground.b * authorityAlpha * 255).rounded()
+                    )
+                    projectedBytes[colorIndex][projectedOffset + 3] = alphaByte
+                    scores[colorIndex] += authorityAlpha * weight * suffixTransmission
+                        * distance(target, backgroundRGB)
+                }
+            }
+        }
+        let layers = try projectedContexts.map { context -> CGImage in
+            guard let image = context.makeImage() else {
+                throw MaterialRendererError.cannotCreateImage
+            }
+            return image
+        }
+        let selectedIndex = scores.indices.dropFirst().reduce(0) { best, candidate in
+            scores[candidate] > scores[best] ? candidate : best
+        }
+        return OutlinePaletteProjection(layers: layers, selectedIndex: selectedIndex)
+    }
+
+    private func sourceOver(_ source: CGImage, into destination: CGContext) throws {
+        let sourceContext = try makeContext(width: source.width, height: source.height)
+        sourceContext.draw(
+            source,
+            in: CGRect(x: 0, y: 0, width: source.width, height: source.height)
+        )
+        guard let sourceData = sourceContext.data,
+              let destinationData = destination.data
+        else { throw MaterialRendererError.cannotCreateBitmap(source.width, source.height) }
+        let sourceBytes = sourceData.assumingMemoryBound(to: UInt8.self)
+        let destinationBytes = destinationData.assumingMemoryBound(to: UInt8.self)
+        for y in 0..<source.height {
+            for x in 0..<source.width {
+                let sourceOffset = y * sourceContext.bytesPerRow + x * 4
+                let destinationOffset = y * destination.bytesPerRow + x * 4
+                let alpha = Double(sourceBytes[sourceOffset + 3]) / 255
+                for channel in 0..<3 {
+                    destinationBytes[destinationOffset + channel] = UInt8((min(
+                        1,
+                        Double(sourceBytes[sourceOffset + channel]) / 255
+                            + Double(destinationBytes[destinationOffset + channel]) / 255
+                                * (1 - alpha)
+                    ) * 255).rounded())
+                }
+                destinationBytes[destinationOffset + 3] = UInt8((min(
+                    1,
+                    alpha + Double(destinationBytes[destinationOffset + 3]) / 255
+                        * (1 - alpha)
+                ) * 255).rounded())
+            }
+        }
     }
 
     private func downsampled(_ image: CGImage, width: Int, height: Int) throws -> CGImage {
@@ -1769,6 +1982,28 @@ public struct MaterialRenderer {
             throw MaterialRendererError.cannotCreateImage
         }
         return image
+    }
+
+    private func requiredOutlinePresentationSupport(_ image: CGImage?) throws -> CGImage {
+        guard let image else { throw MaterialRendererError.cannotCreateImage }
+        return image
+    }
+
+    private func alphaPlane(_ image: CGImage) throws -> Data {
+        let context = try makeContext(width: image.width, height: image.height)
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        guard let rawData = context.data else {
+            throw MaterialRendererError.cannotCreateBitmap(image.width, image.height)
+        }
+        let bytes = rawData.assumingMemoryBound(to: UInt8.self)
+        var alpha = Data()
+        alpha.reserveCapacity(image.width * image.height)
+        for y in 0..<image.height {
+            for x in 0..<image.width {
+                alpha.append(bytes[y * context.bytesPerRow + x * 4 + 3])
+            }
+        }
+        return alpha
     }
 
     /// Structural alpha evidence is allowed to stay contour-only even when the

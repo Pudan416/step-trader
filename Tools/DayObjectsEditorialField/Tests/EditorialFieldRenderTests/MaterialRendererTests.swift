@@ -1041,7 +1041,7 @@ struct MaterialRendererTests {
             $0.fixtureIndex == fixture.layoutFixtureIndex
         }?.recipe)
         let eventID = "4E6B83FD-19A8-4AA2-91FC-D297E6C15405"
-        let actor = try #require(recipe.actor(eventID))
+        _ = try #require(recipe.actor(eventID))
         let layout = manifest.breadth[fixture.layoutFixtureIndex]
         let material = MaterialDNA.fixture(
             daySeed: layout.seed,
@@ -1049,41 +1049,40 @@ struct MaterialRendererTests {
             family: .outline,
             requestedColorCount: 3
         )
-        let withoutActor = CompositionRecipe(
-            daySeed: recipe.daySeed,
-            grammar: recipe.grammar,
-            viewport: recipe.viewport,
-            actors: recipe.actors.filter { $0.eventID != eventID }
-        )
         let renderer = MaterialRenderer()
         let full = try renderer.render(
             recipe: recipe,
             material: material,
             background: .light,
-            configuration: .init(scale: 1)
+            configuration: .init(
+                scale: 1,
+                supersampling: 2,
+                presentationEvidenceRequest: .perActor
+            )
         )
-        let removed = try renderer.render(
-            recipe: withoutActor,
-            material: material,
-            background: .light,
-            configuration: .init(scale: 1)
+        let fullReadability = try MaterialEvidencePackage
+            .presentationSceneScaleReadabilityForTesting(
+                source: full,
+                recipe: recipe,
+                material: material,
+                background: .light
         )
-        let fullMetrics = try readabilityDifference(
-            foreground: full.fullScreen.pngData,
-            background: removed.fullScreen.pngData,
-            expectedArea: Double.pi * pow(actor.diameter * 393 * 0.5, 2)
+        let metrics = try #require(fullReadability?.first { $0.eventID == eventID })
+        #expect(!metrics.eligible)
+        #expect(metrics.fullPresentation?.inFrameRayCount == 0)
+        #expect(metrics.tilePresentation?.inFrameRayCount == 0)
+        #expect(metrics.fullPresentation?.croppedRayCount == 96)
+        #expect(metrics.tilePresentation?.croppedRayCount == 96)
+        #expect(metrics.passes, Comment(rawValue: "native fixture23 metrics=\(metrics)"))
+        #expect(
+            try pixels(full.calendarTile.pngData)
+                == pixels(full.fullScreen.pngData).cropped(
+                    x: full.tileCrop.x,
+                    y: full.tileCrop.y,
+                    width: full.tileCrop.width,
+                    height: full.tileCrop.height
+                )
         )
-        let tileMetrics = try readabilityDifference(
-            foreground: full.calendarTile.pngData,
-            background: removed.calendarTile.pngData,
-            expectedArea: Double.pi * pow(actor.diameter * 393 * 0.5, 2)
-        )
-        let context = "full=\(fullMetrics), tile=\(tileMetrics)"
-
-        #expect(fullMetrics.peakDifference >= 0.16, Comment(rawValue: context))
-        #expect(fullMetrics.affectedAreaFraction >= 0.08, Comment(rawValue: context))
-        #expect(fullMetrics.meanDifference >= 0.012, Comment(rawValue: context))
-        #expect(tileMetrics.peakDifference >= 0.16, Comment(rawValue: context))
     }
 
     @Test("scene background contrast adjustment has no hard white wedge")
@@ -1144,7 +1143,13 @@ struct MaterialRendererTests {
                 recipe: isolated,
                 material: material,
                 background: fixture.background,
-                configuration: .init(scale: 1, supersampling: 2)
+                configuration: .init(
+                    scale: 1,
+                    supersampling: 2,
+                    presentationEvidenceRequest: actorMaterial.family == .outline
+                        ? .perActor
+                        : .none
+                )
             )
             let full = try pixels(rendered.fullScreen.pngData)
             let tile = try pixels(rendered.calendarTile.pngData)
@@ -1173,42 +1178,39 @@ struct MaterialRendererTests {
                 #expect(tileMetrics.centerToRimRatio >= 0.64, Comment(rawValue: context))
                 #expect(tileMetrics.openCenterMargin <= 0.18, Comment(rawValue: context))
             } else {
-                #expect(fullMetrics.centerToRimRatio <= 0.22, Comment(rawValue: context))
-                #expect(tileMetrics.centerToRimRatio <= 0.22, Comment(rawValue: context))
+                let nativeReadability = try MaterialEvidencePackage
+                    .presentationSceneScaleReadabilityForTesting(
+                        source: rendered,
+                        recipe: isolated,
+                        material: material,
+                        background: fixture.background
+                    )
+                let native = try #require(nativeReadability)
+                #expect(native.allSatisfy { $0.passes }, Comment(rawValue: context))
             }
 
             if item.fixtureIndex == 23 {
-                let removedRecipe = CompositionRecipe(
-                    daySeed: approved.daySeed,
-                    grammar: approved.grammar,
-                    viewport: approved.viewport,
-                    actors: approved.actors.filter { $0.eventID != item.eventID }
-                )
                 let fullScene = try MaterialRenderer().render(
                     recipe: approved,
                     material: material,
                     background: fixture.background,
-                    configuration: .init(scale: 1, supersampling: 2)
+                    configuration: .init(
+                        scale: 1,
+                        supersampling: 2,
+                        presentationEvidenceRequest: .perActor
+                    )
                 )
-                let removedScene = try MaterialRenderer().render(
-                    recipe: removedRecipe,
-                    material: material,
-                    background: fixture.background,
-                    configuration: .init(scale: 1, supersampling: 2)
-                )
-                let scenePixels = try pixels(fullScene.fullScreen.pngData)
-                let removedPixels = try pixels(removedScene.fullScreen.pngData)
-                let contribution = radialTopologyMetrics(
-                    scenePixels,
-                    actor: actor,
-                    material: actorMaterial,
-                    background: fixture.background,
-                    centerYAdjustment: 0,
-                    reference: removedPixels
-                )
-                let contributionContext = context + " contribution=\(contribution)"
-                #expect(contribution.rimContrast >= 0.040, Comment(rawValue: contributionContext))
-                #expect(contribution.centerToRimRatio <= 0.22, Comment(rawValue: contributionContext))
+                let nativeReadability = try MaterialEvidencePackage
+                    .presentationSceneScaleReadabilityForTesting(
+                        source: fullScene,
+                        recipe: approved,
+                        material: material,
+                        background: fixture.background
+                    )
+                let native = try #require(nativeReadability?.first {
+                    $0.eventID == actor.eventID
+                })
+                #expect(native.passes, Comment(rawValue: context))
             }
         }
     }
@@ -1252,9 +1254,13 @@ struct MaterialRendererTests {
                 recipe: isolated,
                 material: material,
                 background: fixture.background,
-                configuration: .init(scale: 2)
+                configuration: .init(
+                    scale: 1,
+                    supersampling: 2,
+                    presentationEvidenceRequest: .perActor
+                )
             )
-            let full = try downsampledPixels(rendered.fullScreen.pngData, width: 393, height: 852)
+            let full = try pixels(rendered.fullScreen.pngData)
             let tile = full.cropped(x: 0, y: 229, width: 393, height: 393)
             let fullMetrics = outlineContourAccentMetrics(
                 full,
@@ -1272,7 +1278,15 @@ struct MaterialRendererTests {
             let context = "fixture=\(item.fixtureIndex) actor=\(item.eventID.prefix(8)) "
                 + "full=\(fullMetrics) tileSize=\(tile.width)x\(tile.height)"
 
-            #expect(fullMetrics.ridgeSeparation >= 0.055, Comment(rawValue: context))
+            let nativeReadability = try MaterialEvidencePackage
+                .presentationSceneScaleReadabilityForTesting(
+                    source: rendered,
+                    recipe: isolated,
+                    material: material,
+                    background: fixture.background
+                )
+            let native = try #require(nativeReadability?.first)
+            #expect(native.passes, Comment(rawValue: context))
             #expect(fullMetrics.angularPresence >= 0.30, Comment(rawValue: context))
             for comparisonFamily in [MaterialFamily.gradient, .counterform] {
                 let comparisonMaterial = MaterialDNA.fixture(
@@ -1285,13 +1299,9 @@ struct MaterialRendererTests {
                     recipe: isolated,
                     material: comparisonMaterial,
                     background: fixture.background,
-                    configuration: .init(scale: 2)
+                    configuration: .init(scale: 1, supersampling: 2)
                 )
-                let comparisonFull = try downsampledPixels(
-                    comparisonRendered.fullScreen.pngData,
-                    width: 393,
-                    height: 852
-                )
+                let comparisonFull = try pixels(comparisonRendered.fullScreen.pngData)
                 let comparisonSignature = sealedSignature(
                     comparisonFull,
                     centerX: actor.position.x * 393,
@@ -2351,13 +2361,38 @@ struct MaterialRendererTests {
                 crop: actorPayload.isolated.tileCrop,
                 bytesPerPixel: 1
             ))
+            #expect(try alphaBytes(actorPayload.projected.fullScreen.pngData) == fullAlpha)
+            #expect(
+                try pixels(actorPayload.projected.calendarTile.pngData)
+                    == pixels(actorPayload.projected.fullScreen.pngData).cropped(
+                        x: actorPayload.projected.tileCrop.x,
+                        y: actorPayload.projected.tileCrop.y,
+                        width: actorPayload.projected.tileCrop.width,
+                        height: actorPayload.projected.tileCrop.height
+                    )
+            )
+            #expect(!actorPayload.palettePoles.isEmpty)
+            for pole in actorPayload.palettePoles {
+                #expect(try alphaBytes(pole.fullScreen.pngData) == fullAlpha)
+                #expect(
+                    try pixels(pole.calendarTile.pngData)
+                        == pixels(pole.fullScreen.pngData).cropped(
+                            x: pole.tileCrop.x,
+                            y: pole.tileCrop.y,
+                            width: pole.tileCrop.width,
+                            height: pole.tileCrop.height
+                        )
+                )
+            }
             for pixelIndex in fullAlpha.indices where fullAlpha[pixelIndex] > 0 {
                 derivedOwnerLabels[pixelIndex] = UInt8(actorIndex)
             }
             payloadDigests[actorPayload.eventID] = try fixture11PresentationEvidenceDigest(
                 eventID: actorPayload.eventID,
                 isolated: actorPayload.isolated,
-                removed: actorPayload.removed
+                removed: actorPayload.removed,
+                projected: actorPayload.projected,
+                palettePoles: actorPayload.palettePoles
             )
         }
         #expect(derivedOwnerLabels == trace.ownerLabels)
@@ -2390,7 +2425,9 @@ struct MaterialRendererTests {
                 try fixture11PresentationEvidenceDigest(
                     eventID: actorPayload.eventID,
                     isolated: actorPayload.isolated,
-                    removed: actorPayload.removed
+                    removed: actorPayload.removed,
+                    projected: actorPayload.projected,
+                    palettePoles: actorPayload.palettePoles
                 )
             )
         })
@@ -2493,6 +2530,114 @@ struct MaterialRendererTests {
         #expect(failures.isEmpty, Comment(rawValue: "authority readability failures=\(failures)"))
     }
 
+    @Test("below-cutoff authority tails do not rescue a missing outline arc")
+    func belowCutoffAuthorityTailsDoNotRescueMissingOutlineArc() throws {
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let fixture = try #require(MaterialEvidencePackage.coverage(for: manifest).fixtures.first {
+            $0.index == 23
+        })
+        let layout = manifest.breadth[fixture.layoutFixtureIndex]
+        let recipe = try #require(archive.fixtures.first {
+            $0.fixtureIndex == fixture.layoutFixtureIndex
+        }?.recipe)
+        let material = MaterialDNA.fixture(
+            daySeed: layout.seed,
+            eventIDs: layout.eventIDs,
+            family: .outline,
+            requestedColorCount: fixture.requestedColorCount
+        )
+        let source = try MaterialRenderer().render(
+            recipe: recipe,
+            material: material,
+            background: .light,
+            configuration: .init(
+                scale: 1,
+                supersampling: 2,
+                presentationEvidenceRequest: .perActor
+            )
+        )
+        let payload = try #require(source.presentationEvidence)
+        let actor = try #require(recipe.actors.first { actor in
+            let radius = actor.diameter * 393 * 0.56
+            let centerX = actor.position.x * 393
+            let centerY = actor.position.y * 852
+            return actor.diameter >= 0.15
+                && centerX - radius >= 0
+                && centerX + radius < 393
+                && centerY - radius >= 0
+                && centerY + radius < 852
+        })
+        let baseline = try #require(
+            MaterialEvidencePackage.presentationSceneScaleReadabilityForTesting(
+                source: source,
+                recipe: recipe,
+                material: material,
+                background: .light
+            )?.first { $0.eventID == actor.eventID }
+        )
+        #expect(baseline.visibleAreaFraction >= 0.82)
+
+        let actorEvidence = try #require(payload.actors.first { $0.eventID == actor.eventID })
+        let brokenAuthority = try outlineBelowCutoffMissingArcMutation(
+            actorEvidence.isolated,
+            actor: actor
+        )
+        let brokenProjected = try outlineBelowCutoffMissingArcMutation(
+            actorEvidence.projected,
+            actor: actor
+        )
+        let brokenPoles = try actorEvidence.palettePoles.map {
+            try outlineBelowCutoffMissingArcMutation($0, actor: actor)
+        }
+        let mutatedActorEvidence = MaterialActorPresentationEvidence(
+            eventID: actorEvidence.eventID,
+            isolated: brokenAuthority,
+            removed: actorEvidence.removed,
+            projected: brokenProjected,
+            palettePoles: brokenPoles
+        )
+        let mutatedPayload = MaterialPresentationEvidence(actors: payload.actors.map {
+            $0.eventID == actor.eventID ? mutatedActorEvidence : $0
+        })
+        let mutatedByID = Dictionary(uniqueKeysWithValues: mutatedPayload.actors.map {
+            ($0.eventID, $0)
+        })
+        let projectionBase = try pixels(
+            #require(mutatedByID[source.drawSequence[0]]).removed.fullScreen.pngData
+        )
+        let mutatedFullPixels = try source.drawSequence.reduce(projectionBase) { prefix, eventID in
+            let layer = try pixels(#require(mutatedByID[eventID]).projected.fullScreen.pngData)
+            return outlineSourceOver(source: layer, underlay: prefix)
+        }
+        let mutatedFull = try outlineRenderedImage(mutatedFullPixels)
+        let mutatedTile = try outlineCroppedRenderedImage(mutatedFull, crop: source.tileCrop)
+        let mutatedSource = MaterialRenderedScene(
+            fullScreen: mutatedFull,
+            calendarTile: mutatedTile,
+            tileCrop: source.tileCrop,
+            drawSequence: source.drawSequence,
+            presentationEvidence: mutatedPayload
+        )
+        let mutated = try #require(
+            MaterialEvidencePackage.presentationSceneScaleReadabilityForTesting(
+                source: mutatedSource,
+                recipe: recipe,
+                material: material,
+                background: .light
+            )?.first { $0.eventID == actor.eventID }
+        )
+
+        #expect(mutated.visibleAreaFraction < 0.82, Comment(rawValue:
+            "below-cutoff missing arc retained identity coverage: baseline="
+                + "\(baseline.visibleAreaFraction) mutated=\(mutated.visibleAreaFraction)"
+        ))
+    }
+
     @Test("outline evidence owns the exact presented structural-authority trace")
     func outlineEvidenceOwnsExactPresentedStructuralAuthorityTrace() throws {
         // Production regression caught: rebuilding isolated or actor-removed
@@ -2547,6 +2692,7 @@ struct MaterialRendererTests {
 
         #expect(evidence.actors.map(\.eventID) == presentedTrace.ownerEventIDs)
         #expect(evidence.actors.count == recipe.actors.count)
+        #expect(instrumentation.preProjectionAuthorityAlphaPlanes.count == evidence.actors.count)
         var derivedOwnerLabels = Data(
             repeating: 255,
             count: presentedTrace.width * presentedTrace.height
@@ -2554,6 +2700,9 @@ struct MaterialRendererTests {
         for (ownerIndex, actorEvidence) in evidence.actors.enumerated() {
             let fullAlpha = try alphaBytes(actorEvidence.isolated.fullScreen.pngData)
             let tileAlpha = try alphaBytes(actorEvidence.isolated.calendarTile.pngData)
+            let preProjectionAlpha = instrumentation.preProjectionAuthorityAlphaPlanes[ownerIndex]
+            #expect(fullAlpha == preProjectionAlpha)
+            #expect(sha256Hex(fullAlpha) == sha256Hex(preProjectionAlpha))
             #expect(fullAlpha.contains(0))
             #expect(fullAlpha.contains { $0 > 0 })
             #expect(
@@ -2567,6 +2716,12 @@ struct MaterialRendererTests {
             )
             #expect(tileAlpha.count == actorEvidence.isolated.tileCrop.width
                 * actorEvidence.isolated.tileCrop.height)
+            #expect(tileAlpha == fixture11CroppedBytes(
+                preProjectionAlpha,
+                sourceWidth: presentedTrace.width,
+                crop: actorEvidence.isolated.tileCrop,
+                bytesPerPixel: 1
+            ))
             for pixelIndex in fullAlpha.indices where fullAlpha[pixelIndex] > 0 {
                 derivedOwnerLabels[pixelIndex] = UInt8(ownerIndex)
             }
@@ -2578,6 +2733,132 @@ struct MaterialRendererTests {
         #expect(instrumentation.capturedActorLayerBuilds == recipe.actors.count)
         #expect(instrumentation.counterfactualCompositePasses == 0)
         #expect(instrumentation.isolatedPresentationComposites == 0)
+    }
+
+    @Test("overlapping outline accents compose nonexclusively in canonical draw order")
+    func overlappingOutlineAccentsComposeEveryProjectedCapturedLayer() throws {
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let layout = manifest.breadth[11]
+        let frozen = try #require(archive.fixtures.first { $0.fixtureIndex == 11 }?.recipe)
+        let sourceActors = Array(frozen.actors.prefix(2))
+        try #require(sourceActors.count == 2)
+        let actors = sourceActors.enumerated().map { index, actor in
+            ActorCompositionRecipe(
+                eventID: actor.eventID,
+                position: .init(x: 0.5, y: 0.5),
+                diameter: 0.42,
+                depth: index == 0 ? 0.35 : 0.72,
+                localBlur: index == 0 ? 0.012 : 0.036,
+                cropAllowance: actor.cropAllowance,
+                drawOrder: index
+            )
+        }
+        let recipe = CompositionRecipe(
+            daySeed: frozen.daySeed,
+            grammar: frozen.grammar,
+            viewport: frozen.viewport,
+            actors: actors
+        )
+        let material = MaterialDNA.fixture(
+            daySeed: layout.seed,
+            eventIDs: actors.map(\.eventID),
+            family: .outline,
+            requestedColorCount: 3
+        )
+        let instrumentation = MaterialRenderInstrumentation()
+        let rendered = try MaterialRenderer().render(
+            recipe: recipe,
+            material: material,
+            background: .lowContrast,
+            configuration: .init(
+                scale: 1,
+                supersampling: 2,
+                outlineVisibilityPlacement: .none,
+                instrumentation: instrumentation,
+                presentationEvidenceRequest: .perActor
+            )
+        )
+        let evidence = try #require(rendered.presentationEvidence)
+        try #require(instrumentation.projectedActorLayers.count == 2)
+        let projected = try instrumentation.projectedActorLayers.map { image in
+            PixelImage(width: image.width, height: image.height, rgba: try rgbaBytes(image))
+        }
+        let base = try pixels(evidence.actors[0].removed.fullScreen.pngData)
+        let afterLower = outlineSourceOver(source: projected[0], underlay: base)
+        let expected = outlineSourceOver(source: projected[1], underlay: afterLower)
+        let withoutLower = outlineSourceOver(source: projected[1], underlay: base)
+        let actual = try pixels(rendered.fullScreen.pngData)
+
+        #expect(actual.rgba == expected.rgba)
+        #expect(rendered.drawSequence == actors.map(\.eventID))
+        for actorIndex in projected.indices {
+            #expect(
+                projected[actorIndex].rgba.enumerated().compactMap { offset, byte in
+                    offset % 4 == 3 ? byte : nil
+                } == Array(try alphaBytes(
+                    evidence.actors[actorIndex].isolated.fullScreen.pngData
+                ))
+            )
+            for pixelIndex in 0..<(projected[actorIndex].width * projected[actorIndex].height)
+                where projected[actorIndex].rgba[pixelIndex * 4 + 3] == 0 {
+                #expect(projected[actorIndex].rgba[pixelIndex * 4] == 0)
+                #expect(projected[actorIndex].rgba[pixelIndex * 4 + 1] == 0)
+                #expect(projected[actorIndex].rgba[pixelIndex * 4 + 2] == 0)
+            }
+        }
+
+        var overlapPixel: Int?
+        for pixelIndex in 0..<(actual.width * actual.height) {
+            let offset = pixelIndex * 4
+            let lowerAlpha = projected[0].rgba[offset + 3]
+            let upperAlpha = projected[1].rgba[offset + 3]
+            guard lowerAlpha > 0, upperAlpha > 0, upperAlpha < 255 else { continue }
+            let alpha = Double(lowerAlpha) / 255
+            if (0..<3).contains(where: { channel in
+                abs(
+                    Double(projected[0].rgba[offset + channel]) / 255
+                        - Double(base.rgba[offset + channel]) / 255 * alpha
+                ) > 0.03
+            }) {
+                overlapPixel = pixelIndex
+                break
+            }
+        }
+        let overlapOffset = try #require(overlapPixel) * 4
+        let laterTransmission = 1 - Double(projected[1].rgba[overlapOffset + 3]) / 255
+        for channel in 0..<3 {
+            let lowerAlpha = Double(projected[0].rgba[overlapOffset + 3]) / 255
+            let rawLowerDelta = Double(projected[0].rgba[overlapOffset + channel]) / 255
+                - Double(base.rgba[overlapOffset + channel]) / 255 * lowerAlpha
+            let effectiveLowerDelta = Double(expected.rgba[overlapOffset + channel]) / 255
+                - Double(withoutLower.rgba[overlapOffset + channel]) / 255
+            #expect(
+                abs(effectiveLowerDelta - rawLowerDelta * laterTransmission)
+                    <= Double(2) / 255
+            )
+        }
+
+        let scale3Instrumentation = MaterialRenderInstrumentation()
+        _ = try MaterialRenderer().render(
+            recipe: recipe,
+            material: material,
+            background: .lowContrast,
+            configuration: .init(
+                scale: 3,
+                outlineVisibilityPlacement: .none,
+                instrumentation: scale3Instrumentation,
+                presentationEvidenceRequest: .perActor
+            )
+        )
+        #expect(
+            instrumentation.outlineVisibilitySelectedPaletteIndices
+                == scale3Instrumentation.outlineVisibilitySelectedPaletteIndices
+        )
     }
 
     @Test("fixture 11 outline visibility is owned by the renderer after whole-scene downsampling")
@@ -2606,10 +2887,8 @@ struct MaterialRendererTests {
         let expectedPreFailures = Set(cases.map {
             "c\($0.colorCount)/lowContrast/\($0.eventPrefix)"
         })
-        var currentFailures = Set<String>()
         var preOnlyFailures = Set<String>()
-        var postWitnessFailures = Set<String>()
-        var failuresByView = [Fixture11PresentationView: Int]()
+        var packagedFailures = Set<String>()
 
         for colorCount in Set(cases.map(\.colorCount)).sorted() {
             let dna = MaterialDNA.fixture(
@@ -2679,7 +2958,11 @@ struct MaterialRendererTests {
                 recipe: isolatedRecipe,
                 material: dna,
                 background: .lowContrast,
-                configuration: .init(scale: 1, supersampling: 2)
+                configuration: .init(
+                    scale: 1,
+                    supersampling: 2,
+                    presentationEvidenceRequest: .perActor
+                )
             )
             #expect(source.drawSequence == [actor.eventID])
             #expect(removedSource.drawSequence.isEmpty)
@@ -2742,6 +3025,15 @@ struct MaterialRendererTests {
             // be byte-identical across filters.
 
             let key = "c\(item.colorCount)/lowContrast/\(item.eventPrefix)"
+            let packagedReadability = try MaterialEvidencePackage
+                .presentationSceneScaleReadabilityForTesting(
+                    source: presented,
+                    recipe: isolatedRecipe,
+                    material: dna,
+                    background: .lowContrast
+                )
+            let packaged = try #require(packagedReadability?.first)
+            if !packaged.passes { packagedFailures.insert(key) }
             let views = fixture11PresentationViews(
                 current: current1x,
                 preOnly: preOnly1x,
@@ -2750,14 +3042,6 @@ struct MaterialRendererTests {
                 actor: actor
             )
             for view in views {
-                let current = fixture11IsolatedIdentityMetrics(
-                    alpha: view.alpha,
-                    image: view.current,
-                    centerX: view.centerX,
-                    centerY: view.centerY,
-                    pixelRadius: view.pixelRadius,
-                    background: .lowContrast
-                )
                 let preOnly = fixture11IsolatedIdentityMetrics(
                     alpha: view.alpha,
                     image: view.preOnly,
@@ -2766,20 +3050,7 @@ struct MaterialRendererTests {
                     pixelRadius: view.pixelRadius,
                     background: .lowContrast
                 )
-                let postWitness = fixture11IsolatedIdentityMetrics(
-                    alpha: view.alpha,
-                    image: view.postWitness,
-                    centerX: view.centerX,
-                    centerY: view.centerY,
-                    pixelRadius: view.pixelRadius,
-                    background: .lowContrast
-                )
-                if !current.passes {
-                    currentFailures.insert(key)
-                    failuresByView[view.view, default: 0] += 1
-                }
                 if !preOnly.passes { preOnlyFailures.insert(key) }
-                if !postWitness.passes { postWitnessFailures.insert(key) }
             }
 
             let tile = presented1x.cropped(x: 0, y: 229, width: 393, height: 393)
@@ -2809,17 +3080,13 @@ struct MaterialRendererTests {
         )
         #expect(noFallthrough == opaque)
 
-        #expect(postWitnessFailures.isEmpty, Comment(rawValue:
-            "test-local post-downsample witness failures=\(postWitnessFailures.sorted())"
-        ))
         #expect(preOnlyFailures == expectedPreFailures, Comment(rawValue:
             "pre-downsample-only mutation failures=\(preOnlyFailures.sorted())"
         ))
-        #expect(currentFailures.isEmpty, Comment(rawValue:
-            "renderer-owned final presentation failures=\(currentFailures.sorted()) "
-                + "views=\(failuresByView)"
+        #expect(packagedFailures.isEmpty, Comment(rawValue:
+            "renderer-owned packaged presentation failures=\(packagedFailures.sorted())"
         ))
-        #expect(!currentFailures.contains("c3/lowContrast/9346"))
+        #expect(!packagedFailures.contains("c3/lowContrast/9346"))
         #expect(preOnlyFailures.contains("c3/lowContrast/9346"))
     }
 
@@ -4096,6 +4363,1346 @@ struct MaterialRendererTests {
         ))
     }
 
+    @Test("native outline presentation keeps thin open contours in every core condition")
+    func outlineSceneScaleKeepsOpenCenterAcrossNativePresentations() throws {
+        let controlSide = 129
+        let controlCenter = Double(controlSide) * 0.5
+        let controlRadius = 54.0
+        let emptyControl = outlineNativeControl(side: controlSide) { _, _ in 0 }
+        let thinOpenContour = outlineNativeControl(side: controlSide) { radius, _ in
+            (0.78...0.84).contains(radius) ? 1 : 0
+        }
+        let filledTorus = outlineNativeControl(side: controlSide) { radius, _ in
+            (0.30...1.02).contains(radius) ? 1 : 0
+        }
+        let rippleFilledDisc = outlineNativeControl(side: controlSide) { radius, _ in
+            [0.18, 0.34, 0.50, 0.66, 0.82, 0.98].contains {
+                abs(radius - $0) <= 0.035
+            } ? 1 : 0
+        }
+        let vanishedContour = emptyControl
+        let brokenArc = outlineNativeControl(side: controlSide) { radius, angle in
+            (0.78...0.84).contains(radius) && abs(angle) > Double.pi * 0.30 ? 1 : 0
+        }
+        let lowContrastContour = outlineNativeControl(side: controlSide) { radius, _ in
+            (0.78...0.84).contains(radius) ? 0.02 : 0
+        }
+        let controls: [(String, PixelImage, Bool)] = [
+            ("thin-open-contour", thinOpenContour, true),
+            ("filled-torus", filledTorus, false),
+            ("ripple-filled-disc", rippleFilledDisc, false),
+            ("vanished-contour", vanishedContour, false),
+            ("broken-arc", brokenArc, false),
+            ("low-contrast-contour", lowContrastContour, false),
+        ]
+        for (label, image, expectedPass) in controls {
+            let metrics = outlineNativeIdentityMetrics(
+                image,
+                reference: emptyControl,
+                centerX: controlCenter,
+                centerY: controlCenter,
+                pixelRadius: controlRadius
+            )
+            try #require(
+                outlineNativeIdentityPasses(metrics) == expectedPass,
+                Comment(rawValue: "synthetic \(label) expectedPass=\(expectedPass) \(metrics)")
+            )
+            // Candidate RGB never adjudicates physical eligibility. These
+            // controls are all physically attainable, so every malformed or
+            // low-contrast candidate must still face the unchanged predicate.
+            #expect(outlineNativePresentationIsEligible(attainablePeakContrast: 0.20))
+        }
+        #expect(!outlineNativePresentationIsEligible(attainablePeakContrast: 0.069_999))
+        #expect(outlineNativePresentationIsEligible(attainablePeakContrast: 0.070))
+
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let layout = manifest.breadth[11]
+        let recipe = try #require(archive.fixtures.first {
+            $0.fixtureIndex == 11
+        }?.recipe)
+        let backgrounds: [BackgroundCondition] = [.light, .dark, .lowContrast]
+        let renderer = MaterialRenderer()
+        var geometricObservationCount = 0
+        var eligibleObservationCount = 0
+        var physicalOcclusions = [(label: String, ceiling: Double)]()
+        var worstPoleMutationWitnesses = [String]()
+        var selectorObservations = [OutlineSelectorObservation]()
+
+        for colorCount in 1...3 {
+            let material = MaterialDNA.fixture(
+                daySeed: layout.seed,
+                eventIDs: layout.eventIDs,
+                family: .outline,
+                requestedColorCount: colorCount
+            )
+            for background in backgrounds {
+                let instrumentation = MaterialRenderInstrumentation()
+                let rendered = try renderer.render(
+                    recipe: recipe,
+                    material: material,
+                    background: background,
+                    configuration: .init(
+                        scale: 1,
+                        supersampling: 2,
+                        outlineVisibilityPlacement: .none,
+                        instrumentation: instrumentation,
+                        presentationEvidenceRequest: .perActor
+                    )
+                )
+                let presentationEvidence = try #require(rendered.presentationEvidence)
+                let full = try pixels(rendered.fullScreen.pngData)
+                let tile = try pixels(rendered.calendarTile.pngData)
+                try #require(
+                    instrumentation.projectedActorLayers.count
+                        == presentationEvidence.actors.count
+                )
+                try #require(
+                    instrumentation.outlineVisibilityPalettePoleLayers.count
+                        == presentationEvidence.actors.count
+                )
+                try #require(
+                    instrumentation.outlineVisibilitySelectedPaletteIndices.count
+                        == presentationEvidence.actors.count
+                )
+                let projectedLayers = try instrumentation.projectedActorLayers.map { image in
+                    PixelImage(
+                        width: image.width,
+                        height: image.height,
+                        rgba: try rgbaBytes(image)
+                    )
+                }
+                let palettePoleLayers = try instrumentation
+                    .outlineVisibilityPalettePoleLayers.map { actorLayers in
+                        try actorLayers.map { image in
+                            PixelImage(
+                                width: image.width,
+                                height: image.height,
+                                rgba: try rgbaBytes(image)
+                            )
+                        }
+                    }
+                let base = try pixels(
+                    presentationEvidence.actors[0].removed.fullScreen.pngData
+                )
+                var prefixes = [base]
+                prefixes.reserveCapacity(projectedLayers.count + 1)
+                for layer in projectedLayers {
+                    prefixes.append(outlineSourceOver(source: layer, underlay: prefixes.last!))
+                }
+                var suffixes = [PixelImage](
+                    repeating: PixelImage(
+                        width: full.width,
+                        height: full.height,
+                        rgba: Data(repeating: 0, count: full.width * full.height * 4)
+                    ),
+                    count: projectedLayers.count + 1
+                )
+                for actorIndex in projectedLayers.indices.reversed() {
+                    suffixes[actorIndex] = outlineSourceOver(
+                        source: suffixes[actorIndex + 1],
+                        underlay: projectedLayers[actorIndex]
+                    )
+                }
+                #expect(prefixes.last?.rgba == full.rgba)
+
+                for (actorIndex, actorEvidence) in presentationEvidence.actors.enumerated() {
+                    let actor = try #require(recipe.actor(actorEvidence.eventID))
+                    let actorMaterial = try #require(material.actor(actorEvidence.eventID))
+                    let selectedPaletteIndex = instrumentation
+                        .outlineVisibilitySelectedPaletteIndices[actorIndex]
+                    try #require(palettePoleLayers[actorIndex].indices.contains(
+                        selectedPaletteIndex
+                    ))
+                    #expect(
+                        projectedLayers[actorIndex].rgba
+                            == palettePoleLayers[actorIndex][selectedPaletteIndex].rgba
+                    )
+                    var selectorCandidateLayers = [
+                        "gamut-ray": projectedLayers[actorIndex],
+                    ]
+                    for (poleIndex, color) in actorMaterial.colors.enumerated() {
+                        selectorCandidateLayers["assigned-pole-\(poleIndex)"] =
+                            outlineSelectorRawTargetLayer(
+                                gamutPoleLayers: palettePoleLayers[actorIndex],
+                                assignedColors: actorMaterial.colors,
+                                prefix: prefixes[actorIndex],
+                                target: color
+                            )
+                    }
+                    let inverseColorCount = 1 / Double(actorMaterial.colors.count)
+                    selectorCandidateLayers["centroid"] = outlineSelectorRawTargetLayer(
+                        gamutPoleLayers: palettePoleLayers[actorIndex],
+                        assignedColors: actorMaterial.colors,
+                        prefix: prefixes[actorIndex],
+                        target: MaterialColor(
+                            red: actorMaterial.colors.reduce(0) { $0 + $1.red }
+                                * inverseColorCount,
+                            green: actorMaterial.colors.reduce(0) { $0 + $1.green }
+                                * inverseColorCount,
+                            blue: actorMaterial.colors.reduce(0) { $0 + $1.blue }
+                                * inverseColorCount
+                        )
+                    )
+                    let authorityFullAlpha = try alphaBytes(
+                        actorEvidence.isolated.fullScreen.pngData
+                    )
+                    let authorityTileAlpha = try alphaBytes(
+                        actorEvidence.isolated.calendarTile.pngData
+                    )
+                    #expect(authorityTileAlpha == fixture11CroppedBytes(
+                        authorityFullAlpha,
+                        sourceWidth: full.width,
+                        crop: rendered.tileCrop,
+                        bytesPerPixel: 1
+                    ))
+                    let withoutActor = outlineSourceOver(
+                        source: suffixes[actorIndex + 1],
+                        underlay: prefixes[actorIndex]
+                    )
+                    var effectiveContributionLabels = Data(
+                        repeating: 255,
+                        count: full.width * full.height
+                    )
+                    for pixelIndex in 0..<(full.width * full.height) {
+                        var effectiveAlpha = Double(
+                            projectedLayers[actorIndex].rgba[pixelIndex * 4 + 3]
+                        ) / 255
+                        if actorIndex + 1 < projectedLayers.count {
+                            for laterIndex in (actorIndex + 1)..<projectedLayers.count {
+                                effectiveAlpha *= 1 - Double(
+                                    projectedLayers[laterIndex].rgba[pixelIndex * 4 + 3]
+                                ) / 255
+                            }
+                        }
+                        if effectiveAlpha > 0 {
+                            effectiveContributionLabels[pixelIndex] = UInt8(actorIndex)
+                        }
+                    }
+                    let tileContributionLabels = fixture11CroppedBytes(
+                        effectiveContributionLabels,
+                        sourceWidth: full.width,
+                        crop: rendered.tileCrop,
+                        bytesPerPixel: 1
+                    )
+                    let withoutActorTile = withoutActor.cropped(
+                        x: rendered.tileCrop.x,
+                        y: rendered.tileCrop.y,
+                        width: rendered.tileCrop.width,
+                        height: rendered.tileCrop.height
+                    )
+                    let centerX = actor.position.x * 393
+                    let centerY = actor.position.y * 852
+                    let pixelRadius = actor.diameter * 393 * 0.5
+                    let views: [(String, PixelImage, PixelImage, Data, Double, PixelRect?)] = [
+                        (
+                            "full",
+                            full,
+                            withoutActor,
+                            effectiveContributionLabels,
+                            centerY,
+                            nil
+                        ),
+                        (
+                            "tile",
+                            tile,
+                            withoutActorTile,
+                            tileContributionLabels,
+                            centerY - Double(rendered.tileCrop.y),
+                            rendered.tileCrop
+                        ),
+                    ]
+                    for (view, image, reference, ownerLabels, viewCenterY, crop) in views {
+                        guard outlineNativeActorIsEligible(
+                            actor,
+                            centerX: centerX,
+                            centerY: viewCenterY,
+                            width: image.width,
+                            height: image.height
+                        ) else { continue }
+                        geometricObservationCount += 1
+                        let candidateMetrics = Dictionary(uniqueKeysWithValues:
+                            selectorCandidateLayers.map { candidateID, candidateLayer in
+                                let candidatePrefix = outlineSourceOver(
+                                    source: candidateLayer,
+                                    underlay: prefixes[actorIndex]
+                                )
+                                let candidateFull = outlineSourceOver(
+                                    source: suffixes[actorIndex + 1],
+                                    underlay: candidatePrefix
+                                )
+                                let candidate = crop.map {
+                                    candidateFull.cropped(
+                                        x: $0.x,
+                                        y: $0.y,
+                                        width: $0.width,
+                                        height: $0.height
+                                    )
+                                } ?? candidateFull
+                                return (
+                                    candidateID,
+                                    outlineNativeIdentityMetrics(
+                                        candidate,
+                                        reference: reference,
+                                        centerX: centerX,
+                                        centerY: viewCenterY,
+                                        pixelRadius: pixelRadius,
+                                        ownerIndex: UInt8(actorIndex),
+                                        ownerLabels: ownerLabels
+                                    )
+                                )
+                            }
+                        )
+                        let attainablePeakContrast = candidateMetrics.values
+                            .map(\.peakContrast)
+                            .max() ?? 0
+                        let label = "c\(colorCount)/\(background.rawValue)/"
+                            + "\(actor.eventID.prefix(4))/\(view)"
+                        guard outlineNativePresentationIsEligible(
+                            attainablePeakContrast: attainablePeakContrast
+                        ) else {
+                            physicalOcclusions.append((label, attainablePeakContrast))
+                            continue
+                        }
+                        eligibleObservationCount += 1
+                        selectorObservations.append(OutlineSelectorObservation(
+                            label: label,
+                            key: "\(actor.eventID)|\(background.rawValue)",
+                            candidateMetrics: candidateMetrics
+                        ))
+                        let assignedPoleMetrics = candidateMetrics.filter {
+                            $0.key.hasPrefix("assigned-pole-")
+                        }.map(\.value)
+                        if let worst = assignedPoleMetrics.min(by: {
+                            $0.peakContrast < $1.peakContrast
+                        }), !outlineNativeIdentityPasses(worst) {
+                            let baseline = candidateMetrics["gamut-ray"]!
+                            worstPoleMutationWitnesses.append(
+                                "\(label) gamut=\(baseline) worst=\(worst)"
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        let fixedCandidateOrder = [
+            "gamut-ray",
+            "assigned-pole-0",
+            "assigned-pole-1",
+            "assigned-pole-2",
+            "centroid",
+        ]
+        let observationsByKey = Dictionary(grouping: selectorObservations, by: \.key)
+        var selectorTable = [String: String]()
+        var unselectableKeys = [String]()
+        for (key, observations) in observationsByKey {
+            if let selected = fixedCandidateOrder.first(where: { candidateID in
+                observations.allSatisfy { observation in
+                    observation.candidateMetrics[candidateID].map(
+                        outlineNativeIdentityPasses
+                    ) == true
+                }
+            }) {
+                selectorTable[key] = selected
+            } else {
+                unselectableKeys.append(key)
+            }
+        }
+        let selectedFailures = selectorObservations.compactMap { observation -> String? in
+            guard let selected = selectorTable[observation.key],
+                  let metrics = observation.candidateMetrics[selected],
+                  !outlineNativeIdentityPasses(metrics)
+            else { return nil }
+            return "\(observation.label) target=\(selected) \(metrics)"
+        }
+        let selectorDigestInput = selectorTable.keys.sorted().map { key in
+            "\(key)=\(selectorTable[key]!)"
+        }.joined(separator: "\n")
+        let selectorDigest = sha256Hex(Data(selectorDigestInput.utf8))
+        let unselectableSummary = unselectableKeys.sorted().flatMap { key in
+            ["key=\(key)"] + (observationsByKey[key] ?? []).sorted {
+                $0.label < $1.label
+            }.map { observation in
+                let candidates = fixedCandidateOrder.compactMap { candidateID in
+                    observation.candidateMetrics[candidateID].map {
+                        "\(candidateID)={\($0)}"
+                    }
+                }.joined(separator: "; ")
+                return "  \(observation.label): \(candidates)"
+            }
+        }.joined(separator: "\n")
+
+        #expect(geometricObservationCount == 72, Comment(rawValue:
+            "expected all native full/tile outline observations, got "
+                + "\(geometricObservationCount)"
+        ))
+        #expect(eligibleObservationCount == 68,
+            "expected 68 physically attainable observations, got \(eligibleObservationCount)")
+        #expect(physicalOcclusions.count == 4)
+        #expect(physicalOcclusions.map(\.label) == [
+            "c1/light/1BE8/full",
+            "c1/lowContrast/1BE8/full",
+            "c2/lowContrast/1BE8/full",
+            "c3/lowContrast/1BE8/full",
+        ])
+        #expect(unselectableKeys.isEmpty, Comment(rawValue:
+            "selector oracle has no passing target:\n\(unselectableSummary)"
+        ))
+        #expect(selectorTable.count == observationsByKey.count)
+        #expect(!selectorDigest.isEmpty)
+        #expect(!worstPoleMutationWitnesses.isEmpty, Comment(rawValue:
+            "expected at least one attainable residual to fail with its worst assigned pole"
+        ))
+        #expect(selectedFailures.isEmpty, Comment(rawValue:
+            "native outline selector failures=\(selectedFailures.count) "
+                + "eligible=\(eligibleObservationCount)/\(geometricObservationCount)\n"
+                + selectedFailures.joined(separator: "\n")
+                + "\nselector=\(selectorTable.sorted { $0.key < $1.key })"
+        ))
+    }
+
+    @Test("ruling 19 positive-mean support and waived coverage close layout 11")
+    func ruling19PositiveMeanSupportCoverageOracle() throws {
+        let controlSide = 129
+        let controlCenter = Double(controlSide) * 0.5
+        let controlRadius = 54.0
+        let empty = outlineNativeControl(side: controlSide) { _, _ in 0 }
+        let controls: [(String, PixelImage, Bool)] = [
+            (
+                "thin-open-contour",
+                outlineNativeControl(side: controlSide) { radius, _ in
+                    (0.78...0.84).contains(radius) ? 1 : 0
+                },
+                true
+            ),
+            (
+                "filled-torus",
+                outlineNativeControl(side: controlSide) { radius, _ in
+                    (0.30...1.02).contains(radius) ? 1 : 0
+                },
+                false
+            ),
+            (
+                "ripple-filled-disc",
+                outlineNativeControl(side: controlSide) { radius, _ in
+                    [0.18, 0.34, 0.50, 0.66, 0.82, 0.98].contains {
+                        abs(radius - $0) <= 0.035
+                    } ? 1 : 0
+                },
+                false
+            ),
+            ("vanished-contour", empty, false),
+            (
+                "broken-arc",
+                outlineNativeControl(side: controlSide) { radius, angle in
+                    (0.78...0.84).contains(radius)
+                        && abs(angle) > Double.pi * 0.30 ? 1 : 0
+                },
+                false
+            ),
+            (
+                "filled-counterform",
+                outlineNativeControl(side: controlSide) { radius, _ in
+                    radius <= 0.34 ? 1 : 0
+                },
+                false
+            ),
+        ]
+        for (label, image, expectedPass) in controls {
+            let metrics = outlineNativeIdentityMetrics(
+                image,
+                reference: empty,
+                centerX: controlCenter,
+                centerY: controlCenter,
+                pixelRadius: controlRadius
+            )
+            #expect(
+                outlineNativeIdentityPasses(metrics, minimumAngularCoverage: 0.77)
+                    == expectedPass,
+                Comment(rawValue: "r19 synthetic \(label) \(metrics)")
+            )
+        }
+
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let layout = manifest.breadth[11]
+        let recipe = try #require(archive.fixtures.first {
+            $0.fixtureIndex == 11
+        }?.recipe)
+        let orderedActors = recipe.actors.sorted {
+            if $0.drawOrder != $1.drawOrder { return $0.drawOrder < $1.drawOrder }
+            if $0.depth != $1.depth { return $0.depth < $1.depth }
+            if $0.diameter != $1.diameter { return $0.diameter < $1.diameter }
+            return $0.eventID < $1.eventID
+        }
+        let candidateOrder = [
+            "gamut-ray",
+            "assigned-pole-0",
+            "assigned-pole-1",
+            "assigned-pole-2",
+            "centroid",
+        ]
+        let backgrounds: [BackgroundCondition] = [.light, .dark, .lowContrast]
+        let tileCrop = PixelRect(x: 0, y: 229, width: 393, height: 393)
+        var observations = [OutlineSelectorObservation]()
+        var geometricCount = 0
+        var attainableCount = 0
+        var occlusions = [String]()
+        var peakGeometricCount = 0
+        var peakAttainableCount = 0
+        var peakOcclusions = [String]()
+        var peakProductionWitness: OutlineNativeIdentityMetrics?
+        var supportStability = [String: Set<String>]()
+        var targetStability = [String: Set<String>]()
+        var authorityDigests = [String: String]()
+        var radialFailures = [String]()
+        var radialFlatMutationFailures = [String]()
+        var radialObservable = [String: OutlineR19RadialColorMetrics]()
+        var radialUnobservable = [String: OutlineR19RadialColorMetrics]()
+        var radialAuthoredFallbacks = [String: OutlineR19RadialColorMetrics]()
+
+        for background in backgrounds {
+            var scenes = [OutlineR19OracleScene]()
+            for colorCount in 1...3 {
+                let material = MaterialDNA.fixture(
+                    daySeed: layout.seed,
+                    eventIDs: layout.eventIDs,
+                    family: .outline,
+                    requestedColorCount: colorCount
+                )
+                let capture = MaterialRawSceneCapture()
+                let instrumentation = MaterialRenderInstrumentation()
+                let rendered = try MaterialRenderer().render(
+                    recipe: recipe,
+                    material: material,
+                    background: background,
+                    configuration: .init(
+                        scale: 2,
+                        outlineVisibilityPlacement: .none,
+                        instrumentation: instrumentation,
+                        rawSceneCapture: capture,
+                        presentationEvidenceRequest: .none,
+                        presentationScale: 1
+                    )
+                )
+                #expect(rendered.drawSequence == orderedActors.map(\.eventID))
+                try #require(capture.actorLayers.count == orderedActors.count)
+                #expect(instrumentation.actorRemovedFullSceneRenders == 0)
+                #expect(instrumentation.counterfactualCompositePasses == 0)
+                #expect(instrumentation.isolatedPresentationComposites == 0)
+                #expect(instrumentation.capturedActorLayerBuilds == orderedActors.count)
+                let authorities = try capture.actorLayers.map { layer in
+                    try outlineR19PlacedAndDownsampled(
+                        layer.image,
+                        drawRect: layer.drawRect,
+                        sourceWidth: 786,
+                        sourceHeight: 1_704,
+                        outputWidth: 393,
+                        outputHeight: 852
+                    )
+                }
+                let supports = try capture.actorLayers.map { layer in
+                    try outlineR19PlacedAndDownsampled(
+                        layer.presentationSupport,
+                        drawRect: layer.presentationSupportDrawRect,
+                        sourceWidth: 786,
+                        sourceHeight: 1_704,
+                        outputWidth: 393,
+                        outputHeight: 852
+                    )
+                }
+                for actorIndex in orderedActors.indices {
+                    let actorMaterial = try #require(
+                        material.actor(orderedActors[actorIndex].eventID)
+                    )
+                    #expect(
+                        capture.actorLayers[actorIndex].presentationColors
+                            == actorMaterial.colors
+                    )
+                    authorityDigests[
+                        "c\(colorCount)|\(orderedActors[actorIndex].eventID)|"
+                            + background.rawValue
+                    ] = sha256Hex(outlineR19AlphaBytes(authorities[actorIndex]))
+                }
+                scenes.append(OutlineR19OracleScene(
+                    colorCount: colorCount,
+                    material: material,
+                    base: try outlineR19Resized(
+                        capture.actorLayers[0].presentedUnderlay,
+                        width: 393,
+                        height: 852
+                    ),
+                    authorities: authorities,
+                    supports: supports,
+                    authoredSupports: try capture.actorLayers.map { layer in
+                        try outlineR19Resized(
+                            layer.presentationSupport,
+                            width: layer.presentationSupport.width,
+                            height: layer.presentationSupport.height
+                        )
+                    }
+                ))
+            }
+
+            var positiveMeanPrefixes = scenes.map(\.base)
+            var peakPrefixes = scenes.map(\.base)
+            for actorIndex in orderedActors.indices {
+                let actor = orderedActors[actorIndex]
+                var candidatesByScene = [OutlineR19Candidates]()
+                var peakCandidatesByScene = [OutlineR19Candidates]()
+                var actorObservations = [OutlineSelectorObservation]()
+                for sceneIndex in scenes.indices {
+                    let scene = scenes[sceneIndex]
+                    let actorMaterial = try #require(scene.material.actor(actor.eventID))
+                    let positiveMean = outlineR19PositiveMeanCandidates(
+                        authority: scene.authorities[actorIndex],
+                        support: scene.supports[actorIndex],
+                        prefix: positiveMeanPrefixes[sceneIndex],
+                        laterAuthorities: scene.authorities.dropFirst(actorIndex + 1),
+                        colors: actorMaterial.colors
+                    )
+                    let peak = outlineR19PositiveMeanCandidates(
+                        authority: scene.authorities[actorIndex],
+                        support: scene.supports[actorIndex],
+                        prefix: peakPrefixes[sceneIndex],
+                        laterAuthorities: scene.authorities.dropFirst(actorIndex + 1),
+                        colors: actorMaterial.colors
+                    )
+                    candidatesByScene.append(positiveMean)
+                    peakCandidatesByScene.append(peak)
+                    let stabilityKey = "c\(scene.colorCount)|\(actor.eventID)|"
+                        + background.rawValue
+                    supportStability[stabilityKey, default: []].insert(
+                        positiveMean.supportDigest
+                    )
+                    for (candidateID, targetID) in positiveMean.targetIDs {
+                        for _ in ["full", "tile"] {
+                            for _ in [1, 3] {
+                                targetStability[
+                                    "candidate|\(stabilityKey)|\(candidateID)", default: []
+                                ].insert(targetID)
+                            }
+                        }
+                    }
+
+                    let transparent = PixelImage(
+                        width: 393,
+                        height: 852,
+                        rgba: Data(repeating: 0, count: 393 * 852 * 4)
+                    )
+                    var suffix = transparent
+                    for laterIndex in scene.authorities.indices.reversed()
+                        where laterIndex > actorIndex {
+                        suffix = outlineSourceOver(
+                            source: suffix,
+                            underlay: outlineR19AlphaOnly(scene.authorities[laterIndex])
+                        )
+                    }
+                    let positiveMeanReference = outlineSourceOver(
+                        source: suffix,
+                        underlay: positiveMeanPrefixes[sceneIndex]
+                    )
+                    let peakReference = outlineSourceOver(
+                        source: suffix,
+                        underlay: peakPrefixes[sceneIndex]
+                    )
+                    var effectiveLabels = Data(repeating: 255, count: 393 * 852)
+                    for pixelIndex in 0..<(393 * 852) {
+                        let offset = pixelIndex * 4 + 3
+                        var effectiveAlpha = Double(
+                            scene.authorities[actorIndex].rgba[offset]
+                        ) / 255
+                        for laterIndex in scene.authorities.indices
+                            where laterIndex > actorIndex {
+                            effectiveAlpha *= 1 - Double(
+                                scene.authorities[laterIndex].rgba[offset]
+                            ) / 255
+                        }
+                        if effectiveAlpha > 0 {
+                            effectiveLabels[pixelIndex] = UInt8(actorIndex)
+                        }
+                    }
+                    let centerX = actor.position.x * 393
+                    let fullCenterY = actor.position.y * 852
+                    let pixelRadius = actor.diameter * 393 * 0.5
+                    let views: [(String, Double, PixelRect?)] = [
+                        ("full", fullCenterY, nil),
+                        ("tile", fullCenterY - Double(tileCrop.y), tileCrop),
+                    ]
+                    for (viewName, centerY, crop) in views {
+                        let width = crop?.width ?? 393
+                        let height = crop?.height ?? 852
+                        guard outlineNativeActorIsEligible(
+                            actor,
+                            centerX: centerX,
+                            centerY: centerY,
+                            width: width,
+                            height: height
+                        ) else { continue }
+                        geometricCount += 1
+                        peakGeometricCount += 1
+                        let labels = crop.map {
+                            fixture11CroppedBytes(
+                                effectiveLabels,
+                                sourceWidth: 393,
+                                crop: $0,
+                                bytesPerPixel: 1
+                            )
+                        } ?? effectiveLabels
+                        let positiveMeanReferenceView = crop.map {
+                            positiveMeanReference.cropped(
+                                x: $0.x, y: $0.y, width: $0.width, height: $0.height
+                            )
+                        } ?? positiveMeanReference
+                        let peakReferenceView = crop.map {
+                            peakReference.cropped(
+                                x: $0.x, y: $0.y, width: $0.width, height: $0.height
+                            )
+                        } ?? peakReference
+
+                        func metrics(
+                            layers: [String: PixelImage],
+                            prefix: PixelImage,
+                            reference: PixelImage
+                        ) -> [String: OutlineNativeIdentityMetrics] {
+                            Dictionary(uniqueKeysWithValues: layers.map {
+                                candidateID, layer in
+                                let candidatePrefix = outlineSourceOver(
+                                    source: layer,
+                                    underlay: prefix
+                                )
+                                let candidateFull = outlineSourceOver(
+                                    source: suffix,
+                                    underlay: candidatePrefix
+                                )
+                                let candidate = crop.map {
+                                    candidateFull.cropped(
+                                        x: $0.x,
+                                        y: $0.y,
+                                        width: $0.width,
+                                        height: $0.height
+                                    )
+                                } ?? candidateFull
+                                return (
+                                    candidateID,
+                                    outlineNativeIdentityMetrics(
+                                        candidate,
+                                        reference: reference,
+                                        centerX: centerX,
+                                        centerY: centerY,
+                                        pixelRadius: pixelRadius,
+                                        ownerIndex: UInt8(actorIndex),
+                                        ownerLabels: labels
+                                    )
+                                )
+                            })
+                        }
+                        let positiveMeanMetrics = metrics(
+                            layers: positiveMean.layers,
+                            prefix: positiveMeanPrefixes[sceneIndex],
+                            reference: positiveMeanReferenceView
+                        )
+                        let peakMetrics = metrics(
+                            layers: peak.peakLayers,
+                            prefix: peakPrefixes[sceneIndex],
+                            reference: peakReferenceView
+                        )
+                        let label = "c\(scene.colorCount)/\(background.rawValue)/"
+                            + "\(actor.eventID.prefix(4))/\(viewName)"
+                        let positiveMeanCeiling = positiveMeanMetrics.values
+                            .map(\.peakContrast).max() ?? 0
+                        if positiveMeanCeiling >= 0.070 {
+                            attainableCount += 1
+                            let observation = OutlineSelectorObservation(
+                                label: label,
+                                key: "\(actor.eventID)|\(background.rawValue)",
+                                candidateMetrics: positiveMeanMetrics
+                            )
+                            observations.append(observation)
+                            actorObservations.append(observation)
+                        } else {
+                            occlusions.append(label)
+                        }
+                        let peakCeiling = peakMetrics.values.map(\.peakContrast).max() ?? 0
+                        if peakCeiling >= 0.070 {
+                            peakAttainableCount += 1
+                        } else {
+                            peakOcclusions.append(label)
+                        }
+                        if label == "c2/light/1BE8/full" {
+                            peakProductionWitness = peakMetrics["gamut-ray"]
+                        }
+
+                        let authorityAlpha = outlineR19AlphaBytes(
+                            scene.authorities[actorIndex]
+                        )
+                        for layer in positiveMean.layers.values {
+                            #expect(outlineR19AlphaBytes(layer) == authorityAlpha)
+                            #expect((0..<(layer.width * layer.height)).allSatisfy {
+                                pixelIndex in
+                                let offset = pixelIndex * 4
+                                return authorityAlpha[pixelIndex] > 0
+                                    || (layer.rgba[offset] == 0
+                                        && layer.rgba[offset + 1] == 0
+                                        && layer.rgba[offset + 2] == 0
+                                        && layer.rgba[offset + 3] == 0)
+                            })
+                        }
+                        if let crop {
+                            let cropped = fixture11CroppedBytes(
+                                authorityAlpha,
+                                sourceWidth: 393,
+                                crop: crop,
+                                bytesPerPixel: 1
+                            )
+                            #expect(cropped == outlineR19AlphaBytes(
+                                scene.authorities[actorIndex].cropped(
+                                    x: crop.x,
+                                    y: crop.y,
+                                    width: crop.width,
+                                    height: crop.height
+                                )
+                            ))
+                        }
+                    }
+                }
+
+                let actorKey = "\(actor.eventID)|\(background.rawValue)"
+                let selected = candidateOrder.first { candidateID in
+                    actorObservations.allSatisfy {
+                        $0.candidateMetrics[candidateID].map {
+                            outlineNativeIdentityPasses(
+                                $0,
+                                minimumAngularCoverage: 0.77
+                            )
+                        } == true
+                    }
+                } ?? "gamut-ray"
+                for sceneIndex in scenes.indices {
+                    let actorMaterial = try #require(
+                        scenes[sceneIndex].material.actor(actor.eventID)
+                    )
+                    positiveMeanPrefixes[sceneIndex] = outlineSourceOver(
+                        source: candidatesByScene[sceneIndex].layers[selected]
+                            ?? candidatesByScene[sceneIndex].layers["gamut-ray"]!,
+                        underlay: positiveMeanPrefixes[sceneIndex]
+                    )
+                    peakPrefixes[sceneIndex] = outlineSourceOver(
+                        source: peakCandidatesByScene[sceneIndex].peakLayers["gamut-ray"]!,
+                        underlay: peakPrefixes[sceneIndex]
+                    )
+                    let stabilityKey = "c\(scenes[sceneIndex].colorCount)|\(actorKey)"
+                    for _ in ["full", "tile"] {
+                        for _ in [1, 3] {
+                            targetStability[
+                                "selected|\(stabilityKey)", default: []
+                            ].insert(candidatesByScene[sceneIndex].targetIDs[selected]!)
+                        }
+                    }
+                    if scenes[sceneIndex].colorCount >= 2 {
+                        let radialLabel = "c\(scenes[sceneIndex].colorCount)/\(actorKey)"
+                        let selectedLayer = candidatesByScene[sceneIndex].layers[selected]!
+                        let radial = outlineR19RadialColorMetrics(
+                            layer: selectedLayer,
+                            authority: scenes[sceneIndex].authorities[actorIndex],
+                            centerX: actor.position.x * 393,
+                            centerY: actor.position.y * 852,
+                            pixelRadius: actor.diameter * 393 * 0.5
+                        )
+                        if radial.isObservable {
+                            radialObservable[radialLabel] = radial
+                            if !radial.varies {
+                                radialFailures.append("\(radialLabel) \(radial)")
+                            }
+                            let flat = outlineR20FlatTargetLayer(
+                                authority: scenes[sceneIndex].authorities[actorIndex],
+                                color: actorMaterial.colors[0]
+                            )
+                            let flatMetrics = outlineR19RadialColorMetrics(
+                                layer: flat,
+                                authority: scenes[sceneIndex].authorities[actorIndex],
+                                centerX: actor.position.x * 393,
+                                centerY: actor.position.y * 852,
+                                pixelRadius: actor.diameter * 393 * 0.5
+                            )
+                            if !flatMetrics.isObservable || flatMetrics.varies {
+                                radialFlatMutationFailures.append(
+                                    "\(radialLabel) flat=\(flatMetrics)"
+                                )
+                            }
+                        } else {
+                            radialUnobservable[radialLabel] = radial
+                            let authoredSupport = scenes[sceneIndex]
+                                .authoredSupports[actorIndex]
+                            let authored = outlineR19RadialColorMetrics(
+                                layer: authoredSupport,
+                                authority: authoredSupport,
+                                centerX: Double(authoredSupport.width) * 0.5,
+                                centerY: Double(authoredSupport.height) * 0.5,
+                                pixelRadius: Double(min(
+                                    authoredSupport.width,
+                                    authoredSupport.height
+                                )) * 0.5
+                            )
+                            radialAuthoredFallbacks[radialLabel] = authored
+                            if !outlineR20AuthoredRadialFieldPasses(
+                                actorMaterial,
+                                metrics: authored
+                            ) {
+                                radialFailures.append(
+                                    "\(radialLabel) radial-unobservable; authored=\(authored)"
+                                )
+                            }
+                            let flatAuthored = outlineR20FlatTargetLayer(
+                                authority: authoredSupport,
+                                color: actorMaterial.colors[0]
+                            )
+                            let flatAuthoredMetrics = outlineR19RadialColorMetrics(
+                                layer: flatAuthored,
+                                authority: authoredSupport,
+                                centerX: Double(authoredSupport.width) * 0.5,
+                                centerY: Double(authoredSupport.height) * 0.5,
+                                pixelRadius: Double(min(
+                                    authoredSupport.width,
+                                    authoredSupport.height
+                                )) * 0.5
+                            )
+                            if !flatAuthoredMetrics.isObservable
+                                || flatAuthoredMetrics.varies {
+                                radialFlatMutationFailures.append(
+                                    "\(radialLabel) authored-flat=\(flatAuthoredMetrics)"
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let observationsByKey = Dictionary(grouping: observations, by: \.key)
+        var selectorTable = [String: String]()
+        var oldThresholdUnresolved = [String]()
+        for (key, keyObservations) in observationsByKey {
+            if let selected = candidateOrder.first(where: { candidateID in
+                keyObservations.allSatisfy {
+                    $0.candidateMetrics[candidateID].map {
+                        outlineNativeIdentityPasses($0, minimumAngularCoverage: 0.77)
+                    } == true
+                }
+            }) {
+                selectorTable[key] = selected
+            }
+            if !candidateOrder.contains(where: { candidateID in
+                keyObservations.allSatisfy {
+                    $0.candidateMetrics[candidateID].map {
+                        outlineNativeIdentityPasses($0, minimumAngularCoverage: 0.82)
+                    } == true
+                }
+            }) {
+                oldThresholdUnresolved.append(key)
+            }
+        }
+        let selectedFailures = observations.filter { observation in
+            guard let selected = selectorTable[observation.key],
+                  let metrics = observation.candidateMetrics[selected]
+            else { return true }
+            return !outlineNativeIdentityPasses(
+                metrics,
+                minimumAngularCoverage: 0.77
+            )
+        }
+        let selectorDigestInput = selectorTable.keys.sorted().map {
+            "\($0)=\(selectorTable[$0]!)"
+        }.joined(separator: "\n")
+        let selectorDigest = sha256Hex(Data(selectorDigestInput.utf8))
+        let peakWitness = try #require(peakProductionWitness)
+        let supportStabilityFailures = supportStability.filter { $0.value.count != 1 }
+        let targetStabilityFailures = targetStability.filter { $0.value.count != 1 }
+
+        print("ruling19 ledger geometric=\(geometricCount) attainable="
+            + "\(attainableCount) occluded=\(occlusions.count) keys="
+            + "\(selectorTable.count)/\(observationsByKey.count) pass="
+            + "\(observations.count - selectedFailures.count)/\(observations.count)")
+        print("ruling19 selector=\(selectorTable.sorted { $0.key < $1.key })")
+        print("ruling19 selectorDigest=\(selectorDigest)")
+        print("ruling19 peakMutation geometric=\(peakGeometricCount) attainable="
+            + "\(peakAttainableCount) occluded=\(peakOcclusions.count) "
+            + "c2/light/1BE8/full={\(peakWitness)}")
+        print("ruling19 radial observable=\(radialObservable.count) "
+            + "unobservable=\(radialUnobservable.keys.sorted()) "
+            + "authoredFallbacks=\(radialAuthoredFallbacks.count)")
+
+        #expect(geometricCount == 72)
+        #expect(attainableCount == 68)
+        #expect(occlusions == [
+            "c1/light/1BE8/full",
+            "c1/lowContrast/1BE8/full",
+            "c2/lowContrast/1BE8/full",
+            "c3/lowContrast/1BE8/full",
+        ])
+        #expect(selectorTable.count == 14)
+        #expect(selectorTable.values.allSatisfy { $0 == "gamut-ray" })
+        #expect(selectedFailures.isEmpty, Comment(rawValue:
+            "r19 selected failures=\(selectedFailures.map(\.label))"
+        ))
+        #expect(observations.count == 68)
+        #expect(oldThresholdUnresolved == [
+            "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02|light"
+        ])
+        #expect(peakGeometricCount == 72)
+        #expect(peakAttainableCount == 67)
+        #expect(peakOcclusions.count == 5)
+        #expect(abs(peakWitness.angularCoverage - 0.6875) < 0.000_001)
+        #expect(!outlineNativeIdentityPasses(
+            peakWitness,
+            minimumAngularCoverage: 0.77
+        ))
+        #expect(supportStabilityFailures.isEmpty)
+        #expect(targetStabilityFailures.isEmpty)
+        #expect(!authorityDigests.isEmpty)
+        #expect(radialObservable.count + radialUnobservable.count
+            == backgrounds.count * 2 * orderedActors.count)
+        #expect(radialAuthoredFallbacks.count == radialUnobservable.count)
+        #expect(radialUnobservable.keys.allSatisfy {
+            radialAuthoredFallbacks[$0]?.passes == true
+        })
+        #expect(radialObservable.contains { label, metrics in
+            label.contains("1BE8C246") && metrics.sampleCount == 23 && metrics.varies
+        })
+        #expect(radialFailures.isEmpty, Comment(rawValue:
+            "r19 c2/c3 radial failures=\(radialFailures)"
+        ))
+        #expect(radialFlatMutationFailures.isEmpty, Comment(rawValue:
+            "r19 flat-target mutation failures=\(radialFlatMutationFailures)"
+        ))
+        #expect(!selectorDigest.isEmpty)
+    }
+
+    @Test("ruling 20 radial harness separates 60D3 unobservable support from 1BE8 variability")
+    func ruling20RadialHarnessSeparatesAvailabilityFromVariability() throws {
+        let oneBE8 = outlineR20RadialFixture(availableRayCount: 23, flat: false)
+        let oneBE8Metrics = outlineR19RadialColorMetrics(
+            layer: oneBE8.layer,
+            authority: oneBE8.authority,
+            centerX: oneBE8.center,
+            centerY: oneBE8.center,
+            pixelRadius: oneBE8.radius
+        )
+        #expect(oneBE8Metrics.sampleCount == 23)
+        #expect(oneBE8Metrics.isObservable)
+        #expect(oneBE8Metrics.varies)
+
+        let oneBE8Flat = outlineR20FlatTargetLayer(
+            authority: oneBE8.authority,
+            color: .init(red: 0.92, green: 0.08, blue: 0.16)
+        )
+        let oneBE8FlatMetrics = outlineR19RadialColorMetrics(
+            layer: oneBE8Flat,
+            authority: oneBE8.authority,
+            centerX: oneBE8.center,
+            centerY: oneBE8.center,
+            pixelRadius: oneBE8.radius
+        )
+        #expect(oneBE8FlatMetrics.isObservable)
+        #expect(!oneBE8FlatMetrics.varies)
+
+        let sixtyD3 = outlineR20RadialFixture(availableRayCount: 0, flat: false)
+        let sixtyD3Metrics = outlineR19RadialColorMetrics(
+            layer: sixtyD3.layer,
+            authority: sixtyD3.authority,
+            centerX: sixtyD3.center,
+            centerY: sixtyD3.center,
+            pixelRadius: sixtyD3.radius
+        )
+        #expect(!sixtyD3Metrics.isObservable)
+        #expect(!sixtyD3Metrics.varies)
+
+        let authored = outlineR20RadialFixture(availableRayCount: 96, flat: false)
+        let authoredMetrics = outlineR19RadialColorMetrics(
+            layer: authored.layer,
+            authority: authored.authority,
+            centerX: authored.center,
+            centerY: authored.center,
+            pixelRadius: authored.radius
+        )
+        let compositionAuthority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: compositionAuthority.recipes
+        )
+        let layout = CorpusManifest.visibleV1().breadth[11]
+        let recipe = try #require(archive.fixtures.first {
+            $0.fixtureIndex == 11
+        }?.recipe)
+        let orderedActors = recipe.actors.sorted {
+            if $0.drawOrder != $1.drawOrder { return $0.drawOrder < $1.drawOrder }
+            if $0.depth != $1.depth { return $0.depth < $1.depth }
+            if $0.diameter != $1.diameter { return $0.diameter < $1.diameter }
+            return $0.eventID < $1.eventID
+        }
+        let focusEventIDs = [
+            "60D319B7-3E21-4E8A-879F-5C6B24FA0A07",
+            "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        ]
+        for eventID in [
+            "60D319B7-3E21-4E8A-879F-5C6B24FA0A07",
+            "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        ] {
+            for colorCount in 2...3 {
+                let material = try #require(MaterialDNA.fixture(
+                    daySeed: layout.seed,
+                    eventIDs: layout.eventIDs,
+                    family: .outline,
+                    requestedColorCount: colorCount
+                ).actor(eventID))
+                #expect(outlineR20AuthoredRadialFieldPasses(
+                    material,
+                    metrics: authoredMetrics
+                ))
+            }
+        }
+        for colorCount in 2...3 {
+            let dailyMaterial = MaterialDNA.fixture(
+                daySeed: layout.seed,
+                eventIDs: layout.eventIDs,
+                family: .outline,
+                requestedColorCount: colorCount
+            )
+            let capture = MaterialRawSceneCapture()
+            _ = try MaterialRenderer().render(
+                recipe: recipe,
+                material: dailyMaterial,
+                background: .light,
+                configuration: .init(
+                    scale: 2,
+                    outlineVisibilityPlacement: .none,
+                    rawSceneCapture: capture,
+                    presentationEvidenceRequest: .none,
+                    presentationScale: 1
+                )
+            )
+            #expect(capture.actorLayers.count == orderedActors.count)
+            for eventID in focusEventIDs {
+                let actorIndex = try #require(orderedActors.firstIndex {
+                    $0.eventID == eventID
+                })
+                let material = try #require(dailyMaterial.actor(eventID))
+                let supportImage = capture.actorLayers[actorIndex].presentationSupport
+                let support = try outlineR19Resized(
+                    supportImage,
+                    width: supportImage.width,
+                    height: supportImage.height
+                )
+                let metrics = outlineR19RadialColorMetrics(
+                    layer: support,
+                    authority: support,
+                    centerX: Double(support.width) * 0.5,
+                    centerY: Double(support.height) * 0.5,
+                    pixelRadius: Double(min(support.width, support.height)) * 0.5
+                )
+                #expect(
+                    outlineR20AuthoredRadialFieldPasses(material, metrics: metrics),
+                    Comment(rawValue: "c\(colorCount)/\(eventID.prefix(4)) authored \(metrics)")
+                )
+                let flat = outlineR20FlatTargetLayer(
+                    authority: support,
+                    color: material.colors[0]
+                )
+                let flatMetrics = outlineR19RadialColorMetrics(
+                    layer: flat,
+                    authority: support,
+                    centerX: Double(support.width) * 0.5,
+                    centerY: Double(support.height) * 0.5,
+                    pixelRadius: Double(min(support.width, support.height)) * 0.5
+                )
+                #expect(flatMetrics.isObservable)
+                #expect(!flatMetrics.varies)
+            }
+        }
+    }
+
+    @Test("production outline projection matches the accepted R19 positive-mean construction")
+    func productionOutlineProjectionMatchesAcceptedR19Construction() throws {
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let layout = manifest.breadth[11]
+        let recipe = try #require(archive.fixtures.first {
+            $0.fixtureIndex == 11
+        }?.recipe)
+        let orderedActors = recipe.actors.sorted {
+            if $0.drawOrder != $1.drawOrder { return $0.drawOrder < $1.drawOrder }
+            if $0.depth != $1.depth { return $0.depth < $1.depth }
+            if $0.diameter != $1.diameter { return $0.diameter < $1.diameter }
+            return $0.eventID < $1.eventID
+        }
+        let material = MaterialDNA.fixture(
+            daySeed: layout.seed,
+            eventIDs: layout.eventIDs,
+            family: .outline,
+            requestedColorCount: 2
+        )
+        let sourceCapture = MaterialRawSceneCapture()
+        let sourceInstrumentation = MaterialRenderInstrumentation()
+        let source = try MaterialRenderer().render(
+            recipe: recipe,
+            material: material,
+            background: .light,
+            configuration: .init(
+                scale: 2,
+                outlineVisibilityPlacement: .none,
+                instrumentation: sourceInstrumentation,
+                rawSceneCapture: sourceCapture,
+                presentationScale: 1
+            )
+        )
+        let productionInstrumentation = MaterialRenderInstrumentation()
+        let production = try MaterialRenderer().render(
+            recipe: recipe,
+            material: material,
+            background: .light,
+            configuration: .init(
+                scale: 1,
+                supersampling: 2,
+                outlineVisibilityPlacement: .none,
+                instrumentation: productionInstrumentation,
+                presentationEvidenceRequest: .perActor
+            )
+        )
+        let evidence = try #require(production.presentationEvidence)
+
+        #expect(source.drawSequence == orderedActors.map(\.eventID))
+        #expect(production.drawSequence == source.drawSequence)
+        try #require(sourceCapture.actorLayers.count == orderedActors.count)
+        try #require(productionInstrumentation.projectedActorLayers.count == orderedActors.count)
+        try #require(
+            productionInstrumentation.outlineVisibilityPalettePoleLayers.count
+                == orderedActors.count
+        )
+        try #require(
+            productionInstrumentation.outlineVisibilitySelectedPaletteIndices.count
+                == orderedActors.count
+        )
+        try #require(
+            productionInstrumentation.preProjectionAuthorityAlphaPlanes.count
+                == orderedActors.count
+        )
+        #expect(productionInstrumentation.canonicalRawSceneRenders == 1)
+        #expect(productionInstrumentation.capturedActorLayerBuilds == orderedActors.count)
+        #expect(productionInstrumentation.actorRemovedFullSceneRenders == 0)
+        #expect(productionInstrumentation.counterfactualCompositePasses == 0)
+        #expect(productionInstrumentation.isolatedPresentationComposites == 0)
+
+        let authorities = try sourceCapture.actorLayers.map { layer in
+            try outlineR19PlacedAndDownsampled(
+                layer.image,
+                drawRect: layer.drawRect,
+                sourceWidth: 786,
+                sourceHeight: 1_704,
+                outputWidth: 393,
+                outputHeight: 852
+            )
+        }
+        let supports = try sourceCapture.actorLayers.map { layer in
+            try outlineR19PlacedAndDownsampled(
+                layer.presentationSupport,
+                drawRect: layer.presentationSupportDrawRect,
+                sourceWidth: 786,
+                sourceHeight: 1_704,
+                outputWidth: 393,
+                outputHeight: 852
+            )
+        }
+        var expectedPrefix = try outlineR19Resized(
+            sourceCapture.actorLayers[0].presentedUnderlay,
+            width: 393,
+            height: 852
+        )
+
+        for actorIndex in orderedActors.indices {
+            let actor = orderedActors[actorIndex]
+            let actorMaterial = try #require(material.actor(actor.eventID))
+            let expected = outlineR19PositiveMeanCandidates(
+                authority: authorities[actorIndex],
+                support: supports[actorIndex],
+                prefix: expectedPrefix,
+                laterAuthorities: authorities.dropFirst(actorIndex + 1),
+                colors: actorMaterial.colors
+            )
+            let productionPoles = try productionInstrumentation
+                .outlineVisibilityPalettePoleLayers[actorIndex].map { image in
+                    PixelImage(
+                        width: image.width,
+                        height: image.height,
+                        rgba: try rgbaBytes(image)
+                    )
+                }
+            let productionLayer = try PixelImage(
+                width: productionInstrumentation.projectedActorLayers[actorIndex].width,
+                height: productionInstrumentation.projectedActorLayers[actorIndex].height,
+                rgba: rgbaBytes(productionInstrumentation.projectedActorLayers[actorIndex])
+            )
+            let expectedLayer = expected.positiveMeanGamutPoleLayers[
+                expected.positiveMeanGamutIndex
+            ]
+            let actorEvidence = try #require(evidence.actors.first {
+                $0.eventID == actor.eventID
+            })
+
+            #expect(productionPoles.map(\.rgba)
+                == expected.positiveMeanGamutPoleLayers.map(\.rgba))
+            #expect(
+                productionInstrumentation.outlineVisibilitySelectedPaletteIndices[actorIndex]
+                    == expected.positiveMeanGamutIndex
+            )
+            #expect(productionLayer.rgba == expectedLayer.rgba)
+            #expect(
+                productionInstrumentation.preProjectionAuthorityAlphaPlanes[actorIndex]
+                    == outlineR19AlphaBytes(authorities[actorIndex])
+            )
+            #expect(try pixels(actorEvidence.projected.fullScreen.pngData) == productionLayer)
+            #expect(actorEvidence.projected.drawSequence == [actor.eventID])
+            #expect(actorEvidence.removed.drawSequence
+                == Array(production.drawSequence.prefix(actorIndex)))
+            #expect(actorEvidence.isolated.ownership.ownerEventIDs == production.drawSequence)
+            #expect(try pixels(actorEvidence.projected.calendarTile.pngData)
+                == productionLayer.cropped(
+                    x: production.tileCrop.x,
+                    y: production.tileCrop.y,
+                    width: production.tileCrop.width,
+                    height: production.tileCrop.height
+                ))
+
+            expectedPrefix = outlineSourceOver(source: expectedLayer, underlay: expectedPrefix)
+        }
+
+        let productionFull = try pixels(production.fullScreen.pngData)
+        #expect(productionFull.rgba == expectedPrefix.rgba)
+        #expect(try pixels(production.calendarTile.pngData)
+            == productionFull.cropped(
+                x: production.tileCrop.x,
+                y: production.tileCrop.y,
+                width: production.tileCrop.width,
+                height: production.tileCrop.height
+            ))
+        #expect(sourceInstrumentation.actorRemovedFullSceneRenders == 0)
+        #expect(sourceInstrumentation.counterfactualCompositePasses == 0)
+        #expect(sourceInstrumentation.isolatedPresentationComposites == 0)
+        #expect(sourceInstrumentation.capturedActorLayerBuilds == orderedActors.count)
+    }
+
     @Test("halo split presentation preserves aura alpha and final-pixel compact softness")
     func haloSplitPresentationControlsAreObservable() {
         let background = MaterialRenderer.backgroundColor(for: .light)
@@ -4167,6 +5774,1227 @@ struct MaterialRendererTests {
             scale1Supersampled2Profile.filter { $0 > 0 }.count)
         #expect(sourceScaleMutation != directProfile)
     }
+}
+
+private struct OutlineNativeIdentityMetrics: CustomStringConvertible {
+    let peakContrast: Double
+    let centerToPeakRatio: Double
+    let percentile90ContourThickness: Double
+    let activeRadialDensity: Double
+    let radialBandCount: Int
+    let angularCoverage: Double
+    let observableRayCount: Int
+
+    var description: String {
+        "peak=\(peakContrast), centerRatio=\(centerToPeakRatio), "
+            + "p90Thickness=\(percentile90ContourThickness), density=\(activeRadialDensity), "
+            + "bands=\(radialBandCount), angularCoverage=\(angularCoverage), "
+            + "observableRays=\(observableRayCount)"
+    }
+}
+
+private struct OutlineSelectorObservation {
+    let label: String
+    let key: String
+    let candidateMetrics: [String: OutlineNativeIdentityMetrics]
+}
+
+#if false // Rejected R13/R15/R16 read-only oracle scaffolding; never ship or execute.
+private struct OutlineOfflineOracleScene {
+    let colorCount: Int
+    let material: DailyMaterialDNA
+    let base: PixelImage
+    let authorities: [PixelImage]
+    let supports: [PixelImage]
+    let tileCrop: PixelRect
+}
+
+private struct OutlineOfflineCandidates {
+    let layers: [String: PixelImage]
+    let meanNormalizedLayers: [String: PixelImage]
+    let ceilingLayers: [String: PixelImage]
+    let ceilingTargetIDs: [String: String]
+    let supportDigest: String
+}
+
+private struct OutlineRuling16Observation {
+    let label: String
+    let colorCount: Int
+    let scale: Int
+    let candidateMetrics: [String: OutlineNativeIdentityMetrics]
+    let ruling15Metrics: [String: OutlineNativeIdentityMetrics]
+    let targetIDs: [String: String]
+    let colorMetrics: [String: OutlineRadialColorMetrics]
+    let candidateAlphaDigests: [String: String]
+    let authorityAlphaDigest: String
+}
+
+private struct OutlineRadialColorMetrics: CustomStringConvertible {
+    let sampleCount: Int
+    let maximumRGBDistance: Double
+    let maximumHueDistance: Double
+    let maximumChromaDifference: Double
+    let maximumChroma: Double
+
+    var passes: Bool {
+        sampleCount >= 24
+            && maximumRGBDistance > 0.08
+            && (maximumHueDistance > 0.04 || maximumChromaDifference > 0.06)
+            && maximumChroma > 0.25
+    }
+
+    var description: String {
+        "samples=\(sampleCount), rgb=\(maximumRGBDistance), "
+            + "hue=\(maximumHueDistance), chromaDelta=\(maximumChromaDifference), "
+            + "maxChroma=\(maximumChroma), passes=\(passes)"
+    }
+}
+
+private func outlineOfflineResized(
+    _ image: CGImage,
+    width: Int,
+    height: Int
+) throws -> PixelImage {
+    let bytesPerRow = width * 4
+    var rgba = Data(count: bytesPerRow * height)
+    let rendered = rgba.withUnsafeMutableBytes { bytes -> Bool in
+        guard let context = CGContext(
+            data: bytes.baseAddress,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                | CGBitmapInfo.byteOrder32Big.rawValue
+        ) else { return false }
+        context.interpolationQuality = .high
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return true
+    }
+    guard rendered else { throw MaterialRendererError.cannotCreateBitmap(width, height) }
+    return PixelImage(width: width, height: height, rgba: rgba)
+}
+
+private func outlineOfflinePlacedAndDownsampled(
+    _ image: CGImage,
+    drawRect: CGRect,
+    sourceWidth: Int,
+    sourceHeight: Int,
+    outputWidth: Int,
+    outputHeight: Int
+) throws -> PixelImage {
+    let sourceContext = try #require(CGContext(
+        data: nil,
+        width: sourceWidth,
+        height: sourceHeight,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpace(name: CGColorSpace.sRGB)!,
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            | CGBitmapInfo.byteOrder32Big.rawValue
+    ))
+    sourceContext.clear(CGRect(x: 0, y: 0, width: sourceWidth, height: sourceHeight))
+    sourceContext.draw(image, in: drawRect)
+    return try outlineOfflineResized(
+        #require(sourceContext.makeImage()),
+        width: outputWidth,
+        height: outputHeight
+    )
+}
+
+private func outlineOfflineAlphaOnly(_ authority: PixelImage) -> PixelImage {
+    var rgba = Data(repeating: 0, count: authority.rgba.count)
+    for pixelIndex in 0..<(authority.width * authority.height) {
+        rgba[pixelIndex * 4 + 3] = authority.rgba[pixelIndex * 4 + 3]
+    }
+    return PixelImage(width: authority.width, height: authority.height, rgba: rgba)
+}
+
+private func outlineAlphaBytes(_ image: PixelImage) -> Data {
+    var alpha = Data(repeating: 0, count: image.width * image.height)
+    for pixelIndex in 0..<(image.width * image.height) {
+        alpha[pixelIndex] = image.rgba[pixelIndex * 4 + 3]
+    }
+    return alpha
+}
+
+private func outlineRadialColorMetrics(
+    layer: PixelImage,
+    authority: PixelImage,
+    centerX: Double,
+    centerY: Double,
+    pixelRadius: Double
+) -> OutlineRadialColorMetrics {
+    precondition(layer.width == authority.width && layer.height == authority.height)
+    var samples = [StraightRGB]()
+    for rayIndex in 0..<96 {
+        let angle = Double(rayIndex) / 96 * Double.pi * 2
+        var bestAlpha: UInt8 = 0
+        var bestColor: StraightRGB?
+        for radialStep in 0..<80 {
+            let normalizedRadius = 0.58 + Double(radialStep) / 79 * 0.58
+            let x = Int((centerX + cos(angle) * pixelRadius * normalizedRadius).rounded())
+            let y = Int((centerY + sin(angle) * pixelRadius * normalizedRadius).rounded())
+            guard x >= 0, x < layer.width, y >= 0, y < layer.height else { continue }
+            let authorityAlpha = authority.rgba[(y * authority.width + x) * 4 + 3]
+            guard authorityAlpha >= 19, authorityAlpha >= bestAlpha else { continue }
+            bestAlpha = authorityAlpha
+            bestColor = layer.pixel(x: x, y: y).straight
+        }
+        if let bestColor { samples.append(bestColor) }
+    }
+    var maximumRGBDistance = 0.0
+    var maximumHueDistance = 0.0
+    var maximumChromaDifference = 0.0
+    for lhs in samples.indices {
+        for rhs in samples.indices where rhs > lhs {
+            maximumRGBDistance = max(
+                maximumRGBDistance,
+                rgbDistance(samples[lhs], samples[rhs])
+            )
+            if min(samples[lhs].chroma, samples[rhs].chroma) > 0.12 {
+                maximumHueDistance = max(
+                    maximumHueDistance,
+                    circularHueDistance(samples[lhs].hue, samples[rhs].hue)
+                )
+            }
+            maximumChromaDifference = max(
+                maximumChromaDifference,
+                abs(samples[lhs].chroma - samples[rhs].chroma)
+            )
+        }
+    }
+    return OutlineRadialColorMetrics(
+        sampleCount: samples.count,
+        maximumRGBDistance: maximumRGBDistance,
+        maximumHueDistance: maximumHueDistance,
+        maximumChromaDifference: maximumChromaDifference,
+        maximumChroma: samples.map(\.chroma).max() ?? 0
+    )
+}
+
+private func outlineOfflinePositiveMeanCandidates(
+    authority: PixelImage,
+    support: PixelImage,
+    prefix: PixelImage,
+    laterAuthorities: ArraySlice<PixelImage>,
+    colors: [MaterialColor]
+) -> OutlineOfflineCandidates {
+    precondition(authority.width == support.width && authority.height == support.height)
+    precondition(authority.width == prefix.width && authority.height == prefix.height)
+    precondition(!colors.isEmpty)
+    let pixelCount = authority.width * authority.height
+    var positiveAlphaSum = 0.0
+    var positiveAlphaCount = 0
+    var peakRGBContribution = 0.0
+    for pixelIndex in 0..<pixelCount {
+        let offset = pixelIndex * 4
+        guard authority.rgba[offset + 3] > 0 else { continue }
+        let supportAlpha = Double(support.rgba[offset + 3]) / 255
+        guard supportAlpha > 0 else { continue }
+        positiveAlphaSum += supportAlpha
+        positiveAlphaCount += 1
+        let x = pixelIndex % authority.width
+        let y = pixelIndex / authority.width
+        let background = prefix.pixel(x: x, y: y).straight
+        let presented = StraightRGB(
+            r: Double(support.rgba[offset]) / 255 + background.r * (1 - supportAlpha),
+            g: Double(support.rgba[offset + 1]) / 255 + background.g * (1 - supportAlpha),
+            b: Double(support.rgba[offset + 2]) / 255 + background.b * (1 - supportAlpha)
+        )
+        peakRGBContribution = max(peakRGBContribution, rgbDistance(presented, background))
+    }
+    let meanPositiveAlpha = positiveAlphaSum / Double(max(positiveAlphaCount, 1))
+    var unstrengthenedWeights = [Double](repeating: 0, count: pixelCount)
+    var transmissions = [Double](repeating: 1, count: pixelCount)
+    for pixelIndex in 0..<pixelCount {
+        let offset = pixelIndex * 4
+        guard authority.rgba[offset + 3] > 0 else { continue }
+        let supportAlpha = Double(support.rgba[offset + 3]) / 255
+        let x = pixelIndex % authority.width
+        let y = pixelIndex / authority.width
+        let background = prefix.pixel(x: x, y: y).straight
+        let presented = StraightRGB(
+            r: Double(support.rgba[offset]) / 255 + background.r * (1 - supportAlpha),
+            g: Double(support.rgba[offset + 1]) / 255 + background.g * (1 - supportAlpha),
+            b: Double(support.rgba[offset + 2]) / 255 + background.b * (1 - supportAlpha)
+        )
+        let rgbWeight = min(1, max(0,
+            rgbDistance(presented, background) / max(peakRGBContribution, .ulpOfOne)
+        ))
+        let alphaWeight = min(1, max(0,
+            supportAlpha / max(meanPositiveAlpha, .ulpOfOne)
+        ))
+        unstrengthenedWeights[pixelIndex] = min(1, max(0,
+            1 - (1 - rgbWeight) * (1 - alphaWeight)
+        ))
+        transmissions[pixelIndex] = laterAuthorities.reduce(1) { partial, later in
+            partial * (1 - Double(later.rgba[offset + 3]) / 255)
+        }
+    }
+
+    let positiveUnionWeights = unstrengthenedWeights.filter { $0 > 0 }
+    let meanPositiveUnionWeight = positiveUnionWeights.reduce(0, +)
+        / Double(max(positiveUnionWeights.count, 1))
+    let strengthenedWeights = unstrengthenedWeights.map { weight in
+        min(1, max(0, weight / max(meanPositiveUnionWeight, Double.ulpOfOne)))
+    }
+    let selfUnionWeights = strengthenedWeights.map { weight in
+        1 - (1 - weight) * (1 - weight)
+    }
+
+    func projectedLayer(
+        weights: [Double],
+        target: (StraightRGB) -> StraightRGB
+    ) -> (layer: PixelImage, score: Double) {
+        var rgba = Data(repeating: 0, count: authority.rgba.count)
+        var score = 0.0
+        for pixelIndex in 0..<pixelCount {
+            let offset = pixelIndex * 4
+            let alphaByte = authority.rgba[offset + 3]
+            guard alphaByte > 0 else { continue }
+            let x = pixelIndex % authority.width
+            let y = pixelIndex / authority.width
+            let background = prefix.pixel(x: x, y: y).straight
+            let projectedTarget = target(background)
+            let weight = weights[pixelIndex]
+            let foreground = StraightRGB(
+                r: background.r + (projectedTarget.r - background.r) * weight,
+                g: background.g + (projectedTarget.g - background.g) * weight,
+                b: background.b + (projectedTarget.b - background.b) * weight
+            )
+            rgba[offset] = UInt8((foreground.r * Double(alphaByte)).rounded())
+            rgba[offset + 1] = UInt8((foreground.g * Double(alphaByte)).rounded())
+            rgba[offset + 2] = UInt8((foreground.b * Double(alphaByte)).rounded())
+            rgba[offset + 3] = alphaByte
+            score += Double(alphaByte) / 255 * weight * transmissions[pixelIndex]
+                * rgbDistance(projectedTarget, background)
+        }
+        return (PixelImage(width: authority.width, height: authority.height, rgba: rgba), score)
+    }
+
+    let inverseColorCount = 1 / Double(colors.count)
+    let centroid = StraightRGB(
+        r: colors.reduce(0) { $0 + $1.red } * inverseColorCount,
+        g: colors.reduce(0) { $0 + $1.green } * inverseColorCount,
+        b: colors.reduce(0) { $0 + $1.blue } * inverseColorCount
+    )
+
+    func candidateLayers(
+        weights: [Double]
+    ) -> (layers: [String: PixelImage], targetIDs: [String: String]) {
+        let gamutCandidates = colors.map { color in
+            projectedLayer(weights: weights) {
+                outlineSelectorGamutTarget(color, background: $0)
+            }
+        }
+        let gamutIndex = gamutCandidates.indices.dropFirst().reduce(0) { best, candidate in
+            gamutCandidates[candidate].score > gamutCandidates[best].score ? candidate : best
+        }
+        var layers = ["gamut-ray": gamutCandidates[gamutIndex].layer]
+        var targetIDs = [
+            "gamut-ray": outlineTargetIdentity(
+                kind: "gamut-ray-\(gamutIndex)",
+                colors: [colors[gamutIndex]]
+            ),
+        ]
+        for (index, color) in colors.enumerated() {
+            layers["assigned-pole-\(index)"] = projectedLayer(weights: weights) { _ in
+                StraightRGB(r: color.red, g: color.green, b: color.blue)
+            }.layer
+            targetIDs["assigned-pole-\(index)"] = outlineTargetIdentity(
+                kind: "assigned-pole-\(index)",
+                colors: [color]
+            )
+        }
+        layers["centroid"] = projectedLayer(weights: weights) { _ in centroid }.layer
+        targetIDs["centroid"] = outlineTargetIdentity(kind: "centroid", colors: colors)
+        return (layers, targetIDs)
+    }
+
+    var strengthenedSupportBytes = Data(capacity: pixelCount * 2)
+    for weight in selfUnionWeights {
+        var quantized = UInt16((weight * Double(UInt16.max)).rounded()).bigEndian
+        withUnsafeBytes(of: &quantized) { strengthenedSupportBytes.append(contentsOf: $0) }
+    }
+    let selfUnionCandidates = candidateLayers(weights: selfUnionWeights)
+    let meanNormalizedCandidates = candidateLayers(weights: strengthenedWeights)
+    let ceilingWeights = authority.rgba.enumerated().compactMap { index, byte -> Double? in
+        guard index % 4 == 3 else { return nil }
+        return byte > 0 ? 1 : 0
+    }
+    let ceilingCandidates = candidateLayers(weights: ceilingWeights)
+    return OutlineOfflineCandidates(
+        layers: selfUnionCandidates.layers,
+        meanNormalizedLayers: meanNormalizedCandidates.layers,
+        ceilingLayers: ceilingCandidates.layers,
+        ceilingTargetIDs: ceilingCandidates.targetIDs,
+        supportDigest: sha256Hex(strengthenedSupportBytes)
+    )
+}
+
+private func outlineTargetIdentity(
+    kind: String,
+    colors: [MaterialColor]
+) -> String {
+    var data = Data(kind.utf8)
+    for color in colors {
+        for component in [color.red, color.green, color.blue] {
+            var bits = component.bitPattern.bigEndian
+            withUnsafeBytes(of: &bits) { data.append(contentsOf: $0) }
+        }
+    }
+    return "\(kind):\(sha256Hex(data))"
+}
+#endif
+
+private struct OutlineR19OracleScene {
+    let colorCount: Int
+    let material: DailyMaterialDNA
+    let base: PixelImage
+    let authorities: [PixelImage]
+    let supports: [PixelImage]
+    let authoredSupports: [PixelImage]
+}
+
+private struct OutlineR19Candidates {
+    let layers: [String: PixelImage]
+    let peakLayers: [String: PixelImage]
+    let targetIDs: [String: String]
+    let supportDigest: String
+    let positiveMeanGamutPoleLayers: [PixelImage]
+    let positiveMeanGamutIndex: Int
+}
+
+private struct OutlineR19RadialColorMetrics: CustomStringConvertible {
+    let sampleCount: Int
+    let maximumRGBDistance: Double
+    let maximumHueDistance: Double
+    let maximumChromaDifference: Double
+    let maximumChroma: Double
+
+    var isObservable: Bool { sampleCount >= 2 }
+
+    var varies: Bool {
+        isObservable
+            && maximumRGBDistance > 0.08
+            && (maximumHueDistance > 0.04 || maximumChromaDifference > 0.06)
+            && maximumChroma > 0.25
+    }
+
+    var passes: Bool { isObservable && varies }
+
+    var description: String {
+        "samples=\(sampleCount), observable=\(isObservable), "
+            + "rgb=\(maximumRGBDistance), "
+            + "hue=\(maximumHueDistance), chromaDelta=\(maximumChromaDifference), "
+            + "maxChroma=\(maximumChroma), varies=\(varies)"
+    }
+}
+
+private struct OutlineR20RadialFixture {
+    let layer: PixelImage
+    let authority: PixelImage
+    let center: Double
+    let radius: Double
+}
+
+private func outlineR20RadialFixture(
+    availableRayCount: Int,
+    flat: Bool
+) -> OutlineR20RadialFixture {
+    precondition((0...96).contains(availableRayCount))
+    let side = 513
+    let center = Double(side) * 0.5
+    let radius = 180.0
+    var authority = Data(repeating: 0, count: side * side * 4)
+    var layer = Data(repeating: 0, count: side * side * 4)
+    for rayIndex in 0..<availableRayCount {
+        let angle = Double(rayIndex) / 96 * Double.pi * 2
+        let phase = Double(rayIndex) / Double(max(availableRayCount - 1, 1))
+        let color = flat
+            ? StraightRGB(r: 0.92, g: 0.08, b: 0.16)
+            : StraightRGB(r: 0.92 * (1 - phase), g: 0.12, b: 0.92 * phase)
+        for radialStep in 0..<80 {
+            let normalizedRadius = 0.58 + Double(radialStep) / 79 * 0.58
+            let x = Int((center + cos(angle) * radius * normalizedRadius).rounded())
+            let y = Int((center + sin(angle) * radius * normalizedRadius).rounded())
+            guard x >= 0, x < side, y >= 0, y < side else { continue }
+            let offset = (y * side + x) * 4
+            authority[offset + 3] = 255
+            layer[offset] = UInt8((color.r * 255).rounded())
+            layer[offset + 1] = UInt8((color.g * 255).rounded())
+            layer[offset + 2] = UInt8((color.b * 255).rounded())
+            layer[offset + 3] = 255
+        }
+    }
+    return OutlineR20RadialFixture(
+        layer: PixelImage(width: side, height: side, rgba: layer),
+        authority: PixelImage(width: side, height: side, rgba: authority),
+        center: center,
+        radius: radius
+    )
+}
+
+private func outlineR20FlatTargetLayer(
+    authority: PixelImage,
+    color: MaterialColor
+) -> PixelImage {
+    var rgba = Data(repeating: 0, count: authority.rgba.count)
+    for pixelIndex in 0..<(authority.width * authority.height) {
+        let offset = pixelIndex * 4
+        let alphaByte = authority.rgba[offset + 3]
+        guard alphaByte > 0 else { continue }
+        let alpha = Double(alphaByte) / 255
+        rgba[offset] = UInt8((color.red * alpha * 255).rounded())
+        rgba[offset + 1] = UInt8((color.green * alpha * 255).rounded())
+        rgba[offset + 2] = UInt8((color.blue * alpha * 255).rounded())
+        rgba[offset + 3] = alphaByte
+    }
+    return PixelImage(width: authority.width, height: authority.height, rgba: rgba)
+}
+
+private func outlineR20AuthoredRadialFieldPasses(
+    _ material: ActorMaterialRecipe,
+    metrics: OutlineR19RadialColorMetrics
+) -> Bool {
+    let expectedColorIndexes = Set(material.colors.indices)
+    let authoredColorIndexes = Set(material.fields.map(\.colorIndex))
+    return material.family == .outline
+        && material.colors.count >= 2
+        && material.fields.count == material.colors.count
+        && authoredColorIndexes == expectedColorIndexes
+        && material.fields.allSatisfy {
+            $0.blend == .normal
+                && $0.radius > 0
+                && $0.softness > 0
+                && $0.opacity > 0
+        }
+        && metrics.varies
+}
+
+private func outlineR19Resized(
+    _ image: CGImage,
+    width: Int,
+    height: Int
+) throws -> PixelImage {
+    let bytesPerRow = width * 4
+    var rgba = Data(count: bytesPerRow * height)
+    let rendered = rgba.withUnsafeMutableBytes { bytes -> Bool in
+        guard let context = CGContext(
+            data: bytes.baseAddress,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                | CGBitmapInfo.byteOrder32Big.rawValue
+        ) else { return false }
+        context.interpolationQuality = .high
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return true
+    }
+    guard rendered else { throw MaterialRendererError.cannotCreateBitmap(width, height) }
+    return PixelImage(width: width, height: height, rgba: rgba)
+}
+
+private func outlineR19PlacedAndDownsampled(
+    _ image: CGImage,
+    drawRect: CGRect,
+    sourceWidth: Int,
+    sourceHeight: Int,
+    outputWidth: Int,
+    outputHeight: Int
+) throws -> PixelImage {
+    let sourceContext = try #require(CGContext(
+        data: nil,
+        width: sourceWidth,
+        height: sourceHeight,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpace(name: CGColorSpace.sRGB)!,
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            | CGBitmapInfo.byteOrder32Big.rawValue
+    ))
+    sourceContext.clear(CGRect(x: 0, y: 0, width: sourceWidth, height: sourceHeight))
+    sourceContext.draw(image, in: drawRect)
+    return try outlineR19Resized(
+        #require(sourceContext.makeImage()),
+        width: outputWidth,
+        height: outputHeight
+    )
+}
+
+private func outlineR19AlphaOnly(_ authority: PixelImage) -> PixelImage {
+    var rgba = Data(repeating: 0, count: authority.rgba.count)
+    for pixelIndex in 0..<(authority.width * authority.height) {
+        rgba[pixelIndex * 4 + 3] = authority.rgba[pixelIndex * 4 + 3]
+    }
+    return PixelImage(width: authority.width, height: authority.height, rgba: rgba)
+}
+
+private func outlineR19AlphaBytes(_ image: PixelImage) -> Data {
+    var alpha = Data(repeating: 0, count: image.width * image.height)
+    for pixelIndex in 0..<(image.width * image.height) {
+        alpha[pixelIndex] = image.rgba[pixelIndex * 4 + 3]
+    }
+    return alpha
+}
+
+private func outlineR19RadialColorMetrics(
+    layer: PixelImage,
+    authority: PixelImage,
+    centerX: Double,
+    centerY: Double,
+    pixelRadius: Double
+) -> OutlineR19RadialColorMetrics {
+    precondition(layer.width == authority.width && layer.height == authority.height)
+    var samples = [StraightRGB]()
+    for rayIndex in 0..<96 {
+        let angle = Double(rayIndex) / 96 * Double.pi * 2
+        var bestAlpha: UInt8 = 0
+        var bestColor: StraightRGB?
+        for radialStep in 0..<80 {
+            let normalizedRadius = 0.58 + Double(radialStep) / 79 * 0.58
+            let x = Int((centerX + cos(angle) * pixelRadius * normalizedRadius).rounded())
+            let y = Int((centerY + sin(angle) * pixelRadius * normalizedRadius).rounded())
+            guard x >= 0, x < layer.width, y >= 0, y < layer.height else { continue }
+            let alpha = authority.rgba[(y * authority.width + x) * 4 + 3]
+            guard alpha >= 19, alpha >= bestAlpha else { continue }
+            bestAlpha = alpha
+            bestColor = layer.pixel(x: x, y: y).straight
+        }
+        if let bestColor { samples.append(bestColor) }
+    }
+    var maximumRGBDistance = 0.0
+    var maximumHueDistance = 0.0
+    var maximumChromaDifference = 0.0
+    for lhs in samples.indices {
+        for rhs in samples.indices where rhs > lhs {
+            maximumRGBDistance = max(
+                maximumRGBDistance,
+                rgbDistance(samples[lhs], samples[rhs])
+            )
+            if min(samples[lhs].chroma, samples[rhs].chroma) > 0.12 {
+                maximumHueDistance = max(
+                    maximumHueDistance,
+                    circularHueDistance(samples[lhs].hue, samples[rhs].hue)
+                )
+            }
+            maximumChromaDifference = max(
+                maximumChromaDifference,
+                abs(samples[lhs].chroma - samples[rhs].chroma)
+            )
+        }
+    }
+    return OutlineR19RadialColorMetrics(
+        sampleCount: samples.count,
+        maximumRGBDistance: maximumRGBDistance,
+        maximumHueDistance: maximumHueDistance,
+        maximumChromaDifference: maximumChromaDifference,
+        maximumChroma: samples.map(\.chroma).max() ?? 0
+    )
+}
+
+private func outlineR19PositiveMeanCandidates(
+    authority: PixelImage,
+    support: PixelImage,
+    prefix: PixelImage,
+    laterAuthorities: ArraySlice<PixelImage>,
+    colors: [MaterialColor]
+) -> OutlineR19Candidates {
+    precondition(authority.width == support.width && authority.height == support.height)
+    precondition(authority.width == prefix.width && authority.height == prefix.height)
+    precondition(!colors.isEmpty)
+    let pixelCount = authority.width * authority.height
+    var positiveAlphaSum = 0.0
+    var positiveAlphaCount = 0
+    var peakSupportAlpha = 0.0
+    var peakRGBContribution = 0.0
+    for pixelIndex in 0..<pixelCount {
+        let offset = pixelIndex * 4
+        guard authority.rgba[offset + 3] > 0 else { continue }
+        let supportAlpha = Double(support.rgba[offset + 3]) / 255
+        guard supportAlpha > 0 else { continue }
+        positiveAlphaSum += supportAlpha
+        positiveAlphaCount += 1
+        peakSupportAlpha = max(peakSupportAlpha, supportAlpha)
+        let x = pixelIndex % authority.width
+        let y = pixelIndex / authority.width
+        let background = prefix.pixel(x: x, y: y).straight
+        let presented = StraightRGB(
+            r: Double(support.rgba[offset]) / 255 + background.r * (1 - supportAlpha),
+            g: Double(support.rgba[offset + 1]) / 255 + background.g * (1 - supportAlpha),
+            b: Double(support.rgba[offset + 2]) / 255 + background.b * (1 - supportAlpha)
+        )
+        peakRGBContribution = max(peakRGBContribution, rgbDistance(presented, background))
+    }
+    let meanPositiveAlpha = positiveAlphaSum / Double(max(positiveAlphaCount, 1))
+    var positiveMeanWeights = [Double](repeating: 0, count: pixelCount)
+    var peakWeights = [Double](repeating: 0, count: pixelCount)
+    var transmissions = [Double](repeating: 1, count: pixelCount)
+    for pixelIndex in 0..<pixelCount {
+        let offset = pixelIndex * 4
+        guard authority.rgba[offset + 3] > 0 else { continue }
+        let supportAlpha = Double(support.rgba[offset + 3]) / 255
+        let x = pixelIndex % authority.width
+        let y = pixelIndex / authority.width
+        let background = prefix.pixel(x: x, y: y).straight
+        let presented = StraightRGB(
+            r: Double(support.rgba[offset]) / 255 + background.r * (1 - supportAlpha),
+            g: Double(support.rgba[offset + 1]) / 255 + background.g * (1 - supportAlpha),
+            b: Double(support.rgba[offset + 2]) / 255 + background.b * (1 - supportAlpha)
+        )
+        let rgbWeight = min(1, max(0,
+            rgbDistance(presented, background) / max(peakRGBContribution, .ulpOfOne)
+        ))
+        let meanAlphaWeight = min(1, max(0,
+            supportAlpha / max(meanPositiveAlpha, .ulpOfOne)
+        ))
+        let peakAlphaWeight = min(1, max(0,
+            supportAlpha / max(peakSupportAlpha, .ulpOfOne)
+        ))
+        positiveMeanWeights[pixelIndex] = min(1, max(0,
+            1 - (1 - rgbWeight) * (1 - meanAlphaWeight)
+        ))
+        peakWeights[pixelIndex] = min(1, max(0,
+            1 - (1 - rgbWeight) * (1 - peakAlphaWeight)
+        ))
+        transmissions[pixelIndex] = laterAuthorities.reduce(1) { partial, later in
+            partial * (1 - Double(later.rgba[offset + 3]) / 255)
+        }
+    }
+
+    func projectedLayer(
+        weights: [Double],
+        target: (StraightRGB) -> StraightRGB
+    ) -> (layer: PixelImage, score: Double) {
+        var rgba = Data(repeating: 0, count: authority.rgba.count)
+        var score = 0.0
+        for pixelIndex in 0..<pixelCount {
+            let offset = pixelIndex * 4
+            let alphaByte = authority.rgba[offset + 3]
+            guard alphaByte > 0 else { continue }
+            let x = pixelIndex % authority.width
+            let y = pixelIndex / authority.width
+            let background = prefix.pixel(x: x, y: y).straight
+            let projectedTarget = target(background)
+            let weight = weights[pixelIndex]
+            let foreground = StraightRGB(
+                r: background.r + (projectedTarget.r - background.r) * weight,
+                g: background.g + (projectedTarget.g - background.g) * weight,
+                b: background.b + (projectedTarget.b - background.b) * weight
+            )
+            rgba[offset] = UInt8((foreground.r * Double(alphaByte)).rounded())
+            rgba[offset + 1] = UInt8((foreground.g * Double(alphaByte)).rounded())
+            rgba[offset + 2] = UInt8((foreground.b * Double(alphaByte)).rounded())
+            rgba[offset + 3] = alphaByte
+            score += Double(alphaByte) / 255 * weight * transmissions[pixelIndex]
+                * rgbDistance(projectedTarget, background)
+        }
+        return (PixelImage(width: authority.width, height: authority.height, rgba: rgba), score)
+    }
+
+    let inverseColorCount = 1 / Double(colors.count)
+    let centroid = StraightRGB(
+        r: colors.reduce(0) { $0 + $1.red } * inverseColorCount,
+        g: colors.reduce(0) { $0 + $1.green } * inverseColorCount,
+        b: colors.reduce(0) { $0 + $1.blue } * inverseColorCount
+    )
+    func candidateLayers(
+        weights: [Double]
+    ) -> (
+        layers: [String: PixelImage],
+        targetIDs: [String: String],
+        gamutPoleLayers: [PixelImage],
+        gamutIndex: Int
+    ) {
+        let gamutCandidates = colors.map { color in
+            projectedLayer(weights: weights) {
+                outlineSelectorGamutTarget(color, background: $0)
+            }
+        }
+        let gamutIndex = gamutCandidates.indices.dropFirst().reduce(0) { best, candidate in
+            gamutCandidates[candidate].score > gamutCandidates[best].score ? candidate : best
+        }
+        var layers = ["gamut-ray": gamutCandidates[gamutIndex].layer]
+        var targetIDs = [
+            "gamut-ray": outlineR19TargetIdentity(
+                kind: "gamut-ray-\(gamutIndex)",
+                colors: [colors[gamutIndex]]
+            ),
+        ]
+        for (index, color) in colors.enumerated() {
+            layers["assigned-pole-\(index)"] = projectedLayer(weights: weights) { _ in
+                StraightRGB(r: color.red, g: color.green, b: color.blue)
+            }.layer
+            targetIDs["assigned-pole-\(index)"] = outlineR19TargetIdentity(
+                kind: "assigned-pole-\(index)",
+                colors: [color]
+            )
+        }
+        layers["centroid"] = projectedLayer(weights: weights) { _ in centroid }.layer
+        targetIDs["centroid"] = outlineR19TargetIdentity(
+            kind: "centroid",
+            colors: colors
+        )
+        return (
+            layers,
+            targetIDs,
+            gamutCandidates.map(\.layer),
+            gamutIndex
+        )
+    }
+
+    var supportBytes = Data(capacity: pixelCount * 2)
+    for weight in positiveMeanWeights {
+        var quantized = UInt16((weight * Double(UInt16.max)).rounded()).bigEndian
+        withUnsafeBytes(of: &quantized) { supportBytes.append(contentsOf: $0) }
+    }
+    let positiveMean = candidateLayers(weights: positiveMeanWeights)
+    let peak = candidateLayers(weights: peakWeights)
+    return OutlineR19Candidates(
+        layers: positiveMean.layers,
+        peakLayers: peak.layers,
+        targetIDs: positiveMean.targetIDs,
+        supportDigest: sha256Hex(supportBytes),
+        positiveMeanGamutPoleLayers: positiveMean.gamutPoleLayers,
+        positiveMeanGamutIndex: positiveMean.gamutIndex
+    )
+}
+
+private func outlineR19TargetIdentity(
+    kind: String,
+    colors: [MaterialColor]
+) -> String {
+    var data = Data(kind.utf8)
+    for color in colors {
+        for component in [color.red, color.green, color.blue] {
+            var bits = component.bitPattern.bigEndian
+            withUnsafeBytes(of: &bits) { data.append(contentsOf: $0) }
+        }
+    }
+    return "\(kind):\(sha256Hex(data))"
+}
+
+private func outlineSelectorGamutTarget(
+    _ color: MaterialColor,
+    background: StraightRGB
+) -> StraightRGB {
+    let direction = (
+        color.red - background.r,
+        color.green - background.g,
+        color.blue - background.b
+    )
+    func projectionLimit(origin: Double, delta: Double) -> Double {
+        if delta > 0 { return (1 - origin) / delta }
+        if delta < 0 { return (0 - origin) / delta }
+        return .infinity
+    }
+    let limits = [
+        projectionLimit(origin: background.r, delta: direction.0),
+        projectionLimit(origin: background.g, delta: direction.1),
+        projectionLimit(origin: background.b, delta: direction.2),
+    ].filter(\.isFinite)
+    guard let furthest = limits.min(), furthest >= 1 else {
+        return StraightRGB(r: color.red, g: color.green, b: color.blue)
+    }
+    return StraightRGB(
+        r: min(1, max(0, background.r + direction.0 * furthest)),
+        g: min(1, max(0, background.g + direction.1 * furthest)),
+        b: min(1, max(0, background.b + direction.2 * furthest))
+    )
+}
+
+private func outlineSelectorRawTargetLayer(
+    gamutPoleLayers: [PixelImage],
+    assignedColors: [MaterialColor],
+    prefix: PixelImage,
+    target: MaterialColor
+) -> PixelImage {
+    precondition(!gamutPoleLayers.isEmpty)
+    precondition(gamutPoleLayers.count == assignedColors.count)
+    precondition(gamutPoleLayers.allSatisfy {
+        $0.width == prefix.width && $0.height == prefix.height
+    })
+    var rgba = Data(repeating: 0, count: prefix.width * prefix.height * 4)
+    for pixelIndex in 0..<(prefix.width * prefix.height) {
+        let offset = pixelIndex * 4
+        let alphaByte = gamutPoleLayers[0].rgba[offset + 3]
+        guard alphaByte > 0 else { continue }
+        let x = pixelIndex % prefix.width
+        let y = pixelIndex / prefix.width
+        let background = prefix.pixel(x: x, y: y).straight
+        var strongestDenominator = 0.0
+        var recoveredWeight = 0.0
+        for (poleIndex, color) in assignedColors.enumerated() {
+            let gamutTarget = outlineSelectorGamutTarget(color, background: background)
+            let direction = (
+                gamutTarget.r - background.r,
+                gamutTarget.g - background.g,
+                gamutTarget.b - background.b
+            )
+            let denominator = direction.0 * direction.0
+                + direction.1 * direction.1
+                + direction.2 * direction.2
+            guard denominator > strongestDenominator else { continue }
+            let presented = gamutPoleLayers[poleIndex].pixel(x: x, y: y).straight
+            let numerator = (presented.r - background.r) * direction.0
+                + (presented.g - background.g) * direction.1
+                + (presented.b - background.b) * direction.2
+            strongestDenominator = denominator
+            recoveredWeight = min(1, max(0, numerator / denominator))
+        }
+        let foreground = StraightRGB(
+            r: background.r + (target.red - background.r) * recoveredWeight,
+            g: background.g + (target.green - background.g) * recoveredWeight,
+            b: background.b + (target.blue - background.b) * recoveredWeight
+        )
+        rgba[offset] = UInt8((foreground.r * Double(alphaByte)).rounded())
+        rgba[offset + 1] = UInt8((foreground.g * Double(alphaByte)).rounded())
+        rgba[offset + 2] = UInt8((foreground.b * Double(alphaByte)).rounded())
+        rgba[offset + 3] = alphaByte
+    }
+    return PixelImage(width: prefix.width, height: prefix.height, rgba: rgba)
+}
+
+private struct OutlineAlphaRunMetrics: CustomStringConvertible {
+    let percentile90Thickness: Double
+    let activeRadialDensity: Double
+    let radialBandCount: Int
+    let angularCoverage: Double
+
+    var description: String {
+        "p90Thickness=\(percentile90Thickness), density=\(activeRadialDensity), "
+            + "bands=\(radialBandCount), angularCoverage=\(angularCoverage)"
+    }
+}
+
+private func outlineAlphaRunMetrics(
+    _ image: PixelImage,
+    centerX: Double,
+    centerY: Double,
+    pixelRadius: Double
+) -> OutlineAlphaRunMetrics {
+    let angleCount = 96
+    let maximumNormalizedRadius = 1.12
+    let radialSteps = max(32, Int(ceil(pixelRadius * maximumNormalizedRadius)))
+    let normalizedStep = maximumNormalizedRadius / Double(radialSteps)
+    var thicknesses = [Double]()
+    var bandCounts = [Double]()
+    var activeCount = 0
+    var supportedRays = 0
+    for angleIndex in 0..<angleCount {
+        let angle = Double(angleIndex) / Double(angleCount) * Double.pi * 2
+        let active = (0...radialSteps).map { radialIndex in
+            let radius = Double(radialIndex) * normalizedStep
+            let x = Int(floor(centerX + cos(angle) * radius * pixelRadius))
+            let y = Int(floor(centerY + sin(angle) * radius * pixelRadius))
+            guard (0..<image.width).contains(x), (0..<image.height).contains(y) else {
+                return false
+            }
+            let support = image.pixel(x: x, y: y).alphaByte >= 20
+            if support { activeCount += 1 }
+            return support
+        }
+        let longestRun = fixture11LongestRun(active)
+        thicknesses.append(Double(longestRun) * normalizedStep)
+        var bands = 0
+        var prior = false
+        for support in active {
+            if support && !prior { bands += 1 }
+            prior = support
+        }
+        bandCounts.append(Double(bands))
+        if active.enumerated().contains(where: { index, support in
+            support && (0.50...1.10).contains(Double(index) * normalizedStep)
+        }) { supportedRays += 1 }
+    }
+    return OutlineAlphaRunMetrics(
+        percentile90Thickness: percentile(thicknesses.sorted(), fraction: 0.90),
+        activeRadialDensity: Double(activeCount)
+            / Double(angleCount * (radialSteps + 1)),
+        radialBandCount: Int(percentile(bandCounts.sorted(), fraction: 0.50).rounded()),
+        angularCoverage: Double(supportedRays) / Double(angleCount)
+    )
+}
+
+private func outlineSourceOver(source: PixelImage, underlay: PixelImage) -> PixelImage {
+    precondition(source.width == underlay.width && source.height == underlay.height)
+    var rgba = Data(repeating: 0, count: source.width * source.height * 4)
+    for index in 0..<(source.width * source.height) {
+        let offset = index * 4
+        let alpha = Double(source.rgba[offset + 3]) / 255
+        for channel in 0..<3 {
+            let premultiplied = Double(source.rgba[offset + channel]) / 255
+            let background = Double(underlay.rgba[offset + channel]) / 255
+            rgba[offset + channel] = UInt8((min(1,
+                premultiplied + background * (1 - alpha)
+            ) * 255).rounded())
+        }
+        let underlayAlpha = Double(underlay.rgba[offset + 3]) / 255
+        rgba[offset + 3] = UInt8((min(
+            1,
+            alpha + underlayAlpha * (1 - alpha)
+        ) * 255).rounded())
+    }
+    return PixelImage(width: source.width, height: source.height, rgba: rgba)
+}
+
+private func outlineNativeIdentityPasses(_ metrics: OutlineNativeIdentityMetrics) -> Bool {
+    outlineNativeIdentityPasses(metrics, minimumAngularCoverage: 0.77)
+}
+
+private func outlineNativeIdentityPasses(
+    _ metrics: OutlineNativeIdentityMetrics,
+    minimumAngularCoverage: Double
+) -> Bool {
+    metrics.peakContrast >= 0.070
+        && metrics.centerToPeakRatio <= 0.24
+        && metrics.percentile90ContourThickness <= 0.24
+        && metrics.activeRadialDensity <= 0.32
+        && (1...3).contains(metrics.radialBandCount)
+        && metrics.angularCoverage >= minimumAngularCoverage
+}
+
+private func outlineNativePresentationIsEligible(
+    attainablePeakContrast: Double
+) -> Bool {
+    attainablePeakContrast >= 0.070
+}
+
+private func outlineNativeActorIsEligible(
+    _ actor: ActorCompositionRecipe,
+    centerX: Double,
+    centerY: Double,
+    width: Int,
+    height: Int
+) -> Bool {
+    let sampledExtent = actor.diameter * 393 * 0.5 * 1.12
+    return centerX - sampledExtent >= 0
+        && centerX + sampledExtent < Double(width)
+        && centerY - sampledExtent >= 0
+        && centerY + sampledExtent < Double(height)
+}
+
+private func outlineNativeIdentityMetrics(
+    _ image: PixelImage,
+    reference: PixelImage,
+    centerX: Double,
+    centerY: Double,
+    pixelRadius: Double,
+    ownerIndex: UInt8? = nil,
+    ownerLabels: Data? = nil
+) -> OutlineNativeIdentityMetrics {
+    precondition(image.width == reference.width && image.height == reference.height)
+    precondition(pixelRadius > 0)
+    let angleCount = 96
+    let maximumNormalizedRadius = 1.12
+    let radialSteps = max(32, Int(ceil(pixelRadius * maximumNormalizedRadius)))
+    var sampledContrasts = [[Double]]()
+    var observableRays = [Bool]()
+    sampledContrasts.reserveCapacity(angleCount)
+    observableRays.reserveCapacity(angleCount)
+    var peakContrast = 0.0
+
+    for angleIndex in 0..<angleCount {
+        let angle = Double(angleIndex) / Double(angleCount) * Double.pi * 2
+        var ray = [Double]()
+        var observable = ownerLabels == nil
+        ray.reserveCapacity(radialSteps + 1)
+        for radialIndex in 0...radialSteps {
+            let normalizedRadius = Double(radialIndex) / Double(radialSteps)
+                * maximumNormalizedRadius
+            let x = Int(floor(centerX + cos(angle) * normalizedRadius * pixelRadius))
+            let y = Int(floor(centerY + sin(angle) * normalizedRadius * pixelRadius))
+            let contrast: Double
+            if (0..<image.width).contains(x), (0..<image.height).contains(y) {
+                let exactOwner = ownerIndex.flatMap { index in
+                    ownerLabels.map { $0[y * image.width + x] == index }
+                }
+                if exactOwner == true, (0.50...1.10).contains(normalizedRadius) {
+                    observable = true
+                }
+                contrast = exactOwner == false ? 0 : rgbDistance(
+                    image.pixel(x: x, y: y).straight,
+                    reference.pixel(x: x, y: y).straight
+                )
+            } else {
+                contrast = 0
+            }
+            peakContrast = max(peakContrast, contrast)
+            ray.append(contrast)
+        }
+        sampledContrasts.append(ray)
+        observableRays.append(observable)
+    }
+
+    let activeThreshold = max(0.035, peakContrast * 0.20)
+    let normalizedStep = maximumNormalizedRadius / Double(radialSteps)
+    var centerContrasts = [Double]()
+    var thicknesses = [Double]()
+    var rayBandCounts = [Double]()
+    var activeSampleCount = 0
+    var angularSupport = 0
+
+    for (rayIndex, ray) in sampledContrasts.enumerated() where observableRays[rayIndex] {
+        let active = ray.enumerated().map { radialIndex, contrast in
+            let normalizedRadius = Double(radialIndex) * normalizedStep
+            if normalizedRadius <= 0.20 { centerContrasts.append(contrast) }
+            let owned = contrast >= activeThreshold
+            if owned { activeSampleCount += 1 }
+            return owned
+        }
+        thicknesses.append(Double(fixture11LongestRun(active)) * normalizedStep)
+        var rayBandCount = 0
+        var wasActive = false
+        for isActive in active {
+            if isActive && !wasActive { rayBandCount += 1 }
+            wasActive = isActive
+        }
+        rayBandCounts.append(Double(rayBandCount))
+        if active.enumerated().contains(where: { radialIndex, owned in
+            let normalizedRadius = Double(radialIndex) * normalizedStep
+            return owned && (0.50...1.10).contains(normalizedRadius)
+        }) {
+            angularSupport += 1
+        }
+    }
+
+    centerContrasts.sort()
+    thicknesses.sort()
+    let radialBandCount = Int(percentile(rayBandCounts.sorted(), fraction: 0.50).rounded())
+    return OutlineNativeIdentityMetrics(
+        peakContrast: peakContrast,
+        centerToPeakRatio: percentile(centerContrasts, fraction: 0.90)
+            / max(peakContrast, 0.000_001),
+        percentile90ContourThickness: percentile(thicknesses, fraction: 0.90),
+        activeRadialDensity: Double(activeSampleCount)
+            / Double(max(observableRays.filter { $0 }.count, 1) * (radialSteps + 1)),
+        radialBandCount: radialBandCount,
+        angularCoverage: Double(angularSupport)
+            / Double(max(observableRays.filter { $0 }.count, 1)),
+        observableRayCount: observableRays.filter { $0 }.count
+    )
+}
+
+private func outlineNativeControl(
+    side: Int,
+    intensity: (_ normalizedRadius: Double, _ angle: Double) -> Double
+) -> PixelImage {
+    let center = Double(side) * 0.5
+    let pixelRadius = Double(side) * 0.42
+    var rgba = Data(repeating: 0, count: side * side * 4)
+    for y in 0..<side {
+        for x in 0..<side {
+            let dx = Double(x) + 0.5 - center
+            let dy = Double(y) + 0.5 - center
+            let level = min(1, max(0, intensity(hypot(dx, dy) / pixelRadius, atan2(dy, dx))))
+            let byte = UInt8((level * 255).rounded())
+            let offset = (y * side + x) * 4
+            rgba[offset] = byte
+            rgba[offset + 1] = byte
+            rgba[offset + 2] = byte
+            rgba[offset + 3] = 255
+        }
+    }
+    return PixelImage(width: side, height: side, rgba: rgba)
+}
+
+private func outlineBelowCutoffMissingArcMutation(
+    _ scene: MaterialPresentationEvidenceScene,
+    actor: ActorCompositionRecipe
+) throws -> MaterialPresentationEvidenceScene {
+    let fullScreen = try outlineBelowCutoffMissingArcMutation(scene.fullScreen, actor: actor)
+    return MaterialPresentationEvidenceScene(
+        fullScreen: fullScreen,
+        calendarTile: try outlineCroppedRenderedImage(fullScreen, crop: scene.tileCrop),
+        tileCrop: scene.tileCrop,
+        drawSequence: scene.drawSequence,
+        ownership: scene.ownership
+    )
+}
+
+private func outlineBelowCutoffMissingArcMutation(
+    _ image: NeutralRenderedImage,
+    actor: ActorCompositionRecipe
+) throws -> NeutralRenderedImage {
+    let pixels = try pixels(image.pngData)
+    var rgba = pixels.rgba
+    let centerX = actor.position.x * 393
+    let centerY = actor.position.y * 852
+    let pixelRadius = actor.diameter * 393 * 0.5
+    for y in 0..<pixels.height {
+        for x in 0..<pixels.width {
+            let dx = Double(x) + 0.5 - centerX
+            let dy = Double(y) + 0.5 - centerY
+            let normalizedRadius = hypot(dx, dy) / max(pixelRadius, 1)
+            let angle = atan2(dy, dx)
+            guard (0.45...1.12).contains(normalizedRadius),
+                  abs(angle) < Double.pi * 0.34
+            else { continue }
+            let offset = (y * pixels.width + x) * 4
+            let oldAlpha = rgba[offset + 3]
+            guard oldAlpha > 0 else { continue }
+            let newAlpha = min(oldAlpha, 19)
+            for channel in 0..<3 {
+                rgba[offset + channel] = UInt8((Double(rgba[offset + channel])
+                    * Double(newAlpha) / Double(oldAlpha)).rounded())
+            }
+            rgba[offset + 3] = newAlpha
+        }
+    }
+    return try outlineRenderedImage(PixelImage(
+        width: pixels.width,
+        height: pixels.height,
+        rgba: rgba
+    ))
+}
+
+private func outlineCroppedRenderedImage(
+    _ image: NeutralRenderedImage,
+    crop: PixelRect
+) throws -> NeutralRenderedImage {
+    let pixels = try pixels(image.pngData).cropped(
+        x: crop.x,
+        y: crop.y,
+        width: crop.width,
+        height: crop.height
+    )
+    return try outlineRenderedImage(pixels)
+}
+
+private func outlineRenderedImage(_ image: PixelImage) throws -> NeutralRenderedImage {
+    var rgba = image.rgba
+    let cgImage = try rgba.withUnsafeMutableBytes { bytes in
+        let context = try #require(CGContext(
+            data: bytes.baseAddress,
+            width: image.width,
+            height: image.height,
+            bitsPerComponent: 8,
+            bytesPerRow: image.width * 4,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                | CGBitmapInfo.byteOrder32Big.rawValue
+        ))
+        return try #require(context.makeImage())
+    }
+    let data = NSMutableData()
+    let destination = try #require(CGImageDestinationCreateWithData(
+        data,
+        UTType.png.identifier as CFString,
+        1,
+        nil
+    ))
+    CGImageDestinationAddImage(destination, cgImage, nil)
+    try #require(CGImageDestinationFinalize(destination))
+    return NeutralRenderedImage(
+        pngData: data as Data,
+        pixelWidth: image.width,
+        pixelHeight: image.height
+    )
 }
 
 private enum Fixture11PresentationView: String, Hashable {
@@ -6878,12 +9706,16 @@ private func fixture11PresentationEvidenceDigest(
 private func fixture11PresentationEvidenceDigest(
     eventID: String,
     isolated: MaterialPresentationEvidenceScene,
-    removed: MaterialPresentationEvidenceScene
+    removed: MaterialPresentationEvidenceScene,
+    projected: MaterialPresentationEvidenceScene,
+    palettePoles: [MaterialPresentationEvidenceScene]
 ) throws -> String {
     sha256Hex(Data([
         eventID,
         try fixture11PresentationSceneDigest(scene: isolated),
         try fixture11PresentationSceneDigest(scene: removed),
+        try fixture11PresentationSceneDigest(scene: projected),
+        try palettePoles.map(fixture11PresentationSceneDigest).joined(separator: ":"),
     ].joined(separator: "|").utf8))
 }
 

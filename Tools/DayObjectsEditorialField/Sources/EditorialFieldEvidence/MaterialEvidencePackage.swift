@@ -359,6 +359,38 @@ public enum MaterialEvidencePackage {
         let ownerLabelsTile: Data?
     }
 
+    private struct OutlineNativeIdentityMetrics {
+        let peakContrast: Double
+        let centerToPeakRatio: Double
+        let percentile90ContourThickness: Double
+        let activeRadialDensity: Double
+        let radialBandCount: Int
+        let angularCoverage: Double
+        let observableRayCount: Int
+        let supportedRayCount: Int
+
+        var passes: Bool {
+            peakContrast >= 0.070
+                && centerToPeakRatio <= 0.24
+                && percentile90ContourThickness <= 0.24
+                && activeRadialDensity <= 0.32
+                && (1...3).contains(radialBandCount)
+                && angularCoverage >= 0.77
+        }
+    }
+
+    private struct OutlineNativePresentationView {
+        let metrics: OutlineNativeIdentityMetrics
+        let attainablePeakContrast: Double
+        let geometricallyEligible: Bool
+
+        var eligible: Bool {
+            geometricallyEligible && attainablePeakContrast >= 0.070
+        }
+
+        var passes: Bool { !eligible || metrics.passes }
+    }
+
     struct C3ActorAssessment {
         let secondaryAreaFraction: Double
         let tertiaryAreaFraction: Double
@@ -1224,46 +1256,360 @@ public enum MaterialEvidencePackage {
         background: BackgroundCondition
     ) throws -> [MaterialSceneScaleActorMetrics]? {
         guard let presentationEvidence = source.presentationEvidence else { return nil }
-        return try sceneScaleReadability(
-            image: decodedPNG(source.fullScreen.pngData, path: "scene-scale-source"),
-            tileImage: decodedPNG(source.calendarTile.pngData, path: "scene-scale-tile"),
-            recipe: recipe,
-            material: material,
-            background: background,
-            outlineImages: { actor in
-                guard let actorEvidence = presentationEvidence.actors.first(where: {
-                    $0.eventID == actor.eventID
-                }) else {
-                    throw MaterialEvidenceError.invalidPackage(
-                        "missing outline presentation evidence for \(actor.eventID)"
-                    )
-                }
-                let ownership = actorEvidence.isolated.ownership
-                guard ownership.width == actorEvidence.isolated.fullScreen.pixelWidth,
-                      ownership.height == actorEvidence.isolated.fullScreen.pixelHeight,
-                      ownership.ownerLabels.count == ownership.width * ownership.height,
-                      let ownerIndex = ownership.ownerEventIDs.firstIndex(of: actor.eventID),
-                      ownerIndex < 255
-                else {
-                    throw MaterialEvidenceError.invalidPackage(
-                        "invalid outline presentation ownership for \(actor.eventID)"
-                    )
-                }
-                return OutlineReadabilityImages(
-                    isolatedFull: actorEvidence.isolated.fullScreen.pngData,
-                    removedFull: actorEvidence.removed.fullScreen.pngData,
-                    isolatedTile: actorEvidence.isolated.calendarTile.pngData,
-                    removedTile: actorEvidence.removed.calendarTile.pngData,
-                    ownerIndex: UInt8(ownerIndex),
-                    ownerLabelsFull: ownership.ownerLabels,
-                    ownerLabelsTile: croppedOwnerLabels(
-                        ownership.ownerLabels,
-                        sourceWidth: ownership.width,
-                        crop: actorEvidence.isolated.tileCrop
-                    )
+        let evidenceByID = Dictionary(
+            uniqueKeysWithValues: presentationEvidence.actors.map { ($0.eventID, $0) }
+        )
+        let orderedEvidence = try source.drawSequence.map { eventID in
+            guard let evidence = evidenceByID[eventID] else {
+                throw MaterialEvidenceError.invalidPackage(
+                    "missing outline presentation evidence for \(eventID)"
                 )
             }
+            return evidence
+        }
+        guard let firstEvidence = orderedEvidence.first else { return [] }
+
+        let full = try analysisImage(source.fullScreen, path: "scene-scale-source")
+        let tile = try analysisImage(source.calendarTile, path: "scene-scale-tile")
+        let fullProjected = try orderedEvidence.map {
+            try analysisImage($0.projected.fullScreen, path: "scene-scale-projected")
+        }
+        let tileProjected = try orderedEvidence.map {
+            try analysisImage($0.projected.calendarTile, path: "scene-scale-projected-tile")
+        }
+        let fullPoles = try orderedEvidence.map { actorEvidence in
+            try actorEvidence.palettePoles.map {
+                try analysisImage($0.fullScreen, path: "scene-scale-palette-pole")
+            }
+        }
+        let tilePoles = try orderedEvidence.map { actorEvidence in
+            try actorEvidence.palettePoles.map {
+                try analysisImage($0.calendarTile, path: "scene-scale-palette-pole-tile")
+            }
+        }
+        let fullBase = try analysisImage(
+            firstEvidence.removed.fullScreen,
+            path: "scene-scale-projection-base"
         )
+        let tileBase = try analysisImage(
+            firstEvidence.removed.calendarTile,
+            path: "scene-scale-projection-base-tile"
+        )
+        let fullComposites = try outlineOrderedComposites(base: fullBase, layers: fullProjected)
+        let tileComposites = try outlineOrderedComposites(base: tileBase, layers: tileProjected)
+        guard fullComposites.prefixes.last?.rgba == full.rgba,
+              tileComposites.prefixes.last?.rgba == tile.rgba
+        else {
+            throw MaterialEvidenceError.invalidPackage(
+                "packaged outline projection layers do not reconstruct canonical presentation"
+            )
+        }
+
+        return try recipe.actors.map { actor in
+            guard let actorIndex = source.drawSequence.firstIndex(of: actor.eventID),
+                  !fullPoles[actorIndex].isEmpty,
+                  fullPoles[actorIndex].count == tilePoles[actorIndex].count
+            else {
+                throw MaterialEvidenceError.invalidPackage(
+                    "invalid outline palette-pole evidence for \(actor.eventID)"
+                )
+            }
+            let fullWithoutActor = try outlineSourceOver(
+                source: fullComposites.suffixes[actorIndex + 1],
+                underlay: fullComposites.prefixes[actorIndex]
+            )
+            let tileWithoutActor = try outlineSourceOver(
+                source: tileComposites.suffixes[actorIndex + 1],
+                underlay: tileComposites.prefixes[actorIndex]
+            )
+            let fullEffectiveSupport = outlineEffectiveSupport(
+                actorIndex: actorIndex,
+                layers: fullProjected
+            )
+            let tileEffectiveSupport = outlineEffectiveSupport(
+                actorIndex: actorIndex,
+                layers: tileProjected
+            )
+            let fullView = try outlineNativePresentationView(
+                image: full,
+                reference: fullWithoutActor,
+                poles: fullPoles[actorIndex],
+                prefix: fullComposites.prefixes[actorIndex],
+                suffix: fullComposites.suffixes[actorIndex + 1],
+                effectiveSupport: fullEffectiveSupport,
+                actor: actor,
+                centerYAdjustment: 0
+            )
+            let tileView = try outlineNativePresentationView(
+                image: tile,
+                reference: tileWithoutActor,
+                poles: tilePoles[actorIndex],
+                prefix: tileComposites.prefixes[actorIndex],
+                suffix: tileComposites.suffixes[actorIndex + 1],
+                effectiveSupport: tileEffectiveSupport,
+                actor: actor,
+                centerYAdjustment: -Double(source.tileCrop.y)
+            )
+            let eligible = fullView.eligible || tileView.eligible
+            return MaterialSceneScaleActorMetrics(
+                eventID: actor.eventID,
+                diameter: actor.diameter,
+                eligible: eligible,
+                sampleCount: fullView.metrics.observableRayCount,
+                meanContrast: fullView.metrics.activeRadialDensity,
+                percentile90Contrast: fullView.metrics.peakContrast,
+                visibleAreaFraction: fullView.metrics.angularCoverage,
+                fullPresentation: outlinePresentationMetadata(fullView),
+                tilePresentation: outlinePresentationMetadata(tileView),
+                passes: fullView.passes && tileView.passes
+            )
+        }
+    }
+
+    private static func analysisImage(
+        _ image: NeutralRenderedImage,
+        path: String
+    ) throws -> AnalysisImage {
+        let decoded = try decodedPNG(image.pngData, path: path)
+        return AnalysisImage(
+            width: decoded.width,
+            height: decoded.height,
+            rgba: try normalizedRGBA(decoded)
+        )
+    }
+
+    private static func outlineOrderedComposites(
+        base: AnalysisImage,
+        layers: [AnalysisImage]
+    ) throws -> (prefixes: [AnalysisImage], suffixes: [AnalysisImage]) {
+        var prefixes = [base]
+        prefixes.reserveCapacity(layers.count + 1)
+        for layer in layers {
+            prefixes.append(try outlineSourceOver(source: layer, underlay: prefixes.last!))
+        }
+        let transparent = AnalysisImage(
+            width: base.width,
+            height: base.height,
+            rgba: Data(repeating: 0, count: base.width * base.height * 4)
+        )
+        var suffixes = [AnalysisImage](repeating: transparent, count: layers.count + 1)
+        for actorIndex in layers.indices.reversed() {
+            suffixes[actorIndex] = try outlineSourceOver(
+                source: suffixes[actorIndex + 1],
+                underlay: layers[actorIndex]
+            )
+        }
+        return (prefixes, suffixes)
+    }
+
+    private static func outlineSourceOver(
+        source: AnalysisImage,
+        underlay: AnalysisImage
+    ) throws -> AnalysisImage {
+        guard source.width == underlay.width, source.height == underlay.height else {
+            throw MaterialEvidenceError.invalidPackage(
+                "outline projection layer dimensions do not match canonical presentation"
+            )
+        }
+        var rgba = Data(repeating: 0, count: source.width * source.height * 4)
+        for pixelIndex in 0..<(source.width * source.height) {
+            let offset = pixelIndex * 4
+            let alpha = Double(source.rgba[offset + 3]) / 255
+            for channel in 0..<3 {
+                rgba[offset + channel] = UInt8((min(
+                    1,
+                    Double(source.rgba[offset + channel]) / 255
+                        + Double(underlay.rgba[offset + channel]) / 255 * (1 - alpha)
+                ) * 255).rounded())
+            }
+            let underlayAlpha = Double(underlay.rgba[offset + 3]) / 255
+            rgba[offset + 3] = UInt8((min(
+                1,
+                alpha + underlayAlpha * (1 - alpha)
+            ) * 255).rounded())
+        }
+        return AnalysisImage(width: source.width, height: source.height, rgba: rgba)
+    }
+
+    private static func outlineEffectiveSupport(
+        actorIndex: Int,
+        layers: [AnalysisImage]
+    ) -> [Bool] {
+        let pixelCount = layers[actorIndex].width * layers[actorIndex].height
+        return (0..<pixelCount).map { pixelIndex in
+            let offset = pixelIndex * 4 + 3
+            guard layers[actorIndex].rgba[offset] > 0 else { return false }
+            if actorIndex + 1 < layers.count {
+                for laterIndex in (actorIndex + 1)..<layers.count
+                    where layers[laterIndex].rgba[offset] == 255 {
+                    return false
+                }
+            }
+            return true
+        }
+    }
+
+    private static func outlineNativePresentationView(
+        image: AnalysisImage,
+        reference: AnalysisImage,
+        poles: [AnalysisImage],
+        prefix: AnalysisImage,
+        suffix: AnalysisImage,
+        effectiveSupport: [Bool],
+        actor: ActorCompositionRecipe,
+        centerYAdjustment: Double
+    ) throws -> OutlineNativePresentationView {
+        let centerX = actor.position.x * 393
+        let centerY = actor.position.y * 852 + centerYAdjustment
+        let pixelRadius = actor.diameter * 393 * 0.5
+        let sampledExtent = pixelRadius * 1.12
+        let geometricallyEligible = centerX - sampledExtent >= 0
+            && centerX + sampledExtent < Double(image.width)
+            && centerY - sampledExtent >= 0
+            && centerY + sampledExtent < Double(image.height)
+        let metrics = outlineNativeIdentityMetrics(
+            image: image,
+            reference: reference,
+            centerX: centerX,
+            centerY: centerY,
+            pixelRadius: pixelRadius,
+            effectiveSupport: effectiveSupport
+        )
+        var attainablePeakContrast = 0.0
+        for pole in poles {
+            let candidatePrefix = try outlineSourceOver(source: pole, underlay: prefix)
+            let candidate = try outlineSourceOver(source: suffix, underlay: candidatePrefix)
+            attainablePeakContrast = max(
+                attainablePeakContrast,
+                outlineNativeIdentityMetrics(
+                    image: candidate,
+                    reference: reference,
+                    centerX: centerX,
+                    centerY: centerY,
+                    pixelRadius: pixelRadius,
+                    effectiveSupport: effectiveSupport
+                ).peakContrast
+            )
+        }
+        return OutlineNativePresentationView(
+            metrics: metrics,
+            attainablePeakContrast: attainablePeakContrast,
+            geometricallyEligible: geometricallyEligible
+        )
+    }
+
+    private static func outlinePresentationMetadata(
+        _ view: OutlineNativePresentationView
+    ) -> MaterialOutlinePresentationMetadata {
+        let inFrameRays = view.geometricallyEligible ? 96 : 0
+        return MaterialOutlinePresentationMetadata(
+            inFrameRayCount: inFrameRays,
+            croppedRayCount: 96 - inFrameRays,
+            observableOwnedRayCount: view.metrics.observableRayCount,
+            occludedRayCount: max(0, inFrameRays - view.metrics.observableRayCount),
+            supportedRayCount: view.metrics.supportedRayCount,
+            angularCoverage: view.metrics.angularCoverage
+        )
+    }
+
+    private static func outlineNativeIdentityMetrics(
+        image: AnalysisImage,
+        reference: AnalysisImage,
+        centerX: Double,
+        centerY: Double,
+        pixelRadius: Double,
+        effectiveSupport: [Bool]
+    ) -> OutlineNativeIdentityMetrics {
+        let angleCount = 96
+        let maximumNormalizedRadius = 1.12
+        let radialSteps = max(32, Int(ceil(pixelRadius * maximumNormalizedRadius)))
+        var sampledContrasts = [[Double]]()
+        var observableRays = [Bool]()
+        sampledContrasts.reserveCapacity(angleCount)
+        observableRays.reserveCapacity(angleCount)
+        var peakContrast = 0.0
+
+        for angleIndex in 0..<angleCount {
+            let angle = Double(angleIndex) / Double(angleCount) * Double.pi * 2
+            var ray = [Double]()
+            var observable = false
+            ray.reserveCapacity(radialSteps + 1)
+            for radialIndex in 0...radialSteps {
+                let normalizedRadius = Double(radialIndex) / Double(radialSteps)
+                    * maximumNormalizedRadius
+                let x = Int(floor(centerX + cos(angle) * normalizedRadius * pixelRadius))
+                let y = Int(floor(centerY + sin(angle) * normalizedRadius * pixelRadius))
+                let contrast: Double
+                if (0..<image.width).contains(x), (0..<image.height).contains(y) {
+                    let supported = effectiveSupport[y * image.width + x]
+                    if supported, (0.50...1.10).contains(normalizedRadius) {
+                        observable = true
+                    }
+                    contrast = supported
+                        ? image.pixel(x: x, y: y).distance(to: reference.pixel(x: x, y: y))
+                        : 0
+                } else {
+                    contrast = 0
+                }
+                peakContrast = max(peakContrast, contrast)
+                ray.append(contrast)
+            }
+            sampledContrasts.append(ray)
+            observableRays.append(observable)
+        }
+
+        let activeThreshold = max(0.035, peakContrast * 0.20)
+        let normalizedStep = maximumNormalizedRadius / Double(radialSteps)
+        var centerContrasts = [Double]()
+        var thicknesses = [Double]()
+        var rayBandCounts = [Double]()
+        var activeSampleCount = 0
+        var angularSupport = 0
+        for (rayIndex, ray) in sampledContrasts.enumerated() where observableRays[rayIndex] {
+            let active = ray.enumerated().map { radialIndex, contrast in
+                let normalizedRadius = Double(radialIndex) * normalizedStep
+                if normalizedRadius <= 0.20 { centerContrasts.append(contrast) }
+                let supported = contrast >= activeThreshold
+                if supported { activeSampleCount += 1 }
+                return supported
+            }
+            thicknesses.append(Double(outlineLongestRun(active)) * normalizedStep)
+            var bandCount = 0
+            var wasActive = false
+            for isActive in active {
+                if isActive && !wasActive { bandCount += 1 }
+                wasActive = isActive
+            }
+            rayBandCounts.append(Double(bandCount))
+            if active.enumerated().contains(where: { radialIndex, isActive in
+                isActive && (0.50...1.10).contains(Double(radialIndex) * normalizedStep)
+            }) {
+                angularSupport += 1
+            }
+        }
+        let observableRayCount = observableRays.filter { $0 }.count
+        return OutlineNativeIdentityMetrics(
+            peakContrast: peakContrast,
+            centerToPeakRatio: percentile(centerContrasts, fraction: 0.90)
+                / max(peakContrast, 0.000_001),
+            percentile90ContourThickness: percentile(thicknesses, fraction: 0.90),
+            activeRadialDensity: Double(activeSampleCount)
+                / Double(max(observableRayCount, 1) * (radialSteps + 1)),
+            radialBandCount: Int(percentile(rayBandCounts, fraction: 0.50).rounded()),
+            angularCoverage: Double(angularSupport) / Double(max(observableRayCount, 1)),
+            observableRayCount: observableRayCount,
+            supportedRayCount: angularSupport
+        )
+    }
+
+    private static func outlineLongestRun(_ values: [Bool]) -> Int {
+        var longest = 0
+        var current = 0
+        for value in values {
+            current = value ? current + 1 : 0
+            longest = max(longest, current)
+        }
+        return longest
     }
 
     private static func sceneScaleReadability(
@@ -1569,7 +1915,7 @@ public enum MaterialEvidencePackage {
                     && actorContributes
                     && presentationContrast >= 0.075
 
-                identityRun = actorOwned ? identityRun + 1 : 0
+                identityRun = structuralSupport ? identityRun + 1 : 0
                 contributionRun = structuralSupport && actorContributes
                     ? contributionRun + 1
                     : 0
@@ -1666,7 +2012,8 @@ public enum MaterialEvidencePackage {
             recipe: isolated,
             material: material,
             background: background,
-            renderer: renderer
+            renderer: renderer,
+            presentationEvidenceRequest: family == .outline ? .perActor : .none
         )
         let full = try decodedPNG(
             source.fullScreen.pngData,
@@ -1696,26 +2043,14 @@ public enum MaterialEvidencePackage {
             background: background,
             renderer: renderer
         )
-        let fullOutline = outlineContourPresentation(
-            image: AnalysisImage(
-                width: full.width,
-                height: full.height,
-                rgba: try normalizedRGBA(full)
-            ),
-            actor: actor,
-            background: backgroundRGB(background),
-            centerYAdjustment: 0
-        )
-        let tileOutline = outlineContourPresentation(
-            image: AnalysisImage(
-                width: tile.width,
-                height: tile.height,
-                rgba: try normalizedRGBA(tile)
-            ),
-            actor: actor,
-            background: backgroundRGB(background),
-            centerYAdjustment: -229
-        )
+        let outlineNativePasses = family == .outline
+            ? try presentationSceneScaleReadability(
+                source: source,
+                recipe: isolated,
+                material: material,
+                background: background
+            )?.allSatisfy(\.passes) ?? false
+            : false
         let normalRenderPasses: Bool
         switch family {
         case .halo:
@@ -1726,12 +2061,7 @@ public enum MaterialEvidencePackage {
                 && fullBands.margin <= 0.18
                 && tileBands.margin <= 0.18
         case .outline:
-            normalRenderPasses = fullBands.rim >= 0.040
-                && tileBands.rim >= 0.040
-                && fullBands.ratio <= 0.22
-                && tileBands.ratio <= 0.22
-                && fullOutline.angularCoverage >= 0.82
-                && tileOutline.angularCoverage >= 0.82
+            normalRenderPasses = outlineNativePasses
         case .counterform:
             let requiredRimContrast = 0.25
             let maximumCenterRatio = 0.55
