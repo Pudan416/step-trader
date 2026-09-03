@@ -93,7 +93,7 @@ enum HappeningSoundCatalog {
             delayFeedback: feedback,
             reverbMix: spatialReverbMix(reverbMix),
             filterStartHz: filterStart,
-            filterEndHz: filterEnd
+            filterEndHz: spatialFilterEnd(filterEnd)
         )
     }
 
@@ -134,7 +134,7 @@ enum HappeningSoundCatalog {
             delayFeedback: feedback,
             reverbMix: spatialReverbMix(reverbMix),
             filterStartHz: filterStart,
-            filterEndHz: filterEnd
+            filterEndHz: spatialFilterEnd(filterEnd)
         )
     }
 
@@ -168,12 +168,16 @@ enum HappeningSoundCatalog {
             delayFeedback: feedback,
             reverbMix: spatialReverbMix(reverbMix),
             filterStartHz: filterStart,
-            filterEndHz: filterEnd
+            filterEndHz: spatialFilterEnd(filterEnd)
         )
     }
 
     private static func spatialReverbMix(_ legacyMix: Double) -> Double {
-        min(max(0.50 + legacyMix * 2.5, 0.55), 0.78)
+        min(max(0.72 + legacyMix * 1.8, 0.78), 0.90)
+    }
+
+    private static func spatialFilterEnd(_ legacyCutoffHz: Double) -> Double {
+        min(legacyCutoffHz * 0.65, 7_200)
     }
 
     private static let processedSHA256ByResourceName: [String: String] = [

@@ -21,6 +21,13 @@ final class HappeningSchedulerTests: XCTestCase {
             1,
             "Existing happenings must not fire as a ten-sound cluster when Sound starts"
         )
+
+        renderBars(15, through: harness.scheduler, chord: harness.world.progression[0], startBar: 1)
+        XCTAssertLessThanOrEqual(
+            harness.scheduler.metrics.attackHistory.filter { !$0.isBirth }.count,
+            1,
+            "The automatic voices must enter gradually instead of forming a startup queue"
+        )
     }
 
     func testMixedAvailableAndUnavailablePlansKeepValidHappeningsAudible() throws {
@@ -33,7 +40,7 @@ final class HappeningSchedulerTests: XCTestCase {
 
         try scheduler.configure(plans: [valid, invalid], tonalWorld: world, remixSeed: 42)
         try scheduler.start()
-        renderBars(8, through: scheduler, chord: world.progression[0])
+        renderBars(41, through: scheduler, chord: world.progression[0])
 
         XCTAssertEqual(scheduler.metrics.activeHappeningIDs, [valid.happeningID])
         XCTAssertTrue(scheduler.metrics.attackHistory.contains { $0.happeningID == valid.happeningID })
@@ -128,7 +135,7 @@ final class HappeningSchedulerTests: XCTestCase {
     func testDeadlineRemovalAndReplacementCannotStopNewerManualVoiceThatStoleSchedulerHandle() throws {
         let harness = try makeHarness(count: 1)
         let plan = harness.plans[0]
-        for subdivision in Int64(0)...MusicalPosition.subdivisionsPerBar * 8 {
+        for subdivision in Int64(0)...MusicalPosition.subdivisionsPerBar * 40 {
             harness.scheduler.render(event(.subdivision, subdivision: subdivision), currentChord: chord(pitchClass: 0))
             if harness.scheduler.metrics.attackHistory.isEmpty == false { break }
         }
@@ -263,7 +270,7 @@ final class HappeningSchedulerTests: XCTestCase {
         }
 
         var blockedAt: Int64?
-        for subdivision in Int64(0)...Int64(10 * MusicalPosition.subdivisionsPerBar) {
+        for subdivision in Int64(0)...Int64(40 * MusicalPosition.subdivisionsPerBar) {
             harness.scheduler.render(
                 event(.subdivision, subdivision: subdivision),
                 currentChord: chord(pitchClass: 0)
@@ -293,7 +300,7 @@ final class HappeningSchedulerTests: XCTestCase {
     }
 
     func testCountsOneFiveAndTenStayInsideRecurrenceBandsAndDensityCaps() throws {
-        for (count, band) in [(1, 6...10), (5, 14...24), (10, 28...48)] {
+        for (count, band) in [(1, 24...40), (5, 56...96), (10, 112...192)] {
             let harness = try makeHarness(count: count)
             let horizonBars = band.upperBound * 4
             renderBars(horizonBars, through: harness.scheduler, chord: harness.world.progression[0])
@@ -354,7 +361,7 @@ final class HappeningSchedulerTests: XCTestCase {
     func testRemovalCancelsFutureAttacksAndStopsOnlyOwnedSampleVoices() throws {
         let harness = try makeHarness(count: 2)
         var firstAttack: HappeningAttackRecord?
-        for subdivision in Int64(0)...Int64(10 * MusicalPosition.subdivisionsPerBar) {
+        for subdivision in Int64(0)...Int64(40 * MusicalPosition.subdivisionsPerBar) {
             harness.scheduler.render(
                 event(.subdivision, subdivision: subdivision),
                 currentChord: harness.world.progression[0]

@@ -90,7 +90,8 @@ final class HappeningSoundCatalogTests: XCTestCase {
         for recipe in HappeningSoundCatalog.recipes {
             XCTAssertLessThanOrEqual(recipe.delayMix, 0.10, recipe.label)
             XCTAssertLessThanOrEqual(recipe.delayFeedback, 0.18, recipe.label)
-            XCTAssertTrue((0.55...0.78).contains(recipe.reverbMix), recipe.label)
+            XCTAssertTrue((0.78...0.90).contains(recipe.reverbMix), recipe.label)
+            XCTAssertLessThanOrEqual(recipe.filterEndHz, 7_200, recipe.label)
 
             let bounds: (ClosedRange<Double>, ClosedRange<Double>)
             switch recipe.id.rawValue {
@@ -103,8 +104,8 @@ final class HappeningSoundCatalogTests: XCTestCase {
             XCTAssertTrue(bounds.0.contains(recipe.delayMix), recipe.label)
             XCTAssertTrue(bounds.1.contains(recipe.delayFeedback), recipe.label)
         }
-        XCTAssertLessThanOrEqual(HappeningSoundCatalog.recipes[16].filterEndHz, 7_500)
-        XCTAssertLessThanOrEqual(HappeningSoundCatalog.recipes[17].filterEndHz, 7_500)
+        XCTAssertLessThanOrEqual(HappeningSoundCatalog.recipes[16].filterEndHz, 4_550)
+        XCTAssertLessThanOrEqual(HappeningSoundCatalog.recipes[17].filterEndHz, 4_225)
     }
 
     func testEveryTonalRecipeCoversItsPreferredOctaveWithinTwoSemitones() {

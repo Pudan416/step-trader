@@ -155,7 +155,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         )
         harness.pool.update(original, gain: 0.25, playbackRate: 1.01)
         let update = try XCTUnwrap(harness.voices[original.voiceID].updateCalls.last)
-        XCTAssertEqual(update.gain, 0.25, accuracy: 1e-12)
+        XCTAssertEqual(update.gain, 0.25 * pow(10, -4.5 / 20), accuracy: 1e-12)
         XCTAssertEqual(update.playbackRate, 1.01, accuracy: 1e-12)
 
         for recipeID in 2...4 {
@@ -444,11 +444,11 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
 
         XCTAssertLessThan(
             rms(spatial, from: 0, to: 0.25),
-            rms(dry, from: 0, to: 0.25) * 0.75
+            rms(dry, from: 0, to: 0.25) * 0.45
         )
     }
 
-    func testProductionCatalogReverbRemainsAudibleFiveSecondsAfterAttack() throws {
+    func testProductionCatalogReverbRemainsAudibleSevenSecondsAfterAttack() throws {
         let recipeID = id(1)
         let recipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: recipeID))
         let source = try XCTUnwrap(recipe.sources.first)
@@ -463,7 +463,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         let spatial = try renderProduction(
             recipeIDs: [recipeID],
             sounds: [sound],
-            duration: 6,
+            duration: 8,
             effects: .init(
                 filterCutoffHz: recipe.filterEndHz,
                 delayMix: recipe.delayMix,
@@ -472,7 +472,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
             )
         )
 
-        XCTAssertGreaterThan(rms(spatial, from: 5, to: 6), 0.000_02)
+        XCTAssertGreaterThan(rms(spatial, from: 7, to: 8), 0.000_01)
     }
 
     func testSharedEffectsAreSanitizedAndRampWithoutAllocatingPlayers() throws {
@@ -517,9 +517,9 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         XCTAssertEqual(call.playbackRate, 1.25, accuracy: 1e-12)
         XCTAssertEqual(
             call.gain,
-            0.5,
+            0.5 * pow(10, -4.5 / 20),
             accuracy: 1e-12,
-            "The normalized source must recover the catalog's legacy 12 dB headroom"
+            "Happening sources must retain 4.5 dB of ambient headroom"
         )
         XCTAssertEqual(call.attackSeconds, recipe.attackSeconds, accuracy: 1e-12)
         XCTAssertEqual(call.releaseSeconds, 0.4, accuracy: 1e-12)

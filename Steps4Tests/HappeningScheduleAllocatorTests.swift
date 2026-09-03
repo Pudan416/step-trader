@@ -4,9 +4,9 @@ import XCTest
 final class HappeningScheduleAllocatorTests: XCTestCase {
     func testCountsZeroThroughTenUseExactBandsAndGuaranteeFirstCycleAndNoStarvation() throws {
         let expectedBands: [ClosedRange<Int>] = [
-            6...10, 6...10,
-            14...24, 14...24, 14...24, 14...24,
-            28...48, 28...48, 28...48, 28...48
+            24...40, 24...40,
+            56...96, 56...96, 56...96, 56...96,
+            112...192, 112...192, 112...192, 112...192
         ]
 
         for count in 0...10 {
@@ -108,9 +108,9 @@ final class HappeningScheduleAllocatorTests: XCTestCase {
 
     func testCandidateStreamsCanUseBothEndpointsOfEveryDeclaredIntervalBand() {
         let representatives: [(count: Int, band: ClosedRange<Int>)] = [
-            (1, 6...10),
-            (3, 14...24),
-            (7, 28...48)
+            (1, 24...40),
+            (3, 56...96),
+            (7, 112...192)
         ]
 
         for representative in representatives {
@@ -134,7 +134,7 @@ final class HappeningScheduleAllocatorTests: XCTestCase {
             remixSeed: 2_159,
             cycleCount: 4
         )
-        let maximumGap = Double(24 * allocation.beatsPerBar)
+        let maximumGap = Double(96 * allocation.beatsPerBar)
         let horizonBeat = Double(allocation.horizonBars * allocation.beatsPerBar)
 
         for cursor in allocation.nextCursors {
@@ -154,8 +154,8 @@ final class HappeningScheduleAllocatorTests: XCTestCase {
             remixSeed: 6_052,
             cycleCount: 4
         )
-        let minimumGap = Double(14 * allocation.beatsPerBar)
-        let maximumGap = Double(24 * allocation.beatsPerBar)
+        let minimumGap = Double(56 * allocation.beatsPerBar)
+        let maximumGap = Double(96 * allocation.beatsPerBar)
 
         for events in Dictionary(grouping: allocation.events, by: \.happeningID).values {
             let ordered = events.sorted { $0.sequenceIndex < $1.sequenceIndex }
@@ -176,7 +176,7 @@ final class HappeningScheduleAllocatorTests: XCTestCase {
             beatsPerBar: 4
         )
 
-        XCTAssertEqual(allocation.cycleBars, 24)
+        XCTAssertEqual(allocation.cycleBars, 96)
         XCTAssertEqual(Set(allocation.events.map(\.happeningID)), Set(plans.map(\.happeningID)))
         XCTAssertEqual(allocation.nextCursors.count, plans.count)
         for plan in plans {
@@ -186,10 +186,34 @@ final class HappeningScheduleAllocatorTests: XCTestCase {
             XCTAssertFalse(events.isEmpty)
             XCTAssertEqual(events.map(\.sequenceIndex), Array(0..<events.count))
             for pair in zip(events, events.dropFirst()) {
-                XCTAssertTrue((56.0...96.0).contains(pair.1.startBeat - pair.0.startBeat))
+                XCTAssertTrue((224.0...384.0).contains(pair.1.startBeat - pair.0.startBeat))
             }
-            XCTAssertLessThan(try XCTUnwrap(events.first).startBeat, 96)
-            XCTAssertLessThanOrEqual(96 - (try XCTUnwrap(events.last)).startBeat, 96)
+            XCTAssertLessThan(try XCTUnwrap(events.first).startBeat, 384)
+            XCTAssertLessThanOrEqual(384 - (try XCTUnwrap(events.last)).startBeat, 384)
+        }
+    }
+
+    func testTenHappeningFirstEntrancesAreSpreadAcrossTheFullCycle() throws {
+        for seed in seeds {
+            let allocation = HappeningScheduleAllocator.allocate(
+                plans: makePlans(count: 10, seed: seed),
+                remixSeed: seed,
+                cycleCount: 1
+            )
+            let firstEntrances = Dictionary(grouping: allocation.events, by: \.happeningID)
+                .compactMap { $0.value.min(by: { $0.startBeat < $1.startBeat })?.startBeat }
+                .sorted()
+            let cycleBeats = Double(allocation.cycleBars * allocation.beatsPerBar)
+
+            XCTAssertEqual(firstEntrances.count, 10)
+            XCTAssertGreaterThanOrEqual(try XCTUnwrap(firstEntrances.last), cycleBeats * 0.75)
+            for start in firstEntrances {
+                XCTAssertLessThanOrEqual(
+                    firstEntrances.filter { $0 >= start && $0 < start + 24 * 4 }.count,
+                    2,
+                    "seed=\(seed), start=\(start)"
+                )
+            }
         }
     }
 

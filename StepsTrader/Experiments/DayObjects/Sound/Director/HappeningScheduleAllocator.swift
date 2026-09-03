@@ -29,15 +29,15 @@ enum HappeningScheduleAllocator {
         let horizonBars = cycleBars * cycleCount
         let horizonBeats = Double(horizonBars * beatsPerBar)
         let gridIDs = gridAlignedIDs(in: activePlans)
-        let minimumPeriodBeats = intervalBand.lowerBound * beatsPerBar
-        // Every declared upper interval is exactly two minimum periods. Assigning
-        // one collision-free phase per voice, then repeating at one or two periods,
-        // makes all future placements collision-free without greedy horizon state.
+        let entryHorizonBeats = cycleBars * beatsPerBar
+        // First entrances span the complete longest cycle. Recurrences then use
+        // one of the band endpoints, so enabling Sound cannot front-load every
+        // existing Happening and leave a long empty trough afterwards.
         let lanes = makeVoiceLanes(
             plans: activePlans,
             gridIDs: gridIDs,
             intervalBand: intervalBand,
-            minimumPeriodBeats: minimumPeriodBeats,
+            entryHorizonBeats: entryHorizonBeats,
             beatsPerBar: beatsPerBar,
             remixSeed: remixSeed
         )
@@ -83,9 +83,9 @@ enum HappeningScheduleAllocator {
 
     private static func intervalBand(for count: Int) -> ClosedRange<Int>? {
         switch count {
-        case 1...2: return 6...10
-        case 3...6: return 14...24
-        case 7...10: return 28...48
+        case 1...2: return 24...40
+        case 3...6: return 56...96
+        case 7...10: return 112...192
         default: return nil
         }
     }
@@ -132,12 +132,14 @@ enum HappeningScheduleAllocator {
         plans: [HappeningMusicPlan],
         gridIDs: Set<String>,
         intervalBand: ClosedRange<Int>,
-        minimumPeriodBeats: Int,
+        entryHorizonBeats: Int,
         beatsPerBar: Int,
         remixSeed: UInt64,
     ) -> [VoiceLane] {
         var lanes: [VoiceLane] = []
-        for plan in plans.sorted(by: { $0.happeningID < $1.happeningID }) {
+        let orderedPlans = plans.sorted(by: { $0.happeningID < $1.happeningID })
+        let entranceSlotBeats = Double(entryHorizonBeats) / Double(orderedPlans.count)
+        for (index, plan) in orderedPlans.enumerated() {
             let alignment: HappeningRecurrenceAlignment = gridIDs.contains(plan.happeningID)
                 ? .gridAligned
                 : .floating
@@ -148,27 +150,14 @@ enum HappeningScheduleAllocator {
             let preferredIntervalBars = random.bernoulli(probability: 0.5)
                 ? intervalBand.lowerBound
                 : intervalBand.upperBound
-            let preferredWholeBeat = random.nextInt(upperBound: minimumPeriodBeats) ?? 0
-            let preferredPhase = wrappedPhase(
-                Double(preferredWholeBeat) + (
-                    alignment == .gridAligned ? 0 : plan.recurrence.floatingOffsetBeats
-                ),
-                periodBeats: minimumPeriodBeats
-            )
+            let entrancePosition = 0.25 + 0.50 * random.nextUnitDouble()
+            let preferredPhase = entranceSlotBeats * (Double(index) + entrancePosition)
             let candidates = candidatePhases(
                 alignment: alignment,
-                periodBeats: minimumPeriodBeats
+                periodBeats: entryHorizonBeats
             ).sorted {
-                    let leftDistance = circularDistance(
-                        from: $0,
-                        to: preferredPhase,
-                        period: Double(minimumPeriodBeats)
-                    )
-                    let rightDistance = circularDistance(
-                        from: $1,
-                        to: preferredPhase,
-                        period: Double(minimumPeriodBeats)
-                    )
+                    let leftDistance = abs($0 - preferredPhase)
+                    let rightDistance = abs($1 - preferredPhase)
                     if leftDistance != rightDistance { return leftDistance < rightDistance }
                     return $0 < $1
                 }
@@ -231,13 +220,16 @@ enum HappeningScheduleAllocator {
         var positions: [Double] = []
         for lane in lanes {
             let period = Double(lane.intervalBars * beatsPerBar)
-            var position = lane.phaseBeat
+            var position = normalizedPhase(lane.phaseBeat, period: period)
             while position < Double(horizon) {
                 positions.append(position)
                 position += period
             }
         }
-        var candidatePosition = phaseBeat
+        var candidatePosition = normalizedPhase(
+            phaseBeat,
+            period: Double(candidatePeriod)
+        )
         while candidatePosition < Double(horizon) {
             positions.append(candidatePosition)
             candidatePosition += Double(candidatePeriod)
@@ -270,16 +262,9 @@ enum HappeningScheduleAllocator {
         return left
     }
 
-    private static func wrappedPhase(_ phase: Double, periodBeats: Int) -> Double {
-        let period = Double(periodBeats)
-        if phase < 0 { return phase + period }
-        if phase >= period { return phase - period }
-        return phase
-    }
-
-    private static func circularDistance(from lhs: Double, to rhs: Double, period: Double) -> Double {
-        let direct = abs(lhs - rhs)
-        return min(direct, period - direct)
+    private static func normalizedPhase(_ phase: Double, period: Double) -> Double {
+        let remainder = phase.truncatingRemainder(dividingBy: period)
+        return remainder >= 0 ? remainder : remainder + period
     }
 }
 #endif

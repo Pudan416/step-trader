@@ -321,7 +321,7 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
     }
 
     private static func playbackRecipeGain(decibels: Double) -> Double {
-        let adjustedDecibels = min(decibels + 12, 0)
+        let adjustedDecibels = min(decibels + 7.5, 0)
         return pow(10, adjustedDecibels / 20)
     }
 
@@ -349,7 +349,8 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
     }
 
     private static func directPresence(for reverbMix: Double) -> Double {
-        min(max(1 - reverbMix * 0.95, 0.32), 1)
+        let boundedMix = min(max(reverbMix, 0), 1)
+        return max(pow(1 - boundedMix, 1.2), 0.12)
     }
 
     func releaseAll() {
