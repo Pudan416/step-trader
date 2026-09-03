@@ -1173,6 +1173,27 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(effects.feedbackRampDurationSeconds, 0.25, accuracy: 0.000_001)
     }
 
+    func testLiveRuntimeIntroducesExistingHappeningsWhenSoundStarts() throws {
+        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let plan = makePlaybackEnginePlan(
+            seed: 34,
+            happeningIDs: (1...10).map { "existing-happening-\($0)" }
+        )
+        try runtime.prepare(plan: plan)
+
+        try runtime.startPreparedWorldForTesting()
+        runtime.renderForTesting(.init(
+            kind: .subdivision,
+            position: .init(absoluteSubdivision: 0),
+            hostTimeSeconds: 0,
+            tempoBPM: plan.rhythm.tempoBPM
+        ))
+
+        let firstAttack = try XCTUnwrap(runtime.activeHappeningAttackHistoryForTesting.first)
+        XCTAssertTrue(firstAttack.isBirth)
+        XCTAssertEqual(firstAttack.position, MusicalPosition(absoluteSubdivision: 0))
+    }
+
     func testLiveRuntimeRemixKeepsOldHarmonyThroughP0ThenReleasesBeforeRecycle() throws {
         let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
         let initial = makePlaybackEnginePlan(seed: 501)

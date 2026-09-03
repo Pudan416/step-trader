@@ -155,7 +155,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         )
         harness.pool.update(original, gain: 0.25, playbackRate: 1.01)
         let update = try XCTUnwrap(harness.voices[original.voiceID].updateCalls.last)
-        XCTAssertEqual(update.gain, 0.25 * pow(10, -12.0 / 20), accuracy: 1e-12)
+        XCTAssertEqual(update.gain, 0.25, accuracy: 1e-12)
         XCTAssertEqual(update.playbackRate, 1.01, accuracy: 1e-12)
 
         for recipeID in 2...4 {
@@ -452,7 +452,12 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
 
         XCTAssertTrue(call.buffer === harness.loadedBuffers["one.wav"])
         XCTAssertEqual(call.playbackRate, 1.25, accuracy: 1e-12)
-        XCTAssertEqual(call.gain, 0.5 * pow(10, recipe.gainDB / 20), accuracy: 1e-12)
+        XCTAssertEqual(
+            call.gain,
+            0.5,
+            accuracy: 1e-12,
+            "The normalized source must recover the catalog's legacy 12 dB headroom"
+        )
         XCTAssertEqual(call.attackSeconds, recipe.attackSeconds, accuracy: 1e-12)
         XCTAssertEqual(call.releaseSeconds, 0.4, accuracy: 1e-12)
         XCTAssertNil(call.resonantFilterHz)

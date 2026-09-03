@@ -4,6 +4,19 @@ import XCTest
 
 @MainActor
 final class HappeningSchedulerTests: XCTestCase {
+    func testStartingWithExistingHappeningsIntroducesThemAsBirthSounds() throws {
+        let harness = try makeHarness(count: 10, playInitialBirths: true)
+
+        harness.scheduler.render(
+            event(.subdivision, subdivision: 0),
+            currentChord: harness.world.progression[0]
+        )
+
+        let firstAttack = try XCTUnwrap(harness.scheduler.metrics.attackHistory.first)
+        XCTAssertTrue(firstAttack.isBirth)
+        XCTAssertEqual(firstAttack.position, MusicalPosition(absoluteSubdivision: 0))
+    }
+
     func testMixedAvailableAndUnavailablePlansKeepValidHappeningsAudible() throws {
         let unavailable = recipeID(2)
         let bank = RecordingHappeningBank(unavailableRecipeIDs: [unavailable])
@@ -353,13 +366,16 @@ final class HappeningSchedulerTests: XCTestCase {
         XCTAssertTrue(attacksByBeat.values.allSatisfy { $0.count <= 2 }, "count=\(count)")
     }
 
-    private func makeHarness(count: Int) throws -> Harness {
+    private func makeHarness(
+        count: Int,
+        playInitialBirths: Bool = false
+    ) throws -> Harness {
         let bank = RecordingHappeningBank()
         let scheduler = HappeningScheduler(worldBank: PlaybackWorldBank(instrumentBank: bank))
         let world = makeWorld()
         let plans = count > 0 ? (1...count).map { makePlan(index: $0, seed: 42) } : []
         try scheduler.configure(plans: plans, tonalWorld: world, remixSeed: 42)
-        try scheduler.start()
+        try scheduler.start(playInitialBirths: playInitialBirths)
         return Harness(bank: bank, pool: bank.samplePool, scheduler: scheduler, world: world, plans: plans)
     }
 

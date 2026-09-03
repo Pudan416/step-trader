@@ -71,13 +71,13 @@ final class HappeningMusicPlannerTests: XCTestCase {
             let recipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: plan.recipeID))
             XCTAssertEqual(plan.family, soundFamily(for: recipe.family))
             XCTAssertTrue(plan.pan.isFinite && (-0.85...0.85).contains(plan.pan))
-            XCTAssertTrue(plan.gain.isFinite && (HappeningMusicPlan.minimumAudibleGain...0.30).contains(plan.gain))
-            XCTAssertTrue(plan.birthGain.isFinite && (plan.gain...0.38).contains(plan.birthGain))
+            XCTAssertTrue(plan.gain.isFinite && (0.62...0.80).contains(plan.gain))
+            XCTAssertTrue(plan.birthGain.isFinite && (plan.gain...0.95).contains(plan.birthGain))
             XCTAssertNotEqual(plan.recurrence.scheduleSeed, 0)
             XCTAssertTrue((0.25...0.50).contains(abs(plan.recurrence.floatingOffsetBeats)))
         }
-        XCTAssertLessThan(plans.reduce(0) { $0 + $1.gain }, 3)
-        XCTAssertLessThan(plans.reduce(0) { $0 + $1.birthGain }, 4)
+        XCTAssertLessThan(plans.reduce(0) { $0 + $1.gain }, 8.01)
+        XCTAssertLessThan(plans.reduce(0) { $0 + $1.birthGain }, 9.51)
     }
 
     func testOversizedArbitraryOrderedInputUsesOnlyItsFirstTenIDs() {
@@ -100,9 +100,9 @@ final class HappeningMusicPlannerTests: XCTestCase {
             let floatingOffset: Double
         }
         let fixtures = [
-            Fixture(id: "event-0", pan: -0.41656545531320505, gain: 0.21389347528688357, birthGain: 0.272616108732068, scheduleSeed: 18_087_808_294_331_211_280, alignmentRank: 14_812_916_986_981_494_135, floatingOffset: -0.5),
-            Fixture(id: "event-4", pan: 0.43740676647220422, gain: 0.2731477296135163, birthGain: 0.3162248629399153, scheduleSeed: 2_137_261_057_161_796_335, alignmentRank: 10_822_951_049_026_308_331, floatingOffset: -0.5),
-            Fixture(id: "morning", pan: -0.2539172236500712, gain: 0.2759388572689173, birthGain: 0.345547302272706, scheduleSeed: 17_792_516_803_595_872_528, alignmentRank: 17_815_431_101_816_481_277, floatingOffset: 0.25),
+            Fixture(id: "event-0", pan: -0.41656545531320505, gain: 0.6708402129303254, birthGain: 0.8082854798206942, scheduleSeed: 18_087_808_294_331_211_280, alignmentRank: 14_812_916_986_981_494_135, floatingOffset: -0.5),
+            Fixture(id: "event-4", pan: 0.43740676647220422, gain: 0.7597215944202744, birthGain: 0.8658758610730725, scheduleSeed: 2_137_261_057_161_796_335, alignmentRank: 10_822_951_049_026_308_331, floatingOffset: -0.5),
+            Fixture(id: "morning", pan: -0.2539172236500712, gain: 0.7639082859033759, birthGain: 0.9231251759109533, scheduleSeed: 17_792_516_803_595_872_528, alignmentRank: 17_815_431_101_816_481_277, floatingOffset: 0.25),
         ]
         let plans = makePlans(ids: fixtures.map(\.id))
 

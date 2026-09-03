@@ -51,19 +51,16 @@ final class DayObjectsMixController {
         )
         let ducking = min(nonnegative(requestedDucking), duckingMaximum)
         let harmony = max(baseHarmony - ducking, Self.minimumDecibels)
-        let chordVoiceCount = min(max(activeChordVoiceCount, 1), 4)
-        let harmonyPerVoice = max(
-            harmony - Self.powerCompensationDecibels(count: chordVoiceCount),
-            Self.minimumDecibels
-        )
+        // HarmonyPlayer already divides a role's gain across its active voices.
+        // Applying another power correction here made the complete chord much
+        // quieter than the published harmony target.
+        _ = activeChordVoiceCount
+        let harmonyPerVoice = harmony
 
         let happeningAggregate = decibels(plan.happeningAggregateTargetDecibels)
-        let happeningCount = min(max(plan.happeningCount, 1), 10)
-        let maximumCompensatedPerVoice = happeningAggregate
-            - Self.powerCompensationDecibels(count: happeningCount)
         let publishedPerVoice = decibels(plan.happeningPerVoiceTargetDecibels)
         let happeningPerVoice = max(
-            min(publishedPerVoice, maximumCompensatedPerVoice),
+            min(publishedPerVoice, happeningAggregate),
             Self.minimumDecibels
         )
 
@@ -109,10 +106,6 @@ final class DayObjectsMixController {
     private func duration(_ value: TimeInterval) -> TimeInterval {
         guard value.isFinite else { return 0.25 }
         return min(max(value, 0), 2)
-    }
-
-    private static func powerCompensationDecibels(count: Int) -> Double {
-        10 * log10(Double(max(count, 1)))
     }
 }
 #endif

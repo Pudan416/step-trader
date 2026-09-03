@@ -644,7 +644,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         }
 
         func startScheduling() throws {
-            try happenings.start()
+            try happenings.start(playInitialBirths: true)
             isScheduling = true
         }
 

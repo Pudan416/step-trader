@@ -107,17 +107,30 @@ final class HappeningScheduler {
         scheduleWindowEndSubdivision = nil
     }
 
-    func start() throws {
-        try start(at: currentPosition)
+    func start(playInitialBirths: Bool = false) throws {
+        try start(at: currentPosition, playInitialBirths: playInitialBirths)
     }
 
-    func start(at position: MusicalPosition) throws {
+    func start(
+        at position: MusicalPosition,
+        playInitialBirths: Bool = false
+    ) throws {
         guard tonalWorld != nil, happeningPool != nil else {
             throw DayObjectsInstrumentBankError.notPrepared
         }
         currentPosition = position
         isPlaying = true
-        states.keys.forEach { states[$0]?.didPlaySinceStart = false }
+        for id in states.keys {
+            states[id]?.didPlaySinceStart = false
+            guard playInitialBirths else { continue }
+            states[id]?.isBirthPending = true
+            states[id]?.birthRetryAttemptCount = 0
+            states[id]?.birthNextRetryPosition = position
+            states[id]?.birthRetryDeadline = .init(
+                absoluteSubdivision: position.absoluteSubdivision
+                    + Self.admissionRetryHorizonSubdivisions
+            )
+        }
         rebuildSchedules(startingAt: position)
     }
 

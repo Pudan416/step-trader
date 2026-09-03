@@ -33,8 +33,8 @@ enum HappeningMusicPlanner {
         _ = identityRandom.nextInt(upperBound: legacyFamilyIndex == 3 ? 6 : 3)
         let legacyMotifLength = 1 + (identityRandom.nextInt(upperBound: 3) ?? 0)
         _ = Array(identityRandom.shuffled(tonalWorld.mode.scaleIntervals).prefix(legacyMotifLength))
-        let gain = 0.18 + (0.12 * identityRandom.nextUnitDouble())
-        let birthGain = min(0.38, gain + 0.04 + (0.04 * identityRandom.nextUnitDouble()))
+        let gain = 0.62 + (0.18 * identityRandom.nextUnitDouble())
+        let birthGain = min(0.95, gain + 0.10 + (0.08 * identityRandom.nextUnitDouble()))
         _ = identityRandom.nextInt(
             upperBound: legacyFamilyIndex == 0 || legacyFamilyIndex == 2 ? 3 : 2
         )

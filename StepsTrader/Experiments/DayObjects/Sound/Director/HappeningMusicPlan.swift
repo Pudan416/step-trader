@@ -21,7 +21,7 @@ struct HappeningRecurrencePlan: Equatable, Sendable {
 }
 
 struct HappeningMusicPlan: Equatable, Sendable {
-    static let minimumAudibleGain = 0.18
+    static let minimumAudibleGain = 0.62
 
     let happeningID: String
     let family: HappeningSoundFamily

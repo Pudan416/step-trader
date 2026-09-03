@@ -270,7 +270,10 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
             generation: generation
         )
         let requestedGain = gain.isFinite ? gain : 0
-        let recipeGain = pow(10, recipe.gainDB / 20)
+        // Authored happening assets are normalized with generous headroom.
+        // Recover the catalog's legacy attenuation here without ever boosting
+        // a source above unity.
+        let recipeGain = Self.playbackRecipeGain(decibels: recipe.gainDB)
         let playbackGain = min(max(requestedGain * recipeGain, 0), 1)
         let rate = min(max(sound.playbackRate.isFinite ? sound.playbackRate : 1, 0.5), 2)
         slots[slotIndex].state = .active(
@@ -310,6 +313,11 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
             playbackRate: boundedRate,
             rampSeconds: 0.08
         )
+    }
+
+    private static func playbackRecipeGain(decibels: Double) -> Double {
+        let adjustedDecibels = min(decibels + 12, 0)
+        return pow(10, adjustedDecibels / 20)
     }
 
     func stop(_ handle: HappeningPlaybackHandle) {
