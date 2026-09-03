@@ -177,3 +177,49 @@ final class WidgetTests: XCTestCase {
         }
     }
 }
+
+/// Guards the build setting that silently deleted the whole blocking mechanic.
+///
+/// An app extension whose deployment target is higher than its host app's is not
+/// installed at all on systems below that floor — no error, no crash, the feature is
+/// simply absent. Xcode rewrites `IPHONEOS_DEPLOYMENT_TARGET` whenever a target is
+/// edited, and it had done exactly that twice: `ShieldConfiguration`, `ShieldAction` and
+/// `UnlockWidgetExtension` sat at 26.1 and `DeviceActivityMonitor` at 18.5 while the app
+/// shipped to 17. Below those versions there was no shield UI, no shield buttons, no
+/// widget and no budget ticks — for an app whose entire purpose is blocking.
+///
+/// It lives beside the widget tests because the missing widget is the most visible
+/// symptom, but it covers every embedded extension.
+final class ExtensionDeploymentTargetTests: XCTestCase {
+
+    func testNoExtensionRequiresANewerOSThanTheHostApp() throws {
+        let host = Bundle.main
+        let appMinimum = try XCTUnwrap(
+            host.object(forInfoDictionaryKey: "MinimumOSVersion") as? String,
+            "host app has no MinimumOSVersion"
+        )
+
+        let pluginsURL = try XCTUnwrap(host.builtInPlugInsURL, "host app has no PlugIns directory")
+        let appexes = ((try? FileManager.default.contentsOfDirectory(
+            at: pluginsURL, includingPropertiesForKeys: nil
+        )) ?? []).filter { $0.pathExtension == "appex" }
+
+        // Without this the whole check would pass vacuously if the layout ever changes.
+        XCTAssertFalse(appexes.isEmpty, "found no embedded extensions to check")
+
+        for url in appexes {
+            let name = url.lastPathComponent
+            let bundle = try XCTUnwrap(Bundle(url: url), "\(name) is not a readable bundle")
+            let minimum = try XCTUnwrap(
+                bundle.object(forInfoDictionaryKey: "MinimumOSVersion") as? String,
+                "\(name) has no MinimumOSVersion"
+            )
+
+            XCTAssertFalse(
+                minimum.compare(appMinimum, options: .numeric) == .orderedDescending,
+                "\(name) requires iOS \(minimum) but the app ships to iOS \(appMinimum) — "
+                + "it will be silently missing on every system below \(minimum)"
+            )
+        }
+    }
+}
