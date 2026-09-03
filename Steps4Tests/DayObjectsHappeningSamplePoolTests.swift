@@ -6,6 +6,41 @@ import XCTest
 
 @MainActor
 final class DayObjectsHappeningSamplePoolTests: XCTestCase {
+    func testNewPoolStartsWithTransparentDefaultEffects() throws {
+        let harness = try preparedHarness()
+
+        assertEffects(harness.pool.metrics.effects, equalTo: .init(
+            filterCutoffHz: 8_000,
+            delayMix: 0.04,
+            delayFeedback: 0.12,
+            reverbMix: 0.05
+        ))
+    }
+
+    func testFourMaximumWetRecipesCannotExceedRecipeBounds() throws {
+        let harness = try preparedHarness()
+        let maximum = HappeningEffectCommand(
+            filterCutoffHz: 7_500,
+            delayMix: 0.10,
+            delayFeedback: 0.18,
+            reverbMix: 0.14
+        )
+
+        for recipeID in 1...4 {
+            _ = try harness.pool.play(
+                sound(id: recipeID, resource: "\(recipeID).wav"),
+                gain: 1,
+                priority: .birth,
+                effects: maximum
+            )
+        }
+
+        XCTAssertLessThanOrEqual(harness.pool.metrics.effects.delayMix, 0.10)
+        XCTAssertLessThanOrEqual(harness.pool.metrics.effects.delayFeedback, 0.18)
+        XCTAssertLessThanOrEqual(harness.pool.metrics.effects.reverbMix, 0.14)
+        assertEffects(harness.pool.metrics.effects, equalTo: maximum)
+    }
+
     func testStaleHandleCannotStopOrUpdateManualVoiceThatStoleItsSlot() throws {
         let harness = try preparedHarness()
         let automatic = try (1...4).map {

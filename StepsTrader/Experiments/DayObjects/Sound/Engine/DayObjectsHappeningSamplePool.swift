@@ -126,9 +126,9 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
     private var stealCount = 0
     private static let defaultEffects = HappeningEffectCommand(
         filterCutoffHz: 8_000,
-        delayMix: 0.12,
-        delayFeedback: 0.25,
-        reverbMix: 0.12
+        delayMix: 0.04,
+        delayFeedback: 0.12,
+        reverbMix: 0.05
     )
     private var currentEffects = defaultEffects
     private var lastEffectRampSeconds: TimeInterval = 0
