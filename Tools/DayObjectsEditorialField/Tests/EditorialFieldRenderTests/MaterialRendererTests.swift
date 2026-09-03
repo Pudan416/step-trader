@@ -412,8 +412,17 @@ struct MaterialRendererTests {
             MaterialEvidenceMetrics.self,
             from: Data(contentsOf: directory.appendingPathComponent("metrics.json"))
         )
+        let initialMetricsObject = try #require(
+            JSONSerialization.jsonObject(
+                with: Data(contentsOf: directory.appendingPathComponent("metrics.json"))
+            ) as? [String: Any]
+        )
 
         #expect(copiedApproval == approval)
+        try #require(generated.manifest.version == "material-evidence-v9")
+        try #require(initialMetricsObject["version"] as? String == "material-metrics-v9")
+        try #require(initialMetricsObject["outlinePresentationAuthorityVersion"] as? String ==
+            "outline-presentation-authority-v1")
         #expect(generated.manifest.fixtureCount == 27)
         #expect(generated.manifest.coreImageCount == 54)
         #expect(metrics.fixtures.count == 27)
@@ -451,6 +460,49 @@ struct MaterialRendererTests {
                 && $0.actors.contains(where: \.eligible)
                 && $0.actors.allSatisfy(\.passes)
         })
+        let outlineScenes = metrics.sceneScale.filter { $0.family == .outline }
+        let outlineAuthorityRows = outlineScenes.flatMap { scene in
+            scene.actors.compactMap { actor in
+                actor.outlinePresentationAuthority.map { authority in
+                    (scene: scene, actor: actor, authority: authority)
+                }
+            }
+        }
+        #expect(outlineScenes.count == 9)
+        #expect(outlineAuthorityRows.count == 90)
+        #expect(Set(outlineAuthorityRows.map {
+            "\($0.scene.requestedColorCount)|\($0.scene.background.rawValue)|\($0.actor.eventID)"
+        }).count == 90)
+        #expect(outlineScenes.allSatisfy { scene in
+            Set(scene.actors.compactMap {
+                $0.outlinePresentationAuthority?.drawOrderIndex
+            }) == Set(0..<10)
+        })
+        #expect(outlineAuthorityRows.allSatisfy { row in
+            let record = row.authority
+            return record.eventID == row.actor.eventID
+                && record.fullTrace.width == 393
+                && record.fullTrace.height == 852
+                && record.tileTrace.width == 393
+                && record.tileTrace.height == 393
+                && record.tileCrop == PixelRect(x: 0, y: 229, width: 393, height: 393)
+                && record.fullVisiblePath == row.scene.fullPath
+                && record.tileVisiblePath == row.scene.tilePath
+                && record.sourceScale == 2
+                && record.presentationScale == 1
+                && isLowercaseSHA256(record.fullTrace.alphaSHA256)
+                && isLowercaseSHA256(record.tileTrace.alphaSHA256)
+                && isLowercaseSHA256(record.sourceRenderInvocationSHA256)
+        })
+        #expect(outlineScenes.allSatisfy { scene in
+            Set(scene.actors.compactMap {
+                $0.outlinePresentationAuthority?.sourceRenderInvocationSHA256
+            }).count == 1
+        })
+        #expect(metrics.sceneScale.filter { $0.family != .outline }.allSatisfy { scene in
+            scene.actors.allSatisfy { $0.outlinePresentationAuthority == nil }
+        })
+        #expect(try recursiveRegularFileCount(in: directory) == 261)
         let structuralSceneScale = metrics.sceneScale.filter {
             [.halo, .outline, .counterform].contains($0.family)
         }
@@ -519,6 +571,40 @@ struct MaterialRendererTests {
             expectedCompositionApprovalData: approval,
             expectedCompositionRecipeArchiveData: authority.recipes
         ) == generated.packageHash)
+
+        let separatelyRenderedBorrowedDigest = try separatelyRenderedOutlineFullTraceDigest(
+            compositionRecipeArchiveData: authority.recipes,
+            requestedColorCount: 1,
+            background: .light
+        )
+        for mutation in OutlineAuthorityPackageMutation.allCases {
+            let tamperedDirectory = testRoot.appendingPathComponent(
+                "authority-tamper-\(mutation.rawValue)",
+                isDirectory: true
+            )
+            try FileManager.default.copyItem(at: directory, to: tamperedDirectory)
+            try mutateOutlineAuthorityPackage(
+                in: tamperedDirectory,
+                mutation: mutation,
+                borrowedFullTraceDigest: separatelyRenderedBorrowedDigest
+            )
+            try verifyOuterMaterialSeal(in: tamperedDirectory)
+            do {
+                _ = try MaterialEvidencePackage.verify(
+                    directory: tamperedDirectory,
+                    expectedSourceCommit: String(repeating: "a", count: 40),
+                    expectedCompositionApprovalData: approval,
+                    expectedCompositionRecipeArchiveData: authority.recipes
+                )
+                Issue.record("resealed authority mutation was accepted: \(mutation.rawValue)")
+                return
+            } catch MaterialEvidenceError.invalidPackage(let detail) {
+                let expectedDetail = mutation == .unexpectedField
+                    ? "metrics bytes are not canonical v9"
+                    : "outline presentation authority replay mismatch"
+                #expect(detail == expectedDetail, Comment(rawValue: mutation.rawValue))
+            }
+        }
 
         let metricsURL = directory.appendingPathComponent("metrics.json")
         var metricsObject = try #require(
@@ -2048,6 +2134,451 @@ struct MaterialRendererTests {
         )
         #expect(sealedMetrics(signature).centerToRimRatio <= 0.22)
         #expect(sealedOutlineContinuity(signature).supportedAngularCoverage >= 0.82)
+    }
+
+    @Test("fixture 11 readability persists exact same-render authority metadata")
+    func fixture11ReadabilityPersistsSameRenderAuthorityMetadata() throws {
+        // Regression caught: v8 retained only derived readability numbers, so
+        // a sealed package could not prove which exact same-render authority
+        // alpha bytes, crop, actor order, or invocation produced those numbers.
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let layout = manifest.breadth[11]
+        let recipe = try #require(archive.fixtures.first { $0.fixtureIndex == 11 }?.recipe)
+        let material = MaterialDNA.fixture(
+            daySeed: layout.seed,
+            eventIDs: layout.eventIDs,
+            family: .outline,
+            requestedColorCount: 3
+        )
+        let rendered = try MaterialEvidencePackage.sceneScaleRenderedScene(
+            recipe: recipe,
+            material: material,
+            background: .lowContrast,
+            renderer: MaterialRenderer(),
+            presentationEvidenceRequest: .perActor
+        )
+        let optionalActorMetrics = try MaterialEvidencePackage
+            .presentationSceneScaleReadabilityForTesting(
+                source: rendered,
+                recipe: recipe,
+                material: material,
+                background: .lowContrast
+            )
+        let actorMetrics = try #require(
+            optionalActorMetrics
+        )
+        let payload = try #require(rendered.presentationEvidence)
+        let encoded = try JSONEncoder().encode(actorMetrics)
+        let records = try #require(
+            JSONSerialization.jsonObject(with: encoded) as? [[String: Any]]
+        )
+        let evidenceByID = Dictionary(
+            uniqueKeysWithValues: payload.actors.map { ($0.eventID, $0) }
+        )
+        let expectedKeys = Set([
+            "eventID",
+            "drawOrderIndex",
+            "fullTrace",
+            "tileTrace",
+            "tileCrop",
+            "fullVisiblePath",
+            "tileVisiblePath",
+            "sourceScale",
+            "presentationScale",
+            "sourceRenderInvocationSHA256",
+        ])
+
+        #expect(records.count == 10)
+        for record in records {
+            let eventID = try #require(record["eventID"] as? String)
+            let authorityRecord = try #require(
+                record["outlinePresentationAuthority"] as? [String: Any]
+            )
+            #expect(Set(authorityRecord.keys) == expectedKeys)
+            #expect(authorityRecord["eventID"] as? String == eventID)
+            #expect(authorityRecord["drawOrderIndex"] as? Int ==
+                rendered.drawSequence.firstIndex(of: eventID))
+            #expect(authorityRecord["tileCrop"] as? [String: Int] == [
+                "x": 0,
+                "y": 229,
+                "width": 393,
+                "height": 393,
+            ])
+            #expect(authorityRecord["fullVisiblePath"] as? String ==
+                "scene-scale/outline/outline-colors-3-lowContrast-layout-11-full@1x.png")
+            #expect(authorityRecord["tileVisiblePath"] as? String ==
+                "scene-scale/outline/outline-colors-3-lowContrast-layout-11-tile@1x.png")
+            #expect(authorityRecord["sourceScale"] as? Int == 2)
+            #expect(authorityRecord["presentationScale"] as? Int == 1)
+            let actorEvidence = try #require(evidenceByID[eventID])
+            let fullTrace = try #require(authorityRecord["fullTrace"] as? [String: Any])
+            let tileTrace = try #require(authorityRecord["tileTrace"] as? [String: Any])
+            #expect(fullTrace["width"] as? Int == 393)
+            #expect(fullTrace["height"] as? Int == 852)
+            #expect(fullTrace["alphaSHA256"] as? String ==
+                sha256Hex(try alphaBytes(actorEvidence.isolated.fullScreen.pngData)))
+            #expect(tileTrace["width"] as? Int == 393)
+            #expect(tileTrace["height"] as? Int == 393)
+            #expect(tileTrace["alphaSHA256"] as? String ==
+                sha256Hex(try alphaBytes(actorEvidence.isolated.calendarTile.pngData)))
+            #expect((authorityRecord["sourceRenderInvocationSHA256"] as? String)?.count == 64)
+        }
+        let invocationDigests = Set(records.compactMap {
+            ($0["outlinePresentationAuthority"] as? [String: Any])?[
+                "sourceRenderInvocationSHA256"
+            ] as? String
+        })
+        #expect(invocationDigests.count == 1)
+        let actorTraceDigests = try rendered.drawSequence.enumerated().map { index, eventID in
+            let actorEvidence = try #require(evidenceByID[eventID])
+            return ExpectedSourceRenderActorTraceDigest(
+                eventID: eventID,
+                drawOrderIndex: index,
+                fullAlphaSHA256: sha256Hex(try alphaBytes(
+                    actorEvidence.isolated.fullScreen.pngData
+                )),
+                tileAlphaSHA256: sha256Hex(try alphaBytes(
+                    actorEvidence.isolated.calendarTile.pngData
+                ))
+            )
+        }
+        let expectedInvocationDigest = sha256Hex(try canonicalEncoded(
+            ExpectedSourceRenderInvocationDigest(
+                domain: "outline-presentation-authority-v1",
+                conditionIdentity: "outline-colors-3-lowContrast-layout-11",
+                daySeed: material.daySeed,
+                layoutFixtureIndex: 11,
+                family: .outline,
+                requestedColorCount: 3,
+                background: .lowContrast,
+                sourceScale: 2,
+                presentationScale: 1,
+                tileCrop: PixelRect(x: 0, y: 229, width: 393, height: 393),
+                drawSequence: rendered.drawSequence,
+                fullVisibleRGBASHA256: sha256Hex(try rgbaBytes(
+                    decodePNG(rendered.fullScreen.pngData)
+                )),
+                tileVisibleRGBASHA256: sha256Hex(try rgbaBytes(
+                    decodePNG(rendered.calendarTile.pngData)
+                )),
+                actorTraces: actorTraceDigests
+            )
+        ))
+        #expect(invocationDigests == [expectedInvocationDigest])
+    }
+
+    @Test("outline authority is canonical-only while topology remains measurement-only")
+    func outlineAuthorityExcludesIndependentTopologyReadability() throws {
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let layout = manifest.breadth[11]
+        let recipe = try #require(archive.fixtures.first { $0.fixtureIndex == 11 }?.recipe)
+        let material = MaterialDNA.fixture(
+            daySeed: layout.seed,
+            eventIDs: layout.eventIDs,
+            family: .outline,
+            requestedColorCount: 3
+        )
+        let renderer = MaterialRenderer()
+        let canonicalSource = try MaterialEvidencePackage.sceneScaleRenderedScene(
+            recipe: recipe,
+            material: material,
+            background: .lowContrast,
+            renderer: renderer,
+            presentationEvidenceRequest: .perActor
+        )
+        let optionalCanonical = try MaterialEvidencePackage
+            .presentationSceneScaleReadabilityForTesting(
+                source: canonicalSource,
+                recipe: recipe,
+                material: material,
+                background: .lowContrast
+            )
+        let canonical = try #require(
+            optionalCanonical
+        )
+
+        #expect(canonical.count == 10)
+        #expect(canonical.allSatisfy { $0.outlinePresentationAuthority != nil })
+
+        let exemplarID = "5FA2D140-7C0E-45B9-BE3D-8124A937EF06"
+        let isolatedRecipe = SceneRecipe(
+            daySeed: recipe.daySeed,
+            grammar: recipe.grammar,
+            viewport: recipe.viewport,
+            actors: [try #require(recipe.actor(exemplarID))]
+        )
+        let topologySource = try MaterialEvidencePackage.sceneScaleRenderedScene(
+            recipe: isolatedRecipe,
+            material: material,
+            background: .lowContrast,
+            renderer: renderer,
+            presentationEvidenceRequest: .perActor
+        )
+        let optionalTopology = try MaterialEvidencePackage
+            .topologyPresentationSceneScaleReadability(
+                source: topologySource,
+                recipe: isolatedRecipe,
+                material: material,
+                background: .lowContrast
+            )
+        let topology = try #require(
+            optionalTopology
+        )
+
+        #expect(topology.count == 1)
+        #expect(topology.allSatisfy { $0.outlinePresentationAuthority == nil })
+    }
+
+    @Test("unknown authority field mutation preserves every original metrics byte")
+    func unknownAuthorityFieldMutationIsCanonicalExceptForInjectedKey() throws {
+        let trace = MaterialAuthorityTraceDigest(
+            width: 1,
+            height: 1,
+            alphaSHA256: String(repeating: "a", count: 64)
+        )
+        let authority = MaterialOutlinePresentationAuthority(
+            eventID: "event-1",
+            drawOrderIndex: 0,
+            fullTrace: trace,
+            tileTrace: trace,
+            tileCrop: PixelRect(x: 0, y: 0, width: 1, height: 1),
+            fullVisiblePath: "scene-scale/outline/full.png",
+            tileVisiblePath: "scene-scale/outline/tile.png",
+            sourceScale: 2,
+            presentationScale: 1,
+            sourceRenderInvocationSHA256: String(repeating: "b", count: 64)
+        )
+        let actor = MaterialSceneScaleActorMetrics(
+            eventID: "event-1",
+            diameter: 0.0726091194438366,
+            eligible: true,
+            sampleCount: 1,
+            meanContrast: 0.5,
+            percentile90Contrast: 0.5,
+            visibleAreaFraction: 0.5,
+            fullPresentation: nil,
+            tilePresentation: nil,
+            outlinePresentationAuthority: authority,
+            passes: true
+        )
+        let metrics = MaterialEvidenceMetrics(
+            version: "material-metrics-v9",
+            outlinePresentationAuthorityVersion: "outline-presentation-authority-v1",
+            fixtureCount: 0,
+            coreImageCount: 0,
+            compositionApprovalSHA256: String(repeating: "c", count: 64),
+            compositionRecipeArchiveSHA256: String(repeating: "d", count: 64),
+            fixtures: [],
+            familyCrops: [],
+            exactTopologyCrops: [],
+            c3Acceptance: [],
+            sceneScale: [MaterialSceneScaleMetrics(
+                family: .gradient,
+                requestedColorCount: 1,
+                background: .light,
+                layoutFixtureIndex: 11,
+                daySeed: 1,
+                sourceScale: 2,
+                pixelWidth: 1,
+                pixelHeight: 1,
+                fullPath: "scene-scale/gradient/full.png",
+                tilePath: "scene-scale/gradient/tile.png",
+                actors: [],
+                topology: []
+            ), MaterialSceneScaleMetrics(
+                family: .outline,
+                requestedColorCount: 1,
+                background: .light,
+                layoutFixtureIndex: 11,
+                daySeed: 1,
+                sourceScale: 2,
+                pixelWidth: 1,
+                pixelHeight: 1,
+                fullPath: "scene-scale/outline/full.png",
+                tilePath: "scene-scale/outline/tile.png",
+                actors: [actor],
+                topology: []
+            )]
+        )
+        let originalMetricsData = try canonicalEncoded(metrics)
+        let mutatedMetricsData = try metricsDataInjectingUnexpectedAuthorityField(
+            originalMetricsData
+        )
+
+        let recoveredMetricsData = try metricsDataRemovingUnexpectedAuthorityField(
+            mutatedMetricsData
+        )
+        #expect(try JSONDecoder().decode(
+            MaterialEvidenceMetrics.self,
+            from: recoveredMetricsData
+        ) == metrics)
+        #expect(
+            recoveredMetricsData == originalMetricsData,
+            Comment(rawValue: firstByteDifference(
+                expected: originalMetricsData,
+                actual: recoveredMetricsData
+            ))
+        )
+        do {
+            try MaterialEvidencePackage.verifyCanonicalMetricsBytesForTesting(mutatedMetricsData)
+            Issue.record("unknown authority field passed canonical metrics verification")
+        } catch MaterialEvidenceError.invalidPackage(let detail) {
+            #expect(detail == "metrics bytes are not canonical v9")
+        }
+    }
+
+    @Test("borrowed authority trace comes from a separately rendered topology actor")
+    func borrowedAuthorityTraceUsesSeparateRender() throws {
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let layout = manifest.breadth[11]
+        let recipe = try #require(archive.fixtures.first { $0.fixtureIndex == 11 }?.recipe)
+        let material = MaterialDNA.fixture(
+            daySeed: layout.seed,
+            eventIDs: layout.eventIDs,
+            family: .outline,
+            requestedColorCount: 3
+        )
+        let renderer = MaterialRenderer()
+        let canonicalSource = try MaterialEvidencePackage.sceneScaleRenderedScene(
+            recipe: recipe,
+            material: material,
+            background: .lowContrast,
+            renderer: renderer,
+            presentationEvidenceRequest: .perActor
+        )
+        let optionalCanonical = try MaterialEvidencePackage
+            .presentationSceneScaleReadabilityForTesting(
+                source: canonicalSource,
+                recipe: recipe,
+                material: material,
+                background: .lowContrast
+            )
+        let canonical = try #require(optionalCanonical)
+
+        let exemplarID = "5FA2D140-7C0E-45B9-BE3D-8124A937EF06"
+        let isolatedRecipe = SceneRecipe(
+            daySeed: recipe.daySeed,
+            grammar: recipe.grammar,
+            viewport: recipe.viewport,
+            actors: [try #require(recipe.actor(exemplarID))]
+        )
+        let separatelyRendered = try MaterialEvidencePackage.sceneScaleRenderedScene(
+            recipe: isolatedRecipe,
+            material: material,
+            background: .lowContrast,
+            renderer: renderer,
+            presentationEvidenceRequest: .perActor
+        )
+        let topologyReadability = try MaterialEvidencePackage
+            .topologyPresentationSceneScaleReadability(
+                source: separatelyRendered,
+                recipe: isolatedRecipe,
+                material: material,
+                background: .lowContrast
+            )
+        #expect(topologyReadability?.allSatisfy {
+            $0.outlinePresentationAuthority == nil
+        } == true)
+        let separateActor = try #require(
+            separatelyRendered.presentationEvidence?.actors.first
+        )
+        let separateDigest = sha256Hex(try alphaBytes(
+            separateActor.isolated.fullScreen.pngData
+        ))
+        let canonicalDigest = try #require(
+            canonical[0].outlinePresentationAuthority?.fullTrace.alphaSHA256
+        )
+        #expect(separateDigest != canonicalDigest)
+
+        let tampered = try mutatedOutlineAuthorityMetrics(
+            canonical,
+            mutation: .borrowedActorTrace,
+            borrowedFullTraceDigest: separateDigest
+        )
+        let injectedDigest = try #require(
+            tampered[0].outlinePresentationAuthority?.fullTrace.alphaSHA256
+        )
+        #expect(injectedDigest == separateDigest)
+        do {
+            try MaterialEvidencePackage.verifyOutlineAuthorityReplayForTesting(
+                persisted: tampered,
+                replayed: canonical
+            )
+            Issue.record("separately rendered borrowed trace was accepted")
+        } catch MaterialEvidenceError.invalidPackage(let detail) {
+            #expect(detail == "outline presentation authority replay mismatch")
+        }
+    }
+
+    @Test("authority replay rejects every independently tampered provenance field")
+    func authorityReplayRejectsIndependentFieldTampering() throws {
+        let authority = try canonicalCompositionAuthority()
+        let archive = try JSONDecoder().decode(
+            FrozenCompositionRecipeArchive.self,
+            from: authority.recipes
+        )
+        let manifest = CorpusManifest.visibleV1()
+        let layout = manifest.breadth[11]
+        let recipe = try #require(archive.fixtures.first { $0.fixtureIndex == 11 }?.recipe)
+        let material = MaterialDNA.fixture(
+            daySeed: layout.seed,
+            eventIDs: layout.eventIDs,
+            family: .outline,
+            requestedColorCount: 3
+        )
+        let rendered = try MaterialEvidencePackage.sceneScaleRenderedScene(
+            recipe: recipe,
+            material: material,
+            background: .lowContrast,
+            renderer: MaterialRenderer(),
+            presentationEvidenceRequest: .perActor
+        )
+        let optionalCanonical = try MaterialEvidencePackage
+            .presentationSceneScaleReadabilityForTesting(
+                source: rendered,
+                recipe: recipe,
+                material: material,
+                background: .lowContrast
+            )
+        let canonical = try #require(optionalCanonical)
+        let separatelyRenderedBorrowedDigest = try separatelyRenderedOutlineFullTraceDigest(
+            compositionRecipeArchiveData: authority.recipes,
+            requestedColorCount: 3,
+            background: .lowContrast
+        )
+
+        try MaterialEvidencePackage.verifyOutlineAuthorityReplayForTesting(
+            persisted: canonical,
+            replayed: canonical
+        )
+        for mutation in OutlineAuthorityMutation.allCases {
+            let tampered = try mutatedOutlineAuthorityMetrics(
+                canonical,
+                mutation: mutation,
+                borrowedFullTraceDigest: separatelyRenderedBorrowedDigest
+            )
+            #expect(throws: MaterialEvidenceError.self, Comment(rawValue: mutation.rawValue)) {
+                try MaterialEvidencePackage.verifyOutlineAuthorityReplayForTesting(
+                    persisted: tampered,
+                    replayed: canonical
+                )
+            }
+        }
     }
 
     @Test("fixture 11 outline modes expose one deterministic same-render authority trace")
@@ -9865,8 +10396,346 @@ private func rgbaBytes(_ image: CGImage) throws -> Data {
     return data
 }
 
+private struct ExpectedSourceRenderActorTraceDigest: Encodable {
+    let eventID: String
+    let drawOrderIndex: Int
+    let fullAlphaSHA256: String
+    let tileAlphaSHA256: String
+}
+
+private struct ExpectedSourceRenderInvocationDigest: Encodable {
+    let domain: String
+    let conditionIdentity: String
+    let daySeed: UInt64
+    let layoutFixtureIndex: Int
+    let family: MaterialFamily
+    let requestedColorCount: Int
+    let background: BackgroundCondition
+    let sourceScale: Int
+    let presentationScale: Int
+    let tileCrop: PixelRect
+    let drawSequence: [String]
+    let fullVisibleRGBASHA256: String
+    let tileVisibleRGBASHA256: String
+    let actorTraces: [ExpectedSourceRenderActorTraceDigest]
+}
+
+private enum OutlineAuthorityMutation: String, CaseIterable {
+    case fullTraceDigest
+    case tileTraceDigest
+    case tileCrop
+    case eventID
+    case drawOrderIndex
+    case invocationDigest
+    case borrowedActorTrace
+}
+
+private enum OutlineAuthorityPackageMutation: String, CaseIterable {
+    case unexpectedField
+    case fullTraceDigest
+    case tileTraceDigest
+    case tileCrop
+    case eventID
+    case drawOrderIndex
+    case invocationDigest
+    case borrowedActorTrace
+}
+
+private func mutateOutlineAuthorityPackage(
+    in directory: URL,
+    mutation: OutlineAuthorityPackageMutation,
+    borrowedFullTraceDigest: String
+) throws {
+    let metricsURL = directory.appendingPathComponent("metrics.json")
+    let originalMetricsData = try Data(contentsOf: metricsURL)
+    if mutation == .unexpectedField {
+        let persistedData = try metricsDataInjectingUnexpectedAuthorityField(
+            originalMetricsData
+        )
+        #expect(try metricsDataRemovingUnexpectedAuthorityField(persistedData) ==
+            originalMetricsData)
+        try persistedData.write(to: metricsURL, options: .atomic)
+        try refreshArtifactRecordsAndSeal(paths: ["metrics.json"], directory: directory)
+        return
+    }
+    var metrics = try #require(
+        JSONSerialization.jsonObject(with: originalMetricsData) as? [String: Any]
+    )
+    var scenes = try #require(metrics["sceneScale"] as? [[String: Any]])
+    let sceneIndex = try #require(scenes.firstIndex { scene in
+        scene["family"] as? String == MaterialFamily.outline.rawValue
+    })
+    var scene = scenes[sceneIndex]
+    var actors = try #require(scene["actors"] as? [[String: Any]])
+    var first = actors[0]
+    var firstAuthority = try #require(
+        first["outlinePresentationAuthority"] as? [String: Any]
+    )
+    switch mutation {
+    case .unexpectedField:
+        Issue.record("unexpected-field mutation must use byte-preserving injection")
+        return
+    case .fullTraceDigest:
+        var trace = try #require(firstAuthority["fullTrace"] as? [String: Any])
+        trace["alphaSHA256"] = try oneCharacterSHA256Mutation(
+            #require(trace["alphaSHA256"] as? String)
+        )
+        firstAuthority["fullTrace"] = trace
+    case .tileTraceDigest:
+        var trace = try #require(firstAuthority["tileTrace"] as? [String: Any])
+        trace["alphaSHA256"] = try oneCharacterSHA256Mutation(
+            #require(trace["alphaSHA256"] as? String)
+        )
+        firstAuthority["tileTrace"] = trace
+    case .tileCrop:
+        var crop = try #require(firstAuthority["tileCrop"] as? [String: Any])
+        crop["y"] = 228
+        firstAuthority["tileCrop"] = crop
+    case .eventID:
+        firstAuthority["eventID"] = "tampered-event-id"
+    case .drawOrderIndex:
+        firstAuthority["drawOrderIndex"] = 999
+    case .invocationDigest:
+        firstAuthority["sourceRenderInvocationSHA256"] = try oneCharacterSHA256Mutation(
+            #require(firstAuthority["sourceRenderInvocationSHA256"] as? String)
+        )
+    case .borrowedActorTrace:
+        var trace = try #require(firstAuthority["fullTrace"] as? [String: Any])
+        let canonicalDigest = try #require(trace["alphaSHA256"] as? String)
+        #expect(borrowedFullTraceDigest != canonicalDigest)
+        try #require(isLowercaseSHA256(borrowedFullTraceDigest))
+        trace["alphaSHA256"] = borrowedFullTraceDigest
+        firstAuthority["fullTrace"] = trace
+    }
+    first["outlinePresentationAuthority"] = firstAuthority
+    actors[0] = first
+    scene["actors"] = actors
+    scenes[sceneIndex] = scene
+    metrics["sceneScale"] = scenes
+    let mutatedJSON = try canonicalJSONObject(metrics)
+    let decoded = try JSONDecoder().decode(MaterialEvidenceMetrics.self, from: mutatedJSON)
+    let persistedData = try canonicalEncoded(decoded)
+    try persistedData.write(to: metricsURL, options: .atomic)
+    try refreshArtifactRecordsAndSeal(paths: ["metrics.json"], directory: directory)
+}
+
+private func metricsDataInjectingUnexpectedAuthorityField(_ data: Data) throws -> Data {
+    let authorityMarker = Array("\"outlinePresentationAuthority\" : {".utf8)
+    var bytes = Array(data)
+    let markerRange = try #require(firstByteRange(of: authorityMarker, in: bytes))
+    let openingBraceIndex = markerRange.upperBound - 1
+    var depth = 0
+    var insideString = false
+    var escaped = false
+    var closingBraceIndex: Int?
+    for index in openingBraceIndex..<bytes.count {
+        let byte = bytes[index]
+        if insideString {
+            if escaped {
+                escaped = false
+            } else if byte == 0x5C {
+                escaped = true
+            } else if byte == 0x22 {
+                insideString = false
+            }
+        } else if byte == 0x22 {
+            insideString = true
+        } else if byte == 0x7B {
+            depth += 1
+        } else if byte == 0x7D {
+            depth -= 1
+            if depth == 0 {
+                closingBraceIndex = index
+                break
+            }
+        }
+    }
+    let closingBrace = try #require(closingBraceIndex)
+    var closingIndentStart = closingBrace
+    while closingIndentStart > 0, bytes[closingIndentStart - 1] != 0x0A {
+        closingIndentStart -= 1
+    }
+    try #require(closingIndentStart > 0)
+    let closingLineFeed = closingIndentStart - 1
+    let closingIndent = bytes[closingIndentStart..<closingBrace]
+    let childIndent = Array(closingIndent) + [UInt8(0x20), UInt8(0x20)]
+    let injectedProperty = Array("\"unexpected\" : \"must-be-rejected\"".utf8)
+    bytes.insert(
+        contentsOf: [0x2C, 0x0A] + childIndent + injectedProperty,
+        at: closingLineFeed
+    )
+    return Data(bytes)
+}
+
+private func metricsDataRemovingUnexpectedAuthorityField(_ data: Data) throws -> Data {
+    var bytes = Array(data)
+    let injectedProperty = Array("\"unexpected\" : \"must-be-rejected\"".utf8)
+    let propertyRange = try #require(firstByteRange(of: injectedProperty, in: bytes))
+    var lineFeedIndex = propertyRange.lowerBound
+    while lineFeedIndex > 0, bytes[lineFeedIndex - 1] != 0x0A {
+        lineFeedIndex -= 1
+    }
+    try #require(lineFeedIndex > 1)
+    lineFeedIndex -= 1
+    let commaIndex = lineFeedIndex - 1
+    try #require(bytes[commaIndex] == 0x2C)
+    bytes.removeSubrange(commaIndex..<propertyRange.upperBound)
+    return Data(bytes)
+}
+
+private func firstByteRange(of needle: [UInt8], in haystack: [UInt8]) -> Range<Int>? {
+    guard !needle.isEmpty, needle.count <= haystack.count else { return nil }
+    for lowerBound in 0...(haystack.count - needle.count) where
+        haystack[lowerBound..<(lowerBound + needle.count)].elementsEqual(needle)
+    {
+        return lowerBound..<(lowerBound + needle.count)
+    }
+    return nil
+}
+
+private func firstByteDifference(expected: Data, actual: Data) -> String {
+    let sharedCount = min(expected.count, actual.count)
+    let offset = (0..<sharedCount).first { expected[$0] != actual[$0] }
+        ?? (expected.count == actual.count ? -1 : sharedCount)
+    guard offset >= 0 else { return "no byte difference" }
+    let lower = max(0, offset - 40)
+    let expectedUpper = min(expected.count, offset + 80)
+    let actualUpper = min(actual.count, offset + 80)
+    return "first byte difference at \(offset); expected context: "
+        + String(decoding: expected[lower..<expectedUpper], as: UTF8.self)
+        + "; actual context: "
+        + String(decoding: actual[lower..<actualUpper], as: UTF8.self)
+}
+
+private func separatelyRenderedOutlineFullTraceDigest(
+    compositionRecipeArchiveData: Data,
+    requestedColorCount: Int,
+    background: BackgroundCondition
+) throws -> String {
+    let archive = try JSONDecoder().decode(
+        FrozenCompositionRecipeArchive.self,
+        from: compositionRecipeArchiveData
+    )
+    let manifest = CorpusManifest.visibleV1()
+    let layout = manifest.breadth[11]
+    let recipe = try #require(archive.fixtures.first { $0.fixtureIndex == 11 }?.recipe)
+    let exemplarID = "5FA2D140-7C0E-45B9-BE3D-8124A937EF06"
+    let isolatedRecipe = SceneRecipe(
+        daySeed: recipe.daySeed,
+        grammar: recipe.grammar,
+        viewport: recipe.viewport,
+        actors: [try #require(recipe.actor(exemplarID))]
+    )
+    let material = MaterialDNA.fixture(
+        daySeed: layout.seed,
+        eventIDs: layout.eventIDs,
+        family: .outline,
+        requestedColorCount: requestedColorCount
+    )
+    let rendered = try MaterialEvidencePackage.sceneScaleRenderedScene(
+        recipe: isolatedRecipe,
+        material: material,
+        background: background,
+        renderer: MaterialRenderer(),
+        presentationEvidenceRequest: .perActor
+    )
+    let readability = try MaterialEvidencePackage.topologyPresentationSceneScaleReadability(
+        source: rendered,
+        recipe: isolatedRecipe,
+        material: material,
+        background: background
+    )
+    #expect(readability?.allSatisfy {
+        $0.outlinePresentationAuthority == nil
+    } == true)
+    let actor = try #require(rendered.presentationEvidence?.actors.first)
+    return sha256Hex(try alphaBytes(actor.isolated.fullScreen.pngData))
+}
+
+private func oneCharacterSHA256Mutation(_ value: String) throws -> String {
+    try #require(isLowercaseSHA256(value))
+    var bytes = Array(value.utf8)
+    bytes[0] = bytes[0] == Character("0").asciiValue! ?
+        Character("1").asciiValue! : Character("0").asciiValue!
+    return String(decoding: bytes, as: UTF8.self)
+}
+
+private func verifyOuterMaterialSeal(in directory: URL) throws {
+    let sums = try Data(contentsOf: directory.appendingPathComponent("SHA256SUMS"))
+    let expectedPackageHash = try String(
+        contentsOf: directory.appendingPathComponent("package-hash.txt"),
+        encoding: .utf8
+    ).trimmingCharacters(in: .whitespacesAndNewlines)
+    #expect(sha256Hex(sums) == expectedPackageHash)
+    for line in String(decoding: sums, as: UTF8.self).split(whereSeparator: \.isNewline) {
+        let text = String(line)
+        let expected = String(text.prefix(64))
+        let path = String(text.dropFirst(66))
+        #expect(text.dropFirst(64).prefix(2) == "  ")
+        #expect(sha256Hex(try Data(contentsOf: directory.appendingPathComponent(path))) == expected)
+    }
+}
+
+private func mutatedOutlineAuthorityMetrics(
+    _ metrics: [MaterialSceneScaleActorMetrics],
+    mutation: OutlineAuthorityMutation,
+    borrowedFullTraceDigest: String
+) throws -> [MaterialSceneScaleActorMetrics] {
+    var records = try #require(
+        JSONSerialization.jsonObject(with: JSONEncoder().encode(metrics)) as? [[String: Any]]
+    )
+    var first = records[0]
+    var firstAuthority = try #require(
+        first["outlinePresentationAuthority"] as? [String: Any]
+    )
+    switch mutation {
+    case .fullTraceDigest:
+        var trace = try #require(firstAuthority["fullTrace"] as? [String: Any])
+        trace["alphaSHA256"] = String(repeating: "0", count: 64)
+        firstAuthority["fullTrace"] = trace
+    case .tileTraceDigest:
+        var trace = try #require(firstAuthority["tileTrace"] as? [String: Any])
+        trace["alphaSHA256"] = String(repeating: "1", count: 64)
+        firstAuthority["tileTrace"] = trace
+    case .tileCrop:
+        var crop = try #require(firstAuthority["tileCrop"] as? [String: Any])
+        crop["y"] = 228
+        firstAuthority["tileCrop"] = crop
+    case .eventID:
+        firstAuthority["eventID"] = "tampered-event-id"
+    case .drawOrderIndex:
+        firstAuthority["drawOrderIndex"] = 999
+    case .invocationDigest:
+        firstAuthority["sourceRenderInvocationSHA256"] = String(repeating: "2", count: 64)
+    case .borrowedActorTrace:
+        var trace = try #require(firstAuthority["fullTrace"] as? [String: Any])
+        let canonicalDigest = try #require(trace["alphaSHA256"] as? String)
+        #expect(borrowedFullTraceDigest != canonicalDigest)
+        try #require(isLowercaseSHA256(borrowedFullTraceDigest))
+        trace["alphaSHA256"] = borrowedFullTraceDigest
+        firstAuthority["fullTrace"] = trace
+    }
+    first["outlinePresentationAuthority"] = firstAuthority
+    records[0] = first
+    return try JSONDecoder().decode(
+        [MaterialSceneScaleActorMetrics].self,
+        from: JSONSerialization.data(withJSONObject: records, options: [.sortedKeys])
+    )
+}
+
+private func canonicalEncoded<T: Encodable>(_ value: T) throws -> Data {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+    var data = try encoder.encode(value)
+    data.append(0x0A)
+    return data
+}
+
 private func canonicalJSONObject(_ object: Any) throws -> Data {
-    var data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
+    var data = try JSONSerialization.data(
+        withJSONObject: object,
+        options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+    )
     data.append(0x0A)
     return data
 }
@@ -9918,6 +10787,27 @@ private func refreshArtifactRecordsAndSeal(paths: [String], directory: URL) thro
 
 private func sha256Hex(_ data: Data) -> String {
     SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+}
+
+private func isLowercaseSHA256(_ value: String) -> Bool {
+    value.utf8.count == 64 && value.utf8.allSatisfy {
+        (48...57).contains($0) || (97...102).contains($0)
+    }
+}
+
+private func recursiveRegularFileCount(in directory: URL) throws -> Int {
+    let keys: [URLResourceKey] = [.isRegularFileKey]
+    let enumerator = try #require(FileManager.default.enumerator(
+        at: directory,
+        includingPropertiesForKeys: keys
+    ))
+    var count = 0
+    for case let url as URL in enumerator {
+        if try url.resourceValues(forKeys: Set(keys)).isRegularFile == true {
+            count += 1
+        }
+    }
+    return count
 }
 
 private func canonicalCompositionAuthority() throws -> (approval: Data, recipes: Data) {

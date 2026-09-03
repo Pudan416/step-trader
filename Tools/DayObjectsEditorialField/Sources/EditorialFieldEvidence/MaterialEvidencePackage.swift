@@ -146,7 +146,27 @@ public struct MaterialSceneScaleActorMetrics: Codable, Equatable, Sendable {
     public let visibleAreaFraction: Double
     public let fullPresentation: MaterialOutlinePresentationMetadata?
     public let tilePresentation: MaterialOutlinePresentationMetadata?
+    public let outlinePresentationAuthority: MaterialOutlinePresentationAuthority?
     public let passes: Bool
+}
+
+public struct MaterialAuthorityTraceDigest: Codable, Equatable, Sendable {
+    public let width: Int
+    public let height: Int
+    public let alphaSHA256: String
+}
+
+public struct MaterialOutlinePresentationAuthority: Codable, Equatable, Sendable {
+    public let eventID: String
+    public let drawOrderIndex: Int
+    public let fullTrace: MaterialAuthorityTraceDigest
+    public let tileTrace: MaterialAuthorityTraceDigest
+    public let tileCrop: PixelRect
+    public let fullVisiblePath: String
+    public let tileVisiblePath: String
+    public let sourceScale: Int
+    public let presentationScale: Int
+    public let sourceRenderInvocationSHA256: String
 }
 
 public struct MaterialOutlinePresentationMetadata: Codable, Equatable, Sendable {
@@ -206,6 +226,7 @@ public struct MaterialSceneScaleMetrics: Codable, Equatable, Sendable {
 
 public struct MaterialEvidenceMetrics: Codable, Equatable, Sendable {
     public let version: String
+    public let outlinePresentationAuthorityVersion: String
     public let fixtureCount: Int
     public let coreImageCount: Int
     public let compositionApprovalSHA256: String
@@ -342,6 +363,35 @@ public enum MaterialEvidencePackage {
         let metrics: [MaterialSceneScaleMetrics]
         let fullImages: [String: Data]
         let tileImages: [String: Data]
+    }
+
+    private struct SourceRenderActorTraceDigest: Encodable {
+        let eventID: String
+        let drawOrderIndex: Int
+        let fullAlphaSHA256: String
+        let tileAlphaSHA256: String
+    }
+
+    private struct SourceRenderInvocationDigest: Encodable {
+        let domain: String
+        let conditionIdentity: String
+        let daySeed: UInt64
+        let layoutFixtureIndex: Int
+        let family: MaterialFamily
+        let requestedColorCount: Int
+        let background: BackgroundCondition
+        let sourceScale: Int
+        let presentationScale: Int
+        let tileCrop: PixelRect
+        let drawSequence: [String]
+        let fullVisibleRGBASHA256: String
+        let tileVisibleRGBASHA256: String
+        let actorTraces: [SourceRenderActorTraceDigest]
+    }
+
+    private enum OutlinePresentationAuthorityMode {
+        case canonicalLayout11
+        case measurementOnly
     }
 
     private struct ExactTopologyCropEvidence {
@@ -558,7 +608,8 @@ public enum MaterialEvidencePackage {
         }
 
         let metrics = MaterialEvidenceMetrics(
-            version: "material-metrics-v8",
+            version: "material-metrics-v9",
+            outlinePresentationAuthorityVersion: "outline-presentation-authority-v1",
             fixtureCount: atlasCoverage.fixtures.count,
             coreImageCount: atlasCoverage.coreImageCount,
             compositionApprovalSHA256: approvalHash,
@@ -599,7 +650,7 @@ public enum MaterialEvidencePackage {
 
         let artifacts = try artifactRecords(in: outputDirectory)
         let packageManifest = MaterialEvidenceManifest(
-            version: "material-evidence-v8",
+            version: "material-evidence-v9",
             sourceCommit: sourceCommit,
             rendererVersion: MaterialRenderer.version,
             toolchain: "Swift 6 / Swift Package Manager",
@@ -666,12 +717,12 @@ public enum MaterialEvidencePackage {
             MaterialEvidenceManifest.self,
             from: Data(contentsOf: directory.appendingPathComponent("manifest.json"))
         )
-        let metrics = try decoder.decode(
-            MaterialEvidenceMetrics.self,
-            from: Data(contentsOf: directory.appendingPathComponent("metrics.json"))
+        let actualMetricsData = try Data(
+            contentsOf: directory.appendingPathComponent("metrics.json")
         )
+        let metrics = try decodedCanonicalMetrics(actualMetricsData)
         let expectedCoverage = coverage(for: corpus)
-        guard manifest.version == "material-evidence-v8",
+        guard manifest.version == "material-evidence-v9",
               manifest.sourceCommit == expectedSourceCommit,
               manifest.rendererVersion == MaterialRenderer.version,
               manifest.toolchain == "Swift 6 / Swift Package Manager",
@@ -720,7 +771,13 @@ public enum MaterialEvidencePackage {
             frozenRecipes: frozenRecipes,
             renderer: MaterialRenderer()
         )
-        guard metrics.version == "material-metrics-v8",
+        try verifyOutlineAuthorityReplay(
+            persisted: metrics.sceneScale,
+            replayed: expectedSceneScale.metrics
+        )
+        guard metrics.version == "material-metrics-v9",
+              metrics.outlinePresentationAuthorityVersion ==
+                "outline-presentation-authority-v1",
               metrics.fixtureCount == expectedCoverage.fixtures.count,
               metrics.coreImageCount == expectedCoverage.coreImageCount,
               metrics.compositionApprovalSHA256 == manifest.compositionApprovalSHA256,
@@ -757,6 +814,112 @@ public enum MaterialEvidencePackage {
             directory: directory
         )
         return packageHash
+    }
+
+    static func verifyOutlineAuthorityReplayForTesting(
+        persisted: [MaterialSceneScaleActorMetrics],
+        replayed: [MaterialSceneScaleActorMetrics]
+    ) throws {
+        try verifyOutlineAuthorityReplay(persisted: persisted, replayed: replayed)
+    }
+
+    static func verifyCanonicalMetricsBytesForTesting(_ data: Data) throws {
+        _ = try decodedCanonicalMetrics(data)
+    }
+
+    private static func decodedCanonicalMetrics(_ data: Data) throws -> MaterialEvidenceMetrics {
+        let metrics = try JSONDecoder().decode(MaterialEvidenceMetrics.self, from: data)
+        guard data == (try canonicalJSON(metrics)) else {
+            throw MaterialEvidenceError.invalidPackage("metrics bytes are not canonical v9")
+        }
+        return metrics
+    }
+
+    private static func verifyOutlineAuthorityReplay(
+        persisted: [MaterialSceneScaleMetrics],
+        replayed: [MaterialSceneScaleMetrics]
+    ) throws {
+        guard persisted.count == replayed.count else {
+            throw MaterialEvidenceError.invalidPackage(
+                "outline authority scene replay count mismatch"
+            )
+        }
+        for (persistedScene, replayedScene) in zip(persisted, replayed) {
+            let sameCondition = persistedScene.family == replayedScene.family
+                && persistedScene.requestedColorCount == replayedScene.requestedColorCount
+                && persistedScene.background == replayedScene.background
+                && persistedScene.layoutFixtureIndex == replayedScene.layoutFixtureIndex
+                && persistedScene.daySeed == replayedScene.daySeed
+            guard sameCondition else {
+                throw MaterialEvidenceError.invalidPackage(
+                    "outline authority scene replay condition mismatch"
+                )
+            }
+            if replayedScene.family == .outline {
+                try verifyOutlineAuthorityReplay(
+                    persisted: persistedScene.actors,
+                    replayed: replayedScene.actors
+                )
+            } else if persistedScene.actors.contains(where: {
+                $0.outlinePresentationAuthority != nil
+            }) {
+                throw MaterialEvidenceError.invalidPackage(
+                    "non-outline scene contains outline presentation authority"
+                )
+            }
+        }
+    }
+
+    private static func verifyOutlineAuthorityReplay(
+        persisted: [MaterialSceneScaleActorMetrics],
+        replayed: [MaterialSceneScaleActorMetrics]
+    ) throws {
+        guard persisted.count == replayed.count, persisted.count == 10 else {
+            throw MaterialEvidenceError.invalidPackage(
+                "outline authority actor replay count mismatch"
+            )
+        }
+        var persistedDrawOrder = Set<Int>()
+        var persistedInvocationDigests = Set<String>()
+        for (persistedActor, replayedActor) in zip(persisted, replayed) {
+            guard persistedActor.eventID == replayedActor.eventID,
+                  let persistedAuthority = persistedActor.outlinePresentationAuthority,
+                  let replayedAuthority = replayedActor.outlinePresentationAuthority,
+                  persistedAuthority.eventID == persistedActor.eventID,
+                  replayedAuthority.eventID == replayedActor.eventID,
+                  persistedAuthority == replayedAuthority,
+                  persistedAuthority.fullTrace.width == 393,
+                  persistedAuthority.fullTrace.height == 852,
+                  persistedAuthority.tileTrace.width == 393,
+                  persistedAuthority.tileTrace.height == 393,
+                  persistedAuthority.tileCrop == PixelRect(
+                      x: 0,
+                      y: 229,
+                      width: 393,
+                      height: 393
+                  ),
+                  persistedAuthority.sourceScale == 2,
+                  persistedAuthority.presentationScale == 1,
+                  isSHA256(persistedAuthority.fullTrace.alphaSHA256),
+                  isSHA256(persistedAuthority.tileTrace.alphaSHA256),
+                  isSHA256(persistedAuthority.sourceRenderInvocationSHA256)
+            else {
+                throw MaterialEvidenceError.invalidPackage(
+                    "outline presentation authority replay mismatch"
+                )
+            }
+            persistedDrawOrder.insert(persistedAuthority.drawOrderIndex)
+            persistedInvocationDigests.insert(
+                persistedAuthority.sourceRenderInvocationSHA256
+            )
+        }
+        guard persistedDrawOrder == Set(0..<persisted.count),
+              persistedInvocationDigests.count == 1
+        else {
+            throw MaterialEvidenceError.invalidPackage(
+                "outline presentation authority order or invocation mismatch"
+            )
+        }
     }
 
     private static func renderedSamples(
@@ -1117,7 +1280,8 @@ public enum MaterialEvidencePackage {
                             source: source,
                             recipe: recipe,
                             material: material,
-                            background: background
+                            background: background,
+                            authorityMode: .canonicalLayout11
                         ) else {
                             throw MaterialEvidenceError.invalidPackage(
                                 "outline scene-scale render omitted requested presentation evidence"
@@ -1245,7 +1409,23 @@ public enum MaterialEvidencePackage {
             source: source,
             recipe: recipe,
             material: material,
-            background: background
+            background: background,
+            authorityMode: .canonicalLayout11
+        )
+    }
+
+    static func topologyPresentationSceneScaleReadability(
+        source: MaterialRenderedScene,
+        recipe: SceneRecipe,
+        material: DailyMaterialDNA,
+        background: BackgroundCondition
+    ) throws -> [MaterialSceneScaleActorMetrics]? {
+        try presentationSceneScaleReadability(
+            source: source,
+            recipe: recipe,
+            material: material,
+            background: background,
+            authorityMode: .measurementOnly
         )
     }
 
@@ -1253,7 +1433,8 @@ public enum MaterialEvidencePackage {
         source: MaterialRenderedScene,
         recipe: SceneRecipe,
         material: DailyMaterialDNA,
-        background: BackgroundCondition
+        background: BackgroundCondition,
+        authorityMode: OutlinePresentationAuthorityMode
     ) throws -> [MaterialSceneScaleActorMetrics]? {
         guard let presentationEvidence = source.presentationEvidence else { return nil }
         let evidenceByID = Dictionary(
@@ -1268,6 +1449,121 @@ public enum MaterialEvidencePackage {
             return evidence
         }
         guard let firstEvidence = orderedEvidence.first else { return [] }
+
+        let authorityByID: [String: MaterialOutlinePresentationAuthority]
+        switch authorityMode {
+        case .measurementOnly:
+            authorityByID = [:]
+        case .canonicalLayout11:
+            guard orderedEvidence.count == 10,
+                  source.drawSequence.count == 10,
+                  recipe.actors.count == 10
+            else {
+                throw MaterialEvidenceError.invalidPackage(
+                    "outline authority requires the canonical ten-actor layout 11 scene"
+                )
+            }
+            let sourceScale = 2
+            let presentationScale = 1
+            let layoutFixtureIndex = 11
+            let stem = sceneScaleStem(
+                family: material.family,
+                colorCount: material.requestedColorCount,
+                background: background
+            )
+            let fullVisiblePath = "scene-scale/\(material.family.rawValue)/\(stem)-full@1x.png"
+            let tileVisiblePath = "scene-scale/\(material.family.rawValue)/\(stem)-tile@1x.png"
+            let authorityTraces = try orderedEvidence.enumerated().map {
+                actorIndex,
+                actorEvidence in
+                guard actorEvidence.isolated.tileCrop == source.tileCrop,
+                      actorEvidence.isolated.drawSequence == source.drawSequence
+                else {
+                    throw MaterialEvidenceError.invalidPackage(
+                        "outline authority trace changed canonical crop or draw order for \(actorEvidence.eventID)"
+                    )
+                }
+                let full = try exactAlphaTrace(
+                    actorEvidence.isolated.fullScreen,
+                    path: "outline-authority-full:\(actorEvidence.eventID)"
+                )
+                let tile = try exactAlphaTrace(
+                    actorEvidence.isolated.calendarTile,
+                    path: "outline-authority-tile:\(actorEvidence.eventID)"
+                )
+                let croppedFullAlpha = try croppedBytes(
+                    full.alpha,
+                    sourceWidth: full.width,
+                    sourceHeight: full.height,
+                    crop: source.tileCrop
+                )
+                guard tile.alpha == croppedFullAlpha else {
+                    throw MaterialEvidenceError.invalidPackage(
+                        "outline authority tile is not the exact full trace crop for \(actorEvidence.eventID)"
+                    )
+                }
+                return (
+                    eventID: actorEvidence.eventID,
+                    drawOrderIndex: actorIndex,
+                    fullTrace: MaterialAuthorityTraceDigest(
+                        width: full.width,
+                        height: full.height,
+                        alphaSHA256: sha256(full.alpha)
+                    ),
+                    tileTrace: MaterialAuthorityTraceDigest(
+                        width: tile.width,
+                        height: tile.height,
+                        alphaSHA256: sha256(tile.alpha)
+                    )
+                )
+            }
+            let invocationDigest = sha256(try canonicalJSON(SourceRenderInvocationDigest(
+                domain: "outline-presentation-authority-v1",
+                conditionIdentity: stem,
+                daySeed: material.daySeed,
+                layoutFixtureIndex: layoutFixtureIndex,
+                family: material.family,
+                requestedColorCount: material.requestedColorCount,
+                background: background,
+                sourceScale: sourceScale,
+                presentationScale: presentationScale,
+                tileCrop: source.tileCrop,
+                drawSequence: source.drawSequence,
+                fullVisibleRGBASHA256: sha256(try normalizedRGBA(decodedPNG(
+                    source.fullScreen.pngData,
+                    path: "outline-visible-full"
+                ))),
+                tileVisibleRGBASHA256: sha256(try normalizedRGBA(decodedPNG(
+                    source.calendarTile.pngData,
+                    path: "outline-visible-tile"
+                ))),
+                actorTraces: authorityTraces.map {
+                    SourceRenderActorTraceDigest(
+                        eventID: $0.eventID,
+                        drawOrderIndex: $0.drawOrderIndex,
+                        fullAlphaSHA256: $0.fullTrace.alphaSHA256,
+                        tileAlphaSHA256: $0.tileTrace.alphaSHA256
+                    )
+                }
+            )))
+            authorityByID = Dictionary(uniqueKeysWithValues: authorityTraces.map { trace in
+                (
+                    trace.eventID,
+                    MaterialOutlinePresentationAuthority(
+                        eventID: trace.eventID,
+                        drawOrderIndex: trace.drawOrderIndex,
+                        fullTrace: trace.fullTrace,
+                        tileTrace: trace.tileTrace,
+                        tileCrop: source.tileCrop,
+                        fullVisiblePath: fullVisiblePath,
+                        tileVisiblePath: tileVisiblePath,
+                        sourceScale: sourceScale,
+                        presentationScale: presentationScale,
+                        sourceRenderInvocationSHA256: invocationDigest
+                    )
+                )
+            })
+        }
 
         let full = try analysisImage(source.fullScreen, path: "scene-scale-source")
         let tile = try analysisImage(source.calendarTile, path: "scene-scale-tile")
@@ -1361,9 +1657,48 @@ public enum MaterialEvidencePackage {
                 visibleAreaFraction: fullView.metrics.angularCoverage,
                 fullPresentation: outlinePresentationMetadata(fullView),
                 tilePresentation: outlinePresentationMetadata(tileView),
+                outlinePresentationAuthority: authorityByID[actor.eventID],
                 passes: fullView.passes && tileView.passes
             )
         }
+    }
+
+    private static func exactAlphaTrace(
+        _ image: NeutralRenderedImage,
+        path: String
+    ) throws -> (width: Int, height: Int, alpha: Data) {
+        let decoded = try decodedPNG(image.pngData, path: path)
+        let rgba = try normalizedRGBA(decoded)
+        var alpha = Data(repeating: 0, count: decoded.width * decoded.height)
+        for pixelIndex in 0..<(decoded.width * decoded.height) {
+            alpha[pixelIndex] = rgba[pixelIndex * 4 + 3]
+        }
+        return (decoded.width, decoded.height, alpha)
+    }
+
+    private static func croppedBytes(
+        _ source: Data,
+        sourceWidth: Int,
+        sourceHeight: Int,
+        crop: PixelRect
+    ) throws -> Data {
+        guard crop.x >= 0,
+              crop.y >= 0,
+              crop.width > 0,
+              crop.height > 0,
+              crop.x + crop.width <= sourceWidth,
+              crop.y + crop.height <= sourceHeight,
+              source.count == sourceWidth * sourceHeight
+        else {
+            throw MaterialEvidenceError.invalidPackage("invalid outline authority crop")
+        }
+        var result = Data()
+        result.reserveCapacity(crop.width * crop.height)
+        for y in crop.y..<(crop.y + crop.height) {
+            let lowerBound = y * sourceWidth + crop.x
+            result.append(source[lowerBound..<(lowerBound + crop.width)])
+        }
+        return result
     }
 
     private static func analysisImage(
@@ -1721,6 +2056,7 @@ public enum MaterialEvidencePackage {
                     visibleAreaFraction: fullPresentation.identityAngularCoverage,
                     fullPresentation: fullMetadata,
                     tilePresentation: tileMetadata,
+                    outlinePresentationAuthority: nil,
                     passes: actor.diameter < 0.15 || (
                         fullPresentation.sampleCount >= 8
                             && fullPresentation.percentile90Contrast >= 0.16
@@ -1775,6 +2111,7 @@ public enum MaterialEvidencePackage {
                 visibleAreaFraction: visibleArea,
                 fullPresentation: nil,
                 tilePresentation: nil,
+                outlinePresentationAuthority: nil,
                 passes: actor.diameter < 0.15 || (
                     contrasts.count >= 8
                         && percentile90 >= thresholds.contrast
@@ -2044,7 +2381,7 @@ public enum MaterialEvidencePackage {
             renderer: renderer
         )
         let outlineNativePasses = family == .outline
-            ? try presentationSceneScaleReadability(
+            ? try topologyPresentationSceneScaleReadability(
                 source: source,
                 recipe: isolated,
                 material: material,
