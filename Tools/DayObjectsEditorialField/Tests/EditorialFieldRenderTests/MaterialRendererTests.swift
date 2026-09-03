@@ -1147,12 +1147,13 @@ struct MaterialRendererTests {
             )
         )
         let fullReadability = try MaterialEvidencePackage
-            .presentationSceneScaleReadabilityForTesting(
+            .measurementOnlyPresentationSceneScaleReadabilityForTesting(
                 source: full,
                 recipe: recipe,
                 material: material,
                 background: .light
         )
+        #expect(fullReadability?.allSatisfy { $0.outlinePresentationAuthority == nil } == true)
         let metrics = try #require(fullReadability?.first { $0.eventID == eventID })
         #expect(!metrics.eligible)
         #expect(metrics.fullPresentation?.inFrameRayCount == 0)
@@ -1265,13 +1266,14 @@ struct MaterialRendererTests {
                 #expect(tileMetrics.openCenterMargin <= 0.18, Comment(rawValue: context))
             } else {
                 let nativeReadability = try MaterialEvidencePackage
-                    .presentationSceneScaleReadabilityForTesting(
+                    .measurementOnlyPresentationSceneScaleReadabilityForTesting(
                         source: rendered,
                         recipe: isolated,
                         material: material,
                         background: fixture.background
                     )
                 let native = try #require(nativeReadability)
+                #expect(native.allSatisfy { $0.outlinePresentationAuthority == nil })
                 #expect(native.allSatisfy { $0.passes }, Comment(rawValue: context))
             }
 
@@ -1287,13 +1289,15 @@ struct MaterialRendererTests {
                     )
                 )
                 let nativeReadability = try MaterialEvidencePackage
-                    .presentationSceneScaleReadabilityForTesting(
+                    .measurementOnlyPresentationSceneScaleReadabilityForTesting(
                         source: fullScene,
                         recipe: approved,
                         material: material,
                         background: fixture.background
                     )
-                let native = try #require(nativeReadability?.first {
+                let nativeMetrics = try #require(nativeReadability)
+                #expect(nativeMetrics.allSatisfy { $0.outlinePresentationAuthority == nil })
+                let native = try #require(nativeMetrics.first {
                     $0.eventID == actor.eventID
                 })
                 #expect(native.passes, Comment(rawValue: context))
@@ -1365,13 +1369,14 @@ struct MaterialRendererTests {
                 + "full=\(fullMetrics) tileSize=\(tile.width)x\(tile.height)"
 
             let nativeReadability = try MaterialEvidencePackage
-                .presentationSceneScaleReadabilityForTesting(
+                .measurementOnlyPresentationSceneScaleReadabilityForTesting(
                     source: rendered,
                     recipe: isolated,
                     material: material,
                     background: fixture.background
                 )
             let native = try #require(nativeReadability?.first)
+            #expect(native.outlinePresentationAuthority == nil)
             #expect(native.passes, Comment(rawValue: context))
             #expect(fullMetrics.angularPresence >= 0.30, Comment(rawValue: context))
             for comparisonFamily in [MaterialFamily.gradient, .counterform] {
@@ -3557,13 +3562,14 @@ struct MaterialRendererTests {
 
             let key = "c\(item.colorCount)/lowContrast/\(item.eventPrefix)"
             let packagedReadability = try MaterialEvidencePackage
-                .presentationSceneScaleReadabilityForTesting(
+                .measurementOnlyPresentationSceneScaleReadabilityForTesting(
                     source: presented,
                     recipe: isolatedRecipe,
                     material: dna,
                     background: .lowContrast
                 )
             let packaged = try #require(packagedReadability?.first)
+            #expect(packaged.outlinePresentationAuthority == nil)
             if !packaged.passes { packagedFailures.insert(key) }
             let views = fixture11PresentationViews(
                 current: current1x,

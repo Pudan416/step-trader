@@ -1414,6 +1414,21 @@ public enum MaterialEvidencePackage {
         )
     }
 
+    static func measurementOnlyPresentationSceneScaleReadabilityForTesting(
+        source: MaterialRenderedScene,
+        recipe: SceneRecipe,
+        material: DailyMaterialDNA,
+        background: BackgroundCondition
+    ) throws -> [MaterialSceneScaleActorMetrics]? {
+        try presentationSceneScaleReadability(
+            source: source,
+            recipe: recipe,
+            material: material,
+            background: background,
+            authorityMode: .measurementOnly
+        )
+    }
+
     static func topologyPresentationSceneScaleReadability(
         source: MaterialRenderedScene,
         recipe: SceneRecipe,
