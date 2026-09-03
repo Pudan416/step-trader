@@ -4387,12 +4387,16 @@ struct MaterialRendererTests {
         let lowContrastContour = outlineNativeControl(side: controlSide) { radius, _ in
             (0.78...0.84).contains(radius) ? 0.02 : 0
         }
+        let filledCounterform = outlineNativeControl(side: controlSide) { radius, _ in
+            radius <= 0.34 ? 1 : 0
+        }
         let controls: [(String, PixelImage, Bool)] = [
             ("thin-open-contour", thinOpenContour, true),
             ("filled-torus", filledTorus, false),
             ("ripple-filled-disc", rippleFilledDisc, false),
             ("vanished-contour", vanishedContour, false),
             ("broken-arc", brokenArc, false),
+            ("filled-counterform", filledCounterform, false),
             ("low-contrast-contour", lowContrastContour, false),
         ]
         for (label, image, expectedPass) in controls {
@@ -4720,6 +4724,13 @@ struct MaterialRendererTests {
             else { return nil }
             return "\(observation.label) target=\(selected) \(metrics)"
         }
+        let productionGamutFailures = selectorObservations.compactMap {
+            observation -> String? in
+            guard let metrics = observation.candidateMetrics["gamut-ray"],
+                  !outlineNativeIdentityPasses(metrics)
+            else { return nil }
+            return "\(observation.label) target=gamut-ray \(metrics)"
+        }
         let selectorDigestInput = selectorTable.keys.sorted().map { key in
             "\(key)=\(selectorTable[key]!)"
         }.joined(separator: "\n")
@@ -4753,8 +4764,18 @@ struct MaterialRendererTests {
         #expect(unselectableKeys.isEmpty, Comment(rawValue:
             "selector oracle has no passing target:\n\(unselectableSummary)"
         ))
-        #expect(selectorTable.count == observationsByKey.count)
-        #expect(!selectorDigest.isEmpty)
+        #expect(productionGamutFailures.isEmpty, Comment(rawValue:
+            "production gamut-ray failures=\(productionGamutFailures.count)\n"
+                + productionGamutFailures.joined(separator: "\n")
+        ))
+        #expect(observationsByKey.count == 14)
+        #expect(selectorTable.count == 14)
+        #expect(selectorTable.values.allSatisfy { $0 == "gamut-ray" }, Comment(rawValue:
+            "production selector escaped gamut-ray: "
+                + "\(selectorTable.sorted { $0.key < $1.key })"
+        ))
+        #expect(selectorDigest ==
+            "3b37336771cf31d5a7557a7b6f9255f6e39c51fca7b761c6c1e1c3375e24a7c2")
         #expect(!worstPoleMutationWitnesses.isEmpty, Comment(rawValue:
             "expected at least one attainable residual to fail with its worst assigned pole"
         ))
