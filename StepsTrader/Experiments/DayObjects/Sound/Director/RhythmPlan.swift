@@ -217,6 +217,9 @@ struct RhythmPlan: Equatable, Sendable {
         }
 
         candidates = candidates.filter { candidate in
+            if candidate.event.role == .halfTimeKick {
+                return true
+            }
             if groove.usesBass && candidate.event.role == .kickVariation {
                 return false
             }

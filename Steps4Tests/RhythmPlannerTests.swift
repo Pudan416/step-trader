@@ -132,6 +132,7 @@ final class RhythmPlannerTests: XCTestCase {
                         anchorKickCount += 1
                     }
                 }
+                XCTAssertGreaterThanOrEqual(anchorKickCount, 1, "Missing anchor in \(mode) bar \(cycle)")
                 XCTAssertLessThanOrEqual(anchorKickCount, groove.maximumAnchorKicksPerBar)
             }
         }
