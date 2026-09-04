@@ -196,6 +196,8 @@ final class HappeningSchedulerTests: XCTestCase {
         XCTAssertEqual(birth.sound.targetMIDI, 73)
         XCTAssertEqual(recurrence.sound.targetMIDI, 77)
         XCTAssertEqual(birth.sound.recipeID, recurrence.sound.recipeID)
+        XCTAssertEqual(birth.pan, plan.pan, accuracy: 1e-12)
+        XCTAssertEqual(recurrence.pan, plan.pan, accuracy: 1e-12)
 
         let recipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: plan.recipeID))
         let expectedEffects = HappeningEffectCommand(
@@ -619,6 +621,7 @@ private final class RecordingHappeningSamplePool: DayObjectsHappeningSamplePoolP
         let gain: Double
         let priority: HappeningPlaybackPriority
         let effects: HappeningEffectCommand
+        let pan: Double
     }
 
     struct PlayAttempt: Equatable {
@@ -626,6 +629,7 @@ private final class RecordingHappeningSamplePool: DayObjectsHappeningSamplePoolP
         let gain: Double
         let priority: HappeningPlaybackPriority
         let effects: HappeningEffectCommand
+        let pan: Double
     }
 
     struct GlobalEffectCall: Equatable {
@@ -692,7 +696,7 @@ private final class RecordingHappeningSamplePool: DayObjectsHappeningSamplePoolP
         guard preparedRecipeIDs.contains(sound.recipeID) else {
             throw HappeningSamplePoolError.recipeUnavailable(sound.recipeID)
         }
-        let attempt = PlayAttempt(sound: sound, gain: gain, priority: priority, effects: effects)
+        let attempt = PlayAttempt(sound: sound, gain: gain, priority: priority, effects: effects, pan: pan)
         playAttempts.append(attempt)
         let voiceID: Int
         if let idle = (0..<4).first(where: { active[$0] == nil }) {
@@ -708,7 +712,7 @@ private final class RecordingHappeningSamplePool: DayObjectsHappeningSamplePoolP
         }
         generation &+= 1
         let handle = HappeningPlaybackHandle(voiceID: voiceID, generation: generation)
-        let call = PlayCall(handle: handle, sound: sound, gain: gain, priority: priority, effects: effects)
+        let call = PlayCall(handle: handle, sound: sound, gain: gain, priority: priority, effects: effects, pan: pan)
         active[voiceID] = call
         successfulPlayCalls.append(call)
         return handle

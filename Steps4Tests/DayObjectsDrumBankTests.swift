@@ -222,6 +222,13 @@ final class DayObjectsDrumBankTests: XCTestCase {
             XCTAssertEqual(layout.filteredNoiseCount, recipe.synthesis.contains(.filteredNoise) ? 1 : 0)
             XCTAssertEqual(layout.transientFilterCutoffHz, recipe.primarySample == nil ? nil : recipe.transientFilterCutoffHz)
             XCTAssertEqual(layout.noiseFilterCutoffHz, recipe.synthesis.contains(.filteredNoise) ? recipe.noiseFilterCutoffHz : nil)
+            XCTAssertEqual(layout.highPassCutoffHz, recipe.highPassCutoffHz)
+            XCTAssertEqual(layout.outputTrimDecibels, recipe.outputTrimDecibels, accuracy: 1e-12)
+            XCTAssertEqual(
+                layout.signalPath,
+                [.source, .highPass, .pan, .preRoomTrim, .room, .unityOutput],
+                "The corrective trim must occur before the room send and the final output remains unity."
+            )
         }
 
         for index in 0..<1_000 {

@@ -207,7 +207,7 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
     private let delay: Delay
     private let directGain: DayObjectsAppleGainNode
     private let reverbSend: Fader
-    private let reverb: Reverb
+    private let reverb: CostelloReverb
     private let reverbWet: DayObjectsAppleGainNode
     private var slots: [VoiceSlot]
     private var decodedBuffers: [String: DayObjectsHappeningDecodedBuffer] = [:]
@@ -288,8 +288,15 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
         )
         directGain = DayObjectsAppleGainNode(input: filter, gain: currentEffects.directLevel)
         reverbSend = Fader(filter, gain: AUValue(currentEffects.reverbSend))
-        reverb = Reverb(reverbSend, dryWetMix: 100)
-        reverb.loadFactoryPreset(.cathedral)
+        // This is a local, preallocated effect return. CostelloReverb exposes
+        // feedback as a rampable parameter, so reverbDecay controls a real
+        // tail without touching Harmony's global effect feedback.
+        reverb = CostelloReverb(
+            reverbSend,
+            balance: 1,
+            feedback: AUValue(Self.reverbFeedback(for: currentEffects.reverbDecay)),
+            cutoffFrequency: 7_000
+        )
         reverbWet = DayObjectsAppleGainNode(input: reverb, gain: currentEffects.reverbMix)
         output = Mixer([directGain, delay, reverbWet], name: "Day Objects Happening bus")
     }
@@ -442,6 +449,7 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
         lastEffectRampSeconds = duration
         transition(filter.$cutoffFrequency, to: sanitized.filterCutoffHz, duration: duration)
         transition(delay.$feedback, to: sanitized.delayFeedback * 100, duration: duration)
+        transition(reverb.$feedback, to: Self.reverbFeedback(for: sanitized.reverbDecay), duration: duration)
         delaySend.gain = AUValue(sanitized.delaySend)
         reverbSend.gain = AUValue(sanitized.reverbSend)
         directGain.setLinearGain(sanitized.directLevel, rampSeconds: duration)
@@ -532,7 +540,10 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
                 DayObjectsAudioParameters.maximumDelayFeedback
             ),
             reverbSend: unit(command.reverbSend),
-            reverbDecay: unit(command.reverbDecay)
+            reverbDecay: min(
+                nonnegative(command.reverbDecay),
+                DayObjectsAudioParameters.maximumReverbFeedback
+            )
         )
     }
 
@@ -590,6 +601,12 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
 
     private static func nonnegative(_ value: Double) -> Double {
         max(value.isFinite ? value : 0, 0)
+    }
+
+    private static func reverbFeedback(for decay: Double) -> Double {
+        // Keep even short ambient returns smooth while mapping the recipe's
+        // normalized decay continuously onto Costello's safe feedback range.
+        min(0.5 + unit(decay) * 0.535, DayObjectsAudioParameters.maximumReverbFeedback)
     }
 
     private struct VoiceSlot {

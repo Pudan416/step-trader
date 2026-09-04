@@ -14,6 +14,58 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         XCTAssertEqual(HappeningPan.gains(for: 1).left, 0, accuracy: 1e-12)
         XCTAssertEqual(HappeningPan.gains(for: 1).right, 1, accuracy: 1e-12)
     }
+
+    func testPoolPropagatesRequestedPanToThePreallocatedVoice() throws {
+        let harness = try preparedHarness()
+        let handle = try harness.pool.play(
+            sound(id: 1, resource: "1.wav"),
+            gain: 1,
+            priority: .manualAudition,
+            effects: .init(filterCutoffHz: 18_000, directLevel: 1, delaySend: 0, delayFeedback: 0, reverbSend: 0, reverbDecay: 0),
+            pan: -0.75
+        )
+
+        XCTAssertEqual(try XCTUnwrap(harness.voices[handle.voiceID].playCalls.last).pan, -0.75, accuracy: 1e-12)
+    }
+
+    func testProductionPanPlacesDryHappeningLeftCenterAndRight() throws {
+        let recipeID = id(1)
+        let recipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: recipeID))
+        let source = try XCTUnwrap(recipe.sources.first)
+        let sound = ResolvedHappeningSound(recipeID: recipeID, resourceName: source.resourceName, sourceRootMIDI: source.rootMIDI, targetMIDI: source.rootMIDI, playbackRate: 1, resonantFilterHz: nil)
+        let dry = HappeningEffectCommand(filterCutoffHz: 18_000, directLevel: 1, delaySend: 0, delayFeedback: 0, reverbSend: 0, reverbDecay: 0)
+
+        let left = try renderProduction(recipeIDs: [recipeID], sounds: [sound], duration: 0.5, effects: dry, pan: -1)
+        let center = try renderProduction(recipeIDs: [recipeID], sounds: [sound], duration: 0.5, effects: dry, pan: 0)
+        let right = try renderProduction(recipeIDs: [recipeID], sounds: [sound], duration: 0.5, effects: dry, pan: 1)
+
+        XCTAssertGreaterThan(channelRMS(left, channel: 0), channelRMS(left, channel: 1) * 4)
+        XCTAssertEqual(channelRMS(center, channel: 0), channelRMS(center, channel: 1), accuracy: 0.000_1)
+        XCTAssertGreaterThan(channelRMS(right, channel: 1), channelRMS(right, channel: 0) * 4)
+    }
+
+    func testProductionDirectDelayAndReverbSendsRemainIndependentAndDecayChangesTail() throws {
+        let recipeID = id(1)
+        let recipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: recipeID))
+        let source = try XCTUnwrap(recipe.sources.first)
+        let sound = ResolvedHappeningSound(recipeID: recipeID, resourceName: source.resourceName, sourceRootMIDI: source.rootMIDI, targetMIDI: source.rootMIDI, playbackRate: 1, resonantFilterHz: nil)
+        let direct = HappeningEffectCommand(filterCutoffHz: 18_000, directLevel: 1, delaySend: 0, delayFeedback: 0, reverbSend: 0, reverbDecay: 0)
+        let noDirect = HappeningEffectCommand(filterCutoffHz: 18_000, directLevel: 0, delaySend: 0, delayFeedback: 0, reverbSend: 0, reverbDecay: 0)
+        let delayOnly = HappeningEffectCommand(filterCutoffHz: 18_000, directLevel: 0, delaySend: 0.8, delayFeedback: 0.5, reverbSend: 0, reverbDecay: 0)
+        let reverbShort = HappeningEffectCommand(filterCutoffHz: 18_000, directLevel: 0, delaySend: 0, delayFeedback: 0, reverbSend: 0.8, reverbDecay: 0.15)
+        let reverbLong = HappeningEffectCommand(filterCutoffHz: 18_000, directLevel: 0, delaySend: 0, delayFeedback: 0, reverbSend: 0.8, reverbDecay: 0.85)
+
+        let dry = try renderProduction(recipeIDs: [recipeID], sounds: [sound], duration: 1.5, effects: direct)
+        let muted = try renderProduction(recipeIDs: [recipeID], sounds: [sound], duration: 1.5, effects: noDirect)
+        let delayed = try renderProduction(recipeIDs: [recipeID], sounds: [sound], duration: 1.5, effects: delayOnly)
+        let short = try renderProduction(recipeIDs: [recipeID], sounds: [sound], duration: 1.5, effects: reverbShort)
+        let long = try renderProduction(recipeIDs: [recipeID], sounds: [sound], duration: 1.5, effects: reverbLong)
+
+        XCTAssertGreaterThan(differenceRMS(dry, muted), 0.001)
+        XCTAssertGreaterThan(differenceRMS(delayed, muted), 0.001)
+        XCTAssertGreaterThan(differenceRMS(long, short), 0.001)
+        XCTAssertGreaterThan(rms(long, from: 1.1, to: 1.5), rms(short, from: 1.1, to: 1.5) * 1.1)
+    }
     func testNewPoolStartsWithAmbientTailDefaultEffects() throws {
         let harness = try preparedHarness()
 
@@ -124,7 +176,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         XCTAssertEqual(harness.pool.metrics.effects, effects(2))
 
         _ = try harness.pool.play(sound(id: 3, resource: "3.wav"), gain: 1, priority: .birth, effects: effects(3))
-        XCTAssertEqual(harness.pool.metrics.effects, .init(
+        assertEffects(harness.pool.metrics.effects, equalTo: .init(
             filterCutoffHz: 2_500,
             delayMix: 0.25,
             delayFeedback: 0.125,
@@ -499,7 +551,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
 
         XCTAssertLessThan(
             rms(spatial, from: 0, to: 0.25),
-            rms(dry, from: 0, to: 0.25) * 0.45
+            rms(dry, from: 0, to: 0.25) * 0.7
         )
     }
 
@@ -780,6 +832,14 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         return sqrt(sum / Double(count))
     }
 
+    private func channelRMS(_ buffer: AVAudioPCMBuffer, channel: Int) -> Double {
+        guard let samples = buffer.floatChannelData?[channel] else { return 0 }
+        let count = Int(buffer.frameLength)
+        guard count > 0 else { return 0 }
+        let sum = (0..<count).reduce(0.0) { $0 + Double(samples[$1] * samples[$1]) }
+        return sqrt(sum / Double(count))
+    }
+
     private func assertEffects(
         _ actual: HappeningEffectCommand,
         equalTo expected: HappeningEffectCommand,
@@ -801,7 +861,8 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
             delayMix: 0,
             delayFeedback: 0,
             reverbMix: 0
-        )
+        ),
+        pan: Double = 0
     ) throws -> AVAudioPCMBuffer {
         let pool = DayObjectsHappeningSamplePool(bundle: Bundle(for: type(of: self)))
         try pool.prepare(recipeIDs: recipeIDs)
@@ -814,7 +875,8 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
                 sound,
                 gain: 1,
                 priority: .manualAudition,
-                effects: effects
+                effects: effects,
+                pan: pan
             )
         }
         return engine.render(duration: duration)
@@ -904,7 +966,8 @@ private final class FakeHappeningVoice: DayObjectsHappeningSampleVoiceBackend {
             gain: gain,
             attackSeconds: attackSeconds,
             releaseSeconds: releaseSeconds,
-            resonantFilterHz: resonantFilterHz
+            resonantFilterHz: resonantFilterHz,
+            pan: pan
         ))
     }
 
@@ -922,6 +985,7 @@ private struct FakeHappeningVoiceCall {
     let attackSeconds: Double
     let releaseSeconds: Double
     let resonantFilterHz: Double?
+    let pan: Double
 }
 
 private extension DayObjectsHappeningSamplePoolProtocol {

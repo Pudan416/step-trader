@@ -583,13 +583,13 @@ final class DayMusicPlanDifferTests: XCTestCase {
         XCTAssertEqual(change.removedHappeningIDs, [])
     }
 
-    func testAddingHappeningPlusIndependentMixChangeEmitsBothCommands() {
+    func testAddingHappeningPlusBassOnlyMixChangeEmitsBothCommands() {
         let oldPlan = makePlan(happeningIDs: ["one"])
         let generatedNewPlan = makePlan(happeningIDs: ["one", "two"])
         let mix = generatedNewPlan.mix
         let changedMix = LayerMixPlan(
-            rhythmTargetDecibels: mix.rhythmTargetDecibels + 0.5,
-            bassTargetDecibels: mix.bassTargetDecibels,
+            rhythmTargetDecibels: mix.rhythmTargetDecibels,
+            bassTargetDecibels: mix.bassTargetDecibels - 0.5,
             harmonyTargetDecibels: mix.harmonyTargetDecibels,
             happeningAggregateTargetDecibels: mix.happeningAggregateTargetDecibels,
             happeningPerVoiceTargetDecibels: mix.happeningPerVoiceTargetDecibels,
@@ -620,19 +620,19 @@ final class DayMusicPlanDifferTests: XCTestCase {
         XCTAssertEqual(change.removedHappeningIDs, ["three", "four"])
     }
 
-    func testRemovingHappeningPlusIndependentMixChangeEmitsBothCommands() {
+    func testRemovingHappeningPlusBassOnlyMixChangeEmitsBothCommands() {
         let oldPlan = makePlan(happeningIDs: ["one", "two"])
         let generatedNewPlan = makePlan(happeningIDs: ["one"])
         let mix = generatedNewPlan.mix
         let changedMix = LayerMixPlan(
             rhythmTargetDecibels: mix.rhythmTargetDecibels,
-            bassTargetDecibels: mix.bassTargetDecibels,
+            bassTargetDecibels: mix.bassTargetDecibels - 0.5,
             harmonyTargetDecibels: mix.harmonyTargetDecibels,
             happeningAggregateTargetDecibels: mix.happeningAggregateTargetDecibels,
             happeningPerVoiceTargetDecibels: mix.happeningPerVoiceTargetDecibels,
             happeningCount: mix.happeningCount,
             leadTargetDecibels: mix.leadTargetDecibels,
-            masterTargetDecibelsBeforeLimiter: mix.masterTargetDecibelsBeforeLimiter - 0.5,
+            masterTargetDecibelsBeforeLimiter: mix.masterTargetDecibelsBeforeLimiter,
             maximumHarmonyDuckingDecibels: mix.maximumHarmonyDuckingDecibels
         )
         let newPlan = replacing(generatedNewPlan, mix: changedMix)

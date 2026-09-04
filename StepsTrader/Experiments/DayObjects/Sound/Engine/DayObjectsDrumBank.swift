@@ -136,6 +136,15 @@ struct DayObjectsDrumBankMetrics: Equatable, Sendable {
     let enabledVoiceCount: Int
 }
 
+enum DayObjectsDrumGraphStage: Equatable, Sendable {
+    case source
+    case highPass
+    case pan
+    case preRoomTrim
+    case room
+    case unityOutput
+}
+
 struct DayObjectsDrumGraphLayout: Equatable, Sendable {
     let samplePlayerCount: Int
     let sinePitchDropCount: Int
@@ -144,12 +153,13 @@ struct DayObjectsDrumGraphLayout: Equatable, Sendable {
     let noiseFilterCutoffHz: Double?
     let highPassCutoffHz: Double?
     let outputTrimDecibels: Double
+    let signalPath: [DayObjectsDrumGraphStage]
     let allocatedNodeCount: Int
 
     static let empty = DayObjectsDrumGraphLayout(
         samplePlayerCount: 0, sinePitchDropCount: 0, filteredNoiseCount: 0,
         transientFilterCutoffHz: nil, noiseFilterCutoffHz: nil,
-        highPassCutoffHz: nil, outputTrimDecibels: 0, allocatedNodeCount: 0
+        highPassCutoffHz: nil, outputTrimDecibels: 0, signalPath: [], allocatedNodeCount: 0
     )
 }
 
@@ -628,6 +638,7 @@ final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
             noiseFilterCutoffHz: noiseFilter == nil ? nil : recipe.noiseFilterCutoffHz,
             highPassCutoffHz: recipe.highPassCutoffHz,
             outputTrimDecibels: recipe.outputTrimDecibels,
+            signalPath: [.source, .highPass, .pan, .preRoomTrim, .room, .unityOutput],
             allocatedNodeCount: (samplePlayer == nil ? 0 : 3) + (sine == nil ? 0 : 2) + (noise == nil ? 0 : 3) + 6
         )
     }

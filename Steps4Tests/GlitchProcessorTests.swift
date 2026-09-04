@@ -332,6 +332,9 @@ final class GlitchProcessorTests: XCTestCase {
                 XCTAssertLessThanOrEqual(abs(continuous.pitchDriftCents), limits.pitchDriftCents)
                 XCTAssertLessThanOrEqual(abs(continuous.delayTimeVariation), limits.delayTimeInstability)
                 XCTAssertLessThanOrEqual(continuous.saturationAmount, limits.saturationAmount)
+                XCTAssertTrue(continuous.outputCompensationGain.isFinite)
+                XCTAssertGreaterThan(continuous.outputCompensationGain, 0)
+                XCTAssertLessThanOrEqual(continuous.outputCompensationGain, 1)
                 XCTAssertLessThanOrEqual(abs(continuous.timingDriftMilliseconds), limits.timingDriftMilliseconds)
                 XCTAssertLessThanOrEqual(continuous.wowFlutterDepth, GlitchPlan.maximumWowFlutterDepth)
                 XCTAssertLessThanOrEqual(continuous.stereoSeparationAddition, GlitchPlan.maximumStereoSeparationAddition)
@@ -349,6 +352,9 @@ final class GlitchProcessorTests: XCTestCase {
                     let eventCommand = try XCTUnwrap(eventCommand)
                     XCTAssertLessThanOrEqual(abs(eventCommand.pitchDriftCents), limits.pitchDriftCents)
                     XCTAssertLessThanOrEqual(abs(eventCommand.delayTimeVariation), limits.delayTimeInstability)
+                    XCTAssertTrue(eventCommand.outputCompensationGain.isFinite)
+                    XCTAssertGreaterThan(eventCommand.outputCompensationGain, 0)
+                    XCTAssertLessThanOrEqual(eventCommand.outputCompensationGain, 1)
                 }
             }
         }
@@ -562,6 +568,7 @@ private extension DayObjectsGlitchCommand {
             stereoSeparationAddition,
             delayTimeVariation,
             saturationAmount,
+            outputCompensationGain,
             timingDriftMilliseconds,
             dropoutAttenuationDecibels,
             dropoutReleaseSeconds,
