@@ -11,6 +11,8 @@ readonly COOKBOOK_URL="https://github.com/AudioKit/Cookbook.git"
 readonly COOKBOOK_REVISION="c37d41daedf161b47315b7ae24b07f41213b73be"
 readonly OSIRIS_URL="https://github.com/sfzinstruments/Osiris_Piano.git"
 readonly OSIRIS_REVISION="18c6afccb60cff458edbf7c394571783e074e1e9"
+readonly VCSL_URL="https://github.com/sgossner/VCSL.git"
+readonly VCSL_REVISION="c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e"
 readonly PIANO_FIXED_GAIN_DB="-6.0"
 
 readonly script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -209,6 +211,7 @@ verify_license() {
 }
 
 readonly SYNTH_BANK_PATHS=(
+    "AudioKitSynthOne/Presets/Data/BankA.json"
     "AudioKitSynthOne/Presets/Data/Bonus.json"
     "AudioKitSynthOne/Presets/Data/Brice Beasley.json"
     "AudioKitSynthOne/Presets/Data/Electronisounds.json"
@@ -217,6 +220,7 @@ readonly SYNTH_BANK_PATHS=(
     "AudioKitSynthOne/Presets/Data/Spidericemidas.json"
 )
 readonly SYNTH_BANK_SHA256=(
+    "1486c2b1fcb922d145541c96f436e7e15d755dba72ff9a8030052ef22d224bed"
     "e189a9782469bd851d97a2bd157cfdd43692621287de68eb2909e8aabbd4b996"
     "a42a515cc66fc392f8831efa4865145dc9e2c8a8d9bc2554d1fd8a1aed242d45"
     "94447bcafd93b8e534b99347ef1a2ab7f96006364c36e85c88825e2480a026e7"
@@ -232,6 +236,7 @@ readonly SELECTED_UIDS=(
     "88335303-C675-4D14-907E-2D80823C2BCA"
     "8FC6202C-DAE8-4651-98DE-F3BEBB07E6BF"
     "C2958050-CDCA-4C64-AF92-3217539CE60A"
+    "E2D8B458-C727-4388-A0EA-28802B605796"
     "4131C811-FBB8-4E15-B238-8986645A62D3"
     "FA16AF16-3033-485F-A183-4DAAB7025B52"
     "9BDE3DCB-219D-4D70-A067-C1057B557F19"
@@ -241,7 +246,7 @@ readonly SELECTED_UIDS=(
     "6A4C11CA-2CF9-4153-B5D3-A67F28E465A1"
     "9F2D32B0-ED71-4127-A4C5-F51209656AF7"
 )
-readonly SELECTED_PRESETS_OUTPUT_SHA256="e1eea582d634425605954cf20c201ec34045f0a1f3f48b652b6c2a81442fd063"
+readonly SELECTED_PRESETS_OUTPUT_SHA256="d992f58290f840b47a2c8825e475fc770fd3a79d788034291ce8c954a463c61d"
 
 readonly DRUM_SOURCE_PATHS=(
     "Cookbook/CookbookCommon/Sources/CookbookCommon/Samples/bass_drum_C1.wav"
@@ -305,8 +310,17 @@ readonly PIANO_OUTPUT_SHA256=(
     "d900e6d295f3cdd7e142c88564282ee58de3095fa9f715474a09e458f7e58b98"
 )
 
+readonly VCSL_SOURCE_PATHS=(
+    "09 Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_C4_soft_01.wav"
+    "10 Idiophones/Struck Idiophones/Balafon/Soft Mallet/EthnicXylo_softM_C4_vl2_rr1_Mid.wav"
+    "11 Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_C5_v1_rr1_Main.wav"
+    "17 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_C4_p_rr1.wav"
+    "18 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_D4_p_rr1.wav"
+)
+
 synth_paths_json="$(jq -cn --args '$ARGS.positional' "${SYNTH_BANK_PATHS[@]}")"
 drum_paths_json="$(jq -cn --args '$ARGS.positional' "${DRUM_SOURCE_PATHS[@]}")"
+vcsl_paths_json="$(jq -cn --args '$ARGS.positional' "${VCSL_SOURCE_PATHS[@]}")"
 piano_source_paths=()
 for root_note in "${PIANO_ROOTS[@]}"; do
     piano_source_paths+=("UC-Sus-noisy/A/Piano_UC-Sus_MicA_${root_note}_vl1.flac")
@@ -316,6 +330,9 @@ jq -e \
     --argjson synthPaths "${synth_paths_json}" \
     --argjson drumPaths "${drum_paths_json}" \
     --argjson pianoPaths "${piano_paths_json}" \
+    --argjson vcslPaths "${vcsl_paths_json}" \
+    --arg vcslURL "${VCSL_URL%.git}" \
+    --arg vcslRevision "${VCSL_REVISION}" \
     '. == [
       {
         project: "AudioKitSynthOne", sourceURL: "https://github.com/AudioKit/AudioKitSynthOne",
@@ -331,8 +348,21 @@ jq -e \
         project: "sfzinstruments/Osiris_Piano", sourceURL: "https://github.com/sfzinstruments/Osiris_Piano",
         revision: "18c6afccb60cff458edbf7c394571783e074e1e9",
         licenseFilename: "OsirisPiano-CC0-1.0.txt", selectedPaths: $pianoPaths
+      },
+      {
+        project: "VCSL", sourceURL: $vcslURL, revision: $vcslRevision,
+        licenseFilename: "VCSL-CC0-1.0.txt", selectedPaths: $vcslPaths
       }
     ]' "${license_root}/SOURCES.json" >/dev/null || fail "SOURCES.json differs from the pinned import contract"
+
+preserved_happening_sources="$(jq -ce '
+    {vcsl: .sources.vcsl, "project-authored": .sources["project-authored"]}
+    | if (.vcsl != null and .["project-authored"] != null) then . else error("missing happening sources") end
+' "${manifest_destination}")" || fail "audio asset manifest is missing happening source provenance"
+preserved_happening_assets="$(jq -ce '
+    [.assets[] | select(.path | startswith("Happenings/"))]
+    | if length == 102 then . else error("unexpected happening asset count") end
+' "${manifest_destination}")" || fail "audio asset manifest does not preserve the full happening catalog"
 
 readonly synth_sparse_list="${temp_root}/synth-sparse.txt"
 printf '/LICENSE\n' > "${synth_sparse_list}"
@@ -352,7 +382,7 @@ done
 
 selected_uids_json="$(jq -cn --args '$ARGS.positional' "${SELECTED_UIDS[@]}")"
 jq -S -s --argjson selected "${selected_uids_json}" \
-    '[.[][] | select((.uid // "") as $uid | $selected | index($uid))] | sort_by(.uid)' \
+    '[.[][] | select((.uid // "") as $uid | $selected | index($uid))] | unique_by(.uid) | sort_by(.uid)' \
     "${synth_bank_files[@]}" > "${staged_synth}/selected-presets.json"
 chmod 0644 "${staged_synth}/selected-presets.json"
 jq -e --argjson selected "${selected_uids_json}" \
@@ -537,9 +567,11 @@ jq -S -n \
     --arg cookbookRevision "${COOKBOOK_REVISION}" \
     --arg osirisURL "${OSIRIS_URL%.git}" \
     --arg osirisRevision "${OSIRIS_REVISION}" \
+    --argjson preservedSources "${preserved_happening_sources}" \
+    --argjson preservedHappeningAssets "${preserved_happening_assets}" \
     '{
       schemaVersion: 1,
-      sources: {
+      sources: ({
         "AudioKitSynthOne": {
           creator: "AudioKit contributors", sourceURL: $synthURL, revision: $synthRevision,
           licenseIdentifier: "MIT", licenseFilename: "AudioKitSynthOne-MIT.txt"
@@ -554,11 +586,16 @@ jq -S -n \
           licenseFilename: "OsirisPiano-CC0-1.0.txt",
           redistributionAndModificationRights: "CC0 1.0 public-domain dedication permits copying, modification, and redistribution, including commercial use."
         }
-      },
-      assets: $assets
+      } + $preservedSources),
+      assets: ($assets + $preservedHappeningAssets)
     }' > "${staged_manifest}"
 chmod 0644 "${staged_manifest}"
-jq -e '.schemaVersion == 1 and (.assets | length == 21)' "${staged_manifest}" >/dev/null || fail "generated asset manifest is incomplete"
+jq -e '
+    .schemaVersion == 1
+    and (.assets | length == 123)
+    and ([.assets[] | select(.path | startswith("Happenings/"))] | length == 102)
+    and (.sources | has("vcsl") and has("project-authored"))
+' "${staged_manifest}" >/dev/null || fail "generated asset manifest is incomplete"
 
 validate_destination_path() {
     local destination="$1"
@@ -666,4 +703,4 @@ for index in "${!transaction_destinations[@]}"; do
 done
 transaction_committed=1
 
-printf 'Imported 15 Synth One presets, 8 drum samples, and 12 felt-piano samples.\n'
+printf 'Imported %d Synth One presets, 8 drum samples, and 12 felt-piano samples.\n' "${#SELECTED_UIDS[@]}"

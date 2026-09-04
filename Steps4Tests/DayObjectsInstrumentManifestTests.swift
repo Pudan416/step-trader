@@ -2,6 +2,9 @@ import XCTest
 @testable import Steps4
 
 final class DayObjectsInstrumentManifestTests: XCTestCase {
+    private let heyJakobID = "bass.hey-jakob"
+    private let heyJakobUID = "E2D8B458-C727-4388-A0EA-28802B605796"
+
     private let expectedIDs = [
         "pad.interstellar",
         "pad.whispering-sands",
@@ -10,6 +13,7 @@ final class DayObjectsInstrumentManifestTests: XCTestCase {
         "pluck.jec-ambient-pizz-2",
         "pluck.spider-filter-pluck",
         "bass.analog-boom",
+        "bass.hey-jakob",
         "bass.bb-roys-phaser",
         "bass.jec-hollores-2",
         "lead.verbacious",
@@ -28,6 +32,7 @@ final class DayObjectsInstrumentManifestTests: XCTestCase {
         "pluck.jec-ambient-pizz-2": "88335303-C675-4D14-907E-2D80823C2BCA",
         "pluck.spider-filter-pluck": "8FC6202C-DAE8-4651-98DE-F3BEBB07E6BF",
         "bass.analog-boom": "C2958050-CDCA-4C64-AF92-3217539CE60A",
+        "bass.hey-jakob": "E2D8B458-C727-4388-A0EA-28802B605796",
         "bass.bb-roys-phaser": "4131C811-FBB8-4E15-B238-8986645A62D3",
         "bass.jec-hollores-2": "FA16AF16-3033-485F-A183-4DAAB7025B52",
         "lead.verbacious": "9BDE3DCB-219D-4D70-A067-C1057B557F19",
@@ -50,22 +55,40 @@ final class DayObjectsInstrumentManifestTests: XCTestCase {
         )
     }
 
-    func testEachSynthOneTonalCategoryContainsExactlyThreeUniqueDescriptors() {
-        let descriptors = DayObjectsInstrumentManifest.defaultDescriptors
-        let tonalCategories: [DayObjectsInstrumentCategory] = [.pad, .pluck, .bass, .lead, .keys]
+    func testApprovedBassPaletteIncludesHeyJakob() throws {
+        let bass = DayObjectsInstrumentManifest.descriptors(in: .bass)
+        XCTAssertEqual(bass.map(\.id.rawValue), [
+            "bass.analog-boom", "bass.hey-jakob",
+            "bass.bb-roys-phaser", "bass.jec-hollores-2",
+        ])
+        let descriptor = try XCTUnwrap(bass.first { $0.id.rawValue == heyJakobID })
+        XCTAssertEqual(descriptor.sourceUID, heyJakobUID)
+        XCTAssertEqual(descriptor.referenceMIDI, 38)
+        XCTAssertLessThanOrEqual(descriptor.outputTrimDB, -12)
+    }
 
-        for category in tonalCategories {
+    func testEachSynthOneTonalCategoryHasExpectedUniqueDescriptorCount() {
+        let descriptors = DayObjectsInstrumentManifest.defaultDescriptors
+        let expectedCounts: [DayObjectsInstrumentCategory: Int] = [
+            .pad: 3,
+            .pluck: 3,
+            .bass: 4,
+            .lead: 3,
+            .keys: 3,
+        ]
+
+        for (category, expectedCount) in expectedCounts {
             let matching = DayObjectsInstrumentManifest.descriptors(in: category)
-            XCTAssertEqual(matching.count, 3, "Unexpected count for \(category)")
-            XCTAssertEqual(Set(matching.map(\.id)).count, 3, "Duplicate ID in \(category)")
+            XCTAssertEqual(matching.count, expectedCount, "Unexpected count for \(category)")
+            XCTAssertEqual(Set(matching.map(\.id)).count, expectedCount, "Duplicate ID in \(category)")
             XCTAssertTrue(matching.allSatisfy { $0.category == category })
             XCTAssertEqual(matching, descriptors.filter { $0.category == category })
         }
 
         XCTAssertEqual(DayObjectsInstrumentManifest.descriptors(in: .drums), [])
         XCTAssertEqual(DayObjectsInstrumentManifest.descriptors(in: .piano), [])
-        XCTAssertEqual(Set(descriptors.map(\.id)).count, 15)
-        XCTAssertEqual(Set(descriptors.compactMap(\.sourceUID)).count, 15)
+        XCTAssertEqual(Set(descriptors.map(\.id)).count, 16)
+        XCTAssertEqual(Set(descriptors.compactMap(\.sourceUID)).count, 16)
     }
 
     func testEverySynthOneDescriptorHasAttributionAndBoundedAuditionMetadata() {

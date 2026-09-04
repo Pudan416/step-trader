@@ -272,7 +272,7 @@ final class SynthOnePresetAdapterTests: XCTestCase {
         let first = records.map(SynthOnePresetAdapter.convert)
         let second = records.map(SynthOnePresetAdapter.convert)
 
-        XCTAssertEqual(records.count, 15)
+        XCTAssertEqual(records.count, 16)
         XCTAssertEqual(records.map(\.uid), DayObjectsInstrumentManifest.defaultDescriptors.compactMap(\.sourceUID))
         XCTAssertEqual(first, second)
         XCTAssertEqual(first.map(\.voice.referenceMIDI), DayObjectsInstrumentManifest.defaultDescriptors.map(\.referenceMIDI))
@@ -280,7 +280,7 @@ final class SynthOnePresetAdapterTests: XCTestCase {
         XCTAssertEqual(first.map(\.voice.outputTrimDB), DayObjectsInstrumentManifest.defaultDescriptors.map(\.outputTrimDB))
     }
 
-    func testAllFifteenConversionsMatchGoldenStableScalarsAndDiagnosticCodes() throws {
+    func testAllSixteenConversionsMatchGoldenStableScalarsAndDiagnosticCodes() throws {
         let records = try DayObjectsInstrumentManifest.loadSynthOneRecords(from: Bundle(for: type(of: self)))
         let actual = records.map { source -> Golden in
             let result = SynthOnePresetAdapter.convert(source)
@@ -367,6 +367,7 @@ final class SynthOnePresetAdapterTests: XCTestCase {
         .init(uid: "88335303-C675-4D14-907E-2D80823C2BCA", wave1: 0.8092783689498901, wave2: 0.5397196412086487, oscillator2DetuneHz: 0.25999999046325684, attack: 0.0005000000237487259, cutoff: 3631.431884765625, lfoTarget: .none, lfoRateHz: 1, lfoDepth: 0, lfoWaveform: .sine, delayFeedback: 0.4522499740123749, reverbMix: 0.4124999940395355, trimDB: -14.89, diagnosticCodes: codes("clampedValue", "unsupportedFM", "unsupportedModulationRoute", "unsupportedPerformanceMode")),
         .init(uid: "8FC6202C-DAE8-4651-98DE-F3BEBB07E6BF", wave1: 0, wave2: 1, oscillator2DetuneHz: 2.0399999618530273, attack: 0.00050000002374872587, cutoff: 5726.6318359375, lfoTarget: .pitch, lfoRateHz: 2, lfoDepth: 0.1550000011920929, lfoWaveform: .sine, delayFeedback: 0.17874999344348907, reverbMix: 0.3775000274181366, trimDB: -13.15, diagnosticCodes: codes("clampedValue", "unsupportedFM", "unsupportedModulationRoute")),
         .init(uid: "C2958050-CDCA-4C64-AF92-3217539CE60A", wave1: 0.32216495275497, wave2: 0, oscillator2DetuneHz: 0.89999997615814, attack: 0.0005000000237487299, cutoff: 3244.8913574219, lfoTarget: .filter, lfoRateHz: 0.5, lfoDepth: 0, lfoWaveform: .sine, delayFeedback: 0.10000000149012, reverbMix: 0.15000000596046, trimDB: -14.89, diagnosticCodes: codes("unsupportedPerformanceMode")),
+        .init(uid: "E2D8B458-C727-4388-A0EA-28802B605796", wave1: 0.5077319741249084, wave2: 0.3528037369251251, oscillator2DetuneHz: -0.000000002980233393401477, attack: 0.0005000000237487259, cutoff: 2912.136474609375, lfoTarget: .filter, lfoRateHz: 0.25, lfoDepth: 0.7099999785423279, lfoWaveform: .sine, delayFeedback: 0.1822499930858612, reverbMix: 0.5, trimDB: -18, diagnosticCodes: codes("clampedValue", "unsupportedFM", "unsupportedModulationRoute", "unsupportedPerformanceMode")),
         .init(uid: "4131C811-FBB8-4E15-B238-8986645A62D3", wave1: 1, wave2: 1, oscillator2DetuneHz: 0.040000010281801224, attack: 0.00050000002374872587, cutoff: 64, lfoTarget: .filter, lfoRateHz: 0.098958335816860199, lfoDepth: 0.74000000953674316, lfoWaveform: .sine, delayFeedback: 0, reverbMix: 0, trimDB: -15.92, diagnosticCodes: codes("unsupportedBitCrush", "unsupportedFM", "unsupportedMIDIMapping", "unsupportedModulationRoute", "unsupportedPerformanceMode")),
         .init(uid: "FA16AF16-3033-485F-A183-4DAAB7025B52", wave1: 0.6391752362251282, wave2: 0.4789719581604004, oscillator2DetuneHz: -2.380000352859497, attack: 0.010497500188648697, cutoff: 7532.7783203125, lfoTarget: .filter, lfoRateHz: 0.06966245919466019, lfoDepth: 0.6549996137619019, lfoWaveform: .sine, delayFeedback: 0.18324950337409973, reverbMix: 0.3375000059604645, trimDB: -17.08, diagnosticCodes: codes("clampedValue", "unsupportedFM", "unsupportedModulationRoute", "unsupportedPerformanceMode")),
         .init(uid: "9BDE3DCB-219D-4D70-A067-C1057B557F19", wave1: 0.84278351068496704, wave2: 0.084112152457237244, oscillator2DetuneHz: -0.059999998658895493, attack: 0.030492499470710754, cutoff: 2346.652587890625, lfoTarget: .pitch, lfoRateHz: 0.118055559694767, lfoDepth: 0.31000000238418579, lfoWaveform: .sine, delayFeedback: 0.53999996185302734, reverbMix: 0.99750000238418579, trimDB: -17.08, diagnosticCodes: codes("clampedValue", "unsupportedFM", "unsupportedModulationRoute", "unsupportedPerformanceMode")),

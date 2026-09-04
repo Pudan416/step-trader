@@ -46,6 +46,11 @@ enum DayObjectsInstrumentManifest {
             auditionChord: [38, 45, 52, 57], outputTrimDB: -14.89
         ),
         descriptor(
+            id: "bass.hey-jakob", category: .bass, displayName: "BASS - Hey Jakob!", bankName: "BankA",
+            sourceUID: "E2D8B458-C727-4388-A0EA-28802B605796", referenceMIDI: 38,
+            auditionChord: [38, 45, 50, 57], outputTrimDB: -18
+        ),
+        descriptor(
             id: "bass.bb-roys-phaser", category: .bass, displayName: "BB Röy’s Phaser Bass", bankName: "Brice Beasley",
             sourceUID: "4131C811-FBB8-4E15-B238-8986645A62D3", referenceMIDI: 38,
             auditionChord: [38, 45, 52, 57], outputTrimDB: -15.92

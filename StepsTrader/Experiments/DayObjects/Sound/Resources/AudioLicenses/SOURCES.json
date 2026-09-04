@@ -5,6 +5,7 @@
     "revision": "6466a3715c96b7ecf1dd255a218cbd571408a314",
     "licenseFilename": "AudioKitSynthOne-MIT.txt",
     "selectedPaths": [
+      "AudioKitSynthOne/Presets/Data/BankA.json",
       "AudioKitSynthOne/Presets/Data/Bonus.json",
       "AudioKitSynthOne/Presets/Data/Brice Beasley.json",
       "AudioKitSynthOne/Presets/Data/Electronisounds.json",
