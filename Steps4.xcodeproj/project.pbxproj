@@ -50,6 +50,7 @@
 		D0B100000000000000000009 /* DayObjectsLabUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B10000000000000000000A /* DayObjectsLabUITests.swift */; };
 		D0B100000000000000000021 /* DayObjectTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000011 /* DayObjectTypes.swift */; };
 		D0B100000000000000000022 /* DayObjectScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000012 /* DayObjectScene.swift */; };
+		E0F100000000000000000002 /* DayObjectSceneRecipeV1.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0F100000000000000000001 /* DayObjectSceneRecipeV1.swift */; };
 		D0B100000000000000000024 /* DayObjectPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000014 /* DayObjectPalette.swift */; };
 		C0110A000000000000000002 /* ModernPaletteCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0110A000000000000000001 /* ModernPaletteCatalog.swift */; };
 		C0110A000000000000000004 /* DayObjectPaletteSet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0110A000000000000000003 /* DayObjectPaletteSet.swift */; };
@@ -489,6 +490,7 @@
 		D0B10000000000000000000A /* DayObjectsLabUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLabUITests.swift; sourceTree = "<group>"; };
 		D0B100000000000000000011 /* DayObjectTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectTypes.swift; sourceTree = "<group>"; };
 		D0B100000000000000000012 /* DayObjectScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectScene.swift; sourceTree = "<group>"; };
+		E0F100000000000000000001 /* DayObjectSceneRecipeV1.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectSceneRecipeV1.swift; sourceTree = "<group>"; };
 		D0B100000000000000000014 /* DayObjectPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectPalette.swift; sourceTree = "<group>"; };
 		C0110A000000000000000001 /* ModernPaletteCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModernPaletteCatalog.swift; sourceTree = "<group>"; };
 		C0110A000000000000000003 /* DayObjectPaletteSet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectPaletteSet.swift; sourceTree = "<group>"; };
@@ -938,6 +940,7 @@
 				DA0BDO030000000000000001 /* DayObjectsView.swift */,
 				D0B100000000000000000011 /* DayObjectTypes.swift */,
 				D0B100000000000000000012 /* DayObjectScene.swift */,
+				E0F100000000000000000001 /* DayObjectSceneRecipeV1.swift */,
 			);
 			path = Experiments/DayObjects;
 			sourceTree = "<group>";
@@ -1880,6 +1883,7 @@
 				DA0BDO030000000000000002 /* DayObjectsView.swift in Sources */,
 				D0B100000000000000000021 /* DayObjectTypes.swift in Sources */,
 				D0B100000000000000000022 /* DayObjectScene.swift in Sources */,
+				E0F100000000000000000002 /* DayObjectSceneRecipeV1.swift in Sources */,
 				A16C9001000000000000000B /* RichFillGeometry.swift in Sources */,
 				A16C9001000000000000000C /* RichRenderCache.swift in Sources */,
 				A16C9001000000000000000D /* RichFigureRenderer.swift in Sources */,

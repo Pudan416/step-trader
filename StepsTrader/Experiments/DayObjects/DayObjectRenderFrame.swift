@@ -506,6 +506,19 @@ struct DayObjectRenderFrame: Equatable {
     ) -> DayObjectRenderFrame {
         let elapsed = rawElapsed.isFinite ? max(rawElapsed, 0) : 0
         let canvasAspect = rawCanvasAspect.isFinite && rawCanvasAspect > 0 ? rawCanvasAspect : 1
+        if let recipe = scene.sceneRecipeV1 {
+            return makeEditorial(
+                scene: scene,
+                recipe: recipe,
+                environment: environment,
+                elapsed: elapsed,
+                insertions: insertions,
+                removals: removals,
+                actorInsertions: actorInsertions,
+                actorRemovals: actorRemovals,
+                canvasAspect: canvasAspect
+            )
+        }
         let choreographyTime = environment.reduceMotion
             ? 0
             : elapsed * baseTempo * environment.tempoScale
@@ -594,6 +607,129 @@ struct DayObjectRenderFrame: Equatable {
             actors: actors,
             postProcess: postProcess
         )
+    }
+
+    private static func makeEditorial(
+        scene: DayObjectScene,
+        recipe: DayObjectSceneRecipeV1,
+        environment: DayObjectEnvironment,
+        elapsed: Double,
+        insertions: [String: Double],
+        removals: [String: Double],
+        actorInsertions: [DayObjectActorID: Double],
+        actorRemovals: [DayObjectActorID: Double],
+        canvasAspect: Double
+    ) -> DayObjectRenderFrame {
+        let span = canvasAspect >= 1
+            ? SIMD2<Double>(canvasAspect, 1)
+            : SIMD2<Double>(1, 1 / canvasAspect)
+        let actorByEventID = Dictionary(uniqueKeysWithValues: scene.actors.map { ($0.eventID, $0) })
+        var rendered = [DayObjectRenderActor]()
+        rendered.reserveCapacity(recipe.actors.count)
+
+        for recipeActor in recipe.actors {
+            guard let actor = actorByEventID[recipeActor.eventID] else { continue }
+            let pose = recipeActor.motion.pose(
+                elapsedTime: elapsed,
+                energy: environment.motionEnergy,
+                reduceMotion: environment.reduceMotion
+            )
+            let insertion = editorialEnvelope(
+                kind: .insertion,
+                startedAt: actorInsertions[actor.id] ?? insertions[actor.eventID],
+                elapsed: elapsed,
+                reduceMotion: environment.reduceMotion
+            )
+            let removal = editorialEnvelope(
+                kind: .removal,
+                startedAt: actorRemovals[actor.id] ?? removals[actor.eventID],
+                elapsed: elapsed,
+                reduceMotion: environment.reduceMotion
+            )
+            let normalized = SIMD2(
+                recipeActor.position.x + pose.positionOffset.x,
+                recipeActor.position.y + pose.positionOffset.y
+            )
+            let position = SIMD2<Float>(
+                Float((normalized.x - 0.5) * span.x),
+                Float((normalized.y - 0.5) * span.y)
+            )
+            let motionLength = simd_length(pose.positionOffset)
+            let direction = motionLength > 0.000_001
+                ? SIMD2<Float>(Float(pose.positionOffset.x), Float(pose.positionOffset.y))
+                : SIMD2<Float>(Float(cos(recipeActor.motion.directionBias)), Float(sin(recipeActor.motion.directionBias)))
+            let transitionScale = environment.reduceMotion ? 1 : insertion.scale * removal.scale
+            let halfDiameter = Float(recipeActor.diameter * pose.scale * transitionScale * 0.5)
+            let effectiveDepth = min(max(recipeActor.depth + pose.depthOffset, 0), 1)
+            let foregroundSoftness = recipeActor.diameter > 0.4 && effectiveDepth > 0.65 ? 0.18 : 0
+            let localSoftness = min(
+                1,
+                recipeActor.localBlur * 10 + effectiveDepth * 0.20 + foregroundSoftness
+            )
+            let gpuActor = DayObjectGPUActor(
+                position: position,
+                direction: direction,
+                halfSize: SIMD2(repeating: halfDiameter),
+                opacity: Float(insertion.opacity * removal.opacity),
+                trailLength: 0,
+                shape: DayObjectShape.sphere.numericValue,
+                appearanceIndex: 0,
+                depth: Float(effectiveDepth),
+                materialPhase: 0,
+                localDepthSoftness: Float(localSoftness)
+            )
+            rendered.append(DayObjectRenderActor(
+                actorID: actor.id,
+                eventID: actor.eventID,
+                gpuActor: gpuActor,
+                gpuAppearance: recipeActor.material.gpuAppearance
+            ))
+        }
+
+        rendered.sort { lhs, rhs in
+            lhs.depth == rhs.depth ? lhs.actorID < rhs.actorID : lhs.depth < rhs.depth
+        }
+        rendered = rendered.enumerated().map { index, actor in
+            DayObjectRenderActor(
+                actorID: actor.actorID,
+                eventID: actor.eventID,
+                gpuActor: actor.gpuActor.withAppearanceIndex(UInt32(index)),
+                gpuAppearance: actor.gpuAppearance
+            )
+        }
+        let clarity = recipe.lowSleep ? min(environment.visualClarity, 0.42) : environment.visualClarity
+        return DayObjectRenderFrame(
+            choreographyTime: environment.reduceMotion ? 0 : elapsed,
+            actors: rendered,
+            postProcess: DayObjectPostProcess(
+                visualClarity: clarity,
+                reduceMotion: environment.reduceMotion,
+                grainSeed: scene.rootSeed,
+                elapsed: elapsed
+            )
+        )
+    }
+
+    private enum EditorialTransitionKind {
+        case insertion
+        case removal
+    }
+
+    private static func editorialEnvelope(
+        kind: EditorialTransitionKind,
+        startedAt: Double?,
+        elapsed: Double,
+        reduceMotion: Bool
+    ) -> DayObjectInsertionEnvelope {
+        guard let startedAt else { return .init(opacity: 1, scale: 1) }
+        let progress = min(max((elapsed - startedAt) / 1.1, 0), 1)
+        let eased = progress * progress * progress * (progress * (progress * 6 - 15) + 10)
+        switch kind {
+        case .insertion:
+            return .init(opacity: eased, scale: reduceMotion ? 1 : 0.96 + 0.04 * eased)
+        case .removal:
+            return .init(opacity: 1 - eased, scale: reduceMotion ? 1 : 1 - 0.04 * eased)
+        }
     }
 
     static func transitionDuration(for actor: DayObjectActor) -> Double {

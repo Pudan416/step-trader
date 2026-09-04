@@ -9,6 +9,81 @@ import simd
 @testable import Steps4
 
 final class DayObjectRenderFrameTests: XCTestCase {
+    private func editorialScene(reduceMotion: Bool = false) -> DayObjectScene {
+        DayObjectScene.make(input: .init(
+            dayKey: "2026-09-04",
+            identity: "day-objects-lab",
+            eventIDs: (0..<5).map { "lab-event-\($0)" },
+            motionEnergy: 0.55,
+            visualClarity: 0.75,
+            reduceMotion: reduceMotion,
+            canvasCoverage: .fullCanvas,
+            usesEditorialField: true,
+            editorialBackground: .lowContrast
+        ))
+    }
+
+    func testEditorialFrameUsesFrozenRecipeAndSlowDepthAwareMotion() throws {
+        let scene = editorialScene()
+        let environment = DayObjectEnvironment(
+            motionEnergy: 0.55,
+            visualClarity: 0.75,
+            reduceMotion: false
+        )
+        let initial = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: 0,
+            insertions: [:],
+            canvasAspect: 393.0 / 852.0
+        )
+        let later = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: 20,
+            insertions: [:],
+            canvasAspect: 393.0 / 852.0
+        )
+        let recipe = try XCTUnwrap(scene.sceneRecipeV1)
+        let firstRecipe = try XCTUnwrap(recipe.actor("lab-event-0"))
+        let firstFrame = try XCTUnwrap(initial.actors.first { $0.eventID == "lab-event-0" })
+
+        XCTAssertEqual(firstFrame.gpuActor.position.x, Float(firstRecipe.position.x - 0.5), accuracy: 0.000_001)
+        XCTAssertEqual(
+            firstFrame.gpuActor.position.y,
+            Float((firstRecipe.position.y - 0.5) / (393.0 / 852.0)),
+            accuracy: 0.000_001
+        )
+        XCTAssertEqual(firstFrame.gpuActor.halfSize.x, Float(firstRecipe.diameter * 0.5), accuracy: 0.000_001)
+        XCTAssertNotEqual(later.actors.map(\.gpuActor.position), initial.actors.map(\.gpuActor.position))
+        XCTAssertTrue(later.actors.allSatisfy { $0.trailLength == 0 })
+    }
+
+    func testEditorialReduceMotionKeepsNeutralPoseAndMaterialStable() {
+        let scene = editorialScene(reduceMotion: true)
+        let environment = DayObjectEnvironment(
+            motionEnergy: 1,
+            visualClarity: 0.75,
+            reduceMotion: true
+        )
+        let initial = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: 0,
+            insertions: [:]
+        )
+        let later = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: 120,
+            insertions: [:]
+        )
+
+        XCTAssertEqual(later.actors.map(\.gpuActor.position), initial.actors.map(\.gpuActor.position))
+        XCTAssertEqual(later.actors.map(\.gpuActor.halfSize), initial.actors.map(\.gpuActor.halfSize))
+        XCTAssertEqual(later.actors.map(\.gpuAppearance), initial.actors.map(\.gpuAppearance))
+        XCTAssertTrue(later.actors.allSatisfy { $0.gpuActor.materialPhase == 0 })
+    }
     private func fixtureScene(
         dayKey: String = "2026-08-20",
         identity: String = "tester",

@@ -69,6 +69,9 @@ struct DayObjectSceneInput: Equatable {
     let canvasCoverage: DayObjectCanvasCoverage
     let uiExclusionRegion: DayObjectNormalizedRect
     let paletteCategories: Set<ModernPaletteCategory>
+    let usesEditorialField: Bool
+    let editorialBackground: DayObjectEditorialBackground
+    let lowSleep: Bool
 
     init(
         dayKey: String,
@@ -79,7 +82,10 @@ struct DayObjectSceneInput: Equatable {
         reduceMotion: Bool,
         uiExclusionRegion: DayObjectNormalizedRect = .dayObjectsLabControls,
         canvasCoverage: DayObjectCanvasCoverage? = nil,
-        paletteCategories: Set<ModernPaletteCategory> = []
+        paletteCategories: Set<ModernPaletteCategory> = [],
+        usesEditorialField: Bool = false,
+        editorialBackground: DayObjectEditorialBackground = .dark,
+        lowSleep: Bool = false
     ) {
         self.dayKey = dayKey
         self.identity = identity
@@ -91,6 +97,9 @@ struct DayObjectSceneInput: Equatable {
         self.canvasCoverage = resolvedCoverage
         self.uiExclusionRegion = resolvedCoverage.exclusionRegion
         self.paletteCategories = paletteCategories
+        self.usesEditorialField = usesEditorialField
+        self.editorialBackground = editorialBackground
+        self.lowSleep = lowSleep
     }
 }
 

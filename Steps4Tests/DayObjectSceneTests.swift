@@ -13,6 +13,58 @@ final class DayObjectSceneTests: XCTestCase {
         )
     }
 
+    private func editorialInput(
+        _ ids: [String],
+        background: DayObjectEditorialBackground = .dark
+    ) -> DayObjectSceneInput {
+        .init(
+            dayKey: "2026-09-04",
+            identity: "day-objects-lab",
+            eventIDs: ids,
+            motionEnergy: 0.55,
+            visualClarity: 0.55,
+            reduceMotion: false,
+            canvasCoverage: .fullCanvas,
+            usesEditorialField: true,
+            editorialBackground: background
+        )
+    }
+
+    func testEditorialLabSceneFreezesApprovedContinuityCompositionInSceneRecipeV1() throws {
+        let scene = DayObjectScene.make(input: editorialInput(["event-0", "event-1", "event-2"]))
+        let recipe = try XCTUnwrap(scene.sceneRecipeV1)
+
+        XCTAssertEqual(recipe.version, "scene-recipe-v1-lab-mvp")
+        XCTAssertEqual(recipe.compositionSourceSeed, 5_211_325_511_773_202_532)
+        XCTAssertEqual(recipe.actors.count, 3)
+        XCTAssertEqual(recipe.actors[0].eventID, "event-0")
+        XCTAssertEqual(recipe.actors[0].position.x, 0.21781887822291068, accuracy: 0.000_000_001)
+        XCTAssertEqual(recipe.actors[0].position.y, 0.407402342486317, accuracy: 0.000_000_001)
+        XCTAssertEqual(recipe.actors[0].diameter, 0.4529606876683834, accuracy: 0.000_000_001)
+        XCTAssertEqual(recipe.background, .dark)
+    }
+
+    func testEditorialPrefixAddRemovePreservesRetainedRecipeActors() throws {
+        let ids = (0..<6).map { "lab-event-\($0)" }
+        let five = try XCTUnwrap(DayObjectScene.make(input: editorialInput(Array(ids.prefix(5)))).sceneRecipeV1)
+        let six = try XCTUnwrap(DayObjectScene.make(input: editorialInput(ids)).sceneRecipeV1)
+
+        for retained in five.actors {
+            XCTAssertEqual(six.actor(retained.eventID), retained)
+        }
+
+        let restored = try XCTUnwrap(
+            DayObjectScene.make(input: editorialInput(Array(ids.prefix(5)))).sceneRecipeV1
+        )
+        XCTAssertEqual(restored, five)
+    }
+
+    func testLegacyScenesRemainOutsideEditorialField() {
+        let scene = DayObjectScene.make(input: input(["walk"]))
+        XCTAssertNil(scene.sceneRecipeV1)
+        XCTAssertFalse(scene.input.usesEditorialField)
+    }
+
     func testAddingEventPreservesExistingActors() {
         let before = DayObjectScene.make(input: input(["walk", "sleep"]))
         let after = DayObjectScene.make(input: input(["walk", "sleep", "read"]))
