@@ -77,6 +77,7 @@ struct RhythmPlan: Equatable, Sendable {
     let family: RhythmFamily
     let patternOffsetSteps: Int
     let humanizationProfile: RhythmHumanizationProfile
+    let groove: GroovePlan
     let realization: RhythmRealizationState
     let voices: [RhythmVoicePlan]
     let maximumSimultaneousAttacks: Int
@@ -85,6 +86,40 @@ struct RhythmPlan: Equatable, Sendable {
     let maximumMicrotimingMilliseconds: Double
     let velocityHumanizationRange: ClosedRange<Double>
     let maximumHarmonyDuckingDecibels: Double
+
+    init(
+        baseTempoBPM: Double,
+        tempoBPM: Double,
+        stepsProgress: Double,
+        family: RhythmFamily,
+        patternOffsetSteps: Int,
+        humanizationProfile: RhythmHumanizationProfile,
+        groove: GroovePlan = .percussion,
+        realization: RhythmRealizationState,
+        voices: [RhythmVoicePlan],
+        maximumSimultaneousAttacks: Int,
+        maximumFillsPerWindow: Int,
+        fillWindowBars: Int,
+        maximumMicrotimingMilliseconds: Double,
+        velocityHumanizationRange: ClosedRange<Double>,
+        maximumHarmonyDuckingDecibels: Double
+    ) {
+        self.baseTempoBPM = baseTempoBPM
+        self.tempoBPM = tempoBPM
+        self.stepsProgress = stepsProgress
+        self.family = family
+        self.patternOffsetSteps = patternOffsetSteps
+        self.humanizationProfile = humanizationProfile
+        self.groove = groove
+        self.realization = realization
+        self.voices = voices
+        self.maximumSimultaneousAttacks = maximumSimultaneousAttacks
+        self.maximumFillsPerWindow = maximumFillsPerWindow
+        self.fillWindowBars = fillWindowBars
+        self.maximumMicrotimingMilliseconds = maximumMicrotimingMilliseconds
+        self.velocityHumanizationRange = velocityHumanizationRange
+        self.maximumHarmonyDuckingDecibels = maximumHarmonyDuckingDecibels
+    }
 
     var rhythmicRichness: Double {
         voices.reduce(0) { richness, voice in
@@ -177,6 +212,25 @@ struct RhythmPlan: Equatable, Sendable {
             ))
         }
 
+        candidates = candidates.filter { candidate in
+            let voice = self.voice(for: candidate.event.role)
+            if candidate.event.role == .halfTimeKick {
+                return anchorKickRank(
+                    for: candidate.event,
+                    voice: voice
+                ) < groove.maximumAnchorKicksPerBar
+            }
+            if groove.usesBass && candidate.event.role == .kickVariation {
+                return false
+            }
+            let keep = StableMusicRandom.counterUnitDouble(
+                seed: groove.thinningSeed,
+                counter: UInt64(cycleIndex * 16 + stepIndex) &* 16
+                    &+ candidate.roleIndex
+            ) < groove.auxiliaryRetention
+            return keep
+        }
+
         candidates.sort { left, right in
             if left.anchor != right.anchor { return left.anchor }
             if left.priority != right.priority { return left.priority > right.priority }
@@ -202,6 +256,28 @@ struct RhythmPlan: Equatable, Sendable {
             parameterIndex: parameter.rawValue
         )
         return StableMusicRandom.counterUnitDouble(seed: seed, counter: counter)
+    }
+
+    private func anchorKickRank(
+        for event: RhythmRealizedEvent,
+        voice: RhythmVoicePlan?
+    ) -> Int {
+        guard let voice, voice.isTimingAnchor else { return 0 }
+
+        return (0..<event.stepIndex).reduce(into: 0) { rank, earlierStep in
+            let probability = voice.effectiveProbability(at: earlierStep)
+            guard probability > 0 else { return }
+            let attackGate = sample(
+                seed: realization.patternSeed,
+                roleIndex: voice.role.realizationIndex,
+                cycleIndex: event.cycleIndex,
+                stepIndex: earlierStep,
+                parameter: .attackGate
+            )
+            if attackGate < probability {
+                rank += 1
+            }
+        }
     }
 }
 

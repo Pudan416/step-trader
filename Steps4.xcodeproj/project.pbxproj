@@ -29,6 +29,9 @@
 		D0E30000000000000000000A /* AmbientVoiceLeading.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E300000000000000000007 /* AmbientVoiceLeading.swift */; };
 		D0E400000000000000000002 /* SmoothActivationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E400000000000000000001 /* SmoothActivationTests.swift */; };
 		D0E400000000000000000004 /* RhythmPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E400000000000000000003 /* RhythmPlannerTests.swift */; };
+		D10100000000000000000002 /* GroovePlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10100000000000000000001 /* GroovePlannerTests.swift */; };
+		D10100000000000000000004 /* GroovePlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10100000000000000000003 /* GroovePlan.swift */; };
+		D10100000000000000000006 /* GroovePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10100000000000000000005 /* GroovePlanner.swift */; };
 		D0E400000000000000000006 /* SmoothActivation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E400000000000000000005 /* SmoothActivation.swift */; };
 		D0E400000000000000000008 /* RhythmPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E400000000000000000007 /* RhythmPlan.swift */; };
 		D0E40000000000000000000A /* RhythmPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E400000000000000000009 /* RhythmPlanner.swift */; };
@@ -575,6 +578,9 @@
 		D0E300000000000000000007 /* AmbientVoiceLeading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmbientVoiceLeading.swift; sourceTree = "<group>"; };
 		D0E400000000000000000001 /* SmoothActivationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmoothActivationTests.swift; sourceTree = "<group>"; };
 		D0E400000000000000000003 /* RhythmPlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RhythmPlannerTests.swift; sourceTree = "<group>"; };
+		D10100000000000000000001 /* GroovePlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroovePlannerTests.swift; sourceTree = "<group>"; };
+		D10100000000000000000003 /* GroovePlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroovePlan.swift; sourceTree = "<group>"; };
+		D10100000000000000000005 /* GroovePlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroovePlanner.swift; sourceTree = "<group>"; };
 		D0E400000000000000000005 /* SmoothActivation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmoothActivation.swift; sourceTree = "<group>"; };
 		D0E400000000000000000007 /* RhythmPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RhythmPlan.swift; sourceTree = "<group>"; };
 		D0E400000000000000000009 /* RhythmPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RhythmPlanner.swift; sourceTree = "<group>"; };
@@ -1222,6 +1228,8 @@
 				D0E500000000000000000005 /* HarmonyPlan.swift */,
 				D0E500000000000000000007 /* HarmonyPlanner.swift */,
 				D0E400000000000000000005 /* SmoothActivation.swift */,
+				D10100000000000000000003 /* GroovePlan.swift */,
+				D10100000000000000000005 /* GroovePlanner.swift */,
 				D0E400000000000000000007 /* RhythmPlan.swift */,
 				D0E400000000000000000009 /* RhythmPlanner.swift */,
 				D0E300000000000000000005 /* TonalWorldPlan.swift */,
@@ -1837,6 +1845,7 @@
 				D0E500000000000000000001 /* HarmonyPlannerTests.swift */,
 				D0E400000000000000000001 /* SmoothActivationTests.swift */,
 				D0E400000000000000000003 /* RhythmPlannerTests.swift */,
+				D10100000000000000000001 /* GroovePlannerTests.swift */,
 				D0E300000000000000000001 /* TonalWorldPlannerTests.swift */,
 				D0E300000000000000000003 /* AmbientVoiceLeadingTests.swift */,
 				D0E200000000000000000001 /* StableMusicRandomTests.swift */,
@@ -2318,6 +2327,8 @@
 				D0E500000000000000000006 /* HarmonyPlan.swift in Sources */,
 				D0E500000000000000000008 /* HarmonyPlanner.swift in Sources */,
 				D0E400000000000000000006 /* SmoothActivation.swift in Sources */,
+				D10100000000000000000004 /* GroovePlan.swift in Sources */,
+				D10100000000000000000006 /* GroovePlanner.swift in Sources */,
 				D0E400000000000000000008 /* RhythmPlan.swift in Sources */,
 				D0E40000000000000000000A /* RhythmPlanner.swift in Sources */,
 				D0E300000000000000000008 /* TonalWorldPlan.swift in Sources */,
@@ -2631,6 +2642,7 @@
 				D0E500000000000000000002 /* HarmonyPlannerTests.swift in Sources */,
 				D0E400000000000000000002 /* SmoothActivationTests.swift in Sources */,
 				D0E400000000000000000004 /* RhythmPlannerTests.swift in Sources */,
+				D10100000000000000000002 /* GroovePlannerTests.swift in Sources */,
 				D0E300000000000000000002 /* TonalWorldPlannerTests.swift in Sources */,
 				D0E300000000000000000004 /* AmbientVoiceLeadingTests.swift in Sources */,
 				D0E200000000000000000002 /* StableMusicRandomTests.swift in Sources */,

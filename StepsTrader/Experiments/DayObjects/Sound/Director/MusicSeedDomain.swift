@@ -14,6 +14,11 @@ extension MusicSeedDomain {
     static let rhythmFamily = MusicSeedDomain("rhythm.family")
     static let rhythmPattern = MusicSeedDomain("rhythm.pattern")
     static let rhythmHumanization = MusicSeedDomain("rhythm.humanization")
+    static let grooveMode = MusicSeedDomain("groove.mode")
+    static let grooveThinning = MusicSeedDomain("groove.thinning")
+    static let bassInstrument = MusicSeedDomain("bass.instrument")
+    static let bassPattern = MusicSeedDomain("bass.pattern")
+    static let bassArticulation = MusicSeedDomain("bass.articulation")
     static let harmonyInstruments = MusicSeedDomain("harmony.instruments")
     static let effects = MusicSeedDomain("effects")
 

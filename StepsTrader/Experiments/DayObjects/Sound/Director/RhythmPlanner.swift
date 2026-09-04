@@ -18,6 +18,18 @@ enum RhythmPlanner {
         input: NormalizedDayMusicInput,
         remixSeed: UInt64
     ) -> RhythmPlan {
+        makePlan(
+            input: input,
+            remixSeed: remixSeed,
+            groove: GroovePlanner.makePlan(remixSeed: remixSeed)
+        )
+    }
+
+    static func makePlan(
+        input: NormalizedDayMusicInput,
+        remixSeed: UInt64,
+        groove: GroovePlan
+    ) -> RhythmPlan {
         let stepsProgress = unitValue(input.stepsProgress)
         var familyRandom = StableMusicRandom(seed: remixSeed, domain: .rhythmFamily)
         let baseTempoBPM = 58 + Double(familyRandom.nextInt(upperBound: 25) ?? 0)
@@ -65,6 +77,7 @@ enum RhythmPlanner {
             family: family,
             patternOffsetSteps: patternOffsetSteps,
             humanizationProfile: humanizationProfile,
+            groove: groove,
             realization: RhythmRealizationState(
                 patternSeed: patternSeed,
                 humanizationSeed: humanizationSeed,

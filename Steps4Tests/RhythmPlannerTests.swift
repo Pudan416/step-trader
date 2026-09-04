@@ -109,6 +109,31 @@ final class RhythmPlannerTests: XCTestCase {
         XCTAssertTrue(plan.realizedEvents(cycleIndex: 0, stepIndex: 16).isEmpty)
     }
 
+    func testBassGroovesKeepAtMostOneKickPerPositionAndAnchorsOnGridAcrossEightBars() {
+        let remixSeed = seedProducing(.bassBed)
+        let groove = GroovePlanner.makePlan(remixSeed: remixSeed)
+        let plan = RhythmPlanner.makePlan(
+            input: normalizedInput(stepsProgress: 1),
+            remixSeed: remixSeed,
+            groove: groove
+        )
+
+        for cycle in 0..<8 {
+            var anchorKickCount = 0
+            for step in 0..<16 {
+                let events = plan.realizedEvents(cycleIndex: cycle, stepIndex: step)
+                let kickEvents = events.filter { [.halfTimeKick, .kickVariation].contains($0.role) }
+
+                XCTAssertLessThanOrEqual(kickEvents.count, 1, "Duplicate kick at \(cycle):\(step)")
+                for event in events where plan.voice(for: event.role)?.isTimingAnchor == true {
+                    XCTAssertEqual(event.microtimingMilliseconds, 0, accuracy: 1e-12)
+                    anchorKickCount += 1
+                }
+            }
+            XCTAssertLessThanOrEqual(anchorKickCount, groove.maximumAnchorKicksPerBar)
+        }
+    }
+
     func testRemixChangesRhythmFamilyPatternAndHumanizationWithoutChangingDayInput() {
         let first = makePlan(stepsProgress: 1, remixSeed: 0x1)
         let remixed = makePlan(stepsProgress: 1, remixSeed: 0x2)
@@ -296,8 +321,29 @@ final class RhythmPlannerTests: XCTestCase {
                 visualClarity: 0.625,
                 diagnostics: []
             ),
-            remixSeed: remixSeed
+            remixSeed: remixSeed,
+            groove: .percussion
         )
+    }
+
+    private func normalizedInput(stepsProgress: Double) -> NormalizedDayMusicInput {
+        NormalizedDayMusicInput(
+            stepsProgress: stepsProgress,
+            sleepProgress: 0.5,
+            happeningIDs: [],
+            glitchProgress: 0,
+            motionEnergy: 0.625,
+            visualClarity: 0.625,
+            diagnostics: []
+        )
+    }
+
+    private func seedProducing(_ mode: GrooveMode) -> UInt64 {
+        for seed in UInt64(0)..<10_000 where GroovePlanner.makePlan(remixSeed: seed).mode == mode {
+            return seed
+        }
+        XCTFail("No seed found for \(mode)")
+        return 0
     }
 
     private func realizedEventVector(_ plan: RhythmPlan, cycles: Range<Int>) -> [String] {
