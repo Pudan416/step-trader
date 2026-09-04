@@ -47,7 +47,7 @@ struct PlaybackWorldBankMetrics: Equatable, Sendable {
 }
 
 @MainActor
-final class PlaybackWorldBank {
+final class PlaybackWorldBank: BassDuckBackend {
     let instrumentBank: DayObjectsInstrumentBankProtocol
 
     var drums: DayObjectsDrumBankProtocol { instrumentBank.drums }
@@ -55,6 +55,9 @@ final class PlaybackWorldBank {
     var happenings: DayObjectsHappeningSamplePoolProtocol { instrumentBank.happenings }
     var outputGainMetrics: DayObjectsBankOutputGainMetrics {
         instrumentBank.outputGainMetrics
+    }
+    var bassDuckGainMetrics: BassDuckGainMetrics {
+        instrumentBank.bassDuckGainMetrics
     }
     var programEffectMetrics: DayObjectsProgramEffectMetrics {
         instrumentBank.programEffectMetrics
@@ -158,6 +161,10 @@ final class PlaybackWorldBank {
             startingAtHostTime: startHostTime,
             endingAtHostTime: endHostTime
         )
+    }
+
+    func apply(_ command: BassDuckCommand) {
+        instrumentBank.scheduleBassDuck(command)
     }
 
     func applyProgramEffects(

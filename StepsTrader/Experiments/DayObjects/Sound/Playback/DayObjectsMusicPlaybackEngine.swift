@@ -545,13 +545,11 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
     }
 
     @MainActor
-    fileprivate final class EffectState: DayObjectsGlitchBackend, DayObjectsMixBackend, BassDuckBackend {
+    fileprivate final class EffectState: DayObjectsGlitchBackend, DayObjectsMixBackend {
         var onGlitch: ((DayObjectsGlitchCommand) -> Void)?
         var onMix: ((DayObjectsMixState) -> Void)?
         private(set) var glitchByRole: [GlitchRole: DayObjectsGlitchCommand] = [:]
         private(set) var mix: DayObjectsMixState?
-        private(set) var lastBassDuckCommand: BassDuckCommand?
-        private(set) var bassDuckCommandCount = 0
 
         func apply(_ command: DayObjectsGlitchCommand) {
             glitchByRole[command.role] = command
@@ -563,10 +561,6 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
             onMix?(state)
         }
 
-        func apply(_ command: BassDuckCommand) {
-            lastBassDuckCommand = command
-            bassDuckCommandCount += 1
-        }
     }
 
     @MainActor
@@ -620,7 +614,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
             let drums = bank.drums
             boundDrumBankIdentity = ObjectIdentifier(drums)
             rhythmPlayer = RhythmPlayer(drumBank: drums)
-            bassPlayer = BassPlayer(worldBank: bank, duckBackend: effects)
+            bassPlayer = BassPlayer(worldBank: bank, duckBackend: bank)
             harmonyPlayer = HarmonyPlayer(worldBank: bank)
             happeningScheduler = HappeningScheduler(worldBank: bank)
             leadPlayer = LeadPlayer(worldBank: bank)
@@ -637,7 +631,10 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
 
         func configure(_ plan: DayMusicPlan) throws {
             bassDucker.reset()
-            try bass.configure(plan.bass)
+            try bass.configure(
+                plan.bass,
+                cycleLengthSubdivisions: Int64(max(plan.world.cycleBars, 1)) * MusicalPosition.subdivisionsPerBar
+            )
             try harmony.configure(plan.harmony)
             try happenings.configure(
                 plans: plan.happenings,
@@ -658,8 +655,13 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
             isReleasing = false
         }
 
-        func startScheduling() throws {
-            try happenings.start(playInitialBirths: true)
+        func startScheduling(at position: MusicalPosition? = nil) throws {
+            if let position {
+                try happenings.start(at: position)
+            } else {
+                try happenings.start(playInitialBirths: true)
+            }
+            bass.startScheduling(at: position)
             isScheduling = true
         }
 
@@ -674,20 +676,18 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 rhythmPlan: plan.rhythm,
                 glitchPlan: plan.glitch
             )
-            let bassDuckCommands: [BassDuckCommand]
+            var bassDuckCommand: BassDuckCommand?
             if let bassPlan = plan.bass {
-                bassDuckCommands = rhythmFrame.hits.compactMap { hit in
-                    guard hit.isTimingAnchor else { return nil }
-                    return bassDucker.command(
+                for hit in rhythmFrame.hits where hit.isTimingAnchor {
+                    bassDuckCommand = bassDucker.command(
                         kickVelocity: hit.velocity,
                         hostTime: hit.scheduledHostTimeSeconds,
                         plan: bassPlan.ducking
                     )
+                    if bassDuckCommand != nil { break }
                 }
-            } else {
-                bassDuckCommands = []
             }
-            _ = bass.render(event, plan: plan.bass, duckCommands: bassDuckCommands)
+            _ = bass.render(event, plan: plan.bass, duckCommand: bassDuckCommand)
             if event.kind == .barBoundary {
                 glitch.applyRealizedEvent(
                     plan: plan.glitch,
@@ -725,7 +725,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
             isScheduling = false
             isReleasing = true
             rhythmPlayer?.releaseAll()
-            bassPlayer?.releaseAll()
+            bassPlayer?.stopAttacks()
             happeningScheduler?.stop()
         }
 
@@ -1016,8 +1016,9 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
     }
 
     var activeWorldVoiceCountForTesting: Int { activeWorld.activeVoiceCount }
-    var activeBassDuckCommandCountForTesting: Int { activeWorld.effects.bassDuckCommandCount }
-    var lastBassDuckCommandForTesting: BassDuckCommand? { activeWorld.effects.lastBassDuckCommand }
+    var activeBassDuckGainMetricsForTesting: BassDuckGainMetrics {
+        activeWorld.bank.bassDuckGainMetrics
+    }
     var activeHarmonyDuckingForTesting: Double { activeWorld.effects.mix?.harmonyDuckingDecibels ?? 0 }
     var activeHappeningNextPositionsForTesting: [String: MusicalPosition] {
         activeWorld.happenings.metrics.nextOccurrenceByHappeningID
@@ -1037,6 +1038,16 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
     }
     var totalLeadReleaseCountForTesting: Int {
         worldA.lead.metrics.releaseCount + worldB.lead.metrics.releaseCount
+    }
+    var totalBassAttackCountForTesting: Int {
+        worldA.bass.metrics.attackCount + worldB.bass.metrics.attackCount
+    }
+    var totalBassReleaseCountForTesting: Int {
+        worldA.bass.metrics.releaseCount + worldB.bass.metrics.releaseCount
+    }
+    var activeBassVoiceCountForTesting: Int { activeWorld.bass.metrics.activeVoiceCount }
+    var inactiveBassVoiceCountForTesting: Int {
+        world(for: coordinator.metrics.inactiveBank).bass.metrics.activeVoiceCount
     }
     var inactiveLeadVoiceCountForTesting: Int {
         world(for: coordinator.metrics.inactiveBank).lead.metrics.voiceCount
@@ -1348,8 +1359,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         plan: DayMusicPlan,
         at event: DayObjectsTransportEvent
     ) throws {
-        try world(for: bank).happenings.start(at: event.position)
-        world(for: bank).isScheduling = true
+        try world(for: bank).startScheduling(at: event.position)
     }
 
     func beginEqualPowerCrossfade(

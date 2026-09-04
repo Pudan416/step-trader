@@ -663,6 +663,55 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(pair.bankA.outputGainMetrics.rampCount, 2)
     }
 
+    func testPlaybackPairSchedulesBassDuckGainAttackHoldAndUnityRecoveryAtHostTimes() throws {
+        var currentHostTime: TimeInterval = 100
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(
+            bundle: Bundle(for: type(of: self)),
+            outputGainHostTimeProvider: { currentHostTime }
+        )
+        try pair.prepare(configuration: .playbackWorld)
+
+        pair.bankA.scheduleBassDuck(.init(
+            hostTimeSeconds: 101,
+            maximumAttenuationDecibels: 4,
+            attackSeconds: 0.005,
+            holdSeconds: 0.040,
+            releaseSeconds: 0.160
+        ))
+
+        let duck = pair.bankA.bassDuckGainMetrics
+        XCTAssertTrue(duck.isSupported)
+        XCTAssertEqual(duck.scheduledSegmentCount, 3)
+        XCTAssertEqual(try XCTUnwrap(duck.lastAttack), .init(
+            stage: .attack,
+            targetLinearGain: pow(10, -4 / 20),
+            requestedStartHostTimeSeconds: 101,
+            requestedEndHostTimeSeconds: 101.005,
+            effectiveStartHostTimeSeconds: 101,
+            effectiveEndHostTimeSeconds: 101.005,
+            wasForcedImmediate: false
+        ))
+        XCTAssertEqual(try XCTUnwrap(duck.lastHold), .init(
+            stage: .hold,
+            targetLinearGain: pow(10, -4 / 20),
+            requestedStartHostTimeSeconds: 101.005,
+            requestedEndHostTimeSeconds: 101.045,
+            effectiveStartHostTimeSeconds: 101.005,
+            effectiveEndHostTimeSeconds: 101.045,
+            wasForcedImmediate: false
+        ))
+        XCTAssertEqual(try XCTUnwrap(duck.lastRelease), .init(
+            stage: .release,
+            targetLinearGain: 1,
+            requestedStartHostTimeSeconds: 101.045,
+            requestedEndHostTimeSeconds: 101.205,
+            effectiveStartHostTimeSeconds: 101.045,
+            effectiveEndHostTimeSeconds: 101.205,
+            wasForcedImmediate: false
+        ))
+        currentHostTime = 102
+    }
+
     private func smallPlaybackPairConfiguration() -> DayObjectsInstrumentBankConfiguration {
         .init(
             tonalPools: [.init(name: "world", capacity: 1, reservesLeadVoice: true)],

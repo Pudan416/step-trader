@@ -233,6 +233,7 @@ protocol DayObjectsInstrumentBankGraph: AnyObject {
     var layout: DayObjectsInstrumentBankGraphLayout { get }
     var allocationFingerprint: DayObjectsInstrumentBankAllocationFingerprint { get }
     var outputGainMetrics: DayObjectsBankOutputGainMetrics { get }
+    var bassDuckGainMetrics: BassDuckGainMetrics { get }
     var programEffectMetrics: DayObjectsProgramEffectMetrics { get }
     func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval)
     func scheduleOutputGain(
@@ -240,6 +241,7 @@ protocol DayObjectsInstrumentBankGraph: AnyObject {
         startingAtHostTime startHostTime: TimeInterval,
         endingAtHostTime endHostTime: TimeInterval
     )
+    func scheduleBassDuck(_ command: BassDuckCommand)
     func synchronizeForStart() throws
     func applyProgramEffects(
         masterLinearGain: Double,
@@ -254,6 +256,7 @@ extension DayObjectsInstrumentBankGraph {
         .init(tonalNodeIdentities: [], drumPreloadedSampleCount: 0, drumAllocatedNodeCount: 0, drumFixedPlayerCount: 0, pianoPreloadedSampleCount: 0, pianoLoadedPlayerCount: 0, pianoFixedBackendCount: 0)
     }
     var outputGainMetrics: DayObjectsBankOutputGainMetrics { .unsupported }
+    var bassDuckGainMetrics: BassDuckGainMetrics { .unsupported }
     var programEffectMetrics: DayObjectsProgramEffectMetrics { .unsupported }
     func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval) {}
     func scheduleOutputGain(
@@ -263,6 +266,7 @@ extension DayObjectsInstrumentBankGraph {
     ) {
         setOutputGain(linearGain, rampDurationSeconds: max(endHostTime - startHostTime, 0))
     }
+    func scheduleBassDuck(_ command: BassDuckCommand) {}
     func synchronizeForStart() throws {}
     func applyProgramEffects(
         masterLinearGain: Double,
@@ -340,6 +344,7 @@ protocol DayObjectsInstrumentBankProtocol: AnyObject {
     var piano: DayObjectsPianoPoolProtocol { get }
     var happenings: DayObjectsHappeningSamplePoolProtocol { get }
     var outputGainMetrics: DayObjectsBankOutputGainMetrics { get }
+    var bassDuckGainMetrics: BassDuckGainMetrics { get }
     var programEffectMetrics: DayObjectsProgramEffectMetrics { get }
 
     func prepare(configuration: DayObjectsInstrumentBankConfiguration) throws
@@ -354,6 +359,7 @@ protocol DayObjectsInstrumentBankProtocol: AnyObject {
         startingAtHostTime startHostTime: TimeInterval,
         endingAtHostTime endHostTime: TimeInterval
     )
+    func scheduleBassDuck(_ command: BassDuckCommand)
     func applyProgramEffects(
         masterLinearGain: Double,
         delayFeedback: Double,
@@ -367,6 +373,7 @@ extension DayObjectsInstrumentBankProtocol {
         DayObjectsInactiveHappeningSamplePool()
     }
     var outputGainMetrics: DayObjectsBankOutputGainMetrics { .unsupported }
+    var bassDuckGainMetrics: BassDuckGainMetrics { .unsupported }
     var programEffectMetrics: DayObjectsProgramEffectMetrics { .unsupported }
     func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval) {}
     func scheduleOutputGain(
@@ -376,6 +383,7 @@ extension DayObjectsInstrumentBankProtocol {
     ) {
         setOutputGain(linearGain, rampDurationSeconds: max(endHostTime - startHostTime, 0))
     }
+    func scheduleBassDuck(_ command: BassDuckCommand) {}
     func applyProgramEffects(
         masterLinearGain: Double,
         delayFeedback: Double,

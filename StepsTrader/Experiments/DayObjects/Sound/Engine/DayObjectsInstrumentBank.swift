@@ -42,6 +42,9 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     var outputGainMetrics: DayObjectsBankOutputGainMetrics {
         prepared?.graph.outputGainMetrics ?? .unsupported
     }
+    var bassDuckGainMetrics: BassDuckGainMetrics {
+        prepared?.graph.bassDuckGainMetrics ?? .unsupported
+    }
 
     var metrics: DayObjectsInstrumentBankMetrics {
         .init(
@@ -388,6 +391,10 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         )
     }
 
+    func scheduleBassDuck(_ command: BassDuckCommand) {
+        prepared?.graph.scheduleBassDuck(command)
+    }
+
     var programEffectMetrics: DayObjectsProgramEffectMetrics {
         prepared?.graph.programEffectMetrics ?? .unsupported
     }
@@ -579,6 +586,9 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
     let reverb: CostelloReverb
     let masterTrim: Fader
     let worldTrim: Fader
+    /// A preallocated, world-local trim that is fed only by the reserved bass
+    /// pool. This narrow stage intentionally precedes the later full bus work.
+    let bassTrim: Fader?
     private let tonalPools: [DayObjectsAudioKitTonalPool]
     private let drums: DayObjectsAudioKitDrumBank?
     private let piano: DayObjectsAudioKitFeltPiano?
@@ -586,6 +596,10 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
     private var outputGainRampDuration: TimeInterval = 0
     private var outputGainRampCount = 0
     private var lastScheduledOutputGainAutomation: DayObjectsBankOutputGainAutomation?
+    private var bassDuckScheduledSegmentCount = 0
+    private var lastBassDuckAttack: BassDuckGainAutomation?
+    private var lastBassDuckHold: BassDuckGainAutomation?
+    private var lastBassDuckRelease: BassDuckGainAutomation?
     private let outputGainHostTimeProvider: () -> TimeInterval
     private let outputGainSampleRateProvider: () -> Double
     private var currentProgramEffectMetrics = DayObjectsProgramEffectMetrics.unsupported
@@ -599,6 +613,17 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
             lastRampDurationSeconds: outputGainRampDuration,
             rampCount: outputGainRampCount,
             lastScheduledAutomation: lastScheduledOutputGainAutomation
+        )
+    }
+
+    var bassDuckGainMetrics: BassDuckGainMetrics {
+        guard bassTrim != nil else { return .unsupported }
+        return .init(
+            isSupported: true,
+            scheduledSegmentCount: bassDuckScheduledSegmentCount,
+            lastAttack: lastBassDuckAttack,
+            lastHold: lastBassDuckHold,
+            lastRelease: lastBassDuckRelease
         )
     }
 
@@ -631,7 +656,19 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         self.piano = piano
         self.outputGainHostTimeProvider = outputGainHostTimeProvider
         self.outputGainSampleRateProvider = outputGainSampleRateProvider
-        tonalBus = Mixer(tonalPools.map(\.output) + (piano.map { [$0.output] } ?? []), name: "Day Objects tonal bus")
+        let preparedBassTrim = tonalPools.first(where: {
+            $0.name == PlaybackWorldBankConfiguration.PoolName.bass.rawValue
+        }).map { Fader($0.output, gain: 1) }
+        bassTrim = preparedBassTrim
+        var tonalInputs: [Node] = tonalPools.map { pool in
+            if pool.name == PlaybackWorldBankConfiguration.PoolName.bass.rawValue,
+               let preparedBassTrim {
+                return preparedBassTrim
+            }
+            return pool.output
+        }
+        if let piano { tonalInputs.append(piano.output) }
+        tonalBus = Mixer(tonalInputs, name: "Day Objects tonal bus")
         drumBus = Mixer(drums.map { [$0.output] } ?? [], name: "Day Objects drum bus")
         // These are bus trims, not per-voice output trims. The shared voice
         // sanitizer intentionally caps voice gain at -6 dB, so using it here
@@ -763,6 +800,44 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         )
     }
 
+    func scheduleBassDuck(_ command: BassDuckCommand) {
+        guard let bassTrim else { return }
+        let attenuation = min(max(command.maximumAttenuationDecibels.isFinite ? command.maximumAttenuationDecibels : 0, 0), 5)
+        let duckedGain = Self.linearGain(decibels: -attenuation)
+        let attackStart = command.hostTimeSeconds.isFinite ? command.hostTimeSeconds : outputGainHostTimeProvider()
+        let attackEnd = attackStart + max(command.attackSeconds.isFinite ? command.attackSeconds : 0, 0)
+        let holdEnd = attackEnd + max(command.holdSeconds.isFinite ? command.holdSeconds : 0, 0)
+        let releaseEnd = holdEnd + max(command.releaseSeconds.isFinite ? command.releaseSeconds : 0, 0)
+        let nowValue = outputGainHostTimeProvider()
+        let now = nowValue.isFinite ? nowValue : 0
+
+        lastBassDuckAttack = scheduleBassGain(
+            bassTrim,
+            stage: .attack,
+            target: duckedGain,
+            requestedStart: attackStart,
+            requestedEnd: attackEnd,
+            now: now
+        )
+        lastBassDuckHold = scheduleBassGain(
+            bassTrim,
+            stage: .hold,
+            target: duckedGain,
+            requestedStart: attackEnd,
+            requestedEnd: holdEnd,
+            now: now
+        )
+        lastBassDuckRelease = scheduleBassGain(
+            bassTrim,
+            stage: .release,
+            target: 1,
+            requestedStart: holdEnd,
+            requestedEnd: releaseEnd,
+            now: now
+        )
+        bassDuckScheduledSegmentCount += 3
+    }
+
     func synchronizeForStart() throws {
         tonalPools.forEach { $0.synchronizeGraphIfAttached() }
     }
@@ -787,6 +862,38 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
             parameter.parameter.address,
             target
         )
+    }
+
+    private func scheduleBassGain(
+        _ trim: Fader,
+        stage: BassDuckGainStage,
+        target: Double,
+        requestedStart: TimeInterval,
+        requestedEnd: TimeInterval,
+        now: TimeInterval
+    ) -> BassDuckGainAutomation {
+        let safeStart = requestedStart.isFinite ? requestedStart : now
+        let safeEnd = max(requestedEnd.isFinite ? requestedEnd : safeStart, safeStart)
+        let wasForcedImmediate = safeEnd <= now
+        let effectiveStart = wasForcedImmediate ? now : max(safeStart, now)
+        let effectiveEnd = wasForcedImmediate ? now : max(safeEnd, effectiveStart)
+        let automation = BassDuckGainAutomation(
+            stage: stage,
+            targetLinearGain: target,
+            requestedStartHostTimeSeconds: safeStart,
+            requestedEndHostTimeSeconds: safeEnd,
+            effectiveStartHostTimeSeconds: effectiveStart,
+            effectiveEndHostTimeSeconds: effectiveEnd,
+            wasForcedImmediate: wasForcedImmediate
+        )
+        if wasForcedImmediate {
+            trim.$leftGain.value = AUValue(target)
+            trim.$rightGain.value = AUValue(target)
+        } else {
+            schedule(trim.$leftGain, target: AUValue(target), startingAtHostTime: effectiveStart, endingAtHostTime: effectiveEnd, now: now)
+            schedule(trim.$rightGain, target: AUValue(target), startingAtHostTime: effectiveStart, endingAtHostTime: effectiveEnd, now: now)
+        }
+        return automation
     }
 }
 

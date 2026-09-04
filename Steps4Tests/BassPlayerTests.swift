@@ -12,9 +12,9 @@ final class BassPlayerTests: XCTestCase {
         ])
         try harness.player.configure(plan)
 
-        _ = harness.player.render(event(at: 0), plan: plan, duckCommands: [])
-        _ = harness.player.render(event(at: 2), plan: plan, duckCommands: [])
-        _ = harness.player.render(event(at: 6), plan: plan, duckCommands: [])
+        _ = harness.player.render(event(at: 0), plan: plan, duckCommand: nil)
+        _ = harness.player.render(event(at: 2), plan: plan, duckCommand: nil)
+        _ = harness.player.render(event(at: 6), plan: plan, duckCommand: nil)
 
         XCTAssertEqual(harness.pool.capacity, 1)
         XCTAssertEqual(harness.pool.noteOnRequests.map(\.midiNote), [36, 38])
@@ -37,8 +37,8 @@ final class BassPlayerTests: XCTestCase {
             releaseSeconds: 0.16
         )
 
-        _ = harness.player.render(nonSubdivisionEvent(at: 0), plan: plan, duckCommands: [duck])
-        _ = harness.player.render(event(at: 0), plan: plan, duckCommands: [duck])
+        _ = harness.player.render(nonSubdivisionEvent(at: 0), plan: plan, duckCommand: duck)
+        _ = harness.player.render(event(at: 0), plan: plan, duckCommand: duck)
 
         XCTAssertTrue(harness.pool.noteOnRequests.isEmpty)
         XCTAssertEqual(harness.duckBackend.commands, [duck, duck])
@@ -48,13 +48,86 @@ final class BassPlayerTests: XCTestCase {
         let harness = try makeHarness()
         let plan = bassPlan(events: [bassEvent(id: 1, start: 0, duration: 16)])
         try harness.player.configure(plan)
-        _ = harness.player.render(event(at: 0), plan: plan, duckCommands: [])
+        _ = harness.player.render(event(at: 0), plan: plan, duckCommand: nil)
 
         harness.player.releaseAll()
         harness.player.releaseAll()
 
         XCTAssertEqual(harness.pool.noteOffCount, 1)
         XCTAssertEqual(harness.player.metrics.activeVoiceCount, 0)
+    }
+
+    func testCycleRelativeEventsRepeatAfterTheFirstTransportCycle() throws {
+        let harness = try makeHarness()
+        let plan = bassPlan(events: [bassEvent(id: 1, start: 0, duration: 2)])
+        try harness.player.configure(plan, cycleLengthSubdivisions: 16)
+        harness.player.startScheduling(at: .init(absoluteSubdivision: 0))
+
+        _ = harness.player.render(event(at: 0), plan: plan, duckCommand: nil)
+        _ = harness.player.render(event(at: 2), plan: plan, duckCommand: nil)
+        _ = harness.player.render(event(at: 16), plan: plan, duckCommand: nil)
+
+        XCTAssertEqual(harness.pool.noteOnRequests.map(\.midiNote), [36, 36])
+        XCTAssertEqual(harness.pool.noteOffCount, 1)
+        XCTAssertEqual(harness.player.metrics.activeVoiceCount, 1)
+    }
+
+    func testNonzeroSchedulingOriginStartsPlanAtPhraseBoundary() throws {
+        let harness = try makeHarness()
+        let plan = bassPlan(events: [bassEvent(id: 1, start: 0, duration: 4)])
+        try harness.player.configure(plan, cycleLengthSubdivisions: 16)
+        harness.player.startScheduling(at: .init(absoluteSubdivision: 32))
+
+        let frame = harness.player.render(event(at: 32), plan: plan, duckCommand: nil)
+
+        XCTAssertEqual(frame.attackedEventStableID, 1)
+        XCTAssertEqual(harness.pool.noteOnRequests.count, 1)
+    }
+
+    func testContinuousUpdateRampsHeldEventVelocityAndReleasesWhenItBecomesInactive() throws {
+        let harness = try makeHarness()
+        let structural = bassPlan(events: [bassEvent(id: 1, start: 0, duration: 12, velocity: 0.7)])
+        try harness.player.configure(structural, cycleLengthSubdivisions: 16)
+        harness.player.startScheduling(at: .init(absoluteSubdivision: 0))
+        _ = harness.player.render(event(at: 0), plan: structural, duckCommand: nil)
+
+        let quieter = bassPlan(events: [bassEvent(id: 1, start: 0, duration: 12, velocity: 0.31)])
+        harness.player.applyContinuous(quieter)
+
+        let update = try XCTUnwrap(harness.pool.updateRequests.last)
+        XCTAssertEqual(try XCTUnwrap(update.expression), 0.31, accuracy: 0.000_001)
+        XCTAssertEqual(try XCTUnwrap(update.expressionRampSeconds), 0.025, accuracy: 0.000_001)
+        XCTAssertEqual(harness.pool.noteOffCount, 0)
+
+        let inactive = bassPlan(events: [bassEvent(id: 1, start: 0, duration: 12, threshold: 0.8, velocity: 0.31)])
+        harness.player.applyContinuous(inactive)
+
+        XCTAssertEqual(harness.pool.noteOffCount, 1)
+        XCTAssertEqual(harness.player.metrics.activeVoiceCount, 0)
+    }
+
+    func testNonzeroRemixBoundaryStopsSourceBeforeDestinationAttacks() throws {
+        let source = try makeHarness()
+        let destination = try makeHarness()
+        let plan = bassPlan(events: [bassEvent(id: 1, start: 0, duration: 8)])
+        try source.player.configure(plan, cycleLengthSubdivisions: 16)
+        try destination.player.configure(plan, cycleLengthSubdivisions: 16)
+        source.player.startScheduling(at: .init(absoluteSubdivision: 0))
+        _ = source.player.render(event(at: 0), plan: plan, duckCommand: nil)
+
+        source.player.stopAttacks()
+        _ = source.player.render(event(at: 16), plan: plan, duckCommand: nil)
+        destination.player.startScheduling(at: .init(absoluteSubdivision: 16))
+        _ = destination.player.render(event(at: 16), plan: plan, duckCommand: nil)
+
+        XCTAssertEqual(source.pool.capacity, 1)
+        XCTAssertEqual(destination.pool.capacity, 1)
+        XCTAssertEqual(source.pool.noteOnRequests.count, 1)
+        XCTAssertEqual(source.pool.noteOffCount, 1)
+        XCTAssertEqual(destination.pool.noteOnRequests.count, 1)
+        XCTAssertEqual(source.player.metrics.activeVoiceCount + destination.player.metrics.activeVoiceCount, 1)
+        XCTAssertEqual(source.pool.maximumActiveVoiceCount, 1)
+        XCTAssertEqual(destination.pool.maximumActiveVoiceCount, 1)
     }
 
     private func makeHarness() throws -> (
@@ -93,7 +166,8 @@ final class BassPlayerTests: XCTestCase {
         id: UInt64,
         start: Int64,
         duration: Int64,
-        threshold: Double = 0
+        threshold: Double = 0,
+        velocity: Double = 0.7
     ) -> BassEventPlan {
         .init(
             stableID: id,
@@ -101,7 +175,7 @@ final class BassPlayerTests: XCTestCase {
             startSubdivision: start,
             durationSubdivisions: duration,
             midiNote: UInt8(34 + id * 2),
-            velocity: 0.7,
+            velocity: velocity,
             activationThreshold: threshold,
             allowedPitchClasses: [0, 4, 7]
         )
@@ -166,6 +240,7 @@ private final class RecordingBassPool: DayObjectsTonalVoicePoolProtocol {
     let capacity: Int
     private(set) var noteOnRequests: [DayObjectsTonalNoteRequest] = []
     private(set) var noteOffCount = 0
+    private(set) var updateRequests: [DayObjectsVoiceUpdate] = []
     private(set) var maximumActiveVoiceCount = 0
     private var preparedInstrument: DayObjectsInstrumentID?
     private var token: DayObjectsVoiceToken?
@@ -190,7 +265,10 @@ private final class RecordingBassPool: DayObjectsTonalVoicePoolProtocol {
         maximumActiveVoiceCount = max(maximumActiveVoiceCount, 1)
         return token
     }
-    func update(_ token: DayObjectsVoiceToken, with update: DayObjectsVoiceUpdate) {}
+    func update(_ token: DayObjectsVoiceToken, with update: DayObjectsVoiceUpdate) {
+        guard self.token == token else { return }
+        updateRequests.append(update)
+    }
     func noteOff(_ token: DayObjectsVoiceToken) {
         guard self.token == token else { return }
         self.token = nil
@@ -199,6 +277,7 @@ private final class RecordingBassPool: DayObjectsTonalVoicePoolProtocol {
     func releaseAll() { token = nil }
 }
 
+@MainActor
 private final class RecordingBassDuckBackend: BassDuckBackend {
     private(set) var commands: [BassDuckCommand] = []
     func apply(_ command: BassDuckCommand) { commands.append(command) }

@@ -9,6 +9,41 @@ struct BassDuckCommand: Equatable, Sendable {
     let releaseSeconds: Double
 }
 
+enum BassDuckGainStage: Equatable, Sendable {
+    case attack
+    case hold
+    case release
+}
+
+/// A single scheduled segment of the fixed bass duck envelope. These values
+/// are deliberately value-only so a graph can retain just the latest three
+/// records without allocating a live event history on the playback path.
+struct BassDuckGainAutomation: Equatable, Sendable {
+    let stage: BassDuckGainStage
+    let targetLinearGain: Double
+    let requestedStartHostTimeSeconds: TimeInterval
+    let requestedEndHostTimeSeconds: TimeInterval
+    let effectiveStartHostTimeSeconds: TimeInterval
+    let effectiveEndHostTimeSeconds: TimeInterval
+    let wasForcedImmediate: Bool
+}
+
+struct BassDuckGainMetrics: Equatable, Sendable {
+    let isSupported: Bool
+    let scheduledSegmentCount: Int
+    let lastAttack: BassDuckGainAutomation?
+    let lastHold: BassDuckGainAutomation?
+    let lastRelease: BassDuckGainAutomation?
+
+    static let unsupported = Self(
+        isSupported: false,
+        scheduledSegmentCount: 0,
+        lastAttack: nil,
+        lastHold: nil,
+        lastRelease: nil
+    )
+}
+
 final class BassDucker {
     private var lastKickHostTime: TimeInterval?
 

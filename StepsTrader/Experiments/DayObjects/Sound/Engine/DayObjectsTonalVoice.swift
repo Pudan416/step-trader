@@ -202,6 +202,7 @@ final class DayObjectsTonalVoiceControlExecutor {
 final class DayObjectsAudioKitTonalPool {
     let pool: DayObjectsTonalVoicePool
     let output: Mixer
+    let name: String
 
     var voiceNodeIdentities: [ObjectIdentifier] {
         voices.flatMap(\.nodeIdentities)
@@ -217,6 +218,7 @@ final class DayObjectsAudioKitTonalPool {
         specification: DayObjectsTonalPoolSpecification,
         instruments: [DayObjectsInstrumentID: NormalizedSynthVoice]
     ) {
+        name = specification.name
         let builtVoices = (0..<specification.capacity).map { _ in DayObjectsTonalVoice() }
         voices = builtVoices
         output = Mixer(builtVoices.map(\.output), name: "Day Objects tonal pool \(specification.name)")

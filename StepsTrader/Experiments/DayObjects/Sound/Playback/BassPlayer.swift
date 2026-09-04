@@ -1,6 +1,7 @@
 #if DEBUG || INTERNAL_BUILD
 import Foundation
 
+@MainActor
 protocol BassDuckBackend: AnyObject {
     func apply(_ command: BassDuckCommand)
 }
@@ -30,8 +31,12 @@ final class BassPlayer {
     private let duckBackend: BassDuckBackend
     private var pool: DayObjectsTonalVoicePoolProtocol?
     private var token: DayObjectsVoiceToken?
-    private var heldUntilSubdivision: Int64?
-    private var lastAttackSubdivision: Int64?
+    private var heldStableID: UInt64?
+    private var heldUntilGlobalSubdivision: Int64?
+    private var lastAttackGlobalSubdivision: Int64?
+    private var schedulingOriginSubdivision: Int64?
+    private var cycleLengthSubdivisions = MusicalPosition.subdivisionsPerBar
+    private var acceptsAttacks = true
     private var attackCount = 0
     private var releaseCount = 0
 
@@ -49,8 +54,14 @@ final class BassPlayer {
         self.duckBackend = duckBackend
     }
 
-    func configure(_ plan: BassPlan?) throws {
+    func configure(
+        _ plan: BassPlan?,
+        cycleLengthSubdivisions: Int64 = MusicalPosition.subdivisionsPerBar
+    ) throws {
         releaseAll()
+        schedulingOriginSubdivision = nil
+        self.cycleLengthSubdivisions = max(cycleLengthSubdivisions, 1)
+        acceptsAttacks = true
         guard let plan else {
             pool = nil
             return
@@ -59,40 +70,79 @@ final class BassPlayer {
         let pool = try worldBank.tonalPool(forBass: plan.instrumentID)
         try pool.prepareInstrument(plan.instrumentID)
         self.pool = pool
-        heldUntilSubdivision = nil
-        lastAttackSubdivision = nil
+        heldStableID = nil
+        heldUntilGlobalSubdivision = nil
+        lastAttackGlobalSubdivision = nil
     }
 
+    func startScheduling(at position: MusicalPosition? = nil) {
+        acceptsAttacks = true
+        if let position { schedulingOriginSubdivision = position.absoluteSubdivision }
+    }
+
+    func stopAttacks() {
+        acceptsAttacks = false
+        releaseAll()
+    }
+
+    /// Compatibility entry point for callers that still collect commands. The
+    /// transport path uses the optional overload below so it never allocates a
+    /// per-subdivision command array.
     @discardableResult
     func render(
         _ transportEvent: DayObjectsTransportEvent,
         plan: BassPlan?,
         duckCommands: [BassDuckCommand]
     ) -> BassPlaybackFrame {
-        for command in duckCommands { duckBackend.apply(command) }
+        let first = duckCommands.first
+        let rendered = render(
+            transportEvent,
+            plan: plan,
+            duckCommand: first
+        )
+        for command in duckCommands.dropFirst() { duckBackend.apply(command) }
+        guard duckCommands.count > 1 else { return rendered }
+        return .init(
+            position: rendered.position,
+            attackedEventStableID: rendered.attackedEventStableID,
+            activeVoiceCount: rendered.activeVoiceCount,
+            appliedDuckCommandCount: duckCommands.count
+        )
+    }
+
+    @discardableResult
+    func render(
+        _ transportEvent: DayObjectsTransportEvent,
+        plan: BassPlan?,
+        duckCommand: BassDuckCommand?
+    ) -> BassPlaybackFrame {
+        if let duckCommand { duckBackend.apply(duckCommand) }
         guard transportEvent.kind == .subdivision else {
             return frame(
                 at: transportEvent.position,
                 attackedEventStableID: nil,
-                duckCommandCount: duckCommands.count
+                duckCommandCount: duckCommand == nil ? 0 : 1
             )
         }
 
-        let subdivision = transportEvent.position.absoluteSubdivision
-        if let heldUntilSubdivision, subdivision >= heldUntilSubdivision {
+        let globalSubdivision = transportEvent.position.absoluteSubdivision
+        if schedulingOriginSubdivision == nil { schedulingOriginSubdivision = globalSubdivision }
+        if let heldUntilGlobalSubdivision, globalSubdivision >= heldUntilGlobalSubdivision {
             releaseHeldVoice()
         }
+        let relativeSubdivision = relativeSubdivision(for: globalSubdivision)
         guard let plan,
               let pool,
-              lastAttackSubdivision != subdivision,
-              let event = plan.events.first(where: {
-                  $0.activationThreshold <= plan.stepsProgress && $0.startSubdivision == subdivision
+              acceptsAttacks,
+              lastAttackGlobalSubdivision != globalSubdivision,
+              let event = plan.activeEvents.first(where: {
+                  $0.startSubdivision == relativeSubdivision
               })
         else {
             return frame(
                 at: transportEvent.position,
                 attackedEventStableID: nil,
-                duckCommandCount: duckCommands.count
+                duckCommandCount: duckCommand == nil ? 0 : 1
             )
         }
 
@@ -114,13 +164,14 @@ final class BassPlayer {
             return frame(
                 at: transportEvent.position,
                 attackedEventStableID: nil,
-                duckCommandCount: duckCommands.count
+                duckCommandCount: duckCommand == nil ? 0 : 1
             )
         }
 
         self.token = token
-        heldUntilSubdivision = subdivision + max(event.durationSubdivisions, 1)
-        lastAttackSubdivision = subdivision
+        heldStableID = event.stableID
+        heldUntilGlobalSubdivision = globalSubdivision + max(event.durationSubdivisions, 1)
+        lastAttackGlobalSubdivision = globalSubdivision
         attackCount += 1
         pool.update(token, with: .init(
             cutoffHz: Self.cutoffHz(multiplier: plan.cutoffMultiplier),
@@ -133,20 +184,29 @@ final class BassPlayer {
         return frame(
             at: transportEvent.position,
             attackedEventStableID: event.stableID,
-            duckCommandCount: duckCommands.count
+            duckCommandCount: duckCommand == nil ? 0 : 1
         )
     }
 
     func releaseAll() {
         releaseHeldVoice()
-        heldUntilSubdivision = nil
-        lastAttackSubdivision = nil
+        heldStableID = nil
+        heldUntilGlobalSubdivision = nil
+        lastAttackGlobalSubdivision = nil
+        schedulingOriginSubdivision = nil
     }
 
     func applyContinuous(_ plan: BassPlan?) {
-        guard let plan, let token, let pool else { return }
+        guard let plan, let token, let pool, let heldStableID else { return }
+        guard let event = plan.activeEvents.first(where: {
+            $0.stableID == heldStableID
+        }) else {
+            releaseHeldVoice()
+            return
+        }
         pool.update(token, with: .init(
             cutoffHz: Self.cutoffHz(multiplier: plan.cutoffMultiplier),
+            expression: Self.unit(event.velocity),
             reverbSend: Self.unit(plan.reverbSend),
             cutoffRampSeconds: Self.controlRampSeconds,
             expressionRampSeconds: Self.controlRampSeconds
@@ -170,8 +230,15 @@ final class BassPlayer {
         guard let token, let pool else { return }
         pool.noteOff(token)
         self.token = nil
-        heldUntilSubdivision = nil
+        heldStableID = nil
+        heldUntilGlobalSubdivision = nil
         releaseCount += 1
+    }
+
+    private func relativeSubdivision(for globalSubdivision: Int64) -> Int64 {
+        let origin = schedulingOriginSubdivision ?? globalSubdivision
+        let offset = (globalSubdivision - origin) % cycleLengthSubdivisions
+        return offset >= 0 ? offset : offset + cycleLengthSubdivisions
     }
 
     private static func attackSeconds(for articulation: BassArticulation) -> Double {

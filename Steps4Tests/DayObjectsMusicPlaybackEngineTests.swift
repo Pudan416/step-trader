@@ -1222,6 +1222,47 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(runtime.inactiveWorldVoiceCountForTesting, 0, "the recycled world must retain no old tokens")
     }
 
+    func testLiveRuntimeRemixAtNonzeroBoundaryHandsOffMonophonicBassWithoutOverlap() throws {
+        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let initial = bassLifecyclePlan(seed: 511)
+        let remixed = bassLifecyclePlan(seed: 512)
+        try runtime.prepare(plan: initial)
+        let allocation = runtime.allocationSnapshotForTesting
+        try runtime.startPreparedWorldForTesting()
+        runtime.renderForTesting(.init(
+            kind: .subdivision,
+            position: .init(absoluteSubdivision: 0),
+            hostTimeSeconds: 0,
+            tempoBPM: initial.rhythm.tempoBPM
+        ))
+        XCTAssertEqual(runtime.activeBassVoiceCountForTesting, 1)
+
+        runtime.scheduleStructuralPlan(remixed)
+        runtime.renderForTesting(.init(
+            kind: .barBoundary,
+            position: .init(absoluteSubdivision: 128),
+            hostTimeSeconds: 8,
+            tempoBPM: remixed.rhythm.tempoBPM
+        ))
+
+        XCTAssertEqual(runtime.remixResultForTesting, .transitioned(seed: remixed.seed))
+        XCTAssertEqual(runtime.totalBassAttackCountForTesting, 1, "destination waits for its boundary subdivision")
+        XCTAssertEqual(runtime.totalBassReleaseCountForTesting, 1, "old bass gate is released before handoff")
+        XCTAssertEqual(runtime.inactiveBassVoiceCountForTesting, 0)
+
+        runtime.renderForTesting(.init(
+            kind: .subdivision,
+            position: .init(absoluteSubdivision: 128),
+            hostTimeSeconds: 8,
+            tempoBPM: remixed.rhythm.tempoBPM
+        ))
+
+        XCTAssertEqual(runtime.totalBassAttackCountForTesting, 2)
+        XCTAssertEqual(runtime.activeBassVoiceCountForTesting, 1)
+        XCTAssertEqual(runtime.inactiveBassVoiceCountForTesting, 0)
+        XCTAssertEqual(runtime.allocationSnapshotForTesting, allocation)
+    }
+
     func testLiveContinuousUpdateDoesNotExposeStructuralWorldBeforeBoundary() throws {
         let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
         let initial = makePlaybackEnginePlan(seed: 601)
@@ -1378,9 +1419,11 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         }
 
         XCTAssertEqual(runtime.activeHarmonyDuckingForTesting, 0)
-        XCTAssertGreaterThan(runtime.activeBassDuckCommandCountForTesting, 0)
-        let lastDuck = try XCTUnwrap(runtime.lastBassDuckCommandForTesting)
-        XCTAssertTrue(lastDuck.maximumAttenuationDecibels > 0 && lastDuck.maximumAttenuationDecibels <= 5)
+        let duck = runtime.activeBassDuckGainMetricsForTesting
+        XCTAssertTrue(duck.isSupported)
+        XCTAssertGreaterThan(duck.scheduledSegmentCount, 0)
+        XCTAssertLessThan(try XCTUnwrap(duck.lastAttack).targetLinearGain, 1)
+        XCTAssertEqual(try XCTUnwrap(duck.lastRelease).targetLinearGain, 1, accuracy: 0.000_001)
     }
 
     func testLiveSafeHeldLeadKeepsSourceTokenAndDelaysOldBankRecycleUntilRelease() throws {
@@ -2051,6 +2094,37 @@ private func replacingPlaybackBass(in plan: DayMusicPlan, with bass: BassPlan?) 
         glitch: plan.glitch,
         mix: plan.mix
     )
+}
+
+private func bassLifecyclePlan(seed: UInt64) -> DayMusicPlan {
+    let base = makePlaybackEnginePlan(seed: seed)
+    let bass = BassPlan(
+        mode: .bassPulse,
+        instrumentID: .init(rawValue: "bass.analog-boom"),
+        register: 29...52,
+        articulation: .pulse,
+        stepsProgress: 1,
+        cutoffMultiplier: 0.88,
+        glideMilliseconds: 40,
+        reverbSend: 0.05,
+        ducking: .init(
+            maximumAttenuationDecibels: 5,
+            attackSeconds: 0.005,
+            holdSeconds: 0.045,
+            releaseSeconds: 0.180
+        ),
+        events: [.init(
+            stableID: 1,
+            chordIndex: 0,
+            startSubdivision: 0,
+            durationSubdivisions: 8,
+            midiNote: 36,
+            velocity: 0.7,
+            activationThreshold: 0,
+            allowedPitchClasses: [0, 4, 7]
+        )]
+    )
+    return replacingPlaybackBass(in: base, with: bass)
 }
 
 private func seedProducingBass() -> UInt64 {
