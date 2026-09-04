@@ -1,0 +1,326 @@
+#if DEBUG || INTERNAL_BUILD
+enum BassPlanner {
+    private static let register: ClosedRange<UInt8> = 29...52
+    private static let subdivisionsPerBar: Int64 = 16
+    private static let approvedInstrumentIDs = [
+        "bass.analog-boom",
+        "bass.hey-jakob",
+        "bass.bb-roys-phaser",
+        "bass.jec-hollores-2",
+    ]
+
+    static func makePlan(
+        input: NormalizedDayMusicInput,
+        tonalWorld: TonalWorldPlan,
+        groove: GroovePlan,
+        instrumentDescriptors: [DayObjectsInstrumentDescriptor],
+        remixSeed: UInt64
+    ) -> BassPlan? {
+        guard groove.usesBass,
+              let instrument = selectedInstrument(
+                from: instrumentDescriptors,
+                mode: groove.mode,
+                remixSeed: remixSeed
+              )
+        else {
+            return nil
+        }
+
+        let profile = profile(for: groove.mode)
+        var patternRandom = StableMusicRandom(seed: remixSeed, domain: .bassPattern)
+        var articulationRandom = StableMusicRandom(seed: remixSeed, domain: .bassArticulation)
+        let candidates = makeCandidates(
+            tonalWorld: tonalWorld,
+            mode: groove.mode,
+            referenceNote: instrument.referenceMIDI,
+            random: &patternRandom
+        )
+        let eventCount = max(candidates.count - 1, 1)
+        let events = candidates.enumerated().map { index, candidate in
+            BassEventPlan(
+                stableID: stableID(mode: groove.mode, startSubdivision: candidate.startSubdivision),
+                chordIndex: candidate.chordIndex,
+                startSubdivision: candidate.startSubdivision,
+                durationSubdivisions: candidate.durationSubdivisions,
+                midiNote: candidate.midiNote,
+                velocity: candidate.velocity,
+                activationThreshold: Double(index) / Double(eventCount),
+                allowedPitchClasses: candidate.allowedPitchClasses
+            )
+        }.sorted { left, right in
+            if left.startSubdivision != right.startSubdivision {
+                return left.startSubdivision < right.startSubdivision
+            }
+            return left.stableID < right.stableID
+        }
+
+        return BassPlan(
+            mode: groove.mode,
+            instrumentID: instrument.id,
+            register: register,
+            articulation: profile.articulation,
+            stepsProgress: unitValue(input.stepsProgress),
+            cutoffMultiplier: profile.cutoffMultiplier,
+            glideMilliseconds: randomValue(in: profile.glideMilliseconds, random: &articulationRandom),
+            reverbSend: randomValue(in: profile.reverbSend, random: &articulationRandom),
+            ducking: BassDuckingPlan(
+                maximumAttenuationDecibels: randomValue(
+                    in: profile.duckingDecibels,
+                    random: &articulationRandom
+                ),
+                attackSeconds: profile.duckAttackSeconds,
+                holdSeconds: profile.duckHoldSeconds,
+                releaseSeconds: profile.duckReleaseSeconds
+            ),
+            events: events
+        )
+    }
+
+    private struct Profile {
+        let articulation: BassArticulation
+        let glideMilliseconds: ClosedRange<Double>
+        let reverbSend: ClosedRange<Double>
+        let duckingDecibels: ClosedRange<Double>
+        let cutoffMultiplier: Double
+        let duckAttackSeconds: Double
+        let duckHoldSeconds: Double
+        let duckReleaseSeconds: Double
+    }
+
+    private struct Candidate {
+        let chordIndex: Int
+        let startSubdivision: Int64
+        let durationSubdivisions: Int64
+        let midiNote: UInt8
+        let velocity: Double
+        let allowedPitchClasses: Set<Int>
+    }
+
+    private static func selectedInstrument(
+        from descriptors: [DayObjectsInstrumentDescriptor],
+        mode: GrooveMode,
+        remixSeed: UInt64
+    ) -> DayObjectsInstrumentDescriptor? {
+        var approvedByID: [String: DayObjectsInstrumentDescriptor] = [:]
+        for descriptor in descriptors where descriptor.category == .bass {
+            guard approvedInstrumentIDs.contains(descriptor.id.rawValue),
+                  approvedByID[descriptor.id.rawValue] == nil
+            else {
+                continue
+            }
+            approvedByID[descriptor.id.rawValue] = descriptor
+        }
+        guard !approvedByID.isEmpty else { return nil }
+
+        var random = StableMusicRandom(seed: remixSeed, domain: .bassInstrument)
+        let preferredIDs = preferredInstrumentIDs(for: mode)
+        let preferred = preferredIDs.compactMap { approvedByID[$0] }
+        if !preferred.isEmpty {
+            return random.choice(from: preferred)
+        }
+
+        let startIndex = random.nextInt(upperBound: approvedInstrumentIDs.count) ?? 0
+        for offset in approvedInstrumentIDs.indices {
+            let index = (startIndex + offset) % approvedInstrumentIDs.count
+            if let descriptor = approvedByID[approvedInstrumentIDs[index]] {
+                return descriptor
+            }
+        }
+        return nil
+    }
+
+    private static func preferredInstrumentIDs(for mode: GrooveMode) -> [String] {
+        switch mode {
+        case .percussion:
+            return []
+        case .bassPulse:
+            return ["bass.analog-boom", "bass.hey-jakob"]
+        case .bassArp:
+            return ["bass.bb-roys-phaser"]
+        case .bassBed:
+            return ["bass.jec-hollores-2", "bass.hey-jakob"]
+        }
+    }
+
+    private static func profile(for mode: GrooveMode) -> Profile {
+        switch mode {
+        case .percussion:
+            preconditionFailure("Percussion mode does not have a bass profile")
+        case .bassPulse:
+            return Profile(
+                articulation: .pulse,
+                glideMilliseconds: 0...45,
+                reverbSend: 0.03...0.08,
+                duckingDecibels: 3.5...5,
+                cutoffMultiplier: 0.88,
+                duckAttackSeconds: 0.012,
+                duckHoldSeconds: 0.050,
+                duckReleaseSeconds: 0.180
+            )
+        case .bassArp:
+            return Profile(
+                articulation: .arpeggio,
+                glideMilliseconds: 15...70,
+                reverbSend: 0.04...0.10,
+                duckingDecibels: 3...4.5,
+                cutoffMultiplier: 1.08,
+                duckAttackSeconds: 0.009,
+                duckHoldSeconds: 0.040,
+                duckReleaseSeconds: 0.140
+            )
+        case .bassBed:
+            return Profile(
+                articulation: .sustained,
+                glideMilliseconds: 40...120,
+                reverbSend: 0.02...0.06,
+                duckingDecibels: 2.5...3.5,
+                cutoffMultiplier: 0.72,
+                duckAttackSeconds: 0.020,
+                duckHoldSeconds: 0.070,
+                duckReleaseSeconds: 0.220
+            )
+        }
+    }
+
+    private static func makeCandidates(
+        tonalWorld: TonalWorldPlan,
+        mode: GrooveMode,
+        referenceNote: UInt8,
+        random: inout StableMusicRandom
+    ) -> [Candidate] {
+        var candidates: [Candidate] = []
+        var chordStart: Int64 = 0
+        var previousNote = referenceNote
+
+        for (chordIndex, chord) in tonalWorld.progression.enumerated() {
+            let chordDuration = Int64(chord.durationBars) * subdivisionsPerBar
+            let allowedPitchClasses = Set(chord.chordPitchClasses)
+            let positions = candidatePositions(
+                mode: mode,
+                chordDuration: chordDuration
+            )
+
+            for position in positions {
+                let preferredPitchClass = preferredPitchClass(
+                    mode: mode,
+                    chord: chord,
+                    random: &random
+                )
+                let duration = duration(
+                    mode: mode,
+                    position: position,
+                    chordDuration: chordDuration,
+                    random: &random
+                )
+                let midiNote = nearestLegalMIDINote(
+                    pitchClass: preferredPitchClass,
+                    reference: previousNote
+                )
+                previousNote = midiNote
+                candidates.append(Candidate(
+                    chordIndex: chordIndex,
+                    startSubdivision: chordStart + position,
+                    durationSubdivisions: duration,
+                    midiNote: midiNote,
+                    velocity: 0.58 + (random.nextUnitDouble() * 0.28),
+                    allowedPitchClasses: allowedPitchClasses
+                ))
+            }
+            chordStart += chordDuration
+        }
+        return candidates
+    }
+
+    private static func candidatePositions(mode: GrooveMode, chordDuration: Int64) -> [Int64] {
+        switch mode {
+        case .percussion:
+            return []
+        case .bassPulse:
+            return stride(from: Int64(0), to: chordDuration, by: 4).map { $0 }
+        case .bassArp:
+            return stride(from: Int64(0), to: chordDuration, by: 5).map { $0 }
+        case .bassBed:
+            return [0]
+        }
+    }
+
+    private static func preferredPitchClass(
+        mode: GrooveMode,
+        chord: ChordPlan,
+        random: inout StableMusicRandom
+    ) -> Int {
+        switch mode {
+        case .percussion:
+            return chord.rootPitchClass
+        case .bassPulse:
+            return random.bernoulli(probability: 0.72)
+                ? chord.rootPitchClass
+                : normalizedPitchClass(chord.rootPitchClass + 7)
+        case .bassArp:
+            return random.choice(from: chord.chordPitchClasses) ?? chord.rootPitchClass
+        case .bassBed:
+            return chord.rootPitchClass
+        }
+    }
+
+    private static func duration(
+        mode: GrooveMode,
+        position: Int64,
+        chordDuration: Int64,
+        random: inout StableMusicRandom
+    ) -> Int64 {
+        switch mode {
+        case .percussion:
+            return 0
+        case .bassPulse:
+            return Int64((random.nextInt(upperBound: 3) ?? 0) + 2)
+        case .bassArp:
+            return min(
+                Int64((random.nextInt(upperBound: 3) ?? 0) + 2),
+                chordDuration - position
+            )
+        case .bassBed:
+            return chordDuration - position
+        }
+    }
+
+    private static func nearestLegalMIDINote(pitchClass: Int, reference: UInt8) -> UInt8 {
+        let legalNotes = register.filter { Int($0) % 12 == normalizedPitchClass(pitchClass) }
+        return legalNotes.min { left, right in
+            let leftDistance = abs(Int(left) - Int(reference))
+            let rightDistance = abs(Int(right) - Int(reference))
+            if leftDistance != rightDistance {
+                return leftDistance < rightDistance
+            }
+            return left < right
+        } ?? register.lowerBound
+    }
+
+    private static func stableID(mode: GrooveMode, startSubdivision: Int64) -> UInt64 {
+        let modeOffset: UInt64
+        switch mode {
+        case .percussion: modeOffset = 0
+        case .bassPulse: modeOffset = 1
+        case .bassArp: modeOffset = 2
+        case .bassBed: modeOffset = 3
+        }
+        return (modeOffset * 1_000_000) + UInt64(max(0, startSubdivision))
+    }
+
+    private static func randomValue(
+        in range: ClosedRange<Double>,
+        random: inout StableMusicRandom
+    ) -> Double {
+        range.lowerBound + ((range.upperBound - range.lowerBound) * random.nextUnitDouble())
+    }
+
+    private static func unitValue(_ value: Double) -> Double {
+        guard value.isFinite else { return 0 }
+        return min(max(value, 0), 1)
+    }
+
+    private static func normalizedPitchClass(_ value: Int) -> Int {
+        ((value % 12) + 12) % 12
+    }
+}
+#endif
