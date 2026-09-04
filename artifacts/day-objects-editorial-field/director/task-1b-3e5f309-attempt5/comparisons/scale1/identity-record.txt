@@ -1,0 +1,15 @@
+comparison_utc=2026-09-04T00:33:56Z
+candidate=artifacts/day-objects-editorial-field/material/approved-3e5f309-attempt5/scale1-candidate
+rerender=artifacts/day-objects-editorial-field/material/approved-3e5f309-attempt5/scale1-rerender
+candidate_file_count=261
+rerender_file_count=261
+package_hash=09c092ed48a969c81145b789da7f123106c21b124020c3122de7fbd2bf508852
+recursive_inventory_sha256=35d5f7e2b640e010b9e0726237801bc26135b39aff1479a2dd06cd8bf29656c0
+diff_qr_exit=0
+diff_qr_output_bytes=0
+relative_file_lists_identical=yes
+recursive_sha256_values_identical=yes
+package_SHA256SUMS_identical=yes
+package_hash_files_identical=yes
+manifest_metrics_approval_recipes_identical=yes
+scale1_pair_identity=PASS
