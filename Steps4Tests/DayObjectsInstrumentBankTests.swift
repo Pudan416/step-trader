@@ -144,7 +144,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
                 XCTAssertTrue(points.contains { $0.node === destination.avAudioNode })
             }
         }
-        XCTAssertTrue(graph.meterTapCapturedFrameCounts.values.allSatisfy { $0 > 0 })
+        XCTAssertTrue(graph.meterTapCapturedScalarSampleCounts.values.allSatisfy { $0 > 0 })
 
         engine.stop()
         graph.stopMeters()
@@ -157,7 +157,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         _ = engine.render(duration: 0.25)
 
         XCTAssertEqual(Set(engine.avEngine.attachedNodes.map(ObjectIdentifier.init)), attachedBefore)
-        XCTAssertTrue(graph.meterTapCapturedFrameCounts.values.allSatisfy { $0 > 0 })
+        XCTAssertTrue(graph.meterTapCapturedScalarSampleCounts.values.allSatisfy { $0 > 0 })
         let restarted = graph.meterSnapshots(graphs: [], happeningVoiceCount: 0, now: 1)
         for role in DayObjectsRoleBus.allCases {
             XCTAssertGreaterThan(restarted.0.metrics(for: role).peakDBFS, -120)

@@ -4,46 +4,83 @@ import XCTest
 
 @MainActor
 final class DayObjectsRemixCoordinatorTests: XCTestCase {
-    func testOneHundredRealAudioKitRemixUpdatesAndRestartKeepPhysicalGraphAndMetersAlive() throws {
-        let pair = DayObjectsInstrumentBank.makePlaybackPair(bundle: Bundle(for: type(of: self)))
-        try pair.prepare(configuration: .playbackWorld)
-        let baseline = pair.bankA.metrics.engineTopology
-        XCTAssertFalse(baseline.avAudioEngineAttachedNodeIdentities.isEmpty)
-        XCTAssertGreaterThan(baseline.avAudioEngineConnectionCount, 0)
+    func testOneHundredProductionCoordinatorRemixesRecycleBothWorldsAndPreservePhysicalGraphAcrossRestarts() async throws {
+        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        var plan = productionCyclePlan(seed: 10_000)
+        try runtime.prepare(plan: plan)
+        try runtime.startAudio()
+        try runtime.startPreparedWorldForTesting()
+        try runtime.fadeMaster(to: plan)
 
-        try pair.start()
-        for remix in 0..<100 {
-            let fade = Double(remix % 10) / 10
-            pair.bankA.setOutputGain(1 - fade, rampDurationSeconds: 0)
-            pair.bankB.setOutputGain(fade, rampDurationSeconds: 0)
+        let baselineTopology = runtime.engineTopologyForTesting
+        let baselineAllocation = runtime.allocationSnapshotForTesting
+        XCTAssertFalse(baselineTopology.avAudioEngineAttachedNodeIdentities.isEmpty)
+        XCTAssertFalse(baselineTopology.avAudioEngineConnections.isEmpty)
+        XCTAssertEqual(baselineTopology.meterTapNodeIdentities.count, 7)
+        XCTAssertEqual(baselineTopology.meterTapInstallationCount, 1)
+
+        for cycle in 1...100 {
+            let start = Int64(cycle * 48 - 32)
+            plan = productionCyclePlan(seed: UInt64(10_000 + cycle))
+            runtime.scheduleStructuralPlan(plan)
+            runtime.renderForTesting(productionEvent(position: start))
+            XCTAssertEqual(runtime.remixResultForTesting, .transitioned(seed: plan.seed), "cycle \(cycle)")
+            runtime.renderForTesting(productionEvent(position: start + 32))
+
+            if cycle.isMultiple(of: 10) {
+                let topology = runtime.engineTopologyForTesting
+                XCTAssertEqual(topology.avAudioEngineAttachedNodeIdentities, baselineTopology.avAudioEngineAttachedNodeIdentities, "cycle \(cycle)")
+                XCTAssertEqual(topology.avAudioEngineConnections, baselineTopology.avAudioEngineConnections, "cycle \(cycle)")
+                XCTAssertEqual(topology.meterTapNodeIdentities, baselineTopology.meterTapNodeIdentities, "cycle \(cycle)")
+                XCTAssertEqual(topology.meterTapInstallationCount, 1, "cycle \(cycle)")
+                XCTAssertEqual(runtime.allocationSnapshotForTesting, baselineAllocation, "cycle \(cycle)")
+            }
+
+            if cycle.isMultiple(of: 20) {
+                await runtime.stopAudio()
+                try runtime.prepare(plan: plan)
+                try runtime.startAudio()
+                try runtime.startPreparedWorldForTesting()
+                try runtime.fadeMaster(to: plan)
+            }
         }
-        pair.stop()
-        try pair.start()
 
-        let bass = try pair.bankA.tonalPool(named: PlaybackWorldBankConfiguration.PoolName.bass.rawValue)
-        try bass.prepareInstrument(.init(rawValue: "bass.analog-boom"))
-        let token = try XCTUnwrap(bass.noteOn(.init(
-            instrumentID: .init(rawValue: "bass.analog-boom"),
-            midiNote: 40,
-            velocity: 1,
-            role: .note,
-            envelopeVariant: nil,
-            pan: 0,
-            delaySend: 0,
-            reverbSend: 0
-        )))
-        RunLoop.current.run(until: Date().addingTimeInterval(0.35))
+        XCTAssertEqual(runtime.worldRecycleCountsForTesting, [50, 50])
+        XCTAssertEqual(runtime.allocationSnapshotForTesting, baselineAllocation)
 
-        let restartedTopology = pair.bankA.metrics.engineTopology
-        let restartedMetrics = pair.metrics
-        XCTAssertEqual(restartedTopology.avAudioEngineAttachedNodeIdentities, baseline.avAudioEngineAttachedNodeIdentities)
-        XCTAssertEqual(restartedTopology.avAudioEngineConnectionCount, baseline.avAudioEngineConnectionCount)
-        XCTAssertEqual(restartedTopology.meterTapNodeIdentities, baseline.meterTapNodeIdentities)
-        XCTAssertGreaterThan(restartedMetrics.roleBusMetrics.bass.peakDBFS, -120)
-        XCTAssertGreaterThan(restartedMetrics.masterMetrics.peakDBFS, -120)
+        runtime.beginLead(.init(normalizedX: 0.45, normalizedY: 0.75, speed: 0))
+        for kind in [
+            DayObjectsTransportEventKind.subdivision,
+            .beat,
+            .barBoundary,
+            .harmonicCycleBoundary,
+        ] {
+            runtime.renderForTesting(.init(
+                kind: kind,
+                position: .init(absoluteSubdivision: 0),
+                hostTimeSeconds: 0,
+                tempoBPM: plan.rhythm.tempoBPM
+            ))
+        }
+        RunLoop.current.run(until: Date().addingTimeInterval(0.12))
 
-        bass.noteOff(token)
-        pair.stop()
+        let restartedTopology = runtime.engineTopologyForTesting
+        let restartedMeters = runtime.playbackPairMetricsForTesting
+        XCTAssertEqual(restartedTopology.avAudioEngineAttachedNodeIdentities, baselineTopology.avAudioEngineAttachedNodeIdentities)
+        XCTAssertEqual(restartedTopology.avAudioEngineConnections, baselineTopology.avAudioEngineConnections)
+        XCTAssertEqual(restartedTopology.meterTapNodeIdentities, baselineTopology.meterTapNodeIdentities)
+        XCTAssertEqual(restartedTopology.meterTapInstallationCount, 1)
+        XCTAssertEqual(Set(restartedMeters.meterTapCapturedScalarSampleCounts.keys), [
+            "rhythm", "bass", "harmony", "happenings", "lead", "preLimiter", "finalOutput",
+        ])
+        XCTAssertTrue(restartedMeters.meterTapCapturedScalarSampleCounts.values.allSatisfy { $0 > 0 })
+        for role in DayObjectsRoleBus.allCases {
+            XCTAssertGreaterThan(restartedMeters.roleBusMetrics.metrics(for: role).peakDBFS, -120, "\(role)")
+        }
+        XCTAssertGreaterThan(restartedMeters.masterMetrics.peakDBFS, -120)
+
+        runtime.endLead()
+        await runtime.stopAudio()
     }
 
     func testCancelPendingRemixLeavesCurrentWorldRunningAndClearsOnlyQueuedPlan() throws {
@@ -629,6 +666,58 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
             targetMIDI: recipe.sources[0].rootMIDI,
             playbackRate: 1,
             resonantFilterHz: nil
+        )
+    }
+
+    private func productionCyclePlan(seed: UInt64) -> DayMusicPlan {
+        let base = makePlan(seed: seed)
+        let bass = BassPlan(
+            mode: .bassPulse,
+            instrumentID: .init(rawValue: "bass.analog-boom"),
+            register: 29...52,
+            articulation: .pulse,
+            stepsProgress: 1,
+            cutoffMultiplier: 0.88,
+            glideMilliseconds: 40,
+            reverbSend: 0.05,
+            ducking: .init(
+                maximumAttenuationDecibels: 5,
+                attackSeconds: 0.005,
+                holdSeconds: 0.045,
+                releaseSeconds: 0.180
+            ),
+            events: [.init(
+                stableID: seed,
+                chordIndex: 0,
+                startSubdivision: 0,
+                durationSubdivisions: 8,
+                midiNote: 36,
+                velocity: 0.7,
+                activationThreshold: 0,
+                allowedPitchClasses: [0, 4, 7]
+            )]
+        )
+        return .init(
+            seed: base.seed,
+            input: base.input,
+            world: base.world,
+            rhythm: base.rhythm,
+            groove: base.groove,
+            bass: bass,
+            harmony: base.harmony,
+            happenings: base.happenings,
+            lead: base.lead,
+            glitch: base.glitch,
+            mix: base.mix
+        )
+    }
+
+    private func productionEvent(position: Int64) -> DayObjectsTransportEvent {
+        .init(
+            kind: .subdivision,
+            position: .init(absoluteSubdivision: position),
+            hostTimeSeconds: Double(position) * 0.001,
+            tempoBPM: 72
         )
     }
 

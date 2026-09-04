@@ -1087,6 +1087,12 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         )
     }
     var playbackPairMetricsForTesting: DayObjectsPlaybackBankPairMetrics { pair.metrics }
+    var engineTopologyForTesting: DayObjectsInstrumentBankEngineTopologyMetrics {
+        pair.bankA.metrics.engineTopology
+    }
+    var worldRecycleCountsForTesting: [Int] {
+        [worldA.bank.metrics.recycleCount, worldB.bank.metrics.recycleCount]
+    }
     var happeningRecordIDsForTesting: Set<String> {
         guard isPrepared else { return [] }
         return Set(

@@ -1240,18 +1240,25 @@ final class DayObjectsPersistentMasterGraph {
         let attachedAudioNodes = audioEngine.map {
             Set($0.attachedNodes.map(ObjectIdentifier.init))
         } ?? []
-        let audioEngineConnectionCount: Int
+        let audioEngineConnections: Set<DayObjectsGraphConnection>
         if let audioEngine {
-            audioEngineConnectionCount = audioEngine.attachedNodes.reduce(0) { count, source in
-                count + (0..<Int(source.numberOfOutputs)).reduce(0) { subtotal, bus in
-                    subtotal + audioEngine.outputConnectionPoints(
+            audioEngineConnections = Set(audioEngine.attachedNodes.flatMap { source in
+                (0..<Int(source.numberOfOutputs)).flatMap { bus in
+                    audioEngine.outputConnectionPoints(
                         for: source,
                         outputBus: AVAudioNodeBus(bus)
-                    ).count
+                    ).compactMap { point in
+                        point.node.map {
+                            DayObjectsGraphConnection(
+                                source: ObjectIdentifier(source),
+                                destination: ObjectIdentifier($0)
+                            )
+                        }
+                    }
                 }
-            }
+            })
         } else {
-            audioEngineConnectionCount = 0
+            audioEngineConnections = []
         }
         return .init(
             persistentMasterNodeIdentities: fixedNodeIdentities,
@@ -1306,7 +1313,8 @@ final class DayObjectsPersistentMasterGraph {
                 "lead.upperMid.thresholdDB": Double(leadUpperMidCompressor.$threshold.parameter.value),
             ],
             avAudioEngineAttachedNodeIdentities: attachedAudioNodes,
-            avAudioEngineConnectionCount: audioEngineConnectionCount
+            avAudioEngineConnections: audioEngineConnections,
+            avAudioEngineConnectionCount: audioEngineConnections.count
         )
     }
 
@@ -1335,7 +1343,7 @@ final class DayObjectsPersistentMasterGraph {
         [rhythmBus, bassBus, harmonyBus, happeningsBus, leadBus, masterTrim, finalOutput]
     }
 
-    var meterTapCapturedFrameCounts: [String: UInt64] {
+    var meterTapCapturedScalarSampleCounts: [String: UInt64] {
         [
             "rhythm": rhythmMeter.capturedSampleCount,
             "bass": bassMeter.capturedSampleCount,
@@ -1660,6 +1668,7 @@ struct DayObjectsPlaybackBankPairMetrics: Equatable, Sendable {
     let allocationFingerprint: [DayObjectsInstrumentBankAllocationFingerprint?]
     let roleBusMetrics: DayObjectsFiveRoleBusMetrics
     let masterMetrics: DayObjectsMasterMetrics
+    let meterTapCapturedScalarSampleCounts: [String: UInt64]
 }
 
 @MainActor
@@ -1964,7 +1973,8 @@ private final class DayObjectsSharedInstrumentBankEngine {
             individualStartedBankCount: individuallyStartedSlots.count,
             allocationFingerprint: allocationFingerprint,
             roleBusMetrics: meterSnapshots.0,
-            masterMetrics: meterSnapshots.1
+            masterMetrics: meterSnapshots.1,
+            meterTapCapturedScalarSampleCounts: masterGraph.meterTapCapturedScalarSampleCounts
         )
     }
 

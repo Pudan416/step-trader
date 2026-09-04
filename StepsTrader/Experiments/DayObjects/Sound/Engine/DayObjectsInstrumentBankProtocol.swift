@@ -341,6 +341,7 @@ struct DayObjectsInstrumentBankEngineTopologyMetrics: Equatable, Sendable {
     let leadUpperMidDynamicsIdentity: ObjectIdentifier?
     let acceptedParameterValues: [String: Double]
     let avAudioEngineAttachedNodeIdentities: Set<ObjectIdentifier>
+    let avAudioEngineConnections: Set<DayObjectsGraphConnection>
     let avAudioEngineConnectionCount: Int
 
     init(
@@ -367,6 +368,7 @@ struct DayObjectsInstrumentBankEngineTopologyMetrics: Equatable, Sendable {
         leadUpperMidDynamicsIdentity: ObjectIdentifier? = nil,
         acceptedParameterValues: [String: Double] = [:],
         avAudioEngineAttachedNodeIdentities: Set<ObjectIdentifier> = [],
+        avAudioEngineConnections: Set<DayObjectsGraphConnection> = [],
         avAudioEngineConnectionCount: Int = 0
     ) {
         self.persistentMasterNodeIdentities = persistentMasterNodeIdentities
@@ -392,6 +394,7 @@ struct DayObjectsInstrumentBankEngineTopologyMetrics: Equatable, Sendable {
         self.leadUpperMidDynamicsIdentity = leadUpperMidDynamicsIdentity
         self.acceptedParameterValues = acceptedParameterValues
         self.avAudioEngineAttachedNodeIdentities = avAudioEngineAttachedNodeIdentities
+        self.avAudioEngineConnections = avAudioEngineConnections
         self.avAudioEngineConnectionCount = avAudioEngineConnectionCount
     }
 
