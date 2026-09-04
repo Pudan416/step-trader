@@ -754,14 +754,8 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         func endLeadIfBound() { leadPlayer?.end() }
 
         private func applyMix(_ plan: DayMusicPlan, ducking: Double) {
-            let delay = max(
-                plan.harmony.roles.map(\.delaySend).max() ?? 0,
-                plan.happenings.map(\.delaySend).max() ?? 0
-            )
-            let reverb = max(
-                plan.harmony.roles.map(\.reverbSend).max() ?? 0,
-                plan.happenings.map(\.reverbSend).max() ?? 0
-            )
+            let delay = plan.harmony.roles.map(\.delaySend).max() ?? 0
+            let reverb = plan.harmony.roles.map(\.reverbSend).max() ?? 0
             mix.apply(
                 plan.mix,
                 activeChordVoiceCount: max(1, harmony.metrics.activeVoiceCount),
@@ -783,6 +777,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
 
         private func apply(_ state: DayObjectsMixState) {
             rhythmPlayer?.applyMixTargetDecibels(state.rhythmTargetDecibels)
+            bassPlayer?.applyMixTargetDecibels(state.bassTargetDecibels)
             harmonyPlayer?.applyMixTargetDecibels(state.harmonyPerVoiceTargetDecibels)
             happeningScheduler?.applyMixTargetDecibels(state.happeningPerVoiceTargetDecibels)
             leadPlayer?.applyMixTargetDecibels(state.leadTargetDecibels)
@@ -1202,7 +1197,8 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
             sound,
             gain: 1,
             priority: .manualAudition,
-            effects: effects
+            effects: effects,
+            pan: 0
         )
         auditionHandles.append(handle)
         scheduleAuditionRelease(handle, after: recipe.releaseSeconds, pool: pair.bankA.happenings)
@@ -1653,7 +1649,8 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
             sound,
             gain: 1,
             priority: .manualAudition,
-            effects: effects
+            effects: effects,
+            pan: 0
         )
         auditionHandles.append(handle)
         scheduleAuditionRelease(handle, after: recipe.releaseSeconds, pool: world.bank.happenings)

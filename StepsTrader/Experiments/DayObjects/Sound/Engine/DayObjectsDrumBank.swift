@@ -46,6 +46,8 @@ struct DayObjectsDrumRecipe: Equatable, Sendable {
     let overlapCount: Int
     let transientFilterCutoffHz: Double?
     let noiseFilterCutoffHz: Double?
+    let highPassCutoffHz: Double
+    let outputTrimDecibels: Double
     let variation: DayObjectsDrumVariation
     let allowsPitchDrift: Bool
     let allowsBroadbandSustainedNoise: Bool
@@ -65,7 +67,7 @@ struct DayObjectsDrumRecipe: Equatable, Sendable {
         case .shaker:
             return .init(
                 voice: voice, primarySample: nil, fallbackSample: nil, synthesis: [.filteredNoise], sinePitchDrop: nil, noiseAmplitude: 0.22, overlapCount: 2,
-                transientFilterCutoffHz: nil, noiseFilterCutoffHz: 7_200, variation: .percussion,
+                transientFilterCutoffHz: nil, noiseFilterCutoffHz: 7_200, highPassCutoffHz: 110, outputTrimDecibels: -10, variation: .percussion,
                 allowsPitchDrift: false, allowsBroadbandSustainedNoise: false, usesSawOscillator: false, delayFeedback: nil
             )
         case .clapSoft:
@@ -84,7 +86,7 @@ struct DayObjectsDrumRecipe: Equatable, Sendable {
             voice: voice, primarySample: .bassDrum, fallbackSample: nil, synthesis: [.sinePitchDrop],
             sinePitchDrop: .init(startFrequencyHz: voice == .kickFull ? 140 : 110, endFrequencyHz: voice == .kickFull ? 46 : 52, amplitude: voice == .kickFull ? 0.8 : 0.55),
             noiseAmplitude: nil, overlapCount: overlapCount,
-            transientFilterCutoffHz: 4_000, noiseFilterCutoffHz: nil, variation: .none,
+            transientFilterCutoffHz: 4_000, noiseFilterCutoffHz: nil, highPassCutoffHz: 28, outputTrimDecibels: voice == .kickFull ? -6 : -8, variation: .none,
             allowsPitchDrift: false, allowsBroadbandSustainedNoise: false, usesSawOscillator: false, delayFeedback: nil
         )
     }
@@ -98,7 +100,7 @@ struct DayObjectsDrumRecipe: Equatable, Sendable {
     ) -> DayObjectsDrumRecipe {
         .init(
             voice: voice, primarySample: primarySample, fallbackSample: fallback, synthesis: [], sinePitchDrop: nil, noiseAmplitude: nil, overlapCount: overlapCount,
-            transientFilterCutoffHz: 9_000, noiseFilterCutoffHz: nil, variation: variation,
+            transientFilterCutoffHz: 9_000, noiseFilterCutoffHz: nil, highPassCutoffHz: 110, outputTrimDecibels: -12, variation: variation,
             allowsPitchDrift: false, allowsBroadbandSustainedNoise: false, usesSawOscillator: false, delayFeedback: nil
         )
     }
@@ -624,8 +626,9 @@ final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
     func play(_ hit: DayObjectsDrumHit) {
         guard layerScheduler.isReady(output: output) else { return }
         let hostTime = hit.scheduledHostTimeSeconds
-        layerScheduler.scheduleParameter(output.$leftGain, value: AUValue(hit.velocity), rampDuration: 0, layer: .outputGainLeft, atHostTime: hostTime)
-        layerScheduler.scheduleParameter(output.$rightGain, value: AUValue(hit.velocity), rampDuration: 0, layer: .outputGainRight, atHostTime: hostTime)
+        let trimmedVelocity = hit.velocity * pow(10, recipe.outputTrimDecibels / 20)
+        layerScheduler.scheduleParameter(output.$leftGain, value: AUValue(trimmedVelocity), rampDuration: 0, layer: .outputGainLeft, atHostTime: hostTime)
+        layerScheduler.scheduleParameter(output.$rightGain, value: AUValue(trimmedVelocity), rampDuration: 0, layer: .outputGainRight, atHostTime: hostTime)
         layerScheduler.scheduleParameter(panner.$pan, value: AUValue(hit.stereoOffset), rampDuration: 0, layer: .stereo, atHostTime: hostTime)
         // Apple's reverb exposes wet/dry mix at Audio Unit parameter address 0.
         layerScheduler.scheduleAUParameter(room, address: 0, value: AUValue(hit.roomSend * 100), range: 0...100, layer: .roomSend, atHostTime: hostTime)

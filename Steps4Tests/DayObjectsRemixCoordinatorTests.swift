@@ -1027,7 +1027,8 @@ private final class RecordingRemixHappeningPool: DayObjectsHappeningSamplePoolPr
         _ sound: ResolvedHappeningSound,
         gain: Double,
         priority: HappeningPlaybackPriority,
-        effects: HappeningEffectCommand
+        effects: HappeningEffectCommand,
+        pan: Double
     ) throws -> HappeningPlaybackHandle {
         guard preparedRecipeIDs.contains(sound.recipeID) else {
             throw HappeningSamplePoolError.recipeUnavailable(sound.recipeID)

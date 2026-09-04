@@ -40,6 +40,7 @@ final class BassPlayer {
     private var acceptsAttacks = true
     private var attackCount = 0
     private var releaseCount = 0
+    private var mixGain = 1.0
 
     var metrics: BassPlayerMetrics {
         .init(
@@ -177,7 +178,7 @@ final class BassPlayer {
         attackCount += 1
         pool.update(token, with: .init(
             cutoffHz: Self.cutoffHz(multiplier: plan.cutoffMultiplier),
-            expression: Self.unit(event.velocity),
+            expression: Self.unit(event.velocity * mixGain),
             reverbSend: Self.unit(plan.reverbSend),
             pitchRampSeconds: Self.glideSeconds(plan.glideMilliseconds),
             cutoffRampSeconds: Self.controlRampSeconds,
@@ -208,11 +209,16 @@ final class BassPlayer {
         }
         pool.update(token, with: .init(
             cutoffHz: Self.cutoffHz(multiplier: plan.cutoffMultiplier),
-            expression: Self.unit(event.velocity),
+            expression: Self.unit(event.velocity * mixGain),
             reverbSend: Self.unit(plan.reverbSend),
             cutoffRampSeconds: Self.controlRampSeconds,
             expressionRampSeconds: Self.controlRampSeconds
         ))
+    }
+
+    func applyMixTargetDecibels(_ decibels: Double) {
+        let bounded = min(max(decibels.isFinite ? decibels : -60, -60), 0)
+        mixGain = pow(10, bounded / 20)
     }
 
     private func frame(

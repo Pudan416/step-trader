@@ -2,25 +2,24 @@ import XCTest
 @testable import Steps4
 
 final class LayerMixPlannerTests: XCTestCase {
-    func testPlanUsesAudibleMobileRoleTargetsBeforeTheLimiter() {
+    func testPlanUsesConservativeFiveRoleTargetsWithSixDecibelsOfMasterHeadroom() {
         let plan = LayerMixPlanner.makePlan(happeningCount: 1)
 
-        XCTAssertEqual(plan.rhythmTargetDecibels, -6)
-        XCTAssertEqual(plan.harmonyTargetDecibels, -9)
-        XCTAssertEqual(plan.happeningAggregateTargetDecibels, -2)
-        XCTAssertEqual(plan.happeningPerVoiceTargetDecibels, -2)
-        XCTAssertEqual(plan.leadTargetDecibels, -12)
-        XCTAssertEqual(plan.masterTargetDecibelsBeforeLimiter, -2)
+        XCTAssertEqual(plan.rhythmTargetDecibels, -10)
+        XCTAssertEqual(plan.bassTargetDecibels, -12)
+        XCTAssertEqual(plan.harmonyTargetDecibels, -10)
+        XCTAssertEqual(plan.happeningAggregateTargetDecibels, -8)
+        XCTAssertEqual(plan.happeningPerVoiceTargetDecibels, -8)
+        XCTAssertEqual(plan.leadTargetDecibels, -9)
+        XCTAssertEqual(plan.masterTargetDecibelsBeforeLimiter, -6)
         XCTAssertEqual(plan.maximumHarmonyDuckingDecibels, 2.5)
     }
 
-    func testSparseHappeningScheduleDoesNotReduceEachSoundAsCountIncreases() {
-        for count in [0, 1, 2, 5, 10] {
-            let plan = LayerMixPlanner.makePlan(happeningCount: count)
-            XCTAssertEqual(plan.happeningCount, count)
-            XCTAssertEqual(plan.happeningAggregateTargetDecibels, -2)
-            XCTAssertEqual(plan.happeningPerVoiceTargetDecibels, -2)
-        }
+    func testHappeningPerVoiceTargetDropsThreeDBPerDoublingUpToPoolLimit() {
+        XCTAssertEqual(LayerMixPlanner.makePlan(happeningCount: 1).happeningPerVoiceTargetDecibels, -8, accuracy: 0.01)
+        XCTAssertEqual(LayerMixPlanner.makePlan(happeningCount: 2).happeningPerVoiceTargetDecibels, -11, accuracy: 0.01)
+        XCTAssertEqual(LayerMixPlanner.makePlan(happeningCount: 4).happeningPerVoiceTargetDecibels, -14, accuracy: 0.01)
+        XCTAssertEqual(LayerMixPlanner.makePlan(happeningCount: 10).happeningPerVoiceTargetDecibels, -14, accuracy: 0.01)
 
         XCTAssertEqual(
             LayerMixPlanner.makePlan(happeningCount: -1),
@@ -37,6 +36,7 @@ final class LayerMixPlannerTests: XCTestCase {
             let plan = LayerMixPlanner.makePlan(happeningCount: count)
             let values = [
                 plan.rhythmTargetDecibels,
+                plan.bassTargetDecibels,
                 plan.harmonyTargetDecibels,
                 plan.happeningAggregateTargetDecibels,
                 plan.happeningPerVoiceTargetDecibels,
@@ -53,12 +53,12 @@ final class LayerMixPlannerTests: XCTestCase {
     func testHarmonyDuckingIsFiniteAndNeverExceedsTwoPointFiveDecibels() {
         let plan = LayerMixPlanner.makePlan(happeningCount: 10)
 
-        XCTAssertEqual(plan.harmonyTargetDecibels(applyingDucking: -1), -9)
-        XCTAssertEqual(plan.harmonyTargetDecibels(applyingDucking: 0), -9)
-        XCTAssertEqual(plan.harmonyTargetDecibels(applyingDucking: 1.25), -10.25)
-        XCTAssertEqual(plan.harmonyTargetDecibels(applyingDucking: 2.5), -11.5)
-        XCTAssertEqual(plan.harmonyTargetDecibels(applyingDucking: 99), -11.5)
-        XCTAssertEqual(plan.harmonyTargetDecibels(applyingDucking: .nan), -9)
-        XCTAssertEqual(plan.harmonyTargetDecibels(applyingDucking: .infinity), -9)
+        XCTAssertEqual(plan.harmonyTargetDecibels(applyingDucking: -1), -10)
+        XCTAssertEqual(plan.harmonyTargetDecibels(applyingDucking: 0), -10)
+        XCTAssertEqual(plan.harmonyTargetDecibels(applyingDucking: 1.25), -11.25)
+        XCTAssertEqual(plan.harmonyTargetDecibels(applyingDucking: 2.5), -12.5)
+        XCTAssertEqual(plan.harmonyTargetDecibels(applyingDucking: 99), -12.5)
+        XCTAssertEqual(plan.harmonyTargetDecibels(applyingDucking: .nan), -10)
+        XCTAssertEqual(plan.harmonyTargetDecibels(applyingDucking: .infinity), -10)
     }
 }

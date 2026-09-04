@@ -18,6 +18,20 @@ final class DayObjectsDrumBankTests: XCTestCase {
             XCTAssertLessThanOrEqual(recipe.overlapCount, 4, "\(voice) must stay bounded")
             XCTAssertLessThanOrEqual(recipe.variation.pitchRateRange.upperBound, 1.03)
             XCTAssertGreaterThanOrEqual(recipe.variation.pitchRateRange.lowerBound, 0.97)
+            XCTAssertTrue(recipe.outputTrimDecibels.isFinite)
+            XCTAssertTrue((-24...0).contains(recipe.outputTrimDecibels))
+        }
+    }
+
+    func testDrumRecipesUseCorrectiveHighPassAndProtectKickFundamentals() {
+        for voice in DayObjectsDrumVoice.allCases {
+            let recipe = DayObjectsDrumRecipe.recipe(for: voice)
+            if [.kickSoft, .kickFull].contains(voice) {
+                XCTAssertGreaterThanOrEqual(recipe.highPassCutoffHz, 25)
+                XCTAssertLessThanOrEqual(recipe.highPassCutoffHz, 40)
+            } else {
+                XCTAssertGreaterThan(recipe.highPassCutoffHz, 40)
+            }
         }
     }
 

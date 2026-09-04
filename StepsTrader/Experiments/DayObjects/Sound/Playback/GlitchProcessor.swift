@@ -9,6 +9,9 @@ struct DayObjectsGlitchCommand: Equatable, Sendable {
     let stereoSeparationAddition: Double
     let delayTimeVariation: Double
     let saturationAmount: Double
+    var outputCompensationGain: Double {
+        pow(10, (-4 * min(max(saturationAmount, 0), 0.18)) / 20)
+    }
     let timingDriftMilliseconds: Double
     let dropoutAttenuationDecibels: Double
     let dropoutReleaseSeconds: TimeInterval
@@ -21,6 +24,7 @@ struct DayObjectsGlitchCommand: Equatable, Sendable {
             && stereoSeparationAddition == 0
             && delayTimeVariation == 0
             && saturationAmount == 0
+            && outputCompensationGain == 1
             && timingDriftMilliseconds == 0
             && dropoutAttenuationDecibels == 0
             && dropoutReleaseSeconds == 0
@@ -208,6 +212,7 @@ final class GlitchProcessor {
     private static func linearGain(decibels: Double) -> Double {
         pow(10, decibels / 20)
     }
+
 }
 
 extension DayObjectsGlitchCommand {

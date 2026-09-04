@@ -1224,7 +1224,8 @@ private final class FakeHappeningSamplePool: DayObjectsHappeningSamplePoolProtoc
         _ sound: ResolvedHappeningSound,
         gain: Double,
         priority: HappeningPlaybackPriority,
-        effects: HappeningEffectCommand
+        effects: HappeningEffectCommand,
+        pan: Double = 0
     ) throws -> HappeningPlaybackHandle {
         let voiceID: Int
         if let idle = (0..<4).first(where: { active[$0] == nil }) {

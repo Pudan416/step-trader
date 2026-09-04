@@ -3,6 +3,7 @@ import Foundation
 
 struct DayObjectsMixState: Equatable, Sendable {
     let rhythmTargetDecibels: Double
+    let bassTargetDecibels: Double
     let harmonyTargetDecibels: Double
     let harmonyPerVoiceTargetDecibels: Double
     let happeningAggregateTargetDecibels: Double
@@ -26,7 +27,7 @@ protocol DayObjectsMixBackend: AnyObject {
 final class DayObjectsMixController {
     private static let minimumDecibels = -60.0
     private static let maximumLayerDecibels = 0.0
-    private static let maximumMasterDecibels = -2.0
+    private static let maximumMasterDecibels = -6.0
     private static let maximumHarmonyDuckingDecibels = 2.5
 
     private let backend: DayObjectsMixBackend
@@ -66,6 +67,7 @@ final class DayObjectsMixController {
 
         backend.apply(.init(
             rhythmTargetDecibels: rhythm,
+            bassTargetDecibels: decibels(plan.bassTargetDecibels),
             harmonyTargetDecibels: harmony,
             harmonyPerVoiceTargetDecibels: harmonyPerVoice,
             happeningAggregateTargetDecibels: happeningAggregate,

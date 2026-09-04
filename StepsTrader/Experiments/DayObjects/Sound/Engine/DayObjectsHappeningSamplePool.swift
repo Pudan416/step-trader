@@ -2,6 +2,7 @@
 import AudioKit
 import AVFoundation
 import Foundation
+import SoundpipeAudioKit
 
 enum HappeningPlaybackPriority: Int, Comparable, Sendable {
     case recurrence = 0
@@ -18,9 +19,54 @@ struct HappeningPlaybackHandle: Equatable, Hashable, Sendable {
 
 struct HappeningEffectCommand: Equatable, Sendable {
     let filterCutoffHz: Double
-    let delayMix: Double
+    let directLevel: Double
+    let delaySend: Double
     let delayFeedback: Double
-    let reverbMix: Double
+    let reverbSend: Double
+    let reverbDecay: Double
+
+    // Compatibility views keep recipe data migration localized while the bus
+    // consumes explicit direct/send ownership below.
+    var delayMix: Double { delaySend }
+    var reverbMix: Double { reverbSend }
+
+    init(
+        filterCutoffHz: Double,
+        directLevel: Double,
+        delaySend: Double,
+        delayFeedback: Double,
+        reverbSend: Double,
+        reverbDecay: Double
+    ) {
+        self.filterCutoffHz = filterCutoffHz
+        self.directLevel = directLevel
+        self.delaySend = delaySend
+        self.delayFeedback = delayFeedback
+        self.reverbSend = reverbSend
+        self.reverbDecay = reverbDecay
+    }
+
+    init(filterCutoffHz: Double, delayMix: Double, delayFeedback: Double, reverbMix: Double) {
+        self.init(
+            filterCutoffHz: filterCutoffHz,
+            directLevel: max(pow(1 - min(max(reverbMix, 0), 1), 1.6), 0.06),
+            delaySend: delayMix,
+            delayFeedback: delayFeedback,
+            reverbSend: reverbMix,
+            reverbDecay: 0.84
+        )
+    }
+}
+
+struct HappeningPan: Equatable, Sendable {
+    let left: Double
+    let right: Double
+
+    static func gains(for pan: Double) -> Self {
+        let bounded = min(max(pan.isFinite ? pan : 0, -1), 1)
+        let angle = (bounded + 1) * .pi / 4
+        return .init(left: cos(angle), right: sin(angle))
+    }
 }
 
 enum HappeningSamplePoolError: Error, Equatable, Sendable {
@@ -67,7 +113,8 @@ protocol DayObjectsHappeningSamplePoolProtocol: AnyObject {
         _ sound: ResolvedHappeningSound,
         gain: Double,
         priority: HappeningPlaybackPriority,
-        effects: HappeningEffectCommand
+        effects: HappeningEffectCommand,
+        pan: Double
     ) throws -> HappeningPlaybackHandle
     func applyEffects(_ command: HappeningEffectCommand, rampSeconds: Double)
     func update(_ handle: HappeningPlaybackHandle, gain: Double, playbackRate: Double)
@@ -118,11 +165,23 @@ protocol DayObjectsHappeningSampleVoiceBackend: AnyObject {
         gain: Double,
         attackSeconds: Double,
         releaseSeconds: Double,
-        resonantFilterHz: Double?
+        resonantFilterHz: Double?,
+        pan: Double
     )
     func update(gain: Double, playbackRate: Double, rampSeconds: Double)
     func release()
     func stop()
+}
+
+extension DayObjectsHappeningSamplePoolProtocol {
+    func play(
+        _ sound: ResolvedHappeningSound,
+        gain: Double,
+        priority: HappeningPlaybackPriority,
+        effects: HappeningEffectCommand
+    ) throws -> HappeningPlaybackHandle {
+        try play(sound, gain: gain, priority: priority, effects: effects, pan: 0)
+    }
 }
 
 @MainActor
@@ -223,10 +282,7 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
             lowPassCutoff: 18_000,
             dryWetMix: AUValue(currentEffects.delayMix * 100)
         )
-        directGain = DayObjectsAppleGainNode(
-            input: delay,
-            gain: Self.directPresence(for: currentEffects.reverbMix)
-        )
+        directGain = DayObjectsAppleGainNode(input: delay, gain: currentEffects.directLevel)
         reverb = Reverb(delay, dryWetMix: 1)
         reverb.loadFactoryPreset(.cathedral)
         reverbWet = DayObjectsAppleGainNode(input: reverb, gain: currentEffects.reverbMix)
@@ -281,6 +337,17 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
         priority: HappeningPlaybackPriority,
         effects: HappeningEffectCommand
     ) throws -> HappeningPlaybackHandle {
+        try play(sound, gain: gain, priority: priority, effects: effects, pan: 0)
+    }
+
+    @discardableResult
+    func play(
+        _ sound: ResolvedHappeningSound,
+        gain: Double,
+        priority: HappeningPlaybackPriority,
+        effects: HappeningEffectCommand,
+        pan: Double
+    ) throws -> HappeningPlaybackHandle {
         guard availableRecipeIDs.contains(sound.recipeID),
               let recipe = recipesByID[sound.recipeID] else {
             throw HappeningSamplePoolError.recipeUnavailable(sound.recipeID)
@@ -326,7 +393,8 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
             gain: playbackGain,
             attackSeconds: recipe.attackSeconds,
             releaseSeconds: recipe.releaseSeconds,
-            resonantFilterHz: sound.resonantFilterHz
+            resonantFilterHz: sound.resonantFilterHz,
+            pan: pan
         )
         return handle
     }
@@ -370,13 +438,8 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
         transition(filter.$cutoffFrequency, to: sanitized.filterCutoffHz, duration: duration)
         transition(delay.$dryWetMix, to: sanitized.delayMix * 100, duration: duration)
         transition(delay.$feedback, to: sanitized.delayFeedback * 100, duration: duration)
-        directGain.setLinearGain(Self.directPresence(for: sanitized.reverbMix), rampSeconds: duration)
-        reverbWet.setLinearGain(sanitized.reverbMix, rampSeconds: duration)
-    }
-
-    private static func directPresence(for reverbMix: Double) -> Double {
-        let boundedMix = min(max(reverbMix, 0), 1)
-        return max(pow(1 - boundedMix, 1.6), 0.06)
+        directGain.setLinearGain(sanitized.directLevel, rampSeconds: duration)
+        reverbWet.setLinearGain(sanitized.reverbSend, rampSeconds: duration)
     }
 
     func releaseAll() {
@@ -444,9 +507,11 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
         let divisor = Double(contributions.count)
         let aggregate = HappeningEffectCommand(
             filterCutoffHz: contributions.reduce(0) { $0 + $1.filterCutoffHz } / divisor,
-            delayMix: contributions.reduce(0) { $0 + $1.delayMix } / divisor,
+            directLevel: contributions.reduce(0) { $0 + $1.directLevel } / divisor,
+            delaySend: contributions.reduce(0) { $0 + $1.delaySend } / divisor,
             delayFeedback: contributions.reduce(0) { $0 + $1.delayFeedback } / divisor,
-            reverbMix: contributions.reduce(0) { $0 + $1.reverbMix } / divisor
+            reverbSend: contributions.reduce(0) { $0 + $1.reverbSend } / divisor,
+            reverbDecay: contributions.reduce(0) { $0 + $1.reverbDecay } / divisor
         )
         applyEffectsToBus(aggregate, duration: 0)
     }
@@ -454,20 +519,24 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
     private static func sanitizedEffects(_ command: HappeningEffectCommand) -> HappeningEffectCommand {
         .init(
             filterCutoffHz: clampFilter(command.filterCutoffHz),
-            delayMix: unit(command.delayMix),
+            directLevel: unit(command.directLevel),
+            delaySend: unit(command.delaySend),
             delayFeedback: min(
                 nonnegative(command.delayFeedback),
                 DayObjectsAudioParameters.maximumDelayFeedback
             ),
-            reverbMix: unit(command.reverbMix)
+            reverbSend: unit(command.reverbSend),
+            reverbDecay: unit(command.reverbDecay)
         )
     }
 
     private static func effectOrdering(_ lhs: HappeningEffectCommand, _ rhs: HappeningEffectCommand) -> Bool {
         if lhs.filterCutoffHz != rhs.filterCutoffHz { return lhs.filterCutoffHz < rhs.filterCutoffHz }
-        if lhs.delayMix != rhs.delayMix { return lhs.delayMix < rhs.delayMix }
+        if lhs.directLevel != rhs.directLevel { return lhs.directLevel < rhs.directLevel }
+        if lhs.delaySend != rhs.delaySend { return lhs.delaySend < rhs.delaySend }
         if lhs.delayFeedback != rhs.delayFeedback { return lhs.delayFeedback < rhs.delayFeedback }
-        return lhs.reverbMix < rhs.reverbMix
+        if lhs.reverbSend != rhs.reverbSend { return lhs.reverbSend < rhs.reverbSend }
+        return lhs.reverbDecay < rhs.reverbDecay
     }
 
     private func refreshReleasedSlots() {
@@ -633,11 +702,11 @@ private final class DayObjectsAppleGainNode: Node {
 
 @MainActor
 private final class DayObjectsAudioKitHappeningSampleVoice: DayObjectsHappeningSampleVoiceBackend {
-    var output: Node { gainNode }
     private let player = AudioPlayer()
     private let variSpeed: VariSpeed
     private let resonanceNode: DayObjectsAppleResonanceNode
     private let gainNode: DayObjectsAppleGainNode
+    private let panner: Panner
     private var releaseSeconds: TimeInterval = 0
 
     init(voiceID: Int) {
@@ -651,7 +720,10 @@ private final class DayObjectsAudioKitHappeningSampleVoice: DayObjectsHappeningS
         variSpeed = VariSpeed(player)
         resonanceNode = DayObjectsAppleResonanceNode(input: variSpeed)
         gainNode = DayObjectsAppleGainNode(input: resonanceNode, gain: 0)
+        panner = Panner(gainNode, pan: 0)
     }
+
+    var output: Node { panner }
 
     func play(
         buffer: AVAudioPCMBuffer,
@@ -659,11 +731,15 @@ private final class DayObjectsAudioKitHappeningSampleVoice: DayObjectsHappeningS
         gain: Double,
         attackSeconds: Double,
         releaseSeconds: Double,
-        resonantFilterHz: Double?
+        resonantFilterHz: Double?,
+        pan: Double
     ) {
         player.buffer = buffer
         variSpeed.rate = AUValue(playbackRate)
         resonanceNode.setResonance(resonantFilterHz)
+        let boundedPan = min(max(pan.isFinite ? pan : 0, -1), 1)
+        _ = HappeningPan.gains(for: boundedPan)
+        panner.pan = AUValue(boundedPan)
         self.releaseSeconds = releaseSeconds
         setLinearGain(gain, rampSeconds: attackSeconds)
         guard gainNode.avAudioNode.engine?.isRunning == true else { return }
@@ -712,7 +788,8 @@ final class DayObjectsInactiveHappeningSamplePool: DayObjectsHappeningSamplePool
         _ sound: ResolvedHappeningSound,
         gain: Double,
         priority: HappeningPlaybackPriority,
-        effects: HappeningEffectCommand
+        effects: HappeningEffectCommand,
+        pan: Double
     ) throws -> HappeningPlaybackHandle {
         throw HappeningSamplePoolError.recipeUnavailable(sound.recipeID)
     }

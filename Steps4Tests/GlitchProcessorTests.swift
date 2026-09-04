@@ -37,11 +37,22 @@ final class GlitchProcessorTests: XCTestCase {
             XCTAssertEqual(command.stereoSeparationAddition, 0, accuracy: 1e-12)
             XCTAssertEqual(command.delayTimeVariation, 0, accuracy: 1e-12)
             XCTAssertEqual(command.saturationAmount, 0, accuracy: 1e-12)
+            XCTAssertEqual(command.outputCompensationGain, 1, accuracy: 1e-12)
             XCTAssertEqual(command.timingDriftMilliseconds, 0, accuracy: 1e-12)
             XCTAssertEqual(command.dropoutAttenuationDecibels, 0, accuracy: 1e-12)
             XCTAssertEqual(command.dropoutReleaseSeconds, 0, accuracy: 1e-12)
             XCTAssertEqual(command.rampDurationSeconds, 0.25, accuracy: 1e-12)
         }
+    }
+
+    func testLeadSaturationPublishesMonotonicOutputCompensation() throws {
+        let backend = RecordingGlitchBackend()
+        let processor = GlitchProcessor(backend: backend)
+        processor.apply(makePlan(spentColors: 100))
+
+        let lead = try command(.lead, in: backend)
+        XCTAssertEqual(lead.outputCompensationGain, pow(10, (-4 * 0.18) / 20), accuracy: 1e-12)
+        XCTAssertLessThan(lead.outputCompensationGain, 1)
     }
 
     func testZeroProgressOverridesMalformedNonzeroRoleValues() throws {

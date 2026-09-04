@@ -18,13 +18,14 @@ final class DayObjectsMixControllerTests: XCTestCase {
         )
 
         let state = try XCTUnwrap(backend.states.last)
-        XCTAssertEqual(state.rhythmTargetDecibels, -6, accuracy: 1e-12)
-        XCTAssertEqual(state.harmonyTargetDecibels, -10.25, accuracy: 1e-12)
-        XCTAssertEqual(state.harmonyPerVoiceTargetDecibels, -10.25, accuracy: 1e-12)
-        XCTAssertEqual(state.happeningAggregateTargetDecibels, -2, accuracy: 1e-12)
-        XCTAssertEqual(state.happeningPerVoiceTargetDecibels, -2, accuracy: 1e-12)
-        XCTAssertEqual(state.leadTargetDecibels, -12, accuracy: 1e-12)
-        XCTAssertEqual(state.masterTargetDecibelsBeforeLimiter, -2, accuracy: 1e-12)
+        XCTAssertEqual(state.rhythmTargetDecibels, -10, accuracy: 1e-12)
+        XCTAssertEqual(state.bassTargetDecibels, -12, accuracy: 1e-12)
+        XCTAssertEqual(state.harmonyTargetDecibels, -11.25, accuracy: 1e-12)
+        XCTAssertEqual(state.harmonyPerVoiceTargetDecibels, -11.25, accuracy: 1e-12)
+        XCTAssertEqual(state.happeningAggregateTargetDecibels, -8, accuracy: 1e-12)
+        XCTAssertEqual(state.happeningPerVoiceTargetDecibels, -14, accuracy: 1e-12)
+        XCTAssertEqual(state.leadTargetDecibels, -9, accuracy: 1e-12)
+        XCTAssertEqual(state.masterTargetDecibelsBeforeLimiter, -6, accuracy: 1e-12)
         XCTAssertEqual(state.harmonyDuckingDecibels, 1.25, accuracy: 1e-12)
         XCTAssertEqual(state.delayFeedback, 0.4, accuracy: 1e-12)
         XCTAssertEqual(state.reverbFeedback, 0.7, accuracy: 1e-12)
@@ -48,10 +49,7 @@ final class DayObjectsMixControllerTests: XCTestCase {
 
         for state in backend.states {
             XCTAssertEqual(state.harmonyPerVoiceTargetDecibels, state.harmonyTargetDecibels)
-            XCTAssertEqual(
-                state.happeningPerVoiceTargetDecibels,
-                state.happeningAggregateTargetDecibels
-            )
+            XCTAssertLessThanOrEqual(state.happeningPerVoiceTargetDecibels, state.happeningAggregateTargetDecibels)
         }
     }
 
@@ -60,6 +58,7 @@ final class DayObjectsMixControllerTests: XCTestCase {
         let controller = DayObjectsMixController(backend: backend)
         let malformed = LayerMixPlan(
             rhythmTargetDecibels: 6,
+            bassTargetDecibels: 6,
             harmonyTargetDecibels: 6,
             happeningAggregateTargetDecibels: 6,
             happeningPerVoiceTargetDecibels: 6,
@@ -93,6 +92,7 @@ final class DayObjectsMixControllerTests: XCTestCase {
         let controller = DayObjectsMixController(backend: backend)
         let malformed = LayerMixPlan(
             rhythmTargetDecibels: .nan,
+            bassTargetDecibels: .infinity,
             harmonyTargetDecibels: .infinity,
             happeningAggregateTargetDecibels: -.infinity,
             happeningPerVoiceTargetDecibels: .nan,
@@ -154,6 +154,7 @@ private extension DayObjectsMixState {
     var finiteValues: [Double] {
         [
             rhythmTargetDecibels,
+            bassTargetDecibels,
             harmonyTargetDecibels,
             harmonyPerVoiceTargetDecibels,
             happeningAggregateTargetDecibels,

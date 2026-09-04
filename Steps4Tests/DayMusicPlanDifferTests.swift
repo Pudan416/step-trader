@@ -144,6 +144,7 @@ final class DayMusicPlanDifferTests: XCTestCase {
         )
         let changedMix = LayerMixPlan(
             rhythmTargetDecibels: oldPlan.mix.rhythmTargetDecibels,
+            bassTargetDecibels: oldPlan.mix.bassTargetDecibels,
             harmonyTargetDecibels: oldPlan.mix.harmonyTargetDecibels,
             happeningAggregateTargetDecibels: oldPlan.mix.happeningAggregateTargetDecibels,
             happeningPerVoiceTargetDecibels: oldPlan.mix.happeningPerVoiceTargetDecibels,
@@ -440,6 +441,7 @@ final class DayMusicPlanDifferTests: XCTestCase {
         let oldMix = oldPlan.mix
         let newMix = LayerMixPlan(
             rhythmTargetDecibels: oldMix.rhythmTargetDecibels + 0.5,
+            bassTargetDecibels: oldMix.bassTargetDecibels,
             harmonyTargetDecibels: oldMix.harmonyTargetDecibels,
             happeningAggregateTargetDecibels: oldMix.happeningAggregateTargetDecibels,
             happeningPerVoiceTargetDecibels: oldMix.happeningPerVoiceTargetDecibels,
@@ -587,6 +589,7 @@ final class DayMusicPlanDifferTests: XCTestCase {
         let mix = generatedNewPlan.mix
         let changedMix = LayerMixPlan(
             rhythmTargetDecibels: mix.rhythmTargetDecibels + 0.5,
+            bassTargetDecibels: mix.bassTargetDecibels,
             harmonyTargetDecibels: mix.harmonyTargetDecibels,
             happeningAggregateTargetDecibels: mix.happeningAggregateTargetDecibels,
             happeningPerVoiceTargetDecibels: mix.happeningPerVoiceTargetDecibels,
@@ -623,6 +626,7 @@ final class DayMusicPlanDifferTests: XCTestCase {
         let mix = generatedNewPlan.mix
         let changedMix = LayerMixPlan(
             rhythmTargetDecibels: mix.rhythmTargetDecibels,
+            bassTargetDecibels: mix.bassTargetDecibels,
             harmonyTargetDecibels: mix.harmonyTargetDecibels,
             happeningAggregateTargetDecibels: mix.happeningAggregateTargetDecibels,
             happeningPerVoiceTargetDecibels: mix.happeningPerVoiceTargetDecibels,

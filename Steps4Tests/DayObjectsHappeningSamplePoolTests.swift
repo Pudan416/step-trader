@@ -6,6 +6,14 @@ import XCTest
 
 @MainActor
 final class DayObjectsHappeningSamplePoolTests: XCTestCase {
+    func testConstantPowerPanMapsEdgesAndCenterToExpectedStereoGains() {
+        XCTAssertEqual(HappeningPan.gains(for: -1).left, 1, accuracy: 1e-12)
+        XCTAssertEqual(HappeningPan.gains(for: -1).right, 0, accuracy: 1e-12)
+        XCTAssertEqual(HappeningPan.gains(for: 0).left, sqrt(0.5), accuracy: 1e-12)
+        XCTAssertEqual(HappeningPan.gains(for: 0).right, sqrt(0.5), accuracy: 1e-12)
+        XCTAssertEqual(HappeningPan.gains(for: 1).left, 0, accuracy: 1e-12)
+        XCTAssertEqual(HappeningPan.gains(for: 1).right, 1, accuracy: 1e-12)
+    }
     func testNewPoolStartsWithAmbientTailDefaultEffects() throws {
         let harness = try preparedHarness()
 
@@ -886,7 +894,8 @@ private final class FakeHappeningVoice: DayObjectsHappeningSampleVoiceBackend {
         gain: Double,
         attackSeconds: Double,
         releaseSeconds: Double,
-        resonantFilterHz: Double?
+        resonantFilterHz: Double?,
+        pan: Double
     ) {
         playCount += 1
         playCalls.append(.init(
@@ -925,7 +934,8 @@ private extension DayObjectsHappeningSamplePoolProtocol {
             sound,
             gain: gain,
             priority: priority,
-            effects: .init(filterCutoffHz: 8_000, delayMix: 0, delayFeedback: 0, reverbMix: 0)
+            effects: .init(filterCutoffHz: 8_000, delayMix: 0, delayFeedback: 0, reverbMix: 0),
+            pan: 0
         )
     }
 

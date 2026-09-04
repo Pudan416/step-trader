@@ -257,7 +257,9 @@ final class LeadPlayer {
         pool.update(token, with: .init(
             midiNote: Double(mapping.midiNote) + glitchCommand.pitchDriftCents / 100,
             cutoffHz: cutoff,
-            expression: expressiveGain(depth: mapping.expressionDepth) * Self.unit(glitchCommand.dryGain),
+            expression: expressiveGain(depth: mapping.expressionDepth)
+                * Self.unit(glitchCommand.dryGain)
+                * Self.unit(glitchCommand.outputCompensationGain),
             delaySend: Self.unit(plan.delaySend),
             reverbSend: Self.unit(plan.reverbSend),
             saturationAmount: Self.unit(glitchCommand.saturationAmount),

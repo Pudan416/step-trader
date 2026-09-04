@@ -1,6 +1,7 @@
 #if DEBUG || INTERNAL_BUILD
 struct LayerMixPlan: Equatable, Sendable {
     let rhythmTargetDecibels: Double
+    let bassTargetDecibels: Double
     let harmonyTargetDecibels: Double
     let happeningAggregateTargetDecibels: Double
     let happeningPerVoiceTargetDecibels: Double

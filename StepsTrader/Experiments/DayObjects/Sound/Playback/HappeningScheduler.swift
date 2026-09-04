@@ -383,7 +383,8 @@ final class HappeningScheduler {
                 realizedSound,
                 gain: gain,
                 priority: priority,
-                effects: effectCommand
+                effects: effectCommand,
+                pan: state.plan.pan
             )
         } catch {
             return false
