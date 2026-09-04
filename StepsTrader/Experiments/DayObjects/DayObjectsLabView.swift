@@ -18,6 +18,10 @@ struct DayObjectsLabView: View {
     @State private var visualClarity = 0.55
     @State private var spentColors: Double = 0
     @State private var showsGrid = false
+    @State private var showsCalendarTile = false
+    @State private var editorialBackground: DayObjectEditorialBackground = .dark
+    @State private var lowSleep = false
+    @State private var reduceMotionPreview = false
     @State private var showControls = true
 
     private var dayKey: String {
@@ -45,7 +49,9 @@ struct DayObjectsLabView: View {
     }
 
     private var chromeColorScheme: ColorScheme {
-        relativeLuminance(currentScene.palette.backgroundBase) > 0.45 ? .light : .dark
+        let background = currentScene.sceneRecipeV1?.background.linearRGB
+            ?? currentScene.palette.backgroundBase
+        return relativeLuminance(background) > 0.45 ? .light : .dark
     }
 
     private var languageSummary: String {
@@ -58,7 +64,9 @@ struct DayObjectsLabView: View {
             currentScene.paletteSet.primaryObjects.code,
             currentScene.paletteSet.secondaryObjects.code,
         ].joined(separator: "/")
-        return "family=\(currentScene.visualLanguage.family) "
+        let family = currentScene.sceneRecipeV1?.actors.first?.material.family.gpuFamily
+            ?? currentScene.visualLanguage.family
+        return "family=\(family) "
             + "mutations=\(mutationCounts[.base, default: 0])/"
             + "\(mutationCounts[.soft, default: 0])/"
             + "\(mutationCounts[.accent, default: 0]) "
@@ -70,6 +78,8 @@ struct DayObjectsLabView: View {
         ZStack(alignment: .bottom) {
             if showsGrid {
                 grid
+            } else if showsCalendarTile {
+                calendarTile
             } else {
                 DayObjectsView(
                     sceneInput: currentSceneInput,
@@ -92,6 +102,26 @@ struct DayObjectsLabView: View {
     }
 
     // MARK: - Grid
+
+    private var calendarTile: some View {
+        GeometryReader { geometry in
+            let side = min(geometry.size.width - 24, geometry.size.height * 0.62)
+            DayObjectsView(
+                sceneInput: currentSceneInput,
+                digitalImpact: digitalImpact
+            )
+            .frame(width: side, height: side)
+            .clipped()
+            .overlay {
+                RoundedRectangle(cornerRadius: 2)
+                    .stroke(.white.opacity(0.16), lineWidth: 1)
+            }
+            .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.38)
+        }
+        .background(Color.black.opacity(0.88))
+        .ignoresSafeArea()
+        .accessibilityIdentifier("dayObjects.calendarTile")
+    }
 
     private var grid: some View {
         GeometryReader { geometry in
@@ -140,14 +170,33 @@ struct DayObjectsLabView: View {
                 .accessibilityIdentifier("dayObjects.nextDay")
 
                 Button {
-                    showsGrid.toggle()
+                    showsCalendarTile.toggle()
+                    if showsCalendarTile { showsGrid = false }
                 } label: {
-                    Label(showsGrid ? "Single" : "Grid", systemImage: "square.grid.3x3")
+                    Label(showsCalendarTile ? "Full" : "Tile", systemImage: "calendar")
                         .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("dayObjects.tileToggle")
+
+                Button {
+                    showsGrid.toggle()
+                    if showsGrid { showsCalendarTile = false }
+                } label: {
+                    Image(systemName: showsGrid ? "square" : "square.grid.3x3")
+                        .frame(minWidth: 28)
                 }
                 .buttonStyle(.bordered)
                 .accessibilityIdentifier("dayObjects.gridToggle")
             }
+
+            Picker("Background", selection: $editorialBackground) {
+                ForEach(DayObjectEditorialBackground.allCases) { background in
+                    Text(background.title).tag(background)
+                }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("dayObjects.background")
 
             slider(
                 "Happenings",
@@ -173,6 +222,14 @@ struct DayObjectsLabView: View {
                 readout: visualClarity.formatted(.number.precision(.fractionLength(2))),
                 identifier: "dayObjects.visualClarity"
             )
+            HStack {
+                Toggle("Low sleep", isOn: $lowSleep)
+                    .accessibilityIdentifier("dayObjects.lowSleep")
+                Toggle("Reduce Motion", isOn: $reduceMotionPreview)
+                    .accessibilityIdentifier("dayObjects.reduceMotionPreview")
+            }
+            .font(.geist(.caption))
+            .foregroundStyle(.white.opacity(0.85))
             digitalImpactControls
 
             if !showsGrid {
@@ -293,9 +350,12 @@ struct DayObjectsLabView: View {
             eventIDs: (0..<happeningCount).map { "lab-event-\($0)" },
             motionEnergy: motionEnergy,
             visualClarity: visualClarity,
-            reduceMotion: reduceMotion,
+            reduceMotion: reduceMotion || reduceMotionPreview,
             canvasCoverage: Self.canvasCoverage,
-            paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw)
+            paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw),
+            usesEditorialField: true,
+            editorialBackground: editorialBackground,
+            lowSleep: lowSleep
         )
     }
 
