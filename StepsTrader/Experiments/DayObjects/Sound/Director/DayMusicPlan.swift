@@ -4,6 +4,8 @@ struct DayMusicPlan: Equatable, Sendable {
     let input: NormalizedDayMusicInput
     let world: TonalWorldPlan
     let rhythm: RhythmPlan
+    let groove: GroovePlan
+    let bass: BassPlan?
     let harmony: HarmonyPlan
     let happenings: [HappeningMusicPlan]
     let lead: LeadPlan

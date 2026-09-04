@@ -10,10 +10,27 @@ enum DeterministicMusicDirector {
             input: normalizedInput,
             remixSeed: remixSeed
         )
-        let rhythm = RhythmPlanner.makePlan(
+        var groove = GroovePlanner.makePlan(remixSeed: remixSeed)
+        var rhythm = RhythmPlanner.makePlan(
             input: normalizedInput,
+            remixSeed: remixSeed,
+            groove: groove
+        )
+        let bass = BassPlanner.makePlan(
+            input: normalizedInput,
+            tonalWorld: world,
+            groove: groove,
+            instrumentDescriptors: descriptors,
             remixSeed: remixSeed
         )
+        if groove.usesBass && bass == nil {
+            groove = .percussion
+            rhythm = RhythmPlanner.makePlan(
+                input: normalizedInput,
+                remixSeed: remixSeed,
+                groove: groove
+            )
+        }
         let harmony = HarmonyPlanner.makePlan(
             input: normalizedInput,
             tonalWorld: world,
@@ -38,6 +55,8 @@ enum DeterministicMusicDirector {
             input: normalizedInput,
             world: world,
             rhythm: rhythm,
+            groove: groove,
+            bass: bass,
             harmony: harmony,
             happenings: happenings,
             lead: lead,

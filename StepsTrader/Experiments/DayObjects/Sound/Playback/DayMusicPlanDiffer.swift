@@ -44,6 +44,7 @@ enum DayMusicPlanDiffer {
             motionEnergy: plan.input.motionEnergy,
             visualClarity: plan.input.visualClarity,
             rhythm: ContinuousRhythmSignature(plan: plan.rhythm),
+            bass: plan.bass.map(ContinuousBassSignature.init),
             harmonyRoles: plan.harmony.roles.map(ContinuousHarmonyRoleSignature.init),
             lead: ContinuousLeadSignature(plan: plan.lead),
             glitch: ContinuousGlitchSignature(plan: plan.glitch)
@@ -63,6 +64,8 @@ enum DayMusicPlanDiffer {
             seed: plan.seed,
             world: plan.world,
             rhythm: StructuralRhythmSignature(plan: plan.rhythm),
+            groove: StructuralGrooveSignature(plan: plan.groove),
+            bass: plan.bass.map(StructuralBassSignature.init),
             harmony: StructuralHarmonySignature(plan: plan.harmony),
             existingHappenings: commonHappenings,
             lead: StructuralLeadSignature(plan: plan.lead),
@@ -93,9 +96,36 @@ private struct ContinuousSignature: Equatable {
     let motionEnergy: Double
     let visualClarity: Double
     let rhythm: ContinuousRhythmSignature
+    let bass: ContinuousBassSignature?
     let harmonyRoles: [ContinuousHarmonyRoleSignature]
     let lead: ContinuousLeadSignature
     let glitch: ContinuousGlitchSignature
+}
+
+private struct ContinuousBassSignature: Equatable {
+    let activeEvents: [ContinuousBassEventSignature]
+    let cutoffMultiplier: Double
+    let glideMilliseconds: Double
+    let reverbSend: Double
+    let duckingDecibels: Double
+
+    init(plan: BassPlan) {
+        activeEvents = plan.activeEvents.map(ContinuousBassEventSignature.init)
+        cutoffMultiplier = plan.cutoffMultiplier
+        glideMilliseconds = plan.glideMilliseconds
+        reverbSend = plan.reverbSend
+        duckingDecibels = plan.ducking.maximumAttenuationDecibels
+    }
+}
+
+private struct ContinuousBassEventSignature: Equatable {
+    let stableID: UInt64
+    let velocity: Double
+
+    init(plan: BassEventPlan) {
+        stableID = plan.stableID
+        velocity = plan.velocity
+    }
 }
 
 private struct ContinuousRhythmSignature: Equatable {
@@ -222,10 +252,60 @@ private struct StructuralSignature: Equatable {
     let seed: UInt64
     let world: TonalWorldPlan
     let rhythm: StructuralRhythmSignature
+    let groove: StructuralGrooveSignature
+    let bass: StructuralBassSignature?
     let harmony: StructuralHarmonySignature
     let existingHappenings: [HappeningMusicPlan]
     let lead: StructuralLeadSignature
     let glitch: StructuralGlitchSignature
+}
+
+private struct StructuralGrooveSignature: Equatable {
+    let mode: GrooveMode
+
+    init(plan: GroovePlan) {
+        mode = plan.mode
+    }
+}
+
+private struct StructuralBassSignature: Equatable {
+    let mode: GrooveMode
+    let instrumentID: DayObjectsInstrumentID
+    let articulation: BassArticulation
+    let register: ClosedRange<UInt8>
+    let events: [StructuralBassEventSignature]
+    let duckAttackSeconds: Double
+    let duckHoldSeconds: Double
+    let duckReleaseSeconds: Double
+
+    init(plan: BassPlan) {
+        mode = plan.mode
+        instrumentID = plan.instrumentID
+        articulation = plan.articulation
+        register = plan.register
+        events = plan.events.map(StructuralBassEventSignature.init)
+        duckAttackSeconds = plan.ducking.attackSeconds
+        duckHoldSeconds = plan.ducking.holdSeconds
+        duckReleaseSeconds = plan.ducking.releaseSeconds
+    }
+}
+
+private struct StructuralBassEventSignature: Equatable {
+    let stableID: UInt64
+    let chordIndex: Int
+    let startSubdivision: Int64
+    let durationSubdivisions: Int64
+    let midiNote: UInt8
+    let allowedPitchClasses: Set<Int>
+
+    init(plan: BassEventPlan) {
+        stableID = plan.stableID
+        chordIndex = plan.chordIndex
+        startSubdivision = plan.startSubdivision
+        durationSubdivisions = plan.durationSubdivisions
+        midiNote = plan.midiNote
+        allowedPitchClasses = plan.allowedPitchClasses
+    }
 }
 
 private struct StructuralRhythmSignature: Equatable {

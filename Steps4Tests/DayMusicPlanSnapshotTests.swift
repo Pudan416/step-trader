@@ -33,7 +33,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 0,
                 spentColors: 0,
                 seed: 0x1,
-                expected: "seed=1|input=0/0/0/0|world=4:mixolydian:12:[4]:[12]|tempo=7200/7200|rhythm=|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=|lead=lead.bb-silver-screen:[59]:[81]"
+                expected: "seed=1|input=0/0/0/0|world=4:mixolydian:12:[4]:[12]|tempo=7200/7200|rhythm=|groove=bass-arp|bass=bass.bb-roys-phaser:0|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=|lead=lead.bb-silver-screen:[59]:[81]"
             ),
             BoundaryFixture(
                 name: "early-day",
@@ -42,7 +42,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 1,
                 spentColors: 10,
                 seed: 0x2,
-                expected: "seed=2|input=15/35/1/100|world=0:major-pentatonic:16:[0]:[16]|tempo=7100/7400|rhythm=low-pulse,half-time-kick|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=event-0:pluck:recipe-3|lead=lead.jec-softwah-2:[60]:[81]"
+                expected: "seed=2|input=15/35/1/100|world=0:major-pentatonic:16:[0]:[16]|tempo=7100/7400|rhythm=low-pulse,half-time-kick|groove=bass-arp|bass=bass.bb-roys-phaser:0|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=event-0:pluck:recipe-3|lead=lead.jec-softwah-2:[60]:[81]"
             ),
             BoundaryFixture(
                 name: "mid-day",
@@ -51,7 +51,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 5,
                 spentColors: 25,
                 seed: 0xD4A0_B1EC_75ED_0001,
-                expected: "seed=d4a0b1ec75ed0001|input=35/70/5/625|world=0:dorian:12:[0, 5]:[6, 6]|tempo=7600/8300|rhythm=low-pulse,half-time-kick,closed-hat|harmony=drone=pad.whispering-sands,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.bb-slow-poly,piano-or-keys-accents=felt-piano,inner-motion=keys.bb-slow-poly|happenings=event-0:mallet:recipe-8,event-1:pluck:recipe-3,event-2:bell:recipe-13,event-3:texture:recipe-28,event-4:soft-one-shot:recipe-19|lead=lead.bb-silver-screen:[60, 57]:[81, 81]"
+                expected: "seed=d4a0b1ec75ed0001|input=35/70/5/625|world=0:dorian:12:[0, 5]:[6, 6]|tempo=7600/8300|rhythm=low-pulse,half-time-kick,closed-hat|groove=bass-arp|bass=bass.bb-roys-phaser:2|harmony=drone=pad.whispering-sands,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.bb-slow-poly,piano-or-keys-accents=felt-piano,inner-motion=keys.bb-slow-poly|happenings=event-0:mallet:recipe-8,event-1:pluck:recipe-3,event-2:bell:recipe-13,event-3:texture:recipe-28,event-4:soft-one-shot:recipe-19|lead=lead.bb-silver-screen:[60, 57]:[81, 81]"
             ),
             BoundaryFixture(
                 name: "full-happenings",
@@ -60,7 +60,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 10,
                 spentColors: 50,
                 seed: 0xFFFF_FFFF_FFFF_FFFF,
-                expected: "seed=ffffffffffffffff|input=60/99/10/2500|world=7:dorian:8:[7, 5, 0]:[3, 3, 2]|tempo=6000/7200|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion|harmony=drone=pad.whispering-sands,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.bb-slow-poly,piano-or-keys-accents=felt-piano,inner-motion=keys.jec-polaroids-2|happenings=event-0:mallet:recipe-8,event-1:bell:recipe-16,event-2:pluck:recipe-4,event-3:texture:recipe-29,event-4:soft-one-shot:recipe-20,event-5:mallet:recipe-12,event-6:bell:recipe-14,event-7:pluck:recipe-3,event-8:texture:recipe-25,event-9:soft-one-shot:recipe-21|lead=lead.jec-softwah-2:[58, 57, 60]:[81, 81, 81]"
+                expected: "seed=ffffffffffffffff|input=60/99/10/2500|world=7:dorian:8:[7, 5, 0]:[3, 3, 2]|tempo=6000/7200|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion|groove=bass-bed|bass=bass.hey-jakob:3|harmony=drone=pad.whispering-sands,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.bb-slow-poly,piano-or-keys-accents=felt-piano,inner-motion=keys.jec-polaroids-2|happenings=event-0:mallet:recipe-8,event-1:bell:recipe-16,event-2:pluck:recipe-4,event-3:texture:recipe-29,event-4:soft-one-shot:recipe-20,event-5:mallet:recipe-12,event-6:bell:recipe-14,event-7:pluck:recipe-3,event-8:texture:recipe-25,event-9:soft-one-shot:recipe-21|lead=lead.jec-softwah-2:[58, 57, 60]:[81, 81, 81]"
             ),
             BoundaryFixture(
                 name: "fully-rested",
@@ -69,7 +69,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 0,
                 spentColors: 100,
                 seed: 0x1,
-                expected: "seed=1|input=85/100/0/10000|world=4:mixolydian:8:[4, 11, 2]:[3, 3, 2]|tempo=7200/8900|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion,syncopated-ghost,fills|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=|lead=lead.bb-silver-screen:[59, 59, 57]:[81, 81, 81]"
+                expected: "seed=1|input=85/100/0/10000|world=4:mixolydian:8:[4, 11, 2]:[3, 3, 2]|tempo=7200/8900|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion,syncopated-ghost,fills|groove=bass-arp|bass=bass.bb-roys-phaser:21|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=|lead=lead.bb-silver-screen:[59, 59, 57]:[81, 81, 81]"
             ),
             BoundaryFixture(
                 name: "steps-goal",
@@ -78,7 +78,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 1,
                 spentColors: 0,
                 seed: 0x2,
-                expected: "seed=2|input=100/0/1/0|world=0:major-pentatonic:16:[0]:[16]|tempo=7100/9100|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion,syncopated-ghost,fills|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=event-0:pluck:recipe-3|lead=lead.jec-softwah-2:[60]:[81]"
+                expected: "seed=2|input=100/0/1/0|world=0:major-pentatonic:16:[0]:[16]|tempo=7100/9100|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion,syncopated-ghost,fills|groove=bass-arp|bass=bass.bb-roys-phaser:51|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=event-0:pluck:recipe-3|lead=lead.jec-softwah-2:[60]:[81]"
             ),
         ]
 
@@ -242,6 +242,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
         requireFinite([plan.rhythm.baseTempoBPM, plan.rhythm.tempoBPM, plan.rhythm.rhythmicRichness], "rhythm finite")
         require((58...82).contains(plan.rhythm.baseTempoBPM), "base tempo")
         require((58...102).contains(plan.rhythm.tempoBPM), "final tempo")
+        require(plan.rhythm.groove == plan.groove, "published groove matches rhythm groove")
         require(plan.rhythm.voices.count == RhythmRole.allCases.count, "rhythm roles")
         for voice in plan.rhythm.voices {
             require(voice.stepProbabilities.count == 16, "sixteen-step pattern")
@@ -261,6 +262,26 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
         }
 
         let descriptorIDs = Set(DayObjectsInstrumentManifest.defaultDescriptors.map(\.id))
+        if plan.groove.usesBass {
+            guard let bass = plan.bass else {
+                require(false, "bass groove requires bass plan")
+                return failures
+            }
+            require(bass.mode == plan.groove.mode, "bass groove mode")
+            require(descriptorIDs.contains(bass.instrumentID), "bass descriptor")
+            require(bass.register.lowerBound <= bass.register.upperBound, "bass register")
+            require(bass.stepsProgress == plan.input.stepsProgress, "bass steps progress")
+            require(
+                bass.events.map(\.stableID) == bass.events.map(\.stableID).sorted(),
+                "bass event order"
+            )
+            require(
+                Set(bass.activeEvents.map(\.stableID)).isSubset(of: Set(bass.events.map(\.stableID))),
+                "bass active events are candidates"
+            )
+        } else {
+            require(plan.bass == nil, "percussion groove has no bass plan")
+        }
         require(plan.harmony.cycleBars == plan.world.cycleBars, "harmony cycle")
         require(plan.harmony.chordCount == plan.world.progression.count, "harmony chord count")
         requireFinite([plan.harmony.sleepProgress, plan.harmony.harmonicInformationScore], "harmony finite")
@@ -436,6 +457,8 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
             "world=\(plan.world.centerPitchClass):\(modeName(plan.world.mode)):\(plan.world.cycleBars):\(plan.world.progression.map(\.rootPitchClass)):\(plan.world.progression.map(\.durationBars))",
             "tempo=\(Int((plan.rhythm.baseTempoBPM * 100).rounded()))/\(Int((plan.rhythm.tempoBPM * 100).rounded()))",
             "rhythm=\(activeRhythm)",
+            "groove=\(grooveModeName(plan.groove.mode))",
+            "bass=\(plan.bass?.instrumentID.rawValue ?? "none"):\(plan.bass?.activeEvents.count ?? 0)",
             "harmony=\(harmony)",
             "happenings=\(happenings)",
             "lead=\(plan.lead.instrumentID.rawValue):\(plan.lead.pitchRegions.first?.midiNotesByChord ?? []):\(plan.lead.pitchRegions.last?.midiNotesByChord ?? [])",
@@ -448,6 +471,15 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
         case .aeolian: return "aeolian"
         case .mixolydian: return "mixolydian"
         case .majorPentatonic: return "major-pentatonic"
+        }
+    }
+
+    private func grooveModeName(_ mode: GrooveMode) -> String {
+        switch mode {
+        case .percussion: return "percussion"
+        case .bassPulse: return "bass-pulse"
+        case .bassArp: return "bass-arp"
+        case .bassBed: return "bass-bed"
         }
     }
 

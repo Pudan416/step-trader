@@ -46,6 +46,14 @@ final class DeterministicMusicDirectorTests: XCTestCase {
         let normalized = input.normalized()
         let descriptors = DayObjectsInstrumentManifest.defaultDescriptors
         let world = TonalWorldPlanner.makePlan(input: normalized, remixSeed: seed)
+        let groove = GroovePlanner.makePlan(remixSeed: seed)
+        let bass = BassPlanner.makePlan(
+            input: normalized,
+            tonalWorld: world,
+            groove: groove,
+            instrumentDescriptors: descriptors,
+            remixSeed: seed
+        )
         let expectedHappenings = HappeningMusicPlanner.makePlans(
             input: normalized,
             tonalWorld: world,
@@ -54,7 +62,12 @@ final class DeterministicMusicDirectorTests: XCTestCase {
         let plan = DeterministicMusicDirector.makePlan(input: input, remixSeed: seed)
 
         XCTAssertEqual(plan.world, world)
-        XCTAssertEqual(plan.rhythm, RhythmPlanner.makePlan(input: normalized, remixSeed: seed))
+        XCTAssertEqual(plan.groove, groove)
+        XCTAssertEqual(plan.bass, bass)
+        XCTAssertEqual(
+            plan.rhythm,
+            RhythmPlanner.makePlan(input: normalized, remixSeed: seed, groove: groove)
+        )
         XCTAssertEqual(
             plan.harmony,
             HarmonyPlanner.makePlan(
@@ -84,6 +97,40 @@ final class DeterministicMusicDirectorTests: XCTestCase {
             GlitchPlanner.makePlan(input: normalized, remixSeed: seed)
         )
         XCTAssertEqual(plan.mix, LayerMixPlanner.makePlan(happeningCount: expectedHappenings.count))
+    }
+
+    func testHappeningCountCannotChangePublishedGrooveOrBassCandidates() throws {
+        let seed = seedProducingBass()
+        let sharedDay = DayMusicInput(
+            countedSteps: 8_500,
+            stepGoal: 10_000,
+            countedSleepHours: 7,
+            sleepGoalHours: 8,
+            happeningIDs: [],
+            spentColors: 25
+        )
+        let sparse = DeterministicMusicDirector.makePlan(input: sharedDay, remixSeed: seed)
+        let crowded = DeterministicMusicDirector.makePlan(
+            input: DayMusicInput(
+                countedSteps: sharedDay.countedSteps,
+                stepGoal: sharedDay.stepGoal,
+                countedSleepHours: sharedDay.countedSleepHours,
+                sleepGoalHours: sharedDay.sleepGoalHours,
+                happeningIDs: (0..<10).map { "event-\($0)" },
+                spentColors: sharedDay.spentColors
+            ),
+            remixSeed: seed
+        )
+
+        XCTAssertEqual(sparse.groove, crowded.groove)
+        XCTAssertEqual(
+            try XCTUnwrap(sparse.bass).instrumentID,
+            try XCTUnwrap(crowded.bass).instrumentID
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(sparse.bass).events,
+            try XCTUnwrap(crowded.bass).events
+        )
     }
 
     func testGoalOverachievementCannotAddMusicalComplexity() {
@@ -182,6 +229,14 @@ final class DeterministicMusicDirectorTests: XCTestCase {
             happeningIDs: happeningIDs,
             spentColors: 50
         )
+    }
+
+    private func seedProducingBass() -> UInt64 {
+        for seed in UInt64(0)..<10_000 where GroovePlanner.makePlan(remixSeed: seed).usesBass {
+            return seed
+        }
+        XCTFail("No Bass Groove seed found")
+        return 0
     }
 
     private func selectedSoundIDs(in plan: DayMusicPlan) -> [String] {

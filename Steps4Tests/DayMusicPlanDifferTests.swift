@@ -22,6 +22,12 @@ final class DayMusicPlanDifferTests: XCTestCase {
         XCTAssertEqual(oldPlan.rhythm.family, newPlan.rhythm.family)
         XCTAssertEqual(oldPlan.rhythm.patternOffsetSteps, newPlan.rhythm.patternOffsetSteps)
         XCTAssertEqual(oldPlan.rhythm.realization, newPlan.rhythm.realization)
+        XCTAssertEqual(oldPlan.groove.mode, newPlan.groove.mode)
+        XCTAssertEqual(oldPlan.bass?.instrumentID, newPlan.bass?.instrumentID)
+        XCTAssertEqual(
+            oldPlan.bass?.events.map(\.stableID),
+            newPlan.bass?.events.map(\.stableID)
+        )
 
         let change = DayMusicPlanDiffer.change(from: oldPlan, to: newPlan)
 
@@ -29,6 +35,51 @@ final class DayMusicPlanDifferTests: XCTestCase {
         XCTAssertNil(change.structuralPlan)
         XCTAssertEqual(change.addedHappenings, [])
         XCTAssertEqual(change.removedHappeningIDs, [])
+    }
+
+    func testChangingPublishedBassInstrumentIsStructuralEvenWhenContinuousBassValuesMatch() throws {
+        let oldPlan = try planWithBass()
+        let alternateInstrument = try XCTUnwrap(
+            DayObjectsInstrumentManifest.defaultDescriptors.first {
+                $0.category == .bass && $0.id != oldPlan.bass?.instrumentID
+            }
+        )
+        let oldBass = try XCTUnwrap(oldPlan.bass)
+        let newBass = BassPlan(
+            mode: oldBass.mode,
+            instrumentID: alternateInstrument.id,
+            register: oldBass.register,
+            articulation: oldBass.articulation,
+            stepsProgress: oldBass.stepsProgress,
+            cutoffMultiplier: oldBass.cutoffMultiplier,
+            glideMilliseconds: oldBass.glideMilliseconds,
+            reverbSend: oldBass.reverbSend,
+            ducking: oldBass.ducking,
+            events: oldBass.events
+        )
+        let newPlan = replacing(oldPlan, bass: newBass)
+
+        let change = DayMusicPlanDiffer.change(from: oldPlan, to: newPlan)
+
+        XCTAssertNil(change.continuousPlan)
+        XCTAssertEqual(change.structuralPlan, newPlan)
+    }
+
+    func testChangingPublishedGrooveModeIsStructuralEvenWhenBassCandidatesMatch() throws {
+        let oldPlan = try planWithBass()
+        let alternateMode: GrooveMode = oldPlan.groove.mode == .bassPulse ? .bassArp : .bassPulse
+        let alternateGroove = GroovePlan(
+            mode: alternateMode,
+            auxiliaryRetention: oldPlan.groove.auxiliaryRetention,
+            maximumAnchorKicksPerBar: oldPlan.groove.maximumAnchorKicksPerBar,
+            thinningSeed: oldPlan.groove.thinningSeed
+        )
+        let newPlan = replacing(oldPlan, groove: alternateGroove)
+
+        let change = DayMusicPlanDiffer.change(from: oldPlan, to: newPlan)
+
+        XCTAssertNil(change.continuousPlan)
+        XCTAssertEqual(change.structuralPlan, newPlan)
     }
 
     func testSpentColorsChangeIsContinuousGlitchOnly() {
@@ -247,6 +298,8 @@ final class DayMusicPlanDifferTests: XCTestCase {
             input: oldPlan.input,
             world: oldPlan.world,
             rhythm: oldPlan.rhythm,
+            groove: oldPlan.groove,
+            bass: oldPlan.bass,
             harmony: oldPlan.harmony,
             happenings: alternatePlan.happenings,
             lead: oldPlan.lead,
@@ -343,6 +396,8 @@ final class DayMusicPlanDifferTests: XCTestCase {
             input: oneHappeningPlan.input,
             world: oneHappeningPlan.world,
             rhythm: oneHappeningPlan.rhythm,
+            groove: oneHappeningPlan.groove,
+            bass: oneHappeningPlan.bass,
             harmony: oneHappeningPlan.harmony,
             happenings: [happening, happening],
             lead: oneHappeningPlan.lead,
@@ -390,6 +445,8 @@ final class DayMusicPlanDifferTests: XCTestCase {
     private func replacing(
         _ plan: DayMusicPlan,
         rhythm: RhythmPlan? = nil,
+        groove: GroovePlan? = nil,
+        bass: BassPlan? = nil,
         glitch: GlitchPlan? = nil,
         mix: LayerMixPlan? = nil
     ) -> DayMusicPlan {
@@ -398,12 +455,22 @@ final class DayMusicPlanDifferTests: XCTestCase {
             input: plan.input,
             world: plan.world,
             rhythm: rhythm ?? plan.rhythm,
+            groove: groove ?? (rhythm ?? plan.rhythm).groove,
+            bass: bass ?? plan.bass,
             harmony: plan.harmony,
             happenings: plan.happenings,
             lead: plan.lead,
             glitch: glitch ?? plan.glitch,
             mix: mix ?? plan.mix
         )
+    }
+
+    private func planWithBass() throws -> DayMusicPlan {
+        for remixSeed in UInt64(0)..<10_000 {
+            let plan = makePlan(remixSeed: remixSeed)
+            if plan.bass != nil { return plan }
+        }
+        throw XCTSkip("No Bass Groove seed found")
     }
 
     private func rhythm(
@@ -420,6 +487,7 @@ final class DayMusicPlanDifferTests: XCTestCase {
             family: plan.family,
             patternOffsetSteps: plan.patternOffsetSteps,
             humanizationProfile: plan.humanizationProfile,
+            groove: plan.groove,
             realization: plan.realization,
             voices: voices ?? plan.voices,
             maximumSimultaneousAttacks: plan.maximumSimultaneousAttacks,

@@ -1253,6 +1253,39 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(audible.mix, mixed.mix)
     }
 
+    func testLiveContinuousUpdatePreservesBassStructureAndRefreshesBassActivation() throws {
+        let seed = seedProducingBass()
+        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let initial = makePlaybackEnginePlan(seed: seed, steps: 1_500)
+        let update = makePlaybackEnginePlan(seed: seed, steps: 10_000)
+        let initialBass = try XCTUnwrap(initial.bass)
+        let updateBass = try XCTUnwrap(update.bass)
+        XCTAssertEqual(initialBass.events.map(\.stableID), updateBass.events.map(\.stableID))
+        XCTAssertNotEqual(
+            initialBass.activeEvents.map(\.stableID),
+            updateBass.activeEvents.map(\.stableID)
+        )
+        try runtime.prepare(plan: initial)
+
+        runtime.applyContinuous(update)
+
+        let audibleBass = try XCTUnwrap(runtime.activePlanForTesting?.bass)
+        XCTAssertEqual(audibleBass.mode, initialBass.mode)
+        XCTAssertEqual(audibleBass.instrumentID, initialBass.instrumentID)
+        XCTAssertEqual(audibleBass.articulation, initialBass.articulation)
+        XCTAssertEqual(audibleBass.register, initialBass.register)
+        XCTAssertEqual(audibleBass.events.map(\.stableID), initialBass.events.map(\.stableID))
+        XCTAssertEqual(audibleBass.stepsProgress, updateBass.stepsProgress)
+        XCTAssertEqual(audibleBass.activeEvents.map(\.stableID), updateBass.activeEvents.map(\.stableID))
+        XCTAssertEqual(audibleBass.cutoffMultiplier, updateBass.cutoffMultiplier)
+        XCTAssertEqual(audibleBass.glideMilliseconds, updateBass.glideMilliseconds)
+        XCTAssertEqual(audibleBass.reverbSend, updateBass.reverbSend)
+        XCTAssertEqual(
+            audibleBass.ducking.maximumAttenuationDecibels,
+            updateBass.ducking.maximumAttenuationDecibels
+        )
+    }
+
     func testLiveSafeHeldLeadKeepsSourceTokenAndDelaysOldBankRecycleUntilRelease() throws {
         let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
         let initial = makePlaybackEnginePlan(seed: 701)
@@ -1261,6 +1294,8 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
             input: initial.input,
             world: initial.world,
             rhythm: initial.rhythm,
+            groove: initial.groove,
+            bass: initial.bass,
             harmony: initial.harmony,
             happenings: initial.happenings,
             lead: initial.lead,
@@ -1889,11 +1924,12 @@ private func waitUntil(
 
 private func makePlaybackEnginePlan(
     seed: UInt64,
-    happeningIDs: [String] = ["a", "b"]
+    happeningIDs: [String] = ["a", "b"],
+    steps: Double = 7_500
 ) -> DayMusicPlan {
     DeterministicMusicDirector.makePlan(
         input: DayMusicInput(
-            countedSteps: 7_500,
+            countedSteps: steps,
             stepGoal: 10_000,
             countedSleepHours: 6,
             sleepGoalHours: 8,
@@ -1902,5 +1938,12 @@ private func makePlaybackEnginePlan(
         ),
         remixSeed: seed
     )
+}
+
+private func seedProducingBass() -> UInt64 {
+    for seed in UInt64(0)..<10_000 where GroovePlanner.makePlan(remixSeed: seed).usesBass {
+        return seed
+    }
+    fatalError("No Bass Groove seed found")
 }
 #endif

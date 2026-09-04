@@ -798,6 +798,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 family: structural.rhythm.family,
                 patternOffsetSteps: structural.rhythm.patternOffsetSteps,
                 humanizationProfile: structural.rhythm.humanizationProfile,
+                groove: structural.rhythm.groove,
                 realization: structural.rhythm.realization,
                 voices: rhythmVoices,
                 maximumSimultaneousAttacks: structural.rhythm.maximumSimultaneousAttacks,
@@ -869,16 +870,58 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 stereoSeparationAddition: update.glitch.stereoSeparationAddition,
                 realization: structural.glitch.realization
             )
+            let bass = mergedBass(from: update.bass, into: structural.bass)
             return DayMusicPlan(
                 seed: structural.seed,
                 input: update.input,
                 world: structural.world,
                 rhythm: rhythm,
+                groove: structural.groove,
+                bass: bass,
                 harmony: harmony,
                 happenings: structural.happenings,
                 lead: lead,
                 glitch: glitch,
                 mix: update.mix
+            )
+        }
+
+        private static func mergedBass(
+            from update: BassPlan?,
+            into structural: BassPlan?
+        ) -> BassPlan? {
+            guard let structural, let update else { return structural }
+            let events = structural.events.map { old in
+                guard let fresh = update.events.first(where: { $0.stableID == old.stableID }) else {
+                    return old
+                }
+                return BassEventPlan(
+                    stableID: old.stableID,
+                    chordIndex: old.chordIndex,
+                    startSubdivision: old.startSubdivision,
+                    durationSubdivisions: old.durationSubdivisions,
+                    midiNote: old.midiNote,
+                    velocity: fresh.velocity,
+                    activationThreshold: fresh.activationThreshold,
+                    allowedPitchClasses: old.allowedPitchClasses
+                )
+            }
+            return BassPlan(
+                mode: structural.mode,
+                instrumentID: structural.instrumentID,
+                register: structural.register,
+                articulation: structural.articulation,
+                stepsProgress: update.stepsProgress,
+                cutoffMultiplier: update.cutoffMultiplier,
+                glideMilliseconds: update.glideMilliseconds,
+                reverbSend: update.reverbSend,
+                ducking: BassDuckingPlan(
+                    maximumAttenuationDecibels: update.ducking.maximumAttenuationDecibels,
+                    attackSeconds: structural.ducking.attackSeconds,
+                    holdSeconds: structural.ducking.holdSeconds,
+                    releaseSeconds: structural.ducking.releaseSeconds
+                ),
+                events: events
             )
         }
     }

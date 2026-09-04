@@ -230,6 +230,8 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
             input: sleepUpdate.input,
             world: sleepUpdate.world,
             rhythm: sleepUpdate.rhythm,
+            groove: sleepUpdate.groove,
+            bass: sleepUpdate.bass,
             harmony: .init(
                 sleepProgress: sleepUpdate.harmony.sleepProgress,
                 cycleBars: sleepUpdate.harmony.cycleBars + 4,
