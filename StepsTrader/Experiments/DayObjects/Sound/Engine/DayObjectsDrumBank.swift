@@ -142,11 +142,14 @@ struct DayObjectsDrumGraphLayout: Equatable, Sendable {
     let filteredNoiseCount: Int
     let transientFilterCutoffHz: Double?
     let noiseFilterCutoffHz: Double?
+    let highPassCutoffHz: Double?
+    let outputTrimDecibels: Double
     let allocatedNodeCount: Int
 
     static let empty = DayObjectsDrumGraphLayout(
         samplePlayerCount: 0, sinePitchDropCount: 0, filteredNoiseCount: 0,
-        transientFilterCutoffHz: nil, noiseFilterCutoffHz: nil, allocatedNodeCount: 0
+        transientFilterCutoffHz: nil, noiseFilterCutoffHz: nil,
+        highPassCutoffHz: nil, outputTrimDecibels: 0, allocatedNodeCount: 0
     )
 }
 
@@ -501,7 +504,7 @@ final class DayObjectsAudioKitDrumBank {
 
     var metrics: DayObjectsAudioKitDrumBankMetrics {
         let layouts = Dictionary(uniqueKeysWithValues: DayObjectsDrumVoice.allCases.map { voice in
-            (voice, players.first(where: { $0.voice == voice })?.graphLayout ?? .empty)
+            (voice, players.first { $0.voice == voice }?.graphLayout ?? .empty)
         })
         return .init(
             preloadedSampleCount: preparedSampleCount,
@@ -554,6 +557,8 @@ final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
     private let noise: WhiteNoise?
     private let noiseFilter: LowPassFilter?
     private let noiseEnvelope: AmplitudeEnvelope?
+    private let highPass: HighPassFilter
+    private let trim: Fader
     private let recipe: DayObjectsDrumRecipe
     private let panner: Panner
     private let room: Reverb
@@ -608,9 +613,11 @@ final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
         if let sampleTransient {
             inputs.append(sampleTransient)
         }
-        panner = Panner(Mixer(inputs), pan: 0)
-        room = Reverb(panner, dryWetMix: 0)
-        output = Fader(room, gain: 0)
+        highPass = HighPassFilter(Mixer(inputs), cutoffFrequency: AUValue(recipe.highPassCutoffHz), resonance: 0)
+        panner = Panner(highPass, pan: 0)
+        trim = Fader(panner, gain: AUValue(pow(10, recipe.outputTrimDecibels / 20)))
+        room = Reverb(trim, dryWetMix: 0)
+        output = Fader(room, gain: 1)
         sine?.start()
         noise?.start()
         graphLayout = .init(
@@ -619,16 +626,17 @@ final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
             filteredNoiseCount: noise == nil ? 0 : 1,
             transientFilterCutoffHz: sampleTransient == nil ? nil : recipe.transientFilterCutoffHz,
             noiseFilterCutoffHz: noiseFilter == nil ? nil : recipe.noiseFilterCutoffHz,
-            allocatedNodeCount: (samplePlayer == nil ? 0 : 3) + (sine == nil ? 0 : 2) + (noise == nil ? 0 : 3) + 4
+            highPassCutoffHz: recipe.highPassCutoffHz,
+            outputTrimDecibels: recipe.outputTrimDecibels,
+            allocatedNodeCount: (samplePlayer == nil ? 0 : 3) + (sine == nil ? 0 : 2) + (noise == nil ? 0 : 3) + 6
         )
     }
 
     func play(_ hit: DayObjectsDrumHit) {
         guard layerScheduler.isReady(output: output) else { return }
         let hostTime = hit.scheduledHostTimeSeconds
-        let trimmedVelocity = hit.velocity * pow(10, recipe.outputTrimDecibels / 20)
-        layerScheduler.scheduleParameter(output.$leftGain, value: AUValue(trimmedVelocity), rampDuration: 0, layer: .outputGainLeft, atHostTime: hostTime)
-        layerScheduler.scheduleParameter(output.$rightGain, value: AUValue(trimmedVelocity), rampDuration: 0, layer: .outputGainRight, atHostTime: hostTime)
+        layerScheduler.scheduleParameter(output.$leftGain, value: AUValue(hit.velocity), rampDuration: 0, layer: .outputGainLeft, atHostTime: hostTime)
+        layerScheduler.scheduleParameter(output.$rightGain, value: AUValue(hit.velocity), rampDuration: 0, layer: .outputGainRight, atHostTime: hostTime)
         layerScheduler.scheduleParameter(panner.$pan, value: AUValue(hit.stereoOffset), rampDuration: 0, layer: .stereo, atHostTime: hostTime)
         // Apple's reverb exposes wet/dry mix at Audio Unit parameter address 0.
         layerScheduler.scheduleAUParameter(room, address: 0, value: AUValue(hit.roomSend * 100), range: 0...100, layer: .roomSend, atHostTime: hostTime)

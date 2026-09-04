@@ -251,6 +251,7 @@ private struct ContinuousGlitchRoleSignature: Equatable {
 
 private struct NonHappeningLayerMixSignature: Equatable {
     let rhythmTargetDecibels: Double
+    let bassTargetDecibels: Double
     let harmonyTargetDecibels: Double
     let leadTargetDecibels: Double
     let masterTargetDecibelsBeforeLimiter: Double
@@ -258,6 +259,7 @@ private struct NonHappeningLayerMixSignature: Equatable {
 
     init(plan: LayerMixPlan) {
         rhythmTargetDecibels = plan.rhythmTargetDecibels
+        bassTargetDecibels = plan.bassTargetDecibels
         harmonyTargetDecibels = plan.harmonyTargetDecibels
         leadTargetDecibels = plan.leadTargetDecibels
         masterTargetDecibelsBeforeLimiter = plan.masterTargetDecibelsBeforeLimiter
