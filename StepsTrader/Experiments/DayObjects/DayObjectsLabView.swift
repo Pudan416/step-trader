@@ -34,6 +34,8 @@ struct DayObjectsLabView: View {
     @State private var editorialBackground: DayObjectEditorialBackground = .dark
     @State private var lowSleep = false
     @State private var reduceMotionPreview = false
+    @State private var editorialMaterialMode: DayObjectEditorialLabMaterialMode = .mixed
+    @State private var editorialPlacement: DayObjectEditorialPreviewPlacement = .depthField
     @State private var showControls = !ProcessInfo.processInfo.arguments.contains(
         "-dayObjectsVisualHandoff"
     ) && Self.previewSpecFromLaunchArguments == nil
@@ -230,6 +232,30 @@ struct DayObjectsLabView: View {
                 .pickerStyle(.segmented)
                 .accessibilityIdentifier("dayObjects.background")
 
+                HStack {
+                    Text("Editorial 01")
+                        .font(.geist(.caption))
+                        .foregroundStyle(.white.opacity(0.85))
+                    Spacer()
+                    Picker("Material", selection: $editorialMaterialMode) {
+                        ForEach(DayObjectEditorialLabMaterialMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("dayObjects.materialMode")
+                    .accessibilityValue(editorialMaterialMode.title)
+                }
+
+                Picker("Placement", selection: $editorialPlacement) {
+                    ForEach(DayObjectEditorialPreviewPlacement.allCases) { placement in
+                        Text(placement.title).tag(placement)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("dayObjects.placement")
+                .accessibilityValue(editorialPlacement.title)
+
                 slider(
                     "Happenings",
                     value: $happenings,
@@ -398,7 +424,13 @@ struct DayObjectsLabView: View {
             usesEditorialField: true,
             editorialBackground: editorialBackground,
             lowSleep: lowSleep,
-            editorialPreview: preview
+            editorialPreview: preview,
+            editorialLabConfiguration: preview == nil
+                ? DayObjectEditorialLabConfiguration(
+                    materialMode: editorialMaterialMode,
+                    placement: editorialPlacement
+                )
+                : nil
         )
     }
 

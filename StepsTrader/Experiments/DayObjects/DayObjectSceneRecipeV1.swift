@@ -259,6 +259,7 @@ struct DayObjectSceneRecipeV1: Equatable {
     let backgroundStyle: DayObjectMeshGradientStyle
     let preview: DayObjectEditorialPreviewSpec?
     let previewPaletteSet: DayObjectPaletteSet?
+    let editorialLabConfiguration: DayObjectEditorialLabConfiguration?
 
     func actor(_ eventID: String) -> DayObjectSceneRecipeActorV1? {
         actors.first { $0.eventID == eventID }
@@ -270,7 +271,8 @@ struct DayObjectSceneRecipeV1: Equatable {
         background: DayObjectEditorialBackground,
         lowSleep: Bool,
         paletteSet: DayObjectPaletteSet? = nil,
-        preview: DayObjectEditorialPreviewSpec? = nil
+        preview: DayObjectEditorialPreviewSpec? = nil,
+        editorialLabConfiguration: DayObjectEditorialLabConfiguration? = nil
     ) -> DayObjectSceneRecipeV1 {
         if let preview, let paletteSet {
             return makePreview(
@@ -280,6 +282,16 @@ struct DayObjectSceneRecipeV1: Equatable {
                 lowSleep: lowSleep,
                 paletteSet: paletteSet,
                 preview: preview
+            )
+        }
+        if let editorialLabConfiguration, let paletteSet {
+            return makeEditorialLabVariant(
+                rootSeed: rootSeed,
+                actors: actors,
+                background: background,
+                lowSleep: lowSleep,
+                paletteSet: paletteSet,
+                configuration: editorialLabConfiguration
             )
         }
         let materialSeed = approvedMaterialSeeds[Int(rootSeed % UInt64(approvedMaterialSeeds.count))]
@@ -321,7 +333,8 @@ struct DayObjectSceneRecipeV1: Equatable {
             actors: recipeActors,
             backgroundStyle: neutralBackgroundStyle(background),
             preview: nil,
-            previewPaletteSet: nil
+            previewPaletteSet: nil,
+            editorialLabConfiguration: nil
         )
     }
 
@@ -334,6 +347,16 @@ struct DayObjectSceneRecipeV1: Equatable {
                 lowSleep: lowSleep,
                 paletteSet: previewPaletteSet,
                 preview: preview
+            )
+        }
+        if let editorialLabConfiguration, let previewPaletteSet {
+            return Self.makeEditorialLabVariant(
+                rootSeed: materialSeed,
+                actors: actors,
+                background: background,
+                lowSleep: lowSleep,
+                paletteSet: previewPaletteSet,
+                configuration: editorialLabConfiguration
             )
         }
         return Self.make(
@@ -387,7 +410,7 @@ struct DayObjectSceneRecipeV1: Equatable {
                     daySeed: rootSeed,
                     eventID: actor.eventID,
                     slot: index,
-                    preview: preview,
+                    material: preview.material,
                     paletteSet: paletteSet
                 ),
                 motion: makeMotion(daySeed: rootSeed, eventID: actor.eventID)
@@ -400,12 +423,108 @@ struct DayObjectSceneRecipeV1: Equatable {
             background: background,
             lowSleep: lowSleep,
             actors: recipeActors,
-            backgroundStyle: DayObjectMeshGradientStyle.make(
+            backgroundStyle: vividPreviewBackgroundStyle(
                 seed: rootSeed,
                 palette: DayObjectPalette.make(modernPalette: paletteSet.background)
             ),
             preview: preview,
-            previewPaletteSet: paletteSet
+            previewPaletteSet: paletteSet,
+            editorialLabConfiguration: nil
+        )
+    }
+
+    private static func makeEditorialLabVariant(
+        rootSeed: UInt64,
+        actors: [DayObjectActor],
+        background: DayObjectEditorialBackground,
+        lowSleep: Bool,
+        paletteSet: DayObjectPaletteSet,
+        configuration: DayObjectEditorialLabConfiguration
+    ) -> DayObjectSceneRecipeV1 {
+        let planned = CompositionPlanner.make(
+            daySeed: rootSeed,
+            eventIDs: CorpusManifest.canonicalEventIDs,
+            viewport: .phone
+        )
+        let geometries = planned.actors.enumerated().map { index, actor in
+            previewGeometry(
+                Geometry(
+                    position: SIMD2(actor.position.x, actor.position.y),
+                    diameter: actor.diameter,
+                    depth: actor.depth,
+                    localBlur: actor.localBlur,
+                    cropAllowance: actor.cropAllowance,
+                    drawOrder: actor.drawOrder
+                ),
+                slot: index,
+                rootSeed: rootSeed,
+                placement: configuration.placement
+            )
+        }
+        let recipeActors = Array(actors.prefix(geometries.count)).enumerated().map { index, actor in
+            let geometry = geometries[index]
+            let material = configuration.materialMode.singleMaterial
+                ?? mixedMaterial(eventID: actor.eventID)
+            return DayObjectSceneRecipeActorV1(
+                eventID: actor.eventID,
+                slot: index,
+                position: geometry.position,
+                diameter: geometry.diameter,
+                depth: geometry.depth,
+                localBlur: geometry.localBlur,
+                cropAllowance: geometry.cropAllowance,
+                drawOrder: geometry.drawOrder,
+                material: makePreviewMaterial(
+                    daySeed: rootSeed,
+                    eventID: actor.eventID,
+                    slot: index,
+                    material: material,
+                    paletteSet: paletteSet
+                ),
+                motion: makeMotion(daySeed: rootSeed, eventID: actor.eventID)
+            )
+        }
+        return DayObjectSceneRecipeV1(
+            version: version,
+            compositionSourceSeed: rootSeed,
+            materialSeed: rootSeed,
+            background: background,
+            lowSleep: lowSleep,
+            actors: recipeActors,
+            backgroundStyle: vividPreviewBackgroundStyle(
+                seed: rootSeed,
+                palette: DayObjectPalette.make(modernPalette: paletteSet.background)
+            ),
+            preview: nil,
+            previewPaletteSet: paletteSet,
+            editorialLabConfiguration: configuration
+        )
+    }
+
+    private static func mixedMaterial(eventID: String) -> DayObjectEditorialPreviewMaterial {
+        let materials = DayObjectEditorialPreviewMaterial.allCases
+        let index = min(
+            Int(unit(stableHash(eventID) ^ 0x84) * Double(materials.count)),
+            materials.count - 1
+        )
+        return materials[index]
+    }
+
+    private static func vividPreviewBackgroundStyle(
+        seed: UInt64,
+        palette: DayObjectPalette
+    ) -> DayObjectMeshGradientStyle {
+        let base = DayObjectMeshGradientStyle.make(seed: seed, palette: palette)
+        return DayObjectMeshGradientStyle(
+            colors: base.colors,
+            archetype: base.archetype,
+            offset: base.offset,
+            distortion: max(base.distortion, 0.24),
+            swirl: base.swirl,
+            speed: base.speed,
+            scale: min(base.scale, 0.90),
+            phase: base.phase,
+            motionDirection: base.motionDirection
         )
     }
 
@@ -550,7 +669,7 @@ struct DayObjectSceneRecipeV1: Equatable {
         daySeed: UInt64,
         eventID: String,
         slot: Int,
-        preview: DayObjectEditorialPreviewSpec,
+        material: DayObjectEditorialPreviewMaterial,
         paletteSet: DayObjectPaletteSet
     ) -> DayObjectEditorialMaterialV1 {
         let actorSeed = daySeed ^ stableHash(eventID)
@@ -568,35 +687,50 @@ struct DayObjectSceneRecipeV1: Equatable {
         let actorPalette = (slot + Int(actorSeed % 3)).isMultiple(of: 3)
             ? secondary
             : primary
-        let colorPool: [SIMD3<Float>]
-        switch preview.material {
-        case .wideGradient:
-            colorPool = primary + secondary
-        default:
-            colorPool = actorPalette
+        let colorPool = actorPalette
+        let start: Int
+        if material == .wideGradient {
+            let cleanCandidates = colorPool.indices.sorted {
+                perceptualChroma(colorPool[$0]) > perceptualChroma(colorPool[$1])
+            }.prefix(2)
+            let candidates = Array(cleanCandidates)
+            start = candidates[Int(actorSeed % UInt64(max(candidates.count, 1)))]
+        } else {
+            start = Int(actorSeed % UInt64(max(colorPool.count, 1)))
         }
-        let start = Int(actorSeed % UInt64(max(colorPool.count, 1)))
-        let colors = (0..<preview.material.colorCount).map {
-            colorPool[(start + $0) % colorPool.count]
+        let colors: [SIMD3<Float>]
+        if material == .wideGradient, colorPool.count > 1 {
+            let base = colorPool[start]
+            let baseColour = DayObjectRGB(sRGB: base)
+            let lightnessShift: Float = baseColour.perceptualOKLab.x < 0.65 ? 0.075 : -0.075
+            let tonalVariation = baseColour.shiftingPerceptualLightness(
+                by: lightnessShift,
+                minimumChromaFraction: 0.80
+            )
+            colors = [base, tonalVariation.sRGB]
+        } else {
+            colors = (0..<material.colorCount).map {
+                colorPool[(start + $0) % colorPool.count]
+            }
         }
         let fields = makePreviewFields(
             actorSeed: actorSeed,
-            material: preview.material,
+            material: material,
             colorCount: colors.count
         )
         let accent = actorUnit(actorSeed, salt: 0xACC3_1700) > 0.54
-        let construction: (Double, Double, Double, Int) = switch preview.material {
+        let construction: (Double, Double, Double, Int) = switch material {
         case .solid: (1, 0.004, 0, 0)
         case .translucentSolid: (0.58, 0.006, 0, 0)
         case .softMist: (0.64, accent ? 0.13 : 0.11, 0, 0)
-        case .wideGradient: (0.92, 0.055, 0, 0)
+        case .wideGradient: (1, 0.055, 0, 0)
         case .softOutline:
             (0.98, 0.020, 0.052 + actorUnit(actorSeed, salt: 0x0A72) * 0.010, 1)
         case .hairlineOutline:
             (0.82, 0.003, 0.0045 + actorUnit(actorSeed, salt: 0x0A73) * 0.0015, 1)
         }
         return DayObjectEditorialMaterialV1(
-            family: preview.material.family,
+            family: material.family,
             colors: colors,
             fields: fields,
             baseOpacity: construction.0,
@@ -638,6 +772,11 @@ struct DayObjectSceneRecipeV1: Equatable {
             colorCount: colorCount,
             family: material.family
         )
+    }
+
+    private static func perceptualChroma(_ color: SIMD3<Float>) -> Float {
+        let lab = DayObjectRGB(sRGB: color).perceptualOKLab
+        return hypot(lab.y, lab.z)
     }
 
     private static func makeColors(

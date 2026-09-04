@@ -131,14 +131,50 @@ static uint dayObjectsGrainHash(uint2 pixel, uint seed, uint phase) {
     return value;
 }
 
+static float dayObjectsGrainHash01(uint2 cell, uint seed) {
+    return float(dayObjectsGrainHash(cell, seed, 0u)) / 4294967295.0;
+}
+
+static float dayObjectsSmoothGrainField(
+    float2 pixel,
+    float cellSize,
+    uint seed
+) {
+    const float2 gridPoint = max(pixel, 0.0) / cellSize;
+    const uint2 cell = uint2(floor(gridPoint));
+    float2 fraction = fract(gridPoint);
+    fraction = fraction * fraction * (3.0 - 2.0 * fraction);
+    const float top = mix(
+        dayObjectsGrainHash01(cell, seed),
+        dayObjectsGrainHash01(cell + uint2(1, 0), seed),
+        fraction.x
+    );
+    const float bottom = mix(
+        dayObjectsGrainHash01(cell + uint2(0, 1), seed),
+        dayObjectsGrainHash01(cell + uint2(1, 1), seed),
+        fraction.x
+    );
+    return mix(top, bottom, fraction.y);
+}
+
 static float dayObjectsGrainNoise(
     float2 uv,
     constant DayObjectsPostUniforms &uniforms
 ) {
-    const uint2 pixel = uint2(floor(saturate(uv) * max(uniforms.resolution, float2(1.0))));
-    const uint phase = uint(floor(max(uniforms.grainPhase, 0.0) * 12.0 + 0.5));
-    const uint bits = dayObjectsGrainHash(pixel, uniforms.grainSeed, phase);
-    return float(bits) / 4294967295.0;
+    float2 pixel = saturate(uv) * max(uniforms.resolution, float2(1.0));
+    const float drift = max(uniforms.grainPhase, 0.0);
+    pixel += float2(drift * 17.0, drift * 11.0);
+    const float medium = dayObjectsSmoothGrainField(
+        pixel,
+        7.0,
+        uniforms.grainSeed
+    );
+    const float large = dayObjectsSmoothGrainField(
+        pixel + float2(19.0, 31.0),
+        14.0,
+        uniforms.grainSeed ^ 0xA511E9B3u
+    );
+    return medium * 0.72 + large * 0.28;
 }
 
 static float dayObjectsGlitchHash(uint value) {

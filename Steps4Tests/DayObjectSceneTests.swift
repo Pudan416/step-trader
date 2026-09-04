@@ -133,6 +133,77 @@ final class DayObjectSceneTests: XCTestCase {
         }
     }
 
+    func testWideGradientUsesOnePaletteColourAndAHueStableTonalVariation() throws {
+        let specs = DayObjectEditorialPreviewCatalog.all.filter { $0.material == .wideGradient }
+        XCTAssertEqual(specs.count, 2)
+
+        for spec in specs {
+            let scene = DayObjectScene.make(input: editorialPreviewInput(spec))
+            let recipe = try XCTUnwrap(scene.sceneRecipeV1)
+            let shift = scene.paletteSet.actorLightnessShift ?? 0
+            let palettes = [
+                scene.paletteSet.primaryObjects,
+                scene.paletteSet.secondaryObjects,
+            ].map { palette in
+                palette.hexes.map {
+                    DayObjectRGB(hex: $0)
+                        .shiftingPerceptualLightness(by: shift)
+                        .sRGB
+                }
+            }
+
+            for actor in recipe.actors {
+                let colours = actor.material.colors
+                XCTAssertEqual(colours.count, 2)
+                XCTAssertTrue(
+                    palettes.contains { $0.contains(colours[0]) },
+                    "The base colour must come directly from an approved object palette"
+                )
+                let source = try XCTUnwrap(palettes.first { $0.contains(colours[0]) })
+                let base = DayObjectRGB(sRGB: colours[0]).perceptualOKLab
+                let variation = DayObjectRGB(sRGB: colours[1]).perceptualOKLab
+                let chromaDelta = hypot(
+                    Double(base.y - variation.y),
+                    Double(base.z - variation.z)
+                )
+                let lightnessDelta = abs(Double(base.x - variation.x))
+
+                XCTAssertLessThanOrEqual(chromaDelta, 0.025)
+                XCTAssertGreaterThanOrEqual(lightnessDelta, 0.045)
+                XCTAssertLessThanOrEqual(lightnessDelta, 0.10)
+                let cleanPaletteThreshold = source.map {
+                    let lab = DayObjectRGB(sRGB: $0).perceptualOKLab
+                    return hypot(Double(lab.y), Double(lab.z))
+                }.sorted(by: >)[min(1, source.count - 1)]
+                let baseChroma = hypot(Double(base.y), Double(base.z))
+                XCTAssertGreaterThanOrEqual(baseChroma, cleanPaletteThreshold - 0.000_001)
+                XCTAssertEqual(actor.material.baseOpacity, 1)
+            }
+        }
+    }
+
+    func testEditorialPreviewsUseBroadVisiblePaletteFieldsInTheBackground() throws {
+        for spec in DayObjectEditorialPreviewCatalog.all {
+            let scene = DayObjectScene.make(input: editorialPreviewInput(spec))
+            let style = try XCTUnwrap(scene.sceneRecipeV1?.backgroundStyle)
+            let uniqueColours = Set(style.colors.map { colour in
+                "\(colour.x),\(colour.y),\(colour.z)"
+            })
+
+            XCTAssertGreaterThanOrEqual(uniqueColours.count, 3)
+            XCTAssertGreaterThanOrEqual(
+                style.distortion,
+                0.24,
+                "Lab previews need visible overlapping background fields"
+            )
+            XCTAssertLessThanOrEqual(
+                style.scale,
+                0.90,
+                "Background fields must remain broad enough to read in one still"
+            )
+        }
+    }
+
     func testDepthFieldPreviewMakesLargerActorsCloserAndMoreOutOfFocus() throws {
         let spec = try XCTUnwrap(
             DayObjectEditorialPreviewCatalog.all.first { $0.placement == .depthField }
@@ -410,6 +481,121 @@ final class DayObjectSceneTests: XCTestCase {
         XCTAssertEqual(scene.compositionPlan.uiExclusionRegion.area, 0)
     }
 
+    func testEditorialLabMixedModeUsesAllSixApprovedObjectFormatsAtTenHappenings() throws {
+        let recipe = try XCTUnwrap(
+            DayObjectScene.make(
+                input: editorialLabInput(
+                    eventIDs: (0..<10).map { "lab-event-\($0)" },
+                    materialMode: .mixed
+                )
+            ).sceneRecipeV1
+        )
+        let materials = recipe.actors.map(\.material)
+
+        XCTAssertEqual(recipe.editorialLabConfiguration?.materialMode, .mixed)
+        XCTAssertTrue(materials.contains { $0.family == .solid && $0.baseOpacity == 1 })
+        XCTAssertTrue(materials.contains { $0.family == .solid && $0.baseOpacity < 0.7 })
+        XCTAssertTrue(materials.contains { $0.family == .mist })
+        XCTAssertTrue(materials.contains { $0.family == .gradient })
+        XCTAssertTrue(materials.contains {
+            $0.family == .outline && $0.contourWidth >= 0.05
+        })
+        XCTAssertTrue(materials.contains {
+            $0.family == .outline && $0.contourWidth < 0.012
+        })
+
+        let outlineSlots = recipe.actors.filter {
+            $0.material.family == .outline
+        }.map(\.slot)
+        XCTAssertGreaterThanOrEqual(outlineSlots.count, 3)
+        XCTAssertGreaterThanOrEqual(
+            try XCTUnwrap(outlineSlots.max()) - XCTUnwrap(outlineSlots.min()),
+            5,
+            "Outline formats must be distributed across the field, not hidden in one overlap cluster"
+        )
+    }
+
+    func testEditorialLabSingleMaterialModesRemainAvailable() throws {
+        for mode in DayObjectEditorialLabMaterialMode.allCases where mode != .mixed {
+            let recipe = try XCTUnwrap(
+                DayObjectScene.make(
+                    input: editorialLabInput(
+                        eventIDs: (0..<4).map { "lab-event-\($0)" },
+                        materialMode: mode
+                    )
+                ).sceneRecipeV1
+            )
+
+            XCTAssertEqual(recipe.editorialLabConfiguration?.materialMode, mode)
+            XCTAssertEqual(recipe.actors.count, 4)
+            XCTAssertTrue(recipe.actors.allSatisfy {
+                material($0.material, matches: mode)
+            })
+        }
+    }
+
+    func testEditorialLabMixedMaterialIdentitySurvivesActorRemovalAndReinsertion() throws {
+        let tenIDs = (0..<10).map { "lab-event-\($0)" }
+        let fullRecipe = try XCTUnwrap(
+            DayObjectScene.make(
+                input: editorialLabInput(eventIDs: tenIDs, materialMode: .mixed)
+            ).sceneRecipeV1
+        )
+        let reducedRecipe = try XCTUnwrap(
+            DayObjectScene.make(
+                input: editorialLabInput(
+                    eventIDs: Array(tenIDs.prefix(5)),
+                    materialMode: .mixed
+                )
+            ).sceneRecipeV1
+        )
+
+        for eventID in tenIDs.prefix(5) {
+            XCTAssertEqual(
+                fullRecipe.actor(eventID)?.material,
+                reducedRecipe.actor(eventID)?.material,
+                "Mixed material selection must be a stable function of actor identity"
+            )
+        }
+    }
+
+    func testEditorialLabPlacementModesPreserveApprovedDepthBehaviors() throws {
+        let eventIDs = (0..<10).map { "lab-event-\($0)" }
+        let depthActors = try XCTUnwrap(
+            DayObjectScene.make(
+                input: editorialLabInput(
+                    eventIDs: eventIDs,
+                    materialMode: .mixed,
+                    placement: .depthField
+                )
+            ).sceneRecipeV1
+        ).actors
+        let equalActors = try XCTUnwrap(
+            DayObjectScene.make(
+                input: editorialLabInput(
+                    eventIDs: eventIDs,
+                    materialMode: .mixed,
+                    placement: .equalMedium
+                )
+            ).sceneRecipeV1
+        ).actors
+
+        let depthDiameters = depthActors.map(\.diameter)
+        let equalDiameters = equalActors.map(\.diameter)
+        XCTAssertGreaterThan(
+            try XCTUnwrap(depthDiameters.max()) / XCTUnwrap(depthDiameters.min()),
+            5
+        )
+        XCTAssertLessThan(
+            try XCTUnwrap(equalDiameters.max()) - XCTUnwrap(equalDiameters.min()),
+            0.015
+        )
+        XCTAssertGreaterThan(
+            try XCTUnwrap(depthActors.max(by: { $0.diameter < $1.diameter }))?.localBlur ?? 0,
+            try XCTUnwrap(depthActors.min(by: { $0.diameter < $1.diameter }))?.localBlur ?? 0
+        )
+    }
+
     private func editorialPreviewInput(
         _ spec: DayObjectEditorialPreviewSpec
     ) -> DayObjectSceneInput {
@@ -426,6 +612,51 @@ final class DayObjectSceneTests: XCTestCase {
             editorialPreview: spec
         )
     }
+
+    private func editorialLabInput(
+        eventIDs: [String],
+        materialMode: DayObjectEditorialLabMaterialMode,
+        placement: DayObjectEditorialPreviewPlacement = .depthField
+    ) -> DayObjectSceneInput {
+        DayObjectSceneInput(
+            dayKey: "2026-09-05",
+            identity: "day-objects-lab",
+            eventIDs: eventIDs,
+            motionEnergy: 0.55,
+            visualClarity: 0.55,
+            reduceMotion: false,
+            canvasCoverage: .fullCanvas,
+            paletteCategories: [.pastel],
+            usesEditorialField: true,
+            editorialLabConfiguration: .init(
+                materialMode: materialMode,
+                placement: placement
+            )
+        )
+    }
+
+    private func material(
+        _ material: DayObjectEditorialMaterialV1,
+        matches mode: DayObjectEditorialLabMaterialMode
+    ) -> Bool {
+        switch mode {
+        case .mixed:
+            true
+        case .solid:
+            material.family == .solid && material.baseOpacity == 1
+        case .translucentSolid:
+            material.family == .solid && material.baseOpacity < 0.7
+        case .softMist:
+            material.family == .mist
+        case .wideGradient:
+            material.family == .gradient
+        case .softOutline:
+            material.family == .outline && material.contourWidth >= 0.05
+        case .hairlineOutline:
+            material.family == .outline && material.contourWidth < 0.012
+        }
+    }
+
 }
 
 final class DayObjectCompositionTests: XCTestCase {

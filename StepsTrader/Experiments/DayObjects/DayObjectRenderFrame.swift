@@ -64,7 +64,9 @@ struct DayObjectPostProcess: Equatable {
         grainIntensity = 0.05
 
         let elapsed = rawElapsed.isFinite ? max(rawElapsed, 0) : 0
-        grainPhase = reduceMotion ? 0 : floor(elapsed * 12) / 12
+        // Drift the final monochrome grain by roughly one pixel per second.
+        // Reduce Motion freezes the same seeded texture instead of replacing it.
+        grainPhase = reduceMotion ? 0 : elapsed * 0.06
     }
 
     private static func clampedUnit(_ value: Double) -> Double {

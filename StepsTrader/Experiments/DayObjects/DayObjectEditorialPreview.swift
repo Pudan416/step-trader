@@ -54,6 +54,44 @@ enum DayObjectEditorialPreviewPlacement: String, CaseIterable, Hashable, Identif
     }
 }
 
+/// The first interactive Editorial Field variant exposed only inside Day Objects Lab.
+/// Mixed deterministically assigns one of the six approved preview materials to
+/// each stable event identity; the remaining cases keep every format available
+/// for focused comparison without maintaining a second material implementation.
+enum DayObjectEditorialLabMaterialMode: String, CaseIterable, Hashable, Identifiable {
+    case mixed
+    case solid
+    case translucentSolid
+    case softMist
+    case wideGradient
+    case softOutline
+    case hairlineOutline
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .mixed: "Mixed"
+        case .solid: "Solid"
+        case .translucentSolid: "Translucent solid"
+        case .softMist: "Soft mist"
+        case .wideGradient: "Wide gradient"
+        case .softOutline: "Soft outline"
+        case .hairlineOutline: "Hairline outline"
+        }
+    }
+
+    var singleMaterial: DayObjectEditorialPreviewMaterial? {
+        guard self != .mixed else { return nil }
+        return DayObjectEditorialPreviewMaterial(rawValue: rawValue)
+    }
+}
+
+struct DayObjectEditorialLabConfiguration: Equatable, Hashable {
+    let materialMode: DayObjectEditorialLabMaterialMode
+    let placement: DayObjectEditorialPreviewPlacement
+}
+
 struct DayObjectEditorialPreviewSpec: Equatable, Hashable, Identifiable {
     let index: Int
     let paletteCategory: ModernPaletteCategory

@@ -129,6 +129,24 @@ final class DayObjectsLabUITests: XCTestCase {
         add(gridScreenshot)
     }
 
+    func testLabExposesEditorialMaterialAndPlacementControls() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-uiLab", "dayObjects",
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        let material = app.descendants(matching: .any)["dayObjects.materialMode"].firstMatch
+        let placement = app.descendants(matching: .any)["dayObjects.placement"].firstMatch
+
+        XCTAssertTrue(material.waitForExistence(timeout: 8))
+        XCTAssertTrue(String(describing: material.value).contains("Mixed"))
+        XCTAssertTrue(placement.exists)
+        XCTAssertTrue(String(describing: placement.value).contains("Depth field"))
+    }
+
     func testLabControlsAbsoluteSpentColorsInSingleAndGridModes() throws {
         let app = XCUIApplication()
         app.launchArguments = [

@@ -153,9 +153,24 @@ static float dayObjectsRadialLayerWeight(
     );
 }
 
-/// Ordered radial stops around one seeded focal point. Secondary HTML-inspired
-/// fields may shape light, but they never compete for color ownership; points
-/// at the same radius therefore stay in the same part of the palette.
+static float dayObjectsSoftColorFieldWeight(
+    float2 point,
+    float4 layer,
+    float phase,
+    float2 phaseDirection
+) {
+    const float2 animatedFocus = layer.xy
+        + phaseDirection * (0.012 * sin(phase));
+    const float normalizedDistance = length(point - animatedFocus)
+        / max(layer.z, 1e-4);
+    const float softness = clamp(layer.w, 0.02, 1.0);
+    const float falloff = mix(3.2, 0.72, softness);
+    return exp(-normalizedDistance * normalizedDistance * falloff);
+}
+
+/// Wide, overlapping radial fields. Every field is smooth over its full
+/// support, so no ordered stop, angular split, or pasted-on colour patch can
+/// appear inside the circular body.
 static float3 dayObjectsLayeredRadialColor(
     DayObjectsActorVertexOut in,
     DayObjectGPUAppearance appearance,
@@ -181,40 +196,39 @@ static float3 dayObjectsLayeredRadialColor(
         cos(point.x * frequency - fieldPhase)
     ) * deformationScale;
     const float2 phaseDirection = float2(cos(fieldPhase), sin(fieldPhase));
-    const float2 animatedFocus = appearance.radial0.xy
-        + phaseDirection * (0.012 * sin(phase));
-    const float radialT = clamp(
-        length(point - animatedFocus) / max(appearance.radial0.z, 1e-4),
-        0.0,
-        1.0
-    );
-    const float stop0 = clamp(appearance.recipe0.x, 0.18, 0.72);
-    const float stop1 = max(clamp(appearance.recipe0.y, 0.42, 0.90), stop0 + 0.08);
-    const float transition = 0.15 + 0.16 * localSoftness;
-
     const float3 color0 = max(appearance.color0.rgb, 0.0);
     const float3 color1 = max(appearance.color1.rgb, 0.0);
     const float3 color2 = max(appearance.color2.rgb, 0.0);
     float3 result = color0;
     if (colorCount <= 1) {
         result = color0;
-    } else if (colorCount == 2) {
-        result = mix(
-            color0,
-            color1,
-            smoothstep(stop0 - transition, stop0 + transition, radialT)
-        );
     } else {
-        result = mix(
-            color0,
-            color1,
-            smoothstep(stop0 - transition, stop0 + transition, radialT)
-        );
-        result = mix(
-            result,
-            color2,
-            smoothstep(stop1 - transition, stop1 + transition, radialT)
-        );
+        const float w0 = 0.72 + 0.38 * dayObjectsSoftColorFieldWeight(
+            point,
+            appearance.radial0,
+            phase,
+            phaseDirection
+        ) * clamp(appearance.light.y, 0.0, 1.0);
+        const float w1 = 0.10 + 0.58 * dayObjectsSoftColorFieldWeight(
+            point,
+            appearance.radial1,
+            phase,
+            -phaseDirection
+        ) * clamp(appearance.light.z, 0.0, 1.0);
+        float totalWeight = w0 + w1;
+        result = color0 * w0 + color1 * w1;
+        if (colorCount >= 3u) {
+            const float2 thirdDirection = float2(-phaseDirection.y, phaseDirection.x);
+            const float w2 = 0.08 + 0.50 * dayObjectsSoftColorFieldWeight(
+                point,
+                appearance.radial2,
+                phase,
+                thirdDirection
+            ) * clamp(appearance.light.w, 0.0, 1.0);
+            result += color2 * w2;
+            totalWeight += w2;
+        }
+        result /= max(totalWeight, 1e-4);
     }
 
     const float w1 = layerCount >= 2u
@@ -417,7 +431,6 @@ fragment float4 dayObjectsActorFragment(
         0.5 + lightHalfWidth,
         light
     );
-    const float lightResponse = clamp(appearance.light.x, 0.0, 1.0);
     float haloAlpha = 0.0;
     float3 haloColor = appearance.color1.rgb;
 
@@ -489,9 +502,9 @@ fragment float4 dayObjectsActorFragment(
         break;
     }
     default: { // Gradient
-        const float broadHighlight = softenedLight;
-        bodyColor *= 0.68 + lightResponse * 0.42 * broadHighlight
-            + appearance.optical0.x * 0.10 * centerMask;
+        // The overlapping colour fields already provide depth. A directional
+        // normal-light pass introduces a straight sector through the centre,
+        // which violates the radial-only material contract.
         break;
     }
     }

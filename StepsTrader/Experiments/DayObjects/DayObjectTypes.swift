@@ -73,6 +73,7 @@ struct DayObjectSceneInput: Equatable {
     let editorialBackground: DayObjectEditorialBackground
     let lowSleep: Bool
     let editorialPreview: DayObjectEditorialPreviewSpec?
+    let editorialLabConfiguration: DayObjectEditorialLabConfiguration?
 
     init(
         dayKey: String,
@@ -87,7 +88,8 @@ struct DayObjectSceneInput: Equatable {
         usesEditorialField: Bool = false,
         editorialBackground: DayObjectEditorialBackground = .dark,
         lowSleep: Bool = false,
-        editorialPreview: DayObjectEditorialPreviewSpec? = nil
+        editorialPreview: DayObjectEditorialPreviewSpec? = nil,
+        editorialLabConfiguration: DayObjectEditorialLabConfiguration? = nil
     ) {
         self.dayKey = dayKey
         self.identity = identity
@@ -103,6 +105,7 @@ struct DayObjectSceneInput: Equatable {
         self.editorialBackground = editorialBackground
         self.lowSleep = lowSleep
         self.editorialPreview = editorialPreview
+        self.editorialLabConfiguration = editorialLabConfiguration
     }
 }
 
