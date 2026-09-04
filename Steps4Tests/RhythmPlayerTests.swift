@@ -83,6 +83,20 @@ final class RhythmPlayerTests: XCTestCase {
         ))
     }
 
+    func testFrameExposesOnlyTimingAnchorKickHostTimesForBassDucking() {
+        let drums = RecordingRhythmDrumBank(allocatedPlayerCount: 31)
+        let player = RhythmPlayer(drumBank: drums)
+        let plan = rhythmPlan(voiceCount: 2, timingAnchorIndex: 0)
+
+        let frame = player.render(
+            transportEvent(at: 0, hostTime: 12),
+            rhythmPlan: plan,
+            glitchPlan: .neutral
+        )
+
+        XCTAssertEqual(frame.anchorKickHostTimes, [12])
+    }
+
     func testNonAnchorGlitchUsesOnlyBoundedPlanDerivedTexture() throws {
         let drums = RecordingRhythmDrumBank(allocatedPlayerCount: 31)
         let player = RhythmPlayer(drumBank: drums)

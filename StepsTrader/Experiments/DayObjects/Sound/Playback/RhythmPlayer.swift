@@ -21,6 +21,10 @@ struct RhythmPlaybackFrame: Equatable, Sendable {
     let position: MusicalPosition
     let hits: [RhythmPlaybackHit]
     let harmonyDuckingDecibels: Double
+
+    var anchorKickHostTimes: [TimeInterval] {
+        hits.compactMap { $0.isTimingAnchor ? $0.scheduledHostTimeSeconds : nil }
+    }
 }
 
 struct RhythmPlayerMetrics: Equatable, Sendable {

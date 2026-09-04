@@ -207,7 +207,7 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(harness.coordinator.metrics.allocatedBankCount, 2)
         XCTAssertEqual(harness.coordinator.metrics.preparedBankCount, 2)
-        XCTAssertEqual(harness.coordinator.metrics.allocatedTonalVoiceCount, 16)
+        XCTAssertEqual(harness.coordinator.metrics.allocatedTonalVoiceCount, 18)
         XCTAssertEqual(harness.coordinator.metrics.allocatedPianoVoiceCount, 12)
         XCTAssertEqual(harness.coordinator.metrics.allocatedDrumPlayerCount, 62)
         XCTAssertEqual(harness.coordinator.metrics.pendingRemixCount, 1)

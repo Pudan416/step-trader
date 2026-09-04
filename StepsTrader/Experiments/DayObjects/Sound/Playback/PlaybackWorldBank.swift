@@ -8,6 +8,7 @@ enum PlaybackWorldBankConfiguration {
             .init(name: PoolName.primaryPad.rawValue, capacity: 4, reservesLeadVoice: false),
             .init(name: PoolName.secondaryPadOrKeys.rawValue, capacity: 2, reservesLeadVoice: false),
             .init(name: PoolName.lead.rawValue, capacity: 1, reservesLeadVoice: true),
+            .init(name: PoolName.bass.rawValue, capacity: 1, reservesLeadVoice: false),
         ],
         pianoVoiceCount: 2,
         drumOverlapCounts: [
@@ -28,6 +29,7 @@ enum PlaybackWorldBankConfiguration {
         case primaryPad = "primary-pad"
         case secondaryPadOrKeys = "secondary-pad-or-keys"
         case lead
+        case bass
     }
 }
 
@@ -113,6 +115,16 @@ final class PlaybackWorldBank {
             throw DayObjectsInstrumentBankError.unknownTonalPool(name.rawValue)
         }
         return pool
+    }
+
+    func tonalPool(forBass instrumentID: DayObjectsInstrumentID) throws -> DayObjectsTonalVoicePoolProtocol {
+        guard let descriptor = instrumentBank.descriptors.first(where: { $0.id == instrumentID }) else {
+            throw DayObjectsInstrumentBankError.unknownInstrument(instrumentID)
+        }
+        guard descriptor.category == .bass else {
+            throw DayObjectsInstrumentBankError.invalidTonalInstrumentCategory(descriptor.category)
+        }
+        return try tonalPool(named: .bass)
     }
 
     func releaseWorldLocalVoices() {

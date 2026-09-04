@@ -1332,6 +1332,57 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(runtime.activePlanForTesting?.bass), initialBass)
     }
 
+    func testLiveRuntimeRoutesAnchorKicksToBassDuckBusWhenHarmonyDuckingIsZero() throws {
+        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let seed = seedProducingBass()
+        let baseline = makePlaybackEnginePlan(seed: seed, steps: 10_000)
+        let plan = DayMusicPlan(
+            seed: baseline.seed,
+            input: baseline.input,
+            world: baseline.world,
+            rhythm: RhythmPlan(
+                baseTempoBPM: baseline.rhythm.baseTempoBPM,
+                tempoBPM: baseline.rhythm.tempoBPM,
+                stepsProgress: baseline.rhythm.stepsProgress,
+                family: baseline.rhythm.family,
+                patternOffsetSteps: baseline.rhythm.patternOffsetSteps,
+                humanizationProfile: baseline.rhythm.humanizationProfile,
+                groove: baseline.rhythm.groove,
+                realization: baseline.rhythm.realization,
+                voices: baseline.rhythm.voices,
+                maximumSimultaneousAttacks: baseline.rhythm.maximumSimultaneousAttacks,
+                maximumFillsPerWindow: baseline.rhythm.maximumFillsPerWindow,
+                fillWindowBars: baseline.rhythm.fillWindowBars,
+                maximumMicrotimingMilliseconds: baseline.rhythm.maximumMicrotimingMilliseconds,
+                velocityHumanizationRange: baseline.rhythm.velocityHumanizationRange,
+                maximumHarmonyDuckingDecibels: 0
+            ),
+            groove: baseline.groove,
+            bass: baseline.bass,
+            harmony: baseline.harmony,
+            happenings: baseline.happenings,
+            lead: baseline.lead,
+            glitch: baseline.glitch,
+            mix: baseline.mix
+        )
+        try runtime.prepare(plan: plan)
+        try runtime.startPreparedWorldForTesting()
+
+        for subdivision in 0..<Int(MusicalPosition.subdivisionsPerBar) {
+            runtime.renderForTesting(.init(
+                kind: .subdivision,
+                position: .init(absoluteSubdivision: Int64(subdivision)),
+                hostTimeSeconds: Double(subdivision) * 0.125,
+                tempoBPM: plan.rhythm.tempoBPM
+            ))
+        }
+
+        XCTAssertEqual(runtime.activeHarmonyDuckingForTesting, 0)
+        XCTAssertGreaterThan(runtime.activeBassDuckCommandCountForTesting, 0)
+        let lastDuck = try XCTUnwrap(runtime.lastBassDuckCommandForTesting)
+        XCTAssertTrue(lastDuck.maximumAttenuationDecibels > 0 && lastDuck.maximumAttenuationDecibels <= 5)
+    }
+
     func testLiveSafeHeldLeadKeepsSourceTokenAndDelaysOldBankRecycleUntilRelease() throws {
         let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
         let initial = makePlaybackEnginePlan(seed: 701)
