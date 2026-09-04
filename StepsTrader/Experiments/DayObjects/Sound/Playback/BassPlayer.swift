@@ -18,6 +18,7 @@ struct BassPlayerMetrics: Equatable, Sendable {
     let activeVoiceCount: Int
     let attackCount: Int
     let releaseCount: Int
+    let schedulingOriginSubdivision: Int64?
 }
 
 /// Owns the reserved single bass voice in one playback world. Every new bass
@@ -45,7 +46,8 @@ final class BassPlayer {
             allocatedVoiceCount: pool?.metrics.allocatedVoiceCount ?? 0,
             activeVoiceCount: token == nil ? 0 : 1,
             attackCount: attackCount,
-            releaseCount: releaseCount
+            releaseCount: releaseCount,
+            schedulingOriginSubdivision: schedulingOriginSubdivision
         )
     }
 

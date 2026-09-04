@@ -361,6 +361,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
 
     func releaseWorldLocalVoices() {
         guard let prepared else { return }
+        prepared.graph.resetBassDuckGain()
         prepared.tonalPools.values.forEach { $0.releaseAll() }
         prepared.drums.releaseAll()
         prepared.piano.releaseAll()
@@ -393,6 +394,10 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
 
     func scheduleBassDuck(_ command: BassDuckCommand) {
         prepared?.graph.scheduleBassDuck(command)
+    }
+
+    func resetBassDuckGain() {
+        prepared?.graph.resetBassDuckGain()
     }
 
     var programEffectMetrics: DayObjectsProgramEffectMetrics {
@@ -597,6 +602,8 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
     private var outputGainRampCount = 0
     private var lastScheduledOutputGainAutomation: DayObjectsBankOutputGainAutomation?
     private var bassDuckScheduledSegmentCount = 0
+    private var bassDuckResetCount = 0
+    private var bassDuckIsAtUnity = true
     private var lastBassDuckAttack: BassDuckGainAutomation?
     private var lastBassDuckHold: BassDuckGainAutomation?
     private var lastBassDuckRelease: BassDuckGainAutomation?
@@ -621,6 +628,8 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         return .init(
             isSupported: true,
             scheduledSegmentCount: bassDuckScheduledSegmentCount,
+            resetCount: bassDuckResetCount,
+            isAtUnity: bassDuckIsAtUnity,
             lastAttack: lastBassDuckAttack,
             lastHold: lastBassDuckHold,
             lastRelease: lastBassDuckRelease
@@ -836,6 +845,21 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
             now: now
         )
         bassDuckScheduledSegmentCount += 3
+        bassDuckIsAtUnity = duckedGain == 1
+    }
+
+    func resetBassDuckGain() {
+        guard let bassTrim else { return }
+        // Reset clears queued AU parameter events before returning this fixed
+        // world-local trim to unity for a stop, reconfiguration, or reuse.
+        bassTrim.avAudioNode.auAudioUnit.reset()
+        bassTrim.$leftGain.value = 1
+        bassTrim.$rightGain.value = 1
+        bassDuckResetCount += 1
+        bassDuckIsAtUnity = true
+        lastBassDuckAttack = nil
+        lastBassDuckHold = nil
+        lastBassDuckRelease = nil
     }
 
     func synchronizeForStart() throws {

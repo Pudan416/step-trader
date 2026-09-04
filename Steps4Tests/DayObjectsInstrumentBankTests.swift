@@ -100,7 +100,6 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
     func testPlaybackPairStopClearsAllSharedHappeningHandlesAndEffectContributions() throws {
         let pair = DayObjectsInstrumentBank.makePlaybackPair(bundle: Bundle(for: type(of: self)))
         try pair.prepare(configuration: .playbackWorld)
-        try pair.start()
         let pool = pair.bankA.happenings
         let baselineEffects = pool.metrics.effects
         let recipes = Array(HappeningSoundCatalog.recipes.prefix(4))
@@ -710,6 +709,52 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
             wasForcedImmediate: false
         ))
         currentHostTime = 102
+    }
+
+    func testBassDuckResetCancelsActiveEnvelopeToUnityBeforeWorldReuse() throws {
+        var currentHostTime: TimeInterval = 100
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(
+            bundle: Bundle(for: type(of: self)),
+            outputGainHostTimeProvider: { currentHostTime }
+        )
+        try pair.prepare(configuration: .playbackWorld)
+        try pair.start()
+        let command = BassDuckCommand(
+            hostTimeSeconds: 101,
+            maximumAttenuationDecibels: 5,
+            attackSeconds: 0.005,
+            holdSeconds: 0.045,
+            releaseSeconds: 0.180
+        )
+
+        pair.bankA.scheduleBassDuck(command)
+        XCTAssertEqual(pair.bankA.bassDuckGainMetrics.scheduledSegmentCount, 3)
+        XCTAssertLessThan(try XCTUnwrap(pair.bankA.bassDuckGainMetrics.lastAttack).targetLinearGain, 1)
+
+        pair.stop()
+
+        let reset = pair.bankA.bassDuckGainMetrics
+        XCTAssertEqual(reset.resetCount, 1)
+        XCTAssertTrue(reset.isAtUnity)
+        XCTAssertNil(reset.lastAttack)
+        XCTAssertNil(reset.lastHold)
+        XCTAssertNil(reset.lastRelease)
+
+        currentHostTime = 102
+        try pair.prepare(configuration: .playbackWorld)
+        try pair.start()
+        pair.bankA.scheduleBassDuck(.init(
+            hostTimeSeconds: 103,
+            maximumAttenuationDecibels: 3,
+            attackSeconds: 0.005,
+            holdSeconds: 0.040,
+            releaseSeconds: 0.160
+        ))
+        let reused = pair.bankA.bassDuckGainMetrics
+        XCTAssertEqual(reused.resetCount, 1)
+        XCTAssertEqual(try XCTUnwrap(reused.lastAttack).requestedStartHostTimeSeconds, 103, accuracy: 0.000_001)
+        XCTAssertFalse(reused.isAtUnity)
+        pair.stop()
     }
 
     private func smallPlaybackPairConfiguration() -> DayObjectsInstrumentBankConfiguration {

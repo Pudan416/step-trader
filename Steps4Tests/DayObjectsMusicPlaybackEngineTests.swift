@@ -62,7 +62,7 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         let targetBar = plan.world.progression.prefix(targetChordIndex)
             .reduce(0) { $0 + max($1.durationBars, 1) }
         runtime.renderForTesting(.init(
-            kind: .barBoundary,
+            kind: .subdivision,
             position: .init(absoluteSubdivision: Int64(targetBar) * MusicalPosition.subdivisionsPerBar),
             hostTimeSeconds: 1,
             tempoBPM: plan.rhythm.tempoBPM
@@ -1127,7 +1127,7 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         runtime.scheduleStructuralPlan(remixed)
         XCTAssertEqual(runtime.playbackMetrics.pendingRemixCount, 1)
         runtime.renderForTesting(.init(
-            kind: .barBoundary,
+            kind: .subdivision,
             position: .init(absoluteSubdivision: 128),
             hostTimeSeconds: 8,
             tempoBPM: 100
@@ -1238,29 +1238,57 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(runtime.activeBassVoiceCountForTesting, 1)
 
         runtime.scheduleStructuralPlan(remixed)
-        runtime.renderForTesting(.init(
-            kind: .barBoundary,
-            position: .init(absoluteSubdivision: 128),
-            hostTimeSeconds: 8,
-            tempoBPM: remixed.rhythm.tempoBPM
-        ))
+        renderTransportBoundary(
+            at: 128,
+            tempoBPM: remixed.rhythm.tempoBPM,
+            into: runtime
+        )
 
         XCTAssertEqual(runtime.remixResultForTesting, .transitioned(seed: remixed.seed))
-        XCTAssertEqual(runtime.totalBassAttackCountForTesting, 1, "destination waits for its boundary subdivision")
+        XCTAssertEqual(runtime.totalBassAttackCountForTesting, 2)
         XCTAssertEqual(runtime.totalBassReleaseCountForTesting, 1, "old bass gate is released before handoff")
+        XCTAssertEqual(runtime.activeBassVoiceCountForTesting, 1)
         XCTAssertEqual(runtime.inactiveBassVoiceCountForTesting, 0)
+        XCTAssertEqual(runtime.activeBassSchedulingOriginForTesting, 128)
+        XCTAssertEqual(runtime.allocationSnapshotForTesting, allocation)
+    }
 
-        runtime.renderForTesting(.init(
-            kind: .subdivision,
-            position: .init(absoluteSubdivision: 128),
-            hostTimeSeconds: 8,
-            tempoBPM: remixed.rhythm.tempoBPM
-        ))
+    func testLiveRuntimeSameSeedStructuralHarmonyRemixSwitchesOnCycleBoundarySubdivision() throws {
+        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let initial = bassLifecyclePlan(seed: 521)
+        let remixed = replacingPlaybackHarmony(in: initial, crossfadeAddition: 1)
+        let boundary = Int64(initial.world.cycleBars) * MusicalPosition.subdivisionsPerBar
+        try runtime.prepare(plan: initial)
+        try runtime.startPreparedWorldForTesting()
+        runtime.renderForTesting(.init(kind: .subdivision, position: .init(absoluteSubdivision: 0), hostTimeSeconds: 0, tempoBPM: initial.rhythm.tempoBPM))
+        runtime.scheduleStructuralPlan(remixed)
 
+        renderTransportBoundary(at: boundary, tempoBPM: remixed.rhythm.tempoBPM, into: runtime)
+
+        XCTAssertEqual(runtime.remixResultForTesting, .transitioned(seed: remixed.seed))
+        XCTAssertEqual(runtime.totalBassReleaseCountForTesting, 1)
         XCTAssertEqual(runtime.totalBassAttackCountForTesting, 2)
         XCTAssertEqual(runtime.activeBassVoiceCountForTesting, 1)
         XCTAssertEqual(runtime.inactiveBassVoiceCountForTesting, 0)
-        XCTAssertEqual(runtime.allocationSnapshotForTesting, allocation)
+        XCTAssertEqual(runtime.activeBassSchedulingOriginForTesting, boundary)
+    }
+
+    func testMobileRuntimeInPlaceRemixSwitchesOnBoundarySubdivisionAndAttacksBassImmediately() throws {
+        let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let initial = bassLifecyclePlan(seed: 531)
+        let remixed = bassLifecyclePlan(seed: 532)
+        try runtime.prepare(plan: initial)
+        try runtime.startPreparedWorldForTesting()
+        runtime.renderForTesting(.init(kind: .subdivision, position: .init(absoluteSubdivision: 0), hostTimeSeconds: 0, tempoBPM: initial.rhythm.tempoBPM))
+        runtime.scheduleStructuralPlan(remixed)
+
+        renderTransportBoundary(at: 128, tempoBPM: remixed.rhythm.tempoBPM, into: runtime)
+
+        XCTAssertEqual(runtime.activePlanForTesting?.seed, remixed.seed)
+        XCTAssertEqual(runtime.totalBassReleaseCountForTesting, 1)
+        XCTAssertEqual(runtime.totalBassAttackCountForTesting, 2)
+        XCTAssertEqual(runtime.activeBassVoiceCountForTesting, 1)
+        XCTAssertEqual(runtime.activeBassSchedulingOriginForTesting, 128)
     }
 
     func testLiveContinuousUpdateDoesNotExposeStructuralWorldBeforeBoundary() throws {
@@ -2125,6 +2153,87 @@ private func bassLifecyclePlan(seed: UInt64) -> DayMusicPlan {
         )]
     )
     return replacingPlaybackBass(in: base, with: bass)
+}
+
+private func replacingPlaybackHarmony(
+    in plan: DayMusicPlan,
+    crossfadeAddition: Int
+) -> DayMusicPlan {
+    let roles = plan.harmony.roles.enumerated().map { index, role in
+        HarmonyRolePlan(
+            role: role.role,
+            instrumentTarget: role.instrumentTarget,
+            register: role.register,
+            gain: role.gain,
+            attackSeconds: role.attackSeconds,
+            releaseSeconds: role.releaseSeconds,
+            delaySend: role.delaySend,
+            reverbSend: role.reverbSend,
+            activation: role.activation,
+            chordSchedule: role.chordSchedule,
+            crossfadeBars: role.crossfadeBars + (index == 0 ? Double(crossfadeAddition) : 0)
+        )
+    }
+    return DayMusicPlan(
+        seed: plan.seed,
+        input: plan.input,
+        world: plan.world,
+        rhythm: plan.rhythm,
+        groove: plan.groove,
+        bass: plan.bass,
+        harmony: .init(
+            sleepProgress: plan.harmony.sleepProgress,
+            cycleBars: plan.harmony.cycleBars,
+            chordCount: plan.harmony.chordCount,
+            roles: roles
+        ),
+        happenings: plan.happenings,
+        lead: plan.lead,
+        glitch: plan.glitch,
+        mix: plan.mix
+    )
+}
+
+@MainActor
+private func renderTransportBoundary(
+    at subdivision: Int64,
+    tempoBPM: Double,
+    into runtime: DayObjectsLivePlaybackRuntime
+) {
+    for kind in [
+        DayObjectsTransportEventKind.subdivision,
+        .beat,
+        .barBoundary,
+        .harmonicCycleBoundary,
+    ] {
+        runtime.renderForTesting(.init(
+            kind: kind,
+            position: .init(absoluteSubdivision: subdivision),
+            hostTimeSeconds: Double(subdivision) * 0.125,
+            tempoBPM: tempoBPM
+        ))
+    }
+}
+
+@MainActor
+private func renderTransportBoundary(
+    at subdivision: Int64,
+    tempoBPM: Double,
+    into runtime: DayObjectsMobilePlaybackRuntime
+) {
+    for kind in [
+        DayObjectsTransportEventKind.subdivision,
+        .beat,
+        .barBoundary,
+        .harmonicCycleBoundary,
+    ] {
+        runtime.renderForTesting(.init(
+            kind: kind,
+            position: .init(absoluteSubdivision: subdivision),
+            hostTimeSeconds: Double(subdivision) * 0.125,
+            tempoBPM: tempoBPM
+        ))
+    }
 }
 
 private func seedProducingBass() -> UInt64 {

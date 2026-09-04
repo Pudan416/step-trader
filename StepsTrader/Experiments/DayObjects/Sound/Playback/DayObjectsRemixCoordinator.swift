@@ -446,10 +446,12 @@ final class DayObjectsRemixCoordinator {
     ) -> Bool {
         if targetPlan.seed == oldPlan.seed,
            Self.hasStructuralHarmonyChange(from: oldPlan.harmony, to: targetPlan.harmony) {
-            return event.kind == .harmonicCycleBoundary
+            let cycleLength = Int64(max(oldPlan.world.cycleBars, 1))
+                * MusicalPosition.subdivisionsPerBar
+            return event.kind == .subdivision
+                && event.position.absoluteSubdivision % cycleLength == 0
         }
-        guard event.position.subdivisionInBar == 0 else { return false }
-        return event.kind == .subdivision || event.kind == .barBoundary
+        return event.kind == .subdivision && event.position.subdivisionInBar == 0
     }
 
     private static func hasStructuralHarmonyChange(

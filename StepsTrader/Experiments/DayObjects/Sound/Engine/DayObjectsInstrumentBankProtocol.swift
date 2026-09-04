@@ -242,6 +242,7 @@ protocol DayObjectsInstrumentBankGraph: AnyObject {
         endingAtHostTime endHostTime: TimeInterval
     )
     func scheduleBassDuck(_ command: BassDuckCommand)
+    func resetBassDuckGain()
     func synchronizeForStart() throws
     func applyProgramEffects(
         masterLinearGain: Double,
@@ -267,6 +268,7 @@ extension DayObjectsInstrumentBankGraph {
         setOutputGain(linearGain, rampDurationSeconds: max(endHostTime - startHostTime, 0))
     }
     func scheduleBassDuck(_ command: BassDuckCommand) {}
+    func resetBassDuckGain() {}
     func synchronizeForStart() throws {}
     func applyProgramEffects(
         masterLinearGain: Double,
@@ -360,6 +362,7 @@ protocol DayObjectsInstrumentBankProtocol: AnyObject {
         endingAtHostTime endHostTime: TimeInterval
     )
     func scheduleBassDuck(_ command: BassDuckCommand)
+    func resetBassDuckGain()
     func applyProgramEffects(
         masterLinearGain: Double,
         delayFeedback: Double,
@@ -384,6 +387,7 @@ extension DayObjectsInstrumentBankProtocol {
         setOutputGain(linearGain, rampDurationSeconds: max(endHostTime - startHostTime, 0))
     }
     func scheduleBassDuck(_ command: BassDuckCommand) {}
+    func resetBassDuckGain() {}
     func applyProgramEffects(
         masterLinearGain: Double,
         delayFeedback: Double,

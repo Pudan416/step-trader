@@ -167,6 +167,10 @@ final class PlaybackWorldBank: BassDuckBackend {
         instrumentBank.scheduleBassDuck(command)
     }
 
+    func resetBassDuckGain() {
+        instrumentBank.resetBassDuckGain()
+    }
+
     func applyProgramEffects(
         masterLinearGain: Double,
         delayFeedback: Double,

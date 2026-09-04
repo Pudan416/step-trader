@@ -31,6 +31,8 @@ struct BassDuckGainAutomation: Equatable, Sendable {
 struct BassDuckGainMetrics: Equatable, Sendable {
     let isSupported: Bool
     let scheduledSegmentCount: Int
+    let resetCount: Int
+    let isAtUnity: Bool
     let lastAttack: BassDuckGainAutomation?
     let lastHold: BassDuckGainAutomation?
     let lastRelease: BassDuckGainAutomation?
@@ -38,6 +40,8 @@ struct BassDuckGainMetrics: Equatable, Sendable {
     static let unsupported = Self(
         isSupported: false,
         scheduledSegmentCount: 0,
+        resetCount: 0,
+        isAtUnity: true,
         lastAttack: nil,
         lastHold: nil,
         lastRelease: nil

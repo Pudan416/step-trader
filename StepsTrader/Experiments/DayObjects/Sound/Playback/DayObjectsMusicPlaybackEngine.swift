@@ -631,6 +631,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
 
         func configure(_ plan: DayMusicPlan) throws {
             bassDucker.reset()
+            bank.resetBassDuckGain()
             try bass.configure(
                 plan.bass,
                 cycleLengthSubdivisions: Int64(max(plan.world.cycleBars, 1)) * MusicalPosition.subdivisionsPerBar
@@ -724,12 +725,14 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         func stopAttacks() {
             isScheduling = false
             isReleasing = true
+            bank.resetBassDuckGain()
             rhythmPlayer?.releaseAll()
             bassPlayer?.stopAttacks()
             happeningScheduler?.stop()
         }
 
         func finishReleaseBeforeRecycle() {
+            bank.resetBassDuckGain()
             rhythmPlayer?.releaseAll()
             bassPlayer?.releaseAll()
             harmonyPlayer?.releaseAll()
@@ -739,6 +742,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
 
         func releaseAll() {
             isScheduling = false
+            bank.resetBassDuckGain()
             rhythmPlayer?.releaseAll()
             bassPlayer?.releaseAll()
             harmonyPlayer?.releaseAll()
@@ -1046,6 +1050,9 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         worldA.bass.metrics.releaseCount + worldB.bass.metrics.releaseCount
     }
     var activeBassVoiceCountForTesting: Int { activeWorld.bass.metrics.activeVoiceCount }
+    var activeBassSchedulingOriginForTesting: Int64? {
+        activeWorld.bass.metrics.schedulingOriginSubdivision
+    }
     var inactiveBassVoiceCountForTesting: Int {
         world(for: coordinator.metrics.inactiveBank).bass.metrics.activeVoiceCount
     }
@@ -1550,6 +1557,12 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
     var activeHappeningAttackHistoryForTesting: [HappeningAttackRecord] {
         world.happenings.metrics.attackHistory
     }
+    var totalBassAttackCountForTesting: Int { world.bass.metrics.attackCount }
+    var totalBassReleaseCountForTesting: Int { world.bass.metrics.releaseCount }
+    var activeBassVoiceCountForTesting: Int { world.bass.metrics.activeVoiceCount }
+    var activeBassSchedulingOriginForTesting: Int64? {
+        world.bass.metrics.schedulingOriginSubdivision
+    }
 
     func startPreparedWorldForTesting() throws { try world.startScheduling() }
     func renderForTesting(_ event: DayObjectsTransportEvent) { renderTransportEvent(event) }
@@ -1719,12 +1732,13 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
     func updateLead(_ gesture: LeadGestureSample) { world.lead.update(gesture) }
 
     private func renderTransportEvent(_ event: DayObjectsTransportEvent) {
-        if event.kind == .barBoundary, let plan = pendingStructuralPlan {
+        if event.kind == .subdivision,
+           event.position.subdivisionInBar == 0,
+           let plan = pendingStructuralPlan {
             world.releaseAll()
             do {
                 try world.configure(plan)
-                try world.happenings.start(at: event.position)
-                world.isScheduling = true
+                try world.startScheduling(at: event.position)
                 pendingStructuralPlan = nil
                 updateTransport(for: plan)
             } catch {
