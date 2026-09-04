@@ -224,6 +224,7 @@ final class DayObjectsDrumBankTests: XCTestCase {
             XCTAssertEqual(layout.noiseFilterCutoffHz, recipe.synthesis.contains(.filteredNoise) ? recipe.noiseFilterCutoffHz : nil)
             XCTAssertEqual(layout.highPassCutoffHz, recipe.highPassCutoffHz)
             XCTAssertEqual(layout.outputTrimDecibels, recipe.outputTrimDecibels, accuracy: 1e-12)
+            XCTAssertEqual(layout.finalOutputGain, 1, accuracy: 1e-12)
             XCTAssertEqual(
                 layout.signalPath,
                 [.source, .highPass, .pan, .preRoomTrim, .room, .unityOutput],
@@ -258,11 +259,16 @@ final class DayObjectsDrumBankTests: XCTestCase {
         ))
 
         XCTAssertEqual(Set(scheduler.events.map(\.layer)), [
-            .outputGainLeft, .outputGainRight, .stereo, .roomSend,
+            .preRoomGainLeft, .preRoomGainRight, .stereo, .roomSend,
             .samplePitch, .sampleTransient,
             .sineAmplitude, .sinePitchDrop, .sineEnvelope,
         ])
         XCTAssertTrue(scheduler.events.allSatisfy { $0.hostTimeSeconds == 42.125 })
+        let expectedPreRoomGain = 0.72 * pow(10, -6.0 / 20)
+        XCTAssertEqual(try XCTUnwrap(scheduler.parameterValue(for: .preRoomGainLeft)), expectedPreRoomGain, accuracy: 1e-6)
+        XCTAssertEqual(try XCTUnwrap(scheduler.parameterValue(for: .preRoomGainRight)), expectedPreRoomGain, accuracy: 1e-6)
+        XCTAssertNil(scheduler.parameterValue(for: .outputGainLeft))
+        XCTAssertNil(scheduler.parameterValue(for: .outputGainRight))
         XCTAssertEqual(scheduler.immediateGateOpenCount, 0)
     }
 
@@ -286,7 +292,7 @@ final class DayObjectsDrumBankTests: XCTestCase {
         ))
 
         XCTAssertEqual(Set(scheduler.events.map(\.layer)), [
-            .outputGainLeft, .outputGainRight, .stereo, .roomSend,
+            .preRoomGainLeft, .preRoomGainRight, .stereo, .roomSend,
             .noiseAmplitude, .noiseEnvelope,
         ])
         XCTAssertTrue(scheduler.events.allSatisfy { $0.hostTimeSeconds == 9.75 })
@@ -345,7 +351,7 @@ private final class RecordingDrumLayerScheduler: DayObjectsDrumLayerScheduling {
         layer: DayObjectsDrumScheduledLayer,
         atHostTime hostTimeSeconds: TimeInterval
     ) {
-        events.append(.init(layer: layer, hostTimeSeconds: hostTimeSeconds))
+        events.append(.init(layer: layer, hostTimeSeconds: hostTimeSeconds, value: Double(value)))
     }
 
     func scheduleAUParameter(
@@ -361,6 +367,10 @@ private final class RecordingDrumLayerScheduler: DayObjectsDrumLayerScheduling {
 
     func stop(_ player: AudioPlayer?) {}
     func closeGate(_ envelope: AmplitudeEnvelope?) {}
+
+    func parameterValue(for layer: DayObjectsDrumScheduledLayer) -> Double? {
+        events.last(where: { $0.layer == layer })?.value
+    }
 }
 
 private final class FakeDrumPlayer: DayObjectsDrumPlayerBackend {

@@ -66,6 +66,22 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         XCTAssertGreaterThan(differenceRMS(long, short), 0.001)
         XCTAssertGreaterThan(rms(long, from: 1.1, to: 1.5), rms(short, from: 1.1, to: 1.5) * 1.1)
     }
+
+    func testProductionReverbSendScalesLinearlyInsteadOfBeingAppliedTwice() throws {
+        let recipeID = id(1)
+        let recipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: recipeID))
+        let source = try XCTUnwrap(recipe.sources.first)
+        let sound = ResolvedHappeningSound(recipeID: recipeID, resourceName: source.resourceName, sourceRootMIDI: source.rootMIDI, targetMIDI: source.rootMIDI, playbackRate: 1, resonantFilterHz: nil)
+        let lowSend = HappeningEffectCommand(filterCutoffHz: 18_000, directLevel: 0, delaySend: 0, delayFeedback: 0, reverbSend: 0.25, reverbDecay: 0.15)
+        let highSend = HappeningEffectCommand(filterCutoffHz: 18_000, directLevel: 0, delaySend: 0, delayFeedback: 0, reverbSend: 0.5, reverbDecay: 0.15)
+
+        let low = try renderProduction(recipeIDs: [recipeID], sounds: [sound], duration: 1, effects: lowSend)
+        let high = try renderProduction(recipeIDs: [recipeID], sounds: [sound], duration: 1, effects: highSend)
+        let ratio = rms(high, from: 0.25, to: 0.75) / rms(low, from: 0.25, to: 0.75)
+
+        XCTAssertGreaterThan(ratio, 1.6)
+        XCTAssertLessThan(ratio, 2.5, "A doubled reverb send must remain near a 2x return, not square to 4x.")
+    }
     func testNewPoolStartsWithAmbientTailDefaultEffects() throws {
         let harness = try preparedHarness()
 
@@ -549,9 +565,13 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
             )
         )
 
+        // The corrected single-send wet return contributes genuine early
+        // reflection energy. This still requires at least 1.9 dB less total
+        // early energy than the dry reference rather than suppressing the
+        // physically valid return along with the direct transient.
         XCTAssertLessThan(
             rms(spatial, from: 0, to: 0.25),
-            rms(dry, from: 0, to: 0.25) * 0.7
+            rms(dry, from: 0, to: 0.25) * 0.8
         )
     }
 

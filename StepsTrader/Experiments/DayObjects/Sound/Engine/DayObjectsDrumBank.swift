@@ -153,13 +153,15 @@ struct DayObjectsDrumGraphLayout: Equatable, Sendable {
     let noiseFilterCutoffHz: Double?
     let highPassCutoffHz: Double?
     let outputTrimDecibels: Double
+    let finalOutputGain: Double
     let signalPath: [DayObjectsDrumGraphStage]
     let allocatedNodeCount: Int
 
     static let empty = DayObjectsDrumGraphLayout(
         samplePlayerCount: 0, sinePitchDropCount: 0, filteredNoiseCount: 0,
         transientFilterCutoffHz: nil, noiseFilterCutoffHz: nil,
-        highPassCutoffHz: nil, outputTrimDecibels: 0, signalPath: [], allocatedNodeCount: 0
+        highPassCutoffHz: nil, outputTrimDecibels: 0, finalOutputGain: 1,
+        signalPath: [], allocatedNodeCount: 0
     )
 }
 
@@ -196,8 +198,12 @@ extension DayObjectsDrumPlayerBackend {
 }
 
 enum DayObjectsDrumScheduledLayer: Hashable, Sendable {
+    // Kept as diagnostic labels so tests can prove hit velocity never reaches
+    // the post-room output stage.
     case outputGainLeft
     case outputGainRight
+    case preRoomGainLeft
+    case preRoomGainRight
     case stereo
     case roomSend
     case samplePitch
@@ -212,6 +218,13 @@ enum DayObjectsDrumScheduledLayer: Hashable, Sendable {
 struct DayObjectsDrumLayerScheduleEvent: Equatable, Sendable {
     let layer: DayObjectsDrumScheduledLayer
     let hostTimeSeconds: TimeInterval
+    let value: Double?
+
+    init(layer: DayObjectsDrumScheduledLayer, hostTimeSeconds: TimeInterval, value: Double? = nil) {
+        self.layer = layer
+        self.hostTimeSeconds = hostTimeSeconds
+        self.value = value
+    }
 }
 
 protocol DayObjectsDrumLayerScheduling: AnyObject {
@@ -569,6 +582,7 @@ final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
     private let noiseEnvelope: AmplitudeEnvelope?
     private let highPass: HighPassFilter
     private let trim: Fader
+    private let outputTrimGain: AUValue
     private let recipe: DayObjectsDrumRecipe
     private let panner: Panner
     private let room: Reverb
@@ -625,7 +639,8 @@ final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
         }
         highPass = HighPassFilter(Mixer(inputs), cutoffFrequency: AUValue(recipe.highPassCutoffHz), resonance: 0)
         panner = Panner(highPass, pan: 0)
-        trim = Fader(panner, gain: AUValue(pow(10, recipe.outputTrimDecibels / 20)))
+        outputTrimGain = AUValue(pow(10, recipe.outputTrimDecibels / 20))
+        trim = Fader(panner, gain: 0)
         room = Reverb(trim, dryWetMix: 0)
         output = Fader(room, gain: 1)
         sine?.start()
@@ -638,6 +653,7 @@ final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
             noiseFilterCutoffHz: noiseFilter == nil ? nil : recipe.noiseFilterCutoffHz,
             highPassCutoffHz: recipe.highPassCutoffHz,
             outputTrimDecibels: recipe.outputTrimDecibels,
+            finalOutputGain: 1,
             signalPath: [.source, .highPass, .pan, .preRoomTrim, .room, .unityOutput],
             allocatedNodeCount: (samplePlayer == nil ? 0 : 3) + (sine == nil ? 0 : 2) + (noise == nil ? 0 : 3) + 6
         )
@@ -646,8 +662,9 @@ final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
     func play(_ hit: DayObjectsDrumHit) {
         guard layerScheduler.isReady(output: output) else { return }
         let hostTime = hit.scheduledHostTimeSeconds
-        layerScheduler.scheduleParameter(output.$leftGain, value: AUValue(hit.velocity), rampDuration: 0, layer: .outputGainLeft, atHostTime: hostTime)
-        layerScheduler.scheduleParameter(output.$rightGain, value: AUValue(hit.velocity), rampDuration: 0, layer: .outputGainRight, atHostTime: hostTime)
+        let preRoomGain = AUValue(hit.velocity) * outputTrimGain
+        layerScheduler.scheduleParameter(trim.$leftGain, value: preRoomGain, rampDuration: 0, layer: .preRoomGainLeft, atHostTime: hostTime)
+        layerScheduler.scheduleParameter(trim.$rightGain, value: preRoomGain, rampDuration: 0, layer: .preRoomGainRight, atHostTime: hostTime)
         layerScheduler.scheduleParameter(panner.$pan, value: AUValue(hit.stereoOffset), rampDuration: 0, layer: .stereo, atHostTime: hostTime)
         // Apple's reverb exposes wet/dry mix at Audio Unit parameter address 0.
         layerScheduler.scheduleAUParameter(room, address: 0, value: AUValue(hit.roomSend * 100), range: 0...100, layer: .roomSend, atHostTime: hostTime)
@@ -672,7 +689,10 @@ final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
     }
 
     func stop() {
-        output.gain = 0
+        // Keep the post-room output at unity so stopping a new source cannot
+        // cut any tail already draining through the room.
+        output.gain = 1
+        trim.gain = 0
         layerScheduler.stop(samplePlayer)
         sine?.amplitude = 0
         layerScheduler.closeGate(sineEnvelope)

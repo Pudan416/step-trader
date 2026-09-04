@@ -297,7 +297,7 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
             feedback: AUValue(Self.reverbFeedback(for: currentEffects.reverbDecay)),
             cutoffFrequency: 7_000
         )
-        reverbWet = DayObjectsAppleGainNode(input: reverb, gain: currentEffects.reverbMix)
+        reverbWet = DayObjectsAppleGainNode(input: reverb, gain: 1)
         output = Mixer([directGain, delay, reverbWet], name: "Day Objects Happening bus")
     }
 
@@ -450,10 +450,10 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
         transition(filter.$cutoffFrequency, to: sanitized.filterCutoffHz, duration: duration)
         transition(delay.$feedback, to: sanitized.delayFeedback * 100, duration: duration)
         transition(reverb.$feedback, to: Self.reverbFeedback(for: sanitized.reverbDecay), duration: duration)
-        delaySend.gain = AUValue(sanitized.delaySend)
-        reverbSend.gain = AUValue(sanitized.reverbSend)
+        transition(delaySend, to: sanitized.delaySend, duration: duration)
+        transition(reverbSend, to: sanitized.reverbSend, duration: duration)
         directGain.setLinearGain(sanitized.directLevel, rampSeconds: duration)
-        reverbWet.setLinearGain(sanitized.reverbSend, rampSeconds: duration)
+        reverbWet.setLinearGain(1, rampSeconds: duration)
     }
 
     func releaseAll() {
@@ -475,6 +475,11 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
             return
         }
         parameter.ramp(to: target, duration: Float(duration))
+    }
+
+    private func transition(_ fader: Fader, to value: Double, duration: TimeInterval) {
+        transition(fader.$leftGain, to: value, duration: duration)
+        transition(fader.$rightGain, to: value, duration: duration)
     }
 
     private func selectSlot(for priority: HappeningPlaybackPriority) throws -> Int {
