@@ -4,8 +4,19 @@ enum DeterministicMusicDirector {
         input: DayMusicInput,
         remixSeed: UInt64
     ) -> DayMusicPlan {
+        makePlan(
+            input: input,
+            instrumentDescriptors: DayObjectsInstrumentManifest.defaultDescriptors,
+            remixSeed: remixSeed
+        )
+    }
+
+    static func makePlan(
+        input: DayMusicInput,
+        instrumentDescriptors: [DayObjectsInstrumentDescriptor],
+        remixSeed: UInt64
+    ) -> DayMusicPlan {
         let normalizedInput = input.normalized()
-        let descriptors = DayObjectsInstrumentManifest.defaultDescriptors
         let world = TonalWorldPlanner.makePlan(
             input: normalizedInput,
             remixSeed: remixSeed
@@ -20,7 +31,7 @@ enum DeterministicMusicDirector {
             input: normalizedInput,
             tonalWorld: world,
             groove: groove,
-            instrumentDescriptors: descriptors,
+            instrumentDescriptors: instrumentDescriptors,
             remixSeed: remixSeed
         )
         if groove.usesBass && bass == nil {
@@ -34,7 +45,7 @@ enum DeterministicMusicDirector {
         let harmony = HarmonyPlanner.makePlan(
             input: normalizedInput,
             tonalWorld: world,
-            instrumentDescriptors: descriptors,
+            instrumentDescriptors: instrumentDescriptors,
             remixSeed: remixSeed
         )
         let happenings = HappeningMusicPlanner.makePlans(
@@ -44,7 +55,7 @@ enum DeterministicMusicDirector {
         )
         guard let lead = LeadPlanner.makePlan(
             tonalWorld: world,
-            instrumentDescriptors: descriptors,
+            instrumentDescriptors: instrumentDescriptors,
             remixSeed: remixSeed
         ) else {
             preconditionFailure("The checked-in instrument manifest must contain an approved Lead")

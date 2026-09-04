@@ -65,6 +65,101 @@ final class DayMusicPlanDifferTests: XCTestCase {
         XCTAssertEqual(change.structuralPlan, newPlan)
     }
 
+    func testBassStructuralDifferenceSuppressesBassContinuousUpdate() throws {
+        let oldPlan = try planWithBass()
+        let oldBass = try XCTUnwrap(oldPlan.bass)
+        let alternateInstrument = try XCTUnwrap(
+            DayObjectsInstrumentManifest.defaultDescriptors.first {
+                $0.category == .bass && $0.id != oldBass.instrumentID
+            }
+        )
+        let newBass = BassPlan(
+            mode: oldBass.mode,
+            instrumentID: alternateInstrument.id,
+            register: oldBass.register,
+            articulation: oldBass.articulation,
+            stepsProgress: 1,
+            cutoffMultiplier: oldBass.cutoffMultiplier + 0.1,
+            glideMilliseconds: oldBass.glideMilliseconds + 1,
+            reverbSend: oldBass.reverbSend + 0.01,
+            ducking: BassDuckingPlan(
+                maximumAttenuationDecibels: oldBass.ducking.maximumAttenuationDecibels + 0.1,
+                attackSeconds: oldBass.ducking.attackSeconds,
+                holdSeconds: oldBass.ducking.holdSeconds,
+                releaseSeconds: oldBass.ducking.releaseSeconds
+            ),
+            events: oldBass.events.enumerated().map { index, event in
+                BassEventPlan(
+                    stableID: event.stableID,
+                    chordIndex: event.chordIndex,
+                    startSubdivision: event.startSubdivision,
+                    durationSubdivisions: event.durationSubdivisions,
+                    midiNote: event.midiNote,
+                    velocity: event.velocity + 0.1,
+                    activationThreshold: index == 0 ? 0 : event.activationThreshold,
+                    allowedPitchClasses: event.allowedPitchClasses
+                )
+            }
+        )
+
+        let change = DayMusicPlanDiffer.change(
+            from: oldPlan,
+            to: replacing(oldPlan, bass: newBass)
+        )
+
+        XCTAssertNil(change.continuousPlan)
+        XCTAssertNotNil(change.structuralPlan)
+    }
+
+    func testBassAppearanceAndDisappearanceAreStructuralOnly() throws {
+        let oldPlan = try planWithBass()
+        let withoutBass = replacing(oldPlan, bass: nil, preservesBass: false)
+
+        for (from, to) in [(oldPlan, withoutBass), (withoutBass, oldPlan)] {
+            let change = DayMusicPlanDiffer.change(from: from, to: to)
+            XCTAssertNil(change.continuousPlan)
+            XCTAssertEqual(change.structuralPlan, to)
+        }
+    }
+
+    func testBassStructuralChangeAndIndependentMixChangeEmitBothPlans() throws {
+        let oldPlan = try planWithBass()
+        let oldBass = try XCTUnwrap(oldPlan.bass)
+        let alternateInstrument = try XCTUnwrap(
+            DayObjectsInstrumentManifest.defaultDescriptors.first {
+                $0.category == .bass && $0.id != oldBass.instrumentID
+            }
+        )
+        let changedBass = BassPlan(
+            mode: oldBass.mode,
+            instrumentID: alternateInstrument.id,
+            register: oldBass.register,
+            articulation: oldBass.articulation,
+            stepsProgress: oldBass.stepsProgress,
+            cutoffMultiplier: oldBass.cutoffMultiplier,
+            glideMilliseconds: oldBass.glideMilliseconds,
+            reverbSend: oldBass.reverbSend,
+            ducking: oldBass.ducking,
+            events: oldBass.events
+        )
+        let changedMix = LayerMixPlan(
+            rhythmTargetDecibels: oldPlan.mix.rhythmTargetDecibels,
+            harmonyTargetDecibels: oldPlan.mix.harmonyTargetDecibels,
+            happeningAggregateTargetDecibels: oldPlan.mix.happeningAggregateTargetDecibels,
+            happeningPerVoiceTargetDecibels: oldPlan.mix.happeningPerVoiceTargetDecibels,
+            happeningCount: oldPlan.mix.happeningCount,
+            leadTargetDecibels: oldPlan.mix.leadTargetDecibels,
+            masterTargetDecibelsBeforeLimiter: oldPlan.mix.masterTargetDecibelsBeforeLimiter - 0.1,
+            maximumHarmonyDuckingDecibels: oldPlan.mix.maximumHarmonyDuckingDecibels
+        )
+        let newPlan = replacing(oldPlan, bass: changedBass, mix: changedMix)
+
+        let change = DayMusicPlanDiffer.change(from: oldPlan, to: newPlan)
+
+        XCTAssertEqual(change.continuousPlan, newPlan)
+        XCTAssertEqual(change.structuralPlan, newPlan)
+    }
+
     func testChangingPublishedGrooveModeIsStructuralEvenWhenBassCandidatesMatch() throws {
         let oldPlan = try planWithBass()
         let alternateMode: GrooveMode = oldPlan.groove.mode == .bassPulse ? .bassArp : .bassPulse
@@ -80,6 +175,165 @@ final class DayMusicPlanDifferTests: XCTestCase {
 
         XCTAssertNil(change.continuousPlan)
         XCTAssertEqual(change.structuralPlan, newPlan)
+    }
+
+    func testEveryGrooveFieldIsStructuralEvenWhenModeIsUnchanged() throws {
+        let oldPlan = try planWithBass()
+        let oldGroove = oldPlan.groove
+        let mutations = [
+            GroovePlan(
+                mode: oldGroove.mode,
+                auxiliaryRetention: oldGroove.auxiliaryRetention - 0.01,
+                maximumAnchorKicksPerBar: oldGroove.maximumAnchorKicksPerBar,
+                thinningSeed: oldGroove.thinningSeed
+            ),
+            GroovePlan(
+                mode: oldGroove.mode,
+                auxiliaryRetention: oldGroove.auxiliaryRetention,
+                maximumAnchorKicksPerBar: oldGroove.maximumAnchorKicksPerBar + 1,
+                thinningSeed: oldGroove.thinningSeed
+            ),
+            GroovePlan(
+                mode: oldGroove.mode,
+                auxiliaryRetention: oldGroove.auxiliaryRetention,
+                maximumAnchorKicksPerBar: oldGroove.maximumAnchorKicksPerBar,
+                thinningSeed: oldGroove.thinningSeed &+ 1
+            ),
+        ]
+
+        for groove in mutations {
+            let newPlan = replacing(oldPlan, groove: groove)
+            let change = DayMusicPlanDiffer.change(from: oldPlan, to: newPlan)
+            XCTAssertNil(change.continuousPlan)
+            XCTAssertEqual(change.structuralPlan, newPlan)
+        }
+    }
+
+    func testBassCandidateAndDuckingStructureMutationsAreStructuralOnly() throws {
+        let oldPlan = try planWithBass()
+        let oldBass = try XCTUnwrap(oldPlan.bass)
+        let changedEvent = try XCTUnwrap(oldBass.events.first)
+        let changedCandidates = oldBass.events.enumerated().map { index, event in
+            guard index == 0 else { return event }
+            return BassEventPlan(
+                stableID: event.stableID,
+                chordIndex: event.chordIndex,
+                startSubdivision: event.startSubdivision,
+                durationSubdivisions: event.durationSubdivisions,
+                midiNote: event.midiNote &+ 1,
+                velocity: event.velocity,
+                activationThreshold: event.activationThreshold,
+                allowedPitchClasses: event.allowedPitchClasses
+            )
+        }
+        XCTAssertNotEqual(changedCandidates.first, changedEvent)
+        let variants = [
+            BassPlan(
+                mode: oldBass.mode == .bassPulse ? .bassArp : .bassPulse,
+                instrumentID: oldBass.instrumentID,
+                register: oldBass.register,
+                articulation: oldBass.articulation,
+                stepsProgress: oldBass.stepsProgress,
+                cutoffMultiplier: oldBass.cutoffMultiplier,
+                glideMilliseconds: oldBass.glideMilliseconds,
+                reverbSend: oldBass.reverbSend,
+                ducking: oldBass.ducking,
+                events: oldBass.events
+            ),
+            BassPlan(
+                mode: oldBass.mode,
+                instrumentID: oldBass.instrumentID,
+                register: 24...48,
+                articulation: oldBass.articulation,
+                stepsProgress: oldBass.stepsProgress,
+                cutoffMultiplier: oldBass.cutoffMultiplier,
+                glideMilliseconds: oldBass.glideMilliseconds,
+                reverbSend: oldBass.reverbSend,
+                ducking: oldBass.ducking,
+                events: oldBass.events
+            ),
+            BassPlan(
+                mode: oldBass.mode,
+                instrumentID: oldBass.instrumentID,
+                register: oldBass.register,
+                articulation: oldBass.articulation == .pulse ? .arpeggio : .pulse,
+                stepsProgress: oldBass.stepsProgress,
+                cutoffMultiplier: oldBass.cutoffMultiplier,
+                glideMilliseconds: oldBass.glideMilliseconds,
+                reverbSend: oldBass.reverbSend,
+                ducking: oldBass.ducking,
+                events: oldBass.events
+            ),
+            BassPlan(
+                mode: oldBass.mode,
+                instrumentID: oldBass.instrumentID,
+                register: oldBass.register,
+                articulation: oldBass.articulation,
+                stepsProgress: oldBass.stepsProgress,
+                cutoffMultiplier: oldBass.cutoffMultiplier,
+                glideMilliseconds: oldBass.glideMilliseconds,
+                reverbSend: oldBass.reverbSend,
+                ducking: oldBass.ducking,
+                events: changedCandidates
+            ),
+            BassPlan(
+                mode: oldBass.mode,
+                instrumentID: oldBass.instrumentID,
+                register: oldBass.register,
+                articulation: oldBass.articulation,
+                stepsProgress: oldBass.stepsProgress,
+                cutoffMultiplier: oldBass.cutoffMultiplier,
+                glideMilliseconds: oldBass.glideMilliseconds,
+                reverbSend: oldBass.reverbSend,
+                ducking: BassDuckingPlan(
+                    maximumAttenuationDecibels: oldBass.ducking.maximumAttenuationDecibels,
+                    attackSeconds: oldBass.ducking.attackSeconds + 0.01,
+                    holdSeconds: oldBass.ducking.holdSeconds,
+                    releaseSeconds: oldBass.ducking.releaseSeconds
+                ),
+                events: oldBass.events
+            ),
+            BassPlan(
+                mode: oldBass.mode,
+                instrumentID: oldBass.instrumentID,
+                register: oldBass.register,
+                articulation: oldBass.articulation,
+                stepsProgress: oldBass.stepsProgress,
+                cutoffMultiplier: oldBass.cutoffMultiplier,
+                glideMilliseconds: oldBass.glideMilliseconds,
+                reverbSend: oldBass.reverbSend,
+                ducking: BassDuckingPlan(
+                    maximumAttenuationDecibels: oldBass.ducking.maximumAttenuationDecibels,
+                    attackSeconds: oldBass.ducking.attackSeconds,
+                    holdSeconds: oldBass.ducking.holdSeconds + 0.01,
+                    releaseSeconds: oldBass.ducking.releaseSeconds
+                ),
+                events: oldBass.events
+            ),
+            BassPlan(
+                mode: oldBass.mode,
+                instrumentID: oldBass.instrumentID,
+                register: oldBass.register,
+                articulation: oldBass.articulation,
+                stepsProgress: oldBass.stepsProgress,
+                cutoffMultiplier: oldBass.cutoffMultiplier,
+                glideMilliseconds: oldBass.glideMilliseconds,
+                reverbSend: oldBass.reverbSend,
+                ducking: BassDuckingPlan(
+                    maximumAttenuationDecibels: oldBass.ducking.maximumAttenuationDecibels,
+                    attackSeconds: oldBass.ducking.attackSeconds,
+                    holdSeconds: oldBass.ducking.holdSeconds,
+                    releaseSeconds: oldBass.ducking.releaseSeconds + 0.01
+                ),
+                events: oldBass.events
+            ),
+        ]
+
+        for bass in variants {
+            let change = DayMusicPlanDiffer.change(from: oldPlan, to: replacing(oldPlan, bass: bass))
+            XCTAssertNil(change.continuousPlan)
+            XCTAssertNotNil(change.structuralPlan)
+        }
     }
 
     func testSpentColorsChangeIsContinuousGlitchOnly() {
@@ -447,6 +701,7 @@ final class DayMusicPlanDifferTests: XCTestCase {
         rhythm: RhythmPlan? = nil,
         groove: GroovePlan? = nil,
         bass: BassPlan? = nil,
+        preservesBass: Bool = true,
         glitch: GlitchPlan? = nil,
         mix: LayerMixPlan? = nil
     ) -> DayMusicPlan {
@@ -456,7 +711,7 @@ final class DayMusicPlanDifferTests: XCTestCase {
             world: plan.world,
             rhythm: rhythm ?? plan.rhythm,
             groove: groove ?? (rhythm ?? plan.rhythm).groove,
-            bass: bass ?? plan.bass,
+            bass: preservesBass ? (bass ?? plan.bass) : bass,
             harmony: plan.harmony,
             happenings: plan.happenings,
             lead: plan.lead,

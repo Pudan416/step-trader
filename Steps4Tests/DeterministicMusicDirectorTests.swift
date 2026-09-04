@@ -99,6 +99,31 @@ final class DeterministicMusicDirectorTests: XCTestCase {
         XCTAssertEqual(plan.mix, LayerMixPlanner.makePlan(happeningCount: expectedHappenings.count))
     }
 
+    func testMissingBassDescriptorFallsBackToPercussionAndReplansRhythm() throws {
+        let seed = seedProducingBass()
+        let input = representativeInput()
+        let descriptorsWithoutBass = DayObjectsInstrumentManifest.defaultDescriptors.filter {
+            $0.category != .bass
+        }
+        let plan = DeterministicMusicDirector.makePlan(
+            input: input,
+            instrumentDescriptors: descriptorsWithoutBass,
+            remixSeed: seed
+        )
+
+        XCTAssertEqual(GroovePlanner.makePlan(remixSeed: seed).usesBass, true)
+        XCTAssertEqual(plan.groove, GroovePlan.percussion)
+        XCTAssertNil(plan.bass)
+        XCTAssertEqual(
+            plan.rhythm,
+            RhythmPlanner.makePlan(
+                input: input.normalized(),
+                remixSeed: seed,
+                groove: .percussion
+            )
+        )
+    }
+
     func testHappeningCountCannotChangePublishedGrooveOrBassCandidates() throws {
         let seed = seedProducingBass()
         let sharedDay = DayMusicInput(

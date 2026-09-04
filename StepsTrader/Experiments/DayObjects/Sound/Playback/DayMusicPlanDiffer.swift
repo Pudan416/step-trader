@@ -18,7 +18,15 @@ enum DayMusicPlanDiffer {
             ? NonHappeningLayerMixSignature(plan: oldPlan.mix)
                 != NonHappeningLayerMixSignature(plan: newPlan.mix)
             : oldPlan.mix != newPlan.mix
-        let hasContinuousChange = continuousSignature(of: oldPlan) != continuousSignature(of: newPlan)
+        let bassStructureMatches = structuralBassSignature(of: oldPlan)
+            == structuralBassSignature(of: newPlan)
+        let hasContinuousChange = continuousSignature(
+            of: oldPlan,
+            includesBass: bassStructureMatches
+        ) != continuousSignature(
+            of: newPlan,
+            includesBass: bassStructureMatches
+        )
             || hasLayerMixChange
         let hasStructuralChange = structuralSignature(
             of: oldPlan,
@@ -36,7 +44,10 @@ enum DayMusicPlanDiffer {
         )
     }
 
-    private static func continuousSignature(of plan: DayMusicPlan) -> ContinuousSignature {
+    private static func continuousSignature(
+        of plan: DayMusicPlan,
+        includesBass: Bool
+    ) -> ContinuousSignature {
         ContinuousSignature(
             stepsProgress: plan.input.stepsProgress,
             sleepProgress: plan.input.sleepProgress,
@@ -44,11 +55,17 @@ enum DayMusicPlanDiffer {
             motionEnergy: plan.input.motionEnergy,
             visualClarity: plan.input.visualClarity,
             rhythm: ContinuousRhythmSignature(plan: plan.rhythm),
-            bass: plan.bass.map(ContinuousBassSignature.init),
+            bass: includesBass ? plan.bass.map(ContinuousBassSignature.init) : nil,
             harmonyRoles: plan.harmony.roles.map(ContinuousHarmonyRoleSignature.init),
             lead: ContinuousLeadSignature(plan: plan.lead),
             glitch: ContinuousGlitchSignature(plan: plan.glitch)
         )
+    }
+
+    private static func structuralBassSignature(
+        of plan: DayMusicPlan
+    ) -> StructuralBassSignature? {
+        plan.bass.map(StructuralBassSignature.init)
     }
 
     private static func structuralSignature(
@@ -262,9 +279,15 @@ private struct StructuralSignature: Equatable {
 
 private struct StructuralGrooveSignature: Equatable {
     let mode: GrooveMode
+    let auxiliaryRetention: Double
+    let maximumAnchorKicksPerBar: Int
+    let thinningSeed: UInt64
 
     init(plan: GroovePlan) {
         mode = plan.mode
+        auxiliaryRetention = plan.auxiliaryRetention
+        maximumAnchorKicksPerBar = plan.maximumAnchorKicksPerBar
+        thinningSeed = plan.thinningSeed
     }
 }
 

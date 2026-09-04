@@ -891,6 +891,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
             into structural: BassPlan?
         ) -> BassPlan? {
             guard let structural, let update else { return structural }
+            guard hasSameBassStructure(structural, update) else { return structural }
             let events = structural.events.map { old in
                 guard let fresh = update.events.first(where: { $0.stableID == old.stableID }) else {
                     return old
@@ -923,6 +924,39 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 ),
                 events: events
             )
+        }
+
+        private static func hasSameBassStructure(
+            _ lhs: BassPlan,
+            _ rhs: BassPlan
+        ) -> Bool {
+            lhs.mode == rhs.mode
+                && lhs.instrumentID == rhs.instrumentID
+                && lhs.register == rhs.register
+                && lhs.articulation == rhs.articulation
+                && lhs.ducking.attackSeconds == rhs.ducking.attackSeconds
+                && lhs.ducking.holdSeconds == rhs.ducking.holdSeconds
+                && lhs.ducking.releaseSeconds == rhs.ducking.releaseSeconds
+                && lhs.events.map(BassStructuralEventIdentity.init)
+                    == rhs.events.map(BassStructuralEventIdentity.init)
+        }
+
+        private struct BassStructuralEventIdentity: Equatable {
+            let stableID: UInt64
+            let chordIndex: Int
+            let startSubdivision: Int64
+            let durationSubdivisions: Int64
+            let midiNote: UInt8
+            let allowedPitchClasses: Set<Int>
+
+            init(event: BassEventPlan) {
+                stableID = event.stableID
+                chordIndex = event.chordIndex
+                startSubdivision = event.startSubdivision
+                durationSubdivisions = event.durationSubdivisions
+                midiNote = event.midiNote
+                allowedPitchClasses = event.allowedPitchClasses
+            }
         }
     }
 

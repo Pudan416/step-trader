@@ -1286,6 +1286,52 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         )
     }
 
+    func testLiveContinuousUpdateKeepsEntireBassWhenBassStructureAlsoChanges() throws {
+        let seed = seedProducingBass()
+        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let initial = makePlaybackEnginePlan(seed: seed, steps: 1_500)
+        let initialBass = try XCTUnwrap(initial.bass)
+        let alternateInstrument = try XCTUnwrap(
+            DayObjectsInstrumentManifest.defaultDescriptors.first {
+                $0.category == .bass && $0.id != initialBass.instrumentID
+            }
+        )
+        let changedBass = BassPlan(
+            mode: initialBass.mode,
+            instrumentID: alternateInstrument.id,
+            register: initialBass.register,
+            articulation: initialBass.articulation,
+            stepsProgress: 1,
+            cutoffMultiplier: initialBass.cutoffMultiplier + 0.1,
+            glideMilliseconds: initialBass.glideMilliseconds + 1,
+            reverbSend: initialBass.reverbSend + 0.01,
+            ducking: BassDuckingPlan(
+                maximumAttenuationDecibels: initialBass.ducking.maximumAttenuationDecibels + 0.1,
+                attackSeconds: initialBass.ducking.attackSeconds,
+                holdSeconds: initialBass.ducking.holdSeconds,
+                releaseSeconds: initialBass.ducking.releaseSeconds
+            ),
+            events: initialBass.events.map { event in
+                BassEventPlan(
+                    stableID: event.stableID,
+                    chordIndex: event.chordIndex,
+                    startSubdivision: event.startSubdivision,
+                    durationSubdivisions: event.durationSubdivisions,
+                    midiNote: event.midiNote,
+                    velocity: event.velocity + 0.1,
+                    activationThreshold: 0,
+                    allowedPitchClasses: event.allowedPitchClasses
+                )
+            }
+        )
+        let update = replacingPlaybackBass(in: initial, with: changedBass)
+        try runtime.prepare(plan: initial)
+
+        runtime.applyContinuous(update)
+
+        XCTAssertEqual(try XCTUnwrap(runtime.activePlanForTesting?.bass), initialBass)
+    }
+
     func testLiveSafeHeldLeadKeepsSourceTokenAndDelaysOldBankRecycleUntilRelease() throws {
         let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
         let initial = makePlaybackEnginePlan(seed: 701)
@@ -1937,6 +1983,22 @@ private func makePlaybackEnginePlan(
             spentColors: 20
         ),
         remixSeed: seed
+    )
+}
+
+private func replacingPlaybackBass(in plan: DayMusicPlan, with bass: BassPlan?) -> DayMusicPlan {
+    DayMusicPlan(
+        seed: plan.seed,
+        input: plan.input,
+        world: plan.world,
+        rhythm: plan.rhythm,
+        groove: plan.groove,
+        bass: bass,
+        harmony: plan.harmony,
+        happenings: plan.happenings,
+        lead: plan.lead,
+        glitch: plan.glitch,
+        mix: plan.mix
     )
 }
 
