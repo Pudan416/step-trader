@@ -57,6 +57,15 @@ final class DayObjectsMusicLabController: ObservableObject {
     @Published private(set) var soundState: DayObjectsSoundState = .off
     @Published private(set) var loadingHappeningRecipeIDs: Set<HappeningSoundRecipeID> = []
     @Published private(set) var unavailableHappeningRecipeIDs: Set<HappeningSoundRecipeID> = []
+    @Published private(set) var auditionMode: DayObjectsAuditionMode = .fullComposition
+    @Published private(set) var busMeterRows = DayObjectsRoleBus.allCases.map {
+        DayObjectsBusMeterRow(role: $0, metrics: .init(peakDBFS: -120, rmsDBFS: -120, activeVoiceCount: 0))
+    }
+    @Published private(set) var masterMeterRow = DayObjectsMasterMeterRow(
+        peakDBFS: -120,
+        rmsDBFS: -120,
+        estimatedLimiterReductionDB: 0
+    )
 
     private let playback: any DayObjectsMusicPlaybackProtocol
     private var isLeadHeld = false
@@ -68,6 +77,7 @@ final class DayObjectsMusicLabController: ObservableObject {
     private var happeningPadLifecycleIsActive = true
     private var happeningPadTasks: [HappeningSoundRecipeID: HappeningPadTask] = [:]
     private var lifecycleEventGeneration: UInt64 = 0
+    private var lastDiagnosticMeterPoll = Date.distantPast
     @Published private var acceptedSoundButtonIntent: DayObjectsSoundButtonIntent?
 
     private struct HappeningPadTask {
@@ -107,6 +117,34 @@ final class DayObjectsMusicLabController: ObservableObject {
         let center = Self.pitchClassNames[world.centerPitchClass]
         let chordLabel = world.progression.count == 1 ? "chord" : "chords"
         return "\(center) \(Self.modeName(world.mode)) · \(world.progression.count) \(chordLabel) · \(world.cycleBars)-bar cycle"
+    }
+
+    /// Changes the already running composition mix only after the user has
+    /// explicitly enabled canvas Sound. This is state-only while Sound is off.
+    func selectAuditionMode(_ mode: DayObjectsAuditionMode) {
+        guard soundState == .on else { return }
+        auditionMode = mode
+        playback.applyDiagnosticAudition(mode, plan: currentPlan)
+    }
+
+    /// Polls the Task 7 fixed-size meter handoff at most ten times a second.
+    /// The audio callback itself never publishes SwiftUI state.
+    func refreshDiagnosticMeters(now: Date = .now) {
+        guard now.timeIntervalSince(lastDiagnosticMeterPoll) >= 0.1 else { return }
+        lastDiagnosticMeterPoll = now
+        let snapshot = playback.diagnosticMeterSnapshot
+        busMeterRows = DayObjectsRoleBus.allCases.map {
+            .init(role: $0, metrics: snapshot.roleBusMetrics.metrics(for: $0))
+        }
+        masterMeterRow = .init(metrics: snapshot.masterMetrics)
+    }
+
+    /// Releases a debug audition without changing the normal Sound lifecycle.
+    /// In particular, collapsing diagnostics must never start the canvas.
+    func disableDiagnostics() {
+        guard auditionMode != .fullComposition else { return }
+        auditionMode = .fullComposition
+        playback.releaseDiagnosticAudition()
     }
 
     func toggleSound() async {
@@ -303,6 +341,7 @@ final class DayObjectsMusicLabController: ObservableObject {
     func turnSoundOff() async {
         acceptedSoundButtonIntent = nil
         cancelHappeningPadTasks(deactivate: false)
+        disableDiagnostics()
         await stop(includingSampleOnly: true)
     }
     func sceneActivityChanged(isActive: Bool) async {
@@ -486,6 +525,40 @@ final class DayObjectsMusicLabController: ObservableObject {
         case .mixolydian: "Mixolydian"
         case .majorPentatonic: "major pentatonic"
         }
+    }
+}
+
+struct DayObjectsBusMeterRow: Equatable, Sendable {
+    let role: DayObjectsRoleBus
+    let peakDBFS: Double
+    let rmsDBFS: Double
+    let activeVoiceCount: Int
+
+    init(role: DayObjectsRoleBus, metrics: DayObjectsRoleBusMetrics) {
+        self.role = role
+        peakDBFS = metrics.peakDBFS
+        rmsDBFS = metrics.rmsDBFS
+        activeVoiceCount = metrics.activeVoiceCount
+    }
+}
+
+struct DayObjectsMasterMeterRow: Equatable, Sendable {
+    let peakDBFS: Double
+    let rmsDBFS: Double
+    let estimatedLimiterReductionDB: Double
+
+    init(peakDBFS: Double, rmsDBFS: Double, estimatedLimiterReductionDB: Double) {
+        self.peakDBFS = peakDBFS
+        self.rmsDBFS = rmsDBFS
+        self.estimatedLimiterReductionDB = estimatedLimiterReductionDB
+    }
+
+    init(metrics: DayObjectsMasterMetrics) {
+        self.init(
+            peakDBFS: metrics.peakDBFS,
+            rmsDBFS: metrics.rmsDBFS,
+            estimatedLimiterReductionDB: metrics.estimatedLimiterReductionDB
+        )
     }
 }
 #endif

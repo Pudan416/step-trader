@@ -244,6 +244,16 @@ final class DayObjectsLabUITests: XCTestCase {
         XCTAssertTrue(app.buttons["dayObjects.audition.hit"].exists)
         XCTAssertTrue(app.staticTexts["dayObjects.audition.attribution"].exists)
         XCTAssertTrue(app.staticTexts["dayObjects.audition.diagnostics"].exists)
+        XCTAssertTrue(app.buttons["dayObjects.audition.mode"].exists)
+        XCTAssertFalse(app.buttons["dayObjects.audition.mode"].isEnabled)
+        for role in ["rhythm", "bass", "harmony", "happenings", "lead"] {
+            let bus = app.buttons["dayObjects.audition.bus.\(role)"]
+            XCTAssertTrue(bus.exists)
+            XCTAssertFalse(bus.isEnabled)
+        }
+        XCTAssertTrue(app.buttons["dayObjects.audition.sidechain"].exists)
+        XCTAssertFalse(app.buttons["dayObjects.audition.sidechain"].isEnabled)
+        XCTAssertTrue(app.staticTexts["dayObjects.audition.masterMeter"].exists)
 
         let canvas = app.otherElements["dayObjects.canvas"]
         let category = app.buttons["dayObjects.audition.category"]
@@ -255,7 +265,7 @@ final class DayObjectsLabUITests: XCTestCase {
         XCTAssertTrue(app.buttons["dayObjects.audition.category"].exists)
     }
 
-    func testInstrumentCategoriesExposeAutomaticActionsAndThreeTonalPresets() throws {
+    func testInstrumentCategoriesExposeAutomaticActionsAndApprovedTonalPresets() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-uiLab", "dayObjects", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
@@ -269,7 +279,7 @@ final class DayObjectsLabUITests: XCTestCase {
         let hit = app.buttons["dayObjects.audition.hit"]
         XCTAssertTrue(note.waitForExistence(timeout: 5))
 
-        for category in ["Pad", "Pluck", "Bass", "Lead", "Keys"] {
+        for category in ["Pad", "Pluck", "Lead", "Keys"] {
             selectCategory(category, in: app)
             let preset = app.buttons["dayObjects.audition.preset"]
             XCTAssertTrue(preset.waitForExistence(timeout: 2))
@@ -278,6 +288,12 @@ final class DayObjectsLabUITests: XCTestCase {
             assertEnabled(chord)
             assertDisabled(hit, value: "disabled for \(category)")
         }
+
+        selectCategory("Bass", in: app)
+        XCTAssertEqual(app.buttons["dayObjects.audition.preset"].value as? String, "4 presets")
+        assertEnabled(note)
+        assertEnabled(chord)
+        assertDisabled(hit, value: "disabled for Bass")
 
         selectCategory("Drums", in: app)
         XCTAssertFalse(app.buttons["dayObjects.audition.preset"].exists)

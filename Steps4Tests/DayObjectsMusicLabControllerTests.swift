@@ -311,6 +311,66 @@ final class DayObjectsMusicLabControllerTests: XCTestCase {
         ])
     }
 
+    func testDiagnosticsRequireCanvasSoundAndExposeReadOnlyMeterRows() async {
+        let playback = RecordingLabPlayback()
+        playback.diagnosticMeterSnapshot = .init(
+            roleBusMetrics: .init(
+                rhythm: .init(peakDBFS: -8, rmsDBFS: -15, activeVoiceCount: 2),
+                bass: .init(peakDBFS: -10, rmsDBFS: -18, activeVoiceCount: 1),
+                harmony: .init(peakDBFS: -12, rmsDBFS: -20, activeVoiceCount: 3),
+                happenings: .init(peakDBFS: -14, rmsDBFS: -24, activeVoiceCount: 1),
+                lead: .init(peakDBFS: -16, rmsDBFS: -28, activeVoiceCount: 0)
+            ),
+            masterMetrics: .init(peakDBFS: -3, rmsDBFS: -11, estimatedLimiterReductionDB: 3.5)
+        )
+        let controller = DayObjectsMusicLabController(playback: playback)
+
+        controller.selectAuditionMode(.isolatedBus(.bass))
+        controller.refreshDiagnosticMeters(now: Date(timeIntervalSinceReferenceDate: 1))
+
+        XCTAssertEqual(controller.auditionMode, .fullComposition)
+        XCTAssertTrue(playback.diagnosticCommands.isEmpty)
+        XCTAssertEqual(controller.busMeterRows.map(\.role), DayObjectsRoleBus.allCases)
+        XCTAssertEqual(controller.masterMeterRow.estimatedLimiterReductionDB, 3.5, accuracy: 0.001)
+
+        await controller.toggleSound()
+        controller.selectAuditionMode(.isolatedBus(.bass))
+
+        XCTAssertEqual(controller.auditionMode, .isolatedBus(.bass))
+        XCTAssertEqual(playback.diagnosticCommands, [.mode(.isolatedBus(.bass))])
+    }
+
+    func testDisablingDiagnosticsReleasesAuditionWithoutRestartingCanvasSound() async {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        await controller.toggleSound()
+        controller.selectAuditionMode(.isolatedBus(.lead))
+
+        controller.disableDiagnostics()
+
+        XCTAssertEqual(controller.auditionMode, .fullComposition)
+        XCTAssertEqual(playback.diagnosticCommands, [.mode(.isolatedBus(.lead)), .release])
+        XCTAssertEqual(playback.startPlans.count, 1)
+        XCTAssertEqual(controller.soundState, .on)
+    }
+
+    func testEachIsolatedBusLeavesOnlyItsSelectedSoloCommandActive() async {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        await controller.toggleSound()
+
+        for role in DayObjectsRoleBus.allCases {
+            controller.selectAuditionMode(.isolatedBus(role))
+            XCTAssertEqual(controller.auditionMode, .isolatedBus(role))
+            XCTAssertEqual(playback.diagnosticCommands.last, .mode(.isolatedBus(role)))
+        }
+
+        XCTAssertEqual(
+            playback.diagnosticCommands,
+            DayObjectsRoleBus.allCases.map { .mode(.isolatedBus($0)) }
+        )
+    }
+
     func testRemixPreservesDayInputsAndReplacesPendingStructuralPlan() async {
         let playback = RecordingLabPlayback()
         let controller = DayObjectsMusicLabController(playback: playback)
@@ -564,6 +624,8 @@ private final class RecordingLabPlayback: DayObjectsMusicPlaybackProtocol {
     var stopWaiters: [CheckedContinuation<Void, Never>] = []
     var suspendStart = false
     var startContinuation: CheckedContinuation<Void, Never>?
+    var diagnosticMeterSnapshot = DayObjectsDiagnosticMeterSnapshot.silent
+    var diagnosticCommands: [DayObjectsDiagnosticCommand] = []
 
     func start(plan: DayMusicPlan) async throws {
         startPlans.append(plan)
@@ -608,6 +670,10 @@ private final class RecordingLabPlayback: DayObjectsMusicPlaybackProtocol {
         auditionedRecipeIDs.append(recipeID)
         if let auditionError { throw auditionError }
     }
+    func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan) {
+        diagnosticCommands.append(.mode(mode))
+    }
+    func releaseDiagnosticAudition() { diagnosticCommands.append(.release) }
 }
 
 @MainActor

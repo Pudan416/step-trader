@@ -298,11 +298,17 @@ struct DayObjectsLabView: View {
             disclosureButton(
                 title: "Instrument diagnostics",
                 isExpanded: $showsInstrumentDiagnostics,
-                identifier: "dayObjects.instrumentDiagnostics"
+                identifier: "dayObjects.instrumentDiagnostics",
+                onChange: { isExpanded in
+                    guard !isExpanded else { return }
+                    musicController.disableDiagnostics()
+                    Task { await audition.stop() }
+                }
             )
             if showsInstrumentDiagnostics {
                 DayObjectsInstrumentAuditionView(
                     controller: audition,
+                    musicController: musicController,
                     beforeAudition: { await musicController.turnSoundOff() }
                 )
             }
@@ -457,10 +463,12 @@ struct DayObjectsLabView: View {
     private func disclosureButton(
         title: String,
         isExpanded: Binding<Bool>,
-        identifier: String
+        identifier: String,
+        onChange: ((Bool) -> Void)? = nil
     ) -> some View {
         Button {
             isExpanded.wrappedValue.toggle()
+            onChange?(isExpanded.wrappedValue)
         } label: {
             HStack {
                 Text(title)

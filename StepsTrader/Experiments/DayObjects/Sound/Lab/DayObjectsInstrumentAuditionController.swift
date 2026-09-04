@@ -119,6 +119,7 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
     @Published private(set) var soundState: DayObjectsInstrumentAuditionState = .off
     @Published private(set) var selectedCategory: DayObjectsInstrumentCategory = .pad
     @Published private(set) var selectedDescriptorID: DayObjectsInstrumentID?
+    @Published private(set) var displayedSidechainReductionDB = 0.0
 
     let bank: any DayObjectsInstrumentBankProtocol
     private let audioSession: any DayObjectsInstrumentAuditionSession
@@ -249,6 +250,35 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
         bank.drums.hit(.kickFull, velocity: 0.82)
     }
 
+    /// One deterministic transient pair for comparing the preallocated Bass
+    /// duck stage. The displayed value is intentionally an estimate: the
+    /// production limiter does not expose gain-reduction telemetry.
+    func auditionKickBassSidechain() async {
+        guard await ensureSoundIsOn() else { return }
+        let descriptor = selectedDescriptor?.category == .bass
+            ? selectedDescriptor
+            : bank.descriptors.first { $0.id.rawValue == "bass.analog-boom" }
+        guard let descriptor else { return }
+        do {
+            let pool = try bank.tonalPool(named: DayObjectsTonalPoolSpecification.manualAudition.name)
+            try pool.prepareInstrument(descriptor.id)
+            bank.drums.hit(.kickFull, velocity: 0.82)
+            _ = pool.noteOn(.init(
+                instrumentID: descriptor.id,
+                midiNote: descriptor.referenceMIDI,
+                velocity: 0.78,
+                role: .note,
+                envelopeVariant: nil,
+                pan: 0,
+                delaySend: 0,
+                reverbSend: 0.08
+            ))
+            displayedSidechainReductionDB = 3.5
+        } catch {
+            await actionFailed("Sidechain audition is unavailable. Try Sound again.")
+        }
+    }
+
     private func ensureSoundIsOn() async -> Bool {
         if soundState != .on {
             await turnSoundOn()
@@ -323,6 +353,7 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
 
     private func releaseHeldGates() {
         endLead()
+        displayedSidechainReductionDB = 0
         bank.releaseAllIncludingSharedHappenings()
     }
 

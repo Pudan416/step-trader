@@ -45,6 +45,7 @@ private enum DayObjectsHappeningAuditionReference {
 @MainActor
 protocol DayObjectsPlaybackRuntimeProtocol: AnyObject {
     var playbackMetrics: DayObjectsPlaybackMetrics { get }
+    var diagnosticMeterSnapshot: DayObjectsDiagnosticMeterSnapshot { get }
 
     func prepare(plan: DayMusicPlan) throws
     func startAudio() throws
@@ -72,6 +73,14 @@ protocol DayObjectsPlaybackRuntimeProtocol: AnyObject {
     func removeHappening(id: String)
     func beginLead(_ gesture: LeadGestureSample)
     func updateLead(_ gesture: LeadGestureSample)
+    func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan)
+    func releaseDiagnosticAudition(plan: DayMusicPlan)
+}
+
+extension DayObjectsPlaybackRuntimeProtocol {
+    var diagnosticMeterSnapshot: DayObjectsDiagnosticMeterSnapshot { .silent }
+    func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan) {}
+    func releaseDiagnosticAudition(plan: DayMusicPlan) {}
 }
 
 /// Owns the only user-facing playback lifecycle. Layer implementations remain
@@ -113,6 +122,10 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
         var result = runtime.playbackMetrics
         result.engineStartCount = successfulStartCount
         return result
+    }
+
+    var diagnosticMeterSnapshot: DayObjectsDiagnosticMeterSnapshot {
+        runtime.diagnosticMeterSnapshot
     }
 
     init(
@@ -379,6 +392,17 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
 
     func endLead() {
         runtime.endLead()
+    }
+
+    func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan) {
+        guard state == .on else { return }
+        runtime.applyDiagnosticAudition(mode, plan: plan)
+    }
+
+    func releaseDiagnosticAudition() {
+        guard state == .on else { return }
+        guard let currentPlan else { return }
+        runtime.releaseDiagnosticAudition(plan: currentPlan)
     }
 
     private func requestTeardown(finalState: DayObjectsSoundState, force: Bool) async {
@@ -722,6 +746,17 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
             self.plan = audiblePlan
         }
 
+        func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan) {
+            let mixPlan: LayerMixPlan
+            switch mode {
+            case .fullComposition, .kickBassSidechain:
+                mixPlan = plan.mix
+            case let .isolatedBus(role):
+                mixPlan = Self.isolatedMix(role: role, from: plan.mix)
+            }
+            applyMix(mixPlan, using: plan, ducking: 0)
+        }
+
         func stopAttacks() {
             isScheduling = false
             isReleasing = true
@@ -754,10 +789,18 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         func endLeadIfBound() { leadPlayer?.end() }
 
         private func applyMix(_ plan: DayMusicPlan, ducking: Double) {
+            applyMix(plan.mix, using: plan, ducking: ducking)
+        }
+
+        private func applyMix(
+            _ mixPlan: LayerMixPlan,
+            using plan: DayMusicPlan,
+            ducking: Double
+        ) {
             let harmonySend = plan.harmony.roles.map(\.reverbSend).max() ?? 0
             let happeningSend = plan.happenings.map(\.reverbSend).max() ?? 0
             mix.apply(
-                plan.mix,
+                mixPlan,
                 activeChordVoiceCount: max(1, harmony.metrics.activeVoiceCount),
                 harmonyDuckingDecibels: ducking,
                 spatial: .init(
@@ -773,6 +816,24 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                     )
                 ),
                 rampDurationSeconds: 0.25
+            )
+        }
+
+        private static func isolatedMix(
+            role: DayObjectsRoleBus,
+            from mix: LayerMixPlan
+        ) -> LayerMixPlan {
+            let muted = -60.0
+            return .init(
+                rhythmTargetDecibels: role == .rhythm ? mix.rhythmTargetDecibels : muted,
+                bassTargetDecibels: role == .bass ? mix.bassTargetDecibels : muted,
+                harmonyTargetDecibels: role == .harmony ? mix.harmonyTargetDecibels : muted,
+                happeningAggregateTargetDecibels: role == .happenings ? mix.happeningAggregateTargetDecibels : muted,
+                happeningPerVoiceTargetDecibels: role == .happenings ? mix.happeningPerVoiceTargetDecibels : muted,
+                happeningCount: mix.happeningCount,
+                leadTargetDecibels: role == .lead ? mix.leadTargetDecibels : muted,
+                masterTargetDecibelsBeforeLimiter: mix.masterTargetDecibelsBeforeLimiter,
+                maximumHarmonyDuckingDecibels: 0
             )
         }
 
@@ -1124,6 +1185,22 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 ? worldA.lead.metrics.voiceCount + worldB.lead.metrics.voiceCount
                 : 0
         )
+    }
+
+    var diagnosticMeterSnapshot: DayObjectsDiagnosticMeterSnapshot {
+        let metrics = pair.metrics
+        return .init(
+            roleBusMetrics: metrics.roleBusMetrics,
+            masterMetrics: metrics.masterMetrics
+        )
+    }
+
+    func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan) {
+        activeWorld.applyDiagnosticAudition(mode, plan: plan)
+    }
+
+    func releaseDiagnosticAudition(plan: DayMusicPlan) {
+        activeWorld.applyDiagnosticAudition(.fullComposition, plan: plan)
     }
 
     var metrics: DayObjectsRemixRuntimeMetrics {
@@ -1597,6 +1674,18 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
             pendingRemixCount: pendingStructuralPlan == nil ? 0 : 1,
             leadVoiceCount: isPrepared ? world.lead.metrics.voiceCount : 0
         )
+    }
+
+    var diagnosticMeterSnapshot: DayObjectsDiagnosticMeterSnapshot {
+        world.bank.instrumentBank.diagnosticMeterSnapshot
+    }
+
+    func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan) {
+        world.applyDiagnosticAudition(mode, plan: plan)
+    }
+
+    func releaseDiagnosticAudition(plan: DayMusicPlan) {
+        world.applyDiagnosticAudition(.fullComposition, plan: plan)
     }
 
     init(bundle: Bundle = .main) {

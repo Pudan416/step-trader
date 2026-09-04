@@ -403,6 +403,10 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         prepared?.graph.programEffectMetrics ?? .unsupported
     }
 
+    var diagnosticMeterSnapshot: DayObjectsDiagnosticMeterSnapshot {
+        prepared?.graph.diagnosticMeterSnapshot ?? .silent
+    }
+
     func applyMix(_ state: DayObjectsMixState) {
         prepared?.graph.applyMix(state)
     }
@@ -621,6 +625,12 @@ final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentBankGraph
     private weak var persistentMaster: DayObjectsPersistentMasterGraph?
 
     var programEffectMetrics: DayObjectsProgramEffectMetrics { currentProgramEffectMetrics }
+
+    var diagnosticMeterSnapshot: DayObjectsDiagnosticMeterSnapshot {
+        guard let persistentMaster else { return .silent }
+        let snapshots = persistentMaster.meterSnapshots(graphs: [self])
+        return .init(roleBusMetrics: snapshots.0, masterMetrics: snapshots.1)
+    }
 
     var outputGainMetrics: DayObjectsBankOutputGainMetrics {
         .init(
@@ -1087,6 +1097,7 @@ final class DayObjectsPersistentMasterGraph {
     private let leadMeter = DayObjectsBusMeter()
     private let preLimiterMeter = DayObjectsBusMeter()
     private let masterMeter = DayObjectsBusMeter()
+    private let happenings: DayObjectsHappeningSamplePool
     private var tapsAreInstalled = false
     private var meterTapInstallationCount = 0
     private var meterResetCount = 0
@@ -1100,6 +1111,7 @@ final class DayObjectsPersistentMasterGraph {
     )
 
     init(happenings: DayObjectsHappeningSamplePool) {
+        self.happenings = happenings
         happeningsBus = Mixer([happenings.output], name: "Day Objects happenings bus")
 
         rhythmCompressor = DynamicRangeCompressor(
@@ -1473,7 +1485,7 @@ final class DayObjectsPersistentMasterGraph {
 
     func meterSnapshots(
         graphs: [DayObjectsAudioKitInstrumentBankGraph],
-        happeningVoiceCount: Int,
+        happeningVoiceCount: Int? = nil,
         now: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) -> (DayObjectsFiveRoleBusMetrics, DayObjectsMasterMetrics) {
         guard now - lastPublishedAt >= 0.1 else {
@@ -1488,7 +1500,9 @@ final class DayObjectsPersistentMasterGraph {
             rhythm: rhythmMeter.snapshot(activeVoiceCount: rhythmCount),
             bass: bassMeter.snapshot(activeVoiceCount: bassCount),
             harmony: harmonyMeter.snapshot(activeVoiceCount: harmonyCount),
-            happenings: happeningsMeter.snapshot(activeVoiceCount: happeningVoiceCount),
+            happenings: happeningsMeter.snapshot(
+                activeVoiceCount: happeningVoiceCount ?? happenings.metrics.activeVoiceCount
+            ),
             lead: leadMeter.snapshot(activeVoiceCount: leadCount)
         )
         let limiterLatencyFrames = Int64((

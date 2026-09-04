@@ -275,6 +275,7 @@ protocol DayObjectsInstrumentBankGraph: AnyObject {
     var outputGainMetrics: DayObjectsBankOutputGainMetrics { get }
     var bassDuckGainMetrics: BassDuckGainMetrics { get }
     var programEffectMetrics: DayObjectsProgramEffectMetrics { get }
+    var diagnosticMeterSnapshot: DayObjectsDiagnosticMeterSnapshot { get }
     func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval)
     func scheduleOutputGain(
         _ linearGain: Double,
@@ -294,6 +295,7 @@ extension DayObjectsInstrumentBankGraph {
     var outputGainMetrics: DayObjectsBankOutputGainMetrics { .unsupported }
     var bassDuckGainMetrics: BassDuckGainMetrics { .unsupported }
     var programEffectMetrics: DayObjectsProgramEffectMetrics { .unsupported }
+    var diagnosticMeterSnapshot: DayObjectsDiagnosticMeterSnapshot { .silent }
     func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval) {}
     func scheduleOutputGain(
         _ linearGain: Double,
@@ -460,6 +462,7 @@ protocol DayObjectsInstrumentBankProtocol: AnyObject {
     var outputGainMetrics: DayObjectsBankOutputGainMetrics { get }
     var bassDuckGainMetrics: BassDuckGainMetrics { get }
     var programEffectMetrics: DayObjectsProgramEffectMetrics { get }
+    var diagnosticMeterSnapshot: DayObjectsDiagnosticMeterSnapshot { get }
 
     func prepare(configuration: DayObjectsInstrumentBankConfiguration) throws
     func tonalPool(named id: String) throws -> DayObjectsTonalVoicePoolProtocol
@@ -485,6 +488,7 @@ extension DayObjectsInstrumentBankProtocol {
     var outputGainMetrics: DayObjectsBankOutputGainMetrics { .unsupported }
     var bassDuckGainMetrics: BassDuckGainMetrics { .unsupported }
     var programEffectMetrics: DayObjectsProgramEffectMetrics { .unsupported }
+    var diagnosticMeterSnapshot: DayObjectsDiagnosticMeterSnapshot { .silent }
     func setOutputGain(_ linearGain: Double, rampDurationSeconds: TimeInterval) {}
     func scheduleOutputGain(
         _ linearGain: Double,

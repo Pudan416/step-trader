@@ -14,6 +14,35 @@ enum DayObjectsSoundState: Equatable, Sendable {
     case error(DayObjectsAudioError)
 }
 
+/// Debug-only mix comparison state. It is a command for an already prepared
+/// playback graph; neither the view nor the lab controller creates audio nodes.
+enum DayObjectsAuditionMode: Hashable, Sendable {
+    case fullComposition
+    case isolatedBus(DayObjectsRoleBus)
+    case kickBassSidechain
+}
+
+struct DayObjectsDiagnosticMeterSnapshot: Equatable, Sendable {
+    let roleBusMetrics: DayObjectsFiveRoleBusMetrics
+    let masterMetrics: DayObjectsMasterMetrics
+
+    static let silent = Self(
+        roleBusMetrics: .init(
+            rhythm: .init(peakDBFS: -120, rmsDBFS: -120, activeVoiceCount: 0),
+            bass: .init(peakDBFS: -120, rmsDBFS: -120, activeVoiceCount: 0),
+            harmony: .init(peakDBFS: -120, rmsDBFS: -120, activeVoiceCount: 0),
+            happenings: .init(peakDBFS: -120, rmsDBFS: -120, activeVoiceCount: 0),
+            lead: .init(peakDBFS: -120, rmsDBFS: -120, activeVoiceCount: 0)
+        ),
+        masterMetrics: .init(peakDBFS: -120, rmsDBFS: -120, estimatedLimiterReductionDB: 0)
+    )
+}
+
+enum DayObjectsDiagnosticCommand: Equatable, Sendable {
+    case mode(DayObjectsAuditionMode)
+    case release
+}
+
 struct DayObjectsPlaybackMetrics: Equatable, Sendable {
     var engineStartCount: Int = 0
     var activeTransportCount: Int = 0
@@ -29,6 +58,7 @@ struct DayObjectsPlaybackMetrics: Equatable, Sendable {
 protocol DayObjectsMusicPlaybackProtocol: AnyObject {
     var state: DayObjectsSoundState { get }
     var metrics: DayObjectsPlaybackMetrics { get }
+    var diagnosticMeterSnapshot: DayObjectsDiagnosticMeterSnapshot { get }
 
     func start(plan: DayMusicPlan) async throws
     func auditionHappening(_ recipeID: HappeningSoundRecipeID) async throws
@@ -40,5 +70,13 @@ protocol DayObjectsMusicPlaybackProtocol: AnyObject {
     func beginLead(_ gesture: LeadGestureSample)
     func updateLead(_ gesture: LeadGestureSample)
     func endLead()
+    func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan)
+    func releaseDiagnosticAudition()
+}
+
+extension DayObjectsMusicPlaybackProtocol {
+    var diagnosticMeterSnapshot: DayObjectsDiagnosticMeterSnapshot { .silent }
+    func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan) {}
+    func releaseDiagnosticAudition() {}
 }
 #endif

@@ -99,22 +99,66 @@ final class DayObjectsInstrumentAuditionControllerTests: XCTestCase {
         XCTAssertEqual(bank.startCount, 0)
     }
 
-    func testEveryTonalCategoryExposesItsThreeManifestPresets() {
+    func testTonalCategoriesExposeTheirManifestPresets() {
         let controller = DayObjectsInstrumentAuditionController(
             bank: FakeAuditionBank(),
             audioSession: FakeAuditionSession()
         )
 
-        for category in [
-            DayObjectsInstrumentCategory.pad,
-            .pluck,
-            .bass,
-            .lead,
-            .keys,
-        ] {
+        for category in [DayObjectsInstrumentCategory.pad, .pluck, .lead, .keys] {
             controller.selectCategory(category)
             XCTAssertEqual(controller.presets.count, 3, "\(category.rawValue) must expose its three licensed presets")
         }
+        controller.selectCategory(.bass)
+        XCTAssertEqual(controller.presets.count, 4)
+    }
+
+    func testBassCategoryExposesTheFourApprovedPresetsInManifestOrder() {
+        let controller = DayObjectsInstrumentAuditionController(
+            bank: FakeAuditionBank(),
+            audioSession: FakeAuditionSession()
+        )
+
+        controller.selectCategory(.bass)
+
+        XCTAssertEqual(
+            controller.presets.map(\.id.rawValue),
+            [
+                "bass.analog-boom",
+                "bass.hey-jakob",
+                "bass.bb-roys-phaser",
+                "bass.jec-hollores-2",
+            ]
+        )
+    }
+
+    func testSidechainAuditionSchedulesOneKickAndOneBassNoteUsingTheSelectedBassPreset() async {
+        let bank = FakeAuditionBank()
+        let controller = DayObjectsInstrumentAuditionController(
+            bank: bank,
+            audioSession: FakeAuditionSession()
+        )
+        controller.selectCategory(.bass)
+        let selected = try! XCTUnwrap(controller.selectedDescriptor)
+
+        await controller.auditionKickBassSidechain()
+
+        XCTAssertEqual(bank.fakeDrums.hitCount, 1)
+        XCTAssertEqual(bank.pool.noteRequests.count, 1)
+        XCTAssertEqual(bank.pool.noteRequests.first?.instrumentID, selected.id)
+        XCTAssertEqual(controller.displayedSidechainReductionDB, 3.5, accuracy: 0.001)
+    }
+
+    func testSidechainAuditionFallsBackToAnalogBoomWhenBassIsNotSelected() async {
+        let bank = FakeAuditionBank()
+        let controller = DayObjectsInstrumentAuditionController(
+            bank: bank,
+            audioSession: FakeAuditionSession()
+        )
+
+        await controller.auditionKickBassSidechain()
+
+        XCTAssertEqual(bank.pool.noteRequests.map(\.instrumentID.rawValue), ["bass.analog-boom"])
     }
 
     func testLeadGestureStartsOnlyForLeadAndMapsXToSafeRegister() async {
