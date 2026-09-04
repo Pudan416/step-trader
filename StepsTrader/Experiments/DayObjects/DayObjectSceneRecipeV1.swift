@@ -247,29 +247,32 @@ struct DayObjectSceneRecipeV1: Equatable {
     let background: DayObjectEditorialBackground
     let lowSleep: Bool
     let actors: [DayObjectSceneRecipeActorV1]
+    let backgroundStyle: DayObjectMeshGradientStyle
+    let preview: DayObjectEditorialPreviewSpec?
+    let previewPaletteSet: DayObjectPaletteSet?
 
     func actor(_ eventID: String) -> DayObjectSceneRecipeActorV1? {
         actors.first { $0.eventID == eventID }
-    }
-
-    var backgroundStyle: DayObjectMeshGradientStyle {
-        DayObjectMeshGradientStyle(
-            colors: Array(repeating: background.linearRGB, count: 3),
-            archetype: .drift,
-            distortion: 0,
-            swirl: 0,
-            speed: 0,
-            scale: 1,
-            phase: 0
-        )
     }
 
     static func make(
         rootSeed: UInt64,
         actors: [DayObjectActor],
         background: DayObjectEditorialBackground,
-        lowSleep: Bool
+        lowSleep: Bool,
+        paletteSet: DayObjectPaletteSet? = nil,
+        preview: DayObjectEditorialPreviewSpec? = nil
     ) -> DayObjectSceneRecipeV1 {
+        if let preview, let paletteSet {
+            return makePreview(
+                rootSeed: rootSeed,
+                actors: actors,
+                background: background,
+                lowSleep: lowSleep,
+                paletteSet: paletteSet,
+                preview: preview
+            )
+        }
         let materialSeed = approvedMaterialSeeds[Int(rootSeed % UInt64(approvedMaterialSeeds.count))]
         return make(
             materialSeed: materialSeed,
@@ -306,16 +309,104 @@ struct DayObjectSceneRecipeV1: Equatable {
             materialSeed: materialSeed,
             background: background,
             lowSleep: lowSleep,
-            actors: recipeActors
+            actors: recipeActors,
+            backgroundStyle: neutralBackgroundStyle(background),
+            preview: nil,
+            previewPaletteSet: nil
         )
     }
 
     func replacingActors(_ actors: [DayObjectActor]) -> DayObjectSceneRecipeV1 {
-        Self.make(
+        if let preview, let previewPaletteSet {
+            return Self.makePreview(
+                rootSeed: materialSeed,
+                actors: actors,
+                background: background,
+                lowSleep: lowSleep,
+                paletteSet: previewPaletteSet,
+                preview: preview
+            )
+        }
+        return Self.make(
             materialSeed: materialSeed,
             actors: actors,
             background: background,
             lowSleep: lowSleep
+        )
+    }
+
+    private static func makePreview(
+        rootSeed: UInt64,
+        actors: [DayObjectActor],
+        background: DayObjectEditorialBackground,
+        lowSleep: Bool,
+        paletteSet: DayObjectPaletteSet,
+        preview: DayObjectEditorialPreviewSpec
+    ) -> DayObjectSceneRecipeV1 {
+        let planned = CompositionPlanner.make(
+            daySeed: rootSeed,
+            eventIDs: CorpusManifest.canonicalEventIDs,
+            viewport: .phone
+        )
+        let geometries = planned.actors.map {
+            Geometry(
+                position: SIMD2($0.position.x, $0.position.y),
+                diameter: $0.diameter,
+                depth: $0.depth,
+                localBlur: $0.localBlur,
+                cropAllowance: $0.cropAllowance,
+                drawOrder: $0.drawOrder
+            )
+        }
+        let recipeActors = Array(actors.prefix(geometries.count)).enumerated().map { index, actor in
+            let geometry = geometries[index]
+            return DayObjectSceneRecipeActorV1(
+                eventID: actor.eventID,
+                slot: index,
+                position: geometry.position,
+                diameter: geometry.diameter,
+                depth: geometry.depth,
+                localBlur: geometry.localBlur,
+                cropAllowance: geometry.cropAllowance,
+                drawOrder: geometry.drawOrder,
+                material: makePreviewMaterial(
+                    daySeed: rootSeed,
+                    eventID: actor.eventID,
+                    slot: index,
+                    depth: geometry.depth,
+                    preview: preview,
+                    paletteSet: paletteSet
+                ),
+                motion: makeMotion(daySeed: rootSeed, eventID: actor.eventID)
+            )
+        }
+        return DayObjectSceneRecipeV1(
+            version: version,
+            compositionSourceSeed: rootSeed,
+            materialSeed: rootSeed,
+            background: background,
+            lowSleep: lowSleep,
+            actors: recipeActors,
+            backgroundStyle: DayObjectMeshGradientStyle.make(
+                seed: rootSeed,
+                palette: DayObjectPalette.make(modernPalette: paletteSet.background)
+            ),
+            preview: preview,
+            previewPaletteSet: paletteSet
+        )
+    }
+
+    private static func neutralBackgroundStyle(
+        _ background: DayObjectEditorialBackground
+    ) -> DayObjectMeshGradientStyle {
+        DayObjectMeshGradientStyle(
+            colors: Array(repeating: background.linearRGB, count: 3),
+            archetype: .drift,
+            distortion: 0,
+            swirl: 0,
+            speed: 0,
+            scale: 1,
+            phase: 0
         )
     }
 
@@ -393,6 +484,124 @@ struct DayObjectSceneRecipeV1: Equatable {
             contourCount: construction.3,
             counterformRadius: construction.4,
             counterformSoftness: construction.5
+        )
+    }
+
+    private static func makePreviewMaterial(
+        daySeed: UInt64,
+        eventID: String,
+        slot: Int,
+        depth: Double,
+        preview: DayObjectEditorialPreviewSpec,
+        paletteSet: DayObjectPaletteSet
+    ) -> DayObjectEditorialMaterialV1 {
+        let actorSeed = daySeed ^ stableHash(eventID)
+        let lightnessShift = paletteSet.actorLightnessShift ?? 0
+        func displayColors(_ palette: ModernPalette) -> [SIMD3<Float>] {
+            palette.hexes.map {
+                DayObjectRGB(hex: $0)
+                    .shiftingPerceptualLightness(by: lightnessShift)
+                    .sRGB
+            }
+        }
+
+        let primary = displayColors(paletteSet.primaryObjects)
+        let secondary = displayColors(paletteSet.secondaryObjects)
+        let actorPalette = (slot + Int(actorSeed % 3)).isMultiple(of: 3)
+            ? secondary
+            : primary
+        let colorPool: [SIMD3<Float>]
+        switch preview.material {
+        case .paletteWash:
+            colorPool = primary + secondary
+        case .depthPalette:
+            colorPool = depth >= 0.52 ? primary : secondary
+        default:
+            colorPool = actorPalette
+        }
+        let start = Int(actorSeed % UInt64(max(colorPool.count, 1)))
+        let colors = (0..<preview.material.colorCount).map {
+            colorPool[(start + $0) % colorPool.count]
+        }
+        let fields = makePreviewFields(
+            actorSeed: actorSeed,
+            material: preview.material,
+            colorCount: colors.count
+        )
+        let accent = actorUnit(actorSeed, salt: 0xACC3_1700) > 0.54
+        let construction: (Double, Double, Double, Int) = switch preview.material {
+        case .solid: (1, 0.008, 0, 0)
+        case .gradientTwo, .gradientThree, .paletteWash:
+            (0.96, accent ? 0.035 : 0.018, 0, 0)
+        case .depthPalette: (1, 0.010, 0, 0)
+        case .glass: (accent ? 0.72 : 0.64, 0.026, 0, 0)
+        case .mist: (0.70, accent ? 0.095 : 0.075, 0, 0)
+        case .luminous: (accent ? 0.94 : 0.87, 0.046, 0, 0)
+        case .softSphere: (0.98, 0.02, 0, 0)
+        case .chromaticEdge: (0.94, 0.030, 0, 0)
+        case .asymmetricPool: (0.92, 0.042, 0, 0)
+        case .softOutline:
+            (0.98, 0.020, 0.052 + actorUnit(actorSeed, salt: 0x0A72) * 0.010, 1)
+        }
+        return DayObjectEditorialMaterialV1(
+            family: preview.material.family,
+            colors: colors,
+            fields: fields,
+            baseOpacity: construction.0,
+            edgeSoftness: construction.1,
+            contourWidth: construction.2,
+            contourCount: construction.3,
+            counterformRadius: nil,
+            counterformSoftness: 0
+        )
+    }
+
+    private static func makePreviewFields(
+        actorSeed: UInt64,
+        material: DayObjectEditorialPreviewMaterial,
+        colorCount: Int
+    ) -> [DayObjectEditorialRadialFieldV1] {
+        guard material.family != .solid, material.family != .outline else { return [] }
+
+        if material == .chromaticEdge {
+            let flip = actorUnit(actorSeed, salt: 0xED63) > 0.5 ? 1.0 : -1.0
+            return [
+                .init(
+                    focus: SIMD2(0.44 - flip * 0.10, 0.42),
+                    radius: 0.94,
+                    softness: 0.76,
+                    opacity: 1
+                ),
+                .init(
+                    focus: SIMD2(0.50 + flip * 0.48, 0.62),
+                    radius: 0.72,
+                    softness: 0.82,
+                    opacity: 0.94
+                ),
+            ]
+        }
+
+        if material == .asymmetricPool {
+            let rotation = actorUnit(actorSeed, salt: 0xA51A) * Double.pi * 2
+            let offsets = [SIMD2(-0.44, -0.28), SIMD2(0.52, -0.18), SIMD2(-0.08, 0.56)]
+            return offsets.enumerated().map { index, offset in
+                let rotated = SIMD2(
+                    offset.x * cos(rotation) - offset.y * sin(rotation),
+                    offset.x * sin(rotation) + offset.y * cos(rotation)
+                )
+                return DayObjectEditorialRadialFieldV1(
+                    focus: SIMD2(0.5, 0.5) + rotated,
+                    radius: index == 0 ? 1.02 : 0.78,
+                    softness: 0.80 + Double(index) * 0.035,
+                    opacity: index == 0 ? 1 : 0.92
+                )
+            }
+        }
+
+        return makeFields(
+            actorSeed: actorSeed,
+            colorCount: colorCount,
+            family: material.family
         )
     }
 

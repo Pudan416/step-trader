@@ -65,6 +65,68 @@ final class DayObjectSceneTests: XCTestCase {
         XCTAssertFalse(scene.input.usesEditorialField)
     }
 
+    func testEditorialPreviewCatalogCoversEveryPaletteAndMaterialCombination() {
+        let specs = DayObjectEditorialPreviewCatalog.all
+
+        XCTAssertEqual(specs.count, 120)
+        XCTAssertEqual(Set(specs.map(\.paletteCategory)), Set(ModernPaletteCategory.allCases))
+        XCTAssertEqual(Set(specs.map(\.material)), Set(DayObjectEditorialPreviewMaterial.allCases))
+        XCTAssertEqual(Set(specs.map(\.index)).count, 120)
+        XCTAssertEqual(specs.first?.paletteCategory, .pastel)
+        XCTAssertEqual(specs.first?.material, .solid)
+        XCTAssertEqual(specs[10].paletteCategory, .pastel)
+        XCTAssertEqual(specs[10].material, .gradientTwo)
+        XCTAssertEqual(specs.last?.paletteCategory, .winter)
+        XCTAssertEqual(specs.last?.material, .softOutline)
+    }
+
+    func testEditorialPreviewScenesUseUniqueTenActorProductCompositions() throws {
+        var fingerprints = Set<String>()
+
+        for spec in DayObjectEditorialPreviewCatalog.all {
+            let scene = DayObjectScene.make(input: editorialPreviewInput(spec))
+            let recipe = try XCTUnwrap(scene.sceneRecipeV1)
+            XCTAssertEqual(recipe.actors.count, 10)
+            XCTAssertTrue(recipe.actors.allSatisfy { $0.eventID.hasPrefix("preview-event-") })
+            fingerprints.insert(recipe.actors.map {
+                String(format: "%.8f:%.8f:%.8f", $0.position.x, $0.position.y, $0.diameter)
+            }.joined(separator: "|"))
+        }
+
+        XCTAssertEqual(fingerprints.count, 120)
+    }
+
+    func testEditorialPreviewUsesCatalogPaletteMeshAndRequestedMaterial() throws {
+        let expectedFamilies: [DayObjectEditorialPreviewMaterial: DayObjectEditorialMaterialFamily] = [
+            .solid: .solid,
+            .gradientTwo: .gradient,
+            .gradientThree: .gradient,
+            .paletteWash: .gradient,
+            .depthPalette: .solid,
+            .glass: .glass,
+            .mist: .mist,
+            .luminous: .luminous,
+            .softSphere: .sphere,
+            .chromaticEdge: .gradient,
+            .asymmetricPool: .gradient,
+            .softOutline: .outline,
+        ]
+
+        for material in DayObjectEditorialPreviewMaterial.allCases {
+            let spec = try XCTUnwrap(
+                DayObjectEditorialPreviewCatalog.all.first {
+                    $0.paletteCategory == .neon && $0.material == material
+                }
+            )
+            let scene = DayObjectScene.make(input: editorialPreviewInput(spec))
+            let recipe = try XCTUnwrap(scene.sceneRecipeV1)
+            XCTAssertEqual(Set(recipe.actors.map(\.material.family)), [expectedFamilies[material]!])
+            XCTAssertEqual(scene.meshGradientStyle.colors.count, 4)
+            XCTAssertGreaterThan(Set(scene.meshGradientStyle.colors.map(String.init(describing:))).count, 1)
+            XCTAssertGreaterThan(scene.meshGradientStyle.distortion, 0)
+        }
+    }
+
     func testAddingEventPreservesExistingActors() {
         let before = DayObjectScene.make(input: input(["walk", "sleep"]))
         let after = DayObjectScene.make(input: input(["walk", "sleep", "read"]))
@@ -248,6 +310,23 @@ final class DayObjectSceneTests: XCTestCase {
 
         XCTAssertEqual(scene.input.canvasCoverage, .fullCanvas)
         XCTAssertEqual(scene.compositionPlan.uiExclusionRegion.area, 0)
+    }
+
+    private func editorialPreviewInput(
+        _ spec: DayObjectEditorialPreviewSpec
+    ) -> DayObjectSceneInput {
+        DayObjectSceneInput(
+            dayKey: spec.dayKey,
+            identity: "day-objects-palette-atlas",
+            eventIDs: (0..<10).map { "preview-event-\($0)" },
+            motionEnergy: 0.55,
+            visualClarity: 0.55,
+            reduceMotion: true,
+            canvasCoverage: .fullCanvas,
+            paletteCategories: [spec.paletteCategory],
+            usesEditorialField: true,
+            editorialPreview: spec
+        )
     }
 }
 

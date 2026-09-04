@@ -72,6 +72,7 @@ struct DayObjectSceneInput: Equatable {
     let usesEditorialField: Bool
     let editorialBackground: DayObjectEditorialBackground
     let lowSleep: Bool
+    let editorialPreview: DayObjectEditorialPreviewSpec?
 
     init(
         dayKey: String,
@@ -85,7 +86,8 @@ struct DayObjectSceneInput: Equatable {
         paletteCategories: Set<ModernPaletteCategory> = [],
         usesEditorialField: Bool = false,
         editorialBackground: DayObjectEditorialBackground = .dark,
-        lowSleep: Bool = false
+        lowSleep: Bool = false,
+        editorialPreview: DayObjectEditorialPreviewSpec? = nil
     ) {
         self.dayKey = dayKey
         self.identity = identity
@@ -100,6 +102,7 @@ struct DayObjectSceneInput: Equatable {
         self.usesEditorialField = usesEditorialField
         self.editorialBackground = editorialBackground
         self.lowSleep = lowSleep
+        self.editorialPreview = editorialPreview
     }
 }
 

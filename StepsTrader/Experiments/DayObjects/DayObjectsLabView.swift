@@ -8,13 +8,23 @@ import SwiftUI
 struct DayObjectsLabView: View {
     static let uiExclusionRegion = DayObjectNormalizedRect.dayObjectsLabControls
     static let canvasCoverage = DayObjectCanvasCoverage.fullCanvas
+    private static let previewSpecFromLaunchArguments: DayObjectEditorialPreviewSpec? = {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let flag = arguments.firstIndex(of: "-dayObjectsPreviewIndex"),
+              arguments.indices.contains(flag + 1),
+              let index = Int(arguments[flag + 1]) else {
+            return nil
+        }
+        return DayObjectEditorialPreviewCatalog.spec(at: index)
+    }()
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(SharedKeys.modernPaletteCategories) private var modernPaletteCategoriesRaw = ""
 
     @State private var dayOffset = 0
-    @State private var happenings: Double = ProcessInfo.processInfo.arguments.contains(
-        "-dayObjectsVisualHandoff"
+    @State private var happenings: Double = (
+        ProcessInfo.processInfo.arguments.contains("-dayObjectsVisualHandoff")
+            || Self.previewSpecFromLaunchArguments != nil
     ) ? 10 : 8
     @State private var motionEnergy = 0.55
     @State private var visualClarity = 0.55
@@ -26,10 +36,18 @@ struct DayObjectsLabView: View {
     @State private var reduceMotionPreview = false
     @State private var showControls = !ProcessInfo.processInfo.arguments.contains(
         "-dayObjectsVisualHandoff"
-    )
+    ) && Self.previewSpecFromLaunchArguments == nil
+
+    private var editorialPreview: DayObjectEditorialPreviewSpec? {
+        Self.previewSpecFromLaunchArguments
+    }
+
+    private var isEditorialPreviewCapture: Bool {
+        editorialPreview != nil
+    }
 
     private var dayKey: String {
-        Self.dayKey(for: dayOffset)
+        editorialPreview?.dayKey ?? Self.dayKey(for: dayOffset)
     }
 
     private var happeningCount: Int {
@@ -87,7 +105,8 @@ struct DayObjectsLabView: View {
             } else {
                 DayObjectsView(
                     sceneInput: currentSceneInput,
-                    digitalImpact: digitalImpact
+                    digitalImpact: digitalImpact,
+                    isAnimating: !isEditorialPreviewCapture
                 )
                     .ignoresSafeArea()
             }
@@ -96,11 +115,14 @@ struct DayObjectsLabView: View {
                 controls
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            toggleButton
+            if !isEditorialPreviewCapture {
+                toggleButton
+            }
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: showControls)
         .navigationTitle("Day Objects")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(isEditorialPreviewCapture ? .hidden : .visible, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbarColorScheme(chromeColorScheme, for: .navigationBar)
     }
@@ -112,7 +134,8 @@ struct DayObjectsLabView: View {
             let side = min(geometry.size.width - 24, geometry.size.height * 0.62)
             DayObjectsView(
                 sceneInput: currentSceneInput,
-                digitalImpact: digitalImpact
+                digitalImpact: digitalImpact,
+                isAnimating: !isEditorialPreviewCapture
             )
             .frame(width: side, height: side)
             .clipped()
@@ -356,18 +379,23 @@ struct DayObjectsLabView: View {
     }
 
     private func sceneInput(for key: String) -> DayObjectSceneInput {
-        DayObjectSceneInput(
+        let preview = editorialPreview
+        return DayObjectSceneInput(
             dayKey: key,
-            identity: "day-objects-lab",
-            eventIDs: (0..<happeningCount).map { "lab-event-\($0)" },
+            identity: preview == nil ? "day-objects-lab" : "day-objects-palette-atlas",
+            eventIDs: (0..<happeningCount).map {
+                preview == nil ? "lab-event-\($0)" : "preview-event-\($0)"
+            },
             motionEnergy: motionEnergy,
             visualClarity: visualClarity,
-            reduceMotion: reduceMotion || reduceMotionPreview,
+            reduceMotion: reduceMotion || reduceMotionPreview || preview != nil,
             canvasCoverage: Self.canvasCoverage,
-            paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw),
+            paletteCategories: preview.map { Set([$0.paletteCategory]) }
+                ?? ModernPaletteSelection.decode(modernPaletteCategoriesRaw),
             usesEditorialField: true,
             editorialBackground: editorialBackground,
-            lowSleep: lowSleep
+            lowSleep: lowSleep,
+            editorialPreview: preview
         )
     }
 

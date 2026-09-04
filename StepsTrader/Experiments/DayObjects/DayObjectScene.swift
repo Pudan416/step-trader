@@ -110,7 +110,9 @@ struct DayObjectScene: Equatable {
                 rootSeed: rootSeed,
                 actors: actors,
                 background: input.editorialBackground,
-                lowSleep: input.lowSleep
+                lowSleep: input.lowSleep,
+                paletteSet: paletteSet,
+                preview: input.editorialPreview
             )
             : nil
         return DayObjectScene(
@@ -143,7 +145,8 @@ struct DayObjectScene: Equatable {
             paletteCategories: input.paletteCategories,
             usesEditorialField: input.usesEditorialField,
             editorialBackground: input.editorialBackground,
-            lowSleep: input.lowSleep
+            lowSleep: input.lowSleep,
+            editorialPreview: input.editorialPreview
         )
     }
 
