@@ -114,13 +114,13 @@ struct DayObjectsInstrumentAuditionView: View {
             .controlSize(.mini)
 
             Button("Kick + Bass") {
-                Task {
-                    await beforeAudition()
-                    await controller.auditionKickBassSidechain()
-                }
+                _ = musicController.beginKickBassSidechainAudition(
+                    preferredBassID: controller.selectedBassInstrumentID,
+                    onResult: { controller.displayProductionSidechainEstimate($0.estimatedReductionDB) }
+                )
             }
             .buttonStyle(.bordered)
-            .disabled(!canvasSoundIsOn || controller.soundState == .starting)
+            .disabled(!canvasSoundIsOn)
             .accessibilityIdentifier("dayObjects.audition.sidechain")
             .accessibilityValue(canvasSoundIsOn ? sidechainValue : "requires Sound")
 

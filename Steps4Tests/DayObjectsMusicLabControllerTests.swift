@@ -354,6 +354,37 @@ final class DayObjectsMusicLabControllerTests: XCTestCase {
         XCTAssertEqual(controller.soundState, .on)
     }
 
+    func testCollapsingDiagnosticsInvalidatesSuspendedSidechainPreflightBeforeItCanScheduleAudio() async {
+        let playback = RecordingLabPlayback()
+        playback.sidechainResult = .init(
+            instrumentID: .init(rawValue: "bass.analog-boom"),
+            duckCommand: .init(
+                hostTimeSeconds: 1,
+                maximumAttenuationDecibels: 4,
+                attackSeconds: 0.005,
+                holdSeconds: 0.045,
+                releaseSeconds: 0.18
+            )
+        )
+        let controller = DayObjectsMusicLabController(playback: playback)
+        await controller.toggleSound()
+        let gate = CheckedContinuationGate()
+
+        let task = controller.beginKickBassSidechainAudition(
+            preferredBassID: .init(rawValue: "bass.analog-boom"),
+            beforeAudition: { await gate.suspend() }
+        )
+        XCTAssertNotNil(task)
+        await gate.waitUntilSuspended()
+
+        controller.disableDiagnostics()
+        gate.resume()
+        await task?.value
+
+        XCTAssertEqual(playback.sidechainRequestCount, 0)
+        XCTAssertEqual(controller.soundState, .on)
+    }
+
     func testEachIsolatedBusLeavesOnlyItsSelectedSoloCommandActive() async {
         let playback = RecordingLabPlayback()
         let controller = DayObjectsMusicLabController(playback: playback)
@@ -626,6 +657,8 @@ private final class RecordingLabPlayback: DayObjectsMusicPlaybackProtocol {
     var startContinuation: CheckedContinuation<Void, Never>?
     var diagnosticMeterSnapshot = DayObjectsDiagnosticMeterSnapshot.silent
     var diagnosticCommands: [DayObjectsDiagnosticCommand] = []
+    var sidechainResult: DayObjectsSidechainAuditionResult?
+    var sidechainRequestCount = 0
 
     func start(plan: DayMusicPlan) async throws {
         startPlans.append(plan)
@@ -674,6 +707,10 @@ private final class RecordingLabPlayback: DayObjectsMusicPlaybackProtocol {
         diagnosticCommands.append(.mode(mode))
     }
     func releaseDiagnosticAudition() { diagnosticCommands.append(.release) }
+    func auditionKickBassSidechain(preferredBassID: DayObjectsInstrumentID?) -> DayObjectsSidechainAuditionResult? {
+        sidechainRequestCount += 1
+        return sidechainResult
+    }
 }
 
 @MainActor

@@ -22,6 +22,13 @@ enum DayObjectsAuditionMode: Hashable, Sendable {
     case kickBassSidechain
 }
 
+struct DayObjectsSidechainAuditionResult: Equatable, Sendable {
+    let instrumentID: DayObjectsInstrumentID
+    let duckCommand: BassDuckCommand
+
+    var estimatedReductionDB: Double { duckCommand.maximumAttenuationDecibels }
+}
+
 struct DayObjectsDiagnosticMeterSnapshot: Equatable, Sendable {
     let roleBusMetrics: DayObjectsFiveRoleBusMetrics
     let masterMetrics: DayObjectsMasterMetrics
@@ -72,11 +79,13 @@ protocol DayObjectsMusicPlaybackProtocol: AnyObject {
     func endLead()
     func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan)
     func releaseDiagnosticAudition()
+    func auditionKickBassSidechain(preferredBassID: DayObjectsInstrumentID?) -> DayObjectsSidechainAuditionResult?
 }
 
 extension DayObjectsMusicPlaybackProtocol {
     var diagnosticMeterSnapshot: DayObjectsDiagnosticMeterSnapshot { .silent }
     func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan) {}
     func releaseDiagnosticAudition() {}
+    func auditionKickBassSidechain(preferredBassID: DayObjectsInstrumentID?) -> DayObjectsSidechainAuditionResult? { nil }
 }
 #endif

@@ -75,12 +75,14 @@ protocol DayObjectsPlaybackRuntimeProtocol: AnyObject {
     func updateLead(_ gesture: LeadGestureSample)
     func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan)
     func releaseDiagnosticAudition(plan: DayMusicPlan)
+    func auditionKickBassSidechain(preferredBassID: DayObjectsInstrumentID?) -> DayObjectsSidechainAuditionResult?
 }
 
 extension DayObjectsPlaybackRuntimeProtocol {
     var diagnosticMeterSnapshot: DayObjectsDiagnosticMeterSnapshot { .silent }
     func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan) {}
     func releaseDiagnosticAudition(plan: DayMusicPlan) {}
+    func auditionKickBassSidechain(preferredBassID: DayObjectsInstrumentID?) -> DayObjectsSidechainAuditionResult? { nil }
 }
 
 /// Owns the only user-facing playback lifecycle. Layer implementations remain
@@ -405,6 +407,11 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
         runtime.releaseDiagnosticAudition(plan: currentPlan)
     }
 
+    func auditionKickBassSidechain(preferredBassID: DayObjectsInstrumentID?) -> DayObjectsSidechainAuditionResult? {
+        guard state == .on else { return nil }
+        return runtime.auditionKickBassSidechain(preferredBassID: preferredBassID)
+    }
+
     private func requestTeardown(finalState: DayObjectsSoundState, force: Bool) async {
         if teardownTask != nil {
             await awaitExistingTeardownBarrier()
@@ -604,6 +611,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         var currentChordIndex = 0
         var isScheduling = false
         var isReleasing = false
+        private(set) var diagnosticAuditionMode: DayObjectsAuditionMode = .fullComposition
 
         var rhythm: RhythmPlayer { rhythmPlayer! }
         var bass: BassPlayer { bassPlayer! }
@@ -653,7 +661,11 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 + rhythm.metrics.activeLogicalHitCount
         }
 
-        func configure(_ plan: DayMusicPlan) throws {
+        func configure(
+            _ plan: DayMusicPlan,
+            diagnosticAuditionMode: DayObjectsAuditionMode = .fullComposition
+        ) throws {
+            self.diagnosticAuditionMode = diagnosticAuditionMode
             bassDucker.reset()
             bank.resetBassDuckGain()
             try bass.configure(
@@ -747,14 +759,44 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         }
 
         func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan) {
-            let mixPlan: LayerMixPlan
-            switch mode {
-            case .fullComposition, .kickBassSidechain:
-                mixPlan = plan.mix
-            case let .isolatedBus(role):
-                mixPlan = Self.isolatedMix(role: role, from: plan.mix)
+            guard mode != .kickBassSidechain else { return }
+            diagnosticAuditionMode = mode
+            applyMix(plan, ducking: 0)
+        }
+
+        func resetDiagnosticAudition() {
+            diagnosticAuditionMode = .fullComposition
+        }
+
+        func auditionKickBassSidechain(
+            preferredBassID: DayObjectsInstrumentID?,
+            hostTime: TimeInterval
+        ) -> DayObjectsSidechainAuditionResult? {
+            guard let plan, hostTime.isFinite else { return nil }
+            let descriptor = diagnosticBassDescriptor(preferredBassID)
+            let ducking = plan.bass?.ducking ?? .init(
+                maximumAttenuationDecibels: 5,
+                attackSeconds: 0.005,
+                holdSeconds: 0.045,
+                releaseSeconds: 0.180
+            )
+            guard let command = bassDucker.command(
+                kickVelocity: 0.82,
+                hostTime: hostTime,
+                plan: ducking
+            ) else { return nil }
+            do {
+                guard try bass.audition(
+                    instrumentID: descriptor.id,
+                    midiNote: descriptor.referenceMIDI,
+                    velocity: 0.78
+                ) else { return nil }
+                bank.drums.hit(.kickFull, velocity: 0.82)
+                bank.apply(command)
+                return .init(instrumentID: descriptor.id, duckCommand: command)
+            } catch {
+                return nil
             }
-            applyMix(mixPlan, using: plan, ducking: 0)
         }
 
         func stopAttacks() {
@@ -789,7 +831,28 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         func endLeadIfBound() { leadPlayer?.end() }
 
         private func applyMix(_ plan: DayMusicPlan, ducking: Double) {
-            applyMix(plan.mix, using: plan, ducking: ducking)
+            applyMix(effectiveMix(for: plan.mix), using: plan, ducking: ducking)
+        }
+
+        private func effectiveMix(for mix: LayerMixPlan) -> LayerMixPlan {
+            switch diagnosticAuditionMode {
+            case .fullComposition, .kickBassSidechain: mix
+            case let .isolatedBus(role): Self.isolatedMix(role: role, from: mix)
+            }
+        }
+
+        private func diagnosticBassDescriptor(
+            _ preferredBassID: DayObjectsInstrumentID?
+        ) -> DayObjectsInstrumentDescriptor {
+            if let preferredBassID,
+               let descriptor = bank.instrumentBank.descriptors.first(where: {
+                   $0.id == preferredBassID && $0.category == .bass
+               }) {
+                return descriptor
+            }
+            return bank.instrumentBank.descriptors.first {
+                $0.id.rawValue == "bass.analog-boom"
+            }!
         }
 
         private func applyMix(
@@ -1075,6 +1138,8 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
     private var auditionHandles: [HappeningPlaybackHandle] = []
     private var auditionReleaseTasks: [HappeningPlaybackHandle: Task<Void, Never>] = [:]
     private(set) var auditionRecordsForTesting: [DayObjectsHappeningAuditionRecord] = []
+    private let diagnosticHostTimeProvider: () -> TimeInterval
+    private var diagnosticAuditionMode: DayObjectsAuditionMode = .fullComposition
 
     var auditionHandleCountForTesting: Int { auditionHandles.count }
     var auditionReleaseTaskCountForTesting: Int { auditionReleaseTasks.count }
@@ -1101,6 +1166,9 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
     var activePlanForTesting: DayMusicPlan? { activeWorld.plan }
     var activeProgramEffectMetricsForTesting: DayObjectsProgramEffectMetrics {
         activeWorld.bank.programEffectMetrics
+    }
+    var activeDiagnosticAuditionModeForTesting: DayObjectsAuditionMode {
+        activeWorld.diagnosticAuditionMode
     }
     var totalLeadAttackCountForTesting: Int {
         worldA.lead.metrics.amplitudeAttackCount + worldB.lead.metrics.amplitudeAttackCount
@@ -1196,11 +1264,21 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
     }
 
     func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan) {
+        guard mode != .kickBassSidechain else { return }
+        diagnosticAuditionMode = mode
         activeWorld.applyDiagnosticAudition(mode, plan: plan)
     }
 
     func releaseDiagnosticAudition(plan: DayMusicPlan) {
+        diagnosticAuditionMode = .fullComposition
         activeWorld.applyDiagnosticAudition(.fullComposition, plan: plan)
+    }
+
+    func auditionKickBassSidechain(preferredBassID: DayObjectsInstrumentID?) -> DayObjectsSidechainAuditionResult? {
+        activeWorld.auditionKickBassSidechain(
+            preferredBassID: preferredBassID,
+            hostTime: diagnosticHostTimeProvider()
+        )
     }
 
     var metrics: DayObjectsRemixRuntimeMetrics {
@@ -1224,7 +1302,11 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         )
     }
 
-    init(bundle: Bundle = .main) throws {
+    init(
+        bundle: Bundle = .main,
+        diagnosticHostTimeProvider: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    ) throws {
+        self.diagnosticHostTimeProvider = diagnosticHostTimeProvider
         pair = DayObjectsInstrumentBank.makePlaybackPair(bundle: bundle)
         worldA = WorldState(bank: PlaybackWorldBank(instrumentBank: pair.bankA))
         worldB = WorldState(bank: PlaybackWorldBank(instrumentBank: pair.bankB))
@@ -1349,6 +1431,9 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
     }
 
     func releaseLayers() {
+        diagnosticAuditionMode = .fullComposition
+        worldA.resetDiagnosticAudition()
+        worldB.resetDiagnosticAudition()
         worldA.releaseAll()
         worldB.releaseAll()
     }
@@ -1425,7 +1510,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
     }
 
     func configure(bank: PlaybackWorldBank, plan: DayMusicPlan) throws {
-        try world(for: bank).configure(plan)
+        try world(for: bank).configure(plan, diagnosticAuditionMode: diagnosticAuditionMode)
     }
 
     func rollbackInitialConfiguration(in bank: PlaybackWorldBank) {
@@ -1622,6 +1707,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
 @MainActor
 final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
     private let world: DayObjectsLivePlaybackRuntime.WorldState
+    private let diagnosticHostTimeProvider: () -> TimeInterval
     private var pendingStructuralPlan: DayMusicPlan?
     private var transportIsRunning = false
     private var tempoUpdateTask: Task<Void, Never>?
@@ -1688,7 +1774,18 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
         world.applyDiagnosticAudition(.fullComposition, plan: plan)
     }
 
-    init(bundle: Bundle = .main) {
+    func auditionKickBassSidechain(preferredBassID: DayObjectsInstrumentID?) -> DayObjectsSidechainAuditionResult? {
+        world.auditionKickBassSidechain(
+            preferredBassID: preferredBassID,
+            hostTime: diagnosticHostTimeProvider()
+        )
+    }
+
+    init(
+        bundle: Bundle = .main,
+        diagnosticHostTimeProvider: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    ) {
+        self.diagnosticHostTimeProvider = diagnosticHostTimeProvider
         world = DayObjectsLivePlaybackRuntime.WorldState(
             bank: PlaybackWorldBank(instrumentBank: DayObjectsInstrumentBank(bundle: bundle))
         )
@@ -1794,7 +1891,10 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
     func stopScheduling() { world.isScheduling = false }
     func endLead() { world.endLeadIfBound() }
     func cancelRemix() { pendingStructuralPlan = nil }
-    func releaseLayers() { world.releaseAll() }
+    func releaseLayers() {
+        world.resetDiagnosticAudition()
+        world.releaseAll()
+    }
 
     func stopTransportAndEffects() async {
         tempoUpdateTask?.cancel()

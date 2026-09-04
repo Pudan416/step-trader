@@ -221,6 +221,32 @@ final class BassPlayer {
         mixGain = pow(10, bounded / 20)
     }
 
+    /// Schedules one diagnostic note through the already prepared production
+    /// Bass pool. It deliberately does not replace the transport-held token.
+    @discardableResult
+    func audition(
+        instrumentID: DayObjectsInstrumentID,
+        midiNote: UInt8,
+        velocity: Double
+    ) throws -> Bool {
+        guard acceptsAttacks else { return false }
+        try worldBank.prepare()
+        let pool = try worldBank.tonalPool(forBass: instrumentID)
+        try pool.prepareInstrument(instrumentID)
+        guard pool.noteOn(.init(
+            instrumentID: instrumentID,
+            midiNote: midiNote,
+            velocity: Self.unit(velocity),
+            role: .note,
+            envelopeVariant: .absolute(attackSeconds: 0.012, releaseSeconds: 0.180),
+            pan: 0,
+            delaySend: 0,
+            reverbSend: 0.08
+        )) != nil else { return false }
+        attackCount += 1
+        return true
+    }
+
     private func frame(
         at position: MusicalPosition,
         attackedEventStableID: UInt64?,

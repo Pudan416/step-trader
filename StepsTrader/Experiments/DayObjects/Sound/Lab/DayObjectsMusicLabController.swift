@@ -78,6 +78,8 @@ final class DayObjectsMusicLabController: ObservableObject {
     private var happeningPadTasks: [HappeningSoundRecipeID: HappeningPadTask] = [:]
     private var lifecycleEventGeneration: UInt64 = 0
     private var lastDiagnosticMeterPoll = Date.distantPast
+    private var diagnosticActionGeneration: UInt64 = 0
+    private var diagnosticActionTask: Task<Void, Never>?
     @Published private var acceptedSoundButtonIntent: DayObjectsSoundButtonIntent?
 
     private struct HappeningPadTask {
@@ -142,9 +144,36 @@ final class DayObjectsMusicLabController: ObservableObject {
     /// Releases a debug audition without changing the normal Sound lifecycle.
     /// In particular, collapsing diagnostics must never start the canvas.
     func disableDiagnostics() {
+        invalidateDiagnosticActions()
         guard auditionMode != .fullComposition else { return }
         auditionMode = .fullComposition
         playback.releaseDiagnosticAudition()
+    }
+
+    @discardableResult
+    func beginKickBassSidechainAudition(
+        preferredBassID: DayObjectsInstrumentID?,
+        beforeAudition: @escaping @MainActor () async -> Void = {},
+        onResult: @escaping @MainActor (DayObjectsSidechainAuditionResult) -> Void = { _ in }
+    ) -> Task<Void, Never>? {
+        guard soundState == .on, diagnosticActionTask == nil else { return nil }
+        let generation = diagnosticActionGeneration
+        let task = Task { @MainActor [weak self] in
+            await beforeAudition()
+            guard let self,
+                  !Task.isCancelled,
+                  generation == self.diagnosticActionGeneration,
+                  self.soundState == .on,
+                  self.stopTask == nil else { return }
+            if let result = self.playback.auditionKickBassSidechain(preferredBassID: preferredBassID) {
+                onResult(result)
+            }
+            if generation == self.diagnosticActionGeneration {
+                self.diagnosticActionTask = nil
+            }
+        }
+        diagnosticActionTask = task
+        return task
     }
 
     func toggleSound() async {
@@ -320,6 +349,7 @@ final class DayObjectsMusicLabController: ObservableObject {
         )
         if !event.isActive {
             acceptedSoundButtonIntent = nil
+            disableDiagnostics()
         }
         setHappeningPadLifecycleActive(event.isActive)
         return intent
@@ -414,6 +444,7 @@ final class DayObjectsMusicLabController: ObservableObject {
     }
 
     private func stop(includingSampleOnly: Bool = false) async {
+        disableDiagnostics()
         if let stopTask {
             await stopTask.value
             return
@@ -472,6 +503,12 @@ final class DayObjectsMusicLabController: ObservableObject {
         happeningPadTasks.removeAll()
         loadingHappeningRecipeIDs.removeAll()
         tasks.forEach { $0.cancel() }
+    }
+
+    private func invalidateDiagnosticActions() {
+        diagnosticActionGeneration &+= 1
+        diagnosticActionTask?.cancel()
+        diagnosticActionTask = nil
     }
 
     private func activateHappeningPadLifecycle() {

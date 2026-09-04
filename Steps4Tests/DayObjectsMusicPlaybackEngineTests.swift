@@ -1456,6 +1456,68 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(duck.lastRelease).targetLinearGain, 1, accuracy: 0.000_001)
     }
 
+    func testLiveDiagnosticSoloPersistsAcrossRenderContinuousAndRemixUntilReleased() throws {
+        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let initial = makePlaybackEnginePlan(seed: 7_101)
+        let continuous = makePlaybackEnginePlan(seed: initial.seed, steps: 9_000)
+        let remixed = makePlaybackEnginePlan(seed: 7_102)
+        try runtime.prepare(plan: initial)
+        try runtime.startPreparedWorldForTesting()
+
+        runtime.applyDiagnosticAudition(.isolatedBus(.bass), plan: initial)
+        assertSolo(.bass, in: try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state))
+
+        runtime.renderForTesting(.init(
+            kind: .subdivision,
+            position: .init(absoluteSubdivision: 0),
+            hostTimeSeconds: 0,
+            tempoBPM: initial.rhythm.tempoBPM
+        ))
+        assertSolo(.bass, in: try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state))
+
+        runtime.applyContinuous(continuous)
+        assertSolo(.bass, in: try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state))
+
+        runtime.scheduleStructuralPlan(remixed)
+        runtime.renderForTesting(.init(
+            kind: .subdivision,
+            position: .init(absoluteSubdivision: 128),
+            hostTimeSeconds: 8,
+            tempoBPM: remixed.rhythm.tempoBPM
+        ))
+        XCTAssertEqual(runtime.remixResultForTesting, .transitioned(seed: remixed.seed))
+        assertSolo(.bass, in: try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state))
+
+        runtime.releaseDiagnosticAudition(plan: remixed)
+        let restored = try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state)
+        XCTAssertEqual(restored.rampDurationSeconds, 0.25, accuracy: 0.000_001)
+        XCTAssertEqual(restored.bassTargetDecibels, remixed.mix.bassTargetDecibels, accuracy: 0.000_001)
+        XCTAssertNotEqual(restored.rhythmTargetDecibels, -60)
+    }
+
+    func testLiveDiagnosticSidechainUsesProductionBassAndActualDuckCommandWithFallback() throws {
+        let runtime = try DayObjectsLivePlaybackRuntime(
+            bundle: Bundle(for: type(of: self)),
+            diagnosticHostTimeProvider: { 42 }
+        )
+        let plan = bassLifecyclePlan(seed: 7_201)
+        try runtime.prepare(plan: plan)
+        try runtime.startPreparedWorldForTesting()
+        let attacksBefore = runtime.totalBassAttackCountForTesting
+
+        let result = runtime.auditionKickBassSidechain(
+            preferredBassID: DayObjectsInstrumentID(rawValue: "lead.hazy-sine")
+        )
+
+        let sidechain = try XCTUnwrap(result)
+        XCTAssertEqual(sidechain.instrumentID, DayObjectsInstrumentID(rawValue: "bass.analog-boom"))
+        XCTAssertEqual(sidechain.duckCommand.hostTimeSeconds, 42, accuracy: 0.000_001)
+        XCTAssertEqual(runtime.totalBassAttackCountForTesting, attacksBefore + 1)
+        let duck = runtime.activeBassDuckGainMetricsForTesting
+        XCTAssertEqual(try XCTUnwrap(duck.lastAttack).requestedStartHostTimeSeconds, 42, accuracy: 0.000_001)
+        XCTAssertGreaterThan(duck.scheduledSegmentCount, 0)
+    }
+
     func testLiveSafeHeldLeadKeepsSourceTokenAndDelaysOldBankRecycleUntilRelease() throws {
         let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
         let initial = makePlaybackEnginePlan(seed: 701)
@@ -2243,5 +2305,21 @@ private func seedProducingBass() -> UInt64 {
         return seed
     }
     fatalError("No Bass Groove seed found")
+}
+
+private func assertSolo(
+    _ role: DayObjectsRoleBus,
+    in state: DayObjectsMixState,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    for candidate in DayObjectsRoleBus.allCases {
+        let value = state.buses.parameters(for: candidate).directTargetDecibels
+        if candidate == role {
+            XCTAssertGreaterThan(value, -60, file: file, line: line)
+        } else {
+            XCTAssertLessThanOrEqual(value, -55, file: file, line: line)
+        }
+    }
 }
 #endif
