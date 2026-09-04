@@ -1,6 +1,44 @@
 #if DEBUG || INTERNAL_BUILD
 import Foundation
 
+enum DayObjectsRoleBus: CaseIterable, Equatable, Hashable, Sendable {
+    case rhythm
+    case bass
+    case harmony
+    case happenings
+    case lead
+}
+
+struct DayObjectsRoleBusMetrics: Equatable, Sendable {
+    let peakDBFS: Double
+    let rmsDBFS: Double
+    let activeVoiceCount: Int
+}
+
+struct DayObjectsMasterMetrics: Equatable, Sendable {
+    let peakDBFS: Double
+    let rmsDBFS: Double
+    let limiterReductionDB: Double
+}
+
+struct DayObjectsFiveRoleBusMetrics: Equatable, Sendable {
+    let rhythm: DayObjectsRoleBusMetrics
+    let bass: DayObjectsRoleBusMetrics
+    let harmony: DayObjectsRoleBusMetrics
+    let happenings: DayObjectsRoleBusMetrics
+    let lead: DayObjectsRoleBusMetrics
+
+    func metrics(for role: DayObjectsRoleBus) -> DayObjectsRoleBusMetrics {
+        return switch role {
+        case .rhythm: rhythm
+        case .bass: bass
+        case .harmony: harmony
+        case .happenings: happenings
+        case .lead: lead
+        }
+    }
+}
+
 struct DayObjectsInstrumentBankConfiguration: Equatable, Sendable {
     let tonalPools: [DayObjectsTonalPoolSpecification]
     let pianoVoiceCount: Int
@@ -111,6 +149,30 @@ struct DayObjectsInstrumentBankGraphLayout: Equatable, Sendable {
     let drumBusGainDB: Double
     let masterTrimDB: Double
     let finalPeakLimiterCount: Int
+    let roleBuses: [DayObjectsRoleBus]
+    let parallelSpatialReturnCount: Int
+
+    init(
+        tonalBusCount: Int,
+        drumBusCount: Int,
+        sharedSpatialEffectCount: Int,
+        tonalBusGainDB: Double,
+        drumBusGainDB: Double,
+        masterTrimDB: Double,
+        finalPeakLimiterCount: Int,
+        roleBuses: [DayObjectsRoleBus] = [],
+        parallelSpatialReturnCount: Int? = nil
+    ) {
+        self.tonalBusCount = tonalBusCount
+        self.drumBusCount = drumBusCount
+        self.sharedSpatialEffectCount = sharedSpatialEffectCount
+        self.tonalBusGainDB = tonalBusGainDB
+        self.drumBusGainDB = drumBusGainDB
+        self.masterTrimDB = masterTrimDB
+        self.finalPeakLimiterCount = finalPeakLimiterCount
+        self.roleBuses = roleBuses
+        self.parallelSpatialReturnCount = parallelSpatialReturnCount ?? sharedSpatialEffectCount
+    }
 }
 
 struct DayObjectsInstrumentBankAllocationFingerprint: Equatable, Sendable {
@@ -162,19 +224,22 @@ struct DayObjectsBankOutputGainMetrics: Equatable, Sendable {
     let lastRampDurationSeconds: TimeInterval
     let rampCount: Int
     let lastScheduledAutomation: DayObjectsBankOutputGainAutomation?
+    let affectedRoles: Set<DayObjectsRoleBus>
 
     init(
         isSupported: Bool,
         targetLinearGain: Double,
         lastRampDurationSeconds: TimeInterval,
         rampCount: Int,
-        lastScheduledAutomation: DayObjectsBankOutputGainAutomation? = nil
+        lastScheduledAutomation: DayObjectsBankOutputGainAutomation? = nil,
+        affectedRoles: Set<DayObjectsRoleBus> = []
     ) {
         self.isSupported = isSupported
         self.targetLinearGain = targetLinearGain
         self.lastRampDurationSeconds = lastRampDurationSeconds
         self.rampCount = rampCount
         self.lastScheduledAutomation = lastScheduledAutomation
+        self.affectedRoles = affectedRoles
     }
 
     static let unsupported = DayObjectsBankOutputGainMetrics(
@@ -188,43 +253,18 @@ struct DayObjectsBankOutputGainMetrics: Equatable, Sendable {
 
 struct DayObjectsProgramEffectMetrics: Equatable, Sendable {
     let isSupported: Bool
-    let masterLinearGain: Double
-    let delayFeedback: Double
-    let reverbFeedback: Double
-    let rampDurationSeconds: TimeInterval
-    let delayFeedbackWasRamped: Bool
-    let reverbFeedbackWasRamped: Bool
-    let feedbackRampDurationSeconds: TimeInterval
+    let state: DayObjectsMixState?
 
-    init(
-        isSupported: Bool,
-        masterLinearGain: Double,
-        delayFeedback: Double,
-        reverbFeedback: Double,
-        rampDurationSeconds: TimeInterval,
-        delayFeedbackWasRamped: Bool = false,
-        reverbFeedbackWasRamped: Bool = false,
-        feedbackRampDurationSeconds: TimeInterval = 0
-    ) {
-        self.isSupported = isSupported
-        self.masterLinearGain = masterLinearGain
-        self.delayFeedback = delayFeedback
-        self.reverbFeedback = reverbFeedback
-        self.rampDurationSeconds = rampDurationSeconds
-        self.delayFeedbackWasRamped = delayFeedbackWasRamped
-        self.reverbFeedbackWasRamped = reverbFeedbackWasRamped
-        self.feedbackRampDurationSeconds = feedbackRampDurationSeconds
+    var masterLinearGain: Double {
+        guard let state else { return 1 }
+        return pow(10, state.masterTargetDecibelsBeforeLimiter / 20)
     }
+
+    var rampDurationSeconds: TimeInterval { state?.rampDurationSeconds ?? 0 }
 
     static let unsupported = DayObjectsProgramEffectMetrics(
         isSupported: false,
-        masterLinearGain: 1,
-        delayFeedback: 0,
-        reverbFeedback: 0,
-        rampDurationSeconds: 0,
-        delayFeedbackWasRamped: false,
-        reverbFeedbackWasRamped: false,
-        feedbackRampDurationSeconds: 0
+        state: nil
     )
 }
 
@@ -244,12 +284,7 @@ protocol DayObjectsInstrumentBankGraph: AnyObject {
     func scheduleBassDuck(_ command: BassDuckCommand)
     func resetBassDuckGain()
     func synchronizeForStart() throws
-    func applyProgramEffects(
-        masterLinearGain: Double,
-        delayFeedback: Double,
-        reverbFeedback: Double,
-        rampDurationSeconds: TimeInterval
-    )
+    func applyMix(_ state: DayObjectsMixState)
 }
 
 extension DayObjectsInstrumentBankGraph {
@@ -270,12 +305,7 @@ extension DayObjectsInstrumentBankGraph {
     func scheduleBassDuck(_ command: BassDuckCommand) {}
     func resetBassDuckGain() {}
     func synchronizeForStart() throws {}
-    func applyProgramEffects(
-        masterLinearGain: Double,
-        delayFeedback: Double,
-        reverbFeedback: Double,
-        rampDurationSeconds: TimeInterval
-    ) {}
+    func applyMix(_ state: DayObjectsMixState) {}
 }
 
 @MainActor
@@ -290,6 +320,50 @@ protocol DayObjectsInstrumentBankEngine: AnyObject {
 struct DayObjectsInstrumentBankEngineTopologyMetrics: Equatable, Sendable {
     let persistentMasterNodeIdentities: [ObjectIdentifier]
     let finalPeakLimiterIdentities: [ObjectIdentifier]
+    let roleBusIdentities: [DayObjectsRoleBus: ObjectIdentifier]
+    let parallelSpatialReturnIdentities: [ObjectIdentifier]
+    let commonMasterIdentity: ObjectIdentifier?
+    let roleMasterDestinations: [DayObjectsRoleBus: ObjectIdentifier]
+    let happeningsUsesWorldTrim: Bool
+    let masterHighPassHz: Double
+    let glueCompressorRatio: Double
+    let nominalMaximumGlueReductionDB: Double
+    let limiterCeilingDBFS: Double
+    let roleHighPassHz: [DayObjectsRoleBus: Double]
+    let bassUsesMonoCompatibleLowBand: Bool
+    let bassUsesMildSaturation: Bool
+
+    init(
+        persistentMasterNodeIdentities: [ObjectIdentifier],
+        finalPeakLimiterIdentities: [ObjectIdentifier],
+        roleBusIdentities: [DayObjectsRoleBus: ObjectIdentifier] = [:],
+        parallelSpatialReturnIdentities: [ObjectIdentifier] = [],
+        commonMasterIdentity: ObjectIdentifier? = nil,
+        roleMasterDestinations: [DayObjectsRoleBus: ObjectIdentifier] = [:],
+        happeningsUsesWorldTrim: Bool = false,
+        masterHighPassHz: Double = 0,
+        glueCompressorRatio: Double = 1,
+        nominalMaximumGlueReductionDB: Double = 0,
+        limiterCeilingDBFS: Double = 0,
+        roleHighPassHz: [DayObjectsRoleBus: Double] = [:],
+        bassUsesMonoCompatibleLowBand: Bool = false,
+        bassUsesMildSaturation: Bool = false
+    ) {
+        self.persistentMasterNodeIdentities = persistentMasterNodeIdentities
+        self.finalPeakLimiterIdentities = finalPeakLimiterIdentities
+        self.roleBusIdentities = roleBusIdentities
+        self.parallelSpatialReturnIdentities = parallelSpatialReturnIdentities
+        self.commonMasterIdentity = commonMasterIdentity
+        self.roleMasterDestinations = roleMasterDestinations
+        self.happeningsUsesWorldTrim = happeningsUsesWorldTrim
+        self.masterHighPassHz = masterHighPassHz
+        self.glueCompressorRatio = glueCompressorRatio
+        self.nominalMaximumGlueReductionDB = nominalMaximumGlueReductionDB
+        self.limiterCeilingDBFS = limiterCeilingDBFS
+        self.roleHighPassHz = roleHighPassHz
+        self.bassUsesMonoCompatibleLowBand = bassUsesMonoCompatibleLowBand
+        self.bassUsesMildSaturation = bassUsesMildSaturation
+    }
 
     static let unsupported = Self(
         persistentMasterNodeIdentities: [],
@@ -363,12 +437,7 @@ protocol DayObjectsInstrumentBankProtocol: AnyObject {
     )
     func scheduleBassDuck(_ command: BassDuckCommand)
     func resetBassDuckGain()
-    func applyProgramEffects(
-        masterLinearGain: Double,
-        delayFeedback: Double,
-        reverbFeedback: Double,
-        rampDurationSeconds: TimeInterval
-    )
+    func applyMix(_ state: DayObjectsMixState)
 }
 
 extension DayObjectsInstrumentBankProtocol {
@@ -388,11 +457,6 @@ extension DayObjectsInstrumentBankProtocol {
     }
     func scheduleBassDuck(_ command: BassDuckCommand) {}
     func resetBassDuckGain() {}
-    func applyProgramEffects(
-        masterLinearGain: Double,
-        delayFeedback: Double,
-        reverbFeedback: Double,
-        rampDurationSeconds: TimeInterval
-    ) {}
+    func applyMix(_ state: DayObjectsMixState) {}
 }
 #endif

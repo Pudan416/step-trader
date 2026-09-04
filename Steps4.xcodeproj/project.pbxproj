@@ -126,6 +126,8 @@
 		D0F800000000000000000002 /* DayObjectsRemixCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F800000000000000000001 /* DayObjectsRemixCoordinatorTests.swift */; };
 		D0F800000000000000000004 /* DayObjectsRemixCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F800000000000000000003 /* DayObjectsRemixCoordinator.swift */; };
 		D0F900000000000000000002 /* DayObjectsMusicPlaybackEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F900000000000000000001 /* DayObjectsMusicPlaybackEngineTests.swift */; };
+		D0FB00000000000000000002 /* DayObjectsBusMeterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0FB00000000000000000001 /* DayObjectsBusMeterTests.swift */; };
+		D0FB00000000000000000004 /* DayObjectsBusMeter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0FB00000000000000000003 /* DayObjectsBusMeter.swift */; };
 		D0F900000000000000000004 /* DayObjectsAudioSessionProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F900000000000000000003 /* DayObjectsAudioSessionProtocol.swift */; };
 		D0F900000000000000000006 /* DayObjectsMusicPlaybackEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F900000000000000000005 /* DayObjectsMusicPlaybackEngine.swift */; };
 		D0F900000000000000000008 /* DayObjectsMusicLabControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F900000000000000000007 /* DayObjectsMusicLabControllerTests.swift */; };
@@ -682,6 +684,8 @@
 		D0F800000000000000000001 /* DayObjectsRemixCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsRemixCoordinatorTests.swift; sourceTree = "<group>"; };
 		D0F800000000000000000003 /* DayObjectsRemixCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsRemixCoordinator.swift; sourceTree = "<group>"; };
 		D0F900000000000000000001 /* DayObjectsMusicPlaybackEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsMusicPlaybackEngineTests.swift; sourceTree = "<group>"; };
+		D0FB00000000000000000001 /* DayObjectsBusMeterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsBusMeterTests.swift; sourceTree = "<group>"; };
+		D0FB00000000000000000003 /* DayObjectsBusMeter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsBusMeter.swift; sourceTree = "<group>"; };
 		D0F900000000000000000003 /* DayObjectsAudioSessionProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsAudioSessionProtocol.swift; sourceTree = "<group>"; };
 		D0F900000000000000000005 /* DayObjectsMusicPlaybackEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsMusicPlaybackEngine.swift; sourceTree = "<group>"; };
 		D0F900000000000000000007 /* DayObjectsMusicLabControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsMusicLabControllerTests.swift; sourceTree = "<group>"; };
@@ -1198,6 +1202,7 @@
 		D0F100000000000000000010 /* Playback */ = {
 			isa = PBXGroup;
 			children = (
+				D0FB00000000000000000003 /* DayObjectsBusMeter.swift */,
 				D0F900000000000000000003 /* DayObjectsAudioSessionProtocol.swift */,
 				D0F900000000000000000005 /* DayObjectsMusicPlaybackEngine.swift */,
 				D0F800000000000000000003 /* DayObjectsRemixCoordinator.swift */,
@@ -1838,6 +1843,7 @@
 		T1E5T5A12E71A18F00ABF5FA /* Steps4Tests */ = {
 			isa = PBXGroup;
 			children = (
+				D0FB00000000000000000001 /* DayObjectsBusMeterTests.swift */,
 				D0F900000000000000000007 /* DayObjectsMusicLabControllerTests.swift */,
 				D0F900000000000000000001 /* DayObjectsMusicPlaybackEngineTests.swift */,
 				D0F800000000000000000001 /* DayObjectsRemixCoordinatorTests.swift */,
@@ -2308,6 +2314,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0FB00000000000000000004 /* DayObjectsBusMeter.swift in Sources */,
 				D0F90000000000000000000A /* DayObjectsMusicLabController.swift in Sources */,
 				D0F900000000000000000004 /* DayObjectsAudioSessionProtocol.swift in Sources */,
 				D0F900000000000000000006 /* DayObjectsMusicPlaybackEngine.swift in Sources */,
@@ -2643,6 +2650,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0FB00000000000000000002 /* DayObjectsBusMeterTests.swift in Sources */,
 				D0F900000000000000000008 /* DayObjectsMusicLabControllerTests.swift in Sources */,
 				D0F900000000000000000002 /* DayObjectsMusicPlaybackEngineTests.swift in Sources */,
 				D0F800000000000000000002 /* DayObjectsRemixCoordinatorTests.swift in Sources */,

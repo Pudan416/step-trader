@@ -171,18 +171,8 @@ final class PlaybackWorldBank: BassDuckBackend {
         instrumentBank.resetBassDuckGain()
     }
 
-    func applyProgramEffects(
-        masterLinearGain: Double,
-        delayFeedback: Double,
-        reverbFeedback: Double,
-        rampDurationSeconds: TimeInterval
-    ) {
-        instrumentBank.applyProgramEffects(
-            masterLinearGain: masterLinearGain,
-            delayFeedback: delayFeedback,
-            reverbFeedback: reverbFeedback,
-            rampDurationSeconds: rampDurationSeconds
-        )
+    func applyMix(_ state: DayObjectsMixState) {
+        instrumentBank.applyMix(state)
     }
 }
 #endif

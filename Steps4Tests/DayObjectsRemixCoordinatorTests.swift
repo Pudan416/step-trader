@@ -251,8 +251,9 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
         XCTAssertEqual(sleepHarness.runtime.configuredPlans.count, 1)
 
         sleepHarness.coordinator.render(event(
-            .harmonicCycleBoundary,
-            position: 64,
+            .subdivision,
+            position: Int64(sleepHarness.coordinator.currentPlan!.world.cycleBars)
+                * MusicalPosition.subdivisionsPerBar,
             hostTime: 4
         ))
         XCTAssertEqual(sleepHarness.coordinator.currentPlan, sleepTarget)
@@ -524,7 +525,7 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
             let start = Int64(index * 48 - 32)
             harness.runtime.drained = false
             harness.coordinator.schedule(makePlan(seed: UInt64(100 + index)))
-            harness.coordinator.render(boundary(position: start, hostTime: Double(index)))
+            harness.coordinator.render(event(.subdivision, position: start, hostTime: Double(index)))
             harness.runtime.drained = true
             harness.coordinator.render(event(.subdivision, position: start + 32, hostTime: Double(index) + 0.5))
         }
@@ -648,7 +649,7 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
     }
 
     private func boundary(position: Int64, hostTime: TimeInterval) -> DayObjectsTransportEvent {
-        event(.barBoundary, position: position, hostTime: hostTime)
+        event(.subdivision, position: position, hostTime: hostTime)
     }
 
     private func waitForTransport(

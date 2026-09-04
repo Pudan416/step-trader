@@ -754,14 +754,20 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         func endLeadIfBound() { leadPlayer?.end() }
 
         private func applyMix(_ plan: DayMusicPlan, ducking: Double) {
-            let delay = plan.harmony.roles.map(\.delaySend).max() ?? 0
-            let reverb = plan.harmony.roles.map(\.reverbSend).max() ?? 0
+            let harmonySend = plan.harmony.roles.map(\.reverbSend).max() ?? 0
+            let happeningSend = plan.happenings.map(\.reverbSend).max() ?? 0
+            let leadSend = max(plan.lead.delaySend, plan.lead.reverbSend)
             mix.apply(
                 plan.mix,
                 activeChordVoiceCount: max(1, harmony.metrics.activeVoiceCount),
                 harmonyDuckingDecibels: ducking,
-                delayFeedback: delay,
-                reverbFeedback: reverb,
+                spatial: .init(
+                    rhythm: .init(sendLevel: 0.08, decay: 0.42),
+                    bass: .init(sendLevel: plan.bass?.reverbSend ?? 0, decay: 0.36),
+                    harmony: .init(sendLevel: harmonySend, decay: 0.72),
+                    happenings: .init(sendLevel: happeningSend, decay: 0.84),
+                    lead: .init(sendLevel: leadSend, decay: 0.62)
+                ),
                 rampDurationSeconds: 0.25
             )
         }
@@ -776,17 +782,16 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         }
 
         private func apply(_ state: DayObjectsMixState) {
-            rhythmPlayer?.applyMixTargetDecibels(state.rhythmTargetDecibels)
-            bassPlayer?.applyMixTargetDecibels(state.bassTargetDecibels)
-            harmonyPlayer?.applyMixTargetDecibels(state.harmonyPerVoiceTargetDecibels)
-            happeningScheduler?.applyMixTargetDecibels(state.happeningPerVoiceTargetDecibels)
-            leadPlayer?.applyMixTargetDecibels(state.leadTargetDecibels)
-            bank.applyProgramEffects(
-                masterLinearGain: pow(10, state.masterTargetDecibelsBeforeLimiter / 20),
-                delayFeedback: state.delayFeedback,
-                reverbFeedback: state.reverbFeedback,
-                rampDurationSeconds: state.rampDurationSeconds
+            rhythmPlayer?.applyMixTargetDecibels(0)
+            bassPlayer?.applyMixTargetDecibels(0)
+            harmonyPlayer?.applyMixTargetDecibels(
+                state.harmonyPerVoiceTargetDecibels - state.harmonyTargetDecibels
             )
+            happeningScheduler?.applyMixTargetDecibels(
+                state.happeningPerVoiceTargetDecibels - state.happeningAggregateTargetDecibels
+            )
+            leadPlayer?.applyMixTargetDecibels(0)
+            bank.applyMix(state)
         }
 
         private static func chordIndex(at absoluteBar: Int64, in world: TonalWorldPlan) -> Int {

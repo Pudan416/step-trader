@@ -1,19 +1,84 @@
 #if DEBUG || INTERNAL_BUILD
 import Foundation
 
+struct DayObjectsRoleBusSpatialParameters: Equatable, Sendable {
+    let sendLevel: Double
+    let decay: Double
+}
+
+struct DayObjectsFiveRoleBusSpatialParameters: Equatable, Sendable {
+    let rhythm: DayObjectsRoleBusSpatialParameters
+    let bass: DayObjectsRoleBusSpatialParameters
+    let harmony: DayObjectsRoleBusSpatialParameters
+    let happenings: DayObjectsRoleBusSpatialParameters
+    let lead: DayObjectsRoleBusSpatialParameters
+
+    init(
+        rhythm: DayObjectsRoleBusSpatialParameters,
+        bass: DayObjectsRoleBusSpatialParameters,
+        harmony: DayObjectsRoleBusSpatialParameters,
+        happenings: DayObjectsRoleBusSpatialParameters,
+        lead: DayObjectsRoleBusSpatialParameters
+    ) {
+        self.rhythm = rhythm
+        self.bass = bass
+        self.harmony = harmony
+        self.happenings = happenings
+        self.lead = lead
+    }
+
+    init(repeating value: DayObjectsRoleBusSpatialParameters) {
+        rhythm = value
+        bass = value
+        harmony = value
+        happenings = value
+        lead = value
+    }
+
+    static let dry = Self(repeating: .init(sendLevel: 0, decay: 0))
+}
+
+struct DayObjectsRoleBusMixParameters: Equatable, Sendable {
+    let directTargetDecibels: Double
+    let sendLevel: Double
+    let decay: Double
+}
+
+struct DayObjectsFiveRoleBusMixParameters: Equatable, Sendable {
+    let rhythm: DayObjectsRoleBusMixParameters
+    let bass: DayObjectsRoleBusMixParameters
+    let harmony: DayObjectsRoleBusMixParameters
+    let happenings: DayObjectsRoleBusMixParameters
+    let lead: DayObjectsRoleBusMixParameters
+
+    var all: [DayObjectsRoleBusMixParameters] {
+        [rhythm, bass, harmony, happenings, lead]
+    }
+
+    func parameters(for role: DayObjectsRoleBus) -> DayObjectsRoleBusMixParameters {
+        return switch role {
+        case .rhythm: rhythm
+        case .bass: bass
+        case .harmony: harmony
+        case .happenings: happenings
+        case .lead: lead
+        }
+    }
+}
+
 struct DayObjectsMixState: Equatable, Sendable {
-    let rhythmTargetDecibels: Double
-    let bassTargetDecibels: Double
-    let harmonyTargetDecibels: Double
+    let buses: DayObjectsFiveRoleBusMixParameters
     let harmonyPerVoiceTargetDecibels: Double
-    let happeningAggregateTargetDecibels: Double
     let happeningPerVoiceTargetDecibels: Double
-    let leadTargetDecibels: Double
     let masterTargetDecibelsBeforeLimiter: Double
     let harmonyDuckingDecibels: Double
-    let delayFeedback: Double
-    let reverbFeedback: Double
     let rampDurationSeconds: TimeInterval
+
+    var rhythmTargetDecibels: Double { buses.rhythm.directTargetDecibels }
+    var bassTargetDecibels: Double { buses.bass.directTargetDecibels }
+    var harmonyTargetDecibels: Double { buses.harmony.directTargetDecibels }
+    var happeningAggregateTargetDecibels: Double { buses.happenings.directTargetDecibels }
+    var leadTargetDecibels: Double { buses.lead.directTargetDecibels }
 }
 
 @MainActor
@@ -40,8 +105,7 @@ final class DayObjectsMixController {
         _ plan: LayerMixPlan,
         activeChordVoiceCount: Int,
         harmonyDuckingDecibels requestedDucking: Double,
-        delayFeedback: Double,
-        reverbFeedback: Double,
+        spatial: DayObjectsFiveRoleBusSpatialParameters,
         rampDurationSeconds: TimeInterval
     ) {
         let rhythm = decibels(plan.rhythmTargetDecibels)
@@ -66,28 +130,39 @@ final class DayObjectsMixController {
         )
 
         backend.apply(.init(
-            rhythmTargetDecibels: rhythm,
-            bassTargetDecibels: decibels(plan.bassTargetDecibels),
-            harmonyTargetDecibels: harmony,
+            buses: .init(
+                rhythm: bus(directTargetDecibels: rhythm, spatial: spatial.rhythm),
+                bass: bus(directTargetDecibels: decibels(plan.bassTargetDecibels), spatial: spatial.bass),
+                harmony: bus(directTargetDecibels: harmony, spatial: spatial.harmony),
+                happenings: bus(directTargetDecibels: happeningAggregate, spatial: spatial.happenings),
+                lead: bus(directTargetDecibels: decibels(plan.leadTargetDecibels), spatial: spatial.lead)
+            ),
             harmonyPerVoiceTargetDecibels: harmonyPerVoice,
-            happeningAggregateTargetDecibels: happeningAggregate,
             happeningPerVoiceTargetDecibels: happeningPerVoice,
-            leadTargetDecibels: decibels(plan.leadTargetDecibels),
             masterTargetDecibelsBeforeLimiter: min(
                 decibels(plan.masterTargetDecibelsBeforeLimiter),
                 Self.maximumMasterDecibels
             ),
             harmonyDuckingDecibels: ducking,
-            delayFeedback: feedback(
-                delayFeedback,
-                maximum: DayObjectsAudioParameters.maximumDelayFeedback
-            ),
-            reverbFeedback: feedback(
-                reverbFeedback,
-                maximum: DayObjectsAudioParameters.maximumReverbFeedback
-            ),
             rampDurationSeconds: duration(rampDurationSeconds)
         ))
+    }
+
+    private func bus(
+        directTargetDecibels: Double,
+        spatial: DayObjectsRoleBusSpatialParameters
+    ) -> DayObjectsRoleBusMixParameters {
+        .init(
+            directTargetDecibels: directTargetDecibels,
+            sendLevel: feedback(
+                spatial.sendLevel,
+                maximum: DayObjectsAudioParameters.maximumReverbFeedback
+            ),
+            decay: feedback(
+                spatial.decay,
+                maximum: DayObjectsAudioParameters.maximumReverbFeedback
+            )
+        )
     }
 
     private func decibels(_ value: Double) -> Double {

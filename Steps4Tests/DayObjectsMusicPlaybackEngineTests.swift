@@ -1158,19 +1158,21 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
             pow(10, plan.mix.masterTargetDecibelsBeforeLimiter / 20),
             accuracy: 0.000_001
         )
-        let expectedDelay = max(
-            plan.harmony.roles.map(\.delaySend).max() ?? 0,
-            plan.happenings.map(\.delaySend).max() ?? 0
-        )
-        let expectedReverb = max(
+        let state = try XCTUnwrap(effects.state)
+        XCTAssertEqual(
+            state.buses.harmony.sendLevel,
             plan.harmony.roles.map(\.reverbSend).max() ?? 0,
-            plan.happenings.map(\.reverbSend).max() ?? 0
+            accuracy: 0.000_001
         )
-        XCTAssertEqual(effects.delayFeedback, expectedDelay, accuracy: 0.000_001)
-        XCTAssertEqual(effects.reverbFeedback, expectedReverb, accuracy: 0.000_001)
-        XCTAssertTrue(effects.delayFeedbackWasRamped)
-        XCTAssertTrue(effects.reverbFeedbackWasRamped)
-        XCTAssertEqual(effects.feedbackRampDurationSeconds, 0.25, accuracy: 0.000_001)
+        XCTAssertEqual(
+            state.buses.happenings.sendLevel,
+            plan.happenings.map(\.reverbSend).max() ?? 0,
+            accuracy: 0.000_001
+        )
+        XCTAssertEqual(state.buses.rhythm.decay, 0.42, accuracy: 0.000_001)
+        XCTAssertEqual(state.buses.harmony.decay, 0.72, accuracy: 0.000_001)
+        XCTAssertEqual(state.buses.happenings.decay, 0.84, accuracy: 0.000_001)
+        XCTAssertEqual(effects.rampDurationSeconds, 0.25, accuracy: 0.000_001)
     }
 
     func testLiveRuntimeIntroducesExistingHappeningsWhenSoundStarts() throws {
@@ -1205,7 +1207,7 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertGreaterThan(runtime.activeWorldVoiceCountForTesting, 0)
 
         runtime.scheduleStructuralPlan(remixed)
-        runtime.renderForTesting(.init(kind: .barBoundary, position: .init(absoluteSubdivision: 128), hostTimeSeconds: 8, tempoBPM: 100))
+        runtime.renderForTesting(.init(kind: .subdivision, position: .init(absoluteSubdivision: 128), hostTimeSeconds: 8, tempoBPM: 100))
         XCTAssertEqual(runtime.remixResultForTesting, .transitioned(seed: remixed.seed))
         XCTAssertTrue(runtime.activeHappeningNextPositionsForTesting.values.allSatisfy {
             $0.absoluteSubdivision >= 128
@@ -1477,7 +1479,7 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(runtime.totalLeadAttackCountForTesting, 1)
 
         runtime.scheduleStructuralPlan(remixed)
-        runtime.renderForTesting(.init(kind: .barBoundary, position: .init(absoluteSubdivision: 128), hostTimeSeconds: 8, tempoBPM: 100))
+        runtime.renderForTesting(.init(kind: .subdivision, position: .init(absoluteSubdivision: 128), hostTimeSeconds: 8, tempoBPM: 100))
         XCTAssertEqual(runtime.totalLeadAttackCountForTesting, 1)
         XCTAssertEqual(runtime.totalLeadReleaseCountForTesting, 0)
         XCTAssertEqual(runtime.inactiveLeadVoiceCountForTesting, 1)

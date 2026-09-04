@@ -12,8 +12,7 @@ final class DayObjectsMixControllerTests: XCTestCase {
             plan,
             activeChordVoiceCount: 4,
             harmonyDuckingDecibels: 1.25,
-            delayFeedback: 0.4,
-            reverbFeedback: 0.7,
+            spatial: testSpatial,
             rampDurationSeconds: 0.5
         )
 
@@ -27,8 +26,12 @@ final class DayObjectsMixControllerTests: XCTestCase {
         XCTAssertEqual(state.leadTargetDecibels, -9, accuracy: 1e-12)
         XCTAssertEqual(state.masterTargetDecibelsBeforeLimiter, -6, accuracy: 1e-12)
         XCTAssertEqual(state.harmonyDuckingDecibels, 1.25, accuracy: 1e-12)
-        XCTAssertEqual(state.delayFeedback, 0.4, accuracy: 1e-12)
-        XCTAssertEqual(state.reverbFeedback, 0.7, accuracy: 1e-12)
+        XCTAssertEqual(state.buses.rhythm.sendLevel, 0.1, accuracy: 1e-12)
+        XCTAssertEqual(state.buses.bass.sendLevel, 0.2, accuracy: 1e-12)
+        XCTAssertEqual(state.buses.harmony.sendLevel, 0.3, accuracy: 1e-12)
+        XCTAssertEqual(state.buses.happenings.sendLevel, 0.4, accuracy: 1e-12)
+        XCTAssertEqual(state.buses.lead.sendLevel, 0.5, accuracy: 1e-12)
+        XCTAssertEqual(state.buses.happenings.decay, 0.8, accuracy: 1e-12)
         XCTAssertEqual(state.rampDurationSeconds, 0.5, accuracy: 1e-12)
     }
 
@@ -41,8 +44,7 @@ final class DayObjectsMixControllerTests: XCTestCase {
                 LayerMixPlanner.makePlan(happeningCount: count),
                 activeChordVoiceCount: count,
                 harmonyDuckingDecibels: 0,
-                delayFeedback: 0,
-                reverbFeedback: 0,
+                spatial: .dry,
                 rampDurationSeconds: 0.25
             )
         }
@@ -53,7 +55,7 @@ final class DayObjectsMixControllerTests: XCTestCase {
         }
     }
 
-    func testMasterDuckingAndFeedbackAreCappedAtTheSafetyBoundary() throws {
+    func testMasterDuckingAndRoleSpatialControlsAreCappedAtTheSafetyBoundary() throws {
         let backend = RecordingMixBackend()
         let controller = DayObjectsMixController(backend: backend)
         let malformed = LayerMixPlan(
@@ -72,18 +74,17 @@ final class DayObjectsMixControllerTests: XCTestCase {
             malformed,
             activeChordVoiceCount: 4,
             harmonyDuckingDecibels: 99,
-            delayFeedback: 1,
-            reverbFeedback: 1,
+            spatial: .init(repeating: .init(sendLevel: 1, decay: 1)),
             rampDurationSeconds: 2
         )
 
         let state = try XCTUnwrap(backend.states.last)
         XCTAssertLessThanOrEqual(state.masterTargetDecibelsBeforeLimiter, -2)
         XCTAssertEqual(state.harmonyDuckingDecibels, 2.5)
-        XCTAssertLessThan(state.delayFeedback, DayObjectsAudioParameters.delayFeedbackSafetyLimit)
-        XCTAssertLessThan(state.reverbFeedback, DayObjectsAudioParameters.reverbFeedbackSafetyLimit)
-        XCTAssertLessThan(state.delayFeedback, 1)
-        XCTAssertLessThan(state.reverbFeedback, 1)
+        XCTAssertTrue(state.buses.all.allSatisfy {
+            $0.sendLevel < DayObjectsAudioParameters.reverbFeedbackSafetyLimit
+                && $0.decay < DayObjectsAudioParameters.reverbFeedbackSafetyLimit
+        })
         XCTAssertLessThanOrEqual(state.happeningPerVoiceTargetDecibels, 0)
     }
 
@@ -106,8 +107,7 @@ final class DayObjectsMixControllerTests: XCTestCase {
             malformed,
             activeChordVoiceCount: Int.max,
             harmonyDuckingDecibels: .nan,
-            delayFeedback: .nan,
-            reverbFeedback: .infinity,
+            spatial: .init(repeating: .init(sendLevel: .nan, decay: .infinity)),
             rampDurationSeconds: .nan
         )
 
@@ -115,8 +115,10 @@ final class DayObjectsMixControllerTests: XCTestCase {
         XCTAssertTrue(state.finiteValues.allSatisfy(\.isFinite))
         XCTAssertLessThanOrEqual(state.masterTargetDecibelsBeforeLimiter, -2)
         XCTAssertLessThanOrEqual(state.harmonyDuckingDecibels, 2.5)
-        XCTAssertLessThan(state.delayFeedback, DayObjectsAudioParameters.delayFeedbackSafetyLimit)
-        XCTAssertLessThan(state.reverbFeedback, DayObjectsAudioParameters.reverbFeedbackSafetyLimit)
+        XCTAssertTrue(state.buses.all.allSatisfy {
+            $0.sendLevel < DayObjectsAudioParameters.reverbFeedbackSafetyLimit
+                && $0.decay < DayObjectsAudioParameters.reverbFeedbackSafetyLimit
+        })
         XCTAssertGreaterThanOrEqual(state.rampDurationSeconds, 0)
     }
 
@@ -130,8 +132,7 @@ final class DayObjectsMixControllerTests: XCTestCase {
                 plan,
                 activeChordVoiceCount: (index % 4) + 1,
                 harmonyDuckingDecibels: Double(index % 5),
-                delayFeedback: 0.4,
-                reverbFeedback: 0.8,
+                spatial: testSpatial,
                 rampDurationSeconds: 0.25
             )
         }
@@ -162,9 +163,15 @@ private extension DayObjectsMixState {
             leadTargetDecibels,
             masterTargetDecibelsBeforeLimiter,
             harmonyDuckingDecibels,
-            delayFeedback,
-            reverbFeedback,
             rampDurationSeconds,
-        ]
+        ] + buses.all.flatMap { [$0.directTargetDecibels, $0.sendLevel, $0.decay] }
     }
 }
+
+private let testSpatial = DayObjectsFiveRoleBusSpatialParameters(
+    rhythm: .init(sendLevel: 0.1, decay: 0.2),
+    bass: .init(sendLevel: 0.2, decay: 0.4),
+    harmony: .init(sendLevel: 0.3, decay: 0.6),
+    happenings: .init(sendLevel: 0.4, decay: 0.8),
+    lead: .init(sendLevel: 0.5, decay: 0.7)
+)

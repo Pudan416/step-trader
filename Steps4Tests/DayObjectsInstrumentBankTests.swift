@@ -82,14 +82,14 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
             let firstSound = lifecycleResolvedSound(recipe: firstRecipe)
             let secondSound = lifecycleResolvedSound(recipe: secondRecipe)
             let first = try pool.play(firstSound, gain: 1, priority: .birth, effects: lifecycleEffects(for: firstRecipe))
-            let secondEffects = lifecycleEffects(for: secondRecipe)
-            let second = try pool.play(secondSound, gain: 1, priority: .manualAudition, effects: secondEffects)
+            let second = try pool.play(secondSound, gain: 1, priority: .manualAudition, effects: lifecycleEffects(for: secondRecipe))
             pool.stop(first)
+            let survivingEffects = pool.metrics.effects
 
             worlds[cycle % 2].recycleAfterTailsDrain()
 
             XCTAssertEqual(pool.metrics.activeVoiceCount, 1, "cycle \(cycle)")
-            XCTAssertEqual(pool.metrics.effects, secondEffects, "cycle \(cycle)")
+            XCTAssertEqual(pool.metrics.effects, survivingEffects, "cycle \(cycle)")
             pool.stop(second)
             XCTAssertEqual(pool.metrics.activeVoiceCount, 0, "cycle \(cycle)")
             XCTAssertEqual(pool.metrics.fixedPlayerIdentities, playerIdentities, "cycle \(cycle)")
@@ -127,10 +127,10 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
     func testPlaybackWorldReplacesTheTonalHappeningPoolWithFourSamplePlayers() throws {
         let configuration = PlaybackWorldBankConfiguration.playbackWorld
 
-        XCTAssertEqual(configuration.tonalPools.map(\.capacity).reduce(0, +), 8)
+        XCTAssertEqual(configuration.tonalPools.map(\.capacity).reduce(0, +), 9)
         XCTAssertEqual(configuration.pianoVoiceCount, 2)
         XCTAssertEqual(configuration.drumOverlapCounts.values.reduce(0, +), 10)
-        XCTAssertEqual(PlaybackWorldBankConfiguration.PoolName.allCases.count, 4)
+        XCTAssertEqual(PlaybackWorldBankConfiguration.PoolName.allCases.count, 5)
         XCTAssertFalse(configuration.tonalPools.map(\.name).contains("happenings"))
 
         let bank = DayObjectsInstrumentBank(bundle: Bundle(for: type(of: self)))
@@ -581,8 +581,72 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(pair.bankB.outputGainMetrics.lastRampDurationSeconds, 0.5)
         XCTAssertEqual(pair.bankA.outputGainMetrics.rampCount, 1)
         XCTAssertEqual(pair.bankB.outputGainMetrics.rampCount, 1)
+        XCTAssertEqual(pair.bankA.outputGainMetrics.affectedRoles, [.rhythm, .bass, .harmony, .lead])
+        XCTAssertEqual(pair.bankB.outputGainMetrics.affectedRoles, [.rhythm, .bass, .harmony, .lead])
         XCTAssertEqual(pair.metrics.fixedSharedNodeCount, baseline.fixedSharedNodeCount)
         XCTAssertEqual(pair.metrics.allocationFingerprint, baseline.allocationFingerprint)
+    }
+
+    func testPlaybackPairRoutesAllFiveRolesThroughOnePersistentMaster() throws {
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(
+            bundle: Bundle(for: type(of: self))
+        )
+        try pair.prepare(configuration: .playbackWorld)
+
+        let topology = pair.bankA.metrics.engineTopology
+        let master = try XCTUnwrap(topology.commonMasterIdentity)
+        XCTAssertEqual(Set(topology.roleBusIdentities.keys), Set(DayObjectsRoleBus.allCases))
+        XCTAssertEqual(topology.roleBusIdentities.count, 5)
+        XCTAssertGreaterThanOrEqual(topology.parallelSpatialReturnIdentities.count, 4)
+        XCTAssertEqual(topology.finalPeakLimiterIdentities.count, 1)
+        XCTAssertEqual(Set(topology.roleMasterDestinations.values), [master])
+        XCTAssertFalse(topology.happeningsUsesWorldTrim)
+        XCTAssertEqual(topology.masterHighPassHz, 22)
+        XCTAssertTrue((1.5...2).contains(topology.glueCompressorRatio))
+        XCTAssertLessThanOrEqual(topology.nominalMaximumGlueReductionDB, 1.5)
+        XCTAssertEqual(topology.limiterCeilingDBFS, -1)
+        XCTAssertEqual(topology.roleHighPassHz[.bass], 27)
+        XCTAssertGreaterThan(try XCTUnwrap(topology.roleHighPassHz[.harmony]), 27)
+        XCTAssertTrue(topology.bassUsesMonoCompatibleLowBand)
+        XCTAssertTrue(topology.bassUsesMildSaturation)
+    }
+
+    func testFiveRoleTopologyIdentityDoesNotChangeAcrossMixUpdates() throws {
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(
+            bundle: Bundle(for: type(of: self))
+        )
+        try pair.prepare(configuration: .playbackWorld)
+        let topology = pair.bankA.metrics.engineTopology
+        let fixedSharedNodes = pair.metrics.fixedSharedNodeIdentities
+        let mix = DayObjectsMixState.testingFiveRoleMix
+
+        for _ in 0..<100 {
+            pair.bankA.applyMix(mix)
+            pair.bankB.applyMix(mix)
+        }
+
+        XCTAssertEqual(pair.bankA.metrics.engineTopology, topology)
+        XCTAssertEqual(pair.bankB.metrics.engineTopology, topology)
+        XCTAssertEqual(pair.metrics.fixedSharedNodeIdentities, fixedSharedNodes)
+    }
+
+    func testPlaybackPairPublishesFiniteFiveRoleAndMasterMeterSnapshots() throws {
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(
+            bundle: Bundle(for: type(of: self))
+        )
+        try pair.prepare(configuration: .playbackWorld)
+
+        let metrics = pair.metrics
+
+        for role in DayObjectsRoleBus.allCases {
+            let snapshot = metrics.roleBusMetrics.metrics(for: role)
+            XCTAssertTrue(snapshot.peakDBFS.isFinite)
+            XCTAssertTrue(snapshot.rmsDBFS.isFinite)
+            XCTAssertGreaterThanOrEqual(snapshot.activeVoiceCount, 0)
+        }
+        XCTAssertTrue(metrics.masterMetrics.peakDBFS.isFinite)
+        XCTAssertTrue(metrics.masterMetrics.rmsDBFS.isFinite)
+        XCTAssertTrue(metrics.masterMetrics.limiterReductionDB.isFinite)
     }
 
     func testPlaybackPairFitsTheMobileRealtimeAllocationBudget() throws {
@@ -936,11 +1000,13 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
 
         XCTAssertEqual(bank.metrics.state, .prepared)
         let graph = try XCTUnwrap(bank.metrics.graph)
-        XCTAssertEqual(graph.tonalBusCount, 1)
+        XCTAssertEqual(graph.tonalBusCount, 3)
         XCTAssertEqual(graph.drumBusCount, 1)
-        XCTAssertEqual(graph.sharedSpatialEffectCount, 2)
-        XCTAssertEqual(graph.tonalBusGainDB, -3, accuracy: 0.001)
-        XCTAssertEqual(graph.drumBusGainDB, -3, accuracy: 0.001)
+        XCTAssertEqual(graph.sharedSpatialEffectCount, 6)
+        XCTAssertEqual(graph.roleBuses, DayObjectsRoleBus.allCases)
+        XCTAssertEqual(graph.parallelSpatialReturnCount, 6)
+        XCTAssertEqual(graph.tonalBusGainDB, 0, accuracy: 0.001)
+        XCTAssertEqual(graph.drumBusGainDB, 0, accuracy: 0.001)
         XCTAssertEqual(graph.masterTrimDB, -3, accuracy: 0.001)
         XCTAssertEqual(graph.finalPeakLimiterCount, 0)
         XCTAssertEqual(bank.metrics.drumMetrics.allocatedPlayerCount, DayObjectsDrumVoice.allCases.count)
@@ -1152,6 +1218,23 @@ private final class InstrumentBankHarness {
 }
 
 private struct InjectedFailure: Error {}
+
+private extension DayObjectsMixState {
+    static let testingFiveRoleMix = DayObjectsMixState(
+        buses: .init(
+            rhythm: .init(directTargetDecibels: -10, sendLevel: 0.08, decay: 0.42),
+            bass: .init(directTargetDecibels: -12, sendLevel: 0.05, decay: 0.36),
+            harmony: .init(directTargetDecibels: -10, sendLevel: 0.28, decay: 0.72),
+            happenings: .init(directTargetDecibels: -8, sendLevel: 0.34, decay: 0.84),
+            lead: .init(directTargetDecibels: -9, sendLevel: 0.24, decay: 0.62)
+        ),
+        harmonyPerVoiceTargetDecibels: -10,
+        happeningPerVoiceTargetDecibels: -14,
+        masterTargetDecibelsBeforeLimiter: -6,
+        harmonyDuckingDecibels: 0,
+        rampDurationSeconds: 0.25
+    )
+}
 
 @MainActor
 private final class FakeTonalPool: DayObjectsTonalVoicePoolProtocol {
