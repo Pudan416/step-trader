@@ -78,6 +78,35 @@ protocol DayObjectsHappeningSamplePoolProtocol: AnyObject {
 struct DayObjectsHappeningDecodedBuffer {
     let buffer: AVAudioPCMBuffer
     let decodedByteCount: Int
+    let playbackNormalizationGain: Double
+
+    init(buffer: AVAudioPCMBuffer, decodedByteCount: Int) {
+        self.buffer = buffer
+        self.decodedByteCount = decodedByteCount
+        playbackNormalizationGain = Self.normalizationGain(for: buffer)
+    }
+
+    private static func normalizationGain(for buffer: AVAudioPCMBuffer) -> Double {
+        guard let channels = buffer.floatChannelData,
+              buffer.frameLength > 0,
+              buffer.format.channelCount > 0 else { return 1 }
+        let frameCount = min(
+            Int(buffer.frameLength),
+            max(1, Int((buffer.format.sampleRate * 0.25).rounded()))
+        )
+        let channelCount = Int(buffer.format.channelCount)
+        var sumOfSquares = 0.0
+        for channel in 0..<channelCount {
+            for frame in 0..<frameCount {
+                let sample = Double(channels[channel][frame])
+                sumOfSquares += sample * sample
+            }
+        }
+        let rms = sqrt(sumOfSquares / Double(frameCount * channelCount))
+        guard rms.isFinite, rms > 0 else { return 1 }
+        let targetRMS = pow(10, -25.0 / 20)
+        return min(targetRMS / rms, 1)
+    }
 }
 
 @MainActor
@@ -126,11 +155,12 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
     private var generation: UInt64 = 0
     private var stealCount = 0
     private static let defaultEffects = HappeningEffectCommand(
-        filterCutoffHz: 8_000,
+        filterCutoffHz: 7_200,
         delayMix: 0.04,
         delayFeedback: 0.12,
-        reverbMix: 0.05
+        reverbMix: 0.84
     )
+    private static let ambientHeadroomGain = pow(10, -4.5 / 20)
     private var currentEffects = defaultEffects
     private var lastEffectRampSeconds: TimeInterval = 0
 
@@ -275,11 +305,11 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
             generation: generation
         )
         let requestedGain = gain.isFinite ? gain : 0
-        // Authored happening assets are normalized with generous headroom.
-        // Recover the catalog's legacy attenuation here without ever boosting
-        // a source above unity.
-        let recipeGain = Self.playbackRecipeGain(decibels: recipe.gainDB)
-        let playbackGain = min(max(requestedGain * recipeGain, 0), 1)
+        // The bank's full-event RMS is intentionally diverse, but its short
+        // attacks need one common ceiling so switching recipes never jumps in
+        // perceived loudness. Quiet sources are never boosted.
+        let playbackGainScale = decoded.playbackNormalizationGain * Self.ambientHeadroomGain
+        let playbackGain = min(max(requestedGain * playbackGainScale, 0), 1)
         let rate = min(max(sound.playbackRate.isFinite ? sound.playbackRate : 1, 0.5), 2)
         slots[slotIndex].state = .active(
             handle: handle,
@@ -287,7 +317,7 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
             startOrder: sequence,
             releaseSeconds: recipe.releaseSeconds,
             effects: Self.sanitizedEffects(effects),
-            recipeGain: recipeGain
+            playbackGainScale: playbackGainScale
         )
         recomputeRecipeEffects()
         voices[slotIndex].play(
@@ -309,9 +339,9 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
 
     func update(_ handle: HappeningPlaybackHandle, gain: Double, playbackRate: Double) {
         guard let slotIndex = slotIndex(matching: handle),
-              case let .active(_, _, _, _, _, recipeGain) = slots[slotIndex].state else { return }
+              case let .active(_, _, _, _, _, playbackGainScale) = slots[slotIndex].state else { return }
         let requestedGain = gain.isFinite ? gain : 0
-        let boundedGain = min(max(requestedGain * recipeGain, 0), 1)
+        let boundedGain = min(max(requestedGain * playbackGainScale, 0), 1)
         let boundedRate = min(max(playbackRate.isFinite ? playbackRate : 1, 0.5), 2)
         voices[slotIndex].update(
             gain: boundedGain,
@@ -320,19 +350,15 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
         )
     }
 
-    private static func playbackRecipeGain(decibels: Double) -> Double {
-        let adjustedDecibels = min(decibels + 7.5, 0)
-        return pow(10, adjustedDecibels / 20)
-    }
-
     func stop(_ handle: HappeningPlaybackHandle) {
         guard let slotIndex = slotIndex(matching: handle),
-              case let .active(_, _, _, releaseSeconds, _, _) = slots[slotIndex].state else { return }
+              case let .active(_, _, _, releaseSeconds, effects, _) = slots[slotIndex].state else { return }
         voices[slotIndex].release()
         sequence &+= 1
         slots[slotIndex].state = .released(
             order: sequence,
-            deadline: clock() + releaseSeconds
+            deadline: clock() + releaseSeconds,
+            effects: effects
         )
         recomputeRecipeEffects()
         refreshReleasedSlots()
@@ -350,7 +376,7 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
 
     private static func directPresence(for reverbMix: Double) -> Double {
         let boundedMix = min(max(reverbMix, 0), 1)
-        return max(pow(1 - boundedMix, 1.2), 0.12)
+        return max(pow(1 - boundedMix, 1.6), 0.06)
     }
 
     func releaseAll() {
@@ -403,8 +429,13 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
 
     private func recomputeRecipeEffects() {
         let contributions = slots.compactMap { slot -> HappeningEffectCommand? in
-            guard case let .active(_, _, _, _, effects, _) = slot.state else { return nil }
-            return effects
+            switch slot.state {
+            case let .active(_, _, _, _, effects, _),
+                 let .released(_, _, effects):
+                return effects
+            case .idle:
+                return nil
+            }
         }.sorted(by: Self.effectOrdering)
         guard contributions.isEmpty == false else {
             applyEffectsToBus(Self.defaultEffects, duration: 0)
@@ -441,12 +472,15 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
 
     private func refreshReleasedSlots() {
         let now = clock()
+        var didExpireEffectContribution = false
         for index in slots.indices {
-            guard case let .released(_, deadline) = slots[index].state,
+            guard case let .released(_, deadline, _) = slots[index].state,
                   deadline <= now else { continue }
             voices[index].stop()
             slots[index].state = .idle
+            didExpireEffectContribution = true
         }
+        if didExpireEffectContribution { recomputeRecipeEffects() }
     }
 
     private static func decodeBuffer(url: URL) throws -> DayObjectsHappeningDecodedBuffer {
@@ -490,14 +524,18 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
 
     private enum VoiceState {
         case idle
-        case released(order: UInt64, deadline: TimeInterval)
+        case released(
+            order: UInt64,
+            deadline: TimeInterval,
+            effects: HappeningEffectCommand
+        )
         case active(
             handle: HappeningPlaybackHandle,
             priority: HappeningPlaybackPriority,
             startOrder: UInt64,
             releaseSeconds: TimeInterval,
             effects: HappeningEffectCommand,
-            recipeGain: Double
+            playbackGainScale: Double
         )
 
         var isActive: Bool {
@@ -512,7 +550,7 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
 
         var releaseOrdering: (Int, UInt64) {
             switch self {
-            case let .released(order, _): return (0, order)
+            case let .released(order, _, _): return (0, order)
             case .idle: return (1, 0)
             case .active: return (.max, .max)
             }

@@ -6,14 +6,14 @@ import XCTest
 
 @MainActor
 final class DayObjectsHappeningSamplePoolTests: XCTestCase {
-    func testNewPoolStartsWithTransparentDefaultEffects() throws {
+    func testNewPoolStartsWithAmbientTailDefaultEffects() throws {
         let harness = try preparedHarness()
 
         assertEffects(harness.pool.metrics.effects, equalTo: .init(
-            filterCutoffHz: 8_000,
+            filterCutoffHz: 7_200,
             delayMix: 0.04,
             delayFeedback: 0.12,
-            reverbMix: 0.05
+            reverbMix: 0.84
         ))
     }
 
@@ -93,11 +93,26 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
     }
 
     func testStoppingAndReusingHandlesRecomputesActiveEffectAggregate() throws {
-        let harness = try preparedHarness()
+        var now = 10.0
+        let harness = try makeHarness(
+            recipes: (1...6).map {
+                makeRecipe(id: $0, resources: ["\($0).wav"], releaseSeconds: 0.2)
+            },
+            clock: { now }
+        )
+        try harness.pool.prepare(recipeIDs: Set((1...6).map(id)))
         let first = try harness.pool.play(sound(id: 1, resource: "1.wav"), gain: 1, priority: .birth, effects: effects(1))
         _ = try harness.pool.play(sound(id: 2, resource: "2.wav"), gain: 1, priority: .manualAudition, effects: effects(2))
 
         harness.pool.stop(first)
+        assertEffects(harness.pool.metrics.effects, equalTo: .init(
+            filterCutoffHz: 1_500,
+            delayMix: 0.15,
+            delayFeedback: 0.075,
+            reverbMix: 0.225
+        ))
+
+        now += 0.21
         XCTAssertEqual(harness.pool.metrics.effects, effects(2))
 
         _ = try harness.pool.play(sound(id: 3, resource: "3.wav"), gain: 1, priority: .birth, effects: effects(3))
@@ -107,6 +122,38 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
             delayFeedback: 0.125,
             reverbMix: 0.375
         ))
+    }
+
+    func testDecodedAttackLevelsAreAttenuatedToOneCommonCeiling() throws {
+        let targetAmplitude = Float(pow(10, -25.0 / 20.0))
+        let recipes = [
+            makeRecipe(id: 1, resources: ["loud.wav"]),
+            makeRecipe(id: 2, resources: ["reference.wav"]),
+        ]
+        let harness = try makeHarness(
+            recipes: recipes,
+            bufferAmplitudes: [
+                "loud.wav": 0.2,
+                "reference.wav": targetAmplitude,
+            ]
+        )
+        try harness.pool.prepare(recipeIDs: Set(recipes.map(\.id)))
+
+        let loud = try harness.pool.play(
+            sound(id: 1, resource: "loud.wav"),
+            gain: 1,
+            priority: .manualAudition
+        )
+        let reference = try harness.pool.play(
+            sound(id: 2, resource: "reference.wav"),
+            gain: 1,
+            priority: .manualAudition
+        )
+        let loudGain = try XCTUnwrap(harness.voices[loud.voiceID].playCalls.last?.gain)
+        let referenceGain = try XCTUnwrap(harness.voices[reference.voiceID].playCalls.last?.gain)
+
+        XCTAssertEqual(loudGain * 0.2, referenceGain * Double(targetAmplitude), accuracy: 0.000_001)
+        XCTAssertLessThan(loudGain, referenceGain)
     }
 
     func testRejectedPlayLeavesSharedEffectAggregateUnchanged() throws {
@@ -605,12 +652,14 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         recipes: [HappeningSoundRecipe],
         bytesPerResource: Int = 1_024,
         failingResources: Set<String> = [],
+        bufferAmplitudes: [String: Float] = [:],
         clock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
     ) throws -> PoolHarness {
         try PoolHarness(
             recipes: recipes,
             bytesPerResource: bytesPerResource,
             failingResources: failingResources,
+            bufferAmplitudes: bufferAmplitudes,
             clock: clock
         )
     }
@@ -776,6 +825,7 @@ private final class PoolHarness {
         recipes: [HappeningSoundRecipe],
         bytesPerResource: Int,
         failingResources: Set<String>,
+        bufferAmplitudes: [String: Float],
         clock: @escaping () -> TimeInterval
     ) throws {
         let recorder = PoolHarnessRecorder()
@@ -791,6 +841,10 @@ private final class PoolHarness {
                 let frames = AVAudioFrameCount(max(bytesPerResource / MemoryLayout<Float>.size, 1))
                 let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)!
                 buffer.frameLength = frames
+                if let amplitude = bufferAmplitudes[resource],
+                   let samples = buffer.floatChannelData?[0] {
+                    for frame in 0..<Int(frames) { samples[frame] = amplitude }
+                }
                 recorder.loadedBuffers[resource] = buffer
                 return .init(buffer: buffer, decodedByteCount: bytesPerResource)
             },
