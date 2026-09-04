@@ -355,8 +355,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         }
         releaseAllIncludingSharedHappenings()
         engine.stop()
-        engine.detach()
-        if prepared != nil { prepared?.state = .prepared; prepared?.isAttached = false }
+        if prepared != nil { prepared?.state = .prepared; prepared?.isAttached = true }
     }
 
     func releaseWorldLocalVoices() {
@@ -570,7 +569,7 @@ private final class DayObjectsAudioKitPianoPoolAdapter: DayObjectsPianoPoolProto
     func releaseAll() { adapter.piano.stop() }
 }
 
-private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentBankGraph {
+final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentBankGraph {
     var layout: DayObjectsInstrumentBankGraphLayout {
         .init(
             tonalBusCount: 3,
@@ -692,7 +691,7 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         return result
     }
 
-    init(
+    fileprivate init(
         tonalPools: [DayObjectsAudioKitTonalPool],
         drums: DayObjectsAudioKitDrumBank?,
         piano: DayObjectsAudioKitFeltPiano?,
@@ -1020,7 +1019,7 @@ final class DayObjectsMasterOutputGainNode: Node {
 }
 
 @MainActor
-private final class DayObjectsPersistentMasterGraph {
+final class DayObjectsPersistentMasterGraph {
     static let masterTrimDecibels = -6.0
     static let masterHighPassHz = 22.0
     static let glueRatio = 1.5
@@ -1075,7 +1074,7 @@ private final class DayObjectsPersistentMasterGraph {
 
     let masterMixer: Mixer
     let masterHighPass: HighPassFilter
-    let glueCompressor: DynamicsProcessor
+    let glueCompressor: DynamicRangeCompressor
     let masterSaturation: TanhDistortion
     let masterTrim: Fader
     let limiter: PeakLimiter
@@ -1097,7 +1096,7 @@ private final class DayObjectsPersistentMasterGraph {
     private var publishedMasterMetrics = DayObjectsMasterMetrics(
         peakDBFS: -120,
         rmsDBFS: -120,
-        limiterReductionDB: 0
+        estimatedLimiterReductionDB: 0
     )
 
     init(happenings: DayObjectsHappeningSamplePool) {
@@ -1176,15 +1175,14 @@ private final class DayObjectsPersistentMasterGraph {
             leadReverbReturn,
         ], name: "Day Objects common master")
         masterHighPass = HighPassFilter(masterMixer, cutoffFrequency: AUValue(Self.masterHighPassHz), resonance: 0)
-        glueCompressor = DynamicsProcessor(
+        glueCompressor = DynamicRangeCompressor(
             masterHighPass,
-            threshold: -6,
-            headRoom: 6,
-            expansionRatio: 1,
-            expansionThreshold: 1,
-            attackTime: 0.03,
-            releaseTime: 0.2,
-            masterGain: 0
+            ratio: AUValue(Self.glueRatio),
+            threshold: -4.5,
+            attackDuration: 0.03,
+            releaseDuration: 0.2,
+            gain: 1,
+            dryWetMix: 1
         )
         masterSaturation = TanhDistortion(
             glueCompressor,
@@ -1202,7 +1200,10 @@ private final class DayObjectsPersistentMasterGraph {
         )
     }
 
-    func topologyMetrics(graphs: [DayObjectsAudioKitInstrumentBankGraph]) -> DayObjectsInstrumentBankEngineTopologyMetrics {
+    func topologyMetrics(
+        graphs: [DayObjectsAudioKitInstrumentBankGraph],
+        audioEngine: AVAudioEngine? = nil
+    ) -> DayObjectsInstrumentBankEngineTopologyMetrics {
         let commonMaster = ObjectIdentifier(masterMixer)
         var namedNodes: [String: Node] = [
             "master.mixer": masterMixer,
@@ -1236,6 +1237,22 @@ private final class DayObjectsPersistentMasterGraph {
                 )
             }
         })
+        let attachedAudioNodes = audioEngine.map {
+            Set($0.attachedNodes.map(ObjectIdentifier.init))
+        } ?? []
+        let audioEngineConnectionCount: Int
+        if let audioEngine {
+            audioEngineConnectionCount = audioEngine.attachedNodes.reduce(0) { count, source in
+                count + (0..<Int(source.numberOfOutputs)).reduce(0) { subtotal, bus in
+                    subtotal + audioEngine.outputConnectionPoints(
+                        for: source,
+                        outputBus: AVAudioNodeBus(bus)
+                    ).count
+                }
+            }
+        } else {
+            audioEngineConnectionCount = 0
+        }
         return .init(
             persistentMasterNodeIdentities: fixedNodeIdentities,
             finalPeakLimiterIdentities: [ObjectIdentifier(limiter)],
@@ -1280,12 +1297,16 @@ private final class DayObjectsPersistentMasterGraph {
             acceptedParameterValues: [
                 "master.trim.leftLinear": Double(masterTrim.$leftGain.parameter.value),
                 "master.trim.rightLinear": Double(masterTrim.$rightGain.parameter.value),
+                "master.glue.ratio": Double(glueCompressor.$ratio.parameter.value),
+                "master.glue.thresholdDB": Double(glueCompressor.$threshold.parameter.value),
                 "master.saturation.dryWet": Double(masterSaturation.$dryWetMix.parameter.value),
                 "master.limiter.preGainDB": Double(limiter.$preGain.parameter.value),
                 "master.finalOutput.linear": Double(finalOutput.linearGain),
                 "lead.upperMid.centerHz": Double(leadUpperMidBand.$centerFrequency.parameter.value),
                 "lead.upperMid.thresholdDB": Double(leadUpperMidCompressor.$threshold.parameter.value),
-            ]
+            ],
+            avAudioEngineAttachedNodeIdentities: attachedAudioNodes,
+            avAudioEngineConnectionCount: audioEngineConnectionCount
         )
     }
 
@@ -1293,7 +1314,7 @@ private final class DayObjectsPersistentMasterGraph {
         fixedNodes.map(ObjectIdentifier.init)
     }
 
-    private var fixedNodes: [Node] {
+    var fixedNodes: [Node] {
         [
             rhythmBus, bassBus, harmonyBus, happeningsBus, leadBus,
             rhythmCompressor, harmonyHighPass, leadUpperMidSoftener,
@@ -1312,6 +1333,33 @@ private final class DayObjectsPersistentMasterGraph {
 
     private var meterTapNodes: [Node] {
         [rhythmBus, bassBus, harmonyBus, happeningsBus, leadBus, masterTrim, finalOutput]
+    }
+
+    var meterTapCapturedFrameCounts: [String: UInt64] {
+        [
+            "rhythm": rhythmMeter.capturedSampleCount,
+            "bass": bassMeter.capturedSampleCount,
+            "harmony": harmonyMeter.capturedSampleCount,
+            "happenings": happeningsMeter.capturedSampleCount,
+            "lead": leadMeter.capturedSampleCount,
+            "preLimiter": preLimiterMeter.capturedSampleCount,
+            "finalOutput": masterMeter.capturedSampleCount,
+        ]
+    }
+
+    var limiterMeterTimelineDiagnostics: (pre: [(Int64, UInt64, Double)], post: [(Int64, UInt64, Double)], latency: Int64) {
+        let rate = max(finalOutput.avAudioNode.outputFormat(forBus: 0).sampleRate, 1)
+        return (
+            preLimiterMeter.capturedTimelineRanges.map { ($0.sampleTime, $0.frameCount, $0.peak) },
+            masterMeter.capturedTimelineRanges.map { ($0.sampleTime, $0.frameCount, $0.peak) },
+            Int64((limiter.avAudioNode.auAudioUnit.latency * rate).rounded())
+        )
+    }
+
+    var actualMasterTrimDecibels: Double {
+        let gain = Double(masterTrim.$leftGain.parameter.value)
+        guard gain.isFinite, gain > 0 else { return -120 }
+        return 20 * log10(gain)
     }
 
     func add(_ graph: DayObjectsAudioKitInstrumentBankGraph) {
@@ -1353,13 +1401,12 @@ private final class DayObjectsPersistentMasterGraph {
     private func synchronizeFixedProcessors() {
         setImmediately(masterHighPass.$cutoffFrequency, to: AUValue(Self.masterHighPassHz))
         setImmediately(masterHighPass.$resonance, to: 0)
-        setImmediately(glueCompressor.$threshold, to: -6)
-        setImmediately(glueCompressor.$headRoom, to: 6)
-        setImmediately(glueCompressor.$expansionRatio, to: 1)
-        setImmediately(glueCompressor.$expansionThreshold, to: 1)
-        setImmediately(glueCompressor.$attackTime, to: 0.03)
-        setImmediately(glueCompressor.$releaseTime, to: 0.2)
-        setImmediately(glueCompressor.$masterGain, to: 0)
+        setImmediately(glueCompressor.$ratio, to: AUValue(Self.glueRatio))
+        setImmediately(glueCompressor.$threshold, to: -4.5)
+        setImmediately(glueCompressor.$attackDuration, to: 0.03)
+        setImmediately(glueCompressor.$releaseDuration, to: 0.2)
+        setImmediately(glueCompressor.$gain, to: 1)
+        setImmediately(glueCompressor.$dryWetMix, to: 1)
         setImmediately(leadUpperMidSoftener.$centerFrequency, to: 3_200)
         setImmediately(leadUpperMidSoftener.$gain, to: -5)
         setImmediately(leadUpperMidSoftener.$q, to: 1.1)
@@ -1411,7 +1458,7 @@ private final class DayObjectsPersistentMasterGraph {
         [rhythmMeter, bassMeter, harmonyMeter, happeningsMeter, leadMeter,
          preLimiterMeter, masterMeter].forEach { $0.reset() }
         publishedRoleMetrics = Self.silentRoleMetrics
-        publishedMasterMetrics = .init(peakDBFS: -120, rmsDBFS: -120, limiterReductionDB: 0)
+        publishedMasterMetrics = .init(peakDBFS: -120, rmsDBFS: -120, estimatedLimiterReductionDB: 0)
         lastPublishedAt = -.infinity
         meterResetCount += 1
     }
@@ -1436,16 +1483,17 @@ private final class DayObjectsPersistentMasterGraph {
             happenings: happeningsMeter.snapshot(activeVoiceCount: happeningVoiceCount),
             lead: leadMeter.snapshot(activeVoiceCount: leadCount)
         )
-        let preLimiter = preLimiterMeter.masterSnapshot(limiterReductionDB: 0)
-        let postLimiter = masterMeter.masterSnapshot(limiterReductionDB: 0)
-        // PeakLimiter exposes no gain-reduction telemetry. This explicitly
-        // named fallback compares the aligned pre/final bounded windows.
-        let alignedWindowLimiterReductionEstimate = max(
-            preLimiter.peakDBFS + Self.limiterCeilingDBFS - postLimiter.peakDBFS,
-            0
+        let limiterLatencyFrames = Int64((
+            limiter.avAudioNode.auAudioUnit.latency
+                * max(finalOutput.avAudioNode.outputFormat(forBus: 0).sampleRate, 1)
+        ).rounded())
+        let alignedWindowLimiterReductionEstimate = preLimiterMeter.estimatedReduction(
+            comparedTo: masterMeter,
+            latencyFrames: limiterLatencyFrames,
+            fixedOutputGainDB: Self.limiterCeilingDBFS
         )
         publishedMasterMetrics = masterMeter.masterSnapshot(
-            limiterReductionDB: alignedWindowLimiterReductionEstimate
+            estimatedLimiterReductionDB: alignedWindowLimiterReductionEstimate
         )
         return (publishedRoleMetrics, publishedMasterMetrics)
     }
@@ -1464,7 +1512,7 @@ private final class DayObjectsPersistentMasterGraph {
         lastPublishedAt = -.infinity
     }
 
-    private func bus(for role: DayObjectsRoleBus) -> Mixer {
+    func bus(for role: DayObjectsRoleBus) -> Mixer {
         return switch role {
         case .rhythm: rhythmBus
         case .bass: bassBus
@@ -1488,6 +1536,11 @@ private final class DayObjectsPersistentMasterGraph {
     }
 
     private func ramp(_ fader: Fader, to value: Double, duration: TimeInterval) {
+        guard duration > 0 else {
+            fader.$leftGain.parameter.value = AUValue(value)
+            fader.$rightGain.parameter.value = AUValue(value)
+            return
+        }
         fader.$leftGain.ramp(to: AUValue(value), duration: Float(duration))
         fader.$rightGain.ramp(to: AUValue(value), duration: Float(duration))
     }
@@ -1518,14 +1571,15 @@ private final class DayObjectsPersistentMasterGraph {
     }
 
     private func installTap(on node: Node, meter: DayObjectsBusMeter) {
-        node.avAudioNode.installTap(onBus: 0, bufferSize: 1_024, format: nil) { [meter] buffer, _ in
+        node.avAudioNode.installTap(onBus: 0, bufferSize: 1_024, format: nil) { [meter] buffer, time in
             guard let channels = buffer.floatChannelData else { return }
             let channelCount = Int(buffer.format.channelCount)
             guard channelCount > 0 else { return }
             meter.consume(
                 left: UnsafePointer(channels[0]),
                 right: channelCount > 1 ? UnsafePointer(channels[1]) : nil,
-                frameCount: Int(buffer.frameLength)
+                frameCount: Int(buffer.frameLength),
+                sampleTime: time.sampleTime
             )
         }
     }
@@ -1537,7 +1591,10 @@ private final class DayObjectsAudioKitInstrumentBankEngine: DayObjectsInstrument
     private var graph: DayObjectsAudioKitInstrumentBankGraph?
 
     var topologyMetrics: DayObjectsInstrumentBankEngineTopologyMetrics {
-        masterGraph.topologyMetrics(graphs: graph.map { [$0] } ?? [])
+        masterGraph.topologyMetrics(
+            graphs: graph.map { [$0] } ?? [],
+            audioEngine: engine.avEngine
+        )
     }
 
     init(happenings: DayObjectsHappeningSamplePool) {
@@ -1786,7 +1843,10 @@ private final class DayObjectsSharedInstrumentBankEngine {
     }
 
     var topologyMetrics: DayObjectsInstrumentBankEngineTopologyMetrics {
-        masterGraph.topologyMetrics(graphs: Array(graphs.values))
+        masterGraph.topologyMetrics(
+            graphs: Array(graphs.values),
+            audioEngine: engine.avEngine
+        )
     }
 
     func attach(
@@ -1817,7 +1877,6 @@ private final class DayObjectsSharedInstrumentBankEngine {
         guard attachedSlots.contains(slot) else {
             throw DayObjectsInstrumentBankError.notPrepared
         }
-        engine.output = masterGraph.finalOutput
         if individuallyStartedSlots.isEmpty, !engine.avEngine.isRunning {
             masterGraph.startMeters()
             do { try engine.start() }
@@ -1843,7 +1902,6 @@ private final class DayObjectsSharedInstrumentBankEngine {
             throw DayObjectsInstrumentBankError.notPrepared
         }
         guard !pairIsRunning else { return }
-        engine.output = masterGraph.finalOutput
         if !engine.avEngine.isRunning {
             masterGraph.startMeters()
             do { try engine.start() }
@@ -1876,7 +1934,6 @@ private final class DayObjectsSharedInstrumentBankEngine {
     func rollbackFailedPairStart() {
         pairIsRunning = false
         stopEngineIfRunning()
-        engine.output = masterGraph.finalOutput
     }
 
     func metrics(
@@ -1893,7 +1950,7 @@ private final class DayObjectsSharedInstrumentBankEngine {
             attachedBankCount: attachedSlots.count,
             sharedAudioEngineCount: 1,
             finalPeakLimiterCount: 1,
-            sharedMasterTrimDecibels: DayObjectsPersistentMasterGraph.masterTrimDecibels,
+            sharedMasterTrimDecibels: masterGraph.actualMasterTrimDecibels,
             fixedSharedNodeCount: fixedNodeIdentities.count,
             fixedSharedNodeIdentities: fixedNodeIdentities,
             happeningFixedPlayerIdentities: happeningMetrics.fixedPlayerIdentities,
@@ -1921,7 +1978,6 @@ private final class DayObjectsSharedInstrumentBankEngine {
             masterGraph.stopMeters()
             stopCount += 1
         }
-        engine.output = masterGraph.finalOutput
     }
 }
 #endif

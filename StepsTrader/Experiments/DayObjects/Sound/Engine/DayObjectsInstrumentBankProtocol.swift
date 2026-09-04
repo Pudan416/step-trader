@@ -18,7 +18,7 @@ struct DayObjectsRoleBusMetrics: Equatable, Sendable {
 struct DayObjectsMasterMetrics: Equatable, Sendable {
     let peakDBFS: Double
     let rmsDBFS: Double
-    let limiterReductionDB: Double
+    let estimatedLimiterReductionDB: Double
 }
 
 struct DayObjectsFiveRoleBusMetrics: Equatable, Sendable {
@@ -340,6 +340,8 @@ struct DayObjectsInstrumentBankEngineTopologyMetrics: Equatable, Sendable {
     let finalOutputIdentity: ObjectIdentifier?
     let leadUpperMidDynamicsIdentity: ObjectIdentifier?
     let acceptedParameterValues: [String: Double]
+    let avAudioEngineAttachedNodeIdentities: Set<ObjectIdentifier>
+    let avAudioEngineConnectionCount: Int
 
     init(
         persistentMasterNodeIdentities: [ObjectIdentifier],
@@ -363,7 +365,9 @@ struct DayObjectsInstrumentBankEngineTopologyMetrics: Equatable, Sendable {
         masterSaturationIdentity: ObjectIdentifier? = nil,
         finalOutputIdentity: ObjectIdentifier? = nil,
         leadUpperMidDynamicsIdentity: ObjectIdentifier? = nil,
-        acceptedParameterValues: [String: Double] = [:]
+        acceptedParameterValues: [String: Double] = [:],
+        avAudioEngineAttachedNodeIdentities: Set<ObjectIdentifier> = [],
+        avAudioEngineConnectionCount: Int = 0
     ) {
         self.persistentMasterNodeIdentities = persistentMasterNodeIdentities
         self.finalPeakLimiterIdentities = finalPeakLimiterIdentities
@@ -387,6 +391,8 @@ struct DayObjectsInstrumentBankEngineTopologyMetrics: Equatable, Sendable {
         self.finalOutputIdentity = finalOutputIdentity
         self.leadUpperMidDynamicsIdentity = leadUpperMidDynamicsIdentity
         self.acceptedParameterValues = acceptedParameterValues
+        self.avAudioEngineAttachedNodeIdentities = avAudioEngineAttachedNodeIdentities
+        self.avAudioEngineConnectionCount = avAudioEngineConnectionCount
     }
 
     static let unsupported = Self(

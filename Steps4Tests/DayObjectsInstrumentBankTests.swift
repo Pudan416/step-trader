@@ -79,6 +79,134 @@ private func renderAntiPhaseBassProbe(frequency: Double) -> AVAudioPCMBuffer {
 
 @MainActor
 final class DayObjectsInstrumentBankTests: XCTestCase {
+    func testPersistentMasterUsesRealRatioGlueWithBoundedRenderedReduction() {
+        func measure(amplitude: AUValue) -> Double {
+            let happenings = DayObjectsHappeningSamplePool(bundle: Bundle(for: type(of: self)))
+            let graph = DayObjectsPersistentMasterGraph(happenings: happenings)
+            let sources = (0..<5).map { _ in
+                Oscillator(waveform: Table(.sine), frequency: 440, amplitude: amplitude)
+            }
+            sources.forEach { graph.masterMixer.addInput($0) }
+            let engine = AudioEngine()
+            engine.output = graph.glueCompressor
+            _ = engine.startTest(totalDuration: 0.6)
+            graph.startMeters()
+            sources.forEach { $0.start() }
+            return Swift.max(renderedRMS(engine.render(duration: 0.6)), .leastNonzeroMagnitude)
+        }
+
+        let quiet = measure(amplitude: 0.02)
+        let loud = measure(amplitude: 0.20)
+        let measuredReductionDB = 20 * log10(10 / (loud / quiet))
+
+        XCTAssertGreaterThan(measuredReductionDB, 0.25)
+        XCTAssertLessThanOrEqual(measuredReductionDB, 1.55)
+
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(bundle: Bundle(for: type(of: self)))
+        try? pair.prepare(configuration: smallPlaybackPairConfiguration())
+        XCTAssertEqual(
+            pair.bankA.metrics.engineTopology.acceptedParameterValues["master.glue.ratio"] ?? .nan,
+            1.5,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            pair.bankA.metrics.engineTopology.acceptedParameterValues["master.glue.thresholdDB"] ?? .nan,
+            -4.5,
+            accuracy: 0.001
+        )
+    }
+
+    func testRealMasterGraphRetainsPhysicalConnectionsAndEveryTapCapturesAfterRestart() throws {
+        let happenings = DayObjectsHappeningSamplePool(bundle: Bundle(for: type(of: self)))
+        let graph = DayObjectsPersistentMasterGraph(happenings: happenings)
+        let sources = DayObjectsRoleBus.allCases.enumerated().map { index, role in
+            (role, Oscillator(
+                waveform: Table(.sine),
+                frequency: AUValue(180 + index * 70),
+                amplitude: 0.35
+            ))
+        }
+        for (role, source) in sources { graph.bus(for: role).addInput(source) }
+        let engine = AudioEngine()
+        engine.output = graph.finalOutput
+        graph.prepareMeters()
+        _ = engine.startTest(totalDuration: 0.5)
+        graph.startMeters()
+        sources.forEach { $0.1.start() }
+        _ = engine.render(duration: 0.25)
+
+        let attachedBefore = Set(engine.avEngine.attachedNodes.map(ObjectIdentifier.init))
+        let requiredNodes = Set(graph.fixedNodes.map { ObjectIdentifier($0.avAudioNode) })
+        XCTAssertTrue(requiredNodes.isSubset(of: attachedBefore))
+        for destination in graph.fixedNodes {
+            for source in destination.connections {
+                let points = engine.avEngine.outputConnectionPoints(for: source.avAudioNode, outputBus: 0)
+                XCTAssertTrue(points.contains { $0.node === destination.avAudioNode })
+            }
+        }
+        XCTAssertTrue(graph.meterTapCapturedFrameCounts.values.allSatisfy { $0 > 0 })
+
+        engine.stop()
+        graph.stopMeters()
+        for index in 0..<100 {
+            graph.applyMix(DayObjectsMixState.testingFiveRoleMix(masterDecibels: index.isMultiple(of: 2) ? -6 : -12))
+        }
+        graph.startMeters()
+        try engine.start()
+        sources.forEach { $0.1.start() }
+        _ = engine.render(duration: 0.25)
+
+        XCTAssertEqual(Set(engine.avEngine.attachedNodes.map(ObjectIdentifier.init)), attachedBefore)
+        XCTAssertTrue(graph.meterTapCapturedFrameCounts.values.allSatisfy { $0 > 0 })
+        let restarted = graph.meterSnapshots(graphs: [], happeningVoiceCount: 0, now: 1)
+        for role in DayObjectsRoleBus.allCases {
+            XCTAssertGreaterThan(restarted.0.metrics(for: role).peakDBFS, -120)
+        }
+        XCTAssertGreaterThan(restarted.1.peakDBFS, -120)
+    }
+
+    func testProductionMasterMeterEstimatesOverCeilingReductionThenExpiresAndResets() {
+        let happenings = DayObjectsHappeningSamplePool(bundle: Bundle(for: type(of: self)))
+        let graph = DayObjectsPersistentMasterGraph(happenings: happenings)
+        let sources = (0..<5).map { _ in
+            Oscillator(waveform: Table(.sine), frequency: 330, amplitude: 1)
+        }
+        sources.forEach { graph.masterMixer.addInput($0) }
+        let engine = AudioEngine()
+        engine.output = graph.finalOutput
+        graph.prepareMeters()
+        _ = engine.startTest(totalDuration: 1.5)
+        graph.startMeters()
+        sources.forEach { $0.start() }
+        _ = engine.render(duration: 0.25)
+
+        let driven = graph.meterSnapshots(graphs: [], happeningVoiceCount: 0, now: 1).1
+        XCTAssertGreaterThan(
+            driven.estimatedLimiterReductionDB,
+            0.1,
+            "\(graph.limiterMeterTimelineDiagnostics)"
+        )
+
+        sources.forEach { $0.stop() }
+        _ = engine.render(duration: 0.9)
+        let expired = graph.meterSnapshots(graphs: [], happeningVoiceCount: 0, now: 2).1
+        XCTAssertEqual(expired.estimatedLimiterReductionDB, 0, accuracy: 0.01)
+
+        graph.stopMeters()
+        let reset = graph.meterSnapshots(graphs: [], happeningVoiceCount: 0, now: 3).1
+        XCTAssertEqual(reset.estimatedLimiterReductionDB, 0, accuracy: 1e-12)
+        XCTAssertEqual(reset.peakDBFS, -120)
+    }
+
+    func testPairedMetricsExposeAppliedMasterTrimInsteadOfDefaultConstant() throws {
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(bundle: Bundle(for: type(of: self)))
+        try pair.prepare(configuration: smallPlaybackPairConfiguration())
+
+        pair.bankA.applyMix(.testingFiveRoleMix(masterDecibels: -12))
+
+        XCTAssertEqual(pair.metrics.sharedMasterTrimDecibels, -12, accuracy: 0.001)
+    }
+
     func testRenderedLeadProcessorSoftensUpperMidMoreThanLowBand() {
         func ratio(at frequency: AUValue) -> Double {
             func render(processed: Bool) -> Double {
@@ -600,7 +728,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         }
     }
 
-    func testStandaloneStopIsIdempotentAcrossDistinctStartedEpochs() async throws {
+    func testStandaloneStopRetainsAttachmentAndIsIdempotentAcrossStartedEpochs() async throws {
         let harness = makeHarness()
         try harness.bank.prepare(configuration: configuration())
         try harness.bank.start()
@@ -611,7 +739,8 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
 
         XCTAssertEqual(harness.releaseCount, 5)
         XCTAssertEqual(harness.engine.stopCount, 1)
-        XCTAssertEqual(harness.engine.detachCount, 1)
+        XCTAssertEqual(harness.engine.detachCount, 0)
+        XCTAssertNotNil(harness.engine.attachedGraph)
         XCTAssertEqual(harness.bank.metrics.state, .prepared)
 
         try harness.bank.start()
@@ -620,7 +749,9 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
 
         XCTAssertEqual(harness.releaseCount, 10)
         XCTAssertEqual(harness.engine.stopCount, 2)
-        XCTAssertEqual(harness.engine.detachCount, 2)
+        XCTAssertEqual(harness.engine.detachCount, 0)
+        XCTAssertEqual(harness.engine.attachCount, 1)
+        XCTAssertNotNil(harness.engine.attachedGraph)
         XCTAssertEqual(harness.bank.metrics.state, .prepared)
     }
 
@@ -727,7 +858,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(baseline.happeningDecodedBufferIdentities.count, 102)
         XCTAssertLessThanOrEqual(baseline.happeningDecodedByteCount, 48 * 1_024 * 1_024)
         XCTAssertEqual(Set(baseline.finalPeakLimiterIdentities).count, 1)
-        XCTAssertEqual(baseline.sharedMasterTrimDecibels, -6, accuracy: 1e-12)
+        XCTAssertEqual(baseline.sharedMasterTrimDecibels, -6, accuracy: 0.001)
         XCTAssertEqual(pair.bankA.metrics.graph?.finalPeakLimiterCount, 0)
         XCTAssertEqual(pair.bankB.metrics.graph?.finalPeakLimiterCount, 0)
         XCTAssertEqual(pair.bankA.outputGainMetrics.targetLinearGain, 1)
@@ -883,7 +1014,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         }
         XCTAssertTrue(metrics.masterMetrics.peakDBFS.isFinite)
         XCTAssertTrue(metrics.masterMetrics.rmsDBFS.isFinite)
-        XCTAssertTrue(metrics.masterMetrics.limiterReductionDB.isFinite)
+        XCTAssertTrue(metrics.masterMetrics.estimatedLimiterReductionDB.isFinite)
     }
 
     func testPlaybackPairFitsTheMobileRealtimeAllocationBudget() throws {
@@ -1295,12 +1426,12 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(harness.engine.events, ["synchronize", "start"])
         await harness.bank.stop()
         XCTAssertEqual(harness.releaseCount, 4)
-        XCTAssertEqual(harness.engine.detachCount, 1)
-        XCTAssertNil(harness.engine.attachedGraph)
+        XCTAssertEqual(harness.engine.detachCount, 0)
+        XCTAssertNotNil(harness.engine.attachedGraph)
         harness.engine.events.removeAll()
         try harness.bank.start()
-        XCTAssertEqual(harness.engine.attachCount, 2)
-        XCTAssertEqual(harness.engine.events, ["attach", "synchronize", "start"])
+        XCTAssertEqual(harness.engine.attachCount, 1)
+        XCTAssertEqual(harness.engine.events, ["synchronize", "start"])
         XCTAssertNotNil(harness.engine.attachedGraph)
         XCTAssertEqual(ObjectIdentifier(try XCTUnwrap(harness.engine.attachedGraph)), graphIdentity)
     }
@@ -1471,6 +1602,17 @@ private extension DayObjectsMixState {
         harmonyDuckingDecibels: 0,
         rampDurationSeconds: 0.25
     )
+
+    static func testingFiveRoleMix(masterDecibels: Double) -> DayObjectsMixState {
+        .init(
+            buses: testingFiveRoleMix.buses,
+            harmonyPerVoiceTargetDecibels: testingFiveRoleMix.harmonyPerVoiceTargetDecibels,
+            happeningPerVoiceTargetDecibels: testingFiveRoleMix.happeningPerVoiceTargetDecibels,
+            masterTargetDecibelsBeforeLimiter: masterDecibels,
+            harmonyDuckingDecibels: testingFiveRoleMix.harmonyDuckingDecibels,
+            rampDurationSeconds: 0
+        )
+    }
 }
 
 @MainActor

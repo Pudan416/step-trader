@@ -4,6 +4,48 @@ import XCTest
 
 @MainActor
 final class DayObjectsRemixCoordinatorTests: XCTestCase {
+    func testOneHundredRealAudioKitRemixUpdatesAndRestartKeepPhysicalGraphAndMetersAlive() throws {
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(bundle: Bundle(for: type(of: self)))
+        try pair.prepare(configuration: .playbackWorld)
+        let baseline = pair.bankA.metrics.engineTopology
+        XCTAssertFalse(baseline.avAudioEngineAttachedNodeIdentities.isEmpty)
+        XCTAssertGreaterThan(baseline.avAudioEngineConnectionCount, 0)
+
+        try pair.start()
+        for remix in 0..<100 {
+            let fade = Double(remix % 10) / 10
+            pair.bankA.setOutputGain(1 - fade, rampDurationSeconds: 0)
+            pair.bankB.setOutputGain(fade, rampDurationSeconds: 0)
+        }
+        pair.stop()
+        try pair.start()
+
+        let bass = try pair.bankA.tonalPool(named: PlaybackWorldBankConfiguration.PoolName.bass.rawValue)
+        try bass.prepareInstrument(.init(rawValue: "bass.analog-boom"))
+        let token = try XCTUnwrap(bass.noteOn(.init(
+            instrumentID: .init(rawValue: "bass.analog-boom"),
+            midiNote: 40,
+            velocity: 1,
+            role: .note,
+            envelopeVariant: nil,
+            pan: 0,
+            delaySend: 0,
+            reverbSend: 0
+        )))
+        RunLoop.current.run(until: Date().addingTimeInterval(0.35))
+
+        let restartedTopology = pair.bankA.metrics.engineTopology
+        let restartedMetrics = pair.metrics
+        XCTAssertEqual(restartedTopology.avAudioEngineAttachedNodeIdentities, baseline.avAudioEngineAttachedNodeIdentities)
+        XCTAssertEqual(restartedTopology.avAudioEngineConnectionCount, baseline.avAudioEngineConnectionCount)
+        XCTAssertEqual(restartedTopology.meterTapNodeIdentities, baseline.meterTapNodeIdentities)
+        XCTAssertGreaterThan(restartedMetrics.roleBusMetrics.bass.peakDBFS, -120)
+        XCTAssertGreaterThan(restartedMetrics.masterMetrics.peakDBFS, -120)
+
+        bass.noteOff(token)
+        pair.stop()
+    }
+
     func testCancelPendingRemixLeavesCurrentWorldRunningAndClearsOnlyQueuedPlan() throws {
         let harness = try makeHarness(initialSeed: 700)
         harness.runtime.resetLog()
