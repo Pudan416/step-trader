@@ -21,6 +21,16 @@ public enum MaterialPresentationEvidenceRequest: Equatable, Sendable {
     case perActor
 }
 
+public struct MaterialActorPresentation: Equatable, Sendable {
+    public let opacity: Double
+    public let rigidRotation: Double
+
+    public init(opacity: Double = 1, rigidRotation: Double = 0) {
+        self.opacity = opacity
+        self.rigidRotation = rigidRotation
+    }
+}
+
 public struct MaterialPresentationOwnership: Sendable {
     public let width: Int
     public let height: Int
@@ -65,6 +75,7 @@ final class MaterialRenderInstrumentation: @unchecked Sendable, Equatable {
     var isolatedPresentationComposites = 0
     var ownershipTrace: MaterialOutlineOwnershipTrace?
     var preProjectionAuthorityAlphaPlanes = [Data]()
+    var preProjectionSupportAlphaPlanes = [Data]()
     var projectedActorLayers = [CGImage]()
     var outlineVisibilityPalettePoleLayers = [[CGImage]]()
     var outlineVisibilitySelectedPaletteIndices = [Int]()
@@ -80,6 +91,8 @@ struct MaterialCapturedActorLayer: @unchecked Sendable {
     let presentationColors: [MaterialColor]
     let drawRect: CGRect
     let presentationSupportDrawRect: CGRect
+    let presentationCenter: CGPoint
+    let presentation: MaterialActorPresentation
     let presentedUnderlay: CGImage
 }
 
@@ -95,6 +108,7 @@ public struct MaterialRenderConfiguration: Equatable, Sendable {
     public let scale: Int
     public let supersampling: Int
     public let presentationEvidenceRequest: MaterialPresentationEvidenceRequest
+    public let actorPresentations: [String: MaterialActorPresentation]
     let presentationScale: Int
     let outlineVisibilityPlacement: MaterialOutlineVisibilityPlacement
     let outlineCounterfactualMode: MaterialOutlineCounterfactualMode
@@ -104,11 +118,13 @@ public struct MaterialRenderConfiguration: Equatable, Sendable {
     public init(
         scale: Int = 3,
         supersampling: Int = 1,
-        presentationEvidenceRequest: MaterialPresentationEvidenceRequest = .none
+        presentationEvidenceRequest: MaterialPresentationEvidenceRequest = .none,
+        actorPresentations: [String: MaterialActorPresentation] = [:]
     ) {
         self.scale = scale
         self.supersampling = supersampling
         self.presentationEvidenceRequest = presentationEvidenceRequest
+        self.actorPresentations = actorPresentations
         self.presentationScale = scale
         self.outlineVisibilityPlacement = .none
         self.outlineCounterfactualMode = .capturedActorReplay
@@ -124,11 +140,13 @@ public struct MaterialRenderConfiguration: Equatable, Sendable {
         instrumentation: MaterialRenderInstrumentation? = nil,
         rawSceneCapture: MaterialRawSceneCapture? = nil,
         presentationEvidenceRequest: MaterialPresentationEvidenceRequest = .none,
-        presentationScale: Int? = nil
+        presentationScale: Int? = nil,
+        actorPresentations: [String: MaterialActorPresentation] = [:]
     ) {
         self.scale = scale
         self.supersampling = supersampling
         self.presentationEvidenceRequest = presentationEvidenceRequest
+        self.actorPresentations = actorPresentations
         self.presentationScale = presentationScale ?? scale
         self.outlineVisibilityPlacement = outlineVisibilityPlacement
         self.outlineCounterfactualMode = outlineCounterfactualMode
@@ -150,6 +168,8 @@ public enum MaterialRendererError: Error, LocalizedError {
     case invalidScale(Int)
     case unsupportedViewport(EditorialViewport)
     case missingActorMaterial(String)
+    case unknownActorPresentation(String)
+    case invalidActorPresentation(String)
     case incoherentDailyFamily
     case invalidMaterial(String)
     case cannotCreateBitmap(Int, Int)
@@ -162,6 +182,10 @@ public enum MaterialRendererError: Error, LocalizedError {
         case .invalidScale(let scale): "Material render scale must be positive, got \(scale)"
         case .unsupportedViewport(let viewport): "Material renderer requires phone recipe, got \(viewport.rawValue)"
         case .missingActorMaterial(let eventID): "Missing material for actor \(eventID)"
+        case .unknownActorPresentation(let eventID):
+            "Actor presentation has no composition actor: \(eventID)"
+        case .invalidActorPresentation(let eventID):
+            "Actor presentation must be finite for actor \(eventID)"
         case .incoherentDailyFamily: "Every actor must use the daily material family and compatible accent"
         case .invalidMaterial(let detail): "Invalid material recipe: \(detail)"
         case .cannotCreateBitmap(let width, let height): "Cannot create \(width)x\(height) material bitmap"
@@ -316,6 +340,13 @@ public struct MaterialRenderer {
         guard configuration.supersampling > 0 else {
             throw MaterialRendererError.invalidScale(configuration.supersampling)
         }
+        let actorIDs = Set(recipe.actors.map(\.eventID))
+        if let unknown = configuration.actorPresentations.keys
+            .filter({ !actorIDs.contains($0) })
+            .sorted()
+            .first {
+            throw MaterialRendererError.unknownActorPresentation(unknown)
+        }
         if configuration.supersampling > 1 {
             return try renderSupersampled(
                 recipe: recipe,
@@ -368,6 +399,10 @@ public struct MaterialRenderer {
                 throw MaterialRendererError.missingActorMaterial(actor.eventID)
             }
             try validate(actorMaterial)
+            let presentation = try normalizedPresentation(
+                configuration.actorPresentations[actor.eventID] ?? .init(),
+                eventID: actor.eventID
+            )
             let diameter = max(1, Int(ceil(actor.diameter * shortSide)))
             let presentationDiameter = max(
                 1,
@@ -450,11 +485,19 @@ public struct MaterialRenderer {
                     presentationColors: actorMaterial.colors,
                     drawRect: layerRect,
                     presentationSupportDrawRect: presentationSupportRect,
+                    presentationCenter: center,
+                    presentation: presentation,
                     presentedUnderlay: presentedUnderlay
                 ))
                 configuration.instrumentation?.capturedActorLayerBuilds += 1
             }
-            context.draw(actorImage, in: layerRect)
+            draw(
+                actorImage,
+                in: layerRect,
+                around: center,
+                presentation: presentation,
+                into: context
+            )
         }
 
         guard var fullImage = context.makeImage() else { throw MaterialRendererError.cannotCreateImage }
@@ -465,15 +508,24 @@ public struct MaterialRenderer {
                 let captured = ownedRawSceneCapture.actorLayers[actorIndex]
                 let authorityContext = try makeContext(width: width, height: height)
                 authorityContext.clear(CGRect(x: 0, y: 0, width: width, height: height))
-                authorityContext.draw(captured.image, in: captured.drawRect)
+                draw(
+                    captured.image,
+                    in: captured.drawRect,
+                    around: captured.presentationCenter,
+                    presentation: captured.presentation,
+                    into: authorityContext
+                )
                 guard let authority = authorityContext.makeImage() else {
                     throw MaterialRendererError.cannotCreateImage
                 }
                 let supportContext = try makeContext(width: width, height: height)
                 supportContext.clear(CGRect(x: 0, y: 0, width: width, height: height))
-                supportContext.draw(
+                draw(
                     captured.presentationSupport,
-                    in: captured.presentationSupportDrawRect
+                    in: captured.presentationSupportDrawRect,
+                    around: captured.presentationCenter,
+                    presentation: captured.presentation,
+                    into: supportContext
                 )
                 guard let presentationSupport = supportContext.makeImage() else {
                     throw MaterialRendererError.cannotCreateImage
@@ -534,6 +586,38 @@ public struct MaterialRenderer {
         }
     }
 
+    private func normalizedPresentation(
+        _ presentation: MaterialActorPresentation,
+        eventID: String
+    ) throws -> MaterialActorPresentation {
+        guard presentation.opacity.isFinite, presentation.rigidRotation.isFinite else {
+            throw MaterialRendererError.invalidActorPresentation(eventID)
+        }
+        return MaterialActorPresentation(
+            opacity: min(1, max(0, presentation.opacity)),
+            rigidRotation: presentation.rigidRotation
+        )
+    }
+
+    private func draw(
+        _ image: CGImage,
+        in rect: CGRect,
+        around center: CGPoint,
+        presentation: MaterialActorPresentation,
+        into context: CGContext
+    ) {
+        if presentation.opacity == 1, presentation.rigidRotation == 0 {
+            context.draw(image, in: rect)
+            return
+        }
+        context.saveGState()
+        context.setAlpha(presentation.opacity)
+        context.translateBy(x: center.x, y: center.y)
+        context.rotate(by: presentation.rigidRotation)
+        context.draw(image, in: rect.offsetBy(dx: -center.x, dy: -center.y))
+        context.restoreGState()
+    }
+
     private struct FinalOutlineOwnership {
         let eventID: String
         let isolatedAlpha: CGImage
@@ -563,7 +647,8 @@ public struct MaterialRenderer {
             outlineVisibilityPlacement: configuration.outlineVisibilityPlacement,
             instrumentation: configuration.instrumentation,
             rawSceneCapture: rawSceneCapture,
-            presentationScale: configuration.presentationScale
+            presentationScale: configuration.presentationScale,
+            actorPresentations: configuration.actorPresentations
         )
         configuration.instrumentation?.canonicalRawSceneRenders += 1
         let source = try render(
@@ -598,7 +683,13 @@ public struct MaterialRenderer {
                 let captured = rawSceneCapture.actorLayers[actorIndex]
                 let authorityContext = try makeContext(width: sourceWidth, height: sourceHeight)
                 authorityContext.clear(CGRect(x: 0, y: 0, width: sourceWidth, height: sourceHeight))
-                authorityContext.draw(captured.image, in: captured.drawRect)
+                draw(
+                    captured.image,
+                    in: captured.drawRect,
+                    around: captured.presentationCenter,
+                    presentation: captured.presentation,
+                    into: authorityContext
+                )
                 guard let authoritySource = authorityContext.makeImage() else {
                     throw MaterialRendererError.cannotCreateImage
                 }
@@ -614,9 +705,12 @@ public struct MaterialRenderer {
                 )
                 let supportContext = try makeContext(width: sourceWidth, height: sourceHeight)
                 supportContext.clear(CGRect(x: 0, y: 0, width: sourceWidth, height: sourceHeight))
-                supportContext.draw(
+                draw(
                     captured.presentationSupport,
-                    in: captured.presentationSupportDrawRect
+                    in: captured.presentationSupportDrawRect,
+                    around: captured.presentationCenter,
+                    presentation: captured.presentation,
+                    into: supportContext
                 )
                 guard let supportSource = supportContext.makeImage() else {
                     throw MaterialRendererError.cannotCreateImage
@@ -641,6 +735,14 @@ public struct MaterialRenderer {
             traceInstrumentation.preProjectionAuthorityAlphaPlanes = try authorityImages.map(
                 alphaPlane
             )
+            if let instrumentation = configuration.instrumentation {
+                instrumentation.preProjectionSupportAlphaPlanes = try owners.map { owner in
+                    guard let support = owner.presentationSupport else {
+                        throw MaterialRendererError.cannotCreateImage
+                    }
+                    return try alphaPlane(support)
+                }
+            }
             fullImage = try applyingActorOwnedFinalVisibility(
                 fullImage,
                 owners: owners,
@@ -736,7 +838,13 @@ public struct MaterialRenderer {
         )
         context.fill(CGRect(x: 0, y: 0, width: width, height: height))
         for index in layers.indices where !excludedIndices.contains(index) {
-            context.draw(layers[index].image, in: layers[index].drawRect)
+            draw(
+                layers[index].image,
+                in: layers[index].drawRect,
+                around: layers[index].presentationCenter,
+                presentation: layers[index].presentation,
+                into: context
+            )
         }
         guard let image = context.makeImage() else {
             throw MaterialRendererError.cannotCreateImage
