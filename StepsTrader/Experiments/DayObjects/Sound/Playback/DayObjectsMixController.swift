@@ -4,6 +4,20 @@ import Foundation
 struct DayObjectsRoleBusSpatialParameters: Equatable, Sendable {
     let sendLevel: Double
     let decay: Double
+    let secondarySendLevel: Double?
+    let secondaryDecay: Double?
+
+    init(
+        sendLevel: Double,
+        decay: Double,
+        secondarySendLevel: Double? = nil,
+        secondaryDecay: Double? = nil
+    ) {
+        self.sendLevel = sendLevel
+        self.decay = decay
+        self.secondarySendLevel = secondarySendLevel
+        self.secondaryDecay = secondaryDecay
+    }
 }
 
 struct DayObjectsFiveRoleBusSpatialParameters: Equatable, Sendable {
@@ -42,6 +56,22 @@ struct DayObjectsRoleBusMixParameters: Equatable, Sendable {
     let directTargetDecibels: Double
     let sendLevel: Double
     let decay: Double
+    let secondarySendLevel: Double?
+    let secondaryDecay: Double?
+
+    init(
+        directTargetDecibels: Double,
+        sendLevel: Double,
+        decay: Double,
+        secondarySendLevel: Double? = nil,
+        secondaryDecay: Double? = nil
+    ) {
+        self.directTargetDecibels = directTargetDecibels
+        self.sendLevel = sendLevel
+        self.decay = decay
+        self.secondarySendLevel = secondarySendLevel
+        self.secondaryDecay = secondaryDecay
+    }
 }
 
 struct DayObjectsFiveRoleBusMixParameters: Equatable, Sendable {
@@ -73,12 +103,31 @@ struct DayObjectsMixState: Equatable, Sendable {
     let masterTargetDecibelsBeforeLimiter: Double
     let harmonyDuckingDecibels: Double
     let rampDurationSeconds: TimeInterval
+    let leadVoiceTargetDecibels: Double
+
+    init(
+        buses: DayObjectsFiveRoleBusMixParameters,
+        harmonyPerVoiceTargetDecibels: Double,
+        happeningPerVoiceTargetDecibels: Double,
+        masterTargetDecibelsBeforeLimiter: Double,
+        harmonyDuckingDecibels: Double,
+        rampDurationSeconds: TimeInterval,
+        leadVoiceTargetDecibels: Double? = nil
+    ) {
+        self.buses = buses
+        self.harmonyPerVoiceTargetDecibels = harmonyPerVoiceTargetDecibels
+        self.happeningPerVoiceTargetDecibels = happeningPerVoiceTargetDecibels
+        self.masterTargetDecibelsBeforeLimiter = masterTargetDecibelsBeforeLimiter
+        self.harmonyDuckingDecibels = harmonyDuckingDecibels
+        self.rampDurationSeconds = rampDurationSeconds
+        self.leadVoiceTargetDecibels = leadVoiceTargetDecibels ?? buses.lead.directTargetDecibels
+    }
 
     var rhythmTargetDecibels: Double { buses.rhythm.directTargetDecibels }
     var bassTargetDecibels: Double { buses.bass.directTargetDecibels }
     var harmonyTargetDecibels: Double { buses.harmony.directTargetDecibels }
     var happeningAggregateTargetDecibels: Double { buses.happenings.directTargetDecibels }
-    var leadTargetDecibels: Double { buses.lead.directTargetDecibels }
+    var leadTargetDecibels: Double { leadVoiceTargetDecibels }
 }
 
 @MainActor
@@ -135,7 +184,10 @@ final class DayObjectsMixController {
                 bass: bus(directTargetDecibels: decibels(plan.bassTargetDecibels), spatial: spatial.bass),
                 harmony: bus(directTargetDecibels: harmony, spatial: spatial.harmony),
                 happenings: bus(directTargetDecibels: happeningAggregate, spatial: spatial.happenings),
-                lead: bus(directTargetDecibels: decibels(plan.leadTargetDecibels), spatial: spatial.lead)
+                lead: bus(
+                    directTargetDecibels: LeadPlayer.busTargetDecibels(for: plan.leadTargetDecibels),
+                    spatial: spatial.lead
+                )
             ),
             harmonyPerVoiceTargetDecibels: harmonyPerVoice,
             happeningPerVoiceTargetDecibels: happeningPerVoice,
@@ -144,7 +196,8 @@ final class DayObjectsMixController {
                 Self.maximumMasterDecibels
             ),
             harmonyDuckingDecibels: ducking,
-            rampDurationSeconds: duration(rampDurationSeconds)
+            rampDurationSeconds: duration(rampDurationSeconds),
+            leadVoiceTargetDecibels: decibels(plan.leadTargetDecibels)
         ))
     }
 
@@ -161,7 +214,13 @@ final class DayObjectsMixController {
             decay: feedback(
                 spatial.decay,
                 maximum: DayObjectsAudioParameters.maximumReverbFeedback
-            )
+            ),
+            secondarySendLevel: spatial.secondarySendLevel.map {
+                feedback($0, maximum: DayObjectsAudioParameters.maximumDelayFeedback)
+            },
+            secondaryDecay: spatial.secondaryDecay.map {
+                feedback($0, maximum: DayObjectsAudioParameters.maximumDelayFeedback)
+            }
         )
     }
 

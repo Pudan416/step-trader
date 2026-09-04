@@ -40,5 +40,29 @@ final class DayObjectsBusMeterTests: XCTestCase {
         XCTAssertEqual(snapshot.rmsDBFS, 0, accuracy: 0.000_001)
         XCTAssertEqual(snapshot.limiterReductionDB, 0)
     }
+
+    func testMeterUsesABoundedRecentBufferWindowInsteadOfLifetimePeak() {
+        let meter = DayObjectsBusMeter()
+        meter.consume(left: [1], right: [1])
+
+        for _ in 0..<DayObjectsBusMeter.windowBufferCount {
+            meter.consume(left: [0.1], right: [0.1])
+        }
+
+        let snapshot = meter.snapshot(activeVoiceCount: 0)
+        XCTAssertEqual(snapshot.peakDBFS, -20, accuracy: 0.000_001)
+        XCTAssertEqual(snapshot.rmsDBFS, -20, accuracy: 0.000_001)
+    }
+
+    func testResetStartsANewSilentWindowAndDoesNotLeakPreviousSamples() {
+        let meter = DayObjectsBusMeter()
+        meter.consume(left: [0.8, -0.8], right: [0.4, -0.4])
+
+        meter.reset()
+
+        let snapshot = meter.snapshot(activeVoiceCount: 0)
+        XCTAssertEqual(snapshot.peakDBFS, -120)
+        XCTAssertEqual(snapshot.rmsDBFS, -120)
+    }
 }
 #endif

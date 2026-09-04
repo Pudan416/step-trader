@@ -6,6 +6,22 @@ import XCTest
 @testable import Steps4
 
 final class DayObjectsDrumBankTests: XCTestCase {
+    func testMetricsReportActuallyStartedRhythmPlayersAndResetOnRelease() {
+        let bank = DayObjectsDrumBank(
+            resourceResolver: { sample in URL(fileURLWithPath: "/fixtures/\(sample.rawValue)") },
+            playerFactory: { _, _, _ in ActiveFakeDrumPlayer() }
+        )
+
+        XCTAssertEqual(bank.metrics.activePlayerCount, 0)
+        bank.hit(.kickSoft)
+        XCTAssertEqual(bank.metrics.activePlayerCount, 1)
+        bank.hit(.kickSoft)
+        XCTAssertEqual(bank.metrics.activePlayerCount, 2)
+
+        bank.releaseAll()
+        XCTAssertEqual(bank.metrics.activePlayerCount, 0)
+    }
+
     func testSemanticInventoryResolvesToBoundedRecipes() {
         XCTAssertEqual(
             DayObjectsDrumVoice.allCases,
@@ -56,6 +72,31 @@ final class DayObjectsDrumBankTests: XCTestCase {
         XCTAssertNil(recipe.primarySample)
         XCTAssertNotNil(recipe.noiseFilterCutoffHz)
         XCTAssertNil(recipe.delayFeedback)
+    }
+
+    func testSynthesizedRhythmVoiceLeavesActiveCountAfterItsEnvelopeCompletes() {
+        var now = 10.0
+        let player = DayObjectsAudioKitDrumPlayer(
+            recipe: .recipe(for: .shaker),
+            sampleURL: nil,
+            preloadedSamplePlayer: nil,
+            layerScheduler: RecordingDrumLayerScheduler(),
+            hostTimeProvider: { now }
+        )
+
+        player.play(.init(
+            voice: .shaker,
+            velocity: 1,
+            pitchRate: 1,
+            scheduledHostTimeSeconds: now,
+            microtimingMilliseconds: 0,
+            roomSend: 0,
+            stereoOffset: 0
+        ))
+        XCTAssertTrue(player.isActive)
+
+        now += 0.2
+        XCTAssertFalse(player.isActive)
     }
 
     func testMissingOptionalSampleDisablesOnlyItsDependentVoiceWithExactDiagnostics() {
@@ -381,4 +422,10 @@ private final class FakeDrumPlayer: DayObjectsDrumPlayerBackend {
         hitCount += 1
         playedHits.append(hit)
     }
+}
+
+private final class ActiveFakeDrumPlayer: DayObjectsDrumPlayerBackend {
+    private(set) var isActive = false
+    func play(_ hit: DayObjectsDrumHit) { isActive = true }
+    func stop() { isActive = false }
 }

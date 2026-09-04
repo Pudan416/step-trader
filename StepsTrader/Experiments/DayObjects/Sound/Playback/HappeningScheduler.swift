@@ -208,6 +208,7 @@ final class HappeningScheduler {
     }
 
     func render(_ event: DayObjectsTransportEvent, currentChord: ChordPlan) {
+        happeningPool?.performHousekeeping()
         currentPosition = event.position
         currentTempoBPM = event.tempoBPM.isFinite ? max(1, event.tempoBPM) : 120
 

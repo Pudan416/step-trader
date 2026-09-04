@@ -756,7 +756,6 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         private func applyMix(_ plan: DayMusicPlan, ducking: Double) {
             let harmonySend = plan.harmony.roles.map(\.reverbSend).max() ?? 0
             let happeningSend = plan.happenings.map(\.reverbSend).max() ?? 0
-            let leadSend = max(plan.lead.delaySend, plan.lead.reverbSend)
             mix.apply(
                 plan.mix,
                 activeChordVoiceCount: max(1, harmony.metrics.activeVoiceCount),
@@ -766,7 +765,12 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                     bass: .init(sendLevel: plan.bass?.reverbSend ?? 0, decay: 0.36),
                     harmony: .init(sendLevel: harmonySend, decay: 0.72),
                     happenings: .init(sendLevel: happeningSend, decay: 0.84),
-                    lead: .init(sendLevel: leadSend, decay: 0.62)
+                    lead: .init(
+                        sendLevel: plan.lead.reverbSend,
+                        decay: 0.62,
+                        secondarySendLevel: plan.lead.delaySend,
+                        secondaryDecay: 0.32
+                    )
                 ),
                 rampDurationSeconds: 0.25
             )
@@ -790,7 +794,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
             happeningScheduler?.applyMixTargetDecibels(
                 state.happeningPerVoiceTargetDecibels - state.happeningAggregateTargetDecibels
             )
-            leadPlayer?.applyMixTargetDecibels(0)
+            leadPlayer?.applyBusOwnedMixTargetDecibels(state.leadVoiceTargetDecibels)
             bank.applyMix(state)
         }
 

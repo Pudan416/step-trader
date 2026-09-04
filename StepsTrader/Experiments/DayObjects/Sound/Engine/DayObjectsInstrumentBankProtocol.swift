@@ -332,6 +332,14 @@ struct DayObjectsInstrumentBankEngineTopologyMetrics: Equatable, Sendable {
     let roleHighPassHz: [DayObjectsRoleBus: Double]
     let bassUsesMonoCompatibleLowBand: Bool
     let bassUsesMildSaturation: Bool
+    let physicalConnections: Set<DayObjectsGraphConnection>
+    let namedNodeIdentities: [String: ObjectIdentifier]
+    let meterTapNodeIdentities: [ObjectIdentifier]
+    let meterTapInstallationCount: Int
+    let masterSaturationIdentity: ObjectIdentifier?
+    let finalOutputIdentity: ObjectIdentifier?
+    let leadUpperMidDynamicsIdentity: ObjectIdentifier?
+    let acceptedParameterValues: [String: Double]
 
     init(
         persistentMasterNodeIdentities: [ObjectIdentifier],
@@ -347,7 +355,15 @@ struct DayObjectsInstrumentBankEngineTopologyMetrics: Equatable, Sendable {
         limiterCeilingDBFS: Double = 0,
         roleHighPassHz: [DayObjectsRoleBus: Double] = [:],
         bassUsesMonoCompatibleLowBand: Bool = false,
-        bassUsesMildSaturation: Bool = false
+        bassUsesMildSaturation: Bool = false,
+        physicalConnections: Set<DayObjectsGraphConnection> = [],
+        namedNodeIdentities: [String: ObjectIdentifier] = [:],
+        meterTapNodeIdentities: [ObjectIdentifier] = [],
+        meterTapInstallationCount: Int = 0,
+        masterSaturationIdentity: ObjectIdentifier? = nil,
+        finalOutputIdentity: ObjectIdentifier? = nil,
+        leadUpperMidDynamicsIdentity: ObjectIdentifier? = nil,
+        acceptedParameterValues: [String: Double] = [:]
     ) {
         self.persistentMasterNodeIdentities = persistentMasterNodeIdentities
         self.finalPeakLimiterIdentities = finalPeakLimiterIdentities
@@ -363,12 +379,25 @@ struct DayObjectsInstrumentBankEngineTopologyMetrics: Equatable, Sendable {
         self.roleHighPassHz = roleHighPassHz
         self.bassUsesMonoCompatibleLowBand = bassUsesMonoCompatibleLowBand
         self.bassUsesMildSaturation = bassUsesMildSaturation
+        self.physicalConnections = physicalConnections
+        self.namedNodeIdentities = namedNodeIdentities
+        self.meterTapNodeIdentities = meterTapNodeIdentities
+        self.meterTapInstallationCount = meterTapInstallationCount
+        self.masterSaturationIdentity = masterSaturationIdentity
+        self.finalOutputIdentity = finalOutputIdentity
+        self.leadUpperMidDynamicsIdentity = leadUpperMidDynamicsIdentity
+        self.acceptedParameterValues = acceptedParameterValues
     }
 
     static let unsupported = Self(
         persistentMasterNodeIdentities: [],
         finalPeakLimiterIdentities: []
     )
+}
+
+struct DayObjectsGraphConnection: Equatable, Hashable, Sendable {
+    let source: ObjectIdentifier
+    let destination: ObjectIdentifier
 }
 
 extension DayObjectsInstrumentBankEngine {

@@ -134,6 +134,13 @@ struct DayObjectsScheduledDrumHit: Equatable, Sendable {
 struct DayObjectsDrumBankMetrics: Equatable, Sendable {
     let allocatedPlayerCount: Int
     let enabledVoiceCount: Int
+    let activePlayerCount: Int
+
+    init(allocatedPlayerCount: Int, enabledVoiceCount: Int, activePlayerCount: Int = 0) {
+        self.allocatedPlayerCount = allocatedPlayerCount
+        self.enabledVoiceCount = enabledVoiceCount
+        self.activePlayerCount = activePlayerCount
+    }
 }
 
 enum DayObjectsDrumGraphStage: Equatable, Sendable {
@@ -189,11 +196,13 @@ struct DayObjectsAudioKitDrumBankMetrics: Equatable, Sendable {
 }
 
 protocol DayObjectsDrumPlayerBackend: AnyObject {
+    var isActive: Bool { get }
     func play(_ hit: DayObjectsDrumHit)
     func stop()
 }
 
 extension DayObjectsDrumPlayerBackend {
+    var isActive: Bool { false }
     func stop() {}
 }
 
@@ -355,14 +364,11 @@ final class DayObjectsAudioKitDrumLayerScheduler: DayObjectsDrumLayerScheduling 
         let boundedValue = min(max(value, range.lowerBound), range.upperBound)
         switch delivery(atHostTime: hostTimeSeconds) {
         case .immediate:
-            guard let audioUnit = node.avAudioNode as? AVAudioUnit else { return }
-            AudioUnitSetParameter(
-                audioUnit.audioUnit,
-                AudioUnitParameterID(address),
-                kAudioUnitScope_Global,
+            node.avAudioNode.auAudioUnit.scheduleParameterBlock(
+                AUEventSampleTimeImmediate,
                 0,
-                boundedValue,
-                0
+                address,
+                boundedValue
             )
         case let .scheduled(sampleOffset):
             node.avAudioNode.auAudioUnit.scheduleParameterBlock(
@@ -394,7 +400,11 @@ final class DayObjectsDrumBank {
     private(set) var diagnostics: [DayObjectsDrumDiagnostic] = []
 
     var metrics: DayObjectsDrumBankMetrics {
-        .init(allocatedPlayerCount: slots.values.reduce(0) { $0 + $1.count }, enabledVoiceCount: slots.count)
+        .init(
+            allocatedPlayerCount: slots.values.reduce(0) { $0 + $1.count },
+            enabledVoiceCount: slots.count,
+            activePlayerCount: slots.values.flatMap { $0 }.filter { $0.player.isActive }.count
+        )
     }
 
     var preloadedSampleCount: Int { resolvedSamples.count }
@@ -568,6 +578,8 @@ final class DayObjectsAudioKitDrumBank {
 }
 
 final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
+    typealias HostTimeProvider = () -> TimeInterval
+
     let output: Fader
     let voice: DayObjectsDrumVoice
     let graphLayout: DayObjectsDrumGraphLayout
@@ -587,12 +599,21 @@ final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
     private let panner: Panner
     private let room: Reverb
     private let layerScheduler: any DayObjectsDrumLayerScheduling
+    private let hostTimeProvider: HostTimeProvider
+    private var activeUntilHostTimeSeconds = -Double.infinity
+    var isActive: Bool {
+        // AudioPlayer updates this state from its data-played-back callback, so
+        // sample-backed Rhythm voices leave the meter count when their one-shot
+        // really completes instead of remaining sticky until transport stop.
+        samplePlayer?.isPlaying == true || hostTimeProvider() < activeUntilHostTimeSeconds
+    }
 
     init(
         recipe: DayObjectsDrumRecipe,
         sampleURL: URL?,
         preloadedSamplePlayer: AudioPlayer?,
-        layerScheduler: any DayObjectsDrumLayerScheduling = DayObjectsAudioKitDrumLayerScheduler()
+        layerScheduler: any DayObjectsDrumLayerScheduling = DayObjectsAudioKitDrumLayerScheduler(),
+        hostTimeProvider: @escaping HostTimeProvider = { ProcessInfo.processInfo.systemUptime }
     ) {
         precondition(recipe.synthesis.contains(.sinePitchDrop) == (recipe.sinePitchDrop != nil))
         precondition(
@@ -601,6 +622,7 @@ final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
         )
         self.recipe = recipe
         self.layerScheduler = layerScheduler
+        self.hostTimeProvider = hostTimeProvider
         voice = recipe.voice
         if let player = preloadedSamplePlayer ?? sampleURL.flatMap({ AudioPlayer(url: $0, buffered: true) }) {
             samplePlayer = player
@@ -662,6 +684,15 @@ final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
     func play(_ hit: DayObjectsDrumHit) {
         guard layerScheduler.isReady(output: output) else { return }
         let hostTime = hit.scheduledHostTimeSeconds
+        let now = hostTimeProvider()
+        let activeStart = hostTime > now ? hostTime : now
+        let sampleDuration = (samplePlayer?.duration ?? 0) / max(hit.pitchRate, 1.0 / 32.0)
+        let synthesisDuration = recipe.synthesis.contains(.sinePitchDrop) ? 0.12
+            : (recipe.synthesis.contains(.filteredNoise) ? 0.08 : 0)
+        activeUntilHostTimeSeconds = max(
+            activeUntilHostTimeSeconds,
+            activeStart + max(sampleDuration, synthesisDuration)
+        )
         let preRoomGain = AUValue(hit.velocity) * outputTrimGain
         layerScheduler.scheduleParameter(trim.$leftGain, value: preRoomGain, rampDuration: 0, layer: .preRoomGainLeft, atHostTime: hostTime)
         layerScheduler.scheduleParameter(trim.$rightGain, value: preRoomGain, rampDuration: 0, layer: .preRoomGainRight, atHostTime: hostTime)
@@ -689,6 +720,7 @@ final class DayObjectsAudioKitDrumPlayer: DayObjectsDrumPlayerBackend {
     }
 
     func stop() {
+        activeUntilHostTimeSeconds = -.infinity
         // Keep the post-room output at unity so stopping a new source cannot
         // cut any tail already draining through the room.
         output.gain = 1

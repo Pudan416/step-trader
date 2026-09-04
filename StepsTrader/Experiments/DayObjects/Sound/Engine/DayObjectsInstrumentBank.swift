@@ -575,13 +575,13 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         .init(
             tonalBusCount: 3,
             drumBusCount: 1,
-            sharedSpatialEffectCount: 6,
+            sharedSpatialEffectCount: 0,
             tonalBusGainDB: 0,
             drumBusGainDB: 0,
-            masterTrimDB: -3,
+            masterTrimDB: 0,
             finalPeakLimiterCount: 0,
-            roleBuses: DayObjectsRoleBus.allCases,
-            parallelSpatialReturnCount: 6
+            roleBuses: [.rhythm, .bass, .harmony, .lead],
+            parallelSpatialReturnCount: 0
         )
     }
     let rhythmBus: Mixer
@@ -593,9 +593,16 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
     let harmonyWorldTrim: Fader
     let leadWorldTrim: Fader
     private let worldTrims: [Fader]
-    /// A preallocated, world-local trim that is fed only by the reserved bass
-    /// pool. This narrow stage intentionally precedes the later full bus work.
+    /// A preallocated, world-local duck stage fed by the completed Bass tone
+    /// chain and placed before the world's direct/spatial role output split.
     let bassTrim: Fader?
+    private let bassHighPass: HighPassFilter?
+    private let bassLowBand: LowPassFilter?
+    private let bassLowBandMono: Fader?
+    private let bassHighBand: HighPassFilter?
+    private let bassHighBandSlope: HighPassFilter?
+    private let bassRecombine: Mixer?
+    private let bassSaturation: TanhDistortion?
     private let tonalPools: [DayObjectsAudioKitTonalPool]
     private let drums: DayObjectsAudioKitDrumBank?
     private let piano: DayObjectsAudioKitFeltPiano?
@@ -654,6 +661,37 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         )
     }
 
+    var fixedLocalNodes: [Node] {
+        var nodes: [Node] = [
+            rhythmBus, bassBus, harmonyBus, leadBus,
+            rhythmWorldTrim, bassWorldTrim, harmonyWorldTrim, leadWorldTrim,
+        ]
+        let bassNodes: [Node?] = [
+            bassHighPass, bassLowBand, bassLowBandMono, bassHighBand, bassHighBandSlope,
+            bassRecombine, bassSaturation, bassTrim,
+        ]
+        nodes.append(contentsOf: bassNodes.compactMap { $0 })
+        return nodes
+    }
+
+    var bassNamedNodes: [String: Node] {
+        var result: [String: Node] = [:]
+        if let bassPool = tonalPools.first(where: {
+            $0.name == PlaybackWorldBankConfiguration.PoolName.bass.rawValue
+        }) { result["source"] = bassPool.output }
+        result["highPass27"] = bassHighPass
+        result["lowPass140"] = bassLowBand
+        result["lowBandMono"] = bassLowBandMono
+        result["highPass140"] = bassHighBand
+        result["highPass140Slope"] = bassHighBandSlope
+        result["recombine"] = bassRecombine
+        result["saturation"] = bassSaturation
+        result["duck"] = bassTrim
+        result["worldBassBus"] = bassBus
+        result["worldBassTrim"] = bassWorldTrim
+        return result
+    }
+
     init(
         tonalPools: [DayObjectsAudioKitTonalPool],
         drums: DayObjectsAudioKitDrumBank?,
@@ -669,9 +707,37 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         self.piano = piano
         self.outputGainHostTimeProvider = outputGainHostTimeProvider
         self.outputGainSampleRateProvider = outputGainSampleRateProvider
-        let preparedBassTrim = tonalPools.first(where: {
+        let bassPool = tonalPools.first(where: {
             $0.name == PlaybackWorldBankConfiguration.PoolName.bass.rawValue
-        }).map { Fader($0.output, gain: 1) }
+        })
+        let preparedBassHighPass = bassPool.map { HighPassFilter($0.output, cutoffFrequency: 27, resonance: 0) }
+        let preparedBassLowBand = preparedBassHighPass.map { LowPassFilter($0, cutoffFrequency: 140, resonance: 0) }
+        let preparedBassLowBandMono = preparedBassLowBand.map { lowBand -> Fader in
+            let mono = Fader(lowBand, gain: 1)
+            mono.$mixToMono.parameter.value = 1
+            return mono
+        }
+        let preparedBassHighBand = preparedBassHighPass.map { HighPassFilter($0, cutoffFrequency: 140, resonance: 0) }
+        let preparedBassHighBandSlope = preparedBassHighBand.map { HighPassFilter($0, cutoffFrequency: 140, resonance: 0) }
+        let preparedBassRecombine: Mixer? = {
+            guard let low = preparedBassLowBandMono, let high = preparedBassHighBandSlope else { return nil }
+            return Mixer([low, high], name: "Day Objects world bass crossover recombine")
+        }()
+        let preparedBassSaturation = preparedBassRecombine.map {
+            TanhDistortion(
+                $0, pregain: 1.18, postgain: 0.94,
+                positiveShapeParameter: 0, negativeShapeParameter: 0,
+                dryWetMix: 0.12
+            )
+        }
+        let preparedBassTrim = preparedBassSaturation.map { Fader($0, gain: 1) }
+        bassHighPass = preparedBassHighPass
+        bassLowBand = preparedBassLowBand
+        bassLowBandMono = preparedBassLowBandMono
+        bassHighBand = preparedBassHighBand
+        bassHighBandSlope = preparedBassHighBandSlope
+        bassRecombine = preparedBassRecombine
+        bassSaturation = preparedBassSaturation
         bassTrim = preparedBassTrim
         var harmonyInputs: [Node] = []
         var leadInputs: [Node] = []
@@ -713,7 +779,9 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
 
     func activeVoiceCount(for role: DayObjectsRoleBus) -> Int {
         switch role {
-        case .rhythm, .happenings:
+        case .rhythm:
+            drums?.bank.metrics.activePlayerCount ?? 0
+        case .happenings:
             0
         case .bass:
             tonalPools.first { $0.name == PlaybackWorldBankConfiguration.PoolName.bass.rawValue }?.pool.metrics.activeVoiceCount ?? 0
@@ -775,8 +843,8 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
 
         if wasForcedImmediate {
             for trim in worldTrims {
-                trim.$leftGain.value = AUValue(target)
-                trim.$rightGain.value = AUValue(target)
+                trim.$leftGain.parameter.value = AUValue(target)
+                trim.$rightGain.parameter.value = AUValue(target)
             }
             return
         }
@@ -831,8 +899,8 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         // Reset clears queued AU parameter events before returning this fixed
         // world-local trim to unity for a stop, reconfiguration, or reuse.
         bassTrim.avAudioNode.auAudioUnit.reset()
-        bassTrim.$leftGain.value = 1
-        bassTrim.$rightGain.value = 1
+        bassTrim.$leftGain.parameter.value = 1
+        bassTrim.$rightGain.parameter.value = 1
         bassDuckResetCount += 1
         bassDuckEnvelopeClearedForReuse = true
         lastBassDuckAttack = nil
@@ -842,6 +910,28 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
 
     func synchronizeForStart() throws {
         tonalPools.forEach { $0.synchronizeGraphIfAttached() }
+        if let highPass = bassHighPass {
+            setImmediately(highPass.$cutoffFrequency, to: 27)
+            setImmediately(highPass.$resonance, to: 0)
+        }
+        if let lowBand = bassLowBand {
+            setImmediately(lowBand.$cutoffFrequency, to: 140)
+            setImmediately(lowBand.$resonance, to: 0)
+        }
+        if let mono = bassLowBandMono {
+            setImmediately(mono.$mixToMono, to: 1)
+        }
+        for highBand in [bassHighBand, bassHighBandSlope].compactMap({ $0 }) {
+            setImmediately(highBand.$cutoffFrequency, to: 140)
+            setImmediately(highBand.$resonance, to: 0)
+        }
+        if let saturation = bassSaturation {
+            setImmediately(saturation.$pregain, to: 1.18)
+            setImmediately(saturation.$postgain, to: 0.94)
+            setImmediately(saturation.$positiveShapeParameter, to: 0)
+            setImmediately(saturation.$negativeShapeParameter, to: 0)
+            setImmediately(saturation.$dryWetMix, to: 0.12)
+        }
     }
 
     private static func decibels(_ gain: AUValue) -> Double { 20 * log10(Double(gain)) }
@@ -863,6 +953,15 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
             AUAudioFrameCount(min(duration, maximumFrameCount)),
             parameter.parameter.address,
             target
+        )
+    }
+
+    private func setImmediately(_ parameter: NodeParameter, to value: AUValue) {
+        parameter.avAudioNode.auAudioUnit.scheduleParameterBlock(
+            AUEventSampleTimeImmediate,
+            0,
+            parameter.parameter.address,
+            min(max(value, parameter.range.lowerBound), parameter.range.upperBound)
         )
     }
 
@@ -889,8 +988,8 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
             wasForcedImmediate: wasForcedImmediate
         )
         if wasForcedImmediate {
-            trim.$leftGain.value = AUValue(target)
-            trim.$rightGain.value = AUValue(target)
+            trim.$leftGain.parameter.value = AUValue(target)
+            trim.$rightGain.parameter.value = AUValue(target)
         } else {
             schedule(trim.$leftGain, target: AUValue(target), startingAtHostTime: effectiveStart, endingAtHostTime: effectiveEnd, now: now)
             schedule(trim.$rightGain, target: AUValue(target), startingAtHostTime: effectiveStart, endingAtHostTime: effectiveEnd, now: now)
@@ -899,13 +998,41 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
     }
 }
 
+final class DayObjectsMasterOutputGainNode: Node {
+    let input: Node
+    var connections: [Node] { [input] }
+    let avAudioNode: AVAudioNode
+    private let mixer = AVAudioMixerNode()
+    private let configuredLinearGain: Float
+    var linearGain: Float { mixer.outputVolume }
+
+    init(input: Node, decibels: Double) {
+        self.input = input
+        avAudioNode = mixer
+        let bounded = min(max(decibels.isFinite ? decibels : -120, -120), 0)
+        configuredLinearGain = Float(pow(10, bounded / 20))
+        applyConfiguredGain()
+    }
+
+    func applyConfiguredGain() {
+        mixer.outputVolume = configuredLinearGain
+    }
+}
+
 @MainActor
 private final class DayObjectsPersistentMasterGraph {
-    static let masterTrimDecibels = -3.0
+    static let masterTrimDecibels = -6.0
     static let masterHighPassHz = 22.0
     static let glueRatio = 1.5
     static let nominalMaximumGlueReductionDB = 1.5
     static let limiterCeilingDBFS = -1.0
+    private static let silentRoleMetrics = DayObjectsFiveRoleBusMetrics(
+        rhythm: .init(peakDBFS: -120, rmsDBFS: -120, activeVoiceCount: 0),
+        bass: .init(peakDBFS: -120, rmsDBFS: -120, activeVoiceCount: 0),
+        harmony: .init(peakDBFS: -120, rmsDBFS: -120, activeVoiceCount: 0),
+        happenings: .init(peakDBFS: -120, rmsDBFS: -120, activeVoiceCount: 0),
+        lead: .init(peakDBFS: -120, rmsDBFS: -120, activeVoiceCount: 0)
+    )
 
     let rhythmBus = Mixer(name: "Day Objects rhythm bus")
     let bassBus = Mixer(name: "Day Objects bass bus")
@@ -914,12 +1041,12 @@ private final class DayObjectsPersistentMasterGraph {
     let leadBus = Mixer(name: "Day Objects lead bus")
 
     let rhythmCompressor: DynamicRangeCompressor
-    let bassHighPass: HighPassFilter
-    let bassStereoField: StereoFieldLimiter
-    let bassSaturation: TanhDistortion
     let harmonyHighPass: HighPassFilter
     let leadUpperMidSoftener: PeakingParametricEqualizerFilter
-    let leadCompressor: DynamicRangeCompressor
+    let leadUpperMidBand: BandPassFilter
+    let leadUpperMidCompressor: DynamicsProcessor
+    let leadUpperMidBlend: Fader
+    let leadToneMixer: Mixer
 
     let rhythmDirect: Fader
     let bassDirect: Fader
@@ -940,15 +1067,19 @@ private final class DayObjectsPersistentMasterGraph {
     let happeningsReturnLowCut: HighPassFilter
     let happeningsCathedralReturn: CostelloReverb
     let leadSend: Fader
+    let leadDelaySend: Fader
     let leadReturnLowCut: HighPassFilter
+    let leadDelayReturnLowCut: HighPassFilter
     let leadDelayReturn: VariableDelay
     let leadReverbReturn: CostelloReverb
 
     let masterMixer: Mixer
     let masterHighPass: HighPassFilter
-    let glueCompressor: DynamicRangeCompressor
+    let glueCompressor: DynamicsProcessor
+    let masterSaturation: TanhDistortion
     let masterTrim: Fader
     let limiter: PeakLimiter
+    let finalOutput: DayObjectsMasterOutputGainNode
 
     private let rhythmMeter = DayObjectsBusMeter()
     private let bassMeter = DayObjectsBusMeter()
@@ -958,14 +1089,11 @@ private final class DayObjectsPersistentMasterGraph {
     private let preLimiterMeter = DayObjectsBusMeter()
     private let masterMeter = DayObjectsBusMeter()
     private var tapsAreInstalled = false
+    private var meterTapInstallationCount = 0
+    private var meterResetCount = 0
+    private var currentMasterTrimDecibels = DayObjectsPersistentMasterGraph.masterTrimDecibels
     private var lastPublishedAt: TimeInterval = -.infinity
-    private var publishedRoleMetrics = DayObjectsFiveRoleBusMetrics(
-        rhythm: .init(peakDBFS: -120, rmsDBFS: -120, activeVoiceCount: 0),
-        bass: .init(peakDBFS: -120, rmsDBFS: -120, activeVoiceCount: 0),
-        harmony: .init(peakDBFS: -120, rmsDBFS: -120, activeVoiceCount: 0),
-        happenings: .init(peakDBFS: -120, rmsDBFS: -120, activeVoiceCount: 0),
-        lead: .init(peakDBFS: -120, rmsDBFS: -120, activeVoiceCount: 0)
-    )
+    private var publishedRoleMetrics = DayObjectsPersistentMasterGraph.silentRoleMetrics
     private var publishedMasterMetrics = DayObjectsMasterMetrics(
         peakDBFS: -120,
         rmsDBFS: -120,
@@ -984,43 +1112,41 @@ private final class DayObjectsPersistentMasterGraph {
             gain: 1,
             dryWetMix: 1
         )
-        bassHighPass = HighPassFilter(bassBus, cutoffFrequency: 27, resonance: 0)
-        bassStereoField = StereoFieldLimiter(bassHighPass, amount: 0.35)
-        bassSaturation = TanhDistortion(
-            bassStereoField,
-            pregain: 1.2,
-            postgain: 0.92,
-            positiveShapeParameter: 0,
-            negativeShapeParameter: 0,
-            dryWetMix: 0.12
-        )
         harmonyHighPass = HighPassFilter(harmonyBus, cutoffFrequency: 72, resonance: 0)
         leadUpperMidSoftener = PeakingParametricEqualizerFilter(
             leadBus,
             centerFrequency: 3_200,
-            gain: -2,
+            gain: -5,
             q: 1.1
         )
-        leadCompressor = DynamicRangeCompressor(
-            leadUpperMidSoftener,
-            ratio: 1.4,
-            threshold: -9,
-            attackDuration: 0.008,
-            releaseDuration: 0.09,
-            gain: 1,
-            dryWetMix: 0.55
+        leadUpperMidBand = BandPassFilter(
+            leadBus,
+            centerFrequency: 3_200,
+            bandwidth: 1_900
         )
+        leadUpperMidCompressor = DynamicsProcessor(
+            leadUpperMidBand,
+            threshold: -18,
+            headRoom: 3,
+            expansionRatio: 1,
+            expansionThreshold: 1,
+            attackTime: 0.008,
+            releaseTime: 0.09,
+            masterGain: 0
+        )
+        leadUpperMidBlend = Fader(leadUpperMidCompressor, gain: 0.42)
+        leadToneMixer = Mixer([leadUpperMidSoftener, leadUpperMidBlend], name: "Day Objects lead dynamic upper-mid recombine")
 
         rhythmDirect = Fader(rhythmCompressor, gain: 1)
-        bassDirect = Fader(bassSaturation, gain: 1)
+        bassDirect = Fader(bassBus, gain: 1)
         harmonyDirect = Fader(harmonyHighPass, gain: 1)
         happeningsDirect = Fader(happeningsBus, gain: 1)
-        leadDirect = Fader(leadCompressor, gain: 1)
+        leadDirect = Fader(leadToneMixer, gain: 1)
 
         rhythmSend = Fader(rhythmCompressor, gain: 0.08)
         rhythmReturnLowCut = HighPassFilter(rhythmSend, cutoffFrequency: 150, resonance: 0)
         rhythmRoomReturn = CostelloReverb(rhythmReturnLowCut, balance: 1, feedback: 0.42, cutoffFrequency: 6_500)
-        bassSend = Fader(bassSaturation, gain: 0.05)
+        bassSend = Fader(bassBus, gain: 0.05)
         bassReturnLowCut = HighPassFilter(bassSend, cutoffFrequency: 120, resonance: 0)
         bassShortReturn = CostelloReverb(bassReturnLowCut, balance: 1, feedback: 0.36, cutoffFrequency: 5_500)
         harmonySend = Fader(harmonyHighPass, gain: 0.28)
@@ -1029,9 +1155,11 @@ private final class DayObjectsPersistentMasterGraph {
         happeningsSend = Fader(happeningsBus, gain: 0.34)
         happeningsReturnLowCut = HighPassFilter(happeningsSend, cutoffFrequency: 180, resonance: 0)
         happeningsCathedralReturn = CostelloReverb(happeningsReturnLowCut, balance: 1, feedback: 0.84, cutoffFrequency: 5_200)
-        leadSend = Fader(leadCompressor, gain: 0.24)
+        leadSend = Fader(leadToneMixer, gain: 0.38)
+        leadDelaySend = Fader(leadToneMixer, gain: 0.24)
         leadReturnLowCut = HighPassFilter(leadSend, cutoffFrequency: 140, resonance: 0)
-        leadDelayReturn = VariableDelay(leadReturnLowCut, time: 0.28, feedback: 0.32, maximumTime: 2, dryWetMix: 1)
+        leadDelayReturnLowCut = HighPassFilter(leadDelaySend, cutoffFrequency: 140, resonance: 0)
+        leadDelayReturn = VariableDelay(leadDelayReturnLowCut, time: 0.28, feedback: 0.32, maximumTime: 2, dryWetMix: 1)
         leadReverbReturn = CostelloReverb(leadReturnLowCut, balance: 1, feedback: 0.62, cutoffFrequency: 6_000)
 
         masterMixer = Mixer([
@@ -1048,21 +1176,66 @@ private final class DayObjectsPersistentMasterGraph {
             leadReverbReturn,
         ], name: "Day Objects common master")
         masterHighPass = HighPassFilter(masterMixer, cutoffFrequency: AUValue(Self.masterHighPassHz), resonance: 0)
-        glueCompressor = DynamicRangeCompressor(
+        glueCompressor = DynamicsProcessor(
             masterHighPass,
-            ratio: AUValue(Self.glueRatio),
-            threshold: -4,
-            attackDuration: 0.03,
-            releaseDuration: 0.2,
-            gain: 1,
-            dryWetMix: 1
+            threshold: -6,
+            headRoom: 6,
+            expansionRatio: 1,
+            expansionThreshold: 1,
+            attackTime: 0.03,
+            releaseTime: 0.2,
+            masterGain: 0
         )
-        masterTrim = Fader(glueCompressor, gain: AUValue(pow(10, Self.masterTrimDecibels / 20)))
-        limiter = PeakLimiter(masterTrim, attackTime: 0.012, decayTime: 0.024, preGain: AUValue(Self.limiterCeilingDBFS))
+        masterSaturation = TanhDistortion(
+            glueCompressor,
+            pregain: 1.12,
+            postgain: 0.94,
+            positiveShapeParameter: 0,
+            negativeShapeParameter: 0,
+            dryWetMix: 0.10
+        )
+        masterTrim = Fader(masterSaturation, gain: AUValue(pow(10, Self.masterTrimDecibels / 20)))
+        limiter = PeakLimiter(masterTrim, attackTime: 0.012, decayTime: 0.024, preGain: 0)
+        finalOutput = DayObjectsMasterOutputGainNode(
+            input: limiter,
+            decibels: Self.limiterCeilingDBFS
+        )
     }
 
-    var topologyMetrics: DayObjectsInstrumentBankEngineTopologyMetrics {
+    func topologyMetrics(graphs: [DayObjectsAudioKitInstrumentBankGraph]) -> DayObjectsInstrumentBankEngineTopologyMetrics {
         let commonMaster = ObjectIdentifier(masterMixer)
+        var namedNodes: [String: Node] = [
+            "master.mixer": masterMixer,
+            "master.highPass": masterHighPass,
+            "master.glue": glueCompressor,
+            "master.saturation": masterSaturation,
+            "master.trim": masterTrim,
+            "master.limiter": limiter,
+            "master.finalOutput": finalOutput,
+            "lead.bus": leadBus,
+            "lead.upperMidBand": leadUpperMidBand,
+            "lead.upperMidDynamics": leadUpperMidCompressor,
+            "lead.upperMidBlend": leadUpperMidBlend,
+            "lead.staticNotch": leadUpperMidSoftener,
+            "lead.recombine": leadToneMixer,
+            "bass.sharedBus": bassBus,
+            "bass.direct": bassDirect,
+            "bass.send": bassSend,
+        ]
+        for (index, graph) in graphs.enumerated() {
+            for (name, node) in graph.bassNamedNodes {
+                namedNodes["bank\(index).bass.\(name)"] = node
+            }
+        }
+        let physicalNodes = fixedNodes + graphs.flatMap(\.fixedLocalNodes)
+        let physicalConnections = Set(physicalNodes.flatMap { destination in
+            destination.connections.map {
+                DayObjectsGraphConnection(
+                    source: ObjectIdentifier($0),
+                    destination: ObjectIdentifier(destination)
+                )
+            }
+        })
         return .init(
             persistentMasterNodeIdentities: fixedNodeIdentities,
             finalPeakLimiterIdentities: [ObjectIdentifier(limiter)],
@@ -1096,24 +1269,49 @@ private final class DayObjectsPersistentMasterGraph {
             limiterCeilingDBFS: Self.limiterCeilingDBFS,
             roleHighPassHz: [.bass: 27, .harmony: 72],
             bassUsesMonoCompatibleLowBand: true,
-            bassUsesMildSaturation: true
+            bassUsesMildSaturation: true,
+            physicalConnections: physicalConnections,
+            namedNodeIdentities: namedNodes.mapValues(ObjectIdentifier.init),
+            meterTapNodeIdentities: meterTapNodes.map(ObjectIdentifier.init),
+            meterTapInstallationCount: meterTapInstallationCount,
+            masterSaturationIdentity: ObjectIdentifier(masterSaturation),
+            finalOutputIdentity: ObjectIdentifier(finalOutput),
+            leadUpperMidDynamicsIdentity: ObjectIdentifier(leadUpperMidCompressor),
+            acceptedParameterValues: [
+                "master.trim.leftLinear": Double(masterTrim.$leftGain.parameter.value),
+                "master.trim.rightLinear": Double(masterTrim.$rightGain.parameter.value),
+                "master.saturation.dryWet": Double(masterSaturation.$dryWetMix.parameter.value),
+                "master.limiter.preGainDB": Double(limiter.$preGain.parameter.value),
+                "master.finalOutput.linear": Double(finalOutput.linearGain),
+                "lead.upperMid.centerHz": Double(leadUpperMidBand.$centerFrequency.parameter.value),
+                "lead.upperMid.thresholdDB": Double(leadUpperMidCompressor.$threshold.parameter.value),
+            ]
         )
     }
 
     var fixedNodeIdentities: [ObjectIdentifier] {
-        let nodes: [Node] = [
+        fixedNodes.map(ObjectIdentifier.init)
+    }
+
+    private var fixedNodes: [Node] {
+        [
             rhythmBus, bassBus, harmonyBus, happeningsBus, leadBus,
-            rhythmCompressor, bassHighPass, bassStereoField, bassSaturation,
-            harmonyHighPass, leadUpperMidSoftener, leadCompressor,
+            rhythmCompressor, harmonyHighPass, leadUpperMidSoftener,
+            leadUpperMidBand, leadUpperMidCompressor, leadUpperMidBlend, leadToneMixer,
             rhythmDirect, bassDirect, harmonyDirect, happeningsDirect, leadDirect,
             rhythmSend, rhythmReturnLowCut, rhythmRoomReturn,
             bassSend, bassReturnLowCut, bassShortReturn,
             harmonySend, harmonyReturnLowCut, harmonyHallReturn,
             happeningsSend, happeningsReturnLowCut, happeningsCathedralReturn,
-            leadSend, leadReturnLowCut, leadDelayReturn, leadReverbReturn,
-            masterMixer, masterHighPass, glueCompressor, masterTrim, limiter,
+            leadSend, leadDelaySend, leadReturnLowCut, leadDelayReturnLowCut,
+            leadDelayReturn, leadReverbReturn,
+            masterMixer, masterHighPass, glueCompressor, masterSaturation,
+            masterTrim, limiter, finalOutput,
         ]
-        return nodes.map(ObjectIdentifier.init)
+    }
+
+    private var meterTapNodes: [Node] {
+        [rhythmBus, bassBus, harmonyBus, happeningsBus, leadBus, masterTrim, finalOutput]
     }
 
     func add(_ graph: DayObjectsAudioKitInstrumentBankGraph) {
@@ -1140,33 +1338,82 @@ private final class DayObjectsPersistentMasterGraph {
         apply(state.buses.harmony, direct: harmonyDirect, send: harmonySend, decay: harmonyHallReturn.$feedback, duration: duration)
         apply(state.buses.happenings, direct: happeningsDirect, send: happeningsSend, decay: happeningsCathedralReturn.$feedback, duration: duration)
         apply(state.buses.lead, direct: leadDirect, send: leadSend, decay: leadReverbReturn.$feedback, duration: duration)
-        transition(leadDelayReturn.$feedback, to: boundedUnit(state.buses.lead.decay), duration: duration)
-        let masterDB = min(max(state.masterTargetDecibelsBeforeLimiter.isFinite ? state.masterTargetDecibelsBeforeLimiter : -60, -60), 0)
+        ramp(leadDelaySend, to: boundedDelay(state.buses.lead.secondarySendLevel ?? 0), duration: duration)
+        transition(leadDelayReturn.$feedback, to: boundedDelay(state.buses.lead.secondaryDecay ?? 0.32), duration: duration)
+        let masterDB = min(max(state.masterTargetDecibelsBeforeLimiter.isFinite ? state.masterTargetDecibelsBeforeLimiter : -60, -60), Self.masterTrimDecibels)
+        currentMasterTrimDecibels = masterDB
         ramp(masterTrim, to: pow(10, masterDB / 20), duration: duration)
     }
 
     func startMeters() {
+        synchronizeFixedProcessors()
+        resetMeterWindows()
+    }
+
+    private func synchronizeFixedProcessors() {
+        setImmediately(masterHighPass.$cutoffFrequency, to: AUValue(Self.masterHighPassHz))
+        setImmediately(masterHighPass.$resonance, to: 0)
+        setImmediately(glueCompressor.$threshold, to: -6)
+        setImmediately(glueCompressor.$headRoom, to: 6)
+        setImmediately(glueCompressor.$expansionRatio, to: 1)
+        setImmediately(glueCompressor.$expansionThreshold, to: 1)
+        setImmediately(glueCompressor.$attackTime, to: 0.03)
+        setImmediately(glueCompressor.$releaseTime, to: 0.2)
+        setImmediately(glueCompressor.$masterGain, to: 0)
+        setImmediately(leadUpperMidSoftener.$centerFrequency, to: 3_200)
+        setImmediately(leadUpperMidSoftener.$gain, to: -5)
+        setImmediately(leadUpperMidSoftener.$q, to: 1.1)
+        setImmediately(leadUpperMidBand.$centerFrequency, to: 3_200)
+        setImmediately(leadUpperMidBand.$bandwidth, to: 1_900)
+        setImmediately(leadUpperMidCompressor.$threshold, to: -18)
+        setImmediately(leadUpperMidCompressor.$headRoom, to: 3)
+        setImmediately(leadUpperMidCompressor.$expansionRatio, to: 1)
+        setImmediately(leadUpperMidCompressor.$expansionThreshold, to: 1)
+        setImmediately(leadUpperMidCompressor.$attackTime, to: 0.008)
+        setImmediately(leadUpperMidCompressor.$releaseTime, to: 0.09)
+        setImmediately(leadUpperMidCompressor.$masterGain, to: 0)
+        setImmediately(leadUpperMidBlend.$leftGain, to: 0.42)
+        setImmediately(leadUpperMidBlend.$rightGain, to: 0.42)
+        setImmediately(masterSaturation.$pregain, to: 1.12)
+        setImmediately(masterSaturation.$postgain, to: 0.94)
+        setImmediately(masterSaturation.$positiveShapeParameter, to: 0)
+        setImmediately(masterSaturation.$negativeShapeParameter, to: 0)
+        setImmediately(masterSaturation.$dryWetMix, to: 0.10)
+        setImmediately(limiter.$attackTime, to: 0.012)
+        setImmediately(limiter.$decayTime, to: 0.024)
+        setImmediately(limiter.$preGain, to: 0)
+        let trimGain = AUValue(pow(10, currentMasterTrimDecibels / 20))
+        setImmediately(masterTrim.$leftGain, to: trimGain)
+        setImmediately(masterTrim.$rightGain, to: trimGain)
+        finalOutput.applyConfiguredGain()
+    }
+
+    func stopMeters() {
+        resetMeterWindows()
+    }
+
+    func prepareMeters() {
         guard !tapsAreInstalled else { return }
+        // AVAudioEngine attachment resets AVAudioMixerNode.outputVolume to unity.
+        synchronizeFixedProcessors()
         installTap(on: rhythmBus, meter: rhythmMeter)
         installTap(on: bassBus, meter: bassMeter)
         installTap(on: harmonyBus, meter: harmonyMeter)
         installTap(on: happeningsBus, meter: happeningsMeter)
         installTap(on: leadBus, meter: leadMeter)
         installTap(on: masterTrim, meter: preLimiterMeter)
-        installTap(on: limiter, meter: masterMeter)
+        installTap(on: finalOutput, meter: masterMeter)
         tapsAreInstalled = true
+        meterTapInstallationCount += 1
     }
 
-    func stopMeters() {
-        guard tapsAreInstalled else { return }
-        rhythmBus.avAudioNode.removeTap(onBus: 0)
-        bassBus.avAudioNode.removeTap(onBus: 0)
-        harmonyBus.avAudioNode.removeTap(onBus: 0)
-        happeningsBus.avAudioNode.removeTap(onBus: 0)
-        leadBus.avAudioNode.removeTap(onBus: 0)
-        masterTrim.avAudioNode.removeTap(onBus: 0)
-        limiter.avAudioNode.removeTap(onBus: 0)
-        tapsAreInstalled = false
+    private func resetMeterWindows() {
+        [rhythmMeter, bassMeter, harmonyMeter, happeningsMeter, leadMeter,
+         preLimiterMeter, masterMeter].forEach { $0.reset() }
+        publishedRoleMetrics = Self.silentRoleMetrics
+        publishedMasterMetrics = .init(peakDBFS: -120, rmsDBFS: -120, limiterReductionDB: 0)
+        lastPublishedAt = -.infinity
+        meterResetCount += 1
     }
 
     func meterSnapshots(
@@ -1191,14 +1438,30 @@ private final class DayObjectsPersistentMasterGraph {
         )
         let preLimiter = preLimiterMeter.masterSnapshot(limiterReductionDB: 0)
         let postLimiter = masterMeter.masterSnapshot(limiterReductionDB: 0)
-        // AudioKit's PeakLimiter does not expose gain-reduction telemetry, so
-        // derive it from the fixed pre-gain ceiling and the pre/post peaks.
-        let expectedPeakAfterCeilingTrim = preLimiter.peakDBFS + Self.limiterCeilingDBFS
-        let estimatedLimiterReduction = max(expectedPeakAfterCeilingTrim - postLimiter.peakDBFS, 0)
+        // PeakLimiter exposes no gain-reduction telemetry. This explicitly
+        // named fallback compares the aligned pre/final bounded windows.
+        let alignedWindowLimiterReductionEstimate = max(
+            preLimiter.peakDBFS + Self.limiterCeilingDBFS - postLimiter.peakDBFS,
+            0
+        )
         publishedMasterMetrics = masterMeter.masterSnapshot(
-            limiterReductionDB: estimatedLimiterReduction
+            limiterReductionDB: alignedWindowLimiterReductionEstimate
         )
         return (publishedRoleMetrics, publishedMasterMetrics)
+    }
+
+    func consumeMeterSamplesForTesting(role: DayObjectsRoleBus, amplitude: Float) {
+        let samples = [amplitude, -amplitude]
+        switch role {
+        case .rhythm: rhythmMeter.consume(left: samples, right: samples)
+        case .bass: bassMeter.consume(left: samples, right: samples)
+        case .harmony: harmonyMeter.consume(left: samples, right: samples)
+        case .happenings: happeningsMeter.consume(left: samples, right: samples)
+        case .lead: leadMeter.consume(left: samples, right: samples)
+        }
+        preLimiterMeter.consume(left: samples, right: samples)
+        masterMeter.consume(left: samples, right: samples)
+        lastPublishedAt = -.infinity
     }
 
     private func bus(for role: DayObjectsRoleBus) -> Mixer {
@@ -1231,7 +1494,7 @@ private final class DayObjectsPersistentMasterGraph {
 
     private func transition(_ parameter: NodeParameter, to value: Double, duration: TimeInterval) {
         guard duration > 0, parameter.parameter.flags.contains(.flag_CanRamp) else {
-            parameter.value = AUValue(value)
+            parameter.parameter.value = AUValue(value)
             return
         }
         parameter.ramp(to: AUValue(value), duration: Float(duration))
@@ -1239,6 +1502,19 @@ private final class DayObjectsPersistentMasterGraph {
 
     private func boundedUnit(_ value: Double) -> Double {
         min(max(value.isFinite ? value : 0, 0), DayObjectsAudioParameters.maximumReverbFeedback)
+    }
+
+    private func boundedDelay(_ value: Double) -> Double {
+        min(max(value.isFinite ? value : 0, 0), DayObjectsAudioParameters.maximumDelayFeedback)
+    }
+
+    private func setImmediately(_ parameter: NodeParameter, to value: AUValue) {
+        parameter.avAudioNode.auAudioUnit.scheduleParameterBlock(
+            AUEventSampleTimeImmediate,
+            0,
+            parameter.parameter.address,
+            min(max(value, parameter.range.lowerBound), parameter.range.upperBound)
+        )
     }
 
     private func installTap(on node: Node, meter: DayObjectsBusMeter) {
@@ -1261,12 +1537,13 @@ private final class DayObjectsAudioKitInstrumentBankEngine: DayObjectsInstrument
     private var graph: DayObjectsAudioKitInstrumentBankGraph?
 
     var topologyMetrics: DayObjectsInstrumentBankEngineTopologyMetrics {
-        masterGraph.topologyMetrics
+        masterGraph.topologyMetrics(graphs: graph.map { [$0] } ?? [])
     }
 
     init(happenings: DayObjectsHappeningSamplePool) {
         masterGraph = DayObjectsPersistentMasterGraph(happenings: happenings)
-        engine.output = masterGraph.limiter
+        engine.output = masterGraph.finalOutput
+        masterGraph.prepareMeters()
     }
 
     func attach(graph: any DayObjectsInstrumentBankGraph) throws {
@@ -1277,6 +1554,7 @@ private final class DayObjectsAudioKitInstrumentBankEngine: DayObjectsInstrument
             masterGraph.remove(existing)
         }
         masterGraph.add(graph)
+        try graph.synchronizeForStart()
         self.graph = graph
     }
 
@@ -1433,6 +1711,10 @@ final class DayObjectsPlaybackBankPair {
         bankB.markPlaybackPairPrepared()
         lifecycleState = .prepared
     }
+
+    func consumeMeterSamplesForTesting(role: DayObjectsRoleBus, amplitude: Float) {
+        sharedEngine.consumeMeterSamplesForTesting(role: role, amplitude: amplitude)
+    }
 }
 
 private enum DayObjectsPlaybackBankSlot: Hashable { case a, b }
@@ -1499,11 +1781,12 @@ private final class DayObjectsSharedInstrumentBankEngine {
     init(happenings: DayObjectsHappeningSamplePool) {
         self.happenings = happenings
         masterGraph = DayObjectsPersistentMasterGraph(happenings: happenings)
-        engine.output = masterGraph.limiter
+        engine.output = masterGraph.finalOutput
+        masterGraph.prepareMeters()
     }
 
     var topologyMetrics: DayObjectsInstrumentBankEngineTopologyMetrics {
-        masterGraph.topologyMetrics
+        masterGraph.topologyMetrics(graphs: Array(graphs.values))
     }
 
     func attach(
@@ -1519,6 +1802,7 @@ private final class DayObjectsSharedInstrumentBankEngine {
         graphs[slot] = graph
         attachedSlots.insert(slot)
         masterGraph.add(graph)
+        try graph.synchronizeForStart()
     }
 
     func releaseAttachmentRequest(slot: DayObjectsPlaybackBankSlot) {
@@ -1533,7 +1817,7 @@ private final class DayObjectsSharedInstrumentBankEngine {
         guard attachedSlots.contains(slot) else {
             throw DayObjectsInstrumentBankError.notPrepared
         }
-        engine.output = masterGraph.limiter
+        engine.output = masterGraph.finalOutput
         if individuallyStartedSlots.isEmpty, !engine.avEngine.isRunning {
             masterGraph.startMeters()
             do { try engine.start() }
@@ -1559,7 +1843,7 @@ private final class DayObjectsSharedInstrumentBankEngine {
             throw DayObjectsInstrumentBankError.notPrepared
         }
         guard !pairIsRunning else { return }
-        engine.output = masterGraph.limiter
+        engine.output = masterGraph.finalOutput
         if !engine.avEngine.isRunning {
             masterGraph.startMeters()
             do { try engine.start() }
@@ -1592,7 +1876,7 @@ private final class DayObjectsSharedInstrumentBankEngine {
     func rollbackFailedPairStart() {
         pairIsRunning = false
         stopEngineIfRunning()
-        engine.output = masterGraph.limiter
+        engine.output = masterGraph.finalOutput
     }
 
     func metrics(
@@ -1627,13 +1911,17 @@ private final class DayObjectsSharedInstrumentBankEngine {
         )
     }
 
+    func consumeMeterSamplesForTesting(role: DayObjectsRoleBus, amplitude: Float) {
+        masterGraph.consumeMeterSamplesForTesting(role: role, amplitude: amplitude)
+    }
+
     private func stopEngineIfRunning() {
         if engine.avEngine.isRunning {
             engine.stop()
             masterGraph.stopMeters()
             stopCount += 1
         }
-        engine.output = masterGraph.limiter
+        engine.output = masterGraph.finalOutput
     }
 }
 #endif

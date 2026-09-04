@@ -27,18 +27,32 @@ private final class DayObjectsAtomicWord: @unchecked Sendable {
     func increment() {
         _ = OSAtomicIncrement64Barrier(&storage)
     }
+
+    @inline(__always)
+    func incrementAndLoad() -> UInt64 {
+        UInt64(bitPattern: OSAtomicIncrement64Barrier(&storage))
+    }
 }
 
-/// A single-writer seqlock for audio-meter scalars. The render callback writes
-/// only four preallocated atomic words; it does not lock, allocate, dispatch,
-/// or log. Main-actor readers retry if they overlap the audio-thread writer.
+/// A fixed ring of single-writer seqlocks for recent render-buffer scalars.
+/// The audio callback overwrites one preallocated slot per buffer; it does not
+/// lock, allocate, dispatch, or log. Readers accept only complete slots from
+/// the current generation, giving peak and RMS one bounded, aligned window.
 final class DayObjectsBusMeter: @unchecked Sendable {
+    static let windowBufferCount = 8
     private static let silenceFloorDBFS = -120.0
 
-    private let sequence = DayObjectsAtomicWord(0)
-    private let peakBits = DayObjectsAtomicWord(0)
-    private let squaredSumBits = DayObjectsAtomicWord(0)
-    private let sampleCount = DayObjectsAtomicWord(0)
+    private final class Slot: @unchecked Sendable {
+        let sequence = DayObjectsAtomicWord(0)
+        let peakBits = DayObjectsAtomicWord(0)
+        let squaredSumBits = DayObjectsAtomicWord(0)
+        let sampleCount = DayObjectsAtomicWord(0)
+        let generation = DayObjectsAtomicWord(0)
+    }
+
+    private let slots = (0..<windowBufferCount).map { _ in Slot() }
+    private let writeCount = DayObjectsAtomicWord(0)
+    private let generation = DayObjectsAtomicWord(1)
 
     func consume(
         left: UnsafePointer<Float>,
@@ -57,15 +71,14 @@ final class DayObjectsBusMeter: @unchecked Sendable {
             }
         }
 
-        sequence.increment()
-        let previousPeak = Double(bitPattern: peakBits.load())
-        let previousSquaredSum = Double(bitPattern: squaredSumBits.load())
-        let previousCount = sampleCount.load()
-        peakBits.store(max(previousPeak.isFinite ? previousPeak : 0, bufferPeak).bitPattern)
-        let totalSquaredSum = previousSquaredSum + bufferSquaredSum
-        squaredSumBits.store((totalSquaredSum.isFinite ? totalSquaredSum : bufferSquaredSum).bitPattern)
-        sampleCount.store(previousCount &+ bufferSampleCount)
-        sequence.increment()
+        let write = writeCount.incrementAndLoad() &- 1
+        let slot = slots[Int(write % UInt64(Self.windowBufferCount))]
+        slot.sequence.increment()
+        slot.peakBits.store(bufferPeak.bitPattern)
+        slot.squaredSumBits.store(bufferSquaredSum.bitPattern)
+        slot.sampleCount.store(bufferSampleCount)
+        slot.generation.store(generation.load())
+        slot.sequence.increment()
     }
 
     /// Convenience adapter for tests and non-render-thread callers.
@@ -99,6 +112,12 @@ final class DayObjectsBusMeter: @unchecked Sendable {
         )
     }
 
+    /// Starts a new logical window without touching render-thread-owned slots.
+    /// Old samples become invisible through the atomic generation tag.
+    func reset() {
+        generation.increment()
+    }
+
     private func accumulate(
         _ sample: Float,
         peak: inout Double,
@@ -112,21 +131,29 @@ final class DayObjectsBusMeter: @unchecked Sendable {
     }
 
     private func readScalars() -> (peak: Double, squaredSum: Double, count: UInt64) {
-        while true {
-            let before = sequence.load()
-            guard before.isMultiple(of: 2) else { continue }
-            let peak = Double(bitPattern: peakBits.load())
-            let squaredSum = Double(bitPattern: squaredSumBits.load())
-            let count = sampleCount.load()
-            let after = sequence.load()
-            if before == after {
-                return (
-                    peak.isFinite ? max(peak, 0) : 0,
-                    squaredSum.isFinite ? max(squaredSum, 0) : 0,
-                    count
-                )
+        let expectedGeneration = generation.load()
+        var peak = 0.0
+        var squaredSum = 0.0
+        var count: UInt64 = 0
+        for slot in slots {
+            while true {
+                let before = slot.sequence.load()
+                guard before.isMultiple(of: 2) else { continue }
+                let slotPeak = Double(bitPattern: slot.peakBits.load())
+                let slotSquaredSum = Double(bitPattern: slot.squaredSumBits.load())
+                let slotCount = slot.sampleCount.load()
+                let slotGeneration = slot.generation.load()
+                let after = slot.sequence.load()
+                guard before == after else { continue }
+                if slotGeneration == expectedGeneration {
+                    peak = max(peak, slotPeak.isFinite ? max(slotPeak, 0) : 0)
+                    squaredSum += slotSquaredSum.isFinite ? max(slotSquaredSum, 0) : 0
+                    count &+= slotCount
+                }
+                break
             }
         }
+        return (peak, squaredSum, count)
     }
 
     private static func decibels(_ amplitude: Double) -> Double {

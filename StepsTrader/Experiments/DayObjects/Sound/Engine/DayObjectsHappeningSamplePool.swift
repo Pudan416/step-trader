@@ -109,6 +109,7 @@ struct HappeningSamplePoolMetrics: Equatable, Sendable {
 @MainActor
 protocol DayObjectsHappeningSamplePoolProtocol: AnyObject {
     var metrics: HappeningSamplePoolMetrics { get }
+    func performHousekeeping()
     func prepare(recipeIDs: Set<HappeningSoundRecipeID>) throws
     func play(
         _ sound: ResolvedHappeningSound,
@@ -175,6 +176,8 @@ protocol DayObjectsHappeningSampleVoiceBackend: AnyObject {
 }
 
 extension DayObjectsHappeningSamplePoolProtocol {
+    func performHousekeeping() {}
+
     func play(
         _ sound: ResolvedHappeningSound,
         gain: Double,
@@ -227,7 +230,6 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
     private var lastEffectRampSeconds: TimeInterval = 0
 
     var metrics: HappeningSamplePoolMetrics {
-        refreshReleasedSlots()
         return HappeningSamplePoolMetrics(
             allocatedPlayerCount: voices.count,
             fixedPlayerIdentities: voices.map(ObjectIdentifier.init),
@@ -464,6 +466,10 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
         recomputeRecipeEffects()
     }
 
+    func performHousekeeping() {
+        refreshReleasedSlots()
+    }
+
     private var currentDecodedByteCount: Int {
         decodedBuffers.values.reduce(0) { $0 + $1.decodedByteCount }
     }
@@ -471,7 +477,7 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
     private func transition(_ parameter: NodeParameter, to value: Double, duration: TimeInterval) {
         let target = AUValue(value)
         guard duration > 0, parameter.parameter.flags.contains(.flag_CanRamp) else {
-            parameter.value = target
+            parameter.parameter.value = target
             return
         }
         parameter.ramp(to: target, duration: Float(duration))

@@ -4,6 +4,30 @@ import XCTest
 
 @MainActor
 final class LeadPlayerTests: XCTestCase {
+    func testBusOwnedGainPreservesLegacyNonlinearExpressiveTransferNumerically() throws {
+        for targetDB in [-18.0, -12.0, -9.0, -6.0] {
+            let busGain = pow(10, LeadPlayer.busTargetDecibels(for: targetDB) / 20)
+            for depth in [0.0, 0.125, 0.25] {
+                let harness = try makeHarness(gainDecibels: targetDB)
+                harness.player.applyBusOwnedMixTargetDecibels(targetDB)
+                harness.player.begin(.init(
+                    normalizedX: 0.5,
+                    normalizedY: 0.5,
+                    speed: depth / 0.25 * 3
+                ))
+                let actualVoiceExpression = try XCTUnwrap(
+                    harness.pool.updateRequests.last?.expression
+                )
+                let legacy = LeadPlayer.legacyEffectiveGain(
+                    targetDecibels: targetDB,
+                    expressionDepth: depth
+                )
+                XCTAssertTrue((0...1).contains(actualVoiceExpression))
+                XCTAssertEqual(busGain * actualVoiceExpression, legacy, accuracy: 0.000_000_1)
+            }
+        }
+    }
+
     func testLiveMixAndGlitchCommandsMutateHeldVoiceWithoutRetrigger() throws {
         let harness = try makeHarness(gainDecibels: -6)
         harness.player.begin(.init(normalizedX: 0.5, normalizedY: 0.5, speed: 0))

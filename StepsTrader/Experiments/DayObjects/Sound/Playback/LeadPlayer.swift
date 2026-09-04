@@ -53,6 +53,7 @@ final class LeadPlayer {
     private var lastGesture: LeadGestureSample?
     private var baseGain = 0.25
     private var mixTargetDecibels = -12.0
+    private var usesBusOwnedGain = false
     private var glitchCommand: DayObjectsGlitchCommand = .neutral(role: .lead)
     private var amplitudeAttackCount = 0
     private var releaseCount = 0
@@ -88,6 +89,7 @@ final class LeadPlayer {
         mapper = LeadGestureMapper(plan: plan)
         self.currentChordIndex = Self.safeChordIndex(currentChordIndex, plan: plan)
         mixTargetDecibels = gainDecibels
+        usesBusOwnedGain = false
         baseGain = Self.softSaturatedGain(Self.linearGain(decibels: gainDecibels))
         currentMIDINote = nil
         lastGesture = nil
@@ -187,7 +189,18 @@ final class LeadPlayer {
 
     func applyMixTargetDecibels(_ decibels: Double) {
         mixTargetDecibels = decibels
+        usesBusOwnedGain = false
         baseGain = Self.softSaturatedGain(Self.linearGain(decibels: decibels))
+        reapplyHeldGesture()
+    }
+
+    /// Keeps the historical two-stage expressive saturation while the static
+    /// target is owned by the shared Lead bus. The local voice publishes only
+    /// the normalized shape, so bus gain × voice expression equals the former
+    /// effective gain at every supported gesture depth.
+    func applyBusOwnedMixTargetDecibels(_ decibels: Double) {
+        mixTargetDecibels = decibels
+        usesBusOwnedGain = true
         reapplyHeldGesture()
     }
 
@@ -284,7 +297,26 @@ final class LeadPlayer {
 
     private func expressiveGain(depth: Double) -> Double {
         let boundedDepth = min(max(Self.finite(depth, fallback: 0), 0), 0.25)
+        if usesBusOwnedGain {
+            let target = Self.legacyEffectiveGain(
+                targetDecibels: mixTargetDecibels,
+                expressionDepth: boundedDepth
+            )
+            let busGain = Self.linearGain(decibels: Self.busTargetDecibels(for: mixTargetDecibels))
+            return min(max(target / max(busGain, .leastNonzeroMagnitude), 0), 1)
+        }
         return Self.softSaturatedGain(baseGain * (1 + boundedDepth))
+    }
+
+    static func legacyEffectiveGain(targetDecibels: Double, expressionDepth: Double) -> Double {
+        let base = softSaturatedGain(linearGain(decibels: targetDecibels))
+        let depth = min(max(finite(expressionDepth, fallback: 0), 0), 0.25)
+        return softSaturatedGain(base * (1 + depth))
+    }
+
+    static func busTargetDecibels(for targetDecibels: Double) -> Double {
+        let maximum = legacyEffectiveGain(targetDecibels: targetDecibels, expressionDepth: 0.25)
+        return 20 * log10(max(maximum, .leastNonzeroMagnitude))
     }
 
     private func portamentoSeconds(_ plan: LeadPlan) -> Double {

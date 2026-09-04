@@ -88,6 +88,36 @@ final class DayObjectsMixControllerTests: XCTestCase {
         XCTAssertLessThanOrEqual(state.happeningPerVoiceTargetDecibels, 0)
     }
 
+    func testLeadDelayAndReverbRemainIndependentAndUseTheirOwnSafetyCaps() throws {
+        let backend = RecordingMixBackend()
+        let controller = DayObjectsMixController(backend: backend)
+
+        controller.apply(
+            LayerMixPlanner.makePlan(happeningCount: 1),
+            activeChordVoiceCount: 1,
+            harmonyDuckingDecibels: 0,
+            spatial: .init(
+                rhythm: .init(sendLevel: 0, decay: 0),
+                bass: .init(sendLevel: 0, decay: 0),
+                harmony: .init(sendLevel: 0, decay: 0),
+                happenings: .init(sendLevel: 0, decay: 0),
+                lead: .init(
+                    sendLevel: 0.37,
+                    decay: 0.93,
+                    secondarySendLevel: 0.81,
+                    secondaryDecay: 0.99
+                )
+            ),
+            rampDurationSeconds: 0
+        )
+
+        let lead = try XCTUnwrap(backend.states.last).buses.lead
+        XCTAssertEqual(lead.sendLevel, 0.37)
+        XCTAssertEqual(lead.decay, 0.93)
+        XCTAssertEqual(lead.secondarySendLevel, 0.81)
+        XCTAssertEqual(lead.secondaryDecay, 0.90)
+    }
+
     func testNonFiniteInputsFallBackToConservativeFiniteTargets() throws {
         let backend = RecordingMixBackend()
         let controller = DayObjectsMixController(backend: backend)

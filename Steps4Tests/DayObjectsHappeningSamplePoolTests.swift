@@ -189,6 +189,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         ))
 
         now += 0.21
+        harness.pool.performHousekeeping()
         XCTAssertEqual(harness.pool.metrics.effects, effects(2))
 
         _ = try harness.pool.play(sound(id: 3, resource: "3.wav"), gain: 1, priority: .birth, effects: effects(3))
@@ -447,7 +448,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         XCTAssertEqual(harness.voices[voiceID.voiceID].stopCount, 1)
     }
 
-    func testGracefulStopUsesInjectedMonotonicDeadlineBeforeConvergingToIdle() throws {
+    func testMetricsAreReadOnlyAndExplicitHousekeepingConvergesCompletedReleaseToIdle() throws {
         var now = 10.0
         let recipe = makeRecipe(id: 1, resources: ["one.wav"], releaseSeconds: 0.25)
         let harness = try makeHarness(recipes: [recipe], clock: { now })
@@ -461,6 +462,11 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         now += 0.24
         XCTAssertEqual(harness.pool.metrics.releasingVoiceCount, 1)
         now += 0.02
+        XCTAssertEqual(harness.pool.metrics.releasingVoiceCount, 1)
+        XCTAssertEqual(harness.voices[voiceID.voiceID].stopCount, 0)
+
+        harness.pool.performHousekeeping()
+
         XCTAssertEqual(harness.pool.metrics.releasingVoiceCount, 0)
         XCTAssertEqual(harness.voices[voiceID.voiceID].stopCount, 1)
     }

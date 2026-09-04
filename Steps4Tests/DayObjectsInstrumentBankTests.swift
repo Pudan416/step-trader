@@ -1,4 +1,8 @@
 import Foundation
+import AudioKit
+import AudioKitEX
+import AVFoundation
+import SoundpipeAudioKit
 import XCTest
 @testable import Steps4
 
@@ -9,8 +13,157 @@ private let testHappeningEffects = HappeningEffectCommand(
     reverbMix: 0
 )
 
+private func renderedPeak(_ buffer: AVAudioPCMBuffer) -> Double {
+    guard let channels = buffer.floatChannelData else { return 0 }
+    var peak = 0.0
+    for channel in 0..<Int(buffer.format.channelCount) {
+        for frame in 0..<Int(buffer.frameLength) {
+            peak = max(peak, abs(Double(channels[channel][frame])))
+        }
+    }
+    return peak
+}
+
+private func renderedRMS(_ buffer: AVAudioPCMBuffer) -> Double {
+    guard let channels = buffer.floatChannelData else { return 0 }
+    var squared = 0.0
+    let sampleCount = Int(buffer.frameLength) * Int(buffer.format.channelCount)
+    guard sampleCount > 0 else { return 0 }
+    for channel in 0..<Int(buffer.format.channelCount) {
+        for frame in 0..<Int(buffer.frameLength) {
+            squared += Double(channels[channel][frame] * channels[channel][frame])
+        }
+    }
+    return sqrt(squared / Double(sampleCount))
+}
+
+private func channelDifferenceRMS(_ buffer: AVAudioPCMBuffer) -> Double {
+    guard buffer.format.channelCount >= 2,
+          let left = buffer.floatChannelData?[0],
+          let right = buffer.floatChannelData?[1],
+          buffer.frameLength > 0 else { return 0 }
+    let squared = (0..<Int(buffer.frameLength)).reduce(0.0) { result, frame in
+        let difference = Double(left[frame] - right[frame])
+        return result + difference * difference
+    }
+    return sqrt(squared / Double(buffer.frameLength))
+}
+
+@MainActor
+private func renderAntiPhaseBassProbe(frequency: Double) -> AVAudioPCMBuffer {
+    let sampleRate = 48_000.0
+    let frameCount = AVAudioFrameCount(sampleRate * 0.2)
+    let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2)!
+    let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount)!
+    buffer.frameLength = frameCount
+    for frame in 0..<Int(frameCount) {
+        let sample = Float(sin(2 * Double.pi * frequency * Double(frame) / sampleRate) * 0.5)
+        buffer.floatChannelData?[0][frame] = sample
+        buffer.floatChannelData?[1][frame] = -sample
+    }
+    let player = AudioPlayer()
+    player.buffer = buffer
+    let highPass = HighPassFilter(player, cutoffFrequency: 27, resonance: 0)
+    let lowPass = LowPassFilter(highPass, cutoffFrequency: 140, resonance: 0)
+    let mono = Fader(lowPass, gain: 1)
+    let highBand = HighPassFilter(highPass, cutoffFrequency: 140, resonance: 0)
+    let highBandSlope = HighPassFilter(highBand, cutoffFrequency: 140, resonance: 0)
+    let output = Mixer([mono, highBandSlope])
+    let engine = AudioEngine()
+    engine.output = output
+    _ = engine.startTest(totalDuration: 0.2)
+    mono.$mixToMono.parameter.value = 1
+    player.play()
+    return engine.render(duration: 0.2)
+}
+
 @MainActor
 final class DayObjectsInstrumentBankTests: XCTestCase {
+    func testRenderedLeadProcessorSoftensUpperMidMoreThanLowBand() {
+        func ratio(at frequency: AUValue) -> Double {
+            func render(processed: Bool) -> Double {
+                let source = Oscillator(waveform: Table(.sine), frequency: frequency, amplitude: 0.8)
+                let output: Node
+                if processed {
+                    let notch = PeakingParametricEqualizerFilter(source, centerFrequency: 3_200, gain: -5, q: 1.1)
+                    let band = BandPassFilter(source, centerFrequency: 3_200, bandwidth: 1_900)
+                    let dynamics = DynamicsProcessor(
+                        band, threshold: -18, headRoom: 3,
+                        expansionRatio: 1, expansionThreshold: 1,
+                        attackTime: 0.008, releaseTime: 0.09, masterGain: 0
+                    )
+                    output = Mixer([notch, Fader(dynamics, gain: 0.42)])
+                } else {
+                    output = source
+                }
+                let engine = AudioEngine()
+                engine.output = output
+                _ = engine.startTest(totalDuration: 0.2)
+                source.start()
+                return renderedRMS(engine.render(duration: 0.2))
+            }
+            return render(processed: true) / max(render(processed: false), .leastNonzeroMagnitude)
+        }
+
+        XCTAssertLessThan(ratio(at: 3_200), ratio(at: 500) - 0.08)
+    }
+
+    func testRenderedBassCrossoverMakesLowBandMonoWithoutCollapsingUpperBand() {
+        let low = renderAntiPhaseBassProbe(frequency: 100)
+        let upper = renderAntiPhaseBassProbe(frequency: 1_000)
+
+        XCTAssertLessThan(channelDifferenceRMS(low), channelDifferenceRMS(upper) * 0.4)
+        XCTAssertGreaterThan(channelDifferenceRMS(upper), 0.05)
+    }
+
+    func testRenderedMasterOutputEnforcesMinusOneDecibelCeiling() {
+        let oscillators = (0..<4).map { _ in
+            Oscillator(waveform: Table(.sine), frequency: 440, amplitude: 1)
+        }
+        let limiter = PeakLimiter(Mixer(oscillators), attackTime: 0.001, decayTime: 0.02, preGain: 0)
+        let output = DayObjectsMasterOutputGainNode(input: limiter, decibels: -1)
+        let engine = AudioEngine()
+        engine.output = output
+        output.applyConfiguredGain()
+        _ = engine.startTest(totalDuration: 0.25)
+        oscillators.forEach { $0.start() }
+
+        let rendered = engine.render(duration: 0.25)
+        let peak = renderedPeak(rendered)
+
+        XCTAssertGreaterThan(peak, 0.1)
+        XCTAssertLessThanOrEqual(peak, pow(10, -1.0 / 20) + 0.002)
+    }
+
+    func testRenderedDefaultMasterAuditionIsNonSilentAndStartsAtSixDecibelsOfPreLimiterHeadroom() {
+        let source = Oscillator(waveform: Table(.sine), frequency: 330, amplitude: 1)
+        let saturation = TanhDistortion(
+            source, pregain: 1.12, postgain: 0.94,
+            positiveShapeParameter: 0, negativeShapeParameter: 0, dryWetMix: 0.10
+        )
+        let trim = Fader(saturation, gain: AUValue(pow(10, -6.0 / 20)))
+        let limiter = PeakLimiter(trim, attackTime: 0.012, decayTime: 0.024, preGain: 0)
+        let output = DayObjectsMasterOutputGainNode(input: limiter, decibels: -1)
+        let engine = AudioEngine()
+        engine.output = output
+        output.applyConfiguredGain()
+        _ = engine.startTest(totalDuration: 0.25)
+        saturation.$pregain.parameter.value = 1.12
+        saturation.$postgain.parameter.value = 0.94
+        saturation.$positiveShapeParameter.parameter.value = 0
+        saturation.$negativeShapeParameter.parameter.value = 0
+        saturation.$dryWetMix.parameter.value = 0.10
+        trim.$leftGain.parameter.value = AUValue(pow(10, -6.0 / 20))
+        trim.$rightGain.parameter.value = AUValue(pow(10, -6.0 / 20))
+        source.start()
+
+        let rendered = engine.render(duration: 0.25)
+        let peak = renderedPeak(rendered)
+
+        XCTAssertGreaterThan(peak, 0.05)
+        XCTAssertLessThan(peak, pow(10, -6.0 / 20))
+    }
+
     func testWorldRecyclePreservesNewerSchedulerAndManualSharedHappeningsAfterExactOldCleanup() throws {
         let pair = DayObjectsInstrumentBank.makePlaybackPair(bundle: Bundle(for: type(of: self)))
         try pair.prepare(configuration: .playbackWorld)
@@ -193,7 +346,15 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(pool.metrics.fixedPlayerIdentities, players)
         XCTAssertEqual(pool.metrics.decodedBufferIdentities, buffers)
         XCTAssertEqual(pool.metrics.decodedByteCount, bytes)
-        XCTAssertEqual(bank.metrics.engineTopology, topology)
+        let upgradedTopology = bank.metrics.engineTopology
+        XCTAssertEqual(upgradedTopology.persistentMasterNodeIdentities, topology.persistentMasterNodeIdentities)
+        XCTAssertEqual(upgradedTopology.finalPeakLimiterIdentities, topology.finalPeakLimiterIdentities)
+        XCTAssertEqual(upgradedTopology.roleBusIdentities, topology.roleBusIdentities)
+        XCTAssertEqual(upgradedTopology.parallelSpatialReturnIdentities, topology.parallelSpatialReturnIdentities)
+        XCTAssertEqual(upgradedTopology.commonMasterIdentity, topology.commonMasterIdentity)
+        XCTAssertEqual(upgradedTopology.meterTapNodeIdentities, topology.meterTapNodeIdentities)
+        XCTAssertEqual(upgradedTopology.meterTapInstallationCount, 1)
+        XCTAssertFalse(upgradedTopology.physicalConnections.isEmpty)
         XCTAssertEqual(pool.metrics.activeVoiceCount, 0)
         XCTAssertEqual(pool.metrics.releasingVoiceCount, 0)
         XCTAssertNoThrow(try pool.play(sound, gain: 1, priority: .birth, effects: testHappeningEffects))
@@ -566,7 +727,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(baseline.happeningDecodedBufferIdentities.count, 102)
         XCTAssertLessThanOrEqual(baseline.happeningDecodedByteCount, 48 * 1_024 * 1_024)
         XCTAssertEqual(Set(baseline.finalPeakLimiterIdentities).count, 1)
-        XCTAssertEqual(baseline.sharedMasterTrimDecibels, -3, accuracy: 1e-12)
+        XCTAssertEqual(baseline.sharedMasterTrimDecibels, -6, accuracy: 1e-12)
         XCTAssertEqual(pair.bankA.metrics.graph?.finalPeakLimiterCount, 0)
         XCTAssertEqual(pair.bankB.metrics.graph?.finalPeakLimiterCount, 0)
         XCTAssertEqual(pair.bankA.outputGainMetrics.targetLinearGain, 1)
@@ -609,6 +770,82 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertGreaterThan(try XCTUnwrap(topology.roleHighPassHz[.harmony]), 27)
         XCTAssertTrue(topology.bassUsesMonoCompatibleLowBand)
         XCTAssertTrue(topology.bassUsesMildSaturation)
+        XCTAssertNotNil(topology.masterSaturationIdentity)
+        XCTAssertNotNil(topology.finalOutputIdentity)
+        XCTAssertNotNil(topology.leadUpperMidDynamicsIdentity)
+        XCTAssertEqual(topology.meterTapInstallationCount, 1)
+        XCTAssertEqual(Set(topology.meterTapNodeIdentities).count, 7)
+
+        func assertEdge(_ source: String, _ destination: String) throws {
+            let edge = DayObjectsGraphConnection(
+                source: try XCTUnwrap(topology.namedNodeIdentities[source]),
+                destination: try XCTUnwrap(topology.namedNodeIdentities[destination])
+            )
+            XCTAssertTrue(topology.physicalConnections.contains(edge), "Missing physical edge \(source) -> \(destination)")
+        }
+
+        for bank in 0..<2 {
+            let prefix = "bank\(bank).bass."
+            try assertEdge(prefix + "source", prefix + "highPass27")
+            try assertEdge(prefix + "highPass27", prefix + "lowPass140")
+            try assertEdge(prefix + "lowPass140", prefix + "lowBandMono")
+            try assertEdge(prefix + "highPass27", prefix + "highPass140")
+            try assertEdge(prefix + "highPass140", prefix + "highPass140Slope")
+            try assertEdge(prefix + "lowBandMono", prefix + "recombine")
+            try assertEdge(prefix + "highPass140Slope", prefix + "recombine")
+            try assertEdge(prefix + "recombine", prefix + "saturation")
+            try assertEdge(prefix + "saturation", prefix + "duck")
+            try assertEdge(prefix + "duck", prefix + "worldBassBus")
+        }
+        try assertEdge("lead.upperMidBand", "lead.upperMidDynamics")
+        try assertEdge("lead.upperMidDynamics", "lead.upperMidBlend")
+        try assertEdge("lead.upperMidBlend", "lead.recombine")
+        try assertEdge("master.glue", "master.saturation")
+        try assertEdge("master.saturation", "master.trim")
+        try assertEdge("master.trim", "master.limiter")
+        try assertEdge("master.limiter", "master.finalOutput")
+        XCTAssertEqual(try XCTUnwrap(topology.acceptedParameterValues["master.trim.leftLinear"]), pow(10, -6.0 / 20), accuracy: 0.000_01)
+        XCTAssertEqual(try XCTUnwrap(topology.acceptedParameterValues["master.trim.rightLinear"]), pow(10, -6.0 / 20), accuracy: 0.000_01)
+        XCTAssertEqual(try XCTUnwrap(topology.acceptedParameterValues["master.saturation.dryWet"]), 0.10, accuracy: 0.000_01)
+        XCTAssertEqual(try XCTUnwrap(topology.acceptedParameterValues["master.limiter.preGainDB"]), 0, accuracy: 0.000_01)
+        XCTAssertEqual(try XCTUnwrap(topology.acceptedParameterValues["master.finalOutput.linear"]), pow(10, -1.0 / 20), accuracy: 0.000_01)
+        XCTAssertEqual(try XCTUnwrap(topology.acceptedParameterValues["lead.upperMid.centerHz"]), 3_200, accuracy: 0.01)
+        XCTAssertEqual(try XCTUnwrap(topology.acceptedParameterValues["lead.upperMid.thresholdDB"]), -18, accuracy: 0.01)
+    }
+
+    func testMeterTapNodesStayInstalledAcrossStopAndRestart() throws {
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(bundle: Bundle(for: type(of: self)))
+        try pair.prepare(configuration: smallPlaybackPairConfiguration())
+        let prepared = pair.bankA.metrics.engineTopology
+
+        try pair.start()
+        pair.stop()
+        try pair.start()
+        let restarted = pair.bankA.metrics.engineTopology
+
+        XCTAssertEqual(restarted.meterTapInstallationCount, 1)
+        XCTAssertEqual(restarted.meterTapNodeIdentities, prepared.meterTapNodeIdentities)
+        XCTAssertEqual(restarted.physicalConnections, prepared.physicalConnections)
+        pair.stop()
+    }
+
+    func testMeterWindowsAndPublicationCacheResetAcrossStartStopRestart() throws {
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(bundle: Bundle(for: type(of: self)))
+        try pair.prepare(configuration: smallPlaybackPairConfiguration())
+        pair.consumeMeterSamplesForTesting(role: .rhythm, amplitude: 0.5)
+        XCTAssertGreaterThan(pair.metrics.roleBusMetrics.rhythm.peakDBFS, -7)
+
+        try pair.start()
+        XCTAssertEqual(pair.metrics.roleBusMetrics.rhythm.peakDBFS, -120)
+        pair.consumeMeterSamplesForTesting(role: .rhythm, amplitude: 0.25)
+        XCTAssertGreaterThan(pair.metrics.roleBusMetrics.rhythm.peakDBFS, -13)
+
+        pair.stop()
+        XCTAssertEqual(pair.metrics.roleBusMetrics.rhythm.peakDBFS, -120)
+        XCTAssertEqual(pair.metrics.masterMetrics.peakDBFS, -120)
+        try pair.start()
+        XCTAssertEqual(pair.metrics.roleBusMetrics.rhythm.peakDBFS, -120)
+        pair.stop()
     }
 
     func testFiveRoleTopologyIdentityDoesNotChangeAcrossMixUpdates() throws {
@@ -684,7 +921,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(graph.drumBusGainDB, -3.01)
             XCTAssertGreaterThanOrEqual(graph.masterTrimDB, -3.01)
         }
-        XCTAssertGreaterThanOrEqual(pair.metrics.sharedMasterTrimDecibels, -3.01)
+        XCTAssertEqual(pair.metrics.sharedMasterTrimDecibels, -6, accuracy: 0.001)
     }
 
     func testPlaybackPairSchedulesBankOutputGainAtAuthoritativeHostTimes() throws {
@@ -986,7 +1223,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(harness.bank.metrics.state, .started)
     }
 
-    func testDetachedRealGraphExposesSeparateBusesBoundedSpatialEffectsAndOneLimiter() throws {
+    func testWorldLocalGraphTruthfullyExcludesSharedSpatialReturnsAndMasterLimiter() throws {
         let bank = DayObjectsInstrumentBank(bundle: Bundle(for: type(of: self)))
         let configuration = DayObjectsInstrumentBankConfiguration(
             tonalPools: [.init(name: "role", capacity: 2, reservesLeadVoice: true)],
@@ -1002,12 +1239,12 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         let graph = try XCTUnwrap(bank.metrics.graph)
         XCTAssertEqual(graph.tonalBusCount, 3)
         XCTAssertEqual(graph.drumBusCount, 1)
-        XCTAssertEqual(graph.sharedSpatialEffectCount, 6)
-        XCTAssertEqual(graph.roleBuses, DayObjectsRoleBus.allCases)
-        XCTAssertEqual(graph.parallelSpatialReturnCount, 6)
+        XCTAssertEqual(graph.sharedSpatialEffectCount, 0)
+        XCTAssertEqual(graph.roleBuses, [.rhythm, .bass, .harmony, .lead])
+        XCTAssertEqual(graph.parallelSpatialReturnCount, 0)
         XCTAssertEqual(graph.tonalBusGainDB, 0, accuracy: 0.001)
         XCTAssertEqual(graph.drumBusGainDB, 0, accuracy: 0.001)
-        XCTAssertEqual(graph.masterTrimDB, -3, accuracy: 0.001)
+        XCTAssertEqual(graph.masterTrimDB, 0, accuracy: 0.001)
         XCTAssertEqual(graph.finalPeakLimiterCount, 0)
         XCTAssertEqual(bank.metrics.drumMetrics.allocatedPlayerCount, DayObjectsDrumVoice.allCases.count)
         XCTAssertEqual(bank.metrics.pianoMetrics.allocatedPlayerCount, 3)
