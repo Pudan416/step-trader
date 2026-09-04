@@ -5,6 +5,46 @@ final class DayObjectsLabUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    func testEditorialFieldMVPVisualHandoff() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-uiLab", "dayObjects",
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        let canvas = app.otherElements["dayObjects.canvas"]
+        XCTAssertTrue(canvas.waitForExistence(timeout: 8))
+        setHappenings(10, on: app.sliders["dayObjects.happenings"])
+
+        let controlsToggle = app.buttons["dayObjects.controlsToggle"]
+        controlsToggle.tap()
+        Thread.sleep(forTimeInterval: 10)
+        attachScreenshot(named: "editorial-field-metal-full")
+
+        controlsToggle.tap()
+        let tileToggle = app.buttons["dayObjects.tileToggle"]
+        XCTAssertTrue(tileToggle.waitForExistence(timeout: 5))
+        tileToggle.tap()
+        let tileState = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "tile"),
+            object: tileToggle
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [tileState], timeout: 5), .completed)
+        XCTAssertTrue(app.otherElements["dayObjects.calendarTile"].waitForExistence(timeout: 5))
+        controlsToggle.tap()
+        Thread.sleep(forTimeInterval: 2)
+        attachScreenshot(named: "editorial-field-metal-calendar-tile")
+
+        controlsToggle.tap()
+        app.switches["dayObjects.reduceMotionPreview"].tap()
+        app.buttons["dayObjects.tileToggle"].tap()
+        controlsToggle.tap()
+        Thread.sleep(forTimeInterval: 2)
+        attachScreenshot(named: "editorial-field-metal-reduce-motion")
+    }
+
     func testLabExposesChoreographyControlsAndAddsEventsInPlace() throws {
         let app = XCUIApplication()
         app.launchArguments = [

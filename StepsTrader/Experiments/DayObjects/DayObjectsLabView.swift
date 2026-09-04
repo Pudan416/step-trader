@@ -13,7 +13,9 @@ struct DayObjectsLabView: View {
     @AppStorage(SharedKeys.modernPaletteCategories) private var modernPaletteCategoriesRaw = ""
 
     @State private var dayOffset = 0
-    @State private var happenings: Double = 8
+    @State private var happenings: Double = ProcessInfo.processInfo.arguments.contains(
+        "-dayObjectsVisualHandoff"
+    ) ? 10 : 8
     @State private var motionEnergy = 0.55
     @State private var visualClarity = 0.55
     @State private var spentColors: Double = 0
@@ -22,7 +24,9 @@ struct DayObjectsLabView: View {
     @State private var editorialBackground: DayObjectEditorialBackground = .dark
     @State private var lowSleep = false
     @State private var reduceMotionPreview = false
-    @State private var showControls = true
+    @State private var showControls = !ProcessInfo.processInfo.arguments.contains(
+        "-dayObjectsVisualHandoff"
+    )
 
     private var dayKey: String {
         Self.dayKey(for: dayOffset)
@@ -120,6 +124,8 @@ struct DayObjectsLabView: View {
         }
         .background(Color.black.opacity(0.88))
         .ignoresSafeArea()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Day Objects calendar tile")
         .accessibilityIdentifier("dayObjects.calendarTile")
     }
 
@@ -158,90 +164,96 @@ struct DayObjectsLabView: View {
     // MARK: - Controls
 
     private var controls: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 10) {
-                Button {
-                    dayOffset += showsGrid ? 15 : 1
-                } label: {
-                    Label(showsGrid ? "Next 15" : "Next day", systemImage: "dice")
-                        .frame(maxWidth: .infinity)
+        ScrollView {
+            VStack(spacing: 12) {
+                HStack(spacing: 10) {
+                    Button {
+                        dayOffset += showsGrid ? 15 : 1
+                    } label: {
+                        Label(showsGrid ? "Next 15" : "Next day", systemImage: "dice")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("dayObjects.nextDay")
+
+                    Button {
+                        let nextValue = !showsCalendarTile
+                        showsGrid = false
+                        showsCalendarTile = nextValue
+                    } label: {
+                        Label(showsCalendarTile ? "Full" : "Tile", systemImage: "calendar")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("dayObjects.tileToggle")
+                    .accessibilityValue(showsCalendarTile ? "tile" : "full")
+
+                    Button {
+                        showsGrid.toggle()
+                        if showsGrid { showsCalendarTile = false }
+                    } label: {
+                        Image(systemName: showsGrid ? "square" : "square.grid.3x3")
+                            .frame(minWidth: 28)
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("dayObjects.gridToggle")
                 }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("dayObjects.nextDay")
 
-                Button {
-                    showsCalendarTile.toggle()
-                    if showsCalendarTile { showsGrid = false }
-                } label: {
-                    Label(showsCalendarTile ? "Full" : "Tile", systemImage: "calendar")
-                        .frame(maxWidth: .infinity)
+                Picker("Background", selection: $editorialBackground) {
+                    ForEach(DayObjectEditorialBackground.allCases) { background in
+                        Text(background.title).tag(background)
+                    }
                 }
-                .buttonStyle(.bordered)
-                .accessibilityIdentifier("dayObjects.tileToggle")
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("dayObjects.background")
 
-                Button {
-                    showsGrid.toggle()
-                    if showsGrid { showsCalendarTile = false }
-                } label: {
-                    Image(systemName: showsGrid ? "square" : "square.grid.3x3")
-                        .frame(minWidth: 28)
+                slider(
+                    "Happenings",
+                    value: $happenings,
+                    range: 0...Double(DayObjectScene.maxActors),
+                    step: 1,
+                    readout: "\(happeningCount) · \(currentScene.actors.count) figures",
+                    identifier: "dayObjects.happenings"
+                )
+                slider(
+                    "Motion",
+                    value: $motionEnergy,
+                    range: 0...1,
+                    step: 0.05,
+                    readout: motionEnergy.formatted(.number.precision(.fractionLength(2))),
+                    identifier: "dayObjects.motionEnergy"
+                )
+                slider(
+                    "Focus",
+                    value: $visualClarity,
+                    range: 0...1,
+                    step: 0.05,
+                    readout: visualClarity.formatted(.number.precision(.fractionLength(2))),
+                    identifier: "dayObjects.visualClarity"
+                )
+                HStack {
+                    Toggle("Low sleep", isOn: $lowSleep)
+                        .accessibilityIdentifier("dayObjects.lowSleep")
+                    Toggle("Reduce Motion", isOn: $reduceMotionPreview)
+                        .accessibilityIdentifier("dayObjects.reduceMotionPreview")
                 }
-                .buttonStyle(.bordered)
-                .accessibilityIdentifier("dayObjects.gridToggle")
-            }
+                .font(.geist(.caption))
+                .foregroundStyle(.white.opacity(0.85))
+                digitalImpactControls
 
-            Picker("Background", selection: $editorialBackground) {
-                ForEach(DayObjectEditorialBackground.allCases) { background in
-                    Text(background.title).tag(background)
+                if !showsGrid {
+                    Text(languageSummary)
+                        .font(.geist(.caption2).monospaced())
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.white.opacity(0.6))
+                        .accessibilityIdentifier("dayObjects.language")
+                        .accessibilityValue(languageSummary)
                 }
             }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("dayObjects.background")
-
-            slider(
-                "Happenings",
-                value: $happenings,
-                range: 0...Double(DayObjectScene.maxActors),
-                step: 1,
-                readout: "\(happeningCount) · \(currentScene.actors.count) figures",
-                identifier: "dayObjects.happenings"
-            )
-            slider(
-                "Motion",
-                value: $motionEnergy,
-                range: 0...1,
-                step: 0.05,
-                readout: motionEnergy.formatted(.number.precision(.fractionLength(2))),
-                identifier: "dayObjects.motionEnergy"
-            )
-            slider(
-                "Focus",
-                value: $visualClarity,
-                range: 0...1,
-                step: 0.05,
-                readout: visualClarity.formatted(.number.precision(.fractionLength(2))),
-                identifier: "dayObjects.visualClarity"
-            )
-            HStack {
-                Toggle("Low sleep", isOn: $lowSleep)
-                    .accessibilityIdentifier("dayObjects.lowSleep")
-                Toggle("Reduce Motion", isOn: $reduceMotionPreview)
-                    .accessibilityIdentifier("dayObjects.reduceMotionPreview")
-            }
-            .font(.geist(.caption))
-            .foregroundStyle(.white.opacity(0.85))
-            digitalImpactControls
-
-            if !showsGrid {
-                Text(languageSummary)
-                    .font(.geist(.caption2).monospaced())
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.white.opacity(0.6))
-                    .accessibilityIdentifier("dayObjects.language")
-                    .accessibilityValue(languageSummary)
-            }
+            .padding(16)
         }
-        .padding(16)
+        .scrollIndicators(.hidden)
+        .frame(maxHeight: 560)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22))
         .padding(.horizontal, 12)
         .padding(.bottom, 60)
