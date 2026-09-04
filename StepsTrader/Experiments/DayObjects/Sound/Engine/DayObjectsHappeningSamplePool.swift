@@ -1,5 +1,6 @@
 #if DEBUG || INTERNAL_BUILD
 import AudioKit
+import AudioKitEX
 import AVFoundation
 import Foundation
 import SoundpipeAudioKit
@@ -202,8 +203,10 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
     private let clock: () -> TimeInterval
     private let dryMixer: Mixer
     private let filter: LowPassFilter
+    private let delaySend: Fader
     private let delay: Delay
     private let directGain: DayObjectsAppleGainNode
+    private let reverbSend: Fader
     private let reverb: Reverb
     private let reverbWet: DayObjectsAppleGainNode
     private var slots: [VoiceSlot]
@@ -275,18 +278,20 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
         }
         dryMixer = Mixer(voices.map(\.output), name: "Day Objects Happening voices")
         filter = LowPassFilter(dryMixer, cutoffFrequency: AUValue(currentEffects.filterCutoffHz))
+        delaySend = Fader(filter, gain: AUValue(currentEffects.delaySend))
         delay = Delay(
-            filter,
+            delaySend,
             time: 0.24,
             feedback: AUValue(currentEffects.delayFeedback * 100),
             lowPassCutoff: 18_000,
-            dryWetMix: AUValue(currentEffects.delayMix * 100)
+            dryWetMix: 100
         )
-        directGain = DayObjectsAppleGainNode(input: delay, gain: currentEffects.directLevel)
-        reverb = Reverb(delay, dryWetMix: 1)
+        directGain = DayObjectsAppleGainNode(input: filter, gain: currentEffects.directLevel)
+        reverbSend = Fader(filter, gain: AUValue(currentEffects.reverbSend))
+        reverb = Reverb(reverbSend, dryWetMix: 100)
         reverb.loadFactoryPreset(.cathedral)
         reverbWet = DayObjectsAppleGainNode(input: reverb, gain: currentEffects.reverbMix)
-        output = Mixer([directGain, reverbWet], name: "Day Objects Happening bus")
+        output = Mixer([directGain, delay, reverbWet], name: "Day Objects Happening bus")
     }
 
     func prepare(recipeIDs: Set<HappeningSoundRecipeID>) throws {
@@ -436,8 +441,9 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
         currentEffects = sanitized
         lastEffectRampSeconds = duration
         transition(filter.$cutoffFrequency, to: sanitized.filterCutoffHz, duration: duration)
-        transition(delay.$dryWetMix, to: sanitized.delayMix * 100, duration: duration)
         transition(delay.$feedback, to: sanitized.delayFeedback * 100, duration: duration)
+        delaySend.gain = AUValue(sanitized.delaySend)
+        reverbSend.gain = AUValue(sanitized.reverbSend)
         directGain.setLinearGain(sanitized.directLevel, rampSeconds: duration)
         reverbWet.setLinearGain(sanitized.reverbSend, rampSeconds: duration)
     }
