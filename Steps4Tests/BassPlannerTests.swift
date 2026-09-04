@@ -67,6 +67,81 @@ final class BassPlannerTests: XCTestCase {
         }
     }
 
+    func testArpeggioSkipsTailSlotsThatCannotMeetItsMinimumDuration() throws {
+        let world = try makeWorld(progressionLength: 3, cycleBars: 16)
+        let plan = try XCTUnwrap(makeBass(mode: .bassArp, steps: 1, tonalWorld: world))
+        let ninetySixSubdivisionChord = try XCTUnwrap(
+            world.progression.indices.first { world.progression[$0].durationBars * 16 == 96 }
+        )
+        let chordStart = world.progression.prefix(ninetySixSubdivisionChord)
+            .reduce(Int64(0)) { $0 + Int64($1.durationBars * 16) }
+        let chordEvents = plan.events.filter { $0.chordIndex == ninetySixSubdivisionChord }
+
+        XCTAssertFalse(chordEvents.contains { $0.startSubdivision == chordStart + 95 })
+        XCTAssertTrue(chordEvents.allSatisfy { (2...4).contains($0.durationSubdivisions) })
+    }
+
+    func testEverySupportedWorldShapeKeepsCandidatesStableAndPartialStepsCycleWide() throws {
+        for progressionLength in 1...4 {
+            for cycleBars in [8, 12, 16] {
+                let world = try makeWorld(
+                    progressionLength: progressionLength,
+                    cycleBars: cycleBars
+                )
+                let expectedChordIndexes = Set(world.progression.indices)
+
+                for mode in [GrooveMode.bassPulse, .bassArp, .bassBed] {
+                    let partial = try XCTUnwrap(makeBass(
+                        mode: mode,
+                        steps: 0.25,
+                        tonalWorld: world
+                    ))
+                    let full = try XCTUnwrap(makeBass(
+                        mode: mode,
+                        steps: 1,
+                        tonalWorld: world
+                    ))
+
+                    XCTAssertEqual(partial.events, full.events)
+                    XCTAssertEqual(Set(partial.activeEvents.map(\.chordIndex)), expectedChordIndexes)
+
+                    switch mode {
+                    case .bassPulse:
+                        XCTAssertTrue(full.events.allSatisfy { (2...6).contains($0.durationSubdivisions) })
+                    case .bassArp:
+                        XCTAssertTrue(full.events.allSatisfy { (2...4).contains($0.durationSubdivisions) })
+                    case .bassBed:
+                        XCTAssertEqual(partial.activeEvents.count, world.progression.count)
+                    case .percussion:
+                        XCTFail("Percussion does not create Bass candidates")
+                    }
+                }
+            }
+        }
+    }
+
+    func testPartialPulseAndArpeggioPreferOneChordAnchorBeforeExtraCandidates() throws {
+        let world = try makeWorld(progressionLength: 4, cycleBars: 8)
+        var chordStarts: [Int64] = []
+        var nextChordStart: Int64 = 0
+        for chord in world.progression {
+            chordStarts.append(nextChordStart)
+            nextChordStart += Int64(chord.durationBars * 16)
+        }
+
+        for mode in [GrooveMode.bassPulse, .bassArp] {
+            let partial = try XCTUnwrap(makeBass(mode: mode, steps: 0.25, tonalWorld: world))
+            let full = try XCTUnwrap(makeBass(mode: mode, steps: 1, tonalWorld: world))
+
+            XCTAssertEqual(partial.activeEvents.count, world.progression.count)
+            XCTAssertGreaterThan(full.events.count, partial.activeEvents.count)
+            for chordIndex in world.progression.indices {
+                let anchors = partial.activeEvents.filter { $0.chordIndex == chordIndex }
+                XCTAssertEqual(anchors.map(\.startSubdivision), [chordStarts[chordIndex]])
+            }
+        }
+    }
+
     func testBedEventsCoverExactlyTheirChordBoundariesWithoutOverlap() throws {
         let world = makeWorld()
         let plan = try XCTUnwrap(makeBass(mode: .bassBed, steps: 1))
@@ -131,11 +206,12 @@ final class BassPlannerTests: XCTestCase {
     private func makeBass(
         mode: GrooveMode,
         steps: Double,
+        tonalWorld: TonalWorldPlan? = nil,
         descriptors: [DayObjectsInstrumentDescriptor] = DayObjectsInstrumentManifest.defaultDescriptors
     ) -> BassPlan? {
         BassPlanner.makePlan(
             input: makeInput(steps: steps),
-            tonalWorld: makeWorld(),
+            tonalWorld: tonalWorld ?? makeWorld(),
             groove: makeGroove(mode: mode),
             instrumentDescriptors: descriptors,
             remixSeed: 42
@@ -155,6 +231,15 @@ final class BassPlannerTests: XCTestCase {
 
     private func makeWorld() -> TonalWorldPlan {
         TonalWorldPlanner.makePlan(input: makeInput(steps: 1), remixSeed: 42)
+    }
+
+    private func makeWorld(progressionLength: Int, cycleBars: Int) throws -> TonalWorldPlan {
+        try XCTUnwrap(TonalWorldPlanner.makePlan(
+            centerPitchClass: 0,
+            mode: .dorian,
+            progressionLength: progressionLength,
+            cycleBars: cycleBars
+        ))
     }
 
     private func makeGroove(mode: GrooveMode) -> GroovePlan {

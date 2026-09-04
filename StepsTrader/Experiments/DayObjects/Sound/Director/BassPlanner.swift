@@ -28,6 +28,7 @@ enum BassPlanner {
 
         let profile = profile(for: groove.mode)
         var patternRandom = StableMusicRandom(seed: remixSeed, domain: .bassPattern)
+        var activationRandom = StableMusicRandom(seed: remixSeed, domain: .bassPattern)
         var articulationRandom = StableMusicRandom(seed: remixSeed, domain: .bassArticulation)
         let candidates = makeCandidates(
             tonalWorld: tonalWorld,
@@ -35,8 +36,7 @@ enum BassPlanner {
             referenceNote: instrument.referenceMIDI,
             random: &patternRandom
         )
-        let eventCount = max(candidates.count - 1, 1)
-        let events = candidates.enumerated().map { index, candidate in
+        let events = candidates.map { candidate in
             BassEventPlan(
                 stableID: stableID(mode: groove.mode, startSubdivision: candidate.startSubdivision),
                 chordIndex: candidate.chordIndex,
@@ -44,7 +44,11 @@ enum BassPlanner {
                 durationSubdivisions: candidate.durationSubdivisions,
                 midiNote: candidate.midiNote,
                 velocity: candidate.velocity,
-                activationThreshold: Double(index) / Double(eventCount),
+                activationThreshold: activationThreshold(
+                    for: candidate,
+                    mode: groove.mode,
+                    random: &activationRandom
+                ),
                 allowedPitchClasses: candidate.allowedPitchClasses
             )
         }.sorted { left, right in
@@ -94,6 +98,7 @@ enum BassPlanner {
         let midiNote: UInt8
         let velocity: Double
         let allowedPitchClasses: Set<Int>
+        let isStructural: Bool
     }
 
     private static func selectedInstrument(
@@ -223,7 +228,8 @@ enum BassPlanner {
                     durationSubdivisions: duration,
                     midiNote: midiNote,
                     velocity: 0.58 + (random.nextUnitDouble() * 0.28),
-                    allowedPitchClasses: allowedPitchClasses
+                    allowedPitchClasses: allowedPitchClasses,
+                    isStructural: position == 0
                 ))
             }
             chordStart += chordDuration
@@ -238,7 +244,8 @@ enum BassPlanner {
         case .bassPulse:
             return stride(from: Int64(0), to: chordDuration, by: 4).map { $0 }
         case .bassArp:
-            return stride(from: Int64(0), to: chordDuration, by: 5).map { $0 }
+            return stride(from: Int64(0), to: chordDuration, by: 5)
+                .filter { chordDuration - $0 >= 2 }
         case .bassBed:
             return [0]
         }
@@ -281,6 +288,28 @@ enum BassPlanner {
             )
         case .bassBed:
             return chordDuration - position
+        }
+    }
+
+    private static func activationThreshold(
+        for candidate: Candidate,
+        mode: GrooveMode,
+        random: inout StableMusicRandom
+    ) -> Double {
+        let sample = random.nextUnitDouble()
+        if candidate.isStructural {
+            return 0.02 + (sample * 0.20)
+        }
+
+        switch mode {
+        case .percussion:
+            return 1
+        case .bassPulse:
+            return 0.35 + (sample * 0.65)
+        case .bassArp:
+            return 0.40 + (sample * 0.60)
+        case .bassBed:
+            return 0.25 + (sample * 0.75)
         }
     }
 
