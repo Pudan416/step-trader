@@ -110,27 +110,65 @@ final class RhythmPlannerTests: XCTestCase {
     }
 
     func testBassGroovesKeepAtMostOneKickPerPositionAndAnchorsOnGridAcrossEightBars() {
-        let remixSeed = seedProducing(.bassBed)
-        let groove = GroovePlanner.makePlan(remixSeed: remixSeed)
-        let plan = RhythmPlanner.makePlan(
-            input: normalizedInput(stepsProgress: 1),
-            remixSeed: remixSeed,
-            groove: groove
-        )
+        for mode in [GrooveMode.bassPulse, .bassArp, .bassBed] {
+            let remixSeed = seedProducing(mode)
+            let groove = GroovePlanner.makePlan(remixSeed: remixSeed)
+            let plan = RhythmPlanner.makePlan(
+                input: normalizedInput(stepsProgress: 1),
+                remixSeed: remixSeed,
+                groove: groove
+            )
 
-        for cycle in 0..<8 {
-            var anchorKickCount = 0
-            for step in 0..<16 {
-                let events = plan.realizedEvents(cycleIndex: cycle, stepIndex: step)
-                let kickEvents = events.filter { [.halfTimeKick, .kickVariation].contains($0.role) }
+            for cycle in 0..<8 {
+                var anchorKickCount = 0
+                for step in 0..<16 {
+                    let events = plan.realizedEvents(cycleIndex: cycle, stepIndex: step)
+                    let kickEvents = events.filter { [.halfTimeKick, .kickVariation].contains($0.role) }
 
-                XCTAssertLessThanOrEqual(kickEvents.count, 1, "Duplicate kick at \(cycle):\(step)")
-                for event in events where plan.voice(for: event.role)?.isTimingAnchor == true {
-                    XCTAssertEqual(event.microtimingMilliseconds, 0, accuracy: 1e-12)
-                    anchorKickCount += 1
+                    XCTAssertLessThanOrEqual(kickEvents.count, 1, "Duplicate kick at \(mode) \(cycle):\(step)")
+                    XCTAssertFalse(events.contains { $0.role == .kickVariation }, "Kick variation in \(mode)")
+                    for event in events where plan.voice(for: event.role)?.isTimingAnchor == true {
+                        XCTAssertEqual(event.microtimingMilliseconds, 0, accuracy: 1e-12)
+                        anchorKickCount += 1
+                    }
+                }
+                XCTAssertLessThanOrEqual(anchorKickCount, groove.maximumAnchorKicksPerBar)
+            }
+        }
+    }
+
+    func testBassGroovePositionRoleKeysAreMonotonicAsStepsIncrease() {
+        let stepsValues = [0.11, 0.15, 0.20, 0.25, 0.30, 0.35, 1.00]
+
+        for mode in [GrooveMode.bassPulse, .bassArp, .bassBed] {
+            let seeds = (UInt64(0)..<10_000)
+                .filter { GroovePlanner.makePlan(remixSeed: $0).mode == mode }
+                .prefix(8)
+            XCTAssertEqual(seeds.count, 8, "Insufficient seeds for \(mode)")
+
+            for remixSeed in seeds {
+                let groove = GroovePlanner.makePlan(remixSeed: remixSeed)
+                let plans = stepsValues.map {
+                    RhythmPlanner.makePlan(
+                        input: normalizedInput(stepsProgress: $0),
+                        remixSeed: remixSeed,
+                        groove: groove
+                    )
+                }
+
+                for index in plans.indices.dropLast() {
+                    let lower = plans[index]
+                    let higher = plans[index + 1]
+                    for cycle in 0..<8 {
+                        let lowerKeys = realizedPositionRoleKeys(in: lower, cycle: cycle)
+                        let higherKeys = realizedPositionRoleKeys(in: higher, cycle: cycle)
+                        XCTAssertTrue(
+                            lowerKeys.isSubset(of: higherKeys),
+                            "\(mode), seed \(remixSeed), cycle \(cycle), \(stepsValues[index]) -> \(stepsValues[index + 1])"
+                        )
+                    }
                 }
             }
-            XCTAssertLessThanOrEqual(anchorKickCount, groove.maximumAnchorKicksPerBar)
         }
     }
 
@@ -344,6 +382,14 @@ final class RhythmPlannerTests: XCTestCase {
         }
         XCTFail("No seed found for \(mode)")
         return 0
+    }
+
+    private func realizedPositionRoleKeys(in plan: RhythmPlan, cycle: Int) -> Set<String> {
+        Set((0..<16).flatMap { step in
+            plan.realizedEvents(cycleIndex: cycle, stepIndex: step).map { event in
+                "\(step):\(roleName(event.role))"
+            }
+        })
     }
 
     private func realizedEventVector(_ plan: RhythmPlan, cycles: Range<Int>) -> [String] {

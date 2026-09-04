@@ -11,12 +11,19 @@ final class GroovePlannerTests: XCTestCase {
         XCTAssertEqual(modes.filter { $0 == .bassBed }.count, 15)
     }
 
-    func testBassModesRetainOneOrTwoAnchorKicksAndThinAuxiliaryVoices() {
-        for mode in [GrooveMode.bassPulse, .bassArp, .bassBed] {
+    func testEveryModePublishesItsExactRetentionAndAnchorKickCap() {
+        let expected: [(GrooveMode, Double, Int)] = [
+            (.percussion, 1.00, 2),
+            (.bassPulse, 0.65, 2),
+            (.bassArp, 0.40, 1),
+            (.bassBed, 0.50, 1)
+        ]
+
+        for (mode, retention, anchorKickCap) in expected {
             let plan = GroovePlanner.makePlan(remixSeed: seedProducing(mode))
 
-            XCTAssertTrue((1...2).contains(plan.maximumAnchorKicksPerBar))
-            XCTAssertTrue((0.40...0.65).contains(plan.auxiliaryRetention))
+            XCTAssertEqual(plan.auxiliaryRetention, retention, accuracy: 1e-12)
+            XCTAssertEqual(plan.maximumAnchorKicksPerBar, anchorKickCap)
         }
     }
 

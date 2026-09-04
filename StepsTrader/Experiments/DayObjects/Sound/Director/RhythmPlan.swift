@@ -142,6 +142,10 @@ struct RhythmPlan: Equatable, Sendable {
                 let fillCycle = Int(realization.cycleKey % UInt64(fillWindowBars))
                 guard cycleIndex % fillWindowBars == fillCycle else { continue }
             }
+            if voice.role == .halfTimeKick,
+               !isEligibleAnchorKick(at: stepIndex, voice: voice) {
+                continue
+            }
 
             let probability = voice.effectiveProbability(at: stepIndex)
             guard probability > 0 else { continue }
@@ -213,13 +217,6 @@ struct RhythmPlan: Equatable, Sendable {
         }
 
         candidates = candidates.filter { candidate in
-            let voice = self.voice(for: candidate.event.role)
-            if candidate.event.role == .halfTimeKick {
-                return anchorKickRank(
-                    for: candidate.event,
-                    voice: voice
-                ) < groove.maximumAnchorKicksPerBar
-            }
             if groove.usesBass && candidate.event.role == .kickVariation {
                 return false
             }
@@ -258,26 +255,21 @@ struct RhythmPlan: Equatable, Sendable {
         return StableMusicRandom.counterUnitDouble(seed: seed, counter: counter)
     }
 
-    private func anchorKickRank(
-        for event: RhythmRealizedEvent,
+    private func isEligibleAnchorKick(
+        at stepIndex: Int,
         voice: RhythmVoicePlan?
-    ) -> Int {
-        guard let voice, voice.isTimingAnchor else { return 0 }
+    ) -> Bool {
+        guard let voice, voice.isTimingAnchor else { return false }
 
-        return (0..<event.stepIndex).reduce(into: 0) { rank, earlierStep in
-            let probability = voice.effectiveProbability(at: earlierStep)
-            guard probability > 0 else { return }
-            let attackGate = sample(
-                seed: realization.patternSeed,
-                roleIndex: voice.role.realizationIndex,
-                cycleIndex: event.cycleIndex,
-                stepIndex: earlierStep,
-                parameter: .attackGate
-            )
-            if attackGate < probability {
-                rank += 1
+        let eligibleSteps = voice.stepProbabilities.enumerated()
+            .filter { $0.element > 0 }
+            .sorted { left, right in
+                if left.element != right.element { return left.element > right.element }
+                return left.offset < right.offset
             }
-        }
+            .prefix(max(0, groove.maximumAnchorKicksPerBar))
+            .map(\.offset)
+        return eligibleSteps.contains(stepIndex)
     }
 }
 
