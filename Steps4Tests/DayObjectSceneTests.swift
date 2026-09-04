@@ -65,19 +65,33 @@ final class DayObjectSceneTests: XCTestCase {
         XCTAssertFalse(scene.input.usesEditorialField)
     }
 
-    func testEditorialPreviewCatalogCoversEveryPaletteAndMaterialCombination() {
+    func testEditorialPreviewCatalogPairsSixSoftMaterialsWithTwoPlacementModes() {
         let specs = DayObjectEditorialPreviewCatalog.all
 
-        XCTAssertEqual(specs.count, 120)
+        XCTAssertEqual(specs.count, 12)
         XCTAssertEqual(Set(specs.map(\.paletteCategory)), Set(ModernPaletteCategory.allCases))
-        XCTAssertEqual(Set(specs.map(\.material)), Set(DayObjectEditorialPreviewMaterial.allCases))
-        XCTAssertEqual(Set(specs.map(\.index)).count, 120)
+        XCTAssertEqual(Set(specs.map(\.material)), [
+            .solid,
+            .translucentSolid,
+            .softMist,
+            .wideGradient,
+            .softOutline,
+            .hairlineOutline,
+        ])
+        XCTAssertEqual(Set(specs.map(\.placement)), [.depthField, .equalMedium])
+        XCTAssertEqual(Set(specs.map(\.index)).count, 12)
+        for material in DayObjectEditorialPreviewMaterial.allCases {
+            XCTAssertEqual(specs.filter { $0.material == material }.map(\.placement), [
+                .depthField,
+                .equalMedium,
+            ])
+        }
         XCTAssertEqual(specs.first?.paletteCategory, .pastel)
         XCTAssertEqual(specs.first?.material, .solid)
-        XCTAssertEqual(specs[10].paletteCategory, .pastel)
-        XCTAssertEqual(specs[10].material, .gradientTwo)
-        XCTAssertEqual(specs.last?.paletteCategory, .winter)
-        XCTAssertEqual(specs.last?.material, .softOutline)
+        XCTAssertEqual(specs.first?.placement, .depthField)
+        XCTAssertEqual(specs.last?.paletteCategory, .vintage)
+        XCTAssertEqual(specs.last?.material, .hairlineOutline)
+        XCTAssertEqual(specs.last?.placement, .equalMedium)
     }
 
     func testEditorialPreviewScenesUseUniqueTenActorProductCompositions() throws {
@@ -93,30 +107,22 @@ final class DayObjectSceneTests: XCTestCase {
             }.joined(separator: "|"))
         }
 
-        XCTAssertEqual(fingerprints.count, 120)
+        XCTAssertEqual(fingerprints.count, 12)
     }
 
     func testEditorialPreviewUsesCatalogPaletteMeshAndRequestedMaterial() throws {
         let expectedFamilies: [DayObjectEditorialPreviewMaterial: DayObjectEditorialMaterialFamily] = [
             .solid: .solid,
-            .gradientTwo: .gradient,
-            .gradientThree: .gradient,
-            .paletteWash: .gradient,
-            .depthPalette: .solid,
-            .glass: .glass,
-            .mist: .mist,
-            .luminous: .luminous,
-            .softSphere: .sphere,
-            .chromaticEdge: .gradient,
-            .asymmetricPool: .gradient,
+            .translucentSolid: .solid,
+            .softMist: .mist,
+            .wideGradient: .gradient,
             .softOutline: .outline,
+            .hairlineOutline: .outline,
         ]
 
         for material in DayObjectEditorialPreviewMaterial.allCases {
             let spec = try XCTUnwrap(
-                DayObjectEditorialPreviewCatalog.all.first {
-                    $0.paletteCategory == .neon && $0.material == material
-                }
+                DayObjectEditorialPreviewCatalog.all.first { $0.material == material }
             )
             let scene = DayObjectScene.make(input: editorialPreviewInput(spec))
             let recipe = try XCTUnwrap(scene.sceneRecipeV1)
@@ -125,6 +131,98 @@ final class DayObjectSceneTests: XCTestCase {
             XCTAssertGreaterThan(Set(scene.meshGradientStyle.colors.map(String.init(describing:))).count, 1)
             XCTAssertGreaterThan(scene.meshGradientStyle.distortion, 0)
         }
+    }
+
+    func testDepthFieldPreviewMakesLargerActorsCloserAndMoreOutOfFocus() throws {
+        let spec = try XCTUnwrap(
+            DayObjectEditorialPreviewCatalog.all.first { $0.placement == .depthField }
+        )
+        let recipe = try XCTUnwrap(
+            DayObjectScene.make(input: editorialPreviewInput(spec)).sceneRecipeV1
+        )
+        let actors = recipe.actors.sorted { $0.diameter < $1.diameter }
+
+        XCTAssertGreaterThan(try XCTUnwrap(actors.last).diameter / actors[0].diameter, 5)
+        for pair in zip(actors, actors.dropFirst()) {
+            XCTAssertLessThanOrEqual(pair.0.depth, pair.1.depth)
+            XCTAssertLessThanOrEqual(pair.0.localBlur, pair.1.localBlur)
+        }
+        XCTAssertLessThan(actors[0].localBlur, 0.006)
+        XCTAssertGreaterThan(try XCTUnwrap(actors.last).localBlur, 0.045)
+    }
+
+    func testEqualMediumPreviewKeepsScaleDepthAndFocusInOneNarrowBand() throws {
+        let spec = try XCTUnwrap(
+            DayObjectEditorialPreviewCatalog.all.first { $0.placement == .equalMedium }
+        )
+        let recipe = try XCTUnwrap(
+            DayObjectScene.make(input: editorialPreviewInput(spec)).sceneRecipeV1
+        )
+        let diameters = recipe.actors.map(\.diameter)
+        let depths = recipe.actors.map(\.depth)
+        let blurs = recipe.actors.map(\.localBlur)
+        let minDiameter = try XCTUnwrap(diameters.min())
+        let maxDiameter = try XCTUnwrap(diameters.max())
+        let minDepth = try XCTUnwrap(depths.min())
+        let maxDepth = try XCTUnwrap(depths.max())
+        let minBlur = try XCTUnwrap(blurs.min())
+        let maxBlur = try XCTUnwrap(blurs.max())
+        let minX = try XCTUnwrap(recipe.actors.map { $0.position.x }.min())
+        let maxX = try XCTUnwrap(recipe.actors.map { $0.position.x }.max())
+        let minY = try XCTUnwrap(recipe.actors.map { $0.position.y }.min())
+        let maxY = try XCTUnwrap(recipe.actors.map { $0.position.y }.max())
+
+        XCTAssertLessThanOrEqual(maxDiameter - minDiameter, 0.015)
+        XCTAssertLessThanOrEqual(maxDepth - minDepth, 0.03)
+        XCTAssertLessThanOrEqual(maxBlur - minBlur, 0.003)
+        XCTAssertGreaterThan(maxX - minX, 0.55)
+        XCTAssertGreaterThan(maxY - minY, 0.55)
+    }
+
+    func testHairlineOutlineIsStructurallyDistinctFromSoftOutline() throws {
+        let hairlineSpec = try XCTUnwrap(
+            DayObjectEditorialPreviewCatalog.all.first { $0.material == .hairlineOutline }
+        )
+        let softSpec = try XCTUnwrap(
+            DayObjectEditorialPreviewCatalog.all.first { $0.material == .softOutline }
+        )
+        let hairline = try XCTUnwrap(
+            DayObjectScene.make(input: editorialPreviewInput(hairlineSpec)).sceneRecipeV1?.actors.first?.material
+        )
+        let soft = try XCTUnwrap(
+            DayObjectScene.make(input: editorialPreviewInput(softSpec)).sceneRecipeV1?.actors.first?.material
+        )
+
+        XCTAssertEqual(hairline.family, .outline)
+        XCTAssertEqual(hairline.colors.count, 1)
+        XCTAssertTrue(hairline.fields.isEmpty)
+        XCTAssertLessThan(hairline.contourWidth, 0.012)
+        XCTAssertGreaterThan(soft.contourWidth, hairline.contourWidth * 5)
+    }
+
+    func testSolidPreviewRequestsNoLightingOrInternalColorField() throws {
+        let spec = try XCTUnwrap(
+            DayObjectEditorialPreviewCatalog.all.first { $0.material == .solid }
+        )
+        let material = try XCTUnwrap(
+            DayObjectScene.make(input: editorialPreviewInput(spec)).sceneRecipeV1?.actors.first?.material
+        )
+
+        XCTAssertEqual(material.family, .solid)
+        XCTAssertEqual(material.colors.count, 1)
+        XCTAssertTrue(material.fields.isEmpty)
+        XCTAssertEqual(material.gpuAppearance.light.x, 0)
+    }
+
+    func testEditorialPreviewDisablesGlobalBlurSoDepthControlsFocus() {
+        XCTAssertEqual(
+            DayObjectsLabView.resolvedVisualClarity(0.55, isEditorialPreview: true),
+            1
+        )
+        XCTAssertEqual(
+            DayObjectsLabView.resolvedVisualClarity(0.55, isEditorialPreview: false),
+            0.55
+        )
     }
 
     func testAddingEventPreservesExistingActors() {

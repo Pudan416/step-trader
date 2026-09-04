@@ -92,7 +92,11 @@ struct DayObjectEditorialMaterialV1: Equatable {
         case .gradient:
             optics = (SIMD4(0.18, 0.08, Float(baseOpacity), 1), SIMD4(0.08, 0, 0, 0), 0.76)
         case .solid:
-            optics = (SIMD4(0, 0, 1, 1), SIMD4(0, 0, 0, 0), 0.88)
+            optics = (
+                SIMD4(0, 0, Float(baseOpacity), 1),
+                SIMD4(0, 0, 0, 0),
+                Float(min(baseOpacity, 0.88))
+            )
         case .sphere:
             optics = (SIMD4(0.58, 0.14, Float(baseOpacity), 1), SIMD4(0.42, 0, 0, 0), 0.78)
         case .glass:
@@ -133,7 +137,12 @@ struct DayObjectEditorialMaterialV1: Equatable {
             field: SIMD4(0.015, 1.25, 0, Float(edgeSoftness)),
             optical0: optics.0,
             optical1: optics.1,
-            light: SIMD4(0.62, fieldOpacities[0], fieldOpacities[1], fieldOpacities[2]),
+            light: SIMD4(
+                family == .solid ? 0 : 0.62,
+                fieldOpacities[0],
+                fieldOpacities[1],
+                fieldOpacities[2]
+            ),
             metadata: SIMD4(family.gpuFamily.rawValue, UInt32(max(colorCount, 1)), UInt32(max(fields.count, 1)), 0),
             recipe0: SIMD4(0.34, 0.68, Float(edgeSoftness), optics.2),
             recipe1: recipe1
@@ -348,14 +357,19 @@ struct DayObjectSceneRecipeV1: Equatable {
             eventIDs: CorpusManifest.canonicalEventIDs,
             viewport: .phone
         )
-        let geometries = planned.actors.map {
-            Geometry(
-                position: SIMD2($0.position.x, $0.position.y),
-                diameter: $0.diameter,
-                depth: $0.depth,
-                localBlur: $0.localBlur,
-                cropAllowance: $0.cropAllowance,
-                drawOrder: $0.drawOrder
+        let geometries = planned.actors.enumerated().map { index, actor in
+            previewGeometry(
+                Geometry(
+                    position: SIMD2(actor.position.x, actor.position.y),
+                    diameter: actor.diameter,
+                    depth: actor.depth,
+                    localBlur: actor.localBlur,
+                    cropAllowance: actor.cropAllowance,
+                    drawOrder: actor.drawOrder
+                ),
+                slot: index,
+                rootSeed: rootSeed,
+                placement: preview.placement
             )
         }
         let recipeActors = Array(actors.prefix(geometries.count)).enumerated().map { index, actor in
@@ -373,7 +387,6 @@ struct DayObjectSceneRecipeV1: Equatable {
                     daySeed: rootSeed,
                     eventID: actor.eventID,
                     slot: index,
-                    depth: geometry.depth,
                     preview: preview,
                     paletteSet: paletteSet
                 ),
@@ -417,6 +430,52 @@ struct DayObjectSceneRecipeV1: Equatable {
         let localBlur: Double
         let cropAllowance: Double
         let drawOrder: Int
+    }
+
+    private static func previewGeometry(
+        _ geometry: Geometry,
+        slot: Int,
+        rootSeed: UInt64,
+        placement: DayObjectEditorialPreviewPlacement
+    ) -> Geometry {
+        let scaleUnit = actorUnit(
+            rootSeed ^ UInt64(slot),
+            salt: 0x5CA1_EF13_1D5E_ED01
+        )
+        let focusUnit = actorUnit(
+            rootSeed ^ UInt64(slot),
+            salt: 0xF0C0_5B4D_5EED_0002
+        )
+
+        let diameter: Double
+        let depth: Double
+        let localBlur: Double
+        switch placement {
+        case .depthField:
+            let ranges: [ClosedRange<Double>] = [
+                0.50...0.66, 0.065...0.10, 0.22...0.31, 0.11...0.17,
+                0.38...0.52, 0.20...0.29, 0.06...0.095, 0.54...0.72,
+                0.25...0.35, 0.10...0.16,
+            ]
+            let range = ranges[slot % ranges.count]
+            diameter = range.lowerBound + (range.upperBound - range.lowerBound) * scaleUnit
+            let normalizedScale = min(max((diameter - 0.06) / 0.66, 0), 1)
+            depth = 0.05 + normalizedScale * 0.90
+            localBlur = 0.001 + pow(normalizedScale, 1.55) * 0.066
+        case .equalMedium:
+            diameter = 0.258 + scaleUnit * 0.012
+            depth = 0.485 + focusUnit * 0.020
+            localBlur = 0.006 + focusUnit * 0.002
+        }
+
+        return Geometry(
+            position: geometry.position,
+            diameter: diameter,
+            depth: depth,
+            localBlur: localBlur,
+            cropAllowance: geometry.cropAllowance,
+            drawOrder: geometry.drawOrder
+        )
     }
 
     private static let template: [Geometry] = [
@@ -491,7 +550,6 @@ struct DayObjectSceneRecipeV1: Equatable {
         daySeed: UInt64,
         eventID: String,
         slot: Int,
-        depth: Double,
         preview: DayObjectEditorialPreviewSpec,
         paletteSet: DayObjectPaletteSet
     ) -> DayObjectEditorialMaterialV1 {
@@ -512,10 +570,8 @@ struct DayObjectSceneRecipeV1: Equatable {
             : primary
         let colorPool: [SIMD3<Float>]
         switch preview.material {
-        case .paletteWash:
+        case .wideGradient:
             colorPool = primary + secondary
-        case .depthPalette:
-            colorPool = depth >= 0.52 ? primary : secondary
         default:
             colorPool = actorPalette
         }
@@ -530,18 +586,14 @@ struct DayObjectSceneRecipeV1: Equatable {
         )
         let accent = actorUnit(actorSeed, salt: 0xACC3_1700) > 0.54
         let construction: (Double, Double, Double, Int) = switch preview.material {
-        case .solid: (1, 0.008, 0, 0)
-        case .gradientTwo, .gradientThree, .paletteWash:
-            (0.96, accent ? 0.035 : 0.018, 0, 0)
-        case .depthPalette: (1, 0.010, 0, 0)
-        case .glass: (accent ? 0.72 : 0.64, 0.026, 0, 0)
-        case .mist: (0.70, accent ? 0.095 : 0.075, 0, 0)
-        case .luminous: (accent ? 0.94 : 0.87, 0.046, 0, 0)
-        case .softSphere: (0.98, 0.02, 0, 0)
-        case .chromaticEdge: (0.94, 0.030, 0, 0)
-        case .asymmetricPool: (0.92, 0.042, 0, 0)
+        case .solid: (1, 0.004, 0, 0)
+        case .translucentSolid: (0.58, 0.006, 0, 0)
+        case .softMist: (0.64, accent ? 0.13 : 0.11, 0, 0)
+        case .wideGradient: (0.92, 0.055, 0, 0)
         case .softOutline:
             (0.98, 0.020, 0.052 + actorUnit(actorSeed, salt: 0x0A72) * 0.010, 1)
+        case .hairlineOutline:
+            (0.82, 0.003, 0.0045 + actorUnit(actorSeed, salt: 0x0A73) * 0.0015, 1)
         }
         return DayObjectEditorialMaterialV1(
             family: preview.material.family,
@@ -563,39 +615,22 @@ struct DayObjectSceneRecipeV1: Equatable {
     ) -> [DayObjectEditorialRadialFieldV1] {
         guard material.family != .solid, material.family != .outline else { return [] }
 
-        if material == .chromaticEdge {
+        if material == .wideGradient {
             let flip = actorUnit(actorSeed, salt: 0xED63) > 0.5 ? 1.0 : -1.0
             return [
                 .init(
-                    focus: SIMD2(0.44 - flip * 0.10, 0.42),
-                    radius: 0.94,
-                    softness: 0.76,
+                    focus: SIMD2(0.5 - flip * 0.72, 0.22),
+                    radius: 1.65,
+                    softness: 0.96,
                     opacity: 1
                 ),
                 .init(
-                    focus: SIMD2(0.50 + flip * 0.48, 0.62),
-                    radius: 0.72,
-                    softness: 0.82,
-                    opacity: 0.94
+                    focus: SIMD2(0.5 + flip * 0.66, 0.78),
+                    radius: 1.45,
+                    softness: 0.94,
+                    opacity: 0.88
                 ),
             ]
-        }
-
-        if material == .asymmetricPool {
-            let rotation = actorUnit(actorSeed, salt: 0xA51A) * Double.pi * 2
-            let offsets = [SIMD2(-0.44, -0.28), SIMD2(0.52, -0.18), SIMD2(-0.08, 0.56)]
-            return offsets.enumerated().map { index, offset in
-                let rotated = SIMD2(
-                    offset.x * cos(rotation) - offset.y * sin(rotation),
-                    offset.x * sin(rotation) + offset.y * cos(rotation)
-                )
-                return DayObjectEditorialRadialFieldV1(
-                    focus: SIMD2(0.5, 0.5) + rotated,
-                    radius: index == 0 ? 1.02 : 0.78,
-                    softness: 0.80 + Double(index) * 0.035,
-                    opacity: index == 0 ? 1 : 0.92
-                )
-            }
         }
 
         return makeFields(

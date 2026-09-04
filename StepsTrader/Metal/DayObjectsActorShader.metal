@@ -190,14 +190,14 @@ static float3 dayObjectsLayeredRadialColor(
     );
     const float stop0 = clamp(appearance.recipe0.x, 0.18, 0.72);
     const float stop1 = max(clamp(appearance.recipe0.y, 0.42, 0.90), stop0 + 0.08);
-    const float transition = 0.045 + 0.10 * localSoftness;
+    const float transition = 0.15 + 0.16 * localSoftness;
 
     const float3 color0 = max(appearance.color0.rgb, 0.0);
     const float3 color1 = max(appearance.color1.rgb, 0.0);
     const float3 color2 = max(appearance.color2.rgb, 0.0);
     float3 result = color0;
     if (colorCount <= 1) {
-        result *= 0.88 + 0.12 * (1.0 - radialT);
+        result = color0;
     } else if (colorCount == 2) {
         result = mix(
             color0,
@@ -305,7 +305,7 @@ fragment float4 dayObjectsActorFragment(
 
     if (material == 7u) { // Outline
         const int outlineCount = clamp(int(round(appearance.recipe1.x)), 1, 3);
-        const float outlineWidth = clamp(appearance.recipe1.y, 0.012, 0.075);
+        const float outlineWidth = clamp(appearance.recipe1.y, 0.002, 0.075);
         const float outlineSpacing = clamp(appearance.recipe1.z, 0.02, 0.09);
         const float outlineWobble = clamp(appearance.recipe1.w, 0.01, 0.08);
         const float contourAngle = atan2(ellipticalPoint.y, ellipticalPoint.x);
@@ -423,7 +423,7 @@ fragment float4 dayObjectsActorFragment(
 
     switch (material) {
     case 1u: { // Solid
-        bodyColor = appearance.color0.rgb * (0.82 + 0.18 * softenedLight);
+        bodyColor = appearance.color0.rgb;
         break;
     }
     case 2u: { // Sphere
@@ -458,7 +458,7 @@ fragment float4 dayObjectsActorFragment(
     }
     case 4u: { // Mist
         const float haze = clamp(combinedLocalSoftness + 0.18, 0.0, 1.0);
-        bodyColor *= 0.70 + 0.18 * centerMask + 0.10 * softenedLight;
+        bodyColor *= 0.82;
         bodyColor = mix(bodyColor, appearance.color1.rgb, haze * 0.10);
         haloAlpha = haloCoverage * actorOpacity
             * clamp(appearance.optical0.y + haze * 0.18, 0.0, 1.0) * 0.62;

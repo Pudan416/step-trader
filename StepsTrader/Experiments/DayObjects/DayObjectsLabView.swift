@@ -387,7 +387,10 @@ struct DayObjectsLabView: View {
                 preview == nil ? "lab-event-\($0)" : "preview-event-\($0)"
             },
             motionEnergy: motionEnergy,
-            visualClarity: visualClarity,
+            visualClarity: Self.resolvedVisualClarity(
+                visualClarity,
+                isEditorialPreview: preview != nil
+            ),
             reduceMotion: reduceMotion || reduceMotionPreview || preview != nil,
             canvasCoverage: Self.canvasCoverage,
             paletteCategories: preview.map { Set([$0.paletteCategory]) }
@@ -397,6 +400,13 @@ struct DayObjectsLabView: View {
             lowSleep: lowSleep,
             editorialPreview: preview
         )
+    }
+
+    static func resolvedVisualClarity(
+        _ requested: Double,
+        isEditorialPreview: Bool
+    ) -> Double {
+        isEditorialPreview ? 1 : requested
     }
 
     private static func dayKey(for offset: Int) -> String {
