@@ -100,6 +100,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
     func testPlaybackPairStopClearsAllSharedHappeningHandlesAndEffectContributions() throws {
         let pair = DayObjectsInstrumentBank.makePlaybackPair(bundle: Bundle(for: type(of: self)))
         try pair.prepare(configuration: .playbackWorld)
+        try pair.start()
         let pool = pair.bankA.happenings
         let baselineEffects = pool.metrics.effects
         let recipes = Array(HappeningSoundCatalog.recipes.prefix(4))
@@ -735,7 +736,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
 
         let reset = pair.bankA.bassDuckGainMetrics
         XCTAssertEqual(reset.resetCount, 1)
-        XCTAssertTrue(reset.isAtUnity)
+        XCTAssertTrue(reset.isEnvelopeClearedForReuse)
         XCTAssertNil(reset.lastAttack)
         XCTAssertNil(reset.lastHold)
         XCTAssertNil(reset.lastRelease)
@@ -753,7 +754,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         let reused = pair.bankA.bassDuckGainMetrics
         XCTAssertEqual(reused.resetCount, 1)
         XCTAssertEqual(try XCTUnwrap(reused.lastAttack).requestedStartHostTimeSeconds, 103, accuracy: 0.000_001)
-        XCTAssertFalse(reused.isAtUnity)
+        XCTAssertFalse(reused.isEnvelopeClearedForReuse)
         pair.stop()
     }
 

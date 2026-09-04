@@ -603,7 +603,7 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
     private var lastScheduledOutputGainAutomation: DayObjectsBankOutputGainAutomation?
     private var bassDuckScheduledSegmentCount = 0
     private var bassDuckResetCount = 0
-    private var bassDuckIsAtUnity = true
+    private var bassDuckEnvelopeClearedForReuse = true
     private var lastBassDuckAttack: BassDuckGainAutomation?
     private var lastBassDuckHold: BassDuckGainAutomation?
     private var lastBassDuckRelease: BassDuckGainAutomation?
@@ -629,7 +629,7 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
             isSupported: true,
             scheduledSegmentCount: bassDuckScheduledSegmentCount,
             resetCount: bassDuckResetCount,
-            isAtUnity: bassDuckIsAtUnity,
+            isEnvelopeClearedForReuse: bassDuckEnvelopeClearedForReuse,
             lastAttack: lastBassDuckAttack,
             lastHold: lastBassDuckHold,
             lastRelease: lastBassDuckRelease
@@ -845,7 +845,7 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
             now: now
         )
         bassDuckScheduledSegmentCount += 3
-        bassDuckIsAtUnity = duckedGain == 1
+        bassDuckEnvelopeClearedForReuse = false
     }
 
     func resetBassDuckGain() {
@@ -856,7 +856,7 @@ private final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentB
         bassTrim.$leftGain.value = 1
         bassTrim.$rightGain.value = 1
         bassDuckResetCount += 1
-        bassDuckIsAtUnity = true
+        bassDuckEnvelopeClearedForReuse = true
         lastBassDuckAttack = nil
         lastBassDuckHold = nil
         lastBassDuckRelease = nil

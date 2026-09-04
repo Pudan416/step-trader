@@ -32,7 +32,9 @@ struct BassDuckGainMetrics: Equatable, Sendable {
     let isSupported: Bool
     let scheduledSegmentCount: Int
     let resetCount: Int
-    let isAtUnity: Bool
+    /// True only after this graph has explicitly cleared the scheduled bass
+    /// envelope for reuse. It is not a live audio-gain observation.
+    let isEnvelopeClearedForReuse: Bool
     let lastAttack: BassDuckGainAutomation?
     let lastHold: BassDuckGainAutomation?
     let lastRelease: BassDuckGainAutomation?
@@ -41,7 +43,7 @@ struct BassDuckGainMetrics: Equatable, Sendable {
         isSupported: false,
         scheduledSegmentCount: 0,
         resetCount: 0,
-        isAtUnity: true,
+        isEnvelopeClearedForReuse: true,
         lastAttack: nil,
         lastHold: nil,
         lastRelease: nil
