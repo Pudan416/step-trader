@@ -390,6 +390,35 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertEqual(still.postProcess, active.postProcess)
     }
 
+    func testHarmonicWeavePreservesLineLegibilityAcrossSleepFocus() {
+        let scene = fixtureScene(
+            dayKey: "2026-01-04",
+            identity: "day-objects-lab",
+            ids: (0..<10).map { "lab-event-\($0)" },
+            categories: ModernPaletteSelection.all,
+            canvasCoverage: .fullCanvas
+        )
+        XCTAssertEqual(scene.visualLanguage.family, .harmonicWeave)
+
+        func blur(_ clarity: Double) -> Double {
+            DayObjectRenderFrame.make(
+                scene: scene,
+                environment: .init(
+                    motionEnergy: 0.55,
+                    visualClarity: clarity,
+                    reduceMotion: false
+                ),
+                elapsed: 4,
+                insertions: [:]
+            ).postProcess.blurRadius
+        }
+
+        XCTAssertEqual(blur(1), 0, accuracy: 0.000_1)
+        XCTAssertLessThan(blur(0.55), 1.2)
+        XCTAssertGreaterThan(blur(0), blur(0.55))
+        XCTAssertLessThan(blur(0), 2.6)
+    }
+
     func testLocalDepthSoftnessRemainsVisibleAtFullGlobalClarity() throws {
         let harness = try ActorRenderHarness(width: 160, height: 160)
         func actor(softness: Float) -> DayObjectGPUActor {
@@ -1917,12 +1946,15 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.metadata), 192)
     }
 
-    func testGPUAppearancePacksOutlineAndCounterformRecipes() throws {
+    func testGPUAppearancePacksOutlineCounterformAndHarmonicWeaveRecipes() throws {
         var outlineAppearance: DayObjectGPUAppearance?
         var counterformAppearance: DayObjectGPUAppearance?
+        var harmonicWeaveAppearance: DayObjectGPUAppearance?
 
         for seed in UInt64(0)..<4_096
-        where outlineAppearance == nil || counterformAppearance == nil {
+        where outlineAppearance == nil
+            || counterformAppearance == nil
+            || harmonicWeaveAppearance == nil {
             let paletteSet = DayObjectPaletteSet.make(
                 rootSeed: seed,
                 categories: ModernPaletteSelection.all
@@ -1938,6 +1970,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
             let packed = DayObjectGPUAppearance(appearance: source)
             if language.family == .outline { outlineAppearance = packed }
             if language.family == .counterform { counterformAppearance = packed }
+            if language.family == .harmonicWeave { harmonicWeaveAppearance = packed }
         }
 
         let outline = try XCTUnwrap(outlineAppearance)
@@ -1954,12 +1987,80 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertTrue((0.14...0.34).contains(counterform.recipe1.z))
         XCTAssertTrue((0.58...0.98).contains(counterform.recipe1.w))
 
-        for appearance in [outline, counterform] {
+        let harmonicWeave = try XCTUnwrap(harmonicWeaveAppearance)
+        XCTAssertEqual(
+            harmonicWeave.metadata.x,
+            DayObjectMaterialFamily.harmonicWeave.rawValue
+        )
+        XCTAssertTrue((3...8).contains(Int(harmonicWeave.recipe1.x.rounded())))
+        XCTAssertTrue((8...24).contains(Int(harmonicWeave.recipe1.y.rounded())))
+        XCTAssertTrue((0.04...0.52).contains(harmonicWeave.recipe1.z))
+        XCTAssertTrue((0.008...0.032).contains(harmonicWeave.recipe1.w))
+
+        for appearance in [outline, counterform, harmonicWeave] {
             XCTAssertTrue((0.18..<0.90).contains(appearance.recipe0.x))
             XCTAssertGreaterThan(appearance.recipe0.y, appearance.recipe0.x)
             XCTAssertLessThanOrEqual(appearance.recipe0.y, 0.90)
             XCTAssertGreaterThanOrEqual(appearance.recipe0.w, 0.58)
         }
+    }
+
+    func testHarmonicWeaveRecipeAndCarrierChangeRenderedPixels() throws {
+        let harness = try ActorRenderHarness(width: 192, height: 192)
+        func actor(shape: DayObjectShape) -> DayObjectGPUActor {
+            DayObjectGPUActor(
+                position: .zero,
+                direction: SIMD2(1, 0),
+                halfSize: SIMD2(0.38, 0.38),
+                opacity: 1,
+                trailLength: 0,
+                shape: shape.numericValue,
+                appearanceIndex: 0,
+                depth: 0.5,
+                materialPhase: 0.17,
+                localDepthSoftness: 0
+            )
+        }
+        func appearance(primary: Float) -> DayObjectGPUAppearance {
+            DayObjectGPUAppearance(
+                color0: SIMD4(0.98, 0.20, 0.38, 1),
+                color1: SIMD4(0.18, 0.82, 0.98, 1),
+                color2: SIMD4(0.82, 0.34, 0.98, 1),
+                radial0: SIMD4(0.24, -0.18, 1, 0.16),
+                radial1: SIMD4(-0.20, 0.16, 0.70, 0.22),
+                radial2: SIMD4(0.12, 0.24, 0.52, 0.20),
+                field: SIMD4(0.04, 2.4, 0.3, 0.04),
+                optical0: SIMD4(0.08, 0.06, 0.88, 1),
+                optical1: SIMD4(0.18, 0, 0, 0.02),
+                light: SIMD4(0.55, 1, 0.72, 0.46),
+                metadata: SIMD4(DayObjectMaterialFamily.harmonicWeave.rawValue, 3, 3, 0),
+                recipe0: SIMD4(0.32, 0.70, 0.04, 0.68),
+                recipe1: SIMD4(primary, 16, 0.28, 0.018)
+            )
+        }
+
+        let circular = try harness.render(
+            actor: actor(shape: .sphere),
+            appearance: appearance(primary: 4),
+            backgroundColor: SIMD3(0.03, 0.06, 0.16)
+        )
+        let differentFrequency = try harness.render(
+            actor: actor(shape: .sphere),
+            appearance: appearance(primary: 7),
+            backgroundColor: SIMD3(0.03, 0.06, 0.16)
+        )
+        let roundedSquare = try harness.render(
+            actor: actor(shape: .roundedSquare),
+            appearance: appearance(primary: 4),
+            backgroundColor: SIMD3(0.03, 0.06, 0.16)
+        )
+
+        XCTAssertGreaterThan(circular.meanAbsoluteRGBDifference(from: differentFrequency), 0.006)
+        XCTAssertGreaterThan(circular.meanAbsoluteRGBDifference(from: roundedSquare), 0.004)
+        XCTAssertLessThan(circular[96, 96], 0.10)
+        XCTAssertGreaterThan(circular.strongAlphaPixelCount, 400)
+        XCTAssertLessThan(circular.strongAlphaPixelCount, 9_000)
+        XCTAssertTrue(circular.isFinitePremultiplied)
     }
 
     func testPoseAndAppearanceUploadsClampNonFiniteAndUnsupportedValues() {
@@ -2212,6 +2313,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
                 structuralParameters = SIMD4(2, 0.045, 0.07, 0.025)
             case .counterform:
                 structuralParameters = SIMD4(0.52, 0.04, 0.22, 0.86)
+            case .harmonicWeave:
+                structuralParameters = SIMD4(5, 16, 0.28, 0.018)
             default:
                 structuralParameters = .zero
             }
@@ -2243,7 +2346,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         let rim = (x: 128, y: 80)
         let outside = (x: 134, y: 80)
 
-        XCTAssertEqual(captures.count, 9)
+        XCTAssertEqual(captures.count, 10)
         XCTAssertGreaterThan(
             try XCTUnwrap(captures[.gradient])[center.x, center.y],
             0.45
@@ -2260,6 +2363,11 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertGreaterThan(try XCTUnwrap(captures[.outline])[rim.x, rim.y], 0.35)
         XCTAssertLessThan(try XCTUnwrap(captures[.counterform])[center.x, center.y], 0.10)
         XCTAssertGreaterThan(try XCTUnwrap(captures[.counterform])[105, 80], 0.35)
+        XCTAssertLessThan(try XCTUnwrap(captures[.harmonicWeave])[center.x, center.y], 0.10)
+        XCTAssertGreaterThan(
+            try XCTUnwrap(captures[.harmonicWeave]).strongAlphaPixelCount,
+            250
+        )
         XCTAssertGreaterThan(
             try XCTUnwrap(captures[.sphere]).meanAbsoluteRGBDifference(
                 from: try XCTUnwrap(captures[.solid])
@@ -3115,6 +3223,10 @@ private struct ActorAlphaCapture {
 
     var partialAlphaPixelCount: Int {
         alpha.filter { $0 > 0.03 && $0 < 0.75 }.count
+    }
+
+    var strongAlphaPixelCount: Int {
+        alpha.filter { $0 >= 0.25 }.count
     }
 
     func meanAbsoluteRGBDifference(from other: ActorAlphaCapture) -> Double {

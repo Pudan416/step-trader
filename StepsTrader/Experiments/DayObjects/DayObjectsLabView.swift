@@ -12,13 +12,37 @@ struct DayObjectsLabView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(SharedKeys.modernPaletteCategories) private var modernPaletteCategoriesRaw = ""
 
-    @State private var dayOffset = 0
-    @State private var happenings: Double = 8
-    @State private var motionEnergy = 0.55
-    @State private var visualClarity = 0.55
+    @State private var dayOffset: Int
+    @State private var happenings: Double
+    @State private var motionEnergy: Double
+    @State private var visualClarity: Double
     @State private var spentColors: Double = 0
     @State private var showsGrid = false
-    @State private var showControls = true
+    @State private var showControls: Bool
+
+    init() {
+        // Debug/Lab-only deterministic entry point used for reviewing one
+        // generated day without mutating the production canvas or Gallery.
+        let defaults = UserDefaults.standard
+        let requestedHappenings = defaults.integer(forKey: "dayObjectsHappenings")
+        let requestedMotion = defaults.object(forKey: "dayObjectsMotionEnergy") == nil
+            ? 0.55
+            : min(max(defaults.double(forKey: "dayObjectsMotionEnergy"), 0), 1)
+        let requestedClarity = defaults.object(forKey: "dayObjectsVisualClarity") == nil
+            ? 0.55
+            : min(max(defaults.double(forKey: "dayObjectsVisualClarity"), 0), 1)
+        _dayOffset = State(initialValue: max(
+            defaults.integer(forKey: "dayObjectsDayOffset"),
+            0
+        ))
+        _happenings = State(initialValue: requestedHappenings > 0
+            ? Double(min(requestedHappenings, DayObjectScene.maxActors))
+            : 8
+        )
+        _motionEnergy = State(initialValue: requestedMotion)
+        _visualClarity = State(initialValue: requestedClarity)
+        _showControls = State(initialValue: !defaults.bool(forKey: "dayObjectsHideControls"))
+    }
 
     private var dayKey: String {
         Self.dayKey(for: dayOffset)

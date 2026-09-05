@@ -66,6 +66,7 @@ struct DayObjectsActorVertexOut {
 };
 
 constant float dayObjectsSoftBlobRadialReach = 1.06;
+constant float dayObjectsSoftStarRadialReach = 1.12;
 constant float dayObjectsTrailSigmaFactor = 0.36;
 constant float dayObjectsTrailSigmaSupport = 3.2;
 
@@ -85,12 +86,11 @@ vertex DayObjectsActorVertexOut dayObjectsActorVertex(
         1.25 / shortSidePixels
     );
     const float mergeReach = halfSize.x * 0.18;
-    const float bodyMajorReach = halfSize.x * (
-        actor.shape == 3 ? dayObjectsSoftBlobRadialReach : 1.0
-    ) + mergeReach;
-    const float bodyMinorReach = halfSize.y * (
-        actor.shape == 3 ? dayObjectsSoftBlobRadialReach : 1.0
-    ) + mergeReach;
+    const float radialReach = actor.shape == 4
+        ? dayObjectsSoftStarRadialReach
+        : (actor.shape == 3 ? dayObjectsSoftBlobRadialReach : 1.0);
+    const float bodyMajorReach = halfSize.x * radialReach + mergeReach;
+    const float bodyMinorReach = halfSize.y * radialReach + mergeReach;
     const float trailMinimumX = -halfSize.x - max(actor.trailLength, 0.0);
 
     // The local quad spans the body plus the complete exponential/Gaussian
@@ -231,8 +231,9 @@ static float3 dayObjectsLayeredRadialColor(
     return mix(result * layeredLight, result, localSoftness * 0.24);
 }
 
-/// Four circle-derived bodies in local units. None of the variants can produce
-/// the old triangles, slabs, petals, or thin Figma-like particles.
+/// Circle-derived carrier bodies in local units. Harmonic modulation remains
+/// continuous around the complete perimeter, so no carrier can develop the
+/// accidental open contour seen in early Lab experiments.
 static float dayObjectsActorBody(
     uint shape,
     float2 point,
@@ -252,6 +253,26 @@ static float dayObjectsActorBody(
     case 3: { // low-amplitude organic orb
         const float blobRadius = 1.0 + 0.055 * sin(3.0 * angle + radialVariation * 1.8);
         return radius - blobRadius;
+    }
+    case 4: { // continuous soft star
+        const float starRadius = 1.0
+            + 0.105 * cos(5.0 * angle + radialVariation * 0.8)
+            + 0.018 * cos(10.0 * angle - radialVariation * 0.5);
+        return radius - starRadius;
+    }
+    case 5: { // softly rounded polygon
+        const float polygonRadius = 1.0
+            + 0.052 * cos(6.0 * angle + radialVariation * 0.35);
+        return radius - polygonRadius;
+    }
+    case 6: { // rounded square derived from a superellipse
+        const float exponent = 4.2;
+        const float superellipseRadius = pow(
+            pow(abs(ellipsePoint.x), exponent)
+                + pow(abs(ellipsePoint.y), exponent),
+            1.0 / exponent
+        );
+        return superellipseRadius - 1.0;
     }
     default: // sphere
         return radius - 1.0;
@@ -296,7 +317,7 @@ fragment float4 dayObjectsActorFragment(
         antialiasPixels,
         signedBodyDistancePixels
     );
-    const uint material = min(appearance.metadata.x, 8u);
+    const uint material = min(appearance.metadata.x, 9u);
     const float localAntialias = antialiasPixels
         / max(majorHalfSize * in.shortSidePixels, 1.0);
     float bodyCoverage = baseBodyCoverage;
@@ -349,6 +370,76 @@ fragment float4 dayObjectsActorFragment(
             )
         ) * coronaIntensity * baseBodyCoverage;
         structuralColor = mix(appearance.color1.rgb, appearance.color2.rgb, 0.5);
+    } else if (material == 9u) { // Harmonic Weave
+        const float encodedPrimary = clamp(appearance.recipe1.x, 3.0, 8.2);
+        const float primaryFrequency = round(encodedPrimary);
+        const uint dialect = min(
+            uint(round(fract(encodedPrimary) * 10.0)),
+            2u
+        );
+        const float secondaryFrequency = clamp(round(appearance.recipe1.y), 8.0, 24.0);
+        const float aperture = clamp(appearance.recipe1.z, 0.04, 0.52);
+        const float lineWidth = clamp(appearance.recipe1.w, 0.008, 0.032);
+        const float angle = atan2(ellipticalPoint.y, ellipticalPoint.x);
+        const float phase = in.materialPhase * 2.0 * M_PI_F;
+        const float apertureAA = max(localAntialias, lineWidth * 0.8);
+        const float apertureCoverage = smoothstep(
+            aperture - apertureAA,
+            aperture + apertureAA,
+            radialDistance
+        );
+        const float normalizedRadius = clamp(
+            (radialDistance - aperture) / max(1.0 - aperture, 1e-4),
+            0.0,
+            1.0
+        );
+
+        float fieldA = 0.0;
+        float fieldB = 0.0;
+        if (dialect == 1u) { // porous annulus: interlocked radial rosettes
+            fieldA = secondaryFrequency * normalizedRadius
+                + 0.42 * sin(primaryFrequency * angle + phase)
+                + 0.10 * sin((primaryFrequency + 2.0) * angle - phase * 0.6);
+            fieldB = (secondaryFrequency * 0.72) * normalizedRadius
+                - 0.38 * cos((primaryFrequency + 1.0) * angle - phase * 0.7)
+                + 0.08 * sin(2.0 * angle + phase);
+        } else if (dialect == 2u) { // angular rosette: spiral ribs crossed by lobed contours
+            const float normalizedAngle = angle / (2.0 * M_PI_F);
+            fieldA = primaryFrequency * normalizedAngle
+                + secondaryFrequency * normalizedRadius * 0.52
+                + 0.16 * sin((primaryFrequency + 1.0) * angle + phase);
+            fieldB = secondaryFrequency * normalizedRadius
+                + 0.64 * cos(primaryFrequency * angle - phase * 0.55)
+                + 0.10 * sin((primaryFrequency + 2.0) * angle + phase * 0.35);
+        } else { // orbital lace: two related, slowly breathing loop families
+            fieldA = secondaryFrequency * normalizedRadius
+                + 0.32 * sin(primaryFrequency * angle + phase)
+                + 0.06 * cos((primaryFrequency + 2.0) * angle - phase * 0.5);
+            fieldB = secondaryFrequency * normalizedRadius
+                - 0.28 * cos((primaryFrequency + 1.0) * angle - phase * 0.75)
+                + 0.06 * sin(2.0 * angle + phase * 0.4);
+        }
+
+        const float ridgeA = abs(sin(M_PI_F * fieldA));
+        const float ridgeB = abs(sin(M_PI_F * fieldB));
+        const float ridgeAA = max(max(fwidth(ridgeA), fwidth(ridgeB)), 0.012);
+        const float ridgeWidth = clamp(
+            lineWidth * secondaryFrequency * 0.34,
+            0.04,
+            0.28
+        );
+        const float linesA = 1.0 - smoothstep(
+            ridgeWidth,
+            ridgeWidth + ridgeAA,
+            ridgeA
+        );
+        const float linesB = 1.0 - smoothstep(
+            ridgeWidth,
+            ridgeWidth + ridgeAA,
+            ridgeB
+        );
+        const float lineUnion = max(linesA, linesB * 0.88);
+        bodyCoverage = baseBodyCoverage * apertureCoverage * lineUnion;
     }
     const float outsideDistancePixels = max(signedBodyDistancePixels, 0.0);
     const float haloReachPixels = max(majorHalfSize * 0.18 * in.shortSidePixels, 1.0);
@@ -395,8 +486,9 @@ fragment float4 dayObjectsActorFragment(
     const float mergeCoverage = (1.0 - baseBodyCoverage) * (
         1.0 - smoothstep(0.0, mergeReachPixels, max(signedBodyDistancePixels, 0.0))
     );
+    const float mergeStrength = material == 9u ? 0.025 : 0.16;
     const float mergeAlpha = mergeCoverage * actorOpacity * materialBodyOpacity
-        * 0.16;
+        * mergeStrength;
     const float visibleMergeAlpha = mergeAlpha * (1.0 - bodyAlpha)
         * (1.0 - visibleTrailAlpha);
 
@@ -486,6 +578,13 @@ fragment float4 dayObjectsActorFragment(
     case 8u: { // Counterform
         bodyColor *= 0.72 + 0.22 * softenedLight + 0.12 * rimMask;
         haloAlpha = haloCoverage * visibilityGate * appearance.optical0.y * 0.34;
+        break;
+    }
+    case 9u: { // Harmonic Weave
+        // The line construction carries the same broad multi-stop color field
+        // as filled actors; the weave changes geometry, not palette logic.
+        bodyColor *= 0.80 + 0.20 * softenedLight;
+        haloAlpha = haloCoverage * visibilityGate * appearance.optical0.y * 0.08;
         break;
     }
     default: { // Gradient

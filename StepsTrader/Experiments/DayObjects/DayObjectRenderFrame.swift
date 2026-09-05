@@ -291,6 +291,20 @@ struct DayObjectGPUAppearance: Equatable {
                 Float(appearance.counterformRadius), Float(appearance.counterformSoftness),
                 Float(appearance.coronaWidth), Float(appearance.coronaIntensity)
             )
+        case .harmonicWeave:
+            if let style = appearance.harmonicWeaveStyle {
+                // Preserve the compact 208-byte ABI. The integer portion is
+                // the carrier frequency; the first decimal digit identifies
+                // the daily weave dialect shared by every actor.
+                let encodedPrimary = Float(style.primaryFrequency)
+                    + Float(style.dialect.rawValue) * 0.1
+                recipe1 = SIMD4(
+                    encodedPrimary, Float(style.secondaryFrequency),
+                    Float(style.aperture), Float(style.lineWidth)
+                )
+            } else {
+                recipe1 = SIMD4(4, 12, 0.24, 0.016)
+            }
         default:
             recipe1 = .zero
         }
@@ -373,6 +387,13 @@ struct DayObjectGPUAppearance: Equatable {
                 Self.bounded(recipe1.y, 0.01...0.08),
                 Self.bounded(recipe1.z, 0.14...0.34),
                 Self.bounded(recipe1.w, 0.58...0.98)
+            )
+        case .harmonicWeave:
+            self.recipe1 = SIMD4(
+                Self.bounded(recipe1.x, 3...8.2),
+                Float(min(max(Int(recipe1.y.rounded()), 8), 24)),
+                Self.bounded(recipe1.z, 0.04...0.52),
+                Self.bounded(recipe1.w, 0.008...0.032)
             )
         default:
             self.recipe1 = .zero
@@ -509,8 +530,15 @@ struct DayObjectRenderFrame: Equatable {
         let choreographyTime = environment.reduceMotion
             ? 0
             : elapsed * baseTempo * environment.tempoScale
+        // Dense one-pixel constructions collapse under the filled-material
+        // blur curve. Keep the sleep signal monotonic, but compress it into a
+        // legible range for Harmonic Weave; actor-local depth softness still
+        // differentiates large foreground carriers from small focused ones.
+        let postProcessClarity = scene.visualLanguage.family == .harmonicWeave
+            ? 0.78 + 0.22 * environment.visualClarity
+            : environment.visualClarity
         let postProcess = DayObjectPostProcess(
-            visualClarity: environment.visualClarity,
+            visualClarity: postProcessClarity,
             reduceMotion: environment.reduceMotion,
             grainSeed: scene.rootSeed,
             elapsed: elapsed
