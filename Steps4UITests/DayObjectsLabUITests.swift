@@ -142,9 +142,38 @@ final class DayObjectsLabUITests: XCTestCase {
         let placement = app.descendants(matching: .any)["dayObjects.placement"].firstMatch
 
         XCTAssertTrue(material.waitForExistence(timeout: 8))
-        XCTAssertTrue(String(describing: material.value).contains("Mixed"))
+        XCTAssertTrue(String(describing: material.value).contains("Generative DNA"))
         XCTAssertTrue(placement.exists)
         XCTAssertTrue(String(describing: placement.value).contains("Depth field"))
+
+        let language = app.staticTexts["dayObjects.language"]
+        XCTAssertTrue(language.waitForExistence(timeout: 5))
+        let initialFingerprint = Self.dnaFingerprint(from: language.value)
+        XCTAssertTrue(initialFingerprint.hasPrefix("DNA "), initialFingerprint)
+
+        app.buttons["dayObjects.nextDay"].tap()
+        let changedFingerprint = XCTNSPredicateExpectation(
+            predicate: NSPredicate { object, _ in
+                guard let element = object as? XCUIElement else { return false }
+                let fingerprint = Self.dnaFingerprint(from: element.value)
+                return fingerprint.hasPrefix("DNA ") && fingerprint != initialFingerprint
+            },
+            object: language
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [changedFingerprint], timeout: 5), .completed)
+        let nextFingerprint = Self.dnaFingerprint(from: language.value)
+
+        app.switches["dayObjects.reduceMotionPreview"].tap()
+        app.buttons["dayObjects.tileToggle"].tap()
+        XCTAssertEqual(Self.dnaFingerprint(from: language.value), nextFingerprint)
+
+        material.tap()
+        let comparison = app.buttons["All formats (comparison)"]
+        XCTAssertTrue(comparison.waitForExistence(timeout: 3))
+        comparison.tap()
+        XCTAssertTrue(
+            String(describing: material.value).contains("All formats (comparison)")
+        )
     }
 
     func testLabControlsAbsoluteSpentColorsInSingleAndGridModes() throws {
@@ -229,11 +258,18 @@ final class DayObjectsLabUITests: XCTestCase {
             .compactMap { Int($0) }
     }
 
+    private static func dnaFingerprint(from accessibilityValue: Any?) -> String {
+        String(describing: accessibilityValue ?? "")
+            .split(whereSeparator: \.isNewline)
+            .first
+            .map(String.init) ?? ""
+    }
+
     private func assertLanguageSummary(
         _ summary: String,
         expectedActorCount: Int
     ) {
-        XCTAssertTrue(summary.contains("family="), summary)
+        XCTAssertTrue(summary.contains("DNA ") || summary.contains("family="), summary)
         XCTAssertTrue(summary.contains("mutations="), summary)
         XCTAssertTrue(summary.contains("motion="), summary)
         XCTAssertTrue(summary.contains("palettes="), summary)
