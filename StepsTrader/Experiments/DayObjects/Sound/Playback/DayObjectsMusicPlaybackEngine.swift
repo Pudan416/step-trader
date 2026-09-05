@@ -766,6 +766,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
 
         func resetDiagnosticAudition() {
             diagnosticAuditionMode = .fullComposition
+            bass.releaseDiagnosticAudition(restoring: plan?.bass)
         }
 
         func auditionKickBassSidechain(
@@ -781,7 +782,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 releaseSeconds: 0.180
             )
             guard let command = bassDucker.command(
-                kickVelocity: 0.82,
+                kickVelocity: 1,
                 hostTime: hostTime,
                 plan: ducking
             ) else { return nil }
@@ -789,11 +790,26 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 guard try bass.audition(
                     instrumentID: descriptor.id,
                     midiNote: descriptor.referenceMIDI,
-                    velocity: 0.78
+                    velocity: 0.78,
+                    hostTime: hostTime
                 ) else { return nil }
-                bank.drums.hit(.kickFull, velocity: 0.82)
+                let kick = DayObjectsScheduledDrumHit(
+                    voice: .kickSoft,
+                    velocity: 1,
+                    scheduledHostTimeSeconds: hostTime,
+                    microtimingMilliseconds: 0,
+                    roomSend: 0,
+                    stereoOffset: 0,
+                    pitchDriftCents: 0
+                )
+                bank.drums.schedule(kick)
                 bank.apply(command)
-                return .init(instrumentID: descriptor.id, duckCommand: command)
+                return .init(
+                    instrumentID: descriptor.id,
+                    duckCommand: command,
+                    scheduledKick: kick,
+                    bassHostTimeSeconds: hostTime
+                )
             } catch {
                 return nil
             }
@@ -1271,6 +1287,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
 
     func releaseDiagnosticAudition(plan: DayMusicPlan) {
         diagnosticAuditionMode = .fullComposition
+        activeWorld.resetDiagnosticAudition()
         activeWorld.applyDiagnosticAudition(.fullComposition, plan: plan)
     }
 
@@ -1708,6 +1725,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
 final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
     private let world: DayObjectsLivePlaybackRuntime.WorldState
     private let diagnosticHostTimeProvider: () -> TimeInterval
+    private var diagnosticAuditionMode: DayObjectsAuditionMode = .fullComposition
     private var pendingStructuralPlan: DayMusicPlan?
     private var transportIsRunning = false
     private var tempoUpdateTask: Task<Void, Never>?
@@ -1728,6 +1746,9 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
         world.bank.instrumentBank.metrics.allocationFingerprint == nil ? 0 : 1
     }
     var activePlanForTesting: DayMusicPlan? { world.plan }
+    var activeProgramEffectMetricsForTesting: DayObjectsProgramEffectMetrics {
+        world.bank.programEffectMetrics
+    }
     var activeHappeningAttackHistoryForTesting: [HappeningAttackRecord] {
         world.happenings.metrics.attackHistory
     }
@@ -1767,10 +1788,13 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
     }
 
     func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan) {
+        if mode != .kickBassSidechain { diagnosticAuditionMode = mode }
         world.applyDiagnosticAudition(mode, plan: plan)
     }
 
     func releaseDiagnosticAudition(plan: DayMusicPlan) {
+        diagnosticAuditionMode = .fullComposition
+        world.resetDiagnosticAudition()
         world.applyDiagnosticAudition(.fullComposition, plan: plan)
     }
 
@@ -1795,7 +1819,7 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
         try world.bank.prepare()
         try world.bindPreparedPlayersIfNeeded()
         world.releaseAll()
-        try world.configure(plan)
+        try world.configure(plan, diagnosticAuditionMode: diagnosticAuditionMode)
         auditionReleaseTasks.values.forEach { $0.cancel() }
         auditionReleaseTasks.removeAll()
         auditionHandles.removeAll()
@@ -1938,7 +1962,7 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
            let plan = pendingStructuralPlan {
             world.releaseAll()
             do {
-                try world.configure(plan)
+                try world.configure(plan, diagnosticAuditionMode: diagnosticAuditionMode)
                 try world.startScheduling(at: event.position)
                 pendingStructuralPlan = nil
                 updateTransport(for: plan)

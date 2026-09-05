@@ -1,4 +1,6 @@
 #if DEBUG || INTERNAL_BUILD
+import Foundation
+
 struct DayObjectsAudioError: Error, Equatable, Sendable {
     let message: String
 
@@ -25,6 +27,8 @@ enum DayObjectsAuditionMode: Hashable, Sendable {
 struct DayObjectsSidechainAuditionResult: Equatable, Sendable {
     let instrumentID: DayObjectsInstrumentID
     let duckCommand: BassDuckCommand
+    let scheduledKick: DayObjectsScheduledDrumHit
+    let bassHostTimeSeconds: TimeInterval
 
     var estimatedReductionDB: Double { duckCommand.maximumAttenuationDecibels }
 }

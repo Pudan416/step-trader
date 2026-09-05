@@ -41,6 +41,10 @@ final class BassPlayer {
     private var attackCount = 0
     private var releaseCount = 0
     private var mixGain = 1.0
+    private var diagnosticToken: DayObjectsVoiceToken?
+    private var diagnosticPool: DayObjectsTonalVoicePoolProtocol?
+    private var diagnosticReleaseTask: Task<Void, Never>?
+    private(set) var lastDiagnosticHostTimeSeconds: TimeInterval?
 
     var metrics: BassPlayerMetrics {
         .init(
@@ -227,13 +231,15 @@ final class BassPlayer {
     func audition(
         instrumentID: DayObjectsInstrumentID,
         midiNote: UInt8,
-        velocity: Double
+        velocity: Double,
+        hostTime: TimeInterval
     ) throws -> Bool {
-        guard acceptsAttacks else { return false }
+        guard acceptsAttacks, hostTime.isFinite else { return false }
+        releaseDiagnosticAudition(restoring: nil)
         try worldBank.prepare()
         let pool = try worldBank.tonalPool(forBass: instrumentID)
         try pool.prepareInstrument(instrumentID)
-        guard pool.noteOn(.init(
+        guard let token = pool.noteOn(.init(
             instrumentID: instrumentID,
             midiNote: midiNote,
             velocity: Self.unit(velocity),
@@ -242,9 +248,32 @@ final class BassPlayer {
             pan: 0,
             delaySend: 0,
             reverbSend: 0.08
-        )) != nil else { return false }
+        )) else { return false }
+        diagnosticPool = pool
+        diagnosticToken = token
+        lastDiagnosticHostTimeSeconds = hostTime
+        diagnosticReleaseTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 220_000_000)
+            guard !Task.isCancelled else { return }
+            self?.releaseDiagnosticAudition(restoring: nil)
+        }
         attackCount += 1
         return true
+    }
+
+    func releaseDiagnosticAudition(restoring plan: BassPlan?) {
+        diagnosticReleaseTask?.cancel()
+        diagnosticReleaseTask = nil
+        if let diagnosticToken, let diagnosticPool { diagnosticPool.noteOff(diagnosticToken) }
+        diagnosticToken = nil
+        diagnosticPool = nil
+        lastDiagnosticHostTimeSeconds = nil
+        guard let plan else { return }
+        let resumeAt = schedulingOriginSubdivision
+        releaseHeldVoice()
+        try? configure(plan, cycleLengthSubdivisions: cycleLengthSubdivisions)
+        acceptsAttacks = true
+        if let resumeAt { startScheduling(at: .init(absoluteSubdivision: resumeAt)) }
     }
 
     private func frame(

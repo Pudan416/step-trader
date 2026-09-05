@@ -364,7 +364,17 @@ final class DayObjectsMusicLabControllerTests: XCTestCase {
                 attackSeconds: 0.005,
                 holdSeconds: 0.045,
                 releaseSeconds: 0.18
-            )
+            ),
+            scheduledKick: .init(
+                voice: .kickSoft,
+                velocity: 1,
+                scheduledHostTimeSeconds: 1,
+                microtimingMilliseconds: 0,
+                roomSend: 0,
+                stereoOffset: 0,
+                pitchDriftCents: 0
+            ),
+            bassHostTimeSeconds: 1
         )
         let controller = DayObjectsMusicLabController(playback: playback)
         await controller.toggleSound()

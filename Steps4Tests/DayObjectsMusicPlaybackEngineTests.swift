@@ -1496,9 +1496,10 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
     }
 
     func testLiveDiagnosticSidechainUsesProductionBassAndActualDuckCommandWithFallback() throws {
+        var diagnosticTime = 42.0
         let runtime = try DayObjectsLivePlaybackRuntime(
             bundle: Bundle(for: type(of: self)),
-            diagnosticHostTimeProvider: { 42 }
+            diagnosticHostTimeProvider: { diagnosticTime }
         )
         let plan = bassLifecyclePlan(seed: 7_201)
         try runtime.prepare(plan: plan)
@@ -1512,10 +1513,46 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         let sidechain = try XCTUnwrap(result)
         XCTAssertEqual(sidechain.instrumentID, DayObjectsInstrumentID(rawValue: "bass.analog-boom"))
         XCTAssertEqual(sidechain.duckCommand.hostTimeSeconds, 42, accuracy: 0.000_001)
+        XCTAssertEqual(sidechain.scheduledKick.voice, .kickSoft)
+        XCTAssertEqual(sidechain.scheduledKick.velocity, 1, accuracy: 0.000_001)
+        XCTAssertEqual(sidechain.scheduledKick.scheduledHostTimeSeconds, 42, accuracy: 0.000_001)
+        XCTAssertEqual(sidechain.bassHostTimeSeconds, 42, accuracy: 0.000_001)
+        XCTAssertTrue((2.5...5).contains(sidechain.estimatedReductionDB))
         XCTAssertEqual(runtime.totalBassAttackCountForTesting, attacksBefore + 1)
         let duck = runtime.activeBassDuckGainMetricsForTesting
         XCTAssertEqual(try XCTUnwrap(duck.lastAttack).requestedStartHostTimeSeconds, 42, accuracy: 0.000_001)
         XCTAssertGreaterThan(duck.scheduledSegmentCount, 0)
+        runtime.releaseDiagnosticAudition(plan: plan)
+        diagnosticTime = 43
+        let selected = try XCTUnwrap(runtime.auditionKickBassSidechain(
+            preferredBassID: DayObjectsInstrumentID(rawValue: "bass.hey-jakob")
+        ))
+        XCTAssertEqual(selected.instrumentID, DayObjectsInstrumentID(rawValue: "bass.hey-jakob"))
+        runtime.releaseDiagnosticAudition(plan: plan)
+        runtime.renderForTesting(.init(
+            kind: .subdivision,
+            position: .init(absoluteSubdivision: 8),
+            hostTimeSeconds: 44,
+            tempoBPM: plan.rhythm.tempoBPM
+        ))
+        XCTAssertGreaterThan(runtime.totalBassAttackCountForTesting, attacksBefore + 1)
+    }
+
+    func testMobileDiagnosticSoloPersistsAcrossRenderContinuousRemixAndRelease() throws {
+        let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let initial = bassLifecyclePlan(seed: 7_301)
+        let update = bassLifecyclePlan(seed: 7_301)
+        let remixed = bassLifecyclePlan(seed: 7_302)
+        try runtime.prepare(plan: initial)
+        try runtime.startPreparedWorldForTesting()
+        runtime.applyDiagnosticAudition(.isolatedBus(.harmony), plan: initial)
+        runtime.renderForTesting(.init(kind: .subdivision, position: .init(absoluteSubdivision: 0), hostTimeSeconds: 0, tempoBPM: initial.rhythm.tempoBPM))
+        runtime.applyContinuous(update)
+        runtime.scheduleStructuralPlan(remixed)
+        renderTransportBoundary(at: 128, tempoBPM: remixed.rhythm.tempoBPM, into: runtime)
+        assertSolo(.harmony, in: try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state))
+        runtime.releaseDiagnosticAudition(plan: remixed)
+        XCTAssertEqual(try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state).rampDurationSeconds, 0.25, accuracy: 0.000_001)
     }
 
     func testLiveSafeHeldLeadKeepsSourceTokenAndDelaysOldBankRecycleUntilRelease() throws {
