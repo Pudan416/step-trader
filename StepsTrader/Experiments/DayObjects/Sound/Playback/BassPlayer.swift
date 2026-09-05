@@ -44,6 +44,7 @@ final class BassPlayer {
     private var diagnosticToken: DayObjectsVoiceToken?
     private var diagnosticPool: DayObjectsTonalVoicePoolProtocol?
     private var diagnosticReleaseTask: Task<Void, Never>?
+    private var diagnosticRestorationPlan: BassPlan?
     private(set) var lastDiagnosticHostTimeSeconds: TimeInterval?
 
     var metrics: BassPlayerMetrics {
@@ -232,7 +233,8 @@ final class BassPlayer {
         instrumentID: DayObjectsInstrumentID,
         midiNote: UInt8,
         velocity: Double,
-        hostTime: TimeInterval
+        hostTime: TimeInterval,
+        restorationPlan: BassPlan?
     ) throws -> Bool {
         guard acceptsAttacks, hostTime.isFinite else { return false }
         releaseDiagnosticAudition(restoring: nil)
@@ -251,11 +253,12 @@ final class BassPlayer {
         )) else { return false }
         diagnosticPool = pool
         diagnosticToken = token
+        diagnosticRestorationPlan = restorationPlan
         lastDiagnosticHostTimeSeconds = hostTime
         diagnosticReleaseTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 220_000_000)
             guard !Task.isCancelled else { return }
-            self?.releaseDiagnosticAudition(restoring: nil)
+            self?.releaseDiagnosticAudition(restoring: self?.diagnosticRestorationPlan)
         }
         attackCount += 1
         return true
@@ -267,6 +270,7 @@ final class BassPlayer {
         if let diagnosticToken, let diagnosticPool { diagnosticPool.noteOff(diagnosticToken) }
         diagnosticToken = nil
         diagnosticPool = nil
+        diagnosticRestorationPlan = nil
         lastDiagnosticHostTimeSeconds = nil
         guard let plan else { return }
         let resumeAt = schedulingOriginSubdivision

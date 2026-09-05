@@ -791,7 +791,8 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                     instrumentID: descriptor.id,
                     midiNote: descriptor.referenceMIDI,
                     velocity: 0.78,
-                    hostTime: hostTime
+                    hostTime: hostTime,
+                    restorationPlan: plan.bass
                 ) else { return nil }
                 let kick = DayObjectsScheduledDrumHit(
                     voice: .kickSoft,
@@ -1916,6 +1917,7 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
     func endLead() { world.endLeadIfBound() }
     func cancelRemix() { pendingStructuralPlan = nil }
     func releaseLayers() {
+        diagnosticAuditionMode = .fullComposition
         world.resetDiagnosticAudition()
         world.releaseAll()
     }
