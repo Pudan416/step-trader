@@ -75,12 +75,17 @@ protocol DayObjectsTonalVoiceBackend: AnyObject {
         transitionDuration: TimeInterval
     )
     func noteOn(_ request: DayObjectsTonalNoteRequest)
+    func noteOn(_ request: DayObjectsTonalNoteRequest, atHostTime hostTime: TimeInterval)
     func update(_ update: DayObjectsVoiceUpdate)
     func noteOff()
     func noteOff(releaseSeconds: TimeInterval?)
 }
 
 extension DayObjectsTonalVoiceBackend {
+    func noteOn(_ request: DayObjectsTonalNoteRequest, atHostTime _: TimeInterval) {
+        noteOn(request)
+    }
+
     func noteOff(releaseSeconds: TimeInterval?) { noteOff() }
 }
 
@@ -167,6 +172,21 @@ final class DayObjectsTonalVoicePool {
     }
 
     func noteOn(_ rawRequest: DayObjectsTonalNoteRequest) -> DayObjectsVoiceToken? {
+        allocate(rawRequest, scheduledHostTime: nil)
+    }
+
+    func noteOn(
+        _ rawRequest: DayObjectsTonalNoteRequest,
+        atHostTime hostTime: TimeInterval
+    ) -> DayObjectsVoiceToken? {
+        guard hostTime.isFinite else { return nil }
+        return allocate(rawRequest, scheduledHostTime: hostTime)
+    }
+
+    private func allocate(
+        _ rawRequest: DayObjectsTonalNoteRequest,
+        scheduledHostTime: TimeInterval?
+    ) -> DayObjectsVoiceToken? {
         guard let preset = preparedInstrumentPresets[rawRequest.instrumentID] else { return nil }
         let request = DayObjectsAudioParameters.clamped(rawRequest)
         let now = monotonicTime()
@@ -195,7 +215,11 @@ final class DayObjectsTonalVoicePool {
         slots[slotID].releasingUntil = nil
         slots[slotID].midiNote = Double(request.midiNote)
         slots[slotID].releaseSeconds = request.envelopeVariant?.absoluteReleaseSeconds
-        slots[slotID].backend.noteOn(request)
+        if let scheduledHostTime {
+            slots[slotID].backend.noteOn(request, atHostTime: scheduledHostTime)
+        } else {
+            slots[slotID].backend.noteOn(request)
+        }
 
         return DayObjectsVoiceToken(
             poolID: poolID,

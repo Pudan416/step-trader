@@ -576,7 +576,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
     }
 
     @MainActor
-    fileprivate final class EffectState: DayObjectsGlitchBackend, DayObjectsMixBackend {
+    final class EffectState: DayObjectsGlitchBackend, DayObjectsMixBackend {
         var onGlitch: ((DayObjectsGlitchCommand) -> Void)?
         var onMix: ((DayObjectsMixState) -> Void)?
         private(set) var glitchByRole: [GlitchRole: DayObjectsGlitchCommand] = [:]
@@ -595,7 +595,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
     }
 
     @MainActor
-    fileprivate final class WorldState {
+    final class WorldState {
         let bank: PlaybackWorldBank
         let effects: EffectState
         private var rhythmPlayer: RhythmPlayer?
@@ -808,8 +808,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 return .init(
                     instrumentID: descriptor.id,
                     duckCommand: command,
-                    scheduledKick: kick,
-                    bassHostTimeSeconds: hostTime
+                    scheduledKick: kick
                 )
             } catch {
                 return nil
@@ -1749,6 +1748,12 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
     var activePlanForTesting: DayMusicPlan? { world.plan }
     var activeProgramEffectMetricsForTesting: DayObjectsProgramEffectMetrics {
         world.bank.programEffectMetrics
+    }
+    var retainedDiagnosticAuditionModeForTesting: DayObjectsAuditionMode {
+        diagnosticAuditionMode
+    }
+    var worldDiagnosticAuditionModeForTesting: DayObjectsAuditionMode {
+        world.diagnosticAuditionMode
     }
     var activeHappeningAttackHistoryForTesting: [HappeningAttackRecord] {
         world.happenings.metrics.attackHistory

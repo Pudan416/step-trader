@@ -514,6 +514,13 @@ private final class DayObjectsCategoryValidatedTonalPool: DayObjectsTonalVoicePo
         guard let descriptor = descriptors[request.instrumentID], descriptor.category != .drums, descriptor.category != .piano, preparedInstruments[request.instrumentID] != nil else { return nil }
         return pool.noteOn(request)
     }
+    func noteOn(
+        _ request: DayObjectsTonalNoteRequest,
+        atHostTime hostTime: TimeInterval
+    ) -> DayObjectsVoiceToken? {
+        guard let descriptor = descriptors[request.instrumentID], descriptor.category != .drums, descriptor.category != .piano, preparedInstruments[request.instrumentID] != nil else { return nil }
+        return pool.noteOn(request, atHostTime: hostTime)
+    }
     func update(_ token: DayObjectsVoiceToken, with update: DayObjectsVoiceUpdate) { pool.update(token, with: update) }
     func noteOff(_ token: DayObjectsVoiceToken) { pool.noteOff(token) }
     func releaseAll() { pool.releaseAll() }
@@ -539,6 +546,12 @@ private final class DayObjectsAudioKitTonalPoolAdapter: DayObjectsTonalVoicePool
     func prepareInstrument(_ id: DayObjectsInstrumentID) throws { try adapter.pool.prepareInstrument(id) }
     func prepareInstruments(_ ids: [DayObjectsInstrumentID]) throws { try adapter.pool.prepareInstruments(ids) }
     func noteOn(_ request: DayObjectsTonalNoteRequest) -> DayObjectsVoiceToken? { adapter.pool.noteOn(request) }
+    func noteOn(
+        _ request: DayObjectsTonalNoteRequest,
+        atHostTime hostTime: TimeInterval
+    ) -> DayObjectsVoiceToken? {
+        adapter.pool.noteOn(request, atHostTime: hostTime)
+    }
     func update(_ token: DayObjectsVoiceToken, with update: DayObjectsVoiceUpdate) { adapter.pool.update(token, with: update) }
     func noteOff(_ token: DayObjectsVoiceToken) { adapter.pool.noteOff(token) }
     func releaseAll() { adapter.pool.releaseAll() }

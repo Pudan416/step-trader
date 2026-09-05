@@ -120,6 +120,27 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
         XCTAssertEqual(harness.voices.count, 3)
     }
 
+    func testScheduledNoteForwardsTheHostTimeToTheAllocatedBackendWithoutAddingAVoice() throws {
+        let harness = makeHarness(specification: .init(
+            name: "scheduled-bass",
+            capacity: 1,
+            reservesLeadVoice: false
+        ))
+        try harness.pool.prepareInstrument(firstID)
+        let allocationBefore = harness.pool.metrics.allocatedVoiceCount
+
+        let token = harness.pool.noteOn(
+            request(note: 43, role: .note),
+            atHostTime: 42
+        )
+
+        XCTAssertNotNil(token)
+        XCTAssertEqual(harness.voices.only?.scheduledGateHostTimes, [42])
+        XCTAssertEqual(harness.voices.only?.noteOnCallCount, 1)
+        XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 1)
+        XCTAssertEqual(harness.pool.metrics.allocatedVoiceCount, allocationBefore)
+    }
+
     func testAuditionPoolReservesTheSixthVoiceForLeadAndStealsTheOldestNonLead() throws {
         let harness = makeHarness()
         try harness.pool.prepareInstrument(firstID)
@@ -333,7 +354,7 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
         }
 
         let presets = harness.voices.flatMap(\.receivedPresets)
-        XCTAssertEqual(presets.count, 15 * 6)
+        XCTAssertEqual(presets.count, 16 * 6)
         XCTAssertTrue(presets.allSatisfy { $0.delay.feedback < DayObjectsAudioParameters.delayFeedbackSafetyLimit })
         XCTAssertTrue(presets.allSatisfy { $0.reverb.feedback < DayObjectsAudioParameters.reverbFeedbackSafetyLimit })
     }
@@ -550,6 +571,7 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
         private(set) var noteOnCallCount = 0
         private(set) var noteOffCallCount = 0
         private(set) var receivedReleaseSeconds: [TimeInterval] = []
+        private(set) var scheduledGateHostTimes: [TimeInterval] = []
         private(set) var lastStart: DayObjectsTonalNoteRequest?
         private(set) var lastUpdate: DayObjectsVoiceUpdate?
 
@@ -569,6 +591,11 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
             isGateOpen = true
             noteOnCallCount += 1
             lastStart = request
+        }
+
+        func noteOn(_ request: DayObjectsTonalNoteRequest, atHostTime hostTime: TimeInterval) {
+            scheduledGateHostTimes.append(hostTime)
+            noteOn(request)
         }
 
         func update(_ update: DayObjectsVoiceUpdate) {
@@ -645,4 +672,8 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
             voice.outputTrimDB,
         ]
     }
+}
+
+private extension Array {
+    var only: Element? { count == 1 ? self[0] : nil }
 }

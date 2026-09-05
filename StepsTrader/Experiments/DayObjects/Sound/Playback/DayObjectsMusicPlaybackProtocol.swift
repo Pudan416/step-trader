@@ -28,7 +28,6 @@ struct DayObjectsSidechainAuditionResult: Equatable, Sendable {
     let instrumentID: DayObjectsInstrumentID
     let duckCommand: BassDuckCommand
     let scheduledKick: DayObjectsScheduledDrumHit
-    let bassHostTimeSeconds: TimeInterval
 
     var estimatedReductionDB: Double { duckCommand.maximumAttenuationDecibels }
 }

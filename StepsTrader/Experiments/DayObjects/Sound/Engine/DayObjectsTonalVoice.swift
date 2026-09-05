@@ -1,6 +1,7 @@
 #if DEBUG || INTERNAL_BUILD
 import AudioKit
 import AudioKitEX
+import AudioToolbox
 import Foundation
 import SoundpipeAudioKit
 
@@ -199,6 +200,48 @@ final class DayObjectsTonalVoiceControlExecutor {
     }
 }
 
+enum DayObjectsTonalGateDelivery: Equatable, Sendable {
+    case immediate
+    case scheduled(sampleOffset: UInt64)
+}
+
+final class DayObjectsTonalGateScheduler {
+    typealias HostTimeProvider = () -> TimeInterval
+    typealias SampleRateProvider = () -> Double
+
+    private let hostTimeProvider: HostTimeProvider
+    private let sampleRateProvider: SampleRateProvider
+
+    init(
+        hostTimeProvider: @escaping HostTimeProvider = {
+            ProcessInfo.processInfo.systemUptime
+        },
+        sampleRateProvider: @escaping SampleRateProvider = { Settings.sampleRate }
+    ) {
+        self.hostTimeProvider = hostTimeProvider
+        self.sampleRateProvider = sampleRateProvider
+    }
+
+    func delivery(atHostTime hostTime: TimeInterval) -> DayObjectsTonalGateDelivery {
+        let delta = hostTime - hostTimeProvider()
+        guard hostTime.isFinite, hostTime > 0, delta > 0 else { return .immediate }
+        let samples = delta * max(sampleRateProvider(), 1)
+        return .scheduled(sampleOffset: UInt64(min(samples.rounded(), Double(UInt64.max))))
+    }
+
+    func open(_ envelope: AmplitudeEnvelope, atHostTime hostTime: TimeInterval) {
+        switch delivery(atHostTime: hostTime) {
+        case .immediate:
+            envelope.openGate()
+        case let .scheduled(sampleOffset):
+            envelope.scheduleMIDIEvent(
+                event: MIDIEvent(noteOn: 64, velocity: 127, channel: 0),
+                offset: sampleOffset
+            )
+        }
+    }
+}
+
 final class DayObjectsAudioKitTonalPool {
     let pool: DayObjectsTonalVoicePool
     let output: Mixer
@@ -292,6 +335,7 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
     private let reverb: CostelloReverb
     private let effectsMixer: Mixer
     private let controlExecutor = DayObjectsTonalVoiceControlExecutor(label: "DayObjectsTonalVoice.control")
+    private let gateScheduler: DayObjectsTonalGateScheduler
 
     private var currentPreset: NormalizedSynthVoice?
     private var currentMIDINote = 60.0
@@ -316,7 +360,8 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
     private var pitchRampEndsAt: TimeInterval?
     private var cutoffRampEndsAt: TimeInterval?
 
-    init() {
+    init(gateScheduler: DayObjectsTonalGateScheduler = .init()) {
+        self.gateScheduler = gateScheduler
         let morphTables = [Table(.sine), Table(.triangle), Table(.square), Table(.sawtooth)]
         oscillator1 = MorphingOscillator(waveformArray: morphTables, amplitude: 0)
         oscillator2 = MorphingOscillator(waveformArray: morphTables, amplitude: 0)
@@ -432,11 +477,20 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
 
     func noteOn(_ request: DayObjectsTonalNoteRequest) {
         controlExecutor.sync {
-            noteOnOnControlExecutor(request)
+            noteOnOnControlExecutor(request, scheduledHostTime: nil)
         }
     }
 
-    private func noteOnOnControlExecutor(_ request: DayObjectsTonalNoteRequest) {
+    func noteOn(_ request: DayObjectsTonalNoteRequest, atHostTime hostTime: TimeInterval) {
+        controlExecutor.sync {
+            noteOnOnControlExecutor(request, scheduledHostTime: hostTime)
+        }
+    }
+
+    private func noteOnOnControlExecutor(
+        _ request: DayObjectsTonalNoteRequest,
+        scheduledHostTime: TimeInterval?
+    ) {
         assertOnControlExecutor()
         guard let preset = currentPreset else { return }
         currentMIDINote = Double(request.midiNote)
@@ -470,7 +524,11 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
             pan: pan,
             duration: Float(DayObjectsAudioParameters.controlRampDuration)
         )
-        amplitudeEnvelope.openGate()
+        if let scheduledHostTime {
+            gateScheduler.open(amplitudeEnvelope, atHostTime: scheduledHostTime)
+        } else {
+            amplitudeEnvelope.openGate()
+        }
         isGateOpen = true
         startModulation()
     }

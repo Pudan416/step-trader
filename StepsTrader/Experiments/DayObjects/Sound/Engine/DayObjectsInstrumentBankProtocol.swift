@@ -50,6 +50,10 @@ protocol DayObjectsTonalVoicePoolProtocol: AnyObject {
     func prepareInstrument(_ id: DayObjectsInstrumentID) throws
     func prepareInstruments(_ ids: [DayObjectsInstrumentID]) throws
     func noteOn(_ request: DayObjectsTonalNoteRequest) -> DayObjectsVoiceToken?
+    func noteOn(
+        _ request: DayObjectsTonalNoteRequest,
+        atHostTime hostTime: TimeInterval
+    ) -> DayObjectsVoiceToken?
     func update(_ token: DayObjectsVoiceToken, with update: DayObjectsVoiceUpdate)
     func noteOff(_ token: DayObjectsVoiceToken)
     func releaseAll()
@@ -58,6 +62,13 @@ protocol DayObjectsTonalVoicePoolProtocol: AnyObject {
 extension DayObjectsTonalVoicePoolProtocol {
     func prepareInstruments(_ ids: [DayObjectsInstrumentID]) throws {
         for id in ids { try prepareInstrument(id) }
+    }
+
+    func noteOn(
+        _ request: DayObjectsTonalNoteRequest,
+        atHostTime _: TimeInterval
+    ) -> DayObjectsVoiceToken? {
+        noteOn(request)
     }
 }
 

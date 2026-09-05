@@ -4,6 +4,89 @@ import XCTest
 
 @MainActor
 final class BassPlayerTests: XCTestCase {
+    func testDiagnosticSidechainSchedulesOneProductionBassGateKickAndDuckAtTheSameHostTime() throws {
+        let harness = try makeHarness()
+        let compositionBass = bassPlan(
+            instrumentID: .init(rawValue: "bass.bb-roys-phaser"),
+            events: [bassEvent(id: 1, start: 0, duration: 4)]
+        )
+        let plan = musicPlan(seed: 8_401, bass: compositionBass)
+        let world = DayObjectsLivePlaybackRuntime.WorldState(bank: harness.worldBank)
+        try world.bindPreparedPlayersIfNeeded()
+        try world.configure(plan)
+        let allocationBefore = harness.worldBank.metrics
+
+        let result = try XCTUnwrap(world.auditionKickBassSidechain(
+            preferredBassID: .init(rawValue: "bass.hey-jakob"),
+            hostTime: 42
+        ))
+
+        let scheduledGateTime = try XCTUnwrap(harness.pool.scheduledGateHostTimes.only)
+        let scheduledKick = try XCTUnwrap(harness.bank.recordingDrums.scheduledHits.only)
+        let scheduledDuck = try XCTUnwrap(harness.bank.duckCommands.only)
+        XCTAssertEqual(scheduledGateTime, 42, accuracy: 0.000_001)
+        XCTAssertEqual(scheduledGateTime, scheduledKick.scheduledHostTimeSeconds, accuracy: 0.000_001)
+        XCTAssertEqual(scheduledGateTime, scheduledDuck.hostTimeSeconds, accuracy: 0.000_001)
+        XCTAssertEqual(scheduledKick.voice, .kickSoft)
+        XCTAssertEqual(result.instrumentID, .init(rawValue: "bass.hey-jakob"))
+        XCTAssertEqual(harness.pool.capacity, 1)
+        XCTAssertEqual(harness.pool.maximumActiveVoiceCount, 1)
+        XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 1)
+        XCTAssertEqual(
+            harness.worldBank.metrics.allocatedTonalVoiceCount,
+            allocationBefore.allocatedTonalVoiceCount
+        )
+        XCTAssertEqual(
+            harness.worldBank.metrics.allocatedPianoVoiceCount,
+            allocationBefore.allocatedPianoVoiceCount
+        )
+        XCTAssertEqual(
+            harness.worldBank.metrics.allocatedDrumPlayerCount,
+            allocationBefore.allocatedDrumPlayerCount
+        )
+    }
+
+    func testDiagnosticExpiryReleasesTokenRestoresCompositionPresetAndAllowsExactlyOneNextAttack() async throws {
+        let harness = try makeHarness()
+        let compositionID = DayObjectsInstrumentID(rawValue: "bass.bb-roys-phaser")
+        let diagnosticID = DayObjectsInstrumentID(rawValue: "bass.hey-jakob")
+        let plan = bassPlan(
+            instrumentID: compositionID,
+            events: [bassEvent(id: 1, start: 0, duration: 4)]
+        )
+        try harness.player.configure(plan, cycleLengthSubdivisions: 16)
+        harness.player.startScheduling(at: .init(absoluteSubdivision: 0))
+        _ = harness.player.render(event(at: 0), plan: plan, duckCommand: nil)
+
+        XCTAssertTrue(try harness.player.audition(
+            instrumentID: diagnosticID,
+            midiNote: 43,
+            velocity: 0.78,
+            hostTime: 42,
+            restorationPlan: plan
+        ))
+        XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 1)
+        XCTAssertEqual(harness.pool.preparedInstrumentID, diagnosticID)
+
+        try await waitUntil(timeout: .seconds(1)) {
+            harness.pool.metrics.activeVoiceCount == 0
+                && harness.pool.preparedInstrumentID == compositionID
+        }
+
+        XCTAssertEqual(harness.pool.preparedInstrumentHistory, [compositionID, diagnosticID, compositionID])
+        XCTAssertNil(harness.player.lastDiagnosticHostTimeSeconds)
+        XCTAssertEqual(harness.pool.capacity, 1)
+        XCTAssertEqual(harness.pool.maximumActiveVoiceCount, 1)
+        let attacksImmediatelyBeforeTransport = harness.player.metrics.attackCount
+
+        let frame = harness.player.render(event(at: 16), plan: plan, duckCommand: nil)
+
+        XCTAssertEqual(frame.attackedEventStableID, 1)
+        XCTAssertEqual(harness.player.metrics.attackCount, attacksImmediatelyBeforeTransport + 1)
+        XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 1)
+        XCTAssertEqual(harness.pool.preparedInstrumentID, compositionID)
+    }
+
     func testActiveBassEventsUseOneReservedVoiceWithoutOverlap() throws {
         let harness = try makeHarness()
         let plan = bassPlan(events: [
@@ -133,19 +216,30 @@ final class BassPlayerTests: XCTestCase {
     private func makeHarness() throws -> (
         player: BassPlayer,
         pool: RecordingBassPool,
-        duckBackend: RecordingBassDuckBackend
+        duckBackend: RecordingBassDuckBackend,
+        bank: RecordingBassInstrumentBank,
+        worldBank: PlaybackWorldBank
     ) {
         let bank = RecordingBassInstrumentBank()
         let world = PlaybackWorldBank(instrumentBank: bank)
         let duckBackend = RecordingBassDuckBackend()
         try world.prepare()
-        return (BassPlayer(worldBank: world, duckBackend: duckBackend), try XCTUnwrap(bank.bassPool), duckBackend)
+        return (
+            BassPlayer(worldBank: world, duckBackend: duckBackend),
+            try XCTUnwrap(bank.bassPool),
+            duckBackend,
+            bank,
+            world
+        )
     }
 
-    private func bassPlan(events: [BassEventPlan]) -> BassPlan {
+    private func bassPlan(
+        instrumentID: DayObjectsInstrumentID = .init(rawValue: "bass.analog-boom"),
+        events: [BassEventPlan]
+    ) -> BassPlan {
         .init(
             mode: .bassPulse,
-            instrumentID: .init(rawValue: "bass.analog-boom"),
+            instrumentID: instrumentID,
             register: 29...52,
             articulation: .pulse,
             stepsProgress: 0.5,
@@ -159,6 +253,33 @@ final class BassPlayerTests: XCTestCase {
                 releaseSeconds: 0.180
             ),
             events: events
+        )
+    }
+
+    private func musicPlan(seed: UInt64, bass: BassPlan) -> DayMusicPlan {
+        let base = DeterministicMusicDirector.makePlan(
+            input: .init(
+                countedSteps: 7_500,
+                stepGoal: 10_000,
+                countedSleepHours: 6,
+                sleepGoalHours: 8,
+                happeningIDs: [],
+                spentColors: 20
+            ),
+            remixSeed: seed
+        )
+        return .init(
+            seed: base.seed,
+            input: base.input,
+            world: base.world,
+            rhythm: base.rhythm,
+            groove: base.groove,
+            bass: bass,
+            harmony: base.harmony,
+            happenings: base.happenings,
+            lead: base.lead,
+            glitch: base.glitch,
+            mix: base.mix
         )
     }
 
@@ -205,9 +326,10 @@ private final class RecordingBassInstrumentBank: DayObjectsInstrumentBankProtoco
     let descriptors = DayObjectsInstrumentManifest.defaultDescriptors
     private(set) var pools: [String: RecordingBassPool] = [:]
     var bassPool: RecordingBassPool? { pools[PlaybackWorldBankConfiguration.PoolName.bass.rawValue] }
-    private let drumBank = RecordingBassDrums()
+    let recordingDrums = RecordingBassDrums()
     private let pianoBank = RecordingBassPiano()
-    var drums: DayObjectsDrumBankProtocol { drumBank }
+    private(set) var duckCommands: [BassDuckCommand] = []
+    var drums: DayObjectsDrumBankProtocol { recordingDrums }
     var piano: DayObjectsPianoPoolProtocol { pianoBank }
     var metrics: DayObjectsInstrumentBankMetrics {
         .init(
@@ -215,7 +337,7 @@ private final class RecordingBassInstrumentBank: DayObjectsInstrumentBankProtoco
             tonalPoolCount: pools.count,
             graph: nil,
             allocationFingerprint: nil,
-            drumMetrics: drumBank.metrics,
+            drumMetrics: recordingDrums.metrics,
             pianoMetrics: pianoBank.metrics
         )
     }
@@ -233,16 +355,19 @@ private final class RecordingBassInstrumentBank: DayObjectsInstrumentBankProtoco
     func stop() async {}
     func releaseWorldLocalVoices() { pools.values.forEach { $0.releaseAll() } }
     func releaseAllIncludingSharedHappenings() { releaseWorldLocalVoices() }
+    func scheduleBassDuck(_ command: BassDuckCommand) { duckCommands.append(command) }
 }
 
 private final class RecordingBassPool: DayObjectsTonalVoicePoolProtocol {
     let name: String
     let capacity: Int
     private(set) var noteOnRequests: [DayObjectsTonalNoteRequest] = []
+    private(set) var scheduledGateHostTimes: [TimeInterval] = []
     private(set) var noteOffCount = 0
     private(set) var updateRequests: [DayObjectsVoiceUpdate] = []
     private(set) var maximumActiveVoiceCount = 0
-    private var preparedInstrument: DayObjectsInstrumentID?
+    private(set) var preparedInstrumentID: DayObjectsInstrumentID?
+    private(set) var preparedInstrumentHistory: [DayObjectsInstrumentID] = []
     private var token: DayObjectsVoiceToken?
     var metrics: DayObjectsTonalPoolMetrics {
         .init(
@@ -256,9 +381,25 @@ private final class RecordingBassPool: DayObjectsTonalVoicePoolProtocol {
     }
 
     init(name: String, capacity: Int) { self.name = name; self.capacity = capacity }
-    func prepareInstrument(_ id: DayObjectsInstrumentID) throws { preparedInstrument = id }
+    func prepareInstrument(_ id: DayObjectsInstrumentID) throws {
+        guard preparedInstrumentID != id else { return }
+        releaseAll()
+        preparedInstrumentID = id
+        preparedInstrumentHistory.append(id)
+    }
     func noteOn(_ request: DayObjectsTonalNoteRequest) -> DayObjectsVoiceToken? {
-        guard request.instrumentID == preparedInstrument, token == nil else { return nil }
+        allocate(request)
+    }
+    func noteOn(
+        _ request: DayObjectsTonalNoteRequest,
+        atHostTime hostTime: TimeInterval
+    ) -> DayObjectsVoiceToken? {
+        guard let token = allocate(request) else { return nil }
+        scheduledGateHostTimes.append(hostTime)
+        return token
+    }
+    private func allocate(_ request: DayObjectsTonalNoteRequest) -> DayObjectsVoiceToken? {
+        guard request.instrumentID == preparedInstrumentID, token == nil else { return nil }
         let token = DayObjectsVoiceToken(slotID: 0, generation: UInt64(noteOnRequests.count + 1))
         self.token = token
         noteOnRequests.append(request)
@@ -274,7 +415,11 @@ private final class RecordingBassPool: DayObjectsTonalVoicePoolProtocol {
         self.token = nil
         noteOffCount += 1
     }
-    func releaseAll() { token = nil }
+    func releaseAll() {
+        guard token != nil else { return }
+        token = nil
+        noteOffCount += 1
+    }
 }
 
 @MainActor
@@ -284,8 +429,10 @@ private final class RecordingBassDuckBackend: BassDuckBackend {
 }
 
 private final class RecordingBassDrums: DayObjectsDrumBankProtocol {
+    private(set) var scheduledHits: [DayObjectsScheduledDrumHit] = []
     var metrics: DayObjectsDrumBankMetrics { .init(allocatedPlayerCount: 0, enabledVoiceCount: 0) }
     func hit(_ voice: DayObjectsDrumVoice, velocity: Double) {}
+    func schedule(_ hit: DayObjectsScheduledDrumHit) { scheduledHits.append(hit) }
     func releaseAll() {}
 }
 
@@ -295,5 +442,24 @@ private final class RecordingBassPiano: DayObjectsPianoPoolProtocol {
     func updateExpression(_ token: DayObjectsFeltPianoToken, expression: Double) {}
     func noteOff(_ token: DayObjectsFeltPianoToken) {}
     func releaseAll() {}
+}
+
+private extension Array {
+    var only: Element? { count == 1 ? self[0] : nil }
+}
+
+@MainActor
+private func waitUntil(
+    timeout: Duration,
+    condition: @MainActor () -> Bool
+) async throws {
+    let clock = ContinuousClock()
+    let deadline = clock.now.advanced(by: timeout)
+    while !condition() {
+        guard clock.now < deadline else {
+            throw DayObjectsAudioError("Timed out waiting for Bass diagnostic expiry")
+        }
+        try await clock.sleep(for: .milliseconds(1))
+    }
 }
 #endif

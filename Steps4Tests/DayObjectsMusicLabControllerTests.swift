@@ -373,8 +373,7 @@ final class DayObjectsMusicLabControllerTests: XCTestCase {
                 roomSend: 0,
                 stereoOffset: 0,
                 pitchDriftCents: 0
-            ),
-            bassHostTimeSeconds: 1
+            )
         )
         let controller = DayObjectsMusicLabController(playback: playback)
         await controller.toggleSound()

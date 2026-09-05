@@ -50,7 +50,7 @@ final class BassPlayer {
     var metrics: BassPlayerMetrics {
         .init(
             allocatedVoiceCount: pool?.metrics.allocatedVoiceCount ?? 0,
-            activeVoiceCount: token == nil ? 0 : 1,
+            activeVoiceCount: token == nil && diagnosticToken == nil ? 0 : 1,
             attackCount: attackCount,
             releaseCount: releaseCount,
             schedulingOriginSubdivision: schedulingOriginSubdivision
@@ -226,8 +226,9 @@ final class BassPlayer {
         mixGain = pow(10, bounded / 20)
     }
 
-    /// Schedules one diagnostic note through the already prepared production
-    /// Bass pool. It deliberately does not replace the transport-held token.
+    /// Schedules one diagnostic note through the capacity-one production Bass
+    /// pool. Any transport gate is released before the diagnostic token takes
+    /// ownership; restoration later reprepares the composition preset.
     @discardableResult
     func audition(
         instrumentID: DayObjectsInstrumentID,
@@ -238,6 +239,7 @@ final class BassPlayer {
     ) throws -> Bool {
         guard acceptsAttacks, hostTime.isFinite else { return false }
         releaseDiagnosticAudition(restoring: nil)
+        releaseHeldVoice()
         try worldBank.prepare()
         let pool = try worldBank.tonalPool(forBass: instrumentID)
         try pool.prepareInstrument(instrumentID)
@@ -250,7 +252,7 @@ final class BassPlayer {
             pan: 0,
             delaySend: 0,
             reverbSend: 0.08
-        )) else { return false }
+        ), atHostTime: hostTime) else { return false }
         diagnosticPool = pool
         diagnosticToken = token
         diagnosticRestorationPlan = restorationPlan

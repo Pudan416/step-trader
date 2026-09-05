@@ -1516,7 +1516,6 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(sidechain.scheduledKick.voice, .kickSoft)
         XCTAssertEqual(sidechain.scheduledKick.velocity, 1, accuracy: 0.000_001)
         XCTAssertEqual(sidechain.scheduledKick.scheduledHostTimeSeconds, 42, accuracy: 0.000_001)
-        XCTAssertEqual(sidechain.bassHostTimeSeconds, 42, accuracy: 0.000_001)
         XCTAssertTrue((2.5...5).contains(sidechain.estimatedReductionDB))
         XCTAssertEqual(runtime.totalBassAttackCountForTesting, attacksBefore + 1)
         let duck = runtime.activeBassDuckGainMetricsForTesting
@@ -1553,6 +1552,42 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         assertSolo(.harmony, in: try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state))
         runtime.releaseDiagnosticAudition(plan: remixed)
         XCTAssertEqual(try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state).rampDurationSeconds, 0.25, accuracy: 0.000_001)
+    }
+
+    func testMobileDirectReleaseLayersResetsBothDiagnosticModesAcrossStopReprepareStart() async throws {
+        let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let initial = bassLifecyclePlan(seed: 7_311)
+        let restarted = bassLifecyclePlan(seed: 7_312)
+        try runtime.prepare(plan: initial)
+        try runtime.startPreparedWorldForTesting()
+        runtime.applyDiagnosticAudition(.isolatedBus(.lead), plan: initial)
+        XCTAssertEqual(runtime.retainedDiagnosticAuditionModeForTesting, .isolatedBus(.lead))
+        XCTAssertEqual(runtime.worldDiagnosticAuditionModeForTesting, .isolatedBus(.lead))
+
+        runtime.releaseLayers()
+
+        XCTAssertEqual(runtime.retainedDiagnosticAuditionModeForTesting, .fullComposition)
+        XCTAssertEqual(runtime.worldDiagnosticAuditionModeForTesting, .fullComposition)
+        await runtime.stopTransportAndEffects()
+        await runtime.stopAudio()
+
+        try runtime.prepare(plan: restarted)
+        try runtime.startPreparedWorldForTesting()
+        runtime.renderForTesting(.init(
+            kind: .subdivision,
+            position: .init(absoluteSubdivision: 0),
+            hostTimeSeconds: 0,
+            tempoBPM: restarted.rhythm.tempoBPM
+        ))
+
+        XCTAssertEqual(runtime.retainedDiagnosticAuditionModeForTesting, .fullComposition)
+        XCTAssertEqual(runtime.worldDiagnosticAuditionModeForTesting, .fullComposition)
+        let mix = try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state)
+        XCTAssertEqual(mix.rhythmTargetDecibels, restarted.mix.rhythmTargetDecibels, accuracy: 0.000_001)
+        XCTAssertEqual(mix.bassTargetDecibels, restarted.mix.bassTargetDecibels, accuracy: 0.000_001)
+        runtime.releaseLayers()
+        await runtime.stopTransportAndEffects()
+        await runtime.stopAudio()
     }
 
     func testLiveSafeHeldLeadKeepsSourceTokenAndDelaysOldBankRecycleUntilRelease() throws {
