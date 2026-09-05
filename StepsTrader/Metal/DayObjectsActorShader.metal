@@ -425,20 +425,9 @@ fragment float4 dayObjectsActorFragment(
     } else if (material == 10u) { // Harmonic path
         const float frequency = clamp(round(appearance.recipe1.x), 2.0, 7.0);
         const float amplitude = clamp(appearance.recipe1.y, 0.04, 0.16);
-        const float opening = clamp(appearance.recipe1.z, 0.08, 0.28);
         const int passCount = clamp(int(round(appearance.recipe1.w)), 1, 3);
         const float pathAngle = atan2(ellipticalPoint.y, ellipticalPoint.x);
         const float pathPhase = in.materialPhase * 2.0 * M_PI_F;
-        const float openingCenter = 0.72 * M_PI_F + pathPhase * 0.08;
-        const float openingDistance = abs(atan2(
-            sin(pathAngle - openingCenter),
-            cos(pathAngle - openingCenter)
-        ));
-        const float openingMask = smoothstep(
-            opening * M_PI_F,
-            opening * M_PI_F + 0.055,
-            openingDistance
-        );
         float paths = 0.0;
         for (int index = 0; index < 3; ++index) {
             if (index < passCount) {
@@ -454,7 +443,7 @@ fragment float4 dayObjectsActorFragment(
             }
         }
         bodyCoverage = 0.0;
-        structuralCoverage = paths * openingMask * baseBodyCoverage;
+        structuralCoverage = paths * baseBodyCoverage;
     }
     const float outsideDistancePixels = max(signedBodyDistancePixels, 0.0);
     const float haloReachPixels = max(majorHalfSize * 0.18 * in.shortSidePixels, 1.0);

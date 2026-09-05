@@ -2955,6 +2955,66 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertTrue(harmonic.isFinitePremultiplied)
     }
 
+    func testHarmonicPathFormsClosedContinuousContoursWithoutAngularBreaks() throws {
+        let harness = try ActorRenderHarness(width: 192, height: 160)
+        let actorHalfSize: Float = 0.30
+        let actor = DayObjectGPUActor(
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(repeating: actorHalfSize),
+            opacity: 1,
+            trailLength: 0,
+            shape: DayObjectShape.sphere.numericValue,
+            appearanceIndex: 0,
+            depth: 0.4,
+            materialPhase: 0.17,
+            localDepthSoftness: 0
+        )
+        let appearance = DayObjectGPUAppearance(
+            color0: SIMD4(0.92, 0.18, 0.34, 1),
+            color1: SIMD4(0.18, 0.72, 0.94, 1),
+            color2: SIMD4(0.95, 0.58, 0.12, 1),
+            radial0: SIMD4(-0.55, -0.22, 1.45, 0.90),
+            radial1: SIMD4(0.58, 0.25, 1.35, 0.86),
+            radial2: SIMD4(0.08, 0.62, 1.25, 0.92),
+            field: SIMD4(0.01, 1.2, 0.2, 0.02),
+            optical0: SIMD4(0, 0, 0.92, 1),
+            optical1: SIMD4(0.18, 0, 0, 0),
+            light: SIMD4(0, 1, 0.88, 0.76),
+            metadata: SIMD4(DayObjectMaterialFamily.harmonicPath.rawValue, 3, 3, 0),
+            recipe0: SIMD4(0.34, 0.72, 0.02, 0.72),
+            recipe1: SIMD4(5, 0.11, 0.20, 2)
+        )
+        let capture = try harness.render(
+            actor: actor,
+            appearance: appearance,
+            backgroundColor: .zero
+        )
+        let center = SIMD2<Float>(Float(harness.width) * 0.5, Float(harness.height) * 0.5)
+        let radiusPixels = actorHalfSize * Float(min(harness.width, harness.height))
+        var missingAngularSamples = [Int]()
+
+        for angularSample in 0..<72 {
+            let angle = Float(angularSample) / 72 * 2 * .pi
+            var strongestAlpha: Float = 0
+            for radialSample in 28...92 {
+                let radius = Float(radialSample) / 100 * radiusPixels
+                let point = center + SIMD2(cos(angle), sin(angle)) * radius
+                let x = min(max(Int(point.x.rounded()), 0), harness.width - 1)
+                let y = min(max(Int(point.y.rounded()), 0), harness.height - 1)
+                strongestAlpha = max(strongestAlpha, capture[x, y])
+            }
+            if strongestAlpha < 0.08 {
+                missingAngularSamples.append(angularSample)
+            }
+        }
+
+        XCTAssertTrue(
+            missingAngularSamples.isEmpty,
+            "A harmonic-path figure must remain closed at every angle; missing samples: \(missingAngularSamples)"
+        )
+    }
+
     func testCloseOrbMergeFieldsCreateSoftBridgeWhileSeparatedBodiesStayDistinct() throws {
         let harness = try ActorRenderHarness(width: 256, height: 128)
         func actor(x: Float) -> DayObjectGPUActor {
