@@ -1,6 +1,6 @@
 # Day Objects Generative DNA Lab MVP Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace the Lab's default eclectic Mixed atlas with a deterministic daily art direction that generates coherent but visibly different Day Objects scenes from circle-derived shapes and genuinely distinct material mechanisms.
 
@@ -9,6 +9,8 @@
 **Tech Stack:** Swift 6, SwiftUI, XCTest, existing `SceneRecipeV1`, Metal Shading Language, existing instanced Day Objects renderer.
 
 **Spec:** `DesignReferences/DayObjects/system/01-generative-dna.md`
+
+**Status (2026-09-05): COMPLETE.** Tasks 1–6 are implemented and committed. The final real-app Metal handoff is in `artifacts/day-objects-generative-dna-lab/final/`. The complete targeted suite was executed once; its only failures are three legacy perceptual signatures reproduced unchanged on baseline `5d7e1fee`, so the prohibited golden refresh was not performed.
 
 ## Global Constraints
 
@@ -60,7 +62,7 @@
 - Produces `DayObjectArtDirectionScheduler.make(dayKey:identity:) -> DayObjectArtDirection`.
 - Produces `DayObjectArtDirection.resolution(eventID:) -> DayObjectActorDNAResolution`.
 
-- [ ] **Step 1: Write failing scheduler tests**
+- [x] **Step 1: Write failing scheduler tests**
 
 Add focused tests with these assertions:
 
@@ -102,7 +104,7 @@ func testActorDNAResolutionIsIndependentOfCountAndOrder() {
 }
 ```
 
-- [ ] **Step 2: Run the scheduler tests and verify RED**
+- [x] **Step 2: Run the scheduler tests and verify RED**
 
 Run one command:
 
@@ -116,7 +118,7 @@ xcodebuild test -project Steps4.xcodeproj -scheme Steps4 \
 
 Expected: compilation fails because the DNA types do not exist.
 
-- [ ] **Step 3: Implement the immutable DNA types and compatibility table**
+- [x] **Step 3: Implement the immutable DNA types and compatibility table**
 
 Create the following public-to-module shape, keeping stored values concrete and `Equatable`:
 
@@ -151,7 +153,7 @@ struct DayObjectArtDirection: Equatable {
 
 Compatibility is an allowlist. `smoothRadial`, `solid`, `layeredMembrane`, and `boundary` support all four carriers. `radialFibers` supports circle, superellipse, and softStar. `harmonicPath` supports circle and softStar. A rejected pairing resamples only the supporting geometry or accent material using its own deterministic domain and falls back to the primary pairing after eight attempts.
 
-- [ ] **Step 4: Implement fourteen-day deterministic scheduling**
+- [x] **Step 4: Implement fourteen-day deterministic scheduling**
 
 For ISO dates, derive a UTC day ordinal. Resolve complete fourteen-day epochs sequentially from the epoch boundary. Seed each candidate with the stable FNV-1a hash of `identity`, epoch index, day slot, attempt, and an explicit domain string. Enforce:
 
@@ -163,11 +165,11 @@ recentSeven.allSatisfy { $0.coreCombination != candidate.coreCombination }
 
 For non-ISO fixture keys, derive a deterministic ordinal from the full key instead of returning a constant. Include the previous epoch's final seven fingerprints while resolving a boundary. Do not read or persist mutable history.
 
-- [ ] **Step 5: Run scheduler tests and verify GREEN**
+- [x] **Step 5: Run scheduler tests and verify GREEN**
 
 Run the command from Step 2. Expected: both tests pass and no other test target runs.
 
-- [ ] **Step 6: Commit scheduler only**
+- [x] **Step 6: Commit scheduler only**
 
 ```bash
 git add -- StepsTrader/Experiments/DayObjects/DayObjectGenerativeDNA.swift \
@@ -190,7 +192,7 @@ git commit -m "feat: schedule Day Objects art direction"
 - Adds `shape: DayObjectShape` to `DayObjectSceneRecipeActorV1`.
 - Produces `DayObjectSceneRecipeV1.artDirectionSummary: String` for Lab diagnostics.
 
-- [ ] **Step 1: Replace the eclectic default expectation with failing coherence tests**
+- [x] **Step 1: Replace the eclectic default expectation with failing coherence tests**
 
 Keep the existing test proving `.mixed` exposes the six comparison formats, but rename it to state that it is an atlas. Add:
 
@@ -215,11 +217,11 @@ func testGenerativeDNALabModeUsesOneDailyEnvelope() throws {
 
 Add an insertion/removal test comparing `shape`, `geometryRegion`, material mechanism, colors, fields, and motion for retained event IDs at counts `3`, `7`, and `10`.
 
-- [ ] **Step 2: Run the new recipe tests and verify RED**
+- [x] **Step 2: Run the new recipe tests and verify RED**
 
 Run only the two new `DayObjectSceneTests`. Expected: missing `.generativeDNA`, recipe art direction, and material mechanism.
 
-- [ ] **Step 3: Add Generative DNA as the Lab default without deleting comparison tools**
+- [x] **Step 3: Add Generative DNA as the Lab default without deleting comparison tools**
 
 Add `.generativeDNA` before `.mixed`, title them `Generative DNA` and `All formats (comparison)`, and initialize:
 
@@ -229,7 +231,7 @@ Add `.generativeDNA` before `.mixed`, title them `Generative DNA` and `All forma
 
 The material menu keeps solid, translucent solid, mist, wide gradient, soft outline, and hairline outline for focused inspection.
 
-- [ ] **Step 4: Resolve recipe actors from the daily envelope**
+- [x] **Step 4: Resolve recipe actors from the daily envelope**
 
 Extend `DayObjectEditorialMaterialV1` with `mechanism: DayObjectMaterialMechanism`. Existing constructors assign the corresponding mechanism without changing their pixels. In Generative DNA mode:
 
@@ -242,7 +244,7 @@ Extend `DayObjectEditorialMaterialV1` with `mechanism: DayObjectMaterialMechanis
 
 The accent thresholds are deterministic in `0.10...0.25`; at ten actors no more than two receive the accent material. At one actor always use primary geometry and material. At two or three actors use an accent only if its stable threshold selects one.
 
-- [ ] **Step 5: Expose the fingerprint in Lab diagnostics**
+- [x] **Step 5: Expose the fingerprint in Lab diagnostics**
 
 For a generative recipe, show:
 
@@ -252,7 +254,7 @@ DNA <family> · <primary geometry> · <primary material> [+ <accent>] · <compos
 
 Keep existing palette and motion diagnostics after this line. Do not add this UI outside `DayObjectsLabView`.
 
-- [ ] **Step 6: Run recipe tests and the existing Editorial Lab scene tests**
+- [x] **Step 6: Run recipe tests and the existing Editorial Lab scene tests**
 
 ```bash
 xcodebuild test -project Steps4.xcodeproj -scheme Steps4 \
@@ -263,7 +265,7 @@ xcodebuild test -project Steps4.xcodeproj -scheme Steps4 \
 
 Expected: all `DayObjectSceneTests` pass; Mixed remains reachable but is no longer the default.
 
-- [ ] **Step 7: Commit recipe integration**
+- [x] **Step 7: Commit recipe integration**
 
 ```bash
 git add -- StepsTrader/Experiments/DayObjects/DayObjectEditorialPreview.swift \
@@ -288,7 +290,7 @@ git commit -m "feat: generate coherent daily Day Objects recipes"
 - Adds `DayObjectGeometryRegion.shape(actorSeed:) -> DayObjectShape`.
 - Makes Editorial frame upload use `recipeActor.shape.numericValue`.
 
-- [ ] **Step 1: Write failing ABI and recipe-upload tests**
+- [x] **Step 1: Write failing ABI and recipe-upload tests**
 
 ```swift
 func testExpandedCircleDerivedShapeNumericValuesAreStable() {
@@ -304,11 +306,11 @@ func testExpandedCircleDerivedShapeNumericValuesAreStable() {
 
 Build one generative recipe for each resolved geometry region and assert the corresponding `DayObjectGPUActor.shape` survives `DayObjectRenderFrame.make`.
 
-- [ ] **Step 2: Run the two focused tests and verify RED**
+- [x] **Step 2: Run the two focused tests and verify RED**
 
 Expected: the three new shape cases do not exist and Editorial upload still forces `.sphere`.
 
-- [ ] **Step 3: Add analytic circle-derived signed-distance carriers**
+- [x] **Step 3: Add analytic circle-derived signed-distance carriers**
 
 Preserve shader cases `0...3`. Add:
 
@@ -335,15 +337,15 @@ case 6: { // smooth compound circular body
 
 Use bounded amplitudes so the star remains rounded and abstract. Increase the vertex-quad radial reach for cases `5` and `6` so no lobe is clipped.
 
-- [ ] **Step 4: Add Metal pixel tests for carrier distinction and safe bounds**
+- [x] **Step 4: Add Metal pixel tests for carrier distinction and safe bounds**
 
 Render all seven shape values at `192 × 160`. Assert each has a readable center, no corner leakage, at least `2,500` nonzero pixels, and a silhouette-area difference from the circle for cases `4...6`. For soft star, sample the five valleys and tips to verify rounded continuous lobes instead of sharp spikes.
 
-- [ ] **Step 5: Run focused scene and Metal shape tests**
+- [x] **Step 5: Run focused scene and Metal shape tests**
 
 Run only the new ABI/upload tests and `testActorShaderRendersOnlyCircleDerivedOrbFamilies`, expanded to `0...6`. Expected: PASS.
 
-- [ ] **Step 6: Commit carrier geometry**
+- [x] **Step 6: Commit carrier geometry**
 
 ```bash
 git add -- StepsTrader/Experiments/DayObjects/DayObjectComposition.swift \
@@ -369,11 +371,11 @@ git commit -m "feat: render circle-derived Day Objects carriers"
 - Maps DNA mechanisms to GPU constructions: `solid -> solid`, `smoothRadial -> gradient`, `layeredMembrane -> glass`, `boundary -> outline`, `radialFibers -> radialFibers`, `harmonicPath -> harmonicPath`.
 - Uses existing `recipe1` parameters for structural density, line width, phase/eccentricity, and opening; GPU struct stride remains 208 bytes.
 
-- [ ] **Step 1: Write failing material reachability and integrity tests**
+- [x] **Step 1: Write failing material reachability and integrity tests**
 
 Across 56 scheduled dates, require every `DayObjectMaterialMechanism` to appear as a primary mechanism. For each ten-actor recipe require one or two material mechanisms total, primary share at least eight actors, and every geometry/material pair accepted by the compatibility table. Assert a solid material has one color and no radial fields.
 
-- [ ] **Step 2: Write failing Metal behavior tests**
+- [x] **Step 2: Write failing Metal behavior tests**
 
 Render the same circle carrier with each mechanism and assert:
 
@@ -384,19 +386,19 @@ Render the same circle carrier with each mechanism and assert:
 - radial fibers contain connected center-to-boundary line coverage with visible gaps between fibers;
 - harmonic path has continuous line coverage, an intentional broad opening, and no disconnected points.
 
-- [ ] **Step 3: Generate material parameters from actor identity**
+- [x] **Step 3: Generate material parameters from actor identity**
 
 For broad radial fields use two or three centers at or beyond `0.55` normalized distance, radius `1.20...1.75`, softness `0.78...1.0`, and clean palette-role colors. For membrane use base opacity `0.50...0.72`, thin chromatic edge, and two broad fields. Boundary width is `0.004...0.065` depending on scene edge mood. Fiber count is `56...104` with screen-derivative antialiasing and per-line opacity coupled inversely to density. Harmonic path uses lobe frequency `2...7`, amplitude `0.04...0.16`, opening `0.08...0.28`, and at most three phase-related passes.
 
-- [ ] **Step 4: Implement radial-fiber and harmonic-path fragment coverage**
+- [x] **Step 4: Implement radial-fiber and harmonic-path fragment coverage**
 
 Compute analytic line distance with `fwidth` rather than discrete points. Multiply structural coverage by the resolved carrier coverage, preserve premultiplied alpha, and suppress trail/merge haze for structural materials. Keep internal phase fixed under Reduce Motion; normal motion may translate the complete actor but must not rotate the local pattern rapidly.
 
-- [ ] **Step 5: Run focused material tests**
+- [x] **Step 5: Run focused material tests**
 
 Run the new scene material tests and new Metal pixel tests only. Expected: all six mechanisms are reachable and visibly non-equivalent.
 
-- [ ] **Step 6: Commit material mechanisms**
+- [x] **Step 6: Commit material mechanisms**
 
 ```bash
 git add -- StepsTrader/Experiments/DayObjects/DayObjectVisualLanguage.swift \
@@ -420,19 +422,19 @@ git commit -m "feat: render generative Day Objects materials"
 - Keeps full-screen, calendar-tile, grid, happening count, motion, focus, low-sleep, and Reduce Motion controls.
 - Keeps All Formats comparison and focused material modes accessible only in Lab.
 
-- [ ] **Step 1: Add failing UI tests**
+- [x] **Step 1: Add failing UI tests**
 
 Launch Day Objects Lab and assert the material picker defaults to `Generative DNA`. Record the `dayObjects.language` value, tap `dayObjects.nextDay`, and assert the fingerprint changes while still beginning with `DNA`. Switch to `All formats (comparison)` and assert it remains reachable. Toggle tile and Reduce Motion and assert their accessibility values change without changing the fingerprint.
 
-- [ ] **Step 2: Run only the new UI test and verify RED**
+- [x] **Step 2: Run only the new UI test and verify RED**
 
 Expected: default mode or fingerprint assertions fail before final Lab wiring.
 
-- [ ] **Step 3: Complete Lab-only wiring**
+- [x] **Step 3: Complete Lab-only wiring**
 
 Ensure the grid renders fifteen different scheduled art directions, the single view advances one date, and manual comparison mode never becomes the default. Changing happening count, low sleep, focus, motion, Reduce Motion, or full/tile presentation must not change the art-direction fingerprint for the same day.
 
-- [ ] **Step 4: Run the complete Day Objects targeted suite once**
+- [x] **Step 4: Run the complete Day Objects targeted suite once**
 
 ```bash
 xcodebuild test -project Steps4.xcodeproj -scheme Steps4 \
@@ -447,7 +449,7 @@ xcodebuild test -project Steps4.xcodeproj -scheme Steps4 \
 
 Expected: PASS with no perceptual golden changes.
 
-- [ ] **Step 5: Commit Lab behavior**
+- [x] **Step 5: Commit Lab behavior**
 
 ```bash
 git add -- StepsTrader/Experiments/DayObjects/DayObjectsLabView.swift \
@@ -467,7 +469,7 @@ git commit -m "feat: expose generative DNA in Day Objects Lab"
 **Interfaces:**
 - Produces one user-reviewable package from the real app renderer, not a separate HTML or CoreGraphics approximation.
 
-- [ ] **Step 1: Build the Simulator app once**
+- [x] **Step 1: Build the Simulator app once**
 
 ```bash
 xcodebuild build -project Steps4.xcodeproj -scheme Steps4 \
@@ -477,19 +479,19 @@ xcodebuild build -project Steps4.xcodeproj -scheme Steps4 \
 
 Expected: `** BUILD SUCCEEDED **`.
 
-- [ ] **Step 2: Capture representative real-app scenes**
+- [x] **Step 2: Capture representative real-app scenes**
 
 Capture at least six different dates in Generative DNA mode, all with ten happenings. The contact sheet must include all four carrier regions across the set, all six material mechanisms across the set, at least one full-screen view, one calendar tile, one light background, one dark background, and one low-sleep state. Do not tune seeds after seeing output; advance dates sequentially from the deterministic Lab control.
 
-- [ ] **Step 3: Capture motion and Reduce Motion**
+- [x] **Step 3: Capture motion and Reduce Motion**
 
 Record one `8...12` second normal-motion clip showing slow whole-object drift and depth parallax. Capture the same date with Reduce Motion at two elapsed times and verify identical actor position, depth, shape, material, and local phase.
 
-- [ ] **Step 4: Inspect the visual package**
+- [x] **Step 4: Inspect the visual package**
 
 Reject and fix only implementation defects: clipped carrier lobes, hard gradient cores, dirty mixing, disconnected fiber dots, moire, invisible outlines, incorrect alpha, identity changes, or fast local rotation. Do not change the approved composition merely to improve one sampled date.
 
-- [ ] **Step 5: Document and commit the final handoff artifacts**
+- [x] **Step 5: Document and commit the final handoff artifacts**
 
 `README.md` records source commit, simulator/device, OS, dates, happening count, background, sleep, motion, Reduce Motion, and exact capture commands.
 
