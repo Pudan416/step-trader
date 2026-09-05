@@ -1992,10 +1992,10 @@ final class DayObjectRenderFrameTests: XCTestCase {
             harmonicWeave.metadata.x,
             DayObjectMaterialFamily.harmonicWeave.rawValue
         )
-        XCTAssertTrue((3...8).contains(Int(harmonicWeave.recipe1.x.rounded())))
-        XCTAssertTrue((8...24).contains(Int(harmonicWeave.recipe1.y.rounded())))
+        XCTAssertTrue((3...6).contains(Int(harmonicWeave.recipe1.x.rounded())))
+        XCTAssertTrue((4...10).contains(Int(harmonicWeave.recipe1.y.rounded())))
         XCTAssertTrue((0.04...0.52).contains(harmonicWeave.recipe1.z))
-        XCTAssertTrue((0.008...0.032).contains(harmonicWeave.recipe1.w))
+        XCTAssertTrue((0.024...0.052).contains(harmonicWeave.recipe1.w))
 
         for appearance in [outline, counterform, harmonicWeave] {
             XCTAssertTrue((0.18..<0.90).contains(appearance.recipe0.x))

@@ -256,10 +256,38 @@ final class DayObjectSceneTests: XCTestCase {
         let scene = try firstHarmonicWeaveScene()
         for actor in scene.actors {
             let style = try XCTUnwrap(actor.appearance.harmonicWeaveStyle)
-            XCTAssertTrue((3...8).contains(style.primaryFrequency))
-            XCTAssertTrue((8...24).contains(style.secondaryFrequency))
+            XCTAssertTrue((3...6).contains(style.primaryFrequency))
+            XCTAssertTrue((4...10).contains(style.secondaryFrequency))
             XCTAssertTrue((0.04...0.52).contains(style.aperture))
-            XCTAssertTrue((0.008...0.032).contains(style.lineWidth))
+            XCTAssertTrue((0.024...0.052).contains(style.lineWidth))
+        }
+    }
+
+    func testHarmonicWeaveReservesDetailedConstructionForLargeMinority() throws {
+        let scene = try firstHarmonicWeaveScene()
+        let detailed = scene.actors.filter { $0.appearance.mutationRole == .base }
+
+        XCTAssertTrue((3...5).contains(detailed.count))
+
+        let frame = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: DayObjectEnvironment(
+                motionEnergy: scene.input.motionEnergy,
+                visualClarity: scene.input.visualClarity,
+                reduceMotion: false
+            ),
+            elapsed: 0,
+            insertions: [:]
+        )
+        for actor in detailed {
+            let rendered = try XCTUnwrap(
+                frame.actors.first { $0.eventID == actor.eventID }
+            )
+            XCTAssertGreaterThanOrEqual(
+                rendered.gpuActor.halfSize.x * 2,
+                0.35,
+                "Detailed line construction must only appear at a legible large scale"
+            )
         }
     }
 

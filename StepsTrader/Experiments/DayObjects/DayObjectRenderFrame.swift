@@ -303,7 +303,7 @@ struct DayObjectGPUAppearance: Equatable {
                     Float(style.aperture), Float(style.lineWidth)
                 )
             } else {
-                recipe1 = SIMD4(4, 12, 0.24, 0.016)
+                recipe1 = SIMD4(4, 7, 0.24, 0.036)
             }
         default:
             recipe1 = .zero
@@ -390,10 +390,10 @@ struct DayObjectGPUAppearance: Equatable {
             )
         case .harmonicWeave:
             self.recipe1 = SIMD4(
-                Self.bounded(recipe1.x, 3...8.2),
-                Float(min(max(Int(recipe1.y.rounded()), 8), 24)),
+                Self.bounded(recipe1.x, 3...6.2),
+                Float(min(max(Int(recipe1.y.rounded()), 4), 10)),
                 Self.bounded(recipe1.z, 0.04...0.52),
-                Self.bounded(recipe1.w, 0.008...0.032)
+                Self.bounded(recipe1.w, 0.024...0.052)
             )
         default:
             self.recipe1 = .zero
@@ -659,7 +659,14 @@ struct DayObjectRenderFrame: Equatable {
     ) -> SIMD2<Float> {
         let aspect = DayObjectActorGeometry.aspectRatio(for: actor)
         _ = leadership
-        let renderedDiameter = pose.scale
+        // Dense line constructions need enough physical pixels to remain
+        // calm on a phone display. Harmonic base actors are the day's four
+        // detailed anchors; soft/accent actors keep their composition scale
+        // and render as simpler contours in the shader.
+        let renderedDiameter = actor.appearance.material == .harmonicWeave
+                && actor.appearance.mutationRole == .base
+            ? max(pose.scale, 0.35)
+            : pose.scale
         let major = renderedDiameter * 0.5
         let baseHalfSize = SIMD2<Float>(Float(major), Float(major * aspect))
         return baseHalfSize * Float(envelopeScale)

@@ -407,20 +407,20 @@ struct DayObjectVisualLanguage: Equatable {
         let lineWidthRange: ClosedRange<Double>
         switch harmonicWeaveDialect {
         case .orbitalLace:
-            primaryRange = 3...6
-            secondaryRange = 10...18
+            primaryRange = 3...5
+            secondaryRange = 5...8
             apertureRange = 0.08...0.34
-            lineWidthRange = 0.010...0.024
+            lineWidthRange = 0.028...0.046
         case .porousAnnulus:
-            primaryRange = 4...7
-            secondaryRange = 8...16
+            primaryRange = 3...5
+            secondaryRange = 4...7
             apertureRange = 0.30...0.52
-            lineWidthRange = 0.012...0.032
+            lineWidthRange = 0.032...0.052
         case .angularLattice:
-            primaryRange = 5...8
-            secondaryRange = 14...24
+            primaryRange = 4...6
+            secondaryRange = 6...10
             apertureRange = 0.04...0.28
-            lineWidthRange = 0.008...0.018
+            lineWidthRange = 0.024...0.042
         }
         return DayObjectHarmonicWeaveStyle(
             dialect: harmonicWeaveDialect,
