@@ -233,6 +233,31 @@ pixel-perfect targets.
 - Use the companion Markdown file as the detailed family profile and apply the
   shared architecture from `system/01-generative-dna.md`.
 
+### 08 — Harmonic Weave Construction
+
+- Files:
+  - `composition/08-harmonic-weave-construction-reference.jpg`
+  - `composition/08-harmonic-weave-construction-reference.md`
+- Source: user-provided image.
+- Role: a supporting construction reference for Harmonic Loop Fields, not a
+  separate catalog of finished ornaments.
+- Preserve:
+  - circle-derived envelopes traversed by repeated continuous paths;
+  - circular, annular, soft-star, rounded-polygon, and rounded-square outcomes
+    emerging from shared parameters;
+  - phase-related passes, variable apertures, and optical density created by
+    line accumulation;
+  - one coherent line and frequency dialect per generated day;
+  - the existing Editorial Field composition, depth, cropping, and negative
+    space.
+- Do not copy literally:
+  - the white-on-blue palette or catalog-like packing;
+  - centered targets, flowers, gears, atoms, badges, or fixed spirograph
+    presets;
+  - unstable high-frequency lines or rapidly rotating ornaments.
+- Use the companion Markdown file as the detailed procedural and compatibility
+  contract.
+
 ## Materials
 
 - Reference 02 also defines useful related material mutations: smooth radial
