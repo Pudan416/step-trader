@@ -101,6 +101,12 @@ enum SharedKeys {
     /// means every category, which is the default.
     static let modernPaletteCategories = "modernPaletteCategories_v1"
 
+    /// Preferred renderer for the active and newly created Canvas. Historical
+    /// canvases freeze their renderer in `DayCanvas.visualStyleRaw`.
+    static let canvasVisualStyle = "canvasVisualStyle_v1"
+    /// One-time migration marker that promotes only the active day to Editorial.
+    static let canvasVisualStyleMigrationVersion = "canvasVisualStyleMigrationVersion_v1"
+
     static let canvasOverlayStyle = "canvasOverlayStyle_v1"
     static let canvasTexture = "canvasTexture_v1"
 

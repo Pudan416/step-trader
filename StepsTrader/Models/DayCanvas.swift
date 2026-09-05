@@ -15,6 +15,7 @@ struct DayCanvas: Codable {
     var gradientPalette: String?
     var overlayStyle: String?
     var textureRaw: String?
+    var visualStyleRaw: String?
     var hasStepsData: Bool?
     var hasSleepData: Bool?
 
@@ -34,6 +35,13 @@ struct DayCanvas: Codable {
         hasSleepData ?? (sleepPoints > 0)
     }
 
+    /// Canvases written before the Editorial promotion are historical Legacy
+    /// canvases. Only the one-time active-day migration may promote a missing
+    /// value; ordinary decoding never changes old artwork retroactively.
+    var resolvedVisualStyle: CanvasVisualStyle {
+        CanvasVisualStyle(rawValue: visualStyleRaw ?? "") ?? .legacy
+    }
+
     init(dayKey: String) {
         self.dayKey = dayKey
         self.elements = []
@@ -47,6 +55,9 @@ struct DayCanvas: Codable {
         self.lastModified = .now
         self.gradientStyle = nil
         self.gradientPalette = nil
+        self.overlayStyle = nil
+        self.textureRaw = nil
+        self.visualStyleRaw = nil
         self.hasStepsData = nil
         self.hasSleepData = nil
     }
