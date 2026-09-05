@@ -1,4 +1,5 @@
 import XCTest
+import simd
 @testable import Steps4
 
 final class DayObjectSceneTests: XCTestCase {
@@ -798,6 +799,116 @@ final class DayObjectSceneTests: XCTestCase {
         XCTAssertTrue(primaryActors.allSatisfy {
             $0.material.colors.count == 1 && $0.material.fields.isEmpty
         })
+    }
+
+    func testSmoothRadialDayChoosesOneCoherentTwoOrThreeColourTopology() throws {
+        let dayKeys = (0..<512).lazy.map { "complex-gradient-\($0)" }.filter {
+            DayObjectArtDirectionScheduler.make(
+                dayKey: $0,
+                identity: "day-objects-lab"
+            ).primaryMaterial == .smoothRadial
+        }.prefix(24)
+        XCTAssertEqual(dayKeys.count, 24)
+        var observedColorCounts = Set<Int>()
+
+        for dayKey in dayKeys {
+            let recipe = try XCTUnwrap(
+                DayObjectScene.make(
+                    input: editorialLabInput(
+                        dayKey: dayKey,
+                        eventIDs: (0..<10).map { "lab-event-\($0)" },
+                        materialMode: .generativeDNA
+                    )
+                ).sceneRecipeV1
+            )
+            let primaryMaterials = recipe.actors.map(\.material).filter {
+                $0.mechanism == .smoothRadial
+            }
+            let colorCounts = Set(primaryMaterials.map(\.colors.count))
+
+            XCTAssertFalse(primaryMaterials.isEmpty, "day=\(dayKey)")
+            XCTAssertEqual(colorCounts.count, 1, "day=\(dayKey)")
+            let colorCount = try XCTUnwrap(colorCounts.first)
+            XCTAssertTrue((2...3).contains(colorCount), "day=\(dayKey)")
+            XCTAssertTrue(primaryMaterials.allSatisfy { $0.fields.count == colorCount })
+            observedColorCounts.insert(colorCount)
+        }
+
+        XCTAssertEqual(observedColorCounts, Set([2, 3]))
+    }
+
+    func testSmoothRadialTopologyUsesBroadSeparatedPerceptualColourFields() throws {
+        let syntheticDayKeys = (0..<512).lazy.map { "complex-gradient-\($0)" }.filter {
+            DayObjectArtDirectionScheduler.make(
+                dayKey: $0,
+                identity: "day-objects-lab"
+            ).primaryMaterial == .smoothRadial
+        }.prefix(24)
+        let visibleLabDayKeys = (0..<42).map { offset in
+            String(
+                format: "2026-%02d-%02d",
+                (offset / 28) % 12 + 1,
+                offset % 28 + 1
+            )
+        }.filter {
+            DayObjectArtDirectionScheduler.make(
+                dayKey: $0,
+                identity: "day-objects-lab"
+            ).primaryMaterial == .smoothRadial
+        }
+        let dayKeys = Array(syntheticDayKeys) + visibleLabDayKeys
+
+        for dayKey in dayKeys {
+            let recipe = try XCTUnwrap(
+                DayObjectScene.make(
+                    input: editorialLabInput(
+                        dayKey: dayKey,
+                        eventIDs: (0..<10).map { "lab-event-\($0)" },
+                        materialMode: .generativeDNA
+                    )
+                ).sceneRecipeV1
+            )
+            for material in recipe.actors.map(\.material).filter({
+                $0.mechanism == .smoothRadial
+            }) {
+                for lhs in material.colors.indices {
+                    for rhs in material.colors.indices where rhs > lhs {
+                        let lhsLab = DayObjectRGB(
+                            sRGB: material.colors[lhs]
+                        ).perceptualOKLab
+                        let rhsLab = DayObjectRGB(
+                            sRGB: material.colors[rhs]
+                        ).perceptualOKLab
+                        XCTAssertGreaterThanOrEqual(
+                            simd_distance(lhsLab, rhsLab),
+                            0.065,
+                            "day=\(dayKey)"
+                        )
+                        XCTAssertGreaterThanOrEqual(
+                            simd_distance(
+                                SIMD2(lhsLab.y, lhsLab.z),
+                                SIMD2(rhsLab.y, rhsLab.z)
+                            ),
+                            0.045,
+                            "gradient colours must differ in hue/chroma, day=\(dayKey)"
+                        )
+                    }
+                }
+                for lhs in material.fields.indices {
+                    for rhs in material.fields.indices where rhs > lhs {
+                        XCTAssertGreaterThanOrEqual(
+                            simd_distance(material.fields[lhs].focus, material.fields[rhs].focus),
+                            0.94,
+                            "day=\(dayKey)"
+                        )
+                    }
+                }
+                XCTAssertTrue(material.fields.allSatisfy {
+                    (0.86...1.34).contains($0.radius)
+                        && (0.96...1.0).contains($0.softness)
+                }, "day=\(dayKey)")
+            }
+        }
     }
 
     private func editorialPreviewInput(

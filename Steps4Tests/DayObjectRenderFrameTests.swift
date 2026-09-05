@@ -2955,6 +2955,84 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertTrue(harmonic.isFinitePremultiplied)
     }
 
+    func testSmoothRadialFieldsGiveEveryPaletteColourAVisibleRegion() throws {
+        let harness = try ActorRenderHarness(width: 192, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(repeating: 0.30),
+            opacity: 1,
+            trailLength: 0,
+            shape: DayObjectShape.sphere.numericValue,
+            appearanceIndex: 0,
+            depth: 0.4,
+            materialPhase: 0.17,
+            localDepthSoftness: 0
+        )
+        func material(
+            colors: [SIMD3<Float>],
+            foci: [SIMD2<Double>]
+        ) -> DayObjectEditorialMaterialV1 {
+            DayObjectEditorialMaterialV1(
+                family: .gradient,
+                mechanism: .smoothRadial,
+                colors: colors,
+                fields: foci.map {
+                    DayObjectEditorialRadialFieldV1(
+                        focus: $0,
+                        radius: 0.96,
+                        softness: 0.98,
+                        opacity: 1
+                    )
+                },
+                baseOpacity: 0.98,
+                edgeSoftness: 0.04,
+                contourWidth: 0,
+                contourCount: 0,
+                counterformRadius: nil,
+                counterformSoftness: 0,
+                structuralParameters: .zero
+            )
+        }
+        func strongestChannelDominance(
+            in capture: ActorAlphaCapture
+        ) -> SIMD3<Float> {
+            var strongest = SIMD3<Float>(repeating: -.infinity)
+            for index in capture.rgb.indices where capture.alpha[index] > 0.65 {
+                let color = capture.rgb[index]
+                strongest.x = max(strongest.x, color.x - max(color.y, color.z))
+                strongest.y = max(strongest.y, color.y - max(color.x, color.z))
+                strongest.z = max(strongest.z, color.z - max(color.x, color.y))
+            }
+            return strongest
+        }
+
+        let twoColour = try harness.render(
+            actor: actor,
+            appearance: material(
+                colors: [SIMD3(1, 0, 0), SIMD3(0, 0, 1)],
+                foci: [SIMD2(-0.10, 0.50), SIMD2(1.10, 0.50)]
+            ).gpuAppearance,
+            backgroundColor: .zero
+        )
+        let twoDominance = strongestChannelDominance(in: twoColour)
+        XCTAssertGreaterThan(twoDominance.x, 0.18)
+        XCTAssertGreaterThan(twoDominance.z, 0.18)
+
+        let threeColour = try harness.render(
+            actor: actor,
+            appearance: material(
+                colors: [SIMD3(1, 0, 0), SIMD3(0, 1, 0), SIMD3(0, 0, 1)],
+                foci: [SIMD2(-0.08, 0.20), SIMD2(1.08, 0.20), SIMD2(0.50, 1.12)]
+            ).gpuAppearance,
+            backgroundColor: .zero
+        )
+        let threeDominance = strongestChannelDominance(in: threeColour)
+        XCTAssertGreaterThan(threeDominance.x, 0.15)
+        XCTAssertGreaterThan(threeDominance.y, 0.15)
+        XCTAssertGreaterThan(threeDominance.z, 0.15)
+    }
+
     func testHarmonicPathFormsClosedContinuousContoursWithoutAngularBreaks() throws {
         let harness = try ActorRenderHarness(width: 192, height: 160)
         let actorHalfSize: Float = 0.30

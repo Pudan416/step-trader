@@ -576,25 +576,46 @@ struct DayObjectSceneRecipeV1: Equatable {
         }
         let primary = displayColors(paletteSet.primaryObjects)
         let secondary = displayColors(paletteSet.secondaryObjects)
+        let fallback = SIMD3<Float>(0.82, 0.32, 0.56)
         let preferred = actorUnit(actorSeed, salt: 0xDA11_C010) < 0.78
             ? primary
             : secondary
-        let colorPool = preferred.isEmpty ? (primary + secondary) : preferred
-        let start = Int(actorSeed % UInt64(max(colorPool.count, 1)))
-        let colorCount: Int = switch mechanism {
-        case .solid, .boundary, .radialFibers: 1
-        case .smoothRadial: actorUnit(actorSeed, salt: 0xDA11_C011) > 0.62 ? 3 : 2
-        case .layeredMembrane: 2
-        case .harmonicPath: 2
-        }
-        let fallback = SIMD3<Float>(0.82, 0.32, 0.56)
-        let colors = (0..<colorCount).map { offset in
-            colorPool.isEmpty ? fallback : colorPool[(start + offset) % colorPool.count]
+        let actorColorPool = preferred.isEmpty ? (primary + secondary) : preferred
+        let actorStart = Int(actorSeed % UInt64(max(actorColorPool.count, 1)))
+        let gradientTopology = ComplexGradientTopology.make(daySeed: daySeed)
+        let colors: [SIMD3<Float>]
+        if mechanism == .smoothRadial {
+            // A day chooses one coherent gradient grammar. Actors may move and
+            // deform independently, but they keep the same approved colour
+            // relationship instead of each rolling a different gradient.
+            colors = makeComplexGradientColors(
+                pool: primary + secondary,
+                requestedCount: gradientTopology.colorCount,
+                daySeed: daySeed,
+                fallback: fallback
+            )
+        } else {
+            let colorCount: Int = switch mechanism {
+            case .solid, .boundary, .radialFibers: 1
+            case .smoothRadial: 2
+            case .layeredMembrane, .harmonicPath: 2
+            }
+            colors = (0..<colorCount).map { offset in
+                actorColorPool.isEmpty
+                    ? fallback
+                    : actorColorPool[(actorStart + offset) % actorColorPool.count]
+            }
         }
         let fields: [DayObjectEditorialRadialFieldV1]
         switch mechanism {
-        case .smoothRadial, .layeredMembrane, .harmonicPath:
-            fields = makeGenerativeFields(actorSeed: actorSeed, count: colorCount)
+        case .smoothRadial:
+            fields = makeComplexGradientFields(
+                topology: gradientTopology,
+                actorSeed: actorSeed,
+                count: colors.count
+            )
+        case .layeredMembrane, .harmonicPath:
+            fields = makeGenerativeFields(actorSeed: actorSeed, count: colors.count)
         default:
             fields = []
         }
@@ -634,6 +655,139 @@ struct DayObjectSceneRecipeV1: Equatable {
                 actorSeed: actorSeed
             )
         )
+    }
+
+    private enum ComplexGradientTopology: Int {
+        case dualSweep
+        case dualBloom
+        case asymmetricTriad
+        case airyTriad
+
+        static func make(daySeed: UInt64) -> Self {
+            let index = Int((daySeed ^ 0xC011_0F13_1D5) % 4)
+            return Self(rawValue: index) ?? .dualSweep
+        }
+
+        var colorCount: Int {
+            switch self {
+            case .dualSweep, .dualBloom: 2
+            case .asymmetricTriad, .airyTriad: 3
+            }
+        }
+    }
+
+    private static func makeComplexGradientColors(
+        pool: [SIMD3<Float>],
+        requestedCount: Int,
+        daySeed: UInt64,
+        fallback: SIMD3<Float>
+    ) -> [SIMD3<Float>] {
+        let unique = pool.reduce(into: [SIMD3<Float>]()) { result, color in
+            guard !result.contains(where: { simd_distance($0, color) < 0.001 }) else {
+                return
+            }
+            result.append(color)
+        }
+        guard !unique.isEmpty else { return [fallback, fallback] }
+
+        let start = Int((daySeed ^ 0xC010_A11C_E) % UInt64(unique.count))
+        let ordered = unique.indices.map { unique[(start + $0) % unique.count] }
+        if requestedCount >= 3, ordered.count >= 3 {
+            var bestTriple: ([SIMD3<Float>], Float)?
+            for first in 0..<(ordered.count - 2) {
+                for second in (first + 1)..<(ordered.count - 1) {
+                    for third in (second + 1)..<ordered.count {
+                        let candidate = [ordered[first], ordered[second], ordered[third]]
+                        guard let score = complexGradientScore(candidate) else { continue }
+                        if bestTriple == nil || score > bestTriple!.1 {
+                            bestTriple = (candidate, score)
+                        }
+                    }
+                }
+            }
+            if let bestTriple { return bestTriple.0 }
+        }
+
+        var bestPair: ([SIMD3<Float>], Float)?
+        if ordered.count >= 2 {
+            for first in 0..<(ordered.count - 1) {
+                for second in (first + 1)..<ordered.count {
+                    let candidate = [ordered[first], ordered[second]]
+                    guard let score = complexGradientScore(candidate) else { continue }
+                    if bestPair == nil || score > bestPair!.1 {
+                        bestPair = (candidate, score)
+                    }
+                }
+            }
+        }
+        return bestPair?.0 ?? [ordered[0], ordered.count > 1 ? ordered[1] : fallback]
+    }
+
+    private static func complexGradientScore(_ colors: [SIMD3<Float>]) -> Float? {
+        let labs = colors.map { DayObjectRGB(sRGB: $0).perceptualOKLab }
+        var perceptualDistances = [Float]()
+        var chromaticDistances = [Float]()
+        for lhs in labs.indices {
+            for rhs in labs.indices where rhs > lhs {
+                perceptualDistances.append(simd_distance(labs[lhs], labs[rhs]))
+                chromaticDistances.append(
+                    simd_distance(
+                        SIMD2(labs[lhs].y, labs[lhs].z),
+                        SIMD2(labs[rhs].y, labs[rhs].z)
+                    )
+                )
+            }
+        }
+        guard let minimumPerceptual = perceptualDistances.min(),
+              let minimumChromatic = chromaticDistances.min(),
+              minimumPerceptual >= 0.065,
+              minimumChromatic >= 0.045 else {
+            return nil
+        }
+        return minimumChromatic * 2 + minimumPerceptual
+    }
+
+    private static func makeComplexGradientFields(
+        topology: ComplexGradientTopology,
+        actorSeed: UInt64,
+        count: Int
+    ) -> [DayObjectEditorialRadialFieldV1] {
+        let baseAngle = actorUnit(actorSeed, salt: 0xC011_F13D) * 2 * Double.pi
+        let angularJitter = (actorUnit(actorSeed, salt: 0xC011_0177) - 0.5) * 0.04
+        let distanceJitter = (actorUnit(actorSeed, salt: 0xC011_D157) - 0.5) * 0.025
+        let specification: [(angle: Double, distance: Double, radius: Double, opacity: Double)]
+        switch topology {
+        case .dualSweep:
+            specification = [(0, 0.64, 1.06, 1), (.pi, 0.64, 1.06, 1)]
+        case .dualBloom:
+            specification = [(0, 0.56, 1.28, 0.96), (.pi, 0.78, 0.90, 1)]
+        case .asymmetricTriad:
+            specification = [
+                (0, 0.72, 1.10, 1),
+                (2.10, 0.70, 0.96, 0.98),
+                (4.22, 0.74, 1.04, 0.98),
+            ]
+        case .airyTriad:
+            specification = [
+                (0, 0.60, 1.30, 0.94),
+                (2.15, 0.74, 1.00, 1),
+                (4.25, 0.68, 1.14, 0.98),
+            ]
+        }
+
+        return specification.prefix(count).enumerated().map { index, field in
+            let angle = baseAngle + field.angle + angularJitter * (index == 1 ? -1 : 1)
+            let distance = field.distance + distanceJitter * (index == 2 ? -1 : 1)
+            return DayObjectEditorialRadialFieldV1(
+                focus: SIMD2(
+                    0.5 + cos(angle) * distance,
+                    0.5 + sin(angle) * distance
+                ),
+                radius: field.radius,
+                softness: 0.98 + Double(index) * 0.01,
+                opacity: field.opacity
+            )
+        }
     }
 
     private static func makeGenerativeFields(

@@ -188,6 +188,54 @@ final class DayObjectsLabUITests: XCTestCase {
         )
     }
 
+    func testComplexGradientExamplesVisualHandoff() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-uiLab", "dayObjects",
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        let happenings = app.sliders["dayObjects.happenings"]
+        let language = app.staticTexts["dayObjects.language"]
+        let controlsToggle = app.buttons["dayObjects.controlsToggle"]
+        let nextDay = app.buttons["dayObjects.nextDay"]
+        XCTAssertTrue(happenings.waitForExistence(timeout: 8))
+        XCTAssertTrue(language.waitForExistence(timeout: 5))
+        setHappenings(10, on: happenings)
+
+        var captured = 0
+        for offset in 0..<42 where captured < 4 {
+            let fingerprint = Self.dnaFingerprint(from: language.value)
+            let primaryMaterial = fingerprint
+                .components(separatedBy: " · ")
+                .dropFirst(2)
+                .first ?? ""
+            if primaryMaterial.hasPrefix("radial field") {
+                controlsToggle.tap()
+                Thread.sleep(forTimeInterval: 1)
+                attachScreenshot(named: "complex-gradient-\(captured + 1)-offset-\(offset)")
+                controlsToggle.tap()
+                let controlsReady = XCTNSPredicateExpectation(
+                    predicate: NSPredicate(format: "isHittable == true"),
+                    object: nextDay
+                )
+                XCTAssertEqual(
+                    XCTWaiter.wait(for: [controlsReady], timeout: 3),
+                    .completed
+                )
+                captured += 1
+            }
+            if captured < 4 {
+                nextDay.tap()
+                Thread.sleep(forTimeInterval: 0.35)
+            }
+        }
+
+        XCTAssertEqual(captured, 4)
+    }
+
     func testLabControlsAbsoluteSpentColorsInSingleAndGridModes() throws {
         let app = XCUIApplication()
         app.launchArguments = [

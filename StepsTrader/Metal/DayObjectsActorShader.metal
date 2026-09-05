@@ -215,7 +215,7 @@ static float3 dayObjectsLayeredRadialColor(
         const float broadFieldCoherence = smoothstep(0.76, 0.82, appearance.radial0.w);
         const float w0 = mix(
             0.72 + 0.38 * primaryField,
-            0.88 + 0.45 * primaryField,
+            0.10 + 1.05 * primaryField,
             broadFieldCoherence
         );
         const float secondaryField = dayObjectsSoftColorFieldWeight(
@@ -226,7 +226,7 @@ static float3 dayObjectsLayeredRadialColor(
         ) * clamp(appearance.light.z, 0.0, 1.0);
         const float w1 = mix(
             0.10 + 0.58 * secondaryField,
-            0.08 + 0.46 * secondaryField,
+            0.10 + 1.05 * secondaryField,
             broadFieldCoherence
         );
         float totalWeight = w0 + w1;
@@ -241,7 +241,7 @@ static float3 dayObjectsLayeredRadialColor(
             ) * clamp(appearance.light.w, 0.0, 1.0);
             const float w2 = mix(
                 0.08 + 0.50 * tertiaryField,
-                0.06 + 0.40 * tertiaryField,
+                0.08 + 1.02 * tertiaryField,
                 broadFieldCoherence
             );
             result += color2 * w2;
