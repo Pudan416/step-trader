@@ -317,7 +317,7 @@ fragment float4 dayObjectsActorFragment(
         antialiasPixels,
         signedBodyDistancePixels
     );
-    const uint material = min(appearance.metadata.x, 9u);
+    const uint material = min(appearance.metadata.x, 8u);
     const float localAntialias = antialiasPixels
         / max(majorHalfSize * in.shortSidePixels, 1.0);
     float bodyCoverage = baseBodyCoverage;
@@ -370,95 +370,6 @@ fragment float4 dayObjectsActorFragment(
             )
         ) * coronaIntensity * baseBodyCoverage;
         structuralColor = mix(appearance.color1.rgb, appearance.color2.rgb, 0.5);
-    } else if (material == 9u) { // Harmonic Weave
-        const float encodedPrimary = clamp(appearance.recipe1.x, 3.0, 6.2);
-        const float primaryFrequency = round(encodedPrimary);
-        const uint dialect = min(
-            uint(round(fract(encodedPrimary) * 10.0)),
-            2u
-        );
-        const float secondaryFrequency = clamp(round(appearance.recipe1.y), 4.0, 10.0);
-        const float aperture = clamp(appearance.recipe1.z, 0.04, 0.52);
-        const float lineWidth = clamp(appearance.recipe1.w, 0.024, 0.052);
-        const float angle = atan2(ellipticalPoint.y, ellipticalPoint.x);
-        const float phase = in.materialPhase * 2.0 * M_PI_F;
-        const float apertureAA = max(localAntialias, lineWidth * 0.8);
-        const float apertureCoverage = smoothstep(
-            aperture - apertureAA,
-            aperture + apertureAA,
-            radialDistance
-        );
-        const float normalizedRadius = clamp(
-            (radialDistance - aperture) / max(1.0 - aperture, 1e-4),
-            0.0,
-            1.0
-        );
-
-        // Base actors are the stable detailed minority selected by the daily
-        // DNA. Every other actor uses one broad contour, preventing ten
-        // simultaneous interference fields from turning into visual noise.
-        const bool detailedConstruction = appearance.metadata.w == 0u
-            && majorHalfSize * 2.0 >= 0.35;
-        if (!detailedConstruction) {
-            const float contourRadius = mix(0.72, 0.84, aperture)
-                + 0.035 * sin(primaryFrequency * angle + phase * 0.18);
-            const float contourDistance = abs(radialDistance - contourRadius);
-            const float contourWidth = lineWidth * 1.40;
-            bodyCoverage = baseBodyCoverage * (
-                1.0 - smoothstep(
-                    contourWidth,
-                    contourWidth + localAntialias,
-                    contourDistance
-                )
-            );
-        } else {
-            float fieldA = 0.0;
-            float fieldB = 0.0;
-            if (dialect == 1u) { // porous annulus: interlocked radial rosettes
-                fieldA = secondaryFrequency * normalizedRadius
-                    + 0.42 * sin(primaryFrequency * angle + phase)
-                    + 0.10 * sin((primaryFrequency + 2.0) * angle - phase * 0.6);
-                fieldB = (secondaryFrequency * 0.72) * normalizedRadius
-                    - 0.38 * cos((primaryFrequency + 1.0) * angle - phase * 0.7)
-                    + 0.08 * sin(2.0 * angle + phase);
-            } else if (dialect == 2u) { // angular rosette: spiral ribs crossed by lobed contours
-                const float normalizedAngle = angle / (2.0 * M_PI_F);
-                fieldA = primaryFrequency * normalizedAngle
-                    + secondaryFrequency * normalizedRadius * 0.52
-                    + 0.16 * sin((primaryFrequency + 1.0) * angle + phase);
-                fieldB = secondaryFrequency * normalizedRadius
-                    + 0.64 * cos(primaryFrequency * angle - phase * 0.55)
-                    + 0.10 * sin((primaryFrequency + 2.0) * angle + phase * 0.35);
-            } else { // orbital lace: two related, slowly breathing loop families
-                fieldA = secondaryFrequency * normalizedRadius
-                    + 0.32 * sin(primaryFrequency * angle + phase)
-                    + 0.06 * cos((primaryFrequency + 2.0) * angle - phase * 0.5);
-                fieldB = secondaryFrequency * normalizedRadius
-                    - 0.28 * cos((primaryFrequency + 1.0) * angle - phase * 0.75)
-                    + 0.06 * sin(2.0 * angle + phase * 0.4);
-            }
-
-            const float ridgeA = abs(sin(M_PI_F * fieldA));
-            const float ridgeB = abs(sin(M_PI_F * fieldB));
-            const float ridgeAA = max(max(fwidth(ridgeA), fwidth(ridgeB)), 0.012);
-            const float ridgeWidth = clamp(
-                lineWidth * secondaryFrequency * 0.52,
-                0.08,
-                0.34
-            );
-            const float linesA = 1.0 - smoothstep(
-                ridgeWidth,
-                ridgeWidth + ridgeAA,
-                ridgeA
-            );
-            const float linesB = 1.0 - smoothstep(
-                ridgeWidth,
-                ridgeWidth + ridgeAA,
-                ridgeB
-            );
-            const float lineUnion = max(linesA, linesB * 0.82);
-            bodyCoverage = baseBodyCoverage * apertureCoverage * lineUnion;
-        }
     }
     const float outsideDistancePixels = max(signedBodyDistancePixels, 0.0);
     const float haloReachPixels = max(majorHalfSize * 0.18 * in.shortSidePixels, 1.0);
@@ -597,13 +508,6 @@ fragment float4 dayObjectsActorFragment(
     case 8u: { // Counterform
         bodyColor *= 0.72 + 0.22 * softenedLight + 0.12 * rimMask;
         haloAlpha = haloCoverage * visibilityGate * appearance.optical0.y * 0.34;
-        break;
-    }
-    case 9u: { // Harmonic Weave
-        // The line construction carries the same broad multi-stop color field
-        // as filled actors; the weave changes geometry, not palette logic.
-        bodyColor *= 0.80 + 0.20 * softenedLight;
-        haloAlpha = haloCoverage * visibilityGate * appearance.optical0.y * 0.08;
         break;
     }
     default: { // Gradient

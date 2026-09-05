@@ -240,8 +240,6 @@ struct DayObjectChoreographyConfiguration: Equatable {
             preferred = [.breathingGrid, .crossCurrents, .circularChoir]
         case .mist:
             preferred = [.constellation, .eclipseStack, .depthField]
-        case .harmonicWeave:
-            preferred = [.waveRibbon, .eclipseStack, .crossCurrents, .constellation, .depthField]
         case .gradient, .counterform:
             preferred = Set(DayObjectChoreographyPreset.allCases)
         }

@@ -4,7 +4,10 @@
 
 ## Status and role
 
-This image is a supporting construction reference for the existing
+**Status: rejected for Day Objects on 2026-09-05. Archive only; do not generate
+or render this construction family.**
+
+This image was a supporting construction reference for the existing
 **Harmonic Loop Fields** family. It does not introduce a catalog of finished
 ornaments. It extends the family's procedural grammar so one repeated path can
 form circular, annular, softly starred, rounded-polygon, and rounded-square
@@ -172,4 +175,3 @@ weave at rest.
 - The full-screen image remains stable and the tile representation does not
   crawl, sparkle, or collapse into random noise.
 - The feature remains available only inside Day Objects Lab.
-

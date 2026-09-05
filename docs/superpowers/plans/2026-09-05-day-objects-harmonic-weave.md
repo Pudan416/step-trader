@@ -1,5 +1,9 @@
 # Day Objects Harmonic Weave Implementation Plan
 
+> **Status: retired on 2026-09-05 after visual review.** The implementation and
+> generated previews were removed. This document is retained only as history
+> and must not be treated as an active plan.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a deterministic Harmonic Weave construction mode to Day Objects Lab while preserving existing Editorial Field composition, palettes, motion, and actor identity.

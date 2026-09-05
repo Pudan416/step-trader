@@ -235,6 +235,9 @@ pixel-perfect targets.
 
 ### 08 — Harmonic Weave Construction
 
+> **Rejected for Day Objects (2026-09-05).** Archive only. Do not include this
+> construction family in generation or rendering.
+
 - Files:
   - `composition/08-harmonic-weave-construction-reference.jpg`
   - `composition/08-harmonic-weave-construction-reference.md`
