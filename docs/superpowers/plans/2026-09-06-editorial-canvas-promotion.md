@@ -30,6 +30,7 @@
 - `Views/Components/DayCanvasArtworkView.swift` routes live artwork without constructing inactive layers.
 - `Experiments/DayObjects/DayObjectsImageRenderer.swift` renders deterministic Metal stills.
 - Existing Gallery, Appearance, history, thumbnail, and export files consume those focused boundaries.
+- `Steps4.xcodeproj/project.pbxproj` explicitly registers every new app and test source in its target.
 
 ---
 
@@ -40,6 +41,7 @@
 - Modify: `StepsTrader/Models/DayCanvas.swift`
 - Modify: `StepsTrader/Utilities/SharedKeys.swift`
 - Create: `Steps4Tests/CanvasVisualStyleTests.swift`
+- Modify: `Steps4.xcodeproj/project.pbxproj`
 
 **Interfaces:**
 - Produces `CanvasVisualStyle`, `DayCanvas.visualStyleRaw`, `DayCanvas.resolvedVisualStyle`.
@@ -134,7 +136,7 @@ Add the optional Codable field to `DayCanvas`. Invalid or missing raw values res
 - [ ] **Step 5: Commit the model boundary**
 
 ```bash
-git add StepsTrader/Models/CanvasVisualStyle.swift StepsTrader/Models/DayCanvas.swift StepsTrader/Utilities/SharedKeys.swift Steps4Tests/CanvasVisualStyleTests.swift
+git add StepsTrader/Models/CanvasVisualStyle.swift StepsTrader/Models/DayCanvas.swift StepsTrader/Utilities/SharedKeys.swift Steps4Tests/CanvasVisualStyleTests.swift Steps4.xcodeproj/project.pbxproj
 git commit -m "feat: version Canvas visual renderer"
 ```
 
@@ -145,6 +147,7 @@ git commit -m "feat: version Canvas visual renderer"
 **Files:**
 - Create: `StepsTrader/Experiments/DayObjects/EditorialCanvasInputFactory.swift`
 - Create: `Steps4Tests/EditorialCanvasInputFactoryTests.swift`
+- Modify: `Steps4.xcodeproj/project.pbxproj`
 
 **Interfaces:**
 - Produces `EditorialCanvasMetrics(stepsProgress:sleepProgress:spentProgress:)`.
@@ -227,7 +230,7 @@ xcodebuild test -project Steps4.xcodeproj -scheme Steps4 -configuration Debug -d
 - [ ] **Step 5: Commit the adapter**
 
 ```bash
-git add StepsTrader/Experiments/DayObjects/EditorialCanvasInputFactory.swift Steps4Tests/EditorialCanvasInputFactoryTests.swift
+git add StepsTrader/Experiments/DayObjects/EditorialCanvasInputFactory.swift Steps4Tests/EditorialCanvasInputFactoryTests.swift Steps4.xcodeproj/project.pbxproj
 git commit -m "feat: adapt saved canvases to Editorial scenes"
 ```
 
@@ -242,6 +245,7 @@ git commit -m "feat: adapt saved canvases to Editorial scenes"
 - Modify: `StepsTrader/Localizable.xcstrings`
 - Create: `Steps4Tests/DayCanvasArtworkRoutingTests.swift`
 - Modify: `Steps4Tests/SettingsHomePresentationTests.swift`
+- Modify: `Steps4.xcodeproj/project.pbxproj`
 
 **Interfaces:**
 - Produces `DayCanvasArtworkLayerPolicy(style:)` with four Boolean layer decisions.
@@ -319,7 +323,7 @@ xcodebuild test -project Steps4.xcodeproj -scheme Steps4 -configuration Debug -d
 - [ ] **Step 7: Commit the live promotion**
 
 ```bash
-git add StepsTrader/Views/Components/DayCanvasArtworkView.swift StepsTrader/Views/GalleryView.swift StepsTrader/Views/Settings/SettingsAppearancePage.swift StepsTrader/Localizable.xcstrings Steps4Tests/DayCanvasArtworkRoutingTests.swift Steps4Tests/SettingsHomePresentationTests.swift
+git add StepsTrader/Views/Components/DayCanvasArtworkView.swift StepsTrader/Views/GalleryView.swift StepsTrader/Views/Settings/SettingsAppearancePage.swift StepsTrader/Localizable.xcstrings Steps4Tests/DayCanvasArtworkRoutingTests.swift Steps4Tests/SettingsHomePresentationTests.swift Steps4.xcodeproj/project.pbxproj
 git commit -m "feat: promote Editorial Field to Canvas"
 ```
 
@@ -331,6 +335,7 @@ git commit -m "feat: promote Editorial Field to Canvas"
 - Modify: `StepsTrader/Experiments/DayObjects/DayObjectsRenderer.swift`
 - Create: `StepsTrader/Experiments/DayObjects/DayObjectsImageRenderer.swift`
 - Modify: `Steps4Tests/DayObjectRenderFrameTests.swift`
+- Modify: `Steps4.xcodeproj/project.pbxproj`
 
 **Interfaces:**
 - Produces `DayObjectsRenderer.renderOffscreen(size:pointScale:elapsedTime:completion:)`.
@@ -394,6 +399,7 @@ xcodebuild test -project Steps4.xcodeproj -scheme Steps4 -configuration Debug -d
 ```bash
 git add StepsTrader/Experiments/DayObjects/DayObjectsImageRenderer.swift
 git add -p StepsTrader/Experiments/DayObjects/DayObjectsRenderer.swift Steps4Tests/DayObjectRenderFrameTests.swift
+git add Steps4.xcodeproj/project.pbxproj
 git commit -m "feat: render Editorial canvas stills in Metal"
 ```
 
