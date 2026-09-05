@@ -82,13 +82,18 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         self.engine = engine
     }
 
-    convenience init(bundle: Bundle = .main) {
+    convenience init(
+        bundle: Bundle = .main,
+        audioHostTimeProvider: @escaping () -> TimeInterval = {
+            ProcessInfo.processInfo.systemUptime
+        }
+    ) {
         let happenings = DayObjectsHappeningSamplePool(bundle: bundle)
         self.init(
             bundle: bundle,
             engine: DayObjectsAudioKitInstrumentBankEngine(happenings: happenings),
             happenings: happenings,
-            outputGainHostTimeProvider: { ProcessInfo.processInfo.systemUptime }
+            audioHostTimeProvider: audioHostTimeProvider
         )
     }
 
@@ -96,7 +101,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         bundle: Bundle,
         engine: DayObjectsInstrumentBankEngine,
         happenings: DayObjectsHappeningSamplePool,
-        outputGainHostTimeProvider: @escaping () -> TimeInterval
+        audioHostTimeProvider: @escaping () -> TimeInterval
     ) {
         let descriptors = DayObjectsInstrumentManifest.defaultDescriptors
         self.init(
@@ -111,14 +116,18 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
             tonalPoolFactory: { specification, instruments in
                 // The prepared pool is detached and does not start an engine or audio session.
                 return DayObjectsAudioKitTonalPoolAdapter(
-                    DayObjectsAudioKitTonalPool(specification: specification, instruments: instruments)
+                    DayObjectsAudioKitTonalPool(
+                        specification: specification,
+                        instruments: instruments,
+                        hostTimeProvider: audioHostTimeProvider
+                    )
                 )
             },
             drumBankFactory: { overlapCounts in
                 DayObjectsAudioKitDrumBankAdapter(.init(resourceResolver: { sample in
                     let filename = sample.rawValue as NSString
                     return bundle.url(forResource: filename.deletingPathExtension, withExtension: filename.pathExtension, subdirectory: "Drums")
-                }, recipes: Self.drumRecipes(overlapCounts)))
+                }, recipes: Self.drumRecipes(overlapCounts), hostTimeProvider: audioHostTimeProvider))
             },
             pianoPoolFactory: { requestedCount in
                 let samples = try FeltPianoManifest.load(from: bundle)
@@ -144,7 +153,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
                     tonalPools: tonalAdapters,
                     drums: (drums as? DayObjectsAudioKitDrumBankAdapter)?.adapter,
                     piano: (piano as? DayObjectsAudioKitPianoPoolAdapter)?.adapter,
-                    outputGainHostTimeProvider: outputGainHostTimeProvider
+                    outputGainHostTimeProvider: audioHostTimeProvider
                 )
             },
             engine: engine
@@ -164,13 +173,13 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
             bundle: bundle,
             engine: DayObjectsPairedInstrumentBankEngine(slot: .a, shared: sharedEngine),
             happenings: happenings,
-            outputGainHostTimeProvider: outputGainHostTimeProvider
+            audioHostTimeProvider: outputGainHostTimeProvider
         )
         let bankB = DayObjectsInstrumentBank(
             bundle: bundle,
             engine: DayObjectsPairedInstrumentBankEngine(slot: .b, shared: sharedEngine),
             happenings: happenings,
-            outputGainHostTimeProvider: outputGainHostTimeProvider
+            audioHostTimeProvider: outputGainHostTimeProvider
         )
         return DayObjectsPlaybackBankPair(
             bankA: bankA,

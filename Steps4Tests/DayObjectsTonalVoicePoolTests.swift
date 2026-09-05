@@ -97,6 +97,69 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
         wait(for: [completion], timeout: 1)
     }
 
+    func testProductionGateSchedulerTargetsTheExactFutureHostDeadline() {
+        let gate = ControlledTonalGate()
+        let scheduler = DayObjectsTonalGateScheduler(
+            hostTimeProvider: { 100 },
+            sampleRateProvider: { 48_000 }
+        )
+
+        scheduler.open(gate, atHostTime: 100.08)
+
+        XCTAssertEqual(
+            scheduler.delivery(atHostTime: 100.08),
+            .scheduled(sampleOffset: 3_840)
+        )
+        XCTAssertEqual(gate.queuedEvents, [
+            .init(hostTimeSeconds: 100.08, sampleOffset: 3_840),
+        ])
+        XCTAssertFalse(gate.isOpen)
+
+        gate.render(atHostTime: 100.08)
+
+        XCTAssertTrue(gate.isOpen)
+        XCTAssertEqual(gate.audibleOpenRenderCount, 1)
+    }
+
+    func testReleasingCapacityOneBassTokenBeforeDeadlineCancelsQueuedGate() throws {
+        let clock = ManualMonotonicClock()
+        clock.now = 200
+        let gate = ControlledTonalGate()
+        let scheduler = DayObjectsTonalGateScheduler(
+            hostTimeProvider: { clock.now },
+            sampleRateProvider: { 48_000 }
+        )
+        let backend = ScheduledTonalVoice(gate: gate, scheduler: scheduler)
+        let pool = DayObjectsTonalVoicePool(
+            specification: .init(name: "bass", capacity: 1, reservesLeadVoice: false),
+            instrumentProvider: { _ in Self.safeVoice },
+            voiceFactory: { backend },
+            monotonicTime: { clock.now }
+        )
+        try pool.prepareInstrument(firstID)
+        let token = try XCTUnwrap(pool.noteOn(
+            request(note: 43, role: .note),
+            atHostTime: 200.08
+        ))
+        XCTAssertEqual(gate.queuedEvents, [
+            .init(hostTimeSeconds: 200.08, sampleOffset: 3_840),
+        ])
+
+        clock.now = 200.025
+        pool.noteOff(token)
+
+        XCTAssertEqual(gate.cancelScheduledOpenCount, 1)
+        XCTAssertEqual(gate.queuedEvents, [])
+
+        clock.now = 200.08
+        gate.render(atHostTime: clock.now)
+
+        XCTAssertFalse(gate.isOpen)
+        XCTAssertEqual(gate.audibleOpenRenderCount, 0)
+        XCTAssertEqual(pool.metrics.activeVoiceCount, 0)
+        XCTAssertEqual(gate.queuedEvents, [])
+    }
+
     func testDefaultAuditionPoolAllocatesExactlySixVoicesBeforePlayback() {
         let harness = makeHarness()
 
@@ -611,6 +674,62 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
         func noteOff(releaseSeconds: TimeInterval?) {
             if let releaseSeconds { receivedReleaseSeconds.append(releaseSeconds) }
             noteOff()
+        }
+    }
+
+    private final class ScheduledTonalVoice: DayObjectsTonalVoiceBackend {
+        let allocatedNodeCount = 1
+        private let gate: ControlledTonalGate
+        private let scheduler: DayObjectsTonalGateScheduler
+
+        init(gate: ControlledTonalGate, scheduler: DayObjectsTonalGateScheduler) {
+            self.gate = gate
+            self.scheduler = scheduler
+        }
+
+        func replacePreset(
+            _ preset: NormalizedSynthVoice,
+            instrumentID: DayObjectsInstrumentID,
+            transitionDuration: TimeInterval
+        ) {}
+
+        func noteOn(_ request: DayObjectsTonalNoteRequest) { gate.openImmediately() }
+        func noteOn(_ request: DayObjectsTonalNoteRequest, atHostTime hostTime: TimeInterval) {
+            scheduler.open(gate, atHostTime: hostTime)
+        }
+        func update(_ update: DayObjectsVoiceUpdate) {}
+        func noteOff() { scheduler.close(gate) }
+    }
+
+    private final class ControlledTonalGate: DayObjectsTonalGate {
+        struct Event: Equatable {
+            let hostTimeSeconds: TimeInterval
+            let sampleOffset: UInt64
+        }
+
+        private(set) var isOpen = false
+        private(set) var audibleOpenRenderCount = 0
+        private(set) var cancelScheduledOpenCount = 0
+        private(set) var queuedEvents: [Event] = []
+
+        func openImmediately() { isOpen = true }
+        func closeImmediately() { isOpen = false }
+        func scheduleOpen(atHostTime hostTime: TimeInterval, sampleOffset: UInt64) {
+            queuedEvents.append(.init(
+                hostTimeSeconds: hostTime,
+                sampleOffset: sampleOffset
+            ))
+        }
+        func cancelScheduledOpen() {
+            cancelScheduledOpenCount += 1
+            queuedEvents.removeAll()
+        }
+
+        func render(atHostTime hostTime: TimeInterval) {
+            let due = queuedEvents.filter { $0.hostTimeSeconds <= hostTime }
+            queuedEvents.removeAll { $0.hostTimeSeconds <= hostTime }
+            if !due.isEmpty { isOpen = true }
+            if isOpen { audibleOpenRenderCount += 1 }
         }
     }
 

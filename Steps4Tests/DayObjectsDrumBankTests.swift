@@ -347,8 +347,8 @@ final class DayObjectsDrumBankTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            scheduler.delivery(atHostTime: 100.125),
-            .scheduled(sampleOffset: 6_000)
+            scheduler.delivery(atHostTime: 100.08),
+            .scheduled(sampleOffset: 3_840)
         )
         XCTAssertEqual(scheduler.delivery(atHostTime: 100), .immediate)
     }

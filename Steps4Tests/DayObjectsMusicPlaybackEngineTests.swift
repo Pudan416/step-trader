@@ -1499,27 +1499,35 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         var diagnosticTime = 42.0
         let runtime = try DayObjectsLivePlaybackRuntime(
             bundle: Bundle(for: type(of: self)),
-            diagnosticHostTimeProvider: { diagnosticTime }
+            diagnosticHostTimeProvider: {
+                defer { diagnosticTime += 0.001 }
+                return diagnosticTime
+            }
         )
         let plan = bassLifecyclePlan(seed: 7_201)
         try runtime.prepare(plan: plan)
         try runtime.startPreparedWorldForTesting()
         let attacksBefore = runtime.totalBassAttackCountForTesting
+        diagnosticTime = 42
 
         let result = runtime.auditionKickBassSidechain(
             preferredBassID: DayObjectsInstrumentID(rawValue: "lead.hazy-sine")
         )
 
         let sidechain = try XCTUnwrap(result)
+        let expectedDeadline = 42.08
         XCTAssertEqual(sidechain.instrumentID, DayObjectsInstrumentID(rawValue: "bass.analog-boom"))
-        XCTAssertEqual(sidechain.duckCommand.hostTimeSeconds, 42, accuracy: 0.000_001)
+        XCTAssertEqual(sidechain.duckCommand.hostTimeSeconds, expectedDeadline, accuracy: 0.000_001)
         XCTAssertEqual(sidechain.scheduledKick.voice, .kickSoft)
         XCTAssertEqual(sidechain.scheduledKick.velocity, 1, accuracy: 0.000_001)
-        XCTAssertEqual(sidechain.scheduledKick.scheduledHostTimeSeconds, 42, accuracy: 0.000_001)
+        XCTAssertEqual(sidechain.scheduledKick.scheduledHostTimeSeconds, expectedDeadline, accuracy: 0.000_001)
         XCTAssertTrue((2.5...5).contains(sidechain.estimatedReductionDB))
         XCTAssertEqual(runtime.totalBassAttackCountForTesting, attacksBefore + 1)
         let duck = runtime.activeBassDuckGainMetricsForTesting
-        XCTAssertEqual(try XCTUnwrap(duck.lastAttack).requestedStartHostTimeSeconds, 42, accuracy: 0.000_001)
+        let duckAttack = try XCTUnwrap(duck.lastAttack)
+        XCTAssertEqual(duckAttack.requestedStartHostTimeSeconds, expectedDeadline, accuracy: 0.000_001)
+        XCTAssertEqual(duckAttack.effectiveStartHostTimeSeconds, expectedDeadline, accuracy: 0.000_001)
+        XCTAssertFalse(duckAttack.wasForcedImmediate)
         XCTAssertGreaterThan(duck.scheduledSegmentCount, 0)
         runtime.releaseDiagnosticAudition(plan: plan)
         diagnosticTime = 43
@@ -1535,6 +1543,37 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
             tempoBPM: plan.rhythm.tempoBPM
         ))
         XCTAssertGreaterThan(runtime.totalBassAttackCountForTesting, attacksBefore + 1)
+    }
+
+    func testMobileDiagnosticSidechainUsesOneFutureDeadlineForBassKickAndDuck() throws {
+        var diagnosticTime = 84.0
+        let runtime = DayObjectsMobilePlaybackRuntime(
+            bundle: Bundle(for: type(of: self)),
+            diagnosticHostTimeProvider: {
+                defer { diagnosticTime += 0.001 }
+                return diagnosticTime
+            }
+        )
+        let plan = bassLifecyclePlan(seed: 7_202)
+        try runtime.prepare(plan: plan)
+        try runtime.startPreparedWorldForTesting()
+        diagnosticTime = 84
+
+        let sidechain = try XCTUnwrap(runtime.auditionKickBassSidechain(
+            preferredBassID: DayObjectsInstrumentID(rawValue: "bass.hey-jakob")
+        ))
+
+        let expectedDeadline = 84.08
+        XCTAssertEqual(sidechain.instrumentID, DayObjectsInstrumentID(rawValue: "bass.hey-jakob"))
+        XCTAssertEqual(sidechain.duckCommand.hostTimeSeconds, expectedDeadline, accuracy: 0.000_001)
+        XCTAssertEqual(sidechain.scheduledKick.scheduledHostTimeSeconds, expectedDeadline, accuracy: 0.000_001)
+        let duckAttack = try XCTUnwrap(runtime.activeBassDuckGainMetricsForTesting.lastAttack)
+        XCTAssertEqual(duckAttack.requestedStartHostTimeSeconds, expectedDeadline, accuracy: 0.000_001)
+        XCTAssertEqual(duckAttack.effectiveStartHostTimeSeconds, expectedDeadline, accuracy: 0.000_001)
+        XCTAssertFalse(duckAttack.wasForcedImmediate)
+
+        runtime.releaseDiagnosticAudition(plan: plan)
+        diagnosticTime = 85
     }
 
     func testMobileDiagnosticSoloPersistsAcrossRenderContinuousRemixAndRelease() throws {

@@ -547,10 +547,19 @@ final class DayObjectsAudioKitDrumBank {
         )
     }
 
-    init(resourceResolver: @escaping DayObjectsDrumBank.ResourceResolver, recipes: [DayObjectsDrumVoice: DayObjectsDrumRecipe]? = nil) {
+    init(
+        resourceResolver: @escaping DayObjectsDrumBank.ResourceResolver,
+        recipes: [DayObjectsDrumVoice: DayObjectsDrumRecipe]? = nil,
+        hostTimeProvider: @escaping DayObjectsAudioKitDrumPlayer.HostTimeProvider = {
+            ProcessInfo.processInfo.systemUptime
+        }
+    ) {
         var builtPlayers: [DayObjectsAudioKitDrumPlayer] = []
         var loadedSamples: [DayObjectsDrumSample: AudioPlayer] = [:]
         var loadedSampleCount = 0
+        let layerScheduler = DayObjectsAudioKitDrumLayerScheduler(
+            hostTimeProvider: hostTimeProvider
+        )
         let preload: DayObjectsDrumBank.ResourceResolver = { sample in
             guard let url = resourceResolver(sample), let player = AudioPlayer(url: url, buffered: true) else { return nil }
             loadedSamples[sample] = player
@@ -562,7 +571,9 @@ final class DayObjectsAudioKitDrumBank {
             let player = DayObjectsAudioKitDrumPlayer(
                 recipe: recipe,
                 sampleURL: sampleURL,
-                preloadedSamplePlayer: preloadedSamplePlayer
+                preloadedSamplePlayer: preloadedSamplePlayer,
+                layerScheduler: layerScheduler,
+                hostTimeProvider: hostTimeProvider
             )
             builtPlayers.append(player)
             return player

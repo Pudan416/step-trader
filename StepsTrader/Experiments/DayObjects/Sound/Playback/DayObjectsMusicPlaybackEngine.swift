@@ -568,6 +568,20 @@ struct DayObjectsLivePlaybackAllocationSnapshot: Equatable, Sendable {
     let allocatedDrumPlayerCounts: [Int]
 }
 
+private enum DayObjectsDiagnosticScheduling {
+    // At 48 kHz this is 3,840 frames: below Audio Unit's 4,096-frame
+    // immediate-offset bound, but long enough to submit Bass, Rhythm, and
+    // duck automation synchronously while remaining tap-like.
+    static let leadTimeSeconds: TimeInterval = 0.08
+
+    static func deadline(using clock: () -> TimeInterval) -> TimeInterval? {
+        let now = clock()
+        guard now.isFinite, now >= 0 else { return nil }
+        let deadline = now + leadTimeSeconds
+        return deadline.isFinite ? deadline : nil
+    }
+}
+
 @MainActor
 final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, DayObjectsRemixRuntime {
     private enum AudioOwnershipMode {
@@ -1292,9 +1306,12 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
     }
 
     func auditionKickBassSidechain(preferredBassID: DayObjectsInstrumentID?) -> DayObjectsSidechainAuditionResult? {
-        activeWorld.auditionKickBassSidechain(
+        guard let deadline = DayObjectsDiagnosticScheduling.deadline(
+            using: diagnosticHostTimeProvider
+        ) else { return nil }
+        return activeWorld.auditionKickBassSidechain(
             preferredBassID: preferredBassID,
-            hostTime: diagnosticHostTimeProvider()
+            hostTime: deadline
         )
     }
 
@@ -1324,7 +1341,10 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         diagnosticHostTimeProvider: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
     ) throws {
         self.diagnosticHostTimeProvider = diagnosticHostTimeProvider
-        pair = DayObjectsInstrumentBank.makePlaybackPair(bundle: bundle)
+        pair = DayObjectsInstrumentBank.makePlaybackPair(
+            bundle: bundle,
+            outputGainHostTimeProvider: diagnosticHostTimeProvider
+        )
         worldA = WorldState(bank: PlaybackWorldBank(instrumentBank: pair.bankA))
         worldB = WorldState(bank: PlaybackWorldBank(instrumentBank: pair.bankB))
         coordinator = try DayObjectsRemixCoordinator(
@@ -1749,6 +1769,9 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
     var activeProgramEffectMetricsForTesting: DayObjectsProgramEffectMetrics {
         world.bank.programEffectMetrics
     }
+    var activeBassDuckGainMetricsForTesting: BassDuckGainMetrics {
+        world.bank.bassDuckGainMetrics
+    }
     var retainedDiagnosticAuditionModeForTesting: DayObjectsAuditionMode {
         diagnosticAuditionMode
     }
@@ -1805,9 +1828,12 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
     }
 
     func auditionKickBassSidechain(preferredBassID: DayObjectsInstrumentID?) -> DayObjectsSidechainAuditionResult? {
-        world.auditionKickBassSidechain(
+        guard let deadline = DayObjectsDiagnosticScheduling.deadline(
+            using: diagnosticHostTimeProvider
+        ) else { return nil }
+        return world.auditionKickBassSidechain(
             preferredBassID: preferredBassID,
-            hostTime: diagnosticHostTimeProvider()
+            hostTime: deadline
         )
     }
 
@@ -1817,7 +1843,10 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
     ) {
         self.diagnosticHostTimeProvider = diagnosticHostTimeProvider
         world = DayObjectsLivePlaybackRuntime.WorldState(
-            bank: PlaybackWorldBank(instrumentBank: DayObjectsInstrumentBank(bundle: bundle))
+            bank: PlaybackWorldBank(instrumentBank: DayObjectsInstrumentBank(
+                bundle: bundle,
+                audioHostTimeProvider: diagnosticHostTimeProvider
+            ))
         )
     }
 

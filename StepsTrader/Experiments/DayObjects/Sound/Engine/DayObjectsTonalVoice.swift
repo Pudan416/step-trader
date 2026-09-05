@@ -205,12 +205,34 @@ enum DayObjectsTonalGateDelivery: Equatable, Sendable {
     case scheduled(sampleOffset: UInt64)
 }
 
+protocol DayObjectsTonalGate: AnyObject {
+    func openImmediately()
+    func closeImmediately()
+    func scheduleOpen(atHostTime hostTime: TimeInterval, sampleOffset: UInt64)
+    func cancelScheduledOpen()
+}
+
+extension AmplitudeEnvelope: DayObjectsTonalGate {
+    func openImmediately() { openGate() }
+    func closeImmediately() { closeGate() }
+
+    func scheduleOpen(atHostTime _: TimeInterval, sampleOffset: UInt64) {
+        scheduleMIDIEvent(
+            event: MIDIEvent(noteOn: 64, velocity: 127, channel: 0),
+            offset: sampleOffset
+        )
+    }
+
+    func cancelScheduledOpen() { avAudioNode.auAudioUnit.reset() }
+}
+
 final class DayObjectsTonalGateScheduler {
     typealias HostTimeProvider = () -> TimeInterval
     typealias SampleRateProvider = () -> Double
 
     private let hostTimeProvider: HostTimeProvider
     private let sampleRateProvider: SampleRateProvider
+    private var pendingOpen: (gateID: ObjectIdentifier, hostTimeSeconds: TimeInterval)?
 
     init(
         hostTimeProvider: @escaping HostTimeProvider = {
@@ -229,16 +251,33 @@ final class DayObjectsTonalGateScheduler {
         return .scheduled(sampleOffset: UInt64(min(samples.rounded(), Double(UInt64.max))))
     }
 
-    func open(_ envelope: AmplitudeEnvelope, atHostTime hostTime: TimeInterval) {
+    func open(_ gate: any DayObjectsTonalGate, atHostTime hostTime: TimeInterval) {
+        if pendingOpen != nil { close(gate) }
         switch delivery(atHostTime: hostTime) {
         case .immediate:
-            envelope.openGate()
+            gate.openImmediately()
         case let .scheduled(sampleOffset):
-            envelope.scheduleMIDIEvent(
-                event: MIDIEvent(noteOn: 64, velocity: 127, channel: 0),
-                offset: sampleOffset
+            gate.scheduleOpen(atHostTime: hostTime, sampleOffset: sampleOffset)
+            pendingOpen = (
+                gateID: ObjectIdentifier(gate),
+                hostTimeSeconds: hostTime
             )
         }
+    }
+
+    func close(_ gate: any DayObjectsTonalGate) {
+        if let pendingOpen,
+           pendingOpen.gateID == ObjectIdentifier(gate) {
+            let now = hostTimeProvider()
+            if !now.isFinite || now < pendingOpen.hostTimeSeconds {
+                // Resetting the envelope Audio Unit clears its queued MIDI
+                // event before closing, so released ownership cannot reopen at
+                // the old diagnostic deadline.
+                gate.cancelScheduledOpen()
+            }
+        }
+        pendingOpen = nil
+        gate.closeImmediately()
     }
 }
 
@@ -259,10 +298,15 @@ final class DayObjectsAudioKitTonalPool {
 
     init(
         specification: DayObjectsTonalPoolSpecification,
-        instruments: [DayObjectsInstrumentID: NormalizedSynthVoice]
+        instruments: [DayObjectsInstrumentID: NormalizedSynthVoice],
+        hostTimeProvider: @escaping DayObjectsTonalGateScheduler.HostTimeProvider = {
+            ProcessInfo.processInfo.systemUptime
+        }
     ) {
         name = specification.name
-        let builtVoices = (0..<specification.capacity).map { _ in DayObjectsTonalVoice() }
+        let builtVoices = (0..<specification.capacity).map { _ in
+            DayObjectsTonalVoice(gateScheduler: .init(hostTimeProvider: hostTimeProvider))
+        }
         voices = builtVoices
         output = Mixer(builtVoices.map(\.output), name: "Day Objects tonal pool \(specification.name)")
 
@@ -606,6 +650,7 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
     private func noteOffOnControlExecutor(releaseSeconds requestedReleaseSeconds: TimeInterval? = nil) {
         assertOnControlExecutor()
         if modulationLifecycle.noteOff(isGraphAttached: isGraphAttached) {
+            gateScheduler.close(amplitudeEnvelope)
             stopModulation()
             isGateOpen = false
             return
@@ -618,7 +663,7 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
             0
         ), 30)
         amplitudeEnvelope.releaseDuration = value(release)
-        amplitudeEnvelope.closeGate()
+        gateScheduler.close(amplitudeEnvelope)
         rampOutput(expression: 0, pan: pan, duration: Float(release))
         releaseStartedAt = Date.timeIntervalSinceReferenceDate
         releaseStartEnvelopeLevel = currentFilterEnvelopeLevel
