@@ -196,7 +196,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         )
     }
 
-    func testSpentColorsClampAndMapToAbsoluteDamage() {
+    func testSpentColorsClampAndMapToEmphasizedDamage() {
         XCTAssertEqual(DayObjectDigitalImpact(spentColors: -4).spentColors, 0)
         XCTAssertEqual(DayObjectDigitalImpact(spentColors: 140).spentColors, 100)
         XCTAssertEqual(
@@ -205,9 +205,14 @@ final class DayObjectRenderFrameTests: XCTestCase {
             accuracy: 0.000_001
         )
         XCTAssertEqual(
+            DayObjectDigitalImpact(spentColors: 25).signalCorruption,
+            0.20,
+            accuracy: 0.005
+        )
+        XCTAssertEqual(
             DayObjectDigitalImpact(spentColors: 50).signalCorruption,
-            pow(0.5, 1.6),
-            accuracy: 0.000_001
+            0.45,
+            accuracy: 0.005
         )
         XCTAssertEqual(
             DayObjectDigitalImpact(spentColors: 100).ambientMotion,
@@ -909,6 +914,35 @@ final class DayObjectRenderFrameTests: XCTestCase {
                 "spentColors=\(spentColors) difference=\(difference)"
             )
             previousDifference = difference
+        }
+    }
+
+    func testMidrangeGlitchIsVisuallyDistinctAtReviewPresets() throws {
+        let scene = fixtureScene(ids: (0..<12).map { "glitch-event-\($0)" })
+        let harness = try PostRenderHarness(width: 192, height: 256)
+        let natural = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: .none
+        ).noGrain
+        let reviewPresets: [(spentColors: Int, minimumDifference: Double)] = [
+            (25, 0.015),
+            (50, 0.030),
+        ]
+
+        for preset in reviewPresets {
+            let damaged = try harness.render(
+                scene: scene,
+                clarity: 0.7,
+                elapsed: 8.375,
+                digitalImpact: DayObjectDigitalImpact(spentColors: preset.spentColors)
+            ).noGrain
+            XCTAssertGreaterThanOrEqual(
+                damaged.meanAbsoluteDifference(from: natural),
+                preset.minimumDifference,
+                "Spent colors \(preset.spentColors) should be visibly distinct"
+            )
         }
     }
 

@@ -168,7 +168,7 @@ struct DayObjectDigitalImpact: Equatable {
     var scarStrength: Double { damage }
 
     var signalCorruption: Double {
-        pow(damage, 1.6)
+        pow(damage, 1.15)
     }
 
     var ambientMotion: Double {

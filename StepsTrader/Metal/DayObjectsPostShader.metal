@@ -205,6 +205,7 @@ static float4 dayObjectsApplyDigitalImpact(
 
     const float scarStrength = saturate(glitch.levels.y);
     const float signalCorruption = saturate(glitch.levels.z);
+    const float visibleCorruption = 1.0 - pow(1.0 - signalCorruption, 4.0);
     const float ambientMotion = saturate(glitch.levels.w);
     const float2 resolution = max(float2(sceneTexture.get_width(), sceneTexture.get_height()), 1.0);
     const float time = max(glitch.rendering.x, 0.0);
@@ -252,13 +253,13 @@ static float4 dayObjectsApplyDigitalImpact(
 
     // Quantized macro-block displacement makes the whole signal progressively
     // unstable while the immutable bands remain recognizable daily scars.
-    const float blockHeightPixels = mix(38.0, 11.0, signalCorruption);
+    const float blockHeightPixels = mix(38.0, 11.0, visibleCorruption);
     const uint blockY = uint(floor(uv.y * resolution.y / blockHeightPixels));
     const float blockNoise = dayObjectsGlitchHash(seed ^ (blockY * 0x9E3779B9u));
     const float blockDirection = blockNoise < 0.5 ? -1.0 : 1.0;
     const float blockMagnitude = smoothstep(0.28, 1.0, blockNoise)
         * maximumDisplacementPixels
-        * signalCorruption
+        * visibleCorruption
         * 0.72;
     horizontalOffsetPixels += blockDirection * blockMagnitude;
 
@@ -269,7 +270,7 @@ static float4 dayObjectsApplyDigitalImpact(
         ? sign(rgbDirection)
         : blockDirection;
     const float rgbPixels = maximumColorShiftPixels
-        * (0.12 * coveredScar * scarStrength + 0.88 * signalCorruption);
+        * (0.12 * coveredScar * scarStrength + 0.88 * visibleCorruption);
     const float2 rgbOffset = float2(direction * rgbPixels / resolution.x, 0.0);
 
     const float4 center = sceneTexture.sample(linearSampler, displacedUV);
@@ -280,14 +281,14 @@ static float4 dayObjectsApplyDigitalImpact(
     const float pixelY = uv.y * resolution.y;
     const float scanWave = pow(sin(pixelY * 3.14159265) * 0.5 + 0.5, 4.0);
     const float scanStrength = maximumScanLineStrength
-        * (0.22 * scarStrength + 0.78 * signalCorruption);
+        * (0.22 * scarStrength + 0.78 * visibleCorruption);
     corrupted *= 1.0 - scanWave * scanStrength;
 
     // At maximum damage 28% of the untouched image remains, keeping the day's
     // composition readable beneath the digital erosion.
     const float corruptionMix = min(
         0.72,
-        0.18 * scarStrength + 0.54 * signalCorruption
+        0.18 * scarStrength + 0.54 * visibleCorruption
     );
     return float4(mix(original.rgb, corrupted, corruptionMix), original.a);
 }

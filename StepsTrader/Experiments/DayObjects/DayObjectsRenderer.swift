@@ -248,9 +248,9 @@ struct DayObjectsGlitchBandUniform: Equatable {
 struct DayObjectsGlitchUniforms: Equatable {
     static let metalAlignment = 16
     static let metalStride = 48
-    static let maximumDisplacementPixels: Float = 42
-    static let maximumColorShiftPixels: Float = 14
-    static let maximumScanLineStrength: Float = 0.35
+    static let maximumDisplacementPixels: Float = 52
+    static let maximumColorShiftPixels: Float = 20
+    static let maximumScanLineStrength: Float = 0.42
 
     let levels: SIMD4<Float>
     let rendering: SIMD4<Float>
