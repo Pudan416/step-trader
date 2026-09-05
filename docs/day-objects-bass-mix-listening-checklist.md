@@ -254,14 +254,49 @@ the calibration result. Each cell is `LUFS-I / dBTP / R/B/H/X/L dBFS / Est.`:
 | Bass diagnostic release | scheduled/actual 10.3339240506 s; active voices after release 0 | pass |
 | Slowest render | 51.7031045833 s (`worst-case-overlap`) | pass |
 
+## Final regression record — 2026-09-05
+
+The required full `Steps4Tests` invocation completed once on an iPhone 17
+simulator running iOS 26.3.1. Xcode exited 65 after 1,006.017 seconds. Its final
+console summary reported 810 tests, 27 failures (1 unexpected); because Xcode
+restarted the test host after repeated crashes, the result bundle aggregates
+1,483 executions: 1,428 passed, 52 failed, and 3 skipped. The bundle's common
+failure groups include 17 `startFailed` results, 7 signal-trap crashes, and 6
+`offlineRenderingConflictsWithLivePlayback` results. Simulator logs repeatedly
+reported missing default input/output (`AURemoteIO -10851`) before live-runtime
+crashes at `DayObjectsMusicPlaybackEngine.swift:631`; one sample-pool test also
+crashed with `SIGSEGV`. The four pre-existing perceptual/render failures remain,
+and the run additionally exposed stale or incompatible expectations in render,
+instrument-capacity, preset-trim, runtime-state, and offline-mix tests. This gate
+is therefore **failed**, not accepted as a clean regression run. Result bundle:
+`Test-Steps4-2026.09.05_14-20-43-+0200.xcresult`.
+
+The required `DayObjectsLabUITests` invocation also completed once. It executed
+8 tests with 3 failures in 350.571 seconds and exited 65:
+
+- `testHappeningPadsAuditionWithSoundOffAndOnWithoutChangingSceneCount` lost its
+  connection to the app after the sound-on action terminated the app.
+- `testHappeningPadsExposeThirtyStableAccessibleRecipesInFiveColumns` expected
+  `Happening sound 01, synth pluck` but received
+  `Happening 01, Warm analog ping`.
+- `testInstrumentCategoriesExposeAutomaticActionsAndApprovedTonalPresets`
+  timed out waiting for animations and could not tap the selected, off-screen
+  `Pad` button.
+
+Both required compile gates passed with exit 0 and `BUILD SUCCEEDED`: Debug for
+the iPhone 17 simulator and Debug for generic iOS, each with code signing
+disabled. The last-ten-commits whitespace audit passed with no output. At audit
+time, the only workspace changes were the pre-existing modified native
+instrument-bank design spec and the separate untracked instrument-bank
+listening checklist; neither belongs to this acceptance record.
+
 ## Physical acceptance record
 
 A signed generic Debug bundle `personal-project.StepsTrader` built successfully
-on 2026-09-05. Paired **iPhone Costa** (iPhone 15 Pro) appeared in the device
-list, but Xcode could not prepare it because the phone needed to be unlocked;
-the device-targeted build timed out and the current bundle was not installed.
-Every acoustic row remains pending; no automated measurement is represented as
-physical acceptance.
+on 2026-09-05. The final single device check found paired **iPhone Costa**
+(iPhone 15 Pro, iPhone16,1) in the `unavailable` state. The current bundle was
+not installed. Every acoustic row remains pending; no automated measurement is
+represented as physical acceptance.
 
 | Required check | Headphones | Speaker | Notes |
 |---|---|---|---|
