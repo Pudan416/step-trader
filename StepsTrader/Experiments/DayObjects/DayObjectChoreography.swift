@@ -30,9 +30,10 @@ struct DayObjectGeometryFootprint: Equatable {
             halfSize.x.isFinite ? max(halfSize.x, 0) : 0,
             halfSize.y.isFinite ? max(halfSize.y, 0) : 0
         )
-        let bodyMultiplier = shape == .softBlob
-            ? DayObjectActorGeometry.softBlobRadialReach
-            : 1
+        let bodyMultiplier: Double = switch shape {
+        case .softBlob, .softStar: DayObjectActorGeometry.softBlobRadialReach
+        default: 1
+        }
         let mergeReach = safeHalfSize.x * DayObjectActorGeometry.mergeReachFactor
         let forwardReach = safeHalfSize.x * bodyMultiplier + mergeReach
         let backwardReach = max(
@@ -171,7 +172,7 @@ struct DayObjectChoreographyScore: Equatable {
         switch actor.appearance.shape {
         case .ellipse, .lens:
             rotation = atan2(tangent.y, tangent.x)
-        case .sphere, .softBlob:
+        case .sphere, .softBlob, .softStar, .roundedPolygon, .roundedSquare:
             rotation = 0
         }
 

@@ -7,6 +7,9 @@ enum DayObjectShape: String, CaseIterable, Hashable {
     case ellipse
     case lens
     case softBlob
+    case softStar
+    case roundedPolygon
+    case roundedSquare
 
     var numericValue: UInt32 {
         switch self {
@@ -14,6 +17,9 @@ enum DayObjectShape: String, CaseIterable, Hashable {
         case .ellipse: 1
         case .lens: 2
         case .softBlob: 3
+        case .softStar: 4
+        case .roundedPolygon: 5
+        case .roundedSquare: 6
         }
     }
 }

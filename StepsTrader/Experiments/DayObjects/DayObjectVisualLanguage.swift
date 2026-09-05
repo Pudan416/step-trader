@@ -13,6 +13,7 @@ enum DayObjectMaterialFamily: UInt32, CaseIterable, Equatable {
     case luminous
     case outline
     case counterform
+    case harmonicWeave
 
     // Compatibility names for older fixtures while the rendering tests move
     // to the HTML recipe vocabulary.
@@ -32,6 +33,20 @@ enum DayObjectMutationRole: UInt32, CaseIterable, Equatable {
     case base
     case soft
     case accent
+}
+
+enum DayObjectHarmonicWeaveDialect: UInt32, CaseIterable, Equatable {
+    case orbitalLace
+    case porousAnnulus
+    case angularLattice
+}
+
+struct DayObjectHarmonicWeaveStyle: Equatable {
+    let dialect: DayObjectHarmonicWeaveDialect
+    let primaryFrequency: Int
+    let secondaryFrequency: Int
+    let aperture: Double
+    let lineWidth: Double
 }
 
 struct DayObjectRadialLayer: Equatable {
@@ -59,6 +74,7 @@ struct DayObjectAppearance: Equatable {
     let counterformSoftness: Double
     let coronaWidth: Double
     let coronaIntensity: Double
+    let harmonicWeaveStyle: DayObjectHarmonicWeaveStyle?
 
     // Compatibility fields consumed by the current GPU upload. The layered
     // renderer replaces these with the complete array in the Metal task.
@@ -95,6 +111,7 @@ struct DayObjectVisualLanguage: Equatable {
     let lightDirection: SIMD2<Double>
     let lightSoftness: Double
     let grainIntensity: Double
+    let harmonicWeaveDialect: DayObjectHarmonicWeaveDialect
 
     var enabledMaterials: [DayObjectMaterialFamily] { [family] }
     var dominantMaterial: DayObjectMaterialFamily { family }
@@ -111,6 +128,9 @@ struct DayObjectVisualLanguage: Equatable {
         let family = weightedRecipes[
             rng.nextInt(in: 0...(weightedRecipes.count - 1))
         ]
+        let harmonicWeaveDialect = DayObjectHarmonicWeaveDialect.allCases[
+            rng.nextInt(in: 0...(DayObjectHarmonicWeaveDialect.allCases.count - 1))
+        ]
         let lightAngle = rng.nextDouble(in: 0...(2 * Double.pi))
         return DayObjectVisualLanguage(
             paletteSet: paletteSet,
@@ -121,7 +141,8 @@ struct DayObjectVisualLanguage: Equatable {
             accentShare: rng.nextDouble(in: 0.15...0.30),
             lightDirection: SIMD2(cos(lightAngle), sin(lightAngle)),
             lightSoftness: rng.nextDouble(in: 0.40...0.85),
-            grainIntensity: 0.05
+            grainIntensity: 0.05,
+            harmonicWeaveDialect: harmonicWeaveDialect
         )
     }
 
@@ -181,6 +202,7 @@ struct DayObjectVisualLanguage: Equatable {
         case .solid, .gradient, .glass: rng.nextDouble(in: 0...0.08)
         case .sphere: rng.nextDouble(in: 0.03...0.12)
         case .outline: rng.nextDouble(in: 0.02...0.10)
+        case .harmonicWeave: rng.nextDouble(in: 0.02...0.08)
         case .mist, .halo, .luminous, .counterform:
             rng.nextDouble(in: 0.16...0.42)
         }
@@ -200,6 +222,9 @@ struct DayObjectVisualLanguage: Equatable {
         let coronaIntensity = family == .counterform
             ? rng.nextDouble(in: 0.58...0.98)
             : 0
+        let harmonicWeaveStyle = family == .harmonicWeave
+            ? makeHarmonicWeaveStyle(rng: &rng)
+            : nil
         let elongationScale: Double
         switch mutationRole {
         case .base: elongationScale = 0.35
@@ -221,7 +246,9 @@ struct DayObjectVisualLanguage: Equatable {
             colorAssignment: colorAssignment,
             material: family,
             mutationRole: mutationRole,
-            shape: baseShape,
+            shape: family == .harmonicWeave
+                ? harmonicWeaveShape(eventID: eventID, rootSeed: rootSeed)
+                : baseShape,
             elongation: elongation,
             layers: layers,
             colorStopLocations: SIMD2(firstStop, secondStop),
@@ -235,6 +262,7 @@ struct DayObjectVisualLanguage: Equatable {
             counterformSoftness: counterformSoftness,
             coronaWidth: coronaWidth,
             coronaIntensity: coronaIntensity,
+            harmonicWeaveStyle: harmonicWeaveStyle,
             focalDistance: simd_length(primaryLayer.focalOffset),
             focalAngle: atan2(primaryLayer.focalOffset.y, primaryLayer.focalOffset.x),
             radius: primaryLayer.radius,
@@ -346,6 +374,12 @@ struct DayObjectVisualLanguage: Equatable {
                 rimOpacity: 0.48...0.88, innerGlow: 0.18...0.48,
                 outerGlow: 0.16...0.42, depthSoftness: 0.06...0.22
             )
+        case .harmonicWeave:
+            OpticalRanges(
+                bodyOpacity: 0.72...0.92, centerOpacity: 0.88...1,
+                rimOpacity: 0.12...0.28, innerGlow: 0.04...0.16,
+                outerGlow: 0.03...0.12, depthSoftness: 0.03...0.18
+            )
         }
     }
 
@@ -360,6 +394,55 @@ struct DayObjectVisualLanguage: Equatable {
         case .luminous: 0.68
         case .outline: 0.72
         case .counterform: 0.72
+        case .harmonicWeave: 0.68
+        }
+    }
+
+    private func makeHarmonicWeaveStyle(
+        rng: inout SeededRNG
+    ) -> DayObjectHarmonicWeaveStyle {
+        let primaryRange: ClosedRange<Int>
+        let secondaryRange: ClosedRange<Int>
+        let apertureRange: ClosedRange<Double>
+        let lineWidthRange: ClosedRange<Double>
+        switch harmonicWeaveDialect {
+        case .orbitalLace:
+            primaryRange = 3...6
+            secondaryRange = 10...18
+            apertureRange = 0.08...0.34
+            lineWidthRange = 0.010...0.024
+        case .porousAnnulus:
+            primaryRange = 4...7
+            secondaryRange = 8...16
+            apertureRange = 0.30...0.52
+            lineWidthRange = 0.012...0.032
+        case .angularLattice:
+            primaryRange = 5...8
+            secondaryRange = 14...24
+            apertureRange = 0.04...0.28
+            lineWidthRange = 0.008...0.018
+        }
+        return DayObjectHarmonicWeaveStyle(
+            dialect: harmonicWeaveDialect,
+            primaryFrequency: rng.nextInt(in: primaryRange),
+            secondaryFrequency: rng.nextInt(in: secondaryRange),
+            aperture: rng.nextDouble(in: apertureRange),
+            lineWidth: rng.nextDouble(in: lineWidthRange)
+        )
+    }
+
+    private func harmonicWeaveShape(
+        eventID: String,
+        rootSeed: UInt64
+    ) -> DayObjectShape {
+        switch stableOrdinal(eventID: eventID, rootSeed: rootSeed) % 10 {
+        case 1, 6: .softStar
+        case 2: .roundedSquare
+        case 3, 9: .roundedPolygon
+        case 4: .lens
+        case 7: .ellipse
+        case 8: .softBlob
+        default: .sphere
         }
     }
 

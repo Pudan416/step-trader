@@ -197,11 +197,96 @@ final class DayObjectSceneTests: XCTestCase {
         XCTAssertEqual(scene.input.canvasCoverage, .fullCanvas)
         XCTAssertEqual(scene.compositionPlan.uiExclusionRegion.area, 0)
     }
+
+    func testHarmonicWeaveDayUsesOneDialectWithCircleDerivedCarrierVariety() throws {
+        let scene = try firstHarmonicWeaveScene()
+        let styles = try scene.actors.map {
+            try XCTUnwrap($0.appearance.harmonicWeaveStyle)
+        }
+
+        XCTAssertEqual(Set(scene.actors.map { $0.appearance.material }), [.harmonicWeave])
+        XCTAssertEqual(Set(styles.map(\.dialect)).count, 1)
+        XCTAssertGreaterThanOrEqual(Set(scene.actors.map { $0.appearance.shape }).count, 4)
+        XCTAssertTrue(scene.actors.allSatisfy {
+            [.sphere, .ellipse, .lens, .softBlob, .softStar, .roundedPolygon, .roundedSquare]
+                .contains($0.appearance.shape)
+        })
+        XCTAssertLessThanOrEqual(
+            scene.actors.filter { $0.appearance.shape == .softStar }.count,
+            2
+        )
+    }
+
+    func testHarmonicWeaveActorStyleSurvivesInsertionRemovalAndReorder() throws {
+        let seedScene = try firstHarmonicWeaveScene()
+        let dayKey = seedScene.input.dayKey
+        let ids = (0..<10).map { "lab-event-\($0)" }
+        func scene(_ eventIDs: [String]) -> DayObjectScene {
+            DayObjectScene.make(input: .init(
+                dayKey: dayKey,
+                identity: "day-objects-lab",
+                eventIDs: eventIDs,
+                motionEnergy: 0.55,
+                visualClarity: 0.55,
+                reduceMotion: false,
+                canvasCoverage: .fullCanvas,
+                paletteCategories: ModernPaletteSelection.all
+            ))
+        }
+
+        let full = scene(ids)
+        let reordered = scene(Array(ids.reversed()))
+        let removed = scene(ids.filter { $0 != "lab-event-4" })
+
+        for actor in full.actors {
+            let reorderedActor = try XCTUnwrap(
+                reordered.actors.first { $0.eventID == actor.eventID }
+            )
+            XCTAssertEqual(reorderedActor.appearance, actor.appearance)
+            if actor.eventID != "lab-event-4" {
+                let retained = try XCTUnwrap(
+                    removed.actors.first { $0.eventID == actor.eventID }
+                )
+                XCTAssertEqual(retained.appearance, actor.appearance)
+            }
+        }
+    }
+
+    func testHarmonicWeaveParametersRemainInsideApprovedRanges() throws {
+        let scene = try firstHarmonicWeaveScene()
+        for actor in scene.actors {
+            let style = try XCTUnwrap(actor.appearance.harmonicWeaveStyle)
+            XCTAssertTrue((3...8).contains(style.primaryFrequency))
+            XCTAssertTrue((8...24).contains(style.secondaryFrequency))
+            XCTAssertTrue((0.04...0.52).contains(style.aperture))
+            XCTAssertTrue((0.008...0.032).contains(style.lineWidth))
+        }
+    }
+
+    private func firstHarmonicWeaveScene() throws -> DayObjectScene {
+        for index in 0..<4_096 {
+            let scene = DayObjectScene.make(input: .init(
+                dayKey: "harmonic-weave-\(index)",
+                identity: "day-objects-lab",
+                eventIDs: (0..<10).map { "lab-event-\($0)" },
+                motionEnergy: 0.55,
+                visualClarity: 0.55,
+                reduceMotion: false,
+                canvasCoverage: .fullCanvas,
+                paletteCategories: ModernPaletteSelection.all
+            ))
+            if scene.visualLanguage.family == .harmonicWeave { return scene }
+        }
+        throw XCTSkip("No Harmonic Weave day found in deterministic sample")
+    }
 }
 
 final class DayObjectCompositionTests: XCTestCase {
     func testDayObjectsOnlyExposeCircleDerivedShapes() {
-        XCTAssertEqual(DayObjectShape.allCases, [.sphere, .ellipse, .lens, .softBlob])
+        XCTAssertEqual(
+            DayObjectShape.allCases,
+            [.sphere, .ellipse, .lens, .softBlob, .softStar, .roundedPolygon, .roundedSquare]
+        )
     }
 
     func testRestingSizeBandsUseApprovedDiameterRanges() {
@@ -230,9 +315,9 @@ final class DayObjectCompositionTests: XCTestCase {
     }
 
     func testProductionSphereAndAppearanceColorCountNumericValuesMatchMetalShaderABI() {
-        let expectedShapes: [DayObjectShape: UInt32] = [
-            .sphere: 0,
-        ]
+        let expectedShapes: [DayObjectShape: UInt32] = Dictionary(
+            uniqueKeysWithValues: DayObjectShape.allCases.map { ($0, $0.numericValue) }
+        )
         let expectedColorCounts: Set<UInt32> = [1, 2, 3]
         let environment = DayObjectEnvironment(
             motionEnergy: 0.55,
@@ -277,5 +362,8 @@ final class DayObjectCompositionTests: XCTestCase {
         XCTAssertEqual(DayObjectShape.ellipse.numericValue, 1)
         XCTAssertEqual(DayObjectShape.lens.numericValue, 2)
         XCTAssertEqual(DayObjectShape.softBlob.numericValue, 3)
+        XCTAssertEqual(DayObjectShape.softStar.numericValue, 4)
+        XCTAssertEqual(DayObjectShape.roundedPolygon.numericValue, 5)
+        XCTAssertEqual(DayObjectShape.roundedSquare.numericValue, 6)
     }
 }
