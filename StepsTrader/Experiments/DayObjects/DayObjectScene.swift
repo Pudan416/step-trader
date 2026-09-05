@@ -108,6 +108,8 @@ struct DayObjectScene: Equatable {
         let sceneRecipeV1 = input.usesEditorialField
             ? DayObjectSceneRecipeV1.make(
                 rootSeed: rootSeed,
+                dayKey: input.dayKey,
+                identity: input.identity,
                 actors: actors,
                 background: input.editorialBackground,
                 lowSleep: input.lowSleep,

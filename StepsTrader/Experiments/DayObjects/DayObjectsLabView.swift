@@ -34,7 +34,7 @@ struct DayObjectsLabView: View {
     @State private var editorialBackground: DayObjectEditorialBackground = .dark
     @State private var lowSleep = false
     @State private var reduceMotionPreview = false
-    @State private var editorialMaterialMode: DayObjectEditorialLabMaterialMode = .mixed
+    @State private var editorialMaterialMode: DayObjectEditorialLabMaterialMode = .generativeDNA
     @State private var editorialPlacement: DayObjectEditorialPreviewPlacement = .depthField
     @State private var showControls = !ProcessInfo.processInfo.arguments.contains(
         "-dayObjectsVisualHandoff"
@@ -88,9 +88,15 @@ struct DayObjectsLabView: View {
             currentScene.paletteSet.primaryObjects.code,
             currentScene.paletteSet.secondaryObjects.code,
         ].joined(separator: "/")
-        let family = currentScene.sceneRecipeV1?.actors.first?.material.family.gpuFamily
-            ?? currentScene.visualLanguage.family
-        return "family=\(family) "
+        let familySummary: String
+        if let dnaSummary = currentScene.sceneRecipeV1?.artDirectionSummary {
+            familySummary = dnaSummary
+        } else {
+            let family = currentScene.sceneRecipeV1?.actors.first?.material.family.gpuFamily
+                ?? currentScene.visualLanguage.family
+            familySummary = "family=\(family)"
+        }
+        return familySummary + "\n"
             + "mutations=\(mutationCounts[.base, default: 0])/"
             + "\(mutationCounts[.soft, default: 0])/"
             + "\(mutationCounts[.accent, default: 0]) "

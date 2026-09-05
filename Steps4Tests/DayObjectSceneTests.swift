@@ -481,7 +481,7 @@ final class DayObjectSceneTests: XCTestCase {
         XCTAssertEqual(scene.compositionPlan.uiExclusionRegion.area, 0)
     }
 
-    func testEditorialLabMixedModeUsesAllSixApprovedObjectFormatsAtTenHappenings() throws {
+    func testEditorialLabComparisonAtlasUsesAllSixApprovedObjectFormatsAtTenHappenings() throws {
         let recipe = try XCTUnwrap(
             DayObjectScene.make(
                 input: editorialLabInput(
@@ -513,6 +513,70 @@ final class DayObjectSceneTests: XCTestCase {
             5,
             "Outline formats must be distributed across the field, not hidden in one overlap cluster"
         )
+    }
+
+    func testGenerativeDNALabModeUsesOneDailyEnvelope() throws {
+        let recipe = try XCTUnwrap(
+            DayObjectScene.make(
+                input: editorialLabInput(
+                    dayKey: "2026-09-05",
+                    eventIDs: (0..<10).map { "lab-event-\($0)" },
+                    materialMode: .generativeDNA
+                )
+            ).sceneRecipeV1
+        )
+        let direction = try XCTUnwrap(recipe.artDirection)
+        let materialCounts = Dictionary(
+            grouping: recipe.actors,
+            by: { $0.material.mechanism }
+        ).mapValues(\.count)
+
+        XCTAssertGreaterThanOrEqual(
+            materialCounts[direction.primaryMaterial, default: 0],
+            8
+        )
+        XCTAssertLessThanOrEqual(
+            recipe.actors.filter {
+                $0.material.mechanism != direction.primaryMaterial
+            }.count,
+            2
+        )
+        XCTAssertTrue(recipe.actors.allSatisfy {
+            direction.supports(
+                geometry: $0.geometryRegion,
+                material: $0.material.mechanism
+            )
+        })
+    }
+
+    func testGenerativeDNAActorIdentitySurvivesInsertionAndRemoval() throws {
+        let eventIDs = (0..<10).map { "lab-event-\($0)" }
+        let recipes = try [3, 7, 10].map { count in
+            try XCTUnwrap(
+                DayObjectScene.make(
+                    input: editorialLabInput(
+                        dayKey: "2026-09-05",
+                        eventIDs: Array(eventIDs.prefix(count)),
+                        materialMode: .generativeDNA
+                    )
+                ).sceneRecipeV1
+            )
+        }
+
+        for eventID in eventIDs.prefix(3) {
+            let actors = try recipes.map { recipe in
+                try XCTUnwrap(recipe.actor(eventID))
+            }
+            let reference = actors[0]
+            for actor in actors.dropFirst() {
+                XCTAssertEqual(actor.shape, reference.shape)
+                XCTAssertEqual(actor.geometryRegion, reference.geometryRegion)
+                XCTAssertEqual(actor.material.mechanism, reference.material.mechanism)
+                XCTAssertEqual(actor.material.colors, reference.material.colors)
+                XCTAssertEqual(actor.material.fields, reference.material.fields)
+                XCTAssertEqual(actor.motion, reference.motion)
+            }
+        }
     }
 
     func testEditorialLabSingleMaterialModesRemainAvailable() throws {
@@ -680,12 +744,13 @@ final class DayObjectSceneTests: XCTestCase {
     }
 
     private func editorialLabInput(
+        dayKey: String = "2026-09-05",
         eventIDs: [String],
         materialMode: DayObjectEditorialLabMaterialMode,
         placement: DayObjectEditorialPreviewPlacement = .depthField
     ) -> DayObjectSceneInput {
         DayObjectSceneInput(
-            dayKey: "2026-09-05",
+            dayKey: dayKey,
             identity: "day-objects-lab",
             eventIDs: eventIDs,
             motionEnergy: 0.55,
@@ -706,6 +771,13 @@ final class DayObjectSceneTests: XCTestCase {
         matches mode: DayObjectEditorialLabMaterialMode
     ) -> Bool {
         switch mode {
+        case .generativeDNA:
+            material.mechanism == .solid
+                || material.mechanism == .smoothRadial
+                || material.mechanism == .layeredMembrane
+                || material.mechanism == .boundary
+                || material.mechanism == .radialFibers
+                || material.mechanism == .harmonicPath
         case .mixed:
             true
         case .solid:

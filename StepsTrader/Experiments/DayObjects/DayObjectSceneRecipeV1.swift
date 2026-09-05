@@ -52,6 +52,7 @@ struct DayObjectEditorialRadialFieldV1: Equatable {
 
 struct DayObjectEditorialMaterialV1: Equatable {
     let family: DayObjectEditorialMaterialFamily
+    let mechanism: DayObjectMaterialMechanism
     let colors: [SIMD3<Float>]
     let fields: [DayObjectEditorialRadialFieldV1]
     let baseOpacity: Double
@@ -233,6 +234,8 @@ private extension DayObjectEditorialMotionV1.Pose {
 struct DayObjectSceneRecipeActorV1: Equatable {
     let eventID: String
     let slot: Int
+    let shape: DayObjectShape
+    let geometryRegion: DayObjectGeometryRegion
     let position: SIMD2<Double>
     let diameter: Double
     let depth: Double
@@ -260,6 +263,17 @@ struct DayObjectSceneRecipeV1: Equatable {
     let preview: DayObjectEditorialPreviewSpec?
     let previewPaletteSet: DayObjectPaletteSet?
     let editorialLabConfiguration: DayObjectEditorialLabConfiguration?
+    let artDirection: DayObjectArtDirection?
+
+    var artDirectionSummary: String? {
+        guard let artDirection else { return nil }
+        let fingerprint = artDirection.fingerprint
+        let accent = artDirection.accentMaterial.map { " + \($0.label)" } ?? ""
+        return "DNA \(fingerprint.primaryFamily.label) · "
+            + "\(artDirection.primaryGeometry.label) · "
+            + "\(artDirection.primaryMaterial.label)\(accent) · "
+            + fingerprint.composition.label
+    }
 
     func actor(_ eventID: String) -> DayObjectSceneRecipeActorV1? {
         actors.first { $0.eventID == eventID }
@@ -267,6 +281,8 @@ struct DayObjectSceneRecipeV1: Equatable {
 
     static func make(
         rootSeed: UInt64,
+        dayKey: String,
+        identity: String,
         actors: [DayObjectActor],
         background: DayObjectEditorialBackground,
         lowSleep: Bool,
@@ -291,7 +307,10 @@ struct DayObjectSceneRecipeV1: Equatable {
                 background: background,
                 lowSleep: lowSleep,
                 paletteSet: paletteSet,
-                configuration: editorialLabConfiguration
+                configuration: editorialLabConfiguration,
+                artDirection: editorialLabConfiguration.materialMode == .generativeDNA
+                    ? DayObjectArtDirectionScheduler.make(dayKey: dayKey, identity: identity)
+                    : nil
             )
         }
         let materialSeed = approvedMaterialSeeds[Int(rootSeed % UInt64(approvedMaterialSeeds.count))]
@@ -314,6 +333,8 @@ struct DayObjectSceneRecipeV1: Equatable {
             return DayObjectSceneRecipeActorV1(
                 eventID: actor.eventID,
                 slot: index,
+                shape: .sphere,
+                geometryRegion: .circle,
                 position: geometry.position,
                 diameter: geometry.diameter,
                 depth: geometry.depth,
@@ -334,7 +355,8 @@ struct DayObjectSceneRecipeV1: Equatable {
             backgroundStyle: neutralBackgroundStyle(background),
             preview: nil,
             previewPaletteSet: nil,
-            editorialLabConfiguration: nil
+            editorialLabConfiguration: nil,
+            artDirection: nil
         )
     }
 
@@ -356,7 +378,8 @@ struct DayObjectSceneRecipeV1: Equatable {
                 background: background,
                 lowSleep: lowSleep,
                 paletteSet: previewPaletteSet,
-                configuration: editorialLabConfiguration
+                configuration: editorialLabConfiguration,
+                artDirection: artDirection
             )
         }
         return Self.make(
@@ -400,6 +423,8 @@ struct DayObjectSceneRecipeV1: Equatable {
             return DayObjectSceneRecipeActorV1(
                 eventID: actor.eventID,
                 slot: index,
+                shape: .sphere,
+                geometryRegion: .circle,
                 position: geometry.position,
                 diameter: geometry.diameter,
                 depth: geometry.depth,
@@ -429,7 +454,8 @@ struct DayObjectSceneRecipeV1: Equatable {
             ),
             preview: preview,
             previewPaletteSet: paletteSet,
-            editorialLabConfiguration: nil
+            editorialLabConfiguration: nil,
+            artDirection: nil
         )
     }
 
@@ -439,7 +465,8 @@ struct DayObjectSceneRecipeV1: Equatable {
         background: DayObjectEditorialBackground,
         lowSleep: Bool,
         paletteSet: DayObjectPaletteSet,
-        configuration: DayObjectEditorialLabConfiguration
+        configuration: DayObjectEditorialLabConfiguration,
+        artDirection: DayObjectArtDirection?
     ) -> DayObjectSceneRecipeV1 {
         let planned = CompositionPlanner.make(
             daySeed: rootSeed,
@@ -463,24 +490,37 @@ struct DayObjectSceneRecipeV1: Equatable {
         }
         let recipeActors = Array(actors.prefix(geometries.count)).enumerated().map { index, actor in
             let geometry = geometries[index]
-            let material = configuration.materialMode.singleMaterial
+            let resolution = artDirection?.resolution(eventID: actor.eventID)
+            let previewMaterial = configuration.materialMode.singleMaterial
                 ?? mixedMaterial(eventID: actor.eventID)
+            let material = resolution.map {
+                makeGenerativeMaterial(
+                    daySeed: rootSeed,
+                    eventID: actor.eventID,
+                    mechanism: $0.material,
+                    direction: artDirection!,
+                    paletteSet: paletteSet
+                )
+            } ?? makePreviewMaterial(
+                daySeed: rootSeed,
+                eventID: actor.eventID,
+                slot: index,
+                material: previewMaterial,
+                paletteSet: paletteSet
+            )
+            let geometryRegion = resolution?.geometry ?? .circle
             return DayObjectSceneRecipeActorV1(
                 eventID: actor.eventID,
                 slot: index,
+                shape: shape(for: geometryRegion),
+                geometryRegion: geometryRegion,
                 position: geometry.position,
                 diameter: geometry.diameter,
                 depth: geometry.depth,
                 localBlur: geometry.localBlur,
                 cropAllowance: geometry.cropAllowance,
                 drawOrder: geometry.drawOrder,
-                material: makePreviewMaterial(
-                    daySeed: rootSeed,
-                    eventID: actor.eventID,
-                    slot: index,
-                    material: material,
-                    paletteSet: paletteSet
-                ),
+                material: material,
                 motion: makeMotion(daySeed: rootSeed, eventID: actor.eventID)
             )
         }
@@ -497,7 +537,8 @@ struct DayObjectSceneRecipeV1: Equatable {
             ),
             preview: nil,
             previewPaletteSet: paletteSet,
-            editorialLabConfiguration: configuration
+            editorialLabConfiguration: configuration,
+            artDirection: artDirection
         )
     }
 
@@ -508,6 +549,55 @@ struct DayObjectSceneRecipeV1: Equatable {
             materials.count - 1
         )
         return materials[index]
+    }
+
+    private static func shape(for geometry: DayObjectGeometryRegion) -> DayObjectShape {
+        switch geometry {
+        case .circle: .sphere
+        case .superellipse: .softBlob
+        case .softStar: .lens
+        case .compound: .ellipse
+        }
+    }
+
+    private static func makeGenerativeMaterial(
+        daySeed: UInt64,
+        eventID: String,
+        mechanism: DayObjectMaterialMechanism,
+        direction: DayObjectArtDirection,
+        paletteSet: DayObjectPaletteSet
+    ) -> DayObjectEditorialMaterialV1 {
+        let previewMaterial: DayObjectEditorialPreviewMaterial = switch mechanism {
+        case .solid: .solid
+        case .smoothRadial: .wideGradient
+        case .layeredMembrane: .softMist
+        case .boundary:
+            direction.fingerprint.edgeMood == .hairline
+                ? .hairlineOutline
+                : .softOutline
+        case .radialFibers: .softOutline
+        case .harmonicPath: .hairlineOutline
+        }
+        let stableSlot = Int(stableHash(eventID) % 10)
+        let base = makePreviewMaterial(
+            daySeed: daySeed,
+            eventID: eventID,
+            slot: stableSlot,
+            material: previewMaterial,
+            paletteSet: paletteSet
+        )
+        return DayObjectEditorialMaterialV1(
+            family: base.family,
+            mechanism: mechanism,
+            colors: base.colors,
+            fields: base.fields,
+            baseOpacity: base.baseOpacity,
+            edgeSoftness: base.edgeSoftness,
+            contourWidth: base.contourWidth,
+            contourCount: base.contourCount,
+            counterformRadius: base.counterformRadius,
+            counterformSoftness: base.counterformSoftness
+        )
     }
 
     private static func vividPreviewBackgroundStyle(
@@ -654,6 +744,7 @@ struct DayObjectSceneRecipeV1: Equatable {
         }
         return DayObjectEditorialMaterialV1(
             family: family,
+            mechanism: mechanism(for: family),
             colors: colors,
             fields: fields,
             baseOpacity: construction.0,
@@ -731,6 +822,7 @@ struct DayObjectSceneRecipeV1: Equatable {
         }
         return DayObjectEditorialMaterialV1(
             family: material.family,
+            mechanism: mechanism(for: material.family),
             colors: colors,
             fields: fields,
             baseOpacity: construction.0,
@@ -740,6 +832,17 @@ struct DayObjectSceneRecipeV1: Equatable {
             counterformRadius: nil,
             counterformSoftness: 0
         )
+    }
+
+    private static func mechanism(
+        for family: DayObjectEditorialMaterialFamily
+    ) -> DayObjectMaterialMechanism {
+        switch family {
+        case .solid: .solid
+        case .gradient, .sphere, .luminous: .smoothRadial
+        case .glass, .mist: .layeredMembrane
+        case .halo, .outline, .counterform: .boundary
+        }
     }
 
     private static func makePreviewFields(

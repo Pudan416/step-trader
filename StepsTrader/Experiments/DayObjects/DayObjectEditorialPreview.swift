@@ -54,11 +54,11 @@ enum DayObjectEditorialPreviewPlacement: String, CaseIterable, Hashable, Identif
     }
 }
 
-/// The first interactive Editorial Field variant exposed only inside Day Objects Lab.
-/// Mixed deterministically assigns one of the six approved preview materials to
-/// each stable event identity; the remaining cases keep every format available
-/// for focused comparison without maintaining a second material implementation.
+/// The interactive Editorial Field variants exposed only inside Day Objects Lab.
+/// Generative DNA gives each day one coherent visual envelope. The comparison
+/// atlas intentionally mixes all six legacy preview formats for inspection.
 enum DayObjectEditorialLabMaterialMode: String, CaseIterable, Hashable, Identifiable {
+    case generativeDNA
     case mixed
     case solid
     case translucentSolid
@@ -71,7 +71,8 @@ enum DayObjectEditorialLabMaterialMode: String, CaseIterable, Hashable, Identifi
 
     var title: String {
         switch self {
-        case .mixed: "Mixed"
+        case .generativeDNA: "Generative DNA"
+        case .mixed: "All formats (comparison)"
         case .solid: "Solid"
         case .translucentSolid: "Translucent solid"
         case .softMist: "Soft mist"
@@ -82,7 +83,7 @@ enum DayObjectEditorialLabMaterialMode: String, CaseIterable, Hashable, Identifi
     }
 
     var singleMaterial: DayObjectEditorialPreviewMaterial? {
-        guard self != .mixed else { return nil }
+        guard self != .generativeDNA, self != .mixed else { return nil }
         return DayObjectEditorialPreviewMaterial(rawValue: rawValue)
     }
 }

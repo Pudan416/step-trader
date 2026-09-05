@@ -5,6 +5,15 @@ enum DayObjectGeometryRegion: UInt32, CaseIterable, Equatable, Hashable {
     case superellipse
     case softStar
     case compound
+
+    var label: String {
+        switch self {
+        case .circle: "circle"
+        case .superellipse: "superellipse"
+        case .softStar: "soft star"
+        case .compound: "compound"
+        }
+    }
 }
 
 enum DayObjectMaterialMechanism: UInt32, CaseIterable, Equatable, Hashable {
@@ -14,6 +23,17 @@ enum DayObjectMaterialMechanism: UInt32, CaseIterable, Equatable, Hashable {
     case boundary
     case radialFibers
     case harmonicPath
+
+    var label: String {
+        switch self {
+        case .solid: "solid"
+        case .smoothRadial: "radial field"
+        case .layeredMembrane: "membrane"
+        case .boundary: "boundary"
+        case .radialFibers: "radial fibers"
+        case .harmonicPath: "harmonic path"
+        }
+    }
 }
 
 enum DayObjectVisualFamily: UInt32, CaseIterable, Equatable, Hashable {
@@ -22,6 +42,29 @@ enum DayObjectVisualFamily: UInt32, CaseIterable, Equatable, Hashable {
     case contour
     case fiber
     case harmonic
+
+    var label: String {
+        switch self {
+        case .surface: "surface"
+        case .membrane: "membrane"
+        case .contour: "contour"
+        case .fiber: "fiber"
+        case .harmonic: "harmonic"
+        }
+    }
+}
+
+extension DayObjectCompositionArchetype {
+    var label: String {
+        switch self {
+        case .distributedField: "distributed field"
+        case .diagonalCurrent: "diagonal current"
+        case .edgeMigration: "edge migration"
+        case .focalPair: "focal pair"
+        case .depthConstellation: "depth constellation"
+        case .crossingCurrents: "crossing currents"
+        }
+    }
 }
 
 enum DayObjectPaletteMood: UInt32, CaseIterable, Equatable, Hashable {
