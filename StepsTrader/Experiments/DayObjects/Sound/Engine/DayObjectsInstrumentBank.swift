@@ -416,8 +416,43 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         prepared?.graph.diagnosticMeterSnapshot ?? .silent
     }
 
+    func diagnosticMeterSnapshot(atHostTime hostTime: TimeInterval) -> DayObjectsDiagnosticMeterSnapshot {
+        prepared?.graph.diagnosticMeterSnapshot(atHostTime: hostTime) ?? .silent
+    }
+
+    var offlineLimiterInputPeakDBFS: Double {
+        prepared?.graph.offlineLimiterInputPeakDBFS ?? -120
+    }
+
     func applyMix(_ state: DayObjectsMixState) {
         prepared?.graph.applyMix(state)
+    }
+
+    func beginOfflineRendering(
+        format: AVAudioFormat,
+        maximumFrameCount: AVAudioFrameCount
+    ) throws {
+        guard let prepared else { throw DayObjectsInstrumentBankError.notPrepared }
+        guard prepared.state != .started else {
+            throw DayObjectsInstrumentBankError.offlineRenderingConflictsWithLivePlayback
+        }
+        try prepared.graph.synchronizeForStart()
+        try engine.beginOfflineRendering(
+            format: format,
+            maximumFrameCount: maximumFrameCount
+        )
+    }
+
+    func renderOffline(
+        _ numberOfFrames: AVAudioFrameCount,
+        to buffer: AVAudioPCMBuffer
+    ) throws -> AVAudioEngineManualRenderingStatus {
+        try engine.renderOffline(numberOfFrames, to: buffer)
+    }
+
+    func endOfflineRendering() {
+        releaseAllIncludingSharedHappenings()
+        engine.endOfflineRendering()
     }
 
     fileprivate func synchronizePreparedGraphForPlaybackPair() throws {
@@ -652,6 +687,16 @@ final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentBankGraph
         guard let persistentMaster else { return .silent }
         let snapshots = persistentMaster.meterSnapshots(graphs: [self])
         return .init(roleBusMetrics: snapshots.0, masterMetrics: snapshots.1)
+    }
+
+    func diagnosticMeterSnapshot(atHostTime hostTime: TimeInterval) -> DayObjectsDiagnosticMeterSnapshot {
+        guard let persistentMaster else { return .silent }
+        let snapshots = persistentMaster.meterSnapshots(graphs: [self], now: hostTime)
+        return .init(roleBusMetrics: snapshots.0, masterMetrics: snapshots.1)
+    }
+
+    var offlineLimiterInputPeakDBFS: Double {
+        persistentMaster?.offlineLimiterInputPeakDBFS ?? -120
     }
 
     var outputGainMetrics: DayObjectsBankOutputGainMetrics {
@@ -1053,10 +1098,22 @@ final class DayObjectsMasterOutputGainNode: Node {
 @MainActor
 final class DayObjectsPersistentMasterGraph {
     static let masterTrimDecibels = -6.0
+    /// Measured path calibration keeps the published and physical master trim
+    /// identical while bringing every role's direct and spatial paths into the
+    /// production loudness window.
+    static let rhythmPathCalibrationDecibels = 10.40
+    static let bassPathCalibrationDecibels = 10.40
+    static let harmonyPathCalibrationDecibels = 10.40
+    static let happeningsPathCalibrationDecibels = 10.40
+    static let leadPathCalibrationDecibels = 10.40
     static let masterHighPassHz = 22.0
     static let glueRatio = 1.5
     static let nominalMaximumGlueReductionDB = 1.5
-    static let limiterCeilingDBFS = -1.0
+    static let limiterCeilingDBFS = -1.35
+    private static let rhythmReturnSendCalibration = 8.0
+    private static let harmonyReturnSendCalibration = 2.0
+    private static let happeningsReturnSendCalibration = 3.4
+    private static let maximumCalibratedReturnGain = 12.0
     private static let silentRoleMetrics = DayObjectsFiveRoleBusMetrics(
         rhythm: .init(peakDBFS: -120, rmsDBFS: -120, activeVoiceCount: 0),
         bass: .init(peakDBFS: -120, rmsDBFS: -120, activeVoiceCount: 0),
@@ -1226,7 +1283,10 @@ final class DayObjectsPersistentMasterGraph {
             negativeShapeParameter: 0,
             dryWetMix: 0.10
         )
-        masterTrim = Fader(masterSaturation, gain: AUValue(pow(10, Self.masterTrimDecibels / 20)))
+        masterTrim = Fader(
+            masterSaturation,
+            gain: AUValue(pow(10, Self.masterTrimDecibels / 20))
+        )
         limiter = PeakLimiter(masterTrim, attackTime: 0.012, decayTime: 0.024, preGain: 0)
         finalOutput = DayObjectsMasterOutputGainNode(
             input: limiter,
@@ -1404,6 +1464,10 @@ final class DayObjectsPersistentMasterGraph {
         return 20 * log10(gain)
     }
 
+    var offlineLimiterInputPeakDBFS: Double {
+        preLimiterMeter.snapshot(activeVoiceCount: 0).peakDBFS
+    }
+
     func add(_ graph: DayObjectsAudioKitInstrumentBankGraph) {
         graph.bind(to: self)
         for role in [DayObjectsRoleBus.rhythm, .bass, .harmony, .lead] {
@@ -1423,16 +1487,70 @@ final class DayObjectsPersistentMasterGraph {
 
     func applyMix(_ state: DayObjectsMixState) {
         let duration = min(max(state.rampDurationSeconds.isFinite ? state.rampDurationSeconds : 0, 0), 2)
-        apply(state.buses.rhythm, direct: rhythmDirect, send: rhythmSend, decay: rhythmRoomReturn.$feedback, duration: duration)
-        apply(state.buses.bass, direct: bassDirect, send: bassSend, decay: bassShortReturn.$feedback, duration: duration)
-        apply(state.buses.harmony, direct: harmonyDirect, send: harmonySend, decay: harmonyHallReturn.$feedback, duration: duration)
-        apply(state.buses.happenings, direct: happeningsDirect, send: happeningsSend, decay: happeningsCathedralReturn.$feedback, duration: duration)
-        apply(state.buses.lead, direct: leadDirect, send: leadSend, decay: leadReverbReturn.$feedback, duration: duration)
-        ramp(leadDelaySend, to: boundedDelay(state.buses.lead.secondarySendLevel ?? 0), duration: duration)
+        apply(
+            state.buses.rhythm,
+            direct: rhythmDirect,
+            send: rhythmSend,
+            decay: rhythmRoomReturn.$feedback,
+            pathCalibrationDecibels: Self.rhythmPathCalibrationDecibels,
+            returnSendCalibration: Self.rhythmReturnSendCalibration,
+            duration: duration
+        )
+        apply(
+            state.buses.bass,
+            direct: bassDirect,
+            send: bassSend,
+            decay: bassShortReturn.$feedback,
+            pathCalibrationDecibels: Self.bassPathCalibrationDecibels,
+            duration: duration
+        )
+        apply(
+            state.buses.harmony,
+            direct: harmonyDirect,
+            send: harmonySend,
+            decay: harmonyHallReturn.$feedback,
+            pathCalibrationDecibels: Self.harmonyPathCalibrationDecibels,
+            returnSendCalibration: Self.harmonyReturnSendCalibration,
+            duration: duration
+        )
+        apply(
+            state.buses.happenings,
+            direct: happeningsDirect,
+            send: happeningsSend,
+            decay: happeningsCathedralReturn.$feedback,
+            pathCalibrationDecibels: Self.happeningsPathCalibrationDecibels,
+            returnSendCalibration: Self.happeningsReturnSendCalibration,
+            duration: duration
+        )
+        apply(
+            state.buses.lead,
+            direct: leadDirect,
+            send: leadSend,
+            decay: leadReverbReturn.$feedback,
+            pathCalibrationDecibels: Self.leadPathCalibrationDecibels,
+            duration: duration
+        )
+        let leadIsExplicitlyMuted = state.buses.lead.directTargetDecibels <= -60
+        let leadPathCalibration = Self.linearGain(for: Self.leadPathCalibrationDecibels)
+        ramp(
+            leadDelaySend,
+            to: leadIsExplicitlyMuted
+                ? 0
+                : boundedReturnGain((state.buses.lead.secondarySendLevel ?? 0) * leadPathCalibration),
+            duration: duration
+        )
         transition(leadDelayReturn.$feedback, to: boundedDelay(state.buses.lead.secondaryDecay ?? 0.32), duration: duration)
-        let masterDB = min(max(state.masterTargetDecibelsBeforeLimiter.isFinite ? state.masterTargetDecibelsBeforeLimiter : -60, -60), Self.masterTrimDecibels)
-        currentMasterTrimDecibels = masterDB
-        ramp(masterTrim, to: pow(10, masterDB / 20), duration: duration)
+        let requestedMasterDB = min(
+            max(
+                state.masterTargetDecibelsBeforeLimiter.isFinite
+                    ? state.masterTargetDecibelsBeforeLimiter
+                    : -60,
+                -60
+            ),
+            Self.masterTrimDecibels
+        )
+        currentMasterTrimDecibels = requestedMasterDB
+        ramp(masterTrim, to: pow(10, requestedMasterDB / 20), duration: duration)
     }
 
     func startMeters() {
@@ -1571,11 +1689,24 @@ final class DayObjectsPersistentMasterGraph {
         direct: Fader,
         send: Fader,
         decay: NodeParameter,
+        pathCalibrationDecibels: Double,
+        returnSendCalibration: Double = 1,
         duration: TimeInterval
     ) {
         let directDB = min(max(parameters.directTargetDecibels.isFinite ? parameters.directTargetDecibels : -60, -60), 0)
-        ramp(direct, to: pow(10, directDB / 20), duration: duration)
-        ramp(send, to: boundedUnit(parameters.sendLevel), duration: duration)
+        // Diagnostic isolation publishes -60 dB for every non-soloed role.
+        // Treat that sentinel as a hard mute on both paths so parallel returns
+        // cannot leak a nominally isolated role into the capture.
+        let isExplicitlyMuted = directDB <= -60
+        let pathCalibration = Self.linearGain(for: pathCalibrationDecibels)
+        ramp(direct, to: isExplicitlyMuted ? 0 : pow(10, directDB / 20) * pathCalibration, duration: duration)
+        ramp(
+            send,
+            to: isExplicitlyMuted
+                ? 0
+                : boundedReturnGain(parameters.sendLevel * returnSendCalibration * pathCalibration),
+            duration: duration
+        )
         transition(decay, to: boundedUnit(parameters.decay), duration: duration)
     }
 
@@ -1599,6 +1730,14 @@ final class DayObjectsPersistentMasterGraph {
 
     private func boundedUnit(_ value: Double) -> Double {
         min(max(value.isFinite ? value : 0, 0), DayObjectsAudioParameters.maximumReverbFeedback)
+    }
+
+    private func boundedReturnGain(_ value: Double) -> Double {
+        min(max(value.isFinite ? value : 0, 0), Self.maximumCalibratedReturnGain)
+    }
+
+    private static func linearGain(for decibels: Double) -> Double {
+        pow(10, decibels / 20)
     }
 
     private func boundedDelay(_ value: Double) -> Double {
@@ -1633,6 +1772,7 @@ private final class DayObjectsAudioKitInstrumentBankEngine: DayObjectsInstrument
     private let engine = AudioEngine()
     private let masterGraph: DayObjectsPersistentMasterGraph
     private var graph: DayObjectsAudioKitInstrumentBankGraph?
+    private var isOfflineRendering = false
 
     var topologyMetrics: DayObjectsInstrumentBankEngineTopologyMetrics {
         masterGraph.topologyMetrics(
@@ -1671,6 +1811,54 @@ private final class DayObjectsAudioKitInstrumentBankEngine: DayObjectsInstrument
     func stop() {
         engine.stop()
         masterGraph.stopMeters()
+    }
+
+    func beginOfflineRendering(
+        format: AVAudioFormat,
+        maximumFrameCount: AVAudioFrameCount
+    ) throws {
+        guard graph != nil else { throw DayObjectsInstrumentBankError.notPrepared }
+        guard !engine.avEngine.isRunning, !engine.avEngine.isInManualRenderingMode else {
+            throw DayObjectsInstrumentBankError.offlineRenderingConflictsWithLivePlayback
+        }
+        do {
+            engine.avEngine.reset()
+            try engine.avEngine.enableManualRenderingMode(
+                .offline,
+                format: format,
+                maximumFrameCount: maximumFrameCount
+            )
+            masterGraph.startMeters()
+            try engine.start()
+            isOfflineRendering = true
+        } catch {
+            engine.stop()
+            if engine.avEngine.isInManualRenderingMode {
+                engine.avEngine.disableManualRenderingMode()
+            }
+            masterGraph.stopMeters()
+            throw error
+        }
+    }
+
+    func renderOffline(
+        _ numberOfFrames: AVAudioFrameCount,
+        to buffer: AVAudioPCMBuffer
+    ) throws -> AVAudioEngineManualRenderingStatus {
+        guard isOfflineRendering else {
+            throw DayObjectsInstrumentBankError.offlineRenderingNotStarted
+        }
+        return try engine.avEngine.renderOffline(numberOfFrames, to: buffer)
+    }
+
+    func endOfflineRendering() {
+        guard isOfflineRendering || engine.avEngine.isInManualRenderingMode else { return }
+        engine.stop()
+        if engine.avEngine.isInManualRenderingMode {
+            engine.avEngine.disableManualRenderingMode()
+        }
+        masterGraph.stopMeters()
+        isOfflineRendering = false
     }
 }
 

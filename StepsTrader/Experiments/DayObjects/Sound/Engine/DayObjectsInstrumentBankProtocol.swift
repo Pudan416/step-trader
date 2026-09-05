@@ -1,4 +1,5 @@
 #if DEBUG || INTERNAL_BUILD
+import AVFAudio
 import Foundation
 
 enum DayObjectsRoleBus: CaseIterable, Equatable, Hashable, Sendable {
@@ -135,6 +136,9 @@ enum DayObjectsInstrumentBankError: Error, Equatable, Sendable {
     case invalidTonalInstrumentCategory(DayObjectsInstrumentCategory)
     case preparationFailed(DayObjectsInstrumentBankPreparationStage)
     case startFailed
+    case offlineRenderingUnsupported
+    case offlineRenderingConflictsWithLivePlayback
+    case offlineRenderingNotStarted
 
     var diagnosticID: String {
         switch self {
@@ -148,6 +152,9 @@ enum DayObjectsInstrumentBankError: Error, Equatable, Sendable {
         case let .invalidTonalInstrumentCategory(category): return "day-objects.instrument-bank.invalid-tonal-category.\(category.rawValue)"
         case let .preparationFailed(stage): return "day-objects.instrument-bank.prepare.\(stage.rawValue)"
         case .startFailed: return "day-objects.instrument-bank.start-failed"
+        case .offlineRenderingUnsupported: return "day-objects.instrument-bank.offline-rendering-unsupported"
+        case .offlineRenderingConflictsWithLivePlayback: return "day-objects.instrument-bank.offline-rendering-live-conflict"
+        case .offlineRenderingNotStarted: return "day-objects.instrument-bank.offline-rendering-not-started"
         }
     }
 }
@@ -297,6 +304,8 @@ protocol DayObjectsInstrumentBankGraph: AnyObject {
     func resetBassDuckGain()
     func synchronizeForStart() throws
     func applyMix(_ state: DayObjectsMixState)
+    func diagnosticMeterSnapshot(atHostTime hostTime: TimeInterval) -> DayObjectsDiagnosticMeterSnapshot
+    var offlineLimiterInputPeakDBFS: Double { get }
 }
 
 extension DayObjectsInstrumentBankGraph {
@@ -319,6 +328,10 @@ extension DayObjectsInstrumentBankGraph {
     func resetBassDuckGain() {}
     func synchronizeForStart() throws {}
     func applyMix(_ state: DayObjectsMixState) {}
+    func diagnosticMeterSnapshot(atHostTime hostTime: TimeInterval) -> DayObjectsDiagnosticMeterSnapshot {
+        diagnosticMeterSnapshot
+    }
+    var offlineLimiterInputPeakDBFS: Double { -120 }
 }
 
 @MainActor
@@ -328,6 +341,15 @@ protocol DayObjectsInstrumentBankEngine: AnyObject {
     func detach()
     func start() throws
     func stop()
+    func beginOfflineRendering(
+        format: AVAudioFormat,
+        maximumFrameCount: AVAudioFrameCount
+    ) throws
+    func renderOffline(
+        _ numberOfFrames: AVAudioFrameCount,
+        to buffer: AVAudioPCMBuffer
+    ) throws -> AVAudioEngineManualRenderingStatus
+    func endOfflineRendering()
 }
 
 struct DayObjectsInstrumentBankEngineTopologyMetrics: Equatable, Sendable {
@@ -424,6 +446,19 @@ struct DayObjectsGraphConnection: Equatable, Hashable, Sendable {
 
 extension DayObjectsInstrumentBankEngine {
     var topologyMetrics: DayObjectsInstrumentBankEngineTopologyMetrics { .unsupported }
+    func beginOfflineRendering(
+        format: AVAudioFormat,
+        maximumFrameCount: AVAudioFrameCount
+    ) throws {
+        throw DayObjectsInstrumentBankError.offlineRenderingUnsupported
+    }
+    func renderOffline(
+        _ numberOfFrames: AVAudioFrameCount,
+        to buffer: AVAudioPCMBuffer
+    ) throws -> AVAudioEngineManualRenderingStatus {
+        throw DayObjectsInstrumentBankError.offlineRenderingUnsupported
+    }
+    func endOfflineRendering() {}
 }
 
 struct DayObjectsInstrumentBankMetrics: Equatable, Sendable {
@@ -490,6 +525,17 @@ protocol DayObjectsInstrumentBankProtocol: AnyObject {
     func scheduleBassDuck(_ command: BassDuckCommand)
     func resetBassDuckGain()
     func applyMix(_ state: DayObjectsMixState)
+    func beginOfflineRendering(
+        format: AVAudioFormat,
+        maximumFrameCount: AVAudioFrameCount
+    ) throws
+    func renderOffline(
+        _ numberOfFrames: AVAudioFrameCount,
+        to buffer: AVAudioPCMBuffer
+    ) throws -> AVAudioEngineManualRenderingStatus
+    func endOfflineRendering()
+    func diagnosticMeterSnapshot(atHostTime hostTime: TimeInterval) -> DayObjectsDiagnosticMeterSnapshot
+    var offlineLimiterInputPeakDBFS: Double { get }
 }
 
 extension DayObjectsInstrumentBankProtocol {
@@ -511,5 +557,22 @@ extension DayObjectsInstrumentBankProtocol {
     func scheduleBassDuck(_ command: BassDuckCommand) {}
     func resetBassDuckGain() {}
     func applyMix(_ state: DayObjectsMixState) {}
+    func beginOfflineRendering(
+        format: AVAudioFormat,
+        maximumFrameCount: AVAudioFrameCount
+    ) throws {
+        throw DayObjectsInstrumentBankError.offlineRenderingUnsupported
+    }
+    func renderOffline(
+        _ numberOfFrames: AVAudioFrameCount,
+        to buffer: AVAudioPCMBuffer
+    ) throws -> AVAudioEngineManualRenderingStatus {
+        throw DayObjectsInstrumentBankError.offlineRenderingUnsupported
+    }
+    func endOfflineRendering() {}
+    func diagnosticMeterSnapshot(atHostTime hostTime: TimeInterval) -> DayObjectsDiagnosticMeterSnapshot {
+        diagnosticMeterSnapshot
+    }
+    var offlineLimiterInputPeakDBFS: Double { -120 }
 }
 #endif

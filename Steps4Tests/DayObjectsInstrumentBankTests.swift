@@ -207,6 +207,107 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(pair.metrics.sharedMasterTrimDecibels, -12, accuracy: 0.001)
     }
 
+    func testDiagnosticMuteRemovesDirectAndReturnPathsWhileSoloKeepsConfiguredSpace() {
+        let graph = DayObjectsPersistentMasterGraph(
+            happenings: DayObjectsHappeningSamplePool(bundle: Bundle(for: type(of: self)))
+        )
+        let muted = DayObjectsRoleBusMixParameters(
+            directTargetDecibels: -60,
+            sendLevel: 0.4,
+            decay: 0.5
+        )
+        let mutedLead = DayObjectsRoleBusMixParameters(
+            directTargetDecibels: -60,
+            sendLevel: 0.4,
+            decay: 0.5,
+            secondarySendLevel: 0.3,
+            secondaryDecay: 0.4
+        )
+        let solo = DayObjectsRoleBusMixParameters(
+            directTargetDecibels: 0,
+            sendLevel: 0.4,
+            decay: 0.5
+        )
+
+        graph.applyMix(.init(
+            buses: .init(
+                rhythm: muted,
+                bass: muted,
+                harmony: solo,
+                happenings: muted,
+                lead: mutedLead
+            ),
+            harmonyPerVoiceTargetDecibels: 0,
+            happeningPerVoiceTargetDecibels: -60,
+            masterTargetDecibelsBeforeLimiter: -6,
+            harmonyDuckingDecibels: 0,
+            rampDurationSeconds: 0
+        ))
+
+        XCTAssertEqual(graph.rhythmDirect.$leftGain.parameter.value, 0, accuracy: 0.000_001)
+        XCTAssertEqual(graph.bassDirect.$leftGain.parameter.value, 0, accuracy: 0.000_001)
+        XCTAssertEqual(graph.happeningsDirect.$leftGain.parameter.value, 0, accuracy: 0.000_001)
+        XCTAssertEqual(graph.leadDirect.$leftGain.parameter.value, 0, accuracy: 0.000_001)
+        XCTAssertEqual(graph.rhythmSend.$leftGain.parameter.value, 0, accuracy: 0.000_001)
+        XCTAssertEqual(graph.bassSend.$leftGain.parameter.value, 0, accuracy: 0.000_001)
+        XCTAssertEqual(graph.happeningsSend.$leftGain.parameter.value, 0, accuracy: 0.000_001)
+        XCTAssertEqual(graph.leadSend.$leftGain.parameter.value, 0, accuracy: 0.000_001)
+        XCTAssertEqual(graph.leadDelaySend.$leftGain.parameter.value, 0, accuracy: 0.000_001)
+        XCTAssertGreaterThan(graph.harmonyDirect.$leftGain.parameter.value, 1)
+        XCTAssertGreaterThan(graph.harmonySend.$leftGain.parameter.value, 0)
+    }
+
+    func testMeasuredRoleCalibrationScalesEveryAudiblePathWithoutMovingMasterTrim() {
+        XCTAssertEqual(DayObjectsPersistentMasterGraph.rhythmPathCalibrationDecibels, 10.40)
+        XCTAssertEqual(DayObjectsPersistentMasterGraph.bassPathCalibrationDecibels, 10.40)
+        XCTAssertEqual(DayObjectsPersistentMasterGraph.harmonyPathCalibrationDecibels, 10.40)
+        XCTAssertEqual(DayObjectsPersistentMasterGraph.happeningsPathCalibrationDecibels, 10.40)
+        XCTAssertEqual(DayObjectsPersistentMasterGraph.leadPathCalibrationDecibels, 10.40)
+        XCTAssertEqual(DayObjectsPersistentMasterGraph.limiterCeilingDBFS, -1.35)
+
+        let graph = DayObjectsPersistentMasterGraph(
+            happenings: DayObjectsHappeningSamplePool(bundle: Bundle(for: type(of: self)))
+        )
+        let standard = DayObjectsRoleBusMixParameters(
+            directTargetDecibels: 0,
+            sendLevel: 0.1,
+            decay: 0.5,
+            secondarySendLevel: 0.1,
+            secondaryDecay: 0.4
+        )
+
+        graph.applyMix(.init(
+            buses: .init(
+                rhythm: standard,
+                bass: standard,
+                harmony: standard,
+                happenings: standard,
+                lead: standard
+            ),
+            harmonyPerVoiceTargetDecibels: 0,
+            happeningPerVoiceTargetDecibels: 0,
+            masterTargetDecibelsBeforeLimiter: -6,
+            harmonyDuckingDecibels: 0,
+            rampDurationSeconds: 0
+        ))
+
+        let roleGain = AUValue(pow(10, 10.40 / 20))
+        for direct in [
+            graph.rhythmDirect, graph.bassDirect, graph.harmonyDirect,
+            graph.happeningsDirect, graph.leadDirect,
+        ] {
+            XCTAssertEqual(direct.$leftGain.parameter.value, roleGain, accuracy: 0.000_01)
+        }
+        XCTAssertEqual(graph.rhythmSend.$leftGain.parameter.value, AUValue(0.1 * 8) * roleGain, accuracy: 0.000_01)
+        XCTAssertEqual(graph.bassSend.$leftGain.parameter.value, AUValue(0.1) * roleGain, accuracy: 0.000_01)
+        XCTAssertEqual(graph.harmonySend.$leftGain.parameter.value, AUValue(0.1 * 2) * roleGain, accuracy: 0.000_01)
+        XCTAssertEqual(graph.happeningsSend.$leftGain.parameter.value, AUValue(0.1 * 3.4) * roleGain, accuracy: 0.000_01)
+        XCTAssertEqual(graph.leadSend.$leftGain.parameter.value, AUValue(0.1) * roleGain, accuracy: 0.000_01)
+        XCTAssertEqual(graph.leadDelaySend.$leftGain.parameter.value, AUValue(0.1) * roleGain, accuracy: 0.000_01)
+        XCTAssertEqual(graph.actualMasterTrimDecibels, -6, accuracy: 0.000_01)
+        XCTAssertEqual(graph.finalOutput.linearGain, pow(10, -1.35 / 20), accuracy: 0.000_01)
+    }
+
     func testRenderedLeadProcessorSoftensUpperMidMoreThanLowBand() {
         func ratio(at frequency: AUValue) -> Double {
             func render(processed: Bool) -> Double {
@@ -896,7 +997,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(topology.masterHighPassHz, 22)
         XCTAssertTrue((1.5...2).contains(topology.glueCompressorRatio))
         XCTAssertLessThanOrEqual(topology.nominalMaximumGlueReductionDB, 1.5)
-        XCTAssertEqual(topology.limiterCeilingDBFS, -1)
+        XCTAssertEqual(topology.limiterCeilingDBFS, -1.35)
         XCTAssertEqual(topology.roleHighPassHz[.bass], 27)
         XCTAssertGreaterThan(try XCTUnwrap(topology.roleHighPassHz[.harmony]), 27)
         XCTAssertTrue(topology.bassUsesMonoCompatibleLowBand)
@@ -939,7 +1040,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(topology.acceptedParameterValues["master.trim.rightLinear"]), pow(10, -6.0 / 20), accuracy: 0.000_01)
         XCTAssertEqual(try XCTUnwrap(topology.acceptedParameterValues["master.saturation.dryWet"]), 0.10, accuracy: 0.000_01)
         XCTAssertEqual(try XCTUnwrap(topology.acceptedParameterValues["master.limiter.preGainDB"]), 0, accuracy: 0.000_01)
-        XCTAssertEqual(try XCTUnwrap(topology.acceptedParameterValues["master.finalOutput.linear"]), pow(10, -1.0 / 20), accuracy: 0.000_01)
+        XCTAssertEqual(try XCTUnwrap(topology.acceptedParameterValues["master.finalOutput.linear"]), pow(10, -1.35 / 20), accuracy: 0.000_01)
         XCTAssertEqual(try XCTUnwrap(topology.acceptedParameterValues["lead.upperMid.centerHz"]), 3_200, accuracy: 0.01)
         XCTAssertEqual(try XCTUnwrap(topology.acceptedParameterValues["lead.upperMid.thresholdDB"]), -18, accuracy: 0.01)
     }

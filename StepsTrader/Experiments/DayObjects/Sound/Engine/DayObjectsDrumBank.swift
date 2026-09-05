@@ -67,7 +67,7 @@ struct DayObjectsDrumRecipe: Equatable, Sendable {
         case .shaker:
             return .init(
                 voice: voice, primarySample: nil, fallbackSample: nil, synthesis: [.filteredNoise], sinePitchDrop: nil, noiseAmplitude: 0.22, overlapCount: 2,
-                transientFilterCutoffHz: nil, noiseFilterCutoffHz: 7_200, highPassCutoffHz: 110, outputTrimDecibels: -10, variation: .percussion,
+                transientFilterCutoffHz: nil, noiseFilterCutoffHz: 7_200, highPassCutoffHz: 110, outputTrimDecibels: 0, variation: .percussion,
                 allowsPitchDrift: false, allowsBroadbandSustainedNoise: false, usesSawOscillator: false, delayFeedback: nil
             )
         case .clapSoft:
@@ -86,7 +86,7 @@ struct DayObjectsDrumRecipe: Equatable, Sendable {
             voice: voice, primarySample: .bassDrum, fallbackSample: nil, synthesis: [.sinePitchDrop],
             sinePitchDrop: .init(startFrequencyHz: voice == .kickFull ? 140 : 110, endFrequencyHz: voice == .kickFull ? 46 : 52, amplitude: voice == .kickFull ? 0.8 : 0.55),
             noiseAmplitude: nil, overlapCount: overlapCount,
-            transientFilterCutoffHz: 4_000, noiseFilterCutoffHz: nil, highPassCutoffHz: 28, outputTrimDecibels: voice == .kickFull ? -6 : -8, variation: .none,
+            transientFilterCutoffHz: 4_000, noiseFilterCutoffHz: nil, highPassCutoffHz: 28, outputTrimDecibels: 0, variation: .none,
             allowsPitchDrift: false, allowsBroadbandSustainedNoise: false, usesSawOscillator: false, delayFeedback: nil
         )
     }
@@ -100,7 +100,7 @@ struct DayObjectsDrumRecipe: Equatable, Sendable {
     ) -> DayObjectsDrumRecipe {
         .init(
             voice: voice, primarySample: primarySample, fallbackSample: fallback, synthesis: [], sinePitchDrop: nil, noiseAmplitude: nil, overlapCount: overlapCount,
-            transientFilterCutoffHz: 9_000, noiseFilterCutoffHz: nil, highPassCutoffHz: 110, outputTrimDecibels: -12, variation: variation,
+            transientFilterCutoffHz: 9_000, noiseFilterCutoffHz: nil, highPassCutoffHz: 110, outputTrimDecibels: 0, variation: variation,
             allowsPitchDrift: false, allowsBroadbandSustainedNoise: false, usesSawOscillator: false, delayFeedback: nil
         )
     }

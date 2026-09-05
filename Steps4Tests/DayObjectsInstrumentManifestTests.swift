@@ -55,7 +55,7 @@ final class DayObjectsInstrumentManifestTests: XCTestCase {
         )
     }
 
-    func testApprovedBassPaletteIncludesHeyJakob() throws {
+    func testApprovedBassPaletteUsesMeasuredOutputTrims() throws {
         let bass = DayObjectsInstrumentManifest.descriptors(in: .bass)
         XCTAssertEqual(bass.map(\.id.rawValue), [
             "bass.analog-boom", "bass.hey-jakob",
@@ -64,7 +64,16 @@ final class DayObjectsInstrumentManifestTests: XCTestCase {
         let descriptor = try XCTUnwrap(bass.first { $0.id.rawValue == heyJakobID })
         XCTAssertEqual(descriptor.sourceUID, heyJakobUID)
         XCTAssertEqual(descriptor.referenceMIDI, 38)
-        XCTAssertLessThanOrEqual(descriptor.outputTrimDB, -12)
+        XCTAssertEqual(descriptor.outputTrimDB, -9.18)
+        XCTAssertEqual(
+            Dictionary(uniqueKeysWithValues: bass.map { ($0.id.rawValue, $0.outputTrimDB) }),
+            [
+                "bass.analog-boom": -15.65,
+                "bass.hey-jakob": -9.18,
+                "bass.bb-roys-phaser": -0.75,
+                "bass.jec-hollores-2": -23.45,
+            ]
+        )
     }
 
     func testEachSynthOneTonalCategoryHasExpectedUniqueDescriptorCount() {

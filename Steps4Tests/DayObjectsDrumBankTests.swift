@@ -282,8 +282,9 @@ final class DayObjectsDrumBankTests: XCTestCase {
 
     func testRealKickBackendSchedulesEveryLogicalLayerAtTheSameFutureHostTime() {
         let scheduler = RecordingDrumLayerScheduler()
+        let recipe = DayObjectsDrumRecipe.recipe(for: .kickFull)
         let player = DayObjectsAudioKitDrumPlayer(
-            recipe: .recipe(for: .kickFull),
+            recipe: recipe,
             sampleURL: nil,
             preloadedSamplePlayer: AudioPlayer(),
             layerScheduler: scheduler
@@ -305,7 +306,7 @@ final class DayObjectsDrumBankTests: XCTestCase {
             .sineAmplitude, .sinePitchDrop, .sineEnvelope,
         ])
         XCTAssertTrue(scheduler.events.allSatisfy { $0.hostTimeSeconds == 42.125 })
-        let expectedPreRoomGain = 0.72 * pow(10, -6.0 / 20)
+        let expectedPreRoomGain = 0.72 * pow(10, recipe.outputTrimDecibels / 20)
         XCTAssertEqual(try XCTUnwrap(scheduler.parameterValue(for: .preRoomGainLeft)), expectedPreRoomGain, accuracy: 1e-6)
         XCTAssertEqual(try XCTUnwrap(scheduler.parameterValue(for: .preRoomGainRight)), expectedPreRoomGain, accuracy: 1e-6)
         XCTAssertNil(scheduler.parameterValue(for: .outputGainLeft))

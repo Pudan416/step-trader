@@ -1,0 +1,1074 @@
+{
+  "analyzer" : "ITU-R BS.1770 K-weighting; 400 ms blocks; 75% overlap; -70 LUFS absolute / -10 LU relative gates; 4x true peak",
+  "comparisons" : {
+    "glitchZeroToFullDifferenceLU" : 0.15190711500789789,
+    "isolatedHarmonyHappeningLeadSpreadLU" : 0.7354461623860402
+  },
+  "durationSeconds" : 60,
+  "sampleRateHz" : 48000,
+  "scenarios" : [
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -44.73461427191615,
+        "harmony" : -35.519674122213864,
+        "lead" : -120,
+        "rhythm" : -120
+      },
+      "category" : "steps",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "steps-0",
+      "integratedLUFS" : -25.473331068850204,
+      "maximumLimiterReductionDB" : 0,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 0
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -19.643419040450333,
+        "harmony" : -18.64215399181629,
+        "lead" : -120,
+        "rhythm" : -120
+      },
+      "renderWallTimeSeconds" : 44.403301958343945,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -10.105498232333376,
+      "variant" : "0"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -44.67410869533232,
+        "harmony" : -35.20260882230394,
+        "lead" : -120,
+        "rhythm" : -23.424750977194968
+      },
+      "category" : "steps",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "steps-25",
+      "integratedLUFS" : -19.403602397943725,
+      "maximumLimiterReductionDB" : 0.898669883028778,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 2
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -19.643419040450333,
+        "harmony" : -18.346286196034235,
+        "lead" : -120,
+        "rhythm" : -3.8655515646711915
+      },
+      "renderWallTimeSeconds" : 44.29852350000874,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -1.351407714460442,
+      "variant" : "25"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -44.44897452078359,
+        "harmony" : -35.11447587744674,
+        "lead" : -120,
+        "rhythm" : -21.389494158145965
+      },
+      "category" : "steps",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "steps-50",
+      "integratedLUFS" : -17.96695404022111,
+      "maximumLimiterReductionDB" : 1.0697861450933914,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 4
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -19.643419040450333,
+        "harmony" : -18.286606485510582,
+        "lead" : -120,
+        "rhythm" : -3.1123912852555073
+      },
+      "renderWallTimeSeconds" : 44.394181541661965,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -1.1579652933849098,
+      "variant" : "50"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -44.79299797567621,
+        "harmony" : -35.02635553363158,
+        "lead" : -120,
+        "rhythm" : -20.41859139512013
+      },
+      "category" : "steps",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "steps-75",
+      "integratedLUFS" : -17.073266341340023,
+      "maximumLimiterReductionDB" : 0.6347265784924494,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 8
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -19.643419040450333,
+        "harmony" : -18.812805858058578,
+        "lead" : -120,
+        "rhythm" : -3.4339990326183867
+      },
+      "renderWallTimeSeconds" : 44.89679958333727,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -1.2567694371625924,
+      "variant" : "75"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -44.780704311486275,
+        "harmony" : -34.972733937056766,
+        "lead" : -120,
+        "rhythm" : -20.070508287119317
+      },
+      "category" : "steps",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "steps-100",
+      "integratedLUFS" : -17.067799709955928,
+      "maximumLimiterReductionDB" : 0.9841635698932004,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 8
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -19.643419040450333,
+        "harmony" : -18.328311000627235,
+        "lead" : -120,
+        "rhythm" : -2.5566194555919846
+      },
+      "renderWallTimeSeconds" : 44.949817999993684,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -1.1989290832736494,
+      "variant" : "100"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -44.53307410891169,
+        "harmony" : -51.491710115142496,
+        "lead" : -120,
+        "rhythm" : -21.389494158145965
+      },
+      "category" : "sleep",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "sleep-low",
+      "integratedLUFS" : -17.128380428064904,
+      "maximumLimiterReductionDB" : 0.9026529166812042,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 1,
+        "lead" : 0,
+        "rhythm" : 4
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -19.643419040450333,
+        "harmony" : -34.8754354765998,
+        "lead" : -120,
+        "rhythm" : -3.1123912852555073
+      },
+      "renderWallTimeSeconds" : 40.962553124991246,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -1.3217705221011145,
+      "variant" : "low"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -44.44897452078359,
+        "harmony" : -35.114827081578014,
+        "lead" : -120,
+        "rhythm" : -21.389494158145965
+      },
+      "category" : "sleep",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "sleep-mid",
+      "integratedLUFS" : -17.967027943717756,
+      "maximumLimiterReductionDB" : 1.066579643934257,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 4
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -19.643419040450333,
+        "harmony" : -18.507072701887715,
+        "lead" : -120,
+        "rhythm" : -3.1123912852555073
+      },
+      "renderWallTimeSeconds" : 44.06555783332442,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -1.1580262234193568,
+      "variant" : "mid"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -44.44897452078359,
+        "harmony" : -32.80707987565232,
+        "lead" : -120,
+        "rhythm" : -21.389494158145965
+      },
+      "category" : "sleep",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "sleep-full",
+      "integratedLUFS" : -17.904834464554114,
+      "maximumLimiterReductionDB" : 1.0948872095420248,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 8,
+        "lead" : 0,
+        "rhythm" : 4
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -19.643419040450333,
+        "harmony" : -14.21409292713786,
+        "lead" : -120,
+        "rhythm" : -3.1123912852555073
+      },
+      "renderWallTimeSeconds" : 46.09431183335255,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -1.2580331790769441,
+      "variant" : "full"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -120,
+        "harmony" : -35.11462968065368,
+        "lead" : -120,
+        "rhythm" : -21.389494158145965
+      },
+      "category" : "happenings",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "happenings-0",
+      "integratedLUFS" : -18.021525724884906,
+      "maximumLimiterReductionDB" : 0.6526485531707316,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 0,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 4
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -120,
+        "harmony" : -18.289616254997924,
+        "lead" : -120,
+        "rhythm" : -3.1123912852555073
+      },
+      "renderWallTimeSeconds" : 44.46667779167183,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -1.1580889285612728,
+      "variant" : "0"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -41.160048087175085,
+        "harmony" : -35.11464804749037,
+        "lead" : -120,
+        "rhythm" : -21.389494158145965
+      },
+      "category" : "happenings",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "happenings-1",
+      "integratedLUFS" : -17.878735312730925,
+      "maximumLimiterReductionDB" : 1.2454461449695027,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 4
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -16.82051544930143,
+        "harmony" : -18.291210835154857,
+        "lead" : -120,
+        "rhythm" : -3.1123912852555073
+      },
+      "renderWallTimeSeconds" : 44.419640833337326,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -1.1581066753817395,
+      "variant" : "1"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -44.574622157518256,
+        "harmony" : -35.114753814320565,
+        "lead" : -120,
+        "rhythm" : -21.389494158145965
+      },
+      "category" : "happenings",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "happenings-10",
+      "integratedLUFS" : -17.946315160445955,
+      "maximumLimiterReductionDB" : 1.0778072837142791,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 4
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -19.643419040450333,
+        "harmony" : -18.297807001769467,
+        "lead" : -120,
+        "rhythm" : -3.1123912852555073
+      },
+      "renderWallTimeSeconds" : 44.36808100002236,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -1.1574193083652309,
+      "variant" : "10"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -44.448117934988346,
+        "harmony" : -35.05546573922852,
+        "lead" : -120,
+        "rhythm" : -21.38949401936336
+      },
+      "category" : "glitch",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "glitch-0",
+      "integratedLUFS" : -17.959107702171988,
+      "maximumLimiterReductionDB" : 1.5552407064618579,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 4
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -19.64282961775666,
+        "harmony" : -17.185229780072515,
+        "lead" : -120,
+        "rhythm" : -3.092447559906905
+      },
+      "renderWallTimeSeconds" : 44.23301691666711,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -1.2880783982268695,
+      "variant" : "0"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -44.44897452078359,
+        "harmony" : -35.11481683093532,
+        "lead" : -120,
+        "rhythm" : -21.389494158145965
+      },
+      "category" : "glitch",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "glitch-25",
+      "integratedLUFS" : -17.967071048642705,
+      "maximumLimiterReductionDB" : 1.0683881389297052,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 4
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -19.643419040450333,
+        "harmony" : -18.29851403110026,
+        "lead" : -120,
+        "rhythm" : -3.1123912852555073
+      },
+      "renderWallTimeSeconds" : 44.35588695833576,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -1.1573684382693803,
+      "variant" : "25"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -44.57504371605602,
+        "harmony" : -35.31921945862735,
+        "lead" : -120,
+        "rhythm" : -21.390715384277552
+      },
+      "category" : "glitch",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "glitch-50",
+      "integratedLUFS" : -18.033934556795373,
+      "maximumLimiterReductionDB" : 1.2328647525199656,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 4
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -19.64590449635374,
+        "harmony" : -18.76150855857027,
+        "lead" : -120,
+        "rhythm" : -2.9939735193800048
+      },
+      "renderWallTimeSeconds" : 44.28366891667247,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -1.1662728756132308,
+      "variant" : "50"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -44.50181524199593,
+        "harmony" : -36.13884809938103,
+        "lead" : -120,
+        "rhythm" : -21.39094381597015
+      },
+      "category" : "glitch",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "glitch-100",
+      "integratedLUFS" : -18.111014817179885,
+      "maximumLimiterReductionDB" : 1.0853769219530758,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 4
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -19.649357733259546,
+        "harmony" : -18.351016502200917,
+        "lead" : -120,
+        "rhythm" : -2.6511730300721292
+      },
+      "renderWallTimeSeconds" : 44.381901666667545,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -1.0367198010815657,
+      "variant" : "100"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -38.633089583744585,
+        "harmony" : -32.38285443790781,
+        "lead" : -120,
+        "rhythm" : -21.511501143456478
+      },
+      "category" : "groove",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "groove-percussion",
+      "integratedLUFS" : -16.695124225348167,
+      "maximumLimiterReductionDB" : 1.6775672706551719,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 4
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -13.054630812851048,
+        "harmony" : -11.19065243331055,
+        "lead" : -120,
+        "rhythm" : -3.518960594558756
+      },
+      "renderWallTimeSeconds" : 44.52149295833078,
+      "seed" : "0",
+      "truePeakDBTP" : -1.1427644852096503,
+      "variant" : "percussion"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -23.771874034879446,
+        "happenings" : -37.572066774508166,
+        "harmony" : -36.6156905236505,
+        "lead" : -120,
+        "rhythm" : -21.53483927831461
+      },
+      "bassInstrumentID" : "bass.analog-boom",
+      "category" : "groove",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "bass-pulse",
+      "id" : "groove-bass-pulse",
+      "integratedLUFS" : -16.815602814298703,
+      "maximumLimiterReductionDB" : 0.6571443946256534,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 1,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 4
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -12.522072683772617,
+        "happenings" : -13.309311822163199,
+        "harmony" : -16.562272205548176,
+        "lead" : -120,
+        "rhythm" : -3.71062702338488
+      },
+      "renderWallTimeSeconds" : 44.6116243750148,
+      "seed" : "11",
+      "truePeakDBTP" : -1.120025110098948,
+      "variant" : "bass-pulse"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -32.18345878617718,
+        "happenings" : -41.82045262130906,
+        "harmony" : -32.23206804502068,
+        "lead" : -120,
+        "rhythm" : -23.536814999825584
+      },
+      "bassInstrumentID" : "bass.bb-roys-phaser",
+      "category" : "groove",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "bass-arp",
+      "id" : "groove-bass-arp",
+      "integratedLUFS" : -17.00761838009721,
+      "maximumLimiterReductionDB" : 1.8882814793846505,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 1,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 5
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -10.817600965436041,
+        "happenings" : -15.910226171216777,
+        "harmony" : -9.375754952949421,
+        "lead" : -120,
+        "rhythm" : -3.401871812408546
+      },
+      "renderWallTimeSeconds" : 45.19816420835559,
+      "seed" : "1",
+      "truePeakDBTP" : -1.2373063989813795,
+      "variant" : "bass-arp"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -23.353266262734962,
+        "happenings" : -49.278675158157185,
+        "harmony" : -32.204991834528506,
+        "lead" : -120,
+        "rhythm" : -23.27594954073387
+      },
+      "bassInstrumentID" : "bass.jec-hollores-2",
+      "category" : "groove",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "bass-bed",
+      "id" : "groove-bass-bed",
+      "integratedLUFS" : -16.543745686554747,
+      "maximumLimiterReductionDB" : 1.03558171861147,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 1,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 5
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -1.8290884736514466,
+        "happenings" : -25.91264875650881,
+        "harmony" : -9.361443778228033,
+        "lead" : -120,
+        "rhythm" : -3.722466734487874
+      },
+      "renderWallTimeSeconds" : 45.148547583346954,
+      "seed" : "7",
+      "truePeakDBTP" : -1.2041751947015664,
+      "variant" : "bass-bed"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -23.867749930789014,
+        "happenings" : -37.572066774508166,
+        "harmony" : -36.614252050482776,
+        "lead" : -120,
+        "rhythm" : -21.53483927831461
+      },
+      "bassInstrumentID" : "bass.analog-boom",
+      "category" : "bass",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "bass-pulse",
+      "id" : "bass-analog-boom",
+      "integratedLUFS" : -16.832798316840954,
+      "maximumLimiterReductionDB" : 0.6630827888298106,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 1,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 4
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -12.522072683772617,
+        "happenings" : -13.309311822163199,
+        "harmony" : -16.56214935868501,
+        "lead" : -120,
+        "rhythm" : -3.71062702338488
+      },
+      "renderWallTimeSeconds" : 45.01569645831478,
+      "seed" : "11",
+      "truePeakDBTP" : -1.1189585447931745,
+      "variant" : "bass.analog-boom"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -24.215583284759497,
+        "happenings" : -41.35284979307131,
+        "harmony" : -28.963892394789667,
+        "lead" : -120,
+        "rhythm" : -24.29018459588309
+      },
+      "bassInstrumentID" : "bass.hey-jakob",
+      "category" : "bass",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "bass-bed",
+      "id" : "bass-hey-jakob",
+      "integratedLUFS" : -17.958867945947404,
+      "maximumLimiterReductionDB" : 1.3437853211032749,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 1,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 4
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -16.292256723358893,
+        "happenings" : -14.295304739421367,
+        "harmony" : -10.529509302935217,
+        "lead" : -120,
+        "rhythm" : -3.7477599367662844
+      },
+      "renderWallTimeSeconds" : 44.81461416668026,
+      "seed" : "9",
+      "truePeakDBTP" : -1.2532364830338403,
+      "variant" : "bass.hey-jakob"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -32.1291328741527,
+        "happenings" : -41.82045262130906,
+        "harmony" : -32.16814751732675,
+        "lead" : -120,
+        "rhythm" : -23.536814999825584
+      },
+      "bassInstrumentID" : "bass.bb-roys-phaser",
+      "category" : "bass",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "bass-arp",
+      "id" : "bass-bb-roys-phaser",
+      "integratedLUFS" : -16.94674100982361,
+      "maximumLimiterReductionDB" : 1.8248159685129506,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 1,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 5
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -10.815707971433142,
+        "happenings" : -15.910226171216777,
+        "harmony" : -10.778230815474734,
+        "lead" : -120,
+        "rhythm" : -3.401871812408546
+      },
+      "renderWallTimeSeconds" : 45.41875350000919,
+      "seed" : "1",
+      "truePeakDBTP" : -1.2372914744959431,
+      "variant" : "bass.bb-roys-phaser"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -23.30840381842005,
+        "happenings" : -49.278675158157185,
+        "harmony" : -32.18746686207205,
+        "lead" : -120,
+        "rhythm" : -23.27594954073387
+      },
+      "bassInstrumentID" : "bass.jec-hollores-2",
+      "category" : "bass",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "bass-bed",
+      "id" : "bass-jec-hollores-2",
+      "integratedLUFS" : -16.5007214007494,
+      "maximumLimiterReductionDB" : 0.8646909401582752,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 1,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 5
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -2.3821997633050196,
+        "happenings" : -25.91264875650881,
+        "harmony" : -9.277997364729448,
+        "lead" : -120,
+        "rhythm" : -3.722466734487874
+      },
+      "renderWallTimeSeconds" : 45.36466625001049,
+      "seed" : "7",
+      "truePeakDBTP" : -1.204670599897476,
+      "variant" : "bass.jec-hollores-2"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -44.244477609213035,
+        "harmony" : -35.099842648123165,
+        "lead" : -29.45970782853283,
+        "rhythm" : -21.39257136631342
+      },
+      "category" : "lead",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "lead-slow",
+      "integratedLUFS" : -17.705919549321454,
+      "maximumLimiterReductionDB" : 1.1936788931913944,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 1,
+        "rhythm" : 4
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -19.643419040450333,
+        "harmony" : -18.3603905439579,
+        "lead" : -7.866514787467774,
+        "rhythm" : -3.1123912852555073
+      },
+      "renderWallTimeSeconds" : 48.15227383331512,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -1.1867042236212735,
+      "variant" : "slow"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -44.71658496685063,
+        "harmony" : -35.10936824056334,
+        "lead" : -29.02572814129897,
+        "rhythm" : -21.385158085191534
+      },
+      "category" : "lead",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "lead-fast",
+      "integratedLUFS" : -17.64928286574331,
+      "maximumLimiterReductionDB" : 1.380635604549362,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 1,
+        "rhythm" : 5
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -19.940442881916784,
+        "harmony" : -18.211996296429426,
+        "lead" : -8.174114301690341,
+        "rhythm" : -3.1123912852555073
+      },
+      "renderWallTimeSeconds" : 48.69811137500801,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -1.1568940593934203,
+      "variant" : "fast"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -23.72393018997803,
+        "happenings" : -34.12831086823231,
+        "harmony" : -24.724243546798135,
+        "lead" : -24.777576873943055,
+        "rhythm" : -20.912389437916534
+      },
+      "bassInstrumentID" : "bass.analog-boom",
+      "category" : "worst-case",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "bass-pulse",
+      "id" : "worst-case-overlap",
+      "integratedLUFS" : -14.101134469709049,
+      "maximumLimiterReductionDB" : 2.5482996456762415,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 1,
+        "happenings" : 4,
+        "harmony" : 8,
+        "lead" : 1,
+        "rhythm" : 8
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -14.415352156020171,
+        "happenings" : -9.860893666547334,
+        "harmony" : -5.634289183877948,
+        "lead" : -10.753898924853186,
+        "rhythm" : -2.8820066939050792
+      },
+      "renderWallTimeSeconds" : 51.15106224999181,
+      "seed" : "11",
+      "truePeakDBTP" : -1.0935581391859657,
+      "variant" : "four-tails-kick-bass-chord-held-lead"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -41.60016464511475,
+        "harmony" : -35.11447113711332,
+        "lead" : -120,
+        "rhythm" : -21.389494158145965
+      },
+      "category" : "isolated",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "isolated-rhythm",
+      "integratedLUFS" : -16.96958210295573,
+      "maximumLimiterReductionDB" : 0.28180689414511784,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 4
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -16.82051544930143,
+        "harmony" : -18.29915460999662,
+        "lead" : -120,
+        "rhythm" : -3.1123912852555073
+      },
+      "renderWallTimeSeconds" : 44.374187458335655,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -1.3083020608450466,
+      "variant" : "rhythm"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -41.60016464511475,
+        "harmony" : -35.11461474724936,
+        "lead" : -120,
+        "rhythm" : -21.389494158145965
+      },
+      "category" : "isolated",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "isolated-bass",
+      "integratedLUFS" : -43.101270099577725,
+      "maximumLimiterReductionDB" : 0,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 4
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -16.82051544930143,
+        "harmony" : -18.285359628458032,
+        "lead" : -120,
+        "rhythm" : -3.1123912852555073
+      },
+      "renderWallTimeSeconds" : 44.22963845834602,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -23.781943394962642,
+      "variant" : "bass"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -41.60016464511475,
+        "harmony" : -35.1147115288631,
+        "lead" : -120,
+        "rhythm" : -21.389494158145965
+      },
+      "category" : "isolated",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "isolated-harmony",
+      "integratedLUFS" : -25.66983119704138,
+      "maximumLimiterReductionDB" : 0,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 4
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -16.82051544930143,
+        "harmony" : -18.297662304591643,
+        "lead" : -120,
+        "rhythm" : -3.1123912852555073
+      },
+      "renderWallTimeSeconds" : 44.23357054166263,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -12.584896764292363,
+      "variant" : "harmony"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -44.574622157518256,
+        "harmony" : -35.11437741150435,
+        "lead" : -120,
+        "rhythm" : -21.389494158145965
+      },
+      "category" : "isolated",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "isolated-happenings",
+      "integratedLUFS" : -24.93438503465534,
+      "maximumLimiterReductionDB" : 0,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 0,
+        "rhythm" : 4
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -19.643419040450333,
+        "harmony" : -18.29633886284831,
+        "lead" : -120,
+        "rhythm" : -3.1123912852555073
+      },
+      "renderWallTimeSeconds" : 44.1690458333469,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -11.93999464016898,
+      "variant" : "happenings"
+    },
+    {
+      "averageRoleRMSDBFS" : {
+        "bass" : -120,
+        "happenings" : -41.400925636845265,
+        "harmony" : -35.100223940826275,
+        "lead" : -29.537321236888104,
+        "rhythm" : -21.39257136631342
+      },
+      "category" : "isolated",
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 60,
+      "grooveMode" : "percussion",
+      "id" : "isolated-lead",
+      "integratedLUFS" : -25.100443224934043,
+      "maximumLimiterReductionDB" : 0,
+      "maximumRoleActiveVoiceCount" : {
+        "bass" : 0,
+        "happenings" : 1,
+        "harmony" : 5,
+        "lead" : 1,
+        "rhythm" : 4
+      },
+      "maximumRolePeakDBFS" : {
+        "bass" : -120,
+        "happenings" : -16.82051544930143,
+        "harmony" : -18.412245825046895,
+        "lead" : -7.860335435165739,
+        "rhythm" : -3.1123912852555073
+      },
+      "renderWallTimeSeconds" : 48.50138062500628,
+      "seed" : "3289496190",
+      "truePeakDBTP" : -9.327896216811059,
+      "variant" : "lead"
+    }
+  ],
+  "schemaVersion" : 1
+}
