@@ -4,7 +4,7 @@ This package was captured from the real instanced Metal renderer inside Day Obje
 
 ## Source
 
-- Runtime implementation: `22df14c`
+- Runtime implementation: `85c6044`
 - Capture instrumentation: `d670753`
 - Branch: `codex/editorial-motion-render`
 - Device: iPhone 17 Pro Simulator (`iPhone18,1`)
@@ -65,6 +65,7 @@ The captured stream was trimmed losslessly to exactly ten seconds with `avconver
 - The Simulator build completed with `** BUILD SUCCEEDED **`.
 - The complete `DayObjectSceneTests` target passed.
 - The new scheduler, recipe coherence, stable identity, carrier ABI, Metal carrier/material behavior, gradient continuity, full-screen/tile, Reduce Motion, and Lab-control checks passed.
+- Harmonic path materials are closed contours with no deliberately removed angular sector; the 72-angle Metal continuity regression passed.
 - Both final capture UI tests passed: one in 43.011 seconds and one in 67.974 seconds.
 - The complete targeted Day Objects command still reports three legacy perceptual-signature failures. The same three failures reproduce unchanged on baseline `5d7e1fee`; therefore no perceptual goldens were modified for this Lab MVP.
 - The main application canvas and main Gallery were not changed.
