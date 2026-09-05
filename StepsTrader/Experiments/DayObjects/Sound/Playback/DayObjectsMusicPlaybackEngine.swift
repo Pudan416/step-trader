@@ -785,9 +785,12 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
 
         func auditionKickBassSidechain(
             preferredBassID: DayObjectsInstrumentID?,
-            hostTime: TimeInterval
+            hostTime: TimeInterval,
+            automaticallyReleaseAfterWallClock: Bool = true,
+            forceFreshDuckingCommand: Bool = false
         ) -> DayObjectsSidechainAuditionResult? {
             guard let plan, hostTime.isFinite else { return nil }
+            if forceFreshDuckingCommand { bassDucker.reset() }
             let descriptor = diagnosticBassDescriptor(preferredBassID)
             let ducking = plan.bass?.ducking ?? .init(
                 maximumAttenuationDecibels: 5,
@@ -806,7 +809,8 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                     midiNote: descriptor.referenceMIDI,
                     velocity: 0.78,
                     hostTime: hostTime,
-                    restorationPlan: plan.bass
+                    restorationPlan: plan.bass,
+                    automaticallyReleaseAfterWallClock: automaticallyReleaseAfterWallClock
                 ) else { return nil }
                 let kick = DayObjectsScheduledDrumHit(
                     voice: .kickSoft,

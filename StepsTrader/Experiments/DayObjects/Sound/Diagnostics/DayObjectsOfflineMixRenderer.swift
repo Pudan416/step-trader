@@ -8,6 +8,7 @@ enum DayObjectsOfflineMixRendererError: Error, Equatable, Sendable {
     case unableToAllocateBuffer
     case renderFailed
     case transportStalled
+    case stressAuditionFailed(DayObjectsOfflineStressActivityComponent)
 }
 
 enum DayObjectsOfflineLeadGestureProfile: Equatable, Sendable {
@@ -22,11 +23,28 @@ enum DayObjectsOfflineStressProfile: Equatable, Sendable {
     case fourHappeningTailsWithKickBassChordAndHeldLead
 }
 
+enum DayObjectsOfflineStressActivityComponent: String, Codable, Hashable, Sendable {
+    case kickSoft = "kick-soft"
+    case bassAttack = "bass-attack"
+    case chordTransition = "chord-transition"
+    case heldLead = "held-lead"
+    case happeningTail = "happening-tail"
+}
+
+struct DayObjectsOfflineStressActivity: Codable, Equatable, Sendable {
+    let component: DayObjectsOfflineStressActivityComponent
+    let hostTimeSeconds: TimeInterval
+    let identifier: String
+}
+
 struct DayObjectsOfflineMixDiagnostics: Equatable, Sendable {
     let averageRoleRMSDBFS: [DayObjectsRoleBus: Double]
     let maximumRolePeakDBFS: [DayObjectsRoleBus: Double]
     let maximumRoleActiveVoiceCount: [DayObjectsRoleBus: Int]
-    let maximumLimiterReductionDB: Double
+    /// Offline gate estimate derived from the pre-limiter peak excursion.
+    /// This is not a direct observation of the limiter's gain-reduction meter.
+    let maximumEstimatedLimiterReductionDB: Double
+    let stressActivities: [DayObjectsOfflineStressActivity]
     let renderedFrameCount: Int
 }
 
@@ -41,6 +59,7 @@ final class DayObjectsOfflineMixRenderer {
     private let auditionMode: DayObjectsAuditionMode
     private let leadGestureProfile: DayObjectsOfflineLeadGestureProfile
     private let stressProfile: DayObjectsOfflineStressProfile
+    private let offlineBeginCheckpoint: () throws -> Void
 
     private(set) var lastDiagnostics: DayObjectsOfflineMixDiagnostics?
 
@@ -48,12 +67,14 @@ final class DayObjectsOfflineMixRenderer {
         bundle: Bundle = .main,
         auditionMode: DayObjectsAuditionMode = .fullComposition,
         leadGestureProfile: DayObjectsOfflineLeadGestureProfile = .none,
-        stressProfile: DayObjectsOfflineStressProfile = .none
+        stressProfile: DayObjectsOfflineStressProfile = .none,
+        offlineBeginCheckpoint: @escaping () throws -> Void = {}
     ) {
         self.bundle = bundle
         self.auditionMode = auditionMode
         self.leadGestureProfile = leadGestureProfile
         self.stressProfile = stressProfile
+        self.offlineBeginCheckpoint = offlineBeginCheckpoint
     }
 
     func render(
@@ -112,6 +133,8 @@ final class DayObjectsOfflineMixRenderer {
                 maximumFrameCount: Self.maximumFrameCount
             )
             didBeginManualRendering = true
+            try offlineBeginCheckpoint()
+            try Task.checkCancellation()
             try world.startScheduling()
             applyLeadGestureIfNeeded(world: world, elapsedSeconds: 0, durationSeconds: durationSeconds)
 
@@ -123,7 +146,7 @@ final class DayObjectsOfflineMixRenderer {
                 tempoBPM: plan.rhythm.tempoBPM,
                 harmonicCycleBars: plan.world.cycleBars
             )
-            try applyStressStimulusIfNeeded(
+            let stressActivities = try applyStressStimulusIfNeeded(
                 plan: plan,
                 world: world,
                 bank: bank,
@@ -134,6 +157,7 @@ final class DayObjectsOfflineMixRenderer {
             var renderedFrames = 0
             var diagnosticAccumulator = DayObjectsOfflineDiagnosticAccumulator()
             while renderedFrames < totalFrameCount {
+                try Task.checkCancellation()
                 let nextTransportDeadline = clock.nextDeadline
                 let nextTransportFrame = nextTransportDeadline.map {
                     max(Int((($0 - initialHostTime) * sampleRate).rounded()), renderedFrames)
@@ -192,7 +216,8 @@ final class DayObjectsOfflineMixRenderer {
             await activeTransport.stop()
             world.releaseAll()
             lastDiagnostics = diagnosticAccumulator.makeDiagnostics(
-                renderedFrameCount: renderedFrames
+                renderedFrameCount: renderedFrames,
+                stressActivities: stressActivities
             )
             bank.endOfflineRendering()
             didBeginManualRendering = false
@@ -304,16 +329,85 @@ final class DayObjectsOfflineMixRenderer {
         world: DayObjectsLivePlaybackRuntime.WorldState,
         bank: DayObjectsInstrumentBank,
         hostTime: TimeInterval
-    ) throws {
-        guard stressProfile == .fourHappeningTailsWithKickBassChordAndHeldLead else { return }
-        _ = world.auditionKickBassSidechain(
+    ) throws -> [DayObjectsOfflineStressActivity] {
+        guard stressProfile == .fourHappeningTailsWithKickBassChordAndHeldLead else { return [] }
+        var activities: [DayObjectsOfflineStressActivity] = []
+
+        guard world.lead.metrics.voiceCount == 1,
+              world.lead.heldState != nil
+        else {
+            throw DayObjectsOfflineMixRendererError.stressAuditionFailed(.heldLead)
+        }
+        activities.append(.init(
+            component: .heldLead,
+            hostTimeSeconds: hostTime,
+            identifier: "lead.held"
+        ))
+
+        guard let kickBass = world.auditionKickBassSidechain(
             preferredBassID: plan.bass?.instrumentID,
-            hostTime: hostTime
-        )
-        guard let chord = plan.world.progression.first else { return }
+            hostTime: hostTime,
+            automaticallyReleaseAfterWallClock: false,
+            forceFreshDuckingCommand: true
+        ) else {
+            throw DayObjectsOfflineMixRendererError.stressAuditionFailed(.bassAttack)
+        }
+        guard kickBass.scheduledKick.voice == .kickSoft,
+              abs(kickBass.scheduledKick.scheduledHostTimeSeconds - hostTime) < 0.000_000_1
+        else {
+            throw DayObjectsOfflineMixRendererError.stressAuditionFailed(.kickSoft)
+        }
+        guard world.bass.metrics.activeVoiceCount == 1,
+              world.bass.lastDiagnosticHostTimeSeconds == hostTime
+        else {
+            throw DayObjectsOfflineMixRendererError.stressAuditionFailed(.bassAttack)
+        }
+        activities.append(.init(
+            component: .kickSoft,
+            hostTimeSeconds: kickBass.scheduledKick.scheduledHostTimeSeconds,
+            identifier: kickBass.scheduledKick.voice.rawValue
+        ))
+        activities.append(.init(
+            component: .bassAttack,
+            hostTimeSeconds: hostTime,
+            identifier: kickBass.instrumentID.rawValue
+        ))
+
+        guard let transition = nextStressChordTransition(in: plan) else {
+            throw DayObjectsOfflineMixRendererError.stressAuditionFailed(.chordTransition)
+        }
+        let harmonyBefore = world.harmony.metrics
+        world.harmony.render(barBoundary: .init(
+            kind: .barBoundary,
+            position: .init(
+                absoluteSubdivision: Int64(transition.startBar) * MusicalPosition.subdivisionsPerBar
+            ),
+            hostTimeSeconds: hostTime,
+            tempoBPM: plan.rhythm.tempoBPM
+        ))
+        let harmonyAfter = world.harmony.metrics
+        guard harmonyAfter.scheduledChordCount > harmonyBefore.scheduledChordCount,
+              harmonyAfter.pendingReleaseTokenCount > 0
+        else {
+            throw DayObjectsOfflineMixRendererError.stressAuditionFailed(.chordTransition)
+        }
+        world.lead.setCurrentChordIndex(transition.chordIndex)
+        activities.append(.init(
+            component: .chordTransition,
+            hostTimeSeconds: hostTime,
+            identifier: "chord-\(transition.chordIndex)-bar-\(transition.startBar)"
+        ))
+
+        guard plan.happenings.count >= 4,
+              let chord = plan.world.progression.first
+        else {
+            throw DayObjectsOfflineMixRendererError.stressAuditionFailed(.happeningTail)
+        }
         let perVoiceCompensation = pow(10, -6.0 / 20)
         for happening in plan.happenings.prefix(4) {
-            guard let recipe = HappeningSoundCatalog.recipe(for: happening.recipeID) else { continue }
+            guard let recipe = HappeningSoundCatalog.recipe(for: happening.recipeID) else {
+                throw DayObjectsOfflineMixRendererError.stressAuditionFailed(.happeningTail)
+            }
             let resolved = HappeningPitchResolver.resolve(
                 recipe: recipe,
                 chord: chord,
@@ -331,7 +425,29 @@ final class DayObjectsOfflineMixRenderer {
                 ),
                 pan: happening.pan
             )
+            activities.append(.init(
+                component: .happeningTail,
+                hostTimeSeconds: hostTime,
+                identifier: String(happening.recipeID.rawValue)
+            ))
         }
+        guard bank.happenings.metrics.activeVoiceCount >= 4 else {
+            throw DayObjectsOfflineMixRendererError.stressAuditionFailed(.happeningTail)
+        }
+        return activities
+    }
+
+    private func nextStressChordTransition(
+        in plan: DayMusicPlan
+    ) -> HarmonyChordScheduleEntry? {
+        plan.harmony.roles
+            .filter { $0.gain > 0 }
+            .flatMap(\.chordSchedule)
+            .filter { $0.startBar > 0 }
+            .min {
+                if $0.startBar == $1.startBar { return $0.chordIndex < $1.chordIndex }
+                return $0.startBar < $1.startBar
+            }
     }
 }
 
@@ -416,7 +532,7 @@ private struct DayObjectsOfflineDiagnosticAccumulator {
     private var roleCounts: [DayObjectsRoleBus: Int] = [:]
     private var rolePeaks: [DayObjectsRoleBus: Double] = [:]
     private var roleActiveVoiceCounts: [DayObjectsRoleBus: Int] = [:]
-    private var maximumLimiterReductionDB = 0.0
+    private var maximumEstimatedLimiterReductionDB = 0.0
 
     mutating func capture(
         _ snapshot: DayObjectsDiagnosticMeterSnapshot,
@@ -440,13 +556,16 @@ private struct DayObjectsOfflineDiagnosticAccumulator {
         // large reductions for a quiet signal. PeakLimiter has 0 dB pre-gain;
         // its required peak attenuation is therefore the measured input
         // excursion above 0 dBFS.
-        maximumLimiterReductionDB = max(
-            maximumLimiterReductionDB,
+        maximumEstimatedLimiterReductionDB = max(
+            maximumEstimatedLimiterReductionDB,
             max(limiterInputPeakDBFS, 0)
         )
     }
 
-    func makeDiagnostics(renderedFrameCount: Int) -> DayObjectsOfflineMixDiagnostics {
+    func makeDiagnostics(
+        renderedFrameCount: Int,
+        stressActivities: [DayObjectsOfflineStressActivity]
+    ) -> DayObjectsOfflineMixDiagnostics {
         let rms = Dictionary(uniqueKeysWithValues: DayObjectsRoleBus.allCases.map { role in
             let count = roleCounts[role, default: 0]
             let averagePower = count > 0
@@ -462,7 +581,8 @@ private struct DayObjectsOfflineDiagnosticAccumulator {
             maximumRoleActiveVoiceCount: Dictionary(uniqueKeysWithValues: DayObjectsRoleBus.allCases.map {
                 ($0, roleActiveVoiceCounts[$0, default: 0])
             }),
-            maximumLimiterReductionDB: maximumLimiterReductionDB,
+            maximumEstimatedLimiterReductionDB: maximumEstimatedLimiterReductionDB,
+            stressActivities: stressActivities,
             renderedFrameCount: renderedFrameCount
         )
     }

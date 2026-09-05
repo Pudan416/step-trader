@@ -89,6 +89,45 @@ final class DayObjectsLoudnessAnalyzerTests: XCTestCase {
         XCTAssertLessThanOrEqual(report.truePeakDBTP, 20 * log10(0.8) + 0.1)
     }
 
+    func testAnnex2FourPhaseFIRMeasuresTwoSamplePlateauWithZeroPaddedBoundaries() {
+        let peak = DayObjectsTruePeakEstimator.fourTimesOversampledPeak([1, 1])
+
+        // ITU-R BS.1770-5 Annex 2 phase 1/2 centre taps:
+        // 0.465087890625 + 0.77978515625 = 1.244873046875.
+        XCTAssertEqual(peak, 1.244_873_046_875, accuracy: 0.000_000_1)
+    }
+
+    func testAnnex2FourPhaseFIREvaluatesLeadingAndTrailingFileEdges() {
+        let leadingEdgePeak = DayObjectsTruePeakEstimator.fourTimesOversampledPeak([1, 0])
+        let trailingEdgePeak = DayObjectsTruePeakEstimator.fourTimesOversampledPeak([0, 1])
+
+        // A unit impulse's largest Annex 2 coefficient is below the raw sample.
+        // Matching both edges proves zero initial state and a zero-padded tail,
+        // rather than a raw-peak shortcut or valid-only convolution.
+        XCTAssertEqual(leadingEdgePeak, 0.972_167_968_75, accuracy: 0.000_000_1)
+        XCTAssertEqual(trailingEdgePeak, 0.972_167_968_75, accuracy: 0.000_000_1)
+    }
+
+    func testAnalyzerRejectsCapturesShorterThanOne400MillisecondGateBlock() throws {
+        XCTAssertThrowsError(
+            try DayObjectsLoudnessAnalyzer.analyze(
+                samples: [Float](repeating: 0, count: 19_199),
+                sampleRate: 48_000
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? DayObjectsLoudnessAnalyzerError,
+                .insufficientDuration
+            )
+        }
+
+        let exactBlock = try DayObjectsLoudnessAnalyzer.analyze(
+            samples: [Float](repeating: 0, count: 19_200),
+            sampleRate: 48_000
+        )
+        XCTAssertEqual(exactBlock.durationSeconds, 0.4, accuracy: 0.000_001)
+    }
+
     func testStereoCaptureUsesIndependentBS1770ChannelEnergyAndPeak() throws {
         let sampleRate = 48_000.0
         let frameCount = AVAudioFrameCount(sampleRate * 2)
@@ -123,6 +162,51 @@ final class DayObjectsLoudnessAnalyzerTests: XCTestCase {
         )
         XCTAssertEqual(stereo.truePeakDBTP, mono.truePeakDBTP, accuracy: 0.01)
         XCTAssertEqual(stereo.durationSeconds, 2, accuracy: 0.000_001)
+    }
+
+    func testStereoCaptureSupportsInterleavedFloat32PCM() throws {
+        let sampleRate = 48_000.0
+        let frameCount = AVAudioFrameCount(sampleRate)
+        let planarFormat = try XCTUnwrap(AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: sampleRate,
+            channels: 2,
+            interleaved: false
+        ))
+        let interleavedFormat = try XCTUnwrap(AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: sampleRate,
+            channels: 2,
+            interleaved: true
+        ))
+        let planar = try XCTUnwrap(AVAudioPCMBuffer(
+            pcmFormat: planarFormat,
+            frameCapacity: frameCount
+        ))
+        let interleaved = try XCTUnwrap(AVAudioPCMBuffer(
+            pcmFormat: interleavedFormat,
+            frameCapacity: frameCount
+        ))
+        planar.frameLength = frameCount
+        interleaved.frameLength = frameCount
+        let planarChannels = try XCTUnwrap(planar.floatChannelData)
+        let audioBuffer = interleaved.mutableAudioBufferList.pointee.mBuffers
+        let interleavedSamples = try XCTUnwrap(audioBuffer.mData).assumingMemoryBound(to: Float.self)
+        for frame in 0..<Int(frameCount) {
+            let left = Float(0.12 * sin(2 * Double.pi * 997 * Double(frame) / sampleRate))
+            let right = Float(0.07 * sin(2 * Double.pi * 3_011 * Double(frame) / sampleRate))
+            planarChannels[0][frame] = left
+            planarChannels[1][frame] = right
+            interleavedSamples[(frame * 2)] = left
+            interleavedSamples[(frame * 2) + 1] = right
+        }
+
+        let planarReport = try DayObjectsStereoCaptureAdapter.analyze(planar)
+        let interleavedReport = try DayObjectsStereoCaptureAdapter.analyze(interleaved)
+
+        XCTAssertEqual(interleavedReport.integratedLUFS, planarReport.integratedLUFS, accuracy: 0.000_001)
+        XCTAssertEqual(interleavedReport.truePeakDBTP, planarReport.truePeakDBTP, accuracy: 0.000_001)
+        XCTAssertEqual(interleavedReport.durationSeconds, 1, accuracy: 0.000_001)
     }
 
     private func makeSine(

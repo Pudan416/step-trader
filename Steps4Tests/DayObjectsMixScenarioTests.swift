@@ -65,7 +65,33 @@ final class DayObjectsMixScenarioTests: XCTestCase {
         XCTAssertGreaterThan(peak, 0.000_001)
     }
 
-    func testQuietOfflineRenderDoesNotReportFalseLimiterReduction() async throws {
+    func testRendererReleasesProcessLeaseWhenCancelledAfterOfflineBegin() async throws {
+        let renderer = DayObjectsOfflineMixRenderer(
+            bundle: Bundle(for: type(of: self)),
+            offlineBeginCheckpoint: { throw CancellationError() }
+        )
+
+        do {
+            _ = try await renderer.render(
+                plan: makePlan(),
+                durationSeconds: 1,
+                sampleRate: 48_000
+            )
+            XCTFail("Expected injected cancellation")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+        }
+
+        let secondRenderer = DayObjectsOfflineMixRenderer(bundle: Bundle(for: type(of: self)))
+        let buffer = try await secondRenderer.render(
+            plan: makePlan(),
+            durationSeconds: 1,
+            sampleRate: 48_000
+        )
+        XCTAssertEqual(buffer.frameLength, 48_000)
+    }
+
+    func testQuietOfflineRenderDoesNotEstimateFalseRequiredPeakAttenuation() async throws {
         let renderer = DayObjectsOfflineMixRenderer(bundle: Bundle(for: type(of: self)))
 
         let buffer = try await renderer.render(
@@ -81,10 +107,33 @@ final class DayObjectsMixScenarioTests: XCTestCase {
         )
         let diagnostics = try XCTUnwrap(renderer.lastDiagnostics)
         XCTAssertLessThan(
-            diagnostics.maximumLimiterReductionDB,
+            diagnostics.maximumEstimatedLimiterReductionDB,
             0.1,
-            "A signal with at least 1 dB of output headroom must not report gain reduction"
+            "A signal with at least 1 dB of output headroom must not estimate required attenuation"
         )
+    }
+
+    func testProductionIsolationWithSelectedRoleHavingNoSourceIsSilentFromFrameZero() async throws {
+        let renderer = DayObjectsOfflineMixRenderer(
+            bundle: Bundle(for: type(of: self)),
+            auditionMode: .isolatedBus(.lead),
+            leadGestureProfile: .none
+        )
+
+        let buffer = try await renderer.render(
+            plan: makePlan(),
+            durationSeconds: 1,
+            sampleRate: 48_000
+        )
+        let channels = try XCTUnwrap(buffer.floatChannelData)
+        let maximumMagnitude = (0..<Int(buffer.frameLength)).reduce(Float.zero) { peak, frame in
+            max(peak, abs(channels[0][frame]), abs(channels[1][frame]))
+        }
+        let report = try DayObjectsStereoCaptureAdapter.analyze(buffer)
+
+        XCTAssertEqual(maximumMagnitude, 0, accuracy: 0.000_000_1)
+        XCTAssertEqual(report.integratedLUFS, -120)
+        XCTAssertEqual(report.truePeakDBTP, -120)
     }
 
     func testScenarioDefinitionCoversEveryRequiredAxisAndIsolationCheck() throws {
@@ -108,6 +157,90 @@ final class DayObjectsMixScenarioTests: XCTestCase {
         XCTAssertEqual(scenarios.count, 31)
     }
 
+    func testScenarioJSONUsesExplicitEstimatedLimiterGateName() throws {
+        let result = ScenarioResult(
+            id: "fixture",
+            category: "fixture",
+            variant: "fixture",
+            seed: "1",
+            grooveMode: "percussion",
+            bassInstrumentID: nil,
+            integratedLUFS: -17,
+            truePeakDBTP: -1.2,
+            durationSeconds: 60,
+            renderWallTimeSeconds: 1,
+            containsOnlyFiniteSamples: true,
+            maximumEstimatedLimiterReductionDB: 0.5,
+            averageRoleRMSDBFS: [:],
+            maximumRolePeakDBFS: [:],
+            maximumRoleActiveVoiceCount: [:],
+            stressActivities: []
+        )
+
+        let json = try XCTUnwrap(String(
+            data: JSONEncoder().encode(result),
+            encoding: .utf8
+        ))
+
+        XCTAssertTrue(json.contains("\"maximumEstimatedLimiterReductionDB\""))
+        XCTAssertFalse(json.contains("\"maximumLimiterReductionDB\""))
+    }
+
+    func testWorstCaseRecordsEveryRequiredComponentAtOneSharedHostTime() async throws {
+        let scenario = try XCTUnwrap(try makeScenarios().first { $0.category == "worst-case" })
+        let renderer = DayObjectsOfflineMixRenderer(
+            bundle: Bundle(for: type(of: self)),
+            auditionMode: scenario.auditionMode,
+            leadGestureProfile: scenario.leadGestureProfile,
+            stressProfile: scenario.stressProfile
+        )
+
+        _ = try await renderer.render(
+            plan: scenario.plan,
+            durationSeconds: 1,
+            sampleRate: Self.scenarioSampleRate
+        )
+
+        let diagnostics = try XCTUnwrap(renderer.lastDiagnostics)
+        let activities = diagnostics.stressActivities
+        XCTAssertEqual(activities.count, 8)
+        XCTAssertEqual(Set(activities.map(\.hostTimeSeconds)), [1])
+        XCTAssertEqual(Set(activities.map(\.component)), [
+            .kickSoft, .bassAttack, .chordTransition, .heldLead, .happeningTail,
+        ])
+        XCTAssertEqual(activities.filter { $0.component == .kickSoft }.count, 1)
+        XCTAssertEqual(activities.filter { $0.component == .bassAttack }.count, 1)
+        XCTAssertEqual(activities.filter { $0.component == .chordTransition }.count, 1)
+        XCTAssertEqual(activities.filter { $0.component == .heldLead }.count, 1)
+        XCTAssertEqual(activities.filter { $0.component == .happeningTail }.count, 4)
+        XCTAssertGreaterThanOrEqual(
+            diagnostics.maximumRoleActiveVoiceCount[.happenings, default: 0],
+            4
+        )
+    }
+
+    func testWorstCaseThrowsWhenFourHappeningTailsCannotBeAuditioned() async throws {
+        let renderer = DayObjectsOfflineMixRenderer(
+            bundle: Bundle(for: type(of: self)),
+            leadGestureProfile: .held,
+            stressProfile: .fourHappeningTailsWithKickBassChordAndHeldLead
+        )
+
+        do {
+            _ = try await renderer.render(
+                plan: makePlan(),
+                durationSeconds: 1,
+                sampleRate: Self.scenarioSampleRate
+            )
+            XCTFail("Expected the incomplete four-tail stress audition to fail")
+        } catch {
+            XCTAssertEqual(
+                error as? DayObjectsOfflineMixRendererError,
+                .stressAuditionFailed(.happeningTail)
+            )
+        }
+    }
+
     func testSixtySecondScenarioMatrixWhenExplicitlyRequested() async throws {
         guard ProcessInfo.processInfo.environment["DAY_OBJECTS_AUDIO_RENDER_MATRIX"] == "1" else {
             throw XCTSkip("Set DAY_OBJECTS_AUDIO_RENDER_MATRIX=1 for the 31 x 60-second acceptance matrix")
@@ -124,7 +257,8 @@ final class DayObjectsMixScenarioTests: XCTestCase {
             results.append(result)
             print(
                 "DAY_OBJECTS_RESULT \(result.id) lufs=\(result.integratedLUFS) "
-                    + "dbtp=\(result.truePeakDBTP) limiter=\(result.maximumLimiterReductionDB) "
+                    + "dbtp=\(result.truePeakDBTP) "
+                    + "maximumEstimatedLimiterReductionDB=\(result.maximumEstimatedLimiterReductionDB) "
                     + "renderWall=\(result.renderWallTimeSeconds)"
             )
         }
@@ -137,10 +271,10 @@ final class DayObjectsMixScenarioTests: XCTestCase {
         let glitchFull = try XCTUnwrap(results.first { $0.id == "glitch-100" })
         let glitchDifference = abs(glitchZero.integratedLUFS - glitchFull.integratedLUFS)
         let report = ScenarioMatrixReport(
-            schemaVersion: 1,
+            schemaVersion: 2,
             durationSeconds: Self.scenarioDurationSeconds,
             sampleRateHz: Int(Self.scenarioSampleRate),
-            analyzer: "ITU-R BS.1770 K-weighting; 400 ms blocks; 75% overlap; -70 LUFS absolute / -10 LU relative gates; 4x true peak",
+            analyzer: Self.analyzerDescription,
             scenarios: results,
             comparisons: .init(
                 isolatedHarmonyHappeningLeadSpreadLU: isolatedSpread,
@@ -160,9 +294,14 @@ final class DayObjectsMixScenarioTests: XCTestCase {
             XCTAssertEqual(result.durationSeconds, 60, accuracy: 0.000_001, result.id)
             XCTAssertLessThanOrEqual(result.renderWallTimeSeconds, 60, result.id)
             XCTAssertLessThanOrEqual(result.truePeakDBTP, -1, result.id)
-            XCTAssertGreaterThan(result.integratedLUFS, -120, result.id)
+            if result.id == "isolated-bass" {
+                XCTAssertEqual(result.integratedLUFS, -120, result.id)
+                XCTAssertEqual(result.truePeakDBTP, -120, result.id)
+            } else {
+                XCTAssertGreaterThan(result.integratedLUFS, -120, result.id)
+            }
             if result.category != "worst-case" {
-                XCTAssertLessThan(result.maximumLimiterReductionDB, 2, result.id)
+                XCTAssertLessThan(result.maximumEstimatedLimiterReductionDB, 2, result.id)
             }
         }
         let representativeIDs: Set<String> = [
@@ -176,7 +315,92 @@ final class DayObjectsMixScenarioTests: XCTestCase {
         XCTAssertLessThanOrEqual(isolatedSpread, 1.5)
         XCTAssertLessThanOrEqual(glitchDifference, 1)
         let worst = try XCTUnwrap(results.first { $0.category == "worst-case" })
+        XCTAssertEqual(worst.stressActivities.count, 8)
+        XCTAssertEqual(Set(worst.stressActivities.map(\.hostTimeSeconds)).count, 1)
+        XCTAssertEqual(worst.stressActivities.filter { $0.component == .happeningTail }.count, 4)
         XCTAssertGreaterThanOrEqual(worst.maximumRoleActiveVoiceCount["happenings", default: 0], 4)
+    }
+
+    func testControlledCalibrationProbeWhenExplicitlyRequested() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard environment["DAY_OBJECTS_AUDIO_CALIBRATION_PROBE"] == "1" else {
+            throw XCTSkip("Set DAY_OBJECTS_AUDIO_CALIBRATION_PROBE=1 for controlled calibration evidence")
+        }
+        let selection = environment["DAY_OBJECTS_AUDIO_CALIBRATION_SELECTION"] ?? "batch-a"
+        let label = environment["DAY_OBJECTS_AUDIO_CALIBRATION_LABEL"] ?? selection
+        let selectedIDs: Set<String>
+        switch selection {
+        case "batch-a":
+            selectedIDs = [
+                "steps-50", "sleep-mid", "happenings-1", "glitch-25",
+                "groove-percussion", "groove-bass-pulse", "groove-bass-arp", "groove-bass-bed",
+            ]
+        case "guard":
+            selectedIDs = [
+                "steps-50", "worst-case-overlap",
+                "isolated-rhythm", "isolated-bass", "isolated-harmony",
+                "isolated-happenings", "isolated-lead",
+                "glitch-0", "glitch-100", "bass-bb-roys-phaser",
+            ]
+        case "bb":
+            selectedIDs = ["bass-bb-roys-phaser"]
+        case "arp":
+            selectedIDs = ["groove-bass-arp"]
+        default:
+            throw DayObjectsAudioError("Unknown calibration selection: \(selection)")
+        }
+
+        let scenarios = try makeScenarios().filter { selectedIDs.contains($0.id) }
+        XCTAssertEqual(scenarios.count, selectedIDs.count)
+        var results: [ScenarioResult] = []
+        for (index, scenario) in scenarios.enumerated() {
+            print("DAY_OBJECTS_CALIBRATION \(index + 1)/\(scenarios.count) \(label) \(scenario.id)")
+            let result = try await measure(scenario)
+            print(
+                "DAY_OBJECTS_CALIBRATION_RESULT \(label) \(result.id) "
+                    + "lufs=\(result.integratedLUFS) dbtp=\(result.truePeakDBTP) "
+                    + "maximumEstimatedLimiterReductionDB=\(result.maximumEstimatedLimiterReductionDB) "
+                    + "roleRMS=\(result.averageRoleRMSDBFS) renderWall=\(result.renderWallTimeSeconds)"
+            )
+            guard result.renderWallTimeSeconds <= 60 else {
+                XCTFail("\(result.id) exceeded the 60-second render limit")
+                return
+            }
+            results.append(result)
+        }
+
+        if environment["DAY_OBJECTS_AUDIO_CALIBRATION_ASSERT_ACCEPTANCE"] == "1" {
+            if selection == "arp" {
+                XCTAssertEqual(results.count, 1)
+                let result = try XCTUnwrap(results.first)
+                XCTAssertEqual(result.id, "groove-bass-arp")
+                XCTAssertTrue(result.containsOnlyFiniteSamples)
+                XCTAssertEqual(result.durationSeconds, 60, accuracy: 0.000_001)
+                XCTAssertLessThanOrEqual(result.renderWallTimeSeconds, 60)
+                XCTAssertLessThanOrEqual(result.truePeakDBTP, -1)
+                XCTAssertTrue((-18 ... -16).contains(result.integratedLUFS))
+                XCTAssertLessThan(result.maximumEstimatedLimiterReductionDB, 2)
+            } else {
+                try assertGuardAcceptance(results)
+            }
+        }
+
+        let report = CalibrationProbeReport(
+            schemaVersion: 2,
+            calibrationLabel: label,
+            durationSeconds: Self.scenarioDurationSeconds,
+            sampleRateHz: Int(Self.scenarioSampleRate),
+            analyzer: Self.analyzerDescription,
+            scenarios: results
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        let reportData = try encoder.encode(report)
+        let safeLabel = label.map { $0.isLetter || $0.isNumber || $0 == "-" ? $0 : "-" }
+        let reportURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("day-objects-calibration-\(String(safeLabel)).json")
+        try reportData.write(to: reportURL, options: .atomic)
+        print("DAY_OBJECTS_CALIBRATION_REPORT_PATH=\(reportURL.path)")
     }
 
     private func makePlan() -> DayMusicPlan {
@@ -335,11 +559,48 @@ final class DayObjectsMixScenarioTests: XCTestCase {
             durationSeconds: loudness.durationSeconds,
             renderWallTimeSeconds: renderWallTimeSeconds,
             containsOnlyFiniteSamples: loudness.containsOnlyFiniteSamples,
-            maximumLimiterReductionDB: diagnostics.maximumLimiterReductionDB,
+            maximumEstimatedLimiterReductionDB: diagnostics.maximumEstimatedLimiterReductionDB,
             averageRoleRMSDBFS: roleValues(diagnostics.averageRoleRMSDBFS),
             maximumRolePeakDBFS: roleValues(diagnostics.maximumRolePeakDBFS),
-            maximumRoleActiveVoiceCount: roleValues(diagnostics.maximumRoleActiveVoiceCount)
+            maximumRoleActiveVoiceCount: roleValues(diagnostics.maximumRoleActiveVoiceCount),
+            stressActivities: diagnostics.stressActivities
         )
+    }
+
+    private func assertGuardAcceptance(_ results: [ScenarioResult]) throws {
+        for result in results {
+            XCTAssertTrue(result.containsOnlyFiniteSamples, result.id)
+            XCTAssertEqual(result.durationSeconds, 60, accuracy: 0.000_001, result.id)
+            XCTAssertLessThanOrEqual(result.renderWallTimeSeconds, 60, result.id)
+            XCTAssertLessThanOrEqual(result.truePeakDBTP, -1, result.id)
+            if result.id == "isolated-bass" {
+                XCTAssertEqual(result.integratedLUFS, -120, result.id)
+                XCTAssertEqual(result.truePeakDBTP, -120, result.id)
+            } else {
+                XCTAssertGreaterThan(result.integratedLUFS, -120, result.id)
+            }
+            if result.category != "worst-case" {
+                XCTAssertLessThan(result.maximumEstimatedLimiterReductionDB, 2, result.id)
+            }
+        }
+
+        let representative = try XCTUnwrap(results.first { $0.id == "steps-50" })
+        XCTAssertTrue((-18 ... -16).contains(representative.integratedLUFS))
+        let glitchZero = try XCTUnwrap(results.first { $0.id == "glitch-0" })
+        let glitchFull = try XCTUnwrap(results.first { $0.id == "glitch-100" })
+        XCTAssertLessThanOrEqual(abs(glitchZero.integratedLUFS - glitchFull.integratedLUFS), 1)
+        let isolatedFocus = results.filter {
+            $0.category == "isolated" && ["harmony", "happenings", "lead"].contains($0.variant)
+        }
+        XCTAssertEqual(isolatedFocus.count, 3)
+        let isolatedSpread = (isolatedFocus.map(\.integratedLUFS).max() ?? -120)
+            - (isolatedFocus.map(\.integratedLUFS).min() ?? -120)
+        XCTAssertLessThanOrEqual(isolatedSpread, 1.5)
+        let worst = try XCTUnwrap(results.first { $0.category == "worst-case" })
+        XCTAssertEqual(worst.stressActivities.count, 8)
+        XCTAssertEqual(Set(worst.stressActivities.map(\.hostTimeSeconds)).count, 1)
+        XCTAssertEqual(worst.stressActivities.filter { $0.component == .happeningTail }.count, 4)
+        XCTAssertGreaterThanOrEqual(worst.maximumRoleActiveVoiceCount["happenings", default: 0], 4)
     }
 
     private func input(
@@ -430,10 +691,11 @@ final class DayObjectsMixScenarioTests: XCTestCase {
         let durationSeconds: Double
         let renderWallTimeSeconds: Double
         let containsOnlyFiniteSamples: Bool
-        let maximumLimiterReductionDB: Double
+        let maximumEstimatedLimiterReductionDB: Double
         let averageRoleRMSDBFS: [String: Double]
         let maximumRolePeakDBFS: [String: Double]
         let maximumRoleActiveVoiceCount: [String: Int]
+        let stressActivities: [DayObjectsOfflineStressActivity]
     }
 
     private struct ScenarioMatrixReport: Codable {
@@ -449,5 +711,16 @@ final class DayObjectsMixScenarioTests: XCTestCase {
             let glitchZeroToFullDifferenceLU: Double
         }
     }
+
+    private struct CalibrationProbeReport: Codable {
+        let schemaVersion: Int
+        let calibrationLabel: String
+        let durationSeconds: Double
+        let sampleRateHz: Int
+        let analyzer: String
+        let scenarios: [ScenarioResult]
+    }
+
+    private static let analyzerDescription = "ITU-R BS.1770 K-weighting; 400 ms blocks; 75% overlap; -70 LUFS absolute / -10 LU relative gates; BS.1770-5 Annex 2 four-phase 4x true peak with zero-padded boundaries"
 }
 #endif

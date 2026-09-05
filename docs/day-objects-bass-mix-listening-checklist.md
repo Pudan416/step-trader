@@ -34,6 +34,7 @@ Check the JSON report before listening. It must contain 60-second captures at 48
 - The 27 Hz bass cleanup removes unusable rumble without thinning supported notes.
 - Ducking reads as separation, not a hole, tremolo, or audible gain pump.
 - Bass pulse, arp, and bed remain comparable in perceived weight across all four presets.
+- Compare BB Röy’s Phaser directly with Analog Boom, Hey Jakob, and JEC Hollores 2 on both headphones and a speaker: the measured safety trim must not make BB Röy subjectively disappear or lose useful Bass presence.
 
 ### Role balance
 
@@ -48,7 +49,7 @@ Check the JSON report before listening. It must contain 60-second captures at 48
 - Reverb and delay tails are audible but do not blur the next kick or chord.
 - Glitch 0% to 100% changes texture more than loudness; role-level change stays within 1 LU.
 - No click, zipper noise, unexpected dropout, or stereo lurch appears at event or chord boundaries.
-- Ordinary scenarios show less than 2 dB estimated limiter reduction and no audible pumping.
+- Ordinary scenarios show less than 2 dB maximum estimated required peak attenuation and no audible pumping. This offline proxy is an acceptance gate, not observed limiter gain reduction.
 - The stress case stays at or below -1 dBTP, remains finite, and does not crackle or flatten into sustained limiting.
 
 ## Translation checks
@@ -60,7 +61,7 @@ Check the JSON report before listening. It must contain 60-second captures at 48
 
 ## Record and gate
 
-For every issue, record scenario ID, timestamp, device, severity, and whether it repeats. Stop the release for any non-finite sample, true peak above -1 dBTP, representative render outside -18 to -16 LUFS-I, routine limiter reduction at or above 2 dB, role-spread/glitch failure, repeatable click, or audible distortion.
+For every issue, record scenario ID, timestamp, device, severity, and whether it repeats. Stop the release for any non-finite sample, true peak above -1 dBTP, representative render outside -18 to -16 LUFS-I, routine maximum estimated required peak attenuation at or above 2 dB, role-spread/glitch failure, repeatable click, or audible distortion.
 
 Analyze any exported PCM file or directory with:
 
@@ -72,120 +73,151 @@ Use `--output report.json` to retain JSON. The command exits nonzero when a file
 
 Simulator note: Core Audio may log missing default I/O or AudioKit parameter diagnostics even though AVAudioEngine manual rendering succeeds. Treat the PCM report and tests as the offline result; complete this listening checklist on real output hardware.
 
-## Automated calibration record — 2026-09-05
+## Automated calibration record — 2026-09-05, corrected true peak
 
 The checked-in JSON contains 31 sequential 60-second, 48 kHz captures made
-through the production instrument bank, players, transport, five role buses,
-master processors, limiter, and final output gain. All captures are finite and
-exactly 60 seconds. No generated audio is checked in.
+through the production instrument bank, players, injected transport clock,
+five role buses, master processors, limiter, and final output gain. All
+captures are finite and exactly 60 seconds. No generated audio is checked in.
 
-`R/B/H/X/L` below means the measured source-bus RMS for Rhythm, Bass, Harmony,
-Happenings, and Lead. `-120` is the analyzer's silence floor. These taps are
-upstream of the direct/send path gains, so a role-path-only change correctly
-leaves their readings unchanged while changing LUFS-I, dBTP, and limiting.
+True peak uses all four ITU-R BS.1770-5 Annex 2 phases at every input clock,
+with eleven zero samples before the file and an eleven-sample zero-padded tail.
+There is no raw-peak shortcut for short files. Captures shorter than one full
+400 ms loudness-gating block are rejected rather than assigned a misleading
+integrated value. Planar and interleaved Float32 mono/stereo PCM are supported.
 
-### Final calibration points
+`R/B/H/X/L` below is source-bus RMS for Rhythm, Bass, Harmony, Happenings, and
+Lead. `-120` is the analyzer silence floor. These taps are upstream of the
+direct/send path gains; output silence, not tap RMS, is the isolation gate.
+`Est.` means `maximumEstimatedLimiterReductionDB`: the offline maximum required
+peak-attenuation estimate used as a conservative gate, not measured limiter
+gain reduction and not the Task 7 time-aligned runtime metric.
 
-| Point | Before | Accepted measured value |
+### Protected constants
+
+- Physical pre-limiter master trim: exactly -6.00 dB before and after; no hidden offset.
+- Glue compressor: -4.5 dB threshold and 1.5:1 ratio, unchanged.
+- Production topology and processor behavior: unchanged.
+- Authored one-shot/tail cap: 4.5 seconds, unchanged.
+
+### Batch A — co-dependent production calibration
+
+This approved batch was rendered twice from controlled constants: the exact
+pre-Task-9 state, then the complete calibration below with BB Röy held at 0 dB.
+Every changed constant in the batch is enumerated here.
+
+| Calibration point | Before | Batch A after |
 |---|---:|---:|
-| Physical pre-limiter master trim | -6.00 dB | -6.00 dB |
-| Rhythm/Bass/Harmony/Happenings/Lead path calibration | 0 dB each | +10.40 dB each |
-| Final output gain | -1.00 dB | -1.35 dB |
+| Rhythm path calibration | 0 dB | +10.40 dB |
+| Bass path calibration | 0 dB | +10.40 dB |
+| Harmony path calibration | 0 dB | +10.40 dB |
+| Happenings path calibration | 0 dB | +10.40 dB |
+| Lead path calibration | 0 dB | +10.40 dB |
+| Final output gain/ceiling | -1.00 dB | -1.35 dB |
 | Rhythm return multiplier | 1.0x | 8.0x |
 | Harmony return multiplier | 1.0x | 2.0x |
 | Happenings return multiplier | 1.0x | 3.4x |
-| Bass/Lead return multiplier | 1.0x | 1.0x |
-| Rhythm / Bass / Harmony role target | -10 / -12 / -10 dB | 0 / 0 / 0 dB |
-| Happenings aggregate / Lead target | -8 / -9 dB | -3.3 / -3.1 dB |
-| Happenings per-voice target (1/2/4+ voices) | -8 / -11 / -14 dB | -3.3 / -6.3 / -9.3 dB |
+| Rhythm role target | -10 dB | 0 dB |
+| Bass role target | -12 dB | 0 dB |
+| Harmony role target | -10 dB | 0 dB |
+| Happenings aggregate target | -8 dB | -3.3 dB |
+| Happenings one/two/four-plus voice target | -8/-11/-14 dB | -3.3/-6.3/-9.3 dB |
+| Lead role target | -9 dB | -3.1 dB |
+| `pad.interstellar` trim | -13.15 dB | 0 dB |
+| `pad.whispering-sands` trim | -12.40 dB | 0 dB |
+| `pad.forgotten-stories` trim | -14.89 dB | 0 dB |
+| `bass.analog-boom` trim | -14.89 dB | -15.65 dB |
+| `bass.hey-jakob` trim | -18.00 dB | -9.18 dB |
+| `bass.bb-roys-phaser` trim | -15.92 dB | 0 dB |
+| `bass.jec-hollores-2` trim | -17.08 dB | -23.45 dB |
+| `lead.verbacious` trim | -17.08 dB | 0 dB |
+| `keys.maschinenmensch` trim | -14.89 dB | 0 dB |
+| `keys.bb-slow-poly` trim | -14.89 dB | 0 dB |
+| `keys.jec-polaroids-2` trim | -14.89 dB | 0 dB |
+| `kickSoft` drum trim | -8 dB | 0 dB |
+| `kickFull` drum trim | -6 dB | 0 dB |
+| `shaker` drum trim | -10 dB | 0 dB |
+| `hatClosed`, `hatOpen`, `clapSoft`, `stick`, `organicHigh`, `organicLow` trims | -12 dB each | 0 dB each |
 
-The master glue remains at its existing -4.5 dB threshold and 1.5:1 ratio.
-No compressor ratio, topology, or processor behavior was changed. The final
--1.35 dB output gain is a deliberately stricter implementation of the
-`<= -1 dBTP` requirement; the extra 0.35 dB accommodates measured inter-sample
-reconstruction overshoot while the physical master trim remains exactly -6 dB.
+Bass and Lead return multipliers remained 1.0x. Unlisted descriptors retained
+their prior trims. The -1.35 dB fixed output is a stricter implementation of
+the required `<= -1 dBTP` ceiling, chosen for measured inter-sample margin.
 
-### Source trim changes
+All values below are direct outputs from the matched probe. Each cell is
+`LUFS-I / dBTP / R/B/H/X/L dBFS / Est. dB`.
 
-| Descriptor | Before | Accepted measured trim |
-|---|---:|---:|
-| `pad.interstellar` | -13.15 dB | 0 dB |
-| `pad.whispering-sands` | -12.40 dB | 0 dB |
-| `pad.forgotten-stories` | -14.89 dB | 0 dB |
-| `bass.analog-boom` | -14.89 dB | -15.65 dB |
-| `bass.hey-jakob` | -18.00 dB | -9.18 dB |
-| `bass.bb-roys-phaser` | -15.92 dB | -0.75 dB |
-| `bass.jec-hollores-2` | -17.08 dB | -23.45 dB |
-| `lead.verbacious` | -17.08 dB | 0 dB |
-| `keys.maschinenmensch` | -14.89 dB | 0 dB |
-| `keys.bb-slow-poly` | -14.89 dB | 0 dB |
-| `keys.jec-polaroids-2` | -14.89 dB | 0 dB |
-
-Kick trims changed from -8/-6 dB to 0 dB, shaker from -10 dB to 0 dB,
-and the remaining sample-drum recipes from -12 dB to 0 dB. Unlisted
-descriptors retain their prior trims.
-
-### Before/after measurement ledger
-
-The original matrix established the under-level baseline: `steps-50` was
--42.349522 LUFS-I / -24.715689 dBTP, `happenings-1` -41.935044 / -24.460287,
-`groove-percussion` -39.679180 / -15.939283, `groove-bass-pulse` -37.822897 /
--16.764410, `groove-bass-arp` -39.879223 / -16.100018, and
-`groove-bass-bed` -33.309769 / -9.649707; all reported 0 dB limiter reduction.
-That first report format did not retain role RMS, so none is invented here.
-The earliest complete quartet is the pre-role-path candidate below.
-
-| Scenario | Before role-path: LUFS-I / dBTP / R/B/H/X/L RMS / max GR | Final: LUFS-I / dBTP / R/B/H/X/L RMS / max GR |
+| Scenario | Batch A before | Batch A after |
 |---|---|---|
-| `steps-50` | -26.415541 / -9.601273 / -21.389494/-120/-35.119141/-44.448975/-120 / 0 | -17.966954 / -1.157965 / -21.389494/-120/-35.114476/-44.448975/-120 / 1.069786 |
-| `sleep-mid` | -26.415089 / -9.582728 / -21.389494/-120/-35.117080/-44.448975/-120 / 0 | -17.967028 / -1.158026 / -21.389494/-120/-35.114827/-44.448975/-120 / 1.066580 |
-| `happenings-1` | -26.192738 / -9.253336 / -21.389494/-120/-35.118575/-41.160048/-120 / 0 | -17.878735 / -1.158107 / -21.389494/-120/-35.114648/-41.160048/-120 / 1.245446 |
-| `glitch-25` | -26.415310 / -9.582751 / -21.389494/-120/-35.118126/-44.448975/-120 / 0 | -17.967071 / -1.157368 / -21.389494/-120/-35.114817/-44.448975/-120 / 1.068388 |
-| `groove-percussion` | -25.041250 / -8.630791 / -21.511501/-120/-32.373816/-38.633090/-120 / 0 | -16.695124 / -1.142764 / -21.511501/-120/-32.382854/-38.633090/-120 / 1.677567 |
-| `groove-bass-pulse` | -24.458069 / -9.245117 / -21.534839/-23.871337/-36.257762/-37.572067/-120 / 0 | -16.815603 / -1.120025 / -21.534839/-23.771874/-36.615691/-37.572067/-120 / 0.657144 |
-| `groove-bass-arp` | -25.316436 / -9.253040 / -23.536815/-32.270667/-32.221904/-41.820453/-120 / 0 | -17.007618 / -1.237306 / -23.536815/-32.183459/-32.232068/-41.820453/-120 / 1.888281 |
-| `groove-bass-bed` | -25.092602 / -9.031049 / -23.275950/-23.271874/-32.177136/-49.278675/-120 / 0 | -16.543746 / -1.204175 / -23.275950/-23.353266/-32.204992/-49.278675/-120 / 1.035582 |
+| `steps-50` | -42.3496033274 / -24.6965355381 / -29.4221862533/-120/-41.9504469591/-44.4489745208/-120 / 0 | -17.9674313262 / -1.3059508361 / -21.3894941581/-120/-35.1149854659/-44.4489745208/-120 / 1.0653505681 |
+| `sleep-mid` | -42.3496584920 / -24.6971295481 / -29.4221862533/-120/-41.9512967270/-44.4489745208/-120 / 0 | -17.9671020842 / -1.3058449346 / -21.3894941581/-120/-35.1148584357/-44.4489745208/-120 / 1.0678149555 |
+| `happenings-1` | -41.9350339070 / -24.4414654053 / -29.4221862533/-120/-41.9503494587/-41.1600480872/-120 / 0 | -17.8785377042 / -1.3227001102 / -21.3894941581/-120/-35.1141591498/-41.1600480872/-120 / 1.2375415851 |
+| `glitch-25` | -42.3493948057 / -24.6971295481 / -29.4221862533/-120/-41.9501379481/-44.4489745208/-120 / 0 | -17.9743902503 / -1.3057498651 / -21.3894941581/-120/-35.1150958769/-44.4489745208/-120 / 1.0671721392 |
+| `groove-percussion` | -39.6653796837 / -15.9428971941 / -29.5486845303/-120/-41.1468004963/-38.6330895837/-120 / 0 | -16.7122561603 / -1.3062727604 / -21.5115011435/-120/-32.3823727491/-38.6330895837/-120 / 1.8339009703 |
+| `groove-bass-pulse` | -37.7916277246 / -16.7507192660 / -29.5565539083/-23.1774751025/-43.9910203524/-37.5720667745/-120 / 0 | -16.8264908297 / -1.2425661904 / -21.5348392783/-23.7950224425/-36.2795868136/-37.5720667745/-120 / 0.6632391590 |
+| `groove-bass-arp` | -39.8731434578 / -16.0867605930 / -31.5629612572/-41.7645519167/-40.8286931155/-41.8204526213/-120 / 0 | -16.9534858586 / -1.2856275859 / -23.5368149998/-32.2126440226/-32.2150583193/-41.8204526213/-120 / 1.9204454750 |
+| `groove-bass-bed` | -33.4263021778 / -9.3780734795 / -31.3083663594/-17.7030968780/-40.9230457387/-49.2786751582/-120 / 0 | -16.4390704154 / -1.2632073429 / -23.2759495407/-23.3284486328/-32.0781514948/-49.2786751582/-120 / 1.2228460453 |
 
-The final 0.75 dB reduction of `bass.bb-roys-phaser` changed its arp scenario
-from -17.008499 LUFS-I / -1.237300 dBTP / 2.406402 dB maximum limiter reduction
-to -17.007618 / -1.237306 / 1.888281. The interrupted pre-trim report did not
-persist its role-RMS dictionary; the accepted post-trim R/B/H/X/L measurement
-is -23.536815/-32.183459/-32.232068/-41.820453/-120 dBFS. This was the only
-normal scenario above the 2 dB rejection gate, and the trim brought it below
-the gate without moving program loudness.
+### Batch B — BB Röy-only safety trim
 
-The final +10.40 dB role paths and -1.35 dB output were selected after a
-+10.35/-1.30 guard measured `steps-50` at -17.954138 LUFS-I, -1.155682 dBTP,
-1.024018 dB reduction and `groove-percussion` at -16.699906, -1.055146,
-1.883009. The accepted values measured -17.966954, -1.157965, 1.069786 and
--16.695124, -1.142764, 1.677567 respectively; their source-bus RMS values are
-shown above and were unchanged within meter-window variance.
+Every Batch A after-constant was held fixed. The controlled BB Röy row at
+0 dB measured -16.9247261214 LUFS-I / -1.2856275859 dBTP /
+-23.5368149998/-32.2241208540/-31.9145591838/-41.8204526213/-120 dBFS /
+2.0366382269 dB Est. The initial guard-passing candidate, -0.75 dB, measured
+-16.9413872390 / -1.2856269856 /
+-23.5368149998/-32.2453134369/-32.1803584610/-41.8204526213/-120 /
+1.9055932226.
+
+A fresh full-matrix instance at -0.75 dB then exposed Audio Unit phase/run
+variation: its arp row measured -16.9575217219 LUFS-I / -1.2856263853 dBTP /
+-23.5368149998/-32.1884054974/-32.2218342943/-41.8204526213/-120 dBFS /
+2.0414150537 dB Est., missing the normal `<2 dB` gate by 0.0414150537 dB.
+The -1.00 dB narrow retry was also variable: -16.9666418895 LUFS-I /
+-1.2781329446 dBTP /
+-23.5368149998/-32.200801/-32.056458/-41.8204526213/-120 dBFS /
+2.2257795682 dB Est. in 48.229 seconds. No failed command was repeated
+unchanged.
+
+The approved Batch B extension changes only `bass.bb-roys-phaser` from
+-0.75 dB to the final -3.00 dB. Its clean single-Arp guard measured
+-16.9619914429 LUFS-I / -1.2856275859 dBTP /
+-23.5368149998/-32.2032899136/-32.2040890857/-41.8204526213/-120 dBFS /
+1.9575108338 dB Est. in 48.0319903333 seconds. The fresh final-matrix arp row
+measured -16.9574396408 / -1.1402764016 /
+-23.5368149998/-32.1065983665/-32.1446138067/-41.8204526213/-120 /
+1.7057571669 in 46.0648424583 seconds. The larger descriptor margin is
+measurement-driven protection against observed phase variability; subjective
+parity/presence versus all three other Bass presets remains a required human gate.
 
 ### Final automated gates
 
-| Gate | Measured | Result |
+| Gate | Corrected measurement | Result |
 |---|---:|---|
-| Representative LUFS-I range | -17.967071 to -16.543746 | pass |
-| Maximum true peak, all scenarios | -1.036720 dBTP (`glitch-100`) | pass |
-| Maximum normal limiter reduction | 1.888281 dB (`groove-bass-arp`) | pass |
-| Glitch 0→100 loudness difference | 0.151907 LU | pass |
-| Isolated Harmony/Happenings/Lead spread | 0.735446 LU | pass |
-| Worst-case overlap | -14.101134 LUFS-I / -1.093558 dBTP / 2.548300 dB GR | pass; stress exemption |
-| Slowest render | 51.151062 s (`worst-case-overlap`) | pass |
+| Scenario count / duration | 31 / 60 s each | pass |
+| Representative LUFS-I range | -17.9746638139 to -16.6096452011 | pass |
+| Maximum true peak, all scenarios | -1.1402764016 dBTP (`groove-bass-arp`) | pass |
+| Maximum normal estimated required peak attenuation | 1.9305114176 dB (`groove-percussion`) | pass |
+| Glitch 0→100 loudness difference | 0.1514006402 LU | pass |
+| Isolated Harmony/Happenings/Lead spread | 0.8072180411 LU | pass |
+| Isolated Bass with no source | -120 LUFS-I / -120 dBTP / 0 dB Est. | pass; true silence |
+| Worst-case overlap | -14.1439393416 LUFS-I / -1.1791212622 dBTP / 2.7164646395 dB Est. | pass; stress exemption |
+| Worst-case shared-time proof | 8 records at host time 1.0 s | pass: kickSoft, Bass, chord transition, held Lead, four Happenings |
+| Slowest render | 51.6410653333 s (`worst-case-overlap`) | pass |
 
 ## Physical acceptance record
 
-Signed Debug bundle `personal-project.StepsTrader` was built and installed on
-paired **iPhone Costa**, iPhone 15 Pro, iOS 26.6.1, on 2026-09-05. A human
-listener was not available in this non-interactive run, so every acoustic row
-remains pending; no automated result is represented as physical acceptance.
+A signed Debug bundle `personal-project.StepsTrader` built successfully on
+2026-09-05. Paired **iPhone Costa** (iPhone 15 Pro, iOS 26.6.1) was unavailable
+when the corrected build was ready, so the current bundle was not installed.
+Every acoustic row remains pending; no automated measurement is represented as
+physical acceptance.
 
-| Required check | Headphones | Built-in speaker | Notes |
+| Required check | Headphones | Speaker | Notes |
 |---|---|---|---|
-| Bass: Analog Boom isolated | pending | pending | installed build ready |
-| Bass: Hey Jakob isolated | pending | pending | installed build ready |
-| Bass: BB Röy’s Phaser isolated | pending | pending | installed build ready |
-| Bass: JEC Hollores 2 isolated | pending | pending | installed build ready |
+| Bass: Analog Boom isolated | pending | pending | comparison reference |
+| Bass: Hey Jakob isolated | pending | pending | comparison reference |
+| Bass: BB Röy’s Phaser isolated | pending | pending | must retain perceived parity/presence after -3.00 dB safety trim |
+| Bass: JEC Hollores 2 isolated | pending | pending | comparison reference |
+| BB Röy vs all three other Bass presets | pending | pending | explicit A/B; fail if BB Röy subjectively disappears |
 | Groove percussion, Steps 25/50/100 | pending | pending | three states required |
 | Groove bass pulse, Steps 25/50/100 | pending | pending | three states required |
 | Groove bass arp, Steps 25/50/100 | pending | pending | three states required |

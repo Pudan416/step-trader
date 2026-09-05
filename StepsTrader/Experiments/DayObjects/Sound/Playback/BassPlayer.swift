@@ -197,6 +197,7 @@ final class BassPlayer {
     }
 
     func releaseAll() {
+        releaseDiagnosticAudition(restoring: nil)
         releaseHeldVoice()
         heldStableID = nil
         heldUntilGlobalSubdivision = nil
@@ -235,7 +236,8 @@ final class BassPlayer {
         midiNote: UInt8,
         velocity: Double,
         hostTime: TimeInterval,
-        restorationPlan: BassPlan?
+        restorationPlan: BassPlan?,
+        automaticallyReleaseAfterWallClock: Bool = true
     ) throws -> Bool {
         guard acceptsAttacks, hostTime.isFinite else { return false }
         releaseDiagnosticAudition(restoring: nil)
@@ -257,10 +259,12 @@ final class BassPlayer {
         diagnosticToken = token
         diagnosticRestorationPlan = restorationPlan
         lastDiagnosticHostTimeSeconds = hostTime
-        diagnosticReleaseTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 220_000_000)
-            guard !Task.isCancelled else { return }
-            self?.releaseDiagnosticAudition(restoring: self?.diagnosticRestorationPlan)
+        if automaticallyReleaseAfterWallClock {
+            diagnosticReleaseTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 220_000_000)
+                guard !Task.isCancelled else { return }
+                self?.releaseDiagnosticAudition(restoring: self?.diagnosticRestorationPlan)
+            }
         }
         attackCount += 1
         return true

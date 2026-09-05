@@ -14,6 +14,7 @@ enum DayObjectsLoudnessAnalyzerError: Error, Equatable, Sendable {
     case emptySamples
     case nonFiniteSample
     case unsupportedSampleRate
+    case insufficientDuration
     case unsupportedPCMFormat
     case unsupportedChannelLayout
 }
@@ -48,6 +49,10 @@ enum DayObjectsLoudnessAnalyzer {
         guard channels.allSatisfy({ $0.allSatisfy(\.isFinite) }) else {
             throw DayObjectsLoudnessAnalyzerError.nonFiniteSample
         }
+        let requiredBlockFrames = max(Int((0.4 * sampleRate).rounded()), 1)
+        guard frameCount >= requiredBlockFrames else {
+            throw DayObjectsLoudnessAnalyzerError.insufficientDuration
+        }
 
         let perChannelBlockEnergies = channels.map {
             kWeightedBlockEnergies(samples: $0, sampleRate: sampleRate)
@@ -62,7 +67,9 @@ enum DayObjectsLoudnessAnalyzer {
             }
         }
         let integratedLUFS = gatedLoudness(blockEnergies)
-        let truePeak = channels.map(fourTimesOversampledPeak).max() ?? 0
+        let truePeak = channels
+            .map(DayObjectsTruePeakEstimator.fourTimesOversampledPeak)
+            .max() ?? 0
 
         return DayObjectsLoudnessReport(
             integratedLUFS: integratedLUFS,
@@ -85,8 +92,7 @@ enum DayObjectsLoudnessAnalyzer {
             squaredPrefix[index + 1] = squaredPrefix[index] + (filtered * filtered)
         }
 
-        let requestedBlockFrames = Int((0.4 * sampleRate).rounded())
-        let blockFrames = min(max(requestedBlockFrames, 1), samples.count)
+        let blockFrames = max(Int((0.4 * sampleRate).rounded()), 1)
         let stepFrames = max(Int((0.1 * sampleRate).rounded()), 1)
         var energies: [Double] = []
         energies.reserveCapacity(max(1, ((samples.count - blockFrames) / stepFrames) + 1))
@@ -122,48 +128,6 @@ enum DayObjectsLoudnessAnalyzer {
     private static func loudness(energy: Double) -> Double {
         guard energy.isFinite, energy > 0 else { return -.infinity }
         return loudnessOffset + (10 * log10(energy))
-    }
-
-    private static func fourTimesOversampledPeak(_ samples: [Float]) -> Double {
-        var samplePeak: Float = 0
-        samples.withUnsafeBufferPointer { pointer in
-            guard let baseAddress = pointer.baseAddress else { return }
-            vDSP_maxmgv(baseAddress, 1, &samplePeak, vDSP_Length(samples.count))
-        }
-        var peak = Double(samplePeak)
-        guard samples.count > SincKernel.radius * 2 else { return peak }
-
-        let kernelLength = SincKernel.floatCoefficients[0].count
-        let resultCount = samples.count - kernelLength + 1
-        var phaseSamples = [Float](repeating: 0, count: resultCount)
-        for kernel in SincKernel.floatCoefficients {
-            samples.withUnsafeBufferPointer { input in
-                kernel.withUnsafeBufferPointer { filter in
-                    phaseSamples.withUnsafeMutableBufferPointer { output in
-                        guard let inputBase = input.baseAddress,
-                              let filterBase = filter.baseAddress,
-                              let outputBase = output.baseAddress else { return }
-                        vDSP_conv(
-                            inputBase,
-                            1,
-                            filterBase,
-                            1,
-                            outputBase,
-                            1,
-                            vDSP_Length(resultCount),
-                            vDSP_Length(kernelLength)
-                        )
-                    }
-                }
-            }
-            var phasePeak: Float = 0
-            phaseSamples.withUnsafeBufferPointer { pointer in
-                guard let baseAddress = pointer.baseAddress else { return }
-                vDSP_maxmgv(baseAddress, 1, &phasePeak, vDSP_Length(resultCount))
-            }
-            peak = max(peak, Double(phasePeak))
-        }
-        return peak
     }
 
     private static func decibels(_ amplitude: Double) -> Double {
@@ -210,9 +174,7 @@ enum DayObjectsLoudnessAnalyzer {
 /// summed as waveforms, so anti-phase stereo cannot cancel from loudness.
 enum DayObjectsStereoCaptureAdapter {
     static func analyze(_ buffer: AVAudioPCMBuffer) throws -> DayObjectsLoudnessReport {
-        guard buffer.format.commonFormat == .pcmFormatFloat32,
-              !buffer.format.isInterleaved,
-              let channelData = buffer.floatChannelData else {
+        guard buffer.format.commonFormat == .pcmFormatFloat32 else {
             throw DayObjectsLoudnessAnalyzerError.unsupportedPCMFormat
         }
         let channelCount = Int(buffer.format.channelCount)
@@ -223,8 +185,28 @@ enum DayObjectsStereoCaptureAdapter {
         guard frameCount > 0 else {
             throw DayObjectsLoudnessAnalyzerError.emptySamples
         }
-        let channels = (0..<channelCount).map { channel in
-            Array(UnsafeBufferPointer(start: channelData[channel], count: frameCount))
+        let channels: [[Float]]
+        if buffer.format.isInterleaved {
+            let audioBuffers = UnsafeMutableAudioBufferListPointer(buffer.mutableAudioBufferList)
+            guard audioBuffers.count == 1,
+                  let data = audioBuffers[0].mData,
+                  Int(audioBuffers[0].mDataByteSize)
+                    >= frameCount * channelCount * MemoryLayout<Float>.stride else {
+                throw DayObjectsLoudnessAnalyzerError.unsupportedPCMFormat
+            }
+            let samples = data.assumingMemoryBound(to: Float.self)
+            channels = (0..<channelCount).map { channel in
+                (0..<frameCount).map { frame in
+                    samples[(frame * channelCount) + channel]
+                }
+            }
+        } else {
+            guard let channelData = buffer.floatChannelData else {
+                throw DayObjectsLoudnessAnalyzerError.unsupportedPCMFormat
+            }
+            channels = (0..<channelCount).map { channel in
+                Array(UnsafeBufferPointer(start: channelData[channel], count: frameCount))
+            }
         }
         return try DayObjectsLoudnessAnalyzer.analyze(
             channels: channels,
@@ -232,6 +214,96 @@ enum DayObjectsStereoCaptureAdapter {
             sampleRate: buffer.format.sampleRate
         )
     }
+}
+
+/// ITU-R BS.1770-5 Annex 2 order-48, four-phase FIR interpolator.
+///
+/// The file is treated as a finite signal: the filter begins with eleven zero
+/// samples of state and is flushed with eleven zeros after the last input
+/// sample. That makes every phase observable at both file boundaries, even for
+/// captures shorter than the FIR itself. The raw PCM samples are intentionally
+/// not used as a separate peak path; phase zero is one of the four FIR phases.
+enum DayObjectsTruePeakEstimator {
+    static func fourTimesOversampledPeak(_ samples: [Float]) -> Double {
+        guard !samples.isEmpty else { return 0 }
+
+        let tapCount = annex2PhaseCoefficients[0].count
+        let stateFrameCount = tapCount - 1
+        let resultCount = samples.count + stateFrameCount
+        var zeroPadded = [Float](
+            repeating: 0,
+            count: samples.count + (2 * stateFrameCount)
+        )
+        zeroPadded.replaceSubrange(
+            stateFrameCount..<(stateFrameCount + samples.count),
+            with: samples
+        )
+        var phaseOutput = [Float](repeating: 0, count: resultCount)
+        var peak: Float = 0
+
+        for coefficients in annex2PhaseCoefficients {
+            zeroPadded.withUnsafeBufferPointer { input in
+                coefficients.withUnsafeBufferPointer { filter in
+                    phaseOutput.withUnsafeMutableBufferPointer { output in
+                        guard let inputBase = input.baseAddress,
+                              let filterBase = filter.baseAddress,
+                              let outputBase = output.baseAddress else { return }
+                        vDSP_conv(
+                            inputBase,
+                            1,
+                            filterBase,
+                            1,
+                            outputBase,
+                            1,
+                            vDSP_Length(resultCount),
+                            vDSP_Length(tapCount)
+                        )
+                    }
+                }
+            }
+            var phasePeak: Float = 0
+            phaseOutput.withUnsafeBufferPointer { output in
+                guard let baseAddress = output.baseAddress else { return }
+                vDSP_maxmgv(
+                    baseAddress,
+                    1,
+                    &phasePeak,
+                    vDSP_Length(resultCount)
+                )
+            }
+            peak = max(peak, phasePeak)
+        }
+        return Double(peak)
+    }
+
+    // Coefficients are represented exactly in Float32 because every value in
+    // the recommendation is an integer multiple of 2^-16.
+    private static let annex2PhaseCoefficients: [[Float]] = [
+        [
+            0.0017089843750, 0.0109863281250, -0.0196533203125,
+            0.0332031250000, -0.0594482421875, 0.1373291015625,
+            0.9721679687500, -0.1022949218750, 0.0476074218750,
+            -0.0266113281250, 0.0148925781250, -0.0083007812500,
+        ],
+        [
+            -0.0291748046875, 0.0292968750000, -0.0517578125000,
+            0.0891113281250, -0.1665039062500, 0.4650878906250,
+            0.7797851562500, -0.2003173828125, 0.1015625000000,
+            -0.0582275390625, 0.0330810546875, -0.0189208984375,
+        ],
+        [
+            -0.0189208984375, 0.0330810546875, -0.0582275390625,
+            0.1015625000000, -0.2003173828125, 0.7797851562500,
+            0.4650878906250, -0.1665039062500, 0.0891113281250,
+            -0.0517578125000, 0.0292968750000, -0.0291748046875,
+        ],
+        [
+            -0.0083007812500, 0.0148925781250, -0.0266113281250,
+            0.0476074218750, -0.1022949218750, 0.9721679687500,
+            0.1373291015625, -0.0594482421875, 0.0332031250000,
+            -0.0196533203125, 0.0109863281250, 0.0017089843750,
+        ],
+    ]
 }
 
 private struct Biquad {
@@ -267,28 +339,4 @@ private struct Biquad {
     }
 }
 
-private enum SincKernel {
-    static let radius = 8
-    static let coefficients: [[Double]] = (1..<4).map { phase in
-        let fraction = Double(phase) / 4
-        var result = (-(radius - 1)...radius).map { offset -> Double in
-            let distance = fraction - Double(offset)
-            let normalizedDistance = abs(distance) / Double(radius)
-            guard normalizedDistance <= 1 else { return 0 }
-            let sinc = distance == 0
-                ? 1
-                : sin(.pi * distance) / (.pi * distance)
-            let window = 0.42
-                + (0.5 * cos(.pi * normalizedDistance))
-                + (0.08 * cos(2 * .pi * normalizedDistance))
-            return sinc * window
-        }
-        let sum = result.reduce(0, +)
-        if sum != 0 {
-            for index in result.indices { result[index] /= sum }
-        }
-        return result
-    }
-    static let floatCoefficients = coefficients.map { $0.map(Float.init) }
-}
 #endif

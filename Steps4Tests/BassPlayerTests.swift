@@ -87,6 +87,27 @@ final class BassPlayerTests: XCTestCase {
         XCTAssertEqual(harness.pool.preparedInstrumentID, compositionID)
     }
 
+    func testOfflineDiagnosticAuditionRemainsHeldUntilExplicitRelease() async throws {
+        let harness = try makeHarness()
+        let plan = bassPlan(events: [bassEvent(id: 1, start: 0, duration: 4)])
+        try harness.player.configure(plan)
+
+        XCTAssertTrue(try harness.player.audition(
+            instrumentID: plan.instrumentID,
+            midiNote: 43,
+            velocity: 0.78,
+            hostTime: 42,
+            restorationPlan: nil,
+            automaticallyReleaseAfterWallClock: false
+        ))
+        try await Task.sleep(for: .milliseconds(300))
+
+        XCTAssertEqual(harness.player.metrics.activeVoiceCount, 1)
+        harness.player.releaseAll()
+        XCTAssertEqual(harness.player.metrics.activeVoiceCount, 0)
+        XCTAssertEqual(harness.pool.noteOffCount, 1)
+    }
+
     func testActiveBassEventsUseOneReservedVoiceWithoutOverlap() throws {
         let harness = try makeHarness()
         let plan = bassPlan(events: [

@@ -70,7 +70,7 @@ final class DayObjectsInstrumentManifestTests: XCTestCase {
             [
                 "bass.analog-boom": -15.65,
                 "bass.hey-jakob": -9.18,
-                "bass.bb-roys-phaser": -0.75,
+                "bass.bb-roys-phaser": -3.00,
                 "bass.jec-hollores-2": -23.45,
             ]
         )

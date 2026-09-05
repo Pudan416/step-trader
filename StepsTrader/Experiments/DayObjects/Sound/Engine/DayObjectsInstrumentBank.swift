@@ -34,6 +34,8 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     private let inactiveHappenings = DayObjectsInactiveHappeningSamplePool()
     private var prepared: PreparedState?
     private var successfulEngineStartCount = 0
+    private var holdsLivePlaybackLease = false
+    private var holdsOfflinePlaybackLease = false
 
     var drums: DayObjectsDrumBankProtocol { prepared?.drums ?? inactiveDrums }
     var piano: DayObjectsPianoPoolProtocol { prepared?.piano ?? inactivePiano }
@@ -320,6 +322,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     func start() throws {
         guard let prepared else { throw DayObjectsInstrumentBankError.notPrepared }
         guard prepared.state != .started else { return }
+        try acquireLivePlaybackLease()
         do {
             if !prepared.isAttached {
                 try engine.attach(graph: prepared.graph)
@@ -330,6 +333,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
             successfulEngineStartCount += 1
             self.prepared?.state = .started
         } catch {
+            releaseLivePlaybackLease()
             if engine is any DayObjectsPairedInstrumentBankLifecycleGate {
                 releaseWorldLocalVoices()
             } else {
@@ -358,12 +362,14 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
             case .sharedRuntimeStopped:
                 releaseAllIncludingSharedHappenings()
             }
+            releaseLivePlaybackLease()
             prepared?.state = .prepared
             prepared?.isAttached = true
             return
         }
         releaseAllIncludingSharedHappenings()
         engine.stop()
+        releaseLivePlaybackLease()
         if prepared != nil { prepared?.state = .prepared; prepared?.isAttached = true }
     }
 
@@ -436,11 +442,20 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         guard prepared.state != .started else {
             throw DayObjectsInstrumentBankError.offlineRenderingConflictsWithLivePlayback
         }
-        try prepared.graph.synchronizeForStart()
-        try engine.beginOfflineRendering(
-            format: format,
-            maximumFrameCount: maximumFrameCount
-        )
+        guard !holdsOfflinePlaybackLease else {
+            throw DayObjectsInstrumentBankError.offlineRenderingConflictsWithLivePlayback
+        }
+        try acquireOfflinePlaybackLease()
+        do {
+            try prepared.graph.synchronizeForStart()
+            try engine.beginOfflineRendering(
+                format: format,
+                maximumFrameCount: maximumFrameCount
+            )
+        } catch {
+            releaseOfflinePlaybackLease()
+            throw error
+        }
     }
 
     func renderOffline(
@@ -453,6 +468,30 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     func endOfflineRendering() {
         releaseAllIncludingSharedHappenings()
         engine.endOfflineRendering()
+        releaseOfflinePlaybackLease()
+    }
+
+    fileprivate func acquireLivePlaybackLease() throws {
+        guard !holdsLivePlaybackLease else { return }
+        try DayObjectsAudioPlaybackLease.shared.acquireLive(owner: self)
+        holdsLivePlaybackLease = true
+    }
+
+    fileprivate func releaseLivePlaybackLease() {
+        guard holdsLivePlaybackLease else { return }
+        DayObjectsAudioPlaybackLease.shared.releaseLive(owner: self)
+        holdsLivePlaybackLease = false
+    }
+
+    private func acquireOfflinePlaybackLease() throws {
+        try DayObjectsAudioPlaybackLease.shared.acquireOffline(owner: self)
+        holdsOfflinePlaybackLease = true
+    }
+
+    private func releaseOfflinePlaybackLease() {
+        guard holdsOfflinePlaybackLease else { return }
+        DayObjectsAudioPlaybackLease.shared.releaseOffline(owner: self)
+        holdsOfflinePlaybackLease = false
     }
 
     fileprivate func synchronizePreparedGraphForPlaybackPair() throws {
@@ -1537,7 +1576,7 @@ final class DayObjectsPersistentMasterGraph {
             to: leadIsExplicitlyMuted
                 ? 0
                 : boundedReturnGain((state.buses.lead.secondarySendLevel ?? 0) * leadPathCalibration),
-            duration: duration
+            duration: leadIsExplicitlyMuted ? 0 : duration
         )
         transition(leadDelayReturn.$feedback, to: boundedDelay(state.buses.lead.secondaryDecay ?? 0.32), duration: duration)
         let requestedMasterDB = min(
@@ -1699,13 +1738,14 @@ final class DayObjectsPersistentMasterGraph {
         // cannot leak a nominally isolated role into the capture.
         let isExplicitlyMuted = directDB <= -60
         let pathCalibration = Self.linearGain(for: pathCalibrationDecibels)
-        ramp(direct, to: isExplicitlyMuted ? 0 : pow(10, directDB / 20) * pathCalibration, duration: duration)
+        let pathDuration = isExplicitlyMuted ? 0 : duration
+        ramp(direct, to: isExplicitlyMuted ? 0 : pow(10, directDB / 20) * pathCalibration, duration: pathDuration)
         ramp(
             send,
             to: isExplicitlyMuted
                 ? 0
                 : boundedReturnGain(parameters.sendLevel * returnSendCalibration * pathCalibration),
-            duration: duration
+            duration: pathDuration
         )
         transition(decay, to: boundedUnit(parameters.decay), duration: duration)
     }
@@ -1902,6 +1942,7 @@ final class DayObjectsPlaybackBankPair {
     private let sharedEngine: DayObjectsSharedInstrumentBankEngine
     private let startFailureProvider: () -> DayObjectsPlaybackBankPairStartFailure?
     private var lifecycleState: DayObjectsPlaybackBankPairLifecycleState = .unprepared
+    private var holdsLivePlaybackLease = false
 
     var metrics: DayObjectsPlaybackBankPairMetrics {
         sharedEngine.metrics(
@@ -1946,6 +1987,7 @@ final class DayObjectsPlaybackBankPair {
         guard sharedEngine.canAcquirePairOwnership || promotesBankAOwner else {
             throw DayObjectsInstrumentBankError.startFailed
         }
+        try acquireLivePlaybackLease()
 
         let injectedFailure = startFailureProvider()
         do {
@@ -1966,6 +2008,7 @@ final class DayObjectsPlaybackBankPair {
             bankB.markPlaybackPairStarted()
             lifecycleState = .started
         } catch {
+            releaseLivePlaybackLease()
             if promotesBankAOwner {
                 bankA.releaseWorldLocalVoices()
                 bankB.releaseWorldLocalVoices()
@@ -1986,7 +2029,9 @@ final class DayObjectsPlaybackBankPair {
 
     func demoteToBankASampleOnlyOwnership() {
         guard lifecycleState == .started else { return }
+        guard (try? bankA.acquireLivePlaybackLease()) != nil else { return }
         sharedEngine.demotePairOwnershipToBankA()
+        releaseLivePlaybackLease()
         bankA.markPlaybackPairStarted()
         bankB.markPlaybackPairPrepared()
         lifecycleState = .prepared
@@ -1997,6 +2042,9 @@ final class DayObjectsPlaybackBankPair {
         bankA.releaseAllIncludingSharedHappenings()
         bankB.releaseWorldLocalVoices()
         sharedEngine.stopPair()
+        releaseLivePlaybackLease()
+        bankA.releaseLivePlaybackLease()
+        bankB.releaseLivePlaybackLease()
         bankA.markPlaybackPairPrepared()
         bankB.markPlaybackPairPrepared()
         lifecycleState = .prepared
@@ -2004,6 +2052,18 @@ final class DayObjectsPlaybackBankPair {
 
     func consumeMeterSamplesForTesting(role: DayObjectsRoleBus, amplitude: Float) {
         sharedEngine.consumeMeterSamplesForTesting(role: role, amplitude: amplitude)
+    }
+
+    private func acquireLivePlaybackLease() throws {
+        guard !holdsLivePlaybackLease else { return }
+        try DayObjectsAudioPlaybackLease.shared.acquireLive(owner: self)
+        holdsLivePlaybackLease = true
+    }
+
+    private func releaseLivePlaybackLease() {
+        guard holdsLivePlaybackLease else { return }
+        DayObjectsAudioPlaybackLease.shared.releaseLive(owner: self)
+        holdsLivePlaybackLease = false
     }
 }
 

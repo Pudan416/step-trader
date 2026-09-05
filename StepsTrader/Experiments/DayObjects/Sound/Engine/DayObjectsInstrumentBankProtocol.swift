@@ -136,6 +136,7 @@ enum DayObjectsInstrumentBankError: Error, Equatable, Sendable {
     case invalidTonalInstrumentCategory(DayObjectsInstrumentCategory)
     case preparationFailed(DayObjectsInstrumentBankPreparationStage)
     case startFailed
+    case livePlaybackConflictsWithOfflineRendering
     case offlineRenderingUnsupported
     case offlineRenderingConflictsWithLivePlayback
     case offlineRenderingNotStarted
@@ -152,10 +153,49 @@ enum DayObjectsInstrumentBankError: Error, Equatable, Sendable {
         case let .invalidTonalInstrumentCategory(category): return "day-objects.instrument-bank.invalid-tonal-category.\(category.rawValue)"
         case let .preparationFailed(stage): return "day-objects.instrument-bank.prepare.\(stage.rawValue)"
         case .startFailed: return "day-objects.instrument-bank.start-failed"
+        case .livePlaybackConflictsWithOfflineRendering: return "day-objects.instrument-bank.live-offline-conflict"
         case .offlineRenderingUnsupported: return "day-objects.instrument-bank.offline-rendering-unsupported"
         case .offlineRenderingConflictsWithLivePlayback: return "day-objects.instrument-bank.offline-rendering-live-conflict"
         case .offlineRenderingNotStarted: return "day-objects.instrument-bank.offline-rendering-not-started"
         }
+    }
+}
+
+/// One process-wide ownership gate for every Day Objects audio runtime.
+/// Multiple live owners are allowed, but no live and offline owner may coexist;
+/// offline rendering itself is exclusive. Main-actor isolation keeps ownership
+/// transitions serialized with the bank and playback-pair lifecycles.
+@MainActor
+final class DayObjectsAudioPlaybackLease {
+    static let shared = DayObjectsAudioPlaybackLease()
+
+    private var liveOwners: Set<ObjectIdentifier> = []
+    private var offlineOwner: ObjectIdentifier?
+
+    private init() {}
+
+    func acquireLive(owner: AnyObject) throws {
+        guard offlineOwner == nil else {
+            throw DayObjectsInstrumentBankError.livePlaybackConflictsWithOfflineRendering
+        }
+        liveOwners.insert(ObjectIdentifier(owner))
+    }
+
+    func releaseLive(owner: AnyObject) {
+        liveOwners.remove(ObjectIdentifier(owner))
+    }
+
+    func acquireOffline(owner: AnyObject) throws {
+        let ownerID = ObjectIdentifier(owner)
+        guard liveOwners.isEmpty, offlineOwner == nil else {
+            throw DayObjectsInstrumentBankError.offlineRenderingConflictsWithLivePlayback
+        }
+        offlineOwner = ownerID
+    }
+
+    func releaseOffline(owner: AnyObject) {
+        guard offlineOwner == ObjectIdentifier(owner) else { return }
+        offlineOwner = nil
     }
 }
 

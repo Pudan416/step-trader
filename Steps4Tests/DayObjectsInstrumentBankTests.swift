@@ -207,7 +207,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(pair.metrics.sharedMasterTrimDecibels, -12, accuracy: 0.001)
     }
 
-    func testDiagnosticMuteRemovesDirectAndReturnPathsWhileSoloKeepsConfiguredSpace() {
+    func testDiagnosticMuteHardZerosDirectAndReturnPathsWhileSoloKeepsConfiguredSpace() {
         let graph = DayObjectsPersistentMasterGraph(
             happenings: DayObjectsHappeningSamplePool(bundle: Bundle(for: type(of: self)))
         )
@@ -241,7 +241,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
             happeningPerVoiceTargetDecibels: -60,
             masterTargetDecibelsBeforeLimiter: -6,
             harmonyDuckingDecibels: 0,
-            rampDurationSeconds: 0
+            rampDurationSeconds: 0.25
         ))
 
         XCTAssertEqual(graph.rhythmDirect.$leftGain.parameter.value, 0, accuracy: 0.000_001)
@@ -253,7 +253,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(graph.happeningsSend.$leftGain.parameter.value, 0, accuracy: 0.000_001)
         XCTAssertEqual(graph.leadSend.$leftGain.parameter.value, 0, accuracy: 0.000_001)
         XCTAssertEqual(graph.leadDelaySend.$leftGain.parameter.value, 0, accuracy: 0.000_001)
-        XCTAssertGreaterThan(graph.harmonyDirect.$leftGain.parameter.value, 1)
+        XCTAssertGreaterThan(graph.harmonyDirect.$leftGain.parameter.value, 0)
         XCTAssertGreaterThan(graph.harmonySend.$leftGain.parameter.value, 0)
     }
 
@@ -1455,6 +1455,89 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(harness.bank.metrics.state, .started)
     }
 
+    func testProcessLeaseBlocksOfflineRenderingAcrossDistinctLiveBankInstancesThenReleases() async throws {
+        let live = makeHarness()
+        let offline = makeHarness()
+        try live.bank.prepare(configuration: configuration())
+        try offline.bank.prepare(configuration: configuration())
+        try live.bank.start()
+
+        XCTAssertThrowsError(
+            try offline.bank.beginOfflineRendering(
+                format: offlineFormat(),
+                maximumFrameCount: 4_096
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? DayObjectsInstrumentBankError,
+                .offlineRenderingConflictsWithLivePlayback
+            )
+        }
+
+        await live.bank.stop()
+        XCTAssertNoThrow(
+            try offline.bank.beginOfflineRendering(
+                format: offlineFormat(),
+                maximumFrameCount: 4_096
+            )
+        )
+        offline.bank.endOfflineRendering()
+    }
+
+    func testProcessLeaseBlocksLiveStartAcrossDistinctOfflineBankInstancesThenReleases() async throws {
+        let offline = makeHarness()
+        let live = makeHarness()
+        try offline.bank.prepare(configuration: configuration())
+        try live.bank.prepare(configuration: configuration())
+        try offline.bank.beginOfflineRendering(
+            format: offlineFormat(),
+            maximumFrameCount: 4_096
+        )
+
+        XCTAssertThrowsError(try live.bank.start()) { error in
+            XCTAssertEqual(
+                error as? DayObjectsInstrumentBankError,
+                .livePlaybackConflictsWithOfflineRendering
+            )
+        }
+
+        offline.bank.endOfflineRendering()
+        XCTAssertNoThrow(try live.bank.start())
+        await live.bank.stop()
+    }
+
+    func testProcessLeaseReleasesAfterThrowingLiveStartAndOfflineBegin() async throws {
+        let failingLive = makeHarness()
+        let offlineAfterLiveFailure = makeHarness()
+        try failingLive.bank.prepare(configuration: configuration())
+        try offlineAfterLiveFailure.bank.prepare(configuration: configuration())
+        failingLive.engine.startError = InjectedFailure()
+
+        XCTAssertThrowsError(try failingLive.bank.start())
+        XCTAssertNoThrow(
+            try offlineAfterLiveFailure.bank.beginOfflineRendering(
+                format: offlineFormat(),
+                maximumFrameCount: 4_096
+            )
+        )
+        offlineAfterLiveFailure.bank.endOfflineRendering()
+
+        let failingOffline = makeHarness()
+        let liveAfterOfflineFailure = makeHarness()
+        try failingOffline.bank.prepare(configuration: configuration())
+        try liveAfterOfflineFailure.bank.prepare(configuration: configuration())
+        failingOffline.engine.offlineBeginError = InjectedFailure()
+
+        XCTAssertThrowsError(
+            try failingOffline.bank.beginOfflineRendering(
+                format: offlineFormat(),
+                maximumFrameCount: 4_096
+            )
+        )
+        XCTAssertNoThrow(try liveAfterOfflineFailure.bank.start())
+        await liveAfterOfflineFailure.bank.stop()
+    }
+
     func testWorldLocalGraphTruthfullyExcludesSharedSpatialReturnsAndMasterLimiter() throws {
         let bank = DayObjectsInstrumentBank(bundle: Bundle(for: type(of: self)))
         let configuration = DayObjectsInstrumentBankConfiguration(
@@ -1589,6 +1672,15 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
 
     private func request(instrumentID: DayObjectsInstrumentID) -> DayObjectsTonalNoteRequest {
         .init(instrumentID: instrumentID, midiNote: 60, velocity: 0.7, role: .note, envelopeVariant: nil, pan: 0, delaySend: 0, reverbSend: 0)
+    }
+
+    private func offlineFormat() -> AVAudioFormat {
+        AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: 48_000,
+            channels: 2,
+            interleaved: false
+        )!
     }
 
     private func expectedReleaseCount(for stage: DayObjectsInstrumentBankPreparationStage) -> Int {
@@ -1847,12 +1939,14 @@ private final class FakeInstrumentBankEngine: DayObjectsInstrumentBankEngine {
         )
     }
     var startError: Error?
+    var offlineBeginError: Error?
     var attachError: Error?
     private(set) var stopCount = 0
     private(set) var attachCount = 0
     private(set) var detachCount = 0
     private(set) var attachedGraph: (any DayObjectsInstrumentBankGraph)?
     private(set) var isRunning = false
+    private(set) var isOfflineRendering = false
     var events: [String] = []
     func attach(graph: any DayObjectsInstrumentBankGraph) throws {
         events.append("attach")
@@ -1868,4 +1962,17 @@ private final class FakeInstrumentBankEngine: DayObjectsInstrumentBankEngine {
         isRunning = true
     }
     func stop() { events.append("stop"); stopCount += 1; isRunning = false }
+    func beginOfflineRendering(
+        format: AVAudioFormat,
+        maximumFrameCount: AVAudioFrameCount
+    ) throws {
+        events.append("begin-offline")
+        guard attachedGraph != nil else { throw InjectedFailure() }
+        if let offlineBeginError { throw offlineBeginError }
+        isOfflineRendering = true
+    }
+    func endOfflineRendering() {
+        events.append("end-offline")
+        isOfflineRendering = false
+    }
 }
