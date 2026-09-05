@@ -39,7 +39,7 @@
 - Produces: `DayObjectAppearance.harmonicWeaveStyle: DayObjectHarmonicWeaveStyle?`
 - Produces: `DayObjectShape.softStar`, `.roundedPolygon`, and `.roundedSquare`
 
-- [ ] **Step 1: Write failing deterministic DNA tests**
+- [x] **Step 1: Write failing deterministic DNA tests**
 
 ```swift
 func testHarmonicWeaveDayUsesOneDialectWithCircleDerivedCarrierVariety()
@@ -47,7 +47,7 @@ func testHarmonicWeaveActorStyleSurvivesInsertionRemovalAndReorder()
 func testHarmonicWeaveParametersRemainInsideApprovedRanges()
 ```
 
-- [ ] **Step 2: Run the focused tests and verify RED**
+- [x] **Step 2: Run the focused tests and verify RED**
 
 Run:
 
@@ -61,18 +61,18 @@ xcodebuild test -project Steps4.xcodeproj -scheme Steps4 \
 Expected: compile failure because the harmonic weave material, dialect, style,
 and carrier cases do not exist.
 
-- [ ] **Step 3: Add the minimal deterministic model**
+- [x] **Step 3: Add the minimal deterministic model**
 
 Implement one day-level dialect chosen from the root seed. Generate actor-local
 carrier, phase, density, aperture, and line width from the event seed. Restrict
 carrier variety to the new weave material and keep one or two conspicuous
 low-lobe actors at most through stable mutation roles.
 
-- [ ] **Step 4: Run the focused tests and verify GREEN**
+- [x] **Step 4: Run the focused tests and verify GREEN**
 
 Run the command from Step 2. Expected: PASS.
 
-- [ ] **Step 5: Commit the DNA model**
+- [x] **Step 5: Commit the DNA model**
 
 ```bash
 git add StepsTrader/Experiments/DayObjects/DayObjectComposition.swift \
@@ -94,7 +94,7 @@ git commit -m "feat: add harmonic weave day object DNA"
 - Produces: harmonic recipe packing in `DayObjectGPUAppearance.recipe1`
 - Produces: material raw value `9` in `dayObjectsActorFragment`
 
-- [ ] **Step 1: Write failing ABI and render-sensitivity tests**
+- [x] **Step 1: Write failing ABI and render-sensitivity tests**
 
 ```swift
 func testHarmonicWeaveRecipePacksWithoutChangingAppearanceStride()
@@ -102,7 +102,7 @@ func testHarmonicWeaveCarrierAndDialectChangeRenderedPixels()
 func testReduceMotionKeepsIdenticalHarmonicWeaveIdentityAtRest()
 ```
 
-- [ ] **Step 2: Run the focused tests and verify RED**
+- [x] **Step 2: Run the focused tests and verify RED**
 
 Run:
 
@@ -114,22 +114,22 @@ xcodebuild test -project Steps4.xcodeproj -scheme Steps4 \
 
 Expected: failures because no harmonic recipe is packed or rendered.
 
-- [ ] **Step 3: Pack four bounded parameters in the existing recipe vector**
+- [x] **Step 3: Pack four bounded parameters in the existing recipe vector**
 
 Pack primary frequency, secondary frequency/density, aperture, and line width.
 Keep `DayObjectGPUAppearance.metalStride == 208`.
 
-- [ ] **Step 4: Render the weave in the existing actor fragment**
+- [x] **Step 4: Render the weave in the existing actor fragment**
 
 Add rounded circle-derived carrier envelopes and an antialiased, phase-related
 polar weave. Use the existing broad radial color field for line color. Freeze
 local phase under Reduce Motion and retain whole-actor motion otherwise.
 
-- [ ] **Step 5: Run the focused tests and verify GREEN**
+- [x] **Step 5: Run the focused tests and verify GREEN**
 
 Run the command from Step 2. Expected: PASS.
 
-- [ ] **Step 6: Commit the renderer**
+- [x] **Step 6: Commit the renderer**
 
 ```bash
 git add StepsTrader/Experiments/DayObjects/DayObjectRenderFrame.swift \
@@ -148,28 +148,28 @@ git commit -m "feat: render harmonic weave day objects"
 - Consumes: the real `DayObjectScene` and instanced Metal renderer.
 - Produces: one representative ten-happening Lab screenshot for user review.
 
-- [ ] **Step 1: Identify a deterministic day key selecting Harmonic Weave**
+- [x] **Step 1: Identify a deterministic day key selecting Harmonic Weave**
 
 Use a small read-only seed scan or a focused test helper. Do not add a fixed
 production preset.
 
-- [ ] **Step 2: Build and run the Lab once in Simulator**
+- [x] **Step 2: Build and run the Lab once in Simulator**
 
 Use the available simulator and one build at a time. Do not run a full suite in
 parallel.
 
-- [ ] **Step 3: Capture the real Metal output**
+- [x] **Step 3: Capture the real Metal output**
 
 Capture one ten-happening full-screen frame showing at least three carrier
 phenotypes and readable line accumulation.
 
-- [ ] **Step 4: Review observable acceptance points**
+- [x] **Step 4: Review observable acceptance points**
 
 Confirm the frame keeps Editorial Field hierarchy and negative space; does not
 look like a centered specimen sheet; has no sharp star points, pupils, broken
 paths, moire, or dirty color accumulation.
 
-- [ ] **Step 5: Run the final targeted regression set**
+- [x] **Step 5: Run the final targeted regression set**
 
 ```bash
 xcodebuild test -project Steps4.xcodeproj -scheme Steps4 \
@@ -179,10 +179,9 @@ xcodebuild test -project Steps4.xcodeproj -scheme Steps4 \
   -only-testing:Steps4Tests/DayObjectRenderFrameTests
 ```
 
-- [ ] **Step 6: Commit Lab-only discoverability if it was needed**
+- [x] **Step 6: Commit Lab-only discoverability if it was needed**
 
 ```bash
 git add StepsTrader/Experiments/DayObjects/DayObjectsLabView.swift
 git commit -m "feat: expose harmonic weave in Day Objects Lab"
 ```
-
