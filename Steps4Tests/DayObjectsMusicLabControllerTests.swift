@@ -4,6 +4,18 @@ import XCTest
 
 @MainActor
 final class DayObjectsMusicLabControllerTests: XCTestCase {
+    func testSuccessfulPlaybackAttackFeedsTheVisualPulseBus() {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+
+        playback.emitHappeningAttack(id: "lab-happening-02")
+
+        XCTAssertEqual(
+            controller.soundPulseBus.events(after: 0),
+            [.init(sequence: 1, eventID: "lab-happening-02")]
+        )
+    }
+
     func testSceneInputCombinesMusicProgressWithCurrentCanvasAndPalette() {
         let controller = DayObjectsMusicLabController(playback: RecordingLabPlayback())
         controller.setSteps(5_000)
@@ -703,6 +715,15 @@ private final class RecordingLabPlayback: DayObjectsMusicPlaybackProtocol {
     var diagnosticCommands: [DayObjectsDiagnosticCommand] = []
     var sidechainResult: DayObjectsSidechainAuditionResult?
     var sidechainRequestCount = 0
+    private var happeningAttackHandler: ((String) -> Void)?
+
+    func setHappeningAttackHandler(_ handler: ((String) -> Void)?) {
+        happeningAttackHandler = handler
+    }
+
+    func emitHappeningAttack(id: String) {
+        happeningAttackHandler?(id)
+    }
 
     func start(plan: DayMusicPlan) async throws {
         startPlans.append(plan)

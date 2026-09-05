@@ -233,7 +233,8 @@ struct DayObjectsLabView: View {
                 DayObjectsView(
                     sceneInput: currentSceneInput,
                     digitalImpact: digitalImpact,
-                    isAnimating: !isEditorialPreviewCapture
+                    isAnimating: !isEditorialPreviewCapture,
+                    soundPulseBus: musicController.soundPulseBus
                 )
                 .ignoresSafeArea()
                 if !isEditorialPreviewCapture {
@@ -251,7 +252,8 @@ struct DayObjectsLabView: View {
             DayObjectsView(
                 sceneInput: currentSceneInput,
                 digitalImpact: digitalImpact,
-                isAnimating: !isEditorialPreviewCapture
+                isAnimating: !isEditorialPreviewCapture,
+                soundPulseBus: musicController.soundPulseBus
             )
             .frame(width: side, height: side)
             .clipped()

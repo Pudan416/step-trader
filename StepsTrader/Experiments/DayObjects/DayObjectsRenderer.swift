@@ -816,6 +816,8 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     private var scene: DayObjectScene
     private var environment: DayObjectEnvironment
     private var digitalImpact: DayObjectDigitalImpact
+    private var soundPulseBus: DayObjectsSoundPulseBus?
+    private var soundPulseTimeline = DayObjectsSoundPulseTimeline()
     private var glitchBandSeed: UInt64
     private var glitchBandUniforms: [DayObjectsGlitchBandUniform]
     private var insertionTimeline: DayObjectInsertionTimeline
@@ -849,7 +851,8 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         clock: DayObjectsClock,
         scene: DayObjectScene,
         environment: DayObjectEnvironment,
-        digitalImpact: DayObjectDigitalImpact
+        digitalImpact: DayObjectDigitalImpact,
+        soundPulseBus: DayObjectsSoundPulseBus?
     ) {
         self.device = device
         self.commandQueue = commandQueue
@@ -866,6 +869,8 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         self.scene = scene
         self.environment = environment
         self.digitalImpact = digitalImpact
+        self.soundPulseBus = soundPulseBus
+        soundPulseTimeline = DayObjectsSoundPulseTimeline(startingAfter: soundPulseBus)
         glitchBandSeed = scene.rootSeed
         glitchBandUniforms = DayObjectGlitchLayout.make(seed: scene.rootSeed).bands.map(
             DayObjectsGlitchBandUniform.init
@@ -878,6 +883,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         scene: DayObjectScene,
         environment: DayObjectEnvironment,
         digitalImpact: DayObjectDigitalImpact = .none,
+        soundPulseBus: DayObjectsSoundPulseBus? = nil,
         clock: DayObjectsClock = DayObjectsClock()
     ) -> DayObjectsRenderer? {
         guard let device = MTLCreateSystemDefaultDevice(),
@@ -991,14 +997,16 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             clock: clock,
             scene: scene,
             environment: environment,
-            digitalImpact: digitalImpact
+            digitalImpact: digitalImpact,
+            soundPulseBus: soundPulseBus
         )
     }
 
     func update(
         scene: DayObjectScene,
         environment: DayObjectEnvironment,
-        digitalImpact: DayObjectDigitalImpact = .none
+        digitalImpact: DayObjectDigitalImpact = .none,
+        soundPulseBus: DayObjectsSoundPulseBus? = nil
     ) {
         insertionTimeline.update(scene: scene, elapsed: clock.elapsedTime)
         if scene.rootSeed != glitchBandSeed {
@@ -1010,6 +1018,10 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         self.scene = scene
         self.environment = environment
         self.digitalImpact = digitalImpact
+        if self.soundPulseBus !== soundPulseBus {
+            self.soundPulseBus = soundPulseBus
+            soundPulseTimeline = DayObjectsSoundPulseTimeline(startingAfter: soundPulseBus)
+        }
     }
 
     func setAnimating(_ isAnimating: Bool) {
@@ -1034,6 +1046,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
 
         let height = max(view.drawableSize.height, 1)
         let elapsedTime = clock.elapsedTime
+        soundPulseTimeline.consume(soundPulseBus, at: elapsedTime)
         let transitionState = insertionTimeline.renderState(
             activeScene: scene,
             elapsed: elapsedTime
@@ -1047,7 +1060,8 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             removals: transitionState.removals,
             actorInsertions: transitionState.actorInsertions,
             actorRemovals: transitionState.actorRemovals,
-            canvasAspect: view.drawableSize.width / height
+            canvasAspect: view.drawableSize.width / height,
+            soundPulseTimestamps: soundPulseTimeline.timestamps
         )
         currentFrame = frame
 

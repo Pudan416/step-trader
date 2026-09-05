@@ -114,6 +114,7 @@ protocol DayObjectsMusicPlaybackProtocol: AnyObject {
     func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan)
     func releaseDiagnosticAudition()
     func auditionKickBassSidechain(preferredBassID: DayObjectsInstrumentID?) -> DayObjectsSidechainAuditionResult?
+    func setHappeningAttackHandler(_ handler: ((String) -> Void)?)
 }
 
 extension DayObjectsMusicPlaybackProtocol {
@@ -121,5 +122,6 @@ extension DayObjectsMusicPlaybackProtocol {
     func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan) {}
     func releaseDiagnosticAudition() {}
     func auditionKickBassSidechain(preferredBassID: DayObjectsInstrumentID?) -> DayObjectsSidechainAuditionResult? { nil }
+    func setHappeningAttackHandler(_ handler: ((String) -> Void)?) {}
 }
 #endif

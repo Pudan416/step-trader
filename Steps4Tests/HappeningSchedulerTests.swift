@@ -4,6 +4,43 @@ import XCTest
 
 @MainActor
 final class HappeningSchedulerTests: XCTestCase {
+    func testAttackObserverPublishesOnlySuccessfullyStartedHappening() throws {
+        let harness = try makeHarness(count: 0)
+        let plan = makePlan(index: 1, seed: 202)
+        let sound = resolvedSound(
+            recipeID: plan.recipeID,
+            chord: chord(pitchClass: 0),
+            world: harness.world
+        )
+        let recipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: sound.recipeID))
+        try harness.pool.prepare(recipeIDs: [plan.recipeID])
+        let manualHandles = try (0..<4).map { _ in
+            try harness.pool.play(
+                sound,
+                gain: 1,
+                priority: .manualAudition,
+                effects: effectCommand(for: recipe)
+            )
+        }
+        var observed = [HappeningAttackRecord]()
+        harness.scheduler.onAttack = { observed.append($0) }
+
+        try harness.scheduler.add(
+            plan,
+            currentChord: chord(pitchClass: 0),
+            playBirth: true
+        )
+        XCTAssertTrue(observed.isEmpty)
+
+        harness.pool.stop(manualHandles[0])
+        renderBars(2, through: harness.scheduler, chord: chord(pitchClass: 0))
+
+        let attack = try XCTUnwrap(observed.first)
+        XCTAssertEqual(attack.happeningID, plan.happeningID)
+        XCTAssertTrue(attack.isBirth)
+        XCTAssertEqual(observed, harness.scheduler.metrics.attackHistory)
+    }
+
     func testStartingWithExistingHappeningsIntroducesThemAsBirthSounds() throws {
         let harness = try makeHarness(count: 10, playInitialBirths: true)
 

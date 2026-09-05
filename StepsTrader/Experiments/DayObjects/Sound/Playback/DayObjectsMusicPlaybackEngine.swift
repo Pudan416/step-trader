@@ -76,6 +76,7 @@ protocol DayObjectsPlaybackRuntimeProtocol: AnyObject {
     func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan)
     func releaseDiagnosticAudition(plan: DayMusicPlan)
     func auditionKickBassSidechain(preferredBassID: DayObjectsInstrumentID?) -> DayObjectsSidechainAuditionResult?
+    func setHappeningAttackHandler(_ handler: ((String) -> Void)?)
 }
 
 extension DayObjectsPlaybackRuntimeProtocol {
@@ -83,6 +84,7 @@ extension DayObjectsPlaybackRuntimeProtocol {
     func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan) {}
     func releaseDiagnosticAudition(plan: DayMusicPlan) {}
     func auditionKickBassSidechain(preferredBassID: DayObjectsInstrumentID?) -> DayObjectsSidechainAuditionResult? { nil }
+    func setHappeningAttackHandler(_ handler: ((String) -> Void)?) {}
 }
 
 /// Owns the only user-facing playback lifecycle. Layer implementations remain
@@ -108,6 +110,10 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
     private var samplePreparationTask: Task<Void, Error>?
     private var fullStartTask: Task<Void, Error>?
     private var fullStartID: UUID?
+
+    func setHappeningAttackHandler(_ handler: ((String) -> Void)?) {
+        runtime.setHappeningAttackHandler(handler)
+    }
     private var auditionWaiters: Set<UUID> = []
     private var hasAuditionVoices = false
     private var needsIdleSampleOnlyReconciliation = false
@@ -624,6 +630,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         private var harmonyPlayer: HarmonyPlayer?
         private var happeningScheduler: HappeningScheduler?
         private var leadPlayer: LeadPlayer?
+        private var happeningAttackHandler: ((String) -> Void)?
         private var boundDrumBankIdentity: ObjectIdentifier?
         private let bassDucker = BassDucker()
         lazy var glitch = GlitchProcessor(backend: effects)
@@ -669,8 +676,16 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
             rhythmPlayer = RhythmPlayer(drumBank: drums)
             bassPlayer = BassPlayer(worldBank: bank, duckBackend: bank)
             harmonyPlayer = HarmonyPlayer(worldBank: bank)
-            happeningScheduler = HappeningScheduler(worldBank: bank)
+            let scheduler = HappeningScheduler(worldBank: bank)
+            scheduler.onAttack = { [weak self] attack in
+                self?.happeningAttackHandler?(attack.happeningID)
+            }
+            happeningScheduler = scheduler
             leadPlayer = LeadPlayer(worldBank: bank)
+        }
+
+        func setHappeningAttackHandler(_ handler: ((String) -> Void)?) {
+            happeningAttackHandler = handler
         }
 
         var activeVoiceCount: Int {
@@ -1333,6 +1348,11 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         )
     }
 
+    func setHappeningAttackHandler(_ handler: ((String) -> Void)?) {
+        worldA.setHappeningAttackHandler(handler)
+        worldB.setHappeningAttackHandler(handler)
+    }
+
     func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan) {
         guard mode != .kickBassSidechain else { return }
         diagnosticAuditionMode = mode
@@ -1865,6 +1885,10 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
 
     var diagnosticMeterSnapshot: DayObjectsDiagnosticMeterSnapshot {
         world.bank.instrumentBank.diagnosticMeterSnapshot
+    }
+
+    func setHappeningAttackHandler(_ handler: ((String) -> Void)?) {
+        world.setHappeningAttackHandler(handler)
     }
 
     func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan) {

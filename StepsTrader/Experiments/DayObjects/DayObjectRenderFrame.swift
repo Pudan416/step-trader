@@ -1,6 +1,78 @@
 import Foundation
 import simd
 
+struct DayObjectsSoundPulseEvent: Equatable, Sendable {
+    let sequence: UInt64
+    let eventID: String
+}
+
+final class DayObjectsSoundPulseBus: @unchecked Sendable {
+    private static let capacity = 32
+    private let lock = NSLock()
+    private var sequence: UInt64 = 0
+    private var bufferedEvents = [DayObjectsSoundPulseEvent]()
+
+    func emit(eventID: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        sequence &+= 1
+        bufferedEvents.append(.init(sequence: sequence, eventID: eventID))
+        if bufferedEvents.count > Self.capacity {
+            bufferedEvents.removeFirst(bufferedEvents.count - Self.capacity)
+        }
+    }
+
+    func events(after consumedSequence: UInt64) -> [DayObjectsSoundPulseEvent] {
+        lock.lock()
+        defer { lock.unlock() }
+        return bufferedEvents.filter { $0.sequence > consumedSequence }
+    }
+
+    var latestSequence: UInt64 {
+        lock.lock()
+        defer { lock.unlock() }
+        return sequence
+    }
+}
+
+struct DayObjectsSoundPulseTimeline {
+    private(set) var lastConsumedSequence: UInt64 = 0
+    private(set) var timestamps: [String: Double] = [:]
+
+    init(startingAfter bus: DayObjectsSoundPulseBus? = nil) {
+        lastConsumedSequence = bus?.latestSequence ?? 0
+    }
+
+    mutating func consume(_ bus: DayObjectsSoundPulseBus?, at elapsed: Double) {
+        if let bus {
+            for event in bus.events(after: lastConsumedSequence) {
+                timestamps[event.eventID] = elapsed
+                lastConsumedSequence = max(lastConsumedSequence, event.sequence)
+            }
+        }
+
+        timestamps = timestamps.filter { _, startedAt in
+            elapsed - startedAt < DayObjectSoundResonance.duration
+        }
+    }
+}
+
+enum DayObjectSoundResonance {
+    static let duration = 0.75
+
+    static func scale(elapsedSinceAttack rawElapsed: Double, depth rawDepth: Double) -> Double {
+        guard rawElapsed.isFinite, rawDepth.isFinite,
+              rawElapsed >= 0, rawElapsed < duration else { return 1 }
+        let depth = min(max(rawDepth, 0), 1)
+        let attackProgress = min(rawElapsed / 0.05, 1)
+        let attack = attackProgress * attackProgress * (3 - 2 * attackProgress)
+        let decay = exp(-4 * rawElapsed)
+        let amplitude = 0.042 - 0.016 * depth
+        let oscillation = sin(2 * .pi * 5 * rawElapsed)
+        return 1 + amplitude * attack * decay * oscillation
+    }
+}
+
 struct DayObjectEnvironment: Equatable {
     let motionEnergy: Double
     let visualClarity: Double
@@ -500,7 +572,8 @@ struct DayObjectRenderFrame: Equatable {
         removals: [String: Double] = [:],
         actorInsertions: [DayObjectActorID: Double] = [:],
         actorRemovals: [DayObjectActorID: Double] = [:],
-        canvasAspect rawCanvasAspect: Double = 1
+        canvasAspect rawCanvasAspect: Double = 1,
+        soundPulseTimestamps: [String: Double] = [:]
     ) -> DayObjectRenderFrame {
         let elapsed = rawElapsed.isFinite ? max(rawElapsed, 0) : 0
         let canvasAspect = rawCanvasAspect.isFinite && rawCanvasAspect > 0 ? rawCanvasAspect : 1
@@ -514,7 +587,8 @@ struct DayObjectRenderFrame: Equatable {
                 removals: removals,
                 actorInsertions: actorInsertions,
                 actorRemovals: actorRemovals,
-                canvasAspect: canvasAspect
+                canvasAspect: canvasAspect,
+                soundPulseTimestamps: soundPulseTimestamps
             )
         }
         let choreographyTime = elapsed * baseTempo * environment.tempoScale
@@ -554,7 +628,13 @@ struct DayObjectRenderFrame: Equatable {
             } else {
                 removal = DayObjectInsertionEnvelope(opacity: 1, scale: 1)
             }
-            let envelopeScale = insertion.scale * removal.scale
+            let resonanceScale = soundResonanceScale(
+                eventID: actor.eventID,
+                depth: pose.depth,
+                elapsed: elapsed,
+                timestamps: soundPulseTimestamps
+            )
+            let envelopeScale = insertion.scale * removal.scale * resonanceScale
             let halfSize = bodyHalfSize(
                 for: actor,
                 pose: pose,
@@ -611,7 +691,8 @@ struct DayObjectRenderFrame: Equatable {
         removals: [String: Double],
         actorInsertions: [DayObjectActorID: Double],
         actorRemovals: [DayObjectActorID: Double],
-        canvasAspect: Double
+        canvasAspect: Double,
+        soundPulseTimestamps: [String: Double]
     ) -> DayObjectRenderFrame {
         let span = canvasAspect >= 1
             ? SIMD2<Double>(canvasAspect, 1)
@@ -649,8 +730,16 @@ struct DayObjectRenderFrame: Equatable {
                 ? SIMD2<Float>(Float(pose.positionOffset.x), Float(pose.positionOffset.y))
                 : SIMD2<Float>(Float(cos(recipeActor.motion.directionBias)), Float(sin(recipeActor.motion.directionBias)))
             let transitionScale = insertion.scale * removal.scale
-            let halfDiameter = Float(recipeActor.diameter * pose.scale * transitionScale * 0.5)
             let effectiveDepth = min(max(recipeActor.depth + pose.depthOffset, 0), 1)
+            let resonanceScale = soundResonanceScale(
+                eventID: actor.eventID,
+                depth: effectiveDepth,
+                elapsed: elapsed,
+                timestamps: soundPulseTimestamps
+            )
+            let halfDiameter = Float(
+                recipeActor.diameter * pose.scale * transitionScale * resonanceScale * 0.5
+            )
             let foregroundSoftness = recipeActor.diameter > 0.4 && effectiveDepth > 0.65 ? 0.18 : 0
             let localSoftness = min(
                 1,
@@ -702,6 +791,19 @@ struct DayObjectRenderFrame: Equatable {
     private enum EditorialTransitionKind {
         case insertion
         case removal
+    }
+
+    private static func soundResonanceScale(
+        eventID: String,
+        depth: Double,
+        elapsed: Double,
+        timestamps: [String: Double]
+    ) -> Double {
+        guard let startedAt = timestamps[eventID] else { return 1 }
+        return DayObjectSoundResonance.scale(
+            elapsedSinceAttack: elapsed - startedAt,
+            depth: depth
+        )
     }
 
     private static func editorialEnvelope(

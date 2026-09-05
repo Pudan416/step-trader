@@ -9,6 +9,126 @@ import simd
 @testable import Steps4
 
 final class DayObjectRenderFrameTests: XCTestCase {
+    func testSoundPulseTimelineIgnoresEventsFromBeforeAttachment() {
+        let bus = DayObjectsSoundPulseBus()
+        bus.emit(eventID: "historical")
+        var timeline = DayObjectsSoundPulseTimeline(startingAfter: bus)
+
+        timeline.consume(bus, at: 5)
+
+        XCTAssertEqual(timeline.lastConsumedSequence, 1)
+        XCTAssertTrue(timeline.timestamps.isEmpty)
+
+        bus.emit(eventID: "live")
+        timeline.consume(bus, at: 5.1)
+
+        XCTAssertEqual(timeline.lastConsumedSequence, 2)
+        XCTAssertEqual(timeline.timestamps, ["live": 5.1])
+    }
+
+    func testSoundPulseTimelineConsumesRestartsAndExpiresEvents() {
+        let bus = DayObjectsSoundPulseBus()
+        var timeline = DayObjectsSoundPulseTimeline()
+
+        bus.emit(eventID: "happening-a")
+        bus.emit(eventID: "happening-b")
+        timeline.consume(bus, at: 10)
+
+        XCTAssertEqual(timeline.lastConsumedSequence, 2)
+        XCTAssertEqual(timeline.timestamps["happening-a"], 10)
+        XCTAssertEqual(timeline.timestamps["happening-b"], 10)
+
+        bus.emit(eventID: "happening-a")
+        timeline.consume(bus, at: 10.2)
+
+        XCTAssertEqual(timeline.lastConsumedSequence, 3)
+        XCTAssertEqual(timeline.timestamps["happening-a"], 10.2)
+        XCTAssertEqual(timeline.timestamps["happening-b"], 10)
+
+        timeline.consume(bus, at: 10 + DayObjectSoundResonance.duration)
+
+        XCTAssertEqual(timeline.timestamps, ["happening-a": 10.2])
+    }
+
+    func testSoundPulseBusPreservesEveryUnconsumedHappeningAttack() {
+        let bus = DayObjectsSoundPulseBus()
+
+        bus.emit(eventID: "happening-a")
+        bus.emit(eventID: "happening-b")
+
+        XCTAssertEqual(
+            bus.events(after: 0),
+            [
+                .init(sequence: 1, eventID: "happening-a"),
+                .init(sequence: 2, eventID: "happening-b"),
+            ]
+        )
+        XCTAssertEqual(
+            bus.events(after: 1),
+            [.init(sequence: 2, eventID: "happening-b")]
+        )
+        XCTAssertTrue(bus.events(after: 2).isEmpty)
+    }
+
+    func testSoundResonanceCreatesDepthAwareDecayingScalePulse() {
+        let focusedPeak = DayObjectSoundResonance.scale(
+            elapsedSinceAttack: 0.05,
+            depth: 0.2
+        )
+        let foregroundPeak = DayObjectSoundResonance.scale(
+            elapsedSinceAttack: 0.05,
+            depth: 0.9
+        )
+
+        XCTAssertGreaterThan(focusedPeak, 1.02)
+        XCTAssertGreaterThan(foregroundPeak, 1.01)
+        XCTAssertGreaterThan(focusedPeak, foregroundPeak)
+        XCTAssertLessThan(
+            DayObjectSoundResonance.scale(elapsedSinceAttack: 0.15, depth: 0.2),
+            1
+        )
+        XCTAssertEqual(
+            DayObjectSoundResonance.scale(elapsedSinceAttack: 0.8, depth: 0.2),
+            1
+        )
+        XCTAssertEqual(
+            DayObjectSoundResonance.scale(elapsedSinceAttack: -0.01, depth: 0.2),
+            1
+        )
+    }
+
+    func testSoundResonanceScalesOnlyActorsForTheSoundingHappening() throws {
+        let scene = editorialScene()
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.75)
+        let soundingEventID = try XCTUnwrap(scene.actors.first?.eventID)
+        let baseline = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: 3.05,
+            insertions: [:]
+        )
+        let resonating = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: 3.05,
+            insertions: [:],
+            soundPulseTimestamps: [soundingEventID: 3]
+        )
+
+        let baselineByID = Dictionary(uniqueKeysWithValues: baseline.actors.map { ($0.actorID, $0) })
+        for actor in resonating.actors {
+            let unmodified = try XCTUnwrap(baselineByID[actor.actorID])
+            if actor.eventID == soundingEventID {
+                XCTAssertGreaterThan(actor.halfSize.x, unmodified.halfSize.x)
+                XCTAssertGreaterThan(actor.halfSize.y, unmodified.halfSize.y)
+            } else {
+                XCTAssertEqual(actor.halfSize, unmodified.halfSize)
+            }
+            XCTAssertEqual(actor.gpuActor.position, unmodified.gpuActor.position)
+            XCTAssertEqual(actor.gpuAppearance, unmodified.gpuAppearance)
+        }
+    }
+
     private func editorialScene() -> DayObjectScene {
         DayObjectScene.make(input: .init(
             dayKey: "2026-09-04",

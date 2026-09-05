@@ -6,12 +6,14 @@ struct DayObjectsMetalView: UIViewRepresentable {
     let environment: DayObjectEnvironment
     let digitalImpact: DayObjectDigitalImpact
     let isAnimating: Bool
+    let soundPulseBus: DayObjectsSoundPulseBus?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             scene: scene,
             environment: environment,
-            digitalImpact: digitalImpact
+            digitalImpact: digitalImpact,
+            soundPulseBus: soundPulseBus
         )
     }
 
@@ -48,7 +50,8 @@ struct DayObjectsMetalView: UIViewRepresentable {
         renderer.update(
             scene: scene,
             environment: environment,
-            digitalImpact: digitalImpact
+            digitalImpact: digitalImpact,
+            soundPulseBus: soundPulseBus
         )
         renderer.setAnimating(isAnimating)
         uiView.enableSetNeedsDisplay = !isAnimating
@@ -72,12 +75,14 @@ struct DayObjectsMetalView: UIViewRepresentable {
         init(
             scene: DayObjectScene,
             environment: DayObjectEnvironment,
-            digitalImpact: DayObjectDigitalImpact
+            digitalImpact: DayObjectDigitalImpact,
+            soundPulseBus: DayObjectsSoundPulseBus?
         ) {
             renderer = DayObjectsRenderer.create(
                 scene: scene,
                 environment: environment,
-                digitalImpact: digitalImpact
+                digitalImpact: digitalImpact,
+                soundPulseBus: soundPulseBus
             )
         }
     }

@@ -5,6 +5,21 @@ import XCTest
 
 @MainActor
 final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
+    func testEngineForwardsHappeningAttackHandlerToRuntime() {
+        let log = PlaybackEngineCallLog()
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        let engine = DayObjectsMusicPlaybackEngine(
+            audioSession: RecordingDayObjectsAudioSession(log: log),
+            runtime: runtime
+        )
+        var observedIDs = [String]()
+
+        engine.setHappeningAttackHandler { observedIDs.append($0) }
+        runtime.emitHappeningAttack(id: "happening-b")
+
+        XCTAssertEqual(observedIDs, ["happening-b"])
+    }
+
     func testMobileRuntimeReferenceC4AuditionLegallyResolvesEveryCatalogRecipe() async throws {
         try requireLiveAudioOutput()
         let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
@@ -1197,6 +1212,28 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(runtime.playbackMetrics.pendingRemixCount, 0)
     }
 
+    func testMobileRuntimePublishesTheHappeningThatActuallyStarts() throws {
+        let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let plan = makePlaybackEnginePlan(seed: 34, happeningIDs: ["sounding-object"])
+        var observedIDs = [String]()
+        runtime.setHappeningAttackHandler { observedIDs.append($0) }
+        try runtime.prepare(plan: plan)
+        try runtime.startPreparedWorldForTesting()
+
+        runtime.renderForTesting(.init(
+            kind: .subdivision,
+            position: .init(absoluteSubdivision: 0),
+            hostTimeSeconds: 0,
+            tempoBPM: plan.rhythm.tempoBPM
+        ))
+
+        XCTAssertEqual(observedIDs, ["sounding-object"])
+        XCTAssertEqual(
+            runtime.activeHappeningAttackHistoryForTesting.map(\.happeningID),
+            observedIDs
+        )
+    }
+
     func testLiveRuntimePreparesTwoFixedWorldsWithoutStartingTransportOrVoices() throws {
         let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
         let plan = makePlaybackEnginePlan(seed: 33)
@@ -2376,6 +2413,7 @@ private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntim
     private(set) var beginLeadCount = 0
     private var running = false
     private var audioIsRunning = false
+    private var happeningAttackHandler: ((String) -> Void)?
 
     var playbackMetrics: DayObjectsPlaybackMetrics {
         .init(
@@ -2390,6 +2428,14 @@ private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntim
     }
 
     init(log: PlaybackEngineCallLog) { self.log = log }
+
+    func setHappeningAttackHandler(_ handler: ((String) -> Void)?) {
+        happeningAttackHandler = handler
+    }
+
+    func emitHappeningAttack(id: String) {
+        happeningAttackHandler?(id)
+    }
 
     func prepare(plan: DayMusicPlan) throws {
         prepareAttempts += 1

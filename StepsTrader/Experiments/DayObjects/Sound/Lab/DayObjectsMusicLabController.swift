@@ -66,6 +66,7 @@ final class DayObjectsMusicLabController: ObservableObject {
         rmsDBFS: -120,
         estimatedLimiterReductionDB: 0
     )
+    let soundPulseBus = DayObjectsSoundPulseBus()
 
     private let playback: any DayObjectsMusicPlaybackProtocol
     private var isLeadHeld = false
@@ -106,6 +107,10 @@ final class DayObjectsMusicLabController: ObservableObject {
                 audioSession: DayObjectsSystemAudioSession(),
                 runtime: runtime
             )
+        }
+        let pulseBus = soundPulseBus
+        self.playback.setHappeningAttackHandler { [weak pulseBus] eventID in
+            pulseBus?.emit(eventID: eventID)
         }
     }
 

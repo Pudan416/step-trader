@@ -24,6 +24,8 @@ struct HappeningSchedulerMetrics: Equatable, Sendable {
 @MainActor
 final class HappeningScheduler {
     static let maximumRecordedAttackCount = 512
+    var onAttack: ((HappeningAttackRecord) -> Void)?
+
     private struct PendingReplacement {
         let plans: [HappeningMusicPlan]
         let tonalWorld: TonalWorldPlan
@@ -415,17 +417,19 @@ final class HappeningScheduler {
         if let glitchProcessor { glitchProcessor.commitRealizedEvent(eventGlitch) }
         attacksPerBeat[currentPosition.absoluteBeat, default: 0] += 1
         lastGlobalAttackPosition = currentPosition
-        attackHistory.append(.init(
+        let attack = HappeningAttackRecord(
             happeningID: id,
             position: currentPosition,
             resolvedSound: realizedSound,
             effectCommand: effectCommand,
             playbackPriority: priority,
             isBirth: isBirth
-        ))
+        )
+        attackHistory.append(attack)
         if attackHistory.count > Self.maximumRecordedAttackCount {
             attackHistory.removeFirst(attackHistory.count - Self.maximumRecordedAttackCount)
         }
+        onAttack?(attack)
         return true
     }
 
