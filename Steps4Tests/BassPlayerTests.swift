@@ -127,6 +127,41 @@ final class BassPlayerTests: XCTestCase {
         XCTAssertEqual(harness.player.metrics.activeVoiceCount, 0)
     }
 
+    func testProductionBassUsesSoftEnvelopeAndClosedFilter() throws {
+        let harness = try makeHarness()
+        let plan = bassPlan(events: [bassEvent(id: 1, start: 0, duration: 4)])
+        try harness.player.configure(plan)
+
+        _ = harness.player.render(event(at: 0), plan: plan, duckCommand: nil)
+
+        let request = try XCTUnwrap(harness.pool.noteOnRequests.only)
+        XCTAssertEqual(
+            request.envelopeVariant,
+            .absolute(attackSeconds: 0.030, releaseSeconds: 0.220)
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(harness.pool.updateRequests.only?.cutoffHz),
+            101.2,
+            accuracy: 0.000_001
+        )
+    }
+
+    func testArpeggioBassUsesADeClickingAttackAndLongerRelease() throws {
+        let harness = try makeHarness()
+        let plan = bassPlan(
+            articulation: .arpeggio,
+            events: [bassEvent(id: 1, start: 0, duration: 4)]
+        )
+        try harness.player.configure(plan)
+
+        _ = harness.player.render(event(at: 0), plan: plan, duckCommand: nil)
+
+        XCTAssertEqual(
+            try XCTUnwrap(harness.pool.noteOnRequests.only).envelopeVariant,
+            .absolute(attackSeconds: 0.032, releaseSeconds: 0.260)
+        )
+    }
+
     func testInactiveAndNonSubdivisionEventsDoNotAttackAndDuckTheBusOnly() throws {
         let harness = try makeHarness()
         let plan = bassPlan(events: [
@@ -256,13 +291,14 @@ final class BassPlayerTests: XCTestCase {
 
     private func bassPlan(
         instrumentID: DayObjectsInstrumentID = .init(rawValue: "bass.analog-boom"),
+        articulation: BassArticulation = .pulse,
         events: [BassEventPlan]
     ) -> BassPlan {
         .init(
             mode: .bassPulse,
             instrumentID: instrumentID,
             register: 29...52,
-            articulation: .pulse,
+            articulation: articulation,
             stepsProgress: 0.5,
             cutoffMultiplier: 0.88,
             glideMilliseconds: 40,

@@ -1062,6 +1062,9 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(topology.acceptedParameterValues["master.finalOutput.linear"]), pow(10, -1.35 / 20), accuracy: 0.000_01)
         XCTAssertEqual(try XCTUnwrap(topology.acceptedParameterValues["lead.upperMid.centerHz"]), 3_200, accuracy: 0.01)
         XCTAssertEqual(try XCTUnwrap(topology.acceptedParameterValues["lead.upperMid.thresholdDB"]), -18, accuracy: 0.01)
+        XCTAssertEqual(try XCTUnwrap(topology.acceptedParameterValues["bass.saturation.pregain"]), 1.06, accuracy: 0.000_01)
+        XCTAssertEqual(try XCTUnwrap(topology.acceptedParameterValues["bass.saturation.postgain"]), 0.96, accuracy: 0.000_01)
+        XCTAssertEqual(try XCTUnwrap(topology.acceptedParameterValues["bass.saturation.dryWet"]), 0.06, accuracy: 0.000_01)
     }
 
     func testMeterTapNodesStayInstalledAcrossStopAndRestart() throws {

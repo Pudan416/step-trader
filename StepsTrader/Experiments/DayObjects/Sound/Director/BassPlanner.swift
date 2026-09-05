@@ -1,6 +1,6 @@
 #if DEBUG || INTERNAL_BUILD
 enum BassPlanner {
-    private static let register: ClosedRange<UInt8> = 29...52
+    private static let register: ClosedRange<UInt8> = 24...40
     private static let subdivisionsPerBar: Int64 = 16
     private static let approvedInstrumentIDs = [
         "bass.analog-boom",
@@ -195,7 +195,11 @@ enum BassPlanner {
     ) -> [Candidate] {
         var candidates: [Candidate] = []
         var chordStart: Int64 = 0
-        var previousNote = referenceNote
+        let loweredReference = min(
+            max(Int(referenceNote) - 12, Int(register.lowerBound)),
+            Int(register.upperBound)
+        )
+        var previousNote = UInt8(loweredReference)
 
         for (chordIndex, chord) in tonalWorld.progression.enumerated() {
             let chordDuration = Int64(chord.durationBars) * subdivisionsPerBar

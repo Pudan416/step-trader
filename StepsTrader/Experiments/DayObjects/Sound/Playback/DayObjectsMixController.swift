@@ -248,7 +248,7 @@ final class DayObjectsMixController {
                 bass: bus(
                     directTargetDecibels: bass,
                     spatial: spatial.bass,
-                    sendGainDecibels: bassAdjustment
+                    sendGainDecibels: bass
                 ),
                 harmony: bus(
                     directTargetDecibels: harmony,

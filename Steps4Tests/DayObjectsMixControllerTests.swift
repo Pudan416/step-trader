@@ -111,11 +111,11 @@ final class DayObjectsMixControllerTests: XCTestCase {
 
         let state = try XCTUnwrap(backend.states.last)
         let rhythmGain = pow(10, -0.5 / 20)
-        let bassGain = pow(10, -0.4 / 20)
+        let bassGain = pow(10, -4.4 / 20)
         let harmonyGain = pow(10, -0.25 / 20)
         XCTAssertEqual(state.rhythmTargetDecibels, -0.5, accuracy: 1e-12)
         XCTAssertEqual(state.buses.rhythm.sendLevel, 0.1 * rhythmGain, accuracy: 1e-12)
-        XCTAssertEqual(state.bassTargetDecibels, -0.4, accuracy: 1e-12)
+        XCTAssertEqual(state.bassTargetDecibels, -4.4, accuracy: 1e-12)
         XCTAssertEqual(state.buses.bass.sendLevel, 0.2 * bassGain, accuracy: 1e-12)
         XCTAssertEqual(state.harmonyTargetDecibels, -0.25, accuracy: 1e-12)
         XCTAssertEqual(state.buses.harmony.sendLevel, 0.3 * harmonyGain, accuracy: 1e-12)
@@ -146,7 +146,7 @@ final class DayObjectsMixControllerTests: XCTestCase {
 
         let state = try XCTUnwrap(backend.states.last)
         XCTAssertEqual(state.rhythmTargetDecibels, 0, accuracy: 1e-12)
-        XCTAssertEqual(state.bassTargetDecibels, 0, accuracy: 1e-12)
+        XCTAssertEqual(state.bassTargetDecibels, -4, accuracy: 1e-12)
         XCTAssertEqual(state.harmonyTargetDecibels, -1.25, accuracy: 1e-12)
         XCTAssertEqual(state.harmonyPerVoiceTargetDecibels, -1.25, accuracy: 1e-12)
         XCTAssertEqual(state.happeningAggregateTargetDecibels, -3.3, accuracy: 1e-12)
@@ -155,7 +155,11 @@ final class DayObjectsMixControllerTests: XCTestCase {
         XCTAssertEqual(state.masterTargetDecibelsBeforeLimiter, -6, accuracy: 1e-12)
         XCTAssertEqual(state.harmonyDuckingDecibels, 1.25, accuracy: 1e-12)
         XCTAssertEqual(state.buses.rhythm.sendLevel, 0.1, accuracy: 1e-12)
-        XCTAssertEqual(state.buses.bass.sendLevel, 0.2, accuracy: 1e-12)
+        XCTAssertEqual(
+            state.buses.bass.sendLevel,
+            0.2 * pow(10, -4.0 / 20),
+            accuracy: 1e-12
+        )
         XCTAssertEqual(state.buses.harmony.sendLevel, 0.3, accuracy: 1e-12)
         XCTAssertEqual(state.buses.happenings.sendLevel, 0.4, accuracy: 1e-12)
         XCTAssertEqual(state.buses.lead.sendLevel, 0.5, accuracy: 1e-12)

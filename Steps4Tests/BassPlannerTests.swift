@@ -10,7 +10,8 @@ final class BassPlannerTests: XCTestCase {
         for mode in [GrooveMode.bassPulse, .bassArp, .bassBed] {
             let plan = try XCTUnwrap(makeBass(mode: mode, steps: 1))
 
-            XCTAssertTrue(plan.events.allSatisfy { (29...52).contains($0.midiNote) })
+            XCTAssertEqual(plan.register, 24...40)
+            XCTAssertTrue(plan.events.allSatisfy { (24...40).contains($0.midiNote) })
             XCTAssertEqual(Set(plan.events.map(\.startSubdivision)).count, plan.events.count)
             XCTAssertTrue(plan.events.allSatisfy { $0.durationSubdivisions > 0 })
             assertDoesNotOverlap(plan.events)
@@ -18,6 +19,14 @@ final class BassPlannerTests: XCTestCase {
                 XCTAssertTrue(event.allowedPitchClasses.contains(Int(event.midiNote) % 12))
             }
         }
+    }
+
+    func testBassKeepsItsAuthoredPitchClassWhileStartingInTheLowerOctave() throws {
+        let plan = try XCTUnwrap(makeBass(mode: .bassPulse, steps: 1))
+        let first = try XCTUnwrap(plan.events.first)
+
+        XCTAssertEqual(first.midiNote, 31)
+        XCTAssertEqual(Int(first.midiNote) % 12, 7)
     }
 
     func testIncreasingStepsOnlyActivatesAdditionalPreauthoredCandidates() throws {

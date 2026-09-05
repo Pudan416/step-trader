@@ -25,7 +25,7 @@ struct BassPlayerMetrics: Equatable, Sendable {
 /// event releases the held gate before a replacement attack can be scheduled.
 @MainActor
 final class BassPlayer {
-    private static let baseCutoffHz = 180.0
+    private static let baseCutoffHz = 115.0
     private static let controlRampSeconds = 0.025
 
     private let worldBank: PlaybackWorldBank
@@ -316,17 +316,17 @@ final class BassPlayer {
 
     private static func attackSeconds(for articulation: BassArticulation) -> Double {
         switch articulation {
-        case .pulse: return 0.012
-        case .arpeggio: return 0.010
-        case .sustained: return 0.025
+        case .pulse: return 0.030
+        case .arpeggio: return 0.032
+        case .sustained: return 0.060
         }
     }
 
     private static func releaseSeconds(for articulation: BassArticulation) -> Double {
         switch articulation {
-        case .pulse: return 0.120
-        case .arpeggio: return 0.140
-        case .sustained: return 0.220
+        case .pulse: return 0.220
+        case .arpeggio: return 0.260
+        case .sustained: return 0.500
         }
     }
 

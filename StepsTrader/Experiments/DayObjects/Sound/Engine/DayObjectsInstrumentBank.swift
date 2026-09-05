@@ -674,6 +674,10 @@ private final class DayObjectsAudioKitPianoPoolAdapter: DayObjectsPianoPoolProto
 }
 
 final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentBankGraph {
+    private static let bassSaturationPregain: AUValue = 1.06
+    private static let bassSaturationPostgain: AUValue = 0.96
+    private static let bassSaturationDryWet: AUValue = 0.06
+
     var layout: DayObjectsInstrumentBankGraphLayout {
         .init(
             tonalBusCount: 3,
@@ -811,6 +815,15 @@ final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentBankGraph
         return result
     }
 
+    var bassSaturationParameterValues: [String: Double] {
+        guard let bassSaturation else { return [:] }
+        return [
+            "bass.saturation.pregain": Double(bassSaturation.$pregain.parameter.value),
+            "bass.saturation.postgain": Double(bassSaturation.$postgain.parameter.value),
+            "bass.saturation.dryWet": Double(bassSaturation.$dryWetMix.parameter.value),
+        ]
+    }
+
     fileprivate init(
         tonalPools: [DayObjectsAudioKitTonalPool],
         drums: DayObjectsAudioKitDrumBank?,
@@ -844,9 +857,11 @@ final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentBankGraph
         }()
         let preparedBassSaturation = preparedBassRecombine.map {
             TanhDistortion(
-                $0, pregain: 1.18, postgain: 0.94,
+                $0,
+                pregain: Self.bassSaturationPregain,
+                postgain: Self.bassSaturationPostgain,
                 positiveShapeParameter: 0, negativeShapeParameter: 0,
-                dryWetMix: 0.12
+                dryWetMix: Self.bassSaturationDryWet
             )
         }
         let preparedBassTrim = preparedBassSaturation.map { Fader($0, gain: 1) }
@@ -1045,11 +1060,11 @@ final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentBankGraph
             setImmediately(highBand.$resonance, to: 0)
         }
         if let saturation = bassSaturation {
-            setImmediately(saturation.$pregain, to: 1.18)
-            setImmediately(saturation.$postgain, to: 0.94)
+            setImmediately(saturation.$pregain, to: Self.bassSaturationPregain)
+            setImmediately(saturation.$postgain, to: Self.bassSaturationPostgain)
             setImmediately(saturation.$positiveShapeParameter, to: 0)
             setImmediately(saturation.$negativeShapeParameter, to: 0)
-            setImmediately(saturation.$dryWetMix, to: 0.12)
+            setImmediately(saturation.$dryWetMix, to: Self.bassSaturationDryWet)
         }
     }
 
@@ -1397,6 +1412,26 @@ final class DayObjectsPersistentMasterGraph {
         } else {
             audioEngineConnections = []
         }
+        var acceptedParameterValues: [String: Double] = [
+            "master.trim.leftLinear": Double(masterTrim.$leftGain.parameter.value),
+            "master.trim.rightLinear": Double(masterTrim.$rightGain.parameter.value),
+            "master.glue.ratio": Double(glueCompressor.$ratio.parameter.value),
+            "master.glue.thresholdDB": Double(glueCompressor.$threshold.parameter.value),
+            "master.saturation.dryWet": Double(masterSaturation.$dryWetMix.parameter.value),
+            "master.limiter.preGainDB": Double(limiter.$preGain.parameter.value),
+            "master.finalOutput.linear": Double(finalOutput.linearGain),
+            "lead.upperMid.centerHz": Double(leadUpperMidBand.$centerFrequency.parameter.value),
+            "lead.upperMid.thresholdDB": Double(leadUpperMidCompressor.$threshold.parameter.value),
+            "lead.direct.leftLinear": Double(leadDirect.$leftGain.parameter.value),
+            "lead.direct.rightLinear": Double(leadDirect.$rightGain.parameter.value),
+            "lead.reverbSend.leftLinear": Double(leadSend.$leftGain.parameter.value),
+            "lead.reverbSend.rightLinear": Double(leadSend.$rightGain.parameter.value),
+            "lead.delaySend.leftLinear": Double(leadDelaySend.$leftGain.parameter.value),
+            "lead.delaySend.rightLinear": Double(leadDelaySend.$rightGain.parameter.value),
+        ]
+        if let bassParameters = graphs.first?.bassSaturationParameterValues {
+            acceptedParameterValues.merge(bassParameters) { _, latest in latest }
+        }
         return .init(
             persistentMasterNodeIdentities: fixedNodeIdentities,
             finalPeakLimiterIdentities: [ObjectIdentifier(limiter)],
@@ -1438,23 +1473,7 @@ final class DayObjectsPersistentMasterGraph {
             masterSaturationIdentity: ObjectIdentifier(masterSaturation),
             finalOutputIdentity: ObjectIdentifier(finalOutput),
             leadUpperMidDynamicsIdentity: ObjectIdentifier(leadUpperMidCompressor),
-            acceptedParameterValues: [
-                "master.trim.leftLinear": Double(masterTrim.$leftGain.parameter.value),
-                "master.trim.rightLinear": Double(masterTrim.$rightGain.parameter.value),
-                "master.glue.ratio": Double(glueCompressor.$ratio.parameter.value),
-                "master.glue.thresholdDB": Double(glueCompressor.$threshold.parameter.value),
-                "master.saturation.dryWet": Double(masterSaturation.$dryWetMix.parameter.value),
-                "master.limiter.preGainDB": Double(limiter.$preGain.parameter.value),
-                "master.finalOutput.linear": Double(finalOutput.linearGain),
-                "lead.upperMid.centerHz": Double(leadUpperMidBand.$centerFrequency.parameter.value),
-                "lead.upperMid.thresholdDB": Double(leadUpperMidCompressor.$threshold.parameter.value),
-                "lead.direct.leftLinear": Double(leadDirect.$leftGain.parameter.value),
-                "lead.direct.rightLinear": Double(leadDirect.$rightGain.parameter.value),
-                "lead.reverbSend.leftLinear": Double(leadSend.$leftGain.parameter.value),
-                "lead.reverbSend.rightLinear": Double(leadSend.$rightGain.parameter.value),
-                "lead.delaySend.leftLinear": Double(leadDelaySend.$leftGain.parameter.value),
-                "lead.delaySend.rightLinear": Double(leadDelaySend.$rightGain.parameter.value),
-            ],
+            acceptedParameterValues: acceptedParameterValues,
             avAudioEngineAttachedNodeIdentities: attachedAudioNodes,
             avAudioEngineConnections: audioEngineConnections,
             avAudioEngineConnectionCount: audioEngineConnections.count

@@ -6,7 +6,7 @@ final class LayerMixPlannerTests: XCTestCase {
         let plan = LayerMixPlanner.makePlan(happeningCount: 1)
 
         XCTAssertEqual(plan.rhythmTargetDecibels, 0)
-        XCTAssertEqual(plan.bassTargetDecibels, 0)
+        XCTAssertEqual(plan.bassTargetDecibels, -4)
         XCTAssertEqual(plan.harmonyTargetDecibels, 0)
         XCTAssertEqual(plan.happeningAggregateTargetDecibels, -3.3)
         XCTAssertEqual(plan.happeningPerVoiceTargetDecibels, -3.3)

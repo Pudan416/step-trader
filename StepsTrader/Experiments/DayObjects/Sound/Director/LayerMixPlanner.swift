@@ -10,7 +10,7 @@ enum LayerMixPlanner {
 
         return LayerMixPlan(
             rhythmTargetDecibels: 0,
-            bassTargetDecibels: 0,
+            bassTargetDecibels: -4,
             harmonyTargetDecibels: 0,
             happeningAggregateTargetDecibels: happeningTarget,
             happeningPerVoiceTargetDecibels: happeningTarget + countCompensationDecibels,
