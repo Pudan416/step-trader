@@ -33,7 +33,7 @@ struct DayObjectsAudioError: Error, Equatable, Sendable {
 
     static func classifying(_ error: Error) -> Self {
         if let audioError = error as? Self { return audioError }
-        if error as? DayObjectsInstrumentBankError == .audioOutputUnavailable {
+        if DayObjectsInstrumentBankError.liveStartFailure(classifying: error) == .audioOutputUnavailable {
             return .outputUnavailable
         }
         return Self("Sound couldn't start. Try again.")

@@ -315,7 +315,10 @@ final class LeadPlayer {
     }
 
     static func busTargetDecibels(for targetDecibels: Double) -> Double {
-        let maximum = legacyEffectiveGain(targetDecibels: targetDecibels, expressionDepth: 0.25)
+        let boundedTarget = min(max(finite(targetDecibels, fallback: -12), -60), 0)
+        guard boundedTarget > -60 else { return -60 }
+
+        let maximum = legacyEffectiveGain(targetDecibels: boundedTarget, expressionDepth: 0.25)
         return 20 * log10(max(maximum, .leastNonzeroMagnitude))
     }
 

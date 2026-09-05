@@ -1,7 +1,5 @@
 #if DEBUG || INTERNAL_BUILD
 import AVFAudio
-import class AudioKit.AudioEngine
-import class AudioKit.Mixer
 import XCTest
 @testable import Steps4
 
@@ -1604,6 +1602,46 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertNotEqual(restored.rhythmTargetDecibels, -60)
     }
 
+    func testEveryNonLeadSoloHardMutesHeldLeadDirectDelayAndReverbPaths() throws {
+        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let plan = makePlaybackEnginePlan(seed: 7_111)
+        try runtime.prepare(plan: plan)
+        try runtime.startPreparedWorldForTesting()
+        runtime.beginLead(.init(normalizedX: 0.5, normalizedY: 0.6, speed: 0.2))
+
+        XCTAssertEqual(runtime.totalLeadAttackCountForTesting, 1)
+        XCTAssertEqual(runtime.totalLeadReleaseCountForTesting, 0)
+
+        for role in DayObjectsRoleBus.allCases where role != .lead {
+            runtime.applyDiagnosticAudition(.isolatedBus(role), plan: plan)
+
+            let state = try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state)
+            XCTAssertEqual(
+                state.buses.lead.directTargetDecibels,
+                -60,
+                accuracy: 1e-12,
+                "soloed role: \(role)"
+            )
+            let parameters = runtime.engineTopologyForTesting.acceptedParameterValues
+            for key in [
+                "lead.direct.leftLinear", "lead.direct.rightLinear",
+                "lead.reverbSend.leftLinear", "lead.reverbSend.rightLinear",
+                "lead.delaySend.leftLinear", "lead.delaySend.rightLinear",
+            ] {
+                XCTAssertEqual(
+                    try XCTUnwrap(parameters[key], "Missing \(key)"),
+                    0,
+                    accuracy: 1e-12,
+                    "\(key), soloed role: \(role)"
+                )
+            }
+            XCTAssertEqual(runtime.totalLeadAttackCountForTesting, 1)
+            XCTAssertEqual(runtime.totalLeadReleaseCountForTesting, 0)
+        }
+
+        runtime.endLead()
+    }
+
     func testLiveDiagnosticSidechainUsesProductionBassAndActualDuckCommandWithFallback() throws {
         var diagnosticTime = 42.0
         let runtime = try DayObjectsLivePlaybackRuntime(
@@ -1872,6 +1910,52 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
             DayObjectsAudioError.outputUnavailable.diagnosticID,
             "day-objects.audio.output-unavailable"
         )
+    }
+
+    func testSessionConfigureAndActivateUseExactRawCoreAudioErrorClassification() async {
+        let unavailable = NSError(
+            domain: "com.apple.coreaudio.avfaudio",
+            code: -10_851
+        )
+        let cases: [(error: Error, expected: DayObjectsAudioErrorClassification)] = [
+            (unavailable, .outputUnavailable),
+            (
+                NSError(
+                    domain: "day-objects.test.wrapper",
+                    code: 1,
+                    userInfo: [NSUnderlyingErrorKey: unavailable]
+                ),
+                .outputUnavailable
+            ),
+            (NSError(domain: "day-objects.test", code: 7), .startFailed),
+        ]
+
+        for stage in [PlaybackEngineFailureStage.configureSession, .activateSession] {
+            for testCase in cases {
+                let log = PlaybackEngineCallLog()
+                let session = RecordingDayObjectsAudioSession(log: log)
+                session.failureStage = stage
+                session.operationError = testCase.error
+                let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+                let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+
+                do {
+                    try await engine.start(plan: makePlaybackEnginePlan(seed: 0xA0D2))
+                    XCTFail("Expected \(stage) failure")
+                } catch {
+                    XCTAssertEqual(
+                        (error as? DayObjectsAudioError)?.classification,
+                        testCase.expected,
+                        "stage: \(stage)"
+                    )
+                }
+                guard case let .error(audioError) = engine.state else {
+                    XCTFail("Expected error state for \(stage)")
+                    continue
+                }
+                XCTAssertEqual(audioError.classification, testCase.expected, "stage: \(stage)")
+            }
+        }
     }
 
     func testFailureIsRetryableWithoutReplacingTheEngineOrPlan() async throws {
@@ -2149,47 +2233,6 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertFalse(session.isActive, file: file, line: line)
     }
 
-    private func requireLiveAudioOutput(
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) throws {
-#if targetEnvironment(simulator)
-        let session = AVAudioSession.sharedInstance()
-        do {
-            try session.setCategory(.playback, mode: .default)
-            try session.setActive(true)
-        } catch {
-            throw XCTSkip(
-                "Simulator has no activatable Core Audio output device: \(error)",
-                file: file,
-                line: line
-            )
-        }
-        let hasSessionRoute = session.sampleRate > 0 && !session.currentRoute.outputs.isEmpty
-        let probe = AudioEngine()
-        probe.output = Mixer()
-        do {
-            try probe.start()
-            probe.stop()
-        } catch {
-            probe.stop()
-            try? session.setActive(false, options: .notifyOthersOnDeactivation)
-            throw XCTSkip(
-                "Simulator has no valid Core Audio output device: \(error)",
-                file: file,
-                line: line
-            )
-        }
-        try? session.setActive(false, options: .notifyOthersOnDeactivation)
-        if !hasSessionRoute {
-            throw XCTSkip(
-                "Simulator has no valid Core Audio output route",
-                file: file,
-                line: line
-            )
-        }
-#endif
-    }
 }
 
 @MainActor
@@ -2278,6 +2321,7 @@ private final class FaultInjectingRealPlaybackRuntime: DayObjectsPlaybackRuntime
 private final class RecordingDayObjectsAudioSession: DayObjectsAudioSessionProtocol {
     let log: PlaybackEngineCallLog
     var failureStage: PlaybackEngineFailureStage?
+    var operationError: Error?
     private(set) var isActive = false
     private(set) var activationCount = 0
     private(set) var deactivationOptions: [AVAudioSession.SetActiveOptions] = []
@@ -2286,12 +2330,16 @@ private final class RecordingDayObjectsAudioSession: DayObjectsAudioSessionProto
 
     func configurePlayback() throws {
         log.values.append("session.configure.playback")
-        if failureStage == .configureSession { throw DayObjectsAudioError("configure") }
+        if failureStage == .configureSession {
+            throw operationError ?? DayObjectsAudioError("configure")
+        }
     }
 
     func activate() throws {
         log.values.append("session.activate")
-        if failureStage == .activateSession { throw DayObjectsAudioError("activate") }
+        if failureStage == .activateSession {
+            throw operationError ?? DayObjectsAudioError("activate")
+        }
         isActive = true
         activationCount += 1
     }
@@ -2653,7 +2701,7 @@ private func assertSolo(
         if candidate == role {
             XCTAssertGreaterThan(value, -60, file: file, line: line)
         } else {
-            XCTAssertLessThanOrEqual(value, -55, file: file, line: line)
+            XCTAssertEqual(value, -60, accuracy: 1e-12, file: file, line: line)
         }
     }
 }

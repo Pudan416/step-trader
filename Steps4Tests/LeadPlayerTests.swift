@@ -4,6 +4,10 @@ import XCTest
 
 @MainActor
 final class LeadPlayerTests: XCTestCase {
+    func testBusTargetPreservesExactHardMuteSentinel() {
+        XCTAssertEqual(LeadPlayer.busTargetDecibels(for: -60), -60, accuracy: 1e-12)
+    }
+
     func testBusOwnedGainPreservesLegacyNonlinearExpressiveTransferNumerically() throws {
         for targetDB in [-18.0, -12.0, -9.0, -6.0] {
             let busGain = pow(10, LeadPlayer.busTargetDecibels(for: targetDB) / 20)

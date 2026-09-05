@@ -1498,6 +1498,99 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         }
     }
 
+    func testLiveStartFailureClassifierMatchesOnlyExactTopLevelAndNestedCoreAudioErrors() {
+        let unavailable = NSError(
+            domain: "com.apple.coreaudio.avfaudio",
+            code: -10_851
+        )
+        let nestedUnavailable = NSError(
+            domain: "day-objects.test.wrapper",
+            code: 1,
+            userInfo: [NSUnderlyingErrorKey: unavailable]
+        )
+
+        for error in [unavailable, nestedUnavailable] {
+            XCTAssertEqual(
+                DayObjectsInstrumentBankError.liveStartFailure(classifying: error),
+                .audioOutputUnavailable
+            )
+        }
+
+        for error in [
+            NSError(domain: "com.apple.coreaudio.avfaudio", code: -10_850),
+            NSError(domain: "day-objects.test", code: -10_851),
+            NSError(domain: "day-objects.test", code: 7),
+        ] {
+            XCTAssertEqual(
+                DayObjectsInstrumentBankError.liveStartFailure(classifying: error),
+                .startFailed
+            )
+        }
+    }
+
+    func testLiveAudioPreflightSkipsOnlyExactTopLevelAndNestedOutputUnavailableErrors() {
+        let unavailable = NSError(
+            domain: "com.apple.coreaudio.avfaudio",
+            code: -10_851
+        )
+        let nestedUnavailable = NSError(
+            domain: "day-objects.test.wrapper",
+            code: 1,
+            userInfo: [NSUnderlyingErrorKey: unavailable]
+        )
+
+        XCTAssertTrue(shouldSkipDayObjectsLiveAudioPreflightFailure(unavailable))
+        XCTAssertTrue(shouldSkipDayObjectsLiveAudioPreflightFailure(nestedUnavailable))
+        XCTAssertFalse(shouldSkipDayObjectsLiveAudioPreflightFailure(
+            NSError(domain: "com.apple.coreaudio.avfaudio", code: -10_850)
+        ))
+        XCTAssertFalse(shouldSkipDayObjectsLiveAudioPreflightFailure(
+            NSError(domain: "day-objects.test", code: -10_851)
+        ))
+        XCTAssertFalse(shouldSkipDayObjectsLiveAudioPreflightFailure(
+            NSError(domain: "day-objects.test", code: 7)
+        ))
+    }
+
+    func testColdPairedSampleOnlyStartUsesExactRawErrorClassification() throws {
+        let unavailable = NSError(
+            domain: "com.apple.coreaudio.avfaudio",
+            code: -10_851
+        )
+        let cases: [(error: Error, expected: DayObjectsInstrumentBankError)] = [
+            (unavailable, .audioOutputUnavailable),
+            (
+                NSError(
+                    domain: "day-objects.test.wrapper",
+                    code: 1,
+                    userInfo: [NSUnderlyingErrorKey: unavailable]
+                ),
+                .audioOutputUnavailable
+            ),
+            (NSError(domain: "day-objects.test", code: 7), .startFailed),
+        ]
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 1))
+        var pendingErrors = cases.map(\.error)
+        let pair = DayObjectsInstrumentBank.makePlaybackPair(
+            bundle: Bundle(for: type(of: self)),
+            individualStartFailureProvider: {
+                guard !pendingErrors.isEmpty else { return nil }
+                return pendingErrors.removeFirst()
+            }
+        )
+        try pair.bankA.prepare(level: .sampleOnly([recipeID]))
+
+        for testCase in cases {
+            XCTAssertThrowsError(try pair.bankA.start()) { error in
+                XCTAssertEqual(error as? DayObjectsInstrumentBankError, testCase.expected)
+            }
+            XCTAssertEqual(pair.bankA.metrics.state, .prepared)
+            XCTAssertFalse(pair.metrics.sharedEngineIsRunning)
+            XCTAssertEqual(pair.metrics.individualStartedBankCount, 0)
+        }
+        XCTAssertTrue(pendingErrors.isEmpty)
+    }
+
     func testProcessLeasePrunesDeallocatedLiveAndOfflineOwnersWithoutExplicitStop() throws {
         final class Owner {}
         let lease = DayObjectsAudioPlaybackLease.shared
@@ -1785,48 +1878,6 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
             channels: 2,
             interleaved: false
         )!
-    }
-
-    private func requireLiveAudioOutput(
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) throws {
-#if targetEnvironment(simulator)
-        let session = AVAudioSession.sharedInstance()
-        do {
-            try session.setCategory(.playback, mode: .default)
-            try session.setActive(true)
-        } catch {
-            throw XCTSkip(
-                "Simulator has no valid Core Audio output device: \(error)",
-                file: file,
-                line: line
-            )
-        }
-        let hasSessionRoute = session.sampleRate > 0 && !session.currentRoute.outputs.isEmpty
-        let probe = AudioEngine()
-        probe.output = Mixer()
-        do {
-            try probe.start()
-            probe.stop()
-        } catch {
-            probe.stop()
-            try? session.setActive(false, options: .notifyOthersOnDeactivation)
-            throw XCTSkip(
-                "Simulator has no valid Core Audio output device: \(error)",
-                file: file,
-                line: line
-            )
-        }
-        try? session.setActive(false, options: .notifyOthersOnDeactivation)
-        guard hasSessionRoute else {
-            throw XCTSkip(
-                "Simulator has no valid Core Audio output route",
-                file: file,
-                line: line
-            )
-        }
-#endif
     }
 
     private func expectedReleaseCount(for stage: DayObjectsInstrumentBankPreparationStage) -> Int {

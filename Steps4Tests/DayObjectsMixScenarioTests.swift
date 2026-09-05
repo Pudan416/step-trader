@@ -154,6 +154,8 @@ final class DayObjectsMixScenarioTests: XCTestCase {
         XCTAssertEqual(variantsByCategory["isolated"], [
             "rhythm", "bass", "harmony", "happenings", "lead",
         ])
+        let isolatedScenarios = scenarios.filter { $0.category == "isolated" }
+        XCTAssertTrue(isolatedScenarios.allSatisfy { $0.leadGestureProfile == .held })
         XCTAssertEqual(scenarios.count, 31)
     }
 
@@ -658,7 +660,7 @@ final class DayObjectsMixScenarioTests: XCTestCase {
                 variant: roleName(role),
                 plan: isolatedPlan,
                 auditionMode: .isolatedBus(role),
-                leadGestureProfile: role == .lead ? .held : .none
+                leadGestureProfile: .held
             ))
         }
         return scenarios

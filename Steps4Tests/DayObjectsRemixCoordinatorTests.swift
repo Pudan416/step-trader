@@ -1,7 +1,5 @@
 #if DEBUG || INTERNAL_BUILD
-import AVFAudio
-import class AudioKit.AudioEngine
-import class AudioKit.Mixer
+import Foundation
 import XCTest
 @testable import Steps4
 
@@ -85,48 +83,6 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
 
         runtime.endLead()
         await runtime.stopAudio()
-    }
-
-    private func requireLiveAudioOutput(
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) throws {
-#if targetEnvironment(simulator)
-        let session = AVAudioSession.sharedInstance()
-        do {
-            try session.setCategory(.playback, mode: .default)
-            try session.setActive(true)
-        } catch {
-            throw XCTSkip(
-                "Simulator has no valid Core Audio output device: \(error)",
-                file: file,
-                line: line
-            )
-        }
-        let hasSessionRoute = session.sampleRate > 0 && !session.currentRoute.outputs.isEmpty
-        let probe = AudioEngine()
-        probe.output = Mixer()
-        do {
-            try probe.start()
-            probe.stop()
-        } catch {
-            probe.stop()
-            try? session.setActive(false, options: .notifyOthersOnDeactivation)
-            throw XCTSkip(
-                "Simulator has no valid Core Audio output device: \(error)",
-                file: file,
-                line: line
-            )
-        }
-        try? session.setActive(false, options: .notifyOthersOnDeactivation)
-        guard hasSessionRoute else {
-            throw XCTSkip(
-                "Simulator has no valid Core Audio output route",
-                file: file,
-                line: line
-            )
-        }
-#endif
     }
 
     func testCancelPendingRemixLeavesCurrentWorldRunningAndClearsOnlyQueuedPlan() throws {

@@ -165,12 +165,16 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     static func makePlaybackPair(
         bundle: Bundle = .main,
         startFailureProvider: @escaping () -> DayObjectsPlaybackBankPairStartFailure? = { nil },
+        individualStartFailureProvider: @escaping () -> Error? = { nil },
         outputGainHostTimeProvider: @escaping () -> TimeInterval = {
             ProcessInfo.processInfo.systemUptime
         }
     ) -> DayObjectsPlaybackBankPair {
         let happenings = DayObjectsHappeningSamplePool(bundle: bundle)
-        let sharedEngine = DayObjectsSharedInstrumentBankEngine(happenings: happenings)
+        let sharedEngine = DayObjectsSharedInstrumentBankEngine(
+            happenings: happenings,
+            individualStartFailureProvider: individualStartFailureProvider
+        )
         let bankA = DayObjectsInstrumentBank(
             bundle: bundle,
             engine: DayObjectsPairedInstrumentBankEngine(slot: .a, shared: sharedEngine),
@@ -342,7 +346,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
             if engine is any DayObjectsPairedInstrumentBankLifecycleGate {
                 self.prepared?.state = .prepared
                 self.prepared?.isAttached = true
-                throw DayObjectsInstrumentBankError.startFailed
+                throw DayObjectsInstrumentBankError.liveStartFailure(classifying: error)
             }
             engine.stop()
             engine.detach()
@@ -1444,6 +1448,12 @@ final class DayObjectsPersistentMasterGraph {
                 "master.finalOutput.linear": Double(finalOutput.linearGain),
                 "lead.upperMid.centerHz": Double(leadUpperMidBand.$centerFrequency.parameter.value),
                 "lead.upperMid.thresholdDB": Double(leadUpperMidCompressor.$threshold.parameter.value),
+                "lead.direct.leftLinear": Double(leadDirect.$leftGain.parameter.value),
+                "lead.direct.rightLinear": Double(leadDirect.$rightGain.parameter.value),
+                "lead.reverbSend.leftLinear": Double(leadSend.$leftGain.parameter.value),
+                "lead.reverbSend.rightLinear": Double(leadSend.$rightGain.parameter.value),
+                "lead.delaySend.leftLinear": Double(leadDelaySend.$leftGain.parameter.value),
+                "lead.delaySend.rightLinear": Double(leadDelaySend.$rightGain.parameter.value),
             ],
             avAudioEngineAttachedNodeIdentities: attachedAudioNodes,
             avAudioEngineConnections: audioEngineConnections,
@@ -2113,6 +2123,7 @@ private final class DayObjectsSharedInstrumentBankEngine {
     private var attachedSlots: Set<DayObjectsPlaybackBankSlot> = []
     private let masterGraph: DayObjectsPersistentMasterGraph
     private let happenings: DayObjectsHappeningSamplePool
+    private let individualStartFailureProvider: () -> Error?
     private var individuallyStartedSlots: Set<DayObjectsPlaybackBankSlot> = []
     private var pairIsRunning = false
     private var startCount = 0
@@ -2128,8 +2139,12 @@ private final class DayObjectsSharedInstrumentBankEngine {
             && engine.avEngine.isRunning
     }
 
-    init(happenings: DayObjectsHappeningSamplePool) {
+    init(
+        happenings: DayObjectsHappeningSamplePool,
+        individualStartFailureProvider: @escaping () -> Error?
+    ) {
         self.happenings = happenings
+        self.individualStartFailureProvider = individualStartFailureProvider
         masterGraph = DayObjectsPersistentMasterGraph(happenings: happenings)
         engine.output = masterGraph.finalOutput
         masterGraph.prepareMeters()
@@ -2172,7 +2187,12 @@ private final class DayObjectsSharedInstrumentBankEngine {
         }
         if individuallyStartedSlots.isEmpty, !engine.avEngine.isRunning {
             masterGraph.startMeters()
-            do { try engine.start() }
+            do {
+                if let injectedFailure = individualStartFailureProvider() {
+                    throw injectedFailure
+                }
+                try engine.start()
+            }
             catch { masterGraph.stopMeters(); throw error }
             startCount += 1
         }
