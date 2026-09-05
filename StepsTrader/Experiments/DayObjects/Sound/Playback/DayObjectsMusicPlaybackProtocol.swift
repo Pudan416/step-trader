@@ -1,11 +1,42 @@
 #if DEBUG || INTERNAL_BUILD
 import Foundation
 
-struct DayObjectsAudioError: Error, Equatable, Sendable {
-    let message: String
+enum DayObjectsAudioErrorClassification: String, Equatable, Sendable {
+    case outputUnavailable
+    case startFailed
 
-    init(_ message: String) {
+    var diagnosticID: String {
+        switch self {
+        case .outputUnavailable: "day-objects.audio.output-unavailable"
+        case .startFailed: "day-objects.audio.start-failed"
+        }
+    }
+}
+
+struct DayObjectsAudioError: Error, Equatable, Sendable {
+    let classification: DayObjectsAudioErrorClassification
+    let message: String
+    var diagnosticID: String { classification.diagnosticID }
+
+    init(
+        _ message: String,
+        classification: DayObjectsAudioErrorClassification = .startFailed
+    ) {
+        self.classification = classification
         self.message = message
+    }
+
+    static let outputUnavailable = Self(
+        "No audio output is available. Connect an output and try again.",
+        classification: .outputUnavailable
+    )
+
+    static func classifying(_ error: Error) -> Self {
+        if let audioError = error as? Self { return audioError }
+        if error as? DayObjectsInstrumentBankError == .audioOutputUnavailable {
+            return .outputUnavailable
+        }
+        return Self("Sound couldn't start. Try again.")
     }
 }
 

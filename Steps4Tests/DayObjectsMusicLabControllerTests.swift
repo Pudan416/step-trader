@@ -496,6 +496,21 @@ final class DayObjectsMusicLabControllerTests: XCTestCase {
         XCTAssertEqual(playback.startPlans.count, 2)
     }
 
+    func testUnavailableOutputClassificationSurvivesPlaybackToLabState() async {
+        let playback = RecordingLabPlayback()
+        playback.startError = .outputUnavailable
+        let controller = DayObjectsMusicLabController(playback: playback)
+
+        await controller.toggleSound()
+
+        XCTAssertEqual(controller.soundState, .error(.outputUnavailable))
+        guard case let .error(error) = controller.soundState else {
+            return XCTFail("Expected classified output error")
+        }
+        XCTAssertEqual(error.classification, .outputUnavailable)
+        XCTAssertEqual(error.diagnosticID, "day-objects.audio.output-unavailable")
+    }
+
     func testConcurrentLifecycleStopsJoinOnePlaybackStop() async {
         let playback = RecordingLabPlayback()
         let controller = DayObjectsMusicLabController(playback: playback)

@@ -228,8 +228,7 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
                 throw CancellationError()
             }
             try Task.checkCancellation()
-            let audioError = (error as? DayObjectsAudioError)
-                ?? DayObjectsAudioError(String(describing: error))
+            let audioError = DayObjectsAudioError.classifying(error)
             if upgradingSampleOnly {
                 runtime.stopScheduling()
                 runtime.endLead()
@@ -304,8 +303,7 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
             let wasInvalidated = generation != lifecycleGeneration
             let sampleStartFailed = runtimeState == .preparingSamples
                 || samplePreparationTask != nil
-            let audioError = (error as? DayObjectsAudioError)
-                ?? DayObjectsAudioError(String(describing: error))
+            let audioError = DayObjectsAudioError.classifying(error)
             await finishAuditionWaiter(waiterID, generation: generation)
             if wasInvalidated { throw CancellationError() }
             try Task.checkCancellation()

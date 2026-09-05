@@ -180,9 +180,8 @@ final class DayObjectsLabUITests: XCTestCase {
         for index in 0...4 {
             XCTAssertTrue(pads[index].exists, "Missing first-row Happening pad \(index + 1)")
         }
-        let catalogLabels = try XCTUnwrap(Self.happeningCatalogLabels(from: grid.value))
-        XCTAssertEqual(catalogLabels.count, 30)
-        XCTAssertEqual(pads[0].label, catalogLabels[0])
+        XCTAssertEqual(grid.value as? String, "30 sounds")
+        XCTAssertEqual(pads[0].label, "Happening 01, Warm analog ping")
 
         let firstRowY = pads[0].frame.midY
         for pad in pads[1...4] {
@@ -194,10 +193,10 @@ final class DayObjectsLabUITests: XCTestCase {
         for (index, pad) in pads.enumerated() {
             XCTAssertTrue(scrollToElement(pad, in: app), "Missing Happening pad \(index + 1)")
         }
-        XCTAssertEqual(pads[6].label, catalogLabels[6])
-        XCTAssertEqual(pads[12].label, catalogLabels[12])
-        XCTAssertEqual(pads[18].label, catalogLabels[18])
-        XCTAssertEqual(pads[24].label, catalogLabels[24])
+        XCTAssertEqual(pads[6].label, "Happening 07, Wooden kalimba")
+        XCTAssertEqual(pads[12].label, "Happening 13, Soft metal bowl")
+        XCTAssertEqual(pads[18].label, "Happening 19, Sub bloom")
+        XCTAssertEqual(pads[24].label, "Happening 25, Breath resonator")
         XCTAssertFalse(app.buttons["dayObjects.happeningPad.31"].exists)
     }
 
@@ -228,14 +227,20 @@ final class DayObjectsLabUITests: XCTestCase {
             predicate: NSPredicate { object, _ in
                 guard let sound = object as? XCUIElement else { return false }
                 guard let value = sound.value as? String else { return false }
-                return value == "on" || value.hasPrefix("error, retry available:")
+                return value == "on" || value == "error, output unavailable, retry available"
             },
             object: sound
         )
         XCTAssertEqual(XCTWaiter.wait(for: [soundResolved], timeout: 12), .completed)
-        guard sound.value as? String == "on" else {
+        let resolvedSoundValue = sound.value as? String
+        if resolvedSoundValue == "error, output unavailable, retry available" {
             throw XCTSkip("Simulator has no valid Core Audio output; sound-off Happening audition remained safe")
         }
+        XCTAssertEqual(
+            resolvedSoundValue,
+            "on",
+            "Only a typed unavailable-output error may skip this test"
+        )
 
         let lastPad = app.buttons["dayObjects.happeningPad.30"]
         XCTAssertTrue(scrollToElement(lastPad, in: app))
@@ -402,10 +407,4 @@ final class DayObjectsLabUITests: XCTestCase {
             .last
     }
 
-    private static func happeningCatalogLabels(from accessibilityValue: Any?) -> [String]? {
-        let value = String(describing: accessibilityValue ?? "")
-        let prefix = "30 sounds; catalog: "
-        guard value.hasPrefix(prefix) else { return nil }
-        return value.dropFirst(prefix.count).split(separator: "|").map(String.init)
-    }
 }

@@ -1853,6 +1853,27 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         }
     }
 
+    func testUnavailableRuntimeOutputClassificationReachesPlaybackStateAndThrownError() async {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        runtime.audioStartError = DayObjectsInstrumentBankError.audioOutputUnavailable
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+
+        do {
+            try await engine.start(plan: makePlaybackEnginePlan(seed: 0xA0D1))
+            XCTFail("Expected unavailable output")
+        } catch {
+            XCTAssertEqual(error as? DayObjectsAudioError, .outputUnavailable)
+        }
+
+        XCTAssertEqual(engine.state, .error(.outputUnavailable))
+        XCTAssertEqual(
+            DayObjectsAudioError.outputUnavailable.diagnosticID,
+            "day-objects.audio.output-unavailable"
+        )
+    }
+
     func testFailureIsRetryableWithoutReplacingTheEngineOrPlan() async throws {
         let log = PlaybackEngineCallLog()
         let session = RecordingDayObjectsAudioSession(log: log)
@@ -2286,6 +2307,7 @@ private final class RecordingDayObjectsAudioSession: DayObjectsAudioSessionProto
 private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
     let log: PlaybackEngineCallLog
     var failureStage: PlaybackEngineFailureStage?
+    var audioStartError: Error?
     var suspendTailDrain = false
     var suspendTransportStart = false
     var suspendSamplePreparation = false
@@ -2330,6 +2352,7 @@ private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntim
 
     func startAudio() throws {
         log.values.append("runtime.audio.start")
+        if let audioStartError { throw audioStartError }
         if failureStage == .audioStart { throw DayObjectsAudioError("audio") }
         if !audioIsRunning {
             audioStartCount += 1

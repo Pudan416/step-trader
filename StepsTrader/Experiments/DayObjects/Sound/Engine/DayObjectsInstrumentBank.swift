@@ -347,7 +347,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
             engine.stop()
             engine.detach()
             self.prepared = nil
-            throw DayObjectsInstrumentBankError.startFailed
+            throw DayObjectsInstrumentBankError.liveStartFailure(classifying: error)
         }
     }
 
@@ -2023,7 +2023,7 @@ final class DayObjectsPlaybackBankPair {
                 bankB.markPlaybackPairPrepared()
             }
             lifecycleState = .prepared
-            throw DayObjectsInstrumentBankError.startFailed
+            throw DayObjectsInstrumentBankError.liveStartFailure(classifying: error)
         }
     }
 

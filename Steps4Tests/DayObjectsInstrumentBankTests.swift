@@ -1478,6 +1478,26 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         await harness.bank.stop()
     }
 
+    func testUnavailableCoreAudioOutputStartPreservesTypedDiagnosticClassification() throws {
+        let harness = makeHarness()
+        harness.engine.startError = NSError(
+            domain: "com.apple.coreaudio.avfaudio",
+            code: -10_851
+        )
+        try harness.bank.prepare(configuration: configuration())
+
+        XCTAssertThrowsError(try harness.bank.start()) { error in
+            XCTAssertEqual(
+                error as? DayObjectsInstrumentBankError,
+                .audioOutputUnavailable
+            )
+            XCTAssertEqual(
+                (error as? DayObjectsInstrumentBankError)?.diagnosticID,
+                "day-objects.instrument-bank.audio-output-unavailable"
+            )
+        }
+    }
+
     func testProcessLeasePrunesDeallocatedLiveAndOfflineOwnersWithoutExplicitStop() throws {
         final class Owner {}
         let lease = DayObjectsAudioPlaybackLease.shared

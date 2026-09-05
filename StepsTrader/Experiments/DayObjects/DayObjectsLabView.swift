@@ -562,7 +562,11 @@ struct DayObjectsLabView: View {
         case .off: "off"
         case .starting: "starting"
         case .on: "on"
-        case let .error(error): "error, retry available: \(error.message)"
+        case let .error(error):
+            switch error.classification {
+            case .outputUnavailable: "error, output unavailable, retry available"
+            case .startFailed: "error, retry available: \(error.message)"
+            }
         }
     }
 

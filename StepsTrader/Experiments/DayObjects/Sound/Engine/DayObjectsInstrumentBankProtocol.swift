@@ -135,6 +135,7 @@ enum DayObjectsInstrumentBankError: Error, Equatable, Sendable {
     case unknownInstrument(DayObjectsInstrumentID)
     case invalidTonalInstrumentCategory(DayObjectsInstrumentCategory)
     case preparationFailed(DayObjectsInstrumentBankPreparationStage)
+    case audioOutputUnavailable
     case startFailed
     case livePlaybackConflictsWithOfflineRendering
     case offlineRenderingUnsupported
@@ -152,12 +153,32 @@ enum DayObjectsInstrumentBankError: Error, Equatable, Sendable {
         case let .unknownInstrument(id): return "day-objects.instrument-bank.unknown-instrument.\(id.rawValue)"
         case let .invalidTonalInstrumentCategory(category): return "day-objects.instrument-bank.invalid-tonal-category.\(category.rawValue)"
         case let .preparationFailed(stage): return "day-objects.instrument-bank.prepare.\(stage.rawValue)"
+        case .audioOutputUnavailable: return "day-objects.instrument-bank.audio-output-unavailable"
         case .startFailed: return "day-objects.instrument-bank.start-failed"
         case .livePlaybackConflictsWithOfflineRendering: return "day-objects.instrument-bank.live-offline-conflict"
         case .offlineRenderingUnsupported: return "day-objects.instrument-bank.offline-rendering-unsupported"
         case .offlineRenderingConflictsWithLivePlayback: return "day-objects.instrument-bank.offline-rendering-live-conflict"
         case .offlineRenderingNotStarted: return "day-objects.instrument-bank.offline-rendering-not-started"
         }
+    }
+
+    static func liveStartFailure(classifying error: Error) -> Self {
+        if error as? Self == .audioOutputUnavailable {
+            return .audioOutputUnavailable
+        }
+        var candidate = error as NSError
+        var visited: Set<ObjectIdentifier> = []
+        while visited.insert(ObjectIdentifier(candidate)).inserted {
+            if candidate.domain == "com.apple.coreaudio.avfaudio",
+               candidate.code == -10_851 {
+                return .audioOutputUnavailable
+            }
+            guard let underlying = candidate.userInfo[NSUnderlyingErrorKey] as? NSError else {
+                break
+            }
+            candidate = underlying
+        }
+        return .startFailed
     }
 }
 

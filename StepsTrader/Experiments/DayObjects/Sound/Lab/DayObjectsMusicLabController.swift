@@ -232,7 +232,7 @@ final class DayObjectsMusicLabController: ObservableObject {
             }
             soundState = playback.state
             if soundState == .starting || soundState == .off {
-                soundState = .error(.init(String(describing: error)))
+                soundState = .error(.classifying(error))
             }
         }
     }
