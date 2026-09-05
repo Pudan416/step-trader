@@ -373,18 +373,6 @@ struct SettingsAppearancePage: View {
             canvasShapesSection
             canvasFillsSection
             textureSection
-            if ExperimentalFeatures.richCanvasLab {
-                richCanvasLabSection
-            }
-            if ExperimentalFeatures.generativeSceneLab {
-                generativeSceneLabSection
-            }
-            if ExperimentalFeatures.canvasAtmosphereLab {
-                canvasAtmosphereLabSection
-            }
-            if ExperimentalFeatures.dayRaysLab {
-                dayRaysLabSection
-            }
             if ExperimentalFeatures.dayObjectsLab {
                 modernPaletteCategoriesSection
                 dayObjectsLabSection
@@ -506,98 +494,6 @@ struct SettingsAppearancePage: View {
         }
         lightHapticTick &+= 1
         model.syncUserPreferencesToSupabase()
-    }
-
-    private var richCanvasLabSection: some View {
-        NavigationLink {
-            RichCanvasLabView(model: model)
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "sparkles.rectangle.stack")
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Rich Canvas")
-                        .font(.geist(.subheadline))
-                    Text("Preview today's canvas with experimental figures")
-                        .font(.geist(.caption))
-                        .foregroundStyle(theme.adaptiveSecondaryText)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var generativeSceneLabSection: some View {
-        NavigationLink {
-            GenerativeSceneLabView()
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "circle.hexagongrid.fill")
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Generative Scene")
-                        .font(.geist(.subheadline))
-                    Text("Volumetric day scene prototype with live parameters")
-                        .font(.geist(.caption))
-                        .foregroundStyle(theme.adaptiveSecondaryText)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var canvasAtmosphereLabSection: some View {
-        NavigationLink {
-            CanvasAtmosphereLabView()
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "camera.aperture")
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Atmosphere")
-                        .font(.geist(.subheadline))
-                    Text("Today's canvas with dust and depth of field")
-                        .font(.geist(.caption))
-                        .foregroundStyle(theme.adaptiveSecondaryText)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var dayRaysLabSection: some View {
-        NavigationLink {
-            DayRaysLabView()
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "rays")
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Day Rays")
-                        .font(.geist(.subheadline))
-                    Text("Generated ray fans — single day or a grid of seeds")
-                        .font(.geist(.caption))
-                        .foregroundStyle(theme.adaptiveSecondaryText)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 
     private var dayObjectsLabSection: some View {

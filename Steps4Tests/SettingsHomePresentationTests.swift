@@ -172,4 +172,10 @@ final class SettingsHomePresentationTests: XCTestCase {
         XCTAssertTrue(SettingsAppearanceMode.automatic.dailyRandomEnabled)
         XCTAssertFalse(SettingsAppearanceMode.manual.dailyRandomEnabled)
     }
+
+#if DEBUG
+    func testInternalLabCatalogContainsOnlyDayObjects() {
+        XCTAssertEqual(ExperimentalLabRoute.allCases, [.dayObjects])
+    }
+#endif
 }
