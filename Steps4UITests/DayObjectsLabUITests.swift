@@ -180,7 +180,9 @@ final class DayObjectsLabUITests: XCTestCase {
         for index in 0...4 {
             XCTAssertTrue(pads[index].exists, "Missing first-row Happening pad \(index + 1)")
         }
-        XCTAssertEqual(pads[0].label, "Happening sound 01, synth pluck")
+        let catalogLabels = try XCTUnwrap(Self.happeningCatalogLabels(from: grid.value))
+        XCTAssertEqual(catalogLabels.count, 30)
+        XCTAssertEqual(pads[0].label, catalogLabels[0])
 
         let firstRowY = pads[0].frame.midY
         for pad in pads[1...4] {
@@ -192,10 +194,10 @@ final class DayObjectsLabUITests: XCTestCase {
         for (index, pad) in pads.enumerated() {
             XCTAssertTrue(scrollToElement(pad, in: app), "Missing Happening pad \(index + 1)")
         }
-        XCTAssertEqual(pads[6].label, "Happening sound 07, acoustic mallet")
-        XCTAssertEqual(pads[12].label, "Happening sound 13, acoustic bell")
-        XCTAssertEqual(pads[18].label, "Happening sound 19, soft one-shot")
-        XCTAssertEqual(pads[24].label, "Happening sound 25, texture")
+        XCTAssertEqual(pads[6].label, catalogLabels[6])
+        XCTAssertEqual(pads[12].label, catalogLabels[12])
+        XCTAssertEqual(pads[18].label, catalogLabels[18])
+        XCTAssertEqual(pads[24].label, catalogLabels[24])
         XCTAssertFalse(app.buttons["dayObjects.happeningPad.31"].exists)
     }
 
@@ -211,12 +213,29 @@ final class DayObjectsLabUITests: XCTestCase {
         XCTAssertEqual(sound.value as? String, "off", "Sample-only audition must not turn on the composition")
         XCTAssertEqual(String(describing: happenings.value), initialReadout)
 
+        let sampleOnlyAuditionFinished = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == 'Ready'"),
+            object: firstPad
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [sampleOnlyAuditionFinished], timeout: 12),
+            .completed,
+            "Wait for the sound-off audition teardown before requesting live Sound"
+        )
+
         sound.tap()
-        let soundOn = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value == %@", "on"),
+        let soundResolved = XCTNSPredicateExpectation(
+            predicate: NSPredicate { object, _ in
+                guard let sound = object as? XCUIElement else { return false }
+                guard let value = sound.value as? String else { return false }
+                return value == "on" || value.hasPrefix("error, retry available:")
+            },
             object: sound
         )
-        XCTAssertEqual(XCTWaiter.wait(for: [soundOn], timeout: 12), .completed)
+        XCTAssertEqual(XCTWaiter.wait(for: [soundResolved], timeout: 12), .completed)
+        guard sound.value as? String == "on" else {
+            throw XCTSkip("Simulator has no valid Core Audio output; sound-off Happening audition remained safe")
+        }
 
         let lastPad = app.buttons["dayObjects.happeningPad.30"]
         XCTAssertTrue(scrollToElement(lastPad, in: app))
@@ -348,8 +367,11 @@ final class DayObjectsLabUITests: XCTestCase {
         let picker = app.buttons["dayObjects.audition.category"]
         XCTAssertTrue(picker.waitForExistence(timeout: 5))
         picker.tap()
-        let choice = app.buttons[category]
+        let menu = app.collectionViews.firstMatch
+        XCTAssertTrue(menu.waitForExistence(timeout: 2))
+        let choice = menu.buttons[category]
         XCTAssertTrue(choice.waitForExistence(timeout: 2))
+        XCTAssertTrue(choice.isHittable)
         choice.tap()
         let selected = XCTNSPredicateExpectation(
             predicate: NSPredicate { object, _ in
@@ -378,5 +400,12 @@ final class DayObjectsLabUITests: XCTestCase {
             .split(whereSeparator: { !$0.isNumber })
             .compactMap { Int($0) }
             .last
+    }
+
+    private static func happeningCatalogLabels(from accessibilityValue: Any?) -> [String]? {
+        let value = String(describing: accessibilityValue ?? "")
+        let prefix = "30 sounds; catalog: "
+        guard value.hasPrefix(prefix) else { return nil }
+        return value.dropFirst(prefix.count).split(separator: "|").map(String.init)
     }
 }

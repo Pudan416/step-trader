@@ -35,7 +35,7 @@ struct HappeningSoundPadGrid: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Happening sounds")
-        .accessibilityValue("30 sounds")
+        .accessibilityValue(Self.accessibilityCatalogValue(recipes))
         .accessibilityIdentifier("dayObjects.happeningPads")
     }
 
@@ -73,6 +73,11 @@ struct HappeningSoundPadGrid: View {
         case .soundStopping: "Sound stopping"
         case .unavailable: "Sound unavailable"
         }
+    }
+
+    private static func accessibilityCatalogValue(_ recipes: [HappeningSoundRecipe]) -> String {
+        let labels = recipes.map { "Happening \($0.label), \($0.workingName)" }
+        return "\(recipes.count) sounds; catalog: \(labels.joined(separator: "|"))"
     }
 
 }

@@ -124,11 +124,15 @@ struct DayObjectsInstrumentAuditionView: View {
             .accessibilityIdentifier("dayObjects.audition.sidechain")
             .accessibilityValue(canvasSoundIsOn ? sidechainValue : "requires Sound")
 
-            TimelineView(.periodic(from: .now, by: 0.1)) { context in
+            if canvasSoundIsOn {
+                TimelineView(.periodic(from: .now, by: 0.1)) { context in
+                    meterRows()
+                        .task(id: context.date) {
+                            musicController.refreshDiagnosticMeters(now: context.date)
+                        }
+                }
+            } else {
                 meterRows()
-                    .task(id: context.date) {
-                        musicController.refreshDiagnosticMeters(now: context.date)
-                    }
             }
         }
     }

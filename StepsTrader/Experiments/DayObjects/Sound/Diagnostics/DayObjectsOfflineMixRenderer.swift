@@ -350,7 +350,7 @@ final class DayObjectsOfflineMixRenderer {
         guard leadGestureProfile != .none else { return }
         let releaseTime = max(durationSeconds - 0.25, 0.75)
         if elapsedSeconds + 0.000_001 >= releaseTime {
-            world.lead.end()
+            world.lead?.end()
             return
         }
         let speed: Double = leadGestureProfile == .fast ? 0.95 : 0.18
@@ -361,10 +361,10 @@ final class DayObjectsOfflineMixRenderer {
             normalizedY: 0.55 + (0.30 * cos(phase * 0.7)),
             speed: leadGestureProfile == .held ? 0.08 : speed
         )
-        if world.lead.heldState == nil {
-            world.lead.begin(gesture)
+        if world.lead?.heldState == nil {
+            world.lead?.begin(gesture)
         } else {
-            world.lead.update(gesture)
+            world.lead?.update(gesture)
         }
     }
 
@@ -458,9 +458,9 @@ private final class DayObjectsOfflineStressCoordinator {
               hostTime + Self.timeTolerance >= deadline
         else { return }
 
-        world.bass.releaseDiagnosticAudition(restoring: plan.bass)
+        world.bass?.releaseDiagnosticAudition(restoring: plan.bass)
         actualBassReleaseHostTimeSeconds = hostTime
-        bassActiveVoiceCountAfterRelease = world.bass.metrics.activeVoiceCount
+        bassActiveVoiceCountAfterRelease = world.bass?.metrics.activeVoiceCount ?? 0
         if bassActiveVoiceCountAfterRelease != 0 {
             failure = failure ?? .stressAuditionFailed(.bassAttack)
         }
@@ -526,12 +526,12 @@ private final class DayObjectsOfflineStressCoordinator {
                 <= Self.timeTolerance,
               observedTransition.oldVoiceCount > 0,
               observedTransition.newVoiceCount > 0,
-              world.harmony.metrics.pendingReleaseTokenCount > 0
+              (world.harmony?.metrics.pendingReleaseTokenCount ?? 0) > 0
         else {
             throw DayObjectsOfflineMixRendererError.stressAuditionFailed(.chordTransition)
         }
-        guard world.lead.metrics.voiceCount == 1,
-              world.lead.heldState != nil
+        guard world.lead?.metrics.voiceCount == 1,
+              world.lead?.heldState != nil
         else {
             throw DayObjectsOfflineMixRendererError.stressAuditionFailed(.heldLead)
         }
@@ -557,8 +557,8 @@ private final class DayObjectsOfflineStressCoordinator {
         else {
             throw DayObjectsOfflineMixRendererError.stressAuditionFailed(.kickSoft)
         }
-        guard world.bass.metrics.activeVoiceCount == 1,
-              world.bass.lastDiagnosticHostTimeSeconds == hostTime
+        guard world.bass?.metrics.activeVoiceCount == 1,
+              world.bass?.lastDiagnosticHostTimeSeconds == hostTime
         else {
             throw DayObjectsOfflineMixRendererError.stressAuditionFailed(.bassAttack)
         }
@@ -637,7 +637,7 @@ private final class DayObjectsOfflineStressCoordinator {
 
     private func matchingHarmonyTransitionObservation() -> HarmonyTransitionObservation? {
         guard let targetTransition, let targetSubdivision else { return nil }
-        return world.harmony.transitionObservations.first {
+        return world.harmony?.transitionObservations.first {
             $0.chordIndex == targetTransition.chordIndex
                 && $0.startSubdivision == targetSubdivision
                 && $0.oldVoiceCount > 0

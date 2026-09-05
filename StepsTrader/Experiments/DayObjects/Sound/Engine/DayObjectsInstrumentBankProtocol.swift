@@ -169,33 +169,47 @@ enum DayObjectsInstrumentBankError: Error, Equatable, Sendable {
 final class DayObjectsAudioPlaybackLease {
     static let shared = DayObjectsAudioPlaybackLease()
 
-    private var liveOwners: Set<ObjectIdentifier> = []
-    private var offlineOwner: ObjectIdentifier?
+    private final class WeakOwner {
+        weak var value: AnyObject?
+
+        init(_ value: AnyObject) {
+            self.value = value
+        }
+    }
+
+    private var liveOwners: [ObjectIdentifier: WeakOwner] = [:]
+    private var offlineOwner: WeakOwner?
 
     private init() {}
 
     func acquireLive(owner: AnyObject) throws {
+        pruneReleasedOwners()
         guard offlineOwner == nil else {
             throw DayObjectsInstrumentBankError.livePlaybackConflictsWithOfflineRendering
         }
-        liveOwners.insert(ObjectIdentifier(owner))
+        liveOwners[ObjectIdentifier(owner)] = WeakOwner(owner)
     }
 
     func releaseLive(owner: AnyObject) {
-        liveOwners.remove(ObjectIdentifier(owner))
+        liveOwners.removeValue(forKey: ObjectIdentifier(owner))
     }
 
     func acquireOffline(owner: AnyObject) throws {
-        let ownerID = ObjectIdentifier(owner)
+        pruneReleasedOwners()
         guard liveOwners.isEmpty, offlineOwner == nil else {
             throw DayObjectsInstrumentBankError.offlineRenderingConflictsWithLivePlayback
         }
-        offlineOwner = ownerID
+        offlineOwner = WeakOwner(owner)
     }
 
     func releaseOffline(owner: AnyObject) {
-        guard offlineOwner == ObjectIdentifier(owner) else { return }
+        guard offlineOwner?.value === owner else { return }
         offlineOwner = nil
+    }
+
+    private func pruneReleasedOwners() {
+        liveOwners = liveOwners.filter { $0.value.value != nil }
+        if offlineOwner?.value == nil { offlineOwner = nil }
     }
 }
 

@@ -472,9 +472,6 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
     }
 
     func testProductionHandleUpdateTransposesFundamentalToResolvedTarget() throws {
-        let previousChannelCount = Settings.channelCount
-        Settings.channelCount = 1
-        defer { Settings.channelCount = previousChannelCount }
         let recipeID = id(1)
         let recipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: recipeID))
         let source = try XCTUnwrap(recipe.sources.first(where: { $0.rootMIDI == 72 }))

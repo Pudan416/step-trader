@@ -152,6 +152,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
             graph.applyMix(DayObjectsMixState.testingFiveRoleMix(masterDecibels: index.isMultiple(of: 2) ? -6 : -12))
         }
         graph.startMeters()
+        try requireLiveAudioOutput()
         try engine.start()
         sources.forEach { $0.1.start() }
         _ = engine.render(duration: 0.25)
@@ -163,6 +164,9 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
             XCTAssertGreaterThan(restarted.0.metrics(for: role).peakDBFS, -120)
         }
         XCTAssertGreaterThan(restarted.1.peakDBFS, -120)
+        sources.forEach { $0.1.stop() }
+        graph.stopMeters()
+        engine.stop()
     }
 
     func testProductionMasterMeterEstimatesOverCeilingReductionThenExpiresAndResets() {
@@ -480,6 +484,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
     }
 
     func testPlaybackPairStopClearsAllSharedHappeningHandlesAndEffectContributions() throws {
+        try requireLiveAudioOutput()
         let pair = DayObjectsInstrumentBank.makePlaybackPair(bundle: Bundle(for: type(of: self)))
         try pair.prepare(configuration: .playbackWorld)
         try pair.start()
@@ -523,7 +528,8 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertLessThanOrEqual(bank.metrics.happeningMetrics.decodedByteCount, 48 * 1_024 * 1_024)
     }
 
-    func testSampleOnlyPreparationUpgradesToFullMusicWithoutStartingASecondEngine() throws {
+    func testSampleOnlyPreparationUpgradesToFullMusicWithoutStartingASecondEngine() async throws {
+        try requireLiveAudioOutput()
         let bank = DayObjectsInstrumentBank(bundle: Bundle(for: type(of: self)))
         let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 1))
 
@@ -539,9 +545,11 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(bank.metrics.engineInstanceCount, 1)
         XCTAssertEqual(bank.metrics.engineStartCount, 1)
         XCTAssertEqual(bank.metrics.happeningMetrics.allocatedPlayerCount, 4)
+        await bank.stop()
     }
 
-    func testSuccessfulSampleOnlyUpgradeHardReleasesManualAuditionsWithoutRebuildingSampleGraph() throws {
+    func testSuccessfulSampleOnlyUpgradeHardReleasesManualAuditionsWithoutRebuildingSampleGraph() async throws {
+        try requireLiveAudioOutput()
         let bank = DayObjectsInstrumentBank(bundle: Bundle(for: type(of: self)))
         let allRecipeIDs = Set(HappeningSoundCatalog.recipes.map(\.id))
         let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 1))
@@ -590,9 +598,10 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertNoThrow(try pool.play(sound, gain: 1, priority: .recurrence, effects: testHappeningEffects))
         XCTAssertEqual(pool.metrics.activeVoiceCount, 2)
         bank.releaseAllIncludingSharedHappenings()
+        await bank.stop()
     }
 
-    func testStartedSampleOnlyUpgradeFailuresKeepRunningGraphAndRetryTransactionally() throws {
+    func testStartedSampleOnlyUpgradeFailuresKeepRunningGraphAndRetryTransactionally() async throws {
         for stage in DayObjectsInstrumentBankPreparationStage.allCases {
             let harness = makeHarness()
             let allRecipeIDs = Set(HappeningSoundCatalog.recipes.map(\.id))
@@ -649,10 +658,12 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
             XCTAssertEqual(pool.metrics.releasingVoiceCount, 0)
             XCTAssertNoThrow(try pool.play(sound, gain: 1, priority: .birth, effects: testHappeningEffects))
             XCTAssertNoThrow(try pool.play(sound, gain: 1, priority: .recurrence, effects: testHappeningEffects))
+            await harness.bank.stop()
         }
     }
 
     func testPairStopIsNoOpWhileAnIndividualBankOwnsTheSharedEngine() async throws {
+        try requireLiveAudioOutput()
         let pair = DayObjectsInstrumentBank.makePlaybackPair(
             bundle: Bundle(for: type(of: self))
         )
@@ -678,6 +689,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
     }
 
     func testIndividualPlaybackBankOwnersStartOnFirstAndStopOnLastWithoutDetachingGraphs() async throws {
+        try requireLiveAudioOutput()
         let pair = DayObjectsInstrumentBank.makePlaybackPair(
             bundle: Bundle(for: type(of: self))
         )
@@ -709,6 +721,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
     }
 
     func testPairOwnershipRejectsIndividualStopsWithoutCorruptingBankStates() async throws {
+        try requireLiveAudioOutput()
         let pair = DayObjectsInstrumentBank.makePlaybackPair(
             bundle: Bundle(for: type(of: self))
         )
@@ -732,6 +745,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
     }
 
     func testNonPromotableBankBOwnershipRejectsPairStartAndRecoversAfterLastOwnerStops() async throws {
+        try requireLiveAudioOutput()
         let pair = DayObjectsInstrumentBank.makePlaybackPair(
             bundle: Bundle(for: type(of: self))
         )
@@ -757,6 +771,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
     }
 
     func testPairStartPromotesSoleBankAOwnerWithoutRestartingSharedEngineOrChangingTopology() async throws {
+        try requireLiveAudioOutput()
         let pair = DayObjectsInstrumentBank.makePlaybackPair(
             bundle: Bundle(for: type(of: self))
         )
@@ -783,6 +798,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
     }
 
     func testPreparingAnAlreadyStartedPairPreservesStartedOwnershipInvariant() throws {
+        try requireLiveAudioOutput()
         let pair = DayObjectsInstrumentBank.makePlaybackPair(
             bundle: Bundle(for: type(of: self))
         )
@@ -803,6 +819,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
     }
 
     func testPlaybackPairLifecycleStartsAndStopsSharedEngineOnceWithoutChangingTopology() throws {
+        try requireLiveAudioOutput()
         let pair = DayObjectsInstrumentBank.makePlaybackPair(
             bundle: Bundle(for: type(of: self))
         )
@@ -857,6 +874,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
     }
 
     func testRealStandaloneRepeatedStopDoesNotClearPreparedAuditionUntilNextStartedEpochStops() async throws {
+        try requireLiveAudioOutput()
         let bank = DayObjectsInstrumentBank(bundle: Bundle(for: type(of: self)))
         try bank.prepare(configuration: .playbackWorld)
         try bank.start()
@@ -878,6 +896,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
     }
 
     func testPlaybackPairStartFailuresRollbackWithoutLosingPreparedGraphsAndRetryWithoutAllocation() throws {
+        try requireLiveAudioOutput()
         for failure in [
             DayObjectsPlaybackBankPairStartFailure.secondBankSynchronization,
             .sharedEngineStart,
@@ -1046,6 +1065,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
     }
 
     func testMeterTapNodesStayInstalledAcrossStopAndRestart() throws {
+        try requireLiveAudioOutput()
         let pair = DayObjectsInstrumentBank.makePlaybackPair(bundle: Bundle(for: type(of: self)))
         try pair.prepare(configuration: smallPlaybackPairConfiguration())
         let prepared = pair.bankA.metrics.engineTopology
@@ -1062,6 +1082,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
     }
 
     func testMeterWindowsAndPublicationCacheResetAcrossStartStopRestart() throws {
+        try requireLiveAudioOutput()
         let pair = DayObjectsInstrumentBank.makePlaybackPair(bundle: Bundle(for: type(of: self)))
         try pair.prepare(configuration: smallPlaybackPairConfiguration())
         pair.consumeMeterSamplesForTesting(role: .rhythm, amplitude: 0.5)
@@ -1246,6 +1267,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
     }
 
     func testBassDuckResetCancelsActiveEnvelopeToUnityBeforeWorldReuse() throws {
+        try requireLiveAudioOutput()
         var currentHostTime: TimeInterval = 100
         let pair = DayObjectsInstrumentBank.makePlaybackPair(
             bundle: Bundle(for: type(of: self)),
@@ -1435,7 +1457,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         }
     }
 
-    func testStartFailureStopsEngineReleasesVoicesAndLeavesTheBankRetryable() throws {
+    func testStartFailureStopsEngineReleasesVoicesAndLeavesTheBankRetryable() async throws {
         let harness = makeHarness()
         harness.engine.startError = InjectedFailure()
         try harness.bank.prepare(configuration: configuration())
@@ -1453,6 +1475,67 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         try harness.bank.prepare(configuration: configuration())
         try harness.bank.start()
         XCTAssertEqual(harness.bank.metrics.state, .started)
+        await harness.bank.stop()
+    }
+
+    func testProcessLeasePrunesDeallocatedLiveAndOfflineOwnersWithoutExplicitStop() throws {
+        final class Owner {}
+        let lease = DayObjectsAudioPlaybackLease.shared
+
+        weak var releasedLiveOwner: Owner?
+        do {
+            let owner = Owner()
+            releasedLiveOwner = owner
+            try lease.acquireLive(owner: owner)
+        }
+        XCTAssertNil(releasedLiveOwner)
+
+        let offlineAfterAbandonedLive = Owner()
+        XCTAssertNoThrow(try lease.acquireOffline(owner: offlineAfterAbandonedLive))
+        lease.releaseOffline(owner: offlineAfterAbandonedLive)
+
+        weak var releasedOfflineOwner: Owner?
+        do {
+            let owner = Owner()
+            releasedOfflineOwner = owner
+            try lease.acquireOffline(owner: owner)
+        }
+        XCTAssertNil(releasedOfflineOwner)
+
+        let liveAfterAbandonedOffline = Owner()
+        XCTAssertNoThrow(try lease.acquireLive(owner: liveAfterAbandonedOffline))
+        lease.releaseLive(owner: liveAfterAbandonedOffline)
+    }
+
+    func testProcessLeasePrunesOwnersAbandonedByThrowAndCancellation() async throws {
+        final class Owner {}
+        enum Abort: Error { case injected }
+        let lease = DayObjectsAudioPlaybackLease.shared
+
+        do {
+            let owner = Owner()
+            try lease.acquireLive(owner: owner)
+            throw Abort.injected
+        } catch is Abort {}
+
+        let offlineAfterThrow = Owner()
+        XCTAssertNoThrow(try lease.acquireOffline(owner: offlineAfterThrow))
+        lease.releaseOffline(owner: offlineAfterThrow)
+
+        let cancelled = Task { @MainActor in
+            let owner = Owner()
+            try lease.acquireOffline(owner: owner)
+            try Task.checkCancellation()
+        }
+        cancelled.cancel()
+        do {
+            try await cancelled.value
+            XCTFail("The lease-owning task should observe cancellation")
+        } catch is CancellationError {}
+
+        let liveAfterCancellation = Owner()
+        XCTAssertNoThrow(try lease.acquireLive(owner: liveAfterCancellation))
+        lease.releaseLive(owner: liveAfterCancellation)
     }
 
     func testProcessLeaseBlocksOfflineRenderingAcrossDistinctLiveBankInstancesThenReleases() async throws {
@@ -1618,6 +1701,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(harness.engine.events, ["synchronize", "start"])
         XCTAssertNotNil(harness.engine.attachedGraph)
         XCTAssertEqual(ObjectIdentifier(try XCTUnwrap(harness.engine.attachedGraph)), graphIdentity)
+        await harness.bank.stop()
     }
 
     func testPublicReleaseAllReachesEveryPreparedSubBank() throws {
@@ -1681,6 +1765,48 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
             channels: 2,
             interleaved: false
         )!
+    }
+
+    private func requireLiveAudioOutput(
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+#if targetEnvironment(simulator)
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.playback, mode: .default)
+            try session.setActive(true)
+        } catch {
+            throw XCTSkip(
+                "Simulator has no valid Core Audio output device: \(error)",
+                file: file,
+                line: line
+            )
+        }
+        let hasSessionRoute = session.sampleRate > 0 && !session.currentRoute.outputs.isEmpty
+        let probe = AudioEngine()
+        probe.output = Mixer()
+        do {
+            try probe.start()
+            probe.stop()
+        } catch {
+            probe.stop()
+            try? session.setActive(false, options: .notifyOthersOnDeactivation)
+            throw XCTSkip(
+                "Simulator has no valid Core Audio output device: \(error)",
+                file: file,
+                line: line
+            )
+        }
+        try? session.setActive(false, options: .notifyOthersOnDeactivation)
+        guard hasSessionRoute else {
+            throw XCTSkip(
+                "Simulator has no valid Core Audio output route",
+                file: file,
+                line: line
+            )
+        }
+#endif
     }
 
     private func expectedReleaseCount(for stage: DayObjectsInstrumentBankPreparationStage) -> Int {

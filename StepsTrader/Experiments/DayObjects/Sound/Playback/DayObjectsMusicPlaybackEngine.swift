@@ -302,8 +302,17 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
             await finishAuditionWaiter(waiterID, generation: generation)
         } catch {
             let wasInvalidated = generation != lifecycleGeneration
+            let sampleStartFailed = runtimeState == .preparingSamples
+                || samplePreparationTask != nil
+            let audioError = (error as? DayObjectsAudioError)
+                ?? DayObjectsAudioError(String(describing: error))
             await finishAuditionWaiter(waiterID, generation: generation)
             if wasInvalidated { throw CancellationError() }
+            try Task.checkCancellation()
+            if sampleStartFailed {
+                state = .error(audioError)
+                throw audioError
+            }
             throw error
         }
     }
@@ -627,11 +636,11 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         var isReleasing = false
         private(set) var diagnosticAuditionMode: DayObjectsAuditionMode = .fullComposition
 
-        var rhythm: RhythmPlayer { rhythmPlayer! }
-        var bass: BassPlayer { bassPlayer! }
-        var harmony: HarmonyPlayer { harmonyPlayer! }
-        var happenings: HappeningScheduler { happeningScheduler! }
-        var lead: LeadPlayer { leadPlayer! }
+        var rhythm: RhythmPlayer? { rhythmPlayer }
+        var bass: BassPlayer? { bassPlayer }
+        var harmony: HarmonyPlayer? { harmonyPlayer }
+        var happenings: HappeningScheduler? { happeningScheduler }
+        var lead: LeadPlayer? { leadPlayer }
         var hasPreparedRhythmBackend: Bool {
             guard let boundDrumBankIdentity else { return false }
             return boundDrumBankIdentity == ObjectIdentifier(bank.drums)
@@ -667,18 +676,24 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         }
 
         var activeVoiceCount: Int {
-            guard hasBoundPlayers else { return 0 }
-            return harmony.metrics.activeVoiceCount
-                + bass.metrics.activeVoiceCount
-                + happenings.metrics.activeVoiceCount
-                + lead.metrics.voiceCount
-                + rhythm.metrics.activeLogicalHitCount
+            let harmonyCount = harmonyPlayer?.metrics.activeVoiceCount ?? 0
+            let bassCount = bassPlayer?.metrics.activeVoiceCount ?? 0
+            let happeningCount = happeningScheduler?.metrics.activeVoiceCount ?? 0
+            let leadCount = leadPlayer?.metrics.voiceCount ?? 0
+            let rhythmCount = rhythmPlayer?.metrics.activeLogicalHitCount ?? 0
+            return harmonyCount + bassCount + happeningCount + leadCount + rhythmCount
         }
 
         func configure(
             _ plan: DayMusicPlan,
             diagnosticAuditionMode: DayObjectsAuditionMode = .fullComposition
         ) throws {
+            guard let bass = bassPlayer,
+                  let harmony = harmonyPlayer,
+                  let happenings = happeningScheduler,
+                  let lead = leadPlayer else {
+                throw DayObjectsInstrumentBankError.notPrepared
+            }
             self.diagnosticAuditionMode = diagnosticAuditionMode
             bassDucker.reset()
             bank.resetBassDuckGain()
@@ -707,6 +722,10 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         }
 
         func startScheduling(at position: MusicalPosition? = nil) throws {
+            guard let happenings = happeningScheduler,
+                  let bass = bassPlayer else {
+                throw DayObjectsInstrumentBankError.notPrepared
+            }
             if let position {
                 try happenings.start(at: position)
             } else {
@@ -717,7 +736,13 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         }
 
         func render(_ event: DayObjectsTransportEvent) {
-            guard let plan, isScheduling else { return }
+            guard let plan,
+                  isScheduling,
+                  let rhythm = rhythmPlayer,
+                  let bass = bassPlayer,
+                  let harmony = harmonyPlayer,
+                  let happenings = happeningScheduler,
+                  let lead = leadPlayer else { return }
             let chordIndex = Self.chordIndex(at: event.position.bar, in: plan.world)
             currentChordIndex = chordIndex
             let chord = plan.world.progression[chordIndex]
@@ -757,11 +782,15 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         }
 
         func renderRelease(_ event: DayObjectsTransportEvent) {
-            harmony.render(subdivision: event)
+            harmonyPlayer?.render(subdivision: event)
         }
 
         func applyContinuous(_ plan: DayMusicPlan) {
-            guard let structuralPlan = self.plan else { return }
+            guard let structuralPlan = self.plan,
+                  let bass = bassPlayer,
+                  let harmony = harmonyPlayer,
+                  let lead = leadPlayer,
+                  let happenings = happeningScheduler else { return }
             let audiblePlan = Self.mergingContinuous(from: plan, into: structuralPlan)
             bass.applyContinuous(audiblePlan.bass)
             harmony.applyContinuous(audiblePlan.harmony)
@@ -780,7 +809,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
 
         func resetDiagnosticAudition() {
             diagnosticAuditionMode = .fullComposition
-            bass.releaseDiagnosticAudition(restoring: plan?.bass)
+            bassPlayer?.releaseDiagnosticAudition(restoring: plan?.bass)
         }
 
         func auditionKickBassSidechain(
@@ -789,7 +818,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
             automaticallyReleaseAfterWallClock: Bool = true,
             forceFreshDuckingCommand: Bool = false
         ) -> DayObjectsSidechainAuditionResult? {
-            guard let plan, hostTime.isFinite else { return nil }
+            guard let plan, let bass = bassPlayer, hostTime.isFinite else { return nil }
             if forceFreshDuckingCommand { bassDucker.reset() }
             let descriptor = diagnosticBassDescriptor(preferredBassID)
             let ducking = plan.bass?.ducking ?? .init(
@@ -902,7 +931,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
             )
             mix.apply(
                 mixPlan,
-                activeChordVoiceCount: max(1, harmony.metrics.activeVoiceCount),
+                activeChordVoiceCount: max(1, harmonyPlayer?.metrics.activeVoiceCount ?? 0),
                 harmonyDuckingDecibels: ducking,
                 spatial: .init(
                     rhythm: .init(sendLevel: 0.08, decay: 0.42),
@@ -1194,13 +1223,13 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
     }
     var activeHarmonyDuckingForTesting: Double { activeWorld.effects.mix?.harmonyDuckingDecibels ?? 0 }
     var activeHappeningNextPositionsForTesting: [String: MusicalPosition] {
-        activeWorld.happenings.metrics.nextOccurrenceByHappeningID
+        activeWorld.happenings?.metrics.nextOccurrenceByHappeningID ?? [:]
     }
     var activeHappeningScheduledPositionsForTesting: [String: [MusicalPosition]] {
-        activeWorld.happenings.metrics.scheduledOccurrencesByHappeningID
+        activeWorld.happenings?.metrics.scheduledOccurrencesByHappeningID ?? [:]
     }
     var activeHappeningAttackHistoryForTesting: [HappeningAttackRecord] {
-        activeWorld.happenings.metrics.attackHistory
+        activeWorld.happenings?.metrics.attackHistory ?? []
     }
     var activePlanForTesting: DayMusicPlan? { activeWorld.plan }
     var activeProgramEffectMetricsForTesting: DayObjectsProgramEffectMetrics {
@@ -1210,26 +1239,30 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         activeWorld.diagnosticAuditionMode
     }
     var totalLeadAttackCountForTesting: Int {
-        worldA.lead.metrics.amplitudeAttackCount + worldB.lead.metrics.amplitudeAttackCount
+        (worldA.lead?.metrics.amplitudeAttackCount ?? 0)
+            + (worldB.lead?.metrics.amplitudeAttackCount ?? 0)
     }
     var totalLeadReleaseCountForTesting: Int {
-        worldA.lead.metrics.releaseCount + worldB.lead.metrics.releaseCount
+        (worldA.lead?.metrics.releaseCount ?? 0)
+            + (worldB.lead?.metrics.releaseCount ?? 0)
     }
     var totalBassAttackCountForTesting: Int {
-        worldA.bass.metrics.attackCount + worldB.bass.metrics.attackCount
+        (worldA.bass?.metrics.attackCount ?? 0)
+            + (worldB.bass?.metrics.attackCount ?? 0)
     }
     var totalBassReleaseCountForTesting: Int {
-        worldA.bass.metrics.releaseCount + worldB.bass.metrics.releaseCount
+        (worldA.bass?.metrics.releaseCount ?? 0)
+            + (worldB.bass?.metrics.releaseCount ?? 0)
     }
-    var activeBassVoiceCountForTesting: Int { activeWorld.bass.metrics.activeVoiceCount }
+    var activeBassVoiceCountForTesting: Int { activeWorld.bass?.metrics.activeVoiceCount ?? 0 }
     var activeBassSchedulingOriginForTesting: Int64? {
-        activeWorld.bass.metrics.schedulingOriginSubdivision
+        activeWorld.bass?.metrics.schedulingOriginSubdivision
     }
     var inactiveBassVoiceCountForTesting: Int {
-        world(for: coordinator.metrics.inactiveBank).bass.metrics.activeVoiceCount
+        world(for: coordinator.metrics.inactiveBank).bass?.metrics.activeVoiceCount ?? 0
     }
     var inactiveLeadVoiceCountForTesting: Int {
-        world(for: coordinator.metrics.inactiveBank).lead.metrics.voiceCount
+        world(for: coordinator.metrics.inactiveBank).lead?.metrics.voiceCount ?? 0
     }
     var inactiveWorldRecycleCountForTesting: Int {
         world(for: coordinator.metrics.inactiveBank).bank.metrics.recycleCount
@@ -1264,8 +1297,8 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
     var happeningRecordIDsForTesting: Set<String> {
         guard isPrepared else { return [] }
         return Set(
-            worldA.happenings.metrics.activeHappeningIDs
-                + worldB.happenings.metrics.activeHappeningIDs
+            (worldA.happenings?.metrics.activeHappeningIDs ?? [])
+                + (worldB.happenings?.metrics.activeHappeningIDs ?? [])
         )
     }
 
@@ -1279,7 +1312,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
     var playbackMetrics: DayObjectsPlaybackMetrics {
         let coordinatorMetrics = coordinator.metrics
         let activeHappeningCount = isPrepared
-            ? activeWorld.happenings.metrics.activeHappeningIDs.count
+            ? activeWorld.happenings?.metrics.activeHappeningIDs.count ?? 0
             : 0
         return .init(
             activeTransportCount: transportIsRunning ? 1 : 0,
@@ -1289,7 +1322,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
             activeHappeningCount: activeHappeningCount,
             pendingRemixCount: coordinatorMetrics.pendingRemixCount,
             leadVoiceCount: isPrepared
-                ? worldA.lead.metrics.voiceCount + worldB.lead.metrics.voiceCount
+                ? (worldA.lead?.metrics.voiceCount ?? 0) + (worldB.lead?.metrics.voiceCount ?? 0)
                 : 0
         )
     }
@@ -1330,10 +1363,11 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         let piano = banks.reduce(0) { $0 + $1.allocatedPianoVoiceCount }
         let drums = banks.reduce(0) { $0 + $1.allocatedDrumPlayerCount }
         let leadCount = isPrepared
-            ? worldA.lead.metrics.voiceCount + worldB.lead.metrics.voiceCount
+            ? (worldA.lead?.metrics.voiceCount ?? 0) + (worldB.lead?.metrics.voiceCount ?? 0)
             : 0
         let happeningCount = isPrepared
-            ? worldA.happenings.metrics.activeVoiceCount + worldB.happenings.metrics.activeVoiceCount
+            ? (worldA.happenings?.metrics.activeVoiceCount ?? 0)
+                + (worldB.happenings?.metrics.activeVoiceCount ?? 0)
             : 0
         return .init(
             nodeCount: pair.metrics.fixedSharedNodeCount + tonal + piano + drums,
@@ -1532,22 +1566,22 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
 
     func addHappening(_ plan: HappeningMusicPlan, playBirth: Bool) {
         guard let chord = activeWorld.plan?.world.progression[safe: activeWorld.currentChordIndex] else { return }
-        try? activeWorld.happenings.add(plan, currentChord: chord, playBirth: playBirth)
+        try? activeWorld.happenings?.add(plan, currentChord: chord, playBirth: playBirth)
     }
 
     func removeHappening(id: String) {
-        activeWorld.happenings.remove(id: id)
+        activeWorld.happenings?.remove(id: id)
     }
 
     func beginLead(_ gesture: LeadGestureSample) {
-        activeWorld.lead.begin(gesture)
-        if activeWorld.lead.metrics.voiceCount == 1 {
+        activeWorld.lead?.begin(gesture)
+        if activeWorld.lead?.metrics.voiceCount == 1 {
             gestureOwner = coordinator.metrics.activeBank
         }
     }
 
     func updateLead(_ gesture: LeadGestureSample) {
-        world(for: gestureOwner ?? coordinator.metrics.activeBank).lead.update(gesture)
+        world(for: gestureOwner ?? coordinator.metrics.activeBank).lead?.update(gesture)
     }
 
     func prepare(bank: PlaybackWorldBank) throws {
@@ -1622,7 +1656,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         newPlan: DayMusicPlan
     ) -> DayObjectsRemixLeadCompatibility {
         let source = world(for: oldBank)
-        guard let held = source.lead.heldState else { return .notHeld }
+        guard let held = source.lead?.heldState else { return .notHeld }
         let oldNotes = oldPlan.lead.compatibleChordMIDINotes[safe: source.currentChordIndex] ?? []
         let destination = world(for: newBank)
         let newNotes = newPlan.lead.compatibleChordMIDINotes[safe: destination.currentChordIndex] ?? []
@@ -1639,8 +1673,13 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         midiNote: UInt8,
         newPlan: DayMusicPlan
     ) {
-        let result = world(for: oldBank).lead.handoff(
-            to: world(for: newBank).lead,
+        guard let sourceLead = world(for: oldBank).lead,
+              let destinationLead = world(for: newBank).lead else {
+            gestureOwner = nil
+            return
+        }
+        let result = sourceLead.handoff(
+            to: destinationLead,
             safeCommonMIDINote: midiNote
         )
         gestureOwner = result.gestureOwner == .destination
@@ -1653,8 +1692,13 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         to newBank: PlaybackWorldBank,
         newPlan: DayMusicPlan
     ) {
-        let result = world(for: oldBank).lead.handoff(
-            to: world(for: newBank).lead,
+        guard let sourceLead = world(for: oldBank).lead,
+              let destinationLead = world(for: newBank).lead else {
+            gestureOwner = nil
+            return
+        }
+        let result = sourceLead.handoff(
+            to: destinationLead,
             safeCommonMIDINote: nil
         )
         gestureOwner = result.gestureOwner == .destination ? slot(for: newBank) : nil
@@ -1664,10 +1708,10 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         let state = world(for: bank)
         guard !state.isScheduling else { return false }
         if state.isReleasing { state.finishReleaseBeforeRecycle() }
-        return state.harmony.metrics.activeVoiceCount == 0
-            && state.bass.metrics.activeVoiceCount == 0
-            && state.happenings.metrics.activeVoiceCount == 0
-            && state.lead.metrics.voiceCount == 0
+        return (state.harmony?.metrics.activeVoiceCount ?? 0) == 0
+            && (state.bass?.metrics.activeVoiceCount ?? 0) == 0
+            && (state.happenings?.metrics.activeVoiceCount ?? 0) == 0
+            && (state.lead?.metrics.voiceCount ?? 0) == 0
     }
 
     func recycle(_ bank: PlaybackWorldBank) {
@@ -1788,13 +1832,13 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
         world.diagnosticAuditionMode
     }
     var activeHappeningAttackHistoryForTesting: [HappeningAttackRecord] {
-        world.happenings.metrics.attackHistory
+        world.happenings?.metrics.attackHistory ?? []
     }
-    var totalBassAttackCountForTesting: Int { world.bass.metrics.attackCount }
-    var totalBassReleaseCountForTesting: Int { world.bass.metrics.releaseCount }
-    var activeBassVoiceCountForTesting: Int { world.bass.metrics.activeVoiceCount }
+    var totalBassAttackCountForTesting: Int { world.bass?.metrics.attackCount ?? 0 }
+    var totalBassReleaseCountForTesting: Int { world.bass?.metrics.releaseCount ?? 0 }
+    var activeBassVoiceCountForTesting: Int { world.bass?.metrics.activeVoiceCount ?? 0 }
     var activeBassSchedulingOriginForTesting: Int64? {
-        world.bass.metrics.schedulingOriginSubdivision
+        world.bass?.metrics.schedulingOriginSubdivision
     }
 
     func startPreparedWorldForTesting() throws { try world.startScheduling() }
@@ -1814,10 +1858,10 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
                 + bankMetrics.allocatedDrumPlayerCount,
             activeVoiceCount: world.activeVoiceCount,
             activeHappeningCount: isPrepared
-                ? world.happenings.metrics.activeHappeningIDs.count
+                ? world.happenings?.metrics.activeHappeningIDs.count ?? 0
                 : 0,
             pendingRemixCount: pendingStructuralPlan == nil ? 0 : 1,
-            leadVoiceCount: isPrepared ? world.lead.metrics.voiceCount : 0
+            leadVoiceCount: isPrepared ? world.lead?.metrics.voiceCount ?? 0 : 0
         )
     }
 
@@ -1994,12 +2038,12 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
     func addHappening(_ plan: HappeningMusicPlan, playBirth: Bool) {
         guard let tonalPlan = world.plan,
               let chord = tonalPlan.world.progression[safe: world.currentChordIndex] else { return }
-        try? world.happenings.add(plan, currentChord: chord, playBirth: playBirth)
+        try? world.happenings?.add(plan, currentChord: chord, playBirth: playBirth)
     }
 
-    func removeHappening(id: String) { world.happenings.remove(id: id) }
-    func beginLead(_ gesture: LeadGestureSample) { world.lead.begin(gesture) }
-    func updateLead(_ gesture: LeadGestureSample) { world.lead.update(gesture) }
+    func removeHappening(id: String) { world.happenings?.remove(id: id) }
+    func beginLead(_ gesture: LeadGestureSample) { world.lead?.begin(gesture) }
+    func updateLead(_ gesture: LeadGestureSample) { world.lead?.update(gesture) }
 
     private func renderTransportEvent(_ event: DayObjectsTransportEvent) {
         if event.kind == .subdivision,
