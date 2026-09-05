@@ -5,7 +5,7 @@ enum BassPlanner {
     private static let approvedInstrumentIDs = [
         "bass.analog-boom",
         "bass.hey-jakob",
-        "bass.bb-roys-phaser",
+        "bass.bassliner",
         "bass.jec-hollores-2",
     ]
 
@@ -141,7 +141,7 @@ enum BassPlanner {
         case .bassPulse:
             return ["bass.analog-boom", "bass.hey-jakob"]
         case .bassArp:
-            return ["bass.bb-roys-phaser"]
+            return ["bass.bassliner"]
         case .bassBed:
             return ["bass.jec-hollores-2", "bass.hey-jakob"]
         }

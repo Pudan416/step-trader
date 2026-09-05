@@ -33,7 +33,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 0,
                 spentColors: 0,
                 seed: 0x1,
-                expected: "seed=1|input=0/0/0/0|world=4:mixolydian:12:[4]:[12]|tempo=7200/7200|rhythm=|groove=bass-arp|bass=bass.bb-roys-phaser:0|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=|lead=lead.bb-silver-screen:[59]:[81]"
+                expected: "seed=1|input=0/0/0/0|world=4:mixolydian:12:[4]:[12]|tempo=7200/7200|rhythm=|groove=bass-arp|bass=bass.bassliner:0|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=|lead=lead.bb-silver-screen:[59]:[81]"
             ),
             BoundaryFixture(
                 name: "early-day",
@@ -42,7 +42,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 1,
                 spentColors: 10,
                 seed: 0x2,
-                expected: "seed=2|input=15/35/1/100|world=0:major-pentatonic:16:[0]:[16]|tempo=7100/7400|rhythm=low-pulse,half-time-kick|groove=bass-arp|bass=bass.bb-roys-phaser:0|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=event-0:pluck:recipe-3|lead=lead.jec-softwah-2:[60]:[81]"
+                expected: "seed=2|input=15/35/1/100|world=0:major-pentatonic:16:[0]:[16]|tempo=7100/7400|rhythm=low-pulse,half-time-kick|groove=bass-arp|bass=bass.bassliner:0|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=event-0:pluck:recipe-3|lead=lead.jec-softwah-2:[60]:[81]"
             ),
             BoundaryFixture(
                 name: "mid-day",
@@ -51,7 +51,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 5,
                 spentColors: 25,
                 seed: 0xD4A0_B1EC_75ED_0001,
-                expected: "seed=d4a0b1ec75ed0001|input=35/70/5/625|world=0:dorian:12:[0, 5]:[6, 6]|tempo=7600/8300|rhythm=low-pulse,half-time-kick,closed-hat|groove=bass-arp|bass=bass.bb-roys-phaser:2|harmony=drone=pad.whispering-sands,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.bb-slow-poly,piano-or-keys-accents=felt-piano,inner-motion=keys.bb-slow-poly|happenings=event-0:mallet:recipe-8,event-1:pluck:recipe-3,event-2:bell:recipe-13,event-3:texture:recipe-28,event-4:soft-one-shot:recipe-19|lead=lead.bb-silver-screen:[60, 57]:[81, 81]"
+                expected: "seed=d4a0b1ec75ed0001|input=35/70/5/625|world=0:dorian:12:[0, 5]:[6, 6]|tempo=7600/8300|rhythm=low-pulse,half-time-kick,closed-hat|groove=bass-arp|bass=bass.bassliner:2|harmony=drone=pad.whispering-sands,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.bb-slow-poly,piano-or-keys-accents=felt-piano,inner-motion=keys.bb-slow-poly|happenings=event-0:mallet:recipe-8,event-1:pluck:recipe-3,event-2:bell:recipe-13,event-3:texture:recipe-28,event-4:soft-one-shot:recipe-19|lead=lead.bb-silver-screen:[60, 57]:[81, 81]"
             ),
             BoundaryFixture(
                 name: "full-happenings",
@@ -69,7 +69,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 0,
                 spentColors: 100,
                 seed: 0x1,
-                expected: "seed=1|input=85/100/0/10000|world=4:mixolydian:8:[4, 11, 2]:[3, 3, 2]|tempo=7200/8900|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion,syncopated-ghost,fills|groove=bass-arp|bass=bass.bb-roys-phaser:21|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=|lead=lead.bb-silver-screen:[59, 59, 57]:[81, 81, 81]"
+                expected: "seed=1|input=85/100/0/10000|world=4:mixolydian:8:[4, 11, 2]:[3, 3, 2]|tempo=7200/8900|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion,syncopated-ghost,fills|groove=bass-arp|bass=bass.bassliner:21|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=|lead=lead.bb-silver-screen:[59, 59, 57]:[81, 81, 81]"
             ),
             BoundaryFixture(
                 name: "steps-goal",
@@ -78,7 +78,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 1,
                 spentColors: 0,
                 seed: 0x2,
-                expected: "seed=2|input=100/0/1/0|world=0:major-pentatonic:16:[0]:[16]|tempo=7100/9100|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion,syncopated-ghost,fills|groove=bass-arp|bass=bass.bb-roys-phaser:51|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=event-0:pluck:recipe-3|lead=lead.jec-softwah-2:[60]:[81]"
+                expected: "seed=2|input=100/0/1/0|world=0:major-pentatonic:16:[0]:[16]|tempo=7100/9100|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion,syncopated-ghost,fills|groove=bass-arp|bass=bass.bassliner:51|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=event-0:pluck:recipe-3|lead=lead.jec-softwah-2:[60]:[81]"
             ),
         ]
 

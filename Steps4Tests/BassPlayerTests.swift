@@ -7,7 +7,7 @@ final class BassPlayerTests: XCTestCase {
     func testDiagnosticSidechainSchedulesOneProductionBassGateKickAndDuckAtTheSameHostTime() throws {
         let harness = try makeHarness()
         let compositionBass = bassPlan(
-            instrumentID: .init(rawValue: "bass.bb-roys-phaser"),
+            instrumentID: .init(rawValue: "bass.bassliner"),
             events: [bassEvent(id: 1, start: 0, duration: 4)]
         )
         let plan = musicPlan(seed: 8_401, bass: compositionBass)
@@ -48,7 +48,7 @@ final class BassPlayerTests: XCTestCase {
 
     func testDiagnosticExpiryReleasesTokenRestoresCompositionPresetAndAllowsExactlyOneNextAttack() async throws {
         let harness = try makeHarness()
-        let compositionID = DayObjectsInstrumentID(rawValue: "bass.bb-roys-phaser")
+        let compositionID = DayObjectsInstrumentID(rawValue: "bass.bassliner")
         let diagnosticID = DayObjectsInstrumentID(rawValue: "bass.hey-jakob")
         let plan = bassPlan(
             instrumentID: compositionID,

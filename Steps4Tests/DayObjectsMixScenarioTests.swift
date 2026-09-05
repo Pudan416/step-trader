@@ -147,7 +147,7 @@ final class DayObjectsMixScenarioTests: XCTestCase {
         XCTAssertEqual(variantsByCategory["glitch"], ["0", "25", "50", "100"])
         XCTAssertEqual(variantsByCategory["groove"], ["percussion", "bass-pulse", "bass-arp", "bass-bed"])
         XCTAssertEqual(variantsByCategory["bass"], [
-            "bass.analog-boom", "bass.hey-jakob", "bass.bb-roys-phaser", "bass.jec-hollores-2",
+            "bass.analog-boom", "bass.hey-jakob", "bass.bassliner", "bass.jec-hollores-2",
         ])
         XCTAssertEqual(variantsByCategory["lead"], ["slow", "fast"])
         XCTAssertEqual(variantsByCategory["worst-case"], ["four-tails-kick-bass-chord-held-lead"])
@@ -609,7 +609,7 @@ final class DayObjectsMixScenarioTests: XCTestCase {
             ))
         }
         for instrumentID in [
-            "bass.analog-boom", "bass.hey-jakob", "bass.bb-roys-phaser", "bass.jec-hollores-2",
+            "bass.analog-boom", "bass.hey-jakob", "bass.bassliner", "bass.jec-hollores-2",
         ] {
             scenarios.append(.init(
                 id: "bass-\(instrumentID.replacingOccurrences(of: "bass.", with: ""))",

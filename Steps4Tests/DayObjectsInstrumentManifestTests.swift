@@ -4,6 +4,8 @@ import XCTest
 final class DayObjectsInstrumentManifestTests: XCTestCase {
     private let heyJakobID = "bass.hey-jakob"
     private let heyJakobUID = "E2D8B458-C727-4388-A0EA-28802B605796"
+    private let basslinerID = "bass.bassliner"
+    private let basslinerUID = "A11082F1-308C-48EE-8C0A-F0F9DC361212"
 
     private let expectedIDs = [
         "pad.interstellar",
@@ -14,7 +16,7 @@ final class DayObjectsInstrumentManifestTests: XCTestCase {
         "pluck.spider-filter-pluck",
         "bass.analog-boom",
         "bass.hey-jakob",
-        "bass.bb-roys-phaser",
+        "bass.bassliner",
         "bass.jec-hollores-2",
         "lead.verbacious",
         "lead.jec-softwah-2",
@@ -33,7 +35,7 @@ final class DayObjectsInstrumentManifestTests: XCTestCase {
         "pluck.spider-filter-pluck": "8FC6202C-DAE8-4651-98DE-F3BEBB07E6BF",
         "bass.analog-boom": "C2958050-CDCA-4C64-AF92-3217539CE60A",
         "bass.hey-jakob": "E2D8B458-C727-4388-A0EA-28802B605796",
-        "bass.bb-roys-phaser": "4131C811-FBB8-4E15-B238-8986645A62D3",
+        "bass.bassliner": "A11082F1-308C-48EE-8C0A-F0F9DC361212",
         "bass.jec-hollores-2": "FA16AF16-3033-485F-A183-4DAAB7025B52",
         "lead.verbacious": "9BDE3DCB-219D-4D70-A067-C1057B557F19",
         "lead.jec-softwah-2": "2B6BCC6D-8526-4CAD-8230-EF3C84A26E9F",
@@ -59,7 +61,7 @@ final class DayObjectsInstrumentManifestTests: XCTestCase {
         let bass = DayObjectsInstrumentManifest.descriptors(in: .bass)
         XCTAssertEqual(bass.map(\.id.rawValue), [
             "bass.analog-boom", "bass.hey-jakob",
-            "bass.bb-roys-phaser", "bass.jec-hollores-2",
+            "bass.bassliner", "bass.jec-hollores-2",
         ])
         let descriptor = try XCTUnwrap(bass.first { $0.id.rawValue == heyJakobID })
         XCTAssertEqual(descriptor.sourceUID, heyJakobUID)
@@ -70,10 +72,15 @@ final class DayObjectsInstrumentManifestTests: XCTestCase {
             [
                 "bass.analog-boom": -15.65,
                 "bass.hey-jakob": -9.18,
-                "bass.bb-roys-phaser": -3.00,
+                "bass.bassliner": -15.00,
                 "bass.jec-hollores-2": -23.45,
             ]
         )
+
+        let bassliner = try XCTUnwrap(bass.first { $0.id.rawValue == basslinerID })
+        XCTAssertEqual(bassliner.sourceUID, basslinerUID)
+        XCTAssertEqual(bassliner.displayName, "Bassliner")
+        XCTAssertEqual(bassliner.bankName, "Red Sky Lullaby")
     }
 
     func testEachSynthOneTonalCategoryHasExpectedUniqueDescriptorCount() {

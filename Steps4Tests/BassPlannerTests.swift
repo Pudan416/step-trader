@@ -175,7 +175,7 @@ final class BassPlannerTests: XCTestCase {
         XCTAssertTrue(["bass.analog-boom", "bass.hey-jakob"].contains(pulse.instrumentID.rawValue))
 
         let arpeggio = try XCTUnwrap(makeBass(mode: .bassArp, steps: 1, descriptors: descriptors))
-        XCTAssertEqual(arpeggio.instrumentID.rawValue, "bass.bb-roys-phaser")
+        XCTAssertEqual(arpeggio.instrumentID.rawValue, "bass.bassliner")
 
         let bed = try XCTUnwrap(makeBass(mode: .bassBed, steps: 1, descriptors: descriptors))
         XCTAssertTrue(["bass.jec-hollores-2", "bass.hey-jakob"].contains(bed.instrumentID.rawValue))

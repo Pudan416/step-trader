@@ -126,7 +126,7 @@ final class DayObjectsInstrumentAuditionControllerTests: XCTestCase {
             [
                 "bass.analog-boom",
                 "bass.hey-jakob",
-                "bass.bb-roys-phaser",
+                "bass.bassliner",
                 "bass.jec-hollores-2",
             ]
         )
