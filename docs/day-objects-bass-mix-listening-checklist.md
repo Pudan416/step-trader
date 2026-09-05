@@ -256,37 +256,35 @@ the calibration result. Each cell is `LUFS-I / dBTP / R/B/H/X/L dBFS / Est.`:
 
 ## Final regression record — 2026-09-05
 
-The required full `Steps4Tests` invocation completed once on an iPhone 17
-simulator running iOS 26.3.1. Xcode exited 65 after 1,006.017 seconds. Its final
-console summary reported 810 tests, 27 failures (1 unexpected); because Xcode
-restarted the test host after repeated crashes, the result bundle aggregates
-1,483 executions: 1,428 passed, 52 failed, and 3 skipped. The bundle's common
-failure groups include 17 `startFailed` results, 7 signal-trap crashes, and 6
-`offlineRenderingConflictsWithLivePlayback` results. Simulator logs repeatedly
-reported missing default input/output (`AURemoteIO -10851`) before live-runtime
-crashes at `DayObjectsMusicPlaybackEngine.swift:631`; one sample-pool test also
-crashed with `SIGSEGV`. The four pre-existing perceptual/render failures remain,
-and the run additionally exposed stale or incompatible expectations in render,
-instrument-capacity, preset-trim, runtime-state, and offline-mix tests. This gate
-is therefore **failed**, not accepted as a clean regression run. Result bundle:
-`Test-Steps4-2026.09.05_14-20-43-+0200.xcresult`.
+After the Fix Round 1 lifecycle, lease, expectation, and UI repairs, the
+required full `Steps4Tests` invocation completed on an iPhone 17 simulator
+running iOS 26.3.1. The durable result bundle records 1,486 tests: 1,448 passed,
+31 skipped, and exactly 7 failed tests. All seven are the proven pre-branch
+`DayObjectRenderFrameTests` baseline waiver: the two committed-signature tests,
+visible-actor fixture, lightest-palette grain, bounded post-grain, high-resolution
+scallop coverage, and static-radial Metal ABI test. Xcode's console counted 11
+failed assertions inside those 7 tests. There were no additional failed tests,
+no test-host crash, and no lease cascade. Live-output fixtures on this simulator
+now report precise skips for Core Audio `-10851`; explicit production manual-
+render fixtures remain enabled. Durable bundle:
+`.superpowers/sdd/2026-09-04-day-objects-bass-mixing-mastering/xcresults/fix-round-1-final-unit-2.xcresult`.
 
-The required `DayObjectsLabUITests` invocation also completed once. It executed
-8 tests with 3 failures in 350.571 seconds and exited 65:
-
-- `testHappeningPadsAuditionWithSoundOffAndOnWithoutChangingSceneCount` lost its
-  connection to the app after the sound-on action terminated the app.
-- `testHappeningPadsExposeThirtyStableAccessibleRecipesInFiveColumns` expected
-  `Happening sound 01, synth pluck` but received
-  `Happening 01, Warm analog ping`.
-- `testInstrumentCategoriesExposeAutomaticActionsAndApprovedTonalPresets`
-  timed out waiting for animations and could not tap the selected, off-screen
-  `Pad` button.
+The required `DayObjectsLabUITests` invocation passed: 8 tests, 7 passed,
+1 skipped, 0 failed. The skipped method first proved the sound-off Happening
+pad safe, then reported that the simulator had no valid Core Audio output when
+the Sound-on half was attempted. The original crash diagnosis is corrected:
+the first pad tap crashed **before** the Sound control was tapped, during
+sample-only preparation cleanup; it was not a Sound-on crash. Catalog-derived
+Happening labels, the scoped/hittable category menu, and Sound-dependent
+Timeline activity all passed. Durable bundle:
+`.superpowers/sdd/2026-09-04-day-objects-bass-mixing-mastering/xcresults/fix-round-1-final-ui.xcresult`.
 
 Both required compile gates passed with exit 0 and `BUILD SUCCEEDED`: Debug for
 the iPhone 17 simulator and Debug for generic iOS, each with code signing
-disabled. The last-ten-commits whitespace audit passed with no output. At audit
-time, the only workspace changes were the pre-existing modified native
+disabled. Their durable bundles are `fix-round-1-final-simulator-build.xcresult`
+and `fix-round-1-final-device-build.xcresult` in the same evidence directory.
+The last-ten-commits whitespace audit passed with no output. At audit time, the
+only unrelated workspace changes remained the pre-existing modified native
 instrument-bank design spec and the separate untracked instrument-bank
 listening checklist; neither belongs to this acceptance record.
 
