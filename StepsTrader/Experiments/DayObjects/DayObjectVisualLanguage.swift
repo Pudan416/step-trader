@@ -4,15 +4,24 @@ import simd
 /// One coherent optical universe is selected for a whole day. These cases are
 /// the Metal equivalents of the recipes in random-gradient-circle.html.
 enum DayObjectMaterialFamily: UInt32, CaseIterable, Equatable {
-    case gradient
-    case solid
-    case sphere
-    case glass
-    case mist
-    case halo
-    case luminous
-    case outline
-    case counterform
+    case gradient = 0
+    case solid = 1
+    case sphere = 2
+    case glass = 3
+    case mist = 4
+    case halo = 5
+    case luminous = 6
+    case outline = 7
+    case counterform = 8
+    case radialFibers = 9
+    case harmonicPath = 10
+
+    /// The original HTML-derived catalog remains unchanged for legacy scenes.
+    /// Structural DNA materials are selected only by the Editorial Lab recipe.
+    static let allCases: [DayObjectMaterialFamily] = [
+        .gradient, .solid, .sphere, .glass, .mist,
+        .halo, .luminous, .outline, .counterform,
+    ]
 
     // Compatibility names for older fixtures while the rendering tests move
     // to the HTML recipe vocabulary.
@@ -180,7 +189,8 @@ struct DayObjectVisualLanguage: Equatable {
         let edgeSoftness: Double = switch family {
         case .solid, .gradient, .glass: rng.nextDouble(in: 0...0.08)
         case .sphere: rng.nextDouble(in: 0.03...0.12)
-        case .outline: rng.nextDouble(in: 0.02...0.10)
+        case .outline, .radialFibers, .harmonicPath:
+            rng.nextDouble(in: 0.02...0.10)
         case .mist, .halo, .luminous, .counterform:
             rng.nextDouble(in: 0.16...0.42)
         }
@@ -334,7 +344,7 @@ struct DayObjectVisualLanguage: Equatable {
                 rimOpacity: 0.10...0.28, innerGlow: 0.42...0.78,
                 outerGlow: 0.12...0.34, depthSoftness: 0.06...0.22
             )
-        case .outline:
+        case .outline, .radialFibers, .harmonicPath:
             OpticalRanges(
                 bodyOpacity: 0.78...1, centerOpacity: 0.78...1,
                 rimOpacity: 0.60...1, innerGlow: 0.08...0.24,
@@ -358,7 +368,7 @@ struct DayObjectVisualLanguage: Equatable {
         case .mist: 0.58
         case .halo: 0.64
         case .luminous: 0.68
-        case .outline: 0.72
+        case .outline, .radialFibers, .harmonicPath: 0.72
         case .counterform: 0.72
         }
     }

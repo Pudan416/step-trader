@@ -61,6 +61,7 @@ struct DayObjectEditorialMaterialV1: Equatable {
     let contourCount: Int
     let counterformRadius: Double?
     let counterformSoftness: Double
+    let structuralParameters: SIMD4<Float>
 
     var gpuAppearance: DayObjectGPUAppearance {
         var packedColors = colors.prefix(3).map { color in
@@ -114,18 +115,24 @@ struct DayObjectEditorialMaterialV1: Equatable {
             optics = (SIMD4(0.22, 0.28, Float(baseOpacity), 1), SIMD4(0.24, 0, 0, 0), 0.78)
         }
 
-        let recipe1: SIMD4<Float> = switch family {
-        case .outline:
-            SIMD4(Float(max(contourCount, 1)), Float(contourWidth), 0.035, 0.025)
-        case .counterform:
-            SIMD4(
-                Float(max(counterformRadius ?? 0.48, 0.44)),
-                Float(max(counterformSoftness, 0.045)),
-                0.22,
-                0.74
-            )
+        let recipe1: SIMD4<Float>
+        switch mechanism {
+        case .radialFibers, .harmonicPath:
+            recipe1 = structuralParameters
         default:
-            .zero
+            recipe1 = switch family {
+            case .outline:
+                SIMD4(Float(max(contourCount, 1)), Float(contourWidth), 0.035, 0.025)
+            case .counterform:
+                SIMD4(
+                    Float(max(counterformRadius ?? 0.48, 0.44)),
+                    Float(max(counterformSoftness, 0.045)),
+                    0.22,
+                    0.74
+                )
+            default:
+                .zero
+            }
         }
 
         return DayObjectGPUAppearance(
@@ -144,7 +151,7 @@ struct DayObjectEditorialMaterialV1: Equatable {
                 fieldOpacities[1],
                 fieldOpacities[2]
             ),
-            metadata: SIMD4(family.gpuFamily.rawValue, UInt32(max(colorCount, 1)), UInt32(max(fields.count, 1)), 0),
+            metadata: SIMD4(mechanism.gpuFamily.rawValue, UInt32(max(colorCount, 1)), UInt32(max(fields.count, 1)), 0),
             recipe0: SIMD4(0.34, 0.68, Float(edgeSoftness), optics.2),
             recipe1: recipe1
         )
@@ -558,37 +565,131 @@ struct DayObjectSceneRecipeV1: Equatable {
         direction: DayObjectArtDirection,
         paletteSet: DayObjectPaletteSet
     ) -> DayObjectEditorialMaterialV1 {
-        let previewMaterial: DayObjectEditorialPreviewMaterial = switch mechanism {
-        case .solid: .solid
-        case .smoothRadial: .wideGradient
-        case .layeredMembrane: .softMist
-        case .boundary:
-            direction.fingerprint.edgeMood == .hairline
-                ? .hairlineOutline
-                : .softOutline
-        case .radialFibers: .softOutline
-        case .harmonicPath: .hairlineOutline
+        let actorSeed = daySeed ^ stableHash(eventID)
+        let lightnessShift = paletteSet.actorLightnessShift ?? 0
+        func displayColors(_ palette: ModernPalette) -> [SIMD3<Float>] {
+            palette.hexes.map {
+                DayObjectRGB(hex: $0)
+                    .shiftingPerceptualLightness(by: lightnessShift)
+                    .sRGB
+            }
         }
-        let stableSlot = Int(stableHash(eventID) % 10)
-        let base = makePreviewMaterial(
-            daySeed: daySeed,
-            eventID: eventID,
-            slot: stableSlot,
-            material: previewMaterial,
-            paletteSet: paletteSet
-        )
+        let primary = displayColors(paletteSet.primaryObjects)
+        let secondary = displayColors(paletteSet.secondaryObjects)
+        let preferred = actorUnit(actorSeed, salt: 0xDA11_C010) < 0.78
+            ? primary
+            : secondary
+        let colorPool = preferred.isEmpty ? (primary + secondary) : preferred
+        let start = Int(actorSeed % UInt64(max(colorPool.count, 1)))
+        let colorCount: Int = switch mechanism {
+        case .solid, .boundary, .radialFibers: 1
+        case .smoothRadial: actorUnit(actorSeed, salt: 0xDA11_C011) > 0.62 ? 3 : 2
+        case .layeredMembrane: 2
+        case .harmonicPath: 2
+        }
+        let fallback = SIMD3<Float>(0.82, 0.32, 0.56)
+        let colors = (0..<colorCount).map { offset in
+            colorPool.isEmpty ? fallback : colorPool[(start + offset) % colorPool.count]
+        }
+        let fields: [DayObjectEditorialRadialFieldV1]
+        switch mechanism {
+        case .smoothRadial, .layeredMembrane, .harmonicPath:
+            fields = makeGenerativeFields(actorSeed: actorSeed, count: colorCount)
+        default:
+            fields = []
+        }
+
+        let family: DayObjectEditorialMaterialFamily = switch mechanism {
+        case .solid: .solid
+        case .smoothRadial: .gradient
+        case .layeredMembrane: .glass
+        case .boundary, .radialFibers, .harmonicPath: .outline
+        }
+        let contourWidth: Double = switch direction.fingerprint.edgeMood {
+        case .hairline: 0.005
+        case .cleanSoft: 0.022
+        case .feathered: 0.050
+        }
+        let construction: (opacity: Double, edge: Double) = switch mechanism {
+        case .solid: (1, 0.004)
+        case .smoothRadial: (0.98, 0.040)
+        case .layeredMembrane: (0.62, 0.026)
+        case .boundary: (0.90, direction.fingerprint.edgeMood == .feathered ? 0.040 : 0.012)
+        case .radialFibers: (0.88, 0.010)
+        case .harmonicPath: (0.90, 0.010)
+        }
         return DayObjectEditorialMaterialV1(
-            family: base.family,
+            family: family,
             mechanism: mechanism,
-            colors: base.colors,
-            fields: base.fields,
-            baseOpacity: base.baseOpacity,
-            edgeSoftness: base.edgeSoftness,
-            contourWidth: base.contourWidth,
-            contourCount: base.contourCount,
-            counterformRadius: base.counterformRadius,
-            counterformSoftness: base.counterformSoftness
+            colors: colors,
+            fields: fields,
+            baseOpacity: construction.opacity,
+            edgeSoftness: construction.edge,
+            contourWidth: mechanism == .boundary ? contourWidth : 0,
+            contourCount: mechanism == .boundary ? 1 : 0,
+            counterformRadius: nil,
+            counterformSoftness: 0,
+            structuralParameters: structuralParameters(
+                mechanism: mechanism,
+                actorSeed: actorSeed
+            )
         )
+    }
+
+    private static func makeGenerativeFields(
+        actorSeed: UInt64,
+        count: Int
+    ) -> [DayObjectEditorialRadialFieldV1] {
+        let baseAngle = actorUnit(actorSeed, salt: 0xF13D_0001) * 2 * Double.pi
+        return (0..<count).map { index in
+            let angle = baseAngle + Double(index) * (2 * Double.pi / Double(max(count, 2)))
+            let distance = 0.34 + actorUnit(
+                actorSeed,
+                salt: UInt64(0xF13D_0010 + index)
+            ) * 0.08
+            return DayObjectEditorialRadialFieldV1(
+                focus: SIMD2(
+                    0.5 + cos(angle) * distance,
+                    0.5 + sin(angle) * distance
+                ),
+                radius: 1.08 + actorUnit(
+                    actorSeed,
+                    salt: UInt64(0xF13D_0020 + index)
+                ) * 0.34,
+                softness: 0.82 + actorUnit(
+                    actorSeed,
+                    salt: UInt64(0xF13D_0030 + index)
+                ) * 0.16,
+                opacity: index == 0 ? 1 : 0.78 + actorUnit(
+                    actorSeed,
+                    salt: UInt64(0xF13D_0040 + index)
+                ) * 0.16
+            )
+        }
+    }
+
+    private static func structuralParameters(
+        mechanism: DayObjectMaterialMechanism,
+        actorSeed: UInt64
+    ) -> SIMD4<Float> {
+        switch mechanism {
+        case .radialFibers:
+            return SIMD4(
+                Float(56 + Int(actorUnit(actorSeed, salt: 0xF1B3_0001) * 49)),
+                Float(0.007 + actorUnit(actorSeed, salt: 0xF1B3_0002) * 0.009),
+                Float(actorUnit(actorSeed, salt: 0xF1B3_0003)),
+                Float(0.46 + actorUnit(actorSeed, salt: 0xF1B3_0004) * 0.28)
+            )
+        case .harmonicPath:
+            return SIMD4(
+                Float(2 + Int(actorUnit(actorSeed, salt: 0xA4A0_0001) * 6)),
+                Float(0.055 + actorUnit(actorSeed, salt: 0xA4A0_0002) * 0.095),
+                Float(0.10 + actorUnit(actorSeed, salt: 0xA4A0_0003) * 0.16),
+                Float(1 + Int(actorUnit(actorSeed, salt: 0xA4A0_0004) * 3))
+            )
+        default:
+            return .zero
+        }
     }
 
     private static func vividPreviewBackgroundStyle(
@@ -743,7 +844,8 @@ struct DayObjectSceneRecipeV1: Equatable {
             contourWidth: construction.2,
             contourCount: construction.3,
             counterformRadius: construction.4,
-            counterformSoftness: construction.5
+            counterformSoftness: construction.5,
+            structuralParameters: .zero
         )
     }
 
@@ -821,7 +923,8 @@ struct DayObjectSceneRecipeV1: Equatable {
             contourWidth: construction.2,
             contourCount: construction.3,
             counterformRadius: nil,
-            counterformSoftness: 0
+            counterformSoftness: 0,
+            structuralParameters: .zero
         )
     }
 

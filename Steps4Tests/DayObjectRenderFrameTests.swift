@@ -2887,6 +2887,74 @@ final class DayObjectRenderFrameTests: XCTestCase {
         }
     }
 
+    func testStructuralMaterialRawValuesAndPixelFieldsAreDistinct() throws {
+        XCTAssertEqual(DayObjectMaterialFamily.radialFibers.rawValue, 9)
+        XCTAssertEqual(DayObjectMaterialFamily.harmonicPath.rawValue, 10)
+
+        let harness = try ActorRenderHarness(width: 192, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(repeating: 0.30),
+            opacity: 1,
+            trailLength: 0,
+            shape: DayObjectShape.sphere.numericValue,
+            appearanceIndex: 0,
+            depth: 0.4,
+            materialPhase: 0.17,
+            localDepthSoftness: 0
+        )
+        func appearance(
+            _ material: DayObjectMaterialFamily,
+            recipe: SIMD4<Float>
+        ) -> DayObjectGPUAppearance {
+            DayObjectGPUAppearance(
+                color0: SIMD4(0.92, 0.18, 0.34, 1),
+                color1: SIMD4(0.18, 0.72, 0.94, 1),
+                color2: SIMD4(0.95, 0.58, 0.12, 1),
+                radial0: SIMD4(-0.55, -0.22, 1.45, 0.90),
+                radial1: SIMD4(0.58, 0.25, 1.35, 0.86),
+                radial2: SIMD4(0.08, 0.62, 1.25, 0.92),
+                field: SIMD4(0.01, 1.2, 0.2, 0.02),
+                optical0: SIMD4(0, 0, 0.92, 1),
+                optical1: SIMD4(0.18, 0, 0, 0),
+                light: SIMD4(0, 1, 0.88, 0.76),
+                metadata: SIMD4(material.rawValue, 3, 3, 0),
+                recipe0: SIMD4(0.34, 0.72, 0.02, 0.72),
+                recipe1: recipe
+            )
+        }
+        let fibersAppearance = appearance(
+            .radialFibers,
+            recipe: SIMD4(72, 0.012, 0.23, 0.72)
+        )
+        let harmonicAppearance = appearance(
+            .harmonicPath,
+            recipe: SIMD4(5, 0.11, 0.20, 2)
+        )
+        XCTAssertEqual(fibersAppearance.metadata.x, 9)
+        XCTAssertEqual(harmonicAppearance.metadata.x, 10)
+
+        let fibers = try harness.render(
+            actor: actor,
+            appearance: fibersAppearance,
+            backgroundColor: .zero
+        )
+        let harmonic = try harness.render(
+            actor: actor,
+            appearance: harmonicAppearance,
+            backgroundColor: .zero
+        )
+
+        XCTAssertGreaterThan(fibers.nonzeroPixelCount, 900)
+        XCTAssertGreaterThan(harmonic.nonzeroPixelCount, 500)
+        XCTAssertGreaterThan(fibers[harness.width / 2, harness.height / 2], 0.25)
+        XCTAssertLessThan(harmonic[harness.width / 2, harness.height / 2], 0.20)
+        XCTAssertGreaterThan(fibers.meanAbsoluteRGBDifference(from: harmonic), 0.01)
+        XCTAssertTrue(fibers.isFinitePremultiplied)
+        XCTAssertTrue(harmonic.isFinitePremultiplied)
+    }
+
     func testCloseOrbMergeFieldsCreateSoftBridgeWhileSeparatedBodiesStayDistinct() throws {
         let harness = try ActorRenderHarness(width: 256, height: 128)
         func actor(x: Float) -> DayObjectGPUActor {

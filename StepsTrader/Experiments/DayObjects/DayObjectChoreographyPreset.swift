@@ -230,7 +230,7 @@ struct DayObjectChoreographyConfiguration: Equatable {
     func materialWeight(for family: DayObjectMaterialFamily) -> Int {
         let preferred: Set<DayObjectChoreographyPreset>
         switch family {
-        case .outline:
+        case .outline, .radialFibers, .harmonicPath:
             preferred = [.circularChoir, .doubleOrbit, .waveRibbon]
         case .glass:
             preferred = [.eclipseStack, .constellation, .depthField]

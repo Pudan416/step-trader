@@ -484,7 +484,7 @@ final class DayObjectSceneTests: XCTestCase {
     func testEditorialLabComparisonAtlasUsesAllSixApprovedObjectFormatsAtTenHappenings() throws {
         let recipe = try XCTUnwrap(
             DayObjectScene.make(
-                input: editorialLabInput(
+                input: self.editorialLabInput(
                     eventIDs: (0..<10).map { "lab-event-\($0)" },
                     materialMode: .mixed
                 )
@@ -724,6 +724,80 @@ final class DayObjectSceneTests: XCTestCase {
             direction.resolution(eventID: ids[4]),
             direction.resolution(eventID: ids[4])
         )
+    }
+
+    func testGenerativeDNAMaterialMechanismsAreReachableAndCoherent() throws {
+        var representativeDays = [DayObjectMaterialMechanism: String]()
+        for index in 0..<56 {
+            let dayKey = "generative-material-\(index)"
+            let mechanism = DayObjectArtDirectionScheduler.make(
+                dayKey: dayKey,
+                identity: "day-objects-lab"
+            ).primaryMaterial
+            representativeDays[mechanism] = representativeDays[mechanism] ?? dayKey
+        }
+        XCTAssertEqual(
+            Set(representativeDays.keys),
+            Set(DayObjectMaterialMechanism.allCases)
+        )
+
+        for (mechanism, dayKey) in representativeDays {
+            let recipe = try XCTUnwrap(
+                DayObjectScene.make(
+                    input: editorialLabInput(
+                        dayKey: dayKey,
+                        eventIDs: (0..<10).map { "lab-event-\($0)" },
+                        materialMode: .generativeDNA
+                    )
+                ).sceneRecipeV1
+            )
+            let direction = try XCTUnwrap(recipe.artDirection)
+            XCTAssertEqual(direction.primaryMaterial, mechanism)
+            let materialCounts = Dictionary(
+                grouping: recipe.actors,
+                by: { $0.material.mechanism }
+            ).mapValues(\.count)
+
+            XCTAssertLessThanOrEqual(materialCounts.count, 2, "day=\(dayKey)")
+            XCTAssertGreaterThanOrEqual(
+                materialCounts[direction.primaryMaterial, default: 0],
+                8,
+                "day=\(dayKey)"
+            )
+            XCTAssertTrue(recipe.actors.allSatisfy {
+                direction.supports(
+                    geometry: $0.geometryRegion,
+                    material: $0.material.mechanism
+                )
+            })
+        }
+    }
+
+    func testGenerativeDNASolidIsTrulySingleColour() throws {
+        let dayKey = try XCTUnwrap((0..<256).lazy.map { "solid-material-\($0)" }.first {
+            DayObjectArtDirectionScheduler.make(
+                dayKey: $0,
+                identity: "day-objects-lab"
+            ).primaryMaterial == .solid
+        })
+        let solidRecipe = try XCTUnwrap(
+            DayObjectScene.make(
+                input: editorialLabInput(
+                    dayKey: dayKey,
+                    eventIDs: (0..<10).map { "lab-event-\($0)" },
+                    materialMode: .generativeDNA
+                )
+            ).sceneRecipeV1
+        )
+        let direction = try XCTUnwrap(solidRecipe.artDirection)
+        let primaryActors = solidRecipe.actors.filter {
+            $0.material.mechanism == direction.primaryMaterial
+        }
+
+        XCTAssertFalse(primaryActors.isEmpty)
+        XCTAssertTrue(primaryActors.allSatisfy {
+            $0.material.colors.count == 1 && $0.material.fields.isEmpty
+        })
     }
 
     private func editorialPreviewInput(

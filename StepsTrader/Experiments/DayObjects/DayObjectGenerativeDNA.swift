@@ -43,6 +43,17 @@ enum DayObjectMaterialMechanism: UInt32, CaseIterable, Equatable, Hashable {
         case .harmonicPath: "harmonic path"
         }
     }
+
+    var gpuFamily: DayObjectMaterialFamily {
+        switch self {
+        case .solid: .solid
+        case .smoothRadial: .gradient
+        case .layeredMembrane: .glass
+        case .boundary: .outline
+        case .radialFibers: .radialFibers
+        case .harmonicPath: .harmonicPath
+        }
+    }
 }
 
 enum DayObjectVisualFamily: UInt32, CaseIterable, Equatable, Hashable {
@@ -163,13 +174,20 @@ struct DayObjectArtDirection: Equatable {
     let materialAccentThreshold: Double
 
     func resolution(eventID: String) -> DayObjectActorDNAResolution {
-        let identity = Self.stableHash(eventID)
-        let geometryUnit = Self.unit(seed ^ identity ^ 0x4745_4F4D_4554_5259)
-        let materialUnit = Self.unit(seed ^ identity ^ 0x4D41_5445_5249_414C)
         let usesSupportingGeometry = supportingGeometry != nil
-            && geometryUnit < geometryAccentThreshold
+            && Self.usesAccentSlot(
+                eventID: eventID,
+                seed: seed,
+                threshold: geometryAccentThreshold,
+                domain: 0x4745_4F4D_4554_5259
+            )
         let usesAccentMaterial = accentMaterial != nil
-            && materialUnit < materialAccentThreshold
+            && Self.usesAccentSlot(
+                eventID: eventID,
+                seed: seed,
+                threshold: materialAccentThreshold,
+                domain: 0x4D41_5445_5249_414C
+            )
         return DayObjectActorDNAResolution(
             geometry: usesSupportingGeometry ? supportingGeometry! : primaryGeometry,
             material: usesAccentMaterial ? accentMaterial! : primaryMaterial,
@@ -203,6 +221,25 @@ struct DayObjectArtDirection: Equatable {
         value.utf8.reduce(0xCBF2_9CE4_8422_2325) { partial, byte in
             (partial ^ UInt64(byte)) &* 0x0000_0100_0000_01B3
         }
+    }
+
+    private static func usesAccentSlot(
+        eventID: String,
+        seed: UInt64,
+        threshold: Double,
+        domain: UInt64
+    ) -> Bool {
+        let reversedDigits = eventID.reversed().prefix { $0.isNumber }
+        let ordinal = Int(String(reversedDigits.reversed()))
+            ?? Int(stableHash(eventID) % 10)
+        let actorBucket = ((ordinal % 10) + 10) % 10
+        guard actorBucket != 0 else { return false }
+
+        let first = 1 + Int(unit(seed ^ domain ^ 0xA11C_E001) * 9)
+        guard threshold >= 0.18 else { return actorBucket == first }
+        let offset = 1 + Int(unit(seed ^ domain ^ 0xA11C_E002) * 8)
+        let second = 1 + ((first - 1 + offset) % 9)
+        return actorBucket == first || actorBucket == second
     }
 
     private static func unit(_ seed: UInt64) -> Double {
@@ -379,7 +416,9 @@ enum DayObjectArtDirectionScheduler {
                 return calendar.dateComponents([.day], from: referenceDate, to: date).day ?? 0
             }
         }
-        return Int(truncatingIfNeeded: stableHash(dayKey))
+        // Keep fixture ordinals far enough from Int bounds for the cyclic
+        // arithmetic above while preserving the complete-key hash identity.
+        return Int(stableHash(dayKey) % UInt64(Int.max / 16))
     }
 
     private static func floorDivision(_ value: Int, by divisor: Int) -> Int {

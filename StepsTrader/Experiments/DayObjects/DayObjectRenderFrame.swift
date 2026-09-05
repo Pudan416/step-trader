@@ -293,6 +293,10 @@ struct DayObjectGPUAppearance: Equatable {
                 Float(appearance.counterformRadius), Float(appearance.counterformSoftness),
                 Float(appearance.coronaWidth), Float(appearance.coronaIntensity)
             )
+        case .radialFibers:
+            recipe1 = SIMD4(72, 0.012, Float(appearance.radialPhase), 0.72)
+        case .harmonicPath:
+            recipe1 = SIMD4(5, 0.10, 0.18, 2)
         default:
             recipe1 = .zero
         }
@@ -376,6 +380,20 @@ struct DayObjectGPUAppearance: Equatable {
                 Self.bounded(recipe1.z, 0.14...0.34),
                 Self.bounded(recipe1.w, 0.58...0.98)
             )
+        case .radialFibers:
+            self.recipe1 = SIMD4(
+                Float(min(max(Int(recipe1.x.rounded()), 56), 104)),
+                Self.bounded(recipe1.y, 0.004...0.024),
+                Self.bounded(recipe1.z, 0...1),
+                Self.bounded(recipe1.w, 0.28...0.82)
+            )
+        case .harmonicPath:
+            self.recipe1 = SIMD4(
+                Float(min(max(Int(recipe1.x.rounded()), 2), 7)),
+                Self.bounded(recipe1.y, 0.04...0.16),
+                Self.bounded(recipe1.z, 0.08...0.28),
+                Float(min(max(Int(recipe1.w.rounded()), 1), 3))
+            )
         default:
             self.recipe1 = .zero
         }
@@ -430,8 +448,8 @@ struct DayObjectGPUAppearance: Equatable {
         let focus = focusLength > 0.68 ? finiteFocus / focusLength * 0.68 : finiteFocus
         return SIMD4(
             focus.x, focus.y,
-            bounded(value.z, 0.42...1.18),
-            bounded(value.w, 0.12...0.72)
+            bounded(value.z, 0.42...1.80),
+            bounded(value.w, 0.12...1.0)
         )
     }
 

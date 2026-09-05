@@ -206,13 +206,14 @@ static float3 dayObjectsLayeredRadialColor(
     if (colorCount <= 1) {
         result = color0;
     } else {
-        const float w0 = 0.72 + 0.38 * dayObjectsSoftColorFieldWeight(
+        const float w0 = 0.88 + 0.45 * dayObjectsSoftColorFieldWeight(
             point,
             appearance.radial0,
             phase,
             phaseDirection
         ) * clamp(appearance.light.y, 0.0, 1.0);
-        const float w1 = 0.10 + 0.58 * dayObjectsSoftColorFieldWeight(
+        const float broadFieldCoherence = smoothstep(0.40, 0.72, appearance.radial0.w);
+        const float w1 = 0.08 + 0.46 * broadFieldCoherence * dayObjectsSoftColorFieldWeight(
             point,
             appearance.radial1,
             phase,
@@ -222,7 +223,7 @@ static float3 dayObjectsLayeredRadialColor(
         result = color0 * w0 + color1 * w1;
         if (colorCount >= 3u) {
             const float2 thirdDirection = float2(-phaseDirection.y, phaseDirection.x);
-            const float w2 = 0.08 + 0.50 * dayObjectsSoftColorFieldWeight(
+            const float w2 = 0.06 + 0.40 * broadFieldCoherence * dayObjectsSoftColorFieldWeight(
                 point,
                 appearance.radial2,
                 phase,
@@ -333,7 +334,7 @@ fragment float4 dayObjectsActorFragment(
         antialiasPixels,
         signedBodyDistancePixels
     );
-    const uint material = min(appearance.metadata.x, 8u);
+    const uint material = min(appearance.metadata.x, 10u);
     const float localAntialias = antialiasPixels
         / max(majorHalfSize * in.shortSidePixels, 1.0);
     float bodyCoverage = baseBodyCoverage;
@@ -386,6 +387,59 @@ fragment float4 dayObjectsActorFragment(
             )
         ) * coronaIntensity * baseBodyCoverage;
         structuralColor = mix(appearance.color1.rgb, appearance.color2.rgb, 0.5);
+    } else if (material == 9u) { // Radial fibers
+        const float fiberCount = clamp(round(appearance.recipe1.x), 56.0, 104.0);
+        const float lineWidth = clamp(appearance.recipe1.y, 0.004, 0.024);
+        const float fiberPhase = appearance.recipe1.z * 2.0 * M_PI_F;
+        const float fiberOpacity = clamp(appearance.recipe1.w, 0.28, 0.82);
+        const float safeRadius = max(radialDistance, 0.035);
+        const float fiberCoordinate = (
+            atan2(ellipticalPoint.y, ellipticalPoint.x) + fiberPhase
+        ) / (2.0 * M_PI_F) * fiberCount;
+        const float cycleDistance = abs(fract(fiberCoordinate + 0.5) - 0.5);
+        const float localFiberDistance = cycleDistance
+            * (2.0 * M_PI_F * safeRadius / fiberCount);
+        const float fiberAA = max(fwidth(localFiberDistance), 0.0012);
+        const float fibers = 1.0 - smoothstep(
+            lineWidth,
+            lineWidth + fiberAA,
+            localFiberDistance
+        );
+        bodyCoverage = 0.0;
+        structuralCoverage = fibers * baseBodyCoverage * fiberOpacity;
+    } else if (material == 10u) { // Harmonic path
+        const float frequency = clamp(round(appearance.recipe1.x), 2.0, 7.0);
+        const float amplitude = clamp(appearance.recipe1.y, 0.04, 0.16);
+        const float opening = clamp(appearance.recipe1.z, 0.08, 0.28);
+        const int passCount = clamp(int(round(appearance.recipe1.w)), 1, 3);
+        const float pathAngle = atan2(ellipticalPoint.y, ellipticalPoint.x);
+        const float pathPhase = in.materialPhase * 2.0 * M_PI_F;
+        const float openingCenter = 0.72 * M_PI_F + pathPhase * 0.08;
+        const float openingDistance = abs(atan2(
+            sin(pathAngle - openingCenter),
+            cos(pathAngle - openingCenter)
+        ));
+        const float openingMask = smoothstep(
+            opening * M_PI_F,
+            opening * M_PI_F + 0.055,
+            openingDistance
+        );
+        float paths = 0.0;
+        for (int index = 0; index < 3; ++index) {
+            if (index < passCount) {
+                const float pass = float(index) - 0.5 * float(passCount - 1);
+                const float pathRadius = 0.58 + pass * 0.12
+                    + amplitude * cos(frequency * pathAngle + pathPhase + pass * 0.48);
+                const float pathDistance = abs(radialDistance - pathRadius);
+                const float pathAA = max(fwidth(pathDistance), 0.0035);
+                paths = max(
+                    paths,
+                    1.0 - smoothstep(0.009, 0.009 + pathAA, pathDistance)
+                );
+            }
+        }
+        bodyCoverage = 0.0;
+        structuralCoverage = paths * openingMask * baseBodyCoverage;
     }
     const float outsideDistancePixels = max(signedBodyDistancePixels, 0.0);
     const float haloReachPixels = max(majorHalfSize * 0.18 * in.shortSidePixels, 1.0);
@@ -410,7 +464,9 @@ fragment float4 dayObjectsActorFragment(
         abs(lateralRatio)
     );
     const float lateral = exp(-0.5 * lateralRatio * lateralRatio) * lateralSupport;
-    const float trailCoverage = trailEnabled * behindBody * longitudinal * lateral * 0.72;
+    const float structuralMaterial = material >= 9u ? 1.0 : 0.0;
+    const float trailCoverage = trailEnabled * behindBody * longitudinal * lateral
+        * 0.72 * (1.0 - structuralMaterial);
 
     const float actorOpacity = clamp(in.opacity, 0.0, 1.0);
     const float materialBodyOpacity = clamp(appearance.optical0.z, 0.0, 1.0);
@@ -433,7 +489,7 @@ fragment float4 dayObjectsActorFragment(
         1.0 - smoothstep(0.0, mergeReachPixels, max(signedBodyDistancePixels, 0.0))
     );
     const float mergeAlpha = mergeCoverage * actorOpacity * materialBodyOpacity
-        * 0.16;
+        * 0.16 * (1.0 - structuralMaterial);
     const float visibleMergeAlpha = mergeAlpha * (1.0 - bodyAlpha)
         * (1.0 - visibleTrailAlpha);
 
@@ -522,6 +578,11 @@ fragment float4 dayObjectsActorFragment(
     case 8u: { // Counterform
         bodyColor *= 0.72 + 0.22 * softenedLight + 0.12 * rimMask;
         haloAlpha = haloCoverage * visibilityGate * appearance.optical0.y * 0.34;
+        break;
+    }
+    case 9u: // Radial fibers
+    case 10u: { // Harmonic path
+        structuralColor = bodyColor;
         break;
     }
     default: { // Gradient
