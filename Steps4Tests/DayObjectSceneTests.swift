@@ -27,6 +27,37 @@ final class DayObjectSceneTests: XCTestCase {
         }
     }
 
+    func testLeadSurfaceForwardsLowerCanvasButHonorsActualExclusionAndDisabledModes() {
+        let lowerCanvasPoint = SIMD2<Double>(0.5, 0.8)
+        let sample = LeadGestureSample(normalizedX: 0.5, normalizedY: 0.8, speed: 0)
+        var forwarded: [LeadGestureSample] = []
+
+        XCTAssertTrue(DayObjectsLeadGestureSurface.forwardGestureBeginning(
+            sample,
+            isEnabled: true,
+            uiExclusionRegion: nil,
+            onBegin: { forwarded.append($0) }
+        ))
+        XCTAssertEqual(forwarded, [sample])
+        XCTAssertFalse(DayObjectsLeadGestureSurface.allowsGestureBeginning(
+            at: lowerCanvasPoint,
+            isEnabled: true,
+            uiExclusionRegion: .dayObjectsLabControls
+        ))
+        XCTAssertFalse(DayObjectsLeadGestureSurface.allowsGestureBeginning(
+            at: lowerCanvasPoint,
+            isEnabled: false,
+            uiExclusionRegion: nil
+        ))
+        XCTAssertFalse(DayObjectsLeadGestureSurface.forwardGestureBeginning(
+            sample,
+            isEnabled: true,
+            uiExclusionRegion: .dayObjectsLabControls,
+            onBegin: { forwarded.append($0) }
+        ))
+        XCTAssertEqual(forwarded, [sample])
+    }
+
     private func input(_ ids: [String]) -> DayObjectSceneInput {
         .init(
             dayKey: "2026-08-20",
@@ -223,6 +254,55 @@ final class DayObjectSceneTests: XCTestCase {
         XCTAssertEqual(scene.compositionPlan.uiExclusionRegion.area, 0)
     }
 
+    func testLeadAuditionRegionEndsBeforeTheLabControls() {
+        let leadRegion = DayObjectNormalizedRect.dayObjectsLeadAudition
+        let controls = DayObjectNormalizedRect.dayObjectsLabControls
+
+        XCTAssertLessThan(leadRegion.maxY, controls.minY)
+        XCTAssertFalse(leadRegion.intersects(controls))
+    }
+
+#if DEBUG || INTERNAL_BUILD
+    @MainActor
+    func testLabDayProgressMapsExactlyIntoSceneInput() {
+        let model = DayObjectsLabMusicViewModel()
+
+        for (steps, expectedMotion) in [(0.0, 0.25), (5_000.0, 0.625), (10_000.0, 1.0)] {
+            model.setSteps(steps)
+            XCTAssertEqual(
+                model.sceneInput(dayKey: "2026-08-20", reduceMotion: false).motionEnergy,
+                expectedMotion,
+                accuracy: 0.000_001
+            )
+        }
+
+        for (sleep, expectedClarity) in [(0.0, 0.35), (4.0, 0.625), (8.0, 0.90)] {
+            model.setSleepHours(sleep)
+            XCTAssertEqual(
+                model.sceneInput(dayKey: "2026-08-20", reduceMotion: false).visualClarity,
+                expectedClarity,
+                accuracy: 0.000_001
+            )
+        }
+    }
+
+    @MainActor
+    func testLabHappeningsRemainTheSceneEventSource() {
+        let model = DayObjectsLabMusicViewModel()
+        model.setHappeningCount(3)
+
+        let input = model.sceneInput(dayKey: "2026-08-20", reduceMotion: false)
+        let scene = DayObjectScene.make(input: input)
+
+        XCTAssertEqual(input.eventIDs, [
+            "lab-happening-01",
+            "lab-happening-02",
+            "lab-happening-03",
+        ])
+        XCTAssertFalse(scene.actors.isEmpty)
+        XCTAssertEqual(Set(scene.actors.map(\.eventID)), Set(input.eventIDs))
+    }
+#endif
 }
 
 final class DayObjectCompositionTests: XCTestCase {

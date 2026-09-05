@@ -183,10 +183,17 @@ struct HappeningFreeTextField: View {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var limitedText: Binding<String> {
+        Binding(
+            get: { text },
+            set: { text = Happening.limitedTitle($0) }
+        )
+    }
+
     var body: some View {
         TextField(
             String(localized: "What happened?", comment: "Palette free-text placeholder"),
-            text: $text,
+            text: limitedText,
             prompt: Text(
                 String(localized: "What happened?", comment: "Palette free-text placeholder")
             )

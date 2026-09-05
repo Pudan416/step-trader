@@ -16,6 +16,14 @@ struct DayObjectNormalizedRect: Equatable {
 
     static let empty = DayObjectNormalizedRect(minX: 0, minY: 0, maxX: 0, maxY: 0)
 
+    /// The unobscured canvas area reserved for opt-in Lead audition gestures.
+    static let dayObjectsLeadAudition = DayObjectNormalizedRect(
+        minX: 0,
+        minY: 0,
+        maxX: 1,
+        maxY: 0.57
+    )
+
     init(minX: Double, minY: Double, maxX: Double, maxY: Double) {
         let finiteMinX = minX.isFinite ? minX : 0
         let finiteMinY = minY.isFinite ? minY : 0
@@ -59,6 +67,23 @@ enum DayObjectCanvasCoverage: Equatable {
     }
 }
 
+/// Finite, viewport-normalized coordinates shared by the visual canvas and
+/// optional manual audition surface.
+struct DayObjectNormalizedPoint: Equatable {
+    let x: Double
+    let y: Double
+
+    init(x: Double, y: Double) {
+        self.x = Self.clamped(x)
+        self.y = Self.clamped(y)
+    }
+
+    private static func clamped(_ value: Double) -> Double {
+        guard value.isFinite else { return 0 }
+        return min(max(value, 0), 1)
+    }
+}
+
 struct DayObjectSceneInput: Equatable {
     let dayKey: String
     let identity: String
@@ -93,6 +118,37 @@ struct DayObjectSceneInput: Equatable {
         self.paletteCategories = paletteCategories
     }
 }
+
+#if DEBUG || INTERNAL_BUILD
+extension DayObjectSceneInput {
+    /// Keeps lab day-to-visual mapping at the renderer's existing input boundary.
+    static func labPreview(
+        dayKey: String,
+        eventIDs: [String],
+        stepsProgress: Double,
+        sleepProgress: Double,
+        reduceMotion: Bool,
+        uiExclusionRegion: DayObjectNormalizedRect = .dayObjectsLabControls
+    ) -> DayObjectSceneInput {
+        let steps = clampedProgress(stepsProgress)
+        let sleep = clampedProgress(sleepProgress)
+        return DayObjectSceneInput(
+            dayKey: dayKey,
+            identity: "day-objects-lab",
+            eventIDs: eventIDs,
+            motionEnergy: 0.25 + 0.75 * steps,
+            visualClarity: 0.35 + 0.55 * sleep,
+            reduceMotion: reduceMotion,
+            uiExclusionRegion: uiExclusionRegion
+        )
+    }
+
+    private static func clampedProgress(_ value: Double) -> Double {
+        guard value.isFinite else { return 0 }
+        return min(max(value, 0), 1)
+    }
+}
+#endif
 
 struct DayObjectActorID: Hashable, Comparable {
     let eventID: String

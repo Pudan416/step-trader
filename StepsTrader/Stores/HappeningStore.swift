@@ -54,9 +54,10 @@ final class HappeningStore {
     /// user typed.
     @discardableResult
     func create(title: String, at date: Date = .now) -> Happening {
+        let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let made = Happening(
             id: "user_\(UUID().uuidString)",
-            title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+            title: Happening.limitedTitle(normalizedTitle),
             isBuiltIn: false
         )
         all.append(made)

@@ -1,0 +1,66 @@
+[
+  {
+    "project": "AudioKitSynthOne",
+    "sourceURL": "https://github.com/AudioKit/AudioKitSynthOne",
+    "revision": "6466a3715c96b7ecf1dd255a218cbd571408a314",
+    "licenseFilename": "AudioKitSynthOne-MIT.txt",
+    "selectedPaths": [
+      "AudioKitSynthOne/Presets/Data/BankA.json",
+      "AudioKitSynthOne/Presets/Data/Bonus.json",
+      "AudioKitSynthOne/Presets/Data/Brice Beasley.json",
+      "AudioKitSynthOne/Presets/Data/Electronisounds.json",
+      "AudioKitSynthOne/Presets/Data/JEC.json",
+      "AudioKitSynthOne/Presets/Data/Red Sky Lullaby.json",
+      "AudioKitSynthOne/Presets/Data/Spidericemidas.json"
+    ]
+  },
+  {
+    "project": "AudioKit/Cookbook",
+    "sourceURL": "https://github.com/AudioKit/Cookbook",
+    "revision": "c37d41daedf161b47315b7ae24b07f41213b73be",
+    "licenseFilename": "AudioKitCookbook-MIT.txt",
+    "selectedPaths": [
+      "Cookbook/CookbookCommon/Sources/CookbookCommon/Samples/bass_drum_C1.wav",
+      "Cookbook/CookbookCommon/Sources/CookbookCommon/Samples/closed_hi_hat_F#1.wav",
+      "Cookbook/CookbookCommon/Sources/CookbookCommon/Samples/open_hi_hat_A#1.wav",
+      "Cookbook/CookbookCommon/Sources/CookbookCommon/Samples/clap_D#1.wav",
+      "Cookbook/CookbookCommon/Sources/CookbookCommon/Samples/snare_D1.wav",
+      "Cookbook/Sounds/cheeb-stick.wav",
+      "Cookbook/Sounds/cheeb-hat.wav",
+      "Cookbook/Sounds/cheeb-ch.wav"
+    ]
+  },
+  {
+    "project": "sfzinstruments/Osiris_Piano",
+    "sourceURL": "https://github.com/sfzinstruments/Osiris_Piano",
+    "revision": "18c6afccb60cff458edbf7c394571783e074e1e9",
+    "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+    "selectedPaths": [
+      "UC-Sus-noisy/A/Piano_UC-Sus_MicA_C2_vl1.flac",
+      "UC-Sus-noisy/A/Piano_UC-Sus_MicA_E2_vl1.flac",
+      "UC-Sus-noisy/A/Piano_UC-Sus_MicA_G2_vl1.flac",
+      "UC-Sus-noisy/A/Piano_UC-Sus_MicA_C3_vl1.flac",
+      "UC-Sus-noisy/A/Piano_UC-Sus_MicA_E3_vl1.flac",
+      "UC-Sus-noisy/A/Piano_UC-Sus_MicA_G3_vl1.flac",
+      "UC-Sus-noisy/A/Piano_UC-Sus_MicA_C4_vl1.flac",
+      "UC-Sus-noisy/A/Piano_UC-Sus_MicA_E4_vl1.flac",
+      "UC-Sus-noisy/A/Piano_UC-Sus_MicA_G4_vl1.flac",
+      "UC-Sus-noisy/A/Piano_UC-Sus_MicA_C5_vl1.flac",
+      "UC-Sus-noisy/A/Piano_UC-Sus_MicA_E5_vl1.flac",
+      "UC-Sus-noisy/A/Piano_UC-Sus_MicA_G5_vl1.flac"
+    ]
+  },
+  {
+    "project": "VCSL",
+    "sourceURL": "https://github.com/sgossner/VCSL",
+    "revision": "c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e",
+    "licenseFilename": "VCSL-CC0-1.0.txt",
+    "selectedPaths": [
+      "09 Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_C4_soft_01.wav",
+      "10 Idiophones/Struck Idiophones/Balafon/Soft Mallet/EthnicXylo_softM_C4_vl2_rr1_Mid.wav",
+      "11 Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_C5_v1_rr1_Main.wav",
+      "17 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_C4_p_rr1.wav",
+      "18 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_D4_p_rr1.wav"
+    ]
+  }
+]

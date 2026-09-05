@@ -1,6 +1,72 @@
+import AVFAudio
+import class AudioKit.AudioEngine
+import class AudioKit.Mixer
 import Foundation
 import HealthKit
+import XCTest
 @testable import Steps4
+
+func shouldSkipDayObjectsLiveAudioPreflightFailure(_ error: Error) -> Bool {
+    DayObjectsInstrumentBankError.liveStartFailure(classifying: error) == .audioOutputUnavailable
+}
+
+private func throwDayObjectsLiveAudioPreflightFailure(
+    _ error: Error,
+    message: String,
+    file: StaticString,
+    line: UInt
+) throws -> Never {
+    guard shouldSkipDayObjectsLiveAudioPreflightFailure(error) else { throw error }
+    throw XCTSkip(message, file: file, line: line)
+}
+
+@MainActor
+func requireLiveAudioOutput(
+    file: StaticString = #filePath,
+    line: UInt = #line
+) throws {
+#if targetEnvironment(simulator)
+    let session = AVAudioSession.sharedInstance()
+    do {
+        try session.setCategory(.playback, mode: .default)
+        try session.setActive(true)
+    } catch {
+        try? session.setActive(false, options: .notifyOthersOnDeactivation)
+        try throwDayObjectsLiveAudioPreflightFailure(
+            error,
+            message: "Simulator has no valid Core Audio output device: \(error)",
+            file: file,
+            line: line
+        )
+    }
+
+    let hasSessionRoute = session.sampleRate > 0 && !session.currentRoute.outputs.isEmpty
+    let probe = AudioEngine()
+    probe.output = Mixer()
+    do {
+        try probe.start()
+        probe.stop()
+    } catch {
+        probe.stop()
+        try? session.setActive(false, options: .notifyOthersOnDeactivation)
+        try throwDayObjectsLiveAudioPreflightFailure(
+            error,
+            message: "Simulator has no valid Core Audio output device: \(error)",
+            file: file,
+            line: line
+        )
+    }
+    try? session.setActive(false, options: .notifyOthersOnDeactivation)
+    guard hasSessionRoute else {
+        try throwDayObjectsLiveAudioPreflightFailure(
+            DayObjectsInstrumentBankError.audioOutputUnavailable,
+            message: "Simulator has no valid Core Audio output route",
+            file: file,
+            line: line
+        )
+    }
+#endif
+}
 
 final class MockHealthKitService: HealthKitServiceProtocol {
     func fetchSleep(from: Date, to: Date) async throws -> Double { 0 }
