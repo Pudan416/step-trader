@@ -153,9 +153,24 @@ static float dayObjectsRadialLayerWeight(
     );
 }
 
-/// Ordered radial stops around one seeded focal point. Secondary HTML-inspired
-/// fields may shape light, but they never compete for color ownership; points
-/// at the same radius therefore stay in the same part of the palette.
+static float dayObjectsSoftColorFieldWeight(
+    float2 point,
+    float4 layer,
+    float phase,
+    float2 phaseDirection
+) {
+    const float2 animatedFocus = layer.xy
+        + phaseDirection * (0.012 * sin(phase));
+    const float normalizedDistance = length(point - animatedFocus)
+        / max(layer.z, 1e-4);
+    const float softness = clamp(layer.w, 0.02, 1.0);
+    const float falloff = mix(3.2, 0.72, softness);
+    return exp(-normalizedDistance * normalizedDistance * falloff);
+}
+
+/// Wide, overlapping radial fields. Every field is smooth over its full
+/// support, so no ordered stop, angular split, or pasted-on colour patch can
+/// appear inside the circular body.
 static float3 dayObjectsLayeredRadialColor(
     DayObjectsActorVertexOut in,
     DayObjectGPUAppearance appearance,
@@ -181,40 +196,80 @@ static float3 dayObjectsLayeredRadialColor(
         cos(point.x * frequency - fieldPhase)
     ) * deformationScale;
     const float2 phaseDirection = float2(cos(fieldPhase), sin(fieldPhase));
-    const float2 animatedFocus = appearance.radial0.xy
-        + phaseDirection * (0.012 * sin(phase));
-    const float radialT = clamp(
-        length(point - animatedFocus) / max(appearance.radial0.z, 1e-4),
-        0.0,
-        1.0
-    );
-    const float stop0 = clamp(appearance.recipe0.x, 0.18, 0.72);
-    const float stop1 = max(clamp(appearance.recipe0.y, 0.42, 0.90), stop0 + 0.08);
-    const float transition = 0.045 + 0.10 * localSoftness;
-
     const float3 color0 = max(appearance.color0.rgb, 0.0);
     const float3 color1 = max(appearance.color1.rgb, 0.0);
     const float3 color2 = max(appearance.color2.rgb, 0.0);
     float3 result = color0;
     if (colorCount <= 1) {
-        result *= 0.88 + 0.12 * (1.0 - radialT);
-    } else if (colorCount == 2) {
-        result = mix(
-            color0,
-            color1,
-            smoothstep(stop0 - transition, stop0 + transition, radialT)
-        );
+        result = color0;
     } else {
-        result = mix(
-            color0,
-            color1,
-            smoothstep(stop0 - transition, stop0 + transition, radialT)
+        const float primaryField = dayObjectsSoftColorFieldWeight(
+            point,
+            appearance.radial0,
+            phase,
+            phaseDirection
+        ) * clamp(appearance.light.y, 0.0, 1.0);
+        const float broadPrimaryCoherence = smoothstep(
+            0.76,
+            0.82,
+            appearance.radial0.w
+        ) * smoothstep(0.95, 1.15, appearance.radial0.z);
+        // Wide fields still need enough chromatic travel to read as a
+        // gradient after depth blur and grain. A gentle power curve increases
+        // separation without adding an edge or a local hotspot; every
+        // transition remains continuous and the foci stay outside the carrier
+        // core.
+        const float broadPrimaryWeight = 0.012
+            + 1.20 * pow(primaryField, 1.5);
+        const float w0 = mix(
+            0.72 + 0.38 * primaryField,
+            broadPrimaryWeight,
+            broadPrimaryCoherence
         );
-        result = mix(
-            result,
-            color2,
-            smoothstep(stop1 - transition, stop1 + transition, radialT)
+        const float secondaryField = dayObjectsSoftColorFieldWeight(
+            point,
+            appearance.radial1,
+            phase,
+            -phaseDirection
+        ) * clamp(appearance.light.z, 0.0, 1.0);
+        const float broadSecondaryCoherence = smoothstep(
+            0.76,
+            0.82,
+            appearance.radial1.w
+        ) * smoothstep(0.95, 1.15, appearance.radial1.z);
+        const float broadSecondaryWeight = 0.012
+            + 1.20 * pow(secondaryField, 1.5);
+        const float w1 = mix(
+            0.10 + 0.58 * secondaryField,
+            broadSecondaryWeight,
+            broadSecondaryCoherence
         );
+        float totalWeight = w0 + w1;
+        result = color0 * w0 + color1 * w1;
+        if (colorCount >= 3u) {
+            const float2 thirdDirection = float2(-phaseDirection.y, phaseDirection.x);
+            const float tertiaryField = dayObjectsSoftColorFieldWeight(
+                point,
+                appearance.radial2,
+                phase,
+                thirdDirection
+            ) * clamp(appearance.light.w, 0.0, 1.0);
+            const float broadTertiaryCoherence = smoothstep(
+                0.76,
+                0.82,
+                appearance.radial2.w
+            ) * smoothstep(0.95, 1.15, appearance.radial2.z);
+            const float broadTertiaryWeight = 0.012
+                + 1.20 * pow(tertiaryField, 1.5);
+            const float w2 = mix(
+                0.08 + 0.50 * tertiaryField,
+                broadTertiaryWeight,
+                broadTertiaryCoherence
+            );
+            result += color2 * w2;
+            totalWeight += w2;
+        }
+        result /= max(totalWeight, 1e-4);
     }
 
     const float w1 = layerCount >= 2u
@@ -231,9 +286,8 @@ static float3 dayObjectsLayeredRadialColor(
     return mix(result * layeredLight, result, localSoftness * 0.24);
 }
 
-/// Circle-derived carrier bodies in local units. Harmonic modulation remains
-/// continuous around the complete perimeter, so no carrier can develop the
-/// accidental open contour seen in early Lab experiments.
+/// Seven circle-derived bodies in local units. None of the variants can produce
+/// the old triangles, slabs, petals, or thin Figma-like particles.
 static float dayObjectsActorBody(
     uint shape,
     float2 point,
@@ -326,7 +380,7 @@ fragment float4 dayObjectsActorFragment(
 
     if (material == 7u) { // Outline
         const int outlineCount = clamp(int(round(appearance.recipe1.x)), 1, 3);
-        const float outlineWidth = clamp(appearance.recipe1.y, 0.012, 0.075);
+        const float outlineWidth = clamp(appearance.recipe1.y, 0.002, 0.075);
         const float outlineSpacing = clamp(appearance.recipe1.z, 0.02, 0.09);
         const float outlineWobble = clamp(appearance.recipe1.w, 0.01, 0.08);
         const float contourAngle = atan2(ellipticalPoint.y, ellipticalPoint.x);
@@ -394,7 +448,8 @@ fragment float4 dayObjectsActorFragment(
         abs(lateralRatio)
     );
     const float lateral = exp(-0.5 * lateralRatio * lateralRatio) * lateralSupport;
-    const float trailCoverage = trailEnabled * behindBody * longitudinal * lateral * 0.72;
+    const float trailCoverage = trailEnabled * behindBody * longitudinal * lateral
+        * 0.72;
 
     const float actorOpacity = clamp(in.opacity, 0.0, 1.0);
     const float materialBodyOpacity = clamp(appearance.optical0.z, 0.0, 1.0);
@@ -416,9 +471,8 @@ fragment float4 dayObjectsActorFragment(
     const float mergeCoverage = (1.0 - baseBodyCoverage) * (
         1.0 - smoothstep(0.0, mergeReachPixels, max(signedBodyDistancePixels, 0.0))
     );
-    const float mergeStrength = material == 9u ? 0.025 : 0.16;
     const float mergeAlpha = mergeCoverage * actorOpacity * materialBodyOpacity
-        * mergeStrength;
+        * 0.16;
     const float visibleMergeAlpha = mergeAlpha * (1.0 - bodyAlpha)
         * (1.0 - visibleTrailAlpha);
 
@@ -439,13 +493,12 @@ fragment float4 dayObjectsActorFragment(
         0.5 + lightHalfWidth,
         light
     );
-    const float lightResponse = clamp(appearance.light.x, 0.0, 1.0);
     float haloAlpha = 0.0;
     float3 haloColor = appearance.color1.rgb;
 
     switch (material) {
     case 1u: { // Solid
-        bodyColor = appearance.color0.rgb * (0.82 + 0.18 * softenedLight);
+        bodyColor = appearance.color0.rgb;
         break;
     }
     case 2u: { // Sphere
@@ -480,7 +533,7 @@ fragment float4 dayObjectsActorFragment(
     }
     case 4u: { // Mist
         const float haze = clamp(combinedLocalSoftness + 0.18, 0.0, 1.0);
-        bodyColor *= 0.70 + 0.18 * centerMask + 0.10 * softenedLight;
+        bodyColor *= 0.82;
         bodyColor = mix(bodyColor, appearance.color1.rgb, haze * 0.10);
         haloAlpha = haloCoverage * actorOpacity
             * clamp(appearance.optical0.y + haze * 0.18, 0.0, 1.0) * 0.62;
@@ -511,9 +564,9 @@ fragment float4 dayObjectsActorFragment(
         break;
     }
     default: { // Gradient
-        const float broadHighlight = softenedLight;
-        bodyColor *= 0.68 + lightResponse * 0.42 * broadHighlight
-            + appearance.optical0.x * 0.10 * centerMask;
+        // The overlapping colour fields already provide depth. A directional
+        // normal-light pass introduces a straight sector through the centre,
+        // which violates the radial-only material contract.
         break;
     }
     }

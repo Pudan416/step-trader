@@ -394,7 +394,12 @@ final class DayObjectsMusicLabController: ObservableObject {
         visualClarityOverride: Double? = nil,
         uiExclusionRegion: DayObjectNormalizedRect = .dayObjectsLabControls,
         canvasCoverage: DayObjectCanvasCoverage? = nil,
-        paletteCategories: Set<ModernPaletteCategory> = []
+        paletteCategories: Set<ModernPaletteCategory> = [],
+        usesEditorialField: Bool = false,
+        editorialBackground: DayObjectEditorialBackground = .dark,
+        lowSleep: Bool = false,
+        editorialPreview: DayObjectEditorialPreviewSpec? = nil,
+        editorialLabConfiguration: DayObjectEditorialLabConfiguration? = nil
     ) -> DayObjectSceneInput {
         let derived = DayObjectSceneInput.labPreview(
             dayKey: dayKey,
@@ -413,7 +418,12 @@ final class DayObjectsMusicLabController: ObservableObject {
             reduceMotion: derived.reduceMotion,
             uiExclusionRegion: derived.uiExclusionRegion,
             canvasCoverage: canvasCoverage,
-            paletteCategories: paletteCategories
+            paletteCategories: paletteCategories,
+            usesEditorialField: usesEditorialField,
+            editorialBackground: editorialBackground,
+            lowSleep: lowSleep,
+            editorialPreview: editorialPreview,
+            editorialLabConfiguration: editorialLabConfiguration
         )
     }
 

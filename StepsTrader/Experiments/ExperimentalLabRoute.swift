@@ -9,10 +9,7 @@ import SwiftUI
 /// the check costs more than the change being checked. Release builds never
 /// compile this file's call site.
 enum ExperimentalLabRoute: String, CaseIterable {
-    case dayRays
     case dayObjects
-    case atmosphere
-    case generativeScene
 
     static var current: ExperimentalLabRoute? {
         // iOS folds `-key value` launch arguments into the NSArgumentDomain,
@@ -32,10 +29,7 @@ enum ExperimentalLabRoute: String, CaseIterable {
     @ViewBuilder
     var view: some View {
         switch self {
-        case .dayRays:         DayRaysLabView()
-        case .dayObjects:      DayObjectsLabView()
-        case .atmosphere:      CanvasAtmosphereLabView()
-        case .generativeScene: GenerativeSceneLabView()
+        case .dayObjects: DayObjectsLabView()
         }
     }
 }

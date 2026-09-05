@@ -4,15 +4,22 @@ import simd
 /// One coherent optical universe is selected for a whole day. These cases are
 /// the Metal equivalents of the recipes in random-gradient-circle.html.
 enum DayObjectMaterialFamily: UInt32, CaseIterable, Equatable {
-    case gradient
-    case solid
-    case sphere
-    case glass
-    case mist
-    case halo
-    case luminous
-    case outline
-    case counterform
+    case gradient = 0
+    case solid = 1
+    case sphere = 2
+    case glass = 3
+    case mist = 4
+    case halo = 5
+    case luminous = 6
+    case outline = 7
+    case counterform = 8
+
+    /// The original HTML-derived catalog remains unchanged for legacy scenes.
+    /// Structural DNA materials are selected only by the Editorial Lab recipe.
+    static let allCases: [DayObjectMaterialFamily] = [
+        .gradient, .solid, .sphere, .glass, .mist,
+        .halo, .luminous, .outline, .counterform,
+    ]
 
     // Compatibility names for older fixtures while the rendering tests move
     // to the HTML recipe vocabulary.
@@ -192,7 +199,8 @@ struct DayObjectVisualLanguage: Equatable {
         let edgeSoftness: Double = switch family {
         case .solid, .gradient, .glass: rng.nextDouble(in: 0...0.08)
         case .sphere: rng.nextDouble(in: 0.03...0.12)
-        case .outline: rng.nextDouble(in: 0.02...0.10)
+        case .outline:
+            rng.nextDouble(in: 0.02...0.10)
         case .mist, .halo, .luminous, .counterform:
             rng.nextDouble(in: 0.16...0.42)
         }

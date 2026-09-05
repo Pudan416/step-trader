@@ -336,6 +336,10 @@ struct DayObjectCompositionPlan: Equatable {
 
 /// Daily geometry choices retained while rendering moves to the stable scene.
 struct DayObjectComposition: Equatable {
+    private static let legacyShapeCases: [DayObjectShape] = [
+        .sphere, .ellipse, .lens, .softBlob,
+    ]
+
     let shape: DayObjectShape
     let elongation: DayObjectElongation
     let fill: DayObjectFill
@@ -360,7 +364,7 @@ struct DayObjectComposition: Equatable {
         }
 
         return DayObjectComposition(
-            shape: pick(DayObjectShape.allCases, domain: "shape"),
+            shape: pick(legacyShapeCases, domain: "shape"),
             elongation: pick(DayObjectElongation.allCases, domain: "elongation"),
             fill: pick(DayObjectFill.allCases, domain: "fill"),
             trajectory: pick(DayObjectTrajectory.allCases, domain: "trajectory"),

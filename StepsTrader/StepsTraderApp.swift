@@ -296,7 +296,7 @@ private struct StepsTraderProductionRoot: View {
     var body: some View {
         Group {
             #if DEBUG
-            // Debug-only shortcut: `-uiLab dayRays` opens an experiment
+            // Debug-only shortcut: `-uiLab dayObjects` opens the experiment
             // straight from launch. Driving the settings path with synthetic
             // taps is unreliable enough that verifying a shader visually
             // otherwise costs more than building it.

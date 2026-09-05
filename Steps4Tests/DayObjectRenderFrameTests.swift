@@ -9,6 +9,131 @@ import simd
 @testable import Steps4
 
 final class DayObjectRenderFrameTests: XCTestCase {
+    private func editorialScene(reduceMotion: Bool = false) -> DayObjectScene {
+        DayObjectScene.make(input: .init(
+            dayKey: "2026-09-04",
+            identity: "day-objects-lab",
+            eventIDs: (0..<5).map { "lab-event-\($0)" },
+            motionEnergy: 0.55,
+            visualClarity: 0.75,
+            reduceMotion: reduceMotion,
+            canvasCoverage: .fullCanvas,
+            usesEditorialField: true,
+            editorialBackground: .lowContrast
+        ))
+    }
+
+    func testEditorialFrameUsesFrozenRecipeAndSlowDepthAwareMotion() throws {
+        let scene = editorialScene()
+        let environment = DayObjectEnvironment(
+            motionEnergy: 0.55,
+            visualClarity: 0.75,
+            reduceMotion: false
+        )
+        let initial = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: 0,
+            insertions: [:],
+            canvasAspect: 393.0 / 852.0
+        )
+        let later = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: 20,
+            insertions: [:],
+            canvasAspect: 393.0 / 852.0
+        )
+        let recipe = try XCTUnwrap(scene.sceneRecipeV1)
+        let firstRecipe = try XCTUnwrap(recipe.actor("lab-event-0"))
+        let firstFrame = try XCTUnwrap(initial.actors.first { $0.eventID == "lab-event-0" })
+
+        XCTAssertEqual(firstFrame.gpuActor.position.x, Float(firstRecipe.position.x - 0.5), accuracy: 0.000_001)
+        XCTAssertEqual(
+            firstFrame.gpuActor.position.y,
+            Float((firstRecipe.position.y - 0.5) / (393.0 / 852.0)),
+            accuracy: 0.000_001
+        )
+        XCTAssertEqual(firstFrame.gpuActor.halfSize.x, Float(firstRecipe.diameter * 0.5), accuracy: 0.000_001)
+        XCTAssertNotEqual(later.actors.map(\.gpuActor.position), initial.actors.map(\.gpuActor.position))
+        XCTAssertTrue(later.actors.allSatisfy { $0.trailLength == 0 })
+    }
+
+    func testEditorialReduceMotionKeepsNeutralPoseAndMaterialStable() {
+        let scene = editorialScene(reduceMotion: true)
+        let environment = DayObjectEnvironment(
+            motionEnergy: 1,
+            visualClarity: 0.75,
+            reduceMotion: true
+        )
+        let initial = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: 0,
+            insertions: [:]
+        )
+        let later = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: 120,
+            insertions: [:]
+        )
+
+        XCTAssertEqual(later.actors.map(\.gpuActor.position), initial.actors.map(\.gpuActor.position))
+        XCTAssertEqual(later.actors.map(\.gpuActor.halfSize), initial.actors.map(\.gpuActor.halfSize))
+        XCTAssertEqual(later.actors.map(\.gpuAppearance), initial.actors.map(\.gpuAppearance))
+        XCTAssertTrue(later.actors.allSatisfy { $0.gpuActor.materialPhase == 0 })
+    }
+
+    func testGenerativeRecipeUploadsResolvedCarrierShape() throws {
+        let expectedShapes: [DayObjectGeometryRegion: DayObjectShape] = [
+            .circle: .sphere,
+            .superellipse: .superellipse,
+            .softStar: .softStar,
+            .compound: .compound,
+        ]
+        var observed = Set<DayObjectGeometryRegion>()
+
+        for index in 0..<256 where observed.count < expectedShapes.count {
+            let scene = DayObjectScene.make(input: .init(
+                dayKey: "2026-generative-carrier-\(index)",
+                identity: "day-objects-lab",
+                eventIDs: (0..<10).map { "lab-event-\($0)" },
+                motionEnergy: 0.55,
+                visualClarity: 0.75,
+                reduceMotion: true,
+                canvasCoverage: .fullCanvas,
+                paletteCategories: [.pastel],
+                usesEditorialField: true,
+                editorialLabConfiguration: .init(
+                    materialMode: .generativeDNA,
+                    placement: .depthField
+                )
+            ))
+            let recipe = try XCTUnwrap(scene.sceneRecipeV1)
+            let frame = DayObjectRenderFrame.make(
+                scene: scene,
+                environment: .init(
+                    motionEnergy: 0.55,
+                    visualClarity: 0.75,
+                    reduceMotion: true
+                ),
+                elapsed: 0,
+                insertions: [:]
+            )
+
+            for recipeActor in recipe.actors {
+                let renderActor = try XCTUnwrap(
+                    frame.actors.first { $0.eventID == recipeActor.eventID }
+                )
+                XCTAssertEqual(recipeActor.shape, expectedShapes[recipeActor.geometryRegion])
+                XCTAssertEqual(renderActor.gpuActor.shape, recipeActor.shape.numericValue)
+                observed.insert(recipeActor.geometryRegion)
+            }
+        }
+
+        XCTAssertEqual(observed, Set(DayObjectGeometryRegion.allCases))
+    }
     private func fixtureScene(
         dayKey: String = "2026-08-20",
         identity: String = "tester",
@@ -71,7 +196,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         )
     }
 
-    func testSpentColorsClampAndMapToAbsoluteDamage() {
+    func testSpentColorsClampAndMapToEmphasizedDamage() {
         XCTAssertEqual(DayObjectDigitalImpact(spentColors: -4).spentColors, 0)
         XCTAssertEqual(DayObjectDigitalImpact(spentColors: 140).spentColors, 100)
         XCTAssertEqual(
@@ -80,9 +205,14 @@ final class DayObjectRenderFrameTests: XCTestCase {
             accuracy: 0.000_001
         )
         XCTAssertEqual(
+            DayObjectDigitalImpact(spentColors: 25).signalCorruption,
+            0.20,
+            accuracy: 0.005
+        )
+        XCTAssertEqual(
             DayObjectDigitalImpact(spentColors: 50).signalCorruption,
-            pow(0.5, 1.6),
-            accuracy: 0.000_001
+            0.45,
+            accuracy: 0.005
         )
         XCTAssertEqual(
             DayObjectDigitalImpact(spentColors: 100).ambientMotion,
@@ -562,7 +692,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertEqual(uniforms.grainIntensity, Float(frame.postProcess.grainIntensity))
     }
 
-    func testGrainPhaseAdvancesAtNoMoreThanTwelveHertzAndReduceMotionFreezesIndependently() {
+    func testGrainPhaseAdvancesSlowlyAndContinuouslyWhileReduceMotionFreezesIndependently() {
         let start = DayObjectPostProcess(
             visualClarity: 0.5,
             reduceMotion: false,
@@ -573,16 +703,17 @@ final class DayObjectRenderFrameTests: XCTestCase {
             visualClarity: 0.5,
             reduceMotion: false,
             grainSeed: 9,
-            elapsed: 10.08
+            elapsed: 10.501
         )
         let nextFrame = DayObjectPostProcess(
             visualClarity: 0.5,
             reduceMotion: false,
             grainSeed: 9,
-            elapsed: 10.084
+            elapsed: 11.001
         )
-        XCTAssertEqual(start.grainPhase, withinFrame.grainPhase)
-        XCTAssertEqual(nextFrame.grainPhase - start.grainPhase, 1 / 12, accuracy: 0.000_001)
+        XCTAssertGreaterThan(withinFrame.grainPhase, start.grainPhase)
+        XCTAssertLessThan(withinFrame.grainPhase, nextFrame.grainPhase)
+        XCTAssertEqual(nextFrame.grainPhase - start.grainPhase, 0.06, accuracy: 0.000_001)
 
         let frozenEarly = DayObjectPostProcess(
             visualClarity: 0.5,
@@ -720,7 +851,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertEqual(view.preferredFramesPerSecond, 30)
     }
 
-    func testPostGPUDefocusesCompleteSceneMonotonicallyWhileGrainStaysSharp() throws {
+    func testPostGPUDefocusesCompleteSceneMonotonicallyWhileGrainRetainsMediumScaleTexture() throws {
         let scene = fixtureScene(ids: (0..<12).map { "gpu-event-\($0)" })
         let harness = try PostRenderHarness(width: 160, height: 112)
         var structuralSharpness = [Double]()
@@ -735,18 +866,22 @@ final class DayObjectRenderFrameTests: XCTestCase {
             let grain = first.output.difference(from: first.noGrain)
             let fineEnergy = grain.neighborDifferenceEnergy
             let coarseEnergy = grain.boxBlurred(radius: 2).neighborDifferenceEnergy
-            let sharpGrainRatio = fineEnergy / max(coarseEnergy, 0.000_000_1)
+            let retainedMediumScale = coarseEnergy / max(fineEnergy, 0.000_000_1)
             structuralSharpness.append(sharpness)
 
             XCTAssertGreaterThan(grain.meanAbsoluteLuminance, 0.000_01)
-            XCTAssertGreaterThan(sharpGrainRatio, 1.5)
+            XCTAssertGreaterThan(
+                retainedMediumScale,
+                0.70,
+                "Large grain must retain most of its structure through a two-pixel box blur"
+            )
             print(
                 "DAY_OBJECTS_POST_GPU clarity=\(clarity) "
                     + "checksum=\(first.output.checksum) "
                     + "blurPixels=\(first.uniforms.blurRadiusPixels) "
                     + "structuralSharpness=\(sharpness) "
                     + "grainFine=\(fineEnergy) grainCoarse=\(coarseEnergy) "
-                    + "grainSharpRatio=\(sharpGrainRatio)"
+                    + "grainRetainedMediumScale=\(retainedMediumScale)"
             )
         }
 
@@ -779,6 +914,35 @@ final class DayObjectRenderFrameTests: XCTestCase {
                 "spentColors=\(spentColors) difference=\(difference)"
             )
             previousDifference = difference
+        }
+    }
+
+    func testMidrangeGlitchIsVisuallyDistinctAtReviewPresets() throws {
+        let scene = fixtureScene(ids: (0..<12).map { "glitch-event-\($0)" })
+        let harness = try PostRenderHarness(width: 192, height: 256)
+        let natural = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: .none
+        ).noGrain
+        let reviewPresets: [(spentColors: Int, minimumDifference: Double)] = [
+            (25, 0.015),
+            (50, 0.030),
+        ]
+
+        for preset in reviewPresets {
+            let damaged = try harness.render(
+                scene: scene,
+                clarity: 0.7,
+                elapsed: 8.375,
+                digitalImpact: DayObjectDigitalImpact(spentColors: preset.spentColors)
+            ).noGrain
+            XCTAssertGreaterThanOrEqual(
+                damaged.meanAbsoluteDifference(from: natural),
+                preset.minimumDifference,
+                "Spent colors \(preset.spentColors) should be visibly distinct"
+            )
         }
     }
 
@@ -1006,8 +1170,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
                             - (paintedLuminance.values.min() ?? 0)
                         let actorContribution = result.noGrain.difference(from: empty.noGrain)
                         let grain = result.output.difference(from: result.noGrain)
-                        let sharpGrainRatio = grain.neighborDifferenceEnergy
-                            / max(grain.boxBlurred(radius: 2).neighborDifferenceEnergy, 0.000_000_1)
+                        let retainedMediumScale = grain.boxBlurred(radius: 2).neighborDifferenceEnergy
+                            / max(grain.neighborDifferenceEnergy, 0.000_000_1)
 
                         XCTAssertEqual(result.renderedActorCount, actorCount)
                         XCTAssertGreaterThan(outputDynamicRange, 0.01)
@@ -1015,7 +1179,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
                         XCTAssertGreaterThan(paintedDynamicRange, 0.001)
                         XCTAssertGreaterThan(actorContribution.maximumAbsoluteLuminance, 0.000_01)
                         XCTAssertGreaterThan(grain.meanAbsoluteLuminance, 0.000_01)
-                        XCTAssertGreaterThan(sharpGrainRatio, 1.5)
+                        XCTAssertGreaterThan(retainedMediumScale, 0.70)
 
                                 let metrics = DayObjectsLivingOrbMatrixMetrics.make(
                                     scene: scene,
@@ -1070,7 +1234,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
                                 + "checksum=\(result.output.checksum) outputRange=\(outputDynamicRange) "
                                         + "paintedRange=\(paintedDynamicRange) "
                                         + "actorPeak=\(actorContribution.maximumAbsoluteLuminance) "
-                                        + "grainSharpRatio=\(sharpGrainRatio) metrics=\(metrics) "
+                                        + "grainRetainedMediumScale=\(retainedMediumScale) metrics=\(metrics) "
                                         + "visual=\(visualSignature)"
                         )
                     }
@@ -2295,14 +2459,14 @@ final class DayObjectRenderFrameTests: XCTestCase {
             color0: SIMD4(0.95, 0.10, 0.18, 1),
             color1: SIMD4(0.10, 0.85, 0.35, 1),
             color2: SIMD4(0.12, 0.24, 0.98, 1),
-            radial0: SIMD4(0.25, 0, 1, 0.10),
-            radial1: SIMD4(-0.38, 0.22, 0.68, 0.18),
-            radial2: SIMD4(0.18, -0.42, 0.50, 0.16),
+            radial0: SIMD4(0.25, 0, 1.40, 0.90),
+            radial1: SIMD4(0.25, 0, 1.32, 0.88),
+            radial2: SIMD4(0, 0, 1, 0.90),
             field: SIMD4(0, 1, 0, 0.04),
             optical0: SIMD4(0, 0, 0.92, 0.92),
             optical1: .zero,
             light: SIMD4(0, 1, 1, 1),
-            metadata: SIMD4(DayObjectMaterialFamily.gradient.rawValue, 3, 3, 0),
+            metadata: SIMD4(DayObjectMaterialFamily.gradient.rawValue, 2, 2, 0),
             recipe0: SIMD4(0.34, 0.70, 0.04, 0.72)
         )
 
@@ -2321,6 +2485,150 @@ final class DayObjectRenderFrameTests: XCTestCase {
             difference,
             0.16,
             "Equal radii around the shifted center must not split into pyramidal color lobes"
+        )
+    }
+
+    func testGradientPrimaryFieldSoftnessBroadensTheRenderedColourTransition() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero, direction: SIMD2(1, 0), halfSize: SIMD2(0.35, 0.35),
+            opacity: 1, trailLength: 0, shape: 0, appearanceIndex: 0,
+            depth: 0.5, materialPhase: 0, localDepthSoftness: 0
+        )
+        func appearance(fieldSoftness: Float) -> DayObjectGPUAppearance {
+            DayObjectGPUAppearance(
+                color0: SIMD4(0.95, 0.12, 0.18, 1),
+                color1: SIMD4(0.12, 0.25, 0.95, 1),
+                color2: SIMD4(0.12, 0.25, 0.95, 1),
+                radial0: SIMD4(0.28, -0.18, 1.2, 0.82),
+                radial1: SIMD4(-0.20, 0, 0.65, fieldSoftness),
+                radial2: SIMD4(0, 0, 1, 0),
+                field: SIMD4(0, 1, 0, 0.04),
+                optical0: SIMD4(0, 0, 1, 1),
+                optical1: .zero,
+                light: SIMD4(0, 1, 1, 0),
+                metadata: SIMD4(DayObjectMaterialFamily.gradient.rawValue, 2, 2, 0),
+                recipe0: SIMD4(0.50, 0.72, 0.04, 0.72)
+            )
+        }
+        func maximumInteriorStep(_ capture: ActorAlphaCapture) -> Float {
+            (51..<109).map { x in
+                let left = capture.color(x: x, y: 80)
+                let right = capture.color(x: x + 1, y: 80)
+                let delta = left - right
+                return sqrt(delta.x * delta.x + delta.y * delta.y + delta.z * delta.z)
+            }.max() ?? 0
+        }
+
+        let tight = try harness.render(
+            actor: actor,
+            appearance: appearance(fieldSoftness: 0.02),
+            backgroundColor: .zero
+        )
+        let soft = try harness.render(
+            actor: actor,
+            appearance: appearance(fieldSoftness: 0.88),
+            backgroundColor: .zero
+        )
+
+        let softestStep = maximumInteriorStep(soft)
+        XCTAssertLessThan(
+            softestStep,
+            maximumInteriorStep(tight) * 0.72,
+            "A highly soft radial field must not render the same sharp colour spot"
+        )
+        XCTAssertLessThan(
+            softestStep,
+            0.014,
+            "A highly soft field must spread its colour transition beyond a visible patch boundary"
+        )
+    }
+
+    func testGradientColourRespondsToTheSecondOverlappingRadialField() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero, direction: SIMD2(1, 0), halfSize: SIMD2(0.35, 0.35),
+            opacity: 1, trailLength: 0, shape: 0, appearanceIndex: 0,
+            depth: 0.5, materialPhase: 0, localDepthSoftness: 0
+        )
+        func appearance(secondFieldX: Float) -> DayObjectGPUAppearance {
+            DayObjectGPUAppearance(
+                color0: SIMD4(0.92, 0.16, 0.24, 1),
+                color1: SIMD4(0.55, 0.06, 0.12, 1),
+                color2: SIMD4(0.55, 0.06, 0.12, 1),
+                radial0: SIMD4(0.18, -0.12, 1.25, 0.82),
+                radial1: SIMD4(secondFieldX, 0.08, 0.72, 0.72),
+                radial2: SIMD4(0, 0, 1, 0),
+                field: SIMD4(0, 1, 0, 0.04),
+                optical0: SIMD4(0, 0, 1, 1),
+                optical1: .zero,
+                light: SIMD4(0, 1, 1, 0),
+                metadata: SIMD4(DayObjectMaterialFamily.gradient.rawValue, 2, 2, 0),
+                recipe0: SIMD4(0.50, 0.72, 0.04, 0.72)
+            )
+        }
+
+        let left = try harness.render(
+            actor: actor,
+            appearance: appearance(secondFieldX: -0.46),
+            backgroundColor: .zero
+        )
+        let right = try harness.render(
+            actor: actor,
+            appearance: appearance(secondFieldX: 0.46),
+            backgroundColor: .zero
+        )
+        let maximumDifference = (56..<104).map { x -> Float in
+            let delta = left.color(x: x, y: 80) - right.color(x: x, y: 80)
+            return abs(delta.x) + abs(delta.y) + abs(delta.z)
+        }.max() ?? 0
+
+        XCTAssertGreaterThan(
+            maximumDifference,
+            0.04,
+            "Moving a colour field must move the soft tonal variation instead of leaving an ordered stop"
+        )
+    }
+
+    func testGradientColourDoesNotAcquireAnAngularGlobalLightSector() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero, direction: SIMD2(1, 0), halfSize: SIMD2(0.35, 0.35),
+            opacity: 1, trailLength: 0, shape: 0, appearanceIndex: 0,
+            depth: 0.5, materialPhase: 0, localDepthSoftness: 0
+        )
+        let appearance = DayObjectGPUAppearance(
+            color0: SIMD4(0.92, 0.16, 0.24, 1),
+            color1: SIMD4(0.55, 0.06, 0.12, 1),
+            color2: SIMD4(0.55, 0.06, 0.12, 1),
+            radial0: SIMD4(0.18, -0.12, 1.25, 0.82),
+            radial1: SIMD4(-0.30, 0.18, 0.72, 0.72),
+            radial2: SIMD4(0, 0, 1, 0),
+            field: SIMD4(0, 1, 0, 0.04),
+            optical0: SIMD4(0.18, 0, 1, 1),
+            optical1: .zero,
+            light: SIMD4(0.62, 1, 1, 0),
+            metadata: SIMD4(DayObjectMaterialFamily.gradient.rawValue, 2, 2, 0),
+            recipe0: SIMD4(0.50, 0.72, 0.04, 0.72)
+        )
+
+        let horizontalLight = try harness.render(
+            actor: actor,
+            appearance: appearance,
+            backgroundColor: .zero,
+            lightDirection: SIMD2(1, 0)
+        )
+        let verticalLight = try harness.render(
+            actor: actor,
+            appearance: appearance,
+            backgroundColor: .zero,
+            lightDirection: SIMD2(0, 1)
+        )
+
+        XCTAssertLessThan(
+            horizontalLight.meanAbsoluteRGBDifference(from: verticalLight),
+            0.001,
+            "Wide radial gradients must not receive an angular directional-light overlay"
         )
     }
 
@@ -2581,8 +2889,9 @@ final class DayObjectRenderFrameTests: XCTestCase {
 
     func testActorShaderRendersOnlyCircleDerivedOrbFamilies() throws {
         let harness = try ActorRenderHarness(width: 192, height: 160)
+        var silhouetteAreas = [UInt32: Int]()
 
-        for shape in UInt32(0)...UInt32(3) {
+        for shape in UInt32(0)...UInt32(6) {
             let actor = DayObjectGPUActor(
                 position: .zero,
                 direction: SIMD2(1, 0),
@@ -2599,7 +2908,157 @@ final class DayObjectRenderFrameTests: XCTestCase {
             XCTAssertGreaterThan(alpha.nonzeroPixelCount, 2_500)
             XCTAssertLessThan(alpha[0, 0], 0.01)
             XCTAssertLessThan(alpha[harness.width - 1, harness.height - 1], 0.01)
+            silhouetteAreas[shape] = alpha.nonzeroPixelCount
         }
+
+        let circleArea = try XCTUnwrap(silhouetteAreas[0])
+        for shape in UInt32(4)...UInt32(6) {
+            XCTAssertGreaterThan(
+                abs(try XCTUnwrap(silhouetteAreas[shape]) - circleArea),
+                25,
+                "Every new carrier needs a visibly distinct continuous silhouette"
+            )
+        }
+    }
+
+    func testSmoothRadialFieldsGiveEveryPaletteColourAVisibleRegion() throws {
+        let harness = try ActorRenderHarness(width: 192, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(repeating: 0.30),
+            opacity: 1,
+            trailLength: 0,
+            shape: DayObjectShape.sphere.numericValue,
+            appearanceIndex: 0,
+            depth: 0.4,
+            materialPhase: 0.17,
+            localDepthSoftness: 0
+        )
+        func material(
+            colors: [SIMD3<Float>],
+            foci: [SIMD2<Double>]
+        ) -> DayObjectEditorialMaterialV1 {
+            DayObjectEditorialMaterialV1(
+                family: .gradient,
+                mechanism: .smoothRadial,
+                colors: colors,
+                fields: foci.map {
+                    DayObjectEditorialRadialFieldV1(
+                        focus: $0,
+                        radius: 0.96,
+                        softness: 0.98,
+                        opacity: 1
+                    )
+                },
+                baseOpacity: 0.98,
+                edgeSoftness: 0.04,
+                contourWidth: 0,
+                contourCount: 0,
+                counterformRadius: nil,
+                counterformSoftness: 0,
+                structuralParameters: .zero
+            )
+        }
+        func strongestChannelDominance(
+            in capture: ActorAlphaCapture
+        ) -> SIMD3<Float> {
+            var strongest = SIMD3<Float>(repeating: -.infinity)
+            for index in capture.rgb.indices where capture.alpha[index] > 0.65 {
+                let color = capture.rgb[index]
+                strongest.x = max(strongest.x, color.x - max(color.y, color.z))
+                strongest.y = max(strongest.y, color.y - max(color.x, color.z))
+                strongest.z = max(strongest.z, color.z - max(color.x, color.y))
+            }
+            return strongest
+        }
+
+        let twoColour = try harness.render(
+            actor: actor,
+            appearance: material(
+                colors: [SIMD3(1, 0, 0), SIMD3(0, 0, 1)],
+                foci: [SIMD2(-0.10, 0.50), SIMD2(1.10, 0.50)]
+            ).gpuAppearance,
+            backgroundColor: .zero
+        )
+        let twoDominance = strongestChannelDominance(in: twoColour)
+        XCTAssertGreaterThan(twoDominance.x, 0.18)
+        XCTAssertGreaterThan(twoDominance.z, 0.18)
+
+        let threeColour = try harness.render(
+            actor: actor,
+            appearance: material(
+                colors: [SIMD3(1, 0, 0), SIMD3(0, 1, 0), SIMD3(0, 0, 1)],
+                foci: [SIMD2(-0.08, 0.20), SIMD2(1.08, 0.20), SIMD2(0.50, 1.12)]
+            ).gpuAppearance,
+            backgroundColor: .zero
+        )
+        let threeDominance = strongestChannelDominance(in: threeColour)
+        XCTAssertGreaterThan(threeDominance.x, 0.15)
+        XCTAssertGreaterThan(threeDominance.y, 0.15)
+        XCTAssertGreaterThan(threeDominance.z, 0.15)
+    }
+
+    func testEdgeOriginatingGradientRetainsReadableColourTravel() throws {
+        let harness = try ActorRenderHarness(width: 192, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(repeating: 0.30),
+            opacity: 1,
+            trailLength: 0,
+            shape: DayObjectShape.sphere.numericValue,
+            appearanceIndex: 0,
+            depth: 0.4,
+            materialPhase: 0,
+            localDepthSoftness: 0
+        )
+        let material = DayObjectEditorialMaterialV1(
+            family: .gradient,
+            mechanism: .smoothRadial,
+            colors: [
+                SIMD3(0.63, 0.22, 0.36),
+                SIMD3(0.24, 0.16, 0.58),
+            ],
+            fields: [
+                DayObjectEditorialRadialFieldV1(
+                    focus: SIMD2(-0.38, 0.50),
+                    radius: 1.16,
+                    softness: 0.98,
+                    opacity: 1
+                ),
+                DayObjectEditorialRadialFieldV1(
+                    focus: SIMD2(1.38, 0.50),
+                    radius: 1.16,
+                    softness: 0.99,
+                    opacity: 1
+                ),
+            ],
+            baseOpacity: 0.98,
+            edgeSoftness: 0.04,
+            contourWidth: 0,
+            contourCount: 0,
+            counterformRadius: nil,
+            counterformSoftness: 0,
+            structuralParameters: .zero
+        )
+
+        let capture = try harness.render(
+            actor: actor,
+            appearance: material.gpuAppearance,
+            backgroundColor: .zero
+        )
+        let left = capture.color(x: 60, y: 80)
+        let right = capture.color(x: 132, y: 80)
+        let travel = abs(left.x - right.x)
+            + abs(left.y - right.y)
+            + abs(left.z - right.z)
+
+        XCTAssertGreaterThan(
+            travel,
+            0.30,
+            "Broad edge-originating fields must remain visibly multicolour, not collapse into a flat fill"
+        )
     }
 
     func testCloseOrbMergeFieldsCreateSoftBridgeWhileSeparatedBodiesStayDistinct() throws {
@@ -2909,11 +3368,13 @@ private final class ActorRenderHarness {
         actor: DayObjectGPUActor,
         appearance: DayObjectGPUAppearance,
         backgroundColor: SIMD3<Float>,
-        lightSoftness: Float = 0.6
+        lightSoftness: Float = 0.6,
+        lightDirection: SIMD2<Float> = SIMD2(1, 0)
     ) throws -> ActorAlphaCapture {
         let uniforms = DayObjectsActorUniforms(
             resolution: SIMD2(Float(width), Float(height)),
             visibleActorCount: 1,
+            lightDirection: lightDirection,
             lightSoftness: lightSoftness
         )
         return try render(

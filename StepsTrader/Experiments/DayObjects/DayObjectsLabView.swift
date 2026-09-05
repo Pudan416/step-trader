@@ -44,14 +44,40 @@ final class DayObjectsSystemAccessibilityStatusSource: DayObjectsAccessibilitySt
 struct DayObjectsLabView: View {
     static let uiExclusionRegion = DayObjectNormalizedRect.dayObjectsLabControls
     static let canvasCoverage = DayObjectCanvasCoverage.fullCanvas
+    private static let dayOffsetFromLaunchArguments: Int = {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let flag = arguments.firstIndex(of: "-dayObjectsDayOffset"),
+              arguments.indices.contains(flag + 1),
+              let offset = Int(arguments[flag + 1]) else {
+            return 0
+        }
+        return max(offset, 0)
+    }()
+    private static let previewSpecFromLaunchArguments: DayObjectEditorialPreviewSpec? = {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let flag = arguments.firstIndex(of: "-dayObjectsPreviewIndex"),
+              arguments.indices.contains(flag + 1),
+              let index = Int(arguments[flag + 1]) else {
+            return nil
+        }
+        return DayObjectEditorialPreviewCatalog.spec(at: index)
+    }()
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(SharedKeys.modernPaletteCategories) private var modernPaletteCategoriesRaw = ""
     @Environment(\.scenePhase) private var scenePhase
 
-    @State private var dayOffset = 0
+    @State private var dayOffset = Self.dayOffsetFromLaunchArguments
     @State private var showsGrid = false
-    @State private var showControls = true
+    @State private var showsCalendarTile = false
+    @State private var editorialBackground: DayObjectEditorialBackground = .dark
+    @State private var lowSleep = false
+    @State private var reduceMotionPreview = false
+    @State private var editorialMaterialMode: DayObjectEditorialLabMaterialMode = .generativeDNA
+    @State private var editorialPlacement: DayObjectEditorialPreviewPlacement = .depthField
+    @State private var showControls = !ProcessInfo.processInfo.arguments.contains(
+        "-dayObjectsVisualHandoff"
+    ) && Self.previewSpecFromLaunchArguments == nil
     @State private var showsFineTuning = false
     @State private var showsInstrumentDiagnostics = false
     @State private var motionEnergyOverride: Double?
@@ -83,7 +109,17 @@ struct DayObjectsLabView: View {
         _leadCoordinator = StateObject(wrappedValue: leadCoordinator)
     }
 
-    private var dayKey: String { Self.dayKey(for: dayOffset) }
+    private var editorialPreview: DayObjectEditorialPreviewSpec? {
+        Self.previewSpecFromLaunchArguments
+    }
+
+    private var isEditorialPreviewCapture: Bool {
+        editorialPreview != nil
+    }
+
+    private var dayKey: String {
+        editorialPreview?.dayKey ?? Self.dayKey(for: dayOffset)
+    }
 
     private var happeningCount: Int {
         musicController.state.happeningCount
@@ -106,7 +142,9 @@ struct DayObjectsLabView: View {
     }
 
     private var chromeColorScheme: ColorScheme {
-        relativeLuminance(currentScene.palette.backgroundBase) > 0.45 ? .light : .dark
+        let background = currentScene.sceneRecipeV1?.background.linearRGB
+            ?? currentScene.palette.backgroundBase
+        return relativeLuminance(background) > 0.45 ? .light : .dark
     }
 
     private var languageSummary: String {
@@ -119,7 +157,15 @@ struct DayObjectsLabView: View {
             currentScene.paletteSet.primaryObjects.code,
             currentScene.paletteSet.secondaryObjects.code,
         ].joined(separator: "/")
-        return "family=\(currentScene.visualLanguage.family) "
+        let familySummary: String
+        if let dnaSummary = currentScene.sceneRecipeV1?.artDirectionSummary {
+            familySummary = dnaSummary
+        } else {
+            let family = currentScene.sceneRecipeV1?.actors.first?.material.family.gpuFamily
+                ?? currentScene.visualLanguage.family
+            familySummary = "family=\(family)"
+        }
+        return familySummary + "\n"
             + "mutations=\(mutationCounts[.base, default: 0])/"
             + "\(mutationCounts[.soft, default: 0])/"
             + "\(mutationCounts[.accent, default: 0]) "
@@ -128,22 +174,23 @@ struct DayObjectsLabView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            GeometryReader { _ in
-                VStack(spacing: 0) {
-                    canvasContent
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        ZStack(alignment: .bottom) {
+            canvasContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                    if showControls {
-                        controls
-                    }
-                }
+            if showControls {
+                controls
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            topButtons
+
+            if !isEditorialPreviewCapture {
+                topButtons
+            }
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: showControls)
         .navigationTitle("Day Objects")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(isEditorialPreviewCapture ? .hidden : .visible, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbarColorScheme(chromeColorScheme, for: .navigationBar)
         .onAppear {
@@ -181,19 +228,47 @@ struct DayObjectsLabView: View {
     private var canvasContent: some View {
         if showsGrid {
             grid
+        } else if showsCalendarTile {
+            calendarTile
         } else {
             ZStack {
                 DayObjectsView(
                     sceneInput: currentSceneInput,
-                    digitalImpact: digitalImpact
+                    digitalImpact: digitalImpact,
+                    isAnimating: !isEditorialPreviewCapture
                 )
                 .ignoresSafeArea()
-                leadAuditionSurface
+                if !isEditorialPreviewCapture {
+                    leadAuditionSurface
+                }
             }
         }
     }
 
     // MARK: - Grid
+
+    private var calendarTile: some View {
+        GeometryReader { geometry in
+            let side = min(geometry.size.width - 24, geometry.size.height * 0.62)
+            DayObjectsView(
+                sceneInput: currentSceneInput,
+                digitalImpact: digitalImpact,
+                isAnimating: !isEditorialPreviewCapture
+            )
+            .frame(width: side, height: side)
+            .clipped()
+            .overlay {
+                RoundedRectangle(cornerRadius: 2)
+                    .stroke(.white.opacity(0.16), lineWidth: 1)
+            }
+            .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.38)
+        }
+        .background(Color.black.opacity(0.88))
+        .ignoresSafeArea()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Day Objects calendar tile")
+        .accessibilityIdentifier("dayObjects.calendarTile")
+    }
 
     private var grid: some View {
         GeometryReader { geometry in
@@ -256,6 +331,38 @@ struct DayObjectsLabView: View {
                     identifier: "dayObjects.sleep"
                 )
 
+                Picker("Background", selection: $editorialBackground) {
+                    ForEach(DayObjectEditorialBackground.allCases) { background in
+                        Text(background.title).tag(background)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("dayObjects.background")
+
+                HStack {
+                    Text("Editorial 01")
+                        .font(.geist(.caption))
+                        .foregroundStyle(.white.opacity(0.85))
+                    Spacer()
+                    Picker("Material", selection: $editorialMaterialMode) {
+                        ForEach(DayObjectEditorialLabMaterialMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("dayObjects.materialMode")
+                    .accessibilityValue(editorialMaterialMode.title)
+                }
+
+                Picker("Placement", selection: $editorialPlacement) {
+                    ForEach(DayObjectEditorialPreviewPlacement.allCases) { placement in
+                        Text(placement.title).tag(placement)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("dayObjects.placement")
+                .accessibilityValue(editorialPlacement.title)
+
                 slider(
                     "Happenings",
                     value: Binding(
@@ -267,6 +374,15 @@ struct DayObjectsLabView: View {
                     readout: "\(happeningCount) · \(currentScene.actors.count) figures",
                     identifier: "dayObjects.happenings"
                 )
+
+                HStack {
+                    Toggle("Low sleep", isOn: $lowSleep)
+                        .accessibilityIdentifier("dayObjects.lowSleep")
+                    Toggle("Reduce Motion", isOn: $reduceMotionPreview)
+                        .accessibilityIdentifier("dayObjects.reduceMotionPreview")
+                }
+                .font(.geist(.caption))
+                .foregroundStyle(.white.opacity(0.85))
 
                 digitalImpactControls
                 HappeningSoundPadGrid(
@@ -292,7 +408,8 @@ struct DayObjectsLabView: View {
             }
             .padding(16)
         }
-        .frame(maxHeight: 420)
+        .scrollIndicators(.hidden)
+        .frame(maxHeight: 560)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22))
         .padding(.horizontal, 12)
         .padding(.vertical, 12)
@@ -392,7 +509,25 @@ struct DayObjectsLabView: View {
             .accessibilityIdentifier("dayObjects.nextDay")
 
             Button {
+                let nextValue = !showsCalendarTile
+                showsGrid = false
+                showsCalendarTile = nextValue
+                leadCoordinator.gridVisibilityChanged(isVisible: false)
+                musicController.leadAvailabilityChanged(
+                    isGridVisible: false,
+                    isVoiceOverRunning: leadCoordinator.isVoiceOverRunning
+                )
+            } label: {
+                Label(showsCalendarTile ? "Full" : "Tile", systemImage: "calendar")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("dayObjects.tileToggle")
+            .accessibilityValue(showsCalendarTile ? "tile" : "full")
+
+            Button {
                 showsGrid.toggle()
+                if showsGrid { showsCalendarTile = false }
                 leadCoordinator.gridVisibilityChanged(isVisible: showsGrid)
                 musicController.leadAvailabilityChanged(
                     isGridVisible: showsGrid,
@@ -621,15 +756,34 @@ struct DayObjectsLabView: View {
     }
 
     private func sceneInput(for key: String) -> DayObjectSceneInput {
-        musicController.sceneInput(
+        let preview = editorialPreview
+        return musicController.sceneInput(
             dayKey: key,
-            reduceMotion: reduceMotion,
+            reduceMotion: reduceMotion || reduceMotionPreview || preview != nil,
             motionEnergyOverride: motionEnergyOverride,
-            visualClarityOverride: visualClarityOverride,
+            visualClarityOverride: preview == nil ? visualClarityOverride : 1,
             uiExclusionRegion: Self.uiExclusionRegion,
             canvasCoverage: Self.canvasCoverage,
-            paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw)
+            paletteCategories: preview.map { Set([$0.paletteCategory]) }
+                ?? ModernPaletteSelection.decode(modernPaletteCategoriesRaw),
+            usesEditorialField: true,
+            editorialBackground: editorialBackground,
+            lowSleep: lowSleep,
+            editorialPreview: preview,
+            editorialLabConfiguration: preview == nil
+                ? DayObjectEditorialLabConfiguration(
+                    materialMode: editorialMaterialMode,
+                    placement: editorialPlacement
+                )
+                : nil
         )
+    }
+
+    static func resolvedVisualClarity(
+        _ requested: Double,
+        isEditorialPreview: Bool
+    ) -> Double {
+        isEditorialPreview ? 1 : requested
     }
 
     private static func dayKey(for offset: Int) -> String {

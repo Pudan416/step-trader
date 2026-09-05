@@ -125,6 +125,71 @@ struct MaterialDNATests {
         }
     }
 
+    @Test("organic structural topology is bounded actor-local recipe data")
+    func structuralTopologyIsEncodedAndBounded() throws {
+        for family in [MaterialFamily.halo, .outline, .counterform] {
+            let dna = MaterialDNA.fixture(
+                daySeed: 0xECCE_1705,
+                eventIDs: eventIDs,
+                family: family,
+                requestedColorCount: 1
+            )
+            for actor in dna.actors {
+                let topology = try #require(actor.organicTopology)
+                #expect((0.28...0.72).contains(topology.outerCenter.x))
+                #expect((0.28...0.72).contains(topology.outerCenter.y))
+                #expect((0.28...0.72).contains(topology.innerCenter.x))
+                #expect((0.28...0.72).contains(topology.innerCenter.y))
+                #expect((0.03...0.50).contains(topology.innerRadius))
+                #expect((0.08...0.50).contains(topology.outerRadius))
+                if family == .outline {
+                    for contour in topology.contours {
+                        let bandWidth = contour.outerRadius - contour.innerRadius
+                        let offset = hypot(
+                            contour.innerCenter.x - contour.outerCenter.x,
+                            contour.innerCenter.y - contour.outerCenter.y
+                        )
+                        #expect(offset >= bandWidth * 0.45)
+                        #expect(offset < bandWidth)
+                    }
+                    #expect(topology.contours.count == actor.contourCount)
+                    #expect(topology.outerCenter == topology.contours.first?.outerCenter)
+                    #expect(topology.outerRadius == topology.contours.first?.outerRadius)
+                    #expect(topology.innerCenter == topology.contours.last?.innerCenter)
+                    #expect(topology.innerRadius == topology.contours.last?.innerRadius)
+                    #expect(topology.contours.allSatisfy { contour in
+                        (0.28...0.72).contains(contour.outerCenter.x)
+                            && (0.28...0.72).contains(contour.outerCenter.y)
+                            && (0.28...0.72).contains(contour.innerCenter.x)
+                            && (0.28...0.72).contains(contour.innerCenter.y)
+                            && (0.02...0.50).contains(contour.innerRadius)
+                            && (0.02...0.50).contains(contour.outerRadius)
+                            && contour.innerRadius < contour.outerRadius
+                            && contour.opacity > 0
+                            && contour.opacity <= 1
+                    })
+                } else {
+                    #expect(hypot(
+                        topology.innerCenter.x - topology.outerCenter.x,
+                        topology.innerCenter.y - topology.outerCenter.y
+                    ) >= 0.030)
+                    #expect(topology.contours.isEmpty)
+                }
+                let encoded = try JSONEncoder().encode(actor)
+                #expect(try JSONDecoder().decode(ActorMaterialRecipe.self, from: encoded) == actor)
+            }
+        }
+        for family in MaterialFamily.allCases where ![.halo, .outline, .counterform].contains(family) {
+            let dna = MaterialDNA.fixture(
+                daySeed: 0xECCE_1705,
+                eventIDs: eventIDs,
+                family: family,
+                requestedColorCount: 3
+            )
+            #expect(dna.actors.allSatisfy { $0.organicTopology == nil })
+        }
+    }
+
     @Test("material generation depends on identity and day seed, not composition geometry bytes")
     func materialIsCompositionIndependent() {
         let ids = Array(eventIDs.prefix(3))

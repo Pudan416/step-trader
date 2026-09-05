@@ -1,0 +1,308 @@
+Building for debugging...
+[0/20] /Users/kosta/Documents/Documents runner.swift
+[1/20] Write sources
+[5/20] Write editorial-field-render-entitlement.plist
+[5/20] Write sources
+[7/20] Write editorial-field-corpus-entitlement.plist
+[7/20] Write sources
+[11/20] Write swift-version--58304C5D6DBC2206.txt
+[13/27] Compiling EditorialFieldCore EditorialGrammar.swift
+[14/27] Compiling EditorialFieldCore CompositionPlanner.swift
+[15/27] Compiling EditorialFieldCore SceneRecipe.swift
+[16/27] Compiling EditorialFieldCore CorpusManifest.swift
+[17/27] Compiling EditorialFieldCore SeedDerivation.swift
+[18/27] Emitting module EditorialFieldCore
+[19/27] Compiling EditorialFieldCore MaterialDNA.swift
+[20/36] Emitting module editorial_field_corpus
+[21/36] Compiling editorial_field_corpus main.swift
+[21/36] Write Objects.LinkFileList
+[22/36] Linking editorial-field-corpus
+[23/36] Applying editorial-field-corpus
+[25/36] Compiling EditorialFieldCoreTests CorpusManifestTests.swift
+[26/36] Emitting module EditorialFieldRender
+[27/36] Compiling EditorialFieldRender NeutralRenderer.swift
+[28/36] Compiling EditorialFieldRender MaterialRenderer.swift
+[29/39] Compiling EditorialFieldCoreTests MaterialDNATests.swift
+[30/39] Emitting module EditorialFieldEvidence
+[31/39] Compiling EditorialFieldEvidence EvidencePackage.swift
+[32/39] Compiling EditorialFieldEvidence MaterialEvidencePackage.swift
+[33/44] Emitting module editorial_field_render
+[34/44] Compiling editorial_field_render main.swift
+[34/44] Write Objects.LinkFileList
+[35/44] Linking editorial-field-render
+[36/44] Applying editorial-field-render
+[38/44] Emitting module EditorialFieldCoreTests
+[39/44] Compiling EditorialFieldCoreTests CompositionPlannerTests.swift
+[40/44] Emitting module EditorialFieldRenderTests
+[41/44] Compiling EditorialFieldRenderTests NeutralRendererTests.swift
+[42/44] Compiling EditorialFieldRenderTests MaterialRendererTests.swift
+[43/46] Compiling DayObjectsEditorialFieldPackageTests runner.swift
+[44/46] Emitting module DayObjectsEditorialFieldPackageTests
+[44/46] Write Objects.LinkFileList
+[45/46] Linking DayObjectsEditorialFieldPackageTests
+Build complete! (30.17s)
+Test Suite 'All tests' started at 2026-09-04 00:06:41.639.
+Test Suite 'All tests' passed at 2026-09-04 00:06:41.648.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.009) seconds
+◇ Test run started.
+↳ Testing Library Version: 1501
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite "Corpus manifest" started.
+◇ Suite "Editorial composition planner" started.
+◇ Suite "CoreGraphics editorial material renderer" started.
+◇ Suite "Neutral editorial field evidence" started.
+◇ Suite "Editorial radial material DNA" started.
+◇ Test "breadth two through five retain every sparse identity in the tile" started.
+◇ Test "generated fixture seeds are unique and match their recorded collision" started.
+◇ Test "visible fixture tables retain all required corpus conditions" started.
+◇ Test "seed is the first eight SHA-256 bytes in big-endian order" started.
+◇ Test "fixture 11 readability persists exact same-render authority metadata" started.
+◇ Test "material atlas coverage crosses every family with one two and three requested colors" started.
+◇ Test "actor blur changes only its local layer before scene compositing" started.
+◇ Test "material verification rejects a checksum-valid blank contact sheet" started.
+◇ Test "ruling 20 radial harness separates 60D3 unobservable support from 1BE8 variability" started.
+◇ Test "sealed package verification fails after one artifact byte changes" started.
+◇ Test "fixture 23 large outline survives exact phone and tile presentation" started.
+◇ Test "breadth ten equal-scale field retains its readable editorial field" started.
+◇ Test "visible manifest has reproducible breadth and presentation coverage" started.
+◇ Test "visible-v1 generation rejects reordered fixtures and changed phase, stage, or authority metadata" started.
+◇ Test "halo nucleus joins its aura without an inner-radius contrast ridge" started.
+◇ Test "actors carry distinct labels, depth luminance, local blur, and foreground order" started.
+◇ Test "organic structural topology is bounded actor-local recipe data" started.
+◇ Test "cropped foreground keeps a genuinely cropped near actor and readable counterweight" started.
+◇ Test "all nine daily material families are reachable" started.
+◇ Test "verification rejects a checksum-valid tile swapped from another scene" started.
+◇ Test "unsupported radial blend values fail closed during decoding" started.
+◇ Test "sparse crop safety does not reroll retained actor scale or depth" started.
+◇ Test "normal halo stays filled while outline keeps a cut center after frozen depth blur" started.
+◇ Test "composition coverage includes every breadth fixture and continuity stage at every phase and view" started.
+◇ Test "solid is exactly one constant color with no analytic or brightness field" started.
+◇ Test "verification rejects checksum-valid corpus, manifest, and metrics substitutions" started.
+◇ Test "material fixtures stay within the radial-only three-color budget" started.
+◇ Test "sparse continuity tiles retain identities and two-axis balance" started.
+◇ Test "default outline visibility placement is byte-identical to explicit none" started.
+◇ Test "organic topology proxy rejects a perfect mechanical torus" started.
+◇ Test "gradient and mist stay filled rather than inheriting annular topology" started.
+◇ Test "actor-local material mutations survive reorder, insertion, and removal" started.
+◇ Test "continuity count ten carries two independent cross-depth overlaps" started.
+◇ Test "debug overlay toggles emit only requested separate images" started.
+◇ Test "dense visible fields use independent cropped edges and useful depth accents" started.
+◇ Test "solid interior is spatially constant before edge antialiasing" started.
+◇ Test "visible overlap grammars intersect in rendered phone geometry" started.
+◇ Test "phone PNG is exact 3x and tile bytes are cropped from that scene" started.
+◇ Test "large foreground remains softer than the sharpest middle-plane actor" started.
+◇ Test "one daily family and its compatible accent govern every actor" started.
+◇ Test "fixture 11 presentation evidence packages deterministic same-render authority" started.
+◇ Test "verification rejects checksum-valid forged and empty provenance metadata" started.
+◇ Test "visible-v1 generation rejects a manifest with eleven breadth fixtures" started.
+◇ Test "outline authority is canonical-only while topology remains measurement-only" started.
+◇ Test "outline and counterform are structurally visible among the first three actors" started.
+◇ Test "composition writer emits the complete sealed package contract" started.
+◇ Test "material generation depends on identity and day seed, not composition geometry bytes" started.
+◇ Test "forbidden grid, ring, and flower controls score as catastrophic" started.
+◇ Test "same-role external identities de-regularize without reroll" started.
+◇ Test "the rare equal-scale grammar remains related without becoming equal-sized" started.
+◇ Test "canonical material metrics sample visible topology and distinct secondary color for every multicolor actor" started.
+◇ Test "every canonical removal subset avoids catastrophic regularity across 2,048 seeds" started.
+◇ Test "retained actors keep their complete recipe through reorder, insertion, and removal" started.
+◇ Test "returned halo and outline recipes reject mechanical concentric topology" started.
+◇ Test "material atlas geometry and pixels come from the frozen recipe archive" started.
+◇ Test "authority replay rejects every independently tampered provenance field" started.
+◇ Test "c3 proxy rejects a duplicated secondary palette as tertiary ownership" started.
+◇ Test "grammar weights and regularity guardrails remain bounded across 2,048 seeds" started.
+◇ Test "visible pairs form an asymmetric counterpoint away from the top cluster" started.
+◇ Test "mist fixtures 12 through 14 keep fine actor-local grain at native 1x" started.
+◇ Test "distributed grammars occupy every vertical third with six or more actors" started.
+◇ Test "borrowed authority trace comes from a separately rendered topology actor" started.
+◇ Test "scene-scale structural alpha bands survive every family and palette count" started.
+◇ Test "dense and depth grammars keep rendered intersections across 2,048 seeds" started.
+◇ Test "secondary radial fields contribute hue and chroma rather than a neutral luminance blob" started.
+◇ Test "outline evidence owns the exact presented structural-authority trace" started.
+◇ Test "arbitrary identity sets stay immutable, finite, visible, and non-catastrophic" started.
+◇ Test "planner admits unique identities in stable priority and caps the scene at ten actors" started.
+◇ Test "critic target c3 actors expose three broad shifted color regions" started.
+◇ Test "ruling 19 positive-mean support and waived coverage close layout 11" started.
+◇ Test "mist keeps radial color ownership while stable actor-local grain survives" started.
+◇ Test "fixture 11 payload readability deterministically consumes exact authority" started.
+◇ Test "material verification rejects a checksum-valid blank full render and matching tile" started.
+◇ Test "non-equal ten-actor fields sustain an extreme but continuous hierarchy" started.
+◇ Test "non-equal grammars preserve a broad continuous scale hierarchy" started.
+◇ Test "production outline projection matches the accepted R19 positive-mean construction" started.
+◇ Test "normal exact outlines keep a visible cut contour distinct from filled bodies and counterform" started.
+◇ Test "breadth ten equal-scale field avoids rhythmic overlapping bead rows" started.
+◇ Test "transparent material silhouettes clear visibility floors on light dark and low-contrast backgrounds" started.
+◇ Test "continuity-prefix removals preserve actors and achievable composition guarantees" started.
+◇ Test "scene-scale evidence consumes renderer-owned presentation bytes" started.
+◇ Test "edge anchors do not create an equal-spacing removal subset" started.
+◇ Test "actor-local blur fades beyond the body bounds without a square clipping seam" started.
+◇ Test "halo fixtures 15 through 17 retain a compact body and surrounding aura at sealed 1x" started.
+◇ Test "breadth fixture four breaks the diagonal with a readable cross-depth neighbour" started.
+◇ Test "fixture 11 outline modes expose one deterministic same-render authority trace" started.
+◇ Test "listed sparse breadth tiles retain readable editorial relationships" started.
+◇ Test "luminous has a legible shifted core and outer emission unlike sphere" started.
+◇ Test "the corpus can span tiny through cropped foreground without requiring a giant" started.
+◇ Test "sealed 1x material families remain optically identifiable in every presentation" started.
+◇ Test "visible single-actor fields use distinct regions, scale, and depth" started.
+◇ Test "material render consumes frozen composition without changing its canonical bytes" started.
+◇ Test "native outline presentation keeps thin open contours in every core condition" started.
+◇ Test "packaged topology proxy rejects concentric alpha under shifted chroma" started.
+◇ Test "overlapping outline accents compose nonexclusively in canonical draw order" started.
+◇ Test "post-blur alpha evidence isolates every outline contour and ignores RGB" started.
+◇ Test "decoded structural recipes reject malformed family topology before rendering" started.
+◇ Test "mist fine-field invariants preserve alpha scale isotropy and radial ownership" started.
+◇ Test "same-layout c2 crops preserve two owned regions, including contour pixels" started.
+◇ Test "halo split presentation preserves aura alpha and final-pixel compact softness" started.
+◇ Test "below-cutoff authority tails do not rescue a missing outline arc" started.
+◇ Test "shifted radial fields are smooth and have no angular seam" started.
+◇ Test "multi-outline uses unequal related circle spacing" started.
+◇ Test "fixture 11 outline visibility is owned by the renderer after whole-scene downsampling" started.
+◇ Test "outline and counterform have distinct alpha topology" started.
+◇ Test "glass keeps a refractive rim visible on the low contrast field" started.
+◇ Test "mist canonical grain seed follows appearance rather than actor labels" started.
+◇ Test "fixture 11 outline presentation separates identity from intentional crop and overlap" started.
+◇ Test "unknown authority field mutation preserves every original metrics byte" started.
+◇ Test "scene background contrast adjustment has no hard white wedge" started.
+◇ Test "material atlas preserves frozen approval bytes and seals descriptors plus rendered samples" started.
+composition grammar shares: layeredOverlap=0.246, openField=0.205, croppedForeground=0.148, depthScatter=0.215, transparentPrint=0.117, equalScaleStudy=0.068
+worst guardrails: ring=0.013407816727221284, grid=0.2449489742783178, row=0.2, focus=0.3, cluster=0.09542479531119163, spacing=0.2137356637885053, scale=0.25732617169427896
+✔ Test "seed is the first eight SHA-256 bytes in big-endian order" passed after 127.767 seconds.
+✔ Test "visible fixture tables retain all required corpus conditions" passed after 241.863 seconds.
+✔ Test "generated fixture seeds are unique and match their recorded collision" passed after 241.863 seconds.
+✔ Test "material atlas coverage crosses every family with one two and three requested colors" passed after 241.863 seconds.
+✔ Test "visible manifest has reproducible breadth and presentation coverage" passed after 241.863 seconds.
+✔ Test "breadth ten equal-scale field retains its readable editorial field" passed after 266.239 seconds.
+✔ Test "organic structural topology is bounded actor-local recipe data" passed after 266.444 seconds.
+✔ Test "visible-v1 generation rejects reordered fixtures and changed phase, stage, or authority metadata" passed after 266.456 seconds.
+✔ Test "all nine daily material families are reachable" passed after 269.002 seconds.
+canonical arbitrary subsets evaluated: 1734656, catastrophic: 0
+✔ Test "breadth two through five retain every sparse identity in the tile" passed after 269.997 seconds.
+✔ Test "actor blur changes only its local layer before scene compositing" passed after 286.513 seconds.
+✔ Test "unsupported radial blend values fail closed during decoding" passed after 286.517 seconds.
+✔ Test "sparse crop safety does not reroll retained actor scale or depth" passed after 286.517 seconds.
+✔ Test "actors carry distinct labels, depth luminance, local blur, and foreground order" passed after 288.526 seconds.
+✔ Test "solid is exactly one constant color with no analytic or brightness field" passed after 292.053 seconds.
+✔ Test "composition coverage includes every breadth fixture and continuity stage at every phase and view" passed after 292.075 seconds.
+✔ Test "verification rejects checksum-valid corpus, manifest, and metrics substitutions" passed after 292.075 seconds.
+✔ Test "material fixtures stay within the radial-only three-color budget" passed after 298.240 seconds.
+✔ Test "sparse continuity tiles retain identities and two-axis balance" passed after 301.690 seconds.
+✔ Test "verification rejects a checksum-valid tile swapped from another scene" passed after 304.433 seconds.
+✔ Test "sealed package verification fails after one artifact byte changes" passed after 304.433 seconds.
+✔ Test "organic topology proxy rejects a perfect mechanical torus" passed after 304.433 seconds.
+✔ Test "continuity count ten carries two independent cross-depth overlaps" passed after 304.433 seconds.
+✔ Test "debug overlay toggles emit only requested separate images" passed after 304.433 seconds.
+✔ Test "actor-local material mutations survive reorder, insertion, and removal" passed after 304.433 seconds.
+✔ Test "dense visible fields use independent cropped edges and useful depth accents" passed after 323.866 seconds.
+✔ Test "solid interior is spatially constant before edge antialiasing" passed after 323.866 seconds.
+✔ Test "visible overlap grammars intersect in rendered phone geometry" passed after 439.385 seconds.
+✔ Test "phone PNG is exact 3x and tile bytes are cropped from that scene" passed after 439.385 seconds.
+✔ Test "gradient and mist stay filled rather than inheriting annular topology" passed after 439.385 seconds.
+✔ Test "one daily family and its compatible accent govern every actor" passed after 439.385 seconds.
+✔ Test "ruling 20 radial harness separates 60D3 unobservable support from 1BE8 variability" passed after 439.385 seconds.
+✔ Test "halo nucleus joins its aura without an inner-radius contrast ridge" passed after 439.385 seconds.
+✔ Test "visible-v1 generation rejects a manifest with eleven breadth fixtures" passed after 439.385 seconds.
+✔ Test "verification rejects checksum-valid forged and empty provenance metadata" passed after 439.385 seconds.
+✔ Test "composition writer emits the complete sealed package contract" passed after 439.385 seconds.
+✔ Test "material generation depends on identity and day seed, not composition geometry bytes" passed after 439.385 seconds.
+✔ Test "outline and counterform are structurally visible among the first three actors" passed after 439.385 seconds.
+✔ Test "forbidden grid, ring, and flower controls score as catastrophic" passed after 439.385 seconds.
+✔ Test "same-role external identities de-regularize without reroll" passed after 439.385 seconds.
+✔ Test "the rare equal-scale grammar remains related without becoming equal-sized" passed after 439.385 seconds.
+✔ Test "cropped foreground keeps a genuinely cropped near actor and readable counterweight" passed after 439.385 seconds.
+✔ Test "large foreground remains softer than the sharpest middle-plane actor" passed after 439.385 seconds.
+✔ Test "retained actors keep their complete recipe through reorder, insertion, and removal" passed after 439.385 seconds.
+✔ Test "returned halo and outline recipes reject mechanical concentric topology" passed after 439.385 seconds.
+✔ Test "fixture 23 large outline survives exact phone and tile presentation" passed after 439.385 seconds.
+✔ Test "default outline visibility placement is byte-identical to explicit none" passed after 439.385 seconds.
+✔ Test "c3 proxy rejects a duplicated secondary palette as tertiary ownership" passed after 439.385 seconds.
+✔ Test "grammar weights and regularity guardrails remain bounded across 2,048 seeds" passed after 439.385 seconds.
+✔ Test "fixture 11 readability persists exact same-render authority metadata" passed after 439.385 seconds.
+✔ Test "distributed grammars occupy every vertical third with six or more actors" passed after 439.385 seconds.
+✔ Test "fixture 11 presentation evidence packages deterministic same-render authority" passed after 439.385 seconds.
+✔ Test "normal halo stays filled while outline keeps a cut center after frozen depth blur" passed after 439.385 seconds.
+✔ Test "visible pairs form an asymmetric counterpoint away from the top cluster" passed after 439.385 seconds.
+✔ Test "dense and depth grammars keep rendered intersections across 2,048 seeds" passed after 439.385 seconds.
+✔ Test "secondary radial fields contribute hue and chroma rather than a neutral luminance blob" passed after 439.385 seconds.
+✔ Test "outline evidence owns the exact presented structural-authority trace" passed after 439.385 seconds.
+✔ Test "arbitrary identity sets stay immutable, finite, visible, and non-catastrophic" passed after 439.385 seconds.
+✔ Test "planner admits unique identities in stable priority and caps the scene at ten actors" passed after 439.385 seconds.
+✔ Test "critic target c3 actors expose three broad shifted color regions" passed after 439.385 seconds.
+✔ Test "outline authority is canonical-only while topology remains measurement-only" passed after 439.385 seconds.
+✔ Test "mist keeps radial color ownership while stable actor-local grain survives" passed after 439.385 seconds.
+✔ Test "mist fixtures 12 through 14 keep fine actor-local grain at native 1x" passed after 439.385 seconds.
+✔ Test "authority replay rejects every independently tampered provenance field" passed after 439.385 seconds.
+✔ Test "non-equal ten-actor fields sustain an extreme but continuous hierarchy" passed after 439.385 seconds.
+✔ Test "non-equal grammars preserve a broad continuous scale hierarchy" passed after 439.385 seconds.
+✔ Test "scene-scale structural alpha bands survive every family and palette count" passed after 439.385 seconds.
+✔ Test "borrowed authority trace comes from a separately rendered topology actor" passed after 439.385 seconds.
+✔ Test "breadth ten equal-scale field avoids rhythmic overlapping bead rows" passed after 439.385 seconds.
+✔ Test "transparent material silhouettes clear visibility floors on light dark and low-contrast backgrounds" passed after 439.385 seconds.
+✔ Test "continuity-prefix removals preserve actors and achievable composition guarantees" passed after 439.385 seconds.
+✔ Test "normal exact outlines keep a visible cut contour distinct from filled bodies and counterform" passed after 439.385 seconds.
+✔ Test "edge anchors do not create an equal-spacing removal subset" passed after 439.384 seconds.
+✔ Test "actor-local blur fades beyond the body bounds without a square clipping seam" passed after 439.384 seconds.
+✔ Test "halo fixtures 15 through 17 retain a compact body and surrounding aura at sealed 1x" passed after 439.379 seconds.
+✔ Test "breadth fixture four breaks the diagonal with a readable cross-depth neighbour" passed after 439.379 seconds.
+✔ Test "scene-scale evidence consumes renderer-owned presentation bytes" passed after 439.384 seconds.
+✔ Test "listed sparse breadth tiles retain readable editorial relationships" passed after 439.379 seconds.
+✔ Test "luminous has a legible shifted core and outer emission unlike sphere" passed after 439.350 seconds.
+✔ Test "the corpus can span tiny through cropped foreground without requiring a giant" passed after 439.345 seconds.
+✔ Test "production outline projection matches the accepted R19 positive-mean construction" passed after 439.385 seconds.
+✔ Test "visible single-actor fields use distinct regions, scale, and depth" passed after 439.344 seconds.
+✔ Test "material render consumes frozen composition without changing its canonical bytes" passed after 439.344 seconds.
+✔ Test "every canonical removal subset avoids catastrophic regularity across 2,048 seeds" passed after 439.386 seconds.
+✔ Test "packaged topology proxy rejects concentric alpha under shifted chroma" passed after 439.278 seconds.
+✔ Test "sealed 1x material families remain optically identifiable in every presentation" passed after 439.344 seconds.
+✔ Test "fixture 11 outline modes expose one deterministic same-render authority trace" passed after 439.379 seconds.
+✔ Test "decoded structural recipes reject malformed family topology before rendering" passed after 439.273 seconds.
+✔ Test "mist fine-field invariants preserve alpha scale isotropy and radial ownership" passed after 439.237 seconds.
+✔ Test "same-layout c2 crops preserve two owned regions, including contour pixels" passed after 439.237 seconds.
+✔ Test "halo split presentation preserves aura alpha and final-pixel compact softness" passed after 439.237 seconds.
+✔ Test "post-blur alpha evidence isolates every outline contour and ignores RGB" passed after 439.278 seconds.
+✔ Test "shifted radial fields are smooth and have no angular seam" passed after 439.209 seconds.
+✔ Test "multi-outline uses unequal related circle spacing" passed after 430.954 seconds.
+✔ Test "overlapping outline accents compose nonexclusively in canonical draw order" passed after 439.278 seconds.
+✔ Test "outline and counterform have distinct alpha topology" passed after 430.743 seconds.
+✔ Test "glass keeps a refractive rim visible on the low contrast field" passed after 430.743 seconds.
+✔ Test "mist canonical grain seed follows appearance rather than actor labels" passed after 430.743 seconds.
+✔ Test "fixture 11 payload readability deterministically consumes exact authority" passed after 439.385 seconds.
+✔ Test "unknown authority field mutation preserves every original metrics byte" passed after 428.175 seconds.
+✔ Test "scene background contrast adjustment has no hard white wedge" passed after 428.071 seconds.
+✔ Test "below-cutoff authority tails do not rescue a missing outline arc" passed after 439.212 seconds.
+✔ Suite "Corpus manifest" passed after 439.387 seconds.
+✔ Suite "Editorial radial material DNA" passed after 439.387 seconds.
+✔ Suite "Neutral editorial field evidence" passed after 439.387 seconds.
+✔ Suite "Editorial composition planner" passed after 439.387 seconds.
+✔ Test "fixture 11 outline presentation separates identity from intentional crop and overlap" passed after 458.488 seconds.
+✔ Test "fixture 11 outline visibility is owned by the renderer after whole-scene downsampling" passed after 493.090 seconds.
+✔ Test "native outline presentation keeps thin open contours in every core condition" passed after 788.630 seconds.
+✔ Test "canonical material metrics sample visible topology and distinct secondary color for every multicolor actor" passed after 856.157 seconds.
+ruling19 ledger geometric=72 attainable=68 occluded=4 keys=14/14 pass=68/68
+ruling19 selector=[(key: "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02|dark", value: "gamut-ray"), (key: "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02|light", value: "gamut-ray"), (key: "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03|dark", value: "gamut-ray"), (key: "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03|light", value: "gamut-ray"), (key: "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03|lowContrast", value: "gamut-ray"), (key: "5FA2D140-7C0E-45B9-BE3D-8124A937EF06|dark", value: "gamut-ray"), (key: "5FA2D140-7C0E-45B9-BE3D-8124A937EF06|light", value: "gamut-ray"), (key: "5FA2D140-7C0E-45B9-BE3D-8124A937EF06|lowContrast", value: "gamut-ray"), (key: "82F5B06C-6A47-4C2E-8E51-B93D17CA2F09|dark", value: "gamut-ray"), (key: "82F5B06C-6A47-4C2E-8E51-B93D17CA2F09|light", value: "gamut-ray"), (key: "82F5B06C-6A47-4C2E-8E51-B93D17CA2F09|lowContrast", value: "gamut-ray"), (key: "9346C9D1-7B58-4D3F-A062-CE4B28D03A10|dark", value: "gamut-ray"), (key: "9346C9D1-7B58-4D3F-A062-CE4B28D03A10|light", value: "gamut-ray"), (key: "9346C9D1-7B58-4D3F-A062-CE4B28D03A10|lowContrast", value: "gamut-ray")]
+ruling19 selectorDigest=3b37336771cf31d5a7557a7b6f9255f6e39c51fca7b761c6c1e1c3375e24a7c2
+✔ Test "ruling 19 positive-mean support and waived coverage close layout 11" passed after 1248.147 seconds.
+ruling19 peakMutation geometric=72 attainable=67 occluded=5 c2/light/1BE8/full={peak=0.0722037358412626, centerRatio=0.0, p90Thickness=0.10500000000000001, density=0.04703282828282828, bands=1, angularCoverage=0.6875, observableRays=96}
+ruling19 radial observable=54 unobservable=["c2/60D319B7-3E21-4E8A-879F-5C6B24FA0A07|dark", "c2/60D319B7-3E21-4E8A-879F-5C6B24FA0A07|light", "c2/60D319B7-3E21-4E8A-879F-5C6B24FA0A07|lowContrast", "c3/60D319B7-3E21-4E8A-879F-5C6B24FA0A07|dark", "c3/60D319B7-3E21-4E8A-879F-5C6B24FA0A07|light", "c3/60D319B7-3E21-4E8A-879F-5C6B24FA0A07|lowContrast"] authoredFallbacks=6
+✔ Test "material verification rejects a checksum-valid blank contact sheet" passed after 1448.517 seconds.
+✔ Test "material atlas geometry and pixels come from the frozen recipe archive" passed after 1496.890 seconds.
+✔ Test "material verification rejects a checksum-valid blank full render and matching tile" passed after 1506.138 seconds.
+✔ Test "material atlas preserves frozen approval bytes and seals descriptors plus rendered samples" passed after 5064.920 seconds.
+✔ Suite "CoreGraphics editorial material renderer" passed after 5076.236 seconds.
+✔ Test run with 111 tests in 5 suites passed after 5076.237 seconds.
+     5108.36 real     12019.74 user       179.86 sys
+          4068261888  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+            20395875  page reclaims
+               12481  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+               15841  voluntary context switches
+            12654134  involuntary context switches
+          1987360958  instructions retired
+           719614221  cycles elapsed
+            17351352  peak memory footprint

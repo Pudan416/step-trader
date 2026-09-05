@@ -1,0 +1,392 @@
+sample_begin
+utc=2026-09-04T00:14:48Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    80414.
+Pages throttled:                                   0.
+Swapins:                                      488958.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:14:58Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    86326.
+Pages throttled:                                   0.
+Swapins:                                      488958.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:15:08Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    68064.
+Pages throttled:                                   0.
+Swapins:                                      488958.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:15:18Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    63643.
+Pages throttled:                                   0.
+Swapins:                                      488962.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:15:28Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    58890.
+Pages throttled:                                   0.
+Swapins:                                      488962.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:15:38Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    56085.
+Pages throttled:                                   0.
+Swapins:                                      488962.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:15:48Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    53896.
+Pages throttled:                                   0.
+Swapins:                                      488962.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:15:58Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    65523.
+Pages throttled:                                   0.
+Swapins:                                      488962.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:16:08Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    50176.
+Pages throttled:                                   0.
+Swapins:                                      488962.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:16:18Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    49767.
+Pages throttled:                                   0.
+Swapins:                                      488962.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:16:28Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    49653.
+Pages throttled:                                   0.
+Swapins:                                      488962.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:16:39Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    40275.
+Pages throttled:                                   0.
+Swapins:                                      488962.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:16:49Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    43495.
+Pages throttled:                                   0.
+Swapins:                                      488970.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:16:59Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    56559.
+Pages throttled:                                   0.
+Swapins:                                      488970.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:17:09Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    33612.
+Pages throttled:                                   0.
+Swapins:                                      488970.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:17:19Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    41961.
+Pages throttled:                                   0.
+Swapins:                                      488970.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:17:29Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    42078.
+Pages throttled:                                   0.
+Swapins:                                      488970.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:17:39Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    34302.
+Pages throttled:                                   0.
+Swapins:                                      488970.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:17:49Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    43075.
+Pages throttled:                                   0.
+Swapins:                                      488970.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:17:59Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    55280.
+Pages throttled:                                   0.
+Swapins:                                      488970.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:18:09Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    32830.
+Pages throttled:                                   0.
+Swapins:                                      488970.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:18:19Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    40903.
+Pages throttled:                                   0.
+Swapins:                                      488970.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:18:29Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    40177.
+Pages throttled:                                   0.
+Swapins:                                      488970.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:18:39Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    39730.
+Pages throttled:                                   0.
+Swapins:                                      488974.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:18:49Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    30413.
+Pages throttled:                                   0.
+Swapins:                                      488974.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:18:59Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    51950.
+Pages throttled:                                   0.
+Swapins:                                      488974.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:19:09Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    38285.
+Pages throttled:                                   0.
+Swapins:                                      488974.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:19:19Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    38215.
+Pages throttled:                                   0.
+Swapins:                                      488974.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:19:29Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    26003.
+Pages throttled:                                   0.
+Swapins:                                      488974.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:19:39Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    35158.
+Pages throttled:                                   0.
+Swapins:                                      488974.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:19:49Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    35351.
+Pages throttled:                                   0.
+Swapins:                                      488974.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:19:59Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    47519.
+Pages throttled:                                   0.
+Swapins:                                      488974.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:20:09Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    23915.
+Pages throttled:                                   0.
+Swapins:                                      488974.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:20:19Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    33781.
+Pages throttled:                                   0.
+Swapins:                                      488974.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:20:29Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    37078.
+Pages throttled:                                   0.
+Swapins:                                      488974.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:20:39Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    32620.
+Pages throttled:                                   0.
+Swapins:                                      488998.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:20:49Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    31269.
+Pages throttled:                                   0.
+Swapins:                                      488998.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:20:59Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    44890.
+Pages throttled:                                   0.
+Swapins:                                      488998.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:21:09Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    32273.
+Pages throttled:                                   0.
+Swapins:                                      489002.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:21:19Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    32675.
+Pages throttled:                                   0.
+Swapins:                                      489002.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:21:29Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    32229.
+Pages throttled:                                   0.
+Swapins:                                      489002.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:21:39Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    34333.
+Pages throttled:                                   0.
+Swapins:                                      489002.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:21:49Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    35450.
+Pages throttled:                                   0.
+Swapins:                                      489002.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:21:59Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    48304.
+Pages throttled:                                   0.
+Swapins:                                      489002.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:22:09Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    34953.
+Pages throttled:                                   0.
+Swapins:                                      489002.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:22:19Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    35223.
+Pages throttled:                                   0.
+Swapins:                                      489002.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:22:29Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    32224.
+Pages throttled:                                   0.
+Swapins:                                      489002.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:22:40Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    27848.
+Pages throttled:                                   0.
+Swapins:                                      489002.
+Swapouts:                                     915659.
+sample_end
+sample_begin
+utc=2026-09-04T00:22:50Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    22680.
+Pages throttled:                                   0.
+Swapins:                                      489002.
+Swapouts:                                     915659.
+sample_end

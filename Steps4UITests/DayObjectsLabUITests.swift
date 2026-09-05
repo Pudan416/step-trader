@@ -22,6 +22,57 @@ final class DayObjectsLabUITests: XCTestCase {
         XCTAssertFalse(app.buttons["dayObjects.remix"].exists)
     }
 
+    func testEditorialFieldMVPVisualHandoff() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-uiLab", "dayObjects",
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        let canvas = app.otherElements["dayObjects.canvas"]
+        XCTAssertTrue(canvas.waitForExistence(timeout: 8))
+        setHappenings(10, on: app.sliders["dayObjects.happenings"])
+
+        let controlsToggle = app.buttons["dayObjects.controlsToggle"]
+        controlsToggle.tap()
+        Thread.sleep(forTimeInterval: 10)
+        attachScreenshot(named: "editorial-field-metal-full")
+
+        controlsToggle.tap()
+        let tileToggle = app.buttons["dayObjects.tileToggle"]
+        XCTAssertTrue(tileToggle.waitForExistence(timeout: 5))
+        tileToggle.tap()
+        let tileState = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "tile"),
+            object: tileToggle
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [tileState], timeout: 5), .completed)
+        XCTAssertTrue(app.otherElements["dayObjects.calendarTile"].waitForExistence(timeout: 5))
+        controlsToggle.tap()
+        Thread.sleep(forTimeInterval: 2)
+        attachScreenshot(named: "editorial-field-metal-calendar-tile")
+
+        controlsToggle.tap()
+        app.switches["dayObjects.reduceMotionPreview"].tap()
+        app.buttons["dayObjects.tileToggle"].tap()
+        controlsToggle.tap()
+        Thread.sleep(forTimeInterval: 2)
+        attachScreenshot(named: "editorial-field-metal-reduce-motion")
+
+        controlsToggle.tap()
+        app.switches["dayObjects.reduceMotionPreview"].tap()
+        app.switches["dayObjects.lowSleep"].tap()
+        app.buttons["dayObjects.nextDay"].tap()
+        let background = app.segmentedControls["dayObjects.background"]
+        XCTAssertTrue(background.waitForExistence(timeout: 5))
+        background.buttons["Light"].tap()
+        controlsToggle.tap()
+        Thread.sleep(forTimeInterval: 2)
+        attachScreenshot(named: "editorial-field-metal-light-low-sleep")
+    }
+
     func testLabExposesAutomaticDayControlsAndAddsHappeningsInPlace() throws {
         let app = XCUIApplication()
         app.launchArguments = [
@@ -116,6 +167,7 @@ final class DayObjectsLabUITests: XCTestCase {
         XCTAssertTrue(app.otherElements["dayObjects.grid"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.otherElements["dayObjects.leadSurface"].exists)
         XCTAssertTrue(String(describing: app.otherElements["dayObjects.grid"].value).contains("Touch performance unavailable"))
+        app.buttons["dayObjects.controlsToggle"].tap()
 
         Thread.sleep(forTimeInterval: 1.5)
         let gridScreenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
@@ -155,6 +207,101 @@ final class DayObjectsLabUITests: XCTestCase {
         XCTAssertTrue(String(describing: motion.value).contains("0.00"))
         reset.tap()
         XCTAssertTrue(String(describing: motion.value).contains("1.00"))
+    }
+
+    func testLabExposesEditorialMaterialAndPlacementControls() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-uiLab", "dayObjects",
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        let material = app.descendants(matching: .any)["dayObjects.materialMode"].firstMatch
+        let placement = app.descendants(matching: .any)["dayObjects.placement"].firstMatch
+
+        XCTAssertTrue(material.waitForExistence(timeout: 8))
+        XCTAssertTrue(String(describing: material.value).contains("Generative DNA"))
+        XCTAssertTrue(placement.exists)
+        XCTAssertTrue(String(describing: placement.value).contains("Depth field"))
+
+        let language = app.staticTexts["dayObjects.language"]
+        XCTAssertTrue(language.waitForExistence(timeout: 5))
+        let initialFingerprint = Self.dnaFingerprint(from: language.value)
+        XCTAssertTrue(initialFingerprint.hasPrefix("DNA "), initialFingerprint)
+
+        app.buttons["dayObjects.nextDay"].tap()
+        let changedFingerprint = XCTNSPredicateExpectation(
+            predicate: NSPredicate { object, _ in
+                guard let element = object as? XCUIElement else { return false }
+                let fingerprint = Self.dnaFingerprint(from: element.value)
+                return fingerprint.hasPrefix("DNA ") && fingerprint != initialFingerprint
+            },
+            object: language
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [changedFingerprint], timeout: 5), .completed)
+        let nextFingerprint = Self.dnaFingerprint(from: language.value)
+
+        app.switches["dayObjects.reduceMotionPreview"].tap()
+        app.buttons["dayObjects.tileToggle"].tap()
+        XCTAssertEqual(Self.dnaFingerprint(from: language.value), nextFingerprint)
+
+        material.tap()
+        let comparison = app.buttons["All formats (comparison)"]
+        XCTAssertTrue(comparison.waitForExistence(timeout: 3))
+        comparison.tap()
+        XCTAssertTrue(
+            String(describing: material.value).contains("All formats (comparison)")
+        )
+    }
+
+    func testComplexGradientExamplesVisualHandoff() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-uiLab", "dayObjects",
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        let happenings = app.sliders["dayObjects.happenings"]
+        let language = app.staticTexts["dayObjects.language"]
+        let controlsToggle = app.buttons["dayObjects.controlsToggle"]
+        let nextDay = app.buttons["dayObjects.nextDay"]
+        XCTAssertTrue(happenings.waitForExistence(timeout: 8))
+        XCTAssertTrue(language.waitForExistence(timeout: 5))
+        setHappenings(10, on: happenings)
+
+        var captured = 0
+        for offset in 0..<42 where captured < 4 {
+            let fingerprint = Self.dnaFingerprint(from: language.value)
+            let primaryMaterial = fingerprint
+                .components(separatedBy: " · ")
+                .dropFirst(2)
+                .first ?? ""
+            if primaryMaterial.hasPrefix("radial field") {
+                controlsToggle.tap()
+                Thread.sleep(forTimeInterval: 1)
+                attachScreenshot(named: "complex-gradient-\(captured + 1)-offset-\(offset)")
+                controlsToggle.tap()
+                let controlsReady = XCTNSPredicateExpectation(
+                    predicate: NSPredicate(format: "isHittable == true"),
+                    object: nextDay
+                )
+                XCTAssertEqual(
+                    XCTWaiter.wait(for: [controlsReady], timeout: 3),
+                    .completed
+                )
+                captured += 1
+            }
+            if captured < 4 {
+                nextDay.tap()
+                Thread.sleep(forTimeInterval: 0.35)
+            }
+        }
+
+        XCTAssertEqual(captured, 4)
     }
 
     func testLabControlsAbsoluteSpentColorsInSingleAndGridModes() throws {
@@ -465,11 +612,18 @@ final class DayObjectsLabUITests: XCTestCase {
             .compactMap { Int($0) }
     }
 
+    private static func dnaFingerprint(from accessibilityValue: Any?) -> String {
+        String(describing: accessibilityValue ?? "")
+            .split(whereSeparator: \.isNewline)
+            .first
+            .map(String.init) ?? ""
+    }
+
     private func assertLanguageSummary(
         _ summary: String,
         expectedActorCount: Int
     ) {
-        XCTAssertTrue(summary.contains("family="), summary)
+        XCTAssertTrue(summary.contains("DNA ") || summary.contains("family="), summary)
         XCTAssertTrue(summary.contains("mutations="), summary)
         XCTAssertTrue(summary.contains("motion="), summary)
         XCTAssertTrue(summary.contains("palettes="), summary)

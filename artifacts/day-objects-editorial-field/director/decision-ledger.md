@@ -42,3 +42,17 @@ Observed accepted behavior includes:
 ## Freeze boundary
 
 This decision freezes composition only. Material, palette, grain, motion, Metal parity, and production integration remain unapproved until their later gates pass. The main canvas remains unchanged; Day Objects stays Lab-only.
+
+## Material approval — Task 1B Attempt 5
+
+At `2026-09-04T02:42:18Z`, Visual Director Ruling 20 accepted the sandbox material evidence from exact source commit `3e5f3095167889b3a9ae5a8145ef0103489e6e3c` after deterministic candidate/rerender verification, same-render presentation-authority proof, a leak-free blind A/B comparison, and two fresh independent aesthetic PASS verdicts.
+
+- Scale-1 package SHA-256: `09c092ed48a969c81145b789da7f123106c21b124020c3122de7fbd2bf508852`.
+- Scale-3 package SHA-256: `5a0c7a2251b1e9119155afc31049e51d280d8e76956a9113b469acc279487f57`.
+- Authority schema: `material-metrics-v9` / `outline-presentation-authority-v1`; aggregate SHA-256 `444e251af9e720ebbc5f44981ed5a0dda9d4a66272f10460d899d035da676ad7`.
+- Blind assignment SHA-256: `af8586f8d58100d3b1a5d377aef8be07fd3b8c6677a51009959a52d574cc38db`.
+- Critic packet manifest SHA-256: `6d7fe842d5db754a22b6e2be15c55125a2829c4c725cc8fbe163991066aaa268`.
+- Critic A verdict SHA-256: `7abe10098cc7df087d889d41b17b7f7ed69f59e97209d69e92b2fd37ae9a56bf` — PASS.
+- Critic B verdict SHA-256: `38945eb15c6a1583308f387ef491c0b4c2e0d3351f735bbc808ea7d40c5c8144` — PASS.
+
+This decision freezes composition and sandbox materials only. Motion remains blocked until this Gate 8 freeze is independently reviewed and committed. Metal parity, production integration, the main app canvas, and perceptual goldens remain untouched and unapproved; Day Objects remains Lab-only.

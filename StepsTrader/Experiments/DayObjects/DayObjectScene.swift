@@ -15,6 +15,7 @@ struct DayObjectScene: Equatable {
     let meshGradientStyle: DayObjectMeshGradientStyle
     let score: DayObjectChoreographyScore
     let actors: [DayObjectActor]
+    let sceneRecipeV1: DayObjectSceneRecipeV1?
 
     var actorIDs: [DayObjectActorID] { actors.map(\.id) }
 
@@ -35,7 +36,8 @@ struct DayObjectScene: Equatable {
             palette: palette,
             meshGradientStyle: meshGradientStyle,
             score: score,
-            actors: actors
+            actors: actors,
+            sceneRecipeV1: sceneRecipeV1?.replacingActors(actors)
         )
     }
 
@@ -74,7 +76,7 @@ struct DayObjectScene: Equatable {
             eventIDs: eventIDs
         )
         let palette = DayObjectPalette.make(modernPalette: paletteSet.background)
-        let meshGradientStyle = DayObjectMeshGradientStyle.make(seed: rootSeed, palette: palette)
+        let legacyMeshGradientStyle = DayObjectMeshGradientStyle.make(seed: rootSeed, palette: palette)
         let score = DayObjectChoreographyScore.make(configuration: choreography)
         let appearances = visualLanguage.appearances(
             eventIDs: eventIDs,
@@ -103,6 +105,19 @@ struct DayObjectScene: Equatable {
             ))
         }
 
+        let sceneRecipeV1 = input.usesEditorialField
+            ? DayObjectSceneRecipeV1.make(
+                rootSeed: rootSeed,
+                dayKey: input.dayKey,
+                identity: input.identity,
+                actors: actors,
+                background: input.editorialBackground,
+                lowSleep: input.lowSleep,
+                paletteSet: paletteSet,
+                preview: input.editorialPreview,
+                editorialLabConfiguration: input.editorialLabConfiguration
+            )
+            : nil
         return DayObjectScene(
             input: input,
             rootSeed: rootSeed,
@@ -113,9 +128,10 @@ struct DayObjectScene: Equatable {
             visualLanguage: visualLanguage,
             motionPlan: motionPlan,
             palette: palette,
-            meshGradientStyle: meshGradientStyle,
+            meshGradientStyle: sceneRecipeV1?.backgroundStyle ?? legacyMeshGradientStyle,
             score: score,
-            actors: actors
+            actors: actors,
+            sceneRecipeV1: sceneRecipeV1
         )
     }
 
@@ -129,7 +145,12 @@ struct DayObjectScene: Equatable {
             reduceMotion: input.reduceMotion,
             uiExclusionRegion: input.uiExclusionRegion,
             canvasCoverage: input.canvasCoverage,
-            paletteCategories: input.paletteCategories
+            paletteCategories: input.paletteCategories,
+            usesEditorialField: input.usesEditorialField,
+            editorialBackground: input.editorialBackground,
+            lowSleep: input.lowSleep,
+            editorialPreview: input.editorialPreview,
+            editorialLabConfiguration: input.editorialLabConfiguration
         )
     }
 

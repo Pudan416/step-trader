@@ -1,0 +1,16 @@
+status=RUNNING
+started_utc=2026-09-04T01:08:53Z
+baseline_swapouts=915659
+baseline_pages_throttled=0
+command_pid=89440
+status=COMPLETE
+actual_exit=0
+expected_exit_met=1
+ended_utc=2026-09-04T01:19:25Z
+duration_seconds=632
+resource_breach=0
+breach_reason=none
+end_swapouts=915659
+swapouts_delta=0
+end_pages_throttled=0
+process_swaps=0
