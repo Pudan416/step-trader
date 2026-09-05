@@ -171,7 +171,7 @@ struct DayObjectChoreographyScore: Equatable {
         switch actor.appearance.shape {
         case .ellipse, .lens:
             rotation = atan2(tangent.y, tangent.x)
-        case .sphere, .softBlob:
+        case .sphere, .softBlob, .superellipse, .softStar, .compound:
             rotation = 0
         }
 

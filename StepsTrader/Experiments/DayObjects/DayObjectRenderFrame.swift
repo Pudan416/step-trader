@@ -674,7 +674,7 @@ struct DayObjectRenderFrame: Equatable {
                 halfSize: SIMD2(repeating: halfDiameter),
                 opacity: Float(insertion.opacity * removal.opacity),
                 trailLength: 0,
-                shape: DayObjectShape.sphere.numericValue,
+                shape: recipeActor.shape.numericValue,
                 appearanceIndex: 0,
                 depth: Float(effectiveDepth),
                 materialPhase: 0,

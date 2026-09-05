@@ -799,7 +799,10 @@ final class DayObjectSceneTests: XCTestCase {
 
 final class DayObjectCompositionTests: XCTestCase {
     func testDayObjectsOnlyExposeCircleDerivedShapes() {
-        XCTAssertEqual(DayObjectShape.allCases, [.sphere, .ellipse, .lens, .softBlob])
+        XCTAssertEqual(
+            DayObjectShape.allCases,
+            [.sphere, .ellipse, .lens, .softBlob, .superellipse, .softStar, .compound]
+        )
     }
 
     func testRestingSizeBandsUseApprovedDiameterRanges() {
@@ -814,7 +817,7 @@ final class DayObjectCompositionTests: XCTestCase {
         XCTAssertEqual(DayObjectElongation.oval.aspectRange, 0.72...0.90)
     }
 
-    func testAllShapeFamiliesAreReachableAcrossBroadDailySample() {
+    func testLegacyCompositionRetainsItsApprovedShapeSet() {
         var reached = Set<DayObjectShape>()
 
         for index in 0..<2_048 {
@@ -824,7 +827,7 @@ final class DayObjectCompositionTests: XCTestCase {
             ).shape)
         }
 
-        XCTAssertEqual(reached, Set(DayObjectShape.allCases))
+        XCTAssertEqual(reached, Set([.sphere, .ellipse, .lens, .softBlob]))
     }
 
     func testProductionSphereAndAppearanceColorCountNumericValuesMatchMetalShaderABI() {
@@ -870,10 +873,13 @@ final class DayObjectCompositionTests: XCTestCase {
         XCTAssertEqual(observedColorCounts, expectedColorCounts)
     }
 
-    func testOrbShapeNumericValuesAreExplicitAndStable() {
+    func testExpandedCircleDerivedShapeNumericValuesAreStable() {
         XCTAssertEqual(DayObjectShape.sphere.numericValue, 0)
         XCTAssertEqual(DayObjectShape.ellipse.numericValue, 1)
         XCTAssertEqual(DayObjectShape.lens.numericValue, 2)
         XCTAssertEqual(DayObjectShape.softBlob.numericValue, 3)
+        XCTAssertEqual(DayObjectShape.superellipse.numericValue, 4)
+        XCTAssertEqual(DayObjectShape.softStar.numericValue, 5)
+        XCTAssertEqual(DayObjectShape.compound.numericValue, 6)
     }
 }

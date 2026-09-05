@@ -66,6 +66,8 @@ struct DayObjectsActorVertexOut {
 };
 
 constant float dayObjectsSoftBlobRadialReach = 1.06;
+constant float dayObjectsSoftStarRadialReach = 1.11;
+constant float dayObjectsCompoundRadialReach = 1.13;
 constant float dayObjectsTrailSigmaFactor = 0.36;
 constant float dayObjectsTrailSigmaSupport = 3.2;
 
@@ -85,12 +87,13 @@ vertex DayObjectsActorVertexOut dayObjectsActorVertex(
         1.25 / shortSidePixels
     );
     const float mergeReach = halfSize.x * 0.18;
-    const float bodyMajorReach = halfSize.x * (
-        actor.shape == 3 ? dayObjectsSoftBlobRadialReach : 1.0
-    ) + mergeReach;
-    const float bodyMinorReach = halfSize.y * (
-        actor.shape == 3 ? dayObjectsSoftBlobRadialReach : 1.0
-    ) + mergeReach;
+    const float radialReach = actor.shape == 3
+        ? dayObjectsSoftBlobRadialReach
+        : (actor.shape == 5
+            ? dayObjectsSoftStarRadialReach
+            : (actor.shape == 6 ? dayObjectsCompoundRadialReach : 1.0));
+    const float bodyMajorReach = halfSize.x * radialReach + mergeReach;
+    const float bodyMinorReach = halfSize.y * radialReach + mergeReach;
     const float trailMinimumX = -halfSize.x - max(actor.trailLength, 0.0);
 
     // The local quad spans the body plus the complete exponential/Gaussian
@@ -245,7 +248,7 @@ static float3 dayObjectsLayeredRadialColor(
     return mix(result * layeredLight, result, localSoftness * 0.24);
 }
 
-/// Four circle-derived bodies in local units. None of the variants can produce
+/// Seven circle-derived bodies in local units. None of the variants can produce
 /// the old triangles, slabs, petals, or thin Figma-like particles.
 static float dayObjectsActorBody(
     uint shape,
@@ -266,6 +269,26 @@ static float dayObjectsActorBody(
     case 3: { // low-amplitude organic orb
         const float blobRadius = 1.0 + 0.055 * sin(3.0 * angle + radialVariation * 1.8);
         return radius - blobRadius;
+    }
+    case 4: { // rounded superellipse
+        const float exponent = 3.2;
+        const float superRadius = pow(
+            pow(abs(ellipsePoint.x), exponent)
+                + pow(abs(ellipsePoint.y), exponent),
+            1.0 / exponent
+        );
+        return superRadius - 1.0;
+    }
+    case 5: { // restrained soft radial star
+        const float starRadius = 1.0
+            + 0.105 * cos(5.0 * angle + radialVariation * 0.7);
+        return radius - starRadius;
+    }
+    case 6: { // smooth compound circular body
+        const float lobeRadius = 1.0
+            + 0.075 * cos(2.0 * angle + 0.45)
+            + 0.045 * cos(4.0 * angle - 0.30);
+        return radius - lobeRadius;
     }
     default: // sphere
         return radius - 1.0;

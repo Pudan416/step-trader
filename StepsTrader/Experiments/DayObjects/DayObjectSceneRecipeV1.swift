@@ -512,7 +512,7 @@ struct DayObjectSceneRecipeV1: Equatable {
             return DayObjectSceneRecipeActorV1(
                 eventID: actor.eventID,
                 slot: index,
-                shape: shape(for: geometryRegion),
+                shape: geometryRegion.shape(actorSeed: stableHash(actor.eventID)),
                 geometryRegion: geometryRegion,
                 position: geometry.position,
                 diameter: geometry.diameter,
@@ -549,15 +549,6 @@ struct DayObjectSceneRecipeV1: Equatable {
             materials.count - 1
         )
         return materials[index]
-    }
-
-    private static func shape(for geometry: DayObjectGeometryRegion) -> DayObjectShape {
-        switch geometry {
-        case .circle: .sphere
-        case .superellipse: .softBlob
-        case .softStar: .lens
-        case .compound: .ellipse
-        }
     }
 
     private static func makeGenerativeMaterial(

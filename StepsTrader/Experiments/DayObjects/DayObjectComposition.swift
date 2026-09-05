@@ -7,6 +7,9 @@ enum DayObjectShape: String, CaseIterable, Hashable {
     case ellipse
     case lens
     case softBlob
+    case superellipse
+    case softStar
+    case compound
 
     var numericValue: UInt32 {
         switch self {
@@ -14,6 +17,9 @@ enum DayObjectShape: String, CaseIterable, Hashable {
         case .ellipse: 1
         case .lens: 2
         case .softBlob: 3
+        case .superellipse: 4
+        case .softStar: 5
+        case .compound: 6
         }
     }
 }
@@ -330,6 +336,10 @@ struct DayObjectCompositionPlan: Equatable {
 
 /// Daily geometry choices retained while rendering moves to the stable scene.
 struct DayObjectComposition: Equatable {
+    private static let legacyShapeCases: [DayObjectShape] = [
+        .sphere, .ellipse, .lens, .softBlob,
+    ]
+
     let shape: DayObjectShape
     let elongation: DayObjectElongation
     let fill: DayObjectFill
@@ -354,7 +364,7 @@ struct DayObjectComposition: Equatable {
         }
 
         return DayObjectComposition(
-            shape: pick(DayObjectShape.allCases, domain: "shape"),
+            shape: pick(legacyShapeCases, domain: "shape"),
             elongation: pick(DayObjectElongation.allCases, domain: "elongation"),
             fill: pick(DayObjectFill.allCases, domain: "fill"),
             trajectory: pick(DayObjectTrajectory.allCases, domain: "trajectory"),

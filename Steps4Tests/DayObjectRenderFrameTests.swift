@@ -84,6 +84,56 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertEqual(later.actors.map(\.gpuAppearance), initial.actors.map(\.gpuAppearance))
         XCTAssertTrue(later.actors.allSatisfy { $0.gpuActor.materialPhase == 0 })
     }
+
+    func testGenerativeRecipeUploadsResolvedCarrierShape() throws {
+        let expectedShapes: [DayObjectGeometryRegion: DayObjectShape] = [
+            .circle: .sphere,
+            .superellipse: .superellipse,
+            .softStar: .softStar,
+            .compound: .compound,
+        ]
+        var observed = Set<DayObjectGeometryRegion>()
+
+        for index in 0..<256 where observed.count < expectedShapes.count {
+            let scene = DayObjectScene.make(input: .init(
+                dayKey: "2026-generative-carrier-\(index)",
+                identity: "day-objects-lab",
+                eventIDs: (0..<10).map { "lab-event-\($0)" },
+                motionEnergy: 0.55,
+                visualClarity: 0.75,
+                reduceMotion: true,
+                canvasCoverage: .fullCanvas,
+                paletteCategories: [.pastel],
+                usesEditorialField: true,
+                editorialLabConfiguration: .init(
+                    materialMode: .generativeDNA,
+                    placement: .depthField
+                )
+            ))
+            let recipe = try XCTUnwrap(scene.sceneRecipeV1)
+            let frame = DayObjectRenderFrame.make(
+                scene: scene,
+                environment: .init(
+                    motionEnergy: 0.55,
+                    visualClarity: 0.75,
+                    reduceMotion: true
+                ),
+                elapsed: 0,
+                insertions: [:]
+            )
+
+            for recipeActor in recipe.actors {
+                let renderActor = try XCTUnwrap(
+                    frame.actors.first { $0.eventID == recipeActor.eventID }
+                )
+                XCTAssertEqual(recipeActor.shape, expectedShapes[recipeActor.geometryRegion])
+                XCTAssertEqual(renderActor.gpuActor.shape, recipeActor.shape.numericValue)
+                observed.insert(recipeActor.geometryRegion)
+            }
+        }
+
+        XCTAssertEqual(observed, Set(DayObjectGeometryRegion.allCases))
+    }
     private func fixtureScene(
         dayKey: String = "2026-08-20",
         identity: String = "tester",
@@ -2805,8 +2855,9 @@ final class DayObjectRenderFrameTests: XCTestCase {
 
     func testActorShaderRendersOnlyCircleDerivedOrbFamilies() throws {
         let harness = try ActorRenderHarness(width: 192, height: 160)
+        var silhouetteAreas = [UInt32: Int]()
 
-        for shape in UInt32(0)...UInt32(3) {
+        for shape in UInt32(0)...UInt32(6) {
             let actor = DayObjectGPUActor(
                 position: .zero,
                 direction: SIMD2(1, 0),
@@ -2823,6 +2874,16 @@ final class DayObjectRenderFrameTests: XCTestCase {
             XCTAssertGreaterThan(alpha.nonzeroPixelCount, 2_500)
             XCTAssertLessThan(alpha[0, 0], 0.01)
             XCTAssertLessThan(alpha[harness.width - 1, harness.height - 1], 0.01)
+            silhouetteAreas[shape] = alpha.nonzeroPixelCount
+        }
+
+        let circleArea = try XCTUnwrap(silhouetteAreas[0])
+        for shape in UInt32(4)...UInt32(6) {
+            XCTAssertGreaterThan(
+                abs(try XCTUnwrap(silhouetteAreas[shape]) - circleArea),
+                25,
+                "Every new carrier needs a visibly distinct continuous silhouette"
+            )
         }
     }
 

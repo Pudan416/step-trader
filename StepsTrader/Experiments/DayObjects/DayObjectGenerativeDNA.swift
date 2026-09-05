@@ -14,6 +14,15 @@ enum DayObjectGeometryRegion: UInt32, CaseIterable, Equatable, Hashable {
         case .compound: "compound"
         }
     }
+
+    func shape(actorSeed _: UInt64) -> DayObjectShape {
+        switch self {
+        case .circle: .sphere
+        case .superellipse: .superellipse
+        case .softStar: .softStar
+        case .compound: .compound
+        }
+    }
 }
 
 enum DayObjectMaterialMechanism: UInt32, CaseIterable, Equatable, Hashable {
