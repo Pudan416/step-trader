@@ -1191,9 +1191,7 @@ final class DayObjectCompositionTests: XCTestCase {
     }
 
     func testProductionSphereAndAppearanceColorCountNumericValuesMatchMetalShaderABI() {
-        let expectedShapes: [DayObjectShape: UInt32] = Dictionary(
-            uniqueKeysWithValues: DayObjectShape.allCases.map { ($0, $0.numericValue) }
-        )
+        let expectedShapes: [DayObjectShape: UInt32] = [.sphere: 0]
         let expectedColorCounts: Set<UInt32> = [1, 2, 3]
         let environment = DayObjectEnvironment(
             motionEnergy: 0.55,
