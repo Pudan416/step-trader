@@ -8,6 +8,15 @@ import SwiftUI
 struct DayObjectsLabView: View {
     static let uiExclusionRegion = DayObjectNormalizedRect.dayObjectsLabControls
     static let canvasCoverage = DayObjectCanvasCoverage.fullCanvas
+    private static let dayOffsetFromLaunchArguments: Int = {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let flag = arguments.firstIndex(of: "-dayObjectsDayOffset"),
+              arguments.indices.contains(flag + 1),
+              let offset = Int(arguments[flag + 1]) else {
+            return 0
+        }
+        return max(offset, 0)
+    }()
     private static let previewSpecFromLaunchArguments: DayObjectEditorialPreviewSpec? = {
         let arguments = ProcessInfo.processInfo.arguments
         guard let flag = arguments.firstIndex(of: "-dayObjectsPreviewIndex"),
@@ -21,7 +30,7 @@ struct DayObjectsLabView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(SharedKeys.modernPaletteCategories) private var modernPaletteCategoriesRaw = ""
 
-    @State private var dayOffset = 0
+    @State private var dayOffset = Self.dayOffsetFromLaunchArguments
     @State private var happenings: Double = (
         ProcessInfo.processInfo.arguments.contains("-dayObjectsVisualHandoff")
             || Self.previewSpecFromLaunchArguments != nil

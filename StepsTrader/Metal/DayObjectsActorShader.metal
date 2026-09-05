@@ -212,11 +212,22 @@ static float3 dayObjectsLayeredRadialColor(
             phase,
             phaseDirection
         ) * clamp(appearance.light.y, 0.0, 1.0);
-        const float broadFieldCoherence = smoothstep(0.76, 0.82, appearance.radial0.w);
+        const float broadPrimaryCoherence = smoothstep(
+            0.76,
+            0.82,
+            appearance.radial0.w
+        ) * smoothstep(0.95, 1.15, appearance.radial0.z);
+        // Wide fields still need enough chromatic travel to read as a
+        // gradient after depth blur and grain. A gentle power curve increases
+        // separation without adding an edge or a local hotspot; every
+        // transition remains continuous and the foci stay outside the carrier
+        // core.
+        const float broadPrimaryWeight = 0.012
+            + 1.20 * pow(primaryField, 1.5);
         const float w0 = mix(
             0.72 + 0.38 * primaryField,
-            0.10 + 1.05 * primaryField,
-            broadFieldCoherence
+            broadPrimaryWeight,
+            broadPrimaryCoherence
         );
         const float secondaryField = dayObjectsSoftColorFieldWeight(
             point,
@@ -224,10 +235,17 @@ static float3 dayObjectsLayeredRadialColor(
             phase,
             -phaseDirection
         ) * clamp(appearance.light.z, 0.0, 1.0);
+        const float broadSecondaryCoherence = smoothstep(
+            0.76,
+            0.82,
+            appearance.radial1.w
+        ) * smoothstep(0.95, 1.15, appearance.radial1.z);
+        const float broadSecondaryWeight = 0.012
+            + 1.20 * pow(secondaryField, 1.5);
         const float w1 = mix(
             0.10 + 0.58 * secondaryField,
-            0.10 + 1.05 * secondaryField,
-            broadFieldCoherence
+            broadSecondaryWeight,
+            broadSecondaryCoherence
         );
         float totalWeight = w0 + w1;
         result = color0 * w0 + color1 * w1;
@@ -239,10 +257,17 @@ static float3 dayObjectsLayeredRadialColor(
                 phase,
                 thirdDirection
             ) * clamp(appearance.light.w, 0.0, 1.0);
+            const float broadTertiaryCoherence = smoothstep(
+                0.76,
+                0.82,
+                appearance.radial2.w
+            ) * smoothstep(0.95, 1.15, appearance.radial2.z);
+            const float broadTertiaryWeight = 0.012
+                + 1.20 * pow(tertiaryField, 1.5);
             const float w2 = mix(
                 0.08 + 0.50 * tertiaryField,
-                0.08 + 1.02 * tertiaryField,
-                broadFieldCoherence
+                broadTertiaryWeight,
+                broadTertiaryCoherence
             );
             result += color2 * w2;
             totalWeight += w2;

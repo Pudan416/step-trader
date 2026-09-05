@@ -592,6 +592,7 @@ struct DayObjectSceneRecipeV1: Equatable {
                 pool: primary + secondary,
                 requestedCount: gradientTopology.colorCount,
                 daySeed: daySeed,
+                actorSeed: actorSeed,
                 fallback: fallback
             )
         } else {
@@ -680,6 +681,7 @@ struct DayObjectSceneRecipeV1: Equatable {
         pool: [SIMD3<Float>],
         requestedCount: Int,
         daySeed: UInt64,
+        actorSeed: UInt64,
         fallback: SIMD3<Float>
     ) -> [SIMD3<Float>] {
         let unique = pool.reduce(into: [SIMD3<Float>]()) { result, color in
@@ -692,35 +694,97 @@ struct DayObjectSceneRecipeV1: Equatable {
 
         let start = Int((daySeed ^ 0xC010_A11C_E) % UInt64(unique.count))
         let ordered = unique.indices.map { unique[(start + $0) % unique.count] }
-        if requestedCount >= 3, ordered.count >= 3 {
-            var bestTriple: ([SIMD3<Float>], Float)?
-            for first in 0..<(ordered.count - 2) {
-                for second in (first + 1)..<(ordered.count - 1) {
-                    for third in (second + 1)..<ordered.count {
-                        let candidate = [ordered[first], ordered[second], ordered[third]]
-                        guard let score = complexGradientScore(candidate) else { continue }
-                        if bestTriple == nil || score > bestTriple!.1 {
-                            bestTriple = (candidate, score)
+        let grammar = bestGradientGrammar(from: ordered)
+        let colorCount = min(requestedCount, grammar.count)
+        guard colorCount > 1 else {
+            return [grammar.first ?? ordered[0], ordered.count > 1 ? ordered[1] : fallback]
+        }
+
+        let combinations = gradientCombinations(colors: grammar, count: colorCount)
+        let variantCount = max(combinations.count * colorCount * 2, 1)
+        let variant = min(
+            Int(actorUnit(actorSeed, salt: 0xC010_20A3) * Double(variantCount)),
+            variantCount - 1
+        )
+        var selected = combinations[variant % combinations.count]
+        let rotation = (variant / combinations.count) % colorCount
+        selected = Array(selected[rotation...] + selected[..<rotation])
+        if ((variant / combinations.count) / colorCount).isMultiple(of: 2) == false {
+            selected.reverse()
+        }
+        return selected
+    }
+
+    private static func bestGradientGrammar(
+        from colors: [SIMD3<Float>]
+    ) -> [SIMD3<Float>] {
+        if colors.count >= 4 {
+            var best: ([SIMD3<Float>], Float)?
+            for first in 0..<(colors.count - 3) {
+                for second in (first + 1)..<(colors.count - 2) {
+                    for third in (second + 1)..<(colors.count - 1) {
+                        for fourth in (third + 1)..<colors.count {
+                            let candidate = [
+                                colors[first], colors[second], colors[third], colors[fourth],
+                            ]
+                            guard let score = complexGradientScore(candidate) else { continue }
+                            if best == nil || score > best!.1 { best = (candidate, score) }
                         }
                     }
                 }
             }
-            if let bestTriple { return bestTriple.0 }
+            if let best { return best.0 }
         }
-
-        var bestPair: ([SIMD3<Float>], Float)?
-        if ordered.count >= 2 {
-            for first in 0..<(ordered.count - 1) {
-                for second in (first + 1)..<ordered.count {
-                    let candidate = [ordered[first], ordered[second]]
+        if colors.count >= 3 {
+            var best: ([SIMD3<Float>], Float)?
+            for first in 0..<(colors.count - 2) {
+                for second in (first + 1)..<(colors.count - 1) {
+                    for third in (second + 1)..<colors.count {
+                        let candidate = [colors[first], colors[second], colors[third]]
+                        guard let score = complexGradientScore(candidate) else { continue }
+                        if best == nil || score > best!.1 { best = (candidate, score) }
+                    }
+                }
+            }
+            if let best { return best.0 }
+        }
+        if colors.count >= 2 {
+            var best: ([SIMD3<Float>], Float)?
+            for first in 0..<(colors.count - 1) {
+                for second in (first + 1)..<colors.count {
+                    let candidate = [colors[first], colors[second]]
                     guard let score = complexGradientScore(candidate) else { continue }
-                    if bestPair == nil || score > bestPair!.1 {
-                        bestPair = (candidate, score)
+                    if best == nil || score > best!.1 { best = (candidate, score) }
+                }
+            }
+            if let best { return best.0 }
+        }
+        return colors
+    }
+
+    private static func gradientCombinations(
+        colors: [SIMD3<Float>],
+        count: Int
+    ) -> [[SIMD3<Float>]] {
+        if count == 2 {
+            return colors.indices.flatMap { first in
+                colors.indices.compactMap { second in
+                    second > first ? [colors[first], colors[second]] : nil
+                }
+            }
+        }
+        if count == 3 {
+            return colors.indices.flatMap { first in
+                colors.indices.flatMap { second in
+                    colors.indices.compactMap { third in
+                        first < second && second < third
+                            ? [colors[first], colors[second], colors[third]]
+                            : nil
                     }
                 }
             }
         }
-        return bestPair?.0 ?? [ordered[0], ordered.count > 1 ? ordered[1] : fallback]
+        return [Array(colors.prefix(count))]
     }
 
     private static func complexGradientScore(_ colors: [SIMD3<Float>]) -> Float? {
@@ -758,20 +822,20 @@ struct DayObjectSceneRecipeV1: Equatable {
         let specification: [(angle: Double, distance: Double, radius: Double, opacity: Double)]
         switch topology {
         case .dualSweep:
-            specification = [(0, 0.64, 1.06, 1), (.pi, 0.64, 1.06, 1)]
+            specification = [(0, 0.88, 1.16, 1), (.pi, 0.88, 1.16, 1)]
         case .dualBloom:
-            specification = [(0, 0.56, 1.28, 0.96), (.pi, 0.78, 0.90, 1)]
+            specification = [(0, 0.86, 1.32, 0.96), (.pi, 1.00, 1.02, 1)]
         case .asymmetricTriad:
             specification = [
-                (0, 0.72, 1.10, 1),
-                (2.10, 0.70, 0.96, 0.98),
-                (4.22, 0.74, 1.04, 0.98),
+                (0, 0.94, 1.18, 1),
+                (2.10, 0.88, 1.08, 0.98),
+                (4.22, 0.92, 1.12, 0.98),
             ]
         case .airyTriad:
             specification = [
-                (0, 0.60, 1.30, 0.94),
-                (2.15, 0.74, 1.00, 1),
-                (4.25, 0.68, 1.14, 0.98),
+                (0, 0.88, 1.34, 0.94),
+                (2.15, 0.98, 1.10, 1),
+                (4.25, 0.90, 1.22, 0.98),
             ]
         }
 

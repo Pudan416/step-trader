@@ -3033,6 +3033,68 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertGreaterThan(threeDominance.z, 0.15)
     }
 
+    func testEdgeOriginatingGradientRetainsReadableColourTravel() throws {
+        let harness = try ActorRenderHarness(width: 192, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(repeating: 0.30),
+            opacity: 1,
+            trailLength: 0,
+            shape: DayObjectShape.sphere.numericValue,
+            appearanceIndex: 0,
+            depth: 0.4,
+            materialPhase: 0,
+            localDepthSoftness: 0
+        )
+        let material = DayObjectEditorialMaterialV1(
+            family: .gradient,
+            mechanism: .smoothRadial,
+            colors: [
+                SIMD3(0.63, 0.22, 0.36),
+                SIMD3(0.24, 0.16, 0.58),
+            ],
+            fields: [
+                DayObjectEditorialRadialFieldV1(
+                    focus: SIMD2(-0.38, 0.50),
+                    radius: 1.16,
+                    softness: 0.98,
+                    opacity: 1
+                ),
+                DayObjectEditorialRadialFieldV1(
+                    focus: SIMD2(1.38, 0.50),
+                    radius: 1.16,
+                    softness: 0.99,
+                    opacity: 1
+                ),
+            ],
+            baseOpacity: 0.98,
+            edgeSoftness: 0.04,
+            contourWidth: 0,
+            contourCount: 0,
+            counterformRadius: nil,
+            counterformSoftness: 0,
+            structuralParameters: .zero
+        )
+
+        let capture = try harness.render(
+            actor: actor,
+            appearance: material.gpuAppearance,
+            backgroundColor: .zero
+        )
+        let left = capture.color(x: 60, y: 80)
+        let right = capture.color(x: 132, y: 80)
+        let travel = abs(left.x - right.x)
+            + abs(left.y - right.y)
+            + abs(left.z - right.z)
+
+        XCTAssertGreaterThan(
+            travel,
+            0.30,
+            "Broad edge-originating fields must remain visibly multicolour, not collapse into a flat fill"
+        )
+    }
+
     func testHarmonicPathFormsClosedContinuousContoursWithoutAngularBreaks() throws {
         let harness = try ActorRenderHarness(width: 192, height: 160)
         let actorHalfSize: Float = 0.30

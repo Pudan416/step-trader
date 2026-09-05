@@ -911,6 +911,78 @@ final class DayObjectSceneTests: XCTestCase {
         }
     }
 
+    func testSmoothRadialDayDistributesAtLeastThreeActorColourRoles() throws {
+        let dayKeys = (0..<512).lazy.map { "actor-gradient-roles-\($0)" }.filter {
+            DayObjectArtDirectionScheduler.make(
+                dayKey: $0,
+                identity: "day-objects-lab"
+            ).primaryMaterial == .smoothRadial
+        }.prefix(24)
+        XCTAssertEqual(dayKeys.count, 24)
+
+        for dayKey in dayKeys {
+            let recipe = try XCTUnwrap(
+                DayObjectScene.make(
+                    input: editorialLabInput(
+                        dayKey: dayKey,
+                        eventIDs: (0..<10).map { "lab-event-\($0)" },
+                        materialMode: .generativeDNA
+                    )
+                ).sceneRecipeV1
+            )
+            let gradients = recipe.actors.map(\.material).filter {
+                $0.mechanism == .smoothRadial
+            }
+            let signatures = Set(gradients.map { material in
+                material.colors.map { color in
+                    "\(color.x),\(color.y),\(color.z)"
+                }.joined(separator: "|")
+            })
+
+            XCTAssertGreaterThanOrEqual(gradients.count, 8, "day=\(dayKey)")
+            XCTAssertGreaterThanOrEqual(
+                signatures.count,
+                3,
+                "ten-object scenes need visibly distinct gradient colour roles, day=\(dayKey)"
+            )
+        }
+    }
+
+    func testSmoothRadialFieldsPlaceAtLeastOneFocusBeyondTheCarrierCore() throws {
+        let dayKeys = (0..<512).lazy.map { "edge-gradient-focus-\($0)" }.filter {
+            DayObjectArtDirectionScheduler.make(
+                dayKey: $0,
+                identity: "day-objects-lab"
+            ).primaryMaterial == .smoothRadial
+        }.prefix(24)
+        XCTAssertEqual(dayKeys.count, 24)
+
+        for dayKey in dayKeys {
+            let recipe = try XCTUnwrap(
+                DayObjectScene.make(
+                    input: editorialLabInput(
+                        dayKey: dayKey,
+                        eventIDs: (0..<10).map { "lab-event-\($0)" },
+                        materialMode: .generativeDNA
+                    )
+                ).sceneRecipeV1
+            )
+            for material in recipe.actors.map(\.material).filter({
+                $0.mechanism == .smoothRadial
+            }) {
+                let focusDistances = material.fields.map {
+                    simd_distance($0.focus, SIMD2<Double>(repeating: 0.5))
+                }
+
+                XCTAssertGreaterThanOrEqual(
+                    focusDistances.max() ?? 0,
+                    0.82,
+                    "a broad edge-originating field prevents a centred target, day=\(dayKey)"
+                )
+            }
+        }
+    }
+
     private func editorialPreviewInput(
         _ spec: DayObjectEditorialPreviewSpec
     ) -> DayObjectSceneInput {
