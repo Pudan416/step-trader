@@ -43,6 +43,17 @@ final class DayObjectsLabUITests: XCTestCase {
         controlsToggle.tap()
         Thread.sleep(forTimeInterval: 2)
         attachScreenshot(named: "editorial-field-metal-reduce-motion")
+
+        controlsToggle.tap()
+        app.switches["dayObjects.reduceMotionPreview"].tap()
+        app.switches["dayObjects.lowSleep"].tap()
+        app.buttons["dayObjects.nextDay"].tap()
+        let background = app.segmentedControls["dayObjects.background"]
+        XCTAssertTrue(background.waitForExistence(timeout: 5))
+        background.buttons["Light"].tap()
+        controlsToggle.tap()
+        Thread.sleep(forTimeInterval: 2)
+        attachScreenshot(named: "editorial-field-metal-light-low-sleep")
     }
 
     func testLabExposesChoreographyControlsAndAddsEventsInPlace() throws {
@@ -121,6 +132,7 @@ final class DayObjectsLabUITests: XCTestCase {
 
         app.buttons["dayObjects.gridToggle"].tap()
         XCTAssertTrue(app.otherElements["dayObjects.grid"].waitForExistence(timeout: 5))
+        app.buttons["dayObjects.controlsToggle"].tap()
 
         Thread.sleep(forTimeInterval: 1.5)
         let gridScreenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
