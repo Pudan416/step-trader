@@ -57,6 +57,7 @@
 		E0F200000000000000000008 /* CorpusManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0F200000000000000000007 /* CorpusManifest.swift */; };
 		E0F20000000000000000000A /* SeedDerivation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0F200000000000000000009 /* SeedDerivation.swift */; };
 		E0F300000000000000000002 /* DayObjectEditorialPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0F300000000000000000001 /* DayObjectEditorialPreview.swift */; };
+		E0F400000000000000000002 /* DayObjectGenerativeDNA.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0F400000000000000000001 /* DayObjectGenerativeDNA.swift */; };
 		D0B100000000000000000024 /* DayObjectPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000014 /* DayObjectPalette.swift */; };
 		C0110A000000000000000002 /* ModernPaletteCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0110A000000000000000001 /* ModernPaletteCatalog.swift */; };
 		C0110A000000000000000004 /* DayObjectPaletteSet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0110A000000000000000003 /* DayObjectPaletteSet.swift */; };
@@ -503,6 +504,7 @@
 		E0F200000000000000000007 /* CorpusManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CorpusManifest.swift; path = Tools/DayObjectsEditorialField/Sources/EditorialFieldCore/CorpusManifest.swift; sourceTree = SOURCE_ROOT; };
 		E0F200000000000000000009 /* SeedDerivation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SeedDerivation.swift; path = Tools/DayObjectsEditorialField/Sources/EditorialFieldCore/SeedDerivation.swift; sourceTree = SOURCE_ROOT; };
 		E0F300000000000000000001 /* DayObjectEditorialPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectEditorialPreview.swift; sourceTree = "<group>"; };
+		E0F400000000000000000001 /* DayObjectGenerativeDNA.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectGenerativeDNA.swift; sourceTree = "<group>"; };
 		D0B100000000000000000014 /* DayObjectPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectPalette.swift; sourceTree = "<group>"; };
 		C0110A000000000000000001 /* ModernPaletteCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModernPaletteCatalog.swift; sourceTree = "<group>"; };
 		C0110A000000000000000003 /* DayObjectPaletteSet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectPaletteSet.swift; sourceTree = "<group>"; };
@@ -954,6 +956,7 @@
 				D0B100000000000000000012 /* DayObjectScene.swift */,
 				E0F100000000000000000001 /* DayObjectSceneRecipeV1.swift */,
 				E0F300000000000000000001 /* DayObjectEditorialPreview.swift */,
+				E0F400000000000000000001 /* DayObjectGenerativeDNA.swift */,
 				E0F200000000000000000001 /* CompositionPlanner.swift */,
 				E0F200000000000000000003 /* EditorialGrammar.swift */,
 				E0F200000000000000000005 /* SceneRecipe.swift */,
@@ -1903,6 +1906,7 @@
 				D0B100000000000000000022 /* DayObjectScene.swift in Sources */,
 				E0F100000000000000000002 /* DayObjectSceneRecipeV1.swift in Sources */,
 				E0F300000000000000000002 /* DayObjectEditorialPreview.swift in Sources */,
+				E0F400000000000000000002 /* DayObjectGenerativeDNA.swift in Sources */,
 				E0F200000000000000000002 /* CompositionPlanner.swift in Sources */,
 				E0F200000000000000000004 /* EditorialGrammar.swift in Sources */,
 				E0F200000000000000000006 /* SceneRecipe.swift in Sources */,

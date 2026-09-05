@@ -596,6 +596,72 @@ final class DayObjectSceneTests: XCTestCase {
         )
     }
 
+    func testGenerativeDNASchedulesCoherentVariedReproducibleDays() {
+        let dayKeys = (1...28).map { String(format: "2026-09-%02d", $0) }
+        let forward = dayKeys.map {
+            DayObjectArtDirectionScheduler.make(
+                dayKey: $0,
+                identity: "day-objects-lab"
+            )
+        }
+        let reverseByDay = Dictionary(uniqueKeysWithValues: dayKeys.reversed().map {
+            (
+                $0,
+                DayObjectArtDirectionScheduler.make(
+                    dayKey: $0,
+                    identity: "day-objects-lab"
+                )
+            )
+        })
+
+        XCTAssertEqual(
+            forward,
+            dayKeys.compactMap { reverseByDay[$0] },
+            "request order must not become mutable generation history"
+        )
+        for (previous, current) in zip(forward, forward.dropFirst()) {
+            XCTAssertNotEqual(
+                previous.fingerprint.primaryFamily,
+                current.fingerprint.primaryFamily,
+                "adjacent dates need a visibly different primary process"
+            )
+            XCTAssertGreaterThanOrEqual(
+                previous.fingerprint.distance(to: current.fingerprint),
+                2,
+                "palette-only variation is not a new daily art direction"
+            )
+        }
+        for windowStart in 0...(forward.count - 7) {
+            let combinations = forward[windowStart..<(windowStart + 7)]
+                .map(\.fingerprint.coreCombination)
+            XCTAssertEqual(
+                Set(combinations).count,
+                combinations.count,
+                "core composition/geometry/material combinations cannot repeat in seven days"
+            )
+        }
+    }
+
+    func testActorDNAResolutionIsIndependentOfCountAndOrder() {
+        let direction = DayObjectArtDirectionScheduler.make(
+            dayKey: "2026-09-05",
+            identity: "day-objects-lab"
+        )
+        let ids = (0..<10).map { "lab-event-\($0)" }
+        let forward = Dictionary(uniqueKeysWithValues: ids.map {
+            ($0, direction.resolution(eventID: $0))
+        })
+        let reverse = Dictionary(uniqueKeysWithValues: ids.reversed().map {
+            ($0, direction.resolution(eventID: $0))
+        })
+
+        XCTAssertEqual(forward, reverse)
+        XCTAssertEqual(
+            direction.resolution(eventID: ids[4]),
+            direction.resolution(eventID: ids[4])
+        )
+    }
+
     private func editorialPreviewInput(
         _ spec: DayObjectEditorialPreviewSpec
     ) -> DayObjectSceneInput {
