@@ -137,6 +137,17 @@ final class HarmonyPlannerTests: XCTestCase {
         XCTAssertLessThan(accents.chordSchedule.count, full.chordCount)
     }
 
+    func testPadFoundationUsesLongEnvelopesAndMultiBarCrossfades() throws {
+        let plan = makePlan(sleepProgress: 1)
+
+        for role in [HarmonyRole.drone, .primaryPad, .secondaryPadOrKeys] {
+            let layer = try XCTUnwrap(plan.role(for: role))
+            XCTAssertGreaterThanOrEqual(layer.attackSeconds, 2.4)
+            XCTAssertGreaterThanOrEqual(layer.releaseSeconds, 7)
+            XCTAssertGreaterThanOrEqual(layer.crossfadeBars, 2.5)
+        }
+    }
+
     func testSleepChangesHarmonyWithoutChangingFixedStepsRhythmPlan() {
         let sleepValues = [0.0, 0.35, 0.70, 0.99, 1.0]
         let plans = sleepValues.map { sleep -> (RhythmPlan, HarmonyPlan) in

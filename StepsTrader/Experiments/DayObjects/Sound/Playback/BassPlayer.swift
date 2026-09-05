@@ -135,21 +135,44 @@ final class BassPlayer {
 
         let globalSubdivision = transportEvent.position.absoluteSubdivision
         if schedulingOriginSubdivision == nil { schedulingOriginSubdivision = globalSubdivision }
-        if let heldUntilGlobalSubdivision, globalSubdivision >= heldUntilGlobalSubdivision {
+        let relativeSubdivision = relativeSubdivision(for: globalSubdivision)
+        let event = plan?.activeEvents.first(where: {
+            $0.startSubdivision == relativeSubdivision
+        })
+        if let heldUntilGlobalSubdivision,
+           globalSubdivision >= heldUntilGlobalSubdivision,
+           event == nil {
             releaseHeldVoice()
         }
-        let relativeSubdivision = relativeSubdivision(for: globalSubdivision)
         guard let plan,
               let pool,
               acceptsAttacks,
               lastAttackGlobalSubdivision != globalSubdivision,
-              let event = plan.activeEvents.first(where: {
-                  $0.startSubdivision == relativeSubdivision
-              })
+              let event
         else {
             return frame(
                 at: transportEvent.position,
                 attackedEventStableID: nil,
+                duckCommandCount: duckCommand == nil ? 0 : 1
+            )
+        }
+
+        if let token {
+            pool.update(token, with: .init(
+                midiNote: Double(event.midiNote),
+                cutoffHz: Self.cutoffHz(multiplier: plan.cutoffMultiplier),
+                expression: Self.unit(event.velocity * mixGain),
+                reverbSend: Self.unit(plan.reverbSend),
+                pitchRampSeconds: Self.glideSeconds(plan.glideMilliseconds),
+                cutoffRampSeconds: Self.controlRampSeconds,
+                expressionRampSeconds: Self.controlRampSeconds
+            ))
+            heldStableID = event.stableID
+            heldUntilGlobalSubdivision = globalSubdivision + max(event.durationSubdivisions, 1)
+            lastAttackGlobalSubdivision = globalSubdivision
+            return frame(
+                at: transportEvent.position,
+                attackedEventStableID: event.stableID,
                 duckCommandCount: duckCommand == nil ? 0 : 1
             )
         }
@@ -316,17 +339,17 @@ final class BassPlayer {
 
     private static func attackSeconds(for articulation: BassArticulation) -> Double {
         switch articulation {
-        case .pulse: return 0.030
-        case .arpeggio: return 0.032
-        case .sustained: return 0.060
+        case .pulse: return 0.120
+        case .arpeggio: return 0.090
+        case .sustained: return 0.180
         }
     }
 
     private static func releaseSeconds(for articulation: BassArticulation) -> Double {
         switch articulation {
-        case .pulse: return 0.220
-        case .arpeggio: return 0.260
-        case .sustained: return 0.500
+        case .pulse: return 0.800
+        case .arpeggio: return 0.700
+        case .sustained: return 1.200
         }
     }
 
@@ -335,7 +358,7 @@ final class BassPlayer {
     }
 
     private static func glideSeconds(_ milliseconds: Double) -> Double {
-        min(max(milliseconds.isFinite ? milliseconds / 1_000 : 0, 0), 0.160)
+        min(max(milliseconds.isFinite ? milliseconds / 1_000 : 0, 0), 0.420)
     }
 
     private static func unit(_ value: Double) -> Double {

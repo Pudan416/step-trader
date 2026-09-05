@@ -14,7 +14,6 @@ final class BassPlannerTests: XCTestCase {
             XCTAssertTrue(plan.events.allSatisfy { (24...40).contains($0.midiNote) })
             XCTAssertEqual(Set(plan.events.map(\.startSubdivision)).count, plan.events.count)
             XCTAssertTrue(plan.events.allSatisfy { $0.durationSubdivisions > 0 })
-            assertDoesNotOverlap(plan.events)
             for event in plan.events {
                 XCTAssertTrue(event.allowedPitchClasses.contains(Int(event.midiNote) % 12))
             }
@@ -49,13 +48,11 @@ final class BassPlannerTests: XCTestCase {
         }
     }
 
-    func testArpeggioLeavesRestsAndKeepsAdjacentJumpsWithinAnOctave() throws {
+    func testMovingBassUsesSlowTransitionsAndKeepsAdjacentJumpsWithinAnOctave() throws {
         let plan = try XCTUnwrap(makeBass(mode: .bassArp, steps: 1))
 
         XCTAssertEqual(plan.articulation, .arpeggio)
-        XCTAssertTrue(zip(plan.events, plan.events.dropFirst()).contains {
-            $1.startSubdivision > $0.startSubdivision + $0.durationSubdivisions
-        })
+        XCTAssertTrue(plan.events.allSatisfy { $0.durationSubdivisions >= 16 })
         for pair in zip(plan.events, plan.events.dropFirst()) {
             XCTAssertLessThanOrEqual(abs(Int(pair.1.midiNote) - Int(pair.0.midiNote)), 12)
         }
@@ -76,18 +73,40 @@ final class BassPlannerTests: XCTestCase {
         }
     }
 
-    func testArpeggioSkipsTailSlotsThatCannotMeetItsMinimumDuration() throws {
+    func testArpeggioAddsAtMostOneMidChordTransitionThatLastsToTheBoundary() throws {
         let world = try makeWorld(progressionLength: 3, cycleBars: 16)
         let plan = try XCTUnwrap(makeBass(mode: .bassArp, steps: 1, tonalWorld: world))
-        let ninetySixSubdivisionChord = try XCTUnwrap(
-            world.progression.indices.first { world.progression[$0].durationBars * 16 == 96 }
-        )
-        let chordStart = world.progression.prefix(ninetySixSubdivisionChord)
-            .reduce(Int64(0)) { $0 + Int64($1.durationBars * 16) }
-        let chordEvents = plan.events.filter { $0.chordIndex == ninetySixSubdivisionChord }
+        var chordStart: Int64 = 0
 
-        XCTAssertFalse(chordEvents.contains { $0.startSubdivision == chordStart + 95 })
-        XCTAssertTrue(chordEvents.allSatisfy { (2...4).contains($0.durationSubdivisions) })
+        for (index, chord) in world.progression.enumerated() {
+            let chordDuration = Int64(chord.durationBars * 16)
+            let chordEvents = plan.events.filter { $0.chordIndex == index }
+            XCTAssertEqual(chordEvents.map(\.startSubdivision), [
+                chordStart,
+                chordStart + chordDuration / 2,
+            ])
+            XCTAssertEqual(chordEvents.map(\.durationSubdivisions), [
+                chordDuration,
+                chordDuration - chordDuration / 2,
+            ])
+            chordStart += chordDuration
+        }
+    }
+
+    func testPartialStepsKeepOneStructuralBassNoteAliveForEveryWholeChord() throws {
+        let world = try makeWorld(progressionLength: 4, cycleBars: 12)
+
+        for mode in [GrooveMode.bassPulse, .bassArp, .bassBed] {
+            let plan = try XCTUnwrap(makeBass(mode: mode, steps: 0.25, tonalWorld: world))
+            var chordStart: Int64 = 0
+            for (index, chord) in world.progression.enumerated() {
+                let chordDuration = Int64(chord.durationBars * 16)
+                let active = plan.activeEvents.filter { $0.chordIndex == index }
+                XCTAssertEqual(active.map(\.startSubdivision), [chordStart])
+                XCTAssertEqual(active.map(\.durationSubdivisions), [chordDuration])
+                chordStart += chordDuration
+            }
+        }
     }
 
     func testEverySupportedWorldShapeKeepsCandidatesStableAndPartialStepsCycleWide() throws {
@@ -116,9 +135,9 @@ final class BassPlannerTests: XCTestCase {
 
                     switch mode {
                     case .bassPulse:
-                        XCTAssertTrue(full.events.allSatisfy { (2...6).contains($0.durationSubdivisions) })
+                        XCTAssertTrue(full.events.allSatisfy { $0.durationSubdivisions >= 16 })
                     case .bassArp:
-                        XCTAssertTrue(full.events.allSatisfy { (2...4).contains($0.durationSubdivisions) })
+                        XCTAssertTrue(full.events.allSatisfy { $0.durationSubdivisions >= 16 })
                     case .bassBed:
                         XCTAssertEqual(partial.activeEvents.count, world.progression.count)
                     case .percussion:
@@ -196,9 +215,9 @@ final class BassPlannerTests: XCTestCase {
 
     func testModeProfilesStayWithinTheirApprovedBounds() throws {
         let expected: [(GrooveMode, ClosedRange<Double>, ClosedRange<Double>, ClosedRange<Double>, ClosedRange<Double>)] = [
-            (.bassPulse, 0...45, 0.03...0.08, 3.5...5, 2...6),
-            (.bassArp, 15...70, 0.04...0.10, 3...4.5, 2...4),
-            (.bassBed, 40...120, 0.02...0.06, 2.5...3.5, 16...256),
+            (.bassPulse, 80...220, 0.05...0.12, 3.5...5, 16...256),
+            (.bassArp, 120...360, 0.06...0.14, 3...4.5, 16...256),
+            (.bassBed, 160...420, 0.05...0.12, 2.5...3.5, 16...256),
         ]
 
         for (mode, glide, reverb, duckDepth, duration) in expected {
@@ -260,14 +279,19 @@ final class BassPlannerTests: XCTestCase {
         )
     }
 
-    private func assertDoesNotOverlap(_ events: [BassEventPlan], file: StaticString = #filePath, line: UInt = #line) {
-        for pair in zip(events, events.dropFirst()) {
+    private func assertDoesNotOverlap(
+        _ events: [BassEventPlan],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        for (current, next) in zip(events, events.dropFirst()) {
             XCTAssertLessThanOrEqual(
-                pair.0.startSubdivision + pair.0.durationSubdivisions,
-                pair.1.startSubdivision,
+                current.startSubdivision + current.durationSubdivisions,
+                next.startSubdivision,
                 file: file,
                 line: line
             )
         }
     }
+
 }

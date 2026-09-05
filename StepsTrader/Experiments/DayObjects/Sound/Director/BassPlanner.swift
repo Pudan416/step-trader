@@ -154,10 +154,10 @@ enum BassPlanner {
         case .bassPulse:
             return Profile(
                 articulation: .pulse,
-                glideMilliseconds: 0...45,
-                reverbSend: 0.03...0.08,
+                glideMilliseconds: 80...220,
+                reverbSend: 0.05...0.12,
                 duckingDecibels: 3.5...5,
-                cutoffMultiplier: 0.88,
+                cutoffMultiplier: 0.76,
                 duckAttackSeconds: 0.012,
                 duckHoldSeconds: 0.050,
                 duckReleaseSeconds: 0.180
@@ -165,10 +165,10 @@ enum BassPlanner {
         case .bassArp:
             return Profile(
                 articulation: .arpeggio,
-                glideMilliseconds: 15...70,
-                reverbSend: 0.04...0.10,
+                glideMilliseconds: 120...360,
+                reverbSend: 0.06...0.14,
                 duckingDecibels: 3...4.5,
-                cutoffMultiplier: 1.08,
+                cutoffMultiplier: 0.82,
                 duckAttackSeconds: 0.009,
                 duckHoldSeconds: 0.040,
                 duckReleaseSeconds: 0.140
@@ -176,10 +176,10 @@ enum BassPlanner {
         case .bassBed:
             return Profile(
                 articulation: .sustained,
-                glideMilliseconds: 40...120,
-                reverbSend: 0.02...0.06,
+                glideMilliseconds: 160...420,
+                reverbSend: 0.05...0.12,
                 duckingDecibels: 2.5...3.5,
-                cutoffMultiplier: 0.72,
+                cutoffMultiplier: 0.66,
                 duckAttackSeconds: 0.020,
                 duckHoldSeconds: 0.070,
                 duckReleaseSeconds: 0.220
@@ -213,13 +213,12 @@ enum BassPlanner {
                 let preferredPitchClass = preferredPitchClass(
                     mode: mode,
                     chord: chord,
+                    isStructural: position == 0,
                     random: &random
                 )
                 let duration = duration(
-                    mode: mode,
                     position: position,
-                    chordDuration: chordDuration,
-                    random: &random
+                    chordDuration: chordDuration
                 )
                 let midiNote = nearestLegalMIDINote(
                     pitchClass: preferredPitchClass,
@@ -231,7 +230,7 @@ enum BassPlanner {
                     startSubdivision: chordStart + position,
                     durationSubdivisions: duration,
                     midiNote: midiNote,
-                    velocity: 0.58 + (random.nextUnitDouble() * 0.28),
+                    velocity: 0.46 + (random.nextUnitDouble() * 0.18),
                     allowedPitchClasses: allowedPitchClasses,
                     isStructural: position == 0
                 ))
@@ -245,11 +244,9 @@ enum BassPlanner {
         switch mode {
         case .percussion:
             return []
-        case .bassPulse:
-            return stride(from: Int64(0), to: chordDuration, by: 4).map { $0 }
-        case .bassArp:
-            return stride(from: Int64(0), to: chordDuration, by: 5)
-                .filter { chordDuration - $0 >= 2 }
+        case .bassPulse, .bassArp:
+            guard chordDuration >= subdivisionsPerBar * 2 else { return [0] }
+            return [0, chordDuration / 2]
         case .bassBed:
             return [0]
         }
@@ -258,8 +255,10 @@ enum BassPlanner {
     private static func preferredPitchClass(
         mode: GrooveMode,
         chord: ChordPlan,
+        isStructural: Bool,
         random: inout StableMusicRandom
     ) -> Int {
+        if isStructural { return chord.rootPitchClass }
         switch mode {
         case .percussion:
             return chord.rootPitchClass
@@ -275,24 +274,10 @@ enum BassPlanner {
     }
 
     private static func duration(
-        mode: GrooveMode,
         position: Int64,
-        chordDuration: Int64,
-        random: inout StableMusicRandom
+        chordDuration: Int64
     ) -> Int64 {
-        switch mode {
-        case .percussion:
-            return 0
-        case .bassPulse:
-            return Int64((random.nextInt(upperBound: 3) ?? 0) + 2)
-        case .bassArp:
-            return min(
-                Int64((random.nextInt(upperBound: 3) ?? 0) + 2),
-                chordDuration - position
-            )
-        case .bassBed:
-            return chordDuration - position
-        }
+        max(chordDuration - position, 1)
     }
 
     private static func activationThreshold(

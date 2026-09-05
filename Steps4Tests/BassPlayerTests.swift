@@ -108,22 +108,25 @@ final class BassPlayerTests: XCTestCase {
         XCTAssertEqual(harness.pool.noteOffCount, 1)
     }
 
-    func testActiveBassEventsUseOneReservedVoiceWithoutOverlap() throws {
+    func testAdjacentBassEventsGlideTheHeldVoiceWithoutRetriggering() throws {
         let harness = try makeHarness()
         let plan = bassPlan(events: [
-            bassEvent(id: 1, start: 0, duration: 4),
-            bassEvent(id: 2, start: 2, duration: 4),
+            bassEvent(id: 1, start: 0, duration: 16),
+            bassEvent(id: 2, start: 8, duration: 8),
         ])
         try harness.player.configure(plan)
 
         _ = harness.player.render(event(at: 0), plan: plan, duckCommand: nil)
-        _ = harness.player.render(event(at: 2), plan: plan, duckCommand: nil)
-        _ = harness.player.render(event(at: 6), plan: plan, duckCommand: nil)
+        let transition = harness.player.render(event(at: 8), plan: plan, duckCommand: nil)
+        harness.player.releaseAll()
 
         XCTAssertEqual(harness.pool.capacity, 1)
-        XCTAssertEqual(harness.pool.noteOnRequests.map(\.midiNote), [36, 38])
+        XCTAssertEqual(harness.pool.noteOnRequests.map(\.midiNote), [36])
+        XCTAssertEqual(transition.attackedEventStableID, 2)
+        XCTAssertEqual(try XCTUnwrap(harness.pool.updateRequests.last?.midiNote), 38)
+        XCTAssertEqual(try XCTUnwrap(harness.pool.updateRequests.last?.pitchRampSeconds), 0.040)
         XCTAssertEqual(harness.pool.maximumActiveVoiceCount, 1)
-        XCTAssertEqual(harness.pool.noteOffCount, 2)
+        XCTAssertEqual(harness.pool.noteOffCount, 1)
         XCTAssertEqual(harness.player.metrics.activeVoiceCount, 0)
     }
 
@@ -137,7 +140,7 @@ final class BassPlayerTests: XCTestCase {
         let request = try XCTUnwrap(harness.pool.noteOnRequests.only)
         XCTAssertEqual(
             request.envelopeVariant,
-            .absolute(attackSeconds: 0.030, releaseSeconds: 0.220)
+            .absolute(attackSeconds: 0.120, releaseSeconds: 0.800)
         )
         XCTAssertEqual(
             try XCTUnwrap(harness.pool.updateRequests.only?.cutoffHz),
@@ -158,7 +161,23 @@ final class BassPlayerTests: XCTestCase {
 
         XCTAssertEqual(
             try XCTUnwrap(harness.pool.noteOnRequests.only).envelopeVariant,
-            .absolute(attackSeconds: 0.032, releaseSeconds: 0.260)
+            .absolute(attackSeconds: 0.090, releaseSeconds: 0.700)
+        )
+    }
+
+    func testBedBassUsesTheSlowestEnvelopeAndLongestTail() throws {
+        let harness = try makeHarness()
+        let plan = bassPlan(
+            articulation: .sustained,
+            events: [bassEvent(id: 1, start: 0, duration: 64)]
+        )
+        try harness.player.configure(plan)
+
+        _ = harness.player.render(event(at: 0), plan: plan, duckCommand: nil)
+
+        XCTAssertEqual(
+            try XCTUnwrap(harness.pool.noteOnRequests.only).envelopeVariant,
+            .absolute(attackSeconds: 0.180, releaseSeconds: 1.200)
         )
     }
 

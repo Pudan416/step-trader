@@ -211,13 +211,13 @@ enum HarmonyPlanner {
             preferredCategory: .pad,
             register: 36...55,
             targetGain: 0.24,
-            attackSeconds: 2.8,
-            releaseSeconds: 6.0,
+            attackSeconds: 4.0,
+            releaseSeconds: 10.0,
             delaySend: 0.08,
             reverbSend: 0.62,
             activationStart: 0.00,
             activationFull: 0.20,
-            crossfadeBars: 2
+            crossfadeBars: 3
         ),
         RoleTemplate(
             role: .primaryPad,
@@ -225,13 +225,13 @@ enum HarmonyPlanner {
             preferredCategory: .pad,
             register: 48...72,
             targetGain: 0.48,
-            attackSeconds: 2.2,
-            releaseSeconds: 5.0,
+            attackSeconds: 3.2,
+            releaseSeconds: 8.0,
             delaySend: 0.16,
             reverbSend: 0.54,
             activationStart: 0.20,
             activationFull: 0.55,
-            crossfadeBars: 2
+            crossfadeBars: 3
         ),
         RoleTemplate(
             role: .secondaryPadOrKeys,
@@ -239,13 +239,13 @@ enum HarmonyPlanner {
             preferredCategory: .keys,
             register: 55...79,
             targetGain: 0.34,
-            attackSeconds: 1.6,
-            releaseSeconds: 4.2,
+            attackSeconds: 2.4,
+            releaseSeconds: 7.0,
             delaySend: 0.24,
             reverbSend: 0.48,
             activationStart: 0.58,
             activationFull: 0.88,
-            crossfadeBars: 2
+            crossfadeBars: 2.5
         ),
         RoleTemplate(
             role: .pianoOrKeysAccents,

@@ -69,7 +69,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 0,
                 spentColors: 100,
                 seed: 0x1,
-                expected: "seed=1|input=85/100/0/10000|world=4:mixolydian:8:[4, 11, 2]:[3, 3, 2]|tempo=7200/8900|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion,syncopated-ghost,fills|groove=bass-arp|bass=bass.bassliner:21|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=|lead=lead.bb-silver-screen:[59, 59, 57]:[81, 81, 81]"
+                expected: "seed=1|input=85/100/0/10000|world=4:mixolydian:8:[4, 11, 2]:[3, 3, 2]|tempo=7200/8900|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion,syncopated-ghost,fills|groove=bass-arp|bass=bass.bassliner:5|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=|lead=lead.bb-silver-screen:[59, 59, 57]:[81, 81, 81]"
             ),
             BoundaryFixture(
                 name: "steps-goal",
@@ -78,7 +78,7 @@ final class DayMusicPlanSnapshotTests: XCTestCase {
                 happeningCount: 1,
                 spentColors: 0,
                 seed: 0x2,
-                expected: "seed=2|input=100/0/1/0|world=0:major-pentatonic:16:[0]:[16]|tempo=7100/9100|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion,syncopated-ghost,fills|groove=bass-arp|bass=bass.bassliner:51|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=event-0:pluck:recipe-3|lead=lead.jec-softwah-2:[60]:[81]"
+                expected: "seed=2|input=100/0/1/0|world=0:major-pentatonic:16:[0]:[16]|tempo=7100/9100|rhythm=low-pulse,half-time-kick,closed-hat,shaker,kick-variation,organic-percussion,syncopated-ghost,fills|groove=bass-arp|bass=bass.bassliner:2|harmony=drone=pad.forgotten-stories,primary-pad=pad.forgotten-stories,secondary-pad-or-keys=keys.maschinenmensch,piano-or-keys-accents=felt-piano,inner-motion=keys.maschinenmensch|happenings=event-0:pluck:recipe-3|lead=lead.jec-softwah-2:[60]:[81]"
             ),
         ]
 
