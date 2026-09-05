@@ -9,14 +9,13 @@ import simd
 @testable import Steps4
 
 final class DayObjectRenderFrameTests: XCTestCase {
-    private func editorialScene(reduceMotion: Bool = false) -> DayObjectScene {
+    private func editorialScene() -> DayObjectScene {
         DayObjectScene.make(input: .init(
             dayKey: "2026-09-04",
             identity: "day-objects-lab",
             eventIDs: (0..<5).map { "lab-event-\($0)" },
             motionEnergy: 0.55,
             visualClarity: 0.75,
-            reduceMotion: reduceMotion,
             canvasCoverage: .fullCanvas,
             usesEditorialField: true,
             editorialBackground: .lowContrast
@@ -27,8 +26,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         let scene = editorialScene()
         let environment = DayObjectEnvironment(
             motionEnergy: 0.55,
-            visualClarity: 0.75,
-            reduceMotion: false
+            visualClarity: 0.75
         )
         let initial = DayObjectRenderFrame.make(
             scene: scene,
@@ -59,12 +57,11 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertTrue(later.actors.allSatisfy { $0.trailLength == 0 })
     }
 
-    func testEditorialReduceMotionKeepsNeutralPoseAndMaterialStable() {
-        let scene = editorialScene(reduceMotion: true)
+    func testEditorialFieldAlwaysKeepsMoving() {
+        let scene = editorialScene()
         let environment = DayObjectEnvironment(
             motionEnergy: 1,
-            visualClarity: 0.75,
-            reduceMotion: true
+            visualClarity: 0.75
         )
         let initial = DayObjectRenderFrame.make(
             scene: scene,
@@ -79,10 +76,9 @@ final class DayObjectRenderFrameTests: XCTestCase {
             insertions: [:]
         )
 
-        XCTAssertEqual(later.actors.map(\.gpuActor.position), initial.actors.map(\.gpuActor.position))
-        XCTAssertEqual(later.actors.map(\.gpuActor.halfSize), initial.actors.map(\.gpuActor.halfSize))
+        XCTAssertNotEqual(later.actors.map(\.gpuActor.position), initial.actors.map(\.gpuActor.position))
+        XCTAssertNotEqual(later.actors.map(\.gpuActor.halfSize), initial.actors.map(\.gpuActor.halfSize))
         XCTAssertEqual(later.actors.map(\.gpuAppearance), initial.actors.map(\.gpuAppearance))
-        XCTAssertTrue(later.actors.allSatisfy { $0.gpuActor.materialPhase == 0 })
     }
 
     func testGenerativeRecipeUploadsResolvedCarrierShape() throws {
@@ -101,7 +97,6 @@ final class DayObjectRenderFrameTests: XCTestCase {
                 eventIDs: (0..<10).map { "lab-event-\($0)" },
                 motionEnergy: 0.55,
                 visualClarity: 0.75,
-                reduceMotion: true,
                 canvasCoverage: .fullCanvas,
                 paletteCategories: [.pastel],
                 usesEditorialField: true,
@@ -115,8 +110,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
                 scene: scene,
                 environment: .init(
                     motionEnergy: 0.55,
-                    visualClarity: 0.75,
-                    reduceMotion: true
+                    visualClarity: 0.75
                 ),
                 elapsed: 0,
                 insertions: [:]
@@ -139,12 +133,11 @@ final class DayObjectRenderFrameTests: XCTestCase {
         identity: String = "tester",
         ids: [String],
         categories: Set<ModernPaletteCategory> = [],
-        reduceMotion: Bool = false,
         canvasCoverage: DayObjectCanvasCoverage? = nil
     ) -> DayObjectScene {
         DayObjectScene.make(input: .init(
             dayKey: dayKey, identity: identity, eventIDs: ids,
-            motionEnergy: 0.55, visualClarity: 0.55, reduceMotion: reduceMotion,
+            motionEnergy: 0.55, visualClarity: 0.55,
             canvasCoverage: canvasCoverage,
             paletteCategories: categories
         ))
@@ -153,7 +146,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
     private func capacityFixtureScene(dayKey: String, ids: [String]) -> DayObjectScene {
         DayObjectScene.make(input: .init(
             dayKey: dayKey, identity: "tester", eventIDs: ids,
-            motionEnergy: 0.55, visualClarity: 0.55, reduceMotion: false
+            motionEnergy: 0.55, visualClarity: 0.55
         ))
     }
 
@@ -165,7 +158,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         try XCTUnwrap((UInt64(0)..<4_096).lazy.map { seed in
             DayObjectScene.make(input: .init(
                 dayKey: "render-fixture-\(seed)", identity: "tester", eventIDs: ids,
-                motionEnergy: 0.55, visualClarity: 0.55, reduceMotion: false,
+                motionEnergy: 0.55, visualClarity: 0.55,
                 canvasCoverage: canvasCoverage
             ))
         }.first { $0.motionPlan.preset == preset })
@@ -269,18 +262,16 @@ final class DayObjectRenderFrameTests: XCTestCase {
         })
     }
 
-    func testGlitchUniformsMatchMetalLayoutAndFreezeForReduceMotion() {
+    func testGlitchUniformsMatchMetalLayoutAndAdvanceTime() {
         let impact = DayObjectDigitalImpact(spentColors: 50)
         let moving = DayObjectsGlitchUniforms(
             impact: impact,
             elapsedTime: 12.5,
-            reduceMotion: false,
             seed: 0xFEDC_BA98_7654_3210
         )
-        let frozen = DayObjectsGlitchUniforms(
+        let later = DayObjectsGlitchUniforms(
             impact: impact,
             elapsedTime: 900,
-            reduceMotion: true,
             seed: 0xFEDC_BA98_7654_3210
         )
 
@@ -291,8 +282,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertEqual(MemoryLayout<DayObjectsGlitchUniforms>.offset(of: \.metadata), 32)
         XCTAssertEqual(moving.levels.x, 0.5, accuracy: 0.000_001)
         XCTAssertEqual(moving.rendering.x, 12.5, accuracy: 0.000_001)
-        XCTAssertEqual(frozen.rendering.x, 0, accuracy: 0.000_001)
-        XCTAssertEqual(frozen.metadata.z, 1)
+        XCTAssertEqual(later.rendering.x, 900, accuracy: 0.000_001)
+        XCTAssertEqual(later.metadata.z, 0)
     }
 
     func testGlitchBandUniformsAreFixedSizeAndBounded() {
@@ -321,8 +312,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         )
         let environment = DayObjectEnvironment(
             motionEnergy: 1,
-            visualClarity: 1,
-            reduceMotion: false
+            visualClarity: 1
         )
 
         for elapsed in stride(from: 0.0, through: scene.score.duration, by: 0.25) {
@@ -345,8 +335,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         let scene = fixtureScene(ids: (0..<8).map { "orb-\($0)" })
         let environment = DayObjectEnvironment(
             motionEnergy: 1,
-            visualClarity: 1,
-            reduceMotion: false
+            visualClarity: 1
         )
         var leaders = Set<DayObjectActorID>()
 
@@ -365,49 +354,15 @@ final class DayObjectRenderFrameTests: XCTestCase {
     }
 
     func testMotionEnergyMapsToSpecifiedTempo() {
-        XCTAssertEqual(DayObjectEnvironment(motionEnergy: 0, visualClarity: 1, reduceMotion: false).tempoScale, 0.035, accuracy: 0.0001)
-        XCTAssertEqual(DayObjectEnvironment(motionEnergy: 1, visualClarity: 1, reduceMotion: false).tempoScale, 1.25, accuracy: 0.0001)
-        XCTAssertEqual(DayObjectEnvironment(motionEnergy: 1, visualClarity: 1, reduceMotion: true).tempoScale, 0.02, accuracy: 0.0001)
-    }
-
-    func testReduceMotionFreezesPositionDepthAndMaterialPhase() throws {
-        let scene = fixtureScene(ids: (0..<10).map { "event-\($0)" })
-        let environment = DayObjectEnvironment(
-            motionEnergy: 1,
-            visualClarity: 1,
-            reduceMotion: true
-        )
-        let early = DayObjectRenderFrame.make(
-            scene: scene, environment: environment, elapsed: 5, insertions: [:]
-        )
-        let late = DayObjectRenderFrame.make(
-            scene: scene, environment: environment, elapsed: 95, insertions: [:]
-        )
-
-        XCTAssertEqual(early.choreographyTime, 0)
-        XCTAssertEqual(late.choreographyTime, 0)
-        XCTAssertEqual(early.actors, late.actors)
-        for actor in scene.actors {
-            let earlyPose = scene.score.pose(
-                for: actor, at: early.choreographyTime, canvasAspect: 1,
-                compositionPlan: scene.compositionPlan
-            )
-            let latePose = scene.score.pose(
-                for: actor, at: late.choreographyTime, canvasAspect: 1,
-                compositionPlan: scene.compositionPlan
-            )
-            XCTAssertEqual(earlyPose.position, latePose.position)
-            XCTAssertEqual(earlyPose.depth, latePose.depth)
-            XCTAssertEqual(earlyPose.materialPhase, latePose.materialPhase)
-        }
+        XCTAssertEqual(DayObjectEnvironment(motionEnergy: 0, visualClarity: 1).tempoScale, 0.035, accuracy: 0.0001)
+        XCTAssertEqual(DayObjectEnvironment(motionEnergy: 1, visualClarity: 1).tempoScale, 1.25, accuracy: 0.0001)
     }
 
     func testEnvironmentClampsNonFiniteInputs() {
         for value in [Double.nan, .infinity, -.infinity] {
             let environment = DayObjectEnvironment(
                 motionEnergy: value,
-                visualClarity: value,
-                reduceMotion: false
+                visualClarity: value
             )
             XCTAssertEqual(environment.motionEnergy, 0)
             XCTAssertEqual(environment.visualClarity, 0)
@@ -415,8 +370,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
         }
 
         XCTAssertEqual(
-            DayObjectEnvironment(motionEnergy: -1, visualClarity: 2, reduceMotion: false),
-            DayObjectEnvironment(motionEnergy: 0, visualClarity: 1, reduceMotion: false)
+            DayObjectEnvironment(motionEnergy: -1, visualClarity: 2),
+            DayObjectEnvironment(motionEnergy: 0, visualClarity: 1)
         )
     }
 
@@ -424,8 +379,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         let scene = fixtureScene(ids: ["a"])
         let environment = DayObjectEnvironment(
             motionEnergy: 1,
-            visualClarity: 1,
-            reduceMotion: false
+            visualClarity: 1
         )
         let invalidFrame = DayObjectRenderFrame.make(
             scene: scene,
@@ -477,8 +431,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         let scene = fixtureScene(ids: [])
         let environment = DayObjectEnvironment(
             motionEnergy: 0,
-            visualClarity: 0.5,
-            reduceMotion: false
+            visualClarity: 0.5
         )
         let frame = DayObjectRenderFrame.make(
             scene: scene,
@@ -494,8 +447,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
     }
 
     func testSleepFocusIsMonotonicAndLeavesGrainIndependent() {
-        let clear = DayObjectPostProcess(visualClarity: 1, reduceMotion: false, grainSeed: 9)
-        let tired = DayObjectPostProcess(visualClarity: 0, reduceMotion: false, grainSeed: 9)
+        let clear = DayObjectPostProcess(visualClarity: 1, grainSeed: 9)
+        let tired = DayObjectPostProcess(visualClarity: 0, grainSeed: 9)
         XCTAssertEqual(clear.blurRadius, 0, accuracy: 0.0001)
         XCTAssertEqual(tired.blurRadius, 18, accuracy: 0.0001)
         XCTAssertEqual(clear.contrast, 1, accuracy: 0.0001)
@@ -507,13 +460,13 @@ final class DayObjectRenderFrameTests: XCTestCase {
         let scene = fixtureScene(ids: ["focus-fixture"])
         let still = DayObjectRenderFrame.make(
             scene: scene,
-            environment: .init(motionEnergy: 0, visualClarity: 0.5, reduceMotion: false),
+            environment: .init(motionEnergy: 0, visualClarity: 0.5),
             elapsed: 9,
             insertions: [:]
         )
         let active = DayObjectRenderFrame.make(
             scene: scene,
-            environment: .init(motionEnergy: 1, visualClarity: 0.5, reduceMotion: false),
+            environment: .init(motionEnergy: 1, visualClarity: 0.5),
             elapsed: 9,
             insertions: [:]
         )
@@ -549,7 +502,6 @@ final class DayObjectRenderFrameTests: XCTestCase {
         let clear = DayObjectsPostUniforms(
             postProcess: DayObjectPostProcess(
                 visualClarity: 1,
-                reduceMotion: false,
                 grainSeed: 9
             ),
             resolution: resolution,
@@ -560,7 +512,6 @@ final class DayObjectRenderFrameTests: XCTestCase {
         let middle = DayObjectsPostUniforms(
             postProcess: DayObjectPostProcess(
                 visualClarity: 0.5,
-                reduceMotion: false,
                 grainSeed: 9
             ),
             resolution: resolution,
@@ -571,7 +522,6 @@ final class DayObjectRenderFrameTests: XCTestCase {
         let tired = DayObjectsPostUniforms(
             postProcess: DayObjectPostProcess(
                 visualClarity: 0,
-                reduceMotion: false,
                 grainSeed: 9
             ),
             resolution: resolution,
@@ -606,7 +556,6 @@ final class DayObjectRenderFrameTests: XCTestCase {
         for seed in UInt64(0)..<64 {
             let postProcess = DayObjectPostProcess(
                 visualClarity: 0.4,
-                reduceMotion: false,
                 grainSeed: seed
             )
             XCTAssertEqual(postProcess.grainIntensity, 0.05, accuracy: 0.000_001)
@@ -631,7 +580,6 @@ final class DayObjectRenderFrameTests: XCTestCase {
 
         let seeded = DayObjectPostProcess(
             visualClarity: 0.4,
-            reduceMotion: false,
             grainSeed: 9
         )
         let dark = DayObjectsPostUniforms(
@@ -658,8 +606,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
                 identity: "tester",
                 eventIDs: [],
                 motionEnergy: 0.5,
-                visualClarity: 0.5,
-                reduceMotion: false
+                visualClarity: 0.5
             ))
         }
         let scene = try XCTUnwrap(scenes.max { lhs, rhs in
@@ -672,8 +619,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
 
         let environment = DayObjectEnvironment(
             motionEnergy: 0.5,
-            visualClarity: 0.5,
-            reduceMotion: false
+            visualClarity: 0.5
         )
         let frame = DayObjectRenderFrame.make(
             scene: scene,
@@ -692,22 +638,19 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertEqual(uniforms.grainIntensity, Float(frame.postProcess.grainIntensity))
     }
 
-    func testGrainPhaseAdvancesSlowlyAndContinuouslyWhileReduceMotionFreezesIndependently() {
+    func testGrainPhaseAdvancesSlowlyAndContinuously() {
         let start = DayObjectPostProcess(
             visualClarity: 0.5,
-            reduceMotion: false,
             grainSeed: 9,
             elapsed: 10.001
         )
         let withinFrame = DayObjectPostProcess(
             visualClarity: 0.5,
-            reduceMotion: false,
             grainSeed: 9,
             elapsed: 10.501
         )
         let nextFrame = DayObjectPostProcess(
             visualClarity: 0.5,
-            reduceMotion: false,
             grainSeed: 9,
             elapsed: 11.001
         )
@@ -715,41 +658,6 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertLessThan(withinFrame.grainPhase, nextFrame.grainPhase)
         XCTAssertEqual(nextFrame.grainPhase - start.grainPhase, 0.06, accuracy: 0.000_001)
 
-        let frozenEarly = DayObjectPostProcess(
-            visualClarity: 0.5,
-            reduceMotion: true,
-            grainSeed: 9,
-            elapsed: 1
-        )
-        let frozenLate = DayObjectPostProcess(
-            visualClarity: 0.5,
-            reduceMotion: true,
-            grainSeed: 9,
-            elapsed: 1_000
-        )
-        XCTAssertEqual(frozenEarly.grainPhase, frozenLate.grainPhase)
-
-        let scene = fixtureScene(ids: ["a", "b"])
-        let reduced = DayObjectEnvironment(
-            motionEnergy: 1,
-            visualClarity: 0.5,
-            reduceMotion: true
-        )
-        let earlyFrame = DayObjectRenderFrame.make(
-            scene: scene,
-            environment: reduced,
-            elapsed: 1,
-            insertions: [:]
-        )
-        let lateFrame = DayObjectRenderFrame.make(
-            scene: scene,
-            environment: reduced,
-            elapsed: 2,
-            insertions: [:]
-        )
-        XCTAssertEqual(earlyFrame.postProcess.grainPhase, lateFrame.postProcess.grainPhase)
-        XCTAssertEqual(earlyFrame.choreographyTime, 0)
-        XCTAssertEqual(lateFrame.choreographyTime, 0)
     }
 
     func testPostUniformGrainSeedUsesSceneRootRatherThanActorCount() {
@@ -757,8 +665,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         let populated = fixtureScene(ids: (0..<20).map { "event-\($0)" })
         let environment = DayObjectEnvironment(
             motionEnergy: 0.5,
-            visualClarity: 0.5,
-            reduceMotion: false
+            visualClarity: 0.5
         )
         let emptyFrame = DayObjectRenderFrame.make(
             scene: empty,
@@ -946,7 +853,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         }
     }
 
-    func testGlitchIsDeterministicAndReduceMotionFreezesPhase() throws {
+    func testGlitchIsDeterministicAndAdvancesWithTime() throws {
         let scene = fixtureScene(ids: (0..<12).map { "glitch-event-\($0)" })
         let harness = try PostRenderHarness(width: 192, height: 256)
         let impact = DayObjectDigitalImpact(spentColors: 75)
@@ -970,25 +877,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
             digitalImpact: impact,
             glitchElapsed: 9.375
         ).noGrain
-        let frozenEarly = try harness.render(
-            scene: scene,
-            clarity: 0.7,
-            elapsed: 8.375,
-            reduceMotion: true,
-            digitalImpact: impact
-        ).noGrain
-        let frozenLate = try harness.render(
-            scene: scene,
-            clarity: 0.7,
-            elapsed: 8.375,
-            reduceMotion: true,
-            digitalImpact: impact,
-            glitchElapsed: 9.375
-        ).noGrain
-
         XCTAssertEqual(first.checksum, repeated.checksum)
         XCTAssertNotEqual(first.checksum, later.checksum)
-        XCTAssertEqual(frozenEarly.checksum, frozenLate.checksum)
     }
 
     func testMaximumGlitchDamageRetainsSourceStructure() throws {
@@ -1052,21 +942,18 @@ final class DayObjectRenderFrameTests: XCTestCase {
             identity: "day-objects-lab",
             eventIDs: eventIDs,
             motionEnergy: 0.55,
-            visualClarity: 0.55,
-            reduceMotion: false
+            visualClarity: 0.55
         ))
         let emptyScene = DayObjectScene.make(input: .init(
             dayKey: "2026-01-01",
             identity: "day-objects-lab",
             eventIDs: [],
             motionEnergy: 0.55,
-            visualClarity: 0.55,
-            reduceMotion: false
+            visualClarity: 0.55
         ))
         let environment = DayObjectEnvironment(
             motionEnergy: 0.55,
-            visualClarity: 0.55,
-            reduceMotion: false
+            visualClarity: 0.55
         )
         let frame = DayObjectRenderFrame.make(
             scene: scene,
@@ -1145,13 +1032,11 @@ final class DayObjectRenderFrameTests: XCTestCase {
                 let harness = try PostRenderHarness(width: layout.width, height: layout.height)
                 for clarity in [0.0, 0.5, 1.0] {
                     for motionEnergy in [0.0, 0.55, 1.0] {
-                        for reduceMotion in [false, true] {
                             let empty = try harness.render(
                                 scene: scene,
                                 clarity: clarity,
                                 elapsed: 11.25,
                                 motionEnergy: motionEnergy,
-                                reduceMotion: reduceMotion,
                                 actorLimit: 0
                             )
                             for actorCount in [1, 4, 7, 10] {
@@ -1160,7 +1045,6 @@ final class DayObjectRenderFrameTests: XCTestCase {
                                     clarity: clarity,
                                     elapsed: 11.25,
                                     motionEnergy: motionEnergy,
-                                    reduceMotion: reduceMotion,
                                     actorLimit: actorCount
                                 )
                         let outputLuminance = result.output.luminanceField.values
@@ -1186,7 +1070,6 @@ final class DayObjectRenderFrameTests: XCTestCase {
                                     actorLimit: actorCount,
                                     elapsed: 11.25,
                                     motionEnergy: motionEnergy,
-                                    reduceMotion: reduceMotion,
                                     canvasAspect: Double(layout.width) / Double(layout.height),
                                     actorDifference: actorContribution
                                 )
@@ -1218,19 +1101,17 @@ final class DayObjectRenderFrameTests: XCTestCase {
 
                         let clarityLabel = Int((clarity * 10).rounded())
                                 let motionLabel = Int((motionEnergy * 100).rounded())
-                                let reduceMotionLabel = reduceMotion ? "reduced" : "animated"
                         let attachment = XCTAttachment(
                             data: try result.output.pngData(),
                             uniformTypeIdentifier: UTType.png.identifier
                         )
-                                attachment.name = "living-orbs-\(category.name)-\(layout.name)-a\(actorCount)-c\(clarityLabel)-m\(motionLabel)-\(reduceMotionLabel)"
+                                attachment.name = "living-orbs-\(category.name)-\(layout.name)-a\(actorCount)-c\(clarityLabel)-m\(motionLabel)"
                         attachment.lifetime = .keepAlways
                         add(attachment)
 
                         print(
-                                    "LIVING_ORBS_MATRIX category=\(category.name) layout=\(layout.name) "
+                                "LIVING_ORBS_MATRIX category=\(category.name) layout=\(layout.name) "
                                 + "actors=\(actorCount) clarity=\(clarity) motion=\(motionEnergy) "
-                                        + "reduceMotion=\(reduceMotion) "
                                 + "checksum=\(result.output.checksum) outputRange=\(outputDynamicRange) "
                                         + "paintedRange=\(paintedDynamicRange) "
                                         + "actorPeak=\(actorContribution.maximumAbsoluteLuminance) "
@@ -1241,8 +1122,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
                 }
             }
         }
-            }
-        }
+    }
     }
 
     func testCommittedPerceptualSignaturesCoverProductionTransferCompositionAndPalette() throws {
@@ -1264,7 +1144,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
             let harness = try PostRenderHarness(width: fixture.width, height: fixture.height)
             let inspectionFrame = DayObjectRenderFrame.make(
                 scene: scene,
-                environment: .init(motionEnergy: 0.75, visualClarity: 1, reduceMotion: false),
+                environment: .init(motionEnergy: 0.75, visualClarity: 1),
                 elapsed: 11.25,
                 insertions: [:],
                 canvasAspect: Double(fixture.width) / Double(fixture.height)
@@ -1344,7 +1224,6 @@ final class DayObjectRenderFrameTests: XCTestCase {
                     eventIDs: Array(eventIDs.prefix(actorCount)),
                     motionEnergy: 0.55,
                     visualClarity: 0.95,
-                    reduceMotion: false,
                     canvasCoverage: .fullCanvas
                 ))
             }
@@ -1386,8 +1265,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
                     let actorDifference = result.noGrain.difference(from: empty.noGrain)
                     let environment = DayObjectEnvironment(
                         motionEnergy: 0.55,
-                        visualClarity: 0.95,
-                        reduceMotion: false
+                        visualClarity: 0.95
                     )
                     let frame = DayObjectRenderFrame.make(
                         scene: inspectedScene,
@@ -1596,7 +1474,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
     func testAddingActorDoesNotChangeExistingFrameStates() {
         let before = fixtureScene(ids: ["a", "b"])
         let after = fixtureScene(ids: ["a", "b", "c"])
-        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.55, reduceMotion: false)
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.55)
         let frameA = DayObjectRenderFrame.make(scene: before, environment: environment, elapsed: 12, insertions: [:])
         let frameB = DayObjectRenderFrame.make(scene: after, environment: environment, elapsed: 12, insertions: ["c": 11.5])
         XCTAssertTrue(frameB.actors.filter { $0.eventID == "c" }.allSatisfy { $0.opacity > 0 && $0.opacity < 1 })
@@ -1659,8 +1537,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
             identity: "tester",
             eventIDs: ["a", "b"],
             motionEnergy: 0.55,
-            visualClarity: 0.55,
-            reduceMotion: false
+            visualClarity: 0.55
         ))
         timeline.update(scene: nextDay, elapsed: 9)
 
@@ -1672,8 +1549,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         let active = fixtureScene(ids: ["a"])
         let environment = DayObjectEnvironment(
             motionEnergy: 0.55,
-            visualClarity: 1,
-            reduceMotion: false
+            visualClarity: 1
         )
         var timeline = DayObjectInsertionTimeline(scene: original)
         timeline.update(scene: active, elapsed: 10)
@@ -1722,36 +1598,6 @@ final class DayObjectRenderFrameTests: XCTestCase {
         for (actual, expected) in zip(activeDuring, activeReference) {
             assertSameVisualActorState(actual, expected)
         }
-    }
-
-    func testReduceMotionRemovalChangesOpacityOnlyAndDisablesTrails() {
-        let original = fixtureScene(ids: ["a", "b"])
-        let active = fixtureScene(ids: ["a"])
-        let environment = DayObjectEnvironment(
-            motionEnergy: 1,
-            visualClarity: 1,
-            reduceMotion: true
-        )
-        var timeline = DayObjectInsertionTimeline(scene: original)
-        timeline.update(scene: active, elapsed: 4)
-        let state = timeline.renderState(activeScene: active, elapsed: 4.5)
-        let departing = DayObjectRenderFrame.make(
-            scene: state.scene,
-            environment: environment,
-            elapsed: 4.5,
-            insertions: state.insertions,
-            removals: state.removals
-        ).actors.filter { $0.eventID == "b" }
-        let reference = DayObjectRenderFrame.make(
-            scene: original,
-            environment: environment,
-            elapsed: 4.5,
-            insertions: [:]
-        ).actors.filter { $0.eventID == "b" }
-
-        XCTAssertEqual(departing.map(\.halfSize), reference.map(\.halfSize))
-        XCTAssertTrue(departing.allSatisfy { $0.opacity > 0 && $0.opacity < 1 })
-        XCTAssertTrue(departing.allSatisfy { $0.trailLength == 0 })
     }
 
     func testReaddingDuringRemovalCancelsDepartureWithoutDuplicatesOrReroll() {
@@ -1804,14 +1650,13 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertEqual(admitted.actorInsertions[replacementID], admittedAt)
         XCTAssertNil(admitted.actorRemovals[departingID])
 
-        let reduceMotion = DayObjectEnvironment(
+        let environment = DayObjectEnvironment(
             motionEnergy: 1,
-            visualClarity: 1,
-            reduceMotion: true
+            visualClarity: 1
         )
         let firstFrame = DayObjectRenderFrame.make(
             scene: admitted.scene,
-            environment: reduceMotion,
+            environment: environment,
             elapsed: admittedAt,
             insertions: admitted.insertions,
             removals: admitted.removals,
@@ -1820,7 +1665,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         )
         let firstReplacement = try XCTUnwrap(firstFrame.actors.first { $0.actorID == replacementID })
         XCTAssertEqual(firstReplacement.opacity, 0)
-        XCTAssertEqual(firstReplacement.trailLength, 0)
+        XCTAssertGreaterThan(firstReplacement.trailLength, 0)
 
         let replacementActor = try XCTUnwrap(replacement.actors.first { $0.id == replacementID })
         let insertionDuration = DayObjectRenderFrame.transitionDuration(for: replacementActor)
@@ -1829,7 +1674,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertEqual(during.actorInsertions[replacementID], admittedAt)
         let duringFrame = DayObjectRenderFrame.make(
             scene: during.scene,
-            environment: reduceMotion,
+            environment: environment,
             elapsed: duringTime,
             insertions: during.insertions,
             removals: during.removals,
@@ -1839,7 +1684,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         let duringReplacement = try XCTUnwrap(duringFrame.actors.first { $0.actorID == replacementID })
         let unanimatedFrame = DayObjectRenderFrame.make(
             scene: replacement,
-            environment: reduceMotion,
+            environment: environment,
             elapsed: duringTime,
             insertions: [:]
         )
@@ -1848,8 +1693,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
         )
         XCTAssertGreaterThan(duringReplacement.opacity, 0)
         XCTAssertLessThan(duringReplacement.opacity, unanimatedReplacement.opacity)
-        XCTAssertEqual(duringReplacement.halfSize, unanimatedReplacement.halfSize)
-        XCTAssertEqual(duringReplacement.trailLength, 0)
+        XCTAssertLessThan(duringReplacement.halfSize.x, unanimatedReplacement.halfSize.x)
+        XCTAssertEqual(duringReplacement.trailLength, unanimatedReplacement.trailLength)
     }
 
     func testCappedOrbAdmissionDoesNotRestartAlreadyRenderedActors() throws {
@@ -1890,8 +1735,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
 
         let environment = DayObjectEnvironment(
             motionEnergy: 0.55,
-            visualClarity: 1,
-            reduceMotion: false
+            visualClarity: 1
         )
         let frame = DayObjectRenderFrame.make(
             scene: firstAdmission.scene,
@@ -1972,8 +1816,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
             identity: "tester",
             eventIDs: ["a"],
             motionEnergy: 0.55,
-            visualClarity: 0.55,
-            reduceMotion: false
+            visualClarity: 0.55
         ))
         timeline.update(scene: nextDay, elapsed: 3.2)
         let state = timeline.renderState(activeScene: nextDay, elapsed: 3.2)
@@ -1985,7 +1828,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
 
     func testInsertionEnvelopeStartsAtZeroOpacityAndSeventyPercentScale() {
         let scene = fixtureScene(ids: ["new"])
-        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.55, reduceMotion: false)
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.55)
         let scoreState = DayObjectRenderFrame.make(scene: scene, environment: environment, elapsed: 5, insertions: [:])
         let insertedState = DayObjectRenderFrame.make(scene: scene, environment: environment, elapsed: 5, insertions: ["new": 5])
 
@@ -1995,46 +1838,9 @@ final class DayObjectRenderFrameTests: XCTestCase {
         }
     }
 
-    func testReduceMotionDisablesTrailsAndIsDeterministic() {
-        let scene = fixtureScene(ids: ["a", "b"])
-        let environment = DayObjectEnvironment(motionEnergy: 1, visualClarity: 0.4, reduceMotion: true)
-        let first = DayObjectRenderFrame.make(scene: scene, environment: environment, elapsed: 12, insertions: [:])
-        let second = DayObjectRenderFrame.make(scene: scene, environment: environment, elapsed: 12, insertions: [:])
-
-        XCTAssertEqual(first, second)
-        XCTAssertTrue(first.actors.allSatisfy { $0.trailLength == 0 })
-        XCTAssertTrue(first.postProcess.grainPhase == 0)
-    }
-
-    func testReduceMotionInsertionUsesOpacityWithoutScaleAnimation() {
-        let scene = fixtureScene(ids: ["new"])
-        let environment = DayObjectEnvironment(
-            motionEnergy: 1,
-            visualClarity: 0.4,
-            reduceMotion: true
-        )
-        let scoreState = DayObjectRenderFrame.make(
-            scene: scene,
-            environment: environment,
-            elapsed: 5,
-            insertions: [:]
-        )
-        let insertedState = DayObjectRenderFrame.make(
-            scene: scene,
-            environment: environment,
-            elapsed: 5,
-            insertions: ["new": 5]
-        )
-
-        XCTAssertTrue(insertedState.actors.allSatisfy { $0.opacity == 0 })
-        for (scoreActor, insertedActor) in zip(scoreState.actors, insertedState.actors) {
-            XCTAssertEqual(insertedActor.halfSize, scoreActor.halfSize)
-        }
-    }
-
     func testActorsAreSortedByDepthThenStableID() {
         let scene = fixtureScene(ids: ["z", "a", "m"])
-        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.55, reduceMotion: false)
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.55)
         let actors = DayObjectRenderFrame.make(scene: scene, environment: environment, elapsed: 12, insertions: [:]).actors
 
         XCTAssertEqual(actors, actors.sorted { lhs, rhs in
@@ -2172,7 +1978,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         let scene = fixtureScene(ids: (0..<10).map { "event-\($0)" })
         let frame = DayObjectRenderFrame.make(
             scene: scene,
-            environment: .init(motionEnergy: 1, visualClarity: 1, reduceMotion: false),
+            environment: .init(motionEnergy: 1, visualClarity: 1),
             elapsed: 27,
             insertions: [:]
         )
@@ -2248,18 +2054,17 @@ final class DayObjectRenderFrameTests: XCTestCase {
             identity: "tester",
             eventIDs: ids,
             motionEnergy: 0.55,
-            visualClarity: 0.55,
-            reduceMotion: false
+            visualClarity: 0.55
         ))
         let frame = DayObjectRenderFrame.make(
             scene: scene,
-            environment: .init(motionEnergy: 0.55, visualClarity: 0.55, reduceMotion: false),
+            environment: .init(motionEnergy: 0.55, visualClarity: 0.55),
             elapsed: 12,
             insertions: [:]
         )
         let repeated = DayObjectRenderFrame.make(
             scene: scene,
-            environment: .init(motionEnergy: 0.55, visualClarity: 0.55, reduceMotion: false),
+            environment: .init(motionEnergy: 0.55, visualClarity: 0.55),
             elapsed: 12,
             insertions: [:]
         )
@@ -3090,8 +2895,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         let scene = fixtureScene(ids: (0..<10).map { "fixture-\($0)" })
         let environment = DayObjectEnvironment(
             motionEnergy: 0.8,
-            visualClarity: 1,
-            reduceMotion: false
+            visualClarity: 1
         )
         let frame = DayObjectRenderFrame.make(
             scene: scene,
@@ -3739,7 +3543,6 @@ private final class DisplayTransferReadbackHarness {
             DayObjectsPostUniforms(
                 postProcess: DayObjectPostProcess(
                     visualClarity: 1,
-                    reduceMotion: true,
                     grainSeed: 0
                 ),
                 resolution: SIMD2<Float>(1, 1),
@@ -3842,7 +3645,6 @@ private final class DisplayTransferReadbackHarness {
         let encoder = try XCTUnwrap(commandBuffer.makeRenderCommandEncoder(descriptor: pass))
         let post = DayObjectPostProcess(
             visualClarity: 1,
-            reduceMotion: true,
             grainSeed: 0
         )
         let uniforms = DayObjectsPostUniforms(
@@ -3883,7 +3685,6 @@ private final class DisplayTransferReadbackHarness {
         var uniforms = DayObjectsGlitchUniforms(
             impact: .none,
             elapsedTime: 0,
-            reduceMotion: true,
             seed: 0
         )
         let bands = DayObjectGlitchLayout.make(seed: 0).bands.map(
@@ -4014,7 +3815,6 @@ private final class PostRenderHarness {
         clarity: Double,
         elapsed: Double,
         motionEnergy: Double = 0.75,
-        reduceMotion: Bool = false,
         actorLimit: Int? = nil,
         insertions: [String: TimeInterval] = [:],
         removals: [String: TimeInterval] = [:],
@@ -4024,8 +3824,7 @@ private final class PostRenderHarness {
     ) throws -> PostRenderResult {
         let environment = DayObjectEnvironment(
             motionEnergy: motionEnergy,
-            visualClarity: clarity,
-            reduceMotion: reduceMotion
+            visualClarity: clarity
         )
         let frame = DayObjectRenderFrame.make(
             scene: scene,
@@ -4045,7 +3844,6 @@ private final class PostRenderHarness {
         var glitchUniforms = DayObjectsGlitchUniforms(
             impact: digitalImpact,
             elapsedTime: glitchElapsed ?? elapsed,
-            reduceMotion: reduceMotion,
             seed: resolvedGlitchSeed
         )
         let glitchBandUniforms = DayObjectGlitchLayout.make(seed: resolvedGlitchSeed).bands.map(
@@ -4409,14 +4207,12 @@ private struct DayObjectsLivingOrbMatrixMetrics: CustomStringConvertible {
         actorLimit: Int,
         elapsed: Double,
         motionEnergy: Double,
-        reduceMotion: Bool,
         canvasAspect: Double,
         actorDifference: PostLuminanceField
     ) -> Self {
         let environment = DayObjectEnvironment(
             motionEnergy: motionEnergy,
-            visualClarity: 1,
-            reduceMotion: reduceMotion
+            visualClarity: 1
         )
         let frame = DayObjectRenderFrame.make(
             scene: scene,

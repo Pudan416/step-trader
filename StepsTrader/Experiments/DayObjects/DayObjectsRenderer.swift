@@ -29,7 +29,7 @@ struct DayObjectsMeshGradientUniforms: Equatable {
         self.init(
             style: scene.meshGradientStyle,
             resolution: resolution,
-            elapsedTime: scene.input.reduceMotion ? 0 : elapsedTime
+            elapsedTime: elapsedTime
         )
     }
 
@@ -259,7 +259,6 @@ struct DayObjectsGlitchUniforms: Equatable {
     init(
         impact: DayObjectDigitalImpact,
         elapsedTime: TimeInterval,
-        reduceMotion: Bool,
         seed: UInt64
     ) {
         levels = SIMD4(
@@ -270,7 +269,7 @@ struct DayObjectsGlitchUniforms: Equatable {
         )
         let elapsed = elapsedTime.isFinite ? max(elapsedTime, 0) : 0
         rendering = SIMD4(
-            reduceMotion ? 0 : Float(elapsed),
+            Float(elapsed),
             Self.maximumDisplacementPixels,
             Self.maximumColorShiftPixels,
             Self.maximumScanLineStrength
@@ -279,7 +278,7 @@ struct DayObjectsGlitchUniforms: Equatable {
         metadata = SIMD4(
             UInt32(truncatingIfNeeded: foldedSeed),
             UInt32(DayObjectGlitchLayout.bandCount),
-            reduceMotion ? 1 : 0,
+            0,
             0
         )
     }
@@ -1206,7 +1205,6 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         var glitchUniforms = DayObjectsGlitchUniforms(
             impact: digitalImpact,
             elapsedTime: elapsedTime,
-            reduceMotion: environment.reduceMotion,
             seed: renderScene.rootSeed
         )
         presentEncoder.setFragmentBytes(

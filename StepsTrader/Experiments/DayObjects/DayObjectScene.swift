@@ -142,7 +142,6 @@ struct DayObjectScene: Equatable {
             eventIDs: input.eventIDs,
             motionEnergy: normalizedUnitValue(input.motionEnergy),
             visualClarity: normalizedUnitValue(input.visualClarity),
-            reduceMotion: input.reduceMotion,
             uiExclusionRegion: input.uiExclusionRegion,
             canvasCoverage: input.canvasCoverage,
             paletteCategories: input.paletteCategories,

@@ -168,8 +168,7 @@ struct DayObjectEditorialMotionV1: Equatable {
         let rotation: Double
     }
 
-    func pose(elapsedTime rawElapsed: Double, energy: Double, reduceMotion: Bool) -> Pose {
-        guard !reduceMotion else { return .neutral }
+    func pose(elapsedTime rawElapsed: Double, energy: Double) -> Pose {
         let elapsed = rawElapsed.isFinite ? max(rawElapsed, 0) : 0
         let boundedEnergy = min(max(energy.isFinite ? energy : 0, 0), 1)
         let energyTempo = 0.18 + 0.82 * boundedEnergy

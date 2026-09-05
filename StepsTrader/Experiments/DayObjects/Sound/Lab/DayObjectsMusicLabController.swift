@@ -389,7 +389,6 @@ final class DayObjectsMusicLabController: ObservableObject {
 
     func sceneInput(
         dayKey: String,
-        reduceMotion: Bool,
         motionEnergyOverride: Double? = nil,
         visualClarityOverride: Double? = nil,
         uiExclusionRegion: DayObjectNormalizedRect = .dayObjectsLabControls,
@@ -406,7 +405,6 @@ final class DayObjectsMusicLabController: ObservableObject {
             eventIDs: happeningIDs,
             stepsProgress: normalizedInput.stepsProgress,
             sleepProgress: normalizedInput.sleepProgress,
-            reduceMotion: reduceMotion,
             uiExclusionRegion: uiExclusionRegion
         )
         return .init(
@@ -415,7 +413,6 @@ final class DayObjectsMusicLabController: ObservableObject {
             eventIDs: derived.eventIDs,
             motionEnergy: motionEnergyOverride ?? derived.motionEnergy,
             visualClarity: visualClarityOverride ?? derived.visualClarity,
-            reduceMotion: derived.reduceMotion,
             uiExclusionRegion: derived.uiExclusionRegion,
             canvasCoverage: canvasCoverage,
             paletteCategories: paletteCategories,

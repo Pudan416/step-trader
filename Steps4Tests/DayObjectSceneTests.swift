@@ -16,7 +16,6 @@ final class DayObjectSceneTests: XCTestCase {
                 eventIDs: (0..<10).map { "lab-event-\($0)" },
                 motionEnergy: 0.55,
                 visualClarity: 0.55,
-                reduceMotion: false,
                 canvasCoverage: .fullCanvas,
                 paletteCategories: ModernPaletteSelection.all
             ))
@@ -65,8 +64,7 @@ final class DayObjectSceneTests: XCTestCase {
             identity: "tester",
             eventIDs: ids,
             motionEnergy: 0.55,
-            visualClarity: 0.55,
-            reduceMotion: false
+            visualClarity: 0.55
         )
     }
 
@@ -80,7 +78,6 @@ final class DayObjectSceneTests: XCTestCase {
             eventIDs: ids,
             motionEnergy: 0.55,
             visualClarity: 0.55,
-            reduceMotion: false,
             canvasCoverage: .fullCanvas,
             usesEditorialField: true,
             editorialBackground: background
@@ -430,7 +427,6 @@ final class DayObjectSceneTests: XCTestCase {
             eventIDs: (0..<10).map { "event-\($0)" },
             motionEnergy: 0.55,
             visualClarity: 0.55,
-            reduceMotion: false,
             paletteCategories: [.pastel, .cold]
         ))
 
@@ -515,7 +511,6 @@ final class DayObjectSceneTests: XCTestCase {
             eventIDs: ["walk"],
             motionEnergy: 0.55,
             visualClarity: 0.55,
-            reduceMotion: false,
             uiExclusionRegion: custom
         ))
         XCTAssertEqual(scene.input.uiExclusionRegion, custom)
@@ -530,7 +525,6 @@ final class DayObjectSceneTests: XCTestCase {
             eventIDs: (0..<10).map { "event-\($0)" },
             motionEnergy: 0.55,
             visualClarity: 0.55,
-            reduceMotion: false,
             canvasCoverage: .fullCanvas
         ))
 
@@ -554,7 +548,7 @@ final class DayObjectSceneTests: XCTestCase {
         for (steps, expectedMotion) in [(0.0, 0.25), (5_000.0, 0.625), (10_000.0, 1.0)] {
             model.setSteps(steps)
             XCTAssertEqual(
-                model.sceneInput(dayKey: "2026-08-20", reduceMotion: false).motionEnergy,
+                model.sceneInput(dayKey: "2026-08-20").motionEnergy,
                 expectedMotion,
                 accuracy: 0.000_001
             )
@@ -563,7 +557,7 @@ final class DayObjectSceneTests: XCTestCase {
         for (sleep, expectedClarity) in [(0.0, 0.35), (4.0, 0.625), (8.0, 0.90)] {
             model.setSleepHours(sleep)
             XCTAssertEqual(
-                model.sceneInput(dayKey: "2026-08-20", reduceMotion: false).visualClarity,
+                model.sceneInput(dayKey: "2026-08-20").visualClarity,
                 expectedClarity,
                 accuracy: 0.000_001
             )
@@ -717,7 +711,7 @@ final class DayObjectSceneTests: XCTestCase {
         let model = DayObjectsLabMusicViewModel()
         model.setHappeningCount(3)
 
-        let input = model.sceneInput(dayKey: "2026-08-20", reduceMotion: false)
+        let input = model.sceneInput(dayKey: "2026-08-20")
         let scene = DayObjectScene.make(input: input)
 
         XCTAssertEqual(input.eventIDs, [
@@ -1098,7 +1092,6 @@ final class DayObjectSceneTests: XCTestCase {
             eventIDs: (0..<10).map { "preview-event-\($0)" },
             motionEnergy: 0.55,
             visualClarity: 0.55,
-            reduceMotion: true,
             canvasCoverage: .fullCanvas,
             paletteCategories: [spec.paletteCategory],
             usesEditorialField: true,
@@ -1118,7 +1111,6 @@ final class DayObjectSceneTests: XCTestCase {
             eventIDs: eventIDs,
             motionEnergy: 0.55,
             visualClarity: 0.55,
-            reduceMotion: false,
             canvasCoverage: .fullCanvas,
             paletteCategories: [.pastel],
             usesEditorialField: true,
@@ -1195,8 +1187,7 @@ final class DayObjectCompositionTests: XCTestCase {
         let expectedColorCounts: Set<UInt32> = [1, 2, 3]
         let environment = DayObjectEnvironment(
             motionEnergy: 0.55,
-            visualClarity: 0.55,
-            reduceMotion: false
+            visualClarity: 0.55
         )
         var observedShapes = [DayObjectShape: UInt32]()
         var observedColorCounts = Set<UInt32>()
@@ -1209,8 +1200,7 @@ final class DayObjectCompositionTests: XCTestCase {
                 identity: "tester",
                 eventIDs: ["event"],
                 motionEnergy: 0.55,
-                visualClarity: 0.55,
-                reduceMotion: false
+                visualClarity: 0.55
             ))
             let frame = DayObjectRenderFrame.make(
                 scene: scene,

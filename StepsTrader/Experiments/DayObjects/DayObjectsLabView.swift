@@ -63,7 +63,6 @@ struct DayObjectsLabView: View {
         return DayObjectEditorialPreviewCatalog.spec(at: index)
     }()
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(SharedKeys.modernPaletteCategories) private var modernPaletteCategoriesRaw = ""
     @Environment(\.scenePhase) private var scenePhase
 
@@ -72,7 +71,6 @@ struct DayObjectsLabView: View {
     @State private var showsCalendarTile = false
     @State private var editorialBackground: DayObjectEditorialBackground = .dark
     @State private var lowSleep = false
-    @State private var reduceMotionPreview = false
     @State private var editorialMaterialMode: DayObjectEditorialLabMaterialMode = .generativeDNA
     @State private var editorialPlacement: DayObjectEditorialPreviewPlacement = .depthField
     @State private var showControls = !ProcessInfo.processInfo.arguments.contains(
@@ -187,7 +185,7 @@ struct DayObjectsLabView: View {
                 topButtons
             }
         }
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: showControls)
+        .animation(.easeInOut(duration: 0.2), value: showControls)
         .navigationTitle("Day Objects")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(isEditorialPreviewCapture ? .hidden : .visible, for: .navigationBar)
@@ -375,12 +373,8 @@ struct DayObjectsLabView: View {
                     identifier: "dayObjects.happenings"
                 )
 
-                HStack {
-                    Toggle("Low sleep", isOn: $lowSleep)
-                        .accessibilityIdentifier("dayObjects.lowSleep")
-                    Toggle("Reduce Motion", isOn: $reduceMotionPreview)
-                        .accessibilityIdentifier("dayObjects.reduceMotionPreview")
-                }
+                Toggle("Low sleep", isOn: $lowSleep)
+                    .accessibilityIdentifier("dayObjects.lowSleep")
                 .font(.geist(.caption))
                 .foregroundStyle(.white.opacity(0.85))
 
@@ -759,7 +753,6 @@ struct DayObjectsLabView: View {
         let preview = editorialPreview
         return musicController.sceneInput(
             dayKey: key,
-            reduceMotion: reduceMotion || reduceMotionPreview || preview != nil,
             motionEnergyOverride: motionEnergyOverride,
             visualClarityOverride: preview == nil ? visualClarityOverride : 1,
             uiExclusionRegion: Self.uiExclusionRegion,

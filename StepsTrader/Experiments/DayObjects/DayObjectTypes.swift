@@ -90,7 +90,6 @@ struct DayObjectSceneInput: Equatable {
     let eventIDs: [String]
     let motionEnergy: Double
     let visualClarity: Double
-    let reduceMotion: Bool
     let canvasCoverage: DayObjectCanvasCoverage
     let uiExclusionRegion: DayObjectNormalizedRect
     let paletteCategories: Set<ModernPaletteCategory>
@@ -106,7 +105,6 @@ struct DayObjectSceneInput: Equatable {
         eventIDs: [String],
         motionEnergy: Double,
         visualClarity: Double,
-        reduceMotion: Bool,
         uiExclusionRegion: DayObjectNormalizedRect = .dayObjectsLabControls,
         canvasCoverage: DayObjectCanvasCoverage? = nil,
         paletteCategories: Set<ModernPaletteCategory> = [],
@@ -121,7 +119,6 @@ struct DayObjectSceneInput: Equatable {
         self.eventIDs = eventIDs
         self.motionEnergy = motionEnergy
         self.visualClarity = visualClarity
-        self.reduceMotion = reduceMotion
         let resolvedCoverage = canvasCoverage ?? .excluding(uiExclusionRegion)
         self.canvasCoverage = resolvedCoverage
         self.uiExclusionRegion = resolvedCoverage.exclusionRegion
@@ -142,7 +139,6 @@ extension DayObjectSceneInput {
         eventIDs: [String],
         stepsProgress: Double,
         sleepProgress: Double,
-        reduceMotion: Bool,
         uiExclusionRegion: DayObjectNormalizedRect = .dayObjectsLabControls
     ) -> DayObjectSceneInput {
         let steps = clampedProgress(stepsProgress)
@@ -153,7 +149,6 @@ extension DayObjectSceneInput {
             eventIDs: eventIDs,
             motionEnergy: 0.25 + 0.75 * steps,
             visualClarity: 0.35 + 0.55 * sleep,
-            reduceMotion: reduceMotion,
             uiExclusionRegion: uiExclusionRegion
         )
     }

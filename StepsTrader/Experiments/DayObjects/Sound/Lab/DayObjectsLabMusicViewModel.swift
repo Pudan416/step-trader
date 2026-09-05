@@ -93,7 +93,6 @@ final class DayObjectsLabMusicViewModel: ObservableObject {
 
     func sceneInput(
         dayKey: String,
-        reduceMotion: Bool,
         motionEnergyOverride: Double? = nil,
         visualClarityOverride: Double? = nil,
         uiExclusionRegion: DayObjectNormalizedRect = .dayObjectsLabControls
@@ -104,7 +103,6 @@ final class DayObjectsLabMusicViewModel: ObservableObject {
             eventIDs: normalized.happeningIDs,
             stepsProgress: normalized.stepsProgress,
             sleepProgress: normalized.sleepProgress,
-            reduceMotion: reduceMotion,
             uiExclusionRegion: uiExclusionRegion
         )
         guard motionEnergyOverride != nil || visualClarityOverride != nil else {
@@ -116,7 +114,6 @@ final class DayObjectsLabMusicViewModel: ObservableObject {
             eventIDs: derivedInput.eventIDs,
             motionEnergy: motionEnergyOverride ?? derivedInput.motionEnergy,
             visualClarity: visualClarityOverride ?? derivedInput.visualClarity,
-            reduceMotion: derivedInput.reduceMotion,
             uiExclusionRegion: derivedInput.uiExclusionRegion
         )
     }

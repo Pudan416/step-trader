@@ -4,16 +4,13 @@ import simd
 struct DayObjectEnvironment: Equatable {
     let motionEnergy: Double
     let visualClarity: Double
-    let reduceMotion: Bool
 
-    init(motionEnergy: Double, visualClarity: Double, reduceMotion: Bool) {
+    init(motionEnergy: Double, visualClarity: Double) {
         self.motionEnergy = Self.clampedUnit(motionEnergy)
         self.visualClarity = Self.clampedUnit(visualClarity)
-        self.reduceMotion = reduceMotion
     }
 
     var tempoScale: Double {
-        guard !reduceMotion else { return 0.02 }
         let progress = motionEnergy * motionEnergy * (3 - 2 * motionEnergy)
         return 0.035 + (1.25 - 0.035) * progress
     }
@@ -56,7 +53,7 @@ struct DayObjectPostProcess: Equatable {
     let grainIntensity: Double
     let grainPhase: Double
 
-    init(visualClarity rawVisualClarity: Double, reduceMotion: Bool, grainSeed _: UInt64, elapsed rawElapsed: Double = 0) {
+    init(visualClarity rawVisualClarity: Double, grainSeed _: UInt64, elapsed rawElapsed: Double = 0) {
         let visualClarity = Self.clampedUnit(rawVisualClarity)
         blurRadius = pow(1 - visualClarity, 1.4) * 18
         contrast = 0.84 + 0.16 * visualClarity
@@ -65,8 +62,7 @@ struct DayObjectPostProcess: Equatable {
 
         let elapsed = rawElapsed.isFinite ? max(rawElapsed, 0) : 0
         // Drift the final monochrome grain by roughly one pixel per second.
-        // Reduce Motion freezes the same seeded texture instead of replacing it.
-        grainPhase = reduceMotion ? 0 : elapsed * 0.06
+        grainPhase = elapsed * 0.06
     }
 
     private static func clampedUnit(_ value: Double) -> Double {
@@ -521,12 +517,9 @@ struct DayObjectRenderFrame: Equatable {
                 canvasAspect: canvasAspect
             )
         }
-        let choreographyTime = environment.reduceMotion
-            ? 0
-            : elapsed * baseTempo * environment.tempoScale
+        let choreographyTime = elapsed * baseTempo * environment.tempoScale
         let postProcess = DayObjectPostProcess(
             visualClarity: environment.visualClarity,
-            reduceMotion: environment.reduceMotion,
             grainSeed: scene.rootSeed,
             elapsed: elapsed
         )
@@ -561,9 +554,7 @@ struct DayObjectRenderFrame: Equatable {
             } else {
                 removal = DayObjectInsertionEnvelope(opacity: 1, scale: 1)
             }
-            let envelopeScale = environment.reduceMotion
-                ? 1
-                : insertion.scale * removal.scale
+            let envelopeScale = insertion.scale * removal.scale
             let halfSize = bodyHalfSize(
                 for: actor,
                 pose: pose,
@@ -578,11 +569,11 @@ struct DayObjectRenderFrame: Equatable {
                 direction: direction,
                 halfSize: halfSize,
                 opacity: Float(pose.opacity * insertion.opacity * removal.opacity),
-                trailLength: environment.reduceMotion ? 0 : Float(pose.trailReach),
+                trailLength: Float(pose.trailReach),
                 shape: numericShape(actor.appearance.shape),
                 appearanceIndex: 0,
                 depth: depth,
-                materialPhase: environment.reduceMotion ? 0 : Float(pose.materialPhase),
+                materialPhase: Float(pose.materialPhase),
                 localDepthSoftness: Float(pose.localDepthSoftness)
             )
             actors.append(DayObjectRenderActor(
@@ -633,20 +624,17 @@ struct DayObjectRenderFrame: Equatable {
             guard let actor = actorByEventID[recipeActor.eventID] else { continue }
             let pose = recipeActor.motion.pose(
                 elapsedTime: elapsed,
-                energy: environment.motionEnergy,
-                reduceMotion: environment.reduceMotion
+                energy: environment.motionEnergy
             )
             let insertion = editorialEnvelope(
                 kind: .insertion,
                 startedAt: actorInsertions[actor.id] ?? insertions[actor.eventID],
-                elapsed: elapsed,
-                reduceMotion: environment.reduceMotion
+                elapsed: elapsed
             )
             let removal = editorialEnvelope(
                 kind: .removal,
                 startedAt: actorRemovals[actor.id] ?? removals[actor.eventID],
-                elapsed: elapsed,
-                reduceMotion: environment.reduceMotion
+                elapsed: elapsed
             )
             let normalized = SIMD2(
                 recipeActor.position.x + pose.positionOffset.x,
@@ -660,7 +648,7 @@ struct DayObjectRenderFrame: Equatable {
             let direction = motionLength > 0.000_001
                 ? SIMD2<Float>(Float(pose.positionOffset.x), Float(pose.positionOffset.y))
                 : SIMD2<Float>(Float(cos(recipeActor.motion.directionBias)), Float(sin(recipeActor.motion.directionBias)))
-            let transitionScale = environment.reduceMotion ? 1 : insertion.scale * removal.scale
+            let transitionScale = insertion.scale * removal.scale
             let halfDiameter = Float(recipeActor.diameter * pose.scale * transitionScale * 0.5)
             let effectiveDepth = min(max(recipeActor.depth + pose.depthOffset, 0), 1)
             let foregroundSoftness = recipeActor.diameter > 0.4 && effectiveDepth > 0.65 ? 0.18 : 0
@@ -701,11 +689,10 @@ struct DayObjectRenderFrame: Equatable {
         }
         let clarity = recipe.lowSleep ? min(environment.visualClarity, 0.42) : environment.visualClarity
         return DayObjectRenderFrame(
-            choreographyTime: environment.reduceMotion ? 0 : elapsed,
+            choreographyTime: elapsed,
             actors: rendered,
             postProcess: DayObjectPostProcess(
                 visualClarity: clarity,
-                reduceMotion: environment.reduceMotion,
                 grainSeed: scene.rootSeed,
                 elapsed: elapsed
             )
@@ -720,17 +707,16 @@ struct DayObjectRenderFrame: Equatable {
     private static func editorialEnvelope(
         kind: EditorialTransitionKind,
         startedAt: Double?,
-        elapsed: Double,
-        reduceMotion: Bool
+        elapsed: Double
     ) -> DayObjectInsertionEnvelope {
         guard let startedAt else { return .init(opacity: 1, scale: 1) }
         let progress = min(max((elapsed - startedAt) / 1.1, 0), 1)
         let eased = progress * progress * progress * (progress * (progress * 6 - 15) + 10)
         switch kind {
         case .insertion:
-            return .init(opacity: eased, scale: reduceMotion ? 1 : 0.96 + 0.04 * eased)
+            return .init(opacity: eased, scale: 0.96 + 0.04 * eased)
         case .removal:
-            return .init(opacity: 1 - eased, scale: reduceMotion ? 1 : 1 - 0.04 * eased)
+            return .init(opacity: 1 - eased, scale: 1 - 0.04 * eased)
         }
     }
 

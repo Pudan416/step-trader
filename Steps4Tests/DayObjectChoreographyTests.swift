@@ -7,7 +7,7 @@ final class DayObjectChoreographyTests: XCTestCase {
         DayObjectSceneInput(
             dayKey: "fixture-\(seed)", identity: "tester",
             eventIDs: (0..<count).map { "event-\($0)" },
-            motionEnergy: 0.55, visualClarity: 0.55, reduceMotion: false,
+            motionEnergy: 0.55, visualClarity: 0.55,
             canvasCoverage: .fullCanvas
         )
     }
@@ -65,7 +65,6 @@ final class DayObjectChoreographyTests: XCTestCase {
             eventIDs: eventIDs,
             motionEnergy: input.motionEnergy,
             visualClarity: input.visualClarity,
-            reduceMotion: input.reduceMotion,
             uiExclusionRegion: input.uiExclusionRegion,
             canvasCoverage: input.canvasCoverage,
             paletteCategories: input.paletteCategories
@@ -141,8 +140,7 @@ final class DayObjectChoreographyTests: XCTestCase {
                 let frame = DayObjectRenderFrame.make(
                     scene: scene,
                     environment: .init(motionEnergy: 0.55,
-                                       visualClarity: 0.55,
-                                       reduceMotion: false),
+                                       visualClarity: 0.55),
                     elapsed: 42,
                     insertions: [:]
                 )
@@ -161,13 +159,13 @@ final class DayObjectChoreographyTests: XCTestCase {
         let scene = try scene(for: .waveRibbon, count: 10)
         let slow = DayObjectRenderFrame.make(
             scene: scene,
-            environment: .init(motionEnergy: 0, visualClarity: 1, reduceMotion: false),
+            environment: .init(motionEnergy: 0, visualClarity: 1),
             elapsed: 30,
             insertions: [:]
         )
         let fast = DayObjectRenderFrame.make(
             scene: scene,
-            environment: .init(motionEnergy: 1, visualClarity: 1, reduceMotion: false),
+            environment: .init(motionEnergy: 1, visualClarity: 1),
             elapsed: 30,
             insertions: [:]
         )
@@ -1119,7 +1117,7 @@ final class DayObjectChoreographyTests: XCTestCase {
             let input = DayObjectSceneInput(
                 dayKey: source.dayKey, identity: source.identity,
                 eventIDs: source.eventIDs, motionEnergy: source.motionEnergy,
-                visualClarity: source.visualClarity, reduceMotion: source.reduceMotion,
+                visualClarity: source.visualClarity,
                 uiExclusionRegion: region, canvasCoverage: .excluding(region),
                 paletteCategories: source.paletteCategories
             )
@@ -1158,8 +1156,7 @@ final class DayObjectChoreographyTests: XCTestCase {
                 let base = fixtureInput(seed: seed, count: 10)
                 let input = DayObjectSceneInput(
                     dayKey: base.dayKey, identity: base.identity, eventIDs: base.eventIDs,
-                    motionEnergy: base.motionEnergy, visualClarity: base.visualClarity,
-                    reduceMotion: base.reduceMotion, uiExclusionRegion: region
+                    motionEnergy: base.motionEnergy, visualClarity: base.visualClarity, uiExclusionRegion: region
                 )
                 let scene = DayObjectScene.make(input: input)
                 for aspect in [0.46, 1.0, 4.0 / 3.0, 2.16] {
@@ -1218,7 +1215,7 @@ final class DayObjectChoreographyTests: XCTestCase {
     func testTangentAndGPUUploadFollowActualTravelInBothDirections() throws {
         let scene = DayObjectScene.make(input: fixtureInput(seed: 19, count: 10))
         let environment = DayObjectEnvironment(
-            motionEnergy: 1, visualClarity: 1, reduceMotion: false
+            motionEnergy: 1, visualClarity: 1
         )
         let actorsByID = Dictionary(uniqueKeysWithValues: scene.actors.map { ($0.id, $0) })
         var sawPositiveX = false

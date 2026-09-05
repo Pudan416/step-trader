@@ -21,8 +21,7 @@ struct DayObjectsView: View {
         scene = DayObjectScene.make(input: sceneInput)
         environment = DayObjectEnvironment(
             motionEnergy: sceneInput.motionEnergy,
-            visualClarity: sceneInput.visualClarity,
-            reduceMotion: sceneInput.reduceMotion
+            visualClarity: sceneInput.visualClarity
         )
     }
 

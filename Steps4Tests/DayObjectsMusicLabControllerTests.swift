@@ -12,7 +12,6 @@ final class DayObjectsMusicLabControllerTests: XCTestCase {
 
         let input = controller.sceneInput(
             dayKey: "2026-09-05",
-            reduceMotion: false,
             canvasCoverage: .fullCanvas,
             paletteCategories: [.pastel, .cold]
         )

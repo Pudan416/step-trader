@@ -214,7 +214,6 @@ static float4 dayObjectsApplyDigitalImpact(
     const float maximumScanLineStrength = saturate(glitch.rendering.w);
     const uint seed = glitch.metadata.x;
     const uint bandCount = min(glitch.metadata.y, dayObjectsGlitchBandCapacity);
-    const bool reduceMotion = glitch.metadata.z != 0u;
     const float edgeWidth = max(1.5 / resolution.y, 0.001);
 
     float horizontalOffsetPixels = 0.0;
@@ -240,8 +239,8 @@ static float4 dayObjectsApplyDigitalImpact(
         }
 
         const float frequency = 0.15 + 1.35 * ambientMotion;
-        const float phase = band.motion.z + (reduceMotion ? 0.0 : time * frequency * dayObjectsTwoPi);
-        const float twitch = reduceMotion ? 0.0 : sin(phase) * ambientMotion * 0.18;
+        const float phase = band.motion.z + time * frequency * dayObjectsTwoPi;
+        const float twitch = sin(phase) * ambientMotion * 0.18;
         const float displacement = maximumDisplacementPixels
             * max(band.geometry.z, 0.0)
             * (0.12 + 0.88 * scarStrength)
