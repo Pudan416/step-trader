@@ -8,6 +8,38 @@ struct HarmonyPlayerMetrics: Equatable, Sendable {
     let scheduledChordCount: Int
 }
 
+/// Bounded DEBUG/INTERNAL evidence emitted by the real Harmony scheduler.
+/// One latest observation is retained per role, so long-running live playback
+/// does not accumulate diagnostic history.
+struct HarmonyTransitionObservation: Equatable, Sendable {
+    let role: HarmonyRole
+    let chordIndex: Int
+    let startSubdivision: Int64
+    let startHostTimeSeconds: TimeInterval
+    let endSubdivision: Int64
+    let oldVoiceCount: Int
+    let newVoiceCount: Int
+    private(set) var maximumAudibleProgress: Double
+    private(set) var maximumNewChordExpression: Double
+    private(set) var firstAudibleProgressSubdivision: Int64?
+    private(set) var firstAudibleProgressHostTimeSeconds: TimeInterval?
+
+    mutating func recordAudibleProgress(
+        _ progress: Double,
+        newChordExpression: Double,
+        subdivision: Int64,
+        hostTimeSeconds: TimeInterval
+    ) {
+        guard progress > 0, newChordExpression > 0 else { return }
+        maximumAudibleProgress = max(maximumAudibleProgress, progress)
+        maximumNewChordExpression = max(maximumNewChordExpression, newChordExpression)
+        if firstAudibleProgressSubdivision == nil {
+            firstAudibleProgressSubdivision = subdivision
+            firstAudibleProgressHostTimeSeconds = hostTimeSeconds
+        }
+    }
+}
+
 @MainActor
 final class HarmonyPlayer {
     private enum VoiceToken {
@@ -119,6 +151,7 @@ final class HarmonyPlayer {
     private var scheduledChordCount = 0
     private var mixGain = 1.0
     private var glitchCommand: DayObjectsGlitchCommand = .neutral(role: .pad)
+    private(set) var transitionObservations: [HarmonyTransitionObservation] = []
 
     var metrics: HarmonyPlayerMetrics {
         .init(
@@ -158,6 +191,7 @@ final class HarmonyPlayer {
         roles = plan.roles.map { RoleState(plan: $0, currentGain: Self.unit($0.gain)) }
         currentSubdivision = 0
         scheduledChordCount = 0
+        transitionObservations.removeAll(keepingCapacity: true)
     }
 
     /// Patch only fields classified as continuous by DayMusicPlanDiffer.
@@ -227,7 +261,10 @@ final class HarmonyPlayer {
         guard event.kind == .subdivision else { return }
         currentSubdivision = event.position.absoluteSubdivision
         advanceGainRamps(at: currentSubdivision)
-        advanceChordTransitions(at: currentSubdivision)
+        advanceChordTransitions(
+            at: currentSubdivision,
+            hostTimeSeconds: event.hostTimeSeconds
+        )
         if glitchCommand.wowFlutterDepth > 0 {
             refreshActiveVoiceControls(at: currentSubdivision)
         }
@@ -237,7 +274,10 @@ final class HarmonyPlayer {
         guard event.kind == .barBoundary, let plan else { return }
         currentSubdivision = event.position.absoluteSubdivision
         advanceGainRamps(at: currentSubdivision)
-        advanceChordTransitions(at: currentSubdivision)
+        advanceChordTransitions(
+            at: currentSubdivision,
+            hostTimeSeconds: event.hostTimeSeconds
+        )
         let cycleBar = Int(event.position.bar % Int64(max(1, plan.cycleBars)))
         for index in roles.indices {
             guard roles[index].currentGain > 0,
@@ -245,7 +285,12 @@ final class HarmonyPlayer {
                   roles[index].lastScheduledAbsoluteBar != event.position.bar,
                   let chord = roles[index].plan.chordSchedule.first(where: { $0.startBar == cycleBar })
             else { continue }
-            schedule(chord: chord, forRoleAt: index, at: currentSubdivision)
+            schedule(
+                chord: chord,
+                forRoleAt: index,
+                at: currentSubdivision,
+                hostTimeSeconds: event.hostTimeSeconds
+            )
             roles[index].lastScheduledAbsoluteBar = event.position.bar
         }
     }
@@ -263,7 +308,8 @@ final class HarmonyPlayer {
     private func schedule(
         chord: HarmonyChordScheduleEntry,
         forRoleAt index: Int,
-        at subdivision: Int64
+        at subdivision: Int64,
+        hostTimeSeconds: TimeInterval
     ) {
         completeInterruptedTransition(at: index)
         let role = roles[index].plan
@@ -290,10 +336,30 @@ final class HarmonyPlayer {
             endSubdivision: subdivision + duration,
             totalStagedVoiceCount: stagedNotes.count
         )
-        if !newVoices.isEmpty || !stagedNotes.isEmpty { scheduledChordCount += 1 }
+        if !newVoices.isEmpty || !stagedNotes.isEmpty {
+            scheduledChordCount += 1
+            let role = roles[index].plan.role
+            transitionObservations.removeAll { $0.role == role }
+            transitionObservations.append(.init(
+                role: role,
+                chordIndex: chord.chordIndex,
+                startSubdivision: subdivision,
+                startHostTimeSeconds: hostTimeSeconds,
+                endSubdivision: subdivision + duration,
+                oldVoiceCount: oldVoices.count,
+                newVoiceCount: newVoices.count,
+                maximumAudibleProgress: 0,
+                maximumNewChordExpression: 0,
+                firstAudibleProgressSubdivision: nil,
+                firstAudibleProgressHostTimeSeconds: nil
+            ))
+        }
     }
 
-    private func advanceChordTransitions(at subdivision: Int64) {
+    private func advanceChordTransitions(
+        at subdivision: Int64,
+        hostTimeSeconds: TimeInterval
+    ) {
         for index in roles.indices {
             guard var transition = roles[index].transition else { continue }
             let duration = max(1, transition.endSubdivision - transition.startSubdivision)
@@ -337,6 +403,18 @@ final class HarmonyPlayer {
             } else {
                 transition.oldVoices.forEach { $0.token.setExpression(target * (1 - progress)) }
                 transition.newVoices.forEach { $0.token.setExpression(target * progress) }
+            }
+            let newChordExpression = transition.newVoices.isEmpty ? 0 : target * progress
+            if let observationIndex = transitionObservations.firstIndex(where: {
+                $0.role == roles[index].plan.role
+                    && $0.startSubdivision == transition.startSubdivision
+            }) {
+                transitionObservations[observationIndex].recordAudibleProgress(
+                    progress,
+                    newChordExpression: newChordExpression,
+                    subdivision: subdivision,
+                    hostTimeSeconds: hostTimeSeconds
+                )
             }
             if progress >= 1 {
                 transition.oldVoices.forEach { $0.token.release() }

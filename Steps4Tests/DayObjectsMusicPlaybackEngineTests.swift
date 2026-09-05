@@ -1357,6 +1357,48 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         )
     }
 
+    func testLivePlanAwareGainUpdateUsesContinuousRampWithoutWorldRestart() throws {
+        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let initial = makePlaybackEnginePlan(seed: 1, steps: 0)
+        let update = makePlaybackEnginePlan(seed: 1, steps: 10_000)
+        XCTAssertEqual(initial.groove.mode, .bassArp)
+        XCTAssertEqual(update.groove.mode, .bassArp)
+        try runtime.prepare(plan: initial)
+        let allocation = runtime.allocationSnapshotForTesting
+        let recycleCounts = runtime.worldRecycleCountsForTesting
+
+        runtime.applyContinuous(update)
+
+        let mix = try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state)
+        let calibration = DayObjectsPlanAwareGainCalibration.make(
+            grooveMode: .bassArp,
+            stepsActivityDensity: 1
+        )
+        XCTAssertEqual(
+            mix.rhythmTargetDecibels,
+            update.mix.rhythmTargetDecibels + calibration.rhythmAdjustmentDecibels,
+            accuracy: 1e-12
+        )
+        XCTAssertEqual(
+            mix.bassTargetDecibels,
+            update.mix.bassTargetDecibels + calibration.bassAdjustmentDecibels,
+            accuracy: 1e-12
+        )
+        XCTAssertEqual(
+            mix.harmonyTargetDecibels,
+            update.mix.harmonyTargetDecibels + calibration.harmonyAdjustmentDecibels,
+            accuracy: 1e-12
+        )
+        XCTAssertEqual(mix.happeningAggregateTargetDecibels, update.mix.happeningAggregateTargetDecibels)
+        XCTAssertEqual(mix.leadVoiceTargetDecibels, update.mix.leadTargetDecibels)
+        XCTAssertEqual(mix.rampDurationSeconds, 0.25, accuracy: 1e-12)
+        XCTAssertEqual(runtime.allocationSnapshotForTesting, allocation)
+        XCTAssertEqual(runtime.worldRecycleCountsForTesting, recycleCounts)
+        XCTAssertEqual(runtime.activePlanForTesting?.seed, initial.seed)
+        XCTAssertEqual(runtime.activePlanForTesting?.world, initial.world)
+        XCTAssertEqual(runtime.activePlanForTesting?.rhythm.stepsProgress, 1)
+    }
+
     func testLiveContinuousUpdateKeepsEntireBassWhenBassStructureAlsoChanges() throws {
         let seed = seedProducingBass()
         let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))

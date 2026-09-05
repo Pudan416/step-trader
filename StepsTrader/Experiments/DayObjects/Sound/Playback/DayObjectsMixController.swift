@@ -130,6 +130,43 @@ struct DayObjectsMixState: Equatable, Sendable {
     var leadTargetDecibels: Double { leadVoiceTargetDecibels }
 }
 
+struct DayObjectsPlanAwareGainCalibration: Equatable, Sendable {
+    let rhythmAdjustmentDecibels: Double
+    let bassAdjustmentDecibels: Double
+    let harmonyAdjustmentDecibels: Double
+
+    static let neutral = Self(
+        rhythmAdjustmentDecibels: 0,
+        bassAdjustmentDecibels: 0,
+        harmonyAdjustmentDecibels: 0
+    )
+
+    static func make(
+        grooveMode: GrooveMode,
+        stepsActivityDensity rawDensity: Double
+    ) -> Self {
+        let density = rawDensity.isFinite ? min(max(rawDensity, 0), 1) : 0
+        let smoothDensity = density * density * (3 - (2 * density))
+        let rhythm: Double = switch grooveMode {
+        case .percussion:
+            0
+        case .bassPulse:
+            -0.35 - (0.20 * smoothDensity)
+        case .bassArp:
+            -1
+        case .bassBed:
+            -0.30 - (0.20 * smoothDensity)
+        }
+        let bass = grooveMode == .bassArp ? -0.5 : 0
+        let harmony = grooveMode == .bassArp ? -0.5 : 0
+        return Self(
+            rhythmAdjustmentDecibels: min(max(rhythm, -1), 0),
+            bassAdjustmentDecibels: bass,
+            harmonyAdjustmentDecibels: harmony
+        )
+    }
+}
+
 @MainActor
 protocol DayObjectsMixBackend: AnyObject {
     func apply(_ state: DayObjectsMixState)
@@ -155,10 +192,33 @@ final class DayObjectsMixController {
         activeChordVoiceCount: Int,
         harmonyDuckingDecibels requestedDucking: Double,
         spatial: DayObjectsFiveRoleBusSpatialParameters,
+        calibration: DayObjectsPlanAwareGainCalibration = .neutral,
         rampDurationSeconds: TimeInterval
     ) {
-        let rhythm = decibels(plan.rhythmTargetDecibels)
-        let baseHarmony = decibels(plan.harmonyTargetDecibels)
+        let rhythmAdjustment = adjustment(
+            calibration.rhythmAdjustmentDecibels,
+            range: -1 ... 0
+        )
+        let bassAdjustment = adjustment(
+            calibration.bassAdjustmentDecibels,
+            range: -1 ... 0
+        )
+        let harmonyAdjustment = adjustment(
+            calibration.harmonyAdjustmentDecibels,
+            range: -1 ... 0
+        )
+        let rhythm = adjustedDecibels(
+            plan.rhythmTargetDecibels,
+            by: rhythmAdjustment
+        )
+        let bass = adjustedDecibels(
+            plan.bassTargetDecibels,
+            by: bassAdjustment
+        )
+        let baseHarmony = adjustedDecibels(
+            plan.harmonyTargetDecibels,
+            by: harmonyAdjustment
+        )
         let duckingMaximum = min(
             nonnegative(plan.maximumHarmonyDuckingDecibels),
             Self.maximumHarmonyDuckingDecibels
@@ -180,9 +240,21 @@ final class DayObjectsMixController {
 
         backend.apply(.init(
             buses: .init(
-                rhythm: bus(directTargetDecibels: rhythm, spatial: spatial.rhythm),
-                bass: bus(directTargetDecibels: decibels(plan.bassTargetDecibels), spatial: spatial.bass),
-                harmony: bus(directTargetDecibels: harmony, spatial: spatial.harmony),
+                rhythm: bus(
+                    directTargetDecibels: rhythm,
+                    spatial: spatial.rhythm,
+                    sendGainDecibels: rhythmAdjustment
+                ),
+                bass: bus(
+                    directTargetDecibels: bass,
+                    spatial: spatial.bass,
+                    sendGainDecibels: bassAdjustment
+                ),
+                harmony: bus(
+                    directTargetDecibels: harmony,
+                    spatial: spatial.harmony,
+                    sendGainDecibels: harmonyAdjustment
+                ),
                 happenings: bus(directTargetDecibels: happeningAggregate, spatial: spatial.happenings),
                 lead: bus(
                     directTargetDecibels: LeadPlayer.busTargetDecibels(for: plan.leadTargetDecibels),
@@ -203,12 +275,14 @@ final class DayObjectsMixController {
 
     private func bus(
         directTargetDecibels: Double,
-        spatial: DayObjectsRoleBusSpatialParameters
+        spatial: DayObjectsRoleBusSpatialParameters,
+        sendGainDecibels: Double = 0
     ) -> DayObjectsRoleBusMixParameters {
-        .init(
+        let sendGain = pow(10, sendGainDecibels / 20)
+        return .init(
             directTargetDecibels: directTargetDecibels,
             sendLevel: feedback(
-                spatial.sendLevel,
+                spatial.sendLevel * sendGain,
                 maximum: DayObjectsAudioParameters.maximumReverbFeedback
             ),
             decay: feedback(
@@ -216,7 +290,7 @@ final class DayObjectsMixController {
                 maximum: DayObjectsAudioParameters.maximumReverbFeedback
             ),
             secondarySendLevel: spatial.secondarySendLevel.map {
-                feedback($0, maximum: DayObjectsAudioParameters.maximumDelayFeedback)
+                feedback($0 * sendGain, maximum: DayObjectsAudioParameters.maximumDelayFeedback)
             },
             secondaryDecay: spatial.secondaryDecay.map {
                 feedback($0, maximum: DayObjectsAudioParameters.maximumDelayFeedback)
@@ -227,6 +301,20 @@ final class DayObjectsMixController {
     private func decibels(_ value: Double) -> Double {
         guard value.isFinite else { return Self.minimumDecibels }
         return min(max(value, Self.minimumDecibels), Self.maximumLayerDecibels)
+    }
+
+    private func adjustedDecibels(_ value: Double, by adjustment: Double) -> Double {
+        let base = decibels(value)
+        guard base > Self.minimumDecibels else { return Self.minimumDecibels }
+        return decibels(base + adjustment)
+    }
+
+    private func adjustment(
+        _ value: Double,
+        range: ClosedRange<Double>
+    ) -> Double {
+        guard value.isFinite else { return 0 }
+        return min(max(value, range.lowerBound), range.upperBound)
     }
 
     private func nonnegative(_ value: Double) -> Double {

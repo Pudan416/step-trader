@@ -1,20 +1,21 @@
-# Task 9 report — offline mix calibration, Fix Round 1
+# Task 9 report — offline mix calibration, Fix Rounds 1–2
 
 Date: 2026-09-05
 Worktree: `day-objects-generative-audio`
 
 ## Status
 
-Fix Round 1 is complete. The corrected ITU-R BS.1770-5 true-peak analyzer,
-process-wide live/offline playback exclusion, frame-zero diagnostic isolation,
-truthfully named offline attenuation estimate, deterministic worst-case
-scheduling proof, controlled calibration ledger, and corrected 31 × 60-second
-evidence are implemented. The full matrix passes all prescribed gates and every
-scenario rendered in less than 60 seconds.
+Fix Rounds 1 and 2 are complete. The corrected ITU-R BS.1770-5 analyzer,
+process-wide live/offline playback exclusion, frame-zero isolation, truthfully
+named attenuation estimate, real-transport worst-case proof, deterministic Bass
+release, bounded plan-aware crest calibration, controlled ledgers, and final
+31 × 60-second evidence are implemented. The matrix passes every prescribed
+gate and every scenario rendered in less than 60 seconds.
 
-The signed app built successfully. The paired phone was unavailable at the
-final installation step, so listening on headphones and a speaker—including
-the required BB Röy comparison—is explicitly pending.
+Unsigned and signed generic iOS builds succeeded. The paired phone appeared in
+the device list but needed to be unlocked for Xcode preparation, so the current
+bundle was not installed. Headphone/speaker listening—including the required
+BB Röy comparison—remains explicitly pending.
 
 ## Fix Round 1 implementation
 
@@ -47,9 +48,14 @@ the required BB Röy comparison—is explicitly pending.
   observed limiter gain reduction. Task 7's aligned runtime estimator is
   unchanged.
 - Worst-case scheduling uses the injected offline transport clock. Rendering
-  throws if the audition cannot schedule kickSoft, Bass, chord transition,
-  held Lead, and four distinct Happenings. The final evidence contains eight
-  activity records, all at host time `1.0` second. No wall-clock sleep is used.
+  throws if the audition cannot schedule kickSoft, Bass, a real Harmony chord
+  transition, held Lead, and four distinct Happenings. Fix Round 2 removes the
+  synthetic future transport event: all eight activities originate at actual
+  production subdivision `48`, host time `10.113924050632907` seconds. Harmony
+  reports first positive crossfade progress at subdivision `49`, host time
+  `10.303797468354425`; the diagnostic Bass release is scheduled and observed
+  at `10.333924050632907`, with zero active Bass voices afterward. No wall-clock
+  task is used and transport progression stays monotonic.
 - Rendering remains on the production instrument bank, players, transport,
   role buses, master processors, limiter, and final gain. No graph was
   duplicated and topology/processor behavior did not change.
@@ -73,6 +79,16 @@ Focused tests were added before each implementation change:
   scheduling. GREEN records and validates all eight components at one time.
 - BB Röy manifest RED expected the approved `-3.00 dB`; the old `-0.75 dB`
   value failed, then the focused manifest and single-Arp guards passed.
+- Fix Round 2 RED proved the old worst-case implementation labeled a future
+  subdivision with the current host time and appended synthetic transition
+  evidence. GREEN waits for the real second-chord boundary, records production
+  Harmony schedule/progress, and releases Bass on virtual transport time.
+- Plan-aware calibration RED covered exact groove mappings, finite/capped Steps
+  endpoints, continuity, role ownership, the 250 ms ramp, and continuous
+  differ/runtime behavior without allocation or structural restart. The first
+  bounded candidate was rejected by a third fresh Arp phase at `2.0470997704 dB`
+  estimated attenuation; the approved v2 mapping passed three new phases at
+  `0.4240340887/0.8692114159/0.3463445901 dB`.
 
 ## Accepted calibration
 
@@ -92,8 +108,15 @@ cap remains 4.5 seconds.
   Maschinenmensch/BB Slow Poly/JEC Polaroids `0/0/0 dB`.
 - Drum trims: kickSoft, kickFull, shaker, hatClosed, hatOpen, clapSoft, stick,
   organicHigh, and organicLow are all `0 dB`.
+- Plan-aware continuous adjustments use finite Steps density `d` clamped to
+  `0...1` and smoothstep `s=d²(3-2d)`: percussion `R/B/H/X/L=0/0/0/0/0`;
+  Bass pulse `R=-0.35-0.20s dB`; Bass arp `R/B/H=-1.00/-0.50/-0.50 dB`;
+  Bass bed `R=-0.30-0.20s dB`; all unlisted role adjustments are `0 dB`.
+  Direct and existing spatial-send controls receive the same adjustment through
+  the established 250 ms ramp. Timing, density, topology, and processors do not
+  change.
 
-No other calibration constant changed in Fix Round 1. The complete approved
+No static calibration constant changed in Fix Round 2. The complete approved
 Batch A constant enumeration and all eight matched before/after rows—including
 LUFS-I, corrected dBTP, all five role-bus RMS values, and
 `maximumEstimatedLimiterReductionDB`—are in
@@ -137,68 +160,94 @@ constant. Its clean single-Arp guard was:
 - maximum estimated required peak attenuation: `1.9575108338 dB`
 - render wall time: `48.0319903333 seconds`
 
-The final fresh matrix arp improved to `1.7057571669 dB`. The `-3.00 dB` value
+The Fix Round 1 matrix arp improved to `1.7057571669 dB`. The `-3.00 dB` value
 is therefore a measurement-driven safety margin for observed run variability.
 Because this scalar safety trim could affect perception despite stable program
 loudness, headphones/speaker comparison against all other Bass presets is a
 mandatory pending human gate.
 
+### Controlled Batch C plan-aware calibration
+
+Static values remained at the approved baseline. Batch C added only bounded
+continuous direct/send adjustments through the existing mix controller. The
+first candidate (Arp Rhythm `-1.00 dB`, Happenings/Harmony/Lead support
+`+0.15 dB`) was rejected after fresh Arp phase 3 measured
+`-17.4566120034 LUFS-I / -1.3678789145 dBTP / 2.0470997704 dB` estimated
+attenuation in `46.1562080833 seconds`; isolation and matrix rendering did not
+start from that failure.
+
+The accepted Arp-specific adjustment is Rhythm/Bass/Harmony
+`-1.00/-0.50/-0.50 dB`, with Happenings/Lead unchanged. Three fresh guards
+measured:
+
+| Phase | LUFS-I | dBTP | Max estimated required peak attenuation | Wall |
+|---|---:|---:|---:|---:|
+| 1 | -17.4694864832 | -1.3384633865 | 0.4240340887 dB | 46.2179845417 s |
+| 2 | -17.4861938602 | -1.3130822988 | 0.8692114159 dB | 46.4536765417 s |
+| 3 | -17.4672113672 | -1.2738191085 | 0.3463445901 dB | 46.1708956667 s |
+
+The complete four-groove matched pre/post ledger, including all five role-bus
+RMS values, is in the listening checklist. The accepted matrix Arp row moved
+from `-16.9164679419 LUFS-I / -1.2799025129 dBTP / 1.4155779795 dB` estimate
+to `-17.4952783082 / -1.2797309389 / 1.1900997990`; the loudness remains inside
+the representative range with meaningful estimate margin.
+
 ## Final 31 × 60-second matrix
 
-The final matrix ran sequentially from a stopped state after the `-3.00 dB`
-single-Arp guard passed. Result: 31/31 scenarios passed in 1,475.010 seconds.
+The final matrix ran sequentially from a stopped state after Steps,
+percussion, three fresh Arp phases, isolation, and the exact worst-case guard
+passed. Result: 31/31 scenarios passed in 1,447.599 seconds.
 Every individual render stayed below 60 seconds; slowest was
-`worst-case-overlap` at `51.6410653333 seconds`.
+`worst-case-overlap` at `51.7031045833 seconds`; the slowest normal scenario
+was `lead-fast` at `49.1107215000 seconds`.
 
 | Gate | Corrected measurement | Result |
 |---|---:|---|
-| Representative range | -17.9746638139 to -16.6096452011 LUFS-I | pass |
-| Maximum true peak, all scenarios | -1.1402764016 dBTP (`groove-bass-arp`) | pass |
-| Maximum normal estimated required peak attenuation | 1.9305114176 dB (`groove-percussion`) | pass |
-| Glitch 0→100 delta | 0.1514006402 LU | pass |
-| Isolated Harmony/Happenings/Lead spread | 0.8072180411 LU | pass |
+| Representative range | -17.9671539227 to -16.6914186346 LUFS-I | pass |
+| Maximum true peak, all scenarios | -1.1836861452 dBTP (`glitch-100`) | pass |
+| Maximum normal estimated required peak attenuation | 1.5657671749 dB (`groove-percussion`) | pass |
+| Glitch 0→100 delta | 0.1505796141 LU | pass |
+| Isolated Harmony/Happenings/Lead spread | 0.7357630853 LU | pass |
 | Isolated Bass/no source | -120 LUFS-I / -120 dBTP / 0 dB estimate | pass |
-| Worst case | -14.1439393416 LUFS-I / -1.1791212622 dBTP / 2.7164646395 dB estimate | pass; stress exemption |
-| Worst-case activity | 8 records at host time 1.0 s | pass |
+| Worst case | -14.1389113374 LUFS-I / -1.2294584654 dBTP / 2.8161689303 dB estimate | pass; stress exemption |
+| Worst-case activity | 8 records at subdivision 48 / 10.1139240506 s | pass |
+| Actual Harmony progress | subdivision 49 / 10.3037974684 s; max progress 1.0 | pass |
+| Bass release | scheduled = actual 10.3339240506 s; active voices 0 | pass |
 
 Final representative scenarios:
 
 | Scenario | LUFS-I | dBTP | Max estimated required peak attenuation |
 |---|---:|---:|---:|
-| `steps-50` | -17.9746638139 | -1.3055663477 | 1.0699847957 dB |
-| `sleep-mid` | -17.9745358809 | -1.3056927035 | 1.0685025880 dB |
-| `happenings-1` | -17.8789865464 | -1.3226928757 | 1.2485442560 dB |
-| `glitch-25` | -17.9670454603 | -1.3058274851 | 1.0680914800 dB |
-| `groove-percussion` | -16.7105926679 | -1.2359024157 | 1.9305114176 dB |
-| `groove-bass-pulse` | -16.8293500992 | -1.2491926378 | 0.6685214743 dB |
-| `groove-bass-arp` | -16.9574396408 | -1.1402764016 | 1.7057571669 dB |
-| `groove-bass-bed` | -16.6096452011 | -1.2626127918 | 1.1823371702 dB |
+| `steps-50` | -17.9671539227 | -1.3059827271 | 1.0684256784 dB |
+| `sleep-mid` | -17.9669406890 | -1.3059664807 | 1.0675594829 dB |
+| `happenings-1` | -17.8787726966 | -1.3227055361 | 1.2412824954 dB |
+| `glitch-25` | -17.9669289844 | -1.3059057075 | 1.0675649770 dB |
+| `groove-percussion` | -16.7036691167 | -1.2790782691 | 1.5657671749 dB |
+| `groove-bass-pulse` | -17.0830949216 | -1.2978885687 | 0.2503473095 dB |
+| `groove-bass-arp` | -17.4952783082 | -1.2797309389 | 1.1900997990 dB |
+| `groove-bass-bed` | -16.6914186346 | -1.2628145634 | 0.8167629127 dB |
 
 Exact per-scenario values, role RMS/peaks/voice counts, stress timestamps,
 seeds, presets, and wall times are in
-`docs/day-objects-mix-scenario-report.json` (schema 2).
+`docs/day-objects-mix-scenario-report.json` (schema 3).
 
 ## Verification and environment limits
 
-- Corrected analyzer: 9 tests, 0 failures, 0.537 seconds.
+- Corrected analyzer: 9 tests, 0 failures, 0.548 seconds.
 - Renderer/scenario group without opt-in long renders: 12 tests, 0 failures,
-  2 intentional skips, 43.589 seconds.
-- Instrument-bank lease/isolation/calibration guards: 4 tests, 0 failures,
-  0.104 seconds.
-- BassPlayer held-audition regressions: 10 tests, 0 failures, 0.761 seconds.
-- Instrument manifest: 5 tests, 0 failures, 0.014 seconds.
+  2 intentional skips, 58.215 seconds.
+- Focused analyzer/mix/differ/runtime/Harmony/transport/lease/isolation/Bass
+  release verification: 35 tests, 0 failures, 17.247 seconds.
+- Final plan-aware mapping/controller suite: 10 tests, 0 failures, 0.019
+  seconds; the initial six-test RED selection failed to compile on the missing
+  Bass/Harmony mapping fields as intended.
 - Generic iOS Debug build with signing disabled: succeeded.
 - Signed generic iOS Debug build with Apple Development provisioning:
   succeeded.
-- Full live `DayObjectsMusicPlaybackEngineTests` could not complete in this
-  simulator: Core Audio reported no system object, `Default-InputOutput`
-  `-66680`, then `AURemoteIO -10851`; the existing forced player access after
-  preparation failure crashed the test host. The unchanged retry was not run.
-  Manual offline rendering and all focused regressions above are unaffected.
-- Paired iPhone Costa was listed but unavailable at final install time; the
-  device-targeted build returned 70 because Xcode could not resolve that
-  destination. The corrected signed generic bundle was not installed.
-  Physical listening remains pending and is recorded in the checklist.
+- Paired iPhone Costa was listed, but the device-targeted build timed out because
+  the phone needed to be unlocked to recover from Xcode preparation errors.
+  The failed command was not repeated unchanged; no install was attempted.
+  Physical listening remains pending in the checklist.
 - No Python process was used. No process exceeded the 60-second per-scenario
   limit. No merge, push, PR, destructive command, or visual suite was run.
 

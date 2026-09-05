@@ -178,36 +178,88 @@ The -1.00 dB narrow retry was also variable: -16.9666418895 LUFS-I /
 unchanged.
 
 The approved Batch B extension changes only `bass.bb-roys-phaser` from
--0.75 dB to the final -3.00 dB. Its clean single-Arp guard measured
+-0.75 dB to -3.00 dB. Its clean single-Arp guard measured
 -16.9619914429 LUFS-I / -1.2856275859 dBTP /
 -23.5368149998/-32.2032899136/-32.2040890857/-41.8204526213/-120 dBFS /
-1.9575108338 dB Est. in 48.0319903333 seconds. The fresh final-matrix arp row
+1.9575108338 dB Est. in 48.0319903333 seconds. The Fix Round 1 matrix arp row
 measured -16.9574396408 / -1.1402764016 /
 -23.5368149998/-32.1065983665/-32.1446138067/-41.8204526213/-120 /
 1.7057571669 in 46.0648424583 seconds. The larger descriptor margin is
 measurement-driven protection against observed phase variability; subjective
 parity/presence versus all three other Bass presets remains a required human gate.
 
+### Batch C — bounded plan-aware crest calibration
+
+Fresh Audio Unit instances still showed a normal-path crest miss after the
+static calibration: the unmodified Fix Round 1 baseline produced a
+`2.0118004800 dB` BB Röy estimate in one matrix. Static drum, role-path, return,
+master, ceiling, and descriptor constants remain exactly as listed above.
+Batch C changes only continuous mix targets and their already-existing spatial
+sends, through the existing 250 ms mix ramp; it does not change topology,
+processor settings, scheduling, density, or source ownership.
+
+For finite Steps density `d` clamped to `0...1`, let
+`s = d*d*(3 - 2*d)`. Exact R/B/H/X/L adjustments are:
+
+| Groove mode | Rhythm | Bass | Harmony | Happenings | Lead |
+|---|---:|---:|---:|---:|---:|
+| Percussion | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB |
+| Bass pulse | `-0.35 - 0.20*s` dB | 0 dB | 0 dB | 0 dB | 0 dB |
+| Bass arp | -1.00 dB | -0.50 dB | -0.50 dB | 0 dB | 0 dB |
+| Bass bed | `-0.30 - 0.20*s` dB | 0 dB | 0 dB | 0 dB | 0 dB |
+
+Every value is deterministic, finite, and bounded to `-1...0 dB`. Pure
+endpoint/continuity tests and runtime tests prove these are continuous typed
+mix updates, not structural restarts. An initial bounded candidate with Rhythm
+`-1.00 dB` and sustained H/X/L support `+0.15 dB` was rejected after its third
+fresh Arp instance measured `-17.4566120034 LUFS-I / -1.3678789145 dBTP /
+2.0470997704 dB Est.` in `46.1562080833 seconds`. No matrix was started from
+that failed guard.
+
+The approved Bass-Arp mapping then passed three new processes. Each row is
+`LUFS-I / dBTP / R/B/H/X/L dBFS / Est. dB / wall seconds`:
+
+| Fresh phase | Measurement |
+|---|---|
+| 1 | -17.4694864832 / -1.3384633865 / -23.5368149998/-32.1810459355/-32.1886860510/-41.8204526213/-120 / 0.4240340887 / 46.2179845417 |
+| 2 | -17.4861938602 / -1.3130822988 / -23.5368149998/-32.1979306038/-32.1759504242/-41.8204526213/-120 / 0.8692114159 / 46.4536765417 |
+| 3 | -17.4672113672 / -1.2738191085 / -23.5368149998/-32.1843836725/-32.1465248807/-41.8204526213/-120 / 0.3463445901 / 46.1708956667 |
+
+The matched pre/post Batch C matrix rows below retain all five source-bus RMS
+values. These taps are upstream of the adjusted direct/send controls, so their
+near-equality is expected; the output loudness/true-peak/estimate columns are
+the calibration result. Each cell is `LUFS-I / dBTP / R/B/H/X/L dBFS / Est.`:
+
+| Scenario | Before Batch C | After Batch C |
+|---|---|---|
+| `groove-percussion` | -16.7135542883 / -1.2359394225 / -21.5115011435/-120/-32.3756485503/-38.6330895837/-120 / 1.9313412916 | -16.7036691167 / -1.2790782691 / -21.5115011435/-120/-32.3747295334/-38.6330895837/-120 / 1.5657671749 |
+| `groove-bass-pulse` | -16.8733791663 / -1.2447605031 / -21.5348392783/-23.9713873271/-36.6134598119/-37.5720667745/-120 / 0.6667092771 | -17.0830949216 / -1.2978885687 / -21.5348392783/-23.8252834932/-36.6151637791/-37.5720667745/-120 / 0.2503473095 |
+| `groove-bass-arp` | -16.9164679419 / -1.2799025129 / -23.5368149998/-32.1420325209/-31.9456984465/-41.8204526213/-120 / 1.4155779795 | -17.4952783082 / -1.2797309389 / -23.5368149998/-32.1344606251/-32.1690609607/-41.8204526213/-120 / 1.1900997990 |
+| `groove-bass-bed` | -16.5226345078 / -1.2563554102 / -23.2759495407/-23.3317398245/-32.2290908693/-49.2786751582/-120 / 0.7266063756 | -16.6914186346 / -1.2628145634 / -23.2759495407/-23.3366633770/-32.7517791520/-49.2786751582/-120 / 0.8167629127 |
+
 ### Final automated gates
 
 | Gate | Corrected measurement | Result |
 |---|---:|---|
 | Scenario count / duration | 31 / 60 s each | pass |
-| Representative LUFS-I range | -17.9746638139 to -16.6096452011 | pass |
-| Maximum true peak, all scenarios | -1.1402764016 dBTP (`groove-bass-arp`) | pass |
-| Maximum normal estimated required peak attenuation | 1.9305114176 dB (`groove-percussion`) | pass |
-| Glitch 0→100 loudness difference | 0.1514006402 LU | pass |
-| Isolated Harmony/Happenings/Lead spread | 0.8072180411 LU | pass |
+| Representative LUFS-I range | -17.9671539227 to -16.6914186346 | pass |
+| Maximum true peak, all scenarios | -1.1836861452 dBTP (`glitch-100`) | pass |
+| Maximum normal estimated required peak attenuation | 1.5657671749 dB (`groove-percussion`) | pass |
+| Glitch 0→100 loudness difference | 0.1505796141 LU | pass |
+| Isolated Harmony/Happenings/Lead spread | 0.7357630853 LU | pass |
 | Isolated Bass with no source | -120 LUFS-I / -120 dBTP / 0 dB Est. | pass; true silence |
-| Worst-case overlap | -14.1439393416 LUFS-I / -1.1791212622 dBTP / 2.7164646395 dB Est. | pass; stress exemption |
-| Worst-case shared-time proof | 8 records at host time 1.0 s | pass: kickSoft, Bass, chord transition, held Lead, four Happenings |
-| Slowest render | 51.6410653333 s (`worst-case-overlap`) | pass |
+| Worst-case overlap | -14.1389113374 LUFS-I / -1.2294584654 dBTP / 2.8161689303 dB Est. | pass; stress exemption |
+| Worst-case shared-time proof | 8 records at real subdivision 48 / host 10.1139240506 s | pass: kickSoft, Bass, chord transition, held Lead, four Happenings |
+| Harmony crossfade proof | first audible progress at subdivision 49 / 10.3037974684 s; max progress 1.0 | pass |
+| Bass diagnostic release | scheduled/actual 10.3339240506 s; active voices after release 0 | pass |
+| Slowest render | 51.7031045833 s (`worst-case-overlap`) | pass |
 
 ## Physical acceptance record
 
-A signed Debug bundle `personal-project.StepsTrader` built successfully on
-2026-09-05. Paired **iPhone Costa** (iPhone 15 Pro, iOS 26.6.1) was unavailable
-when the corrected build was ready, so the current bundle was not installed.
+A signed generic Debug bundle `personal-project.StepsTrader` built successfully
+on 2026-09-05. Paired **iPhone Costa** (iPhone 15 Pro) appeared in the device
+list, but Xcode could not prepare it because the phone needed to be unlocked;
+the device-targeted build timed out and the current bundle was not installed.
 Every acoustic row remains pending; no automated measurement is represented as
 physical acceptance.
 

@@ -3,6 +3,134 @@ import XCTest
 
 @MainActor
 final class DayObjectsMixControllerTests: XCTestCase {
+    func testPlanAwareGainCalibrationHasExactGrooveModeTargetsAtMidDensity() {
+        let expected: [(GrooveMode, Double, Double, Double)] = [
+            (.percussion, 0, 0, 0),
+            (.bassPulse, -0.45, 0, 0),
+            (.bassArp, -1, -0.5, -0.5),
+            (.bassBed, -0.40, 0, 0),
+        ]
+
+        for (mode, rhythm, bass, harmony) in expected {
+            let calibration = DayObjectsPlanAwareGainCalibration.make(
+                grooveMode: mode,
+                stepsActivityDensity: 0.5
+            )
+            XCTAssertEqual(calibration.rhythmAdjustmentDecibels, rhythm, accuracy: 1e-12)
+            XCTAssertEqual(calibration.bassAdjustmentDecibels, bass, accuracy: 1e-12)
+            XCTAssertEqual(calibration.harmonyAdjustmentDecibels, harmony, accuracy: 1e-12)
+            XCTAssertEqual(
+                calibration,
+                DayObjectsPlanAwareGainCalibration.make(
+                    grooveMode: mode,
+                    stepsActivityDensity: 0.5
+                )
+            )
+        }
+    }
+
+    func testPlanAwareGainCalibrationCapsDensityAndStaysWithinOneDecibel() {
+        let endpoints: [(GrooveMode, Double, Double, Double, Double)] = [
+            (.percussion, 0, 0, 0, 0),
+            (.bassPulse, -0.35, -0.55, 0, 0),
+            (.bassArp, -1, -1, -0.5, -0.5),
+            (.bassBed, -0.30, -0.50, 0, 0),
+        ]
+        for (mode, lowRhythm, highRhythm, bass, harmony) in endpoints {
+            let low = DayObjectsPlanAwareGainCalibration.make(
+                grooveMode: mode,
+                stepsActivityDensity: 0
+            )
+            let high = DayObjectsPlanAwareGainCalibration.make(
+                grooveMode: mode,
+                stepsActivityDensity: 1
+            )
+            XCTAssertEqual(low.rhythmAdjustmentDecibels, lowRhythm, accuracy: 1e-12)
+            XCTAssertEqual(high.rhythmAdjustmentDecibels, highRhythm, accuracy: 1e-12)
+            XCTAssertEqual(low.bassAdjustmentDecibels, bass, accuracy: 1e-12)
+            XCTAssertEqual(high.bassAdjustmentDecibels, bass, accuracy: 1e-12)
+            XCTAssertEqual(low.harmonyAdjustmentDecibels, harmony, accuracy: 1e-12)
+            XCTAssertEqual(high.harmonyAdjustmentDecibels, harmony, accuracy: 1e-12)
+        }
+
+        for density in [-1, 0, 0.25, 0.5, 0.75, 1, 2, .nan, .infinity] {
+            for mode in GrooveMode.allCases {
+                let calibration = DayObjectsPlanAwareGainCalibration.make(
+                    grooveMode: mode,
+                    stepsActivityDensity: density
+                )
+                XCTAssertTrue(calibration.rhythmAdjustmentDecibels.isFinite)
+                XCTAssertTrue(calibration.bassAdjustmentDecibels.isFinite)
+                XCTAssertTrue(calibration.harmonyAdjustmentDecibels.isFinite)
+                XCTAssertTrue((-1 ... 0).contains(calibration.rhythmAdjustmentDecibels))
+                XCTAssertTrue((-1 ... 0).contains(calibration.bassAdjustmentDecibels))
+                XCTAssertTrue((-1 ... 0).contains(calibration.harmonyAdjustmentDecibels))
+            }
+        }
+    }
+
+    func testPlanAwareGainCalibrationIsContinuousAcrossCappedStepsDensity() {
+        for mode in GrooveMode.allCases {
+            var previous = DayObjectsPlanAwareGainCalibration.make(
+                grooveMode: mode,
+                stepsActivityDensity: 0
+            )
+            for index in 1...1_000 {
+                let current = DayObjectsPlanAwareGainCalibration.make(
+                    grooveMode: mode,
+                    stepsActivityDensity: Double(index) / 1_000
+                )
+                XCTAssertLessThanOrEqual(
+                    abs(current.rhythmAdjustmentDecibels - previous.rhythmAdjustmentDecibels),
+                    0.000_31
+                )
+                XCTAssertEqual(current.bassAdjustmentDecibels, previous.bassAdjustmentDecibels)
+                XCTAssertEqual(current.harmonyAdjustmentDecibels, previous.harmonyAdjustmentDecibels)
+                previous = current
+            }
+        }
+    }
+
+    func testControllerAppliesPlanAwareGainThroughExistingTypedRamp() throws {
+        let backend = RecordingMixBackend()
+        let controller = DayObjectsMixController(backend: backend)
+        let calibration = DayObjectsPlanAwareGainCalibration(
+            rhythmAdjustmentDecibels: -0.5,
+            bassAdjustmentDecibels: -0.4,
+            harmonyAdjustmentDecibels: -0.25
+        )
+
+        controller.apply(
+            LayerMixPlanner.makePlan(happeningCount: 5),
+            activeChordVoiceCount: 4,
+            harmonyDuckingDecibels: 0,
+            spatial: testSpatial,
+            calibration: calibration,
+            rampDurationSeconds: 0.25
+        )
+
+        let state = try XCTUnwrap(backend.states.last)
+        let rhythmGain = pow(10, -0.5 / 20)
+        let bassGain = pow(10, -0.4 / 20)
+        let harmonyGain = pow(10, -0.25 / 20)
+        XCTAssertEqual(state.rhythmTargetDecibels, -0.5, accuracy: 1e-12)
+        XCTAssertEqual(state.buses.rhythm.sendLevel, 0.1 * rhythmGain, accuracy: 1e-12)
+        XCTAssertEqual(state.bassTargetDecibels, -0.4, accuracy: 1e-12)
+        XCTAssertEqual(state.buses.bass.sendLevel, 0.2 * bassGain, accuracy: 1e-12)
+        XCTAssertEqual(state.harmonyTargetDecibels, -0.25, accuracy: 1e-12)
+        XCTAssertEqual(state.buses.harmony.sendLevel, 0.3 * harmonyGain, accuracy: 1e-12)
+        XCTAssertEqual(state.happeningAggregateTargetDecibels, -3.3, accuracy: 1e-12)
+        XCTAssertEqual(state.happeningPerVoiceTargetDecibels, -9.3, accuracy: 1e-12)
+        XCTAssertEqual(state.buses.happenings.sendLevel, 0.4, accuracy: 1e-12)
+        XCTAssertEqual(
+            state.buses.lead.directTargetDecibels,
+            LeadPlayer.busTargetDecibels(for: -3.1),
+            accuracy: 1e-12
+        )
+        XCTAssertEqual(state.buses.lead.sendLevel, 0.5, accuracy: 1e-12)
+        XCTAssertEqual(state.rampDurationSeconds, 0.25, accuracy: 1e-12)
+    }
+
     func testAppliesExactLayerTargetsRampsChordAttenuationAndDucking() throws {
         let backend = RecordingMixBackend()
         let controller = DayObjectsMixController(backend: backend)

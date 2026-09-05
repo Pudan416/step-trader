@@ -174,7 +174,13 @@ final class DayObjectsMixScenarioTests: XCTestCase {
             averageRoleRMSDBFS: [:],
             maximumRolePeakDBFS: [:],
             maximumRoleActiveVoiceCount: [:],
-            stressActivities: []
+            stressActivities: [],
+            stressTransportSubdivision: nil,
+            transportSubdivisionsWereMonotonic: true,
+            harmonyTransition: nil,
+            scheduledBassReleaseHostTimeSeconds: nil,
+            actualBassReleaseHostTimeSeconds: nil,
+            bassActiveVoiceCountAfterRelease: nil
         )
 
         let json = try XCTUnwrap(String(
@@ -186,8 +192,22 @@ final class DayObjectsMixScenarioTests: XCTestCase {
         XCTAssertFalse(json.contains("\"maximumLimiterReductionDB\""))
     }
 
-    func testWorstCaseRecordsEveryRequiredComponentAtOneSharedHostTime() async throws {
+    func testWorstCaseWaitsForRealTransportSecondChordBoundaryInsteadOfInjectingFuturePosition() async throws {
         let scenario = try XCTUnwrap(try makeScenarios().first { $0.category == "worst-case" })
+        let transition = try XCTUnwrap(
+            scenario.plan.harmony.roles
+                .filter { $0.gain > 0 }
+                .flatMap(\.chordSchedule)
+                .filter { $0.startBar > 0 }
+                .min {
+                    if $0.startBar == $1.startBar { return $0.chordIndex < $1.chordIndex }
+                    return $0.startBar < $1.startBar
+                }
+        )
+        let transitionSubdivision = Int64(transition.startBar)
+            * MusicalPosition.subdivisionsPerBar
+        let expectedHostTime = 1
+            + (Double(transitionSubdivision) * 15 / scenario.plan.rhythm.tempoBPM)
         let renderer = DayObjectsOfflineMixRenderer(
             bundle: Bundle(for: type(of: self)),
             auditionMode: scenario.auditionMode,
@@ -197,14 +217,34 @@ final class DayObjectsMixScenarioTests: XCTestCase {
 
         _ = try await renderer.render(
             plan: scenario.plan,
-            durationSeconds: 1,
+            durationSeconds: expectedHostTime,
             sampleRate: Self.scenarioSampleRate
         )
 
         let diagnostics = try XCTUnwrap(renderer.lastDiagnostics)
         let activities = diagnostics.stressActivities
+        let harmony = try XCTUnwrap(diagnostics.harmonyTransition)
+        XCTAssertTrue(diagnostics.transportSubdivisionsWereMonotonic)
+        XCTAssertEqual(diagnostics.stressTransportSubdivision, transitionSubdivision)
+        XCTAssertEqual(harmony.chordIndex, transition.chordIndex)
+        XCTAssertEqual(harmony.startSubdivision, transitionSubdivision)
+        XCTAssertEqual(harmony.startHostTimeSeconds, expectedHostTime, accuracy: 0.000_000_001)
+        XCTAssertGreaterThan(harmony.oldVoiceCount, 0)
+        XCTAssertGreaterThan(harmony.newVoiceCount, 0)
+        XCTAssertGreaterThan(harmony.maximumAudibleProgress, 0)
+        XCTAssertGreaterThan(harmony.maximumNewChordExpression, 0)
+        XCTAssertGreaterThan(
+            try XCTUnwrap(harmony.firstAudibleProgressHostTimeSeconds),
+            harmony.startHostTimeSeconds
+        )
         XCTAssertEqual(activities.count, 8)
-        XCTAssertEqual(Set(activities.map(\.hostTimeSeconds)), [1])
+        XCTAssertEqual(Set(activities.map(\.hostTimeSeconds)).count, 1)
+        XCTAssertTrue(
+            activities.allSatisfy {
+                abs($0.hostTimeSeconds - expectedHostTime) <= 0.000_000_001
+            },
+            "Stress must be triggered by the real monotonically advancing transport boundary"
+        )
         XCTAssertEqual(Set(activities.map(\.component)), [
             .kickSoft, .bassAttack, .chordTransition, .heldLead, .happeningTail,
         ])
@@ -212,14 +252,41 @@ final class DayObjectsMixScenarioTests: XCTestCase {
         XCTAssertEqual(activities.filter { $0.component == .bassAttack }.count, 1)
         XCTAssertEqual(activities.filter { $0.component == .chordTransition }.count, 1)
         XCTAssertEqual(activities.filter { $0.component == .heldLead }.count, 1)
-        XCTAssertEqual(activities.filter { $0.component == .happeningTail }.count, 4)
+        let happeningActivities = activities.filter { $0.component == .happeningTail }
+        XCTAssertEqual(happeningActivities.count, 4)
+        XCTAssertEqual(Set(happeningActivities.map(\.identifier)).count, 4)
         XCTAssertGreaterThanOrEqual(
             diagnostics.maximumRoleActiveVoiceCount[.happenings, default: 0],
             4
         )
+        let scheduledRelease = try XCTUnwrap(diagnostics.scheduledBassReleaseHostTimeSeconds)
+        let actualRelease = try XCTUnwrap(diagnostics.actualBassReleaseHostTimeSeconds)
+        XCTAssertEqual(scheduledRelease, expectedHostTime + 0.220, accuracy: 0.000_000_001)
+        XCTAssertEqual(actualRelease, scheduledRelease, accuracy: 0.5 / Self.scenarioSampleRate)
+        XCTAssertEqual(diagnostics.bassActiveVoiceCountAfterRelease, 0)
+        XCTAssertLessThan(
+            try XCTUnwrap(harmony.firstAudibleProgressHostTimeSeconds),
+            actualRelease,
+            "The short Bass gate must remain active long enough to overlap audible chord progress"
+        )
     }
 
     func testWorstCaseThrowsWhenFourHappeningTailsCannotBeAuditioned() async throws {
+        let scenario = try XCTUnwrap(try makeScenarios().first { $0.category == "worst-case" })
+        let fullPlan = scenario.plan
+        let incompletePlan = DayMusicPlan(
+            seed: fullPlan.seed,
+            input: fullPlan.input,
+            world: fullPlan.world,
+            rhythm: fullPlan.rhythm,
+            groove: fullPlan.groove,
+            bass: fullPlan.bass,
+            harmony: fullPlan.harmony,
+            happenings: Array(fullPlan.happenings.prefix(2)),
+            lead: fullPlan.lead,
+            glitch: fullPlan.glitch,
+            mix: fullPlan.mix
+        )
         let renderer = DayObjectsOfflineMixRenderer(
             bundle: Bundle(for: type(of: self)),
             leadGestureProfile: .held,
@@ -228,8 +295,8 @@ final class DayObjectsMixScenarioTests: XCTestCase {
 
         do {
             _ = try await renderer.render(
-                plan: makePlan(),
-                durationSeconds: 1,
+                plan: incompletePlan,
+                durationSeconds: 12,
                 sampleRate: Self.scenarioSampleRate
             )
             XCTFail("Expected the incomplete four-tail stress audition to fail")
@@ -254,6 +321,10 @@ final class DayObjectsMixScenarioTests: XCTestCase {
                     + "bass=\(scenario.plan.bass?.instrumentID.rawValue ?? "none")"
             )
             let result = try await measure(scenario)
+            guard result.renderWallTimeSeconds <= 60 else {
+                XCTFail("\(result.id) exceeded the 60-second render limit")
+                return
+            }
             results.append(result)
             print(
                 "DAY_OBJECTS_RESULT \(result.id) lufs=\(result.integratedLUFS) "
@@ -271,7 +342,7 @@ final class DayObjectsMixScenarioTests: XCTestCase {
         let glitchFull = try XCTUnwrap(results.first { $0.id == "glitch-100" })
         let glitchDifference = abs(glitchZero.integratedLUFS - glitchFull.integratedLUFS)
         let report = ScenarioMatrixReport(
-            schemaVersion: 2,
+            schemaVersion: 3,
             durationSeconds: Self.scenarioDurationSeconds,
             sampleRateHz: Int(Self.scenarioSampleRate),
             analyzer: Self.analyzerDescription,
@@ -319,6 +390,7 @@ final class DayObjectsMixScenarioTests: XCTestCase {
         XCTAssertEqual(Set(worst.stressActivities.map(\.hostTimeSeconds)).count, 1)
         XCTAssertEqual(worst.stressActivities.filter { $0.component == .happeningTail }.count, 4)
         XCTAssertGreaterThanOrEqual(worst.maximumRoleActiveVoiceCount["happenings", default: 0], 4)
+        try assertWorstCaseTransportEvidence(worst)
     }
 
     func testControlledCalibrationProbeWhenExplicitlyRequested() async throws {
@@ -346,6 +418,22 @@ final class DayObjectsMixScenarioTests: XCTestCase {
             selectedIDs = ["bass-bb-roys-phaser"]
         case "arp":
             selectedIDs = ["groove-bass-arp"]
+        case "steps":
+            selectedIDs = ["steps-50"]
+        case "steps-trio":
+            selectedIDs = ["steps-0", "steps-50", "steps-100"]
+        case "percussion":
+            selectedIDs = ["groove-percussion"]
+        case "isolated-support":
+            selectedIDs = ["isolated-harmony", "isolated-happenings", "isolated-lead"]
+        case "crest-guards":
+            selectedIDs = [
+                "steps-50", "groove-percussion",
+                "isolated-rhythm", "isolated-bass", "isolated-harmony",
+                "isolated-happenings", "isolated-lead",
+            ]
+        case "worst":
+            selectedIDs = ["worst-case-overlap"]
         default:
             throw DayObjectsAudioError("Unknown calibration selection: \(selection)")
         }
@@ -379,14 +467,62 @@ final class DayObjectsMixScenarioTests: XCTestCase {
                 XCTAssertLessThanOrEqual(result.renderWallTimeSeconds, 60)
                 XCTAssertLessThanOrEqual(result.truePeakDBTP, -1)
                 XCTAssertTrue((-18 ... -16).contains(result.integratedLUFS))
+                XCTAssertLessThanOrEqual(result.maximumEstimatedLimiterReductionDB, 1.7)
+            } else if selection == "steps" || selection == "percussion" {
+                XCTAssertEqual(results.count, 1)
+                let result = try XCTUnwrap(results.first)
+                XCTAssertEqual(result.id, selection == "steps" ? "steps-50" : "groove-percussion")
+                XCTAssertTrue(result.containsOnlyFiniteSamples)
+                XCTAssertEqual(result.durationSeconds, 60, accuracy: 0.000_001)
+                XCTAssertLessThanOrEqual(result.renderWallTimeSeconds, 60)
+                XCTAssertLessThanOrEqual(result.truePeakDBTP, -1)
+                XCTAssertTrue((-18 ... -16).contains(result.integratedLUFS))
                 XCTAssertLessThan(result.maximumEstimatedLimiterReductionDB, 2)
+            } else if selection == "steps-trio" {
+                XCTAssertEqual(Set(results.map(\.id)), ["steps-0", "steps-50", "steps-100"])
+                for result in results {
+                    XCTAssertTrue(result.containsOnlyFiniteSamples, result.id)
+                    XCTAssertEqual(result.durationSeconds, 60, accuracy: 0.000_001, result.id)
+                    XCTAssertLessThanOrEqual(result.renderWallTimeSeconds, 60, result.id)
+                    XCTAssertLessThanOrEqual(result.truePeakDBTP, -1, result.id)
+                    XCTAssertGreaterThan(result.integratedLUFS, -120, result.id)
+                    XCTAssertLessThan(result.maximumEstimatedLimiterReductionDB, 2, result.id)
+                }
+                for id in ["steps-50", "steps-100"] {
+                    let representative = try XCTUnwrap(results.first { $0.id == id })
+                    XCTAssertTrue((-18 ... -16).contains(representative.integratedLUFS), id)
+                }
+            } else if selection == "isolated-support" {
+                XCTAssertEqual(results.count, 3)
+                for result in results {
+                    XCTAssertTrue(result.containsOnlyFiniteSamples, result.id)
+                    XCTAssertEqual(result.durationSeconds, 60, accuracy: 0.000_001, result.id)
+                    XCTAssertLessThanOrEqual(result.renderWallTimeSeconds, 60, result.id)
+                    XCTAssertLessThanOrEqual(result.truePeakDBTP, -1, result.id)
+                    XCTAssertGreaterThan(result.integratedLUFS, -120, result.id)
+                    XCTAssertLessThan(result.maximumEstimatedLimiterReductionDB, 2, result.id)
+                }
+                let spread = (results.map(\.integratedLUFS).max() ?? -120)
+                    - (results.map(\.integratedLUFS).min() ?? -120)
+                XCTAssertLessThanOrEqual(spread, 1.5)
+            } else if selection == "crest-guards" {
+                try assertCrestGuardAcceptance(results)
+            } else if selection == "worst" {
+                XCTAssertEqual(results.count, 1)
+                let result = try XCTUnwrap(results.first)
+                XCTAssertEqual(result.id, "worst-case-overlap")
+                XCTAssertTrue(result.containsOnlyFiniteSamples)
+                XCTAssertEqual(result.durationSeconds, 60, accuracy: 0.000_001)
+                XCTAssertLessThanOrEqual(result.renderWallTimeSeconds, 60)
+                XCTAssertLessThanOrEqual(result.truePeakDBTP, -1)
+                try assertWorstCaseTransportEvidence(result)
             } else {
                 try assertGuardAcceptance(results)
             }
         }
 
         let report = CalibrationProbeReport(
-            schemaVersion: 2,
+            schemaVersion: 3,
             calibrationLabel: label,
             durationSeconds: Self.scenarioDurationSeconds,
             sampleRateHz: Int(Self.scenarioSampleRate),
@@ -563,7 +699,13 @@ final class DayObjectsMixScenarioTests: XCTestCase {
             averageRoleRMSDBFS: roleValues(diagnostics.averageRoleRMSDBFS),
             maximumRolePeakDBFS: roleValues(diagnostics.maximumRolePeakDBFS),
             maximumRoleActiveVoiceCount: roleValues(diagnostics.maximumRoleActiveVoiceCount),
-            stressActivities: diagnostics.stressActivities
+            stressActivities: diagnostics.stressActivities,
+            stressTransportSubdivision: diagnostics.stressTransportSubdivision,
+            transportSubdivisionsWereMonotonic: diagnostics.transportSubdivisionsWereMonotonic,
+            harmonyTransition: diagnostics.harmonyTransition,
+            scheduledBassReleaseHostTimeSeconds: diagnostics.scheduledBassReleaseHostTimeSeconds,
+            actualBassReleaseHostTimeSeconds: diagnostics.actualBassReleaseHostTimeSeconds,
+            bassActiveVoiceCountAfterRelease: diagnostics.bassActiveVoiceCountAfterRelease
         )
     }
 
@@ -601,6 +743,70 @@ final class DayObjectsMixScenarioTests: XCTestCase {
         XCTAssertEqual(Set(worst.stressActivities.map(\.hostTimeSeconds)).count, 1)
         XCTAssertEqual(worst.stressActivities.filter { $0.component == .happeningTail }.count, 4)
         XCTAssertGreaterThanOrEqual(worst.maximumRoleActiveVoiceCount["happenings", default: 0], 4)
+        try assertWorstCaseTransportEvidence(worst)
+    }
+
+    private func assertCrestGuardAcceptance(_ results: [ScenarioResult]) throws {
+        XCTAssertEqual(results.count, 7)
+        for result in results {
+            XCTAssertTrue(result.containsOnlyFiniteSamples, result.id)
+            XCTAssertEqual(result.durationSeconds, 60, accuracy: 0.000_001, result.id)
+            XCTAssertLessThanOrEqual(result.renderWallTimeSeconds, 60, result.id)
+            XCTAssertLessThanOrEqual(result.truePeakDBTP, -1, result.id)
+            if result.id == "isolated-bass" {
+                XCTAssertEqual(result.integratedLUFS, -120, result.id)
+                XCTAssertEqual(result.truePeakDBTP, -120, result.id)
+            } else {
+                XCTAssertGreaterThan(result.integratedLUFS, -120, result.id)
+                XCTAssertLessThanOrEqual(result.maximumEstimatedLimiterReductionDB, 1.7, result.id)
+            }
+        }
+
+        for id in ["steps-50", "groove-percussion"] {
+            let representative = try XCTUnwrap(results.first { $0.id == id })
+            XCTAssertTrue((-18 ... -16).contains(representative.integratedLUFS), id)
+        }
+        let isolatedFocus = results.filter {
+            $0.category == "isolated" && ["harmony", "happenings", "lead"].contains($0.variant)
+        }
+        XCTAssertEqual(isolatedFocus.count, 3)
+        let spread = (isolatedFocus.map(\.integratedLUFS).max() ?? -120)
+            - (isolatedFocus.map(\.integratedLUFS).min() ?? -120)
+        XCTAssertLessThanOrEqual(spread, 1.5)
+    }
+
+    private func assertWorstCaseTransportEvidence(_ result: ScenarioResult) throws {
+        XCTAssertTrue(result.transportSubdivisionsWereMonotonic)
+        XCTAssertEqual(result.stressActivities.count, 8)
+        XCTAssertEqual(Set(result.stressActivities.map(\.hostTimeSeconds)).count, 1)
+        XCTAssertEqual(Set(result.stressActivities.map(\.component)), [
+            .kickSoft, .bassAttack, .chordTransition, .heldLead, .happeningTail,
+        ])
+        XCTAssertEqual(result.stressActivities.filter { $0.component == .kickSoft }.count, 1)
+        XCTAssertEqual(result.stressActivities.filter { $0.component == .bassAttack }.count, 1)
+        XCTAssertEqual(result.stressActivities.filter { $0.component == .chordTransition }.count, 1)
+        XCTAssertEqual(result.stressActivities.filter { $0.component == .heldLead }.count, 1)
+        let happeningActivities = result.stressActivities.filter { $0.component == .happeningTail }
+        XCTAssertEqual(happeningActivities.count, 4)
+        XCTAssertEqual(Set(happeningActivities.map(\.identifier)).count, 4)
+        XCTAssertGreaterThanOrEqual(result.maximumRoleActiveVoiceCount["happenings", default: 0], 4)
+        let transition = try XCTUnwrap(result.harmonyTransition)
+        XCTAssertFalse(transition.role.isEmpty)
+        let sharedHostTime = try XCTUnwrap(result.stressActivities.first?.hostTimeSeconds)
+        XCTAssertEqual(result.stressTransportSubdivision, transition.startSubdivision)
+        XCTAssertEqual(transition.startHostTimeSeconds, sharedHostTime, accuracy: 0.000_000_001)
+        XCTAssertGreaterThan(transition.oldVoiceCount, 0)
+        XCTAssertGreaterThan(transition.newVoiceCount, 0)
+        XCTAssertGreaterThan(transition.maximumAudibleProgress, 0)
+        XCTAssertGreaterThan(transition.maximumNewChordExpression, 0)
+        let progressHostTime = try XCTUnwrap(transition.firstAudibleProgressHostTimeSeconds)
+        XCTAssertGreaterThan(progressHostTime, sharedHostTime)
+        let scheduledRelease = try XCTUnwrap(result.scheduledBassReleaseHostTimeSeconds)
+        let actualRelease = try XCTUnwrap(result.actualBassReleaseHostTimeSeconds)
+        XCTAssertEqual(scheduledRelease, sharedHostTime + 0.220, accuracy: 0.000_000_001)
+        XCTAssertEqual(actualRelease, scheduledRelease, accuracy: 0.5 / Self.scenarioSampleRate)
+        XCTAssertLessThan(progressHostTime, actualRelease)
+        XCTAssertEqual(result.bassActiveVoiceCountAfterRelease, 0)
     }
 
     private func input(
@@ -696,6 +902,12 @@ final class DayObjectsMixScenarioTests: XCTestCase {
         let maximumRolePeakDBFS: [String: Double]
         let maximumRoleActiveVoiceCount: [String: Int]
         let stressActivities: [DayObjectsOfflineStressActivity]
+        let stressTransportSubdivision: Int64?
+        let transportSubdivisionsWereMonotonic: Bool
+        let harmonyTransition: DayObjectsOfflineHarmonyTransitionEvidence?
+        let scheduledBassReleaseHostTimeSeconds: TimeInterval?
+        let actualBassReleaseHostTimeSeconds: TimeInterval?
+        let bassActiveVoiceCountAfterRelease: Int?
     }
 
     private struct ScenarioMatrixReport: Codable {

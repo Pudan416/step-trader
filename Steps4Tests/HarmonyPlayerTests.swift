@@ -70,6 +70,53 @@ final class HarmonyPlayerTests: XCTestCase {
         XCTAssertEqual(harness.player.metrics.pendingReleaseTokenCount, 0)
     }
 
+    func testTransitionObservationComesFromRenderedBoundaryAndRecordsFirstAudibleProgress() throws {
+        let harness = try makeHarness()
+        let plan = harmonyPlan(
+            target: .tonal(.init(rawValue: "pad.interstellar")),
+            gain: 0.6,
+            schedule: [
+                entry(index: 0, startBar: 0, notes: [48, 55, 60]),
+                entry(index: 1, startBar: 2, notes: [50, 57, 62]),
+            ],
+            crossfadeBars: 1
+        )
+        try harness.player.configure(plan)
+        harness.player.render(barBoundary: event(.barBoundary, at: 0))
+        harness.player.render(subdivision: event(.subdivision, at: 16))
+
+        harness.player.render(barBoundary: event(.barBoundary, at: 32))
+
+        var observation = try XCTUnwrap(
+            harness.player.transitionObservations.first { $0.chordIndex == 1 }
+        )
+        XCTAssertEqual(observation.role, .primaryPad)
+        XCTAssertEqual(observation.startSubdivision, 32)
+        XCTAssertEqual(observation.startHostTimeSeconds, 8, accuracy: 0.000_000_001)
+        XCTAssertEqual(observation.oldVoiceCount, 3)
+        XCTAssertEqual(
+            observation.newVoiceCount,
+            1,
+            "Observation must report the one voice the production-capacity primary pool actually opened"
+        )
+        XCTAssertEqual(observation.maximumAudibleProgress, 0)
+        XCTAssertNil(observation.firstAudibleProgressSubdivision)
+        XCTAssertNil(observation.firstAudibleProgressHostTimeSeconds)
+
+        harness.player.render(subdivision: event(.subdivision, at: 33))
+
+        observation = try XCTUnwrap(
+            harness.player.transitionObservations.first { $0.chordIndex == 1 }
+        )
+        XCTAssertGreaterThan(observation.maximumAudibleProgress, 0)
+        XCTAssertEqual(observation.firstAudibleProgressSubdivision, 33)
+        XCTAssertEqual(
+            try XCTUnwrap(observation.firstAudibleProgressHostTimeSeconds),
+            8.25,
+            accuracy: 0.000_000_001
+        )
+    }
+
     func testCapacityLimitedDroneStagesReplacementWithoutStealingSoundingVoices() throws {
         let harness = try makeHarness()
         let drone = try XCTUnwrap(harness.bank.pools["drone"])

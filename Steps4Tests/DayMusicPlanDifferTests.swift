@@ -458,6 +458,33 @@ final class DayMusicPlanDifferTests: XCTestCase {
         XCTAssertNil(change.structuralPlan)
     }
 
+    func testPlanAwareGainDensityChangeRemainsContinuousWithoutStructuralRestart() throws {
+        let seed = try XCTUnwrap(
+            (UInt64(0)..<10_000).first {
+                GroovePlanner.makePlan(remixSeed: $0).mode == .bassPulse
+            }
+        )
+        let oldPlan = makePlan(stepsProgress: 0, remixSeed: seed)
+        let newPlan = makePlan(stepsProgress: 1, remixSeed: seed)
+        XCTAssertEqual(oldPlan.groove.mode, .bassPulse)
+        XCTAssertEqual(newPlan.groove.mode, .bassPulse)
+        XCTAssertNotEqual(
+            DayObjectsPlanAwareGainCalibration.make(
+                grooveMode: oldPlan.groove.mode,
+                stepsActivityDensity: oldPlan.rhythm.stepsProgress
+            ),
+            DayObjectsPlanAwareGainCalibration.make(
+                grooveMode: newPlan.groove.mode,
+                stepsActivityDensity: newPlan.rhythm.stepsProgress
+            )
+        )
+
+        let change = DayMusicPlanDiffer.change(from: oldPlan, to: newPlan)
+
+        XCTAssertEqual(change.continuousPlan, newPlan)
+        XCTAssertNil(change.structuralPlan)
+    }
+
     func testRhythmPlaybackLimitsAreContinuousOnly() {
         let oldPlan = makePlan()
         let variants = [

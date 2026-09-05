@@ -896,6 +896,10 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         ) {
             let harmonySend = plan.harmony.roles.map(\.reverbSend).max() ?? 0
             let happeningSend = plan.happenings.map(\.reverbSend).max() ?? 0
+            let calibration = DayObjectsPlanAwareGainCalibration.make(
+                grooveMode: plan.groove.mode,
+                stepsActivityDensity: plan.rhythm.stepsProgress
+            )
             mix.apply(
                 mixPlan,
                 activeChordVoiceCount: max(1, harmony.metrics.activeVoiceCount),
@@ -912,6 +916,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                         secondaryDecay: 0.32
                     )
                 ),
+                calibration: calibration,
                 rampDurationSeconds: 0.25
             )
         }
