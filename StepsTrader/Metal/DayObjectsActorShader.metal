@@ -206,29 +206,44 @@ static float3 dayObjectsLayeredRadialColor(
     if (colorCount <= 1) {
         result = color0;
     } else {
-        const float w0 = 0.88 + 0.45 * dayObjectsSoftColorFieldWeight(
+        const float primaryField = dayObjectsSoftColorFieldWeight(
             point,
             appearance.radial0,
             phase,
             phaseDirection
         ) * clamp(appearance.light.y, 0.0, 1.0);
-        const float broadFieldCoherence = smoothstep(0.40, 0.72, appearance.radial0.w);
-        const float w1 = 0.08 + 0.46 * broadFieldCoherence * dayObjectsSoftColorFieldWeight(
+        const float broadFieldCoherence = smoothstep(0.76, 0.82, appearance.radial0.w);
+        const float w0 = mix(
+            0.72 + 0.38 * primaryField,
+            0.88 + 0.45 * primaryField,
+            broadFieldCoherence
+        );
+        const float secondaryField = dayObjectsSoftColorFieldWeight(
             point,
             appearance.radial1,
             phase,
             -phaseDirection
         ) * clamp(appearance.light.z, 0.0, 1.0);
+        const float w1 = mix(
+            0.10 + 0.58 * secondaryField,
+            0.08 + 0.46 * secondaryField,
+            broadFieldCoherence
+        );
         float totalWeight = w0 + w1;
         result = color0 * w0 + color1 * w1;
         if (colorCount >= 3u) {
             const float2 thirdDirection = float2(-phaseDirection.y, phaseDirection.x);
-            const float w2 = 0.06 + 0.40 * broadFieldCoherence * dayObjectsSoftColorFieldWeight(
+            const float tertiaryField = dayObjectsSoftColorFieldWeight(
                 point,
                 appearance.radial2,
                 phase,
                 thirdDirection
             ) * clamp(appearance.light.w, 0.0, 1.0);
+            const float w2 = mix(
+                0.08 + 0.50 * tertiaryField,
+                0.06 + 0.40 * tertiaryField,
+                broadFieldCoherence
+            );
             result += color2 * w2;
             totalWeight += w2;
         }

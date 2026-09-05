@@ -2425,14 +2425,14 @@ final class DayObjectRenderFrameTests: XCTestCase {
             color0: SIMD4(0.95, 0.10, 0.18, 1),
             color1: SIMD4(0.10, 0.85, 0.35, 1),
             color2: SIMD4(0.12, 0.24, 0.98, 1),
-            radial0: SIMD4(0.25, 0, 1, 0.10),
-            radial1: SIMD4(-0.38, 0.22, 0.68, 0.18),
-            radial2: SIMD4(0.18, -0.42, 0.50, 0.16),
+            radial0: SIMD4(0.25, 0, 1.40, 0.90),
+            radial1: SIMD4(0.25, 0, 1.32, 0.88),
+            radial2: SIMD4(0, 0, 1, 0.90),
             field: SIMD4(0, 1, 0, 0.04),
             optical0: SIMD4(0, 0, 0.92, 0.92),
             optical1: .zero,
             light: SIMD4(0, 1, 1, 1),
-            metadata: SIMD4(DayObjectMaterialFamily.gradient.rawValue, 3, 3, 0),
+            metadata: SIMD4(DayObjectMaterialFamily.gradient.rawValue, 2, 2, 0),
             recipe0: SIMD4(0.34, 0.70, 0.04, 0.72)
         )
 

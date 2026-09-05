@@ -656,10 +656,10 @@ struct DayObjectSceneRecipeV1: Equatable {
                     actorSeed,
                     salt: UInt64(0xF13D_0020 + index)
                 ) * 0.34,
-                softness: 0.82 + actorUnit(
+                softness: 0.92 + actorUnit(
                     actorSeed,
                     salt: UInt64(0xF13D_0030 + index)
-                ) * 0.16,
+                ) * 0.08,
                 opacity: index == 0 ? 1 : 0.78 + actorUnit(
                     actorSeed,
                     salt: UInt64(0xF13D_0040 + index)
