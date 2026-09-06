@@ -116,6 +116,9 @@ struct GalleryView: View {
     @State private var suggestionBannerHeight: CGFloat = 0
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+#if DEBUG || INTERNAL_BUILD
+    @StateObject private var musicController = DayObjectsMusicLabController()
+#endif
     private let usesTask7UITestFixture = ProcessInfo.processInfo.arguments.contains("ui-testing-task7")
     private let isUnitTestHost = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
@@ -167,11 +170,89 @@ struct GalleryView: View {
         if presentation.isWideCanvas || presentation.isEditing {
             return max(safeAreaBottom, 34) + 16
         }
-        // The Canvas actions now flank the tab bar in one shared 60pt row.
-        // Gallery's full-bleed overlay and MainTabView's safe-area overlay have
-        // different bottom origins; this inset resolves them to the same mid-Y.
-        return max(safeAreaBottom, 34) + 22
+        // MainTabView's 48pt buttons sit 34pt above the window bottom. A 52pt
+        // action row therefore needs an 8pt bottom inset to share that center.
+        return 8
     }
+
+    private var canvasSoundPulseBus: DayObjectsSoundPulseBus? {
+#if DEBUG || INTERNAL_BUILD
+        musicController.soundPulseBus
+#else
+        nil
+#endif
+    }
+
+    private var canvasSoundAppearance: CanvasSoundButtonAppearance {
+#if DEBUG || INTERNAL_BUILD
+        switch musicController.soundState {
+        case .off: .readyToPlay
+        case .starting: .starting
+        case .on: .playing
+        case .error: .retry
+        }
+#else
+        .readyToPlay
+#endif
+    }
+
+    private var canvasChromeScrim: some View {
+        VStack(spacing: 0) {
+            LinearGradient(
+                colors: [.black.opacity(0.22), .black.opacity(0.08), .clear],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: max(176, safeAreaTop + 116))
+
+            Spacer(minLength: 0)
+
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.08), .black.opacity(0.24)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: max(184, safeAreaBottom + 140))
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func handleCanvasSoundControl() {
+        switch CanvasSoundExpansionAction.forPresentation(presentation) {
+        case .turnSoundOnAndEnterFullScreen:
+#if DEBUG || INTERNAL_BUILD
+            syncCanvasMusicInput()
+            if musicController.soundState != .on,
+               let intent = musicController.acceptSoundButtonIntent() {
+                Task { await musicController.completeSoundButtonIntent(intent) }
+            }
+#endif
+            send(.enterFullScreen)
+            lightHapticTick &+= 1
+
+        case .turnSoundOffAndExitFullScreen:
+            send(.exitFullScreen)
+            lightHapticTick &+= 1
+#if DEBUG || INTERNAL_BUILD
+            Task { await musicController.turnSoundOff() }
+#endif
+        }
+    }
+
+#if DEBUG || INTERNAL_BUILD
+    private func syncCanvasMusicInput() {
+        musicController.setDayInput(
+            countedSteps: model.stepsToday,
+            stepGoal: userStepsTarget,
+            countedSleepHours: model.dailySleepHours,
+            sleepGoalHours: userSleepTarget,
+            happeningIDs: dayCanvas.elements.map { $0.id.uuidString.lowercased() },
+            spentColors: editorialRenderInput.digitalImpact.spentColors
+        )
+    }
+#endif
 
     private struct CanvasSyncState: Equatable {
         let sleepPoints: Int
@@ -476,7 +557,8 @@ struct GalleryView: View {
         DayCanvasArtworkView(
             style: dayCanvas.resolvedVisualStyle,
             editorial: editorialRenderInput,
-            isAnimating: isCanvasSelected
+            isAnimating: isCanvasSelected,
+            soundPulseBus: canvasSoundPulseBus
         ) {
             legacyCanvasLayers
                 .background {
@@ -515,6 +597,9 @@ struct GalleryView: View {
                 send(.hideData)
                 lightHapticTick &+= 1
             }
+        .overlay {
+            canvasChromeScrim
+        }
         // Controls in overlays — completely decoupled from the canvas/texture
         // ZStack so texture changes never trigger a controls re-layout.
         .overlay {
@@ -589,6 +674,10 @@ struct GalleryView: View {
 
         let observingCanvas = visualCanvas
         .onAppear {
+#if DEBUG || INTERNAL_BUILD
+            _ = musicController.acceptLifecycleEvent(.viewAppeared)
+            syncCanvasMusicInput()
+#endif
             model.checkDayBoundary()
             refreshHappeningPalette()
             loadCanvas()
@@ -605,6 +694,9 @@ struct GalleryView: View {
         }
         .onChange(of: canvasSyncState) {
             syncCanvasWithModel()
+#if DEBUG || INTERNAL_BUILD
+            syncCanvasMusicInput()
+#endif
         }
         .onChange(of: preferredCanvasVisualStyleRaw) { _, rawValue in
             applyPreferredCanvasVisualStyle(rawValue)
@@ -626,7 +718,12 @@ struct GalleryView: View {
             } else if selected {
                 consumePaletteOpenRequestIfReady()
             }
-            if !selected { send(.leftCanvasTab) }
+            if !selected {
+                send(.leftCanvasTab)
+#if DEBUG || INTERNAL_BUILD
+                Task { await musicController.turnSoundOff() }
+#endif
+            }
         }
         .onChange(of: todayKey) { _, newKey in
             guard newKey != activeDayKey else { return }
@@ -689,6 +786,12 @@ struct GalleryView: View {
             consumePaletteOpenRequestIfReady()
         }
         .onChange(of: scenePhase) {
+#if DEBUG || INTERNAL_BUILD
+            let lifecycleIntent = musicController.acceptLifecycleEvent(
+                scenePhase == .active ? .sceneActive : .sceneInactive
+            )
+            Task { await musicController.completeLifecycleEvent(lifecycleIntent) }
+#endif
             if scenePhase == .background {
                 if editState.isDraggingElement { handleEditDragEnd() }
                 editState.activeElementId = nil
@@ -774,6 +877,12 @@ struct GalleryView: View {
         }
         .onChange(of: toolbar.showShareSheet) { _, isPresented in
             if !isPresented { toolbar.shareImage = nil }
+        }
+        .onDisappear {
+#if DEBUG || INTERNAL_BUILD
+            let intent = musicController.acceptLifecycleEvent(.viewDisappeared)
+            Task { await musicController.completeLifecycleEvent(intent) }
+#endif
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.35), value: presentation)
         .onPreferenceChange(CanvasAddButtonCenterKey.self) { value in
@@ -982,10 +1091,8 @@ struct GalleryView: View {
     private var bottomControlsBar: some View {
         CanvasBottomActionRow(
             isDataPanelOpen: presentation.showsDataPanel,
-            onFullScreen: {
-                send(.enterFullScreen)
-                lightHapticTick &+= 1
-            },
+            soundAppearance: canvasSoundAppearance,
+            onSound: handleCanvasSoundControl,
             onAdd: {
                 CoachMarkManager.postAction(for: .tapPlusButton)
                 openHappeningPalette()
@@ -1545,9 +1652,12 @@ struct GalleryView: View {
         VStack {
             Spacer()
             CanvasFullScreenDock(
-                onExit: {
+                onSoundOffAndExit: {
                     send(.exitFullScreen)
                     lightHapticTick &+= 1
+#if DEBUG || INTERNAL_BUILD
+                    Task { await musicController.turnSoundOff() }
+#endif
                 },
                 onEdit: {
                     send(.beginEditing)

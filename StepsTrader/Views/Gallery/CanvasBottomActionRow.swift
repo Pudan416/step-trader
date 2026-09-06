@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The two Canvas actions that flank the data drawer: raise the canvas, add
+/// The two Canvas actions that flank the tab bar: listen to the day, add
 /// something that happened.
 ///
 /// "Show data" no longer lives here — it moved up to a strip under the
@@ -16,7 +16,8 @@ struct CanvasBottomActionRow: View {
     /// removed from the tree entirely, not merely covered — a panel the user
     /// can't see through must not leave a live hit region under it.
     let isDataPanelOpen: Bool
-    let onFullScreen: () -> Void
+    let soundAppearance: CanvasSoundButtonAppearance
+    let onSound: () -> Void
     let onAdd: () -> Void
 
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
@@ -46,7 +47,7 @@ struct CanvasBottomActionRow: View {
     private var content: some View {
         HStack(alignment: .center, spacing: 0) {
             if !isDataPanelOpen {
-                fullScreenControl
+                soundControl
             }
             Spacer(minLength: 8)
             if !isDataPanelOpen {
@@ -60,11 +61,11 @@ struct CanvasBottomActionRow: View {
         .environment(\.layoutDirection, .leftToRight)
     }
 
-    // MARK: - Left: full screen
+    // MARK: - Left: sound + full screen
 
-    private var fullScreenControl: some View {
-        Button(action: onFullScreen) {
-            Image(systemName: "arrow.up.left.and.arrow.down.right")
+    private var soundControl: some View {
+        Button(action: onSound) {
+            Image(systemName: soundAppearance.systemImage)
                 .font(.geist(size: 20, weight: .regular))
                 .foregroundStyle(ink)
                 .frame(width: 48, height: 48)
@@ -74,14 +75,13 @@ struct CanvasBottomActionRow: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(
-            String(localized: "Expand canvas", comment: "Canvas – full screen button VoiceOver label")
-        )
+        .disabled(soundAppearance == .starting)
+        .accessibilityLabel(soundAppearance.accessibilityLabel)
         .accessibilityHint(
-            String(localized: "Opens the canvas without editing",
-                   comment: "Canvas – full screen button VoiceOver hint")
+            String(localized: "Starts the day's music and opens the canvas full screen",
+                   comment: "Canvas – sound button VoiceOver hint")
         )
-        .accessibilityIdentifier("canvas_fullscreen_button")
+        .accessibilityIdentifier("canvas_sound_button")
     }
 
     // MARK: - Right: add
@@ -109,5 +109,30 @@ struct CanvasBottomActionRow: View {
                 )
             }
         )
+    }
+}
+
+enum CanvasSoundButtonAppearance: Equatable {
+    case readyToPlay
+    case starting
+    case playing
+    case retry
+
+    var systemImage: String {
+        switch self {
+        case .readyToPlay: "speaker.wave.2"
+        case .starting: "hourglass"
+        case .playing: "speaker.wave.2.fill"
+        case .retry: "arrow.clockwise"
+        }
+    }
+
+    var accessibilityLabel: String {
+        switch self {
+        case .readyToPlay: String(localized: "Play day music")
+        case .starting: String(localized: "Starting day music")
+        case .playing: String(localized: "Day music is playing")
+        case .retry: String(localized: "Retry day music")
+        }
     }
 }

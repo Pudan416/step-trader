@@ -7,7 +7,7 @@ import SwiftUI
 /// something you press by accident on the way out. Share is passed in from the
 /// host because its context menu needs routines the dock knows nothing about.
 struct CanvasFullScreenDock<Share: View>: View {
-    let onExit: () -> Void
+    let onSoundOffAndExit: () -> Void
     let onEdit: () -> Void
     var showsEdit = true
     @ViewBuilder let share: () -> Share
@@ -27,11 +27,12 @@ struct CanvasFullScreenDock<Share: View>: View {
     private var content: some View {
         HStack(spacing: 8) {
             label(
-                String(localized: "Exit full screen", comment: "Full screen dock – collapse action"),
-                systemImage: "arrow.down.right.and.arrow.up.left",
-                action: onExit
+                String(localized: "Sound off", comment: "Full screen dock – stop sound and collapse action"),
+                systemImage: "speaker.slash.fill",
+                action: onSoundOffAndExit
             )
-            .accessibilityIdentifier("canvas_exit_fullscreen_button")
+            .accessibilityHint(String(localized: "Stops the day's music and closes full screen"))
+            .accessibilityIdentifier("canvas_sound_off_button")
 
             share()
 

@@ -129,6 +129,26 @@ final class CanvasPresentationStateTests: XCTestCase {
         }
     }
 
+    // MARK: - Sound / expansion control
+
+    func testCollapsedSoundControlStartsMusicAndEntersFullScreen() {
+        XCTAssertEqual(
+            CanvasSoundExpansionAction.forPresentation(.canvas),
+            .turnSoundOnAndEnterFullScreen
+        )
+        XCTAssertEqual(
+            CanvasSoundExpansionAction.forPresentation(.data),
+            .turnSoundOnAndEnterFullScreen
+        )
+    }
+
+    func testExpandedSoundControlStopsMusicAndReturnsToCanvas() {
+        XCTAssertEqual(
+            CanvasSoundExpansionAction.forPresentation(.fullScreen),
+            .turnSoundOffAndExitFullScreen
+        )
+    }
+
     // MARK: - Interactive data drawer geometry
 
     func testCollapsedDataDrawerRevealTracksPartialPull() {

@@ -81,6 +81,7 @@ final class DayObjectsMusicLabController: ObservableObject {
     private var lastDiagnosticMeterPoll = Date.distantPast
     private var diagnosticActionGeneration: UInt64 = 0
     private var diagnosticActionTask: Task<Void, Never>?
+    private var configuredHappeningIDs: [String]
     @Published private var acceptedSoundButtonIntent: DayObjectsSoundButtonIntent?
 
     private struct HappeningPadTask {
@@ -98,7 +99,9 @@ final class DayObjectsMusicLabController: ObservableObject {
         sanitized.happeningCount = min(max(state.happeningCount, 0), Self.maximumHappenings)
         sanitized.spentColors = min(max(state.spentColors, 0), Self.maximumSpentColors)
         self.state = sanitized
-        currentPlan = Self.makePlan(for: sanitized)
+        let initialHappeningIDs = Self.happeningIDs(count: sanitized.happeningCount)
+        configuredHappeningIDs = initialHappeningIDs
+        currentPlan = Self.makePlan(for: sanitized, happeningIDs: initialHappeningIDs)
         if let playback {
             self.playback = playback
         } else {
@@ -116,7 +119,7 @@ final class DayObjectsMusicLabController: ObservableObject {
 
     var normalizedInput: NormalizedDayMusicInput { currentPlan.input }
     var digitalImpact: DayObjectDigitalImpact { .init(spentColors: state.spentColors) }
-    var happeningIDs: [String] { Self.happeningIDs(count: state.happeningCount) }
+    var happeningIDs: [String] { configuredHappeningIDs }
     var metrics: DayObjectsPlaybackMetrics { playback.metrics }
 
     var worldSummary: String {
@@ -293,11 +296,36 @@ final class DayObjectsMusicLabController: ObservableObject {
     }
 
     func setHappeningCount(_ value: Int) {
-        updateState { $0.happeningCount = min(max(value, 0), Self.maximumHappenings) }
+        let count = min(max(value, 0), Self.maximumHappenings)
+        updateState(happeningIDs: Self.happeningIDs(count: count)) {
+            $0.happeningCount = count
+        }
     }
 
     func setSpentColors(_ value: Int) {
         updateState { $0.spentColors = min(max(value, 0), Self.maximumSpentColors) }
+    }
+
+    /// Atomically moves the music world to the real Canvas day. Unlike the
+    /// lab sliders this keeps the stable element IDs, so a scheduled sound
+    /// attack can pulse the exact actor that produced it.
+    func setDayInput(
+        countedSteps: Double,
+        stepGoal: Double,
+        countedSleepHours: Double,
+        sleepGoalHours: Double,
+        happeningIDs: [String],
+        spentColors: Int
+    ) {
+        let normalizedIDs = Array(happeningIDs.prefix(Self.maximumHappenings))
+        updateState(happeningIDs: normalizedIDs) { state in
+            state.steps = countedSteps.isFinite ? max(countedSteps, 0) : 0
+            state.stepGoal = stepGoal.isFinite && stepGoal > 0 ? stepGoal : 0
+            state.sleepHours = countedSleepHours.isFinite ? max(countedSleepHours, 0) : 0
+            state.sleepGoalHours = sleepGoalHours.isFinite && sleepGoalHours > 0 ? sleepGoalHours : 0
+            state.happeningCount = normalizedIDs.count
+            state.spentColors = min(max(spentColors, 0), Self.maximumSpentColors)
+        }
     }
 
     func remix() {
@@ -429,12 +457,21 @@ final class DayObjectsMusicLabController: ObservableObject {
         )
     }
 
-    private func updateState(_ mutation: (inout DayObjectsLabMusicState) -> Void) {
+    private func updateState(
+        happeningIDs: [String]? = nil,
+        _ mutation: (inout DayObjectsLabMusicState) -> Void
+    ) {
         let oldPlan = currentPlan
         var nextState = state
         mutation(&nextState)
         state = nextState
-        let nextPlan = Self.makePlan(for: nextState)
+        if let happeningIDs {
+            configuredHappeningIDs = happeningIDs
+        }
+        let nextPlan = Self.makePlan(
+            for: nextState,
+            happeningIDs: configuredHappeningIDs
+        )
         currentPlan = nextPlan
         guard soundState == .on else { return }
 
@@ -542,14 +579,17 @@ final class DayObjectsMusicLabController: ObservableObject {
         }
     }
 
-    private static func makePlan(for state: DayObjectsLabMusicState) -> DayMusicPlan {
+    private static func makePlan(
+        for state: DayObjectsLabMusicState,
+        happeningIDs: [String]
+    ) -> DayMusicPlan {
         DeterministicMusicDirector.makePlan(
             input: .init(
                 countedSteps: state.steps,
                 stepGoal: state.stepGoal,
                 countedSleepHours: state.sleepHours,
                 sleepGoalHours: state.sleepGoalHours,
-                happeningIDs: happeningIDs(count: state.happeningCount),
+                happeningIDs: happeningIDs,
                 spentColors: state.spentColors
             ),
             remixSeed: state.remixSeed

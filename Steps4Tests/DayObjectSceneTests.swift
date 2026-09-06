@@ -542,6 +542,27 @@ final class DayObjectSceneTests: XCTestCase {
 
 #if DEBUG || INTERNAL_BUILD
     @MainActor
+    func testCanvasMusicUsesTheCanvasStableHappeningIDs() {
+        let controller = DayObjectsMusicLabController()
+
+        controller.setDayInput(
+            countedSteps: 4_000,
+            stepGoal: 8_000,
+            countedSleepHours: 6,
+            sleepGoalHours: 8,
+            happeningIDs: ["canvas-a", "canvas-b", "canvas-c"],
+            spentColors: 50
+        )
+
+        XCTAssertEqual(controller.currentPlan.input.happeningIDs, [
+            "canvas-a", "canvas-b", "canvas-c",
+        ])
+        XCTAssertEqual(controller.currentPlan.input.stepsProgress, 0.5, accuracy: 0.000_001)
+        XCTAssertEqual(controller.currentPlan.input.sleepProgress, 0.75, accuracy: 0.000_001)
+        XCTAssertEqual(controller.currentPlan.input.glitchProgress, 0.25, accuracy: 0.000_001)
+    }
+
+    @MainActor
     func testLabDayProgressMapsExactlyIntoSceneInput() {
         let model = DayObjectsLabMusicViewModel()
 
