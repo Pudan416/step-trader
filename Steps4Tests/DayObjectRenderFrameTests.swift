@@ -263,9 +263,9 @@ final class DayObjectRenderFrameTests: XCTestCase {
     func testGenerativeRecipeUploadsResolvedCarrierShape() throws {
         let expectedShapes: [DayObjectGeometryRegion: DayObjectShape] = [
             .circle: .sphere,
-            .superellipse: .superellipse,
+            .superellipse: .roundedSquare,
             .softStar: .softStar,
-            .compound: .compound,
+            .compound: .roundedPolygon,
         ]
         var observed = Set<DayObjectGeometryRegion>()
 
