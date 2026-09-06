@@ -20,21 +20,51 @@ final class SettingsPermissionPresentationTests: XCTestCase {
         )
         XCTAssertEqual(state.status, .connected)
         XCTAssertFalse(state.contributesToWarning)
-        XCTAssertNil(state.action)
+        XCTAssertEqual(state.action, .openSystemSettings)
     }
 
     func testDeniedNotificationsAreKnownActionableIssue() {
-        let state = SettingsPermissionPresentation.notifications(status: .denied)
+        let state = SettingsPermissionPresentation.notifications(status: .denied, remindersEnabled: true)
         XCTAssertEqual(state.status, .offInSystemSettings)
         XCTAssertEqual(state.action, .openSystemSettings)
         XCTAssertTrue(state.contributesToWarning)
     }
 
     func testNotDeterminedNotificationsOfferPermissionRequest() {
-        let state = SettingsPermissionPresentation.notifications(status: .notDetermined)
+        let state = SettingsPermissionPresentation.notifications(status: .notDetermined, remindersEnabled: true)
         XCTAssertEqual(state.status, .notRequested)
         XCTAssertEqual(state.action, .requestPermission)
         XCTAssertTrue(state.contributesToWarning)
+    }
+
+    func testDisabledRemindersDoNotWarnButKeepRecoveryAvailable() {
+        for status: UNAuthorizationStatus in [.denied, .notDetermined] {
+            let state = SettingsPermissionPresentation.notifications(status: status, remindersEnabled: false)
+            XCTAssertFalse(state.contributesToWarning)
+            XCTAssertNotNil(state.action)
+        }
+    }
+
+    func testAllowedNotificationsNeverWarn() {
+        for status: UNAuthorizationStatus in [.authorized, .provisional, .ephemeral] {
+            XCTAssertFalse(SettingsPermissionPresentation.notifications(status: status, remindersEnabled: true).contributesToWarning)
+        }
+    }
+
+    func testReminderPolicyUsesDefaultsAndEachStoredPreference() {
+        let suite = "SettingsPermissionPresentationTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        XCTAssertTrue(SettingsPermissionPresentation.remindersEnabled(in: defaults))
+        let keys = [SharedKeys.notifyOneMinBefore, SharedKeys.notifyWhenTimerOver,
+                    SharedKeys.notifyCanvasReminder, SharedKeys.notifyDayResetWarning]
+        for key in keys { defaults.set(false, forKey: key) }
+        XCTAssertFalse(SettingsPermissionPresentation.remindersEnabled(in: defaults))
+        for key in keys {
+            defaults.set(true, forKey: key)
+            XCTAssertTrue(SettingsPermissionPresentation.remindersEnabled(in: defaults))
+            defaults.set(false, forKey: key)
+        }
     }
 
     func testMissingScreenTimeIsKnownActionableIssue() {

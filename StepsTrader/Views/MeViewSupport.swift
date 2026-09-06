@@ -200,7 +200,9 @@ final class MePosterCanvasLoadCoordinator {
         if let loaded {
             cachedCanvases[dayKey] = loaded
             missingLoads = missingLoads.filter { $0.dayKey != dayKey }
-        } else {
+        } else if !hasTrackedSnapshot {
+            // A tracked day may be unresolved because remote recovery failed.
+            // Let a later visit retry once connectivity returns.
             missingLoads.insert(loadID)
         }
         return loaded

@@ -50,15 +50,17 @@ struct SettingsAccountPage: View {
                                 .font(.geist(.subheadline))
                                 .foregroundStyle(theme.adaptivePrimaryText)
                             Spacer()
-                            Text(String(localized: "On", comment: "Settings account sync status value"))
+                            Text(String(localized: "Included with your account", comment: "Settings account sync capability"))
                                 .font(.geist(.subheadline).weight(.semibold))
                                 .foregroundStyle(theme.adaptiveSecondaryText)
+                                .multilineTextAlignment(.trailing)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                         .padding(.horizontal, 14)
                         .padding(.vertical, 13)
                         .accessibilityIdentifier("settings.account.automaticSync")
                     } footer: {
-                        SettingsFooter(text: String(localized: "Settings and history sync automatically across your devices.", comment: "Settings account sync footer"))
+                        SettingsFooter(text: String(localized: "Your account supports automatic sync of settings and history when connected. This page does not verify whether the latest changes have reached your other devices.", comment: "Settings account sync footer"))
                     }
 
                     accountSection(String(localized: "ACCOUNT", comment: "Settings account section header")) {

@@ -30,6 +30,12 @@ struct SettingsSheet: View {
     private var dayEndHour = 0
     @AppStorage(SharedKeys.dayEndMinute, store: UserDefaults.stepsTrader())
     private var dayEndMinute = 0
+    @AppStorage(SharedKeys.canvasVisualStyle) private var canvasStyleRaw = CanvasVisualStyle.editorial.rawValue
+    @AppStorage(SharedKeys.notifyOneMinBefore, store: UserDefaults.stepsTrader()) private var oneMinBefore = true
+    @AppStorage(SharedKeys.notifyWhenTimerOver, store: UserDefaults.stepsTrader()) private var timerOver = true
+    @AppStorage(SharedKeys.notifyCanvasReminder, store: UserDefaults.stepsTrader()) private var canvasReminder = false
+    @AppStorage(SharedKeys.notifyDayResetWarning, store: UserDefaults.stepsTrader()) private var dayResetWarning = true
+    private var remindersEnabled: Bool { oneMinBefore || timerOver || canvasReminder || dayResetWarning }
     @State private var showLogin = false
     /// Fallback route storage when no external binding is supplied (preview /
     /// standalone usage). The tab instance uses `featureTipRouteBinding` instead.
@@ -109,7 +115,8 @@ struct SettingsSheet: View {
                                 } label: {
                                     SettingsDestinationCardLabel(
                                         icon: "paintpalette",
-                                        title: String(localized: "Appearance", comment: "Settings destination title")
+                                        title: String(localized: "Appearance", comment: "Settings destination title"),
+                                        summary: canvasStyleRaw == CanvasVisualStyle.editorial.rawValue ? String(localized: "Objects") : String(localized: "Gradients")
                                     )
                                 }
                                 .buttonStyle(MattePressStyle())
@@ -120,7 +127,8 @@ struct SettingsSheet: View {
                                 } label: {
                                     SettingsDestinationCardLabel(
                                         icon: "bell",
-                                        title: String(localized: "Notifications", comment: "Settings destination title")
+                                        title: String(localized: "Notifications", comment: "Settings destination title"),
+                                        summary: !remindersEnabled ? String(localized: "Reminders off") : model.notificationAuthorizationStatus == .denied ? String(localized: "Blocked in system settings") : String(localized: "Reminder preferences")
                                     )
                                 }
                                 .buttonStyle(MattePressStyle())
@@ -154,6 +162,15 @@ struct SettingsSheet: View {
                         }
 
                         SettingsInformationGroup {
+                            NavigationLink {
+                                SettingsHelpPage(model: model)
+                            } label: {
+                                SettingsNavRow(icon: "questionmark.circle", title: String(localized: "Help & feedback"))
+                            }
+                            .buttonStyle(MattePressStyle())
+                            .accessibilityIdentifier("settings.destination.help")
+                            DetailDivider()
+
                             NavigationLink {
                                 ManualsPage(model: model)
                             } label: {
@@ -201,7 +218,7 @@ struct SettingsSheet: View {
                     .padding(.horizontal, horizontalContentPadding)
                     .padding(.bottom, 96)
                 }
-                .energyGradientBackground(model: model, showGrain: false)
+                .todayCanvasBackground()
                 .overlay {
                     // Subtle grain rendered ABOVE the rows so the plain-text
                     // settings interior still has a tactile printed feel —

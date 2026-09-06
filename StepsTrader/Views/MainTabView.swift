@@ -250,12 +250,6 @@ struct MainTabView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.35), value: isWideCanvas)
-            .overlay {
-                if selection == Tab.feeds.rawValue {
-                    TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
-                        .transaction { $0.animation = nil }
-                }
-            }
             .background(Color.clear)
             .onAppear {
                 model.recalculateDailyEnergy()
@@ -326,6 +320,7 @@ struct MainTabView: View {
         }
         // Settings left the tab bar; `embeddedInTab` defaults to false, which
         // drops the topCardHeight inset the tab version needed.
+        .modifier(TodayCanvasBackdropHost(model: model))
         .sheet(isPresented: $showSettings) {
             SettingsSheet(model: model, featureTipRouteBinding: $settingsDeepLinkRoute)
         }

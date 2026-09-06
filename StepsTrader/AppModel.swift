@@ -636,7 +636,8 @@ extension AppModel {
     var hasPermissionIssues: Bool {
         let familyMissing = !blockingStore.isAuthorized
         let notifications = SettingsPermissionPresentation.notifications(
-            status: notificationAuthorizationStatus
+            status: notificationAuthorizationStatus,
+            remindersEnabled: SettingsPermissionPresentation.remindersEnabled(in: UserDefaults.stepsTrader())
         )
         return familyMissing || notifications.contributesToWarning
     }

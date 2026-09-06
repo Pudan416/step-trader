@@ -204,15 +204,9 @@ extension View {
         modifier(GlassCardModifier(cornerRadius: cornerRadius, style: style, tint: tint))
     }
 
-    /// Sheet background for category / choices pickers.
-    /// iOS 26+ uses the system Liquid Glass sheet; older OS keeps ultraThinMaterial.
-    @ViewBuilder
+    /// The same daily artwork behind app-owned sheets and choices.
     func choicesSheetPresentationBackground() -> some View {
-        if #available(iOS 26.0, *) {
-            self
-        } else {
-            presentationBackground(.ultraThinMaterial)
-        }
+        presentationBackground { TodayCanvasBackground(detail: true) }
     }
 
     /// Compact inset field (note inputs inside choice rows).

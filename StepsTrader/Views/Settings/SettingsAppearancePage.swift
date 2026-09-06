@@ -12,22 +12,46 @@ struct CanvasAppearancePresentation: Equatable {
 
 struct SettingsAppearancePage: View {
     @ObservedObject var model: AppModel
-    @AppStorage(SharedKeys.gradientStyle) private var gradientStyleRaw: String = GradientStyle.radial.rawValue
-    @AppStorage(SharedKeys.gradientPalette) private var gradientPaletteRaw: String = GradientPalette.warmSunset.rawValue
-    @AppStorage(SharedKeys.dailyRandomThemeEnabled) private var dailyRandomThemeEnabled: Bool = false
-    @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
-    @AppStorage(SharedKeys.modernPaletteCategories) private var modernPaletteCategoriesRaw = ""
-    @AppStorage(SharedKeys.canvasVisualStyle) private var canvasVisualStyleRaw = CanvasVisualStyle.editorial.rawValue
-    /// Mirrors `SharedKeys.allowedCanvasShapes` only to trigger redraws —
-    /// `CanvasShapeType.allowedByUser` stays the single source of truth, since
-    /// it also seeds from the legacy keys. There is no gate: every shape is
-    /// available to every user.
-    @State private var allowedShapes: Set<CanvasShapeType> = []
-    @State private var allowedFills: Set<TextureKind> = []
+    @State private var draft = SettingsAppearanceDraft.load()
+    @State private var original = SettingsAppearanceDraft.load()
+    @State private var showDiscard = false
+    @Environment(\.dismiss) private var dismiss
+    private var gradientStyleRaw: String {
+        get { draft.style }
+        nonmutating set { draft.style = newValue }
+    }
+    private var gradientPaletteRaw: String {
+        get { draft.palette }
+        nonmutating set { draft.palette = newValue }
+    }
+    private var dailyRandomThemeEnabled: Bool {
+        get { draft.automatic }
+        nonmutating set { draft.automatic = newValue }
+    }
+    private var canvasTextureRaw: String {
+        get { draft.texture }
+        nonmutating set { draft.texture = newValue }
+    }
+    private var modernPaletteCategoriesRaw: String {
+        get { draft.categories }
+        nonmutating set { draft.categories = newValue }
+    }
+    private var canvasVisualStyleRaw: String {
+        get { draft.canvasStyle }
+        nonmutating set { draft.canvasStyle = newValue }
+    }
+    private var allowedShapes: Set<CanvasShapeType> {
+        get { draft.shapes }
+        nonmutating set { draft.shapes = newValue }
+    }
+    private var allowedFills: Set<TextureKind> {
+        get { draft.fills }
+        nonmutating set { draft.fills = newValue }
+    }
 
     @Environment(\.appTheme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var previewConfig: GradientPreviewConfig?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var isCanvasIngredientsExpanded = false
     @State private var lightHapticTick = 0
     @State private var mediumHapticTick = 0
@@ -57,7 +81,7 @@ struct SettingsAppearancePage: View {
                     .spring(response: 0.3, dampingFraction: 0.8),
                     reduceMotion: reduceMotion
                 ) {
-                    model.setDailyRandomTheme(enabled: mode.dailyRandomEnabled)
+                    draft.setAutomatic(mode.dailyRandomEnabled)
                 }
                 lightHapticTick &+= 1
             }
@@ -93,9 +117,7 @@ struct SettingsAppearancePage: View {
             set: { style in
                 guard style != selectedCanvasStyle else { return }
                 canvasVisualStyleRaw = style.rawValue
-                HistoryThumbnailCache.shared.invalidateAll()
                 lightHapticTick &+= 1
-                model.syncUserPreferencesToSupabase()
             }
         )
     }
@@ -147,22 +169,55 @@ struct SettingsAppearancePage: View {
         }
         .overlay { }
         .settingsDetailPage(title: String(localized: "Appearance", comment: "Settings section title"))
-        .sheet(item: $previewConfig) { config in
-            GradientPreviewSheet(
-                config: config,
-                onApply: {
-                    withMotionAnimation(
-                        .spring(response: 0.3, dampingFraction: 0.7),
-                        reduceMotion: reduceMotion
-                    ) {
-                        gradientStyleRaw = config.style.rawValue
+        .tint(theme.adaptivePrimaryText)
+        .navigationBarBackButtonHidden(true)
+        .interactiveDismissDisabled(draft != original)
+        .toolbar {
+            if draft != original {
+                ToolbarItem(placement: .topBarLeading) {
+                    HStack(spacing: 0) {
+                        Button { showDiscard = true } label: {
+                            Text("Cancel")
+                                .foregroundStyle(theme.adaptivePrimaryText)
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("settings.appearance.cancel")
                     }
-                    mediumHapticTick &+= 1
-                    previewConfig = nil
-                    model.syncUserPreferencesToSupabase()
                 }
-            )
-            .presentationBackground(.clear)
+            } else {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { dismiss() } label: {
+                        Image(systemName: "chevron.left")
+                            .foregroundStyle(theme.adaptivePrimaryText)
+                            .frame(minWidth: 44, minHeight: 44)
+                    }
+                    .accessibilityLabel("Settings")
+                    .accessibilityIdentifier("BackButton")
+                }
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            HStack {
+                Text(draft == original ? String(localized: "Preview") : String(localized: "Unsaved changes"))
+                    .font(.geist(.caption))
+                    .foregroundStyle(theme.adaptiveSecondaryText)
+                Spacer()
+                Button("Apply") { applyAppearance() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .tint(AppColors.brandAccent)
+                    .foregroundStyle(AppAccentInk.primary)
+                    .disabled(draft == original)
+                    .accessibilityIdentifier("settings.appearance.apply")
+            }
+            .padding(16)
+            .background(theme.backgroundColor)
+        }
+        .confirmationDialog("Discard appearance changes?", isPresented: $showDiscard, titleVisibility: .visible) {
+            Button("Discard changes", role: .destructive) { dismiss() }
+            Button("Keep editing", role: .cancel) { }
         }
         .sensoryFeedback(.impact(weight: .light), trigger: lightHapticTick)
         .sensoryFeedback(.impact(weight: .medium), trigger: mediumHapticTick)
@@ -171,20 +226,75 @@ struct SettingsAppearancePage: View {
     // MARK: - Appearance Mode
 
     private var canvasStylePicker: some View {
-        Picker(
-            String(localized: "Canvas style", comment: "Canvas renderer picker label"),
-            selection: canvasStyleBinding
-        ) {
-            Text(String(localized: "Editorial", comment: "Canvas renderer option"))
-                .font(.geist(.subheadline))
-                .tag(CanvasVisualStyle.editorial)
-            Text(String(localized: "Legacy", comment: "Canvas renderer option"))
-                .font(.geist(.subheadline))
-                .tag(CanvasVisualStyle.legacy)
+        VStack(alignment: .leading, spacing: 12) {
+            SettingsSectionLabel(text: String(localized: "Canvas style"))
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 12) { styleCards }
+            } else {
+                HStack(alignment: .top, spacing: 12) { styleCards }
+
+            }
+            Text("Explore a style, then tap Apply to save it.")
+                .font(.geist(.caption))
+                .foregroundStyle(theme.adaptiveSecondaryText)
+            SettingsAppearancePreview(draft: draft)
+                .frame(height: 180)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .contentShape(Rectangle())
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Canvas appearance preview")
+                .accessibilityIdentifier("settings.appearance.preview")
+            Text("Sample canvas. Style and background apply to today and future days. Shapes and fills affect new happenings.")
+                .font(.geist(.caption))
+                .foregroundStyle(theme.adaptiveSecondaryText)
         }
-        .pickerStyle(.segmented)
-        .controlSize(.large)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("settings.appearance.canvasStyle")
+    }
+
+    @ViewBuilder private var styleCards: some View {
+        styleCard(.editorial, title: String(localized: "Objects"), detail: String(localized: "Soft forms, arranged by your day"))
+        styleCard(.legacy, title: String(localized: "Gradients"), detail: String(localized: "Flowing color and drawn shapes"))
+    }
+
+    private func styleCard(_ style: CanvasVisualStyle, title: String, detail: String) -> some View {
+        let selected = selectedCanvasStyle == style
+        return Button { canvasStyleBinding.wrappedValue = style } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                SettingsAppearancePreview(draft: draft, styleOverride: style, thumbnail: true)
+                    .frame(height: 64)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .accessibilityHidden(true)
+                HStack {
+                    Text(title).font(.geist(.subheadline).weight(.semibold))
+                    Spacer(minLength: 4)
+                    if selected { Image(systemName: "checkmark.circle.fill").foregroundStyle(AppColors.brandAccent) }
+                }
+                Text(detail).font(.geist(.caption)).foregroundStyle(theme.adaptiveSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .foregroundStyle(theme.adaptivePrimaryText)
+            .padding(12)
+            .frame(minWidth: 138, maxWidth: .infinity, alignment: .leading)
+            .background(theme.adaptivePrimaryText.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(selected ? AppColors.brandAccent : theme.adaptiveDividerColor, lineWidth: selected ? 2 : 0.5))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+        .accessibilityValue(selected ? String(localized: "Selected") : String(localized: "Not selected"))
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityIdentifier("settings.appearance.style.\(style.rawValue)")
+    }
+
+    private func applyAppearance() {
+        draft.apply(shared: UserDefaults(suiteName: SharedKeys.appGroupId), dayKey: AppModel.dayKey(for: .now))
+        original = draft
+        HistoryThumbnailCache.shared.invalidateAll()
+        model.objectWillChange.send()
+        model.syncUserPreferencesToSupabase()
+        mediumHapticTick &+= 1
+        dismiss()
     }
 
     private var appearanceModePicker: some View {
@@ -230,7 +340,7 @@ struct SettingsAppearancePage: View {
                 .spring(response: 0.4, dampingFraction: 0.75),
                 reduceMotion: reduceMotion
             ) {
-                model.rerollDailyTheme()
+                draft.reroll()
             }
             mediumHapticTick &+= 1
         } label: {
@@ -260,9 +370,6 @@ struct SettingsAppearancePage: View {
 
     private var backgroundGroup: some View {
         VStack(alignment: .leading, spacing: 18) {
-            sectionLabel(String(localized: "Background", comment: "Appearance manual group heading"))
-                .padding(.horizontal, 16)
-
             sectionLabel(String(localized: "Palette", comment: "Appearance palette heading"))
                 .padding(.horizontal, 16)
 
@@ -308,8 +415,7 @@ struct SettingsAppearancePage: View {
                             ) {
                                 gradientPaletteRaw = scheme.rawValue
                             }
-                            model.syncUserPreferencesToSupabase()
-                            lightHapticTick &+= 1
+                                        lightHapticTick &+= 1
                         } label: {
                             paletteChip(scheme: scheme, isSelected: isSelected)
                         }
@@ -370,7 +476,7 @@ struct SettingsAppearancePage: View {
                 ForEach(GradientStyle.allCases, id: \.rawValue) { style in
                     let isSelected = gradientStyleRaw == style.rawValue
                     Button {
-                        previewConfig = GradientPreviewConfig(style: style)
+                        gradientStyleRaw = style.rawValue
                         lightHapticTick &+= 1
                     } label: {
                         VStack(spacing: 6) {
@@ -444,7 +550,7 @@ struct SettingsAppearancePage: View {
 
     private var modernPaletteCategoriesSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionLabel("MODERN PALETTES")
+            sectionLabel(String(localized: "Color families"))
                 .padding(.horizontal, 16)
 
             ScrollView(.horizontal) {
@@ -459,7 +565,7 @@ struct SettingsAppearancePage: View {
             }
             .scrollIndicators(.hidden)
 
-            Text("Choose one or more styles for Day Objects. All styles are enabled by default.")
+            Text("Choose color families for your canvas. Each day draws a palette from your selection; All includes every family.")
                 .font(.geist(.caption))
                 .foregroundStyle(theme.adaptiveMutedText)
                 .padding(.horizontal, 16)
@@ -553,7 +659,6 @@ struct SettingsAppearancePage: View {
             modernPaletteCategoriesRaw = ModernPaletteSelection.encode(categories)
         }
         lightHapticTick &+= 1
-        model.syncUserPreferencesToSupabase()
     }
 
     private var dayObjectsLabSection: some View {
@@ -595,7 +700,7 @@ struct SettingsAppearancePage: View {
             }
             .scrollIndicators(.hidden)
         }
-        .onAppear { allowedFills = Set(TextureKind.allowedByUser) }
+
     }
 
     private func fillChipButton(_ fill: TextureKind) -> some View {
@@ -605,7 +710,7 @@ struct SettingsAppearancePage: View {
         return Button {
             var next = allowedFills
             if isSelected { next.remove(fill) } else { next.insert(fill) }
-            guard TextureKind.setAllowed(next) else { return }
+            guard !next.isEmpty else { return }
             withMotionAnimation(
                 .spring(response: 0.3, dampingFraction: 0.7),
                 reduceMotion: reduceMotion
@@ -613,9 +718,6 @@ struct SettingsAppearancePage: View {
                 allowedFills = next
             }
             lightHapticTick &+= 1
-            HistoryThumbnailCache.shared.invalidateAll()
-            model.objectWillChange.send()
-            model.syncUserPreferencesToSupabase()
         } label: {
             VStack(spacing: 6) {
                 Image(systemName: fill.iconName)
@@ -666,7 +768,7 @@ struct SettingsAppearancePage: View {
             }
             .padding(.horizontal, 16)
         }
-        .onAppear { allowedShapes = Set(CanvasShapeType.allowedByUser) }
+
     }
 
     /// One multi-select over `selectableCases`, replacing the three
@@ -701,7 +803,7 @@ struct SettingsAppearancePage: View {
         return Button {
             var next = allowedShapes
             if isSelected { next.remove(shape) } else { next.insert(shape) }
-            guard CanvasShapeType.setAllowed(next) else { return }
+            guard !next.isEmpty else { return }
             withMotionAnimation(
                 .spring(response: 0.3, dampingFraction: 0.7),
                 reduceMotion: reduceMotion
@@ -709,7 +811,6 @@ struct SettingsAppearancePage: View {
                 allowedShapes = next
             }
             lightHapticTick &+= 1
-            model.syncUserPreferencesToSupabase()
         } label: {
             compactShapeChip(shape: shape, isSelected: isSelected)
         }
@@ -820,7 +921,6 @@ struct SettingsAppearancePage: View {
                 canvasTextureRaw = texture.rawValue
             }
             lightHapticTick &+= 1
-            model.syncUserPreferencesToSupabase()
         } label: {
             VStack(spacing: 6) {
                 ZStack {

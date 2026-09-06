@@ -193,6 +193,11 @@ private struct StepsTraderProductionRoot: View {
             )
         }
         if ProcessInfo.processInfo.arguments.contains("ui-testing-settings") {
+            let appearance = UserDefaults.standard
+            appearance.set(CanvasVisualStyle.legacy.rawValue, forKey: SharedKeys.canvasVisualStyle)
+            appearance.set(GradientStyle.radial.rawValue, forKey: SharedKeys.gradientStyle)
+            appearance.set(GradientPalette.warmSunset.rawValue, forKey: SharedKeys.gradientPalette)
+            appearance.set(false, forKey: SharedKeys.dailyRandomThemeEnabled)
             let defaults = UserDefaults.stepsTrader()
             defaults.set(10_000.0, forKey: SharedKeys.userStepsTarget)
             defaults.set(8.0, forKey: SharedKeys.userSleepTarget)

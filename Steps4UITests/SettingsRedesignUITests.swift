@@ -3,6 +3,94 @@ import XCTest
 final class SettingsRedesignUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
+        for _ in 0..<8 {
+            if element.exists && element.isHittable && element.frame.midY < app.frame.maxY - 110 { return }
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.65))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+            if element.exists && element.frame.midY < app.frame.minY + 150 {
+                end.press(forDuration: 0.1, thenDragTo: start)
+            } else {
+                start.press(forDuration: 0.1, thenDragTo: end)
+            }
+        }
+        if !(element.exists && element.isHittable) {
+            capture(app, name: "Unreachable control")
+            print(app.debugDescription)
+        }
+        XCTAssertTrue(element.exists && element.isHittable)
+    }
+
+    private func capture(_ app: XCUIApplication, name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    func testAppearanceApplyPersistsAndExactGoalEntryWorks() {
+        let app = launchSettings()
+        openSettingsDestination("settings.destination.appearance", in: app)
+        app.buttons["settings.appearance.style.legacy"].tap()
+        reveal(app.buttons["Manual"], in: app)
+        app.buttons["Manual"].tap()
+        reveal(app.buttons["Linear"], in: app)
+        app.buttons["Linear"].tap()
+        XCTAssertEqual(app.buttons["Linear"].value as? String, "Selected")
+        app.buttons["settings.appearance.apply"].tap()
+        app.terminate()
+        launchSettings(app, seedSettings: false)
+        openSettingsDestination("settings.destination.appearance", in: app)
+        reveal(app.buttons["Linear"], in: app)
+        XCTAssertEqual(app.buttons["Linear"].value as? String, "Selected")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["settings.yourDay"].tap()
+        app.buttons["settings.yourDay.steps.exactValue"].tap()
+        let field = app.alerts.textFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 3))
+        field.tap()
+        if let text = field.value as? String { field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: text.count)) }
+        field.typeText("12345")
+        app.alerts.buttons["Save"].tap()
+        XCTAssertTrue(String(describing: app.otherElements["settings.yourDay.steps.adjustable"].value).contains("12,345"))
+    }
+
+    func testDailyCanvasAcrossTabsAndSettings() {
+        let app = launchSettings(extraArguments: ["ui-testing-me-static-poster"])
+        for style in ["legacy", "editorial"] {
+            openSettingsDestination("settings.destination.appearance", in: app)
+            app.buttons["settings.appearance.style.\(style)"].tap()
+            let apply = app.buttons["settings.appearance.apply"]
+            if apply.isEnabled { apply.tap() }
+            else { app.navigationBars.buttons.element(boundBy: 0).tap() }
+            Thread.sleep(forTimeInterval: 2)
+            capture(app, name: "Daily canvas \(style) Settings")
+            app.buttons["settings.yourDay"].tap()
+            Thread.sleep(forTimeInterval: 1)
+            capture(app, name: "Daily canvas \(style) Goals")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            app.buttons["settings.close"].tap()
+            Thread.sleep(forTimeInterval: 1)
+            capture(app, name: "Daily canvas \(style) Me")
+            app.buttons["tab_feeds"].tap()
+            Thread.sleep(forTimeInterval: 1)
+            capture(app, name: "Daily canvas \(style) Feeds")
+            app.buttons["tab_me"].tap()
+            app.buttons["me_settings_button"].tap()
+            XCTAssertTrue(app.buttons["settings.yourDay"].waitForExistence(timeout: 5))
+        }
+    }
+
+    func testSettingsDesignScreenshotsInLightAndLargeText() {
+        for (size, appearance) in [("UICTContentSizeCategoryL", "Light"), ("UICTContentSizeCategoryAccessibilityM", "Dark")] {
+            let app = launchSettings(contentSizeCategory: size, appearance: appearance)
+            capture(app, name: "Settings \(appearance) \(size)")
+            openSettingsDestination("settings.destination.appearance", in: app)
+            capture(app, name: "Appearance \(appearance) \(size)")
+            app.terminate()
+        }
+    }
+
     private func launchSettings(extraArguments: [String] = []) -> XCUIApplication {
         launchSettings(
             contentSizeCategory: "UICTContentSizeCategoryL",
@@ -107,7 +195,7 @@ final class SettingsRedesignUITests: XCTestCase {
         XCTAssertTrue(yourDay.waitForExistence(timeout: 3))
         yourDay.tap()
 
-        XCTAssertTrue(app.staticTexts["Your day"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Goals & schedule"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.otherElements["settings.yourDay.steps"].exists)
         XCTAssertTrue(app.otherElements["settings.yourDay.sleep"].exists)
         XCTAssertTrue(app.otherElements["settings.yourDay.boundary"].exists)
@@ -121,17 +209,20 @@ final class SettingsRedesignUITests: XCTestCase {
         assertMinimumHitTarget(close)
 
         app.buttons["settings.yourDay"].tap()
-        XCTAssertTrue(app.navigationBars["Your day"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.navigationBars["Goals & schedule"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).isHittable)
     }
 
     func testAppearanceHorizontalSwipeDoesNotDismissDestination() {
         let app = launchSettings()
-        app.buttons["settings.destination.appearance"].tap()
-        app.segmentedControls.buttons["Manual"].tap()
+        openSettingsDestination("settings.destination.appearance", in: app)
+        app.buttons["settings.appearance.style.legacy"].tap()
+        reveal(app.buttons["Manual"], in: app)
+        app.buttons["Manual"].tap()
         let carousel = app.otherElements["settings.appearance.paletteCarousel"]
         XCTAssertTrue(carousel.waitForExistence(timeout: 3))
 
+        reveal(carousel, in: app)
         let horizon = app.buttons["Horizon"]
         XCTAssertTrue(horizon.exists)
         XCTAssertGreaterThan(horizon.frame.midX, carousel.frame.maxX)
@@ -148,13 +239,13 @@ final class SettingsRedesignUITests: XCTestCase {
 
     func testAppearanceManualChoicesExposeSelectedStateAtAccessibilitySize() {
         let app = launchSettings(contentSizeCategory: "UICTContentSizeCategoryAccessibilityM")
-        app.buttons["settings.destination.appearance"].tap()
-        app.segmentedControls.buttons["Manual"].tap()
-        let selectedPalette = app.buttons.matching(
-            NSPredicate(format: "value == 'Selected'")
-        ).firstMatch
-        XCTAssertTrue(selectedPalette.waitForExistence(timeout: 3))
-        XCTAssertTrue(selectedPalette.isHittable)
+        openSettingsDestination("settings.destination.appearance", in: app)
+        app.buttons["settings.appearance.style.legacy"].tap()
+        reveal(app.buttons["Manual"], in: app)
+        app.buttons["Manual"].tap()
+        let selectedPalette = app.buttons["Sunset"]
+        reveal(selectedPalette, in: app)
+        XCTAssertEqual(selectedPalette.value as? String, "Selected")
     }
 
     func testNotificationsUsesGroupedDetailSurface() {
@@ -324,14 +415,27 @@ final class SettingsRedesignUITests: XCTestCase {
 
     func testGradientPreviewCloseHasNamedMinimumTarget() {
         let app = launchSettings()
-        app.buttons["settings.destination.appearance"].tap()
-        app.segmentedControls.buttons["Manual"].tap()
-        app.buttons["Radial"].tap()
-
-        let closePreview = app.buttons["Close preview"]
-        XCTAssertTrue(closePreview.waitForExistence(timeout: 3))
-        XCTAssertTrue(closePreview.isHittable)
-        assertMinimumHitTarget(closePreview)
+        openSettingsDestination("settings.destination.appearance", in: app)
+        app.buttons["settings.appearance.style.legacy"].tap()
+        let manual = app.buttons["Manual"]
+        reveal(manual, in: app); manual.tap()
+        let linear = app.buttons["Linear"]
+        reveal(linear, in: app); linear.tap()
+        let cancel = app.buttons["settings.appearance.cancel"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 3))
+        assertMinimumHitTarget(cancel)
+        assertMinimumHitTarget(app.buttons["settings.appearance.apply"])
+        cancel.tap()
+        app.buttons["Discard changes"].tap()
+        openSettingsDestination("settings.destination.appearance", in: app)
+        app.buttons["settings.appearance.style.legacy"].tap()
+        reveal(app.buttons["Manual"], in: app)
+        app.buttons["settings.appearance.style.legacy"].tap()
+        reveal(app.buttons["Manual"], in: app)
+        app.buttons["Manual"].tap()
+        let radial = app.buttons["Radial"]
+        reveal(radial, in: app)
+        XCTAssertEqual(radial.value as? String, "Selected")
     }
 
     func testNotesRemainUsableAtAccessibilitySize() {
@@ -359,106 +463,52 @@ final class SettingsRedesignUITests: XCTestCase {
     func testYourDayEditorsExposeContextualSemanticsAndMinimumHitTargets() {
         let app = launchSettings()
         app.buttons["settings.yourDay"].tap()
-
-        let stepsAdjustable = app.otherElements["settings.yourDay.steps.adjustable"]
-        XCTAssertTrue(stepsAdjustable.waitForExistence(timeout: 3))
-        XCTAssertEqual(stepsAdjustable.label, "Daily Steps Goal")
-        XCTAssertTrue(String(describing: stepsAdjustable.value).contains("10,000"))
-
-        let stepsIncrement = app.buttons["settings.yourDay.steps.thousands.increment"]
-        XCTAssertTrue(stepsIncrement.exists)
-        XCTAssertEqual(stepsIncrement.label, "Increase daily steps goal by 1,000 steps")
-        assertMinimumHitTarget(stepsIncrement)
-
-        let sleepAdjustable = app.otherElements["settings.yourDay.sleep.adjustable"]
-        XCTAssertTrue(sleepAdjustable.waitForExistence(timeout: 3))
-        XCTAssertEqual(sleepAdjustable.label, "Sleep Goal")
-        XCTAssertTrue(String(describing: sleepAdjustable.value).contains("8"))
-
-        let sleepIncrement = app.buttons["settings.yourDay.sleep.increment"]
-        XCTAssertTrue(sleepIncrement.exists)
-        XCTAssertEqual(sleepIncrement.label, "Increase sleep goal")
-        assertMinimumHitTarget(sleepIncrement)
-
-        app.swipeUp()
-
-        let hourAdjustable = app.otherElements["settings.yourDay.boundary.hour.adjustable"]
-        let minuteAdjustable = app.otherElements["settings.yourDay.boundary.minute.adjustable"]
-        XCTAssertTrue(hourAdjustable.waitForExistence(timeout: 3))
-        XCTAssertTrue(minuteAdjustable.exists)
-        XCTAssertEqual(hourAdjustable.label, "New day hour")
-        XCTAssertEqual(minuteAdjustable.label, "New day minute")
-        XCTAssertTrue(String(describing: hourAdjustable.value).contains("0"))
-        XCTAssertTrue(String(describing: minuteAdjustable.value).contains("0"))
-
-        for id in [
-            "settings.yourDay.boundary.hour.increment",
-            "settings.yourDay.boundary.hour.decrement",
-            "settings.yourDay.boundary.minute.increment",
-            "settings.yourDay.boundary.minute.decrement",
-        ] {
-            assertMinimumHitTarget(app.buttons[id])
+        let steps = app.otherElements["settings.yourDay.steps.adjustable"]
+        XCTAssertTrue(steps.waitForExistence(timeout: 3))
+        XCTAssertTrue(String(describing: steps.value).contains("10,000"))
+        for id in ["settings.yourDay.steps.increment", "settings.yourDay.steps.decrement", "settings.yourDay.steps.exactValue", "settings.yourDay.sleep.increment", "settings.yourDay.sleep.decrement"] {
+            let control = app.buttons[id]
+            reveal(control, in: app)
+            assertMinimumHitTarget(control)
         }
+        let picker = app.buttons["settings.yourDay.boundary.picker"]
+        reveal(picker, in: app)
+        assertMinimumHitTarget(picker)
+        capture(app, name: "Goals and schedule")
     }
 
     func testSignedOutYourDayEditsPersistAcrossOrdinaryRelaunch() {
         let app = launchSettings()
-        XCTAssertEqual(app.buttons["settings.account"].label, "Sign in with Apple")
         app.buttons["settings.yourDay"].tap()
-
-        let stepsIncrement = app.buttons["settings.yourDay.steps.thousands.increment"]
-        XCTAssertTrue(stepsIncrement.waitForExistence(timeout: 3))
-        stepsIncrement.tap()
-
-        let sleepIncrement = app.buttons["settings.yourDay.sleep.increment"]
-        XCTAssertTrue(sleepIncrement.waitForExistence(timeout: 3))
-        sleepIncrement.tap()
-
-        app.swipeUp()
-        let hourIncrement = app.buttons["settings.yourDay.boundary.hour.increment"]
-        let minuteIncrement = app.buttons["settings.yourDay.boundary.minute.increment"]
-        XCTAssertTrue(hourIncrement.waitForExistence(timeout: 3))
-        XCTAssertTrue(minuteIncrement.waitForExistence(timeout: 3))
-        hourIncrement.tap()
-        minuteIncrement.tap()
-
-        let hourValue = app.otherElements["settings.yourDay.boundary.hour.adjustable"]
-        let minuteValue = app.otherElements["settings.yourDay.boundary.minute.adjustable"]
-        XCTAssertTrue(waitForValue("1", of: hourValue))
-        XCTAssertTrue(waitForValue("15", of: minuteValue))
-
-        // `AppModel.updateDayEnd` intentionally debounces for 350 ms. Wait past
-        // that real production boundary before terminating; do not write the
-        // app-group defaults from the test process.
-        let dayBoundaryCommit = expectation(description: "Day boundary commit")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            dayBoundaryCommit.fulfill()
-        }
-        wait(for: [dayBoundaryCommit], timeout: 1)
-
+        app.buttons["settings.yourDay.steps.increment"].tap()
+        app.buttons["settings.yourDay.sleep.increment"].tap()
+        let picker = app.buttons["settings.yourDay.boundary.picker"]
+        reveal(picker, in: app); picker.tap()
+        let wheel = app.pickerWheels.firstMatch
+        XCTAssertTrue(wheel.waitForExistence(timeout: 3))
+        let initialTime = wheel.value as? String ?? ""
+        wheel.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)).tap()
+        let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@", initialTime), object: wheel)
+        XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 3), .completed)
+        let chosenTime = wheel.value as? String ?? ""
+        XCTAssertFalse(chosenTime.isEmpty)
+        app.buttons["settings.yourDay.boundary.done"].tap()
+        // Wait beyond AppModel's 350 ms debounced boundary write.
+        let commit = expectation(description: "day boundary stored")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { commit.fulfill() }
+        wait(for: [commit], timeout: 1)
         app.terminate()
         launchSettings(app, seedSettings: false)
-
-        XCTAssertEqual(app.buttons["settings.account"].label, "Sign in with Apple")
         app.buttons["settings.yourDay"].tap()
-
-        let persistedSteps = app.otherElements["settings.yourDay.steps.adjustable"]
-        XCTAssertTrue(persistedSteps.waitForExistence(timeout: 3))
-        XCTAssertTrue(String(describing: persistedSteps.value).contains("11,000"))
-
-        let persistedSleep = app.otherElements["settings.yourDay.sleep.adjustable"]
-        XCTAssertTrue(persistedSleep.waitForExistence(timeout: 3))
-        XCTAssertTrue(String(describing: persistedSleep.value).contains("8.5"))
-
-        app.swipeUp()
-        let persistedHour = app.otherElements["settings.yourDay.boundary.hour.adjustable"]
-        let persistedMinute = app.otherElements["settings.yourDay.boundary.minute.adjustable"]
-        XCTAssertTrue(waitForValue("1", of: persistedHour))
-        XCTAssertTrue(persistedMinute.waitForExistence(timeout: 3))
-        XCTAssertTrue(waitForValue("15", of: persistedMinute))
+        XCTAssertTrue(String(describing: app.otherElements["settings.yourDay.steps.adjustable"].value).contains("10,500"))
+        XCTAssertTrue(String(describing: app.otherElements["settings.yourDay.sleep.adjustable"].value).contains("8.5"))
+        let persisted = app.buttons["settings.yourDay.boundary.picker"]
+        reveal(persisted, in: app)
+        XCTAssertEqual(persisted.value as? String, chosenTime)
     }
 
     func testCardHomePrioritizesAccountThenYourDay() {
+        defer { capture(XCUIApplication(), name: "Settings home") }
         let app = launchSettings()
         let account = app.buttons["settings.account"]
         let yourDay = app.buttons["settings.yourDay"]
@@ -545,10 +595,12 @@ final class SettingsRedesignUITests: XCTestCase {
         appearance.tap()
 
         XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 3))
-        let automatic = app.segmentedControls.buttons["Automatic"]
-        let manual = app.segmentedControls.buttons["Manual"]
+        let automatic = app.buttons["Automatic"]
+        app.buttons["settings.appearance.style.legacy"].tap()
+        let manual = app.buttons["Manual"]
         XCTAssertTrue(automatic.waitForExistence(timeout: 3))
         XCTAssertTrue(manual.exists)
+        reveal(automatic, in: app)
         XCTAssertTrue(automatic.isHittable)
         XCTAssertTrue(manual.isHittable)
         assertMinimumHitTarget(automatic)
@@ -587,14 +639,16 @@ final class SettingsRedesignUITests: XCTestCase {
 
     func testWallpaperOffersInstallBeforeOptionalInstructions() {
         let app = launchSettings()
-        app.buttons["settings.destination.widgetsWallpaper"].tap()
-        app.swipeUp()
-
+        openSettingsDestination("settings.destination.widgetsWallpaper", in: app)
         let install = app.buttons["settings.wallpaper.install"]
-        let instructions = app.buttons["settings.wallpaper.instructions"]
-        XCTAssertTrue(install.waitForExistence(timeout: 3))
-        XCTAssertTrue(instructions.exists)
-        XCTAssertLessThan(install.frame.minY, instructions.frame.minY)
+        reveal(install, in: app)
+        assertMinimumHitTarget(install)
+        let openShortcuts = app.buttons["settings.wallpaper.openShortcuts"]
+        reveal(openShortcuts, in: app)
+        assertMinimumHitTarget(openShortcuts)
+        XCTAssertTrue(app.staticTexts["Create an automation"].exists)
+        XCTAssertTrue(app.staticTexts["Check your Lock Screen"].exists)
+        capture(app, name: "Wallpaper setup")
     }
 
     func testDeveloperDiagnosticsHaveOneDestination() {

@@ -11,7 +11,7 @@ struct SettingsWidgetPage: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     SettingsGroupedSurface {
-                        SettingsWidgetControls()
+                        SettingsWidgetControls(model: model)
                             .padding(14)
                     }
                         .padding(.horizontal, 16)
@@ -25,6 +25,7 @@ struct SettingsWidgetPage: View {
 }
 
 struct SettingsWidgetControls: View {
+    @ObservedObject var model: AppModel
     @Environment(\.appTheme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(
@@ -45,6 +46,18 @@ struct SettingsWidgetControls: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(String(localized: "Add a widget"))
+                    .font(.geist(.subheadline).weight(.semibold))
+                Text(String(localized: "Touch and hold your Home Screen, then tap Edit → Add Widget. Search for Nowhere, choose a size and tap Add Widget."))
+                    .font(.geist(.subheadline))
+                    .foregroundStyle(theme.adaptiveSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityIdentifier("settings.widgets.addInstructions")
+
+            representativePreview
+
             VStack(alignment: .leading, spacing: 0) {
                 SettingsSectionLabel(text: String(localized: "Background", comment: "Widget section header"))
                     .padding(.bottom, 12)
@@ -115,22 +128,69 @@ struct SettingsWidgetControls: View {
         }
     }
 
-    @ViewBuilder
     private var wallpaperStatus: some View {
-        if wallpaperThumbnail != nil {
-            Label(String(localized: "Synced with wallpaper shortcut"), systemImage: "checkmark.circle.fill")
+        VStack(alignment: .leading, spacing: 8) {
+            Text(wallpaperThumbnail != nil
+                 ? String(localized: "A saved wallpaper image is available. This does not confirm that your automation is running.")
+                 : String(localized: "Run the wallpaper shortcut to save a background image for your widget."))
                 .font(.geist(.caption))
-                .foregroundStyle(.green)
-        } else {
-            VStack(alignment: .leading, spacing: 4) {
-                Label(String(localized: "Set up the wallpaper shortcut first"), systemImage: "arrow.right.circle")
-                    .font(.geist(.caption))
-                    .foregroundStyle(AppColors.brandAccent)
-                Text(String(localized: "Updates automatically each time the wallpaper shortcut runs."))
-                    .font(.geist(.caption2))
-                    .foregroundStyle(theme.adaptiveSecondaryText)
+                .foregroundStyle(theme.adaptiveSecondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+            NavigationLink {
+                SettingsShortcutPage(model: model)
+            } label: {
+                Label(String(localized: "Set up wallpaper"), systemImage: "arrow.right.circle")
+                    .font(.geist(.subheadline).weight(.semibold))
+                    .frame(minHeight: 44)
             }
+            .accessibilityIdentifier("settings.widgets.wallpaperSetup")
         }
+    }
+
+    private var representativePreview: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(String(localized: "Example widget", comment: "Representative widget preview label"))
+                .font(.geist(.caption))
+                .foregroundStyle(theme.adaptiveSecondaryText)
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 8) {
+                    Image(systemName: "bolt.fill")
+                        .foregroundStyle(AppColors.brandAccent)
+                    Text("60")
+                        .font(.geist(.title3).weight(.bold))
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 10)
+                        .background(Capsule().fill(AppColors.brandAccent))
+                    Text("/ 80 / 100")
+                        .font(.geist(.subheadline).weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.8))
+                    Spacer()
+                }
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(.white.opacity(0.12))
+                        Capsule().fill(AppColors.brandAccent.opacity(0.4)).frame(width: geometry.size.width * 0.8)
+                        Capsule().fill(AppColors.brandAccent).frame(width: geometry.size.width * 0.6)
+                    }
+                }
+                .frame(height: 14)
+                Text(String(localized: "Remaining · Earned · Daily maximum"))
+                    .font(.geist(.caption))
+                    .foregroundStyle(.white.opacity(0.8))
+            }
+            .padding(18)
+            .background {
+                if backgroundMode == "wallpaper" {
+                    wallpaperPreview
+                } else {
+                    RoundedRectangle(cornerRadius: 20).fill(Color(red: 0x22/255, green: 0x28/255, blue: 0x31/255))
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 20))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(String(localized: "Example widget: 60 remaining, 80 earned, 100 daily maximum."))
+        }
+        .accessibilityIdentifier("settings.widgets.preview")
     }
 
     private func bgCard<Preview: View>(

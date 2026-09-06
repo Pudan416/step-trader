@@ -467,7 +467,7 @@ struct MeFullCalendarView: View {
 
     var body: some View {
         ZStack {
-            theme.backgroundColor.ignoresSafeArea()
+            Color.clear
 
             VStack(spacing: 0) {
                 topBar
@@ -487,7 +487,7 @@ struct MeFullCalendarView: View {
                 .scrollIndicators(.hidden)
             }
         }
-        .energyGradientBackground(model: model, showGrain: false)
+        .todayCanvasBackground()
         .preferredColorScheme(theme.colorScheme)
         .fullScreenCover(item: Binding(
             get: { selectedDayKey.map { MeDayKeyWrapper(key: $0) } },

@@ -18,7 +18,7 @@ struct SettingsAccountCardLabel: View {
         case .signedOut:
             String(localized: "Sync across devices", comment: "Settings signed-out account card subtitle")
         case .signedIn:
-            String(localized: "Automatic sync on", comment: "Settings signed-in account card subtitle")
+            String(localized: "Sync across devices", comment: "Settings signed-in account card subtitle")
         }
     }
 
@@ -97,19 +97,19 @@ struct SettingsYourDayCardLabel: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var title: String {
-        String(localized: "Your day", comment: "Settings Your day card title")
+        String(localized: "Goals & schedule", comment: "Settings Your day card title")
     }
 
     private var stepsLabel: String {
-        String(localized: "Steps", comment: "Settings Your day steps metric label")
+        String(localized: "Step goal", comment: "Settings Your day steps metric label")
     }
 
     private var sleepLabel: String {
-        String(localized: "Sleep", comment: "Settings Your day sleep metric label")
+        String(localized: "Sleep goal", comment: "Settings Your day sleep metric label")
     }
 
     private var newDayLabel: String {
-        String(localized: "New day", comment: "Settings Your day boundary metric label")
+        String(localized: "Day starts", comment: "Settings Your day boundary metric label")
     }
 
     private var accessibilitySummary: String {
@@ -124,7 +124,7 @@ struct SettingsYourDayCardLabel: View {
             Text(title)
                 .font(.geist(.title3).weight(.bold))
                 .foregroundStyle(theme.adaptivePrimaryText)
-                .padding(.bottom, 18)
+                .padding(.bottom, 12)
 
             metrics
 
@@ -136,7 +136,7 @@ struct SettingsYourDayCardLabel: View {
                 .accessibilityHidden(true)
 
             HStack {
-                Text(String(localized: "Goals & schedule", comment: "Settings Your day card action"))
+                Text(String(localized: "Edit goals & schedule", comment: "Settings Your day card action"))
                     .font(.geist(.subheadline).weight(.semibold))
                     .foregroundStyle(theme.adaptivePrimaryText)
                 Spacer()
@@ -148,7 +148,7 @@ struct SettingsYourDayCardLabel: View {
             .padding(.top, 14)
         }
         .padding(18)
-        .frame(maxWidth: .infinity, minHeight: 184, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 160, alignment: .leading)
         .contentShape(Rectangle())
         .settingsCardSurface()
         .accessibilityElement(children: .ignore)
@@ -181,7 +181,7 @@ struct SettingsYourDayCardLabel: View {
                 .fixedSize(horizontal: false, vertical: true)
             Text(SettingsLocalizedCasing.uppercase(label))
                 .font(.geist(.caption2).weight(.semibold))
-                .tracking(1.4)
+                .tracking(0.5)
                 .foregroundStyle(
                     theme.adaptivePrimaryText.opacity(SettingsCardAppearance.captionOpacity)
                 )
@@ -194,7 +194,7 @@ struct SettingsYourDayCardLabel: View {
         HStack(alignment: .firstTextBaseline, spacing: 16) {
             Text(SettingsLocalizedCasing.uppercase(label))
                 .font(.geist(.caption2).weight(.semibold))
-                .tracking(1.4)
+                .tracking(0.5)
                 .foregroundStyle(
                     theme.adaptivePrimaryText.opacity(SettingsCardAppearance.captionOpacity)
                 )
@@ -214,6 +214,7 @@ struct SettingsDestinationCardLabel: View {
     let icon: String
     let title: String
     var warningText: String? = nil
+    var summary: String? = nil
     @Environment(\.appTheme) private var theme
 
     var body: some View {
@@ -233,12 +234,16 @@ struct SettingsDestinationCardLabel: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Spacer(minLength: 4)
-
             Text(title)
                 .font(.geist(.subheadline).weight(.semibold))
                 .foregroundStyle(theme.adaptivePrimaryText)
                 .fixedSize(horizontal: false, vertical: true)
+            if let summary {
+                Text(summary)
+                    .font(.geist(.caption))
+                    .foregroundStyle(theme.adaptiveSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
@@ -246,7 +251,7 @@ struct SettingsDestinationCardLabel: View {
         .settingsCardSurface()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
-        .accessibilityValue(warningText ?? "")
+        .accessibilityValue([warningText, summary].compactMap { $0 }.joined(separator: ". "))
     }
 }
 

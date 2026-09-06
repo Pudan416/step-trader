@@ -224,21 +224,26 @@ struct FeedRowView: View {
                 .fill(.ultraThinMaterial)
                 .overlay(Color.black.opacity(0.16))
 
-            ResourceGradientFill()
+            TodayCanvasUnlockFill()
                 .frame(width: max(0, fillWidth))
                 .frame(maxHeight: .infinity)
 
-            // A permanent scrim keeps one text colour readable at every fill
-            // fraction. No word changes colour when the timer crosses it.
-            LinearGradient(
-                stops: [
-                    .init(color: .black.opacity(0.30), location: 0),
-                    .init(color: .black.opacity(0.12), location: 0.58),
-                    .init(color: .clear, location: 0.84),
-                ],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
+            // Keep white text readable even when today's palette is all pastels.
+            // Uniform dimming preserves the light-to-dark order of the active fill.
+            Group {
+                if remainingMinutes != nil {
+                    Color.black.opacity(0.62)
+                } else {
+                    LinearGradient(
+                        stops: [
+                            .init(color: .black.opacity(0.30), location: 0),
+                            .init(color: .black.opacity(0.12), location: 0.58),
+                            .init(color: .clear, location: 0.84),
+                        ],
+                        startPoint: .leading, endPoint: .trailing
+                    )
+                }
+            }
             .allowsHitTesting(false)
 
             VStack(spacing: 0) {

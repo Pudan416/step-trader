@@ -192,6 +192,21 @@ final class MeCalendarTimelineTests: XCTestCase {
         XCTAssertEqual(attempts, 1)
     }
 
+    @MainActor
+    func testPosterCanvasLoaderRetriesUnresolvedTrackedDayAfterRecovery() async {
+        var recovered = false
+        let loader = MePosterCanvasLoadCoordinator { dayKey, _ in
+            recovered ? DayCanvas(dayKey: dayKey) : nil
+        }
+
+        let unavailable = await loader.canvas(for: "2026-08-27", hasTrackedSnapshot: true)
+        XCTAssertNil(unavailable)
+        recovered = true
+        let restored = await loader.canvas(for: "2026-08-27", hasTrackedSnapshot: true)
+        XCTAssertEqual(restored?.dayKey, "2026-08-27",
+                       "A temporary failure must not hide saved artwork after connectivity recovers")
+    }
+
     func testHistoryThumbnailUsesSavedCanvasEvenWithoutHappenings() throws {
         var canvas = DayCanvas(dayKey: "2026-08-26")
         canvas.gradientPalette = GradientPalette.aurora.rawValue

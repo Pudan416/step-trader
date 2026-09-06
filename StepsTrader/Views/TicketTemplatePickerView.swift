@@ -111,7 +111,7 @@ struct TicketTemplatePickerView: View {
                 }
                 .padding()
             }
-            .background(theme.backgroundColor)
+            .todayCanvasBackground(detail: true)
             .navigationTitle(String(localized: "New Feed", comment: "TemplatePicker – navigation title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

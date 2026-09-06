@@ -28,14 +28,6 @@ struct SettingsWallpaperControls: View {
     @Environment(\.appTheme) private var theme
 
     private let shortcutURL = AppConstants.URLs.wallpaperShortcut
-    private let steps: [(number: String, text: LocalizedStringKey)] = [
-        ("1", "Install the Nowhere wallpaper shortcut."),
-        ("2", "Open Shortcuts → Automation → +"),
-        ("3", "Choose App → select Nowhere → pick \"Is Closed\""),
-        ("4", "Set the action to the wallpaper shortcut"),
-        ("5", "Turn off \"Ask Before Running\""),
-    ]
-
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 12) {
@@ -47,6 +39,7 @@ struct SettingsWallpaperControls: View {
                     .foregroundStyle(theme.adaptiveSecondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            setupStep("1", title: String(localized: "Install the shortcut"), detail: String(localized: "Add the Nowhere wallpaper shortcut in Shortcuts, then run it once and allow the requested access."))
             Button { openURL(shortcutURL) } label: {
                 Label(String(localized: "Get Wallpaper Shortcut"), systemImage: "square.and.arrow.down")
                     .font(.geist(.subheadline).weight(.semibold))
@@ -58,36 +51,46 @@ struct SettingsWallpaperControls: View {
             .buttonStyle(MattePressStyle())
             .accessibilityIdentifier("settings.wallpaper.install")
 
-            DisclosureGroup {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
-                        if index > 0 { DetailDivider() }
-                        HStack(alignment: .top, spacing: 12) {
-                            Text(step.number)
-                                .font(.geist(.caption).weight(.bold).monospacedDigit())
-                                .foregroundStyle(AppColors.brandAccent)
-                                .frame(width: 20, height: 20)
-                                .background(Circle().fill(AppColors.brandAccent.opacity(0.15)))
-                            Text(step.text)
-                                .font(.geist(.subheadline))
-                                .foregroundStyle(theme.adaptiveSecondaryText)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .padding(.vertical, 10)
-                    }
+            VStack(alignment: .leading, spacing: 20) {
+                setupStep("2", title: String(localized: "Create an automation"), detail: String(localized: "In Shortcuts → Automation → +, choose App → Nowhere → Is Closed. Choose Run Immediately (or turn off Ask Before Running), then select the wallpaper shortcut as the action."))
+                Button {
+                    if let url = URL(string: "shortcuts://") { openURL(url) }
+                } label: {
+                    Label(String(localized: "Open Shortcuts"), systemImage: "arrow.up.forward.app")
+                        .font(.geist(.subheadline).weight(.semibold))
+                        .frame(minHeight: 44)
                 }
-                .padding(.top, 8)
-            } label: {
-                Text(String(localized: "Setup in Shortcuts", comment: "Wallpaper setup disclosure title"))
-                    .font(.geist(.subheadline).weight(.semibold))
-                    .foregroundStyle(theme.adaptivePrimaryText)
+                .accessibilityIdentifier("settings.wallpaper.openShortcuts")
+                setupStep("3", title: String(localized: "Check your Lock Screen"), detail: String(localized: "Open Nowhere, then leave the app. Lock your phone and check that the wallpaper changes to today's Canvas. If it does not, run the shortcut manually and check the automation in Shortcuts."))
+                SettingsFooter(text: String(localized: "Nowhere cannot check whether a Shortcuts automation is installed or running. A saved wallpaper image only confirms that an image was saved."))
             }
-            .tint(theme.adaptiveSecondaryText)
-            .accessibilityIdentifier("settings.wallpaper.instructions")
+            .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("settings.wallpaper.instructions")
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("settings.wallpaper.controls")
     }
+
+    private func setupStep(_ number: String, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(number)
+                .font(.geist(.caption).weight(.bold).monospacedDigit())
+                .foregroundStyle(AppColors.brandAccent)
+                .frame(width: 24, height: 24)
+                .background(Circle().fill(AppColors.brandAccent.opacity(0.15)))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.geist(.subheadline).weight(.semibold))
+                    .foregroundStyle(theme.adaptivePrimaryText)
+                Text(detail)
+                    .font(.geist(.subheadline))
+                    .foregroundStyle(theme.adaptiveSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
 }
 
 #Preview {

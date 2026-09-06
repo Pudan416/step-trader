@@ -1,234 +1,127 @@
 import SwiftUI
 
+/// Shared validation for both the whole-value controls and precise numeric entry.
+enum StepGoalValue {
+    static let minimum: Double = 1_000
+    static let maximum: Double = 99_500
+    static let increment: Double = 500
+
+    static func adjusted(_ value: Double, by amount: Double) -> Double {
+        min(maximum, max(minimum, value + amount))
+    }
+
+    static func parse(_ text: String) -> Double? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let digits = trimmed.compactMap(\.wholeNumberValue)
+        guard digits.count == trimmed.count,
+              let number = Double(digits.map(String.init).joined()),
+              (minimum...maximum).contains(number) else { return nil }
+        return number
+    }
+}
+
 struct StepGoalDrumPicker: View {
     @Binding var value: Double
     @Environment(\.appTheme) private var theme
-
-    private let minSteps = 1000
-    private let maxSteps = 99500
-
-    private var accessibilityLabel: String {
-        String(localized: "Daily Steps Goal")
-    }
+    @State private var isEditing = false
+    @State private var exactValue = ""
 
     private var accessibilityValue: String {
         let steps = Int(value).formatted(.number)
-        return String(
-            localized: "\(steps) steps",
-            comment: "Daily steps goal picker accessibility value"
-        )
-    }
-
-    private var digitValues: [Int] {
-        let clamped = max(minSteps, min(maxSteps, Int(value)))
-        let str = String(clamped)
-        let padded = String(repeating: "0", count: max(0, 5 - str.count)) + str
-        return padded.compactMap { $0.wholeNumberValue }
+        return String(localized: "\(steps) steps", comment: "Daily steps goal picker accessibility value")
     }
 
     var body: some View {
-        VStack(spacing: 16) {
-            HStack(spacing: 4) {
-                DrumDigitColumn(
-                    digit: digitValues[0],
-                    isInteractive: true,
-                    onChange: { updateDigit(at: 0, to: $0) },
-                    stepAmount: 10_000,
-                    accessibilityValue: accessibilityValue,
-                    accessibilityIdentifierPrefix: "settings.yourDay.steps.tenThousands",
-                    theme: theme
-                )
-                DrumDigitColumn(
-                    digit: digitValues[1],
-                    isInteractive: true,
-                    onChange: { updateDigit(at: 1, to: $0) },
-                    stepAmount: 1_000,
-                    accessibilityValue: accessibilityValue,
-                    accessibilityIdentifierPrefix: "settings.yourDay.steps.thousands",
-                    theme: theme
-                )
+        VStack(spacing: 8) {
+            HStack(spacing: 16) {
+                stepButton(increasing: false)
 
-                Text(",")
-                    .font(.geist(size: 24, weight: .medium, design: .rounded))
-                    .foregroundStyle(theme.adaptiveMutedText)
-                    .padding(.top, 16)
+                Button {
+                    exactValue = String(Int(value))
+                    isEditing = true
+                } label: {
+                    VStack(spacing: 1) {
+                        Text(Int(value).formatted(.number))
+                            .font(.geist(size: 34, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(theme.adaptivePrimaryText)
+                            .contentTransition(.numericText())
+                        HStack(spacing: 4) {
+                            Text(String(localized: "steps"))
+                            Image(systemName: "pencil")
+                        }
+                        .font(.geist(.caption).weight(.medium))
+                        .foregroundStyle(theme.adaptiveSecondaryText)
+                    }
+                    .frame(minWidth: 100, minHeight: 48)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "Enter exact step goal"))
+                .accessibilityValue(accessibilityValue)
+                .accessibilityIdentifier("settings.yourDay.steps.exactValue")
 
-                DrumDigitColumn(
-                    digit: digitValues[2],
-                    isInteractive: false,
-                    onChange: { _ in },
-                    stepAmount: 0,
-                    accessibilityValue: accessibilityValue,
-                    accessibilityIdentifierPrefix: "",
-                    theme: theme
-                )
-                DrumDigitColumn(
-                    digit: digitValues[3],
-                    isInteractive: false,
-                    onChange: { _ in },
-                    stepAmount: 0,
-                    accessibilityValue: accessibilityValue,
-                    accessibilityIdentifierPrefix: "",
-                    theme: theme
-                )
-                DrumDigitColumn(
-                    digit: digitValues[4],
-                    isInteractive: false,
-                    onChange: { _ in },
-                    stepAmount: 0,
-                    accessibilityValue: accessibilityValue,
-                    accessibilityIdentifierPrefix: "",
-                    theme: theme
-                )
+                stepButton(increasing: true)
             }
+            Text(String(localized: "Adjust by 500 steps, or tap the number to enter a goal."))
+                .font(.geist(.caption))
+                .foregroundStyle(theme.adaptiveSecondaryText)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 14)
         }
+        .sensoryFeedback(.impact(weight: .light), trigger: value)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(accessibilityLabel)
+        .accessibilityLabel(String(localized: "Daily step goal"))
         .accessibilityValue(accessibilityValue)
         .accessibilityIdentifier("settings.yourDay.steps.adjustable")
         .accessibilityAdjustableAction { direction in
             switch direction {
-            case .increment:
-                adjustGoal(by: 500)
-            case .decrement:
-                adjustGoal(by: -500)
-            @unknown default:
-                break
+            case .increment: adjust(by: StepGoalValue.increment)
+            case .decrement: adjust(by: -StepGoalValue.increment)
+            @unknown default: break
             }
         }
-    }
-
-    private func adjustGoal(by amount: Double) {
-        let updated = max(Double(minSteps), min(Double(maxSteps), value + amount))
-        withAnimation(.snappy(duration: 0.15)) { value = updated }
-    }
-
-    private func updateDigit(at index: Int, to newDigit: Int) {
-        var digits = digitValues
-        digits[index] = newDigit
-        let raw = digits[0] * 10000 + digits[1] * 1000 + digits[2] * 100 + digits[3] * 10 + digits[4]
-        let rounded = (Double(raw) / 500.0).rounded() * 500
-        let clamped = max(Double(minSteps), min(Double(maxSteps), rounded))
-        withAnimation(.snappy(duration: 0.15)) { value = clamped }
-    }
-}
-
-// MARK: - Single digit column
-
-private struct DrumDigitColumn: View {
-    let digit: Int
-    let isInteractive: Bool
-    let onChange: (Int) -> Void
-    let stepAmount: Int
-    let accessibilityValue: String
-    let accessibilityIdentifierPrefix: String
-    let theme: AppTheme
-
-    @State private var dragOffset: CGFloat = 0
-    @State private var lightHapticTick = 0
-    @GestureState private var isDragging = false
-
-    var body: some View {
-        if isInteractive {
-            activeColumn
-        } else {
-            passiveColumn
+        .alert(String(localized: "Daily step goal"), isPresented: $isEditing) {
+            TextField(String(localized: "Steps"), text: $exactValue)
+                .keyboardType(.numberPad)
+                .accessibilityIdentifier("settings.yourDay.steps.input")
+            Button(String(localized: "Cancel"), role: .cancel) { }
+            Button(String(localized: "Save")) {
+                if let parsed = StepGoalValue.parse(exactValue) { value = parsed }
+            }
+            .disabled(StepGoalValue.parse(exactValue) == nil)
+        } message: {
+            Text(String(localized: "Enter a whole number from \(Int(StepGoalValue.minimum).formatted()) to \(Int(StepGoalValue.maximum).formatted()) steps."))
         }
     }
 
-    private var activeColumn: some View {
-        VStack(spacing: 2) {
-            chevronButton(direction: .up)
-            digitTile(active: true)
-                .gesture(dragGesture)
-            chevronButton(direction: .down)
+    private func adjust(by amount: Double) {
+        withAnimation(.snappy(duration: 0.15)) {
+            value = StepGoalValue.adjusted(value, by: amount)
         }
-        .sensoryFeedback(.impact(weight: .light), trigger: lightHapticTick)
     }
 
-    private var passiveColumn: some View {
-        VStack(spacing: 2) {
-            Color.clear.frame(width: 44, height: 44)
-            digitTile(active: false)
-            Color.clear.frame(width: 44, height: 44)
-        }
-        .accessibilityHidden(true)
-    }
-
-    private func digitTile(active: Bool) -> some View {
-        Text("\(digit)")
-            .font(.geist(size: active ? 30 : 26, weight: active ? .bold : .semibold, design: .rounded))
-            .monospacedDigit()
-            .foregroundStyle(active ? theme.adaptivePrimaryText : theme.adaptiveMutedText)
-            .offset(y: active ? dragOffset : 0)
-            .contentTransition(.numericText())
-            .animation(.snappy(duration: 0.2), value: digit)
-            .frame(width: 44, height: 50)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(active ? theme.backgroundSecondary.opacity(0.5) : Color.clear)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(
-                                active
-                                    ? AppColors.brandAccent.opacity(isDragging ? 0.5 : 0.15)
-                                    : Color.clear,
-                                lineWidth: 1.5
-                            )
-                    )
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .accessibilityHidden(true)
-    }
-
-    private enum ChevronDirection { case up, down }
-
-    private func chevronButton(direction: ChevronDirection) -> some View {
-        let isUp = direction == .up
-        let canMove = isUp ? digit < 9 : digit > 0
+    private func stepButton(increasing: Bool) -> some View {
+        let enabled = increasing ? value < StepGoalValue.maximum : value > StepGoalValue.minimum
         return Button {
-            onChange(isUp ? digit + 1 : digit - 1)
-            lightHapticTick &+= 1
+            adjust(by: increasing ? StepGoalValue.increment : -StepGoalValue.increment)
         } label: {
-            Image(systemName: isUp ? "chevron.up" : "chevron.down")
-                .font(.geist(size: 10, weight: .bold))
-                .foregroundStyle(canMove ? theme.adaptiveSecondaryText : theme.adaptiveMutedText.opacity(0.2))
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
+            Image(systemName: increasing ? "plus" : "minus")
+                .font(.geist(size: 15, weight: .bold))
+                .foregroundStyle(enabled ? theme.adaptivePrimaryText : theme.adaptiveMutedText.opacity(0.3))
+                .frame(width: 48, height: 48)
+                .background(
+                    Circle()
+                        .fill(theme.backgroundSecondary.opacity(0.5))
+                        .overlay(Circle().stroke(theme.adaptiveDividerColor, lineWidth: 0.5))
+                )
         }
         .buttonStyle(.plain)
-        .disabled(!canMove)
-        .accessibilityLabel(
-            isUp
-                ? String(
-                    localized: "Increase daily steps goal by \(stepAmount.formatted()) steps",
-                    comment: "Daily steps goal picker increment button"
-                )
-                : String(
-                    localized: "Decrease daily steps goal by \(stepAmount.formatted()) steps",
-                    comment: "Daily steps goal picker decrement button"
-                )
-        )
+        .disabled(!enabled)
+        .accessibilityLabel(increasing
+            ? String(localized: "Increase daily steps goal by \(Int(StepGoalValue.increment).formatted()) steps", comment: "Daily steps goal picker increment button")
+            : String(localized: "Decrease daily steps goal by \(Int(StepGoalValue.increment).formatted()) steps", comment: "Daily steps goal picker decrement button"))
         .accessibilityValue(accessibilityValue)
-        .accessibilityIdentifier(
-            "\(accessibilityIdentifierPrefix).\(isUp ? "increment" : "decrement")"
-        )
-    }
-
-    private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 5)
-            .updating($isDragging) { _, state, _ in state = true }
-            .onChanged { g in dragOffset = g.translation.height * 0.25 }
-            .onEnded { g in
-                let threshold: CGFloat = 15
-                if g.translation.height < -threshold, digit < 9 {
-                    onChange(digit + 1)
-                    lightHapticTick &+= 1
-                } else if g.translation.height > threshold, digit > 0 {
-                    onChange(digit - 1)
-                    lightHapticTick &+= 1
-                }
-                withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) { dragOffset = 0 }
-            }
+        .accessibilityIdentifier("settings.yourDay.steps.\(increasing ? "increment" : "decrement")")
     }
 }

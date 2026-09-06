@@ -58,12 +58,13 @@ struct NotificationSettingsView: View {
         SettingsPermissionPresentation.notifications(
             status: usesDeniedNotificationsFixture
                 ? .denied
-                : model.notificationAuthorizationStatus
+                : model.notificationAuthorizationStatus,
+            remindersEnabled: oneMinBefore || timerOver || canvasReminder || dayResetWarning
         )
     }
 
     private var notificationDeliveryIsUnavailable: Bool {
-        notificationPresentation.status != .allowed
+        notificationPresentation.contributesToWarning
     }
 
     private var canvasTimeBinding: Binding<Date> {
@@ -137,6 +138,8 @@ struct NotificationSettingsView: View {
 
                         if notificationDeliveryIsUnavailable {
                             SettingsFooter(text: String(localized: "Reminders will not be delivered until notifications are allowed.", comment: "Notifications unavailable footer"))
+                        } else if !(oneMinBefore || timerOver || canvasReminder || dayResetWarning) {
+                            SettingsFooter(text: String(localized: "All reminders are off. Notification access is optional until you enable a reminder."))
                         }
                     }
                     .padding(.horizontal, 16)
@@ -261,6 +264,10 @@ struct NotificationSettingsView: View {
         .task {
             await refreshNotificationStatus()
         }
+        .onChange(of: oneMinBefore) { _, _ in model.objectWillChange.send() }
+        .onChange(of: timerOver) { _, _ in model.objectWillChange.send() }
+        .onChange(of: canvasReminder) { _, _ in model.objectWillChange.send() }
+        .onChange(of: dayResetWarning) { _, _ in model.objectWillChange.send() }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             Task { await refreshNotificationStatus() }
@@ -290,7 +297,10 @@ struct NotificationSettingsView: View {
     }
 
     private var notificationStatusColor: Color {
-        switch notificationPresentation.status {
+        if !notificationPresentation.contributesToWarning && notificationPresentation.status != .allowed {
+            return theme.adaptiveMutedText
+        }
+        return switch notificationPresentation.status {
         case .allowed, .connected:
             .green
         case .notRequested, .offInSystemSettings, .actionNeeded:

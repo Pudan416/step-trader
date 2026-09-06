@@ -90,18 +90,25 @@ struct SettingsPermissionPresentation: Equatable {
             return .init(status: .unavailable, action: nil, contributesToWarning: false)
         }
         return hasReturnedData
-            ? .init(status: .connected, action: nil, contributesToWarning: false)
+            ? .init(status: .connected, action: .openSystemSettings, contributesToWarning: false)
             : .init(status: .checkAccess, action: .checkAccess, contributesToWarning: false)
     }
 
-    static func notifications(status: UNAuthorizationStatus) -> Self {
+    static func remindersEnabled(in defaults: UserDefaults) -> Bool {
+        (defaults.object(forKey: SharedKeys.notifyOneMinBefore) as? Bool ?? true)
+            || (defaults.object(forKey: SharedKeys.notifyWhenTimerOver) as? Bool ?? true)
+            || (defaults.object(forKey: SharedKeys.notifyCanvasReminder) as? Bool ?? false)
+            || (defaults.object(forKey: SharedKeys.notifyDayResetWarning) as? Bool ?? true)
+    }
+
+    static func notifications(status: UNAuthorizationStatus, remindersEnabled: Bool) -> Self {
         switch status {
         case .authorized, .provisional, .ephemeral:
             return .init(status: .allowed, action: nil, contributesToWarning: false)
         case .notDetermined:
-            return .init(status: .notRequested, action: .requestPermission, contributesToWarning: true)
+            return .init(status: .notRequested, action: .requestPermission, contributesToWarning: remindersEnabled)
         case .denied:
-            return .init(status: .offInSystemSettings, action: .openSystemSettings, contributesToWarning: true)
+            return .init(status: .offInSystemSettings, action: .openSystemSettings, contributesToWarning: remindersEnabled)
         @unknown default:
             return .init(status: .checkAccess, action: .openSystemSettings, contributesToWarning: false)
         }

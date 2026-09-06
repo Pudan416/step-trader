@@ -110,6 +110,8 @@ struct ProfileEditorView: View {
                 }
                 
             }
+            .scrollContentBackground(.hidden)
+            .todayCanvasBackground(detail: true)
             .navigationTitle(String(localized: "Edit Profile", comment: "ProfileEditor – navigation title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

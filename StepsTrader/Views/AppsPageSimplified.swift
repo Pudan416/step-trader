@@ -122,14 +122,8 @@ struct AppsPageSimplified: View {
                 }
                 .zIndex(0)
 
-                if !reduceTransparency {
-                    TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
-                        .ignoresSafeArea()
-                        .allowsHitTesting(false)
-                        .zIndex(10)
-                }
             }
-            .energyGradientBackground(model: model, showGrain: false)
+            .todayCanvasBackground()
             .background(Color.clear)
             .safeAreaInset(edge: .top, spacing: 0) {
                 Color.clear.frame(height: topCardHeight)
@@ -395,7 +389,7 @@ struct AppsPageSimplified: View {
                 )
                 .padding()
             }
-            .background(theme.backgroundColor)
+            .todayCanvasBackground(detail: true)
             .navigationTitle(group.wrappedValue.name.isEmpty ? String(localized: "Feed") : group.wrappedValue.name)
             .navigationBarTitleDisplayMode(.inline)
             // Let the system render the nav bar background — on iOS 26 this

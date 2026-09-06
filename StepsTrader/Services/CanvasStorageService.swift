@@ -51,6 +51,7 @@ final class CanvasStorageService {
         do {
             let data = try JSONEncoder().encode(canvas)
             try data.write(to: url, options: .atomic)
+            NotificationCenter.default.post(name: .todayCanvasStorageDidChange, object: canvas.dayKey)
             return true
         } catch {
             Self.log.error("Failed to save canvas for \(canvas.dayKey): \(error.localizedDescription)")
@@ -79,6 +80,7 @@ final class CanvasStorageService {
     func deleteCanvas(for dayKey: String) {
         let url = canvasFileURL(for: dayKey)
         try? fileManager.removeItem(at: url)
+        NotificationCenter.default.post(name: .todayCanvasStorageDidChange, object: dayKey)
     }
 
     /// Moves the current session to a key produced by a day-end preference
@@ -172,7 +174,7 @@ final class CanvasStorageService {
     }
 
     @MainActor
-    private func renderedSnapshot(
+    func renderedSnapshot(
         canvas: DayCanvas,
         size: CGSize,
         scale: CGFloat,

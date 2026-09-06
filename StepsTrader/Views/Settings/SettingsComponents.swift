@@ -287,30 +287,22 @@ struct SettingsFooter: View {
 
 // MARK: - Settings background
 
-/// Standard energy gradient — same surface used by every other tab, so the
-/// settings page reads as continuous with the rest of the app. The "tactile"
-/// feel comes from removing all glass cards plus the `SettingsGrainOverlay`
-/// rendered above the rows, *not* from a darker backdrop.
+/// Shared daily Canvas surface used by the Settings root.
 struct SettingsGradientBG: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        Color.clear.energyGradientBackground(model: model, showGrain: false)
+        Color.clear.todayCanvasBackground()
     }
 }
 
-/// A calmer form of the energy wash for pushed Settings destinations. The
-/// root page keeps the full-strength gradient while details recede behind
-/// their controls.
+/// The same artwork, subdued behind text-heavy Settings destinations.
 struct SettingsDetailBackground: View {
     @ObservedObject var model: AppModel
     @Environment(\.appTheme) private var theme
 
     var body: some View {
-        ZStack {
-            SettingsGradientBG(model: model)
-            theme.backgroundColor.opacity(0.78)
-        }
+        TodayCanvasBackground(detail: true)
         .ignoresSafeArea()
         .accessibilityHidden(true)
         .accessibilityIdentifier("settings.detail.background")

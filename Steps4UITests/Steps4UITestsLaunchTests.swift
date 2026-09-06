@@ -124,7 +124,9 @@ final class Steps4UITestsLaunchTests: XCTestCase {
 
     func testTappingCalendarDayCentersTheWholeSelectedPoster() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["ui-testing"]
+        app.launchArguments = [
+            "ui-testing", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL",
+        ]
         app.launch()
 
         let meTab = app.buttons["tab_me"]
@@ -142,9 +144,15 @@ final class Steps4UITestsLaunchTests: XCTestCase {
             with: ""
         )
 
+        attachScreenshot(named: "me-before-calendar-selection")
         targetDay.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
 
         let carousel = app.descendants(matching: .any)["me_poster_carousel"]
+        attachScreenshot(named: "me-after-calendar-selection")
+        let hierarchy = XCTAttachment(string: app.debugDescription)
+        hierarchy.name = "me-after-calendar-selection-hierarchy"
+        hierarchy.lifetime = .keepAlways
+        add(hierarchy)
         let selectedValue = NSPredicate(format: "value == %@", targetKey)
         expectation(for: selectedValue, evaluatedWith: carousel)
         waitForExpectations(timeout: 3)

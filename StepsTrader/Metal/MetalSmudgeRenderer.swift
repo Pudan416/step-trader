@@ -53,41 +53,58 @@ struct StrokeSegment {
     let direction: SIMD2<Float>
 }
 
-/// Keeps at most one continuous segment per finger between display frames.
-/// UIKit can deliver more touch samples than Metal can display; issuing a
-/// full-canvas compute pass for every sample caused uneven frame pacing.
+/// Keeps bends from the input path while bounding work after a delayed frame.
+/// Straight samples merge; bursts simplify the least visible corner first.
 struct SmudgeStrokeAccumulator {
-    private var strokes: [ObjectIdentifier: StrokeSegment] = [:]
+    private var strokes: [ObjectIdentifier: [StrokeSegment]] = [:]
+    private let maximumSegmentsPerTouch = 4
 
     var isEmpty: Bool { strokes.isEmpty }
 
     mutating func enqueue(_ stroke: StrokeSegment, for id: ObjectIdentifier) {
-        guard let existing = strokes[id] else {
-            strokes[id] = stroke
-            return
+        var path = strokes[id] ?? []
+        if let last = path.last,
+           simd_distance(last.p1, stroke.p0) < 0.01,
+           simd_dot(last.direction, stroke.direction) > 0.995,
+           Self.cornerError(last, stroke) < 0.75 {
+            path[path.count - 1] = Self.join(last, stroke)
+        } else {
+            path.append(stroke)
         }
+        while path.count > maximumSegmentsPerTouch {
+            let index = (0..<(path.count - 1)).min {
+                Self.cornerError(path[$0], path[$0 + 1]) < Self.cornerError(path[$1], path[$1 + 1])
+            }!
+            path[index] = Self.join(path[index], path[index + 1])
+            path.remove(at: index + 1)
+        }
+        strokes[id] = path
+    }
 
-        let vector = stroke.p1 - existing.p0
+    private static func cornerError(_ first: StrokeSegment, _ second: StrokeSegment) -> Float {
+        let vector = second.p1 - first.p0
+        let lengthSquared = simd_length_squared(vector)
+        guard lengthSquared > 0.001 else { return simd_distance(first.p0, first.p1) }
+        let t = min(max(simd_dot(first.p1 - first.p0, vector) / lengthSquared, 0), 1)
+        return simd_distance(first.p1, first.p0 + vector * t)
+    }
+
+    private static func join(_ first: StrokeSegment, _ second: StrokeSegment) -> StrokeSegment {
+        let vector = second.p1 - first.p0
         let length = simd_length(vector)
-        strokes[id] = StrokeSegment(
-            p0: existing.p0,
-            p1: stroke.p1,
-            radius: max(existing.radius, stroke.radius),
-            strength: stroke.strength,
-            dragFactor: stroke.dragFactor,
-            direction: length > 0.001 ? vector / length : stroke.direction
-        )
+        return StrokeSegment(p0: first.p0, p1: second.p1,
+            radius: max(first.radius, second.radius), strength: second.strength,
+            dragFactor: second.dragFactor,
+            direction: length > 0.001 ? vector / length : second.direction)
     }
 
     mutating func drain() -> [StrokeSegment] {
-        let result = Array(strokes.values)
+        let result = strokes.values.flatMap { $0 }
         strokes.removeAll(keepingCapacity: true)
         return result
     }
 
-    mutating func removeAll() {
-        strokes.removeAll(keepingCapacity: true)
-    }
+    mutating func removeAll() { strokes.removeAll(keepingCapacity: true) }
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -144,21 +161,18 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
     var needsSnapshot: Bool { !isBaseInitialized_ }
 
     // ── Tuning constants ────────────────────────────────────────────
-    private let relaxationTimeout: CFTimeInterval = 4.8
-    private let targetReturnSeconds: Float = 1.65
-    private let alphaDiffusion: Float = 0.08
-    private let ageAcceleration: Float = 1.8
-    private let fadeWindow: Float = 1.6
+    private let relaxationTimeout: CFTimeInterval = 4.0
+    private let targetReturnSeconds: Float = 1.0
+    private let alphaDiffusion: Float = 0.05
+    private let ageAcceleration: Float = 3.5
+    private let fadeWindow: Float = 1.0
 
-    // Express the brush in points, then scale once for the backing texture.
-    // The previous pixel constants made the brush three times smaller and
-    // visually harder on a 3x iPhone display.
-    private let baseRadiusPoints: Float = 56.0
-    private let maxRadiusPoints: Float = 90.0
-    private let baseStrength: Float = 0.22
-    private let maxStrength: Float = 0.44
-    private let baseDragFactor: Float = 0.55
-    private let maxDragFactor: Float = 1.20
+    private let baseRadius: Float = 80.0
+    private let maxRadius: Float = 180.0
+    private let baseStrength: Float = 0.60
+    private let maxStrength: Float = 0.95
+    private let baseDragFactor: Float = 1.8
+    private let maxDragFactor: Float = 3.5
 
     // ── Stroke queue ────────────────────────────────────────────────
     private var pendingStrokes = SmudgeStrokeAccumulator()
@@ -387,9 +401,9 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
     // MARK: - Gesture Input (multi-touch)
     // ════════════════════════════════════════════════════════════════
 
-    func handleTouchBegan(id: ObjectIdentifier, at point: CGPoint, scale: CGFloat) {
+    func handleTouchBegan(id: ObjectIdentifier, at point: CGPoint, scale: CGFloat, timestamp: CFTimeInterval? = nil) {
         guard isBaseInitialized_ else { return }
-        let now   = CACurrentMediaTime()
+        let now   = timestamp ?? CACurrentMediaTime()
         let pixel = SIMD2<Float>(Float(point.x * scale), Float(point.y * scale))
 
         activeTouches[id] = TouchState(
@@ -402,11 +416,11 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
         let ripple = RippleInfo(
             center:    pixel,
             elapsed:   0,
-            amplitude: 10 * Float(scale),
-            ringSpeed: 72 * Float(scale),
-            mainWidth: 38 * Float(scale),
-            decay:     0.0010 / Float(scale),
-            duration:  2.6
+            amplitude: 50,
+            ringSpeed: 250,
+            mainWidth: 42,
+            decay:     0.0015,
+            duration:  3.0
         )
         activeRipples.append(ActiveRipple(info: ripple, startTime: now))
         if activeRipples.count > maxRipples {
@@ -422,12 +436,12 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
 
     func addStrokeSegment(id: ObjectIdentifier,
                           from previous: CGPoint, to current: CGPoint,
-                          scale: CGFloat) {
+                          scale: CGFloat, timestamp: CFTimeInterval? = nil) {
         guard isBaseInitialized_,
               var state = activeTouches[id]
         else { return }
 
-        let now = CACurrentMediaTime()
+        let now = timestamp ?? CACurrentMediaTime()
         let dt  = Float(now - state.previousTime)
         state.previousTime = now
 
@@ -441,21 +455,11 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
         let speed  = simd_length(v) / max(dt, 1e-4)
         let segLen = simd_length(v)
 
-        let safeScale = max(Float(scale), 1)
-        let speedPoints = speed / safeScale
-        let baseRadius = baseRadiusPoints * safeScale
-        let maxRadius = maxRadiusPoints * safeScale
-        let radius = min(max(baseRadius + speedPoints * 0.025 * safeScale, baseRadius), maxRadius)
-        let strength = min(
-            max(baseStrength + speedPoints * 0.00016, baseStrength),
-            maxStrength
-        )
+        let radius     = min(max(baseRadius   + speed * 0.04,   baseRadius),   maxRadius)
+        let strength   = min(max(baseStrength + speed * 0.0018, baseStrength), maxStrength)
 
-        let rawDrag = min(
-            max(baseDragFactor + speedPoints * 0.00035, baseDragFactor),
-            maxDragFactor
-        )
-        let dragFactor = min(max(rawDrag * segLen, 2 * safeScale), 24 * safeScale)
+        let rawDrag    = min(max(baseDragFactor + speed * 0.0008, baseDragFactor), maxDragFactor)
+        let dragFactor = min(max(rawDrag * segLen, 8.0), 80.0)
 
         let direction  = segLen > 0.001 ? v / segLen : SIMD2<Float>(0, 0)
 
@@ -624,10 +628,27 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
         guard let input   = currentInteractive,
               let output  = otherInteractive,
               let ageIn   = currentAge,
-              let ageOut  = otherAge,
-              let encoder = commandBuffer.makeComputeCommandEncoder()
+              let ageOut  = otherAge
         else { return }
 
+        let minX = max(0, Int(floor(min(stroke.p0.x, stroke.p1.x) - stroke.radius)))
+        let minY = max(0, Int(floor(min(stroke.p0.y, stroke.p1.y) - stroke.radius)))
+        let maxX = min(textureWidth, Int(ceil(max(stroke.p0.x, stroke.p1.x) + stroke.radius)) + 1)
+        let maxY = min(textureHeight, Int(ceil(max(stroke.p0.y, stroke.p1.y) + stroke.radius)) + 1)
+        guard maxX > minX, maxY > minY,
+              let blit = commandBuffer.makeBlitCommandEncoder() else { return }
+        // Ping-pong targets can contain an older stroke. Preserve unchanged
+        // pixels with a GPU copy, then run the brush math only in its bounds.
+        let origin = MTLOrigin(x: 0, y: 0, z: 0)
+        let size = MTLSize(width: textureWidth, height: textureHeight, depth: 1)
+        blit.copy(from: input, sourceSlice: 0, sourceLevel: 0,
+                  sourceOrigin: origin, sourceSize: size,
+                  to: output, destinationSlice: 0, destinationLevel: 0, destinationOrigin: origin)
+        blit.copy(from: ageIn, sourceSlice: 0, sourceLevel: 0,
+                  sourceOrigin: origin, sourceSize: size,
+                  to: ageOut, destinationSlice: 0, destinationLevel: 0, destinationOrigin: origin)
+        blit.endEncoding()
+        guard let encoder = commandBuffer.makeComputeCommandEncoder() else { return }
         encoder.setComputePipelineState(smudgePipeline)
 
         var params = SmudgeParams(
@@ -644,13 +665,12 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
         encoder.setTexture(ageOut, index: 3)
         encoder.setBytes(&params, length: MemoryLayout<SmudgeParams>.stride, index: 0)
 
-        let tgs = MTLSize(width: 16, height: 16, depth: 1)
-        let tgc = MTLSize(
-            width:  (textureWidth  + 15) / 16,
-            height: (textureHeight + 15) / 16,
-            depth: 1
+        var dispatchOrigin = SIMD2<UInt32>(UInt32(minX), UInt32(minY))
+        encoder.setBytes(&dispatchOrigin, length: MemoryLayout<SIMD2<UInt32>>.stride, index: 1)
+        encoder.dispatchThreads(
+            MTLSize(width: maxX - minX, height: maxY - minY, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 16, height: 16, depth: 1)
         )
-        encoder.dispatchThreadgroups(tgc, threadsPerThreadgroup: tgs)
         encoder.endEncoding()
 
         useA.toggle()

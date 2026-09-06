@@ -25,13 +25,7 @@ struct LoginView: View {
                     .clipped()
                     .ignoresSafeArea()
             } else {
-                EnergyGradientBackground(
-                    stepsPoints: 0,
-                    sleepPoints: 0,
-                    hasStepsData: false,
-                    hasSleepData: false,
-                    showGrain: false
-                )
+                TodayCanvasBackground(detail: true)
             }
 
             if useLogin1Background {

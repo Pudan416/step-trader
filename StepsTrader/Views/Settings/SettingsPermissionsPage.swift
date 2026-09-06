@@ -11,6 +11,11 @@ struct SettingsPermissionsPage: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
+    @AppStorage(SharedKeys.notifyOneMinBefore, store: UserDefaults.stepsTrader()) private var oneMinBefore = true
+    @AppStorage(SharedKeys.notifyWhenTimerOver, store: UserDefaults.stepsTrader()) private var timerOver = true
+    @AppStorage(SharedKeys.notifyCanvasReminder, store: UserDefaults.stepsTrader()) private var canvasReminder = false
+    @AppStorage(SharedKeys.notifyDayResetWarning, store: UserDefaults.stepsTrader()) private var dayResetWarning = true
+
     @State private var permissionFailure: SettingsPermissionFailurePresentation?
 
     private var isHealthKitAvailable: Bool {
@@ -78,8 +83,19 @@ struct SettingsPermissionsPage: View {
         SettingsPermissionPresentation.notifications(
             status: usesDeniedNotificationsFixture || usesPermissionActionsFixture
                 ? .denied
-                : model.notificationAuthorizationStatus
+                : model.notificationAuthorizationStatus,
+            remindersEnabled: oneMinBefore || timerOver || canvasReminder || dayResetWarning
         )
+    }
+
+    private var notificationSubtitle: String {
+        if notificationPresentation.contributesToWarning {
+            return String(localized: "Your enabled reminders cannot be delivered.")
+        }
+        if oneMinBefore || timerOver || canvasReminder || dayResetWarning {
+            return String(localized: "Delivers your enabled timers, reminders and alerts.")
+        }
+        return String(localized: "All reminders are off. Notification access is optional.")
     }
 
     private var missingPermissionCount: Int {
@@ -104,10 +120,10 @@ struct SettingsPermissionsPage: View {
                             identifier: "settings.permissions.health",
                             icon: "heart.fill",
                             title: String(localized: "Health", comment: "Permission row – HealthKit"),
-                            subtitle: String(localized: "Steps, sleep, workouts", comment: "Permission row – HealthKit detail"),
+                            subtitle: String(localized: "Health data fills your Canvas with steps, sleep and workouts."),
                             presentation: healthPresentation,
-                            actionTitle: String(localized: "Check access", comment: "Health permission action"),
-                            onFix: requestHealthAuthorization
+                            actionTitle: healthPresentation.status == .connected ? String(localized: "Manage access") : String(localized: "Check access"),
+                            onFix: handleHealthAction
                         )
 
                         if let failure = permissionFailure(for: .health) {
@@ -121,7 +137,7 @@ struct SettingsPermissionsPage: View {
                             identifier: "settings.permissions.screenTime",
                             icon: "hourglass",
                             title: String(localized: "Screen Time", comment: "Permission row – Family Controls"),
-                            subtitle: String(localized: "App blocking & limits", comment: "Permission row – Family Controls detail"),
+                            subtitle: String(localized: "Without access, app blocking and limits cannot run."),
                             presentation: screenTimePresentation,
                             actionTitle: String(localized: "Allow access", comment: "Screen Time permission action"),
                             onFix: requestScreenTimeAuthorization
@@ -138,7 +154,7 @@ struct SettingsPermissionsPage: View {
                             identifier: "settings.permissions.notifications",
                             icon: "bell.fill",
                             title: String(localized: "Notifications", comment: "Permission row – Notifications"),
-                            subtitle: String(localized: "Timers, reminders, alerts", comment: "Permission row – Notifications detail"),
+                            subtitle: notificationSubtitle,
                             presentation: notificationPresentation,
                             actionTitle: notificationActionTitle,
                             onFix: handleNotificationAction
@@ -151,7 +167,7 @@ struct SettingsPermissionsPage: View {
                     }
                     .padding(.horizontal, 16)
 
-                    SettingsFooter(text: String(localized: "If a permission was denied, use its action button to open Settings where you can enable it.", comment: "Permissions – footer hint"))
+                    SettingsFooter(text: String(localized: "Manage Health access in Settings → Apps → Health → Data Access & Devices → Nowhere. Other permission buttons open the relevant request or app settings.", comment: "Permissions – footer hint"))
                         .padding(.horizontal, 16)
                 }
                 .padding(.bottom, 80)
@@ -180,7 +196,7 @@ struct SettingsPermissionsPage: View {
                 Text(String(localized: "Some permissions are missing", comment: "Permissions – missing banner title"))
                     .font(.geist(.subheadline).weight(.semibold))
                     .foregroundStyle(theme.adaptivePrimaryText)
-                Text(String(localized: "\(missingPermissionCount) of 3 not granted", comment: "Permissions – missing count"))
+                Text(String(localized: "Review the affected features below."))
                     .font(.geist(.caption))
                     .foregroundStyle(theme.adaptiveSecondaryText)
             }
@@ -322,13 +338,24 @@ struct SettingsPermissionsPage: View {
     private func permissionColor(
         for presentation: SettingsPermissionPresentation
     ) -> Color {
-        switch presentation.status {
+        if !presentation.contributesToWarning && (presentation.status == .notRequested || presentation.status == .offInSystemSettings) {
+            return theme.adaptiveMutedText
+        }
+        return switch presentation.status {
         case .connected, .allowed:
             .green
         case .unavailable, .checkAccess:
             theme.adaptiveMutedText
         case .notRequested, .offInSystemSettings, .actionNeeded:
             .orange
+        }
+    }
+
+    private func handleHealthAction() {
+        if healthPresentation.status == .connected {
+            openAppSettings()
+        } else {
+            requestHealthAuthorization()
         }
     }
 

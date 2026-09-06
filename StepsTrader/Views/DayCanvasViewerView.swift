@@ -34,7 +34,7 @@ struct DayCanvasViewerView: View {
 
     var body: some View {
         ZStack {
-            theme.backgroundColor.ignoresSafeArea()
+            Color.clear
 
             VStack(spacing: 12) {
                 topBar
@@ -56,7 +56,7 @@ struct DayCanvasViewerView: View {
             }
             .padding(.top, 8)
         }
-        .energyGradientBackground(model: model, showGrain: false)
+        .todayCanvasBackground()
         .preferredColorScheme(theme.colorScheme)
         .task(id: dayKey) {
             guard snapshot == nil else { return }

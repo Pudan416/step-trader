@@ -48,7 +48,7 @@ struct CanvasDayDetailSheet: View {
                 }
                 .padding(16)
             }
-            .background(theme.backgroundColor)
+            .todayCanvasBackground(detail: true)
             .navigationTitle(dayLabel)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

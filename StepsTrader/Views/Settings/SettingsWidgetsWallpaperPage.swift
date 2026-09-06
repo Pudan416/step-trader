@@ -10,7 +10,7 @@ struct SettingsWidgetsWallpaperPage: View {
                 VStack(alignment: .leading, spacing: 28) {
                     SettingsSectionLabel(text: String(localized: "Widget", comment: "Settings section title"))
                     SettingsGroupedSurface {
-                        SettingsWidgetControls()
+                        SettingsWidgetControls(model: model)
                             .padding(14)
                     }
                     SettingsSectionLabel(text: String(localized: "Wallpaper", comment: "Settings section title"))

@@ -59,34 +59,48 @@ struct SmudgeTouchPathFilter {
 // ════════════════════════════════════════════════════════════════════
 
 final class SmudgeMTKView: MTKView {
-
-    var onTouchBegan: ((_ id: ObjectIdentifier, _ point: CGPoint) -> Void)?
-    var onTouchMoved: ((_ id: ObjectIdentifier, _ previous: CGPoint, _ current: CGPoint) -> Void)?
+    var onTouchBegan: ((_ id: ObjectIdentifier, _ point: CGPoint, _ timestamp: TimeInterval) -> Void)?
+    var onTouchMoved: ((_ id: ObjectIdentifier, _ previous: CGPoint, _ current: CGPoint, _ timestamp: TimeInterval) -> Void)?
     var onTouchEnded: ((_ id: ObjectIdentifier) -> Void)?
+    private var lastSamples: [ObjectIdentifier: (point: CGPoint, time: TimeInterval)] = [:]
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         for touch in touches {
-            onTouchBegan?(ObjectIdentifier(touch), touch.location(in: self))
+            let id = ObjectIdentifier(touch)
+            let point = touch.location(in: self)
+            lastSamples[id] = (point, touch.timestamp)
+            onTouchBegan?(id, point, touch.timestamp)
+        }
+    }
+
+    private func deliverMovement(_ touch: UITouch, event: UIEvent?) {
+        let id = ObjectIdentifier(touch)
+        for sample in event?.coalescedTouches(for: touch) ?? [touch] {
+            guard let previous = lastSamples[id], sample.timestamp > previous.time else { continue }
+            let point = sample.location(in: self)
+            lastSamples[id] = (point, sample.timestamp)
+            if point != previous.point { onTouchMoved?(id, previous.point, point, sample.timestamp) }
         }
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        for touch in touches {
-            onTouchMoved?(ObjectIdentifier(touch),
-                          touch.previousLocation(in: self),
-                          touch.location(in: self))
-        }
+        for touch in touches { deliverMovement(touch, event: event) }
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         for touch in touches {
-            onTouchEnded?(ObjectIdentifier(touch))
+            deliverMovement(touch, event: event)
+            let id = ObjectIdentifier(touch)
+            lastSamples.removeValue(forKey: id)
+            onTouchEnded?(id)
         }
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         for touch in touches {
-            onTouchEnded?(ObjectIdentifier(touch))
+            let id = ObjectIdentifier(touch)
+            lastSamples.removeValue(forKey: id)
+            onTouchEnded?(id)
         }
     }
 }
@@ -149,7 +163,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
         let touchHaptic = UIImpactFeedbackGenerator(style: .soft)
         touchHaptic.prepare()
 
-        view.onTouchBegan = { [weak coord, weak view] id, point in
+        view.onTouchBegan = { [weak coord, weak view] id, point, timestamp in
             guard let coord,
                   coord.renderingIsAllowed,
                   let view,
@@ -158,8 +172,8 @@ struct SmudgeOverlayView: UIViewRepresentable {
             if renderer.needsSnapshot {
                 coord.snapshotCanvas(scale: scale)
             }
-            let sample = coord.beginTouch(id: id, at: point)
-            renderer.handleTouchBegan(id: id, at: sample.point, scale: scale)
+            let sample = coord.beginTouch(id: id, at: point, timestamp: timestamp)
+            renderer.handleTouchBegan(id: id, at: sample.point, scale: scale, timestamp: timestamp)
             coord.forwardLeadBeginning(id: id, sample: sample, in: view.bounds.size)
             view.isPaused = !MetalOverlayRenderingPolicy.shouldRender(
                 isRenderingAllowed: coord.renderingIsAllowed,
@@ -167,14 +181,15 @@ struct SmudgeOverlayView: UIViewRepresentable {
             )
             touchHaptic.impactOccurred(intensity: 0.35)
         }
-        view.onTouchMoved = { [weak coord, weak view] id, _, current in
+        view.onTouchMoved = { [weak coord, weak view] id, previous, current, timestamp in
             guard let coord, coord.renderingIsAllowed, let view else { return }
-            let movement = coord.moveTouch(id: id, to: current)
+            let movement = coord.moveTouch(id: id, to: current, timestamp: timestamp)
             coord.renderer?.addStrokeSegment(
                 id: id,
-                from: movement.previous,
-                to: movement.current.point,
-                scale: scale
+                from: previous,
+                to: current,
+                scale: scale,
+                timestamp: timestamp
             )
             coord.forwardLeadUpdate(id: id, sample: movement.current, in: view.bounds.size)
         }
@@ -237,25 +252,26 @@ struct SmudgeOverlayView: UIViewRepresentable {
 
         init() { renderer = MetalSmudgeRenderer.create() }
 
-        func beginTouch(id: ObjectIdentifier, at point: CGPoint) -> SmudgeTouchPathSample {
+        func beginTouch(id: ObjectIdentifier, at point: CGPoint, timestamp: TimeInterval) -> SmudgeTouchPathSample {
             var filter = SmudgeTouchPathFilter()
-            let sample = filter.begin(at: point, time: CACurrentMediaTime())
+            let sample = filter.begin(at: point, time: timestamp)
             touchFilters[id] = filter
             return sample
         }
 
         func moveTouch(
             id: ObjectIdentifier,
-            to point: CGPoint
+            to point: CGPoint,
+            timestamp: TimeInterval
         ) -> (previous: CGPoint, current: SmudgeTouchPathSample) {
             guard var filter = touchFilters[id] else {
                 var filter = SmudgeTouchPathFilter()
-                let sample = filter.begin(at: point, time: CACurrentMediaTime())
+                let sample = filter.begin(at: point, time: timestamp)
                 touchFilters[id] = filter
                 return (sample.point, sample)
             }
             let previous = filter.currentPoint ?? point
-            let sample = filter.move(to: point, time: CACurrentMediaTime())
+            let sample = filter.move(to: point, time: timestamp)
             touchFilters[id] = filter
             return (previous, sample)
         }

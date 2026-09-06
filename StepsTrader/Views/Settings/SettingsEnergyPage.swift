@@ -8,9 +8,16 @@ struct SettingsEnergyPage: View {
     @AppStorage(SharedKeys.dayEndMinute, store: UserDefaults.stepsTrader()) private var dayEndMinuteSetting: Int = 0
     @Environment(\.appTheme) private var theme
 
-    private var allowedBedtimeMinutes: [Int] { DayEndOptions.allowedMinutes }
-
-    @State private var bedtimeMinutes: Int = 23 * 60
+    private var dayStartMinutes: Binding<Int> {
+        Binding(
+            get: { dayEndHourSetting * 60 + dayEndMinuteSetting },
+            set: { minutes in
+                guard DayEndOptions.allowedMinutes.contains(minutes) else { return }
+                // Keep the model as the single writer so it can re-anchor the day.
+                model.updateDayEnd(hour: minutes / 60, minute: minutes % 60)
+            }
+        )
+    }
 
     var body: some View {
         ZStack {
@@ -18,14 +25,16 @@ struct SettingsEnergyPage: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+                    SettingsFooter(text: String(localized: "Your step and sleep goals shape the energy shown on your Canvas. Changes take effect right away."))
+                        .padding(.horizontal, 20)
+
                     // MARK: - Steps
                     SettingsGroupedSurface {
                         VStack(spacing: 12) {
                             sectionHeader(
                                 icon: "figure.walk",
-                                title: String(localized: "Daily Steps Goal"),
-                                color: AppColors.brandAccent,
-                                value: formatCompactNumber(Int(stepsTarget))
+                                title: String(localized: "Daily step goal"),
+                                color: AppColors.brandAccent
                             )
 
                             StepGoalDrumPicker(value: $stepsTarget)
@@ -46,7 +55,7 @@ struct SettingsEnergyPage: View {
                         VStack(spacing: 12) {
                             sectionHeader(
                                 icon: "bed.double.fill",
-                                title: String(localized: "Sleep Goal"),
+                                title: String(localized: "Sleep goal"),
                                 color: Color.indigo
                             )
 
@@ -64,59 +73,34 @@ struct SettingsEnergyPage: View {
 
                     DetailDivider().padding(.horizontal, 16)
 
-                    // MARK: - Day Reset
+                    // MARK: - Day Start
                     SettingsGroupedSurface {
                         VStack(spacing: 10) {
                             sectionHeader(
                                 icon: "clock.arrow.circlepath",
-                                title: String(localized: "Day Resets At"),
+                                title: String(localized: "Day starts at"),
                                 color: Color.orange
                             )
 
                             DayResetTimePicker(
-                                selectedMinutes: $bedtimeMinutes,
-                                allowedMinutes: allowedBedtimeMinutes
+                                selectedMinutes: dayStartMinutes,
+                                allowedMinutes: DayEndOptions.allowedMinutes
                             )
                             .padding(.bottom, 14)
-                            .onChange(of: bedtimeMinutes) { _, newValue in
-                                let hour = (newValue / 60) % 24
-                                let minute = newValue % 60
-                                // model.updateDayEnd is the single (debounced) writer of
-                                // the persisted boundary; writing dayEndHour/MinuteSetting
-                                // here too would race the re-anchor → false day rollover.
-                                model.updateDayEnd(hour: hour, minute: minute)
-                            }
                         }
                     }
                     .padding(.horizontal, 16)
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("settings.yourDay.boundary")
 
-                    SettingsFooter(text: String(localized: "Your canvas and colors reset at this time each day."))
+                    SettingsFooter(text: String(localized: "A new Canvas day begins at this time. Choose a later time to keep late-night activity in the previous day."))
                         .padding(.horizontal, 20)
                 }
                 .padding(.bottom, 80)
             }
         }
         .overlay { }
-        .settingsDetailPage(title: String(localized: "Your day", comment: "Settings section title"))
-        .onAppear { syncBedtimeFromStorage() }
-    }
-
-    /// If the stored dayEnd is off-grid, snap to the nearest valid step and write the
-    /// snapped value back so the picker UI and persistent state agree.
-    private func syncBedtimeFromStorage() {
-        let current = dayEndHourSetting * 60 + dayEndMinuteSetting
-        if allowedBedtimeMinutes.contains(current) {
-            bedtimeMinutes = current
-            return
-        }
-        let snapped = DayEndOptions.nearestAllowed(to: current)
-        bedtimeMinutes = snapped
-        let h = (snapped / 60) % 24
-        let m = snapped % 60
-        // model.updateDayEnd persists the snapped boundary itself (single writer).
-        model.updateDayEnd(hour: h, minute: m)
+        .settingsDetailPage(title: String(localized: "Goals & schedule", comment: "Settings section title"))
     }
 
     // MARK: - Shared

@@ -473,6 +473,8 @@
 		DA0028002800280028000011 /* HappeningTileLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0028002800280028000010 /* HappeningTileLayoutTests.swift */; };
 		DA000A000A000A000A0000A1 /* AllowedCanvasShapesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */; };
 		DA00130013001300130013C1 /* HappeningFieldLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA00130013001300130013C0 /* HappeningFieldLayoutTests.swift */; };
+		DA00400040004000400040A1 /* HappeningPaletteInteraction.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA00400040004000400040A0 /* HappeningPaletteInteraction.swift */; };
+		DA00400040004000400040B1 /* HappeningPaletteInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA00400040004000400040B0 /* HappeningPaletteInteractionTests.swift */; };
 		DA0010001000100010001011 /* HappeningAdditionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0010001000100010001010 /* HappeningAdditionsTests.swift */; };
 		DA0002000200020002000021 /* canvas_legacy_categorised.json in Resources */ = {isa = PBXBuildFile; fileRef = DA0002000200020002000020 /* canvas_legacy_categorised.json */; };
 		AC000001300400000000AC01 /* AppConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000002300400000000AC02 /* AppConstants.swift */; };
@@ -516,6 +518,13 @@
 		20CC020D2F86000000000013 /* SettingsRedesignUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010D2F86000000000013 /* SettingsRedesignUITests.swift */; };
 		WK000001AAAA000100000001 /* AppModel+WorkoutSuggestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = WK000001AAAA000100000002 /* AppModel+WorkoutSuggestions.swift */; };
 		WK000002AAAA000200000001 /* WorkoutSuggestionBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WK000002AAAA000200000002 /* WorkoutSuggestionBanner.swift */; };
+		2436C18C659F41CBAD8A742A /* SettingsAppearanceDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7252A57CD38640C4BBC18162 /* SettingsAppearanceDraft.swift */; };
+		4E431710CC60401EB0B0DF8A /* SettingsAppearancePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 104EEB1B8D234EA9BD905BD6 /* SettingsAppearancePreview.swift */; };
+		05156BB8C50249EF92E51CF7 /* TodayCanvasBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D349BBC62FB42FFA2E08B8A /* TodayCanvasBackground.swift */; };
+		AD9105210C0846149B4B0B97 /* SettingsHelpPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D29AEC84B5044EBAA8513CD /* SettingsHelpPage.swift */; };
+		6E23F2134AC74EAF8099EE10 /* SettingsAppearanceDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07151A753FA8422C96C18740 /* SettingsAppearanceDraftTests.swift */; };
+		9BD9B7DB26A94019B601527A /* TodayCanvasBackgroundTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 522F75A890914D7B9BF3CA0D /* TodayCanvasBackgroundTests.swift */; };
+		9F96CE659EE64B33B8689A04 /* SettingsGoalControlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33836CC13AEB48A0A09FEBCE /* SettingsGoalControlTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -933,6 +942,7 @@
 		DA0024002400240024000010 /* HappeningShapeNonceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningShapeNonceStore.swift; sourceTree = "<group>"; };
 		DA00130013001300130013B0 /* HappeningFieldLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningFieldLayout.swift; sourceTree = "<group>"; };
 		DA00140014001400140014B0 /* HappeningFieldPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningFieldPresentation.swift; sourceTree = "<group>"; };
+		DA00400040004000400040A0 /* HappeningPaletteInteraction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteInteraction.swift; sourceTree = "<group>"; };
 		DA00150015001500150015B0 /* HappeningChooserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningChooserView.swift; sourceTree = "<group>"; };
 		DA000E000E000E000E0000E0 /* HappeningPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteView.swift; sourceTree = "<group>"; };
 		DA0020002000200020000010 /* HappeningShapeTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningShapeTile.swift; sourceTree = "<group>"; };
@@ -1034,6 +1044,7 @@
 		DA0028002800280028000010 /* HappeningTileLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningTileLayoutTests.swift; sourceTree = "<group>"; };
 		DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllowedCanvasShapesTests.swift; sourceTree = "<group>"; };
 		DA00130013001300130013C0 /* HappeningFieldLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningFieldLayoutTests.swift; sourceTree = "<group>"; };
+		DA00400040004000400040B0 /* HappeningPaletteInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteInteractionTests.swift; sourceTree = "<group>"; };
 		DA0010001000100010001010 /* HappeningAdditionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningAdditionsTests.swift; sourceTree = "<group>"; };
 		DA0002000200020002000020 /* canvas_legacy_categorised.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Fixtures/canvas_legacy_categorised.json; sourceTree = "<group>"; };
 		AC000002300400000000AC02 /* AppConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConstants.swift; sourceTree = "<group>"; };
@@ -1074,6 +1085,13 @@
 		20CC010D2F86000000000013 /* SettingsRedesignUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRedesignUITests.swift; sourceTree = "<group>"; };
 		WK000001AAAA000100000002 /* AppModel+WorkoutSuggestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+WorkoutSuggestions.swift"; sourceTree = "<group>"; };
 		WK000002AAAA000200000002 /* WorkoutSuggestionBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSuggestionBanner.swift; sourceTree = "<group>"; };
+		7252A57CD38640C4BBC18162 /* SettingsAppearanceDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAppearanceDraft.swift; sourceTree = "<group>"; };
+		104EEB1B8D234EA9BD905BD6 /* SettingsAppearancePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAppearancePreview.swift; sourceTree = "<group>"; };
+		2D349BBC62FB42FFA2E08B8A /* TodayCanvasBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayCanvasBackground.swift; sourceTree = "<group>"; };
+		0D29AEC84B5044EBAA8513CD /* SettingsHelpPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHelpPage.swift; sourceTree = "<group>"; };
+		07151A753FA8422C96C18740 /* SettingsAppearanceDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAppearanceDraftTests.swift; sourceTree = "<group>"; };
+		522F75A890914D7B9BF3CA0D /* TodayCanvasBackgroundTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayCanvasBackgroundTests.swift; sourceTree = "<group>"; };
+		33836CC13AEB48A0A09FEBCE /* SettingsGoalControlTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsGoalControlTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -1702,6 +1720,10 @@
 			isa = PBXGroup;
 			children = (
 				20CC01012F86000000000001 /* SettingsAppearancePage.swift */,
+				0D29AEC84B5044EBAA8513CD /* SettingsHelpPage.swift */,
+				104EEB1B8D234EA9BD905BD6 /* SettingsAppearancePreview.swift */,
+				2D349BBC62FB42FFA2E08B8A /* TodayCanvasBackground.swift */,
+				7252A57CD38640C4BBC18162 /* SettingsAppearanceDraft.swift */,
 				20CC01022F86000000000002 /* GradientPreviewSheet.swift */,
 				20CC01032F86000000000003 /* SettingsEnergyPage.swift */,
 				20CC01042F86000000000004 /* SettingsShortcutPage.swift */,
@@ -1933,6 +1955,7 @@
 				DA0028002800280028000010 /* HappeningTileLayoutTests.swift */,
 				DA000A000A000A000A0000A0 /* AllowedCanvasShapesTests.swift */,
 				DA00130013001300130013C0 /* HappeningFieldLayoutTests.swift */,
+				DA00400040004000400040B0 /* HappeningPaletteInteractionTests.swift */,
 				DA0010001000100010001010 /* HappeningAdditionsTests.swift */,
 				DA0014001400140014001482 /* SimplexNoiseTests.swift */,
 				DA0003000300030003000304 /* PoissonDiscSamplerTests.swift */,
@@ -1943,6 +1966,9 @@
 				AL01000053000053000000A1 /* AuthSignInLoadingStateTests.swift */,
 				60OR0002300000000060OR0002 /* CanvasOverlayStyleTests.swift */,
 				20CC010C2F86000000000012 /* SettingsHomePresentationTests.swift */,
+				33836CC13AEB48A0A09FEBCE /* SettingsGoalControlTests.swift */,
+				07151A753FA8422C96C18740 /* SettingsAppearanceDraftTests.swift */,
+				522F75A890914D7B9BF3CA0D /* TodayCanvasBackgroundTests.swift */,
 				C5A510030906202600000001 /* DayCanvasArtworkRoutingTests.swift */,
 				20CC01122F86000000000018 /* SettingsPermissionPresentationTests.swift */,
 			);
@@ -1974,6 +2000,7 @@
 			children = (
 				DA00130013001300130013B0 /* HappeningFieldLayout.swift */,
 				DA00140014001400140014B0 /* HappeningFieldPresentation.swift */,
+				DA00400040004000400040A0 /* HappeningPaletteInteraction.swift */,
 				DA00150015001500150015B0 /* HappeningChooserView.swift */,
 				DA000E000E000E000E0000E0 /* HappeningPaletteView.swift */,
 				DA0020002000200020000010 /* HappeningShapeTile.swift */,
@@ -2494,6 +2521,7 @@
 				DA0024002400240024000011 /* HappeningShapeNonceStore.swift in Sources */,
 				DA00130013001300130013B1 /* HappeningFieldLayout.swift in Sources */,
 				DA00140014001400140014B1 /* HappeningFieldPresentation.swift in Sources */,
+				DA00400040004000400040A1 /* HappeningPaletteInteraction.swift in Sources */,
 				DA00150015001500150015B1 /* HappeningChooserView.swift in Sources */,
 				DA000E000E000E000E0000E1 /* HappeningPaletteView.swift in Sources */,
 				DA0020002000200020000011 /* HappeningShapeTile.swift in Sources */,
@@ -2569,6 +2597,10 @@
 				60SD00023003000060SD0002 /* StepGoalDrumPicker.swift in Sources */,
 				60SA00023003000060SA0002 /* SleepGoalArcPicker.swift in Sources */,
 				20CC02012F86000000000001 /* SettingsAppearancePage.swift in Sources */,
+				AD9105210C0846149B4B0B97 /* SettingsHelpPage.swift in Sources */,
+				4E431710CC60401EB0B0DF8A /* SettingsAppearancePreview.swift in Sources */,
+				05156BB8C50249EF92E51CF7 /* TodayCanvasBackground.swift in Sources */,
+				2436C18C659F41CBAD8A742A /* SettingsAppearanceDraft.swift in Sources */,
 				20CC02022F86000000000002 /* GradientPreviewSheet.swift in Sources */,
 				20CC02032F86000000000003 /* SettingsEnergyPage.swift in Sources */,
 				20CC02042F86000000000004 /* SettingsShortcutPage.swift in Sources */,
@@ -2756,6 +2788,9 @@
 				60OR0001300000000060OR0001 /* CanvasOverlayStyleTests.swift in Sources */,
 				20CC020C2F86000000000012 /* SettingsHomePresentationTests.swift in Sources */,
 				DA00400040004000400040B1 /* HappeningPaletteInteractionTests.swift in Sources */,
+				9F96CE659EE64B33B8689A04 /* SettingsGoalControlTests.swift in Sources */,
+				6E23F2134AC74EAF8099EE10 /* SettingsAppearanceDraftTests.swift in Sources */,
+				9BD9B7DB26A94019B601527A /* TodayCanvasBackgroundTests.swift in Sources */,
 				C5A510030906202600000002 /* DayCanvasArtworkRoutingTests.swift in Sources */,
 				20CC02122F86000000000018 /* SettingsPermissionPresentationTests.swift in Sources */,
 			);

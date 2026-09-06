@@ -8,6 +8,7 @@ struct MeView: View {
     var onOpenSettings: () -> Void = {}
     @ObservedObject private var authService = AuthenticationService.shared
     @Environment(\.appTheme) private var theme
+    @Environment(\.renderingIsActive) private var renderingIsActive
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.tabBarHeight) private var tabBarHeight
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -46,18 +47,10 @@ struct MeView: View {
     var body: some View {
         NavigationStack {
             mainScrollContent
-                .energyGradientBackground(model: model, showGrain: false)
+                .todayCanvasBackground()
                 // No inset for the energy card: it is not drawn on Me, and
                 // `\.topCardHeight` still reports the height it has on the other
                 // tabs — reserving it here would leave an empty band.
-                // Grain texture overlay — above content so it picks up rays beneath.
-                .overlay {
-                    if !reduceTransparency {
-                        TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
-                            .allowsHitTesting(false)
-                            .ignoresSafeArea()
-                    }
-                }
                 .toolbar(.hidden, for: .navigationBar)
                 .modifier(meLifecycle)
                 .modifier(meSheets)
@@ -172,6 +165,7 @@ struct MeView: View {
                     height: sizing.posterHeight
                 )
                 .clipped()
+                .environment(\.renderingIsActive, renderingIsActive && selectedPosterDayKey == key)
                 .tag(key)
             }
         }
