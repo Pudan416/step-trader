@@ -146,9 +146,12 @@ final class MePosterCanvasLoadCoordinator {
         if MeCalendarTimeline.shouldAttemptRemoteRecovery(
             hasTrackedSnapshot: hasTrackedSnapshot,
             localCanvasMissing: loaded == nil
-        ), let remote = await SupabaseSyncService.shared.fetchDayCanvas(for: dayKey) {
-            CanvasStorageService.shared.saveCanvas(remote)
-            loaded = remote
+        ) {
+            let result = await SupabaseSyncService.shared.fetchDayCanvas(for: dayKey)
+            if case let .found(remote) = result {
+                CanvasStorageService.shared.saveCanvas(remote)
+                loaded = remote
+            }
         }
 
         return loaded

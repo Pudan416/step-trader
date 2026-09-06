@@ -590,7 +590,12 @@ struct GalleryView: View {
                 paletteErrorID = happening.id
                 return
             }
-            mediumHapticTick &+= 1
+            switch HappeningPaletteSuccessHaptic.forMutation(mutation) {
+            case .addition:
+                paletteAdditionHapticTick &+= 1
+            case .removal:
+                paletteRemovalHapticTick &+= 1
+            }
             if case .remove = mutation {
                 UIAccessibility.post(
                     notification: .announcement,
@@ -749,6 +754,8 @@ struct GalleryView: View {
     /// `prepareAll()` plumbing needed anymore.
     @State private var lightHapticTick = 0
     @State private var mediumHapticTick = 0
+    @State private var paletteAdditionHapticTick = 0
+    @State private var paletteRemovalHapticTick = 0
 
     private var legacyCanvasLayers: some View {
         ZStack {
@@ -1012,15 +1019,7 @@ struct GalleryView: View {
         }
         .onChange(of: todayKey) { _, newKey in
             guard newKey != activeDayKey else { return }
-            cancelPaletteInteraction()
-            loadTask?.cancel()
-            activeDayKey = newKey
-            dayCanvas = makeNewCanvas(dayKey: newKey)
-            canvasLoaded = false
-            pendingDeletedIds.removeAll()
-            send(.dayBoundary)
-            refreshHappeningPalette()
-            loadCanvas()
+            rollOverCanvas(to: newKey)
         }
         .onChange(of: presentation, initial: true) { old, new in
             if !new.showsDataPanel {
@@ -1096,14 +1095,7 @@ struct GalleryView: View {
             model.checkDayBoundary()
             let newKey = AppModel.dayKey(for: Date.now)
             if newKey != activeDayKey {
-                cancelPaletteInteraction()
-                loadTask?.cancel()
-                activeDayKey = newKey
-                dayCanvas = makeNewCanvas(dayKey: newKey)
-                canvasLoaded = false
-                pendingDeletedIds.removeAll()
-                send(.dayBoundary)
-                loadCanvas()
+                rollOverCanvas(to: newKey)
             }
             if showHappeningPalette {
                 refreshHappeningPalette()
@@ -1187,6 +1179,14 @@ struct GalleryView: View {
         }
         .sensoryFeedback(.impact(weight: .light), trigger: lightHapticTick)
         .sensoryFeedback(.impact(weight: .medium), trigger: mediumHapticTick)
+        .sensoryFeedback(
+            .impact(weight: .light, intensity: 0.7),
+            trigger: paletteAdditionHapticTick
+        )
+        .sensoryFeedback(
+            .impact(weight: .medium, intensity: 0.6),
+            trigger: paletteRemovalHapticTick
+        )
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -1657,6 +1657,28 @@ struct GalleryView: View {
         HistoryThumbnailCache.shared.invalidate(dayKey: dayCanvas.dayKey)
     }
 
+    /// Both the live day-key observer and the foreground boundary check use
+    /// this one reset so the palette, chooser/creator, and hidden tab chrome
+    /// cannot survive into a new day.
+    private func rollOverCanvas(to newKey: String) {
+        var paletteState = CanvasPalettePresentationState(
+            isPresented: showHappeningPalette,
+            activePanel: happeningPalettePanel
+        )
+        paletteState.closeForDayRollover()
+        cancelPaletteInteraction()
+        happeningPalettePanel = paletteState.activePanel
+        showHappeningPalette = paletteState.isPresented
+        loadTask?.cancel()
+        activeDayKey = newKey
+        dayCanvas = makeNewCanvas(dayKey: newKey)
+        canvasLoaded = false
+        pendingDeletedIds.removeAll()
+        send(.dayBoundary)
+        refreshHappeningPalette()
+        loadCanvas()
+    }
+
     private func loadCanvas() {
         let dayKey = AppModel.dayKey(for: Date.now)
         // Unit tests run inside the application host. Keep the host Gallery
@@ -1696,33 +1718,47 @@ struct GalleryView: View {
             let remote = await SupabaseSyncService.shared.fetchDayCanvas(for: dayKey)
             await MainActor.run {
                 guard !Task.isCancelled else { return }
-                lastBootstrappedDayKey = dayKey
-                if let remote {
-                    if localMutationCounter != snapshotCounter {
-                        let merged = mergeRemoteWithLocal(remote: remote, local: dayCanvas)
-                        let migrated = migratedLoadedCanvas(merged)
-                        applyHydratedCanvas(migrated.canvas)
-                        saveCanvasLocally()
+                let didHydrate = CanvasRemoteHydrationCoordinator.apply(
+                    remote,
+                    onFound: { remoteCanvas in
+                        if localMutationCounter != snapshotCounter {
+                            let merged = mergeRemoteWithLocal(
+                                remote: remoteCanvas,
+                                local: dayCanvas
+                            )
+                            let migrated = migratedLoadedCanvas(merged)
+                            applyHydratedCanvas(migrated.canvas)
+                            saveCanvasLocally()
+                            syncCanvasWithModel()
+                        } else {
+                            let migrated = migratedLoadedCanvas(remoteCanvas)
+                            applyHydratedCanvas(migrated.canvas)
+                            // Hydration may canonicalize duplicate binary palette
+                            // elements. Persist the resulting source of truth, not
+                            // the pre-reconciliation remote payload.
+                            CanvasStorageService.shared.saveCanvas(dayCanvas)
+                            syncCanvasWithModel()
+                            refreshWidgetSnapshot()
+                        }
+                    },
+                    onConfirmedAbsent: {
+                        canvasVisualStyleMigrationVersion = CanvasVisualStyleMigration.currentVersion
+                        applyHydratedCanvas(dayCanvas)
+                        if localMutationCounter != snapshotCounter {
+                            saveCanvasLocally()
+                        }
                         syncCanvasWithModel()
-                    } else {
-                        let migrated = migratedLoadedCanvas(remote)
-                        applyHydratedCanvas(migrated.canvas)
-                        // Hydration may canonicalize duplicate binary palette
-                        // elements. Persist the resulting source of truth, not
-                        // the pre-reconciliation remote payload.
-                        CanvasStorageService.shared.saveCanvas(dayCanvas)
-                        syncCanvasWithModel()
-                        refreshWidgetSnapshot()
                     }
-                } else {
-                    canvasVisualStyleMigrationVersion = CanvasVisualStyleMigration.currentVersion
-                    applyHydratedCanvas(dayCanvas)
-                    if localMutationCounter != snapshotCounter {
-                        saveCanvasLocally()
-                    }
-                    syncCanvasWithModel()
+                )
+                guard didHydrate else {
+                    // Keep canvasLoaded false and do not publish or mark this
+                    // day bootstrapped. A later appearance can retry safely.
+                    loadTask = nil
+                    return
                 }
+                lastBootstrappedDayKey = dayKey
                 pendingDeletedIds.removeAll()
+                loadTask = nil
             }
         }
     }

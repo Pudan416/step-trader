@@ -43,6 +43,27 @@
         "ru" : { "stringUnit" : { "state" : "translated", "value" : "На холсте" } }
       }
     },
+    "Previewing addition to Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Previewing addition to Canvas" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Предпросмотр добавления на холст" } }
+      }
+    },
+    "Previewing removal from Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Previewing removal from Canvas" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Предпросмотр удаления с холста" } }
+      }
+    },
+    "Selected, on Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Selected, on Canvas" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Выбрано, на холсте" } }
+      }
+    },
     "Tap again to remove from Canvas" : {
       "extractionState" : "manual",
       "localizations" : {

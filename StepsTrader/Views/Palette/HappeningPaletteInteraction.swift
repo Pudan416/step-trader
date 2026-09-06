@@ -30,6 +30,29 @@ enum HappeningPaletteConfirmation: Equatable {
     case removed(String)
 }
 
+enum HappeningPaletteSuccessHaptic: Equatable {
+    case addition
+    case removal
+
+    static func forMutation(_ mutation: HappeningPaletteMutation) -> Self {
+        switch mutation {
+        case .add: .addition
+        case .remove: .removal
+        }
+    }
+}
+
+enum HappeningPaletteAccessibility {
+    static func value(for state: HappeningPaletteSlotVisualState) -> String {
+        switch state {
+        case .available: String(localized: "Available")
+        case .additionPreview: String(localized: "Previewing addition to Canvas")
+        case .added: String(localized: "On Canvas")
+        case .removalPreview: String(localized: "Previewing removal from Canvas")
+        }
+    }
+}
+
 struct HappeningPaletteInteractionState: Equatable {
     private(set) var armedMutation: HappeningPaletteMutation?
     private(set) var pendingMutation: HappeningPaletteMutation?
@@ -54,7 +77,12 @@ struct HappeningPaletteInteractionState: Equatable {
         guard pendingMutation == mutation else { return }
 
         pendingMutation = nil
-        guard succeeded else { return }
+        guard succeeded else {
+            if case .remove = mutation {
+                armedMutation = nil
+            }
+            return
+        }
 
         armedMutation = nil
         confirmation = switch mutation {

@@ -30,6 +30,29 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
         XCTAssertEqual(frame.postProcess.blurRadius, 0)
     }
 
+    func testDepthSortedMultiMaterialUploadKeepsEveryActorOnItsOwnAppearance() throws {
+        let presentation = makePresentation()
+        let frame = HappeningPaletteRenderFrame.make(
+            presentation: presentation,
+            scene: makeScene(),
+            elapsed: 2
+        )
+        let upload = DayObjectsActorUpload(
+            actors: frame.actors,
+            resolution: SIMD2(390, 844)
+        )
+
+        XCTAssertEqual(upload.actors.map(\.appearanceIndex), (0..<10).map(UInt32.init))
+        for (index, actor) in frame.actors.enumerated() {
+            XCTAssertEqual(upload.appearances[index], actor.gpuAppearance)
+            XCTAssertEqual(
+                upload.appearances[Int(upload.actors[index].appearanceIndex)],
+                actor.gpuAppearance
+            )
+        }
+        XCTAssertGreaterThan(Set(upload.appearances.map(\.metadata)).count, 1)
+    }
+
     func testBuilderConvertsTopLeftPalettePointsToPositiveUpMetalCoordinates() throws {
         let scene = makeScene()
         let presentation = makePresentation()

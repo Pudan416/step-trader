@@ -33,4 +33,45 @@ final class RetryQueueClassificationTests: XCTestCase {
             )
         }
     }
+
+    func testFailedDeleteThenSameIdentityReAddIsSupersededBeforeDrain() {
+        let entryID = "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"
+        let failedDeletes = [entryID]
+        let readded = OptionEntry(
+            id: entryID,
+            dayKey: "2026-09-06",
+            optionId: "happening_walk",
+            colorHex: "#A1B2C3",
+            timestamp: Date(timeIntervalSince1970: 1_786_176_000),
+            assetVariant: 2
+        )
+
+        XCTAssertEqual(
+            OptionEntryRetrySupersession.deleteIDsToReplay(
+                failedDeleteIDs: failedDeletes,
+                desiredEntries: [readded]
+            ),
+            []
+        )
+        XCTAssertEqual(
+            OptionEntryRetrySupersession.deleteIDsToReplay(
+                failedDeleteIDs: failedDeletes,
+                desiredEntries: []
+            ),
+            failedDeletes
+        )
+        XCTAssertEqual(
+            OptionEntryRetrySupersession.recoveryEntry(
+                afterReplayingDeleteID: entryID,
+                latestDesiredEntries: [readded]
+            ),
+            readded
+        )
+        XCTAssertNil(
+            OptionEntryRetrySupersession.recoveryEntry(
+                afterReplayingDeleteID: entryID,
+                latestDesiredEntries: []
+            )
+        )
+    }
 }

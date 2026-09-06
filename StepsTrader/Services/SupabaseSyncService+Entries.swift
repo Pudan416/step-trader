@@ -1,6 +1,30 @@
 import Foundation
 import os.log
 
+enum OptionEntryRetrySupersession {
+    static func deleteIDsToReplay(
+        failedDeleteIDs: [String],
+        desiredEntries: [OptionEntry]
+    ) -> [String] {
+        let desiredIDs = Set(desiredEntries.map(\.id))
+        return failedDeleteIDs.filter { !desiredIDs.contains($0) }
+    }
+
+    static func persistedDesiredEntries() -> [OptionEntry] {
+        guard let data = UserDefaults.stepsTrader().data(forKey: SharedKeys.todayAdditions),
+              let entries = try? JSONDecoder().decode([OptionEntry].self, from: data)
+        else { return [] }
+        return entries
+    }
+
+    static func recoveryEntry(
+        afterReplayingDeleteID id: String,
+        latestDesiredEntries: [OptionEntry]
+    ) -> OptionEntry? {
+        latestDesiredEntries.first(where: { $0.id == id })
+    }
+}
+
 // MARK: - Option Entry Sync
 extension SupabaseSyncService {
     
@@ -63,10 +87,19 @@ extension SupabaseSyncService {
     /// Syncs one client-identified addition. Upserting by `id` makes retries
     /// idempotent while still allowing the same happening multiple times.
     func syncOptionEntry(_ entry: OptionEntry) async {
+        supersedeQueuedOptionEntryDelete(id: entry.id)
         await performEntriesSync(entries: [entry])
     }
 
     func deleteOptionEntry(id: String) async {
+        if OptionEntryRetrySupersession.recoveryEntry(
+            afterReplayingDeleteID: id,
+            latestDesiredEntries: OptionEntryRetrySupersession.persistedDesiredEntries()
+        ) != nil {
+            supersedeQueuedOptionEntryDelete(id: id)
+            return
+        }
+
         guard let auth = await authenticatedContext() else { return }
         var pendingRequest: URLRequest?
         do {
@@ -86,15 +119,32 @@ extension SupabaseSyncService {
             let (data, response) = try await network.data(for: request)
             guard response.statusCode < 400 else {
                 AppLogger.network.error("📡 Option entry delete failed: HTTP \(response.statusCode)")
-                enqueueForRetry(request)
+                enqueueForRetry(request, optionEntryDeleteID: id)
                 return
             }
             AppLogger.network.debug("📡 Option entry deleted: \(id, privacy: .public)")
             _ = data
         } catch {
             AppLogger.network.error("📡 Option entry delete error: \(error.localizedDescription)")
-            if let pendingRequest { enqueueForRetry(pendingRequest) }
+            if let pendingRequest {
+                enqueueForRetry(pendingRequest, optionEntryDeleteID: id)
+            }
         }
+        await restoreOptionEntryIfStillDesired(afterDeleting: id)
+    }
+
+    /// DELETE requests can be in flight while the same stable entry is added
+    /// again. Reasserting the latest persisted value after the DELETE settles
+    /// makes the final cloud operation agree with the local source of truth.
+    @discardableResult
+    func restoreOptionEntryIfStillDesired(afterDeleting id: String) async -> Bool {
+        guard let desired = OptionEntryRetrySupersession.recoveryEntry(
+            afterReplayingDeleteID: id,
+            latestDesiredEntries: OptionEntryRetrySupersession.persistedDesiredEntries()
+        ) else { return false }
+        supersedeQueuedOptionEntryDelete(id: id)
+        await performEntriesSync(entries: [desired])
+        return true
     }
     
     func loadOptionEntriesFromServer(dayKey: String) async -> [OptionEntry]? {

@@ -244,7 +244,9 @@ struct HappeningChooserView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(happening.localizedTitle())
         .accessibilityValue(
-            isProtected ? "Selected, on Canvas" : isSelected ? "Selected" : "Not selected"
+            isProtected
+                ? String(localized: "Selected, on Canvas")
+                : isSelected ? "Selected" : "Not selected"
         )
         .accessibilityHint(
             isProtected

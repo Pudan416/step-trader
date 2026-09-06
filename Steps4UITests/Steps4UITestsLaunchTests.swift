@@ -498,12 +498,14 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         XCTAssertTrue(walk.waitForExistence(timeout: 5))
         walk.tap()
         XCTAssertTrue(app.staticTexts["Tap again to add to Canvas"].waitForExistence(timeout: 1))
+        XCTAssertEqual(walk.value as? String, "Previewing addition to Canvas")
         walk.tap()
         XCTAssertEqual(walk.value as? String, "On Canvas")
-        XCTAssertTrue(app.otherElements["happening_status_added_happening_walk"].exists)
+        XCTAssertFalse(app.otherElements["happening_status_added_happening_walk"].exists)
         assertPersistentPaletteChrome(in: app)
         walk.tap()
         XCTAssertTrue(app.staticTexts["Tap again to remove from Canvas"].waitForExistence(timeout: 1))
+        XCTAssertEqual(walk.value as? String, "Previewing removal from Canvas")
         walk.tap()
         XCTAssertEqual(walk.value as? String, "Available")
         XCTAssertTrue(walk.exists)
@@ -516,7 +518,9 @@ final class Steps4UITestsLaunchTests: XCTestCase {
             "walk", "workout", "slept_well", "called_someone", "drinks",
             "read", "laughed", "made_something", "outside", "did_nothing",
         ] {
-            XCTAssertTrue(app.buttons["happening_choice_happening_\(id)"].exists)
+            XCTAssertTrue(
+                app.buttons["happening_choice_happening_\(id)"].waitForExistence(timeout: 2)
+            )
         }
         XCTAssertTrue(app.buttons["Choose happenings"].isHittable)
         XCTAssertTrue(app.buttons["Close"].isHittable)
@@ -536,15 +540,19 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         Thread.sleep(forTimeInterval: 0.6)
         attachScreenshot(named: "editorial-palette-circles")
 
-        app.buttons["Walk"].tap()
-        XCTAssertEqual(app.buttons["Walk"].value as? String, "Available")
+        app.buttons["happening_choice_happening_walk"]
+            .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .tap()
+        XCTAssertEqual(app.buttons["Walk"].value as? String, "Previewing addition to Canvas")
         for title in task7BuiltInTitles.dropFirst() {
             XCTAssertEqual(app.buttons[title].value as? String, "Available")
         }
         Thread.sleep(forTimeInterval: 0.6)
         attachScreenshot(named: "editorial-palette-shape-preview")
 
-        app.buttons["Walk"].tap()
+        app.buttons["happening_choice_happening_walk"]
+            .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .tap()
         XCTAssertEqual(app.buttons["Walk"].value as? String, "On Canvas")
         XCTAssertEqual(
             app.buttons.matching(
@@ -558,8 +566,11 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         Thread.sleep(forTimeInterval: 0.7)
         attachScreenshot(named: "editorial-palette-added-fixed-slots")
 
-        app.buttons["Walk"].tap()
+        app.buttons["happening_choice_happening_walk"]
+            .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .tap()
         XCTAssertTrue(app.staticTexts["Tap again to remove from Canvas"].waitForExistence(timeout: 1))
+        XCTAssertEqual(app.buttons["Walk"].value as? String, "Previewing removal from Canvas")
         Thread.sleep(forTimeInterval: 0.6)
         attachScreenshot(named: "editorial-palette-removal-preview")
         assertPersistentPaletteChrome(in: app)

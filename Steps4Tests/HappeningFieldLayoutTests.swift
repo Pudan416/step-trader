@@ -499,6 +499,84 @@ final class HappeningFieldLayoutTests: XCTestCase {
         XCTAssertTrue(model.todayAdditions.isEmpty)
     }
 
+    func testRemovalResolvesLowercaseStableUUIDBeforeOptionFallback() throws {
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        let model = makeRemovalModel()
+        defer { clearRemovalDefaults() }
+        var canvas = DayCanvas(dayKey: AppModel.dayKey(for: date))
+        let element = fixedRemovalElement(on: canvas)
+        canvas.elements = [element]
+        let lowercasedEntryID = element.id.uuidString.lowercased()
+        XCTAssertNotNil(model.addHappening(
+            id: "walk",
+            colorHex: element.hexColor,
+            at: date,
+            recordUse: false,
+            entryId: lowercasedEntryID
+        ))
+
+        let result = try XCTUnwrap(CanvasHappeningRemovalTransaction.commit(
+            canvasLoaded: true,
+            canvas: canvas,
+            model: model,
+            happeningID: "walk",
+            at: date,
+            persist: { _ in true }
+        ))
+
+        XCTAssertEqual(result.removedElement.id, element.id)
+        XCTAssertTrue(model.todayAdditions.isEmpty)
+    }
+
+    func testRemovalFallsBackToLegacyEntryIDAndAllowsReAdding() throws {
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        let model = makeRemovalModel()
+        defer { clearRemovalDefaults() }
+        var canvas = DayCanvas(dayKey: AppModel.dayKey(for: date))
+        let element = fixedRemovalElement(on: canvas)
+        canvas.elements = [element]
+        XCTAssertNotNil(model.addHappening(
+            id: "walk",
+            colorHex: element.hexColor,
+            at: date,
+            recordUse: false,
+            entryId: "legacy-entry-id"
+        ))
+
+        XCTAssertNotNil(CanvasHappeningRemovalTransaction.commit(
+            canvasLoaded: true,
+            canvas: canvas,
+            model: model,
+            happeningID: "walk",
+            at: date,
+            persist: { _ in true }
+        ))
+        XCTAssertTrue(model.todayAdditions.isEmpty)
+        XCTAssertNotNil(model.addHappening(
+            id: "walk",
+            colorHex: element.hexColor,
+            at: date.addingTimeInterval(1),
+            recordUse: false,
+            entryId: element.id.uuidString
+        ))
+    }
+
+    func testDayRolloverPaletteStateClosesCreatorAndRestoresChrome() {
+        var state = CanvasPalettePresentationState(
+            isPresented: true,
+            activePanel: .creator
+        )
+
+        state.closeForDayRollover()
+
+        XCTAssertFalse(state.isPresented)
+        XCTAssertNil(state.activePanel)
+        XCTAssertFalse(CanvasPaletteRouteState.blocksTabBar(
+            isCanvasSelected: true,
+            isPaletteVisible: state.isPresented
+        ))
+    }
+
     func testFailedEmptyCanonicalSaveKeepsCanvasAndMatchingDomainAddition() {
         let date = Date(timeIntervalSince1970: 1_786_176_000)
         let model = makeRemovalModel()

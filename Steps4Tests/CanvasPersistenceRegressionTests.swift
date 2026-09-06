@@ -165,6 +165,77 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
         )
     }
 
+    func testCanvasFetchResultDistinguishesConfirmedAbsenceFromFailure() {
+        switch DayCanvasFetchResult.decode(statusCode: 200, data: Data("[]".utf8)) {
+        case .confirmedAbsent:
+            break
+        case .found, .failed:
+            XCTFail("a successful empty response is the only confirmed-absence case")
+        }
+
+        for failure in [
+            DayCanvasFetchResult.decode(statusCode: 304, data: Data("[]".utf8)),
+            DayCanvasFetchResult.decode(statusCode: 503, data: Data("[]".utf8)),
+            DayCanvasFetchResult.decode(statusCode: 200, data: Data("not-json".utf8)),
+        ] {
+            guard case .failed = failure else {
+                XCTFail("HTTP and decoding failures must never masquerade as absence")
+                continue
+            }
+        }
+    }
+
+    func testFailedCanvasFetchCannotHydrateEmptyOrDeleteRestoredAddition() {
+        let now = Date(timeIntervalSince1970: 1_786_176_000)
+        let dayKey = AppModel.dayKey(for: now)
+        let restored = OptionEntry(
+            id: "restored-entry",
+            dayKey: dayKey,
+            optionId: "happening_walk",
+            colorHex: "#A1B2C3",
+            timestamp: now,
+            assetVariant: 2
+        )
+        let model = makeModel()
+        model.loadDailyEnergyState()
+        model.todayAdditions = [restored]
+        var cloudPlans = [[CanvasHappeningReconciliationSyncOperation]]()
+
+        let didHydrate = CanvasRemoteHydrationCoordinator.apply(
+            .failed,
+            onFound: { canvas in
+                let reconciliation = CanvasHappeningReconciler.reconcile(
+                    canvas: canvas,
+                    entries: model.todayAdditions,
+                    dayKey: dayKey,
+                    now: now
+                )
+                CanvasHappeningReconciliationTransaction.commit(
+                    reconciliation,
+                    model: model,
+                    syncOperations: { cloudPlans.append($0) }
+                )
+            },
+            onConfirmedAbsent: {
+                let reconciliation = CanvasHappeningReconciler.reconcile(
+                    canvas: DayCanvas(dayKey: dayKey),
+                    entries: model.todayAdditions,
+                    dayKey: dayKey,
+                    now: now
+                )
+                CanvasHappeningReconciliationTransaction.commit(
+                    reconciliation,
+                    model: model,
+                    syncOperations: { cloudPlans.append($0) }
+                )
+            }
+        )
+
+        XCTAssertFalse(didHydrate)
+        XCTAssertEqual(model.todayAdditions, [restored])
+        XCTAssertTrue(cloudPlans.isEmpty)
+    }
+
     func testCanvasReconciliationRemovesOrphanEntryAndIsIdempotent() {
         let now = Date(timeIntervalSince1970: 1_786_176_000)
         let dayKey = AppModel.dayKey(for: now)

@@ -240,7 +240,7 @@ enum HappeningPaletteRenderFrame {
             }
         )
         let shortSide = max(min(presentation.viewportSize.width, presentation.viewportSize.height), 1)
-        let actors = sample.slots.map { slot in
+        let depthSortedActors = sample.slots.map { slot in
             let position = SIMD2<Float>(
                 Float((slot.source.center.x - presentation.viewportSize.width / 2) / shortSide),
                 // SwiftUI sources are top-left/y-down; Metal clip space is y-up.
@@ -268,6 +268,14 @@ enum HappeningPaletteRenderFrame {
                 gpuAppearance: slot.assignment.material.gpuAppearance
             )
         }.sorted { $0.gpuActor.depth < $1.gpuActor.depth }
+        let actors = depthSortedActors.enumerated().map { index, actor in
+            DayObjectRenderActor(
+                actorID: actor.actorID,
+                eventID: actor.eventID,
+                gpuActor: actor.gpuActor.withAppearanceIndex(UInt32(index)),
+                gpuAppearance: actor.gpuAppearance
+            )
+        }
 
         return DayObjectRenderFrame(
             choreographyTime: elapsed,

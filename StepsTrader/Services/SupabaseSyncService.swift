@@ -149,8 +149,20 @@ actor SupabaseSyncService {
         let body: Data?
         let preferHeader: String?
         let createdAt: Date
+        let optionEntryDeleteID: String?
         
         var isExpired: Bool { Date.now.timeIntervalSince(createdAt) > 86_400 * 3 } // 3 days TTL
+
+        var resolvedOptionEntryDeleteID: String? {
+            if let optionEntryDeleteID { return optionEntryDeleteID }
+            guard method == "DELETE",
+                  let components = URLComponents(string: urlString),
+                  components.path.hasSuffix("/user_happening_additions"),
+                  let rawID = components.queryItems?.first(where: { $0.name == "id" })?.value,
+                  rawID.hasPrefix("eq.")
+            else { return nil }
+            return String(rawID.dropFirst(3))
+        }
     }
 
     private static let retryQueueKey = "supabaseSyncRetryQueue_v1"
@@ -170,14 +182,26 @@ actor SupabaseSyncService {
         retryableStatusCodes.contains(status)
     }
 
-    func enqueueForRetry(_ request: URLRequest) {
+    func enqueueForRetry(
+        _ request: URLRequest,
+        optionEntryDeleteID: String? = nil
+    ) {
         guard let url = request.url?.absoluteString else { return }
+        if let optionEntryDeleteID,
+           OptionEntryRetrySupersession.deleteIDsToReplay(
+               failedDeleteIDs: [optionEntryDeleteID],
+               desiredEntries: OptionEntryRetrySupersession.persistedDesiredEntries()
+           ).isEmpty {
+            AppLogger.network.debug("📡 Superseded failed option-entry delete")
+            return
+        }
         let entry = PendingSyncRequest(
             urlString: url,
             method: request.httpMethod ?? "POST",
             body: request.httpBody,
             preferHeader: request.value(forHTTPHeaderField: "prefer"),
-            createdAt: Date.now
+            createdAt: Date.now,
+            optionEntryDeleteID: optionEntryDeleteID
         )
         // Prune expired entries *before* the size check (§5.13): otherwise a
         // stale-but-not-yet-drained entry can occupy a slot and evict a fresher
@@ -189,6 +213,14 @@ actor SupabaseSyncService {
         }
         saveRetryQueue(queue)
         AppLogger.network.debug("📡 Enqueued failed sync for offline retry (\(queue.count) pending)")
+    }
+
+    func supersedeQueuedOptionEntryDelete(id: String) {
+        let queue = loadRetryQueue()
+        let filtered = queue.filter { $0.resolvedOptionEntryDeleteID != id }
+        guard filtered.count != queue.count else { return }
+        saveRetryQueue(filtered)
+        AppLogger.network.debug("📡 Removed superseded option-entry delete retry")
     }
     
     private func loadRetryQueue() -> [PendingSyncRequest] {
@@ -208,10 +240,6 @@ actor SupabaseSyncService {
     
     /// Drain the offline retry queue. Call on app launch or when connectivity is restored.
     func drainRetryQueue() async {
-        let queue = loadRetryQueue().filter { !$0.isExpired }
-        guard !queue.isEmpty else { return }
-        AppLogger.network.debug("📡 Draining \(queue.count) queued sync requests")
-        
         await AuthenticationService.shared.waitForInitialization()
         guard let freshToken = await AuthenticationService.shared.accessToken else {
             AppLogger.network.debug("📡 Retry queue drain skipped: no auth token")
@@ -225,6 +253,30 @@ actor SupabaseSyncService {
             AppLogger.network.error("📡 Retry queue drain skipped: config unavailable")
             return
         }
+
+        let loadedQueue = loadRetryQueue().filter { !$0.isExpired }
+        let desiredEntries = OptionEntryRetrySupersession.persistedDesiredEntries()
+        let replayableDeleteIDs = Set(
+            OptionEntryRetrySupersession.deleteIDsToReplay(
+                failedDeleteIDs: loadedQueue.compactMap(\.resolvedOptionEntryDeleteID),
+                desiredEntries: desiredEntries
+            )
+        )
+        let queue = loadedQueue.filter { entry in
+            guard let deleteID = entry.resolvedOptionEntryDeleteID else { return true }
+            return replayableDeleteIDs.contains(deleteID)
+        }
+        guard !queue.isEmpty else {
+            if !loadedQueue.isEmpty {
+                saveRetryQueue([])
+                AppLogger.network.debug("📡 Dropped superseded option-entry delete retries")
+            }
+            return
+        }
+        // Check out this snapshot before the first network suspension. Any new
+        // failures queued while draining remain separate and are merged back.
+        saveRetryQueue([])
+        AppLogger.network.debug("📡 Draining \(queue.count) queued sync requests")
         
         var remaining: [PendingSyncRequest] = []
         for entry in queue {
@@ -241,6 +293,10 @@ actor SupabaseSyncService {
             
             do {
                 let (_, response) = try await network.data(for: request)
+                if let deleteID = entry.resolvedOptionEntryDeleteID,
+                   await restoreOptionEntryIfStillDesired(afterDeleting: deleteID) {
+                    continue
+                }
                 // Keep only transient failures. A permanent 4xx (bad body,
                 // conflict, auth) will never succeed on replay, so dropping it
                 // stops a doomed request from retrying on every launch for 3 days.
@@ -261,11 +317,28 @@ actor SupabaseSyncService {
                     )
                 }
             } catch {
+                if let deleteID = entry.resolvedOptionEntryDeleteID,
+                   await restoreOptionEntryIfStillDesired(afterDeleting: deleteID) {
+                    continue
+                }
                 remaining.append(entry)
             }
         }
-        
-        saveRetryQueue(remaining)
+
+        let latestDesiredEntries = OptionEntryRetrySupersession.persistedDesiredEntries()
+        remaining = remaining.filter { entry in
+            guard let deleteID = entry.resolvedOptionEntryDeleteID else { return true }
+            return OptionEntryRetrySupersession.recoveryEntry(
+                afterReplayingDeleteID: deleteID,
+                latestDesiredEntries: latestDesiredEntries
+            ) == nil
+        }
+        var mergedQueue = loadRetryQueue()
+        mergedQueue.append(contentsOf: remaining)
+        if mergedQueue.count > Self.maxRetryQueueSize {
+            mergedQueue = Array(mergedQueue.suffix(Self.maxRetryQueueSize))
+        }
+        saveRetryQueue(mergedQueue)
         AppLogger.network.debug("📡 Retry queue drained: \(queue.count - remaining.count) succeeded, \(remaining.count) still pending")
     }
     

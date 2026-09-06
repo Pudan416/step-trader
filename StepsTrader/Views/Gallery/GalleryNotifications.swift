@@ -28,6 +28,27 @@ struct CanvasHappeningReconciliation: Equatable {
     }
 }
 
+@MainActor
+enum CanvasRemoteHydrationCoordinator {
+    @discardableResult
+    static func apply(
+        _ result: DayCanvasFetchResult,
+        onFound: (DayCanvas) -> Void,
+        onConfirmedAbsent: () -> Void
+    ) -> Bool {
+        switch result {
+        case let .found(canvas):
+            onFound(canvas)
+            return true
+        case .confirmedAbsent:
+            onConfirmedAbsent()
+            return true
+        case .failed:
+            return false
+        }
+    }
+}
+
 enum CanvasHappeningReconciliationPolicy {
     static func reconcileIfReady(
         canvasLoaded: Bool,
@@ -273,12 +294,46 @@ enum CanvasHappeningRemovalTransaction {
               canvas.dayKey == capturedDayKey,
               let index = canvas.elements.firstIndex(where: { $0.optionId == happeningID })
         else { return nil }
+        let element = canvas.elements[index]
+        let entryID = CanvasHappeningEntryResolver.entryID(
+            for: element,
+            entries: model.todayAdditions,
+            dayKey: capturedDayKey
+        )
         var canonical = canvas
         let removed = canonical.elements.remove(at: index)
         canonical.lastModified = date
         guard persist(canonical) else { return nil }
-        model.removeAddition(entryId: removed.id.uuidString)
+        if let entryID {
+            model.removeAddition(entryId: entryID)
+        }
         return CanvasHappeningRemovalResult(canvas: canonical, removedElement: removed)
+    }
+}
+
+enum CanvasHappeningEntryResolver {
+    static func entryID(
+        for element: CanvasElement,
+        entries: [OptionEntry],
+        dayKey: String
+    ) -> String? {
+        let currentDayEntries = entries.filter { $0.dayKey == dayKey }
+        if let stable = currentDayEntries.first(where: {
+            UUID(uuidString: $0.id) == element.id
+        }) {
+            return stable.id
+        }
+        return currentDayEntries.first(where: { $0.optionId == element.optionId })?.id
+    }
+}
+
+struct CanvasPalettePresentationState: Equatable {
+    var isPresented: Bool
+    var activePanel: HappeningPalettePanel?
+
+    mutating func closeForDayRollover() {
+        isPresented = false
+        activePanel = nil
     }
 }
 
