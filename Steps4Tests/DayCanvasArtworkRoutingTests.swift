@@ -25,14 +25,14 @@ final class DayCanvasArtworkRoutingTests: XCTestCase {
         XCTAssertEqual(CanvasExportRoute(canvas: editorialCanvas), .editorialMetal)
     }
 
-    func testEditorialDoesNotConstructLegacyLayers() {
+    func testEditorialReusesStableLegacySmudgeSourceWithoutConstructingLegacyArtwork() {
         let policy = DayCanvasArtworkLayerPolicy(style: .editorial)
 
         XCTAssertTrue(policy.usesEditorial)
         XCTAssertFalse(policy.usesLegacyBackground)
         XCTAssertFalse(policy.usesRasterTexture)
         XCTAssertTrue(policy.usesInteractiveAnimationOverlay)
-        XCTAssertEqual(policy.animationSnapshotSource, .editorialMetal)
+        XCTAssertEqual(policy.animationSnapshotSource, .legacySwiftUI)
     }
 
     func testLegacyKeepsExistingLayers() {

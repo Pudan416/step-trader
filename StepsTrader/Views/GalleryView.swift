@@ -141,7 +141,6 @@ struct GalleryView: View {
 
     @State private var safeAreaTop: CGFloat = 0
     @State private var safeAreaBottom: CGFloat = 0
-    @State private var editorialClock = DayObjectsClock()
 
     /// The device's real top safe-area inset (status bar / Dynamic Island),
     /// read directly from the key window instead of `safeAreaTop`.
@@ -583,8 +582,7 @@ struct GalleryView: View {
                 style: dayCanvas.resolvedVisualStyle,
                 editorial: editorialRenderInput,
                 isAnimating: isCanvasSelected,
-                soundPulseBus: canvasSoundPulseBus,
-                editorialClock: editorialClock
+                soundPulseBus: canvasSoundPulseBus
             ) {
                 legacyCanvasLayers
                     .background {
@@ -615,11 +613,7 @@ struct GalleryView: View {
                     backgroundColor: canvasBackground,
                     labelColor: labelColor,
                     hasStepsData: model.hasStepsData,
-                    hasSleepData: model.hasSleepData,
-                    editorialSnapshotInput: dayCanvas.resolvedVisualStyle == .editorial
-                        ? editorialRenderInput
-                        : nil,
-                    editorialClock: editorialClock
+                    hasSleepData: model.hasSleepData
                 )
                 .frame(
                     width: GenerativeCanvasView.canonicalPortraitSize.width,

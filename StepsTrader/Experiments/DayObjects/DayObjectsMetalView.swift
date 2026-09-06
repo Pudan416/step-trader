@@ -7,15 +7,13 @@ struct DayObjectsMetalView: UIViewRepresentable {
     let digitalImpact: DayObjectDigitalImpact
     let isAnimating: Bool
     let soundPulseBus: DayObjectsSoundPulseBus?
-    let clock: DayObjectsClock?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             scene: scene,
             environment: environment,
             digitalImpact: digitalImpact,
-            soundPulseBus: soundPulseBus,
-            clock: clock
+            soundPulseBus: soundPulseBus
         )
     }
 
@@ -78,15 +76,13 @@ struct DayObjectsMetalView: UIViewRepresentable {
             scene: DayObjectScene,
             environment: DayObjectEnvironment,
             digitalImpact: DayObjectDigitalImpact,
-            soundPulseBus: DayObjectsSoundPulseBus?,
-            clock: DayObjectsClock?
+            soundPulseBus: DayObjectsSoundPulseBus?
         ) {
             renderer = DayObjectsRenderer.create(
                 scene: scene,
                 environment: environment,
                 digitalImpact: digitalImpact,
-                soundPulseBus: soundPulseBus,
-                clock: clock ?? DayObjectsClock()
+                soundPulseBus: soundPulseBus
             )
         }
     }
