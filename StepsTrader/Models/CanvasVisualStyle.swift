@@ -1,6 +1,6 @@
 import Foundation
 
-enum CanvasVisualStyle: String, Codable, CaseIterable, Identifiable {
+enum CanvasVisualStyle: String, Codable, CaseIterable, Hashable, Identifiable {
     case editorial
     case legacy
 

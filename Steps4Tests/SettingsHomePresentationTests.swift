@@ -173,6 +173,20 @@ final class SettingsHomePresentationTests: XCTestCase {
         XCTAssertFalse(SettingsAppearanceMode.manual.dailyRandomEnabled)
     }
 
+    func testEditorialAppearanceShowsOnlyEditorialPaletteControls() {
+        let presentation = CanvasAppearancePresentation(style: .editorial)
+
+        XCTAssertTrue(presentation.showsModernPalettes)
+        XCTAssertFalse(presentation.showsLegacyControls)
+    }
+
+    func testLegacyAppearanceRestoresCompletePreviousControls() {
+        let presentation = CanvasAppearancePresentation(style: .legacy)
+
+        XCTAssertFalse(presentation.showsModernPalettes)
+        XCTAssertTrue(presentation.showsLegacyControls)
+    }
+
 #if DEBUG
     func testInternalLabCatalogContainsOnlyDayObjects() {
         XCTAssertEqual(ExperimentalLabRoute.allCases, [.dayObjects])

@@ -531,6 +531,9 @@
     "CANVAS FILLS" : {
       "comment" : "Appearance section header"
     },
+    "Canvas style" : {
+      "comment" : "Canvas renderer picker label"
+    },
     "Canvas reminder" : {
       "comment" : "Notification section header"
     },
@@ -856,6 +859,9 @@
     "Edit settings" : {
 
     },
+    "Editorial" : {
+      "comment" : "Canvas renderer option"
+    },
     "Email" : {
       "comment" : "ProfileEditor – email label\nSettings account profile label"
     },
@@ -1094,6 +1100,9 @@
     },
     "Let's go" : {
 
+    },
+    "Legacy" : {
+      "comment" : "Canvas renderer option"
     },
     "Linear" : {
 

@@ -33,6 +33,10 @@ struct GalleryView: View {
     @AppStorage(SharedKeys.gradientStyle) private var currentGradientStyle: String = GradientStyle.radial.rawValue
     @AppStorage(SharedKeys.gradientPalette) private var currentGradientPalette: String = GradientPalette.warmSunset.rawValue
     @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
+    @AppStorage(SharedKeys.modernPaletteCategories) private var modernPaletteCategoriesRaw = ""
+    @AppStorage(SharedKeys.canvasVisualStyle) private var preferredCanvasVisualStyleRaw = CanvasVisualStyle.editorial.rawValue
+    @AppStorage(SharedKeys.canvasVisualStyleMigrationVersion, store: UserDefaults.stepsTrader())
+    private var canvasVisualStyleMigrationVersion = 0
     /// Last day key whose remote bootstrap finished. When `== todayKey`, an empty
     /// canvas (post-fetch with no remote data) is treated as a real "nothing yet"
     /// state instead of re-firing the remote round-trip on every appear.
@@ -142,6 +146,22 @@ struct GalleryView: View {
     private var labelColor: Color { theme.textPrimary }
     private var buttonColor: Color { AppColors.Night.textPrimary }
     private var todayKey: String { AppModel.dayKey(for: Date.now) }
+
+    private var preferredCanvasVisualStyle: CanvasVisualStyle {
+        CanvasVisualStyle(rawValue: preferredCanvasVisualStyleRaw) ?? .editorial
+    }
+
+    private var editorialRenderInput: EditorialCanvasRenderInput {
+        EditorialCanvasInputFactory.make(
+            canvas: dayCanvas,
+            metrics: EditorialCanvasMetrics(
+                stepsProgress: Double(model.stepsPointsToday) / 20,
+                sleepProgress: Double(model.sleepPointsToday) / 20,
+                spentProgress: decayNorm
+            ),
+            paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw)
+        )
+    }
 
     private var bottomControlsPadding: CGFloat {
         if presentation.isWideCanvas || presentation.isEditing {
@@ -389,8 +409,7 @@ struct GalleryView: View {
     @State private var lightHapticTick = 0
     @State private var mediumHapticTick = 0
 
-    @ViewBuilder
-    private var canvasLayers: some View {
+    private var legacyCanvasLayers: some View {
         ZStack {
             GenerativeCanvasView(
                 elements: renderedCanvasElements,
@@ -453,6 +472,33 @@ struct GalleryView: View {
         }
     }
 
+    private var canvasLayers: some View {
+        DayCanvasArtworkView(
+            style: dayCanvas.resolvedVisualStyle,
+            editorial: editorialRenderInput,
+            isAnimating: isCanvasSelected
+        ) {
+            legacyCanvasLayers
+                .background {
+                    EnergyGradientBackground(
+                        stepsPoints: model.stepsPointsToday,
+                        sleepPoints: model.sleepPointsToday,
+                        hasStepsData: model.hasStepsData,
+                        hasSleepData: model.hasSleepData,
+                        showGrain: false
+                    )
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+                }
+                .overlay {
+                    TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
+                        .transaction { $0.animation = nil }
+                }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea()
+    }
+
     // ═══════════════════════════════════════════════════════════
     // MARK: - Body
     // ═══════════════════════════════════════════════════════════
@@ -490,7 +536,8 @@ struct GalleryView: View {
             }
         }
         .overlay {
-            if presentation.showsEditingChrome {
+            if presentation.showsEditingChrome,
+               dayCanvas.resolvedVisualStyle == .legacy {
                 CanvasEditingDock(
                     showsDragHint: showsEditDragHint,
                     onDone: {
@@ -511,13 +558,8 @@ struct GalleryView: View {
             }
         }
         .overlay {
-            TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
-                .transaction { $0.animation = nil }
-        }
-        .overlay {
             happeningPaletteOverlay
         }
-        .energyGradientBackground(model: model, showGrain: false)
         .toolbar(.hidden, for: .navigationBar)
         .background(
             GeometryReader { geo in
@@ -564,6 +606,9 @@ struct GalleryView: View {
         .onChange(of: canvasSyncState) {
             syncCanvasWithModel()
         }
+        .onChange(of: preferredCanvasVisualStyleRaw) { _, rawValue in
+            applyPreferredCanvasVisualStyle(rawValue)
+        }
         .onChange(of: dayCanvas.elements.count) { refreshAddHint() }
         .onChange(of: showHappeningPalette) { _, isPresented in
             refreshAddHint()
@@ -587,7 +632,7 @@ struct GalleryView: View {
             guard newKey != activeDayKey else { return }
             loadTask?.cancel()
             activeDayKey = newKey
-            dayCanvas = DayCanvas(dayKey: newKey)
+            dayCanvas = makeNewCanvas(dayKey: newKey)
             canvasLoaded = false
             pendingDeletedIds.removeAll()
             send(.dayBoundary)
@@ -664,7 +709,7 @@ struct GalleryView: View {
             if newKey != activeDayKey {
                 loadTask?.cancel()
                 activeDayKey = newKey
-                dayCanvas = DayCanvas(dayKey: newKey)
+                dayCanvas = makeNewCanvas(dayKey: newKey)
                 canvasLoaded = false
                 pendingDeletedIds.removeAll()
                 send(.dayBoundary)
@@ -1122,38 +1167,91 @@ struct GalleryView: View {
     // MARK: - Canvas State Management
     // ═══════════════════════════════════════════════════════════
 
+    private func makeNewCanvas(dayKey: String) -> DayCanvas {
+        var canvas = DayCanvas(dayKey: dayKey)
+        canvas.visualStyleRaw = preferredCanvasVisualStyle.rawValue
+        return canvas
+    }
+
+    private func migratedLoadedCanvas(_ loaded: DayCanvas) -> (canvas: DayCanvas, didMigrate: Bool) {
+        var canvas = loaded
+        switch CanvasVisualStyleMigration.decision(
+            dayKey: loaded.dayKey,
+            storedStyleRaw: loaded.visualStyleRaw,
+            currentDayKey: todayKey,
+            completedVersion: canvasVisualStyleMigrationVersion
+        ) {
+        case .use(let style):
+            if loaded.dayKey == todayKey {
+                preferredCanvasVisualStyleRaw = style.rawValue
+            }
+            // Only write a value when it already existed. A missing historical
+            // field must stay untouched so old serialized canvases remain exact.
+            if loaded.visualStyleRaw != nil {
+                canvas.visualStyleRaw = style.rawValue
+            }
+            return (canvas, false)
+        case .persist(let style, let markVersion):
+            canvas.visualStyleRaw = style.rawValue
+            canvasVisualStyleMigrationVersion = markVersion
+            preferredCanvasVisualStyleRaw = style.rawValue
+            return (canvas, true)
+        }
+    }
+
+    private func applyPreferredCanvasVisualStyle(_ rawValue: String) {
+        guard canvasLoaded,
+              dayCanvas.dayKey == todayKey else { return }
+        let style = CanvasVisualStyle(rawValue: rawValue) ?? .editorial
+        guard dayCanvas.visualStyleRaw != style.rawValue else { return }
+
+        if presentation.isEditing {
+            send(.endEditing)
+        }
+        dayCanvas.visualStyleRaw = style.rawValue
+        dayCanvas.lastModified = .now
+        canvasVisualStyleMigrationVersion = CanvasVisualStyleMigration.currentVersion
+        saveCanvasLocally()
+        HistoryThumbnailCache.shared.invalidate(dayKey: dayCanvas.dayKey)
+    }
+
     private func loadCanvas() {
         let dayKey = AppModel.dayKey(for: Date.now)
         // Unit tests run inside the application host. Keep the host Gallery
         // inert so it cannot race persistence tests through the shared canvas
         // directory; tests exercise CanvasStorageService explicitly.
         if isUnitTestHost {
-            dayCanvas = DayCanvas(dayKey: dayKey)
+            dayCanvas = makeNewCanvas(dayKey: dayKey)
             canvasLoaded = true
             return
         }
         if usesTask7UITestFixture {
-            dayCanvas = DayCanvas(dayKey: dayKey)
+            dayCanvas = makeNewCanvas(dayKey: dayKey)
             canvasLoaded = true
             syncCanvasWithModel()
             return
         }
         let local = CanvasStorageService.shared.loadCanvas(for: dayKey)
         if let local {
-            dayCanvas = local
+            let migrated = migratedLoadedCanvas(local)
+            dayCanvas = migrated.canvas
             canvasLoaded = true
             syncCanvasWithModel()
+            if migrated.didMigrate {
+                saveCanvasLocally()
+            }
             return
         }
         // No on-disk canvas. If we already finished bootstrap for this day,
         // treat that as a real "empty today" rather than re-fetching forever.
         if lastBootstrappedDayKey == dayKey {
-            dayCanvas = DayCanvas(dayKey: dayKey)
+            dayCanvas = makeNewCanvas(dayKey: dayKey)
+            canvasVisualStyleMigrationVersion = CanvasVisualStyleMigration.currentVersion
             canvasLoaded = true
             syncCanvasWithModel()
             return
         }
-        dayCanvas = DayCanvas(dayKey: dayKey)
+        dayCanvas = makeNewCanvas(dayKey: dayKey)
         let snapshotCounter = localMutationCounter
         pendingDeletedIds.removeAll()
         loadTask = Task {
@@ -1164,18 +1262,21 @@ struct GalleryView: View {
                 if let remote {
                     if localMutationCounter != snapshotCounter {
                         let merged = mergeRemoteWithLocal(remote: remote, local: dayCanvas)
-                        dayCanvas = merged
+                        let migrated = migratedLoadedCanvas(merged)
+                        dayCanvas = migrated.canvas
                         canvasLoaded = true
                         saveCanvasLocally()
                         syncCanvasWithModel()
                     } else {
-                        dayCanvas = remote
-                        CanvasStorageService.shared.saveCanvas(remote)
+                        let migrated = migratedLoadedCanvas(remote)
+                        dayCanvas = migrated.canvas
+                        CanvasStorageService.shared.saveCanvas(migrated.canvas)
                         canvasLoaded = true
                         syncCanvasWithModel()
                         refreshWidgetSnapshot()
                     }
                 } else {
+                    canvasVisualStyleMigrationVersion = CanvasVisualStyleMigration.currentVersion
                     canvasLoaded = true
                     if localMutationCounter != snapshotCounter {
                         saveCanvasLocally()
@@ -1207,6 +1308,9 @@ struct GalleryView: View {
             }
         }
         var merged = remote
+        if merged.visualStyleRaw == nil {
+            merged.visualStyleRaw = local.visualStyleRaw
+        }
         let order = local.elements.map(\.id) + remote.elements.map(\.id)
         var seen: Set<UUID> = []
         var ordered: [CanvasElement] = []
@@ -1450,6 +1554,7 @@ struct GalleryView: View {
                     send(.beginEditing)
                     lightHapticTick &+= 1
                 },
+                showsEdit: dayCanvas.resolvedVisualStyle == .legacy,
                 share: { shareButton }
             )
             .padding(.horizontal, 8)

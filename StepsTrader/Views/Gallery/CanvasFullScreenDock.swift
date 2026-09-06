@@ -9,6 +9,7 @@ import SwiftUI
 struct CanvasFullScreenDock<Share: View>: View {
     let onExit: () -> Void
     let onEdit: () -> Void
+    var showsEdit = true
     @ViewBuilder let share: () -> Share
 
     private var ink: Color { AppColors.Night.textPrimary }
@@ -34,12 +35,14 @@ struct CanvasFullScreenDock<Share: View>: View {
 
             share()
 
-            label(
-                String(localized: "Edit", comment: "Full screen dock – enter editing"),
-                systemImage: "hand.draw",
-                action: onEdit
-            )
-            .accessibilityIdentifier("canvas_edit_button")
+            if showsEdit {
+                label(
+                    String(localized: "Edit", comment: "Full screen dock – enter editing"),
+                    systemImage: "hand.draw",
+                    action: onEdit
+                )
+                .accessibilityIdentifier("canvas_edit_button")
+            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)

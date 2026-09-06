@@ -1,5 +1,15 @@
 import SwiftUI
 
+struct CanvasAppearancePresentation: Equatable {
+    let showsModernPalettes: Bool
+    let showsLegacyControls: Bool
+
+    init(style: CanvasVisualStyle) {
+        showsModernPalettes = style == .editorial
+        showsLegacyControls = style == .legacy
+    }
+}
+
 struct SettingsAppearancePage: View {
     @ObservedObject var model: AppModel
     @AppStorage(SharedKeys.gradientStyle) private var gradientStyleRaw: String = GradientStyle.radial.rawValue
@@ -7,6 +17,7 @@ struct SettingsAppearancePage: View {
     @AppStorage(SharedKeys.dailyRandomThemeEnabled) private var dailyRandomThemeEnabled: Bool = false
     @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
     @AppStorage(SharedKeys.modernPaletteCategories) private var modernPaletteCategoriesRaw = ""
+    @AppStorage(SharedKeys.canvasVisualStyle) private var canvasVisualStyleRaw = CanvasVisualStyle.editorial.rawValue
     /// Mirrors `SharedKeys.allowedCanvasShapes` only to trigger redraws —
     /// `CanvasShapeType.allowedByUser` stays the single source of truth, since
     /// it also seeds from the legacy keys. There is no gate: every shape is
@@ -72,31 +83,64 @@ struct SettingsAppearancePage: View {
         ModernPaletteSelection.decode(modernPaletteCategoriesRaw)
     }
 
+    private var selectedCanvasStyle: CanvasVisualStyle {
+        CanvasVisualStyle(rawValue: canvasVisualStyleRaw) ?? .editorial
+    }
+
+    private var canvasStyleBinding: Binding<CanvasVisualStyle> {
+        Binding(
+            get: { selectedCanvasStyle },
+            set: { style in
+                guard style != selectedCanvasStyle else { return }
+                canvasVisualStyleRaw = style.rawValue
+                HistoryThumbnailCache.shared.invalidateAll()
+                lightHapticTick &+= 1
+                model.syncUserPreferencesToSupabase()
+            }
+        )
+    }
+
     var body: some View {
         ZStack {
             SettingsDetailBackground(model: model)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    appearanceModePicker
+                    canvasStylePicker
                         .padding(.horizontal, 16)
 
-                    if appearanceMode == .automatic {
-                        automaticThemeSection
-                            .padding(.horizontal, 16)
+                    if selectedCanvasStyle == .editorial {
+                        modernPaletteCategoriesSection
                             .transition(.opacity)
-                    } else {
-                        VStack(alignment: .leading, spacing: 24) {
-                            backgroundGroup
-                            canvasIngredientsDisclosure
+                        if ExperimentalFeatures.dayObjectsLab {
+                            dayObjectsLabSection
                         }
-                        .transition(.opacity)
+                    } else {
+                        appearanceModePicker
+                            .padding(.horizontal, 16)
+
+                        if appearanceMode == .automatic {
+                            automaticThemeSection
+                                .padding(.horizontal, 16)
+                                .transition(.opacity)
+                        } else {
+                            VStack(alignment: .leading, spacing: 24) {
+                                backgroundGroup
+                                canvasIngredientsDisclosure
+                            }
+                            .transition(.opacity)
+                        }
                     }
                 }
                 .padding(.bottom, 80)
                 .motionAnimation(
                     .spring(response: 0.3, dampingFraction: 0.8),
                     value: appearanceMode,
+                    reducedMotionFallback: .easeInOut(duration: 0.15)
+                )
+                .motionAnimation(
+                    .spring(response: 0.3, dampingFraction: 0.8),
+                    value: selectedCanvasStyle,
                     reducedMotionFallback: .easeInOut(duration: 0.15)
                 )
             }
@@ -125,6 +169,23 @@ struct SettingsAppearancePage: View {
     }
 
     // MARK: - Appearance Mode
+
+    private var canvasStylePicker: some View {
+        Picker(
+            String(localized: "Canvas style", comment: "Canvas renderer picker label"),
+            selection: canvasStyleBinding
+        ) {
+            Text(String(localized: "Editorial", comment: "Canvas renderer option"))
+                .font(.geist(.subheadline))
+                .tag(CanvasVisualStyle.editorial)
+            Text(String(localized: "Legacy", comment: "Canvas renderer option"))
+                .font(.geist(.subheadline))
+                .tag(CanvasVisualStyle.legacy)
+        }
+        .pickerStyle(.segmented)
+        .controlSize(.large)
+        .accessibilityIdentifier("settings.appearance.canvasStyle")
+    }
 
     private var appearanceModePicker: some View {
         Picker(
@@ -374,7 +435,6 @@ struct SettingsAppearancePage: View {
             canvasFillsSection
             textureSection
             if ExperimentalFeatures.dayObjectsLab {
-                modernPaletteCategoriesSection
                 dayObjectsLabSection
             }
         }

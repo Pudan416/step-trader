@@ -11,6 +11,8 @@
 		C5A510010906202600000004 /* CanvasVisualStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510010906202600000003 /* CanvasVisualStyle.swift */; };
 		C5A510020906202600000002 /* EditorialCanvasInputFactoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510020906202600000001 /* EditorialCanvasInputFactoryTests.swift */; };
 		C5A510020906202600000004 /* EditorialCanvasInputFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510020906202600000003 /* EditorialCanvasInputFactory.swift */; };
+		C5A510030906202600000002 /* DayCanvasArtworkRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510030906202600000001 /* DayCanvasArtworkRoutingTests.swift */; };
+		C5A510030906202600000004 /* DayCanvasArtworkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510030906202600000003 /* DayCanvasArtworkView.swift */; };
 		F5A900000000000000000002 /* DayObjectsLoudnessAnalyzerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A900000000000000000001 /* DayObjectsLoudnessAnalyzerTests.swift */; };
 		F5A900000000000000000004 /* DayObjectsLoudnessAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A900000000000000000003 /* DayObjectsLoudnessAnalyzer.swift */; };
 		F5A900000000000000000007 /* DayObjectsOfflineMixRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A900000000000000000006 /* DayObjectsOfflineMixRenderer.swift */; };
@@ -580,6 +582,8 @@
 		C5A510010906202600000003 /* CanvasVisualStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasVisualStyle.swift; path = StepsTrader/Models/CanvasVisualStyle.swift; sourceTree = SOURCE_ROOT; };
 		C5A510020906202600000001 /* EditorialCanvasInputFactoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorialCanvasInputFactoryTests.swift; sourceTree = "<group>"; };
 		C5A510020906202600000003 /* EditorialCanvasInputFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorialCanvasInputFactory.swift; sourceTree = "<group>"; };
+		C5A510030906202600000001 /* DayCanvasArtworkRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayCanvasArtworkRoutingTests.swift; sourceTree = "<group>"; };
+		C5A510030906202600000003 /* DayCanvasArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayCanvasArtworkView.swift; sourceTree = "<group>"; };
 		F5A900000000000000000001 /* DayObjectsLoudnessAnalyzerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLoudnessAnalyzerTests.swift; sourceTree = "<group>"; };
 		F5A900000000000000000003 /* DayObjectsLoudnessAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLoudnessAnalyzer.swift; sourceTree = "<group>"; };
 		F5A900000000000000000006 /* DayObjectsOfflineMixRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsOfflineMixRenderer.swift; sourceTree = "<group>"; };
@@ -1607,6 +1611,7 @@
 				2061ECE82F276FE8009FEC24 /* TimeAccessPickerSheet.swift */,
 				20C7E6132F8BF2A200BD06AA /* CanvasShapePreview.swift */,
 				30EA00013001000000EA0001 /* EnergyGradientBackground.swift */,
+				C5A510030906202600000003 /* DayCanvasArtworkView.swift */,
 				WK000002AAAA000200000002 /* WorkoutSuggestionBanner.swift */,
 				2061EB922F269CE6009FEC24 /* ImagePicker.swift */,
 				2061EBA42F269D19009FEC24 /* AppSelectionComponents.swift */,
@@ -1929,6 +1934,7 @@
 				AL01000053000053000000A1 /* AuthSignInLoadingStateTests.swift */,
 				60OR0002300000000060OR0002 /* CanvasOverlayStyleTests.swift */,
 				20CC010C2F86000000000012 /* SettingsHomePresentationTests.swift */,
+				C5A510030906202600000001 /* DayCanvasArtworkRoutingTests.swift */,
 				20CC01122F86000000000018 /* SettingsPermissionPresentationTests.swift */,
 			);
 			path = Steps4Tests;
@@ -2460,6 +2466,7 @@
 				20A05E020000000000000002 /* AuthSupportTypes.swift in Sources */,
 				20A05E030000000000000002 /* AuthenticationService+SupabaseREST.swift in Sources */,
 				30EA00023001000000EA0002 /* EnergyGradientBackground.swift in Sources */,
+				C5A510030906202600000004 /* DayCanvasArtworkView.swift in Sources */,
 				WK000002AAAA000200000001 /* WorkoutSuggestionBanner.swift in Sources */,
 				DD000002DDDD000200000001 /* TicketTemplatePickerView.swift in Sources */,
 				DD000003DDDD000300000001 /* InlineTicketSettingsView.swift in Sources */,
@@ -2736,6 +2743,7 @@
 				AL01000053000053000000B1 /* AuthSignInLoadingStateTests.swift in Sources */,
 				60OR0001300000000060OR0001 /* CanvasOverlayStyleTests.swift in Sources */,
 				20CC020C2F86000000000012 /* SettingsHomePresentationTests.swift in Sources */,
+				C5A510030906202600000002 /* DayCanvasArtworkRoutingTests.swift in Sources */,
 				20CC02122F86000000000018 /* SettingsPermissionPresentationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
