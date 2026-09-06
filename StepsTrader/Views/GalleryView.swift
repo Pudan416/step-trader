@@ -1324,15 +1324,14 @@ struct GalleryView: View {
 
     @MainActor
     private func refreshWidgetSnapshot() {
-        CanvasStorageService.shared.saveWidgetSnapshot(
-            for: dayCanvas.dayKey,
-            elements: dayCanvas.elements,
-            sleepPoints: dayCanvas.sleepPoints,
-            stepsPoints: dayCanvas.stepsPoints,
-            sleepColor: Color(hex: dayCanvas.sleepColorHex),
-            stepsColor: Color(hex: dayCanvas.stepsColorHex),
-            decayNorm: dayCanvas.decayNorm
-        )
+        let canvas = dayCanvas
+        let categories = ModernPaletteSelection.decode(modernPaletteCategoriesRaw)
+        Task { @MainActor in
+            await CanvasStorageService.shared.saveWidgetSnapshot(
+                for: canvas,
+                paletteCategories: categories
+            )
+        }
     }
 
     private func syncCanvasWithModel() {
@@ -1760,38 +1759,6 @@ struct GalleryView: View {
             let userName = AuthenticationService.shared.currentUser?.displayName
             let style = PosterStyle.museum
 
-            let canvasContent = ZStack {
-                EnergyGradientBackground(
-                    stepsPoints: model.stepsPointsToday,
-                    sleepPoints: model.sleepPointsToday,
-                    hasStepsData: model.hasStepsData,
-                    hasSleepData: model.hasSleepData,
-                    showGrain: true,
-                    gradientStyleOverride: currentGradientStyle,
-                    gradientPaletteOverride: currentGradientPalette,
-                    textureOverride: dayCanvas.textureRaw
-                )
-
-                GenerativeCanvasView(
-                    elements: dayCanvas.elements,
-                    dayKey: dayCanvas.dayKey,
-                    sleepPoints: model.sleepPointsToday,
-                    stepsPoints: model.stepsPointsToday,
-                    sleepColor: Color(hex: sleepColorHex),
-                    stepsColor: Color(hex: stepsColorHex),
-                    decayNorm: decayNorm,
-                    backgroundColor: .clear,
-                    labelColor: labelColor,
-                    showLabelsOnCanvas: true,
-                    showsOutlinedLabels: false,
-                    showsBackgroundGradient: false,
-                    hasStepsData: model.hasStepsData,
-                    hasSleepData: model.hasSleepData,
-                    fixedTime: Date.now,
-                    isOffscreenRender: true
-                )
-            }
-
             // Render the poster at the exact on-screen frame size, then upscale via
             // `renderer.scale`. This keeps every element — including the canvas's
             // absolute-point labels — at the same proportions shown on screen,
@@ -1799,6 +1766,60 @@ struct GalleryView: View {
             // the fixed-size labels relative to the canvas.
             let frameSize = GenerativeCanvasView.framedCanvasSize
             let targetWidth: CGFloat = 2160
+            let renderScale = targetWidth / frameSize.width
+
+            let canvasContent: AnyView
+            switch CanvasExportRoute(canvas: dayCanvas) {
+            case .editorialMetal:
+                guard let image = await DayObjectsImageRenderer.image(
+                    input: editorialRenderInput,
+                    size: frameSize,
+                    scale: renderScale,
+                    elapsedTime: 4
+                ) else {
+                    toolbar.isExporting = false
+                    return
+                }
+                canvasContent = AnyView(
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                )
+            case .legacySwiftUI:
+                canvasContent = AnyView(
+                    ZStack {
+                        EnergyGradientBackground(
+                            stepsPoints: model.stepsPointsToday,
+                            sleepPoints: model.sleepPointsToday,
+                            hasStepsData: model.hasStepsData,
+                            hasSleepData: model.hasSleepData,
+                            showGrain: true,
+                            gradientStyleOverride: currentGradientStyle,
+                            gradientPaletteOverride: currentGradientPalette,
+                            textureOverride: dayCanvas.textureRaw
+                        )
+
+                        GenerativeCanvasView(
+                            elements: dayCanvas.elements,
+                            dayKey: dayCanvas.dayKey,
+                            sleepPoints: model.sleepPointsToday,
+                            stepsPoints: model.stepsPointsToday,
+                            sleepColor: Color(hex: sleepColorHex),
+                            stepsColor: Color(hex: stepsColorHex),
+                            decayNorm: decayNorm,
+                            backgroundColor: .clear,
+                            labelColor: labelColor,
+                            showLabelsOnCanvas: true,
+                            showsOutlinedLabels: false,
+                            showsBackgroundGradient: false,
+                            hasStepsData: model.hasStepsData,
+                            hasSleepData: model.hasSleepData,
+                            fixedTime: Date.now,
+                            isOffscreenRender: true
+                        )
+                    }
+                )
+            }
 
             let shareable = CanvasPosterView(
                 style: style,
@@ -1815,7 +1836,7 @@ struct GalleryView: View {
 
             await Task.yield()
             let renderer = ImageRenderer(content: shareable)
-            renderer.scale = targetWidth / frameSize.width
+            renderer.scale = renderScale
             renderer.proposedSize = .init(width: frameSize.width, height: frameSize.height)
             let image = renderer.uiImage
 

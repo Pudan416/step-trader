@@ -263,6 +263,8 @@ struct DayHistoryTile: View {
     let onTap: () -> Void
 
     @Environment(\.appTheme) private var theme
+    @AppStorage(SharedKeys.modernPaletteCategories)
+    private var modernPaletteCategoriesRaw = ""
 
     @State private var thumbnail: UIImage?
     @State private var hasLoaded = false
@@ -392,7 +394,8 @@ struct DayHistoryTile: View {
             canvas: canvas,
             size: size,
             fixedTime: fixedTime,
-            theme: theme
+            theme: theme,
+            paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw)
         )
 
         await MainActor.run { thumbnail = image }

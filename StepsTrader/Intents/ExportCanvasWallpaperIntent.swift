@@ -128,56 +128,78 @@ struct ExportCanvasWallpaperIntent: AppIntent {
         let resolvedStyle = gradientStyle.resolved()
         let resolvedPalette = colorPalette.resolved()
 
-        let view = ZStack {
-            WallpaperGradientLayer(
-                stepsPoints: canvas.stepsPoints,
-                sleepPoints: canvas.sleepPoints,
-                hasStepsData: hasSteps,
-                hasSleepData: hasSleep,
-                gradientStyle: resolvedStyle,
-                palette: resolvedPalette
+        let image: UIImage?
+        switch CanvasExportRoute(canvas: canvas) {
+        case .editorialMetal:
+            let defaults = UserDefaults(suiteName: SharedKeys.appGroupId) ?? .standard
+            let categories = ModernPaletteSelection.decode(
+                defaults.string(forKey: SharedKeys.modernPaletteCategories) ?? ""
             )
-
-            GenerativeCanvasView(
-                elements: canvas.elements,
-                dayKey: canvas.dayKey,
-                sleepPoints: canvas.sleepPoints,
-                stepsPoints: canvas.stepsPoints,
-                sleepColor: Color(hex: canvas.sleepColorHex),
-                stepsColor: Color(hex: canvas.stepsColorHex),
-                decayNorm: canvas.decayNorm,
-                backgroundColor: bgColor,
-                showLabelsOnCanvas: false,
-                showsOutlinedLabels: false,
-                showsBackgroundGradient: false,
-                hasStepsData: hasSteps,
-                hasSleepData: hasSleep,
-                fixedTime: .now,
-                isOffscreenRender: true
+            image = await DayObjectsImageRenderer.image(
+                input: EditorialCanvasInputFactory.make(
+                    canvas: canvas,
+                    metrics: EditorialCanvasMetrics(
+                        stepsProgress: Double(canvas.stepsPoints) / 20,
+                        sleepProgress: Double(canvas.sleepPoints) / 20,
+                        spentProgress: canvas.decayNorm
+                    ),
+                    paletteCategories: categories
+                ),
+                size: CGSize(width: baseWidth, height: baseHeight),
+                scale: screen.scale,
+                elapsedTime: 4
             )
+        case .legacySwiftUI:
+            let view = ZStack {
+                WallpaperGradientLayer(
+                    stepsPoints: canvas.stepsPoints,
+                    sleepPoints: canvas.sleepPoints,
+                    hasStepsData: hasSteps,
+                    hasSleepData: hasSleep,
+                    gradientStyle: resolvedStyle,
+                    palette: resolvedPalette
+                )
 
-            let textureRaw = UserDefaults.standard.string(forKey: SharedKeys.canvasTexture) ?? "grain (small)"
-            let texture = CanvasTexture.fromStored(textureRaw)
-            if let assetName = texture.assetName {
-                let blendMode = texture.blendMode
-                let opacity = texture.defaultOpacity
-                Image(assetName)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: baseWidth, height: baseHeight)
-                    .clipped()
-                    .blendMode(blendMode)
-                    .opacity(opacity)
-                    .allowsHitTesting(false)
+                GenerativeCanvasView(
+                    elements: canvas.elements,
+                    dayKey: canvas.dayKey,
+                    sleepPoints: canvas.sleepPoints,
+                    stepsPoints: canvas.stepsPoints,
+                    sleepColor: Color(hex: canvas.sleepColorHex),
+                    stepsColor: Color(hex: canvas.stepsColorHex),
+                    decayNorm: canvas.decayNorm,
+                    backgroundColor: bgColor,
+                    showLabelsOnCanvas: false,
+                    showsOutlinedLabels: false,
+                    showsBackgroundGradient: false,
+                    hasStepsData: hasSteps,
+                    hasSleepData: hasSleep,
+                    fixedTime: .now,
+                    isOffscreenRender: true
+                )
+
+                let textureRaw = UserDefaults.standard.string(forKey: SharedKeys.canvasTexture) ?? "grain (small)"
+                let texture = CanvasTexture.fromStored(textureRaw)
+                if let assetName = texture.assetName {
+                    Image(assetName)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: baseWidth, height: baseHeight)
+                        .clipped()
+                        .blendMode(texture.blendMode)
+                        .opacity(texture.defaultOpacity)
+                        .allowsHitTesting(false)
+                }
             }
+            .frame(width: baseWidth, height: baseHeight)
+            .clipped()
+
+            let renderer = ImageRenderer(content: view)
+            renderer.scale = screen.scale
+            image = renderer.uiImage
         }
-        .frame(width: baseWidth, height: baseHeight)
-        .clipped()
 
-        let renderer = ImageRenderer(content: view)
-        renderer.scale = screen.scale
-
-        guard let image = renderer.uiImage,
+        guard let image,
               let data = image.pngData() else {
             throw ExportCanvasError.renderFailed
         }

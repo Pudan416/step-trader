@@ -106,30 +106,22 @@ final class CanvasStorageService {
     // MARK: - Snapshot
 
     @MainActor
-    func saveSnapshot(for dayKey: String, elements: [CanvasElement], sleepPoints: Int, stepsPoints: Int, sleepColor: Color, stepsColor: Color, decayNorm: Double, backgroundColor: Color = AppColors.Night.background) {
-        let view = GenerativeCanvasView(
-            elements: elements,
-            dayKey: dayKey,
-            sleepPoints: sleepPoints,
-            stepsPoints: stepsPoints,
-            sleepColor: sleepColor,
-            stepsColor: stepsColor,
-            decayNorm: decayNorm,
-            backgroundColor: backgroundColor,
-            fixedTime: Date.now,
-            isOffscreenRender: true
-        )
-        .frame(width: 390, height: 500)
-
-        let renderer = ImageRenderer(content: view)
-        renderer.scale = 3.0
-        if let image = renderer.uiImage,
+    func saveSnapshot(
+        for canvas: DayCanvas,
+        paletteCategories: Set<ModernPaletteCategory> = ModernPaletteSelection.all
+    ) async {
+        if let image = await renderedSnapshot(
+            canvas: canvas,
+            size: CGSize(width: 390, height: 500),
+            scale: 3,
+            paletteCategories: paletteCategories
+        ),
            let data = image.pngData() {
-            let url = snapshotURL(for: dayKey)
+            let url = snapshotURL(for: canvas.dayKey)
             do {
                 try data.write(to: url, options: .atomic)
             } catch {
-                Self.log.error("Failed to save snapshot for \(dayKey): \(error.localizedDescription)")
+                Self.log.error("Failed to save snapshot for \(canvas.dayKey): \(error.localizedDescription)")
             }
         }
     }
@@ -138,26 +130,16 @@ final class CanvasStorageService {
     /// so the widget extension can display today's canvas preview.
     /// Renders on main actor, then writes JPEG to disk in the background.
     @MainActor
-    func saveWidgetSnapshot(for dayKey: String, elements: [CanvasElement], sleepPoints: Int, stepsPoints: Int, sleepColor: Color, stepsColor: Color, decayNorm: Double, backgroundColor: Color = AppColors.Night.background) {
-        let view = GenerativeCanvasView(
-            elements: elements,
-            dayKey: dayKey,
-            sleepPoints: sleepPoints,
-            stepsPoints: stepsPoints,
-            sleepColor: sleepColor,
-            stepsColor: stepsColor,
-            decayNorm: decayNorm,
-            backgroundColor: backgroundColor,
-            showLabelsOnCanvas: false,
-            showsOutlinedLabels: false,
-            fixedTime: Date.now,
-            isOffscreenRender: true
-        )
-        .frame(width: 200, height: 200)
-
-        let renderer = ImageRenderer(content: view)
-        renderer.scale = 2.0
-        guard let rendered = renderer.uiImage else { return }
+    func saveWidgetSnapshot(
+        for canvas: DayCanvas,
+        paletteCategories: Set<ModernPaletteCategory> = ModernPaletteSelection.all
+    ) async {
+        guard let rendered = await renderedSnapshot(
+            canvas: canvas,
+            size: CGSize(width: 200, height: 200),
+            scale: 2,
+            paletteCategories: paletteCategories
+        ) else { return }
         let opaqueRenderer = UIGraphicsImageRenderer(size: rendered.size, format: {
             let fmt = UIGraphicsImageRendererFormat()
             fmt.scale = rendered.scale
@@ -187,6 +169,69 @@ final class CanvasStorageService {
                 Self.log.error("Failed to save widget snapshot: \(error.localizedDescription)")
             }
         }
+    }
+
+    @MainActor
+    private func renderedSnapshot(
+        canvas: DayCanvas,
+        size: CGSize,
+        scale: CGFloat,
+        paletteCategories: Set<ModernPaletteCategory>
+    ) async -> UIImage? {
+        if CanvasExportRoute(canvas: canvas) == .editorialMetal {
+            return await DayObjectsImageRenderer.image(
+                input: EditorialCanvasInputFactory.make(
+                    canvas: canvas,
+                    metrics: EditorialCanvasMetrics(
+                        stepsProgress: Double(canvas.stepsPoints) / 20,
+                        sleepProgress: Double(canvas.sleepPoints) / 20,
+                        spentProgress: canvas.decayNorm
+                    ),
+                    paletteCategories: paletteCategories
+                ),
+                size: size,
+                scale: scale,
+                elapsedTime: 4
+            )
+        }
+
+        let view = ZStack {
+            EnergyGradientBackground(
+                stepsPoints: canvas.stepsPoints,
+                sleepPoints: canvas.sleepPoints,
+                hasStepsData: canvas.resolvedHasStepsData,
+                hasSleepData: canvas.resolvedHasSleepData,
+                showGrain: true,
+                gradientStyleOverride: canvas.gradientStyle,
+                gradientPaletteOverride: canvas.gradientPalette,
+                textureOverride: canvas.textureRaw,
+                fixedTime: canvas.lastModified
+            )
+
+            GenerativeCanvasView(
+                elements: canvas.elements,
+                dayKey: canvas.dayKey,
+                sleepPoints: canvas.sleepPoints,
+                stepsPoints: canvas.stepsPoints,
+                sleepColor: Color(hex: canvas.sleepColorHex),
+                stepsColor: Color(hex: canvas.stepsColorHex),
+                decayNorm: canvas.decayNorm,
+                backgroundColor: .clear,
+                showLabelsOnCanvas: false,
+                showsOutlinedLabels: false,
+                showsBackgroundGradient: false,
+                hasStepsData: canvas.resolvedHasStepsData,
+                hasSleepData: canvas.resolvedHasSleepData,
+                fixedTime: canvas.lastModified,
+                isOffscreenRender: true
+            )
+        }
+        .frame(width: size.width, height: size.height)
+
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = scale
+        renderer.proposedSize = .init(size)
+        return renderer.uiImage
     }
 
     func loadSnapshotImage(for dayKey: String) -> UIImage? {

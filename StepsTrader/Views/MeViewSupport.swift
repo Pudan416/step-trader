@@ -686,6 +686,10 @@ struct MeSelectedDayPoster: View {
     private var liveGradientPalette: String = GradientPalette.warmSunset.rawValue
     @AppStorage(SharedKeys.canvasTexture)
     private var liveTextureRaw: String = CanvasTexture.grainSmall.rawValue
+    @AppStorage(SharedKeys.canvasVisualStyle)
+    private var preferredCanvasVisualStyleRaw = CanvasVisualStyle.editorial.rawValue
+    @AppStorage(SharedKeys.modernPaletteCategories)
+    private var modernPaletteCategoriesRaw = ""
     @State private var dayCanvas: DayCanvas?
     @State private var artworkCanvas: DayCanvas?
     @State private var isLoading = false
@@ -795,7 +799,7 @@ struct MeSelectedDayPoster: View {
         }
         .onChange(of: shareRequestID) { _, _ in
             guard handlesShareRequest else { return }
-            prepareShare()
+            Task { await prepareShare() }
         }
         .sheet(isPresented: $showShareSheet, onDismiss: { shareImage = nil }) {
             if let shareImage {
@@ -807,37 +811,12 @@ struct MeSelectedDayPoster: View {
     @ViewBuilder
     private func canvasLayer(isOffscreenRender: Bool) -> some View {
         if let canvas = artworkCanvas {
-            ZStack {
-                EnergyGradientBackground(
-                    stepsPoints: canvas.stepsPoints,
-                    sleepPoints: canvas.sleepPoints,
-                    hasStepsData: canvas.resolvedHasStepsData,
-                    hasSleepData: canvas.resolvedHasSleepData,
-                    showGrain: true,
-                    gradientStyleOverride: canvas.gradientStyle,
-                    gradientPaletteOverride: canvas.gradientPalette,
-                    textureOverride: canvas.textureRaw,
-                    fixedTime: canvas.lastModified
-                )
-
-                GenerativeCanvasView(
-                    elements: canvas.elements,
-                    dayKey: canvas.dayKey,
-                    sleepPoints: canvas.sleepPoints,
-                    stepsPoints: canvas.stepsPoints,
-                    sleepColor: Color(hex: canvas.sleepColorHex),
-                    stepsColor: Color(hex: canvas.stepsColorHex),
-                    decayNorm: canvas.decayNorm,
-                    backgroundColor: .clear,
-                    labelColor: theme.textPrimary,
-                    showLabelsOnCanvas: false,
-                    showsOutlinedLabels: false,
-                    showsBackgroundGradient: false,
-                    hasStepsData: canvas.resolvedHasStepsData,
-                    hasSleepData: canvas.resolvedHasSleepData,
-                    fixedTime: canvas.lastModified,
-                    isOffscreenRender: isOffscreenRender
-                )
+            DayCanvasArtworkView(
+                style: canvas.resolvedVisualStyle,
+                editorial: editorialInput(for: canvas),
+                isAnimating: !isOffscreenRender && renderingIsActive
+            ) {
+                legacyCanvasLayer(canvas: canvas, isOffscreenRender: isOffscreenRender)
             }
         } else if posterMode == .emptyPast {
             ZStack {
@@ -901,6 +880,9 @@ struct MeSelectedDayPoster: View {
         if let loaded { return loaded }
 
         var canvas = DayCanvas(dayKey: dayKey)
+        canvas.visualStyleRaw = isToday
+            ? (CanvasVisualStyle(rawValue: preferredCanvasVisualStyleRaw) ?? .editorial).rawValue
+            : CanvasVisualStyle.legacy.rawValue
         canvas.sleepColorHex = liveSleepColorHex
         canvas.stepsColorHex = liveStepsColorHex
         canvas.gradientStyle = liveGradientStyle
@@ -926,20 +908,30 @@ struct MeSelectedDayPoster: View {
     }
 
     @MainActor
-    private func prepareShare() {
+    private func prepareShare() async {
         guard canShare else { return }
         let frameSize = CGSize(width: 604, height: 842)
-        let poster = MeGalleryPoster(
-            date: displayDate,
-            steps: displayedSteps,
-            sleepHours: displayedSleep,
-            events: displayEvents,
-            unlocks: displayedUnlocks
-        ) {
-            canvasLayer(isOffscreenRender: true)
+        guard let canvas = artworkCanvas else { return }
+
+        let poster: AnyView
+        switch CanvasExportRoute(canvas: canvas) {
+        case .editorialMetal:
+            guard let artwork = await DayObjectsImageRenderer.image(
+                input: editorialInput(for: canvas),
+                size: frameSize,
+                scale: 2160 / frameSize.width,
+                elapsedTime: 4
+            ) else { return }
+            poster = AnyView(sharePoster {
+                Image(uiImage: artwork)
+                    .resizable()
+                    .scaledToFill()
+            })
+        case .legacySwiftUI:
+            poster = AnyView(sharePoster {
+                legacyCanvasLayer(canvas: canvas, isOffscreenRender: true)
+            })
         }
-        .frame(width: frameSize.width, height: frameSize.height)
-        .environment(\.appTheme, theme)
 
         let renderer = ImageRenderer(content: poster)
         renderer.scale = 2160 / frameSize.width
@@ -947,6 +939,71 @@ struct MeSelectedDayPoster: View {
         guard let image = renderer.uiImage else { return }
         shareImage = image
         showShareSheet = true
+    }
+
+    private func editorialInput(for canvas: DayCanvas) -> EditorialCanvasRenderInput {
+        EditorialCanvasInputFactory.make(
+            canvas: canvas,
+            metrics: EditorialCanvasMetrics(
+                stepsProgress: Double(canvas.stepsPoints) / 20,
+                sleepProgress: Double(canvas.sleepPoints) / 20,
+                spentProgress: canvas.decayNorm
+            ),
+            paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw)
+        )
+    }
+
+    private func legacyCanvasLayer(
+        canvas: DayCanvas,
+        isOffscreenRender: Bool
+    ) -> some View {
+        ZStack {
+            EnergyGradientBackground(
+                stepsPoints: canvas.stepsPoints,
+                sleepPoints: canvas.sleepPoints,
+                hasStepsData: canvas.resolvedHasStepsData,
+                hasSleepData: canvas.resolvedHasSleepData,
+                showGrain: true,
+                gradientStyleOverride: canvas.gradientStyle,
+                gradientPaletteOverride: canvas.gradientPalette,
+                textureOverride: canvas.textureRaw,
+                fixedTime: canvas.lastModified
+            )
+
+            GenerativeCanvasView(
+                elements: canvas.elements,
+                dayKey: canvas.dayKey,
+                sleepPoints: canvas.sleepPoints,
+                stepsPoints: canvas.stepsPoints,
+                sleepColor: Color(hex: canvas.sleepColorHex),
+                stepsColor: Color(hex: canvas.stepsColorHex),
+                decayNorm: canvas.decayNorm,
+                backgroundColor: .clear,
+                labelColor: theme.textPrimary,
+                showLabelsOnCanvas: false,
+                showsOutlinedLabels: false,
+                showsBackgroundGradient: false,
+                hasStepsData: canvas.resolvedHasStepsData,
+                hasSleepData: canvas.resolvedHasSleepData,
+                fixedTime: canvas.lastModified,
+                isOffscreenRender: isOffscreenRender
+            )
+        }
+    }
+
+    private func sharePoster<Artwork: View>(
+        @ViewBuilder artwork: () -> Artwork
+    ) -> some View {
+        MeGalleryPoster(
+            date: displayDate,
+            steps: displayedSteps,
+            sleepHours: displayedSleep,
+            events: displayEvents,
+            unlocks: displayedUnlocks,
+            content: artwork
+        )
+        .frame(width: 604, height: 842)
+        .environment(\.appTheme, theme)
     }
 }
 

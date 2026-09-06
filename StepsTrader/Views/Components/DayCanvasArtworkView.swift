@@ -1,5 +1,16 @@
 import SwiftUI
 
+enum CanvasExportRoute: Equatable {
+    case legacySwiftUI
+    case editorialMetal
+
+    init(canvas: DayCanvas) {
+        self = canvas.resolvedVisualStyle == .editorial
+            ? .editorialMetal
+            : .legacySwiftUI
+    }
+}
+
 struct DayCanvasArtworkLayerPolicy: Equatable {
     let usesEditorial: Bool
     let usesLegacyBackground: Bool

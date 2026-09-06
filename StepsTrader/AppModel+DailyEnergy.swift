@@ -394,15 +394,9 @@ extension AppModel {
         // Save a rendered canvas snapshot for history
         if let oldCanvas = CanvasStorageService.shared.loadCanvas(for: dayKeyToSave),
            !oldCanvas.elements.isEmpty {
-            CanvasStorageService.shared.saveSnapshot(
-                for: dayKeyToSave,
-                elements: oldCanvas.elements,
-                sleepPoints: oldCanvas.sleepPoints,
-                stepsPoints: oldCanvas.stepsPoints,
-                sleepColor: Color(hex: oldCanvas.sleepColorHex),
-                stepsColor: Color(hex: oldCanvas.stepsColorHex),
-                decayNorm: oldCanvas.decayNorm
-            )
+            Task { @MainActor in
+                await CanvasStorageService.shared.saveSnapshot(for: oldCanvas)
+            }
         }
 
         dailySleepHours = 0
