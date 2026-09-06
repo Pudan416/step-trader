@@ -8,15 +8,40 @@ final class DayObjectsWorldSelectorTests: XCTestCase {
             .feltAndWood, .livingField, .metalAndCurrent, .electricDream,
         ])
         XCTAssertEqual(DayObjectsSoundMood.allCases, [.sparse, .moving, .strange])
+        XCTAssertEqual(DayObjectsSoundWorld.feltAndWood.rawValue, "feltAndWood")
+        XCTAssertEqual(DayObjectsSoundWorld.metalAndCurrent.rawValue, "metalAndCurrent")
         XCTAssertEqual(DayObjectsSoundWorld.feltAndWood.displayName, "Acoustic Oddities")
         XCTAssertEqual(DayObjectsSoundWorld.metalAndCurrent.displayName, "Industrial Ritual")
     }
 
-    func testSelectionIsDeterministicAndGuestIsAdjacent() {
+    func testGuestNeighborsMatchTheApprovedAdjacencyGraph() {
+        XCTAssertEqual(
+            DayObjectsSoundWorld.feltAndWood.guestNeighbors,
+            [.livingField, .metalAndCurrent]
+        )
+        XCTAssertEqual(
+            DayObjectsSoundWorld.livingField.guestNeighbors,
+            [.feltAndWood, .electricDream]
+        )
+        XCTAssertEqual(
+            DayObjectsSoundWorld.metalAndCurrent.guestNeighbors,
+            [.electricDream, .feltAndWood]
+        )
+        XCTAssertEqual(
+            DayObjectsSoundWorld.electricDream.guestNeighbors,
+            [.livingField, .metalAndCurrent]
+        )
+    }
+
+    func testSelectionIsDeterministicAndMatchesIndependentGuestOracle() {
         for seed in UInt64(0)..<512 {
             let value = DayObjectsWorldSelector.makeSelection(remixSeed: seed)
             XCTAssertEqual(value, DayObjectsWorldSelector.makeSelection(remixSeed: seed))
-            XCTAssertTrue(value.guestWorld.map(value.world.guestNeighbors.contains) ?? true)
+            XCTAssertEqual(
+                value.guestWorld,
+                expectedGuestWorld(remixSeed: seed, world: value.world),
+                "seed=\(seed) world=\(value.world.rawValue)"
+            )
         }
     }
 
@@ -35,6 +60,26 @@ final class DayObjectsWorldSelectorTests: XCTestCase {
         XCTAssertEqual(forcedWorld.mood, automatic.mood)
         XCTAssertEqual(forcedMood.world, automatic.world)
         XCTAssertEqual(forcedMood.mood, .strange)
+    }
+
+    private func expectedGuestWorld(
+        remixSeed: UInt64,
+        world: DayObjectsSoundWorld
+    ) -> DayObjectsSoundWorld? {
+        var random = StableMusicRandom(seed: remixSeed, domain: .worldGuest)
+        guard random.bernoulli(probability: 0.15) else { return nil }
+        return random.choice(from: expectedGuestNeighbors(for: world))
+    }
+
+    private func expectedGuestNeighbors(
+        for world: DayObjectsSoundWorld
+    ) -> [DayObjectsSoundWorld] {
+        switch world {
+        case .feltAndWood: [.livingField, .metalAndCurrent]
+        case .livingField: [.feltAndWood, .electricDream]
+        case .metalAndCurrent: [.electricDream, .feltAndWood]
+        case .electricDream: [.livingField, .metalAndCurrent]
+        }
     }
 }
 #endif
