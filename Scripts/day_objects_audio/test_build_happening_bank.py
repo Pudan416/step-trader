@@ -87,6 +87,9 @@ class HappeningBankGeneratorTests(unittest.TestCase):
             "Rubber FM bubble", "Bowed harmonic stab", "Breath resonator",
             "Bowed glass cloud", "Granular shimmer", "Reverse glass gesture",
             "Soft dust impact", "Airy exhale",
+            "Felt kalimba whisper", "Silk string pluck", "Cedar knock", "Bamboo air pluck",
+            "Frost glass tap", "Glass sustain bloom", "Current metal pluck", "Brushed resonator",
+            "Paper whisper", "Cloth swish", "Water pearl", "Air current",
         ]
         expected_topologies = [
             "analog-ping", "fm-droplet", "pulse-pluck", "waveguide-string", "reed-blip",
@@ -97,12 +100,16 @@ class HappeningBankGeneratorTests(unittest.TestCase):
             "phase-distortion", "rubber-fm", "harmonic-stab", "breath-resonator",
             "modal-glass-cloud", "granular-shimmer", "reverse-glass-unpitched",
             "dust-impact", "breath-exhale",
+            "felt-kalimba-whisper", "silk-string-pluck", "cedar-knock", "bamboo-air-pluck",
+            "frost-glass-tap", "glass-sustain-bloom", "current-metal-pluck", "brushed-resonator",
+            "paper-whisper", "cloth-swish", "water-pearl", "air-current",
         ]
         synth_ids = {1, 2, 3, 4, 5, 8, 19, 20, 21, 22}
-        organic_ids = {7, 9, 10, 12, 16, 17, 18, 28, 29, 30}
+        organic_ids = {7, 9, 10, 12, 16, 17, 18, 28, 29, 30, 31, 32, 33, 34, 39, 40}
+        synth_ids.update({35, 36, 37, 38})
         expected_palettes = [
             "synth" if recipe_id in synth_ids else "organic" if recipe_id in organic_ids else "hybrid"
-            for recipe_id in range(1, 31)
+            for recipe_id in range(1, 43)
         ]
         expected_vcsl_paths = [
             "09 Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_C4_soft_01.wav",
@@ -121,19 +128,19 @@ class HappeningBankGeneratorTests(unittest.TestCase):
         self.assertEqual([recipe["topology"] for recipe in recipes], expected_topologies)
         self.assertEqual([recipe["paletteKind"] for recipe in recipes], expected_palettes)
         self.assertEqual([recipe["masteringFamily"] for recipe in recipes],
-                         ["tonal-organic"] * 24 + ["texture"] * 6)
+                         ["tonal-organic"] * 24 + ["texture"] * 18)
         self.assertEqual([recipe["input"]["path"] for recipe in recipes if recipe.get("input")],
                          expected_vcsl_paths)
         self.assertEqual({palette: expected_palettes.count(palette) for palette in set(expected_palettes)},
-                         {"synth": 10, "organic": 10, "hybrid": 10})
+                         {"synth": 14, "organic": 16, "hybrid": 12})
         self.assertGreaterEqual(len(set(expected_topologies)), 12)
         self.assertEqual(len({(recipe["attackTopology"], recipe["tailTopology"])
-                              for recipe in recipes}), 30)
+                              for recipe in recipes}), 42)
         self.assertTrue(all(len(recipe["rootMIDIs"]) == (4 if recipe["id"] <= 24 else 1)
                             for recipe in recipes))
         self.assertTrue(all({root % 12 for root in recipe["rootMIDIs"]} == {0, 3, 6, 9}
                             for recipe in recipes[:24]))
-        self.assertEqual(sum(len(recipe["outputs"]) for recipe in recipes), 102)
+        self.assertEqual(sum(len(recipe["outputs"]) for recipe in recipes), 114)
 
     def test_retimbre_source_map_validation_rejects_identity_and_shape_mutations(self):
         source_map = json.loads(bank.SOURCE_MAP_PATH.read_text())
@@ -171,7 +178,7 @@ class HappeningBankGeneratorTests(unittest.TestCase):
             self.assertLessEqual(measured.dc_dbfs, -50.0 + 0.05, recipe["workingName"])
             self.assertEqual(samples[0], 0.0, recipe["workingName"])
             self.assertEqual(samples[-1], 0.0, recipe["workingName"])
-            if recipe["id"] >= 28:
+            if recipe["id"] in {28, 29, 30, 39, 40, 41, 42}:
                 windows = measured.envelope_windows
                 audible_rms = 10.0 ** (measured.audible_rms_dbfs / 20.0)
                 self.assertGreater(max(windows), audible_rms * 1.5,
@@ -182,8 +189,8 @@ class HappeningBankGeneratorTests(unittest.TestCase):
     def test_historical_groups_have_distinct_fingerprints_and_no_duplicate_bytes(self):
         source_map = json.loads(bank.SOURCE_MAP_PATH.read_text())
         checked_bytes = [path.read_bytes() for path in sorted(bank.DEFAULT_OUTPUT_ROOT.rglob("*.wav"))]
-        self.assertEqual(len(checked_bytes), 102)
-        self.assertEqual(len({hashlib.sha256(data).digest() for data in checked_bytes}), 102)
+        self.assertEqual(len(checked_bytes), 114)
+        self.assertEqual(len({hashlib.sha256(data).digest() for data in checked_bytes}), 114)
 
         measured = {}
         for recipe in source_map["recipes"]:
@@ -192,7 +199,7 @@ class HappeningBankGeneratorTests(unittest.TestCase):
             measured[recipe["id"]] = audio_metrics.measure_event(samples, sample_rate)
         for recipe_ids in (
             range(1, 7), range(7, 9), range(9, 13), range(13, 17),
-            range(19, 25), range(25, 28), range(28, 31),
+            range(19, 25), range(25, 28), range(28, 31), range(31, 43),
         ):
             for lhs_id, rhs_id in combinations(recipe_ids, 2):
                 similarity = audio_metrics.fingerprint_similarity(measured[lhs_id], measured[rhs_id])

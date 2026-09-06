@@ -5,7 +5,7 @@ struct HappeningSoundRecipeID: RawRepresentable, Codable, Hashable, Sendable {
     let rawValue: Int
 
     init?(rawValue: Int) {
-        guard (1...30).contains(rawValue) else { return nil }
+        guard (1...42).contains(rawValue) else { return nil }
         self.rawValue = rawValue
     }
 
@@ -15,7 +15,7 @@ struct HappeningSoundRecipeID: RawRepresentable, Codable, Hashable, Sendable {
         guard let id = HappeningSoundRecipeID(rawValue: rawValue) else {
             throw DecodingError.dataCorruptedError(
                 in: container,
-                debugDescription: "Happening sound recipe IDs must be in 1...30"
+                debugDescription: "Happening sound recipe IDs must be in 1...42"
             )
         }
         self = id

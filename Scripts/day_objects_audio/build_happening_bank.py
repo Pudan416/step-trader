@@ -32,6 +32,8 @@ from Scripts.day_objects_audio import happening_synthesis as synthesis
 
 PINNED_VCSL_REVISION = "c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e"
 RENDERER_VERSION = "happening-bank-v3"
+RECIPE_COUNT = 42
+OUTPUT_COUNT = 114
 SAMPLE_RATE = 44_100
 FADE_FRAMES = round(SAMPLE_RATE * 0.005)
 MIN_DURATION_FRAMES = round(SAMPLE_RATE * 0.12)
@@ -89,7 +91,13 @@ def canonical_sha256(value: object) -> str:
 
 
 def renderer_implementation_sha256() -> str:
-    return sha256_file(Path(__file__).resolve())
+    digest = hashlib.sha256()
+    for path in (Path(__file__).resolve(), Path(synthesis.__file__).resolve()):
+        digest.update(path.name.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
 
 
 def require(condition: bool, message: str) -> None:
@@ -168,7 +176,7 @@ def validate_source_map(source_map: object, *, allow_stale_derived: bool = False
         require(render_format == expected_render_format(), "renderFormat does not match renderer parameters")
     recipes = source_map.get("recipes")
     require(isinstance(recipes, list), "recipes must be an array")
-    require(len(recipes) == 30, "source map must contain 30 recipes")
+    require(len(recipes) == RECIPE_COUNT, f"source map must contain {RECIPE_COUNT} recipes")
     ids: list[int] = []
     palette_counts = {"synth": 0, "organic": 0, "hybrid": 0}
     topologies: list[str] = []
@@ -254,16 +262,18 @@ def validate_source_map(source_map: object, *, allow_stale_derived: bool = False
             require_sha256(output.get("sha256"), f"{label}.outputs[{output_index}].sha256")
         if not allow_stale_derived:
             require_sha256(recipe.get("renderIdentitySha256"), f"{label}.renderIdentitySha256")
-    require(ids == list(range(1, 31)), "source map must contain stable recipe IDs 1...30 in order")
-    require(palette_counts == {"synth": 10, "organic": 10, "hybrid": 10},
-            "source map must contain ten recipes per palette kind")
+    require(ids == list(range(1, RECIPE_COUNT + 1)),
+            f"source map must contain stable recipe IDs 1...{RECIPE_COUNT} in order")
+    require(palette_counts == {"synth": 14, "organic": 16, "hybrid": 12},
+            "source map palette counts must match the authored 42-character bank")
     require(len(set(topologies)) >= 12, "source map must contain at least twelve topologies")
     require(all(not (topologies[index] == topologies[index + 1] == topologies[index + 2])
                 for index in range(len(topologies) - 2)),
             "source map may not contain three adjacent equal topologies")
     require(vcsl_ids == {9, 10, 11, 17, 18},
             "only recipes 09, 10, 11, 17, and 18 may use VCSL")
-    require(output_count == 102, "source map must declare exactly 102 output roots")
+    require(output_count == OUTPUT_COUNT,
+            f"source map must declare exactly {OUTPUT_COUNT} output roots")
 
 
 def validate_render_identities(source_map: dict) -> None:
@@ -583,7 +593,7 @@ def wav_bytes(pcm: list[int]) -> bytes:
 def output_name(recipe_id: int, root_midi: int) -> str:
     if recipe_id in (25, 26, 27):
         return "noise.wav"
-    if recipe_id in (28, 29, 30):
+    if recipe_id in (28, 29, 30) or recipe_id >= 39:
         return "texture.wav"
     pitch_names = {0: "C", 3: "DSharp", 6: "FSharp", 9: "A"}
     pitch_class = root_midi % 12
@@ -657,8 +667,8 @@ def render_bank(source_map: dict, checkout: Path, output_root: Path) -> dict[str
                 "bytes": len(data),
             }
         recipe["outputs"] = outputs
-    if len(records) != 102:
-        raise BuildError(f"renderer emitted {len(records)} files instead of 102")
+    if len(records) != OUTPUT_COUNT:
+        raise BuildError(f"renderer emitted {len(records)} files instead of {OUTPUT_COUNT}")
     return records
 
 
@@ -754,7 +764,8 @@ def expected_processed_hashes(source_map: dict) -> dict[str, str]:
         for recipe in source_map["recipes"]
         for output in recipe["outputs"]
     }
-    require(len(expected) == 102, f"source map records {len(expected)} processed outputs instead of 102")
+    require(len(expected) == OUTPUT_COUNT,
+            f"source map records {len(expected)} processed outputs instead of {OUTPUT_COUNT}")
     return expected
 
 
@@ -941,7 +952,7 @@ def main() -> int:
         validate_vcsl_checkout(checkout, source_map)
         if args.verify_only:
             verify_checked_output(source_map, checkout, output_root)
-            print(f"verified 102 deterministic WAVs at {output_root}")
+            print(f"verified {OUTPUT_COUNT} deterministic WAVs at {output_root}")
             return 0
         records = render_bank(source_map, checkout, output_root)
         if output_root == DEFAULT_OUTPUT_ROOT.resolve():
@@ -950,13 +961,13 @@ def main() -> int:
             update_sources(source_map)
             update_catalog(records)
             # The explicit --verify-only pass below performs the independent
-            # reproduction. Avoid rendering all 102 assets twice in one
+            # reproduction. Avoid rendering all assets twice in one
             # process so a bounded build remains inside the 60-second gate.
             verify_checked_output(source_map, checkout, output_root, reproduce=False)
         else:
             compare_temporary_render(load_source_map(), records)
         total_bytes = sum(record["bytes"] for record in records.values())
-        print(f"rendered 102 deterministic WAVs ({total_bytes} bytes) at {output_root}")
+        print(f"rendered {OUTPUT_COUNT} deterministic WAVs ({total_bytes} bytes) at {output_root}")
         return 0
     except (BuildError, OSError, subprocess.CalledProcessError, json.JSONDecodeError,
             KeyError, TypeError, ValueError) as error:

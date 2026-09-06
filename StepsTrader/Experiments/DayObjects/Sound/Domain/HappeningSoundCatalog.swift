@@ -45,6 +45,19 @@ enum HappeningSoundCatalog {
         unpitched(28, identity: .init(workingName: "Reverse glass gesture", paletteKind: .organic, topology: "reverse-glass-unpitched", attackTopology: "reversed-filtered-glass-partials", tailTopology: "reverse-bloom"), gainDB: -14.0, attack: 0.050, release: 2.40, delayMix: 0.04, feedback: 0.08, reverbMix: 0.06, filterStart: 400, filterEnd: 7_200),
         unpitched(29, identity: .init(workingName: "Soft dust impact", paletteKind: .organic, topology: "dust-impact", attackTopology: "particulate-under-120ms", tailTopology: "filtered-breath"), gainDB: -14.8, attack: 0.090, release: 3.10, delayMix: 0.01, feedback: 0.04, reverbMix: 0.03, filterStart: 300, filterEnd: 6_000),
         unpitched(30, identity: .init(workingName: "Airy exhale", paletteKind: .organic, topology: "breath-exhale", attackTopology: "breath-formant-crossfade", tailTopology: "filtered-breath"), gainDB: -15.2, attack: 0.110, release: 3.60, delayMix: 0.02, feedback: 0.06, reverbMix: 0.04, filterStart: 240, filterEnd: 5_400),
+
+        resonant(31, identity: .init(workingName: "Felt kalimba whisper", paletteKind: .organic, topology: "felt-kalimba-whisper", attackTopology: "felt-thumb-muted", tailTopology: "dark-diffusion"), family: .acousticMallet, referenceMIDI: 60, range: 60...71, resonatorTargetPitchClasses: [0, 3, 6, 9], gainDB: -15.0, attack: 0.018, release: 3.10, delayMix: 0.03, feedback: 0.08, reverbMix: 0.07, filterStart: 540, filterEnd: 4_200),
+        resonant(32, identity: .init(workingName: "Silk string pluck", paletteKind: .organic, topology: "silk-string-pluck", attackTopology: "silk-string-soft-pick", tailTopology: "tape-echo"), family: .synthPluck, referenceMIDI: 60, range: 60...71, resonatorTargetPitchClasses: [0, 3, 6, 9], gainDB: -15.2, attack: 0.016, release: 3.40, delayMix: 0.05, feedback: 0.12, reverbMix: 0.08, filterStart: 480, filterEnd: 4_600),
+        resonant(33, identity: .init(workingName: "Cedar knock", paletteKind: .organic, topology: "cedar-knock", attackTopology: "cedar-doublet", tailTopology: "short-room"), family: .acousticMallet, referenceMIDI: 60, range: 60...71, resonatorTargetPitchClasses: [0, 3, 6, 9], gainDB: -15.8, attack: 0.012, release: 2.70, delayMix: 0.02, feedback: 0.06, reverbMix: 0.06, filterStart: 420, filterEnd: 3_500),
+        resonant(34, identity: .init(workingName: "Bamboo air pluck", paletteKind: .organic, topology: "bamboo-air-pluck", attackTopology: "bamboo-breath-pluck", tailTopology: "filtered-breath"), family: .softOneShot, referenceMIDI: 60, range: 60...71, resonatorTargetPitchClasses: [0, 3, 6, 9], gainDB: -16.0, attack: 0.030, release: 3.80, delayMix: 0.04, feedback: 0.09, reverbMix: 0.09, filterStart: 360, filterEnd: 3_900),
+        resonant(35, identity: .init(workingName: "Frost glass tap", paletteKind: .synth, topology: "frost-glass-tap", attackTopology: "frosted-glass-soft-tip", tailTopology: "modal-decay"), family: .acousticBell, referenceMIDI: 60, range: 60...71, resonatorTargetPitchClasses: [0, 3, 6, 9], gainDB: -16.4, attack: 0.010, release: 4.00, delayMix: 0.04, feedback: 0.09, reverbMix: 0.10, filterStart: 620, filterEnd: 5_200),
+        resonant(36, identity: .init(workingName: "Glass sustain bloom", paletteKind: .synth, topology: "glass-sustain-bloom", attackTopology: "glass-bow-slow-rise", tailTopology: "reverse-bloom"), family: .acousticBell, referenceMIDI: 60, range: 60...71, resonatorTargetPitchClasses: [0, 3, 6, 9], gainDB: -16.8, attack: 0.120, release: 4.30, delayMix: 0.07, feedback: 0.14, reverbMix: 0.11, filterStart: 400, filterEnd: 4_800),
+        resonant(37, identity: .init(workingName: "Current metal pluck", paletteKind: .synth, topology: "current-metal-pluck", attackTopology: "electro-metal-damped-strike", tailTopology: "chorus-decay"), family: .synthPluck, referenceMIDI: 60, range: 60...71, resonatorTargetPitchClasses: [0, 3, 6, 9], gainDB: -16.0, attack: 0.014, release: 3.50, delayMix: 0.06, feedback: 0.13, reverbMix: 0.10, filterStart: 510, filterEnd: 5_000),
+        resonant(38, identity: .init(workingName: "Brushed resonator", paletteKind: .synth, topology: "brushed-resonator", attackTopology: "brushed-steel-resonance", tailTopology: "dark-diffusion"), family: .softOneShot, referenceMIDI: 60, range: 60...71, resonatorTargetPitchClasses: [0, 3, 6, 9], gainDB: -17.0, attack: 0.070, release: 4.10, delayMix: 0.08, feedback: 0.15, reverbMix: 0.12, filterStart: 320, filterEnd: 4_400),
+        unpitched(39, identity: .init(workingName: "Paper whisper", paletteKind: .organic, topology: "paper-whisper", attackTopology: "crumpled-paper-soft-edge", tailTopology: "filtered-breath"), gainDB: -18.0, attack: 0.050, release: 3.30, delayMix: 0.02, feedback: 0.06, reverbMix: 0.10, filterStart: 300, filterEnd: 4_000),
+        unpitched(40, identity: .init(workingName: "Cloth swish", paletteKind: .organic, topology: "cloth-swish", attackTopology: "woven-cloth-brush", tailTopology: "short-room"), gainDB: -18.2, attack: 0.090, release: 3.60, delayMix: 0.03, feedback: 0.07, reverbMix: 0.11, filterStart: 260, filterEnd: 3_600),
+        unpitched(41, identity: .init(workingName: "Water pearl", paletteKind: .hybrid, topology: "water-pearl", attackTopology: "water-drop-resonance", tailTopology: "tape-echo"), gainDB: -17.4, attack: 0.020, release: 3.90, delayMix: 0.06, feedback: 0.13, reverbMix: 0.12, filterStart: 350, filterEnd: 4_300),
+        unpitched(42, identity: .init(workingName: "Air current", paletteKind: .hybrid, topology: "air-current", attackTopology: "airy-current-crossfade", tailTopology: "chorus-decay"), gainDB: -18.5, attack: 0.140, release: 4.20, delayMix: 0.07, feedback: 0.14, reverbMix: 0.13, filterStart: 220, filterEnd: 3_400),
     ]
 
     static func recipe(for id: HappeningSoundRecipeID) -> HappeningSoundRecipe? {
@@ -100,6 +113,7 @@ enum HappeningSoundCatalog {
     private static func resonant(
         _ rawID: Int,
         identity: Identity,
+        family: HappeningRecipeFamily = .texture,
         referenceMIDI: UInt8,
         range: ClosedRange<UInt8>,
         resonatorTargetPitchClasses: [UInt8],
@@ -120,8 +134,13 @@ enum HappeningSoundCatalog {
             topology: identity.topology,
             attackTopology: identity.attackTopology,
             tailTopology: identity.tailTopology,
-            family: .texture,
-            sources: [source(id: rawID, index: 0, name: "\(label(for: rawID))/noise.wav", rootMIDI: referenceMIDI)],
+            family: family,
+            sources: [source(
+                id: rawID,
+                index: 0,
+                name: "\(label(for: rawID))/\(rawID >= 31 ? "C4.wav" : "noise.wav")",
+                rootMIDI: referenceMIDI
+            )],
             pitch: .resonantNoise(
                 referenceMIDI: referenceMIDI,
                 preferredRange: range,
@@ -283,6 +302,18 @@ enum HappeningSoundCatalog {
         "Happenings/28/texture.wav": "0858108ee721ac188bfe26d7bb4c022e2311cfd409575642781d850c599c4ddc",
         "Happenings/29/texture.wav": "67a17d1e6d214aabb09d2d2190c8a216a54275a5b8c17481a0b8fbe78def13a4",
         "Happenings/30/texture.wav": "07efd721f1ca0219058641e90a10fd715a3fa3726757be98d28efa84b700e6b2",
+        "Happenings/31/C4.wav": "8f686ec4f7fe58de7cba57c8c20cd9e98964b93a711efc890168706347a9180d",
+        "Happenings/32/C4.wav": "47f1a198723b0b95899298d86d84f87f79a00f069be7fdaf850ebd1f08b0307c",
+        "Happenings/33/C4.wav": "6159dd1996a7155993eb93c79c86225aeaba8b5b4971bf0c89485839e9779fd7",
+        "Happenings/34/C4.wav": "b193ed4e867e242aa4be22389dcd7ad9d97836bdc88251e0540273cb098d7712",
+        "Happenings/35/C4.wav": "bd250cec12737a4f518e70868b6c9d032a7d040cfd9394363f8ff61f1241afd7",
+        "Happenings/36/C4.wav": "89c912aa991dad67e714417cc5ae2c17869376b772b8a9350b6cc6932e1632e0",
+        "Happenings/37/C4.wav": "c7db3671bd68454a01de8774f0ad35bc3234f1c7f3fc0273a6c9eed2f97a03fb",
+        "Happenings/38/C4.wav": "60f2a1dd67d504866c4f700bc06adf4a64d426e9256baede8a0ad4e78b57cb41",
+        "Happenings/39/texture.wav": "f13ef95ddc85408bea50f0d75eaf5a10ee979062c67775bb984ce9d439ac5edd",
+        "Happenings/40/texture.wav": "aceabd67ad4849942a64f6bd3a245262352822ec24b68ac4543f4e30f14cbb04",
+        "Happenings/41/texture.wav": "a109397e930a21c8a1d77c8df8f36c4370aa2e1e601a679b8da6e78d3cacd04a",
+        "Happenings/42/texture.wav": "c5ca62c7f8d8dde1e384e2da46112c937711b0f78bb0237c93683b36a8ddb5af",
     ]
 
     private static func source(id: Int, index: Int, name: String, rootMIDI: UInt8) -> HappeningSampleSource {
@@ -295,7 +326,7 @@ enum HappeningSoundCatalog {
 
     private static func makeID(_ rawValue: Int) -> HappeningSoundRecipeID {
         guard let id = HappeningSoundRecipeID(rawValue: rawValue) else {
-            preconditionFailure("Catalog recipe IDs must stay in 1...30")
+            preconditionFailure("Catalog recipe IDs must stay in 1...42")
         }
         return id
     }

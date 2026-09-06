@@ -36,9 +36,9 @@ enum DayObjectsSoundWorld: String, Codable, CaseIterable, Equatable, Hashable, S
     var happeningRecipeRawIDs: Set<Int> {
         switch self {
         case .feltAndWood:
-            [4, 7, 9, 10, 11, 12, 15, 16, 17, 18, 24, 29, 30]
+            [4, 7, 9, 10, 11, 12, 15, 16, 17, 18, 24, 29, 30, 31, 32, 33, 34, 39, 40]
         case .metalAndCurrent:
-            [1, 2, 3, 5, 6, 8, 13, 14, 19, 20, 21, 22, 23, 25, 26, 27, 28]
+            [1, 2, 3, 5, 6, 8, 13, 14, 19, 20, 21, 22, 23, 25, 26, 27, 28, 35, 36, 37, 38, 41, 42]
         }
     }
 }

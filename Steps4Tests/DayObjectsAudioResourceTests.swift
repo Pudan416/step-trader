@@ -220,6 +220,7 @@ final class DayObjectsAudioResourceTests: XCTestCase {
                 "AudioKit/Cookbook": "c37d41daedf161b47315b7ae24b07f41213b73be",
                 "sfzinstruments/Osiris_Piano": "18c6afccb60cff458edbf7c394571783e074e1e9",
                 "VCSL": "c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e",
+                "Steps project-authored synthesis": "happening-bank-v3",
             ]
         )
     }
@@ -249,9 +250,9 @@ final class DayObjectsAudioResourceTests: XCTestCase {
         }
         let catalogPaths = HappeningSoundCatalog.recipes.flatMap(\.sources).map(\.resourceName)
 
-        XCTAssertEqual(bundledPaths.count, 102)
+        XCTAssertEqual(bundledPaths.count, 114)
         XCTAssertEqual(Set(bundledPaths), Set(catalogPaths))
-        XCTAssertEqual(Set(catalogPaths).count, 102)
+        XCTAssertEqual(Set(catalogPaths).count, 114)
     }
 
     func testHappeningSourceMapPinsInputsAndMatchesCatalogManifestAndBundledBytes() throws {
@@ -301,9 +302,9 @@ final class DayObjectsAudioResourceTests: XCTestCase {
         XCTAssertEqual(sourceMap.vcslRevision, "c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e")
         XCTAssertEqual(sourceMap.vcslSourceURL, "https://github.com/sgossner/VCSL")
         XCTAssertEqual(sourceMap.vcslLicenseFilename, "VCSL-CC0-1.0.txt")
-        XCTAssertEqual(sourceMap.recipes.map(\.id), Array(1...30))
+        XCTAssertEqual(sourceMap.recipes.map(\.id), Array(1...42))
         XCTAssertEqual(sourceMap.recipes.filter { $0.sourceKey == "project-authored" }.map(\.seed),
-                       Array(1...8) + Array(12...16) + Array(19...30))
+                       Array(1...8) + Array(12...16) + Array(19...42))
         XCTAssertEqual(sourceMap.recipes.compactMap(\.input).map(\.path), expectedVCSLPaths)
         let vcslSource = try XCTUnwrap(sources.first { $0.project == "VCSL" })
         XCTAssertEqual(vcslSource.sourceURL, sourceMap.vcslSourceURL)
@@ -316,11 +317,11 @@ final class DayObjectsAudioResourceTests: XCTestCase {
         XCTAssertTrue(sourceMap.recipes.allSatisfy {
             $0.renderIdentitySha256.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil
         })
-        XCTAssertEqual(mappedOutputs.count, 102)
+        XCTAssertEqual(mappedOutputs.count, 114)
         XCTAssertEqual(mappedHashes, catalogHashes)
 
         let happeningManifestAssets = manifest.assets.filter { $0.path.hasPrefix("Happenings/") }
-        XCTAssertEqual(happeningManifestAssets.count, 102)
+        XCTAssertEqual(happeningManifestAssets.count, 114)
         XCTAssertEqual(Set(happeningManifestAssets.map(\.path)), Set(mappedHashes.keys))
         XCTAssertEqual(manifest.sources["vcsl"]?.revision, sourceMap.vcslRevision)
         XCTAssertEqual(manifest.sources["vcsl"]?.licenseFilename, sourceMap.vcslLicenseFilename)
@@ -457,7 +458,7 @@ final class DayObjectsAudioResourceTests: XCTestCase {
 
         let happeningPaths = Set(HappeningSoundCatalog.recipes.flatMap(\.sources).map(\.resourceName))
         XCTAssertEqual(Set(manifest.assets.map(\.path)), expectedAssetPaths.union(happeningPaths))
-        XCTAssertEqual(manifest.assets.count, expectedAssetPaths.count + 102)
+        XCTAssertEqual(manifest.assets.count, expectedAssetPaths.count + 114)
 
         let resourceRoot = try XCTUnwrap(bundle.resourceURL)
         let bundledAssetPaths = try ["SynthOnePresets", "Drums", "FeltPiano"].reduce(into: Set<String>()) {
