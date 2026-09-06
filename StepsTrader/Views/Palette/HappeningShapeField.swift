@@ -36,6 +36,10 @@ struct HappeningShapeField: View {
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
+                    // A tiny crisp edge plus a soft glyph halo keeps white type
+                    // readable over the yellow sphere without adding a label plate.
+                    .shadow(color: .black.opacity(0.9), radius: 0, x: 0, y: 0.75)
+                    .shadow(color: .black.opacity(0.7), radius: 1.25)
                     .frame(width: side * 0.80, height: side * 0.76)
                     .frame(width: side, height: side)
                     .contentShape(Circle())

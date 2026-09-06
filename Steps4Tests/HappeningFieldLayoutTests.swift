@@ -299,6 +299,108 @@ final class CanvasOverlayIntegrationRegressionTests: XCTestCase {
 @MainActor
 final class HappeningFieldLayoutTests: XCTestCase {
 
+    func testEveryTextSizePreservesThreeTwoThreeTwoRowsAndAccessibleHitTargets() {
+        let textSizes: [DynamicTypeSize] = [
+            .xSmall, .small, .medium, .large, .xLarge, .xxLarge, .xxxLarge,
+            .accessibility1, .accessibility2, .accessibility3, .accessibility4, .accessibility5,
+        ]
+        for viewport in [CGSize(width: 320, height: 568), size, CGSize(width: 430, height: 932)] {
+            let insets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
+            let bounds = CGRect(x: 0, y: 59, width: viewport.width, height: viewport.height - 93)
+            let baseline = HappeningFieldLayout.layout(count: 10, in: viewport, safeInsets: insets)
+            for textSize in textSizes {
+                let layout = HappeningFieldLayout.layout(
+                    count: 10, in: viewport, safeInsets: insets, dynamicTypeSize: textSize
+                )
+                let rows = Dictionary(grouping: layout.sources) { $0.center.y }
+                    .sorted { $0.key < $1.key }.map { $0.value.count }
+                XCTAssertEqual(rows, [3, 2, 3, 2], "\(viewport), \(textSize)")
+                XCTAssertEqual(layout.sources, baseline.sources, "Text size must not move slots")
+                for (index, source) in layout.sources.enumerated() {
+                    XCTAssertTrue(bounds.contains(layout.labelFrames[index]))
+                    XCTAssertGreaterThanOrEqual(source.radius * 2, 44)
+                    for other in layout.sources.dropFirst(index + 1) {
+                        XCTAssertGreaterThanOrEqual(
+                            hypot(source.center.x - other.center.x, source.center.y - other.center.y),
+                            source.radius + other.radius - 0.01,
+                            "Circular hit targets must not overlap"
+                        )
+                    }
+                }
+                let textFrames = layout.labelFrames.map {
+                    $0.insetBy(dx: $0.width * 0.1, dy: $0.height * 0.12)
+                }
+                for (index, frame) in textFrames.enumerated() {
+                    for other in textFrames.dropFirst(index + 1) {
+                        XCTAssertFalse(frame.intersects(other), "Label regions must not overlap")
+                    }
+                }
+            }
+        }
+    }
+
+    func testWhitePaletteGlyphsHaveDarkLocalContrastInEveryState() throws {
+        let happening = HappeningDefaults.builtIns[0]
+        let assignments = HappeningEditorialAssignmentResolver.assignments(
+            happenings: [happening],
+            baseInput: DayObjectSceneInput(
+                dayKey: "2026-09-06", identity: "label-contrast", eventIDs: [],
+                motionEnergy: 0.625, visualClarity: 0.625,
+                canvasCoverage: .fullCanvas, paletteCategories: ModernPaletteSelection.all,
+                usesEditorialField: true, editorialBackground: .dark, lowSleep: true
+            ),
+            colorNonce: 7
+        )
+        let layout = HappeningFieldLayout.Layout(
+            sources: [.init(index: 0, center: CGPoint(x: 100, y: 100), radius: 60)],
+            labelFrames: [], contourBounds: .zero, dockAnchor: .zero, completionBounds: nil
+        )
+        for state in [
+            HappeningPaletteSlotVisualState.available, .additionPreview, .added, .removalPreview,
+        ] {
+            let added: Set<String> = state == .added || state == .removalPreview ? [happening.id] : []
+            var interaction = HappeningPaletteInteractionState()
+            if state == .additionPreview || state == .removalPreview {
+                _ = interaction.tap(id: happening.id, addedIDs: added)
+            }
+            let renderer = ImageRenderer(content:
+                HappeningShapeField(
+                    happenings: [happening], assignments: assignments, layout: layout,
+                    interaction: interaction, addedIDs: added, onActivate: { _ in }
+                )
+                .frame(width: 200, height: 200)
+                .background(Color.yellow)
+            )
+            renderer.scale = 3
+            let image = try XCTUnwrap(renderer.cgImage)
+            var pixels = [UInt8](repeating: 0, count: image.width * image.height * 4)
+            try pixels.withUnsafeMutableBytes { buffer in
+                let context = try XCTUnwrap(CGContext(
+                    data: buffer.baseAddress, width: image.width, height: image.height,
+                    bitsPerComponent: 8, bytesPerRow: image.width * 4,
+                    space: CGColorSpaceCreateDeviceRGB(),
+                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                ))
+                context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+            }
+            var whiteGlyphPixels = 0
+            var contrastEdgePixels = 0
+            // Crop to the title, excluding the status badge and other chrome.
+            for y in 240..<360 {
+                for x in 180..<420 {
+                    let offset = (y * image.width + x) * 4
+                    let rgb = (0..<3).map { Double(pixels[offset + $0]) / 255 }
+                    if rgb.allSatisfy({ $0 > 0.96 }) { whiteGlyphPixels += 1 }
+                    let linear = rgb.map { $0 <= 0.04045 ? $0 / 12.92 : pow(($0 + 0.055) / 1.055, 2.4) }
+                    let luminance = linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722
+                    if 1.05 / (luminance + 0.05) >= 4.5 { contrastEdgePixels += 1 }
+                }
+            }
+            XCTAssertGreaterThan(whiteGlyphPixels, 100, "Keep white glyphs in \(state)")
+            XCTAssertGreaterThan(contrastEdgePixels, 100, "A local dark glyph edge is required in \(state)")
+        }
+    }
+
     func testConfiguredSlotsRemainFixedAfterCanvasMembershipChanges() {
         let configured = Array(HappeningDefaults.builtIns.prefix(10))
         var state = HappeningFieldPresentationState(happenings: configured)
@@ -627,57 +729,6 @@ final class HappeningFieldLayoutTests: XCTestCase {
         }
     }
 
-    func testExpandedTenItemMetaballIsOneClosedContourInsideSafeBounds() {
-        let safeBounds = CGRect(
-            x: safeInsets.leading,
-            y: safeInsets.top,
-            width: size.width - safeInsets.leading - safeInsets.trailing,
-            height: size.height - safeInsets.top - safeInsets.bottom
-        )
-
-        for typeSize in [
-            DynamicTypeSize.accessibility1,
-            .accessibility3,
-            .accessibility5,
-        ] {
-            let layout = HappeningFieldLayout.layout(
-                count: 10,
-                in: size,
-                safeInsets: safeInsets,
-                dynamicTypeSize: typeSize
-            )
-            let contour = ProceduralShapeGenerator.metaballPath(
-                blobs: layout.sources.map {
-                    ProceduralShapeGenerator.BlobSource(
-                        center: $0.center,
-                        radius: $0.radius
-                    )
-                },
-                in: CGRect(origin: .zero, size: size),
-                gridResolution: 58
-            )
-            var moveCount = 0
-            var closeCount = 0
-            contour.cgPath.applyWithBlock { element in
-                switch element.pointee.type {
-                case .moveToPoint:
-                    moveCount += 1
-                case .closeSubpath:
-                    closeCount += 1
-                default:
-                    break
-                }
-            }
-
-            XCTAssertEqual(moveCount, 1, "\(typeSize) must generate one contour component")
-            XCTAssertEqual(closeCount, 1, "\(typeSize) must close exactly one component")
-            XCTAssertTrue(
-                safeBounds.insetBy(dx: 2, dy: 2).contains(contour.boundingRect),
-                "\(typeSize) contour \(contour.boundingRect) must not be clipped into a boundary chord"
-            )
-        }
-    }
-
     func testRemovingIndexPreservesRelativeIdentityOrder() {
         let ten = HappeningFieldLayout.layout(count: 10, in: size, safeInsets: EdgeInsets())
         let nine = HappeningFieldLayout.layout(count: 9, in: size, safeInsets: EdgeInsets())
@@ -1002,71 +1053,34 @@ final class HappeningPaletteLabelContrastTests: XCTestCase {
         }
     }
 
-    func testAccessibilityTypographyAdaptsGeometryAndFitsEveryPrimaryLabel() {
-        let standardLayout = HappeningFieldLayout.layout(
-            count: 10,
-            in: CGSize(width: 402, height: 874),
-            safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
-            dynamicTypeSize: .large
-        )
-        let accessibilityLayout = HappeningFieldLayout.layout(
-            count: 10,
-            in: CGSize(width: 402, height: 874),
-            safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
-            dynamicTypeSize: .accessibility1
-        )
-
-        let baseFont = UIFont.systemFont(
-            ofSize: 14,
-            weight: .semibold
-        )
-        let roundedDescriptor = baseFont.fontDescriptor.withDesign(.rounded)
-            ?? baseFont.fontDescriptor
-        let roundedBaseFont = UIFont(
-            descriptor: roundedDescriptor,
+    func testFixedWhiteTypographyFitsPrimaryLabelsInTwoLinesAtEveryTextSize() {
+        let baseFont = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        let font = UIFont(
+            descriptor: baseFont.fontDescriptor.withDesign(.rounded) ?? baseFont.fontDescriptor,
             size: 14
         )
-        let font = UIFontMetrics(forTextStyle: .footnote).scaledFont(
-            for: roundedBaseFont,
-            compatibleWith: UITraitCollection(
-                preferredContentSizeCategory: .accessibilityMedium
+        for textSize in [
+            DynamicTypeSize.large, .xLarge, .xxxLarge,
+            .accessibility1, .accessibility2, .accessibility3, .accessibility4, .accessibility5,
+        ] {
+            let layout = HappeningFieldLayout.layout(
+                count: 10, in: CGSize(width: 402, height: 874),
+                safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
+                dynamicTypeSize: textSize
             )
-        )
-
-        XCTAssertGreaterThan(font.pointSize, 14)
-        XCTAssertGreaterThanOrEqual(accessibilityLayout.labelFrames[0].width, 44)
-        XCTAssertGreaterThanOrEqual(accessibilityLayout.labelFrames[0].height, 44)
-        XCTAssertLessThan(
-            accessibilityLayout.labelFrames[0].width,
-            standardLayout.labelFrames[0].width,
-            "the accessible two-column layout trades diameter for more vertical text room"
-        )
-
-        for (index, frame) in accessibilityLayout.labelFrames.enumerated() {
-            for other in accessibilityLayout.labelFrames.dropFirst(index + 1) {
-                XCTAssertFalse(frame.intersects(other), "accessibility label frames must not overlap")
+            for (happening, frame) in zip(HappeningDefaults.builtIns, layout.labelFrames) {
+                let measured = (happening.localizedTitle() as NSString).boundingRect(
+                    with: CGSize(width: frame.width * 0.80, height: .greatestFiniteMagnitude),
+                    options: [.usesLineFragmentOrigin, .usesFontLeading],
+                    attributes: [.font: font],
+                    context: nil
+                )
+                XCTAssertLessThanOrEqual(ceil(measured.height), frame.height * 0.76)
+                XCTAssertLessThanOrEqual(
+                    ceil(measured.height / font.lineHeight), 2,
+                    "\(happening.localizedTitle()) must fit the fixed two-line label at \(textSize)"
+                )
             }
-        }
-
-        for (happening, frame) in zip(HappeningDefaults.builtIns, accessibilityLayout.labelFrames) {
-            let textSize = HappeningFieldLabelTreatment.inscribedTextSize(in: frame.size)
-            let measured = (happening.localizedTitle() as NSString).boundingRect(
-                with: CGSize(width: textSize.width, height: .greatestFiniteMagnitude),
-                options: [.usesLineFragmentOrigin, .usesFontLeading],
-                attributes: [.font: font],
-                context: nil
-            )
-
-            XCTAssertLessThanOrEqual(
-                ceil(measured.height),
-                textSize.height,
-                "\(happening.localizedTitle()) must fit without truncation"
-            )
-            XCTAssertLessThanOrEqual(
-                ceil(measured.height / font.lineHeight),
-                4,
-                "\(happening.localizedTitle()) must fit within four accessibility lines"
-            )
         }
     }
 

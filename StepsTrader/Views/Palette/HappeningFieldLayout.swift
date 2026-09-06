@@ -33,6 +33,7 @@ enum HappeningFieldLayout {
         [3, 2, 3], [3, 3, 3], [3, 2, 3, 2],
     ]
 
+    /// Creator-panel actions may stack at larger text sizes; slot geometry stays fixed.
     static func usesExpandedLayout(for dynamicTypeSize: DynamicTypeSize) -> Bool {
         dynamicTypeSize > .large
     }
@@ -90,15 +91,6 @@ enum HappeningFieldLayout {
             )
         }
 
-        if usesExpandedLayout(for: dynamicTypeSize) {
-            return expandedLayout(
-                itemCount: itemCount,
-                safeBounds: safeBounds,
-                contentTop: contentTop,
-                contentBottom: contentBottom,
-                dockAnchor: dockAnchor
-            )
-        }
         return standardLayout(
             itemCount: itemCount,
             safeBounds: safeBounds,
@@ -159,40 +151,6 @@ enum HappeningFieldLayout {
             }
         }
 
-        return makeLayout(sources: sources, dockAnchor: dockAnchor)
-    }
-
-    private static func expandedLayout(
-        itemCount: Int,
-        safeBounds: CGRect,
-        contentTop: CGFloat,
-        contentBottom: CGFloat,
-        dockAnchor: CGPoint
-    ) -> Layout {
-        let rows = Int(ceil(Double(itemCount) / 2))
-        let availableHeight = max(44, contentBottom - contentTop)
-        let radius = min(
-            54,
-            max(22, min((safeBounds.width - 76) / 4, (availableHeight / CGFloat(rows) - 8) / 2))
-        )
-        let firstY = contentTop + radius
-        let lastY = contentBottom - radius
-        let step = rows > 1 ? (lastY - firstY) / CGFloat(rows - 1) : 0
-        let columnOffset = min(92, safeBounds.width * 0.23)
-        let sources = (0..<itemCount).map { index in
-            let row = index / 2
-            let unpaired = !itemCount.isMultiple(of: 2) && index == itemCount - 1
-            return Source(
-                index: index,
-                center: CGPoint(
-                    x: unpaired
-                        ? safeBounds.midX
-                        : safeBounds.midX + (index.isMultiple(of: 2) ? -columnOffset : columnOffset),
-                    y: firstY + CGFloat(row) * step
-                ),
-                radius: radius
-            )
-        }
         return makeLayout(sources: sources, dockAnchor: dockAnchor)
     }
 

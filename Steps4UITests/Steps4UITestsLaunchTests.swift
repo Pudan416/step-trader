@@ -557,6 +557,31 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         XCTAssertFalse(app.buttons["tab_canvas"].exists)
         Thread.sleep(forTimeInterval: 0.7)
         attachScreenshot(named: "editorial-palette-added-fixed-slots")
+
+        app.buttons["Walk"].tap()
+        XCTAssertTrue(app.staticTexts["Tap again to remove from Canvas"].waitForExistence(timeout: 1))
+        Thread.sleep(forTimeInterval: 0.6)
+        attachScreenshot(named: "editorial-palette-removal-preview")
+        assertPersistentPaletteChrome(in: app)
+    }
+
+    func testHappeningPaletteAccessibilityKeepsFixedRows() throws {
+        let app = launchTask7App(dynamicTypeSize: "accessibility5", increasedContrast: true)
+        openPalette(in: app)
+        assertPersistentPaletteChrome(in: app)
+        let slots = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'happening_choice_'")
+        ).allElementsBoundByIndex
+        let rows = Dictionary(grouping: slots) { round($0.frame.midY) }
+            .sorted { $0.key < $1.key }.map { $0.value.count }
+        XCTAssertEqual(rows, [3, 2, 3, 2])
+        for slot in slots {
+            XCTAssertTrue(slot.isHittable)
+            XCTAssertGreaterThanOrEqual(slot.frame.width, 44)
+            XCTAssertGreaterThanOrEqual(slot.frame.height, 44)
+            XCTAssertTrue(app.frame.contains(slot.frame))
+        }
+        attachScreenshot(named: "editorial-palette-accessibility5-fixed-rows")
     }
 
     private func launchTask7App(
