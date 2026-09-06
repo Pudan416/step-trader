@@ -14,7 +14,11 @@ extension AppModel {
     /// Adds one occurrence when the happening has not already been added on
     /// the requested custom day.
     func canAddHappening(id: String, on date: Date = .now) -> Bool {
-        let dayKey = Self.dayKey(for: date)
+        let dayKey = DayBoundary.dayKey(
+            for: date,
+            dayEndHour: dayEndHour,
+            dayEndMinute: dayEndMinute
+        )
         return !todayAdditions.contains {
             $0.dayKey == dayKey && $0.optionId == id
         }
@@ -28,7 +32,11 @@ extension AppModel {
         recordUse: Bool = true,
         entryId: String = UUID().uuidString
     ) -> OptionEntry? {
-        let dayKey = Self.dayKey(for: date)
+        let dayKey = DayBoundary.dayKey(
+            for: date,
+            dayEndHour: dayEndHour,
+            dayEndMinute: dayEndMinute
+        )
         guard canAddHappening(id: id, on: date) else { return nil }
 
         let entry = OptionEntry(
