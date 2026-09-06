@@ -171,7 +171,10 @@ enum CanvasHappeningReconciliationTransaction {
             committedEntries.append(committed)
         }
 
-        let operations = reconciliation.entryIDsToRemove.map {
+        let committedEntryIDs = Set(committedEntries.map(\.id))
+        let operations = reconciliation.entryIDsToRemove.filter {
+            !committedEntryIDs.contains($0)
+        }.map {
             CanvasHappeningReconciliationSyncOperation.delete(entryID: $0)
         } + committedEntries.map(CanvasHappeningReconciliationSyncOperation.upsert)
         if !operations.isEmpty {

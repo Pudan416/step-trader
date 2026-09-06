@@ -278,7 +278,7 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
         ])
     }
 
-    func testReconciliationCommitPreservesAppearanceAndEmitsOneOrderedCloudPlan() throws {
+    func testReconciliationSameIDReplacementCannotQueueDeleteAfterCanonicalUpsert() throws {
         let now = Date(timeIntervalSince1970: 1_786_176_000)
         let dayKey = AppModel.dayKey(for: now)
         let stableID = try XCTUnwrap(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"))
@@ -313,10 +313,39 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
         )
 
         XCTAssertEqual(model.todayAdditions, [canonical])
-        XCTAssertEqual(cloudPlans, [[
-            .delete(entryID: stale.id),
-            .upsert(canonical),
-        ]])
+        XCTAssertEqual(cloudPlans, [[.upsert(canonical)]])
+    }
+
+    func testOptionEntryUpsertPayloadExplicitlyClearsNilAssetVariant() throws {
+        let entry = OptionEntry(
+            id: "entry-id",
+            dayKey: "2026-09-06",
+            optionId: "happening_walk",
+            colorHex: "#A1B2C3",
+            timestamp: Date(timeIntervalSince1970: 1_786_176_000),
+            assetVariant: nil
+        )
+        let rows = [
+            OptionEntryUpsertRow(
+                entry: entry,
+                userID: "user-id",
+                createdAt: "2026-09-06T10:00:00Z"
+            ),
+        ]
+
+        let data = try JSONEncoder().encode(rows)
+        let payload = try XCTUnwrap(
+            (JSONSerialization.jsonObject(with: data) as? [[String: Any]])?.first
+        )
+
+        XCTAssertEqual(payload["id"] as? String, entry.id)
+        XCTAssertEqual(payload["user_id"] as? String, "user-id")
+        XCTAssertEqual(payload["day_key"] as? String, entry.dayKey)
+        XCTAssertEqual(payload["option_id"] as? String, entry.optionId)
+        XCTAssertEqual(payload["color_hex"] as? String, entry.colorHex)
+        XCTAssertEqual(payload["created_at"] as? String, "2026-09-06T10:00:00Z")
+        XCTAssertTrue(payload.keys.contains("asset_variant"))
+        XCTAssertTrue(payload["asset_variant"] is NSNull)
     }
 
     func testReconciliationCanonicalizesDuplicateCanvasOptionsAndBecomesIdempotent() throws {

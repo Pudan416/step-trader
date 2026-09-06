@@ -27,19 +27,12 @@ extension SupabaseSyncService {
             urlComps.queryItems = [URLQueryItem(name: "on_conflict", value: "id")]
             guard let url = urlComps.url else { return }
             
-            let rows: [[String: Any]] = entries.map { entry in
-                var row: [String: Any] = [
-                    "id": entry.id,
-                    "user_id": userId,
-                    "day_key": entry.dayKey,
-                    "option_id": entry.optionId,
-                    "color_hex": entry.colorHex,
-                    "created_at": iso8601String(entry.timestamp)
-                ]
-                if let variant = entry.assetVariant {
-                    row["asset_variant"] = variant
-                }
-                return row
+            let rows = entries.map { entry in
+                OptionEntryUpsertRow(
+                    entry: entry,
+                    userID: userId,
+                    createdAt: iso8601String(entry.timestamp)
+                )
             }
             
             var request = URLRequest(url: url)
@@ -48,7 +41,7 @@ extension SupabaseSyncService {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
             request.setValue("application/json", forHTTPHeaderField: "content-type")
             request.setValue("resolution=merge-duplicates", forHTTPHeaderField: "prefer")
-            request.httpBody = try JSONSerialization.data(withJSONObject: rows)
+            request.httpBody = try JSONEncoder().encode(rows)
             
             let (data, response) = try await network.data(for: request)
             if response.statusCode < 400 {
@@ -145,6 +138,51 @@ extension SupabaseSyncService {
             AppLogger.network.error("📡 Failed to load option entries: \(error.localizedDescription)")
             return nil
         }
+    }
+}
+
+struct OptionEntryUpsertRow: Encodable {
+    let id: String
+    let userID: String
+    let dayKey: String
+    let optionID: String
+    let colorHex: String
+    let assetVariant: Int?
+    let createdAt: String
+
+    init(entry: OptionEntry, userID: String, createdAt: String) {
+        id = entry.id
+        self.userID = userID
+        dayKey = entry.dayKey
+        optionID = entry.optionId
+        colorHex = entry.colorHex
+        assetVariant = entry.assetVariant
+        self.createdAt = createdAt
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userID = "user_id"
+        case dayKey = "day_key"
+        case optionID = "option_id"
+        case colorHex = "color_hex"
+        case assetVariant = "asset_variant"
+        case createdAt = "created_at"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(userID, forKey: .userID)
+        try container.encode(dayKey, forKey: .dayKey)
+        try container.encode(optionID, forKey: .optionID)
+        try container.encode(colorHex, forKey: .colorHex)
+        if let assetVariant {
+            try container.encode(assetVariant, forKey: .assetVariant)
+        } else {
+            try container.encodeNil(forKey: .assetVariant)
+        }
+        try container.encode(createdAt, forKey: .createdAt)
     }
 }
 
