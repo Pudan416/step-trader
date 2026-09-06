@@ -1,0 +1,30 @@
+{
+  "analyzer" : "ITU-R BS.1770 K-weighting; 400 ms blocks; 75% overlap; -70 LUFS absolute / -10 LU relative gates; 4x true peak",
+  "files" : [
+    {
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 24,
+      "integratedLUFS" : -17.02721409645117,
+      "passesIntegratedLoudness" : true,
+      "passesTruePeak" : true,
+      "path" : "artifacts/day-objects-sound-worlds/feltAndWood.wav",
+      "truePeakDBTP" : -3.2817795970619743
+    },
+    {
+      "containsOnlyFiniteSamples" : true,
+      "durationSeconds" : 24,
+      "integratedLUFS" : -16.553710488802615,
+      "passesIntegratedLoudness" : true,
+      "passesTruePeak" : true,
+      "path" : "artifacts/day-objects-sound-worlds/metalAndCurrent.wav",
+      "truePeakDBTP" : -2.7931774568421104
+    }
+  ],
+  "limits" : {
+    "maximumIntegratedLUFS" : -16,
+    "maximumTruePeakDBTP" : -1,
+    "minimumIntegratedLUFS" : -18
+  },
+  "passes" : true,
+  "schemaVersion" : 1
+}
