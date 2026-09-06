@@ -42,6 +42,7 @@
 		D0E300000000000000000004 /* AmbientVoiceLeadingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E300000000000000000003 /* AmbientVoiceLeadingTests.swift */; };
 		D0E300000000000000000008 /* TonalWorldPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E300000000000000000005 /* TonalWorldPlan.swift */; };
 		D0E300000000000000000009 /* TonalWorldPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E300000000000000000006 /* TonalWorldPlanner.swift */; };
+		D30300000000000000000002 /* DayObjectsHarmonyGrammar.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30300000000000000000001 /* DayObjectsHarmonyGrammar.swift */; };
 		D0E30000000000000000000A /* AmbientVoiceLeading.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E300000000000000000007 /* AmbientVoiceLeading.swift */; };
 		D0E400000000000000000002 /* SmoothActivationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E400000000000000000001 /* SmoothActivationTests.swift */; };
 		D0E400000000000000000004 /* RhythmPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E400000000000000000003 /* RhythmPlannerTests.swift */; };
@@ -623,6 +624,7 @@
 		D0E300000000000000000003 /* AmbientVoiceLeadingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmbientVoiceLeadingTests.swift; sourceTree = "<group>"; };
 		D0E300000000000000000005 /* TonalWorldPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonalWorldPlan.swift; sourceTree = "<group>"; };
 		D0E300000000000000000006 /* TonalWorldPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonalWorldPlanner.swift; sourceTree = "<group>"; };
+		D30300000000000000000001 /* DayObjectsHarmonyGrammar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsHarmonyGrammar.swift; sourceTree = "<group>"; };
 		D0E300000000000000000007 /* AmbientVoiceLeading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmbientVoiceLeading.swift; sourceTree = "<group>"; };
 		D0E400000000000000000001 /* SmoothActivationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmoothActivationTests.swift; sourceTree = "<group>"; };
 		D0E400000000000000000003 /* RhythmPlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RhythmPlannerTests.swift; sourceTree = "<group>"; };
@@ -1333,6 +1335,7 @@
 				D0E400000000000000000009 /* RhythmPlanner.swift */,
 				D0E300000000000000000005 /* TonalWorldPlan.swift */,
 				D0E300000000000000000006 /* TonalWorldPlanner.swift */,
+				D30300000000000000000001 /* DayObjectsHarmonyGrammar.swift */,
 				D0E300000000000000000007 /* AmbientVoiceLeading.swift */,
 				D0E200000000000000000003 /* MusicSeedDomain.swift */,
 				D0E200000000000000000004 /* StableMusicRandom.swift */,
@@ -2418,6 +2421,7 @@
 				D0E40000000000000000000A /* RhythmPlanner.swift in Sources */,
 				D0E300000000000000000008 /* TonalWorldPlan.swift in Sources */,
 				D0E300000000000000000009 /* TonalWorldPlanner.swift in Sources */,
+				D30300000000000000000002 /* DayObjectsHarmonyGrammar.swift in Sources */,
 				D0E30000000000000000000A /* AmbientVoiceLeading.swift in Sources */,
 				D0E200000000000000000007 /* MusicSeedDomain.swift in Sources */,
 				D0E200000000000000000008 /* StableMusicRandom.swift in Sources */,

@@ -38,6 +38,15 @@ struct TonalWorldPlan: Equatable, Sendable {
     let scalePitchClasses: [Int]
     let progression: [ChordPlan]
     let cycleBars: Int
+
+    /// A portable musical signature, independent of world labels and instrument IDs.
+    var musicalFingerprint: String {
+        let chords = progression.map { chord in
+            let notes = chord.voicedMIDINotes.map(String.init).joined(separator: ",")
+            return "\(chord.modalDegree):\(notes):\(chord.durationBars)"
+        }.joined(separator: ";")
+        return "\(mode)|\(chords)"
+    }
 }
 
 struct ChordPlan: Equatable, Sendable {

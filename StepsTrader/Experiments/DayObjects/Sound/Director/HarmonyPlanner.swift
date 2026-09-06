@@ -20,7 +20,8 @@ enum HarmonyPlanner {
         tonalWorld: TonalWorldPlan,
         instrumentDescriptors: [DayObjectsInstrumentDescriptor],
         remixSeed: UInt64,
-        soundWorld: DayObjectsSoundWorld? = nil
+        soundWorld: DayObjectsSoundWorld? = nil,
+        mood: DayObjectsSoundMood = .moving
     ) -> HarmonyPlan {
         let sleepProgress = unitValue(input.sleepProgress)
         let worldDescriptors = soundWorld.map { world in
@@ -67,7 +68,7 @@ enum HarmonyPlanner {
         ]
 
         let roles = roleTemplates.compactMap { baseTemplate -> HarmonyRolePlan? in
-            let template = processedTemplate(baseTemplate, soundWorld: soundWorld)
+            let template = processedTemplate(baseTemplate, soundWorld: soundWorld, mood: mood)
             guard let instrumentTarget = selectedByRole[template.role] ?? nil else { return nil }
             let amount = activationAmount(
                 for: template.role,
@@ -92,7 +93,9 @@ enum HarmonyPlanner {
                 chordSchedule: chordSchedule(
                     for: template.role,
                     tonalWorld: tonalWorld,
-                    register: template.register
+                    register: template.register,
+                    soundWorld: soundWorld,
+                    mood: mood
                 ),
                 crossfadeBars: template.crossfadeBars
             )
@@ -152,7 +155,9 @@ enum HarmonyPlanner {
     private static func chordSchedule(
         for role: HarmonyRole,
         tonalWorld: TonalWorldPlan,
-        register: ClosedRange<UInt8>
+        register: ClosedRange<UInt8>,
+        soundWorld: DayObjectsSoundWorld?,
+        mood: DayObjectsSoundMood
     ) -> [HarmonyChordScheduleEntry] {
         var startBar = 0
         var previousNotes: [UInt8]?
@@ -166,12 +171,20 @@ enum HarmonyPlanner {
                 pitchClasses = chord.chordPitchClasses
                 voiceCount = min(4, max(3, pitchClasses.count))
             }
-            let voicedNotes = AmbientVoiceLeading.nearestVoicing(
-                chordPitchClasses: pitchClasses,
-                previousNotes: previousNotes,
-                register: register,
-                voiceCount: voiceCount
-            )
+            let voicedNotes: [UInt8]
+            if let soundWorld {
+                voicedNotes = AmbientVoiceLeading.nearestVoicing(
+                    chordPitchClasses: pitchClasses, previousNotes: previousNotes,
+                    world: soundWorld, mood: mood, register: register, chordIndex: index
+                )
+            } else {
+                voicedNotes = AmbientVoiceLeading.nearestVoicing(
+                    chordPitchClasses: pitchClasses,
+                    previousNotes: previousNotes,
+                    register: register,
+                    voiceCount: voiceCount
+                )
+            }
             previousNotes = voicedNotes
             let entry = HarmonyChordScheduleEntry(
                 chordIndex: index,
@@ -206,9 +219,18 @@ enum HarmonyPlanner {
 
     private static func processedTemplate(
         _ template: RoleTemplate,
-        soundWorld: DayObjectsSoundWorld?
+        soundWorld: DayObjectsSoundWorld?,
+        mood: DayObjectsSoundMood
     ) -> RoleTemplate {
         guard let soundWorld else { return template }
+        let grammar = DayObjectsHarmonyGrammar.for(world: soundWorld, mood: mood)
+        let register: ClosedRange<UInt8>
+        if template.role == .primaryPad {
+            register = grammar.register
+        } else {
+            let shift = Int(grammar.register.lowerBound) - Int(AmbientVoiceLeading.ambientRegister.lowerBound)
+            register = UInt8(Int(template.register.lowerBound) + shift)...UInt8(Int(template.register.upperBound) + shift)
+        }
         let attackMultiplier: Double
         let releaseMultiplier: Double
         let delayMultiplier: Double
@@ -229,7 +251,7 @@ enum HarmonyPlanner {
             role: template.role,
             compatibleCategories: template.compatibleCategories,
             preferredCategory: template.preferredCategory,
-            register: template.register,
+            register: register,
             targetGain: template.targetGain,
             attackSeconds: template.attackSeconds * attackMultiplier,
             releaseSeconds: template.releaseSeconds * releaseMultiplier,

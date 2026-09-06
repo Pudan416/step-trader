@@ -14,13 +14,15 @@ enum DeterministicMusicDirector {
     static func makePlan(
         input: DayMusicInput,
         remixSeed: UInt64,
-        soundWorld: DayObjectsSoundWorld
+        soundWorld: DayObjectsSoundWorld,
+        mood: DayObjectsSoundMood = .moving
     ) -> DayMusicPlan {
         makePlan(
             input: input,
             instrumentDescriptors: DayObjectsInstrumentManifest.defaultDescriptors,
             remixSeed: remixSeed,
-            soundWorld: soundWorld
+            soundWorld: soundWorld,
+            mood: mood
         )
     }
 
@@ -28,7 +30,8 @@ enum DeterministicMusicDirector {
         input: DayMusicInput,
         instrumentDescriptors: [DayObjectsInstrumentDescriptor],
         remixSeed: UInt64,
-        soundWorld: DayObjectsSoundWorld? = nil
+        soundWorld: DayObjectsSoundWorld? = nil,
+        mood: DayObjectsSoundMood = .moving
     ) -> DayMusicPlan {
         if soundWorld == nil {
             return makePlanLegacy(
@@ -41,7 +44,9 @@ enum DeterministicMusicDirector {
         let normalizedInput = input.normalized()
         let world = TonalWorldPlanner.makePlan(
             input: normalizedInput,
-            remixSeed: remixSeed
+            remixSeed: remixSeed,
+            world: soundWorld,
+            mood: mood
         )
         var groove = GroovePlanner.makePlan(remixSeed: remixSeed, soundWorld: soundWorld)
         var rhythm = RhythmPlanner.makePlan(
@@ -70,7 +75,8 @@ enum DeterministicMusicDirector {
             tonalWorld: world,
             instrumentDescriptors: instrumentDescriptors,
             remixSeed: remixSeed,
-            soundWorld: soundWorld
+            soundWorld: soundWorld,
+            mood: mood
         )
         let happenings = HappeningMusicPlanner.makePlans(
             input: normalizedInput,
@@ -90,6 +96,7 @@ enum DeterministicMusicDirector {
         return DayMusicPlan(
             seed: remixSeed,
             soundWorld: soundWorld,
+            mood: mood,
             input: normalizedInput,
             world: world,
             rhythm: rhythm,

@@ -7,6 +7,54 @@ enum AmbientVoiceLeading {
     static func nearestVoicing(
         chordPitchClasses: [Int],
         previousNotes: [UInt8]?,
+        world: DayObjectsSoundWorld,
+        mood: DayObjectsSoundMood,
+        register: ClosedRange<UInt8>? = nil,
+        chordIndex: Int = 0
+    ) -> [UInt8] {
+        let grammar = DayObjectsHarmonyGrammar.for(world: world, mood: mood)
+        let pitchClasses = uniquePitchClasses(chordPitchClasses)
+        guard let root = pitchClasses.first, pitchClasses.count <= grammar.maximumChordTones else { return [] }
+        let generated = candidates(
+            chordPitchClasses: pitchClasses,
+            register: register ?? grammar.register,
+            voiceCount: pitchClasses.count
+        )
+        return generated.min { left, right in
+            let leftPenalty = worldVoicingPenalty(left, root: root, world: world, chordIndex: chordIndex)
+            let rightPenalty = worldVoicingPenalty(right, root: root, world: world, chordIndex: chordIndex)
+            if leftPenalty != rightPenalty { return leftPenalty < rightPenalty }
+            return isPreferred(left, over: right, previousNotes: previousNotes)
+        } ?? []
+    }
+
+    private static func worldVoicingPenalty(
+        _ notes: [UInt8], root: Int, world: DayObjectsSoundWorld, chordIndex: Int
+    ) -> Int {
+        guard let first = notes.first, let last = notes.last else { return 0 }
+        let span = Int(last) - Int(first)
+        switch world {
+        case .feltAndWood:
+            return max(0, span - 12)
+        case .livingField:
+            let crowdedIntervals = zip(notes, notes.dropFirst()).reduce(0) {
+                $0 + max(0, 5 - (Int($1.1) - Int($1.0)))
+            }
+            return max(0, 12 - span) + crowdedIntervals
+        case .metalAndCurrent:
+            let rootPenalty = Int(first) % 12 == root ? 0 : 100
+            let upperSpacing = notes.count > 2 ? max(0, 12 - (Int(notes[1]) - Int(first))) : max(0, 7 - span)
+            return rootPenalty + upperSpacing
+        case .electricDream:
+            let rootInBass = Int(first) % 12 == root
+            let wantsRootInBass = chordIndex.isMultiple(of: 2)
+            return (rootInBass == wantsRootInBass ? 0 : 100) + max(0, 12 - span) + max(0, span - 19)
+        }
+    }
+
+    static func nearestVoicing(
+        chordPitchClasses: [Int],
+        previousNotes: [UInt8]?,
         register: ClosedRange<UInt8> = ambientRegister,
         voiceCount: Int = ambientVoiceCount
     ) -> [UInt8] {

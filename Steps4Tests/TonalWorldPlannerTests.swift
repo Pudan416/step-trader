@@ -2,6 +2,64 @@ import XCTest
 @testable import Steps4
 
 final class TonalWorldPlannerTests: XCTestCase {
+    func testEqualInputWorldsDifferInProgressionOrVoicing() {
+        for mood in DayObjectsSoundMood.allCases {
+            for seed in UInt64(0)..<80 {
+                let plans = DayObjectsSoundWorld.allCases.map {
+                    TonalWorldPlanner.makePlan(input: input(sleepProgress: 1), remixSeed: seed, world: $0, mood: mood)
+                }
+                XCTAssertEqual(Set(plans.map(\.musicalFingerprint)).count, 4, "\(mood), seed \(seed)")
+            }
+        }
+    }
+
+    func testWorldGrammarConstrainsActualModesExtensionsRegistersAndDurations() {
+        for world in DayObjectsSoundWorld.allCases {
+            for mood in DayObjectsSoundMood.allCases {
+                let grammar = DayObjectsHarmonyGrammar.for(world: world, mood: mood)
+                for seed in UInt64(0)..<24 {
+                    let plan = TonalWorldPlanner.makePlan(input: input(sleepProgress: 1), remixSeed: seed, world: world, mood: mood)
+                    XCTAssertTrue(grammar.allowedModes.contains(plan.mode))
+                    XCTAssertTrue(grammar.cycleBarChoices.contains(plan.cycleBars))
+                    XCTAssertEqual(plan.progression.map(\.durationBars).reduce(0, +), plan.cycleBars)
+                    for chord in plan.progression {
+                        XCTAssertTrue(chord.durationBars > 0)
+                        XCTAssertFalse(chord.voicedMIDINotes.isEmpty)
+                        XCTAssertLessThanOrEqual(chord.voicedMIDINotes.count, grammar.maximumChordTones)
+                        XCTAssertTrue(chord.voicedMIDINotes.allSatisfy(grammar.register.contains))
+                        XCTAssertEqual(Set(chord.voicedMIDINotes.map { Int($0) % 12 }), Set(chord.chordPitchClasses))
+                        XCTAssertTrue(chord.chordPitchClasses.allSatisfy {
+                            $0 == chord.rootPitchClass || grammar.allowedExtensions.contains(($0 - chord.rootPitchClass + 12) % 12)
+                        })
+                    }
+                    XCTAssertEqual(plan, TonalWorldPlanner.makePlan(input: input(sleepProgress: 1), remixSeed: seed, world: world, mood: mood))
+                }
+            }
+        }
+    }
+
+    func testMoodsChangeMusicalOutputWithoutChangingSleepChordCount() {
+        for world in DayObjectsSoundWorld.allCases {
+            let plans = DayObjectsSoundMood.allCases.map {
+                TonalWorldPlanner.makePlan(input: input(sleepProgress: 1), remixSeed: 77, world: world, mood: $0)
+            }
+            XCTAssertEqual(Set(plans.map(\.musicalFingerprint)).count, 3, "\(world)")
+            XCTAssertEqual(Set(plans.map { $0.progression.count }).count, 1)
+        }
+    }
+
+    func testFingerprintTracksSoundingNotesDegreesModeAndDurations() {
+        let chord = ChordPlan(modalDegree: 0, rootPitchClass: 0, chordPitchClasses: [0, 7], safePassingPitchClasses: [0, 7], voicedMIDINotes: [48, 55], durationBars: 8)
+        let baseline = TonalWorldPlan(centerPitchClass: 0, mode: .dorian, scalePitchClasses: [0, 7], progression: [chord], cycleBars: 8)
+        let variants = [
+            ChordPlan(modalDegree: 7, rootPitchClass: 0, chordPitchClasses: [0, 7], safePassingPitchClasses: [0, 7], voicedMIDINotes: [48, 55], durationBars: 8),
+            ChordPlan(modalDegree: 0, rootPitchClass: 0, chordPitchClasses: [0, 7], safePassingPitchClasses: [0, 7], voicedMIDINotes: [55, 60], durationBars: 8),
+            ChordPlan(modalDegree: 0, rootPitchClass: 0, chordPitchClasses: [0, 7], safePassingPitchClasses: [0, 7], voicedMIDINotes: [48, 55], durationBars: 12)
+        ].map { TonalWorldPlan(centerPitchClass: 0, mode: .dorian, scalePitchClasses: [0, 7], progression: [$0], cycleBars: $0.durationBars) }
+        XCTAssertTrue(variants.allSatisfy { $0.musicalFingerprint != baseline.musicalFingerprint })
+        XCTAssertNotEqual(baseline.musicalFingerprint, TonalWorldPlan(centerPitchClass: 0, mode: .aeolian, scalePitchClasses: [0, 7], progression: [chord], cycleBars: 8).musicalFingerprint)
+    }
+
     func testModesPublishTheExactApprovedPitchSets() {
         let expected: [(DayMusicMode, [Int])] = [
             (.dorian, [0, 2, 3, 5, 7, 9, 10]),
