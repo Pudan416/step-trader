@@ -1,13 +1,21 @@
 import Foundation
 import os.log
 
+enum OptionEntryCanonicalIdentity {
+    static func key(for id: String) -> String {
+        UUID(uuidString: id)?.uuidString ?? id
+    }
+}
+
 enum OptionEntryRetrySupersession {
     static func deleteIDsToReplay(
         failedDeleteIDs: [String],
         desiredEntries: [OptionEntry]
     ) -> [String] {
-        let desiredIDs = Set(desiredEntries.map(\.id))
-        return failedDeleteIDs.filter { !desiredIDs.contains($0) }
+        let desiredIDs = Set(desiredEntries.map { OptionEntryCanonicalIdentity.key(for: $0.id) })
+        return failedDeleteIDs.filter {
+            !desiredIDs.contains(OptionEntryCanonicalIdentity.key(for: $0))
+        }
     }
 
     static func persistedDesiredEntries() -> [OptionEntry] {
@@ -21,7 +29,133 @@ enum OptionEntryRetrySupersession {
         afterReplayingDeleteID id: String,
         latestDesiredEntries: [OptionEntry]
     ) -> OptionEntry? {
-        latestDesiredEntries.first(where: { $0.id == id })
+        let canonicalID = OptionEntryCanonicalIdentity.key(for: id)
+        return latestDesiredEntries.first {
+            OptionEntryCanonicalIdentity.key(for: $0.id) == canonicalID
+        }
+    }
+}
+
+enum OptionEntryIntentOperation: Equatable {
+    case upsert(OptionEntry)
+    case delete(id: String)
+}
+
+struct PendingOptionEntryIntent: Codable, Equatable {
+    let canonicalID: String
+    let requestedID: String
+    let version: UInt64
+}
+
+struct OptionEntryIntentPersistence {
+    let defaults: UserDefaults
+    let key: String
+
+    func load() -> [String: PendingOptionEntryIntent] {
+        guard let data = defaults.data(forKey: key),
+              let decoded = try? JSONDecoder().decode([String: PendingOptionEntryIntent].self, from: data)
+        else { return [:] }
+        return decoded
+    }
+
+    func pending(canonicalID: String) -> PendingOptionEntryIntent? {
+        load()[canonicalID]
+    }
+
+    @discardableResult
+    func mark(id: String) -> PendingOptionEntryIntent {
+        var intents = load()
+        let canonicalID = OptionEntryCanonicalIdentity.key(for: id)
+        let version = (intents[canonicalID]?.version ?? 0) &+ 1
+        let intent = PendingOptionEntryIntent(
+            canonicalID: canonicalID,
+            requestedID: id,
+            version: version
+        )
+        intents[canonicalID] = intent
+        save(intents)
+        return intent
+    }
+
+    func operation(
+        for intent: PendingOptionEntryIntent,
+        desiredEntries: [OptionEntry]
+    ) -> OptionEntryIntentOperation {
+        if let desired = desiredEntries.first(where: {
+            OptionEntryCanonicalIdentity.key(for: $0.id) == intent.canonicalID
+        }) {
+            return .upsert(desired)
+        }
+        return .delete(id: intent.requestedID)
+    }
+
+    /// A network response acknowledges an intent only when it succeeded and
+    /// both its persisted version and its current desired operation are still
+    /// the same after the suspension. Otherwise the marker remains durable.
+    @discardableResult
+    func finishAttempt(
+        _ intent: PendingOptionEntryIntent,
+        operation attemptedOperation: OptionEntryIntentOperation,
+        succeeded: Bool,
+        latestDesiredEntries: [OptionEntry]
+    ) -> Bool {
+        guard succeeded else { return false }
+        var intents = load()
+        guard intents[intent.canonicalID] == intent,
+              operation(for: intent, desiredEntries: latestDesiredEntries) == attemptedOperation
+        else { return false }
+        intents.removeValue(forKey: intent.canonicalID)
+        save(intents)
+        return true
+    }
+
+    private func save(_ intents: [String: PendingOptionEntryIntent]) {
+        guard let data = try? JSONEncoder().encode(intents) else { return }
+        defaults.set(data, forKey: key)
+    }
+}
+
+enum OptionEntryIntentAttemptCompletion: Equatable {
+    case acknowledge
+    case retryLatest
+    case leavePending
+}
+
+struct OptionEntryIntentAttemptToken: Hashable {
+    let id: UUID
+    let canonicalID: String
+    let version: UInt64
+}
+
+actor OptionEntryIntentAttemptCoordinator {
+    private var inFlight: [String: Set<UUID>] = [:]
+
+    func begin(canonicalID: String, version: UInt64) -> OptionEntryIntentAttemptToken {
+        let token = OptionEntryIntentAttemptToken(
+            id: UUID(),
+            canonicalID: canonicalID,
+            version: version
+        )
+        inFlight[canonicalID, default: []].insert(token.id)
+        return token
+    }
+
+    func finish(
+        _ token: OptionEntryIntentAttemptToken,
+        succeeded: Bool,
+        currentVersion: UInt64?,
+        operationStillCurrent: Bool
+    ) -> OptionEntryIntentAttemptCompletion {
+        inFlight[token.canonicalID]?.remove(token.id)
+        if inFlight[token.canonicalID]?.isEmpty == true {
+            inFlight.removeValue(forKey: token.canonicalID)
+        }
+        guard succeeded else { return .leavePending }
+        guard currentVersion == token.version,
+              operationStillCurrent,
+              inFlight[token.canonicalID]?.isEmpty != false
+        else { return .retryLatest }
+        return .acknowledge
     }
 }
 
@@ -30,34 +164,37 @@ extension SupabaseSyncService {
     
     func syncOptionEntries(_ entries: [OptionEntry]) {
         let payload = entries.sorted(by: { $0.timestamp < $1.timestamp })
+        let canonicalIDs = payload.map {
+            optionEntryIntentStore.mark(id: $0.id).canonicalID
+        }
         
         entriesSyncTask?.cancel()
         entriesSyncTask = Task {
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
-            await performEntriesSync(entries: payload)
+            for canonicalID in canonicalIDs {
+                await reconcileOptionEntryIntent(canonicalID: canonicalID)
+            }
         }
     }
-    
-    private func performEntriesSync(entries: [OptionEntry]) async {
-        guard let auth = await authenticatedContext() else { return }
+
+    private func sendOptionEntryUpsert(_ entry: OptionEntry) async -> Bool {
+        guard let auth = await authenticatedContext() else { return false }
         let token = auth.token
         let userId = auth.userId
         
         do {
             let cfg = try SupabaseConfig.load()
             let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/user_happening_additions")
-            guard var urlComps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return }
+            guard var urlComps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return false }
             urlComps.queryItems = [URLQueryItem(name: "on_conflict", value: "id")]
-            guard let url = urlComps.url else { return }
+            guard let url = urlComps.url else { return false }
             
-            let rows = entries.map { entry in
-                OptionEntryUpsertRow(
-                    entry: entry,
-                    userID: userId,
-                    createdAt: iso8601String(entry.timestamp)
-                )
-            }
+            let rows = [OptionEntryUpsertRow(
+                entry: entry,
+                userID: userId,
+                createdAt: iso8601String(entry.timestamp)
+            )]
             
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
@@ -69,82 +206,127 @@ extension SupabaseSyncService {
             
             let (data, response) = try await network.data(for: request)
             if response.statusCode < 400 {
-                AppLogger.network.debug("📡 Option entries synced: \(entries.count)")
+                AppLogger.network.debug("📡 Option entry synced")
+                return true
             } else {
                 let body = String(data: data, encoding: .utf8) ?? "no body"
                 AppLogger.network.error("📡 Option entries sync failed: HTTP \(response.statusCode) - \(body)")
-                enqueueForRetry(request)
+                return false
             }
         } catch {
             AppLogger.network.error("📡 Option entries sync error: \(error.localizedDescription)")
+            return false
         }
     }
 
     func performEntriesSyncForFullSync(_ entries: [OptionEntry]) async {
-        await performEntriesSync(entries: entries)
+        for entry in entries {
+            let intent = optionEntryIntentStore.mark(id: entry.id)
+            await reconcileOptionEntryIntent(canonicalID: intent.canonicalID)
+        }
     }
 
     /// Syncs one client-identified addition. Upserting by `id` makes retries
     /// idempotent while still allowing the same happening multiple times.
     func syncOptionEntry(_ entry: OptionEntry) async {
+        let intent = optionEntryIntentStore.mark(id: entry.id)
         supersedeQueuedOptionEntryDelete(id: entry.id)
-        await performEntriesSync(entries: [entry])
+        await reconcileOptionEntryIntent(canonicalID: intent.canonicalID)
     }
 
     func deleteOptionEntry(id: String) async {
-        if OptionEntryRetrySupersession.recoveryEntry(
-            afterReplayingDeleteID: id,
-            latestDesiredEntries: OptionEntryRetrySupersession.persistedDesiredEntries()
-        ) != nil {
-            supersedeQueuedOptionEntryDelete(id: id)
-            return
-        }
+        let intent = optionEntryIntentStore.mark(id: id)
+        supersedeQueuedOptionEntryDelete(id: id)
+        await reconcileOptionEntryIntent(canonicalID: intent.canonicalID)
+    }
 
-        guard let auth = await authenticatedContext() else { return }
-        var pendingRequest: URLRequest?
+    private func sendOptionEntryDelete(id: String) async -> Bool {
+        guard let auth = await authenticatedContext() else { return false }
         do {
             let cfg = try SupabaseConfig.load()
             let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/user_happening_additions")
-            guard var comps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return }
+            guard var comps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return false }
             comps.queryItems = [
                 URLQueryItem(name: "id", value: "eq.\(id)"),
                 URLQueryItem(name: "user_id", value: "eq.\(auth.userId)")
             ]
-            guard let url = comps.url else { return }
+            guard let url = comps.url else { return false }
             var request = URLRequest(url: url)
             request.httpMethod = "DELETE"
             request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
             request.setValue("Bearer \(auth.token)", forHTTPHeaderField: "authorization")
-            pendingRequest = request
             let (data, response) = try await network.data(for: request)
             guard response.statusCode < 400 else {
                 AppLogger.network.error("📡 Option entry delete failed: HTTP \(response.statusCode)")
-                enqueueForRetry(request, optionEntryDeleteID: id)
-                return
+                return false
             }
             AppLogger.network.debug("📡 Option entry deleted: \(id, privacy: .public)")
             _ = data
+            return true
         } catch {
             AppLogger.network.error("📡 Option entry delete error: \(error.localizedDescription)")
-            if let pendingRequest {
-                enqueueForRetry(pendingRequest, optionEntryDeleteID: id)
-            }
+            return false
         }
-        await restoreOptionEntryIfStillDesired(afterDeleting: id)
     }
 
-    /// DELETE requests can be in flight while the same stable entry is added
-    /// again. Reasserting the latest persisted value after the DELETE settles
-    /// makes the final cloud operation agree with the local source of truth.
-    @discardableResult
-    func restoreOptionEntryIfStillDesired(afterDeleting id: String) async -> Bool {
-        guard let desired = OptionEntryRetrySupersession.recoveryEntry(
-            afterReplayingDeleteID: id,
-            latestDesiredEntries: OptionEntryRetrySupersession.persistedDesiredEntries()
-        ) else { return false }
-        supersedeQueuedOptionEntryDelete(id: id)
-        await performEntriesSync(entries: [desired])
-        return true
+    func drainPendingOptionEntryIntents() async {
+        for canonicalID in optionEntryIntentStore.load().keys.sorted() {
+            await reconcileOptionEntryIntent(canonicalID: canonicalID)
+        }
+    }
+
+    /// Re-evaluates persisted `todayAdditions` before every request and again
+    /// after every response. The durable versioned marker is not cleared while
+    /// another request for this identity is in flight, so a late stale response
+    /// is always followed by the latest desired upsert or delete.
+    private func reconcileOptionEntryIntent(canonicalID: String) async {
+        for _ in 0..<8 {
+            guard let intent = optionEntryIntentStore.pending(canonicalID: canonicalID) else { return }
+            let desiredEntries = OptionEntryRetrySupersession.persistedDesiredEntries()
+            let operation = optionEntryIntentStore.operation(
+                for: intent,
+                desiredEntries: desiredEntries
+            )
+            let token = await optionEntryAttemptCoordinator.begin(
+                canonicalID: canonicalID,
+                version: intent.version
+            )
+            let succeeded: Bool
+            switch operation {
+            case let .upsert(entry):
+                succeeded = await sendOptionEntryUpsert(entry)
+            case let .delete(id):
+                succeeded = await sendOptionEntryDelete(id: id)
+            }
+
+            let latestIntent = optionEntryIntentStore.pending(canonicalID: canonicalID)
+            let latestDesiredEntries = OptionEntryRetrySupersession.persistedDesiredEntries()
+            let operationStillCurrent = latestIntent == intent
+                && optionEntryIntentStore.operation(
+                    for: intent,
+                    desiredEntries: latestDesiredEntries
+                ) == operation
+            let completion = await optionEntryAttemptCoordinator.finish(
+                token,
+                succeeded: succeeded,
+                currentVersion: latestIntent?.version,
+                operationStillCurrent: operationStillCurrent
+            )
+            switch completion {
+            case .acknowledge:
+                _ = optionEntryIntentStore.finishAttempt(
+                    intent,
+                    operation: operation,
+                    succeeded: true,
+                    latestDesiredEntries: latestDesiredEntries
+                )
+                return
+            case .leavePending:
+                return
+            case .retryLatest:
+                continue
+            }
+        }
     }
     
     func loadOptionEntriesFromServer(dayKey: String) async -> [OptionEntry]? {

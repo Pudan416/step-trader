@@ -1,6 +1,145 @@
 import Foundation
 import os.log
 
+struct SupabasePendingSyncRequest: Codable, Equatable {
+    let queueID: String
+    let urlString: String
+    let method: String
+    let body: Data?
+    let preferHeader: String?
+    let createdAt: Date
+    let optionEntryDeleteID: String?
+
+    init(
+        queueID: String = UUID().uuidString,
+        urlString: String,
+        method: String,
+        body: Data?,
+        preferHeader: String?,
+        createdAt: Date,
+        optionEntryDeleteID: String?
+    ) {
+        self.queueID = queueID
+        self.urlString = urlString
+        self.method = method
+        self.body = body
+        self.preferHeader = preferHeader
+        self.createdAt = createdAt
+        self.optionEntryDeleteID = optionEntryDeleteID
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case queueID, urlString, method, body, preferHeader, createdAt, optionEntryDeleteID
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        urlString = try container.decode(String.self, forKey: .urlString)
+        method = try container.decode(String.self, forKey: .method)
+        body = try container.decodeIfPresent(Data.self, forKey: .body)
+        preferHeader = try container.decodeIfPresent(String.self, forKey: .preferHeader)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        optionEntryDeleteID = try container.decodeIfPresent(String.self, forKey: .optionEntryDeleteID)
+        queueID = try container.decodeIfPresent(String.self, forKey: .queueID)
+            ?? Self.legacyQueueID(
+                urlString: urlString,
+                method: method,
+                body: body,
+                createdAt: createdAt
+            )
+    }
+
+    var isExpired: Bool { isExpired(at: .now) }
+
+    func isExpired(at now: Date) -> Bool {
+        now.timeIntervalSince(createdAt) > 86_400 * 3
+    }
+
+    var resolvedOptionEntryDeleteID: String? {
+        if let optionEntryDeleteID { return optionEntryDeleteID }
+        guard method == "DELETE",
+              let components = URLComponents(string: urlString),
+              components.path.hasSuffix("/user_happening_additions"),
+              let rawID = components.queryItems?.first(where: { $0.name == "id" })?.value,
+              rawID.hasPrefix("eq.")
+        else { return nil }
+        return String(rawID.dropFirst(3))
+    }
+
+    var canonicalOptionEntryIdentity: String? {
+        resolvedOptionEntryDeleteID.map(OptionEntryCanonicalIdentity.key(for:))
+    }
+
+    var isOptionEntryMutation: Bool {
+        guard let components = URLComponents(string: urlString),
+              components.path.hasSuffix("/user_happening_additions")
+        else { return false }
+        return method == "POST" || method == "DELETE"
+    }
+
+    var resolvedOptionEntryMutationIDs: [String] {
+        if let deleteID = resolvedOptionEntryDeleteID { return [deleteID] }
+        guard method == "POST", isOptionEntryMutation, let body,
+              let json = try? JSONSerialization.jsonObject(with: body),
+              let rows = json as? [[String: Any]]
+        else { return [] }
+        return rows.compactMap { $0["id"] as? String }
+    }
+
+    /// Old queue records had no durable identifier. This deterministic value
+    /// lets a successful replay acknowledge that exact legacy record without
+    /// clearing requests enqueued while the network call was suspended.
+    private static func legacyQueueID(
+        urlString: String,
+        method: String,
+        body: Data?,
+        createdAt: Date
+    ) -> String {
+        [
+            method,
+            urlString,
+            body?.base64EncodedString() ?? "",
+            String(createdAt.timeIntervalSinceReferenceDate)
+        ].joined(separator: "|")
+    }
+}
+
+struct SupabaseRetryQueuePersistence {
+    let defaults: UserDefaults
+    let key: String
+    let maximumCount: Int
+
+    func load() -> [SupabasePendingSyncRequest] {
+        guard let data = defaults.data(forKey: key),
+              let decoded = try? JSONDecoder().decode([SupabasePendingSyncRequest].self, from: data)
+        else { return [] }
+        return decoded
+    }
+
+    func loadUnexpired(now: Date) -> [SupabasePendingSyncRequest] {
+        load().filter { !$0.isExpired(at: now) }
+    }
+
+    func save(_ queue: [SupabasePendingSyncRequest]) {
+        guard let data = try? JSONEncoder().encode(Array(queue.suffix(maximumCount))) else { return }
+        defaults.set(data, forKey: key)
+    }
+
+    func append(_ request: SupabasePendingSyncRequest) {
+        var queue = load().filter { !$0.isExpired }
+        queue.append(request)
+        save(queue)
+    }
+
+    /// Reads the live queue again before removal. Requests appended during a
+    /// drain therefore survive; only snapshot records explicitly acknowledged
+    /// or superseded by a newer durable intent are removed.
+    func removeAcknowledged(queueIDs: Set<String>) {
+        guard !queueIDs.isEmpty else { return }
+        save(load().filter { !queueIDs.contains($0.queueID) })
+    }
+}
+
 // MARK: - Supabase Sync Service
 /// Handles syncing user data to Supabase
 actor SupabaseSyncService {
@@ -8,9 +147,21 @@ actor SupabaseSyncService {
     nonisolated static let shared = SupabaseSyncService()
     
     let network = NetworkClient.shared
+    let retryQueueStore: SupabaseRetryQueuePersistence
+    let optionEntryIntentStore: OptionEntryIntentPersistence
+    let optionEntryAttemptCoordinator = OptionEntryIntentAttemptCoordinator()
 
     private init() {
         let g = UserDefaults(suiteName: SharedKeys.appGroupId) ?? .standard
+        retryQueueStore = SupabaseRetryQueuePersistence(
+            defaults: UserDefaults.stepsTrader(),
+            key: Self.retryQueueKey,
+            maximumCount: Self.maxRetryQueueSize
+        )
+        optionEntryIntentStore = OptionEntryIntentPersistence(
+            defaults: UserDefaults.stepsTrader(),
+            key: Self.optionEntryIntentKey
+        )
         let ttl = g.double(forKey: SharedKeys.supabaseTodayCacheTTLSeconds)
         self.todayCacheTTL = ttl > 0 ? ttl : 30
         let pageSize = g.integer(forKey: SharedKeys.supabaseHistoryPageSize)
@@ -143,30 +294,9 @@ actor SupabaseSyncService {
     
     // MARK: - Offline Retry Queue
     
-    private struct PendingSyncRequest: Codable {
-        let urlString: String
-        let method: String
-        let body: Data?
-        let preferHeader: String?
-        let createdAt: Date
-        let optionEntryDeleteID: String?
-        
-        var isExpired: Bool { Date.now.timeIntervalSince(createdAt) > 86_400 * 3 } // 3 days TTL
-
-        var resolvedOptionEntryDeleteID: String? {
-            if let optionEntryDeleteID { return optionEntryDeleteID }
-            guard method == "DELETE",
-                  let components = URLComponents(string: urlString),
-                  components.path.hasSuffix("/user_happening_additions"),
-                  let rawID = components.queryItems?.first(where: { $0.name == "id" })?.value,
-                  rawID.hasPrefix("eq.")
-            else { return nil }
-            return String(rawID.dropFirst(3))
-        }
-    }
-
-    private static let retryQueueKey = "supabaseSyncRetryQueue_v1"
-    private static let maxRetryQueueSize = 50
+    nonisolated static let retryQueueKey = "supabaseSyncRetryQueue_v1"
+    nonisolated static let optionEntryIntentKey = "supabaseOptionEntryIntents_v1"
+    nonisolated static let maxRetryQueueSize = 50
 
     /// HTTP status codes worth retrying later. A permanent client error (400,
     /// 401, 403, 404, 409, 422, …) means replaying the same body will keep
@@ -195,7 +325,7 @@ actor SupabaseSyncService {
             AppLogger.network.debug("📡 Superseded failed option-entry delete")
             return
         }
-        let entry = PendingSyncRequest(
+        let entry = SupabasePendingSyncRequest(
             urlString: url,
             method: request.httpMethod ?? "POST",
             body: request.httpBody,
@@ -206,40 +336,44 @@ actor SupabaseSyncService {
         // Prune expired entries *before* the size check (§5.13): otherwise a
         // stale-but-not-yet-drained entry can occupy a slot and evict a fresher
         // one purely by recency. The newest entry is always appended last.
-        var queue = loadRetryQueue().filter { !$0.isExpired }
-        queue.append(entry)
-        if queue.count > Self.maxRetryQueueSize {
-            queue = Array(queue.suffix(Self.maxRetryQueueSize))
-        }
-        saveRetryQueue(queue)
+        retryQueueStore.append(entry)
+        let queue = loadRetryQueue()
         AppLogger.network.debug("📡 Enqueued failed sync for offline retry (\(queue.count) pending)")
     }
 
     func supersedeQueuedOptionEntryDelete(id: String) {
         let queue = loadRetryQueue()
-        let filtered = queue.filter { $0.resolvedOptionEntryDeleteID != id }
+        let canonicalID = OptionEntryCanonicalIdentity.key(for: id)
+        let filtered = queue.filter { $0.canonicalOptionEntryIdentity != canonicalID }
         guard filtered.count != queue.count else { return }
         saveRetryQueue(filtered)
         AppLogger.network.debug("📡 Removed superseded option-entry delete retry")
     }
     
-    private func loadRetryQueue() -> [PendingSyncRequest] {
-        let g = UserDefaults.stepsTrader()
-        guard let data = g.data(forKey: Self.retryQueueKey),
-              let decoded = try? JSONDecoder().decode([PendingSyncRequest].self, from: data) else {
-            return []
-        }
-        return decoded
+    private func loadRetryQueue() -> [SupabasePendingSyncRequest] {
+        retryQueueStore.load()
     }
     
-    private func saveRetryQueue(_ queue: [PendingSyncRequest]) {
-        guard let data = try? JSONEncoder().encode(queue) else { return }
-        let g = UserDefaults.stepsTrader()
-        g.set(data, forKey: Self.retryQueueKey)
+    private func saveRetryQueue(_ queue: [SupabasePendingSyncRequest]) {
+        retryQueueStore.save(queue)
     }
     
     /// Drain the offline retry queue. Call on app launch or when connectivity is restored.
     func drainRetryQueue() async {
+        let initialQueue = loadRetryQueue()
+        let expiredQueueIDs = Set(initialQueue.filter(\.isExpired).map(\.queueID))
+        let legacyOptionMutations = initialQueue.filter {
+            !$0.isExpired && $0.isOptionEntryMutation
+        }
+        for entry in legacyOptionMutations {
+            for id in entry.resolvedOptionEntryMutationIDs {
+                optionEntryIntentStore.mark(id: id)
+            }
+        }
+        retryQueueStore.removeAcknowledged(
+            queueIDs: expiredQueueIDs.union(legacyOptionMutations.map(\.queueID))
+        )
+        await drainPendingOptionEntryIntents()
         await AuthenticationService.shared.waitForInitialization()
         guard let freshToken = await AuthenticationService.shared.accessToken else {
             AppLogger.network.debug("📡 Retry queue drain skipped: no auth token")
@@ -254,33 +388,18 @@ actor SupabaseSyncService {
             return
         }
 
-        let loadedQueue = loadRetryQueue().filter { !$0.isExpired }
-        let desiredEntries = OptionEntryRetrySupersession.persistedDesiredEntries()
-        let replayableDeleteIDs = Set(
-            OptionEntryRetrySupersession.deleteIDsToReplay(
-                failedDeleteIDs: loadedQueue.compactMap(\.resolvedOptionEntryDeleteID),
-                desiredEntries: desiredEntries
-            )
-        )
-        let queue = loadedQueue.filter { entry in
-            guard let deleteID = entry.resolvedOptionEntryDeleteID else { return true }
-            return replayableDeleteIDs.contains(deleteID)
-        }
+        let queue = retryQueueStore.loadUnexpired(now: .now)
         guard !queue.isEmpty else {
-            if !loadedQueue.isEmpty {
-                saveRetryQueue([])
-                AppLogger.network.debug("📡 Dropped superseded option-entry delete retries")
-            }
             return
         }
-        // Check out this snapshot before the first network suspension. Any new
-        // failures queued while draining remain separate and are merged back.
-        saveRetryQueue([])
         AppLogger.network.debug("📡 Draining \(queue.count) queued sync requests")
         
-        var remaining: [PendingSyncRequest] = []
+        var acknowledgedQueueIDs = Set<String>()
         for entry in queue {
-            guard let url = URL(string: entry.urlString) else { continue }
+            guard let url = URL(string: entry.urlString) else {
+                acknowledgedQueueIDs.insert(entry.queueID)
+                continue
+            }
             var request = URLRequest(url: url)
             request.httpMethod = entry.method
             request.setValue("Bearer \(freshToken)", forHTTPHeaderField: "Authorization")
@@ -293,16 +412,14 @@ actor SupabaseSyncService {
             
             do {
                 let (_, response) = try await network.data(for: request)
-                if let deleteID = entry.resolvedOptionEntryDeleteID,
-                   await restoreOptionEntryIfStillDesired(afterDeleting: deleteID) {
-                    continue
-                }
                 // Keep only transient failures. A permanent 4xx (bad body,
                 // conflict, auth) will never succeed on replay, so dropping it
                 // stops a doomed request from retrying on every launch for 3 days.
-                if Self.retryQueueShouldKeep(afterStatus: response.statusCode) {
-                    remaining.append(entry)
-                } else if response.statusCode >= 400 {
+                if !Self.retryQueueShouldKeep(afterStatus: response.statusCode) {
+                    acknowledgedQueueIDs.insert(entry.queueID)
+                }
+                if response.statusCode >= 400,
+                   !Self.retryQueueShouldKeep(afterStatus: response.statusCode) {
                     AppLogger.network.debug("📡 Dropping non-retryable queued sync (HTTP \(response.statusCode))")
                     // Telemetry: a permanently-failed sync is otherwise invisible
                     // (the user just silently stops syncing). Emit the endpoint
@@ -317,29 +434,13 @@ actor SupabaseSyncService {
                     )
                 }
             } catch {
-                if let deleteID = entry.resolvedOptionEntryDeleteID,
-                   await restoreOptionEntryIfStillDesired(afterDeleting: deleteID) {
-                    continue
-                }
-                remaining.append(entry)
+                // The durable snapshot remains in UserDefaults. A later drain
+                // retries it unless a newer enqueue explicitly supersedes it.
             }
         }
-
-        let latestDesiredEntries = OptionEntryRetrySupersession.persistedDesiredEntries()
-        remaining = remaining.filter { entry in
-            guard let deleteID = entry.resolvedOptionEntryDeleteID else { return true }
-            return OptionEntryRetrySupersession.recoveryEntry(
-                afterReplayingDeleteID: deleteID,
-                latestDesiredEntries: latestDesiredEntries
-            ) == nil
-        }
-        var mergedQueue = loadRetryQueue()
-        mergedQueue.append(contentsOf: remaining)
-        if mergedQueue.count > Self.maxRetryQueueSize {
-            mergedQueue = Array(mergedQueue.suffix(Self.maxRetryQueueSize))
-        }
-        saveRetryQueue(mergedQueue)
-        AppLogger.network.debug("📡 Retry queue drained: \(queue.count - remaining.count) succeeded, \(remaining.count) still pending")
+        retryQueueStore.removeAcknowledged(queueIDs: acknowledgedQueueIDs)
+        let remainingCount = loadRetryQueue().count
+        AppLogger.network.debug("📡 Retry queue drained: \(acknowledgedQueueIDs.count) acknowledged, \(remainingCount) pending")
     }
     
     // MARK: - Shared Helpers
