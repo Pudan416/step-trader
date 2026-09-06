@@ -1,7 +1,7 @@
 # Happening Palette Toggle Design
 
 Date: 2026-09-06  
-Status: approved in chat; pending written-spec review  
+Status: approved
 Target: Canvas happening palette in the `Current Integrations` branch
 
 ## 1. Job and outcome
@@ -185,4 +185,3 @@ Labels preserve the existing 15-character naming limit, consistent type size, an
 - a second palette-specific Metal view;
 - flight animations between palette and Canvas;
 - changing the broader Canvas art direction, energy bar, or list-editor information architecture.
-
