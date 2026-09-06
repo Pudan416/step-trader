@@ -67,6 +67,178 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
         XCTAssertEqual(model.todayAdditions.map(\.optionId), ["happening_walk"])
     }
 
+    func testCanvasReconciliationCreatesMissingEntryWithoutRecordingAnotherUse() throws {
+        let now = Date(timeIntervalSince1970: 1_786_176_000)
+        let dayKey = AppModel.dayKey(for: now)
+        let elementID = try XCTUnwrap(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"))
+        var canvas = DayCanvas(dayKey: dayKey)
+        canvas.elements = [
+            CanvasElement.spawn(
+                id: elementID,
+                optionId: "happening_walk",
+                label: "Walk",
+                existingElements: [],
+                dayKey: dayKey,
+                composition: DayComposition.forDay(dayKey: dayKey, happeningCount: 0)
+            )
+        ]
+
+        let reconciliation = CanvasHappeningReconciler.reconcile(
+            canvas: canvas,
+            entries: [],
+            dayKey: dayKey,
+            now: now
+        )
+
+        XCTAssertEqual(reconciliation.entriesToAdd, [
+            OptionEntry(
+                id: elementID.uuidString,
+                dayKey: dayKey,
+                optionId: "happening_walk",
+                colorHex: canvas.elements[0].hexColor,
+                timestamp: now,
+                assetVariant: canvas.elements[0].assetVariant
+            ),
+        ])
+        XCTAssertTrue(reconciliation.entryIDsToRemove.isEmpty)
+
+        let model = makeModel()
+        model.loadDailyEnergyState()
+        let useCountBefore = try XCTUnwrap(
+            model.happeningStore.happening(id: "happening_walk")?.useCount
+        )
+        CanvasHappeningReconciliationTransaction.commit(
+            reconciliation,
+            model: model
+        )
+        XCTAssertEqual(
+            model.happeningStore.happening(id: "happening_walk")?.useCount,
+            useCountBefore
+        )
+        XCTAssertEqual(
+            CanvasHappeningReconciler.reconcile(
+                canvas: canvas,
+                entries: model.todayAdditions,
+                dayKey: dayKey,
+                now: now.addingTimeInterval(1)
+            ),
+            CanvasHappeningReconciliation(entriesToAdd: [], entryIDsToRemove: [])
+        )
+    }
+
+    func testCanvasReconciliationRemovesOrphanEntryAndIsIdempotent() {
+        let now = Date(timeIntervalSince1970: 1_786_176_000)
+        let dayKey = AppModel.dayKey(for: now)
+        let orphan = OptionEntry(
+            id: "orphan-entry",
+            dayKey: dayKey,
+            optionId: "happening_walk",
+            colorHex: "#AABBCC",
+            timestamp: now,
+            assetVariant: 2
+        )
+        let canvas = DayCanvas(dayKey: dayKey)
+
+        let reconciliation = CanvasHappeningReconciler.reconcile(
+            canvas: canvas,
+            entries: [orphan],
+            dayKey: dayKey,
+            now: now
+        )
+
+        XCTAssertTrue(reconciliation.entriesToAdd.isEmpty)
+        XCTAssertEqual(reconciliation.entryIDsToRemove, ["orphan-entry"])
+        let remaining = [orphan].filter { !reconciliation.entryIDsToRemove.contains($0.id) }
+        XCTAssertEqual(
+            CanvasHappeningReconciler.reconcile(
+                canvas: canvas,
+                entries: remaining,
+                dayKey: dayKey,
+                now: now.addingTimeInterval(1)
+            ),
+            CanvasHappeningReconciliation(entriesToAdd: [], entryIDsToRemove: [])
+        )
+    }
+
+    func testCanvasReconciliationPreservesExistingEntryIDWhenOptionMatches() {
+        let now = Date(timeIntervalSince1970: 1_786_176_000)
+        let dayKey = AppModel.dayKey(for: now)
+        var canvas = DayCanvas(dayKey: dayKey)
+        canvas.elements = [
+            CanvasElement.spawn(
+                id: UUID(),
+                optionId: "happening_walk",
+                label: "Walk",
+                existingElements: [],
+                dayKey: dayKey,
+                composition: DayComposition.forDay(dayKey: dayKey, happeningCount: 0)
+            ),
+        ]
+        let existing = OptionEntry(
+            id: "legacy-stable-entry-id",
+            dayKey: dayKey,
+            optionId: "happening_walk",
+            colorHex: "#AABBCC",
+            timestamp: now.addingTimeInterval(-100),
+            assetVariant: 1
+        )
+
+        XCTAssertEqual(
+            CanvasHappeningReconciler.reconcile(
+                canvas: canvas,
+                entries: [existing],
+                dayKey: dayKey,
+                now: now
+            ),
+            CanvasHappeningReconciliation(entriesToAdd: [], entryIDsToRemove: [])
+        )
+    }
+
+    func testCanvasReconciliationRepairsConflictingStableIdentityBeforeLegacyOptionMatching() throws {
+        let now = Date(timeIntervalSince1970: 1_786_176_000)
+        let dayKey = AppModel.dayKey(for: now)
+        let walkID = try XCTUnwrap(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"))
+        let readID = try XCTUnwrap(UUID(uuidString: "11111111-2222-3333-4444-555555555555"))
+        var canvas = DayCanvas(dayKey: dayKey)
+        canvas.elements = [
+            CanvasElement.spawn(
+                id: walkID, optionId: "happening_walk", label: "Walk",
+                existingElements: [], dayKey: dayKey,
+                composition: DayComposition.forDay(dayKey: dayKey, happeningCount: 0)
+            ),
+            CanvasElement.spawn(
+                id: readID, optionId: "happening_read", label: "Read",
+                existingElements: [], dayKey: dayKey,
+                composition: DayComposition.forDay(dayKey: dayKey, happeningCount: 1)
+            ),
+        ]
+        let stale = OptionEntry(
+            id: walkID.uuidString,
+            dayKey: dayKey,
+            optionId: "happening_read",
+            colorHex: "#AABBCC",
+            timestamp: now.addingTimeInterval(-100),
+            assetVariant: nil
+        )
+
+        let reconciliation = CanvasHappeningReconciler.reconcile(
+            canvas: canvas,
+            entries: [stale],
+            dayKey: dayKey,
+            now: now
+        )
+
+        XCTAssertEqual(reconciliation.entryIDsToRemove, [walkID.uuidString])
+        XCTAssertEqual(reconciliation.entriesToAdd.map(\.id), [
+            walkID.uuidString,
+            readID.uuidString,
+        ])
+        XCTAssertEqual(reconciliation.entriesToAdd.map(\.optionId), [
+            "happening_walk",
+            "happening_read",
+        ])
+    }
+
     func testDayEndReanchorMovesAdditionAndCanvasWithoutReopeningHappening() async throws {
         let now = Date.now
         guard let pair = dayEndPairWithDifferentKeys(at: now) else {

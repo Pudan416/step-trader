@@ -1712,7 +1712,7 @@ struct GalleryView: View {
                     }
                 } else {
                     canvasVisualStyleMigrationVersion = CanvasVisualStyleMigration.currentVersion
-                    canvasLoaded = true
+                    applyHydratedCanvas(dayCanvas)
                     if localMutationCounter != snapshotCounter {
                         saveCanvasLocally()
                     }
@@ -1729,7 +1729,28 @@ struct GalleryView: View {
     private func applyHydratedCanvas(_ canvas: DayCanvas) {
         dayCanvas = canvas
         canvasLoaded = true
+        if !isUnitTestHost {
+            reconcileLoadedCanvasHappenings(at: .now)
+        }
         refreshHappeningPalette()
+    }
+
+    /// Daily additions are a persisted projection of the visual Canvas. Repair
+    /// that projection only at a completed hydration boundary so an empty
+    /// placeholder can never delete legitimate entries while a load is active.
+    private func reconcileLoadedCanvasHappenings(at now: Date) {
+        guard canvasLoaded, activeDayKey == dayCanvas.dayKey else { return }
+        let reconciliation = CanvasHappeningReconciler.reconcile(
+            canvas: dayCanvas,
+            entries: model.todayAdditions,
+            dayKey: dayCanvas.dayKey,
+            now: now
+        )
+
+        CanvasHappeningReconciliationTransaction.commit(
+            reconciliation,
+            model: model
+        )
     }
 
     /// ID-keyed merge with last-write-wins per element and tombstone protection.
