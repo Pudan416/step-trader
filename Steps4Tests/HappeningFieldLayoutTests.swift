@@ -1384,6 +1384,81 @@ final class HappeningEditorialAssignmentTests: XCTestCase {
         XCTAssertEqual(finalActor.material, assignment.material)
     }
 
+    /// Catches a committed tile being recomputed from its daily placeholder
+    /// UUID or rerolled colour, and catches an uncommitted tile resolving in a
+    /// different final slot than the one it receives after confirmation.
+    func testSnapshotPreservesCommittedAppearanceAndMatchesProspectiveCommit() throws {
+        let committed = Happening(
+            id: "happening_read",
+            title: "Read",
+            isBuiltIn: true
+        )
+        let available = Happening(
+            id: "happening_walk",
+            title: "Walk",
+            isBuiltIn: true
+        )
+        let committedID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+        var committedElement = CanvasElement.spawn(
+            id: committedID,
+            optionId: committed.id,
+            label: committed.title,
+            existingElements: [],
+            dayKey: dayKey,
+            composition: DayComposition.forDay(dayKey: dayKey, happeningCount: 0)
+        )
+        committedElement.editorialColorVariant = 37
+        var baseCanvas = DayCanvas(dayKey: dayKey)
+        baseCanvas.elements = [committedElement]
+        let metrics = EditorialCanvasMetrics(
+            stepsProgress: 0.5,
+            sleepProgress: 0.5,
+            spentProgress: 0
+        )
+        let baseInput = EditorialCanvasInputFactory.make(
+            canvas: baseCanvas,
+            metrics: metrics,
+            paletteCategories: ModernPaletteSelection.all
+        ).sceneInput
+        let snapshot = HappeningEditorialAssignmentResolver.snapshot(
+            request: HappeningEditorialAssignmentRequest(
+                happenings: [committed, available],
+                baseInput: baseInput,
+                committedElements: baseCanvas.elements,
+                colorNonce: 21
+            )
+        )
+        let committedAssignment = try XCTUnwrap(snapshot.assignments[committed.id])
+        let previewAssignment = try XCTUnwrap(snapshot.assignments[available.id])
+
+        XCTAssertEqual(committedAssignment.elementID, committedID)
+        XCTAssertEqual(committedAssignment.colorVariant, 37)
+
+        var canvasAfterCommit = baseCanvas
+        var committedPreview = CanvasElement.spawn(
+            id: previewAssignment.elementID,
+            optionId: available.id,
+            label: available.title,
+            existingElements: baseCanvas.elements,
+            dayKey: dayKey,
+            composition: DayComposition.forDay(dayKey: dayKey, happeningCount: 1)
+        )
+        committedPreview.editorialColorVariant = previewAssignment.colorVariant
+        canvasAfterCommit.elements.append(committedPreview)
+        let finalActor = try XCTUnwrap(
+            DayObjectScene.make(input: EditorialCanvasInputFactory.make(
+                canvas: canvasAfterCommit,
+                metrics: metrics,
+                paletteCategories: ModernPaletteSelection.all
+            ).sceneInput).sceneRecipeV1?.actor(
+                previewAssignment.elementID.uuidString.lowercased()
+            )
+        )
+
+        XCTAssertEqual(previewAssignment.shape, finalActor.shape)
+        XCTAssertEqual(previewAssignment.material.gpuAppearance, finalActor.material.gpuAppearance)
+    }
+
     /// Catches the renderer ignoring a persisted color variation. Shape,
     /// geometry, and gradient fields stay fixed while the color order changes.
     func testActorColorVariantChangesOnlyTheMaterialColors() throws {

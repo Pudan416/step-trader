@@ -101,4 +101,41 @@ final class HappeningShapeAssignmentModelTests: XCTestCase {
 
         XCTAssertEqual(Set(colours).count, colours.count)
     }
+
+    /// Catches the palette rebuilding a different assignment map for the same
+    /// value inputs instead of retaining a stable, cacheable snapshot.
+    func testSnapshotRetainsItsExactRequestAndAssignmentsForEqualInput() {
+        let happening = Happening(
+            id: "happening_walk",
+            title: "Walk",
+            isBuiltIn: true
+        )
+        let request = HappeningEditorialAssignmentRequest(
+            happenings: [happening],
+            baseInput: DayObjectSceneInput(
+                dayKey: "2026-09-05",
+                identity: "primary-canvas",
+                eventIDs: [],
+                motionEnergy: 0.625,
+                visualClarity: 0.625,
+                canvasCoverage: .fullCanvas,
+                paletteCategories: ModernPaletteSelection.all,
+                usesEditorialField: true,
+                editorialBackground: .dark,
+                lowSleep: true,
+                editorialLabConfiguration: DayObjectEditorialLabConfiguration(
+                    materialMode: .generativeDNA,
+                    placement: .depthField
+                )
+            ),
+            committedElements: [],
+            colorNonce: 21
+        )
+
+        let first = HappeningEditorialAssignmentResolver.snapshot(request: request)
+        let second = HappeningEditorialAssignmentResolver.snapshot(request: request)
+
+        XCTAssertEqual(first, second)
+        XCTAssertEqual(first.request, request)
+    }
 }

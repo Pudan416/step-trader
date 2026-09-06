@@ -25,42 +25,72 @@ struct HappeningEditorialAssignment: Equatable {
     let colorVariant: Int
 }
 
+/// Every value that influences the exact Editorial actor shown for a happening
+/// palette tile. `CanvasElement` carries unrelated legacy canvas fields, so
+/// equality intentionally follows only the committed identity and persisted
+/// color that the resolver consumes.
+struct HappeningEditorialAssignmentRequest: Equatable {
+    let happenings: [Happening]
+    let baseInput: DayObjectSceneInput
+    let committedElements: [CanvasElement]
+    let colorNonce: UInt64
+
+    static func == (
+        lhs: HappeningEditorialAssignmentRequest,
+        rhs: HappeningEditorialAssignmentRequest
+    ) -> Bool {
+        lhs.happenings == rhs.happenings
+            && lhs.baseInput == rhs.baseInput
+            && lhs.committedElements.map(CommittedElement.init)
+                == rhs.committedElements.map(CommittedElement.init)
+            && lhs.colorNonce == rhs.colorNonce
+    }
+
+    private struct CommittedElement: Equatable {
+        let id: UUID
+        let optionID: String
+        let editorialColorVariant: Int?
+
+        init(_ element: CanvasElement) {
+            id = element.id
+            optionID = element.optionId
+            editorialColorVariant = element.editorialColorVariant
+        }
+    }
+}
+
+/// The single resolved palette state retained by the Gallery until one of the
+/// actor-producing request values changes.
+struct HappeningEditorialAssignmentSnapshot: Equatable {
+    let request: HappeningEditorialAssignmentRequest
+    let assignments: [String: HappeningEditorialAssignment]
+}
+
 enum HappeningEditorialAssignmentResolver {
     private static let colorVariationCount = 97
 
-    static func assignments(
-        happenings: [Happening],
-        baseInput: DayObjectSceneInput,
-        colorNonce: UInt64
-    ) -> [String: HappeningEditorialAssignment] {
-        happenings.reduce(into: [:]) { result, happening in
-            let elementID = stableElementID(happeningID: happening.id, dayKey: baseInput.dayKey)
+    static func snapshot(
+        request: HappeningEditorialAssignmentRequest
+    ) -> HappeningEditorialAssignmentSnapshot {
+        let assignments: [String: HappeningEditorialAssignment] = request.happenings.reduce(into: [:]) { result, happening in
+            let committedElement = request.committedElements.first {
+                $0.optionId == happening.id
+            }
+            let elementID = committedElement?.id
+                ?? stableElementID(happeningID: happening.id, dayKey: request.baseInput.dayKey)
+            let colorVariant = committedElement?.editorialColorVariant
+                ?? (committedElement == nil
+                    ? colorVariant(
+                        happeningID: happening.id,
+                        dayKey: request.baseInput.dayKey,
+                        nonce: request.colorNonce
+                    )
+                    : 0)
             let eventID = elementID.uuidString.lowercased()
-            let colorVariant = colorVariant(
-                happeningID: happening.id,
-                dayKey: baseInput.dayKey,
-                nonce: colorNonce
-            )
-            var variants = baseInput.actorColorVariants
-            variants[eventID] = colorVariant
-            let eventIDs = baseInput.eventIDs.contains(eventID)
-                ? baseInput.eventIDs
-                : baseInput.eventIDs + [eventID]
-            let input = DayObjectSceneInput(
-                dayKey: baseInput.dayKey,
-                identity: baseInput.identity,
-                eventIDs: eventIDs,
-                motionEnergy: baseInput.motionEnergy,
-                visualClarity: baseInput.visualClarity,
-                uiExclusionRegion: baseInput.uiExclusionRegion,
-                canvasCoverage: baseInput.canvasCoverage,
-                paletteCategories: baseInput.paletteCategories,
-                usesEditorialField: baseInput.usesEditorialField,
-                editorialBackground: baseInput.editorialBackground,
-                lowSleep: baseInput.lowSleep,
-                editorialPreview: baseInput.editorialPreview,
-                editorialLabConfiguration: baseInput.editorialLabConfiguration,
-                actorColorVariants: variants
+            let input = prospectiveInput(
+                from: request.baseInput,
+                eventID: eventID,
+                colorVariant: colorVariant
             )
             guard let actor = DayObjectScene.make(input: input).sceneRecipeV1?.actor(eventID) else {
                 return
@@ -72,6 +102,53 @@ enum HappeningEditorialAssignmentResolver {
                 colorVariant: colorVariant
             )
         }
+        return HappeningEditorialAssignmentSnapshot(
+            request: request,
+            assignments: assignments
+        )
+    }
+
+    /// Retained for callers that only have uncommitted palette data. New code
+    /// should keep the complete request in a snapshot instead.
+    static func assignments(
+        happenings: [Happening],
+        baseInput: DayObjectSceneInput,
+        colorNonce: UInt64
+    ) -> [String: HappeningEditorialAssignment] {
+        snapshot(request: HappeningEditorialAssignmentRequest(
+            happenings: happenings,
+            baseInput: baseInput,
+            committedElements: [],
+            colorNonce: colorNonce
+        )).assignments
+    }
+
+    private static func prospectiveInput(
+        from baseInput: DayObjectSceneInput,
+        eventID: String,
+        colorVariant: Int
+    ) -> DayObjectSceneInput {
+        var variants = baseInput.actorColorVariants
+        variants[eventID] = colorVariant
+        let eventIDs = baseInput.eventIDs.contains(eventID)
+            ? baseInput.eventIDs
+            : baseInput.eventIDs + [eventID]
+        return DayObjectSceneInput(
+            dayKey: baseInput.dayKey,
+            identity: baseInput.identity,
+            eventIDs: eventIDs,
+            motionEnergy: baseInput.motionEnergy,
+            visualClarity: baseInput.visualClarity,
+            uiExclusionRegion: baseInput.uiExclusionRegion,
+            canvasCoverage: baseInput.canvasCoverage,
+            paletteCategories: baseInput.paletteCategories,
+            usesEditorialField: baseInput.usesEditorialField,
+            editorialBackground: baseInput.editorialBackground,
+            lowSleep: baseInput.lowSleep,
+            editorialPreview: baseInput.editorialPreview,
+            editorialLabConfiguration: baseInput.editorialLabConfiguration,
+            actorColorVariants: variants
+        )
     }
 
     private static func colorVariant(happeningID: String, dayKey: String, nonce: UInt64) -> Int {

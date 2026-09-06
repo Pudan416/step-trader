@@ -110,6 +110,7 @@ struct GalleryView: View {
     @State private var paletteHappenings: [Happening] = []
     @State private var paletteCatalog: [Happening] = []
     @State private var paletteSelectedIDs: [String] = []
+    @State private var paletteAssignmentSnapshot: HappeningEditorialAssignmentSnapshot?
     @State private var happeningPalettePanel: HappeningPalettePanel?
     @State private var canvasViewportSize: CGSize = .zero
     @State private var spawnPresentation = CanvasSpawnPresentationState()
@@ -210,11 +211,7 @@ struct GalleryView: View {
     }
 
     private var paletteEditorialAssignments: [String: HappeningEditorialAssignment] {
-        HappeningEditorialAssignmentResolver.assignments(
-            happenings: paletteHappenings,
-            baseInput: editorialRenderInput.sceneInput,
-            colorNonce: model.paletteColorNonce()
-        )
+        paletteAssignmentSnapshot?.assignments ?? [:]
     }
 
     private var displayedEditorialRenderInput: EditorialCanvasRenderInput {
@@ -399,6 +396,15 @@ struct GalleryView: View {
         paletteCatalog = model.paletteHappeningCatalog()
         paletteSelectedIDs = model.selectedPaletteHappeningIDs()
         paletteHappenings = model.availablePaletteHappenings()
+        let request = HappeningEditorialAssignmentRequest(
+            happenings: model.configuredPaletteHappenings(),
+            baseInput: editorialRenderInput.sceneInput,
+            committedElements: dayCanvas.elements,
+            colorNonce: model.paletteColorNonce()
+        )
+        if paletteAssignmentSnapshot?.request != request {
+            paletteAssignmentSnapshot = HappeningEditorialAssignmentResolver.snapshot(request: request)
+        }
     }
 
     private func openHappeningPalette() {
@@ -469,7 +475,10 @@ struct GalleryView: View {
                 onSaveSelection: handlePaletteSelectionSave,
                 onPanelPresentationChange: onPalettePanelPresentationChange,
                 onDismiss: closeHappeningPalette,
-                onReroll: { model.rerollPaletteFigures() },
+                onReroll: {
+                    model.rerollPaletteFigures()
+                    refreshHappeningPalette()
+                },
                 dayKey: todayKey,
                 dockCenterY: canvasAddButtonCenterY
             )
