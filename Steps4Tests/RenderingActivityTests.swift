@@ -68,4 +68,10 @@ final class RenderingActivityTests: XCTestCase {
             )
         )
     }
+
+    func testSmudgeWaitsForAPreparedSnapshotBeforeBeginningInteraction() {
+        XCTAssertFalse(SmudgeSnapshotInteractionPolicy.canBegin(needsSnapshot: true))
+        XCTAssertTrue(SmudgeSnapshotInteractionPolicy.canBegin(needsSnapshot: false))
+    }
+
 }

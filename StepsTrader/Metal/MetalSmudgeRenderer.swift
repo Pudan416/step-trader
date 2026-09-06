@@ -348,6 +348,7 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
     // ════════════════════════════════════════════════════════════════
 
     func handleTouchBegan(id: ObjectIdentifier, at point: CGPoint, scale: CGFloat) {
+        guard isBaseInitialized_ else { return }
         let now   = CACurrentMediaTime()
         let pixel = SIMD2<Float>(Float(point.x * scale), Float(point.y * scale))
 
@@ -373,7 +374,9 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
         }
 
         lastStrokeTime = now
-        if lastFrameTime == 0 { lastFrameTime = 0 }
+        // The renderer is paused between gestures. Reset the frame clock so
+        // the first relaxation step never receives the entire idle interval.
+        lastFrameTime = now
         isDistorted = true
     }
 
@@ -429,6 +432,14 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
 
     func setActive(_ active: Bool) {
         isActive = active
+    }
+
+    func invalidateBaseSnapshot() {
+        isBaseInitialized_ = false
+        isDistorted = false
+        activeRipples.removeAll()
+        activeTouches.removeAll()
+        lastFrameTime = 0
     }
 
     func cancelActiveInteraction() {
@@ -537,6 +548,7 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
             } else {
                 isDistorted = false
                 isBaseInitialized_ = false
+                lastFrameTime = 0
                 activeRipples.removeAll()
                 activeTouches.removeAll()
                 view.isPaused = true

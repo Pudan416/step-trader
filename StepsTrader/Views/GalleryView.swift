@@ -20,6 +20,23 @@ enum CanvasSpawnOriginMapper {
     }
 }
 
+enum CanvasBottomControlsLayout {
+    static func padding(
+        safeAreaBottom: CGFloat,
+        isWideCanvas: Bool,
+        isEditing: Bool
+    ) -> CGFloat {
+        if isWideCanvas || isEditing {
+            return max(safeAreaBottom, 34) + 16
+        }
+
+        // The tab bar follows the window safe area. Mirror that inset here,
+        // then preserve the 8pt optical adjustment between its 48pt buttons
+        // and the canvas action row's 52pt buttons.
+        return max(safeAreaBottom, 0) + 8
+    }
+}
+
 // MARK: - CANVAS tab: generative canvas
 
 struct GalleryView: View {
@@ -124,6 +141,7 @@ struct GalleryView: View {
 
     @State private var safeAreaTop: CGFloat = 0
     @State private var safeAreaBottom: CGFloat = 0
+    @State private var editorialClock = DayObjectsClock()
 
     /// The device's real top safe-area inset (status bar / Dynamic Island),
     /// read directly from the key window instead of `safeAreaTop`.
@@ -143,6 +161,15 @@ struct GalleryView: View {
             .first(where: \.isKeyWindow)?
             .safeAreaInsets.top
         return (inset ?? 0) > 0 ? inset! : 59
+    }
+
+    private var deviceBottomSafeAreaInset: CGFloat {
+        let windowInset = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow)?
+            .safeAreaInsets.bottom ?? 0
+        return max(windowInset, safeAreaBottom)
     }
 
     private var canvasBackground: Color { theme.backgroundColor }
@@ -167,12 +194,11 @@ struct GalleryView: View {
     }
 
     private var bottomControlsPadding: CGFloat {
-        if presentation.isWideCanvas || presentation.isEditing {
-            return max(safeAreaBottom, 34) + 16
-        }
-        // MainTabView's 48pt buttons sit 34pt above the window bottom. A 52pt
-        // action row therefore needs an 8pt bottom inset to share that center.
-        return 8
+        CanvasBottomControlsLayout.padding(
+            safeAreaBottom: deviceBottomSafeAreaInset,
+            isWideCanvas: presentation.isWideCanvas,
+            isEditing: presentation.isEditing
+        )
     }
 
     private var canvasSoundPulseBus: DayObjectsSoundPulseBus? {
@@ -557,7 +583,8 @@ struct GalleryView: View {
                 style: dayCanvas.resolvedVisualStyle,
                 editorial: editorialRenderInput,
                 isAnimating: isCanvasSelected,
-                soundPulseBus: canvasSoundPulseBus
+                soundPulseBus: canvasSoundPulseBus,
+                editorialClock: editorialClock
             ) {
                 legacyCanvasLayers
                     .background {
@@ -591,7 +618,8 @@ struct GalleryView: View {
                     hasSleepData: model.hasSleepData,
                     editorialSnapshotInput: dayCanvas.resolvedVisualStyle == .editorial
                         ? editorialRenderInput
-                        : nil
+                        : nil,
+                    editorialClock: editorialClock
                 )
                 .frame(
                     width: GenerativeCanvasView.canonicalPortraitSize.width,

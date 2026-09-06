@@ -22,6 +22,7 @@ struct CanvasAnimationOverlay: View {
     /// When present, Smudge samples the actual Editorial Metal artwork instead
     /// of reconstructing the retired Legacy gradient underneath it.
     var editorialSnapshotInput: EditorialCanvasRenderInput? = nil
+    var editorialClock: DayObjectsClock? = nil
 
     @AppStorage(SharedKeys.canvasOverlayStyle, store: UserDefaults.stepsTrader())
     private var styleRaw: String = CanvasOverlayStyle.smudge.rawValue
@@ -60,6 +61,7 @@ struct CanvasAnimationOverlay: View {
                 hasStepsData: hasStepsData,
                 hasSleepData: hasSleepData,
                 editorialSnapshotInput: editorialSnapshotInput,
+                editorialClock: editorialClock,
                 isRenderingAllowed: isRenderingAllowed
             )
         case .cosmic:

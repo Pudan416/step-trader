@@ -7,6 +7,36 @@ import XCTest
 /// must be unrepresentable, not merely unreachable.
 final class CanvasPresentationStateTests: XCTestCase {
 
+    func testCollapsedCanvasControlsFollowTheDeviceSafeArea() {
+        XCTAssertEqual(
+            CanvasBottomControlsLayout.padding(
+                safeAreaBottom: 0,
+                isWideCanvas: false,
+                isEditing: false
+            ),
+            8
+        )
+        XCTAssertEqual(
+            CanvasBottomControlsLayout.padding(
+                safeAreaBottom: 34,
+                isWideCanvas: false,
+                isEditing: false
+            ),
+            42
+        )
+    }
+
+    func testWideCanvasControlsKeepTheirExistingClearance() {
+        XCTAssertEqual(
+            CanvasBottomControlsLayout.padding(
+                safeAreaBottom: 34,
+                isWideCanvas: true,
+                isEditing: false
+            ),
+            84
+        )
+    }
+
     // MARK: - The transition table from the spec
 
     func testShowDataFromCanvas() {

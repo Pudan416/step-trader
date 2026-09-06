@@ -1,6 +1,12 @@
 import SwiftUI
 import MetalKit
 
+enum SmudgeSnapshotInteractionPolicy {
+    static func canBegin(needsSnapshot: Bool) -> Bool {
+        !needsSnapshot
+    }
+}
+
 // ════════════════════════════════════════════════════════════════════
 // MARK: - SmudgeMTKView  (transparent Metal overlay with multi-touch)
 // ════════════════════════════════════════════════════════════════════
@@ -55,6 +61,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
     var hasStepsData: Bool = true
     var hasSleepData: Bool = true
     var editorialSnapshotInput: EditorialCanvasRenderInput? = nil
+    var editorialClock: DayObjectsClock? = nil
     let isRenderingAllowed: Bool
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -81,7 +88,6 @@ struct SmudgeOverlayView: UIViewRepresentable {
         view.backgroundColor     = .clear
         view.clearColor          = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)
 
-        let scale = view.contentScaleFactor
         let coord = context.coordinator
         coord.storedConfig = self
         coord.renderingIsAllowed = isRenderingAllowed
@@ -100,7 +106,16 @@ struct SmudgeOverlayView: UIViewRepresentable {
                   let view,
                   let renderer = coord.renderer
             else { return }
-            if renderer.needsSnapshot { coord.snapshotCanvas(scale: scale) }
+            let scale = view.contentScaleFactor
+            if renderer.needsSnapshot {
+                if coord.storedConfig?.editorialSnapshotInput != nil {
+                    coord.queuePendingTouch(id: id, point: point, scale: scale)
+                }
+                coord.snapshotCanvas(scale: scale)
+            }
+            guard SmudgeSnapshotInteractionPolicy.canBegin(
+                needsSnapshot: renderer.needsSnapshot
+            ) else { return }
             renderer.handleTouchBegan(id: id, at: point, scale: scale)
             view.isPaused = !MetalOverlayRenderingPolicy.shouldRender(
                 isRenderingAllowed: coord.renderingIsAllowed,
@@ -108,12 +123,19 @@ struct SmudgeOverlayView: UIViewRepresentable {
             )
             touchHaptic.impactOccurred(intensity: 0.7)
         }
-        view.onTouchMoved = { [weak coord] id, previous, current in
-            guard let coord, coord.renderingIsAllowed else { return }
-            coord.renderer?.addStrokeSegment(id: id, from: previous, to: current, scale: scale)
+        view.onTouchMoved = { [weak coord, weak view] id, previous, current in
+            guard let coord, coord.renderingIsAllowed, let view else { return }
+            if coord.updatePendingTouch(id: id, point: current) { return }
+            coord.renderer?.addStrokeSegment(
+                id: id,
+                from: previous,
+                to: current,
+                scale: view.contentScaleFactor
+            )
         }
         view.onTouchEnded = { [weak coord] id in
             guard let coord, coord.renderingIsAllowed else { return }
+            if coord.cancelPendingTouch(id: id) { return }
             coord.renderer?.handleTouchEnded(id: id)
             touchHaptic.impactOccurred(intensity: 0.5)
         }
@@ -124,6 +146,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
 
     func updateUIView(_ uiView: SmudgeMTKView, context: Context) {
         let coordinator = context.coordinator
+        let previousEditorialInput = coordinator.storedConfig?.editorialSnapshotInput
         coordinator.storedConfig = self
         coordinator.renderingIsAllowed = isRenderingAllowed
         uiView.isUserInteractionEnabled = isRenderingAllowed
@@ -134,6 +157,10 @@ struct SmudgeOverlayView: UIViewRepresentable {
         }
 
         renderer.setActive(isRenderingAllowed)
+        if previousEditorialInput != editorialSnapshotInput {
+            coordinator.cancelSnapshot()
+            renderer.invalidateBaseSnapshot()
+        }
         if !isRenderingAllowed {
             coordinator.cancelSnapshot()
             renderer.cancelActiveInteraction()
@@ -165,6 +192,13 @@ struct SmudgeOverlayView: UIViewRepresentable {
         var storedConfig: SmudgeOverlayView?
         var renderingIsAllowed = false
         private var editorialSnapshotTask: Task<Void, Never>?
+        private var editorialSnapshotGeneration = 0
+        private var pendingTouches: [ObjectIdentifier: PendingTouch] = [:]
+
+        private struct PendingTouch {
+            var point: CGPoint
+            let scale: CGFloat
+        }
 
         init() { renderer = MetalSmudgeRenderer.create() }
 
@@ -182,22 +216,39 @@ struct SmudgeOverlayView: UIViewRepresentable {
 
             if let editorial = cfg.editorialSnapshotInput {
                 guard editorialSnapshotTask == nil else { return }
+                let generation = editorialSnapshotGeneration
+                let elapsedTime = cfg.editorialClock?.elapsedTime ?? 4
                 editorialSnapshotTask = Task { @MainActor [weak self, weak view] in
-                    defer { self?.editorialSnapshotTask = nil }
+                    defer {
+                        if self?.editorialSnapshotGeneration == generation {
+                            self?.editorialSnapshotTask = nil
+                        }
+                    }
                     let image = await DayObjectsImageRenderer.image(
                         input: editorial,
                         size: CGSize(width: pointW, height: pointH),
                         scale: scale,
-                        elapsedTime: 4
+                        elapsedTime: elapsedTime
                     )
                     guard !Task.isCancelled,
                           let self,
                           let view,
                           self.renderingIsAllowed,
+                          self.editorialSnapshotGeneration == generation,
+                          self.storedConfig?.editorialSnapshotInput == editorial,
                           let cgImage = image?.cgImage
                     else { return }
                     self.renderer?.updateBaseTexture(from: cgImage)
-                    if self.renderer?.isDistorted == true {
+                    let touches = self.pendingTouches
+                    self.pendingTouches.removeAll()
+                    for (id, touch) in touches {
+                        self.renderer?.handleTouchBegan(
+                            id: id,
+                            at: touch.point,
+                            scale: touch.scale
+                        )
+                    }
+                    if !touches.isEmpty {
                         view.isPaused = false
                     }
                 }
@@ -220,9 +271,26 @@ struct SmudgeOverlayView: UIViewRepresentable {
             }
         }
 
+        func queuePendingTouch(id: ObjectIdentifier, point: CGPoint, scale: CGFloat) {
+            pendingTouches[id] = PendingTouch(point: point, scale: scale)
+        }
+
+        func updatePendingTouch(id: ObjectIdentifier, point: CGPoint) -> Bool {
+            guard var touch = pendingTouches[id] else { return false }
+            touch.point = point
+            pendingTouches[id] = touch
+            return true
+        }
+
+        func cancelPendingTouch(id: ObjectIdentifier) -> Bool {
+            pendingTouches.removeValue(forKey: id) != nil
+        }
+
         func cancelSnapshot() {
+            editorialSnapshotGeneration += 1
             editorialSnapshotTask?.cancel()
             editorialSnapshotTask = nil
+            pendingTouches.removeAll()
         }
     }
 }
