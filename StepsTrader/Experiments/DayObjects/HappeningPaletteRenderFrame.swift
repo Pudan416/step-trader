@@ -93,6 +93,15 @@ struct HappeningPaletteTransitionTimeline {
     private var presentation: HappeningPaletteRenderPresentation?
     private var transitions: [String: Transition] = [:]
 
+    func hasActiveTransitions(at rawElapsed: Double) -> Bool {
+        guard let presentation else { return false }
+        let elapsed = normalizedElapsed(rawElapsed)
+        let duration = presentation.reduceMotion
+            ? Self.reducedMotionFadeDuration * 2
+            : Self.transitionDuration
+        return transitions.values.contains { max(elapsed - $0.startedAt, 0) < duration }
+    }
+
     mutating func update(to next: HappeningPaletteRenderPresentation, elapsed rawElapsed: Double) {
         let elapsed = normalizedElapsed(rawElapsed)
         guard let presentation else {

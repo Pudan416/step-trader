@@ -98,15 +98,23 @@ final class DayObjectRenderFrameTests: XCTestCase {
                 isTransitionActive: active, backgroundRevision: 1
             ))
         }
-        let clock = DayObjectsClock(now: { 0 })
+        var now: TimeInterval = 0
+        let clock = DayObjectsClock(now: { now })
         let renderer = try XCTUnwrap(DayObjectsRenderer.create(
             scene: scene, environment: environment, presentationMode: mode(.available, active: false), clock: clock
         ))
         renderer.update(scene: scene, environment: environment, presentationMode: mode(.additionPreview, active: true))
         renderer.update(scene: scene, environment: environment, presentationMode: mode(.added, active: false))
+        // Finish and display the added state before beginning the next interaction.
+        now = 0.34
+        await withCheckedContinuation { continuation in
+            renderer.renderOffscreen(size: CGSize(width: 64, height: 96), pointScale: 1, elapsedTime: now) { _, _ in
+                continuation.resume()
+            }
+        }
         renderer.update(scene: scene, environment: environment, presentationMode: mode(.removalPreview, active: true))
         let frame: DayObjectRenderFrame? = await withCheckedContinuation { continuation in
-            renderer.renderOffscreen(size: CGSize(width: 64, height: 96), pointScale: 1, elapsedTime: 0) { texture, frame in
+            renderer.renderOffscreen(size: CGSize(width: 64, height: 96), pointScale: 1, elapsedTime: now) { texture, frame in
                 continuation.resume(returning: texture == nil ? nil : frame)
             }
         }
@@ -114,6 +122,64 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertEqual(actor.gpuActor.paletteMorph, 1)
         XCTAssertEqual(actor.gpuActor.presentationSaturation, 0.08, accuracy: 0.001)
         XCTAssertEqual(actor.gpuActor.removalEmphasis, 0)
+    }
+
+    @MainActor
+    func testPaletteFinishesInterpolationAfterExternalFlagClearsBeforePausing() throws {
+        let scene = editorialScene()
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.75)
+        let assignment = try XCTUnwrap(HappeningEditorialAssignmentResolver.assignments(
+            happenings: [Happening(id: "h0", title: "Happening", isBuiltIn: true)],
+            baseInput: .init(dayKey: "2026-09-06", identity: "palette-finish", eventIDs: [],
+                             motionEnergy: 0.55, visualClarity: 0.75, usesEditorialField: true), colorNonce: 7
+        )["h0"])
+        func mode(_ state: HappeningPaletteSlotVisualState, active: Bool) -> DayObjectsPresentationMode {
+            .happeningPalette(.init(
+                slots: [.init(happeningID: "h0", assignment: assignment, visualState: state,
+                              source: .init(index: 0, center: CGPoint(x: 32, y: 48), radius: 16))],
+                viewportSize: CGSize(width: 64, height: 96), reduceMotion: false,
+                isTransitionActive: active, backgroundRevision: 1
+            ))
+        }
+        var now: TimeInterval = 0
+        let renderer = try XCTUnwrap(DayObjectsRenderer.create(
+            scene: scene, environment: environment, presentationMode: mode(.available, active: false),
+            clock: DayObjectsClock(now: { now })
+        ))
+        let view = MTKView(frame: CGRect(x: 0, y: 0, width: 64, height: 96), device: renderer.device)
+        view.delegate = renderer
+        DayObjectsRenderer.configureDisplay(view)
+        let controller = UIViewController()
+        controller.view = view
+        let window = UIWindow(frame: view.frame)
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true; view.isPaused = true; view.delegate = nil }
+
+        renderer.update(scene: scene, environment: environment, presentationMode: mode(.additionPreview, active: true))
+        renderer.configureAnimation(view)
+        now = 0.085
+        renderer.draw(in: view)
+        XCTAssertEqual(try XCTUnwrap(renderer.currentFrame?.actors.first).gpuActor.paletteMorph, 0.15625, accuracy: 0.001)
+        renderer.update(scene: scene, environment: environment, presentationMode: mode(.additionPreview, active: false))
+        renderer.configureAnimation(view)
+        XCTAssertFalse(view.isPaused)
+        XCTAssertEqual(view.preferredFramesPerSecond, 60)
+        now = 0.17
+        renderer.draw(in: view)
+        XCTAssertEqual(try XCTUnwrap(renderer.currentFrame?.actors.first).gpuActor.paletteMorph, 0.5, accuracy: 0.001)
+        XCTAssertFalse(view.isPaused)
+
+        now = 0.34
+        renderer.draw(in: view)
+        XCTAssertEqual(try XCTUnwrap(renderer.currentFrame?.actors.first).gpuActor.paletteMorph, 1)
+        XCTAssertTrue(view.isPaused)
+        XCTAssertTrue(view.enableSetNeedsDisplay)
+        XCTAssertEqual(view.preferredFramesPerSecond, 30)
+        now = 1
+        renderer.draw(in: view)
+        XCTAssertEqual(try XCTUnwrap(renderer.currentFrame?.actors.first).gpuActor.paletteMorph, 1)
+        XCTAssertTrue(view.isPaused)
     }
 
     func testSoundPulseTimelineIgnoresEventsFromBeforeAttachment() {

@@ -38,7 +38,10 @@ struct DayObjectsMetalView: UIViewRepresentable {
 
     static func configureAnimationFrameRate(_ view: MTKView, prefersSixtyFPS: Bool = false) {
         // MTKView owns the display link and exposes its rate through this API.
-        view.preferredFramesPerSecond = prefersSixtyFPS ? 60 : 30
+        let preferred = prefersSixtyFPS ? 60 : 30
+        if view.preferredFramesPerSecond != preferred {
+            view.preferredFramesPerSecond = preferred
+        }
     }
 
     func updateUIView(_ uiView: MTKView, context: Context) {
@@ -89,22 +92,14 @@ struct DayObjectsMetalView: UIViewRepresentable {
             presentationMode: DayObjectsPresentationMode,
             isAnimating: Bool
         ) {
-            DayObjectsMetalView.configureAnimationFrameRate(
-                view, prefersSixtyFPS: presentationMode.prefersSixtyFPS
-            )
             guard let renderer else {
                 view.isPaused = true
                 return
             }
             renderer.update(scene: scene, environment: environment, digitalImpact: digitalImpact,
                             soundPulseBus: soundPulseBus, presentationMode: presentationMode)
-            let runsContinuously = isAnimating && (presentationMode == .canvas || presentationMode.prefersSixtyFPS)
-            renderer.setAnimating(runsContinuously)
-            view.enableSetNeedsDisplay = !runsContinuously
-            view.isPaused = !runsContinuously
-            if !runsContinuously {
-                view.setNeedsDisplay()
-            }
+            renderer.setAnimating(isAnimating)
+            renderer.configureAnimation(view)
         }
     }
 }

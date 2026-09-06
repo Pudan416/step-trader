@@ -848,6 +848,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     private var presentationMode: DayObjectsPresentationMode
     private var paletteTimeline = HappeningPaletteTransitionTimeline()
     private var backgroundRenderPolicy = DayObjectsBackgroundRenderPolicy()
+    private var isAnimationAllowed = true
     private var attemptedTargetPlan: DayObjectsRenderTargetPlan?
     private var renderTargets: RenderTargets?
     private(set) var currentFrame: DayObjectRenderFrame?
@@ -1050,10 +1051,6 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             backgroundRenderPolicy.invalidate()
             paletteTimeline = HappeningPaletteTransitionTimeline()
         case let .happeningPalette(presentation):
-            if !presentation.isTransitionActive {
-                // Subsequent interactions must start from the settled frame actually displayed.
-                paletteTimeline = HappeningPaletteTransitionTimeline()
-            }
             paletteTimeline.update(to: presentation, elapsed: clock.elapsedTime)
         }
         if scene.rootSeed != glitchBandSeed {
@@ -1072,7 +1069,29 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     }
 
     func setAnimating(_ isAnimating: Bool) {
+        isAnimationAllowed = isAnimating
         clock.setPaused(!isAnimating)
+    }
+
+    func configureAnimation(
+        _ view: MTKView,
+        elapsedTime: TimeInterval? = nil,
+        requestsStaticFrame: Bool = true
+    ) {
+        let prefersSixtyFPS = presentationMode.prefersSixtyFPS
+            || paletteTimeline.hasActiveTransitions(at: elapsedTime ?? clock.elapsedTime)
+        let runsContinuously = isAnimationAllowed && (presentationMode == .canvas || prefersSixtyFPS)
+        DayObjectsMetalView.configureAnimationFrameRate(view, prefersSixtyFPS: prefersSixtyFPS)
+        clock.setPaused(!runsContinuously)
+        if view.enableSetNeedsDisplay != !runsContinuously {
+            view.enableSetNeedsDisplay = !runsContinuously
+        }
+        if view.isPaused != !runsContinuously {
+            view.isPaused = !runsContinuously
+        }
+        if !runsContinuously && requestsStaticFrame {
+            view.setNeedsDisplay()
+        }
     }
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -1089,6 +1108,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     }
 
     func draw(in view: MTKView) {
+        let elapsedTime = clock.elapsedTime
         guard let drawable = view.currentDrawable,
               let renderPass = view.currentRenderPassDescriptor,
               let commandBuffer = encodeFrame(
@@ -1096,11 +1116,12 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                   outputPass: renderPass,
                   drawableSize: view.drawableSize,
                   pointToPixelScale: Float(view.contentScaleFactor),
-                  elapsedTime: clock.elapsedTime,
+                  elapsedTime: elapsedTime,
                   present: drawable
               )
         else { return }
         commandBuffer.commit()
+        configureAnimation(view, elapsedTime: elapsedTime, requestsStaticFrame: false)
     }
 
     func renderOffscreen(
@@ -1200,7 +1221,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             paletteTimeline.update(to: presentation, elapsed: elapsedTime)
             frame = HappeningPaletteRenderFrame.make(
                 presentation: presentation, scene: scene, elapsed: elapsedTime,
-                timeline: presentation.isTransitionActive ? paletteTimeline : nil
+                timeline: paletteTimeline
             )
         }
         currentFrame = frame
