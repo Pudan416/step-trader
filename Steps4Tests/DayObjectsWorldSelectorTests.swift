@@ -10,6 +10,7 @@ final class DayObjectsWorldSelectorTests: XCTestCase {
         XCTAssertEqual(DayObjectsSoundMood.allCases, [.sparse, .moving, .strange])
         XCTAssertEqual(DayObjectsSoundWorld.feltAndWood.rawValue, "feltAndWood")
         XCTAssertEqual(DayObjectsSoundWorld.metalAndCurrent.rawValue, "metalAndCurrent")
+        XCTAssertEqual(MusicSeedDomain.worldGuest.rawValue, "world.guest")
         XCTAssertEqual(DayObjectsSoundWorld.feltAndWood.displayName, "Acoustic Oddities")
         XCTAssertEqual(DayObjectsSoundWorld.metalAndCurrent.displayName, "Industrial Ritual")
     }
@@ -66,7 +67,10 @@ final class DayObjectsWorldSelectorTests: XCTestCase {
         remixSeed: UInt64,
         world: DayObjectsSoundWorld
     ) -> DayObjectsSoundWorld? {
-        var random = StableMusicRandom(seed: remixSeed, domain: .worldGuest)
+        var random = StableMusicRandom(
+            seed: remixSeed,
+            domain: MusicSeedDomain("world.guest")
+        )
         guard random.bernoulli(probability: 0.15) else { return nil }
         return random.choice(from: expectedGuestNeighbors(for: world))
     }
