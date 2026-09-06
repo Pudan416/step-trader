@@ -296,6 +296,7 @@ final class CanvasOverlayIntegrationRegressionTests: XCTestCase {
     }
 }
 
+@MainActor
 final class HappeningFieldLayoutTests: XCTestCase {
 
     private let size = CGSize(width: 402, height: 874)
@@ -310,6 +311,119 @@ final class HappeningFieldLayoutTests: XCTestCase {
             width: size.width - safeInsets.leading - safeInsets.trailing,
             height: size.height - safeInsets.top - safeInsets.bottom
         )
+    }
+
+    func testFailedCanvasSaveRejectsRemovalWithoutRemovingDomainAddition() {
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        let model = makeRemovalModel()
+        defer { clearRemovalDefaults() }
+        let canvas = DayCanvas(dayKey: AppModel.dayKey(for: date))
+        let element = fixedRemovalElement(on: canvas)
+        var populatedCanvas = canvas
+        populatedCanvas.elements = [element]
+        XCTAssertNotNil(
+            model.addHappening(
+                id: "walk",
+                colorHex: element.hexColor,
+                at: date,
+                recordUse: false,
+                entryId: element.id.uuidString
+            )
+        )
+
+        let failed = CanvasHappeningRemovalTransaction.commit(
+            canvasLoaded: true,
+            canvas: populatedCanvas,
+            model: model,
+            happeningID: "walk",
+            at: date,
+            persist: { _ in false }
+        )
+
+        XCTAssertNil(failed)
+        XCTAssertEqual(populatedCanvas.elements.count, 1)
+        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["walk"])
+    }
+
+    func testSuccessfulRemovalPersistsEmptyCanonicalCanvasAndRemovesMatchingDomainAddition() throws {
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        let model = makeRemovalModel()
+        defer { clearRemovalDefaults() }
+        let canvas = DayCanvas(dayKey: AppModel.dayKey(for: date))
+        let element = fixedRemovalElement(on: canvas)
+        var populatedCanvas = canvas
+        populatedCanvas.elements = [element]
+        XCTAssertNotNil(
+            model.addHappening(
+                id: "walk",
+                colorHex: element.hexColor,
+                at: date,
+                recordUse: false,
+                entryId: element.id.uuidString
+            )
+        )
+        var persistedCanvas: DayCanvas?
+
+        let result = try XCTUnwrap(
+            CanvasHappeningRemovalTransaction.commit(
+                canvasLoaded: true,
+                canvas: populatedCanvas,
+                model: model,
+                happeningID: "walk",
+                at: date,
+                persist: {
+                    persistedCanvas = $0
+                    return true
+                }
+            )
+        )
+
+        XCTAssertTrue(result.canvas.elements.isEmpty)
+        XCTAssertEqual(result.removedElement.id, element.id)
+        XCTAssertTrue(try XCTUnwrap(persistedCanvas).elements.isEmpty)
+        XCTAssertTrue(model.todayAdditions.isEmpty)
+    }
+
+    func testRemovalRejectsMismatchedDayOrMissingHappeningWithoutSideEffects() {
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        let model = makeRemovalModel()
+        defer { clearRemovalDefaults() }
+        let element = fixedRemovalElement(on: DayCanvas(dayKey: AppModel.dayKey(for: date)))
+        var staleCanvas = DayCanvas(dayKey: "2001-01-01")
+        staleCanvas.elements = [element]
+        var currentCanvas = DayCanvas(dayKey: AppModel.dayKey(for: date))
+        currentCanvas.elements = [element]
+        var persistedCanvases: [DayCanvas] = []
+
+        let mismatchedDay = CanvasHappeningRemovalTransaction.commit(
+            canvasLoaded: true,
+            canvas: staleCanvas,
+            model: model,
+            happeningID: "walk",
+            at: date,
+            persist: {
+                persistedCanvases.append($0)
+                return true
+            }
+        )
+        let missingHappening = CanvasHappeningRemovalTransaction.commit(
+            canvasLoaded: true,
+            canvas: currentCanvas,
+            model: model,
+            happeningID: "read",
+            at: date,
+            persist: {
+                persistedCanvases.append($0)
+                return true
+            }
+        )
+
+        XCTAssertNil(mismatchedDay)
+        XCTAssertNil(missingHappening)
+        XCTAssertEqual(staleCanvas.elements.map(\.id), [element.id])
+        XCTAssertEqual(currentCanvas.elements.map(\.id), [element.id])
+        XCTAssertTrue(model.todayAdditions.isEmpty)
+        XCTAssertTrue(persistedCanvases.isEmpty)
     }
 
     /// Close · choose · add used to hang off the blob contour, so consuming a
@@ -560,6 +674,47 @@ final class HappeningFieldLayoutTests: XCTestCase {
             HappeningFieldLayout.layout(count: 10, in: size, safeInsets: safeInsets),
             HappeningFieldLayout.layout(count: 10, in: size, safeInsets: safeInsets)
         )
+    }
+
+    private func fixedRemovalElement(on canvas: DayCanvas) -> CanvasElement {
+        var element = CanvasElement.spawn(
+            id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+            optionId: "walk",
+            label: "Walk",
+            existingElements: canvas.elements,
+            dayKey: canvas.dayKey,
+            composition: DayComposition.forDay(
+                dayKey: canvas.dayKey,
+                happeningCount: canvas.elements.count
+            )
+        )
+        element.basePosition = CGPoint(x: 0.82, y: 0.24)
+        return element
+    }
+
+    private func makeRemovalModel() -> AppModel {
+        clearRemovalDefaults()
+        let model = AppModel(
+            healthKitService: MockHealthKitService(),
+            familyControlsService: MockFamilyControlsService(),
+            notificationService: MockNotificationService(),
+            budgetEngine: MockBudgetEngine(),
+            subscriptionStore: SubscriptionStore()
+        )
+        model.isBootstrapping = true
+        model.loadDailyEnergyState()
+        return model
+    }
+
+    private func clearRemovalDefaults() {
+        let defaults = UserDefaults.stepsTrader()
+        [
+            SharedKeys.dailyEnergyAnchor,
+            SharedKeys.stepsBalanceAnchor,
+            SharedKeys.todayAdditions,
+            SharedKeys.happeningCatalog,
+            SharedKeys.happeningPaletteSelection,
+        ].forEach { defaults.removeObject(forKey: $0) }
     }
 }
 

@@ -49,7 +49,12 @@ extension AppModel {
         )
         todayAdditions.append(entry)
         removeSatisfiedActivitySuggestions()
-        if recordUse { happeningStore.recordUse(id: id, at: date) }
+        let lastUseDayKey = happeningStore.happening(id: id)?.lastUsedAt.map {
+            DayBoundary.dayKey(for: $0, dayEndHour: dayEndHour, dayEndMinute: dayEndMinute)
+        }
+        if recordUse, lastUseDayKey != dayKey {
+            happeningStore.recordUse(id: id, at: date)
+        }
         recalculateDailyEnergy()
         persistTodayAdditions()
         Task { await SupabaseSyncService.shared.syncOptionEntry(entry) }

@@ -7,6 +7,11 @@ struct CanvasHappeningSpawnResult {
     let entry: OptionEntry
 }
 
+struct CanvasHappeningRemovalResult {
+    let canvas: DayCanvas
+    let removedElement: CanvasElement
+}
+
 /// Persists the canonical canvas before committing the matching day entry.
 /// A failed or not-yet-loaded canvas therefore cannot consume a palette zone.
 @MainActor
@@ -47,6 +52,30 @@ enum CanvasHappeningSpawnTransaction {
         }
 
         return CanvasHappeningSpawnResult(canvas: canonical, entry: entry)
+    }
+}
+
+@MainActor
+enum CanvasHappeningRemovalTransaction {
+    static func commit(
+        canvasLoaded: Bool,
+        canvas: DayCanvas,
+        model: AppModel,
+        happeningID: String,
+        at date: Date,
+        persist: (DayCanvas) -> Bool
+    ) -> CanvasHappeningRemovalResult? {
+        let capturedDayKey = AppModel.dayKey(for: date)
+        guard canvasLoaded,
+              canvas.dayKey == capturedDayKey,
+              let index = canvas.elements.firstIndex(where: { $0.optionId == happeningID })
+        else { return nil }
+        var canonical = canvas
+        let removed = canonical.elements.remove(at: index)
+        canonical.lastModified = date
+        guard persist(canonical) else { return nil }
+        model.removeAddition(entryId: removed.id.uuidString)
+        return CanvasHappeningRemovalResult(canvas: canonical, removedElement: removed)
     }
 }
 

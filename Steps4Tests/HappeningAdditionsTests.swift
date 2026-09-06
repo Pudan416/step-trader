@@ -149,6 +149,20 @@ final class HappeningAdditionsTests: XCTestCase {
         XCTAssertEqual(model.todayAdditions.map(\.optionId), ["happening_walk"])
     }
 
+    func testRemoveAndReAddOnSameDayRecordsOneUse() throws {
+        let model = makeModel()
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        model.loadDailyEnergyState()
+        let before = try XCTUnwrap(model.happeningStore.happening(id: "happening_walk")?.useCount)
+        let first = try XCTUnwrap(
+            model.addHappening(id: "happening_walk", colorHex: "#AABBCC", at: date)
+        )
+        model.removeAddition(entryId: first.id)
+
+        XCTAssertNotNil(model.addHappening(id: "happening_walk", colorHex: "#AABBCC", at: date))
+        XCTAssertEqual(model.happeningStore.happening(id: "happening_walk")?.useCount, before + 1)
+    }
+
     func testHappeningCanBeAddedAgainOnNewCustomDay() {
         let model = makeModel()
         let firstDate = Date(timeIntervalSince1970: 1_786_176_000)

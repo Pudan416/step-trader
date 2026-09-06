@@ -1739,6 +1739,7 @@ struct GalleryView: View {
         if let presentationOrigin {
             spawnPresentation.stage(elementID: element.id, origin: presentationOrigin)
         }
+        pendingDeletedIds.remove(element.id)
         dayCanvas = result.canvas
         localMutationCounter &+= 1
         publishCanvasPersistence(result.canvas)
@@ -1764,16 +1765,38 @@ struct GalleryView: View {
         }
     }
 
-    private func removeElement(id: UUID) {
-        guard let index = dayCanvas.elements.firstIndex(where: { $0.id == id }) else { return }
-        var updated = dayCanvas
-        let removed = updated.elements.remove(at: index)
-        model.removeAddition(entryId: removed.id.uuidString)
-        pendingDeletedIds.insert(removed.id)
-        updated.lastModified = Date.now
-        dayCanvas = updated
+    @discardableResult
+    private func removePaletteHappening(id: String) -> Bool {
+        let now = Date.now
+        guard let result = CanvasHappeningRemovalTransaction.commit(
+            canvasLoaded: canvasLoaded,
+            canvas: dayCanvas,
+            model: model,
+            happeningID: id,
+            at: now,
+            persist: { canvas in
+                if usesTask7UITestFixture { return true }
+                if canvas.elements.isEmpty {
+                    CanvasStorageService.shared.deleteCanvas(for: canvas.dayKey)
+                    return true
+                }
+                return CanvasStorageService.shared.saveCanvas(canvas)
+            }
+        ) else {
+            return false
+        }
+
+        dayCanvas = result.canvas
+        pendingDeletedIds.insert(result.removedElement.id)
         localMutationCounter &+= 1
-        saveCanvasLocally()
+        publishCanvasPersistence(result.canvas)
+        refreshHappeningPalette()
+        return true
+    }
+
+    private func removeElement(id: UUID) {
+        guard let element = dayCanvas.elements.first(where: { $0.id == id }) else { return }
+        _ = removePaletteHappening(id: element.optionId)
     }
 
     private func rerollElement(id: UUID) {
