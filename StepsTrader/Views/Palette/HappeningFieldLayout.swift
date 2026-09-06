@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Deterministic constellation for the remaining happenings.
+/// Deterministic constellation for the configured happening slots.
 ///
 /// The palette has no containing blob. Each source is a real, independent
 /// circle placed between the persistent energy bar and the bottom dock.
@@ -21,12 +21,12 @@ enum HappeningFieldLayout {
 
     private static let edgeClearance: CGFloat = 17
     private static let dockHitRadius: CGFloat = 36
-    private static let dockContentGap: CGFloat = 52
+    private static let dockContentGap: CGFloat = 120
     private static let completionDockGap: CGFloat = 24
     private static let contactGap: CGFloat = 0.1
     private static let targetRadius: CGFloat = 64
 
-    /// Symmetric close-packed rows for every possible remaining count. The
+    /// Symmetric close-packed rows for every configured count. The
     /// full palette uses the approved 3·2·3·2 rhythm.
     private static let rowPatterns: [[Int]] = [
         [], [1], [2], [3], [2, 2], [3, 2], [3, 3], [2, 3, 2],

@@ -243,7 +243,8 @@ enum HappeningPaletteRenderFrame {
         let actors = sample.slots.map { slot in
             let position = SIMD2<Float>(
                 Float((slot.source.center.x - presentation.viewportSize.width / 2) / shortSide),
-                Float((slot.source.center.y - presentation.viewportSize.height / 2) / shortSide)
+                // SwiftUI sources are top-left/y-down; Metal clip space is y-up.
+                Float((presentation.viewportSize.height / 2 - slot.source.center.y) / shortSide)
             )
             let halfSize = Float(slot.source.radius / shortSide * slot.controls.scale)
             return DayObjectRenderActor(

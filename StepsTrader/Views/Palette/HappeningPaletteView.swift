@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum HappeningPanelTextFieldAppearance {
     static let minimumHeight: CGFloat = 44
@@ -64,22 +65,18 @@ struct HappeningPaletteView: View {
     let catalog: [Happening]
     let selectedIDs: [String]
     @Binding var activePanel: HappeningPalettePanel?
-    let onPick: (Happening, HappeningEditorialAssignment, CGPoint) -> Bool
+    let layout: HappeningFieldLayout.Layout
+    let interaction: HappeningPaletteInteractionState
+    let addedIDs: Set<String>
+    let instruction: HappeningPaletteInstruction?
+    let onActivate: (Happening) -> Void
     let onCreate: (String) -> Happening?
     let onSaveSelection: ([String]) -> Bool
     let onPanelPresentationChange: (Bool) -> Void
-    let onDismiss: () -> Void
     let onReroll: () -> Void
-    let dayKey: String
-    let dockCenterY: CGFloat?
-
-    @State private var presentation: HappeningFieldPresentationState
-    @State private var highlightedID: String?
-    @State private var highlightTask: Task<Void, Never>?
 
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.tabBarHeight) private var tabBarHeight
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(
@@ -88,29 +85,30 @@ struct HappeningPaletteView: View {
         catalog: [Happening]? = nil,
         selectedIDs: [String]? = nil,
         activePanel: Binding<HappeningPalettePanel?> = .constant(nil),
-        onPick: @escaping (Happening, HappeningEditorialAssignment, CGPoint) -> Bool,
+        layout: HappeningFieldLayout.Layout,
+        interaction: HappeningPaletteInteractionState,
+        addedIDs: Set<String>,
+        instruction: HappeningPaletteInstruction?,
+        onActivate: @escaping (Happening) -> Void,
         onCreate: @escaping (String) -> Happening?,
         onSaveSelection: @escaping ([String]) -> Bool = { _ in true },
         onPanelPresentationChange: @escaping (Bool) -> Void = { _ in },
-        onDismiss: @escaping () -> Void,
-        onReroll: @escaping () -> Void = {},
-        dayKey: String,
-        dockCenterY: CGFloat? = nil
+        onReroll: @escaping () -> Void = {}
     ) {
         self.happenings = happenings
         self.assignments = assignments
         self.catalog = catalog ?? happenings
         self.selectedIDs = selectedIDs ?? happenings.map(\.id)
         _activePanel = activePanel
-        self.onPick = onPick
+        self.layout = layout
+        self.interaction = interaction
+        self.addedIDs = addedIDs
+        self.instruction = instruction
+        self.onActivate = onActivate
         self.onCreate = onCreate
         self.onSaveSelection = onSaveSelection
         self.onPanelPresentationChange = onPanelPresentationChange
-        self.onDismiss = onDismiss
         self.onReroll = onReroll
-        self.dayKey = dayKey
-        self.dockCenterY = dockCenterY
-        _presentation = State(initialValue: HappeningFieldPresentationState(happenings: happenings))
     }
 
     var body: some View {
@@ -126,49 +124,25 @@ struct HappeningPaletteView: View {
                     hidesSurroundingChrome: true
                 )
             let panelHeight = max(1, proxy.size.height - panelTopInset - panelBottomInset)
-            let localDockY = resolvedDockCenterY(in: proxy)
-            let layout = presentation.layout(
-                in: proxy.size,
-                safeInsets: proxy.safeAreaInsets,
-                dynamicTypeSize: dynamicTypeSize,
-                contentTopInset: panelTopInset + 10,
-                dockCenterY: localDockY
-            )
-
             ZStack(alignment: .topLeading) {
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .overlay(Color.black.opacity(0.20))
-                    .frame(
-                        width: proxy.size.width,
-                        height: max(0, proxy.size.height - panelTopInset + 12)
-                    )
-                    .position(
-                        x: proxy.size.width / 2,
-                        y: panelTopInset - 12 + max(0, proxy.size.height - panelTopInset + 12) / 2
-                    )
-                    .allowsHitTesting(false)
-
                 HappeningShapeField(
-                    presentation: $presentation,
                     happenings: happenings,
                     assignments: assignments,
-                    contentTopInset: panelTopInset + 10,
-                    dockCenterY: layout.dockAnchor.y,
-                    highlightedID: highlightedID,
-                    onPick: onPick
+                    layout: layout,
+                    interaction: interaction,
+                    addedIDs: addedIDs,
+                    onActivate: onActivate
                 )
+                .frame(width: proxy.size.width, height: proxy.size.height)
                 .accessibilityHidden(activePanel != nil)
                 .allowsHitTesting(activePanel == nil)
 
-                if layout.completionBounds != nil {
-                    Text("All added for today", comment: "Palette completion state")
-                        .font(.geist(size: 17, weight: .medium, design: .rounded))
-                        .foregroundStyle(AppColors.Night.textPrimary.opacity(0.75))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-                        .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+                if let instruction {
+                    HappeningPaletteInstructionView(instruction: instruction)
+                        .frame(width: min(320, max(1, proxy.size.width - 48)))
+                        .position(x: layout.dockAnchor.x, y: layout.dockAnchor.y - 68)
                         .accessibilityHidden(activePanel != nil)
+                        .allowsHitTesting(false)
                 }
 
                 if let activePanel {
@@ -205,12 +179,12 @@ struct HappeningPaletteView: View {
         .onChange(of: activePanel) { _, panel in
             onPanelPresentationChange(panel != nil)
         }
-        .onChange(of: selectedIDs) { presentation.reset(with: happenings) }
-        .onChange(of: dayKey) { presentation.reset(with: happenings) }
+        .onChange(of: instruction) { _, next in
+            guard let next else { return }
+            UIAccessibility.post(notification: .announcement, argument: next.announcement)
+        }
         .onDisappear {
             onPanelPresentationChange(false)
-            highlightTask?.cancel()
-            highlightTask = nil
         }
     }
 
@@ -230,27 +204,14 @@ struct HappeningPaletteView: View {
         case .creator:
             HappeningCreatorPanel(
                 onCreate: { title in
-                    guard let created = onCreate(title) else { return }
+                    guard onCreate(title) != nil else { return }
                     activePanel = nil
-                    highlightedID = created.id
-                    highlightTask?.cancel()
-                    highlightTask = Task { @MainActor in
-                        try? await Task.sleep(for: .milliseconds(900))
-                        guard !Task.isCancelled else { return }
-                        highlightedID = nil
-                    }
                 },
                 onCancel: { activePanel = nil }
             )
         }
     }
 
-    private func resolvedDockCenterY(in proxy: GeometryProxy) -> CGFloat? {
-        guard let dockCenterY else { return nil }
-        let localY = dockCenterY - proxy.frame(in: .global).minY
-        guard localY.isFinite, localY > 0 else { return nil }
-        return localY
-    }
 }
 
 /// Retained for the completion-state geometry contract used by older saved
@@ -273,5 +234,50 @@ struct HappeningCompletionIslandShape: Shape {
         path.addCurve(to: point(0.50, 0.23), control1: point(0.59, 0.12), control2: point(0.54, 0.19))
         path.closeSubpath()
         return path
+    }
+}
+
+struct HappeningPaletteInstruction: Equatable {
+    enum Kind: Equatable { case add, added, remove, error }
+    let title: String
+    let kind: Kind
+
+    var announcement: String {
+        let message: String = switch kind {
+        case .add: String(localized: "Activate again to add to Canvas")
+        case .added: String(localized: "On Canvas")
+        case .remove: String(localized: "Activate again to remove from Canvas")
+        case .error: String(localized: "Couldn’t update Canvas. Try again.")
+        }
+        return "\(title). \(message)"
+    }
+}
+
+private struct HappeningPaletteInstructionView: View {
+    let instruction: HappeningPaletteInstruction
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(instruction.title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.75))
+                .lineLimit(1)
+            Group {
+                switch instruction.kind {
+                case .add: Text("Tap again to add to Canvas")
+                case .added: Text("On Canvas")
+                case .remove: Text("Tap again to remove from Canvas")
+                case .error: Text("Couldn’t update Canvas. Try again.")
+                }
+            }
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(.white)
+            .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .liquidGlassControl(in: Capsule())
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("happening_palette_instruction")
     }
 }

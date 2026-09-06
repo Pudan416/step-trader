@@ -1,6 +1,83 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Tap again to add to Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tap again to add to Canvas" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Нажмите ещё раз, чтобы добавить на холст" } }
+      }
+    },
+    "On Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "On Canvas" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "На холсте" } }
+      }
+    },
+    "Tap again to remove from Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tap again to remove from Canvas" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Нажмите ещё раз, чтобы убрать с холста" } }
+      }
+    },
+    "Couldn’t update Canvas. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t update Canvas. Try again." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Не удалось обновить холст. Попробуйте ещё раз." } }
+      }
+    },
+    "Activate again to add to Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Activate again to add to Canvas" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Активируйте ещё раз, чтобы добавить на холст" } }
+      }
+    },
+    "Activate again to remove from Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Activate again to remove from Canvas" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Активируйте ещё раз, чтобы убрать с холста" } }
+      }
+    },
+    "Activate to preview adding to Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Activate to preview adding to Canvas" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Активируйте, чтобы просмотреть добавление на холст" } }
+      }
+    },
+    "Activate to preview removing from Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Activate to preview removing from Canvas" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Активируйте, чтобы просмотреть удаление с холста" } }
+      }
+    },
+    "Available" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Available" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Доступно" } }
+      }
+    },
+    "This happening is temporarily unavailable. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This happening is temporarily unavailable. Try again." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Это событие временно недоступно. Попробуйте ещё раз." } }
+      }
+    },
+    "Removed from Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Removed from Canvas" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Убрано с холста" } }
+      }
+    },
     "" : {
 
     },

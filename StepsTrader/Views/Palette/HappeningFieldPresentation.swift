@@ -137,24 +137,14 @@ struct HappeningFieldTransitionState: Equatable {
     }
 }
 
-/// Session presentation state shared by the field and its surrounding controls.
-/// Parent updates refresh metadata, while ids consumed in this mounted session
-/// stay consumed even if `onPick` synchronously republishes its old array.
+/// Configured slots stay present across Canvas membership and metadata updates.
 struct HappeningFieldPresentationState: Equatable {
-    private(set) var slotHappenings: [Happening]
     private(set) var presentedHappenings: [Happening]
-
-    private var sessionRemovedIDs: Set<String> = []
-    private var pendingParentHappenings: [Happening]?
+    var slotHappenings: [Happening] { presentedHappenings }
+    var presentedCount: Int { presentedHappenings.count }
 
     init(happenings: [Happening]) {
-        let initial = Array(happenings.prefix(10))
-        slotHappenings = initial
-        presentedHappenings = initial
-    }
-
-    var presentedCount: Int {
-        presentedHappenings.count
+        presentedHappenings = Array(happenings.prefix(10))
     }
 
     func layout(
@@ -174,50 +164,12 @@ struct HappeningFieldPresentationState: Equatable {
         )
     }
 
-    mutating func remove(id: String) -> Bool {
-        guard presentedHappenings.contains(where: { $0.id == id }) else { return false }
-        sessionRemovedIDs.insert(id)
-        presentedHappenings.removeAll { $0.id == id }
-        return true
+    mutating func receiveParent(_ configured: [Happening]) {
+        presentedHappenings = Array(configured.prefix(10))
     }
 
-    mutating func receiveParent(_ happenings: [Happening], whileTransitioning: Bool) {
-        if whileTransitioning {
-            pendingParentHappenings = happenings
-        } else {
-            mergeParent(happenings)
-        }
-    }
-
-    mutating func finishTransition() {
-        guard let pendingParentHappenings else { return }
-        self.pendingParentHappenings = nil
-        mergeParent(pendingParentHappenings)
-    }
-
-    mutating func reset(with happenings: [Happening]) {
-        let initial = Array(happenings.prefix(10))
-        slotHappenings = initial
-        presentedHappenings = initial
-        sessionRemovedIDs.removeAll()
-        pendingParentHappenings = nil
-    }
-
-    private mutating func mergeParent(_ happenings: [Happening]) {
-        let removedIDs = sessionRemovedIDs
-        let eligible = Array(
-            happenings
-                .filter { !removedIDs.contains($0.id) }
-                .prefix(10)
-        )
-        let replacements = Dictionary(uniqueKeysWithValues: happenings.map { ($0.id, $0) })
-
-        slotHappenings = slotHappenings.map { replacements[$0.id] ?? $0 }
-        var slotIDs = Set(slotHappenings.map(\.id))
-        for happening in eligible where slotIDs.insert(happening.id).inserted {
-            slotHappenings.append(happening)
-        }
-        presentedHappenings = eligible
+    mutating func reset(with configured: [Happening]) {
+        receiveParent(configured)
     }
 }
 

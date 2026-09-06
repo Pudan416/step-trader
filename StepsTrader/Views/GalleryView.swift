@@ -112,6 +112,14 @@ struct GalleryView: View {
     @State private var paletteSelectedIDs: [String] = []
     @State private var paletteAssignmentSnapshot: HappeningEditorialAssignmentSnapshot?
     @State private var happeningPalettePanel: HappeningPalettePanel?
+    @State private var paletteInteraction = HappeningPaletteInteractionState()
+    @State private var paletteErrorID: String?
+    @State private var paletteTransitionActive = false
+    @State private var paletteTransitionTask: Task<Void, Never>?
+    @State private var paletteConfirmationTask: Task<Void, Never>?
+    @State private var canvasViewportOrigin: CGPoint = .zero
+    @State private var canvasSafeInsets = EdgeInsets()
+    @Environment(\.dynamicTypeSize) private var paletteDynamicTypeSize
     @State private var canvasViewportSize: CGSize = .zero
     @State private var spawnPresentation = CanvasSpawnPresentationState()
     @State private var spawnFlightTasks: [UUID: Task<Void, Never>] = [:]
@@ -395,7 +403,7 @@ struct GalleryView: View {
     private func refreshHappeningPalette() {
         paletteCatalog = model.paletteHappeningCatalog()
         paletteSelectedIDs = model.selectedPaletteHappeningIDs()
-        paletteHappenings = model.availablePaletteHappenings()
+        paletteHappenings = model.configuredPaletteHappenings()
         let request = HappeningEditorialAssignmentRequest(
             happenings: model.configuredPaletteHappenings(),
             baseInput: editorialRenderInput.sceneInput,
@@ -448,6 +456,7 @@ struct GalleryView: View {
     }
 
     private func closeHappeningPalette() {
+        cancelPaletteInteraction()
         withAnimation(.easeInOut(duration: 0.18)) {
             happeningPalettePanel = nil
             showHappeningPalette = false
@@ -473,34 +482,150 @@ struct GalleryView: View {
                 catalog: paletteCatalog,
                 selectedIDs: paletteSelectedIDs,
                 activePanel: $happeningPalettePanel,
-                onPick: handlePalettePick,
+                layout: happeningPaletteLayout,
+                interaction: paletteInteraction,
+                addedIDs: paletteAddedIDs,
+                instruction: paletteInstruction,
+                onActivate: handlePaletteActivation,
                 onCreate: handlePaletteCreation,
                 onSaveSelection: handlePaletteSelectionSave,
                 onPanelPresentationChange: onPalettePanelPresentationChange,
-                onDismiss: closeHappeningPalette,
                 onReroll: {
                     model.rerollPaletteFigures()
                     refreshHappeningPalette()
-                },
-                dayKey: todayKey,
-                dockCenterY: canvasAddButtonCenterY
+                }
             )
             .transition(.opacity)
         }
     }
 
-    private func handlePalettePick(
-        _ happening: Happening,
-        assignment: HappeningEditorialAssignment,
-        origin: CGPoint
-    ) -> Bool {
-        return addAndSpawnHappening(
-            optionId: happening.id,
-            elementID: assignment.elementID,
-            editorialColorVariant: assignment.colorVariant,
-            recordUse: true,
-            origin: nil
+    private var paletteAddedIDs: Set<String> {
+        Set(dayCanvas.elements.map(\.optionId))
+    }
+
+    private var happeningPaletteLayout: HappeningFieldLayout.Layout {
+        HappeningFieldLayout.layout(
+            count: min(10, paletteHappenings.count),
+            in: canvasViewportSize,
+            safeInsets: canvasSafeInsets,
+            dynamicTypeSize: paletteDynamicTypeSize,
+            contentTopInset: canvasSafeInsets.top
+                + HappeningPaletteChromeLayout.panelTopInset(
+                    topCardHeight: topCardHeight, hidesSurroundingChrome: true
+                ) + 10,
+            dockCenterY: canvasAddButtonCenterY.map { $0 - canvasViewportOrigin.y }
         )
+    }
+
+    private var paletteRenderMode: DayObjectsPresentationMode {
+        guard showHappeningPalette else { return .canvas }
+        let layout = happeningPaletteLayout
+        let slots = paletteHappenings.prefix(10).enumerated().compactMap { index, happening
+            -> HappeningPaletteRenderSlot? in
+            guard index < layout.sources.count,
+                  let assignment = paletteEditorialAssignments[happening.id] else { return nil }
+            return HappeningPaletteRenderSlot(
+                happeningID: happening.id,
+                assignment: assignment,
+                visualState: paletteInteraction.visualState(for: happening.id, addedIDs: paletteAddedIDs),
+                source: layout.sources[index]
+            )
+        }
+        return .happeningPalette(HappeningPaletteRenderPresentation(
+            slots: slots,
+            viewportSize: canvasViewportSize,
+            reduceMotion: reduceMotion,
+            isTransitionActive: paletteTransitionActive,
+            backgroundRevision: UInt64(max(0, localMutationCounter))
+        ))
+    }
+
+    private var paletteInstruction: HappeningPaletteInstruction? {
+        let id: String
+        let kind: HappeningPaletteInstruction.Kind
+        if let errorID = paletteErrorID {
+            id = errorID
+            kind = .error
+        } else if let armed = paletteInteraction.armedMutation {
+            id = armed.id
+            switch armed {
+            case .add: kind = .add
+            case .remove: kind = .remove
+            }
+        } else if case let .added(addedID) = paletteInteraction.confirmation {
+            id = addedID
+            kind = .added
+        } else {
+            return nil
+        }
+        return HappeningPaletteInstruction(title: model.resolveOptionTitle(for: id), kind: kind)
+    }
+
+    private func handlePaletteActivation(_ happening: Happening) {
+        guard let assignment = paletteEditorialAssignments[happening.id] else { return }
+        paletteConfirmationTask?.cancel()
+        paletteErrorID = nil
+        switch paletteInteraction.tap(id: happening.id, addedIDs: paletteAddedIDs) {
+        case .armed:
+            beginPaletteTransition()
+            lightHapticTick &+= 1
+        case let .perform(mutation):
+            let succeeded: Bool
+            switch mutation {
+            case .add:
+                succeeded = addAndSpawnHappening(
+                    optionId: happening.id,
+                    elementID: assignment.elementID,
+                    editorialColorVariant: assignment.colorVariant,
+                    recordUse: true,
+                    origin: nil
+                )
+            case let .remove(id):
+                succeeded = removePaletteHappening(id: id)
+            }
+            paletteInteraction.resolve(mutation, succeeded: succeeded)
+            beginPaletteTransition()
+            guard succeeded else {
+                paletteErrorID = happening.id
+                return
+            }
+            mediumHapticTick &+= 1
+            if case .remove = mutation {
+                UIAccessibility.post(
+                    notification: .announcement,
+                    argument: "\(happening.localizedTitle()). \(String(localized: "Removed from Canvas"))"
+                )
+            }
+            paletteConfirmationTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(900))
+                guard !Task.isCancelled else { return }
+                paletteInteraction.clearConfirmation()
+                paletteConfirmationTask = nil
+            }
+        case .ignored:
+            break
+        }
+    }
+
+    private func beginPaletteTransition() {
+        paletteTransitionTask?.cancel()
+        paletteTransitionActive = true
+        paletteTransitionTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(340))
+            guard !Task.isCancelled else { return }
+            paletteTransitionActive = false
+            paletteTransitionTask = nil
+        }
+    }
+
+    private func cancelPaletteInteraction() {
+        paletteTransitionTask?.cancel()
+        paletteConfirmationTask?.cancel()
+        paletteTransitionTask = nil
+        paletteConfirmationTask = nil
+        paletteTransitionActive = false
+        paletteErrorID = nil
+        paletteInteraction.cancel()
     }
 
     private func handlePaletteCreation(_ title: String) -> Happening? {
@@ -514,6 +639,7 @@ struct GalleryView: View {
     private func handlePaletteSelectionSave(_ ids: [String]) -> Bool {
         do {
             try model.savePaletteHappeningSelection(ids)
+            cancelPaletteInteraction()
             refreshHappeningPalette()
             return true
         } catch {
@@ -652,10 +778,11 @@ struct GalleryView: View {
     private var canvasLayers: some View {
         ZStack {
             DayCanvasArtworkView(
-                style: dayCanvas.resolvedVisualStyle,
+                style: showHappeningPalette ? .editorial : dayCanvas.resolvedVisualStyle,
                 editorial: displayedEditorialRenderInput,
                 isAnimating: isCanvasSelected,
-                soundPulseBus: canvasSoundPulseBus
+                soundPulseBus: canvasSoundPulseBus,
+                presentationMode: paletteRenderMode
             ) {
                 legacyCanvasLayers
                     .background {
@@ -795,7 +922,11 @@ struct GalleryView: View {
                             }
                         }
                     }
+                    .onChange(of: geo.frame(in: .global).origin, initial: true) { _, origin in
+                        canvasViewportOrigin = origin
+                    }
                     .onChange(of: geo.safeAreaInsets, initial: true) { _, insets in
+                        canvasSafeInsets = insets
                         safeAreaTop = insets.top
                         safeAreaBottom = insets.bottom
                     }
@@ -862,6 +993,7 @@ struct GalleryView: View {
         }
         .onChange(of: todayKey) { _, newKey in
             guard newKey != activeDayKey else { return }
+            cancelPaletteInteraction()
             loadTask?.cancel()
             activeDayKey = newKey
             dayCanvas = makeNewCanvas(dayKey: newKey)
@@ -945,6 +1077,7 @@ struct GalleryView: View {
             model.checkDayBoundary()
             let newKey = AppModel.dayKey(for: Date.now)
             if newKey != activeDayKey {
+                cancelPaletteInteraction()
                 loadTask?.cancel()
                 activeDayKey = newKey
                 dayCanvas = makeNewCanvas(dayKey: newKey)
@@ -1014,6 +1147,7 @@ struct GalleryView: View {
             if !isPresented { toolbar.shareImage = nil }
         }
         .onDisappear {
+            cancelPaletteInteraction()
 #if DEBUG || INTERNAL_BUILD
             let intent = musicController.acceptLifecycleEvent(.viewDisappeared)
             Task { await musicController.completeLifecycleEvent(intent) }

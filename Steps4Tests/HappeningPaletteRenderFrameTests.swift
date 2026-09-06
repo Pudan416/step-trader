@@ -30,7 +30,7 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
         XCTAssertEqual(frame.postProcess.blurRadius, 0)
     }
 
-    func testBuilderConvertsPalettePointsUsingTheViewportShortSide() throws {
+    func testBuilderConvertsTopLeftPalettePointsToPositiveUpMetalCoordinates() throws {
         let scene = makeScene()
         let presentation = makePresentation()
         let source = try XCTUnwrap(presentation.slots.first?.source)
@@ -43,7 +43,9 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
         let actor = try actor(for: "h0", in: frame)
 
         XCTAssertEqual(actor.gpuActor.position.x, -0.4, accuracy: 0.0001)
-        XCTAssertEqual(actor.gpuActor.position.y, -1.0, accuracy: 0.0001)
+        // SwiftUI y grows down from the top; the actor vertex shader writes
+        // positive y directly to Metal clip space, which grows upward.
+        XCTAssertEqual(actor.gpuActor.position.y, 1.0, accuracy: 0.0001)
         XCTAssertEqual(actor.gpuActor.halfSize.x, Float(source.radius / 390), accuracy: 0.0001)
         XCTAssertEqual(actor.gpuActor.halfSize.y, Float(source.radius / 390), accuracy: 0.0001)
     }

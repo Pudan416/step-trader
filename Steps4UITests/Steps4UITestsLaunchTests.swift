@@ -491,6 +491,39 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         attachScreenshot(named: "palette-shapes-after-shake")
     }
 
+    func testHappeningPaletteToggleFlow() throws {
+        let app = launchTask7App()
+        openPalette(in: app)
+        let walk = app.buttons["happening_choice_happening_walk"]
+        XCTAssertTrue(walk.waitForExistence(timeout: 5))
+        walk.tap()
+        XCTAssertTrue(app.staticTexts["Tap again to add to Canvas"].waitForExistence(timeout: 1))
+        walk.tap()
+        XCTAssertEqual(walk.value as? String, "On Canvas")
+        XCTAssertTrue(app.otherElements["happening_status_added_happening_walk"].exists)
+        assertPersistentPaletteChrome(in: app)
+        walk.tap()
+        XCTAssertTrue(app.staticTexts["Tap again to remove from Canvas"].waitForExistence(timeout: 1))
+        walk.tap()
+        XCTAssertEqual(walk.value as? String, "Available")
+        XCTAssertTrue(walk.exists)
+        assertPersistentPaletteChrome(in: app)
+    }
+
+    private func assertPersistentPaletteChrome(in app: XCUIApplication) {
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_'")).count, 10)
+        for id in [
+            "walk", "workout", "slept_well", "called_someone", "drinks",
+            "read", "laughed", "made_something", "outside", "did_nothing",
+        ] {
+            XCTAssertTrue(app.buttons["happening_choice_happening_\(id)"].exists)
+        }
+        XCTAssertTrue(app.buttons["Choose happenings"].isHittable)
+        XCTAssertTrue(app.buttons["Close"].isHittable)
+        XCTAssertFalse(app.buttons["tab_canvas"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["canvas_energy_pill"].exists)
+    }
+
     func testEditorialHappeningPaletteScreenshots() throws {
         let app = launchTask7App()
         openPalette(in: app)
@@ -504,26 +537,26 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         attachScreenshot(named: "editorial-palette-circles")
 
         app.buttons["Walk"].tap()
-        XCTAssertEqual(app.buttons["Walk"].value as? String, "Preview. Tap again to add")
+        XCTAssertEqual(app.buttons["Walk"].value as? String, "Available")
         for title in task7BuiltInTitles.dropFirst() {
-            XCTAssertEqual(app.buttons[title].value as? String ?? "", "")
+            XCTAssertEqual(app.buttons[title].value as? String, "Available")
         }
         Thread.sleep(forTimeInterval: 0.6)
         attachScreenshot(named: "editorial-palette-shape-preview")
 
         app.buttons["Walk"].tap()
-        XCTAssertFalse(app.buttons["Walk"].waitForExistence(timeout: 2))
+        XCTAssertEqual(app.buttons["Walk"].value as? String, "On Canvas")
         XCTAssertEqual(
             app.buttons.matching(
                 NSPredicate(format: "identifier BEGINSWITH 'happening_choice_'")
             ).count,
-            9
+            10
         )
         XCTAssertTrue(app.buttons["Choose happenings"].isHittable)
         XCTAssertTrue(app.buttons["Close"].isHittable)
         XCTAssertFalse(app.buttons["tab_canvas"].exists)
         Thread.sleep(forTimeInterval: 0.7)
-        attachScreenshot(named: "editorial-palette-reflow")
+        attachScreenshot(named: "editorial-palette-added-fixed-slots")
     }
 
     private func launchTask7App(
@@ -568,8 +601,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         let addHappening = app.buttons["Add happening"]
         XCTAssertTrue(addHappening.waitForExistence(timeout: 8))
         addHappening.tap()
-        // The dock, not a happening: once one has been picked it never comes
-        // back, and the palette is just as open without it.
+        // The fixed dock is available for the entire palette session.
         XCTAssertTrue(app.buttons["Close"].waitForExistence(timeout: 5))
     }
 

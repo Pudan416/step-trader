@@ -299,6 +299,19 @@ final class CanvasOverlayIntegrationRegressionTests: XCTestCase {
 @MainActor
 final class HappeningFieldLayoutTests: XCTestCase {
 
+    func testConfiguredSlotsRemainFixedAfterCanvasMembershipChanges() {
+        let configured = Array(HappeningDefaults.builtIns.prefix(10))
+        var state = HappeningFieldPresentationState(happenings: configured)
+        let original = state.layout(in: size, safeInsets: safeInsets)
+        var interaction = HappeningPaletteInteractionState()
+        _ = interaction.tap(id: configured[0].id, addedIDs: [])
+        _ = interaction.tap(id: configured[0].id, addedIDs: [])
+        interaction.resolve(.add(configured[0].id), succeeded: true)
+        state.receiveParent(configured)
+        XCTAssertEqual(state.presentedHappenings.map(\.id), configured.map(\.id))
+        XCTAssertEqual(state.layout(in: size, safeInsets: safeInsets), original)
+    }
+
     private let size = CGSize(width: 402, height: 874)
     private let safeInsets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
 
@@ -816,42 +829,17 @@ final class HappeningFieldTransitionStateTests: XCTestCase {
         XCTAssertEqual(state.selectedID, "happening_read")
     }
 
-    func testQueuedRemovalResolvesMovedZoneFromCurrentNineItemLayout() throws {
+    func testMetadataRefreshKeepsEveryHitTargetAtItsConfiguredSource() throws {
         let size = CGSize(width: 402, height: 874)
         let safeInsets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
-        let initial = Array(HappeningDefaults.builtIns.prefix(10))
-        let queued = initial[9]
-        var presentation = HappeningFieldPresentationState(happenings: initial)
-        let tenItemLayout = presentation.layout(in: size, safeInsets: safeInsets)
-        let staleSource = tenItemLayout.sources[9]
-
-        XCTAssertTrue(presentation.remove(id: initial[0].id))
-        let nineItemLayout = presentation.layout(in: size, safeInsets: safeInsets)
-        let currentIndex = try XCTUnwrap(
-            presentation.presentedHappenings.firstIndex { $0.id == queued.id }
-        )
-        let resolved = try XCTUnwrap(
-            HappeningFieldRemovalResolver.resolve(
-                id: queued.id,
-                presentation: presentation,
-                size: size,
-                safeInsets: safeInsets,
-                dynamicTypeSize: .large
-            )
-        )
-
-        XCTAssertEqual(resolved.happening.id, queued.id)
-        XCTAssertEqual(resolved.source, nineItemLayout.sources[currentIndex])
-        XCTAssertEqual(resolved.transitionSources, nineItemLayout.sources)
-        XCTAssertGreaterThan(
-            hypot(
-                resolved.source.center.x - staleSource.center.x,
-                resolved.source.center.y - staleSource.center.y
-            ),
-            60,
-            "the fixture must prove the queued zone moved substantially during 10→9 reflow"
-        )
-        XCTAssertNotEqual(resolved.source, staleSource)
+        let configured = Array(HappeningDefaults.builtIns.prefix(10))
+        var presentation = HappeningFieldPresentationState(happenings: configured)
+        let original = presentation.layout(in: size, safeInsets: safeInsets)
+        var refreshed = configured
+        refreshed[0].useCount += 1
+        presentation.receiveParent(refreshed)
+        XCTAssertEqual(presentation.layout(in: size, safeInsets: safeInsets), original)
+        XCTAssertEqual(presentation.presentedHappenings.first?.useCount, refreshed[0].useCount)
     }
 
     func testFinishRemovalUnlocksOnlyAfterReflowAndAllowsAnotherID() {
@@ -945,49 +933,24 @@ final class HappeningFieldPresentationStateTests: XCTestCase {
     private let size = CGSize(width: 402, height: 874)
     private let safeInsets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
 
-    func testOnPickParentUpdateDuringReflowDoesNotResurrectSessionRemoval() throws {
-        let initial = Array(HappeningDefaults.builtIns.prefix(3))
-        let removed = initial[0]
-        let survivor = initial[1]
+    func testParentRefreshPreservesAllTenConfiguredSlotsAndUpdatesMetadata() throws {
+        let initial = Array(HappeningDefaults.builtIns.prefix(10))
         var state = HappeningFieldPresentationState(happenings: initial)
-
-        var parentRefresh = initial
-        parentRefresh[1].useCount = 7
-        state.receiveParent(parentRefresh, whileTransitioning: true)
-        XCTAssertTrue(state.remove(id: removed.id))
-        state.finishTransition()
-
-        XCTAssertFalse(state.presentedHappenings.contains { $0.id == removed.id })
-        XCTAssertEqual(
-            try XCTUnwrap(state.presentedHappenings.first { $0.id == survivor.id }).useCount,
-            7,
-            "parent metadata should still merge into surviving session items"
-        )
+        let original = state.layout(in: size, safeInsets: safeInsets)
+        var refreshed = initial
+        refreshed[1].useCount = 7
+        state.receiveParent(refreshed)
+        XCTAssertEqual(state.presentedHappenings.map(\.id), initial.map(\.id))
+        XCTAssertEqual(state.presentedHappenings[1].useCount, 7)
+        XCTAssertEqual(state.layout(in: size, safeInsets: safeInsets), original)
     }
 
-    func testSharedPresentationCountLeavesDockFixedThroughTenNineEight() {
-        var state = HappeningFieldPresentationState(
-            happenings: Array(HappeningDefaults.builtIns.prefix(10))
-        )
-
-        let ten = state.layout(in: size, safeInsets: safeInsets)
-        XCTAssertEqual(state.presentedCount, 10)
-
-        XCTAssertTrue(state.remove(id: state.presentedHappenings[0].id))
-        let nine = state.layout(in: size, safeInsets: safeInsets)
-        XCTAssertEqual(state.presentedCount, 9)
-
-        XCTAssertTrue(state.remove(id: state.presentedHappenings[0].id))
-        let eight = state.layout(in: size, safeInsets: safeInsets)
-        XCTAssertEqual(state.presentedCount, 8)
-
-        // Inverted deliberately: the dock is anchored to a full field, so
-        // consuming happenings must NOT move it. It used to ride up the screen
-        // with the shrinking cluster.
-        XCTAssertEqual(ten.dockAnchor, nine.dockAnchor)
-        XCTAssertEqual(nine.dockAnchor, eight.dockAnchor)
+    func testConfiguredReplacementTakesFirstTenAndPreservesTheirOrder() {
+        var state = HappeningFieldPresentationState(happenings: [])
+        let configured = Array(HappeningDefaults.builtIns.reversed())
+        state.receiveParent(configured)
+        XCTAssertEqual(state.presentedHappenings.map(\.id), Array(configured.prefix(10)).map(\.id))
     }
-
 }
 
 /// Label contrast is unrelated to the replaced blob geometry, so it remains
