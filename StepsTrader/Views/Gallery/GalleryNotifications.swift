@@ -12,6 +12,17 @@ struct CanvasHappeningRemovalResult {
     let removedElement: CanvasElement
 }
 
+/// Persists the canonical post-removal canvas, including a valid empty canvas.
+/// The Bool result must decide whether the matching domain entry is removed.
+enum CanvasHappeningRemovalPersistence {
+    static func persist(
+        _ canvas: DayCanvas,
+        save: (DayCanvas) -> Bool
+    ) -> Bool {
+        save(canvas)
+    }
+}
+
 /// Persists the canonical canvas before committing the matching day entry.
 /// A failed or not-yet-loaded canvas therefore cannot consume a palette zone.
 @MainActor

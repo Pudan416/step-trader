@@ -384,6 +384,22 @@ final class HappeningFieldLayoutTests: XCTestCase {
         XCTAssertTrue(model.todayAdditions.isEmpty)
     }
 
+    func testEmptyCanonicalRemovalPersistencePropagatesSaveFailure() {
+        let canvas = DayCanvas(dayKey: "2026-08-08")
+        var savedCanvas: DayCanvas?
+
+        let persisted = CanvasHappeningRemovalPersistence.persist(
+            canvas,
+            save: {
+                savedCanvas = $0
+                return false
+            }
+        )
+
+        XCTAssertFalse(persisted)
+        XCTAssertTrue(savedCanvas?.elements.isEmpty ?? false)
+    }
+
     func testRemovalRejectsMismatchedDayOrMissingHappeningWithoutSideEffects() {
         let date = Date(timeIntervalSince1970: 1_786_176_000)
         let model = makeRemovalModel()

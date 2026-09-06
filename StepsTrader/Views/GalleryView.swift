@@ -1776,11 +1776,10 @@ struct GalleryView: View {
             at: now,
             persist: { canvas in
                 if usesTask7UITestFixture { return true }
-                if canvas.elements.isEmpty {
-                    CanvasStorageService.shared.deleteCanvas(for: canvas.dayKey)
-                    return true
-                }
-                return CanvasStorageService.shared.saveCanvas(canvas)
+                return CanvasHappeningRemovalPersistence.persist(
+                    canvas,
+                    save: CanvasStorageService.shared.saveCanvas
+                )
             }
         ) else {
             return false
