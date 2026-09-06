@@ -3,6 +3,7 @@ import Foundation
 enum HappeningPaletteSelectionDraftToggleResult: Equatable {
     case added
     case removed
+    case protected
     case limitReached
     case unavailable
 }
@@ -12,13 +13,15 @@ enum HappeningPaletteSelectionDraftToggleResult: Equatable {
 struct HappeningPaletteSelectionDraft {
     private let originalIDs: [String]
     private let liveIDs: Set<String>
+    private let protectedIDs: Set<String>
 
     private(set) var ids: [String]
 
-    init(selected: [String], catalog: [Happening]) {
+    init(selected: [String], catalog: [Happening], protectedIDs: Set<String> = []) {
         originalIDs = selected
         ids = selected
         liveIDs = Set(catalog.map(\.id))
+        self.protectedIDs = protectedIDs
     }
 
     var canSave: Bool {
@@ -31,6 +34,7 @@ struct HappeningPaletteSelectionDraft {
         guard liveIDs.contains(id) else { return .unavailable }
 
         if let index = ids.firstIndex(of: id) {
+            guard !protectedIDs.contains(id) else { return .protected }
             ids.remove(at: index)
             return .removed
         }
@@ -78,19 +82,28 @@ final class HappeningPaletteSelectionStore {
     }
 
     @discardableResult
-    func insertReplacingLeastUsed(_ id: String, catalog: [Happening]) throws -> String {
+    func insertReplacingLeastUsed(
+        _ id: String,
+        catalog: [Happening],
+        excluding protectedIDs: Set<String> = []
+    ) throws -> String {
         guard isValidSelection(ids, catalog: catalog),
               catalog.contains(where: { $0.id == id }),
               !ids.contains(id) else {
             throw HappeningPaletteSelectionError.requiresExactlyTen
         }
 
-        let index = HappeningPaletteSelection.replacementIndex(in: ids, catalog: catalog)
+        guard let index = HappeningPaletteSelection.replacementIndex(
+            in: ids,
+            catalog: catalog,
+            excluding: protectedIDs
+        ) else {
+            throw HappeningPaletteSelectionError.noReplaceableSlot
+        }
         let removed = ids[index]
-        try save(
-            HappeningPaletteSelection.replacingLeastUsed(in: ids, with: id, catalog: catalog),
-            catalog: catalog
-        )
+        var replacement = ids
+        replacement[index] = id
+        try save(replacement, catalog: catalog)
         return removed
     }
 

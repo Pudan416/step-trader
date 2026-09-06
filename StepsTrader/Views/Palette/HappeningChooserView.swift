@@ -28,6 +28,7 @@ enum HappeningPanelAccessibilityOrder {
 /// sends the complete draft back to the owner for persistence.
 struct HappeningChooserView: View {
     let catalog: [Happening]
+    let protectedIDs: Set<String>
     let onCreateNew: () -> Void
     let onSave: ([String]) -> Void
     let onCancel: () -> Void
@@ -38,15 +39,21 @@ struct HappeningChooserView: View {
     init(
         catalog: [Happening],
         selected: [String],
+        protectedIDs: Set<String> = [],
         onCreateNew: @escaping () -> Void = {},
         onSave: @escaping ([String]) -> Void,
         onCancel: @escaping () -> Void
     ) {
         self.catalog = catalog
+        self.protectedIDs = protectedIDs
         self.onCreateNew = onCreateNew
         self.onSave = onSave
         self.onCancel = onCancel
-        _draft = State(initialValue: HappeningPaletteSelectionDraft(selected: selected, catalog: catalog))
+        _draft = State(initialValue: HappeningPaletteSelectionDraft(
+            selected: selected,
+            catalog: catalog,
+            protectedIDs: protectedIDs
+        ))
     }
 
     private var filteredCatalog: [Happening] {
@@ -175,6 +182,7 @@ struct HappeningChooserView: View {
     @ViewBuilder
     private func chooserRow(for happening: Happening) -> some View {
         let isSelected = draft.ids.contains(happening.id)
+        let isProtected = isSelected && protectedIDs.contains(happening.id)
 
         Button {
             switch draft.toggle(id: happening.id) {
@@ -182,6 +190,11 @@ struct HappeningChooserView: View {
                 UIAccessibility.post(
                     notification: .announcement,
                     argument: "Ten happenings are already selected. Deselect one before choosing another."
+                )
+            case .protected:
+                UIAccessibility.post(
+                    notification: .announcement,
+                    argument: "Remove this happening from Canvas before replacing it."
                 )
             case .added, .removed, .unavailable:
                 break
@@ -198,24 +211,31 @@ struct HappeningChooserView: View {
 
                 Spacer(minLength: 8)
 
-                ZStack {
-                    Circle()
-                        .fill(isSelected ? AppColors.brandAccent : Color.clear)
-                        .overlay {
-                            Circle().strokeBorder(
-                                isSelected
-                                    ? Color.clear
-                                    : Color.primary.opacity(0.25),
-                                lineWidth: 1.5
-                            )
+                HStack(spacing: 6) {
+                    ZStack {
+                        Circle()
+                            .fill(isSelected ? AppColors.brandAccent : Color.clear)
+                            .overlay {
+                                Circle().strokeBorder(
+                                    isSelected
+                                        ? Color.clear
+                                        : Color.primary.opacity(0.25),
+                                    lineWidth: 1.5
+                                )
+                            }
+                        if isSelected {
+                            Image(systemName: "checkmark")
+                                .font(.geist(size: 14, weight: .bold))
+                                .foregroundStyle(Color.black.opacity(0.8))
                         }
-                    if isSelected {
-                        Image(systemName: "checkmark")
-                            .font(.geist(size: 14, weight: .bold))
-                            .foregroundStyle(Color.black.opacity(0.8))
+                    }
+                    .frame(width: 28, height: 28)
+                    if isProtected {
+                        Image(systemName: "lock.fill")
+                            .font(.geist(size: 12, weight: .semibold))
+                            .foregroundStyle(.secondary)
                     }
                 }
-                .frame(width: 28, height: 28)
                 .accessibilityHidden(true)
             }
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
@@ -223,9 +243,13 @@ struct HappeningChooserView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(happening.localizedTitle())
-        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .accessibilityValue(
+            isProtected ? "Selected, on Canvas" : isSelected ? "Selected" : "Not selected"
+        )
         .accessibilityHint(
-            isSelected
+            isProtected
+                ? "Remove this happening from Canvas before replacing it."
+                : isSelected
                 ? "Double tap to remove from the palette."
                 : draft.ids.count == HappeningPaletteSelection.slotCount
                     ? "Deselect a happening before choosing another."

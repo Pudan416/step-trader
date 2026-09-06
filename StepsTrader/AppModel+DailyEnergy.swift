@@ -79,25 +79,27 @@ extension AppModel {
     func createPaletteHappening(
         title: String,
         at date: Date = .now,
+        protectedIDs: Set<String> = [],
         syncCustomHappenings: @escaping ([Happening]) -> Void = { happenings in
             Task { await SupabaseSyncService.shared.syncCustomHappenings(happenings) }
         }
-    ) -> Happening? {
-        let happening = createHappening(title: title, at: date)
-        do {
-            try happeningPaletteSelectionStore.insertReplacingLeastUsed(
-                happening.id,
-                catalog: happeningStore.all
-            )
-            objectWillChange.send()
-            syncCustomHappenings(happeningStore.all)
-            return happening
-        } catch {
-            AppLogger.energy.error(
-                "Failed to install created palette happening: \(error.localizedDescription)"
-            )
-            return nil
+    ) throws -> Happening {
+        guard HappeningPaletteSelection.replacementIndex(
+            in: happeningPaletteSelectionStore.ids,
+            catalog: happeningStore.all,
+            excluding: protectedIDs
+        ) != nil else {
+            throw HappeningPaletteSelectionError.noReplaceableSlot
         }
+        let happening = createHappening(title: title, at: date)
+        try happeningPaletteSelectionStore.insertReplacingLeastUsed(
+            happening.id,
+            catalog: happeningStore.all,
+            excluding: protectedIDs
+        )
+        objectWillChange.send()
+        syncCustomHappenings(happeningStore.all)
+        return happening
     }
 
     /// Adds a detected external activity to the full catalog and to the ten

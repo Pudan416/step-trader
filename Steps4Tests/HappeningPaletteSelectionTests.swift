@@ -144,6 +144,19 @@ final class HappeningPaletteSelectionTests: XCTestCase {
         XCTAssertEqual(incompleteDraft.toggle(id: "unknown"), .unavailable)
     }
 
+    func testChooserDraftKeepsHappeningSelectedWhenItIsOnCanvas() {
+        let catalog = makeCatalog(counts: Array(repeating: 0, count: 10))
+        let selected = catalog.map(\.id)
+        var draft = HappeningPaletteSelectionDraft(
+            selected: selected,
+            catalog: catalog,
+            protectedIDs: [selected[0]]
+        )
+
+        XCTAssertEqual(draft.toggle(id: selected[0]), .protected)
+        XCTAssertEqual(draft.ids, selected)
+    }
+
     func testPanelAccessibilityOrderPlacesChooserSearchBeforeRowsAndCreatorInputBeforeActions() {
         XCTAssertEqual(
             HappeningPanelAccessibilityOrder.chooser,
@@ -217,6 +230,50 @@ final class HappeningPaletteSelectionTests: XCTestCase {
             ),
             0
         )
+    }
+
+    func testReplacementSkipsProtectedHappeningEvenWhenItIsLeastUsed() {
+        let catalog = makeCatalog(counts: [0, 1])
+
+        XCTAssertEqual(
+            HappeningPaletteSelection.replacementIndex(
+                in: ["h0", "h1"],
+                catalog: catalog,
+                excluding: ["h0"]
+            ),
+            1
+        )
+    }
+
+    func testReplacementReturnsNilWhenEverySelectedHappeningIsProtected() {
+        let catalog = makeCatalog(counts: [0, 1])
+
+        XCTAssertNil(
+            HappeningPaletteSelection.replacementIndex(
+                in: ["h0", "h1"],
+                catalog: catalog,
+                excluding: ["h0", "h1"]
+            )
+        )
+    }
+
+    func testStoreReportsNoReplaceableSlotWhenEverySelectedHappeningIsProtected() throws {
+        let catalog = makeCatalog(counts: Array(repeating: 0, count: 10))
+            + [Happening(id: "user_sauna", title: "Sauna", isBuiltIn: false)]
+        let store = HappeningPaletteSelectionStore(defaults: defaults)
+        let selected = Array(catalog.prefix(10).map(\.id))
+        try store.save(selected, catalog: catalog)
+
+        XCTAssertThrowsError(
+            try store.insertReplacingLeastUsed(
+                "user_sauna",
+                catalog: catalog,
+                excluding: Set(selected)
+            )
+        ) {
+            XCTAssertEqual($0 as? HappeningPaletteSelectionError, .noReplaceableSlot)
+        }
+        XCTAssertEqual(store.ids, selected)
     }
 
     func testReplacementDoesNotDeleteTheReplacedCatalogItem() throws {

@@ -195,6 +195,7 @@ struct HappeningPaletteView: View {
             HappeningChooserView(
                 catalog: catalog,
                 selected: selectedIDs,
+                protectedIDs: addedIDs,
                 onCreateNew: { activePanel = .creator },
                 onSave: { ids in
                     if onSaveSelection(ids) { activePanel = nil }

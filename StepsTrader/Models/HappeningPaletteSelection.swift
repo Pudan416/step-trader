@@ -2,6 +2,7 @@ import Foundation
 
 enum HappeningPaletteSelectionError: Error, Equatable {
     case requiresExactlyTen
+    case noReplaceableSlot
 }
 
 /// Pure rules for the user's fixed, ten-slot happening palette.
@@ -24,11 +25,14 @@ enum HappeningPaletteSelection {
 
     /// The least-used visible happening loses its slot. Ties favour the oldest
     /// use, then the earlier current slot so replacement is deterministic.
-    static func replacementIndex(in ids: [String], catalog: [Happening]) -> Int {
-        precondition(!ids.isEmpty)
+    static func replacementIndex(
+        in ids: [String],
+        catalog: [Happening],
+        excluding protectedIDs: Set<String> = []
+    ) -> Int? {
         let happeningsByID = Dictionary(uniqueKeysWithValues: catalog.map { ($0.id, $0) })
 
-        return ids.indices.min { lhs, rhs in
+        return ids.indices.filter { !protectedIDs.contains(ids[$0]) }.min { lhs, rhs in
             let left = happeningsByID[ids[lhs]]!
             let right = happeningsByID[ids[rhs]]!
             if left.useCount != right.useCount { return left.useCount < right.useCount }
@@ -37,12 +41,24 @@ enum HappeningPaletteSelection {
             let rightLastUsed = right.lastUsedAt ?? .distantPast
             if leftLastUsed != rightLastUsed { return leftLastUsed < rightLastUsed }
             return lhs < rhs
-        }!
+        }
     }
 
-    static func replacingLeastUsed(in ids: [String], with id: String, catalog: [Happening]) -> [String] {
+    static func replacingLeastUsed(
+        in ids: [String],
+        with id: String,
+        catalog: [Happening],
+        excluding protectedIDs: Set<String> = []
+    ) -> [String]? {
+        guard let index = replacementIndex(
+            in: ids,
+            catalog: catalog,
+            excluding: protectedIDs
+        ) else {
+            return nil
+        }
         var replaced = ids
-        replaced[replacementIndex(in: ids, catalog: catalog)] = id
+        replaced[index] = id
         return replaced
     }
 }

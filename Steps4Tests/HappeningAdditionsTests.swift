@@ -196,9 +196,7 @@ final class HappeningAdditionsTests: XCTestCase {
         let date = Date(timeIntervalSince1970: 1_786_176_000)
         let replacedID = try XCTUnwrap(model.configuredPaletteHappenings().first?.id)
 
-        let created = try XCTUnwrap(
-            model.createPaletteHappening(title: "Sauna", at: date)
-        )
+        let created = try model.createPaletteHappening(title: "Sauna", at: date)
 
         XCTAssertTrue(model.todayAdditions.isEmpty)
         XCTAssertEqual(model.configuredPaletteHappenings().count, 10)
@@ -217,18 +215,34 @@ final class HappeningAdditionsTests: XCTestCase {
         let date = Date(timeIntervalSince1970: 1_786_176_000)
         var synchronizedSnapshots: [[Happening]] = []
 
-        let created = try XCTUnwrap(
-            model.createPaletteHappening(
-                title: "Sauna",
-                at: date,
-                syncCustomHappenings: { synchronizedSnapshots.append($0) }
-            )
+        let created = try model.createPaletteHappening(
+            title: "Sauna",
+            at: date,
+            syncCustomHappenings: { synchronizedSnapshots.append($0) }
         )
 
         XCTAssertEqual(synchronizedSnapshots.count, 1)
         XCTAssertTrue(synchronizedSnapshots[0].contains { $0.id == created.id })
         XCTAssertEqual(model.selectedPaletteHappeningIDs().first, created.id)
         XCTAssertTrue(model.todayAdditions.isEmpty)
+    }
+
+    func testPaletteCreationReportsNoReplaceableSlotWhenEverySelectedHappeningIsOnCanvas() throws {
+        let model = makeModel()
+        model.loadDailyEnergyState()
+        let selected = model.selectedPaletteHappeningIDs()
+        let catalogCount = model.paletteHappeningCatalog().count
+
+        XCTAssertThrowsError(
+            try model.createPaletteHappening(
+                title: "Sauna",
+                protectedIDs: Set(selected)
+            )
+        ) {
+            XCTAssertEqual($0 as? HappeningPaletteSelectionError, .noReplaceableSlot)
+        }
+        XCTAssertEqual(model.selectedPaletteHappeningIDs(), selected)
+        XCTAssertEqual(model.paletteHappeningCatalog().count, catalogCount)
     }
 
     func testSavingPaletteSelectionUsesTheFullCatalogAndRefreshesAvailability() throws {

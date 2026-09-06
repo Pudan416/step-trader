@@ -500,7 +500,8 @@ struct GalleryView: View {
     }
 
     private var paletteAddedIDs: Set<String> {
-        Set(dayCanvas.elements.map(\.optionId))
+        guard dayCanvas.dayKey == AppModel.dayKey(for: .now) else { return [] }
+        return Set(dayCanvas.elements.map(\.optionId))
     }
 
     private var happeningPaletteLayout: HappeningFieldLayout.Layout {
@@ -629,7 +630,16 @@ struct GalleryView: View {
     }
 
     private func handlePaletteCreation(_ title: String) -> Happening? {
-        guard let created = model.createPaletteHappening(title: title) else {
+        let created: Happening
+        do {
+            created = try model.createPaletteHappening(
+                title: title,
+                protectedIDs: paletteAddedIDs
+            )
+        } catch {
+            AppLogger.ui.error(
+                "Failed to create palette happening: \(error.localizedDescription)"
+            )
             return nil
         }
         refreshHappeningPalette()
