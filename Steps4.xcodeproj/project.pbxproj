@@ -2747,6 +2747,7 @@
 				AL01000053000053000000B1 /* AuthSignInLoadingStateTests.swift in Sources */,
 				60OR0001300000000060OR0001 /* CanvasOverlayStyleTests.swift in Sources */,
 				20CC020C2F86000000000012 /* SettingsHomePresentationTests.swift in Sources */,
+				DA00400040004000400040B1 /* HappeningPaletteInteractionTests.swift in Sources */,
 				C5A510030906202600000002 /* DayCanvasArtworkRoutingTests.swift in Sources */,
 				20CC02122F86000000000018 /* SettingsPermissionPresentationTests.swift in Sources */,
 			);
