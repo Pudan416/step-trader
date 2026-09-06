@@ -7,13 +7,15 @@ struct DayObjectsMetalView: UIViewRepresentable {
     let digitalImpact: DayObjectDigitalImpact
     let isAnimating: Bool
     let soundPulseBus: DayObjectsSoundPulseBus?
+    var presentationMode: DayObjectsPresentationMode = .canvas
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             scene: scene,
             environment: environment,
             digitalImpact: digitalImpact,
-            soundPulseBus: soundPulseBus
+            soundPulseBus: soundPulseBus,
+            presentationMode: presentationMode
         )
     }
 
@@ -21,44 +23,34 @@ struct DayObjectsMetalView: UIViewRepresentable {
         let renderer = context.coordinator.renderer
         let view = MTKView(frame: .zero, device: renderer?.device)
         view.delegate = renderer
-        Self.configureAnimationFrameRate(view)
         DayObjectsRenderer.configureDisplay(view)
         view.framebufferOnly = true
-        view.enableSetNeedsDisplay = !isAnimating
-        view.isPaused = !isAnimating || renderer == nil
         view.clearColor = MTLClearColorMake(0, 0, 0, 0)
         view.isOpaque = false
         view.layer.isOpaque = false
         view.backgroundColor = .clear
         view.isUserInteractionEnabled = false
 
-        renderer?.setAnimating(isAnimating)
         context.coordinator.mtkView = view
+        updateUIView(view, context: context)
         return view
     }
 
-    static func configureAnimationFrameRate(_ view: MTKView) {
-        view.preferredFramesPerSecond = 30
+    static func configureAnimationFrameRate(_ view: MTKView, prefersSixtyFPS: Bool = false) {
+        // MTKView owns the display link and exposes its rate through this API.
+        view.preferredFramesPerSecond = prefersSixtyFPS ? 60 : 30
     }
 
     func updateUIView(_ uiView: MTKView, context: Context) {
-        guard let renderer = context.coordinator.renderer else {
-            uiView.isPaused = true
-            return
-        }
-
-        renderer.update(
+        context.coordinator.update(
+            uiView,
             scene: scene,
             environment: environment,
             digitalImpact: digitalImpact,
-            soundPulseBus: soundPulseBus
+            soundPulseBus: soundPulseBus,
+            presentationMode: presentationMode,
+            isAnimating: isAnimating
         )
-        renderer.setAnimating(isAnimating)
-        uiView.enableSetNeedsDisplay = !isAnimating
-        uiView.isPaused = !isAnimating
-        if !isAnimating {
-            uiView.setNeedsDisplay()
-        }
     }
 
     static func dismantleUIView(_ uiView: MTKView, coordinator: Coordinator) {
@@ -76,14 +68,43 @@ struct DayObjectsMetalView: UIViewRepresentable {
             scene: DayObjectScene,
             environment: DayObjectEnvironment,
             digitalImpact: DayObjectDigitalImpact,
-            soundPulseBus: DayObjectsSoundPulseBus?
+            soundPulseBus: DayObjectsSoundPulseBus?,
+            presentationMode: DayObjectsPresentationMode = .canvas
         ) {
             renderer = DayObjectsRenderer.create(
                 scene: scene,
                 environment: environment,
                 digitalImpact: digitalImpact,
-                soundPulseBus: soundPulseBus
+                soundPulseBus: soundPulseBus,
+                presentationMode: presentationMode
             )
+        }
+
+        func update(
+            _ view: MTKView,
+            scene: DayObjectScene,
+            environment: DayObjectEnvironment,
+            digitalImpact: DayObjectDigitalImpact,
+            soundPulseBus: DayObjectsSoundPulseBus?,
+            presentationMode: DayObjectsPresentationMode,
+            isAnimating: Bool
+        ) {
+            DayObjectsMetalView.configureAnimationFrameRate(
+                view, prefersSixtyFPS: presentationMode.prefersSixtyFPS
+            )
+            guard let renderer else {
+                view.isPaused = true
+                return
+            }
+            renderer.update(scene: scene, environment: environment, digitalImpact: digitalImpact,
+                            soundPulseBus: soundPulseBus, presentationMode: presentationMode)
+            let runsContinuously = isAnimating && (presentationMode == .canvas || presentationMode.prefersSixtyFPS)
+            renderer.setAnimating(runsContinuously)
+            view.enableSetNeedsDisplay = !runsContinuously
+            view.isPaused = !runsContinuously
+            if !runsContinuously {
+                view.setNeedsDisplay()
+            }
         }
     }
 }

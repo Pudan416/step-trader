@@ -40,6 +40,7 @@ struct DayCanvasArtworkView<LegacyArtwork: View>: View {
     let editorial: EditorialCanvasRenderInput
     let isAnimating: Bool
     let soundPulseBus: DayObjectsSoundPulseBus?
+    let presentationMode: DayObjectsPresentationMode
     private let legacyArtwork: () -> LegacyArtwork
 
     init(
@@ -47,12 +48,14 @@ struct DayCanvasArtworkView<LegacyArtwork: View>: View {
         editorial: EditorialCanvasRenderInput,
         isAnimating: Bool,
         soundPulseBus: DayObjectsSoundPulseBus? = nil,
+        presentationMode: DayObjectsPresentationMode = .canvas,
         @ViewBuilder legacyArtwork: @escaping () -> LegacyArtwork
     ) {
         self.style = style
         self.editorial = editorial
         self.isAnimating = isAnimating
         self.soundPulseBus = soundPulseBus
+        self.presentationMode = presentationMode
         self.legacyArtwork = legacyArtwork
     }
 
@@ -64,7 +67,8 @@ struct DayCanvasArtworkView<LegacyArtwork: View>: View {
                 sceneInput: editorial.sceneInput,
                 digitalImpact: editorial.digitalImpact,
                 isAnimating: isAnimating,
-                soundPulseBus: soundPulseBus
+                soundPulseBus: soundPulseBus,
+                presentationMode: presentationMode
             )
         case .legacy:
             legacyArtwork()

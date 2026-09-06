@@ -9,6 +9,113 @@ import simd
 @testable import Steps4
 
 final class DayObjectRenderFrameTests: XCTestCase {
+    func testPaletteBackgroundCacheChangesOnlyWithRevisionOrTargetSize() {
+        var policy = DayObjectsBackgroundRenderPolicy()
+        let plan = DayObjectsRenderTargetPlan(drawableWidth: 390, drawableHeight: 844)
+        let first = paletteMode()
+        XCTAssertTrue(policy.shouldRender(mode: first, targetPlan: plan))
+        policy.didRender(mode: first, targetPlan: plan)
+        XCTAssertFalse(policy.shouldRender(mode: first, targetPlan: plan))
+        XCTAssertFalse(policy.shouldRender(mode: paletteMode(active: true), targetPlan: plan))
+        XCTAssertTrue(policy.shouldRender(mode: paletteMode(revision: 2), targetPlan: plan))
+        XCTAssertTrue(policy.shouldRender(mode: first, targetPlan: .init(drawableWidth: 844, drawableHeight: 390)))
+        XCTAssertTrue(policy.shouldRender(mode: .canvas, targetPlan: plan))
+        policy.didRender(mode: .canvas, targetPlan: plan)
+        XCTAssertTrue(policy.shouldRender(mode: first, targetPlan: plan))
+        policy.didRender(mode: first, targetPlan: plan)
+        policy.invalidate()
+        XCTAssertTrue(policy.shouldRender(mode: first, targetPlan: plan))
+    }
+
+    @MainActor
+    func testPaletteDisplaySettlesToStaticAndCanvasResumesOnSameCoordinator() throws {
+        let scene = editorialScene()
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.75)
+        let coordinator = DayObjectsMetalView.Coordinator(
+            scene: scene, environment: environment, digitalImpact: .none, soundPulseBus: nil
+        )
+        let renderer = try XCTUnwrap(coordinator.renderer)
+        let view = MTKView(frame: CGRect(x: 0, y: 0, width: 390, height: 844), device: renderer.device)
+        view.delegate = renderer
+        for (mode, fps, paused) in [(paletteMode(active: true), 60, false), (paletteMode(), 30, true), (.canvas, 30, false)] {
+            coordinator.update(view, scene: scene, environment: environment,
+                               digitalImpact: .none, soundPulseBus: nil,
+                               presentationMode: mode, isAnimating: true)
+            XCTAssertTrue(coordinator.renderer === renderer)
+            XCTAssertTrue(view.delegate === renderer)
+            XCTAssertEqual(view.preferredFramesPerSecond, fps)
+            XCTAssertEqual(view.isPaused, paused)
+            XCTAssertEqual(view.enableSetNeedsDisplay, paused)
+            XCTAssertEqual(DayObjectsRenderer.shouldDrawStaticFrame(isPaused: view.isPaused, drawableSize: view.drawableSize), paused)
+        }
+        coordinator.update(view, scene: scene, environment: environment,
+                           digitalImpact: .none, soundPulseBus: nil,
+                           presentationMode: paletteMode(active: true), isAnimating: false)
+        XCTAssertTrue(view.isPaused)
+        XCTAssertTrue(view.enableSetNeedsDisplay)
+    }
+
+    private func paletteMode(active: Bool = false, revision: UInt64 = 1) -> DayObjectsPresentationMode {
+        .happeningPalette(.init(slots: [], viewportSize: CGSize(width: 390, height: 844),
+                               reduceMotion: false, isTransitionActive: active, backgroundRevision: revision))
+    }
+
+    @MainActor
+    func testPaletteRendererExcludesCanvasActorsAndRestoresThemOnReturn() async throws {
+        let scene = editorialScene()
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.75)
+        let renderer = try XCTUnwrap(DayObjectsRenderer.create(
+            scene: scene, environment: environment, presentationMode: paletteMode()
+        ))
+        func render() async -> DayObjectRenderFrame? {
+            await withCheckedContinuation { continuation in
+                renderer.renderOffscreen(size: CGSize(width: 64, height: 96), pointScale: 1, elapsedTime: 2) { texture, frame in
+                    continuation.resume(returning: texture == nil ? nil : frame)
+                }
+            }
+        }
+        let paletteFrame = await render()
+        XCTAssertEqual(try XCTUnwrap(paletteFrame).actors.count, 0)
+        renderer.update(scene: scene, environment: environment, presentationMode: .canvas)
+        let canvasFrame = await render()
+        XCTAssertFalse(try XCTUnwrap(canvasFrame).actors.isEmpty)
+    }
+
+    @MainActor
+    func testPaletteTransitionStartsFromDisplayedSettledFrame() async throws {
+        let scene = editorialScene()
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.75)
+        let assignment = try XCTUnwrap(HappeningEditorialAssignmentResolver.assignments(
+            happenings: [Happening(id: "h0", title: "Happening", isBuiltIn: true)],
+            baseInput: .init(dayKey: "2026-09-06", identity: "palette-settle", eventIDs: [],
+                             motionEnergy: 0.55, visualClarity: 0.75, usesEditorialField: true), colorNonce: 7
+        )["h0"])
+        func mode(_ state: HappeningPaletteSlotVisualState, active: Bool) -> DayObjectsPresentationMode {
+            .happeningPalette(.init(
+                slots: [.init(happeningID: "h0", assignment: assignment, visualState: state,
+                              source: .init(index: 0, center: CGPoint(x: 32, y: 48), radius: 16))],
+                viewportSize: CGSize(width: 64, height: 96), reduceMotion: false,
+                isTransitionActive: active, backgroundRevision: 1
+            ))
+        }
+        let clock = DayObjectsClock(now: { 0 })
+        let renderer = try XCTUnwrap(DayObjectsRenderer.create(
+            scene: scene, environment: environment, presentationMode: mode(.available, active: false), clock: clock
+        ))
+        renderer.update(scene: scene, environment: environment, presentationMode: mode(.additionPreview, active: true))
+        renderer.update(scene: scene, environment: environment, presentationMode: mode(.added, active: false))
+        renderer.update(scene: scene, environment: environment, presentationMode: mode(.removalPreview, active: true))
+        let frame: DayObjectRenderFrame? = await withCheckedContinuation { continuation in
+            renderer.renderOffscreen(size: CGSize(width: 64, height: 96), pointScale: 1, elapsedTime: 0) { texture, frame in
+                continuation.resume(returning: texture == nil ? nil : frame)
+            }
+        }
+        let actor = try XCTUnwrap(frame?.actors.first)
+        XCTAssertEqual(actor.gpuActor.paletteMorph, 1)
+        XCTAssertEqual(actor.gpuActor.presentationSaturation, 0.08, accuracy: 0.001)
+        XCTAssertEqual(actor.gpuActor.removalEmphasis, 0)
+    }
+
     func testSoundPulseTimelineIgnoresEventsFromBeforeAttachment() {
         let bus = DayObjectsSoundPulseBus()
         bus.emit(eventID: "historical")

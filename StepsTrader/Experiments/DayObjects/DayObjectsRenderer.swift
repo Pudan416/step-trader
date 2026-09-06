@@ -785,6 +785,30 @@ struct DayObjectInsertionTimeline: Equatable {
     }
 }
 
+struct DayObjectsBackgroundRenderPolicy {
+    private var renderedRevision: UInt64?
+    private var renderedTargetPlan: DayObjectsRenderTargetPlan?
+
+    func shouldRender(mode: DayObjectsPresentationMode, targetPlan: DayObjectsRenderTargetPlan) -> Bool {
+        guard case let .happeningPalette(presentation) = mode else { return true }
+        return renderedRevision != presentation.backgroundRevision || renderedTargetPlan != targetPlan
+    }
+
+    mutating func didRender(mode: DayObjectsPresentationMode, targetPlan: DayObjectsRenderTargetPlan) {
+        guard case let .happeningPalette(presentation) = mode else {
+            invalidate()
+            return
+        }
+        renderedRevision = presentation.backgroundRevision
+        renderedTargetPlan = targetPlan
+    }
+
+    mutating func invalidate() {
+        renderedRevision = nil
+        renderedTargetPlan = nil
+    }
+}
+
 final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     static let actorCapacity = DayObjectScene.maxActors
     static let colorPixelFormat: MTLPixelFormat = .bgra8Unorm_srgb
@@ -821,6 +845,9 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     private var glitchBandSeed: UInt64
     private var glitchBandUniforms: [DayObjectsGlitchBandUniform]
     private var insertionTimeline: DayObjectInsertionTimeline
+    private var presentationMode: DayObjectsPresentationMode
+    private var paletteTimeline = HappeningPaletteTransitionTimeline()
+    private var backgroundRenderPolicy = DayObjectsBackgroundRenderPolicy()
     private var attemptedTargetPlan: DayObjectsRenderTargetPlan?
     private var renderTargets: RenderTargets?
     private(set) var currentFrame: DayObjectRenderFrame?
@@ -852,7 +879,8 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         scene: DayObjectScene,
         environment: DayObjectEnvironment,
         digitalImpact: DayObjectDigitalImpact,
-        soundPulseBus: DayObjectsSoundPulseBus?
+        soundPulseBus: DayObjectsSoundPulseBus?,
+        presentationMode: DayObjectsPresentationMode
     ) {
         self.device = device
         self.commandQueue = commandQueue
@@ -870,6 +898,10 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         self.environment = environment
         self.digitalImpact = digitalImpact
         self.soundPulseBus = soundPulseBus
+        self.presentationMode = presentationMode
+        if case let .happeningPalette(presentation) = presentationMode {
+            paletteTimeline.update(to: presentation, elapsed: clock.elapsedTime)
+        }
         soundPulseTimeline = DayObjectsSoundPulseTimeline(startingAfter: soundPulseBus)
         glitchBandSeed = scene.rootSeed
         glitchBandUniforms = DayObjectGlitchLayout.make(seed: scene.rootSeed).bands.map(
@@ -884,6 +916,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         environment: DayObjectEnvironment,
         digitalImpact: DayObjectDigitalImpact = .none,
         soundPulseBus: DayObjectsSoundPulseBus? = nil,
+        presentationMode: DayObjectsPresentationMode = .canvas,
         clock: DayObjectsClock = DayObjectsClock()
     ) -> DayObjectsRenderer? {
         guard let device = MTLCreateSystemDefaultDevice(),
@@ -998,7 +1031,8 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             scene: scene,
             environment: environment,
             digitalImpact: digitalImpact,
-            soundPulseBus: soundPulseBus
+            soundPulseBus: soundPulseBus,
+            presentationMode: presentationMode
         )
     }
 
@@ -1006,9 +1040,22 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         scene: DayObjectScene,
         environment: DayObjectEnvironment,
         digitalImpact: DayObjectDigitalImpact = .none,
-        soundPulseBus: DayObjectsSoundPulseBus? = nil
+        soundPulseBus: DayObjectsSoundPulseBus? = nil,
+        presentationMode: DayObjectsPresentationMode = .canvas
     ) {
         insertionTimeline.update(scene: scene, elapsed: clock.elapsedTime)
+        self.presentationMode = presentationMode
+        switch presentationMode {
+        case .canvas:
+            backgroundRenderPolicy.invalidate()
+            paletteTimeline = HappeningPaletteTransitionTimeline()
+        case let .happeningPalette(presentation):
+            if !presentation.isTransitionActive {
+                // Subsequent interactions must start from the settled frame actually displayed.
+                paletteTimeline = HappeningPaletteTransitionTimeline()
+            }
+            paletteTimeline.update(to: presentation, elapsed: clock.elapsedTime)
+        }
         if scene.rootSeed != glitchBandSeed {
             glitchBandSeed = scene.rootSeed
             glitchBandUniforms = DayObjectGlitchLayout.make(seed: scene.rootSeed).bands.map(
@@ -1136,56 +1183,66 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
 
         let height = max(drawableSize.height, 1)
         soundPulseTimeline.consume(soundPulseBus, at: elapsedTime)
-        let transitionState = insertionTimeline.renderState(
-            activeScene: scene,
-            elapsed: elapsedTime
-        )
-        let renderScene = transitionState.scene
-        let frame = DayObjectRenderFrame.make(
-            scene: renderScene,
-            environment: environment,
-            elapsed: elapsedTime,
-            insertions: transitionState.insertions,
-            removals: transitionState.removals,
-            actorInsertions: transitionState.actorInsertions,
-            actorRemovals: transitionState.actorRemovals,
-            canvasAspect: drawableSize.width / height,
-            soundPulseTimestamps: soundPulseTimeline.timestamps
-        )
+        let renderScene: DayObjectScene
+        let frame: DayObjectRenderFrame
+        switch presentationMode {
+        case .canvas:
+            let transitionState = insertionTimeline.renderState(activeScene: scene, elapsed: elapsedTime)
+            renderScene = transitionState.scene
+            frame = DayObjectRenderFrame.make(
+                scene: renderScene, environment: environment, elapsed: elapsedTime,
+                insertions: transitionState.insertions, removals: transitionState.removals,
+                actorInsertions: transitionState.actorInsertions, actorRemovals: transitionState.actorRemovals,
+                canvasAspect: drawableSize.width / height, soundPulseTimestamps: soundPulseTimeline.timestamps
+            )
+        case let .happeningPalette(presentation):
+            renderScene = scene
+            paletteTimeline.update(to: presentation, elapsed: elapsedTime)
+            frame = HappeningPaletteRenderFrame.make(
+                presentation: presentation, scene: scene, elapsed: elapsedTime,
+                timeline: presentation.isTransitionActive ? paletteTimeline : nil
+            )
+        }
         currentFrame = frame
 
         guard let renderTargets,
+              let attemptedTargetPlan,
               let commandBuffer = commandQueue.makeCommandBuffer()
         else { return nil }
 
-        let backgroundPass = MTLRenderPassDescriptor()
-        backgroundPass.colorAttachments[0].texture = renderTargets.background
-        backgroundPass.colorAttachments[0].loadAction = .clear
-        backgroundPass.colorAttachments[0].storeAction = .store
-        backgroundPass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1)
+        let rendersBackground = backgroundRenderPolicy.shouldRender(
+            mode: presentationMode, targetPlan: attemptedTargetPlan
+        )
+        if rendersBackground {
+            let backgroundPass = MTLRenderPassDescriptor()
+            backgroundPass.colorAttachments[0].texture = renderTargets.background
+            backgroundPass.colorAttachments[0].loadAction = .clear
+            backgroundPass.colorAttachments[0].storeAction = .store
+            backgroundPass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1)
 
-        var uniforms = DayObjectsMeshGradientUniforms(
-            scene: renderScene,
-            resolution: SIMD2(
-                Float(renderTargets.background.width),
-                Float(renderTargets.background.height)
-            ),
-            elapsedTime: elapsedTime
-        )
-        guard let backgroundEncoder = commandBuffer.makeRenderCommandEncoder(
-            descriptor: backgroundPass
-        ) else {
-            return nil
+            var uniforms = DayObjectsMeshGradientUniforms(
+                scene: renderScene,
+                resolution: SIMD2(
+                    Float(renderTargets.background.width),
+                    Float(renderTargets.background.height)
+                ),
+                elapsedTime: elapsedTime
+            )
+            guard let backgroundEncoder = commandBuffer.makeRenderCommandEncoder(
+                descriptor: backgroundPass
+            ) else {
+                return nil
+            }
+            backgroundEncoder.label = "Day Objects half-resolution Mesh Gradient pass"
+            backgroundEncoder.setRenderPipelineState(meshGradientPipeline)
+            backgroundEncoder.setFragmentBytes(
+                &uniforms,
+                length: MemoryLayout<DayObjectsMeshGradientUniforms>.stride,
+                index: 0
+            )
+            backgroundEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+            backgroundEncoder.endEncoding()
         }
-        backgroundEncoder.label = "Day Objects half-resolution Mesh Gradient pass"
-        backgroundEncoder.setRenderPipelineState(meshGradientPipeline)
-        backgroundEncoder.setFragmentBytes(
-            &uniforms,
-            length: MemoryLayout<DayObjectsMeshGradientUniforms>.stride,
-            index: 0
-        )
-        backgroundEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
-        backgroundEncoder.endEncoding()
 
         let actorUpload = DayObjectsActorUpload(
             actors: frame.actors,
@@ -1330,6 +1387,10 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         }
         actorBufferRing.submit(actorBufferLease, on: commandBuffer)
         submittedActorBuffer = true
+        // Only cache an encoded background once every pass succeeded and the caller can submit it.
+        if rendersBackground {
+            backgroundRenderPolicy.didRender(mode: presentationMode, targetPlan: attemptedTargetPlan)
+        }
         return commandBuffer
     }
 
@@ -1389,6 +1450,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         else {
             attemptedTargetPlan = nil
             renderTargets = nil
+            backgroundRenderPolicy.invalidate()
             return
         }
 
@@ -1396,6 +1458,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         guard plan != attemptedTargetPlan else { return }
         attemptedTargetPlan = plan
         renderTargets = nil
+        backgroundRenderPolicy.invalidate()
 
         guard let background = makeTexture(
                   for: plan.background,
