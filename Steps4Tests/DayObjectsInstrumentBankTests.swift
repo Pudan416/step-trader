@@ -79,6 +79,21 @@ private func renderAntiPhaseBassProbe(frequency: Double) -> AVAudioPCMBuffer {
 
 @MainActor
 final class DayObjectsInstrumentBankTests: XCTestCase {
+    func testProductionBankBindsEveryMoodRecipeWithoutGrowingPoolsOrGraph() async throws {
+        let bank = DayObjectsInstrumentBank(bundle: Bundle(for: type(of: self)))
+        try bank.prepare(configuration: smallPlaybackPairConfiguration())
+        XCTAssertEqual(bank.descriptors.count, 160)
+        let pool = try bank.tonalPool(named: "world")
+        let before = bank.metrics.allocationFingerprint
+        for descriptor in bank.descriptors {
+            XCTAssertNoThrow(try pool.prepareInstrument(descriptor.id), descriptor.id.rawValue)
+        }
+        XCTAssertEqual(bank.metrics.allocationFingerprint, before)
+        XCTAssertEqual(bank.metrics.tonalPoolCount, 1)
+        XCTAssertThrowsError(try pool.prepareInstrument(.init(rawValue: "acoustic.harmony.felt-haze")))
+        await bank.stop()
+    }
+
     func testPersistentMasterUsesRealRatioGlueWithBoundedRenderedReduction() {
         func measure(amplitude: AUValue) -> Double {
             let happenings = DayObjectsHappeningSamplePool(bundle: Bundle(for: type(of: self)))
@@ -460,7 +475,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         let pool = worlds[0].happenings
         let playerIdentities = pool.metrics.fixedPlayerIdentities
         let bufferIdentities = pool.metrics.decodedBufferIdentities
-        XCTAssertEqual(bufferIdentities.count, 102)
+        XCTAssertEqual(bufferIdentities.count, 114)
 
         for cycle in 0..<8 {
             let firstRecipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: lifecycleRecipeID((cycle % 10) + 1)))
@@ -983,11 +998,11 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(baseline.finalPeakLimiterCount, 1)
         XCTAssertTrue(pair.bankA.happenings === pair.bankB.happenings)
         XCTAssertEqual(pair.bankA.happenings.metrics.allocatedPlayerCount, 4)
-        XCTAssertEqual(pair.bankA.happenings.metrics.decodedBufferCount, 102)
+        XCTAssertEqual(pair.bankA.happenings.metrics.decodedBufferCount, 114)
         XCTAssertEqual(Set(baseline.happeningFixedPlayerIdentities).count, 4)
         XCTAssertEqual(baseline.happeningFixedPlayerIdentities.count, 4)
-        XCTAssertEqual(Set(baseline.happeningDecodedBufferIdentities).count, 102)
-        XCTAssertEqual(baseline.happeningDecodedBufferIdentities.count, 102)
+        XCTAssertEqual(Set(baseline.happeningDecodedBufferIdentities).count, 114)
+        XCTAssertEqual(baseline.happeningDecodedBufferIdentities.count, 114)
         XCTAssertLessThanOrEqual(baseline.happeningDecodedByteCount, 48 * 1_024 * 1_024)
         XCTAssertEqual(Set(baseline.finalPeakLimiterIdentities).count, 1)
         XCTAssertEqual(baseline.sharedMasterTrimDecibels, -6, accuracy: 0.001)

@@ -2,6 +2,24 @@ import XCTest
 @testable import Steps4
 
 final class SynthOnePresetAdapterTests: XCTestCase {
+    func testFingerprintUsesCanonicalLittleEndianFloat64DeclarationOrder() {
+        let voice = SynthOnePresetAdapter.convert(.init(uid: "fixture", name: "Fixture")).voice
+        // Independently encoded 52 declared scalars, with Ruby Array#pack("E*") + SHA256.
+        XCTAssertEqual(voice.stableFingerprint, "49fc6b3030710383d94bcdd7b42d9ef82a3981294e8b96eddfa118c41afcb8bf")
+    }
+
+    func testSelectedSourceConversionPreservesSixteenStableInstrumentMappings() throws {
+        let records = try DayObjectsInstrumentManifest.loadSynthOneRecords(from: Bundle(for: type(of: self)))
+        let voices = try SynthOnePresetAdapter.convertSelectedRecords(records.reversed())
+        XCTAssertEqual(voices.count, 16)
+        for descriptor in DayObjectsInstrumentManifest.defaultDescriptors {
+            let record = try XCTUnwrap(records.first { $0.uid == descriptor.sourceUID })
+            XCTAssertEqual(voices[descriptor.id], DayObjectsAudioParameters.clamped(SynthOnePresetAdapter.convert(record).voice))
+        }
+        XCTAssertThrowsError(try SynthOnePresetAdapter.convertSelectedRecords(Array(records.dropLast())))
+        XCTAssertThrowsError(try SynthOnePresetAdapter.convertSelectedRecords(records + [records[0]]))
+    }
+
     func testMissingValuesUseDocumentedFiniteDefaults() {
         let result = SynthOnePresetAdapter.convert(.init(uid: "fixture", name: "Fixture"))
         let voice = result.voice

@@ -105,15 +105,16 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         happenings: DayObjectsHappeningSamplePool,
         audioHostTimeProvider: @escaping () -> TimeInterval
     ) {
+        // Capture the transaction so descriptor expansion and preparation share one
+        // conversion of the 16 sources. A malformed resource fails preparation.
+        let catalog = Result { try DayObjectsSoundWorldCatalog.load(from: bundle) }
         let descriptors = DayObjectsInstrumentManifest.defaultDescriptors
+            + ((try? catalog.get().descriptors) ?? [])
         self.init(
             descriptors: descriptors,
             tonalInstrumentLoader: {
-                let records = try DayObjectsInstrumentManifest.loadSynthOneRecords(from: bundle)
-                let tonalDescriptors = descriptors.filter { $0.category != .drums && $0.category != .piano }
-                return Dictionary(uniqueKeysWithValues: zip(tonalDescriptors, records).map { descriptor, record in
-                    (descriptor.id, DayObjectsAudioParameters.clamped(SynthOnePresetAdapter.convert(record).voice))
-                })
+                let resolved = try catalog.get()
+                return resolved.sourceVoices.merging(resolved.resolvedInstruments) { _, recipe in recipe }
             },
             tonalPoolFactory: { specification, instruments in
                 // The prepared pool is detached and does not start an engine or audio session.

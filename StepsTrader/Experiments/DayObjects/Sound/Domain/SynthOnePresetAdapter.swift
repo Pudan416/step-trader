@@ -161,6 +161,25 @@ struct SynthOneConversionResult: Equatable, Sendable {
 }
 
 enum SynthOnePresetAdapter {
+    /// Converts the licensed selection once, keyed by stable IDs rather than input order.
+    static func convertSelectedRecords(_ records: [SynthOnePresetRecord]) throws -> [DayObjectsInstrumentID: NormalizedSynthVoice] {
+        let grouped = Dictionary(grouping: records, by: \.uid)
+        if let duplicate = grouped.first(where: { $0.value.count != 1 })?.key {
+            throw DayObjectsInstrumentManifestError.duplicateSourceUID(duplicate)
+        }
+        let descriptors = DayObjectsInstrumentManifest.defaultDescriptors
+        let expected = Set(descriptors.compactMap(\.sourceUID))
+        if let unexpected = Set(grouped.keys).subtracting(expected).sorted().first {
+            throw DayObjectsInstrumentManifestError.unexpectedSourceUID(unexpected)
+        }
+        return try Dictionary(uniqueKeysWithValues: descriptors.map { descriptor in
+            guard let uid = descriptor.sourceUID, let record = grouped[uid]?.first else {
+                throw DayObjectsInstrumentManifestError.missingSourceUID(descriptor.sourceUID ?? descriptor.id.rawValue)
+            }
+            return (descriptor.id, DayObjectsAudioParameters.clamped(convert(record).voice))
+        })
+    }
+
     static func convert(_ source: SynthOnePresetRecord) -> SynthOneConversionResult {
         var diagnostics: [SynthOneAdapterDiagnostic] = []
 

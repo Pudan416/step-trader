@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D10400000000000000000012 /* DayObjectsSynthRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10400000000000000000011 /* DayObjectsSynthRecipe.swift */; };
+		D10400000000000000000014 /* DayObjectsSoundWorldCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10400000000000000000013 /* DayObjectsSoundWorldCatalog.swift */; };
+		D10400000000000000000022 /* SoundWorlds in Resources */ = {isa = PBXBuildFile; fileRef = D10400000000000000000021 /* SoundWorlds */; };
+		D10400000000000000000023 /* SoundWorlds in Resources */ = {isa = PBXBuildFile; fileRef = D10400000000000000000021 /* SoundWorlds */; };
+		D10400000000000000000002 /* DayObjectsSoundWorldCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10400000000000000000001 /* DayObjectsSoundWorldCatalogTests.swift */; };
 		C5A510010906202600000002 /* CanvasVisualStyleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510010906202600000001 /* CanvasVisualStyleTests.swift */; };
 		C5A510010906202600000004 /* CanvasVisualStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510010906202600000003 /* CanvasVisualStyle.swift */; };
 		C5A510020906202600000002 /* EditorialCanvasInputFactoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510020906202600000001 /* EditorialCanvasInputFactoryTests.swift */; };
@@ -594,6 +599,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		D10400000000000000000011 /* DayObjectsSynthRecipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsSynthRecipe.swift; sourceTree = "<group>"; };
+		D10400000000000000000013 /* DayObjectsSoundWorldCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsSoundWorldCatalog.swift; sourceTree = "<group>"; };
+		D10400000000000000000021 /* SoundWorlds */ = {isa = PBXFileReference; lastKnownFileType = folder; path = SoundWorlds; sourceTree = "<group>"; };
+		D10400000000000000000001 /* DayObjectsSoundWorldCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsSoundWorldCatalogTests.swift; sourceTree = "<group>"; };
 		C5A510010906202600000001 /* CanvasVisualStyleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasVisualStyleTests.swift; sourceTree = "<group>"; };
 		C5A510010906202600000003 /* CanvasVisualStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasVisualStyle.swift; path = StepsTrader/Models/CanvasVisualStyle.swift; sourceTree = SOURCE_ROOT; };
 		C5A510020906202600000001 /* EditorialCanvasInputFactoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorialCanvasInputFactoryTests.swift; sourceTree = "<group>"; };
@@ -1368,6 +1377,8 @@
 				D0C30000000000000000001B /* HappeningSoundRecipe.swift */,
 				D0C30000000000000000001D /* HappeningSoundCatalog.swift */,
 				D0C300000000000000000011 /* DayObjectsInstrumentID.swift */,
+				D10400000000000000000011 /* DayObjectsSynthRecipe.swift */,
+				D10400000000000000000013 /* DayObjectsSoundWorldCatalog.swift */,
 				D0C300000000000000000013 /* DayObjectsInstrumentManifest.swift */,
 				D0C300000000000000000015 /* NormalizedSynthVoice.swift */,
 				D0C300000000000000000017 /* SynthOnePresetAdapter.swift */,
@@ -1382,6 +1393,7 @@
 			children = (
 				D0A0D1000000000000000013 /* AudioLicenses */,
 				D0A0D2000000000000000001 /* SynthOnePresets */,
+				D10400000000000000000021 /* SoundWorlds */,
 				D0A0D2000000000000000002 /* Drums */,
 				D0A0D2000000000000000003 /* FeltPiano */,
 				D0C400000000000000000001 /* Happenings */,
@@ -1902,6 +1914,7 @@
 				D10100000000000000000001 /* GroovePlannerTests.swift */,
 				D10200000000000000000001 /* BassPlannerTests.swift */,
 				D10300000000000000000001 /* DayObjectsWorldSelectorTests.swift */,
+				D10400000000000000000001 /* DayObjectsSoundWorldCatalogTests.swift */,
 				D0E300000000000000000001 /* TonalWorldPlannerTests.swift */,
 				D0E300000000000000000003 /* AmbientVoiceLeadingTests.swift */,
 				D0E200000000000000000001 /* StableMusicRandomTests.swift */,
@@ -2264,6 +2277,7 @@
 				D0A0D100000000000000000A /* OsirisPiano-CC0-1.0.txt in Resources */,
 				D0A0D100000000000000000D /* SOURCES.json in Resources */,
 				D0A0D2000000000000000011 /* SynthOnePresets in Resources */,
+				D10400000000000000000022 /* SoundWorlds in Resources */,
 				D0A0D2000000000000000013 /* Drums in Resources */,
 				D0A0D2000000000000000015 /* FeltPiano in Resources */,
 				D0C400000000000000000002 /* Happenings in Resources */,
@@ -2292,6 +2306,7 @@
 				D0A0D100000000000000000B /* OsirisPiano-CC0-1.0.txt in Resources */,
 				D0A0D100000000000000000E /* SOURCES.json in Resources */,
 				D0A0D2000000000000000012 /* SynthOnePresets in Resources */,
+				D10400000000000000000023 /* SoundWorlds in Resources */,
 				D0A0D2000000000000000014 /* Drums in Resources */,
 				D0A0D2000000000000000016 /* FeltPiano in Resources */,
 				D0C400000000000000000003 /* Happenings in Resources */,
@@ -2423,6 +2438,8 @@
 				D0D700000000000000000014 /* DayObjectsInstrumentBank.swift in Sources */,
 				D0D700000000000000000018 /* DayObjectsHappeningSamplePool.swift in Sources */,
 				D0C300000000000000000012 /* DayObjectsInstrumentID.swift in Sources */,
+				D10400000000000000000012 /* DayObjectsSynthRecipe.swift in Sources */,
+				D10400000000000000000014 /* DayObjectsSoundWorldCatalog.swift in Sources */,
 				D0C300000000000000000014 /* DayObjectsInstrumentManifest.swift in Sources */,
 				D0C300000000000000000016 /* NormalizedSynthVoice.swift in Sources */,
 				D0C300000000000000000018 /* SynthOnePresetAdapter.swift in Sources */,
@@ -2728,6 +2745,7 @@
 				D10100000000000000000002 /* GroovePlannerTests.swift in Sources */,
 				D10200000000000000000002 /* BassPlannerTests.swift in Sources */,
 				D10300000000000000000002 /* DayObjectsWorldSelectorTests.swift in Sources */,
+				D10400000000000000000002 /* DayObjectsSoundWorldCatalogTests.swift in Sources */,
 				D0E300000000000000000002 /* TonalWorldPlannerTests.swift in Sources */,
 				D0E300000000000000000004 /* AmbientVoiceLeadingTests.swift in Sources */,
 				D0E200000000000000000002 /* StableMusicRandomTests.swift in Sources */,
@@ -3320,6 +3338,7 @@
 				ENABLE_PREVIEWS = YES;
 				EXCLUDED_SOURCE_FILE_NAMES = (
 					SynthOnePresets,
+					SoundWorlds,
 					Drums,
 					FeltPiano,
 					"audio-assets-manifest.json",
