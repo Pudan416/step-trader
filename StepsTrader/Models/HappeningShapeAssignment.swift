@@ -69,6 +69,13 @@ struct HappeningEditorialAssignmentSnapshot: Equatable {
 enum HappeningEditorialAssignmentResolver {
     private static let colorVariationCount = 97
 
+    static func needsRefresh(
+        current: HappeningEditorialAssignmentSnapshot?,
+        request: HappeningEditorialAssignmentRequest
+    ) -> Bool {
+        current?.request != request
+    }
+
     static func snapshot(
         request: HappeningEditorialAssignmentRequest
     ) -> HappeningEditorialAssignmentSnapshot {

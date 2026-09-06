@@ -138,4 +138,86 @@ final class HappeningShapeAssignmentModelTests: XCTestCase {
         XCTAssertEqual(first, second)
         XCTAssertEqual(first.request, request)
     }
+
+    /// Catches the state cache keeping an empty pre-hydration palette after a
+    /// canvas arrives, or keeping actors made with stale metric-derived scene
+    /// inputs while the palette stays open.
+    func testSnapshotRefreshPolicyInvalidatesHydratedAndMetricChangedRequests() {
+        let happening = Happening(
+            id: "happening_walk",
+            title: "Walk",
+            isBuiltIn: true
+        )
+        let metrics = EditorialCanvasMetrics(
+            stepsProgress: 0.5,
+            sleepProgress: 0.5,
+            spentProgress: 0.1
+        )
+        let emptyCanvas = DayCanvas(dayKey: "2026-09-05")
+        let initialRequest = HappeningEditorialAssignmentRequest(
+            happenings: [happening],
+            baseInput: EditorialCanvasInputFactory.make(
+                canvas: emptyCanvas,
+                metrics: metrics,
+                paletteCategories: ModernPaletteSelection.all
+            ).sceneInput,
+            committedElements: [],
+            colorNonce: 21
+        )
+        let initialSnapshot = HappeningEditorialAssignmentResolver.snapshot(request: initialRequest)
+        var hydratedCanvas = emptyCanvas
+        var hydratedElement = CanvasElement.spawn(
+            id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+            optionId: happening.id,
+            label: happening.title,
+            existingElements: [],
+            dayKey: hydratedCanvas.dayKey,
+            composition: DayComposition.forDay(dayKey: hydratedCanvas.dayKey, happeningCount: 0)
+        )
+        hydratedElement.editorialColorVariant = 37
+        hydratedCanvas.elements = [hydratedElement]
+        let hydratedRequest = HappeningEditorialAssignmentRequest(
+            happenings: [happening],
+            baseInput: EditorialCanvasInputFactory.make(
+                canvas: hydratedCanvas,
+                metrics: metrics,
+                paletteCategories: ModernPaletteSelection.all
+            ).sceneInput,
+            committedElements: hydratedCanvas.elements,
+            colorNonce: 21
+        )
+        let metricChangedRequest = HappeningEditorialAssignmentRequest(
+            happenings: [happening],
+            baseInput: EditorialCanvasInputFactory.make(
+                canvas: emptyCanvas,
+                metrics: EditorialCanvasMetrics(
+                    stepsProgress: 0.75,
+                    sleepProgress: 0.8,
+                    spentProgress: 0.25
+                ),
+                paletteCategories: ModernPaletteSelection.all
+            ).sceneInput,
+            committedElements: [],
+            colorNonce: 21
+        )
+
+        XCTAssertFalse(
+            HappeningEditorialAssignmentResolver.needsRefresh(
+                current: initialSnapshot,
+                request: initialRequest
+            )
+        )
+        XCTAssertTrue(
+            HappeningEditorialAssignmentResolver.needsRefresh(
+                current: initialSnapshot,
+                request: hydratedRequest
+            )
+        )
+        XCTAssertTrue(
+            HappeningEditorialAssignmentResolver.needsRefresh(
+                current: initialSnapshot,
+                request: metricChangedRequest
+            )
+        )
+    }
 }

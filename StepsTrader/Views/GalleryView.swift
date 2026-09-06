@@ -402,7 +402,10 @@ struct GalleryView: View {
             committedElements: dayCanvas.elements,
             colorNonce: model.paletteColorNonce()
         )
-        if paletteAssignmentSnapshot?.request != request {
+        if HappeningEditorialAssignmentResolver.needsRefresh(
+            current: paletteAssignmentSnapshot,
+            request: request
+        ) {
             paletteAssignmentSnapshot = HappeningEditorialAssignmentResolver.snapshot(request: request)
         }
     }
@@ -823,6 +826,9 @@ struct GalleryView: View {
         }
         .onChange(of: canvasSyncState) {
             syncCanvasWithModel()
+            if showHappeningPalette {
+                refreshHappeningPalette()
+            }
 #if DEBUG || INTERNAL_BUILD
             syncCanvasMusicInput()
 #endif
@@ -1504,21 +1510,18 @@ struct GalleryView: View {
         // inert so it cannot race persistence tests through the shared canvas
         // directory; tests exercise CanvasStorageService explicitly.
         if isUnitTestHost {
-            dayCanvas = makeNewCanvas(dayKey: dayKey)
-            canvasLoaded = true
+            applyHydratedCanvas(makeNewCanvas(dayKey: dayKey))
             return
         }
         if usesTask7UITestFixture {
-            dayCanvas = makeNewCanvas(dayKey: dayKey)
-            canvasLoaded = true
+            applyHydratedCanvas(makeNewCanvas(dayKey: dayKey))
             syncCanvasWithModel()
             return
         }
         let local = CanvasStorageService.shared.loadCanvas(for: dayKey)
         if let local {
             let migrated = migratedLoadedCanvas(local)
-            dayCanvas = migrated.canvas
-            canvasLoaded = true
+            applyHydratedCanvas(migrated.canvas)
             syncCanvasWithModel()
             if migrated.didMigrate {
                 saveCanvasLocally()
@@ -1528,9 +1531,8 @@ struct GalleryView: View {
         // No on-disk canvas. If we already finished bootstrap for this day,
         // treat that as a real "empty today" rather than re-fetching forever.
         if lastBootstrappedDayKey == dayKey {
-            dayCanvas = makeNewCanvas(dayKey: dayKey)
+            applyHydratedCanvas(makeNewCanvas(dayKey: dayKey))
             canvasVisualStyleMigrationVersion = CanvasVisualStyleMigration.currentVersion
-            canvasLoaded = true
             syncCanvasWithModel()
             return
         }
@@ -1546,15 +1548,13 @@ struct GalleryView: View {
                     if localMutationCounter != snapshotCounter {
                         let merged = mergeRemoteWithLocal(remote: remote, local: dayCanvas)
                         let migrated = migratedLoadedCanvas(merged)
-                        dayCanvas = migrated.canvas
-                        canvasLoaded = true
+                        applyHydratedCanvas(migrated.canvas)
                         saveCanvasLocally()
                         syncCanvasWithModel()
                     } else {
                         let migrated = migratedLoadedCanvas(remote)
-                        dayCanvas = migrated.canvas
+                        applyHydratedCanvas(migrated.canvas)
                         CanvasStorageService.shared.saveCanvas(migrated.canvas)
-                        canvasLoaded = true
                         syncCanvasWithModel()
                         refreshWidgetSnapshot()
                     }
@@ -1569,6 +1569,15 @@ struct GalleryView: View {
                 pendingDeletedIds.removeAll()
             }
         }
+    }
+
+    /// Canvas data can arrive after the palette snapshot was first made. Keep
+    /// that state cache in sync at this assignment boundary rather than during
+    /// a SwiftUI body evaluation.
+    private func applyHydratedCanvas(_ canvas: DayCanvas) {
+        dayCanvas = canvas
+        canvasLoaded = true
+        refreshHappeningPalette()
     }
 
     /// ID-keyed merge with last-write-wins per element and tombstone protection.
