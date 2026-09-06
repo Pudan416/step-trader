@@ -2,6 +2,58 @@ import XCTest
 @testable import Steps4
 
 final class HappeningScheduleAllocatorTests: XCTestCase {
+    func testTenHappeningsAllIntroduceThemselvesWithinOneMinuteAtSlowestTempo() throws {
+        let plans = makeWorldPlans(count: 10, seed: seeds[0])
+        let allocation = HappeningScheduleAllocator.allocate(
+            plans: plans,
+            remixSeed: seeds[0],
+            cycleCount: 1
+        )
+        let firstByID = Dictionary(grouping: allocation.events, by: \.happeningID)
+            .compactMapValues { events in events.min { $0.startBeat < $1.startBeat } }
+
+        XCTAssertEqual(firstByID.count, 10)
+        for plan in plans {
+            let first = try XCTUnwrap(firstByID[plan.happeningID])
+            let secondsAt58BPM = first.startBeat * 60 / 58
+            XCTAssertLessThan(secondsAt58BPM, 60, plan.happeningID)
+        }
+    }
+
+    func testSharedBudgetKeepsPhrasesSeparatedAndAtMostTwoAttacksPerBeat() {
+        for seed in seeds {
+            let allocation = HappeningScheduleAllocator.allocate(
+                plans: makeWorldPlans(count: 10, seed: seed),
+                remixSeed: seed,
+                cycleCount: 4
+            )
+            let ordered = allocation.events.sorted { $0.startBeat < $1.startBeat }
+            for pair in zip(ordered, ordered.dropFirst()) {
+                XCTAssertGreaterThanOrEqual(pair.1.startBeat - pair.0.startBeat, 0.25 - 0.000_001)
+            }
+            let attacksByBeat = Dictionary(grouping: ordered) { Int(floor($0.startBeat)) }
+            XCTAssertTrue(attacksByBeat.values.allSatisfy { $0.count <= 2 })
+        }
+    }
+
+    func testPublishedEventsCarryTheOwningMotifStep() {
+        let plans = makeWorldPlans(count: 10, seed: seeds[1])
+        let allocation = HappeningScheduleAllocator.allocate(
+            plans: plans,
+            remixSeed: seeds[1],
+            cycleCount: 2
+        )
+
+        for plan in plans where plan.motif.noteCount > 1 {
+            let motifSteps = Set(
+                allocation.events
+                    .filter { $0.happeningID == plan.happeningID }
+                    .map(\.motifStepIndex)
+            )
+            XCTAssertEqual(motifSteps, Set(0..<plan.motif.noteCount))
+        }
+    }
+
     func testCountsZeroThroughTenUseExactBandsAndGuaranteeFirstCycleAndNoStarvation() throws {
         let expectedBands: [ClosedRange<Int>] = [
             24...40, 24...40,
@@ -376,6 +428,25 @@ final class HappeningScheduleAllocatorTests: XCTestCase {
             input: input,
             tonalWorld: TonalWorldPlanner.makePlan(input: input, remixSeed: seed),
             remixSeed: seed
+        )
+    }
+
+    private func makeWorldPlans(count: Int, seed: UInt64) -> [HappeningMusicPlan] {
+        let ids = (0..<count).map { "event-\($0)" }
+        let input = NormalizedDayMusicInput(
+            stepsProgress: 0.61,
+            sleepProgress: 0.74,
+            happeningIDs: ids,
+            glitchProgress: 0.31,
+            motionEnergy: 0.625,
+            visualClarity: 0.625,
+            diagnostics: []
+        )
+        return HappeningMusicPlanner.makePlans(
+            input: input,
+            tonalWorld: TonalWorldPlanner.makePlan(input: input, remixSeed: seed),
+            remixSeed: seed,
+            soundWorld: .metalAndCurrent
         )
     }
 }

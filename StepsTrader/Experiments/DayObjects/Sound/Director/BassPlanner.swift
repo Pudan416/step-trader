@@ -14,13 +14,15 @@ enum BassPlanner {
         tonalWorld: TonalWorldPlan,
         groove: GroovePlan,
         instrumentDescriptors: [DayObjectsInstrumentDescriptor],
-        remixSeed: UInt64
+        remixSeed: UInt64,
+        soundWorld: DayObjectsSoundWorld? = nil
     ) -> BassPlan? {
         guard groove.usesBass,
               let instrument = selectedInstrument(
                 from: instrumentDescriptors,
                 mode: groove.mode,
-                remixSeed: remixSeed
+                remixSeed: remixSeed,
+                soundWorld: soundWorld
               )
         else {
             return nil
@@ -104,11 +106,13 @@ enum BassPlanner {
     private static func selectedInstrument(
         from descriptors: [DayObjectsInstrumentDescriptor],
         mode: GrooveMode,
-        remixSeed: UInt64
+        remixSeed: UInt64,
+        soundWorld: DayObjectsSoundWorld?
     ) -> DayObjectsInstrumentDescriptor? {
         var approvedByID: [String: DayObjectsInstrumentDescriptor] = [:]
         for descriptor in descriptors where descriptor.category == .bass {
             guard approvedInstrumentIDs.contains(descriptor.id.rawValue),
+                  (soundWorld?.bassInstrumentIDs.contains(descriptor.id.rawValue) ?? true),
                   approvedByID[descriptor.id.rawValue] == nil
             else {
                 continue

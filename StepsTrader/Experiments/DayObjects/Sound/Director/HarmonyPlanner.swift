@@ -19,10 +19,14 @@ enum HarmonyPlanner {
         input: NormalizedDayMusicInput,
         tonalWorld: TonalWorldPlan,
         instrumentDescriptors: [DayObjectsInstrumentDescriptor],
-        remixSeed: UInt64
+        remixSeed: UInt64,
+        soundWorld: DayObjectsSoundWorld? = nil
     ) -> HarmonyPlan {
         let sleepProgress = unitValue(input.sleepProgress)
-        let sortedDescriptors = instrumentDescriptors.sorted {
+        let worldDescriptors = soundWorld.map { world in
+            instrumentDescriptors.filter { world.harmonyInstrumentIDs.contains($0.id.rawValue) }
+        } ?? instrumentDescriptors
+        let sortedDescriptors = worldDescriptors.sorted {
             $0.id.rawValue < $1.id.rawValue
         }
         let primaryDescriptor = selectedDescriptor(

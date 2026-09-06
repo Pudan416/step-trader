@@ -3,6 +3,36 @@ import XCTest
 @testable import Steps4
 
 final class DeterministicMusicDirectorTests: XCTestCase {
+    func testSameDayAndSeedAreDeterministicInsideEachSoundWorld() {
+        for soundWorld in DayObjectsSoundWorld.allCases {
+            let first = makeWorldPlan(soundWorld: soundWorld)
+            let repeated = makeWorldPlan(soundWorld: soundWorld)
+
+            XCTAssertEqual(first, repeated)
+            XCTAssertEqual(first.soundWorld, soundWorld)
+        }
+    }
+
+    func testWorldsUseContrastingGrooveLeadAndHarmonyPalettes() {
+        let felt = makeWorldPlan(soundWorld: .feltAndWood)
+        let metal = makeWorldPlan(soundWorld: .metalAndCurrent)
+
+        XCTAssertTrue([GrooveMode.percussion, .bassBed].contains(felt.groove.mode))
+        XCTAssertTrue([GrooveMode.bassPulse, .bassArp].contains(metal.groove.mode))
+        XCTAssertNotEqual(felt.lead.instrumentID, metal.lead.instrumentID)
+        XCTAssertNotEqual(tonalInstrumentIDs(in: felt), tonalInstrumentIDs(in: metal))
+        XCTAssertNotEqual(felt.happenings.map(\.recipeID), metal.happenings.map(\.recipeID))
+    }
+
+    func testWorldChangeKeepsTheMeasuredDayInputsUntouched() {
+        let felt = makeWorldPlan(soundWorld: .feltAndWood)
+        let metal = makeWorldPlan(soundWorld: .metalAndCurrent)
+
+        XCTAssertEqual(felt.input, metal.input)
+        XCTAssertEqual(felt.world, metal.world)
+        XCTAssertEqual(felt.glitch, metal.glitch)
+    }
+
     func testSameInputAndSeedReproduceTheEntirePlanExactly() {
         let input = representativeInput()
 
@@ -243,6 +273,28 @@ final class DeterministicMusicDirectorTests: XCTestCase {
             happeningIDs: ["morning", "work", "evening"],
             spentColors: 25
         )
+    }
+
+    private func makeWorldPlan(soundWorld: DayObjectsSoundWorld) -> DayMusicPlan {
+        DeterministicMusicDirector.makePlan(
+            input: DayMusicInput(
+                countedSteps: 7_500,
+                stepGoal: 10_000,
+                countedSleepHours: 6.5,
+                sleepGoalHours: 8,
+                happeningIDs: (0..<10).map { "event-\($0)" },
+                spentColors: 35
+            ),
+            remixSeed: 0xD4A0_B1EC_75ED_0001,
+            soundWorld: soundWorld
+        )
+    }
+
+    private func tonalInstrumentIDs(in plan: DayMusicPlan) -> [DayObjectsInstrumentID] {
+        plan.harmony.roles.compactMap { role in
+            guard case let .tonal(id) = role.instrumentTarget else { return nil }
+            return id
+        }
     }
 
     private func input(happeningIDs: [String]) -> DayMusicInput {

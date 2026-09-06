@@ -11,12 +11,15 @@ enum LeadPlanner {
     static func makePlan(
         tonalWorld: TonalWorldPlan,
         instrumentDescriptors: [DayObjectsInstrumentDescriptor],
-        remixSeed: UInt64
+        remixSeed: UInt64,
+        soundWorld: DayObjectsSoundWorld? = nil
     ) -> LeadPlan? {
         guard !tonalWorld.progression.isEmpty else { return nil }
         let descriptors = instrumentDescriptors
             .filter { descriptor in
-                descriptor.category == .lead && approvedLeadIDs.contains(descriptor.id.rawValue)
+                descriptor.category == .lead
+                    && approvedLeadIDs.contains(descriptor.id.rawValue)
+                    && (soundWorld?.leadInstrumentIDs.contains(descriptor.id.rawValue) ?? true)
             }
             .sorted { $0.id.rawValue < $1.id.rawValue }
         var random = StableMusicRandom(seed: remixSeed, domain: .effects)

@@ -3,15 +3,36 @@ enum HappeningMusicPlanner {
     static func makePlans(
         input: NormalizedDayMusicInput,
         tonalWorld: TonalWorldPlan,
-        remixSeed: UInt64
+        remixSeed: UInt64,
+        soundWorld: DayObjectsSoundWorld? = nil
     ) -> [HappeningMusicPlan] {
+        if let soundWorld {
+            let recipes = HappeningSoundCatalog.recipes.filter {
+                soundWorld.happeningRecipeRawIDs.contains($0.id.rawValue)
+            }
+            return input.happeningIDs.prefix(10).compactMap { happeningID in
+                var random = StableMusicRandom(
+                    seed: remixSeed,
+                    domain: .happeningIdentity(stableID: "\(soundWorld.rawValue).\(happeningID)")
+                )
+                guard let recipe = random.choice(from: recipes) else { return nil }
+                return makePlan(
+                    happeningID: happeningID,
+                    tonalWorld: tonalWorld,
+                    recipe: recipe,
+                    remixSeed: remixSeed,
+                    soundWorld: soundWorld
+                )
+            }
+        }
         let recipes = recipePermutation(remixSeed: remixSeed)
         return zip(input.happeningIDs.prefix(10), recipes).map { happeningID, recipe in
             makePlan(
                 happeningID: happeningID,
                 tonalWorld: tonalWorld,
                 recipe: recipe,
-                remixSeed: remixSeed
+                remixSeed: remixSeed,
+                soundWorld: nil
             )
         }
     }
@@ -20,7 +41,8 @@ enum HappeningMusicPlanner {
         happeningID: String,
         tonalWorld: TonalWorldPlan,
         recipe: HappeningSoundRecipe,
-        remixSeed: UInt64
+        remixSeed: UInt64,
+        soundWorld: DayObjectsSoundWorld?
     ) -> HappeningMusicPlan {
         var identityRandom = StableMusicRandom(
             seed: remixSeed,
@@ -60,12 +82,65 @@ enum HappeningMusicPlanner {
             releaseSeconds: recipe.releaseSeconds,
             delaySend: recipe.delayMix,
             reverbSend: recipe.reverbMix,
+            motif: motif(
+                happeningID: happeningID,
+                recipe: recipe,
+                remixSeed: remixSeed,
+                soundWorld: soundWorld
+            ),
             recurrence: HappeningRecurrencePlan(
                 scheduleSeed: scheduleSeed,
                 alignmentRank: alignmentRank,
                 floatingOffsetBeats: floatingOffset
             )
         )
+    }
+
+    private static func motif(
+        happeningID: String,
+        recipe: HappeningSoundRecipe,
+        remixSeed: UInt64,
+        soundWorld: DayObjectsSoundWorld?
+    ) -> HappeningMotifPlan {
+        guard let soundWorld else {
+            return HappeningMotifPlan(
+                role: .legacyAccent,
+                degreeOffsets: [0],
+                offsetBeats: [0],
+                velocityMultipliers: [1]
+            )
+        }
+        if recipe.family == .texture {
+            return HappeningMotifPlan(
+                role: .texture,
+                degreeOffsets: [0],
+                offsetBeats: [0],
+                velocityMultipliers: [0.82]
+            )
+        }
+
+        var random = StableMusicRandom(
+            seed: remixSeed,
+            domain: .happeningIdentity(stableID: "motif.\(soundWorld.rawValue).\(happeningID)")
+        )
+        switch soundWorld {
+        case .feltAndWood:
+            let descending = random.bernoulli(probability: 0.5)
+            return HappeningMotifPlan(
+                role: .statement,
+                degreeOffsets: descending ? [1, 0] : [0, 1],
+                offsetBeats: [0, random.bernoulli(probability: 0.5) ? 1.25 : 1.75],
+                velocityMultipliers: [0.88, 0.68]
+            )
+        case .metalAndCurrent:
+            let turn = random.bernoulli(probability: 0.5) ? [0, 2, 1] : [1, 0, 2]
+            return HappeningMotifPlan(
+                role: .response,
+                degreeOffsets: turn,
+                offsetBeats: [0, 0.5, 1.25],
+                velocityMultipliers: [0.78, 0.64, 0.72]
+            )
+        }
     }
 
     private static func recipePermutation(remixSeed: UInt64) -> [HappeningSoundRecipe] {

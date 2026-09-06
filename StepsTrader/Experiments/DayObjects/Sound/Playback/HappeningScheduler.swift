@@ -239,7 +239,12 @@ final class HappeningScheduler {
                 guard occurrence.nextRetryPosition <= event.position else { break }
                 states[id] = state
                 let didEmit = canAttack(at: event.position)
-                    && emitAttack(id: id, chord: currentChord, isBirth: false)
+                    && emitAttack(
+                        id: id,
+                        chord: currentChord,
+                        isBirth: false,
+                        motifStepIndex: occurrence.motifStepIndex
+                    )
                 state = states[id] ?? state
                 if didEmit {
                     state.nextOccurrenceIndex += 1
@@ -320,6 +325,7 @@ final class HappeningScheduler {
             let occurrences = eventsByID[id, default: []].map { event in
                 HappeningScheduledOccurrence(
                     sequenceIndex: sequenceOffset + event.sequenceIndex,
+                    motifStepIndex: event.motifStepIndex,
                     position: .init(
                         absoluteSubdivision: origin.absoluteSubdivision
                             + Int64((event.startBeat * Double(MusicalPosition.subdivisionsPerBeat)).rounded())
@@ -349,7 +355,8 @@ final class HappeningScheduler {
     private func emitAttack(
         id: String,
         chord: ChordPlan,
-        isBirth: Bool
+        isBirth: Bool,
+        motifStepIndex: Int = 0
     ) -> Bool {
         guard let pool = happeningPool,
               let world = tonalWorld,
@@ -365,7 +372,10 @@ final class HappeningScheduler {
         let resolvedSound = HappeningPitchResolver.resolve(
             recipe: recipe,
             chord: chord,
-            tonalWorld: world
+            tonalWorld: world,
+            degreeOffset: state.plan.motif.degreeOffsets.indices.contains(motifStepIndex)
+                ? state.plan.motif.degreeOffsets[motifStepIndex]
+                : 0
         )
         let baseGain = isBirth ? state.plan.birthGain : state.plan.gain
         let gain = baseGain * mixGain * eventGlitch.dryGain
