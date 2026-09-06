@@ -2029,7 +2029,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
 
     func testGPUActorHasStableExplicitMetalLayout() {
         XCTAssertEqual(DayObjectGPUActor.metalAlignment, 16)
-        XCTAssertEqual(DayObjectGPUActor.metalStride, 64)
+        XCTAssertEqual(DayObjectGPUActor.metalStride, 80)
         XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.alignment, DayObjectGPUActor.metalAlignment)
         XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.size, DayObjectGPUActor.metalStride)
         XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.stride, DayObjectGPUActor.metalStride)
@@ -2043,6 +2043,9 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.depth), 48)
         XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.materialPhase), 52)
         XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.localDepthSoftness), 56)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.paletteMorph), 64)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.presentationSaturation), 68)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.removalEmphasis), 72)
     }
 
     func testGPUAppearanceHasStableExplicitMetalLayout() {
@@ -2253,7 +2256,112 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertTrue(phases.allSatisfy { (0..<1).contains($0) })
         XCTAssertGreaterThan(Set(phases).count, 8)
         XCTAssertEqual(frame.actors.map(\.gpuActor.appearanceIndex), (0..<10).map(UInt32.init))
-        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.stride, 64)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.stride, 80)
+    }
+
+    func testPalettePresentationControlsDefaultClampAndSurviveAppearanceRemapping() {
+        let defaults = palettePresentationActor()
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.alignment, 16)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.stride, 80)
+        XCTAssertEqual(defaults.paletteMorph, 1)
+        XCTAssertEqual(defaults.presentationSaturation, 1)
+        XCTAssertEqual(defaults.removalEmphasis, 0)
+        let clamped = palettePresentationActor(morph: -2, saturation: 3, emphasis: 2)
+        XCTAssertEqual(clamped.paletteMorph, 0)
+        XCTAssertEqual(clamped.presentationSaturation, 1)
+        XCTAssertEqual(clamped.removalEmphasis, 1)
+        let controls = palettePresentationActor(morph: 0.3, saturation: 0.08, emphasis: 0.7)
+        let remapped = controls.withAppearanceIndex(9)
+        XCTAssertEqual(remapped.appearanceIndex, 9)
+        XCTAssertEqual(remapped.paletteMorph, controls.paletteMorph)
+        XCTAssertEqual(remapped.presentationSaturation, controls.presentationSaturation)
+        XCTAssertEqual(remapped.removalEmphasis, controls.removalEmphasis)
+    }
+
+    func testPalettePresentationReadbackPreservesDefaultsAndDesaturatesWithoutMaskChanges() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let appearance = palettePresentationAppearance()
+        let production = try harness.render(actor: palettePresentationActor(), appearance: appearance, backgroundColor: .zero)
+        let explicitDefaults = try harness.render(actor: palettePresentationActor(morph: 1, saturation: 1, emphasis: 0), appearance: appearance, backgroundColor: .zero)
+        XCTAssertEqual(production.alpha, explicitDefaults.alpha)
+        XCTAssertEqual(production.rgb, explicitDefaults.rgb)
+        // Solid production material has an independently known opaque core.
+        XCTAssertEqual(production[80, 80], 1, accuracy: 0.002)
+        XCTAssertEqual(production.color(x: 80, y: 80).x, 0.9, accuracy: 0.002)
+        XCTAssertEqual(production.color(x: 80, y: 80).y, 0.12, accuracy: 0.002)
+        XCTAssertEqual(production.color(x: 80, y: 80).z, 0.3, accuracy: 0.002)
+        let muted = try harness.render(actor: palettePresentationActor(saturation: 0.08), appearance: appearance, backgroundColor: .zero)
+        XCTAssertEqual(production.alpha, muted.alpha)
+        let original = production.color(x: 80, y: 80)
+        let desaturated = muted.color(x: 80, y: 80)
+        XCTAssertLessThan(desaturated.max() - desaturated.min(), (original.max() - original.min()) * 0.09)
+        XCTAssertTrue(muted.isFinitePremultiplied)
+    }
+
+    func testPalettePresentationNeutralSphereAndAnalyticSilhouetteMorph() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let appearance = palettePresentationAppearance()
+        func capture(_ morph: Float, shape: UInt32 = 6) throws -> ActorAlphaCapture {
+            try harness.render(actor: palettePresentationActor(morph: morph, shape: shape), appearance: appearance, backgroundColor: .zero)
+        }
+        let neutral = try capture(0)
+        let neutralOtherShape = try capture(0, shape: 0)
+        let halfway = try capture(0.5)
+        let production = try capture(1)
+        XCTAssertEqual(neutral[80, 80], 0.10, accuracy: 0.005)
+        XCTAssertGreaterThan(neutral[125, 80], 0.80)
+        let edge = neutral.color(x: 125, y: 80) / neutral[125, 80]
+        XCTAssertGreaterThan(edge.x, 0.85)
+        XCTAssertGreaterThan(edge.y, 0.45)
+        XCTAssertLessThan(edge.z, 0.5)
+        XCTAssertLessThan(neutral.meanAbsoluteRGBDifference(from: neutralOtherShape), 0.0001)
+        // This point is outside the sphere but inside the rounded square.
+        XCTAssertLessThan(neutral[118, 118], 0.01)
+        XCTAssertGreaterThan(halfway[118, 118], neutral[118, 118] + 0.05)
+        XCTAssertGreaterThan(production[118, 118], halfway[118, 118])
+        XCTAssertTrue(neutral.isFinitePremultiplied)
+        XCTAssertTrue(halfway.isFinitePremultiplied)
+    }
+
+    func testPalettePresentationRemovalEmphasisOnlyWarmsInnerRim() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let appearance = palettePresentationAppearance()
+        let plain = try harness.render(actor: palettePresentationActor(), appearance: appearance, backgroundColor: .zero)
+        let marked = try harness.render(actor: palettePresentationActor(emphasis: 1), appearance: appearance, backgroundColor: .zero)
+        XCTAssertEqual(plain.alpha, marked.alpha)
+        XCTAssertEqual(plain.color(x: 80, y: 80), marked.color(x: 80, y: 80))
+        XCTAssertEqual(plain.color(x: 140, y: 80), marked.color(x: 140, y: 80))
+        XCTAssertGreaterThan(marked.color(x: 128, y: 80).y, plain.color(x: 128, y: 80).y + 0.05)
+        XCTAssertTrue(marked.isFinitePremultiplied)
+    }
+
+    private func palettePresentationActor(
+        morph: Float? = nil, saturation: Float? = nil, emphasis: Float? = nil, shape: UInt32 = 0
+    ) -> DayObjectGPUActor {
+        if morph == nil, saturation == nil, emphasis == nil {
+            return DayObjectGPUActor(
+                position: .zero, direction: SIMD2(1, 0), halfSize: SIMD2(0.32, 0.32),
+                opacity: 1, trailLength: 0, shape: shape, appearanceIndex: 0, depth: 0.5,
+                materialPhase: 0.25, localDepthSoftness: 0
+            )
+        }
+        return DayObjectGPUActor(
+            position: .zero, direction: SIMD2(1, 0), halfSize: SIMD2(0.32, 0.32),
+            opacity: 1, trailLength: 0, shape: shape, appearanceIndex: 0, depth: 0.5,
+            materialPhase: 0.25, localDepthSoftness: 0,
+            paletteMorph: morph ?? 1, presentationSaturation: saturation ?? 1, removalEmphasis: emphasis ?? 0
+        )
+    }
+
+    private func palettePresentationAppearance() -> DayObjectGPUAppearance {
+        DayObjectGPUAppearance(
+            color0: SIMD4(0.9, 0.12, 0.3, 1), color1: SIMD4(0.2, 0.8, 0.9, 1),
+            color2: SIMD4(0.5, 0.2, 0.9, 1), radial0: SIMD4(0, 0, 1, 0.1),
+            radial1: SIMD4(0, 0, 1, 0.1), radial2: SIMD4(0, 0, 1, 0.1),
+            field: .zero, optical0: SIMD4(0, 0, 1, 1), optical1: .zero,
+            light: SIMD4(0, 1, 0, 0), metadata: SIMD4(DayObjectMaterialFamily.solid.rawValue, 1, 1, 0),
+            recipe0: SIMD4(0, 0, 0, 0.72)
+        )
     }
 
     func testLayeredRadialColorIsContinuousAcrossHalfPhase() throws {

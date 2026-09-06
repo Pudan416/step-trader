@@ -14,10 +14,14 @@ struct alignas(16) DayObjectGPUActor {
     float materialPhase;
     float localDepthSoftness;
     float tailPadding;
+    float paletteMorph;
+    float presentationSaturation;
+    float removalEmphasis;
+    float presentationPadding;
 };
 
 static_assert(alignof(DayObjectGPUActor) == 16, "GPU actors require 16-byte alignment");
-static_assert(sizeof(DayObjectGPUActor) == 64, "GPU actors must match Swift's 64-byte stride");
+static_assert(sizeof(DayObjectGPUActor) == 80, "GPU actors must match Swift's 80-byte stride");
 
 struct DayObjectGPUAppearance {
     float4 color0;
@@ -61,6 +65,9 @@ struct DayObjectsActorVertexOut {
     float shortSidePixels;
     float materialPhase;
     float localDepthSoftness;
+    float paletteMorph;
+    float presentationSaturation;
+    float removalEmphasis;
     uint shape [[flat]];
     uint appearanceIndex [[flat]];
 };
@@ -90,7 +97,9 @@ vertex DayObjectsActorVertexOut dayObjectsActorVertex(
         ? dayObjectsSoftStarRadialReach
         : (actor.shape == 3 ? dayObjectsSoftBlobRadialReach : 1.0);
     const float bodyMajorReach = halfSize.x * radialReach + mergeReach;
-    const float bodyMinorReach = halfSize.y * radialReach + mergeReach;
+    const float bodyMinorReach = (actor.paletteMorph < 1.0
+        ? max(halfSize.y * radialReach, halfSize.x)
+        : halfSize.y * radialReach) + mergeReach;
     const float trailMinimumX = -halfSize.x - max(actor.trailLength, 0.0);
 
     // The local quad spans the body plus the complete exponential/Gaussian
@@ -131,6 +140,9 @@ vertex DayObjectsActorVertexOut dayObjectsActorVertex(
     out.shortSidePixels = shortSidePixels;
     out.materialPhase = fract(max(actor.materialPhase, 0.0));
     out.localDepthSoftness = clamp(actor.localDepthSoftness, 0.0, 1.0);
+    out.paletteMorph = clamp(actor.paletteMorph, 0.0, 1.0);
+    out.presentationSaturation = clamp(actor.presentationSaturation, 0.0, 1.0);
+    out.removalEmphasis = clamp(actor.removalEmphasis, 0.0, 1.0);
     out.shape = actor.shape;
     out.appearanceIndex = actor.appearanceIndex;
     return out;
@@ -333,6 +345,12 @@ static float dayObjectsActorBody(
     }
 }
 
+// Same IEC sRGB transfer as DayObjectRGB.linearComponent. Palette literals
+// enter the material path in linear light, like the appearance buffer.
+static float3 dayObjectsPresentationLinearRGB(float3 sRGB) {
+    return select(pow((sRGB + 0.055) / 1.055, float3(2.4)), sRGB / 12.92, sRGB <= 0.04045);
+}
+
 fragment float4 dayObjectsActorFragment(
     DayObjectsActorVertexOut in [[stage_in]],
     const device DayObjectGPUAppearance *appearances [[buffer(2)]],
@@ -351,12 +369,21 @@ fragment float4 dayObjectsActorFragment(
         0.0,
         1.0
     );
-    const float signedBodyDistancePixels = dayObjectsActorBody(
+    const float targetBodyDistancePixels = dayObjectsActorBody(
         in.shape,
         bodyPoint,
         aspect,
         in.materialPhase * 2.0 - 1.0
     ) * majorHalfSize * in.shortSidePixels;
+    const float paletteProgress = smoothstep(0.0, 1.0, in.paletteMorph);
+    const float sphereRadius = length(bodyPoint);
+    const float sphereDistancePixels = (sphereRadius - 1.0)
+        * majorHalfSize * in.shortSidePixels;
+    // Evaluate coverage on one analytical contour throughout the morph. The
+    // production endpoint retains the original distance without interpolation.
+    const float signedBodyDistancePixels = in.paletteMorph == 1.0
+        ? targetBodyDistancePixels
+        : mix(sphereDistancePixels, targetBodyDistancePixels, paletteProgress);
 
     // Derivatives are evaluated after conversion to screen pixels, so the
     // transition width remains a physical-pixel quantity on every canvas.
@@ -602,5 +629,31 @@ fragment float4 dayObjectsActorFragment(
         + structuralColor * visibleStructuralAlpha
         + haloColor * visibleHaloAlpha;
     premultiplied = min(max(premultiplied, 0.0), alpha);
-    return float4(premultiplied, alpha);
+    if (in.paletteMorph == 1.0 && in.presentationSaturation == 1.0 && in.removalEmphasis == 0.0) {
+        return float4(premultiplied, alpha);
+    }
+
+    const float3 yellow = dayObjectsPresentationLinearRGB(float3(246.0, 185.0, 30.0) / 255.0);
+    const float3 softYellow = dayObjectsPresentationLinearRGB(float3(255.0, 217.0, 106.0) / 255.0);
+    const float3 paleYellow = dayObjectsPresentationLinearRGB(float3(255.0, 240.0, 176.0) / 255.0);
+    const float neutralEdge = smoothstep(0.15, 0.88, sphereRadius);
+    const float neutralAlpha = mix(0.10, 0.88, neutralEdge) * baseBodyCoverage * actorOpacity;
+    float3 neutralColor = mix(paleYellow, yellow, smoothstep(0.0, 0.82, sphereRadius));
+    neutralColor = mix(neutralColor, softYellow, smoothstep(0.82, 1.0, sphereRadius) * 0.65);
+    const float presentedAlpha = mix(neutralAlpha, alpha, paletteProgress);
+    float3 presentedRGB = mix(neutralColor * neutralAlpha, premultiplied, paletteProgress);
+    float3 straightRGB = presentedAlpha > 1e-6 ? presentedRGB / presentedAlpha : float3(0.0);
+    const float luminance = dot(straightRGB, float3(0.2126, 0.7152, 0.0722));
+    straightRGB = mix(float3(luminance), straightRGB, in.presentationSaturation);
+
+    // A narrow band wholly inside the current contour. Neither the core nor
+    // the exterior halo/trail gains colour or coverage during removal.
+    const float innerDistance = -signedBodyDistancePixels
+        / max(majorHalfSize * in.shortSidePixels, 1.0);
+    const float innerRim = smoothstep(0.0, 0.025, innerDistance)
+        * (1.0 - smoothstep(0.08, 0.13, innerDistance));
+    const float3 removalColor = dayObjectsPresentationLinearRGB(float3(255.0, 155.0, 122.0) / 255.0);
+    straightRGB = mix(straightRGB, removalColor, innerRim * in.removalEmphasis);
+    presentedRGB = clamp(straightRGB, 0.0, 1.0) * presentedAlpha;
+    return float4(presentedRGB, presentedAlpha);
 }

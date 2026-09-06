@@ -149,7 +149,7 @@ struct DayObjectPostProcess: Equatable {
 @_alignment(16)
 struct DayObjectGPUActor: Equatable {
     static let metalAlignment = 16
-    static let metalStride = 64
+    static let metalStride = 80
 
     let position: SIMD2<Float>       // bytes 0...7
     let direction: SIMD2<Float>      // bytes 8...15
@@ -163,6 +163,10 @@ struct DayObjectGPUActor: Equatable {
     let materialPhase: Float         // bytes 52...55
     let localDepthSoftness: Float    // bytes 56...59
     private let tailPadding: Float   // bytes 60...63
+    let paletteMorph: Float          // bytes 64...67
+    let presentationSaturation: Float // bytes 68...71
+    let removalEmphasis: Float       // bytes 72...75
+    private let presentationPadding: Float // bytes 76...79
 
     init(
         position: SIMD2<Float>,
@@ -174,7 +178,10 @@ struct DayObjectGPUActor: Equatable {
         appearanceIndex: UInt32,
         depth: Float,
         materialPhase: Float,
-        localDepthSoftness: Float
+        localDepthSoftness: Float,
+        paletteMorph: Float = 1,
+        presentationSaturation: Float = 1,
+        removalEmphasis: Float = 0
     ) {
         self.position = Self.finite(position)
         self.direction = Self.normalized(direction)
@@ -191,6 +198,10 @@ struct DayObjectGPUActor: Equatable {
             1
         )
         tailPadding = 0
+        self.paletteMorph = Self.clampedUnit(paletteMorph)
+        self.presentationSaturation = Self.clampedUnit(presentationSaturation)
+        self.removalEmphasis = Self.clampedUnit(removalEmphasis)
+        presentationPadding = 0
     }
 
     /// Compatibility initializer for focused legacy mask tests while their
@@ -236,7 +247,10 @@ struct DayObjectGPUActor: Equatable {
             appearanceIndex: index,
             depth: depth,
             materialPhase: materialPhase,
-            localDepthSoftness: localDepthSoftness
+            localDepthSoftness: localDepthSoftness,
+            paletteMorph: paletteMorph,
+            presentationSaturation: presentationSaturation,
+            removalEmphasis: removalEmphasis
         )
     }
 
