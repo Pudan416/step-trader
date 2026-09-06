@@ -197,7 +197,7 @@ enum BassPlanner {
     ) -> Profile {
         guard let soundWorld else { return profile }
         switch soundWorld {
-        case .feltAndWood:
+        case .feltAndWood, .livingField:
             return Profile(
                 articulation: profile.articulation,
                 glideMilliseconds: scaled(profile.glideMilliseconds, by: 1.25),
@@ -208,7 +208,7 @@ enum BassPlanner {
                 duckHoldSeconds: profile.duckHoldSeconds,
                 duckReleaseSeconds: profile.duckReleaseSeconds
             )
-        case .metalAndCurrent:
+        case .metalAndCurrent, .electricDream:
             return Profile(
                 articulation: profile.articulation,
                 glideMilliseconds: scaled(profile.glideMilliseconds, by: 0.75),

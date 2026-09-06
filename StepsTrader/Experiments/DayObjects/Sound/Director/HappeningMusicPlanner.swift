@@ -102,14 +102,14 @@ enum HappeningMusicPlanner {
         soundWorld: DayObjectsSoundWorld?
     ) -> (attackSeconds: Double, releaseSeconds: Double, delaySend: Double, reverbSend: Double) {
         switch soundWorld {
-        case .feltAndWood:
+        case .feltAndWood, .livingField:
             return (
                 max(recipe.attackSeconds * 1.25, 0.035),
                 min(recipe.releaseSeconds * 1.35, 4.5),
                 recipe.delayMix * 0.55,
                 min(recipe.reverbMix + 0.12, 0.92)
             )
-        case .metalAndCurrent:
+        case .metalAndCurrent, .electricDream:
             return (
                 max(recipe.attackSeconds * 0.78, 0.008),
                 min(recipe.releaseSeconds * 0.92, 4.5),
@@ -154,7 +154,7 @@ enum HappeningMusicPlanner {
             domain: .happeningIdentity(stableID: "motif.\(soundWorld.rawValue).\(happeningID)")
         )
         switch soundWorld {
-        case .feltAndWood:
+        case .feltAndWood, .livingField:
             let descending = random.bernoulli(probability: 0.5)
             return HappeningMotifPlan(
                 role: .statement,
@@ -162,7 +162,7 @@ enum HappeningMusicPlanner {
                 offsetBeats: [0, random.bernoulli(probability: 0.5) ? 1.25 : 1.75],
                 velocityMultipliers: [0.88, 0.68]
             )
-        case .metalAndCurrent:
+        case .metalAndCurrent, .electricDream:
             let turn = random.bernoulli(probability: 0.5) ? [0, 2, 1] : [1, 0, 2]
             return HappeningMotifPlan(
                 role: .response,

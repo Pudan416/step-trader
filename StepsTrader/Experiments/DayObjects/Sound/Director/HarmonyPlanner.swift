@@ -214,12 +214,12 @@ enum HarmonyPlanner {
         let delayMultiplier: Double
         let reverbMultiplier: Double
         switch soundWorld {
-        case .feltAndWood:
+        case .feltAndWood, .livingField:
             attackMultiplier = 1.18
             releaseMultiplier = 1.22
             delayMultiplier = 0.62
             reverbMultiplier = 1.08
-        case .metalAndCurrent:
+        case .metalAndCurrent, .electricDream:
             attackMultiplier = 0.72
             releaseMultiplier = 0.82
             delayMultiplier = 1.45

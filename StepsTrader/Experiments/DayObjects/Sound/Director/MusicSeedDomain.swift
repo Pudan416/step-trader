@@ -8,6 +8,9 @@ struct MusicSeedDomain: Equatable, Sendable {
 }
 
 extension MusicSeedDomain {
+    static let worldStyle = MusicSeedDomain("world.style")
+    static let worldMood = MusicSeedDomain("world.mood")
+    static let worldGuest = MusicSeedDomain("world.guest")
     static let worldKey = MusicSeedDomain("world.key")
     static let worldMode = MusicSeedDomain("world.mode")
     static let worldProgression = MusicSeedDomain("world.progression")

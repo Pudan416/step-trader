@@ -84,7 +84,7 @@ enum LeadPlanner {
 
     private static func processing(for soundWorld: DayObjectsSoundWorld?) -> Processing {
         switch soundWorld {
-        case .feltAndWood:
+        case .feltAndWood, .livingField:
             return Processing(
                 portamentoMilliseconds: 165,
                 attackSeconds: 0.065,
@@ -96,7 +96,7 @@ enum LeadPlanner {
                 delaySend: 0.16,
                 reverbSend: 0.46
             )
-        case .metalAndCurrent:
+        case .metalAndCurrent, .electricDream:
             return Processing(
                 portamentoMilliseconds: 72,
                 attackSeconds: 0.018,

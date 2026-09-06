@@ -45,9 +45,9 @@ enum GroovePlanner {
         let bucket = Int(modeRandom.nextUInt64() % 100)
         let mode: GrooveMode
         switch soundWorld {
-        case .feltAndWood:
+        case .feltAndWood, .livingField:
             mode = bucket < 35 ? .percussion : .bassBed
-        case .metalAndCurrent:
+        case .metalAndCurrent, .electricDream:
             mode = bucket < 55 ? .bassPulse : .bassArp
         }
         var thinningRandom = StableMusicRandom(seed: remixSeed, domain: .grooveThinning)

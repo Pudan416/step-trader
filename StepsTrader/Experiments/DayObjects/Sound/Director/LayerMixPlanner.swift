@@ -11,9 +11,9 @@ enum LayerMixPlanner {
         let audibleVoices = min(max(boundedCount, 1), 4)
         let countCompensationDecibels = -3 * log2(Double(audibleVoices))
         let masterTargetDecibelsBeforeLimiter: Double = switch soundWorld {
-        case .feltAndWood:
+        case .feltAndWood, .livingField:
             -9
-        case .metalAndCurrent:
+        case .metalAndCurrent, .electricDream:
             -10.5
         case nil:
             -6
