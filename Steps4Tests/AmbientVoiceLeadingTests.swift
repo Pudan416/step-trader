@@ -2,6 +2,40 @@ import XCTest
 @testable import Steps4
 
 final class AmbientVoiceLeadingTests: XCTestCase {
+    func testLivingFieldVoicingsAreWiderThanEveryOtherWorldForIdenticalChordTones() {
+        let fixtures: [(DayObjectsSoundMood, [Int])] = [
+            (.sparse, [0, 7]), (.moving, [0, 7]), (.strange, [0, 7, 9])
+        ]
+        for (mood, intervals) in fixtures {
+            for center in [0, 2, 4, 5, 7, 9] {
+                let pitchClasses = intervals.map { (center + $0) % 12 }
+                // Hold a sufficiently wide register fixed to isolate spacing;
+                // every transposed fifth needs room for more than 19 semitones.
+                for register: ClosedRange<UInt8>? in [nil, 48...84] {
+                    for previous: [UInt8]? in [nil, intervals.map { UInt8(48 + $0) }] {
+                        let living = AmbientVoiceLeading.nearestVoicing(
+                            chordPitchClasses: pitchClasses, previousNotes: previous,
+                            world: .livingField, mood: mood, register: register
+                        )
+                        XCTAssertEqual(living.count, intervals.count)
+                        let livingSpan = Int(living.last ?? 0) - Int(living.first ?? 0)
+                        for world in [DayObjectsSoundWorld.feltAndWood, .metalAndCurrent, .electricDream] {
+                            let other = AmbientVoiceLeading.nearestVoicing(
+                                chordPitchClasses: pitchClasses, previousNotes: previous,
+                                world: world, mood: mood, register: register
+                            )
+                            XCTAssertEqual(other.count, intervals.count)
+                            XCTAssertGreaterThan(
+                                livingSpan, Int(other.last ?? 0) - Int(other.first ?? 0),
+                                "Living must be wider than \(world), \(mood), center \(center)"
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     func testWorldVoicingsExpressCloseOpenDroneAndMovingInversions() {
         let acoustic = AmbientVoiceLeading.nearestVoicing(chordPitchClasses: [0, 7, 2], previousNotes: nil, world: .feltAndWood, mood: .moving)
         XCTAssertEqual(acoustic.count, 3)

@@ -24,8 +24,17 @@ enum AmbientVoiceLeading {
             let leftPenalty = worldVoicingPenalty(left, root: root, world: world, chordIndex: chordIndex)
             let rightPenalty = worldVoicingPenalty(right, root: root, world: world, chordIndex: chordIndex)
             if leftPenalty != rightPenalty { return leftPenalty < rightPenalty }
+            // Living keeps open intervals, then takes the widest feasible span
+            // before minimizing movement within equally spacious voicings.
+            if world == .livingField, voicingSpan(left) != voicingSpan(right) {
+                return voicingSpan(left) > voicingSpan(right)
+            }
             return isPreferred(left, over: right, previousNotes: previousNotes)
         } ?? []
+    }
+
+    private static func voicingSpan(_ notes: [UInt8]) -> Int {
+        Int(notes.last ?? 0) - Int(notes.first ?? 0)
     }
 
     private static func worldVoicingPenalty(
@@ -40,7 +49,7 @@ enum AmbientVoiceLeading {
             let crowdedIntervals = zip(notes, notes.dropFirst()).reduce(0) {
                 $0 + max(0, 5 - (Int($1.1) - Int($1.0)))
             }
-            return max(0, 12 - span) + crowdedIntervals
+            return crowdedIntervals
         case .metalAndCurrent:
             let rootPenalty = Int(first) % 12 == root ? 0 : 100
             let upperSpacing = notes.count > 2 ? max(0, 12 - (Int(notes[1]) - Int(first))) : max(0, 7 - span)

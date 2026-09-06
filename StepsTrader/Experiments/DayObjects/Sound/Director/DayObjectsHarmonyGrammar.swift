@@ -27,7 +27,7 @@ struct DayObjectsHarmonyGrammar: Equatable, Sendable {
             modes = [.majorPentatonic, .dorian]
             templates = [[0, 7, 9, 2], [0, 9, 2, 7], [0, 2, 7, 9]]
             extensions = mood == .sparse ? [7] : [7, 9]
-            register = 48...79
+            register = 48...84
             cycles = mood == .moving ? [16, 12, 16] : [16, 16, 12]
         case .metalAndCurrent:
             modes = [.aeolian, .dorian]
