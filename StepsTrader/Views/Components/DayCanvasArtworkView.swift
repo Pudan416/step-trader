@@ -12,16 +12,23 @@ enum CanvasExportRoute: Equatable {
 }
 
 struct DayCanvasArtworkLayerPolicy: Equatable {
+    enum AnimationSnapshotSource: Equatable {
+        case legacySwiftUI
+        case editorialMetal
+    }
+
     let usesEditorial: Bool
     let usesLegacyBackground: Bool
     let usesRasterTexture: Bool
-    let usesLegacyAnimationOverlay: Bool
+    let usesInteractiveAnimationOverlay: Bool
+    let animationSnapshotSource: AnimationSnapshotSource
 
     init(style: CanvasVisualStyle) {
         usesEditorial = style == .editorial
         usesLegacyBackground = style == .legacy
         usesRasterTexture = style == .legacy
-        usesLegacyAnimationOverlay = style == .legacy
+        usesInteractiveAnimationOverlay = true
+        animationSnapshotSource = style == .editorial ? .editorialMetal : .legacySwiftUI
     }
 }
 

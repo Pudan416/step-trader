@@ -7,7 +7,8 @@ import SwiftUI
 /// something you press by accident on the way out. Share is passed in from the
 /// host because its context menu needs routines the dock knows nothing about.
 struct CanvasFullScreenDock<Share: View>: View {
-    let onSoundOffAndExit: () -> Void
+    let soundAppearance: CanvasSoundButtonAppearance
+    let onSound: () -> Void
     let onEdit: () -> Void
     var showsEdit = true
     @ViewBuilder let share: () -> Share
@@ -25,13 +26,16 @@ struct CanvasFullScreenDock<Share: View>: View {
     }
 
     private var content: some View {
-        HStack(spacing: 8) {
+        let sound = CanvasFullScreenSoundControlPresentation(appearance: soundAppearance)
+        return HStack(spacing: 8) {
             label(
-                String(localized: "Sound off", comment: "Full screen dock – stop sound and collapse action"),
-                systemImage: "speaker.slash.fill",
-                action: onSoundOffAndExit
+                sound.title,
+                systemImage: sound.systemImage,
+                action: onSound
             )
+            .disabled(!sound.isEnabled)
             .accessibilityHint(String(localized: "Stops the day's music and closes full screen"))
+            .accessibilityValue(soundAppearance.accessibilityValue)
             .accessibilityIdentifier("canvas_sound_off_button")
 
             share()
@@ -71,5 +75,44 @@ struct CanvasFullScreenDock<Share: View>: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)
+    }
+}
+
+struct CanvasFullScreenSoundControlPresentation: Equatable {
+    let title: String
+    let systemImage: String
+    let isEnabled: Bool
+
+    init(appearance: CanvasSoundButtonAppearance) {
+        switch appearance {
+        case .readyToPlay:
+            self.init(title: "Start sound", systemImage: "speaker.wave.2", isEnabled: true)
+        case .starting:
+            self.init(title: "Starting sound", systemImage: "hourglass", isEnabled: false)
+        case .playing:
+            self.init(title: "Sound off", systemImage: "speaker.slash.fill", isEnabled: true)
+        case .retry:
+            self.init(title: "Retry sound", systemImage: "arrow.clockwise", isEnabled: true)
+        }
+    }
+
+    init(title: String, systemImage: String, isEnabled: Bool) {
+        self.title = title
+        self.systemImage = systemImage
+        self.isEnabled = isEnabled
+    }
+}
+
+enum CanvasFullScreenSoundAction: Equatable {
+    case retryInPlace
+    case turnOffAndExit
+    case none
+
+    static func resolve(appearance: CanvasSoundButtonAppearance) -> Self {
+        switch appearance {
+        case .readyToPlay, .retry: .retryInPlace
+        case .playing: .turnOffAndExit
+        case .starting: .none
+        }
     }
 }

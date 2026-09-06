@@ -85,8 +85,24 @@ final class PlaybackWorldBank: BassDuckBackend {
     }
 
     func prepare() throws {
+        try prepare(happeningRecipeIDs: nil)
+    }
+
+    func prepare(happeningRecipeIDs: Set<HappeningSoundRecipeID>) throws {
+        try prepare(happeningRecipeIDs: Optional(happeningRecipeIDs))
+    }
+
+    private func prepare(happeningRecipeIDs: Set<HappeningSoundRecipeID>?) throws {
         guard !isPrepared else { return }
-        try instrumentBank.prepare(configuration: .playbackWorld)
+        if let happeningRecipeIDs,
+           let focusedBank = instrumentBank as? DayObjectsInstrumentBank {
+            try focusedBank.prepare(
+                configuration: .playbackWorld,
+                happeningRecipeIDs: happeningRecipeIDs
+            )
+        } else {
+            try instrumentBank.prepare(configuration: .playbackWorld)
+        }
         var preparedPools: [PlaybackWorldBankConfiguration.PoolName: DayObjectsTonalVoicePoolProtocol] = [:]
         for name in PlaybackWorldBankConfiguration.PoolName.allCases {
             preparedPools[name] = try instrumentBank.tonalPool(named: name.rawValue)

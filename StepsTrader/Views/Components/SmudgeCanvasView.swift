@@ -54,6 +54,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
     var labelColor: Color? = nil
     var hasStepsData: Bool = true
     var hasSleepData: Bool = true
+    var editorialSnapshotInput: EditorialCanvasRenderInput? = nil
     let isRenderingAllowed: Bool
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -82,6 +83,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
 
         let scale = view.contentScaleFactor
         let coord = context.coordinator
+        coord.storedConfig = self
         coord.renderingIsAllowed = isRenderingAllowed
         renderer.setActive(isRenderingAllowed)
 
@@ -98,9 +100,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
                   let view,
                   let renderer = coord.renderer
             else { return }
-            if renderer.needsSnapshot {
-                coord.snapshotCanvas(scale: scale)
-            }
+            if renderer.needsSnapshot { coord.snapshotCanvas(scale: scale) }
             renderer.handleTouchBegan(id: id, at: point, scale: scale)
             view.isPaused = !MetalOverlayRenderingPolicy.shouldRender(
                 isRenderingAllowed: coord.renderingIsAllowed,
@@ -135,6 +135,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
 
         renderer.setActive(isRenderingAllowed)
         if !isRenderingAllowed {
+            coordinator.cancelSnapshot()
             renderer.cancelActiveInteraction()
         }
 
@@ -146,6 +147,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
 
     static func dismantleUIView(_ uiView: SmudgeMTKView, coordinator: Coordinator) {
         coordinator.renderingIsAllowed = false
+        coordinator.cancelSnapshot()
         coordinator.renderer?.cancelActiveInteraction()
         coordinator.renderer?.setActive(false)
         uiView.isUserInteractionEnabled = false
@@ -162,6 +164,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
         weak var mtkView: SmudgeMTKView?
         var storedConfig: SmudgeOverlayView?
         var renderingIsAllowed = false
+        private var editorialSnapshotTask: Task<Void, Never>?
 
         init() { renderer = MetalSmudgeRenderer.create() }
 
@@ -177,6 +180,30 @@ struct SmudgeOverlayView: UIViewRepresentable {
             let pointW = drawableSize.width  / scale
             let pointH = drawableSize.height / scale
 
+            if let editorial = cfg.editorialSnapshotInput {
+                guard editorialSnapshotTask == nil else { return }
+                editorialSnapshotTask = Task { @MainActor [weak self, weak view] in
+                    defer { self?.editorialSnapshotTask = nil }
+                    let image = await DayObjectsImageRenderer.image(
+                        input: editorial,
+                        size: CGSize(width: pointW, height: pointH),
+                        scale: scale,
+                        elapsedTime: 4
+                    )
+                    guard !Task.isCancelled,
+                          let self,
+                          let view,
+                          self.renderingIsAllowed,
+                          let cgImage = image?.cgImage
+                    else { return }
+                    self.renderer?.updateBaseTexture(from: cgImage)
+                    if self.renderer?.isDistorted == true {
+                        view.isPaused = false
+                    }
+                }
+                return
+            }
+
             let composite = EnergyGradientBackground(
                 stepsPoints: cfg.stepsPoints,
                 sleepPoints: cfg.sleepPoints,
@@ -191,6 +218,11 @@ struct SmudgeOverlayView: UIViewRepresentable {
             if let cgImage = imageRenderer.cgImage {
                 renderer.updateBaseTexture(from: cgImage)
             }
+        }
+
+        func cancelSnapshot() {
+            editorialSnapshotTask?.cancel()
+            editorialSnapshotTask = nil
         }
     }
 }

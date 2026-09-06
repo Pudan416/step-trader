@@ -81,6 +81,7 @@ struct CanvasBottomActionRow: View {
             String(localized: "Starts the day's music and opens the canvas full screen",
                    comment: "Canvas – sound button VoiceOver hint")
         )
+        .accessibilityValue(soundAppearance.accessibilityValue)
         .accessibilityIdentifier("canvas_sound_button")
     }
 
@@ -133,6 +134,15 @@ enum CanvasSoundButtonAppearance: Equatable {
         case .starting: String(localized: "Starting day music")
         case .playing: String(localized: "Day music is playing")
         case .retry: String(localized: "Retry day music")
+        }
+    }
+
+    var accessibilityValue: String {
+        switch self {
+        case .readyToPlay: "off"
+        case .starting: "starting"
+        case .playing: "on"
+        case .retry: "error, retry available"
         }
     }
 }

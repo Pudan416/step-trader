@@ -196,7 +196,24 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     }
 
     func prepare(configuration: DayObjectsInstrumentBankConfiguration) throws {
-        try prepare(level: .fullMusic(configuration))
+        try prepareFullMusic(
+            configuration,
+            initialHappeningRecipeIDs: Set(HappeningSoundCatalog.recipes.map(\.id))
+        )
+    }
+
+    /// Prepares a complete music graph while decoding only the happenings the
+    /// initial plan can actually play. `HappeningScheduler` prepares additions
+    /// individually, so mobile playback does not need the entire catalog on its
+    /// cold-start path.
+    func prepare(
+        configuration: DayObjectsInstrumentBankConfiguration,
+        happeningRecipeIDs: Set<HappeningSoundRecipeID>
+    ) throws {
+        try prepareFullMusic(
+            configuration,
+            initialHappeningRecipeIDs: happeningRecipeIDs
+        )
     }
 
     func prepare(level: PreparationLevel) throws {
@@ -204,7 +221,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         case let .sampleOnly(recipeIDs):
             try prepareSamples(recipeIDs)
         case let .fullMusic(configuration):
-            try prepareFullMusic(configuration)
+            try prepare(configuration: configuration)
         }
     }
 
@@ -246,7 +263,10 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         }
     }
 
-    private func prepareFullMusic(_ configuration: DayObjectsInstrumentBankConfiguration) throws {
+    private func prepareFullMusic(
+        _ configuration: DayObjectsInstrumentBankConfiguration,
+        initialHappeningRecipeIDs: Set<HappeningSoundRecipeID>
+    ) throws {
         if let prepared, let existingConfiguration = prepared.configuration {
             guard existingConfiguration == configuration else {
                 throw DayObjectsInstrumentBankError.configurationChangedAfterPreparation
@@ -261,7 +281,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         let builtHappenings = prepared?.happenings ?? happeningPoolFactory()
         let previousPrepared = prepared
         do {
-            try builtHappenings.prepare(recipeIDs: Set(HappeningSoundCatalog.recipes.map(\.id)))
+            try builtHappenings.prepare(recipeIDs: initialHappeningRecipeIDs)
             let instruments: [DayObjectsInstrumentID: NormalizedSynthVoice]
             do { instruments = try tonalInstrumentLoader() }
             catch { throw DayObjectsInstrumentBankError.preparationFailed(.tonalInstruments) }

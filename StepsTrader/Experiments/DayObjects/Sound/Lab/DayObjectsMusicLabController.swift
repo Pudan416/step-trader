@@ -223,6 +223,8 @@ final class DayObjectsMusicLabController: ObservableObject {
         lifecycleGeneration &+= 1
         let generation = lifecycleGeneration
         soundState = .starting
+        let startedAt = ProcessInfo.processInfo.systemUptime
+        AppLogger.ui.info("[DAY_OBJECTS_AUDIO] Starting canvas music")
         do {
             try await playback.start(plan: startedPlan)
             guard generation == lifecycleGeneration else {
@@ -230,6 +232,9 @@ final class DayObjectsMusicLabController: ObservableObject {
                 return
             }
             soundState = playback.state
+            AppLogger.ui.info(
+                "[DAY_OBJECTS_AUDIO] Start resolved as \(String(describing: self.soundState), privacy: .public) in \(ProcessInfo.processInfo.systemUptime - startedAt, privacy: .public)s"
+            )
             if soundState == .on, currentPlan != startedPlan {
                 routePlaybackChange(from: startedPlan, to: currentPlan)
             }
@@ -242,6 +247,9 @@ final class DayObjectsMusicLabController: ObservableObject {
             if soundState == .starting || soundState == .off {
                 soundState = .error(.classifying(error))
             }
+            AppLogger.ui.error(
+                "[DAY_OBJECTS_AUDIO] Start failed as \(String(describing: self.soundState), privacy: .public): \(String(describing: error), privacy: .public)"
+            )
         }
     }
 

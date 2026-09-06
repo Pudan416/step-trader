@@ -1181,8 +1181,9 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
 
     func testMobileRuntimePreparesOnlyOnePlaybackWorld() throws {
         let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let plan = makePlaybackEnginePlan(seed: 32)
 
-        try runtime.prepare(plan: makePlaybackEnginePlan(seed: 32))
+        try runtime.prepare(plan: plan)
 
         XCTAssertEqual(runtime.preparedRhythmBackendCount, 1)
         XCTAssertEqual(runtime.playbackMetrics.activeTransportCount, 0)
@@ -1190,6 +1191,10 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(runtime.playbackMetrics.activeVoiceCount, 0)
         XCTAssertEqual(runtime.playbackMetrics.pendingRemixCount, 0)
         XCTAssertEqual(runtime.instrumentAllocationCountForTesting, 1)
+        XCTAssertEqual(
+            runtime.preparedHappeningRecipeIDsForTesting,
+            Set(plan.happenings.map(\.recipeID))
+        )
     }
 
     func testMobileRuntimeAppliesRemixInPlaceAtTheNextBarBoundary() throws {

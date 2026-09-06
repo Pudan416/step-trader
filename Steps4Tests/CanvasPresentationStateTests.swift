@@ -149,6 +149,36 @@ final class CanvasPresentationStateTests: XCTestCase {
         )
     }
 
+    func testFullScreenSoundControlReflectsActualPlaybackState() {
+        XCTAssertEqual(
+            CanvasFullScreenSoundControlPresentation(appearance: .starting),
+            .init(title: "Starting sound", systemImage: "hourglass", isEnabled: false)
+        )
+        XCTAssertEqual(
+            CanvasFullScreenSoundControlPresentation(appearance: .playing),
+            .init(title: "Sound off", systemImage: "speaker.slash.fill", isEnabled: true)
+        )
+        XCTAssertEqual(
+            CanvasFullScreenSoundControlPresentation(appearance: .retry),
+            .init(title: "Retry sound", systemImage: "arrow.clockwise", isEnabled: true)
+        )
+    }
+
+    func testFullScreenSoundControlRetriesAFailedStartWithoutCollapsingCanvas() {
+        XCTAssertEqual(
+            CanvasFullScreenSoundAction.resolve(appearance: .retry),
+            .retryInPlace
+        )
+        XCTAssertEqual(
+            CanvasFullScreenSoundAction.resolve(appearance: .playing),
+            .turnOffAndExit
+        )
+        XCTAssertEqual(
+            CanvasFullScreenSoundAction.resolve(appearance: .starting),
+            .none
+        )
+    }
+
     // MARK: - Interactive data drawer geometry
 
     func testCollapsedDataDrawerRevealTracksPartialPull() {

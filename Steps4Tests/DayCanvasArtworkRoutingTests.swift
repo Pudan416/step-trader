@@ -31,7 +31,8 @@ final class DayCanvasArtworkRoutingTests: XCTestCase {
         XCTAssertTrue(policy.usesEditorial)
         XCTAssertFalse(policy.usesLegacyBackground)
         XCTAssertFalse(policy.usesRasterTexture)
-        XCTAssertFalse(policy.usesLegacyAnimationOverlay)
+        XCTAssertTrue(policy.usesInteractiveAnimationOverlay)
+        XCTAssertEqual(policy.animationSnapshotSource, .editorialMetal)
     }
 
     func testLegacyKeepsExistingLayers() {
@@ -40,6 +41,7 @@ final class DayCanvasArtworkRoutingTests: XCTestCase {
         XCTAssertFalse(policy.usesEditorial)
         XCTAssertTrue(policy.usesLegacyBackground)
         XCTAssertTrue(policy.usesRasterTexture)
-        XCTAssertTrue(policy.usesLegacyAnimationOverlay)
+        XCTAssertTrue(policy.usesInteractiveAnimationOverlay)
+        XCTAssertEqual(policy.animationSnapshotSource, .legacySwiftUI)
     }
 }

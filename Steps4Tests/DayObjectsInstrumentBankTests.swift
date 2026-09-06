@@ -528,6 +528,18 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertLessThanOrEqual(bank.metrics.happeningMetrics.decodedByteCount, 48 * 1_024 * 1_024)
     }
 
+    func testFocusedFullMusicPreparationDecodesOnlyRequestedHappenings() throws {
+        let bank = DayObjectsInstrumentBank(bundle: Bundle(for: type(of: self)))
+        let requestedRecipeIDs = Set(HappeningSoundCatalog.recipes.prefix(2).map(\.id))
+
+        try bank.prepare(
+            configuration: .playbackWorld,
+            happeningRecipeIDs: requestedRecipeIDs
+        )
+
+        XCTAssertEqual(bank.happenings.metrics.availableRecipeIDs, requestedRecipeIDs)
+    }
+
     func testSampleOnlyPreparationUpgradesToFullMusicWithoutStartingASecondEngine() async throws {
         try requireLiveAudioOutput()
         let bank = DayObjectsInstrumentBank(bundle: Bundle(for: type(of: self)))

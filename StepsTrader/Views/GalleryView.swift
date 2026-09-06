@@ -223,11 +223,7 @@ struct GalleryView: View {
         switch CanvasSoundExpansionAction.forPresentation(presentation) {
         case .turnSoundOnAndEnterFullScreen:
 #if DEBUG || INTERNAL_BUILD
-            syncCanvasMusicInput()
-            if musicController.soundState != .on,
-               let intent = musicController.acceptSoundButtonIntent() {
-                Task { await musicController.completeSoundButtonIntent(intent) }
-            }
+            startCanvasSoundIfNeeded()
 #endif
             send(.enterFullScreen)
             lightHapticTick &+= 1
@@ -242,6 +238,28 @@ struct GalleryView: View {
     }
 
 #if DEBUG || INTERNAL_BUILD
+    private func startCanvasSoundIfNeeded() {
+        syncCanvasMusicInput()
+        guard musicController.soundState != .on,
+              let intent = musicController.acceptSoundButtonIntent()
+        else { return }
+        Task { await musicController.completeSoundButtonIntent(intent) }
+    }
+
+    private func handleFullScreenSoundControl() {
+        switch CanvasFullScreenSoundAction.resolve(appearance: canvasSoundAppearance) {
+        case .retryInPlace:
+            startCanvasSoundIfNeeded()
+            lightHapticTick &+= 1
+        case .turnOffAndExit:
+            send(.exitFullScreen)
+            lightHapticTick &+= 1
+            Task { await musicController.turnSoundOff() }
+        case .none:
+            break
+        }
+    }
+
     private func syncCanvasMusicInput() {
         musicController.setDayInput(
             countedSteps: model.stepsToday,
@@ -515,26 +533,6 @@ struct GalleryView: View {
             .ignoresSafeArea()
             .allowsHitTesting(false)
 
-            if !presentation.isEditing {
-                CanvasAnimationOverlay(
-                    elements: renderedCanvasElements,
-                    sleepPoints: model.sleepPointsToday,
-                    stepsPoints: model.stepsPointsToday,
-                    sleepColor: Color(hex: sleepColorHex),
-                    stepsColor: Color(hex: stepsColorHex),
-                    decayNorm: decayNorm,
-                    backgroundColor: canvasBackground,
-                    labelColor: labelColor,
-                    hasStepsData: model.hasStepsData,
-                    hasSleepData: model.hasSleepData
-                )
-                .frame(
-                    width: GenerativeCanvasView.canonicalPortraitSize.width,
-                    height: GenerativeCanvasView.canonicalPortraitSize.height
-                )
-                .ignoresSafeArea()
-            }
-
             if presentation.isEditing {
                 editModeGestureOverlay
                     .frame(
@@ -554,28 +552,53 @@ struct GalleryView: View {
     }
 
     private var canvasLayers: some View {
-        DayCanvasArtworkView(
-            style: dayCanvas.resolvedVisualStyle,
-            editorial: editorialRenderInput,
-            isAnimating: isCanvasSelected,
-            soundPulseBus: canvasSoundPulseBus
-        ) {
-            legacyCanvasLayers
-                .background {
-                    EnergyGradientBackground(
-                        stepsPoints: model.stepsPointsToday,
-                        sleepPoints: model.sleepPointsToday,
-                        hasStepsData: model.hasStepsData,
-                        hasSleepData: model.hasSleepData,
-                        showGrain: false
-                    )
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-                }
-                .overlay {
-                    TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
-                        .transaction { $0.animation = nil }
-                }
+        ZStack {
+            DayCanvasArtworkView(
+                style: dayCanvas.resolvedVisualStyle,
+                editorial: editorialRenderInput,
+                isAnimating: isCanvasSelected,
+                soundPulseBus: canvasSoundPulseBus
+            ) {
+                legacyCanvasLayers
+                    .background {
+                        EnergyGradientBackground(
+                            stepsPoints: model.stepsPointsToday,
+                            sleepPoints: model.sleepPointsToday,
+                            hasStepsData: model.hasStepsData,
+                            hasSleepData: model.hasSleepData,
+                            showGrain: false
+                        )
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+                    }
+                    .overlay {
+                        TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
+                            .transaction { $0.animation = nil }
+                    }
+            }
+
+            if !presentation.isEditing {
+                CanvasAnimationOverlay(
+                    elements: renderedCanvasElements,
+                    sleepPoints: model.sleepPointsToday,
+                    stepsPoints: model.stepsPointsToday,
+                    sleepColor: Color(hex: sleepColorHex),
+                    stepsColor: Color(hex: stepsColorHex),
+                    decayNorm: decayNorm,
+                    backgroundColor: canvasBackground,
+                    labelColor: labelColor,
+                    hasStepsData: model.hasStepsData,
+                    hasSleepData: model.hasSleepData,
+                    editorialSnapshotInput: dayCanvas.resolvedVisualStyle == .editorial
+                        ? editorialRenderInput
+                        : nil
+                )
+                .frame(
+                    width: GenerativeCanvasView.canonicalPortraitSize.width,
+                    height: GenerativeCanvasView.canonicalPortraitSize.height
+                )
+                .ignoresSafeArea()
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
@@ -1652,11 +1675,13 @@ struct GalleryView: View {
         VStack {
             Spacer()
             CanvasFullScreenDock(
-                onSoundOffAndExit: {
+                soundAppearance: canvasSoundAppearance,
+                onSound: {
+#if DEBUG || INTERNAL_BUILD
+                    handleFullScreenSoundControl()
+#else
                     send(.exitFullScreen)
                     lightHapticTick &+= 1
-#if DEBUG || INTERNAL_BUILD
-                    Task { await musicController.turnSoundOff() }
 #endif
                 },
                 onEdit: {

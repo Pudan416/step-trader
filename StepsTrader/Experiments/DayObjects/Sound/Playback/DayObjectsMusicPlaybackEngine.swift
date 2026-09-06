@@ -1836,6 +1836,9 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
     var instrumentAllocationCountForTesting: Int {
         world.bank.instrumentBank.metrics.allocationFingerprint == nil ? 0 : 1
     }
+    var preparedHappeningRecipeIDsForTesting: Set<HappeningSoundRecipeID> {
+        world.bank.happenings.metrics.availableRecipeIDs
+    }
     var activePlanForTesting: DayMusicPlan? { world.plan }
     var activeProgramEffectMetricsForTesting: DayObjectsProgramEffectMetrics {
         world.bank.programEffectMetrics
@@ -1926,7 +1929,7 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
     }
 
     func prepare(plan: DayMusicPlan) throws {
-        try world.bank.prepare()
+        try world.bank.prepare(happeningRecipeIDs: Set(plan.happenings.map(\.recipeID)))
         try world.bindPreparedPlayersIfNeeded()
         world.releaseAll()
         try world.configure(plan, diagnosticAuditionMode: diagnosticAuditionMode)
@@ -1980,6 +1983,7 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
             tonalWorld: reference.world
         )
         let effects = DayObjectsHappeningAuditionReference.effects(for: recipe)
+        try world.bank.happenings.prepare(recipeIDs: [recipeID])
         let handle = try world.bank.happenings.play(
             sound,
             gain: 1,

@@ -237,11 +237,29 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertFalse(app.buttons["tab_canvas"].exists)
         XCTAssertFalse(app.buttons["canvas_add_button"].exists)
 
-        soundOff.tap()
+        let soundResolved = XCTNSPredicateExpectation(
+            predicate: NSPredicate { object, _ in
+                guard let button = object as? XCUIElement,
+                      let value = button.value as? String else { return false }
+                return value == "on" || value == "error, retry available"
+            },
+            object: soundOff
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [soundResolved], timeout: 12),
+            .completed,
+            "The full-screen dock must expose the actual audio start result"
+        )
 
-        XCTAssertTrue(app.buttons["canvas_sound_button"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["tab_canvas"].exists)
-        XCTAssertTrue(app.buttons["canvas_add_button"].exists)
+        let resolvedValue = soundOff.value as? String
+        soundOff.tap()
+        if resolvedValue == "on" {
+            XCTAssertTrue(app.buttons["canvas_sound_button"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["tab_canvas"].exists)
+            XCTAssertTrue(app.buttons["canvas_add_button"].exists)
+        } else {
+            XCTAssertTrue(soundOff.exists, "Retry keeps the canvas full screen")
+        }
     }
 
     func testDoneReturnsToFullScreenAndExitReturnsToCanvas() {
