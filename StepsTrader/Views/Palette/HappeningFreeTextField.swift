@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum HappeningCreatorActionAppearance {
     static let disabledForegroundOpacity = 1.0
@@ -10,10 +11,11 @@ enum HappeningCreatorActionAppearance {
 /// The parent owns catalog persistence and selection replacement; this panel
 /// only normalizes a title and sends it through after explicit confirmation.
 struct HappeningCreatorPanel: View {
-    let onCreate: (String) -> Void
+    let onCreate: (String) -> HappeningPaletteCreationOutcome
     let onCancel: () -> Void
 
     @State private var text = ""
+    @State private var feedback: HappeningPaletteCreationFeedback?
     @FocusState private var isTextFieldFocused: Bool
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -56,7 +58,7 @@ struct HappeningCreatorPanel: View {
                     text: $text,
                     isFocused: $isTextFieldFocused
                 ) { submittedTitle in
-                    onCreate(submittedTitle)
+                    create(submittedTitle)
                 }
                 .accessibilitySortPriority(
                     HappeningPanelAccessibilityOrder.priority(
@@ -64,6 +66,14 @@ struct HappeningCreatorPanel: View {
                         in: HappeningPanelAccessibilityOrder.creator
                     )
                 )
+
+                if let feedback {
+                    Text(feedback.message)
+                        .font(.geist(.subheadline))
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("happening_creator_feedback")
+                }
 
                 Group {
                     if usesExpandedActionLayout {
@@ -113,8 +123,26 @@ struct HappeningCreatorPanel: View {
     }
 
     private func create() {
-        guard !trimmed.isEmpty else { return }
-        onCreate(trimmed)
+        create(trimmed)
+    }
+
+    private func create(_ title: String) {
+        guard !title.isEmpty else {
+            present(.invalidTitle)
+            return
+        }
+        let outcome = onCreate(title)
+        feedback = outcome.feedback
+        if let feedback { announce(feedback) }
+    }
+
+    private func present(_ feedback: HappeningPaletteCreationFeedback) {
+        self.feedback = feedback
+        announce(feedback)
+    }
+
+    private func announce(_ feedback: HappeningPaletteCreationFeedback) {
+        UIAccessibility.post(notification: .announcement, argument: feedback.message)
     }
 
     private var cancelAction: some View {
@@ -213,15 +241,13 @@ struct HappeningFreeTextField: View {
         .focused($isFocused)
         .onAppear { isFocused = true }
         .onSubmit {
-            // Whitespace-only input is a mis-tap, not a happening.
-            guard !trimmed.isEmpty else { return }
             onSubmit(trimmed)
         }
     }
 }
 
 #Preview("Creator") {
-    HappeningCreatorPanel(onCreate: { _ in }, onCancel: {})
+    HappeningCreatorPanel(onCreate: { _ in .created }, onCancel: {})
         .padding()
         .dynamicTypeSize(.accessibility1)
         .frame(height: 280)

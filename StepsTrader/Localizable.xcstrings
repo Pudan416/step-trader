@@ -1,6 +1,34 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Couldn’t add happening. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t add happening. Try again." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Не удалось добавить событие. Попробуйте ещё раз." } }
+      }
+    },
+    "Enter a happening before adding it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a happening before adding it." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Введите событие перед добавлением." } }
+      }
+    },
+    "Remove a happening from Canvas before adding another." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove a happening from Canvas before adding another." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Удалите событие с холста, прежде чем добавлять другое." } }
+      }
+    },
+    "Remove this happening from Canvas before replacing it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove this happening from Canvas before replacing it." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Удалите это событие с холста, прежде чем заменять его." } }
+      }
+    },
     "Tap again to add to Canvas" : {
       "extractionState" : "manual",
       "localizations" : {

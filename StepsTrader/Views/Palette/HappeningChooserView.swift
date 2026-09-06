@@ -194,7 +194,7 @@ struct HappeningChooserView: View {
             case .protected:
                 UIAccessibility.post(
                     notification: .announcement,
-                    argument: "Remove this happening from Canvas before replacing it."
+                    argument: String(localized: "Remove this happening from Canvas before replacing it.")
                 )
             case .added, .removed, .unavailable:
                 break
@@ -248,7 +248,7 @@ struct HappeningChooserView: View {
         )
         .accessibilityHint(
             isProtected
-                ? "Remove this happening from Canvas before replacing it."
+                ? String(localized: "Remove this happening from Canvas before replacing it.")
                 : isSelected
                 ? "Double tap to remove from the palette."
                 : draft.ids.count == HappeningPaletteSelection.slotCount

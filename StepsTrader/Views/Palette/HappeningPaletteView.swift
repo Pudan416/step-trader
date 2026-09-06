@@ -59,6 +59,41 @@ enum HappeningPalettePanel: Equatable {
     case creator
 }
 
+enum HappeningPaletteCreationFeedback: Equatable {
+    case invalidTitle
+    case noReplaceableSlot
+    case failed
+
+    var message: String {
+        switch self {
+        case .invalidTitle:
+            String(localized: "Enter a happening before adding it.")
+        case .noReplaceableSlot:
+            String(localized: "Remove a happening from Canvas before adding another.")
+        case .failed:
+            String(localized: "Couldn’t add happening. Try again.")
+        }
+    }
+}
+
+enum HappeningPaletteCreationOutcome: Equatable {
+    case created
+    case invalidTitle
+    case noReplaceableSlot
+    case failed
+
+    var closesCreator: Bool { self == .created }
+
+    var feedback: HappeningPaletteCreationFeedback? {
+        switch self {
+        case .created: nil
+        case .invalidTitle: .invalidTitle
+        case .noReplaceableSlot: .noReplaceableSlot
+        case .failed: .failed
+        }
+    }
+}
+
 struct HappeningPaletteView: View {
     let happenings: [Happening]
     let assignments: [String: HappeningEditorialAssignment]
@@ -70,7 +105,7 @@ struct HappeningPaletteView: View {
     let addedIDs: Set<String>
     let instruction: HappeningPaletteInstruction?
     let onActivate: (Happening) -> Void
-    let onCreate: (String) -> Happening?
+    let onCreate: (String) -> HappeningPaletteCreationOutcome
     let onSaveSelection: ([String]) -> Bool
     let onPanelPresentationChange: (Bool) -> Void
     let onReroll: () -> Void
@@ -90,7 +125,7 @@ struct HappeningPaletteView: View {
         addedIDs: Set<String>,
         instruction: HappeningPaletteInstruction?,
         onActivate: @escaping (Happening) -> Void,
-        onCreate: @escaping (String) -> Happening?,
+        onCreate: @escaping (String) -> HappeningPaletteCreationOutcome,
         onSaveSelection: @escaping ([String]) -> Bool = { _ in true },
         onPanelPresentationChange: @escaping (Bool) -> Void = { _ in },
         onReroll: @escaping () -> Void = {}
@@ -205,8 +240,9 @@ struct HappeningPaletteView: View {
         case .creator:
             HappeningCreatorPanel(
                 onCreate: { title in
-                    guard onCreate(title) != nil else { return }
-                    activePanel = nil
+                    let outcome = onCreate(title)
+                    if outcome.closesCreator { activePanel = nil }
+                    return outcome
                 },
                 onCancel: { activePanel = nil }
             )

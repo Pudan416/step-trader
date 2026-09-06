@@ -629,21 +629,29 @@ struct GalleryView: View {
         paletteInteraction.cancel()
     }
 
-    private func handlePaletteCreation(_ title: String) -> Happening? {
-        let created: Happening
+    private func handlePaletteCreation(_ title: String) -> HappeningPaletteCreationOutcome {
+        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .invalidTitle
+        }
         do {
-            created = try model.createPaletteHappening(
+            _ = try model.createPaletteHappening(
                 title: title,
                 protectedIDs: paletteAddedIDs
             )
+        } catch let error as HappeningPaletteSelectionError {
+            if error == .noReplaceableSlot { return .noReplaceableSlot }
+            AppLogger.ui.error(
+                "Failed to create palette happening: \(error.localizedDescription)"
+            )
+            return .failed
         } catch {
             AppLogger.ui.error(
                 "Failed to create palette happening: \(error.localizedDescription)"
             )
-            return nil
+            return .failed
         }
         refreshHappeningPalette()
-        return created
+        return .created
     }
 
     private func handlePaletteSelectionSave(_ ids: [String]) -> Bool {

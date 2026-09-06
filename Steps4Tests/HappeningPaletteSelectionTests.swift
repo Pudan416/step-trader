@@ -168,6 +168,23 @@ final class HappeningPaletteSelectionTests: XCTestCase {
         )
     }
 
+    func testPaletteCreationOutcomesKeepCreatorOpenForActionableFeedback() {
+        XCTAssertTrue(HappeningPaletteCreationOutcome.created.closesCreator)
+        XCTAssertNil(HappeningPaletteCreationOutcome.created.feedback)
+
+        XCTAssertFalse(HappeningPaletteCreationOutcome.invalidTitle.closesCreator)
+        XCTAssertEqual(
+            HappeningPaletteCreationOutcome.invalidTitle.feedback?.message,
+            "Enter a happening before adding it."
+        )
+
+        XCTAssertFalse(HappeningPaletteCreationOutcome.noReplaceableSlot.closesCreator)
+        XCTAssertEqual(
+            HappeningPaletteCreationOutcome.noReplaceableSlot.feedback?.message,
+            "Remove a happening from Canvas before adding another."
+        )
+    }
+
     func testCustomHappeningReplacesLeastUsedSlot() throws {
         let catalog = makeCatalog(counts: [5, 4, 3, 2, 1, 0, 8, 7, 6, 9])
             + [Happening(id: "user_sauna", title: "Sauna", isBuiltIn: false)]
