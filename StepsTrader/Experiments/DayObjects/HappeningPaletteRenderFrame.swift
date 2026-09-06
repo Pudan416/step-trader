@@ -85,72 +85,57 @@ struct HappeningPaletteTransitionTimeline {
         let controls: HappeningPaletteRenderControls
     }
 
+    private struct Transition {
+        let prior: PriorSlot
+        let startedAt: Double
+    }
+
     private var presentation: HappeningPaletteRenderPresentation?
-    private var priorSlots: [String: PriorSlot] = [:]
-    private var changedIDs = Set<String>()
-    private var transitionStartedAt = 0.0
+    private var transitions: [String: Transition] = [:]
 
     mutating func update(to next: HappeningPaletteRenderPresentation, elapsed rawElapsed: Double) {
         let elapsed = normalizedElapsed(rawElapsed)
         guard let presentation else {
             self.presentation = next
-            priorSlots = Dictionary(uniqueKeysWithValues: next.slots.map {
-                ($0.happeningID, PriorSlot(
-                    assignment: $0.assignment,
-                    source: $0.source,
-                    controls: .target(for: $0.visualState)
-                ))
-            })
-            changedIDs = []
-            transitionStartedAt = elapsed
+            transitions = [:]
             return
         }
 
         let existingSample = sample(at: elapsed)
         let existingByID = Dictionary(uniqueKeysWithValues: existingSample.slots.map { ($0.happeningID, $0) })
-        var nextPriorSlots = [String: PriorSlot]()
-        var nextChangedIDs = Set<String>()
+        let currentSlots = Dictionary(uniqueKeysWithValues: presentation.slots.map { ($0.happeningID, $0) })
+        var nextTransitions = [String: Transition]()
 
         for slot in next.slots {
-            let targetControls = HappeningPaletteRenderControls.target(for: slot.visualState)
-            if let current = existingByID[slot.happeningID] {
-                let prior = PriorSlot(
-                    assignment: current.assignment,
-                    source: current.source,
-                    controls: current.controls
+            if destinationChanged(
+                from: currentSlots[slot.happeningID],
+                to: slot,
+                reduceMotionChanged: presentation.reduceMotion != next.reduceMotion
+            ), let current = existingByID[slot.happeningID] {
+                nextTransitions[slot.happeningID] = Transition(
+                    prior: PriorSlot(
+                        assignment: current.assignment,
+                        source: current.source,
+                        controls: current.controls
+                    ),
+                    startedAt: elapsed
                 )
-                nextPriorSlots[slot.happeningID] = prior
-                if prior.assignment != slot.assignment
-                    || prior.source != slot.source
-                    || prior.controls != targetControls {
-                    nextChangedIDs.insert(slot.happeningID)
-                }
-            } else {
-                nextPriorSlots[slot.happeningID] = PriorSlot(
-                    assignment: slot.assignment,
-                    source: slot.source,
-                    controls: targetControls
-                )
+            } else if let existing = transitions[slot.happeningID] {
+                nextTransitions[slot.happeningID] = existing
             }
         }
 
         self.presentation = next
-        priorSlots = nextPriorSlots
-        changedIDs = nextChangedIDs
-        transitionStartedAt = elapsed
-        _ = presentation
+        transitions = nextTransitions
     }
 
     func sample(at rawElapsed: Double) -> HappeningPaletteRenderSample {
         guard let presentation else { return HappeningPaletteRenderSample(slots: []) }
         let elapsed = normalizedElapsed(rawElapsed)
-        let elapsedSinceTransition = max(elapsed - transitionStartedAt, 0)
-        let progress = min(elapsedSinceTransition / Self.transitionDuration, 1)
-        let smoothProgress = progress * progress * (3 - 2 * progress)
 
         return HappeningPaletteRenderSample(slots: presentation.slots.map { slot in
             let target = HappeningPaletteRenderControls.target(for: slot.visualState)
-            guard changedIDs.contains(slot.happeningID), let prior = priorSlots[slot.happeningID] else {
+            guard let transition = transitions[slot.happeningID] else {
                 return .init(
                     happeningID: slot.happeningID,
                     assignment: slot.assignment,
@@ -158,6 +143,8 @@ struct HappeningPaletteTransitionTimeline {
                     controls: target
                 )
             }
+            let elapsedSinceTransition = max(elapsed - transition.startedAt, 0)
+            let prior = transition.prior
 
             if presentation.reduceMotion {
                 let fade = Self.reducedMotionFadeDuration
@@ -177,8 +164,16 @@ struct HappeningPaletteTransitionTimeline {
                         controls: withOpacity(target, multiplier: (elapsedSinceTransition - fade) / fade)
                     )
                 }
+                return .init(
+                    happeningID: slot.happeningID,
+                    assignment: slot.assignment,
+                    source: slot.source,
+                    controls: target
+                )
             }
 
+            let progress = min(elapsedSinceTransition / Self.transitionDuration, 1)
+            let smoothProgress = progress * progress * (3 - 2 * progress)
             return .init(
                 happeningID: slot.happeningID,
                 assignment: slot.assignment,
@@ -186,6 +181,19 @@ struct HappeningPaletteTransitionTimeline {
                 controls: prior.controls.interpolated(to: target, progress: smoothProgress)
             )
         })
+    }
+
+    private func destinationChanged(
+        from current: HappeningPaletteRenderSlot?,
+        to next: HappeningPaletteRenderSlot,
+        reduceMotionChanged: Bool
+    ) -> Bool {
+        guard let current else { return false }
+        return reduceMotionChanged
+            || current.assignment != next.assignment
+            || current.source != next.source
+            || HappeningPaletteRenderControls.target(for: current.visualState)
+                != HappeningPaletteRenderControls.target(for: next.visualState)
     }
 
     private func interpolatedSource(

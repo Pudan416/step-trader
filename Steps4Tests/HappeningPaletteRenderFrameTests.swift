@@ -48,13 +48,100 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
         XCTAssertEqual(actor.gpuActor.halfSize.y, Float(source.radius / 390), accuracy: 0.0001)
     }
 
-    func testTransitionTimelineInterpolatesChangedControlsAndGeometry() {
+    func testTransitionTimelineInterpolatesControlsAndGeometryThroughCompletion() {
         let initial = makePresentation(stateForFirstSlot: .available)
+        let updated = makePresentation(
+            stateForFirstSlot: .additionPreview,
+            firstSourceOffset: CGSize(width: 64, height: 32),
+            firstSourceRadiusDelta: 16
+        )
+        var timeline = HappeningPaletteTransitionTimeline()
+
+        timeline.update(to: initial, elapsed: 0)
+        timeline.update(to: updated, elapsed: 1)
+        let start = try! slot(for: "h0", in: timeline.sample(at: 1))
+        let quarter = try! slot(for: "h0", in: timeline.sample(at: 1.085))
+        let complete = try! slot(for: "h0", in: timeline.sample(at: 1.341))
+
+        XCTAssertEqual(start.controls.paletteMorph, 0, accuracy: 0.001)
+        XCTAssertEqual(start.source.center.x, 39, accuracy: 0.001)
+        XCTAssertEqual(start.source.center.y, 32, accuracy: 0.001)
+        XCTAssertEqual(start.source.radius, 32, accuracy: 0.001)
+
+        XCTAssertEqual(quarter.controls.paletteMorph, 0.15625, accuracy: 0.001)
+        XCTAssertEqual(quarter.controls.scale, 1.009375, accuracy: 0.001)
+        XCTAssertEqual(quarter.source.center.x, 49, accuracy: 0.001)
+        XCTAssertEqual(quarter.source.center.y, 37, accuracy: 0.001)
+        XCTAssertEqual(quarter.source.radius, 34.5, accuracy: 0.001)
+
+        XCTAssertEqual(complete.controls.paletteMorph, 1, accuracy: 0.001)
+        XCTAssertEqual(complete.controls.scale, 1.06, accuracy: 0.001)
+        XCTAssertEqual(complete.source.center.x, 103, accuracy: 0.001)
+        XCTAssertEqual(complete.source.center.y, 64, accuracy: 0.001)
+        XCTAssertEqual(complete.source.radius, 48, accuracy: 0.001)
+    }
+
+    func testReduceMotionSwitchesEndpointsWithoutResumingMorphing() {
+        let initial = makePresentation(reduceMotion: true)
+        let updated = makePresentation(
+            stateForFirstSlot: .additionPreview,
+            reduceMotion: true,
+            firstSourceOffset: CGSize(width: 64, height: 32),
+            firstSourceRadiusDelta: 16
+        )
+        var timeline = HappeningPaletteTransitionTimeline()
+
+        timeline.update(to: initial, elapsed: 0)
+        timeline.update(to: updated, elapsed: 1)
+
+        let beforeSwitch = try! slot(for: "h0", in: timeline.sample(at: 1.099))
+        let switchPoint = try! slot(for: "h0", in: timeline.sample(at: 1.10))
+        let beforeFadeInCompletes = try! slot(for: "h0", in: timeline.sample(at: 1.199))
+        let completed = try! slot(for: "h0", in: timeline.sample(at: 1.20))
+        let afterCompletion = try! slot(for: "h0", in: timeline.sample(at: 1.50))
+
+        XCTAssertEqual(beforeSwitch.source.center.x, 39, accuracy: 0.001)
+        XCTAssertEqual(beforeSwitch.source.radius, 32, accuracy: 0.001)
+        XCTAssertEqual(beforeSwitch.controls.opacity, 0.01, accuracy: 0.001)
+        XCTAssertEqual(switchPoint.source.center.x, 103, accuracy: 0.001)
+        XCTAssertEqual(switchPoint.source.radius, 48, accuracy: 0.001)
+        XCTAssertEqual(switchPoint.controls.opacity, 0, accuracy: 0.001)
+        XCTAssertEqual(beforeFadeInCompletes.controls.opacity, 0.99, accuracy: 0.001)
+        XCTAssertEqual(completed.source.center.x, 103, accuracy: 0.001)
+        XCTAssertEqual(completed.source.radius, 48, accuracy: 0.001)
+        XCTAssertEqual(completed.controls.paletteMorph, 1, accuracy: 0.001)
+        XCTAssertEqual(completed.controls.opacity, 1, accuracy: 0.001)
+        XCTAssertEqual(afterCompletion.source.center.x, 103, accuracy: 0.001)
+        XCTAssertEqual(afterCompletion.source.radius, 48, accuracy: 0.001)
+        XCTAssertEqual(afterCompletion.controls.paletteMorph, 1, accuracy: 0.001)
+    }
+
+    func testRepeatedIdenticalUpdateDoesNotRestartAnExistingTransition() {
+        let initial = makePresentation()
         let updated = makePresentation(stateForFirstSlot: .additionPreview)
         var timeline = HappeningPaletteTransitionTimeline()
 
         timeline.update(to: initial, elapsed: 0)
         timeline.update(to: updated, elapsed: 1)
+        timeline.update(to: updated, elapsed: 1.085)
+        let sample = timeline.sample(at: 1.17)
+
+        XCTAssertEqual(sample.controls(for: "h0").paletteMorph, 0.5, accuracy: 0.001)
+        XCTAssertEqual(sample.controls(for: "h0").scale, 1.03, accuracy: 0.001)
+    }
+
+    func testUnrelatedSlotUpdateDoesNotRestartAnotherSlotTransition() {
+        let initial = makePresentation()
+        let firstChanged = makePresentation(stateForFirstSlot: .additionPreview)
+        let secondChanged = makePresentation(
+            stateForFirstSlot: .additionPreview,
+            stateForSecondSlot: .removalPreview
+        )
+        var timeline = HappeningPaletteTransitionTimeline()
+
+        timeline.update(to: initial, elapsed: 0)
+        timeline.update(to: firstChanged, elapsed: 1)
+        timeline.update(to: secondChanged, elapsed: 1.085)
         let sample = timeline.sample(at: 1.17)
 
         XCTAssertEqual(sample.controls(for: "h0").paletteMorph, 0.5, accuracy: 0.001)
@@ -75,9 +162,17 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
         try XCTUnwrap(frame.actors.first { $0.eventID == happeningID })
     }
 
+    private func slot(for happeningID: String, in sample: HappeningPaletteRenderSample) throws -> HappeningPaletteRenderSample.Slot {
+        try XCTUnwrap(sample.slots.first { $0.happeningID == happeningID })
+    }
+
     private func makePresentation(
         stateForFirstSlot: HappeningPaletteSlotVisualState = .available,
-        isTransitionActive: Bool = false
+        stateForSecondSlot: HappeningPaletteSlotVisualState = .additionPreview,
+        reduceMotion: Bool = false,
+        isTransitionActive: Bool = false,
+        firstSourceOffset: CGSize = .zero,
+        firstSourceRadiusDelta: CGFloat = 0
     ) -> HappeningPaletteRenderPresentation {
         let assignments = HappeningEditorialAssignmentResolver.assignments(
             happenings: (0..<10).map {
@@ -87,14 +182,23 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
             colorNonce: 7
         )
         let states: [HappeningPaletteSlotVisualState] = [
-            stateForFirstSlot, .additionPreview, .added, .removalPreview,
+            stateForFirstSlot, stateForSecondSlot, .added, .removalPreview,
             .available, .available, .available, .available, .available, .available,
         ]
         let sources = (0..<10).map { index in
-            HappeningFieldLayout.Source(
+            let isFirst = index == 0
+            let baseCenter = CGPoint(
+                x: 39 + CGFloat(index) * 31,
+                y: 32 + CGFloat(index) * 51
+            )
+            let center = CGPoint(
+                x: baseCenter.x + (isFirst ? firstSourceOffset.width : 0),
+                y: baseCenter.y + (isFirst ? firstSourceOffset.height : 0)
+            )
+            return HappeningFieldLayout.Source(
                 index: index,
-                center: CGPoint(x: 39 + CGFloat(index) * 31, y: 32 + CGFloat(index) * 51),
-                radius: 32
+                center: center,
+                radius: 32 + (isFirst ? firstSourceRadiusDelta : 0)
             )
         }
         return HappeningPaletteRenderPresentation(
@@ -107,7 +211,7 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
                 )
             },
             viewportSize: CGSize(width: 390, height: 844),
-            reduceMotion: false,
+            reduceMotion: reduceMotion,
             isTransitionActive: isTransitionActive,
             backgroundRevision: 12
         )
