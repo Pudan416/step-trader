@@ -22,6 +22,20 @@ enum CanvasSpawnOriginMapper {
 
 enum CanvasBottomControlsLayout {
     static func padding(
+        canvasBottomY: CGFloat,
+        tabBarCenterY: CGFloat?,
+        controlHeight: CGFloat,
+        fallbackSafeAreaBottom: CGFloat
+    ) -> CGFloat {
+        guard let tabBarCenterY,
+              canvasBottomY > tabBarCenterY,
+              controlHeight > 0
+        else { return max(fallbackSafeAreaBottom, 0) + 8 }
+
+        return max(0, canvasBottomY - tabBarCenterY - controlHeight / 2)
+    }
+
+    static func padding(
         safeAreaBottom: CGFloat,
         isWideCanvas: Bool,
         isEditing: Bool
@@ -142,6 +156,8 @@ struct GalleryView: View {
 
     @State private var safeAreaTop: CGFloat = 0
     @State private var safeAreaBottom: CGFloat = 0
+    @State private var canvasGlobalMaxY: CGFloat = 0
+    @Environment(\.tabBarCenterY) private var tabBarCenterY
 
     /// The device's real top safe-area inset (status bar / Dynamic Island),
     /// read directly from the key window instead of `safeAreaTop`.
@@ -225,7 +241,15 @@ struct GalleryView: View {
     }
 
     private var bottomControlsPadding: CGFloat {
-        CanvasBottomControlsLayout.padding(
+        if !presentation.isWideCanvas, !presentation.isEditing {
+            return CanvasBottomControlsLayout.padding(
+                canvasBottomY: canvasGlobalMaxY,
+                tabBarCenterY: tabBarCenterY,
+                controlHeight: 52,
+                fallbackSafeAreaBottom: deviceBottomSafeAreaInset
+            )
+        }
+        return CanvasBottomControlsLayout.padding(
             safeAreaBottom: deviceBottomSafeAreaInset,
             isWideCanvas: presentation.isWideCanvas,
             isEditing: presentation.isEditing
@@ -650,7 +674,10 @@ struct GalleryView: View {
                     backgroundColor: canvasBackground,
                     labelColor: labelColor,
                     hasStepsData: model.hasStepsData,
-                    hasSleepData: model.hasSleepData
+                    hasSleepData: model.hasSleepData,
+                    onGestureBegan: handleCanvasLeadBegan,
+                    onGestureUpdated: handleCanvasLeadUpdated,
+                    onGestureEnded: handleCanvasLeadEnded
                 )
                 .frame(
                     width: GenerativeCanvasView.canonicalPortraitSize.width,
@@ -741,6 +768,7 @@ struct GalleryView: View {
         .background(
             GeometryReader { geo in
                 Color.clear
+                    .preference(key: CanvasGlobalMaxYKey.self, value: geo.frame(in: .global).maxY)
                     .onChange(of: geo.size, initial: true) { _, size in
                         canvasViewportSize = size
                         let isIPad = UIDevice.current.userInterfaceIdiom == .pad
@@ -981,6 +1009,10 @@ struct GalleryView: View {
             guard let value, value != canvasAddButtonCenterY else { return }
             canvasAddButtonCenterY = value
         }
+        .onPreferenceChange(CanvasGlobalMaxYKey.self) { value in
+            guard value > 0, value != canvasGlobalMaxY else { return }
+            canvasGlobalMaxY = value
+        }
         .onPreferenceChange(SuggestionBannerHeightKey.self) { value in
             guard value != suggestionBannerHeight else { return }
             suggestionBannerHeight = value
@@ -1201,6 +1233,38 @@ struct GalleryView: View {
                 showHappeningPalette ? closeHappeningPalette() : openHappeningPalette()
             }
         )
+    }
+
+    private func handleCanvasLeadBegan(_ sample: CanvasTouchGestureSample) {
+#if DEBUG || INTERNAL_BUILD
+        musicController.beginLead(
+            LeadGestureSample(
+                normalizedX: sample.normalizedX,
+                normalizedY: sample.normalizedY,
+                speed: sample.speed
+            ),
+            isGridVisible: false,
+            isVoiceOverRunning: UIAccessibility.isVoiceOverRunning
+        )
+#endif
+    }
+
+    private func handleCanvasLeadUpdated(_ sample: CanvasTouchGestureSample) {
+#if DEBUG || INTERNAL_BUILD
+        musicController.updateLead(
+            LeadGestureSample(
+                normalizedX: sample.normalizedX,
+                normalizedY: sample.normalizedY,
+                speed: sample.speed
+            )
+        )
+#endif
+    }
+
+    private func handleCanvasLeadEnded() {
+#if DEBUG || INTERNAL_BUILD
+        musicController.endLead()
+#endif
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -2167,6 +2231,13 @@ struct CanvasAddButtonCenterKey: PreferenceKey {
     static let defaultValue: CGFloat? = nil
     static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
         value = nextValue() ?? value
+    }
+}
+
+struct CanvasGlobalMaxYKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 

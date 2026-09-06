@@ -1,6 +1,59 @@
 import SwiftUI
 import MetalKit
 
+struct CanvasTouchGestureSample: Equatable, Sendable {
+    let normalizedX: Double
+    let normalizedY: Double
+    let speed: Double
+}
+
+struct SmudgeTouchPathSample: Equatable {
+    let point: CGPoint
+    let speed: CGFloat
+}
+
+/// Time-based low-pass filtering keeps the same feel at 60 and 120 Hz while
+/// preventing a delayed frame from turning into a single hard displacement.
+struct SmudgeTouchPathFilter {
+    static let maximumSpeed: CGFloat = 1_800
+
+    let responseSeconds: TimeInterval
+    private var point: CGPoint?
+    private var time: TimeInterval?
+    private var speed: CGFloat = 0
+    var currentPoint: CGPoint? { point }
+
+    init(responseSeconds: TimeInterval = 0.05) {
+        self.responseSeconds = max(responseSeconds, 0.001)
+    }
+
+    mutating func begin(at point: CGPoint, time: TimeInterval) -> SmudgeTouchPathSample {
+        self.point = point
+        self.time = time
+        speed = 0
+        return SmudgeTouchPathSample(point: point, speed: 0)
+    }
+
+    mutating func move(to rawPoint: CGPoint, time rawTime: TimeInterval) -> SmudgeTouchPathSample {
+        guard let previousPoint = point, let previousTime = time else {
+            return begin(at: rawPoint, time: rawTime)
+        }
+
+        let elapsed = min(max(rawTime - previousTime, 1.0 / 240.0), 1.0 / 30.0)
+        let alpha = CGFloat(1 - exp(-elapsed / responseSeconds))
+        let filteredPoint = CGPoint(
+            x: previousPoint.x + (rawPoint.x - previousPoint.x) * alpha,
+            y: previousPoint.y + (rawPoint.y - previousPoint.y) * alpha
+        )
+        let distance = hypot(filteredPoint.x - previousPoint.x, filteredPoint.y - previousPoint.y)
+        let instantaneousSpeed = min(distance / elapsed, Self.maximumSpeed)
+        speed += (instantaneousSpeed - speed) * alpha
+        point = filteredPoint
+        time = rawTime
+        return SmudgeTouchPathSample(point: filteredPoint, speed: speed)
+    }
+}
+
 // ════════════════════════════════════════════════════════════════════
 // MARK: - SmudgeMTKView  (transparent Metal overlay with multi-touch)
 // ════════════════════════════════════════════════════════════════════
@@ -55,6 +108,9 @@ struct SmudgeOverlayView: UIViewRepresentable {
     var hasStepsData: Bool = true
     var hasSleepData: Bool = true
     let isRenderingAllowed: Bool
+    var onGestureBegan: @MainActor (CanvasTouchGestureSample) -> Void = { _ in }
+    var onGestureUpdated: @MainActor (CanvasTouchGestureSample) -> Void = { _ in }
+    var onGestureEnded: @MainActor () -> Void = {}
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> SmudgeMTKView {
@@ -82,6 +138,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
 
         let scale = view.contentScaleFactor
         let coord = context.coordinator
+        coord.storedConfig = self
         coord.renderingIsAllowed = isRenderingAllowed
         renderer.setActive(isRenderingAllowed)
 
@@ -89,7 +146,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
         // modifier and can't attach to UIView touch callbacks. The generator
         // is captured by the closure below, allocated once per representable
         // and reused. (CODE_AUDIT.md §4.1 — exempt by architecture)
-        let touchHaptic = UIImpactFeedbackGenerator(style: .medium)
+        let touchHaptic = UIImpactFeedbackGenerator(style: .soft)
         touchHaptic.prepare()
 
         view.onTouchBegan = { [weak coord, weak view] id, point in
@@ -101,21 +158,32 @@ struct SmudgeOverlayView: UIViewRepresentable {
             if renderer.needsSnapshot {
                 coord.snapshotCanvas(scale: scale)
             }
-            renderer.handleTouchBegan(id: id, at: point, scale: scale)
+            let sample = coord.beginTouch(id: id, at: point)
+            renderer.handleTouchBegan(id: id, at: sample.point, scale: scale)
+            coord.forwardLeadBeginning(id: id, sample: sample, in: view.bounds.size)
             view.isPaused = !MetalOverlayRenderingPolicy.shouldRender(
                 isRenderingAllowed: coord.renderingIsAllowed,
                 hasActiveEffect: renderer.isDistorted
             )
-            touchHaptic.impactOccurred(intensity: 0.7)
+            touchHaptic.impactOccurred(intensity: 0.35)
         }
-        view.onTouchMoved = { [weak coord] id, previous, current in
-            guard let coord, coord.renderingIsAllowed else { return }
-            coord.renderer?.addStrokeSegment(id: id, from: previous, to: current, scale: scale)
+        view.onTouchMoved = { [weak coord, weak view] id, _, current in
+            guard let coord, coord.renderingIsAllowed, let view else { return }
+            let movement = coord.moveTouch(id: id, to: current)
+            coord.renderer?.addStrokeSegment(
+                id: id,
+                from: movement.previous,
+                to: movement.current.point,
+                scale: scale
+            )
+            coord.forwardLeadUpdate(id: id, sample: movement.current, in: view.bounds.size)
         }
         view.onTouchEnded = { [weak coord] id in
-            guard let coord, coord.renderingIsAllowed else { return }
+            guard let coord else { return }
+            let endedLead = coord.endTouch(id: id)
+            if endedLead { coord.storedConfig?.onGestureEnded() }
+            guard coord.renderingIsAllowed else { return }
             coord.renderer?.handleTouchEnded(id: id)
-            touchHaptic.impactOccurred(intensity: 0.5)
         }
 
         context.coordinator.mtkView = view
@@ -136,6 +204,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
         renderer.setActive(isRenderingAllowed)
         if !isRenderingAllowed {
             renderer.cancelActiveInteraction()
+            coordinator.cancelTouches()
         }
 
         uiView.isPaused = !MetalOverlayRenderingPolicy.shouldRender(
@@ -148,6 +217,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
         coordinator.renderingIsAllowed = false
         coordinator.renderer?.cancelActiveInteraction()
         coordinator.renderer?.setActive(false)
+        coordinator.cancelTouches()
         uiView.isUserInteractionEnabled = false
         uiView.isPaused = true
         uiView.delegate = nil
@@ -162,8 +232,79 @@ struct SmudgeOverlayView: UIViewRepresentable {
         weak var mtkView: SmudgeMTKView?
         var storedConfig: SmudgeOverlayView?
         var renderingIsAllowed = false
+        private var touchFilters: [ObjectIdentifier: SmudgeTouchPathFilter] = [:]
+        private var leadTouchID: ObjectIdentifier?
 
         init() { renderer = MetalSmudgeRenderer.create() }
+
+        func beginTouch(id: ObjectIdentifier, at point: CGPoint) -> SmudgeTouchPathSample {
+            var filter = SmudgeTouchPathFilter()
+            let sample = filter.begin(at: point, time: CACurrentMediaTime())
+            touchFilters[id] = filter
+            return sample
+        }
+
+        func moveTouch(
+            id: ObjectIdentifier,
+            to point: CGPoint
+        ) -> (previous: CGPoint, current: SmudgeTouchPathSample) {
+            guard var filter = touchFilters[id] else {
+                var filter = SmudgeTouchPathFilter()
+                let sample = filter.begin(at: point, time: CACurrentMediaTime())
+                touchFilters[id] = filter
+                return (sample.point, sample)
+            }
+            let previous = filter.currentPoint ?? point
+            let sample = filter.move(to: point, time: CACurrentMediaTime())
+            touchFilters[id] = filter
+            return (previous, sample)
+        }
+
+        func endTouch(id: ObjectIdentifier) -> Bool {
+            touchFilters.removeValue(forKey: id)
+            guard leadTouchID == id else { return false }
+            leadTouchID = nil
+            return true
+        }
+
+        func forwardLeadBeginning(
+            id: ObjectIdentifier,
+            sample: SmudgeTouchPathSample,
+            in size: CGSize
+        ) {
+            guard leadTouchID == nil else { return }
+            leadTouchID = id
+            storedConfig?.onGestureBegan(normalized(sample, in: size))
+        }
+
+        func forwardLeadUpdate(
+            id: ObjectIdentifier,
+            sample: SmudgeTouchPathSample,
+            in size: CGSize
+        ) {
+            guard leadTouchID == id else { return }
+            storedConfig?.onGestureUpdated(normalized(sample, in: size))
+        }
+
+        func cancelTouches() {
+            let hadLead = leadTouchID != nil
+            leadTouchID = nil
+            touchFilters.removeAll()
+            if hadLead { storedConfig?.onGestureEnded() }
+        }
+
+        private func normalized(
+            _ sample: SmudgeTouchPathSample,
+            in size: CGSize
+        ) -> CanvasTouchGestureSample {
+            let width = max(size.width, 1)
+            let height = max(size.height, 1)
+            return CanvasTouchGestureSample(
+                normalizedX: Double(min(max(sample.point.x / width, 0), 1)),
+                normalizedY: Double(min(max(sample.point.y / height, 0), 1)),
+                speed: Double(sample.speed / max(width, height))
+            )
+        }
 
         func snapshotCanvas(scale: CGFloat) {
             guard let cfg = storedConfig,

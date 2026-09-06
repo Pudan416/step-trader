@@ -53,6 +53,43 @@ struct StrokeSegment {
     let direction: SIMD2<Float>
 }
 
+/// Keeps at most one continuous segment per finger between display frames.
+/// UIKit can deliver more touch samples than Metal can display; issuing a
+/// full-canvas compute pass for every sample caused uneven frame pacing.
+struct SmudgeStrokeAccumulator {
+    private var strokes: [ObjectIdentifier: StrokeSegment] = [:]
+
+    var isEmpty: Bool { strokes.isEmpty }
+
+    mutating func enqueue(_ stroke: StrokeSegment, for id: ObjectIdentifier) {
+        guard let existing = strokes[id] else {
+            strokes[id] = stroke
+            return
+        }
+
+        let vector = stroke.p1 - existing.p0
+        let length = simd_length(vector)
+        strokes[id] = StrokeSegment(
+            p0: existing.p0,
+            p1: stroke.p1,
+            radius: max(existing.radius, stroke.radius),
+            strength: stroke.strength,
+            dragFactor: stroke.dragFactor,
+            direction: length > 0.001 ? vector / length : stroke.direction
+        )
+    }
+
+    mutating func drain() -> [StrokeSegment] {
+        let result = Array(strokes.values)
+        strokes.removeAll(keepingCapacity: true)
+        return result
+    }
+
+    mutating func removeAll() {
+        strokes.removeAll(keepingCapacity: true)
+    }
+}
+
 // ════════════════════════════════════════════════════════════════════
 // MARK: - Per-Touch State
 // ════════════════════════════════════════════════════════════════════
@@ -107,21 +144,24 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
     var needsSnapshot: Bool { !isBaseInitialized_ }
 
     // ── Tuning constants ────────────────────────────────────────────
-    private let relaxationTimeout: CFTimeInterval = 4.0
-    private let targetReturnSeconds: Float = 1.0
-    private let alphaDiffusion: Float = 0.05
-    private let ageAcceleration: Float = 3.5
-    private let fadeWindow: Float = 1.0
+    private let relaxationTimeout: CFTimeInterval = 4.8
+    private let targetReturnSeconds: Float = 1.65
+    private let alphaDiffusion: Float = 0.08
+    private let ageAcceleration: Float = 1.8
+    private let fadeWindow: Float = 1.6
 
-    private let baseRadius: Float = 80.0
-    private let maxRadius: Float = 180.0
-    private let baseStrength: Float = 0.60
-    private let maxStrength: Float = 0.95
-    private let baseDragFactor: Float = 1.8
-    private let maxDragFactor: Float = 3.5
+    // Express the brush in points, then scale once for the backing texture.
+    // The previous pixel constants made the brush three times smaller and
+    // visually harder on a 3x iPhone display.
+    private let baseRadiusPoints: Float = 56.0
+    private let maxRadiusPoints: Float = 90.0
+    private let baseStrength: Float = 0.22
+    private let maxStrength: Float = 0.44
+    private let baseDragFactor: Float = 0.55
+    private let maxDragFactor: Float = 1.20
 
     // ── Stroke queue ────────────────────────────────────────────────
-    private var pendingStrokes: [StrokeSegment] = []
+    private var pendingStrokes = SmudgeStrokeAccumulator()
     private let strokeLock = NSLock()
 
     // ── Multi-touch tracking ────────────────────────────────────────
@@ -362,11 +402,11 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
         let ripple = RippleInfo(
             center:    pixel,
             elapsed:   0,
-            amplitude: 50,
-            ringSpeed: 250,
-            mainWidth: 42,
-            decay:     0.0015,
-            duration:  3.0
+            amplitude: 10 * Float(scale),
+            ringSpeed: 72 * Float(scale),
+            mainWidth: 38 * Float(scale),
+            decay:     0.0010 / Float(scale),
+            duration:  2.6
         )
         activeRipples.append(ActiveRipple(info: ripple, startTime: now))
         if activeRipples.count > maxRipples {
@@ -401,11 +441,21 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
         let speed  = simd_length(v) / max(dt, 1e-4)
         let segLen = simd_length(v)
 
-        let radius     = min(max(baseRadius   + speed * 0.04,   baseRadius),   maxRadius)
-        let strength   = min(max(baseStrength + speed * 0.0018, baseStrength), maxStrength)
+        let safeScale = max(Float(scale), 1)
+        let speedPoints = speed / safeScale
+        let baseRadius = baseRadiusPoints * safeScale
+        let maxRadius = maxRadiusPoints * safeScale
+        let radius = min(max(baseRadius + speedPoints * 0.025 * safeScale, baseRadius), maxRadius)
+        let strength = min(
+            max(baseStrength + speedPoints * 0.00016, baseStrength),
+            maxStrength
+        )
 
-        let rawDrag    = min(max(baseDragFactor + speed * 0.0008, baseDragFactor), maxDragFactor)
-        let dragFactor = min(max(rawDrag * segLen, 8.0), 80.0)
+        let rawDrag = min(
+            max(baseDragFactor + speedPoints * 0.00035, baseDragFactor),
+            maxDragFactor
+        )
+        let dragFactor = min(max(rawDrag * segLen, 2 * safeScale), 24 * safeScale)
 
         let direction  = segLen > 0.001 ? v / segLen : SIMD2<Float>(0, 0)
 
@@ -418,7 +468,7 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
         )
 
         strokeLock.lock()
-        pendingStrokes.append(stroke)
+        pendingStrokes.enqueue(stroke, for: id)
         strokeLock.unlock()
 
         lastStrokeTime = now
@@ -494,8 +544,7 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
             if stillRelaxing {
                 // 1. Apply pending smudge strokes
                 strokeLock.lock()
-                let strokes = pendingStrokes
-                pendingStrokes.removeAll()
+                let strokes = pendingStrokes.drain()
                 strokeLock.unlock()
 
                 for stroke in strokes {

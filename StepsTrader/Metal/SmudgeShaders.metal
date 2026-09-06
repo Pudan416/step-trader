@@ -79,11 +79,11 @@ fragment float4 smudgeDisplayFragment(
 
     // ── 1. Smudge: AGE-BASED visibility (works on any theme) ────
     float age     = ageTex.sample(sn, in.texCoord).r;
-    float ageFade = saturate(1.0 - age / 3.0);
+    float ageFade = smoothstep(1.0, 0.0, saturate(age / 4.2));
 
     float3 colorShift = interactive.rgb - base.rgb;
-    float3 smudgeColor = saturate(interactive.rgb + colorShift * 5.0 + float3(ageFade * 0.07));
-    float  smudgeAlpha = ageFade * 0.55;
+    float3 smudgeColor = saturate(interactive.rgb + colorShift * 1.6 + float3(ageFade * 0.025));
+    float  smudgeAlpha = ageFade * 0.32;
 
     // ── 2. Ripple: WAVE-SHAPE visibility (independent of colors) ─
     float2 rippleUV   = in.texCoord;
@@ -104,19 +104,9 @@ fragment float4 smudgeDisplayFragment(
         float mainDist = dist - waveRadius;
         float mainRing = exp(-mainDist * mainDist / (2.0 * ms * ms));
 
-        // Echo 1
-        float e1gap  = ms * 2.5;
-        float e1s    = ms * 0.5;
-        float e1dist = dist - (waveRadius - e1gap);
-        float echo1  = 0.4 * exp(-e1dist * e1dist / (2.0 * e1s * e1s));
-
-        // Echo 2
-        float e2gap  = ms * 4.5;
-        float e2s    = ms * 0.3;
-        float e2dist = dist - (waveRadius - e2gap);
-        float echo2  = 0.15 * exp(-e2dist * e2dist / (2.0 * e2s * e2s));
-
-        float wave = (mainRing + echo1 + echo2) * timeFade * spatial;
+        // One broad wave reads as a soft pressure field. Closely spaced echo
+        // rings looked like a sharp animation restart on high-density screens.
+        float wave = mainRing * timeFade * spatial;
         float disp = wave * r.amplitude;
 
         float2 dir = dist > 0.5 ? (pixelPos - r.center) / dist : float2(0);
@@ -129,8 +119,8 @@ fragment float4 smudgeDisplayFragment(
     if (rippleWave > 0.001) {
         float4 rippledBase = baseTex.sample(s, rippleUV);
         float3 rShift = rippledBase.rgb - base.rgb;
-        rippleColor = saturate(rippledBase.rgb + rShift * 5.0 + float3(rippleWave * 0.09));
-        rippleAlpha = rippleWave * 0.6;
+        rippleColor = saturate(rippledBase.rgb + rShift * 1.5 + float3(rippleWave * 0.025));
+        rippleAlpha = rippleWave * 0.22;
     }
 
     // ── 3. Combine: stronger effect wins, then apply global fade ─
@@ -182,7 +172,9 @@ kernel void smudgeKernel(
         return;
     }
 
-    float falloff = pow(1.0 - dist / params.radius, 2.0);
+    float normalizedDistance = saturate(dist / params.radius);
+    float falloff = 1.0 - smoothstep(0.0, 1.0, normalizedDistance);
+    falloff *= falloff;
 
     float2 samplePos = uv - params.dragFactor * params.direction;
     samplePos = clamp(samplePos, float2(0), float2(float(w) - 1.0, float(h) - 1.0));

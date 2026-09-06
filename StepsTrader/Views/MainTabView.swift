@@ -5,6 +5,7 @@ import SwiftUI
 extension EnvironmentValues {
     @Entry var topCardHeight: CGFloat = 0
     @Entry var tabBarHeight: CGFloat = 80
+    @Entry var tabBarCenterY: CGFloat? = nil
 }
 
 struct MainTabView: View {
@@ -44,6 +45,7 @@ struct MainTabView: View {
     /// not exist yet.
     @State private var showSettings = false
     @State private var tabBarHeight: CGFloat = 80
+    @State private var tabBarCenterY: CGFloat?
     private let isUITest = ProcessInfo.processInfo.arguments.contains("ui-testing")
     @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -122,6 +124,13 @@ struct MainTabView: View {
         }
     }
 
+    private struct TabBarCenterYPreferenceKey: PreferenceKey {
+        static let defaultValue: CGFloat? = nil
+        static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
+            value = nextValue() ?? value
+        }
+    }
+
     var body: some View {
         ZStack {
             TabView(selection: selectionBinding) {
@@ -186,6 +195,7 @@ struct MainTabView: View {
             .toolbarBackground(.hidden, for: .navigationBar)
             .environment(\.topCardHeight, topCardHeight)
             .environment(\.tabBarHeight, tabBarHeight)
+            .environment(\.tabBarCenterY, tabBarCenterY)
             .animation(.easeInOut(duration: 0.2), value: selection)
             // Feature-tip CTA deep-link: Settings is a sheet on Me now. Set the
             // route BEFORE presenting — SettingsSheet reads the binding when it
@@ -355,6 +365,10 @@ struct MainTabView: View {
             guard value != tabBarHeight else { return }
             tabBarHeight = value
         }
+        .onPreferenceChange(TabBarCenterYPreferenceKey.self) { value in
+            guard value != tabBarCenterY else { return }
+            tabBarCenterY = value
+        }
         .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.open.modules"))) { _ in
             selection = Tab.feeds.rawValue
         }
@@ -468,6 +482,14 @@ struct MainTabView: View {
             }
         }
         .frame(width: 228, height: 48)
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: TabBarCenterYPreferenceKey.self,
+                    value: proxy.frame(in: .global).midY
+                )
+            }
+        )
     }
 
     private struct FeedsTabCoachAnchor: ViewModifier {
