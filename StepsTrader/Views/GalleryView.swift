@@ -2083,6 +2083,49 @@ struct GalleryView: View {
     private var wideCanvasOverlay: some View {
         VStack {
             Spacer()
+#if DEBUG || INTERNAL_BUILD
+            if musicController.soundState == .on {
+                HStack(spacing: 10) {
+                    Menu {
+                        ForEach(DayObjectsSoundWorld.allCases, id: \.self) { world in
+                            Button {
+                                musicController.selectSoundWorld(world)
+                            } label: {
+                                if musicController.state.soundWorld == world {
+                                    Label(world.displayName, systemImage: "checkmark")
+                                } else {
+                                    Text(world.displayName)
+                                }
+                            }
+                        }
+                    } label: {
+                        Label(musicController.state.soundWorld.displayName, systemImage: "waveform")
+                    }
+                    .accessibilityLabel("Sound world")
+
+                    Button {
+                        musicController.remix()
+                    } label: {
+                        Label("Music Remix", systemImage: "shuffle")
+                    }
+                    .accessibilityLabel("Remix music")
+
+                    Button {
+                        musicController.undoMusicRemix()
+                    } label: {
+                        Image(systemName: "arrow.uturn.backward")
+                    }
+                    .disabled(!musicController.canUndoMusicRemix)
+                    .accessibilityLabel("Undo music remix")
+                }
+                .font(.geist(.caption))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial, in: Capsule())
+                .padding(.bottom, 10)
+            }
+#endif
             CanvasFullScreenDock(
                 soundAppearance: canvasSoundAppearance,
                 onSound: {

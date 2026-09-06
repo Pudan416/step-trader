@@ -3,14 +3,15 @@ import XCTest
 @testable import Steps4
 
 final class HappeningSoundCatalogTests: XCTestCase {
-    func testCatalogHasAllThirtyStableIDsAndLabelsInOrder() {
+    func testCatalogHasAllFortyTwoStableIDsAndLabelsInOrder() {
         let recipes = HappeningSoundCatalog.recipes
 
-        XCTAssertEqual(recipes.map(\.id.rawValue), Array(1...30))
-        XCTAssertEqual(recipes.map(\.label), (1...30).map { String(format: "%02d", $0) })
+        XCTAssertEqual(recipes.map(\.id.rawValue), Array(1...42))
+        XCTAssertEqual(recipes.map(\.label), (1...42).map { String(format: "%02d", $0) })
         XCTAssertEqual(recipes.map(\.id).count, Set(recipes.map(\.id)).count)
         XCTAssertNil(HappeningSoundRecipeID(rawValue: 0))
-        XCTAssertNil(HappeningSoundRecipeID(rawValue: 31))
+        XCTAssertNotNil(HappeningSoundRecipeID(rawValue: 42))
+        XCTAssertNil(HappeningSoundRecipeID(rawValue: 43))
     }
 
     func testRecipeIDDecodingRejectsValuesOutsideTheValidatedBoundary() throws {
@@ -19,11 +20,25 @@ final class HappeningSoundCatalogTests: XCTestCase {
             HappeningSoundRecipeID(rawValue: 1)
         )
         XCTAssertThrowsError(try JSONDecoder().decode(HappeningSoundRecipeID.self, from: Data("0".utf8)))
-        XCTAssertThrowsError(try JSONDecoder().decode(HappeningSoundRecipeID.self, from: Data("31".utf8)))
+        XCTAssertEqual(
+            try JSONDecoder().decode(HappeningSoundRecipeID.self, from: Data("42".utf8)),
+            HappeningSoundRecipeID(rawValue: 42)
+        )
+        XCTAssertThrowsError(try JSONDecoder().decode(HappeningSoundRecipeID.self, from: Data("43".utf8)))
+    }
+
+    func testNewSoundWorldCharactersAreDistinctAndLocallyAuthored() {
+        let additions = Array(HappeningSoundCatalog.recipes.suffix(12))
+
+        XCTAssertEqual(additions.map(\.id.rawValue), Array(31...42))
+        XCTAssertEqual(Set(additions.map(\.topology)).count, 12)
+        XCTAssertEqual(Set(additions.flatMap(\.sources).map(\.sha256)).count, 12)
+        XCTAssertTrue(additions.allSatisfy { !$0.sources.isEmpty })
     }
 
     func testRetimbreCatalogHasExactIdentityPaletteAndTopology() {
         let recipes = HappeningSoundCatalog.recipes
+        let legacyRecipes = Array(recipes.prefix(30))
         let expectedNames = [
             "Warm analog ping", "Glass FM droplet", "Muted pulse pluck",
             "Hollow string", "Air reed blip", "Reverse pluck bloom",
@@ -51,13 +66,13 @@ final class HappeningSoundCatalogTests: XCTestCase {
             synthIDs.contains($0) ? .synth : organicIDs.contains($0) ? .organic : .hybrid
         }
 
-        XCTAssertEqual(recipes.map(\.workingName), expectedNames)
-        XCTAssertEqual(recipes.map(\.paletteKind), expectedPaletteKinds)
-        XCTAssertEqual(recipes.map(\.topology), expectedTopologies)
+        XCTAssertEqual(legacyRecipes.map(\.workingName), expectedNames)
+        XCTAssertEqual(legacyRecipes.map(\.paletteKind), expectedPaletteKinds)
+        XCTAssertEqual(legacyRecipes.map(\.topology), expectedTopologies)
         XCTAssertEqual(Dictionary(grouping: recipes, by: \.paletteKind).mapValues(\.count),
-                       [.synth: 10, .organic: 10, .hybrid: 10])
-        XCTAssertEqual(Set(recipes.map(\.topology)).count, 30)
-        XCTAssertEqual(Set(recipes.map { "\($0.attackTopology)|\($0.tailTopology)" }).count, 30)
+                       [.synth: 14, .organic: 16, .hybrid: 12])
+        XCTAssertEqual(Set(recipes.map(\.topology)).count, 42)
+        XCTAssertEqual(Set(recipes.map { "\($0.attackTopology)|\($0.tailTopology)" }).count, 42)
         XCTAssertTrue(recipes.allSatisfy { !$0.workingName.isEmpty })
         XCTAssertTrue(recipes.allSatisfy { !$0.topology.isEmpty && $0.topology != "test-fixture" })
         XCTAssertTrue(recipes.allSatisfy { !$0.attackTopology.isEmpty && $0.attackTopology != "test-attack" })
@@ -99,6 +114,7 @@ final class HappeningSoundCatalogTests: XCTestCase {
             case 7...12: bounds = (0.01...0.06, 0.04...0.12)
             case 13...18: bounds = (0.02...0.07, 0.05...0.14)
             case 19...24: bounds = (0.02...0.08, 0.06...0.15)
+            case 31...42: bounds = (0.01...0.08, 0.04...0.15)
             default: bounds = (0.01...0.06, 0.04...0.12)
             }
             XCTAssertTrue(bounds.0.contains(recipe.delayMix), recipe.label)
@@ -133,7 +149,8 @@ final class HappeningSoundCatalogTests: XCTestCase {
             XCTAssertEqual(recipe.sources.count, 4, recipe.label)
             XCTAssertEqual(Set(recipe.sources.map { $0.rootMIDI % 12 }), Set([0, 3, 6, 9]), recipe.label)
         }
-        for recipe in recipes[24..<27] {
+        let resonantRecipes = Array(recipes[24..<27]) + Array(recipes[30..<38])
+        for recipe in resonantRecipes {
             guard case let .resonantNoise(_, preferredRange, resonatorTargetPitchClasses) = recipe.pitch else {
                 return XCTFail("\(recipe.label) must be resonant noise")
             }
@@ -144,7 +161,8 @@ final class HappeningSoundCatalogTests: XCTestCase {
             let preferredPitchClasses = Set(preferredRange.map { $0 % 12 })
             XCTAssertTrue(preferredPitchClasses.isSuperset(of: Set(resonatorTargetPitchClasses)), recipe.label)
         }
-        for recipe in recipes.suffix(3) {
+        let unpitchedRecipes = Array(recipes[27..<30]) + Array(recipes[38..<42])
+        for recipe in unpitchedRecipes {
             guard case .unpitched = recipe.pitch else {
                 return XCTFail("\(recipe.label) must be unpitched")
             }

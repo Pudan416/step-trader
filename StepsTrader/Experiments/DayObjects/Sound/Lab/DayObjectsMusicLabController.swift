@@ -82,7 +82,13 @@ final class DayObjectsMusicLabController: ObservableObject {
     private var diagnosticActionGeneration: UInt64 = 0
     private var diagnosticActionTask: Task<Void, Never>?
     private var configuredHappeningIDs: [String]
+    private var musicVariantHistory: [MusicVariant] = []
     @Published private var acceptedSoundButtonIntent: DayObjectsSoundButtonIntent?
+
+    private struct MusicVariant: Equatable {
+        let remixSeed: UInt64
+        let soundWorld: DayObjectsSoundWorld
+    }
 
     private struct HappeningPadTask {
         let id: UUID
@@ -121,6 +127,7 @@ final class DayObjectsMusicLabController: ObservableObject {
     var digitalImpact: DayObjectDigitalImpact { .init(spentColors: state.spentColors) }
     var happeningIDs: [String] { configuredHappeningIDs }
     var metrics: DayObjectsPlaybackMetrics { playback.metrics }
+    var canUndoMusicRemix: Bool { !musicVariantHistory.isEmpty }
 
     var worldSummary: String {
         let world = currentPlan.world
@@ -337,7 +344,22 @@ final class DayObjectsMusicLabController: ObservableObject {
     }
 
     func remix() {
+        rememberCurrentMusicVariant()
         updateState { $0.remixSeed &+= 1 }
+    }
+
+    func selectSoundWorld(_ soundWorld: DayObjectsSoundWorld) {
+        guard state.soundWorld != soundWorld else { return }
+        rememberCurrentMusicVariant()
+        updateState { $0.soundWorld = soundWorld }
+    }
+
+    func undoMusicRemix() {
+        guard let previous = musicVariantHistory.popLast() else { return }
+        updateState {
+            $0.remixSeed = previous.remixSeed
+            $0.soundWorld = previous.soundWorld
+        }
     }
 
     func beginLead(
@@ -486,6 +508,13 @@ final class DayObjectsMusicLabController: ObservableObject {
         routePlaybackChange(from: oldPlan, to: nextPlan)
     }
 
+    private func rememberCurrentMusicVariant() {
+        musicVariantHistory.append(.init(
+            remixSeed: state.remixSeed,
+            soundWorld: state.soundWorld
+        ))
+    }
+
     private func routePlaybackChange(from oldPlan: DayMusicPlan, to nextPlan: DayMusicPlan) {
         let change = DayMusicPlanDiffer.change(from: oldPlan, to: nextPlan)
         change.removedHappeningIDs.forEach(playback.removeHappening)
@@ -600,7 +629,8 @@ final class DayObjectsMusicLabController: ObservableObject {
                 happeningIDs: happeningIDs,
                 spentColors: state.spentColors
             ),
-            remixSeed: state.remixSeed
+            remixSeed: state.remixSeed,
+            soundWorld: state.soundWorld
         )
     }
 

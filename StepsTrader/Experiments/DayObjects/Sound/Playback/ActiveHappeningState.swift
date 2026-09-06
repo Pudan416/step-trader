@@ -1,6 +1,7 @@
 #if DEBUG || INTERNAL_BUILD
 struct HappeningScheduledOccurrence: Equatable, Sendable {
     let sequenceIndex: Int
+    let motifStepIndex: Int
     let position: MusicalPosition
     let intervalBars: Int
     var retryAttemptCount: Int

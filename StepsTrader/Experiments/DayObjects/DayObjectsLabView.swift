@@ -414,16 +414,40 @@ struct DayObjectsLabView: View {
 
     private var remixControls: some View {
         VStack(spacing: 6) {
+            Picker(
+                "Sound world",
+                selection: Binding(
+                    get: { musicController.state.soundWorld },
+                    set: { musicController.selectSoundWorld($0) }
+                )
+            ) {
+                ForEach(DayObjectsSoundWorld.allCases, id: \.self) { world in
+                    Text(world.displayName).tag(world)
+                }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("dayObjects.soundWorld")
+
             Button {
                 musicController.remix()
             } label: {
-                Label("Remix", systemImage: "shuffle")
+                Label("Music Remix", systemImage: "shuffle")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
             .accessibilityIdentifier("dayObjects.remix")
 
-            Text(musicController.worldSummary)
+            Button {
+                musicController.undoMusicRemix()
+            } label: {
+                Label("Undo Music", systemImage: "arrow.uturn.backward")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .disabled(!musicController.canUndoMusicRemix)
+            .accessibilityIdentifier("dayObjects.musicUndo")
+
+            Text("\(musicController.state.soundWorld.displayName) · \(musicController.worldSummary)")
                 .font(.geist(.caption2).monospaced())
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.white.opacity(0.75))

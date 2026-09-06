@@ -442,6 +442,113 @@ def render_breath_exhale(root_midi: int, seed: int) -> tuple[list[float], str, s
     return _render(frames, _mix(_scaled(breath, 0.08), shaped), "breath-formant-crossfade", "filtered-breath")
 
 
+def render_felt_kalimba_whisper(root_midi: int, seed: int) -> tuple[list[float], str, str]:
+    frames = round(SAMPLE_RATE * 0.62)
+    modal = _modal_body(midi_to_hz(root_midi), frames, seed, (1.0, 2.18, 3.91))
+    felt = one_pole_lowpass(seeded_brown_noise(frames, seed + 31), 620.0)
+    envelope = exponential_envelope(frames, 0.20, 0.018)
+    body = _mix(_scaled(one_pole_lowpass(modal, 2_250.0), 0.55),
+                [sample * amount * 0.045 for sample, amount in zip(felt, envelope)])
+    return _render(frames, body, "felt-thumb-muted", "dark-diffusion")
+
+
+def render_silk_string_pluck(root_midi: int, seed: int) -> tuple[list[float], str, str]:
+    frames = round(SAMPLE_RATE * 0.72)
+    string = one_pole_lowpass(karplus_strong(midi_to_hz(root_midi), frames, seed, 0.994), 2_900.0)
+    fundamental = _tone(midi_to_hz(root_midi), frames, "sine", 0.34, 0.016)
+    return _render(frames, _mix(_scaled(string, 0.31), _scaled(fundamental, 0.36)),
+                   "silk-string-soft-pick", "tape-echo")
+
+
+def render_cedar_knock(root_midi: int, seed: int) -> tuple[list[float], str, str]:
+    frames = round(SAMPLE_RATE * 0.86)
+    modal = _modal_body(midi_to_hz(root_midi), frames, seed, (1.0, 1.49, 2.14, 3.05))
+    body = one_pole_lowpass(_mix(_scaled(modal, 0.58), _scaled(_impulse(frames, seed + 33, 0.018), 0.08)), 1_850.0)
+    return _render(frames, body, "cedar-doublet", "short-room")
+
+
+def render_bamboo_air_pluck(root_midi: int, seed: int) -> tuple[list[float], str, str]:
+    frames = round(SAMPLE_RATE * 0.66)
+    tone = _tone(midi_to_hz(root_midi), frames, "sine", 0.30, 0.030)
+    breath = one_pole_highpass(one_pole_lowpass(seeded_brown_noise(frames, seed + 34), 1_900.0), 480.0)
+    envelope = raised_cosine_envelope(frames, 0.035, 0.24)
+    return _render(frames, _mix(_scaled(tone, 0.44),
+                                [sample * amount * 0.055 for sample, amount in zip(breath, envelope)]),
+                   "bamboo-breath-pluck", "filtered-breath")
+
+
+def render_frost_glass_tap(root_midi: int, seed: int) -> tuple[list[float], str, str]:
+    frames = round(SAMPLE_RATE * 0.70)
+    frequency = midi_to_hz(root_midi)
+    modal = _modal_body(frequency, frames, seed, (1.0, 3.12, 5.47, 7.31))
+    icy_partial = _tone(frequency * 3.02, frames, "sine", 0.31, 0.018)
+    body = _mix(_scaled(modal, 0.34), _scaled(icy_partial, 0.46))
+    return _render(frames, one_pole_lowpass(body, 5_200.0), "frosted-glass-soft-tip", "modal-decay")
+
+
+def render_glass_sustain_bloom(root_midi: int, seed: int) -> tuple[list[float], str, str]:
+    frames = round(SAMPLE_RATE * 0.82)
+    modal = _modal_body(midi_to_hz(root_midi), frames, seed, (1.0, 1.97, 3.18, 5.07))
+    envelope = raised_cosine_envelope(frames, 0.19, 0.25)
+    body = [sample * amount * 0.62 for sample, amount in zip(mono_chorus(modal, 0.14, 0.005), envelope)]
+    return _render(frames, body, "glass-bow-slow-rise", "reverse-bloom")
+
+
+def render_current_metal_pluck(root_midi: int, seed: int) -> tuple[list[float], str, str]:
+    frames = round(SAMPLE_RATE * 0.60)
+    modal = _modal_body(midi_to_hz(root_midi), frames, seed, (1.0, 2.91, 4.31))
+    current = _tone(midi_to_hz(root_midi) * 0.5, frames, "triangle", 0.27, 0.010)
+    body = one_pole_lowpass(_mix(_scaled(modal, 0.44), _scaled(current, 0.24)), 3_650.0)
+    return _render(frames, body, "electro-metal-damped-strike", "chorus-decay")
+
+
+def render_brushed_resonator(root_midi: int, seed: int) -> tuple[list[float], str, str]:
+    frames = round(SAMPLE_RATE * 0.74)
+    brush = one_pole_highpass(one_pole_lowpass(seeded_brown_noise(frames, seed + 38), 2_600.0), 380.0)
+    envelope = raised_cosine_envelope(frames, 0.070, 0.28)
+    excitation = [sample * amount * 0.11 for sample, amount in zip(brush, envelope)]
+    body = biquad_modal_resonator(excitation, midi_to_hz(root_midi), 0.38)
+    return _render(frames, body, "brushed-steel-resonance", "dark-diffusion")
+
+
+def render_paper_whisper(root_midi: int, seed: int) -> tuple[list[float], str, str]:
+    frames = round(SAMPLE_RATE * 0.58)
+    paper = one_pole_highpass(one_pole_lowpass(seeded_white_noise(frames, seed + 39), 4_100.0), 720.0)
+    envelope = raised_cosine_envelope(frames, 0.025, 0.31)
+    return _render(frames, [sample * amount * 0.14 for sample, amount in zip(paper, envelope)],
+                   "crumpled-paper-soft-edge", "filtered-breath")
+
+
+def render_cloth_swish(root_midi: int, seed: int) -> tuple[list[float], str, str]:
+    frames = round(SAMPLE_RATE * 0.64)
+    cloth = one_pole_lowpass(seeded_brown_noise(frames, seed + 40), 980.0)
+    envelope = raised_cosine_envelope(frames, 0.09, 0.26)
+    pulse = [0.75 + 0.25 * math.sin(math.tau * 2.4 * frame / SAMPLE_RATE) for frame in range(frames)]
+    return _render(frames, [sample * amount * movement * 0.16 for sample, amount, movement in zip(cloth, envelope, pulse)],
+                   "woven-cloth-brush", "short-room")
+
+
+def render_water_pearl(root_midi: int, seed: int) -> tuple[list[float], str, str]:
+    frames = round(SAMPLE_RATE * 0.86)
+    frequency = midi_to_hz(root_midi)
+    envelope = exponential_envelope(frames, 0.24, 0.012)
+    body = [math.sin(math.tau * frequency * (1.0 + 0.22 * math.exp(-frame / 2_200)) * frame / SAMPLE_RATE)
+            * envelope[frame] * 0.58 for frame in range(frames)]
+    return _render(frames, body, "water-drop-resonance", "tape-echo")
+
+
+def render_air_current(root_midi: int, seed: int) -> tuple[list[float], str, str]:
+    frames = round(SAMPLE_RATE * 0.78)
+    air = one_pole_highpass(one_pole_lowpass(seeded_brown_noise(frames, seed + 42), 1_450.0), 240.0)
+    envelope = raised_cosine_envelope(frames, 0.16, 0.31)
+    upper_air = one_pole_highpass(one_pole_lowpass(
+        seeded_white_noise(frames, seed + 142), 3_200.0
+    ), 1_100.0)
+    return _render(frames, _mix([sample * amount * 0.21 for sample, amount in zip(air, envelope)],
+                                [sample * amount * 0.056 for sample, amount in zip(upper_air, envelope)]),
+                   "airy-current-crossfade", "chorus-decay")
+
+
 AUTHORED_RENDERERS = {
     "analog-ping": render_analog_ping,
     "fm-droplet": render_fm_droplet,
@@ -468,6 +575,18 @@ AUTHORED_RENDERERS = {
     "reverse-glass-unpitched": render_reverse_glass_unpitched,
     "dust-impact": render_dust_impact,
     "breath-exhale": render_breath_exhale,
+    "felt-kalimba-whisper": render_felt_kalimba_whisper,
+    "silk-string-pluck": render_silk_string_pluck,
+    "cedar-knock": render_cedar_knock,
+    "bamboo-air-pluck": render_bamboo_air_pluck,
+    "frost-glass-tap": render_frost_glass_tap,
+    "glass-sustain-bloom": render_glass_sustain_bloom,
+    "current-metal-pluck": render_current_metal_pluck,
+    "brushed-resonator": render_brushed_resonator,
+    "paper-whisper": render_paper_whisper,
+    "cloth-swish": render_cloth_swish,
+    "water-pearl": render_water_pearl,
+    "air-current": render_air_current,
 }
 
 
@@ -599,14 +718,14 @@ def render_authored(definition: dict, root_midi: int, seed: int) -> RenderedEven
     if not isinstance(kind, str) or kind not in AUTHORED_RENDERERS:
         raise ValueError(f"unknown authored topology: {kind!r}")
     recipe_id = definition.get("id")
-    render_root = 60 if recipe_id in (25, 26, 27) else root_midi
+    render_root = 60 if isinstance(recipe_id, int) and recipe_id >= 25 else root_midi
     body, default_attack, default_tail = AUTHORED_RENDERERS[kind](render_root, seed)
     tail = definition.get("tail")
     if not isinstance(tail, dict):
         tail = {"kind": definition.get("tailTopology", default_tail)}
     else:
         tail = dict(tail)
-    if recipe_id in (28, 29, 30):
+    if isinstance(recipe_id, int) and (recipe_id in (28, 29, 30) or recipe_id >= 39):
         tail["unpitched"] = True
     tail_kind = _tail_kind(tail)
     attack = definition.get("attackTopology", default_attack)

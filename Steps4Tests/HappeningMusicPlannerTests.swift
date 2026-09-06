@@ -2,6 +2,36 @@ import XCTest
 @testable import Steps4
 
 final class HappeningMusicPlannerTests: XCTestCase {
+    func testWorldIdentitySurvivesInsertionAndRemovalAtAnyListPosition() throws {
+        let originalIDs = ["bravo", "charlie", "delta"]
+        let original = makePlans(ids: originalIDs, soundWorld: .metalAndCurrent)
+        let inserted = makePlans(
+            ids: ["alpha"] + originalIDs + ["echo"],
+            soundWorld: .metalAndCurrent
+        )
+
+        for plan in original {
+            let matching = try XCTUnwrap(inserted.first { $0.happeningID == plan.happeningID })
+            XCTAssertEqual(matching.recipeID, plan.recipeID)
+            XCTAssertEqual(matching.motif, plan.motif)
+        }
+    }
+
+    func testEveryWorldHappeningOwnsARepeatablePhraseRatherThanOnlyAOneShot() {
+        for soundWorld in DayObjectsSoundWorld.allCases {
+            let plans = makePlans(ids: ids(count: 10), soundWorld: soundWorld)
+            let repeated = makePlans(ids: ids(count: 10), soundWorld: soundWorld)
+
+            XCTAssertEqual(plans, repeated)
+            XCTAssertTrue(plans.allSatisfy { (1...3).contains($0.motif.noteCount) })
+            XCTAssertTrue(plans.contains { $0.motif.noteCount > 1 })
+            XCTAssertTrue(plans.allSatisfy {
+                $0.motif.offsetBeats.first == 0
+                    && $0.motif.offsetBeats == $0.motif.offsetBeats.sorted()
+            })
+        }
+    }
+
     func testCountsZeroThroughTenAssignCatalogRecipesWithoutReplacement() throws {
         for count in 0...10 {
             let plans = makePlans(ids: ids(count: count))
@@ -119,7 +149,11 @@ final class HappeningMusicPlannerTests: XCTestCase {
 
     private let defaultSeed: UInt64 = 0xD4A0_B1EC_75ED_0001
 
-    private func makePlans(ids: [String], remixSeed: UInt64? = nil) -> [HappeningMusicPlan] {
+    private func makePlans(
+        ids: [String],
+        remixSeed: UInt64? = nil,
+        soundWorld: DayObjectsSoundWorld? = nil
+    ) -> [HappeningMusicPlan] {
         let seed = remixSeed ?? defaultSeed
         let input = NormalizedDayMusicInput(
             stepsProgress: 0.61,
@@ -133,7 +167,8 @@ final class HappeningMusicPlannerTests: XCTestCase {
         return HappeningMusicPlanner.makePlans(
             input: input,
             tonalWorld: TonalWorldPlanner.makePlan(input: input, remixSeed: seed),
-            remixSeed: seed
+            remixSeed: seed,
+            soundWorld: soundWorld
         )
     }
 

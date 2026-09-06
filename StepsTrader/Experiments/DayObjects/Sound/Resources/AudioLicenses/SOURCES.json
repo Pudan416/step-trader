@@ -51,6 +51,16 @@
     ]
   },
   {
+    "project": "Steps project-authored synthesis",
+    "sourceURL": "project://Scripts/day_objects_audio/happening-source-map.json",
+    "revision": "happening-bank-v3",
+    "licenseFilename": "",
+    "selectedPaths": [
+      "Scripts/day_objects_audio/happening_synthesis.py",
+      "Scripts/day_objects_audio/happening-source-map.json#recipes-31-42"
+    ]
+  },
+  {
     "project": "VCSL",
     "sourceURL": "https://github.com/sgossner/VCSL",
     "revision": "c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e",

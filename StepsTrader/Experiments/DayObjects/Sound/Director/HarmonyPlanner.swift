@@ -19,10 +19,14 @@ enum HarmonyPlanner {
         input: NormalizedDayMusicInput,
         tonalWorld: TonalWorldPlan,
         instrumentDescriptors: [DayObjectsInstrumentDescriptor],
-        remixSeed: UInt64
+        remixSeed: UInt64,
+        soundWorld: DayObjectsSoundWorld? = nil
     ) -> HarmonyPlan {
         let sleepProgress = unitValue(input.sleepProgress)
-        let sortedDescriptors = instrumentDescriptors.sorted {
+        let worldDescriptors = soundWorld.map { world in
+            instrumentDescriptors.filter { world.harmonyInstrumentIDs.contains($0.id.rawValue) }
+        } ?? instrumentDescriptors
+        let sortedDescriptors = worldDescriptors.sorted {
             $0.id.rawValue < $1.id.rawValue
         }
         let primaryDescriptor = selectedDescriptor(
@@ -62,7 +66,8 @@ enum HarmonyPlanner {
             ).map { .tonal($0.id) }
         ]
 
-        let roles = roleTemplates.compactMap { template -> HarmonyRolePlan? in
+        let roles = roleTemplates.compactMap { baseTemplate -> HarmonyRolePlan? in
+            let template = processedTemplate(baseTemplate, soundWorld: soundWorld)
             guard let instrumentTarget = selectedByRole[template.role] ?? nil else { return nil }
             let amount = activationAmount(
                 for: template.role,
@@ -197,6 +202,43 @@ enum HarmonyPlanner {
 
     private static func template(for role: HarmonyRole) -> RoleTemplate {
         roleTemplates.first { $0.role == role } ?? roleTemplates[0]
+    }
+
+    private static func processedTemplate(
+        _ template: RoleTemplate,
+        soundWorld: DayObjectsSoundWorld?
+    ) -> RoleTemplate {
+        guard let soundWorld else { return template }
+        let attackMultiplier: Double
+        let releaseMultiplier: Double
+        let delayMultiplier: Double
+        let reverbMultiplier: Double
+        switch soundWorld {
+        case .feltAndWood:
+            attackMultiplier = 1.18
+            releaseMultiplier = 1.22
+            delayMultiplier = 0.62
+            reverbMultiplier = 1.08
+        case .metalAndCurrent:
+            attackMultiplier = 0.72
+            releaseMultiplier = 0.82
+            delayMultiplier = 1.45
+            reverbMultiplier = 1.12
+        }
+        return RoleTemplate(
+            role: template.role,
+            compatibleCategories: template.compatibleCategories,
+            preferredCategory: template.preferredCategory,
+            register: template.register,
+            targetGain: template.targetGain,
+            attackSeconds: template.attackSeconds * attackMultiplier,
+            releaseSeconds: template.releaseSeconds * releaseMultiplier,
+            delaySend: min(template.delaySend * delayMultiplier, 0.72),
+            reverbSend: min(template.reverbSend * reverbMultiplier, 0.78),
+            activationStart: template.activationStart,
+            activationFull: template.activationFull,
+            crossfadeBars: template.crossfadeBars
+        )
     }
 
     private static func unitValue(_ value: Double) -> Double {

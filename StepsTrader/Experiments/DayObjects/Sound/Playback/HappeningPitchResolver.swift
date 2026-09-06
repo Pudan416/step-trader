@@ -5,7 +5,8 @@ enum HappeningPitchResolver {
     static func resolve(
         recipe: HappeningSoundRecipe,
         chord: ChordPlan,
-        tonalWorld: TonalWorldPlan
+        tonalWorld: TonalWorldPlan,
+        degreeOffset: Int? = nil
     ) -> ResolvedHappeningSound {
         precondition(!recipe.sources.isEmpty, "Happening recipes must declare a sample source")
 
@@ -14,7 +15,8 @@ enum HappeningPitchResolver {
             let target = chordTarget(
                 in: preferredRange,
                 chordPitchClasses: chord.chordPitchClasses,
-                centerPitchClass: tonalWorld.centerPitchClass
+                centerPitchClass: tonalWorld.centerPitchClass,
+                degreeOffset: degreeOffset
             )
             guard let source = nearestSource(
                 to: target,
@@ -41,7 +43,8 @@ enum HappeningPitchResolver {
                 in: preferredRange,
                 chordPitchClasses: chord.chordPitchClasses,
                 centerPitchClass: tonalWorld.centerPitchClass,
-                preferredPitchClasses: resonatorTargetPitchClasses.map(Int.init)
+                preferredPitchClasses: resonatorTargetPitchClasses.map(Int.init),
+                degreeOffset: degreeOffset
             )
             return ResolvedHappeningSound(
                 recipeID: recipe.id,
@@ -73,15 +76,23 @@ enum HappeningPitchResolver {
     private static func chordTarget(
         in preferredRange: ClosedRange<UInt8>,
         chordPitchClasses: [Int],
-        centerPitchClass: Int
+        centerPitchClass: Int,
+        degreeOffset: Int?
     ) -> UInt8 {
         let preferredCenter = preferredCenter(
             in: preferredRange,
             centerPitchClass: centerPitchClass
         )
+        let orderedTargets = chordPitchClasses.sorted()
+        let targetPitchClasses: [Int]
+        if let degreeOffset, !orderedTargets.isEmpty {
+            targetPitchClasses = [orderedTargets[((degreeOffset % orderedTargets.count) + orderedTargets.count) % orderedTargets.count]]
+        } else {
+            targetPitchClasses = chordPitchClasses
+        }
         return nearestNote(
             in: preferredRange,
-            pitchClasses: chordPitchClasses,
+            pitchClasses: targetPitchClasses,
             to: preferredCenter
         ) ?? preferredCenter
     }
@@ -101,13 +112,21 @@ enum HappeningPitchResolver {
         in preferredRange: ClosedRange<UInt8>,
         chordPitchClasses: [Int],
         centerPitchClass: Int,
-        preferredPitchClasses: [Int]
+        preferredPitchClasses: [Int],
+        degreeOffset: Int?
     ) -> UInt8 {
         let desired = preferredCenter(
             in: preferredRange,
             centerPitchClass: centerPitchClass
         )
-        let allowedPitchClasses = Set(chordPitchClasses.map(normalizedPitchClass))
+        let orderedTargets = chordPitchClasses.map(normalizedPitchClass).sorted()
+        let rotatedTarget: Int?
+        if let degreeOffset, !orderedTargets.isEmpty {
+            rotatedTarget = orderedTargets[((degreeOffset % orderedTargets.count) + orderedTargets.count) % orderedTargets.count]
+        } else {
+            rotatedTarget = nil
+        }
+        let allowedPitchClasses = Set(rotatedTarget.map { [$0] } ?? chordPitchClasses.map(normalizedPitchClass))
         guard let target = (preferredRange
             .filter { allowedPitchClasses.contains(Int($0) % 12) }
             .min(by: {

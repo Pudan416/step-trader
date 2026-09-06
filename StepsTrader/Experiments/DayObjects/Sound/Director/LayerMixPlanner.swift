@@ -2,11 +2,22 @@
 import Foundation
 
 enum LayerMixPlanner {
-    static func makePlan(happeningCount: Int) -> LayerMixPlan {
+    static func makePlan(
+        happeningCount: Int,
+        soundWorld: DayObjectsSoundWorld? = nil
+    ) -> LayerMixPlan {
         let boundedCount = min(max(happeningCount, 0), 10)
         let happeningTarget = -3.3
         let audibleVoices = min(max(boundedCount, 1), 4)
         let countCompensationDecibels = -3 * log2(Double(audibleVoices))
+        let masterTargetDecibelsBeforeLimiter: Double = switch soundWorld {
+        case .feltAndWood:
+            -9
+        case .metalAndCurrent:
+            -10.5
+        case nil:
+            -6
+        }
 
         return LayerMixPlan(
             rhythmTargetDecibels: 0,
@@ -16,7 +27,7 @@ enum LayerMixPlanner {
             happeningPerVoiceTargetDecibels: happeningTarget + countCompensationDecibels,
             happeningCount: boundedCount,
             leadTargetDecibels: -3.1,
-            masterTargetDecibelsBeforeLimiter: -6,
+            masterTargetDecibelsBeforeLimiter: masterTargetDecibelsBeforeLimiter,
             maximumHarmonyDuckingDecibels: 2.5
         )
     }

@@ -31,6 +31,25 @@ final class LayerMixPlannerTests: XCTestCase {
         )
     }
 
+    func testExplicitSoundWorldCalibrationOffsetsOnlyTheMasterTarget() {
+        let legacy = LayerMixPlanner.makePlan(happeningCount: 10)
+        let felt = LayerMixPlanner.makePlan(happeningCount: 10, soundWorld: .feltAndWood)
+        let metal = LayerMixPlanner.makePlan(happeningCount: 10, soundWorld: .metalAndCurrent)
+
+        XCTAssertEqual(felt.masterTargetDecibelsBeforeLimiter, -9)
+        XCTAssertEqual(metal.masterTargetDecibelsBeforeLimiter, -10.5)
+        XCTAssertEqual(felt.rhythmTargetDecibels, legacy.rhythmTargetDecibels)
+        XCTAssertEqual(felt.bassTargetDecibels, legacy.bassTargetDecibels)
+        XCTAssertEqual(felt.harmonyTargetDecibels, legacy.harmonyTargetDecibels)
+        XCTAssertEqual(felt.happeningPerVoiceTargetDecibels, legacy.happeningPerVoiceTargetDecibels)
+        XCTAssertEqual(felt.leadTargetDecibels, legacy.leadTargetDecibels)
+        XCTAssertEqual(metal.rhythmTargetDecibels, legacy.rhythmTargetDecibels)
+        XCTAssertEqual(metal.bassTargetDecibels, legacy.bassTargetDecibels)
+        XCTAssertEqual(metal.harmonyTargetDecibels, legacy.harmonyTargetDecibels)
+        XCTAssertEqual(metal.happeningPerVoiceTargetDecibels, legacy.happeningPerVoiceTargetDecibels)
+        XCTAssertEqual(metal.leadTargetDecibels, legacy.leadTargetDecibels)
+    }
+
     func testAllPublishedValuesRemainFiniteAndBoundedAcrossThePublicCountDomain() {
         for count in [Int.min, -1, 0, 1, 5, 10, 11, Int.max] {
             let plan = LayerMixPlanner.makePlan(happeningCount: count)

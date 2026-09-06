@@ -17,6 +17,14 @@ enum HappeningScheduleAllocator {
         beatsPerBar: Int = 4
     ) -> HappeningScheduleAllocation {
         let activePlans = uniquePlansByStableID(plans)
+        if activePlans.contains(where: { $0.motif.isConversational }) {
+            return allocateConversational(
+                plans: activePlans,
+                remixSeed: remixSeed,
+                cycleCount: cycleCount,
+                beatsPerBar: beatsPerBar
+            )
+        }
         guard
             let intervalBand = intervalBand(for: activePlans.count),
             (1...maximumCycleCount).contains(cycleCount),
@@ -51,6 +59,7 @@ enum HappeningScheduleAllocator {
                 scheduled.append(HappeningScheduleEvent(
                     happeningID: lane.plan.happeningID,
                     sequenceIndex: sequenceIndex,
+                    motifStepIndex: 0,
                     startBeat: startBeat,
                     intervalBars: lane.intervalBars,
                     alignment: lane.alignment,
@@ -79,6 +88,132 @@ enum HappeningScheduleAllocator {
             events: scheduled,
             nextCursors: cursors.sorted { $0.happeningID < $1.happeningID }
         )
+    }
+
+    private static func allocateConversational(
+        plans: [HappeningMusicPlan],
+        remixSeed: UInt64,
+        cycleCount: Int,
+        beatsPerBar: Int
+    ) -> HappeningScheduleAllocation {
+        guard let intervalBand = conversationalIntervalBand(for: plans.count),
+              (1...maximumCycleCount).contains(cycleCount),
+              (1...maximumBeatsPerBar).contains(beatsPerBar)
+        else {
+            return emptyAllocation(beatsPerBar: beatsPerBar)
+        }
+
+        let cycleBars = intervalBand.upperBound
+        let horizonBars = cycleBars * cycleCount
+        let horizonBeats = Double(horizonBars * beatsPerBar)
+        let introductionBeats = Double(min(12, cycleBars) * beatsPerBar)
+        let orderedPlans = plans.sorted {
+            if $0.recurrence.alignmentRank != $1.recurrence.alignmentRank {
+                return $0.recurrence.alignmentRank < $1.recurrence.alignmentRank
+            }
+            return $0.happeningID < $1.happeningID
+        }
+        let slotWidth = introductionBeats / Double(max(orderedPlans.count, 1))
+        var scheduled: [HappeningScheduleEvent] = []
+        var cursors: [HappeningScheduleCursor] = []
+
+        for (index, plan) in orderedPlans.enumerated() {
+            var random = StableMusicRandom(
+                seed: plan.recurrence.scheduleSeed ^ remixSeed,
+                domain: .happeningSchedule(stableID: "conversation.\(plan.happeningID)")
+            )
+            let alignment: HappeningRecurrenceAlignment = index.isMultiple(of: 2)
+                ? .gridAligned
+                : .floating
+            let intervalBars = random.bernoulli(probability: 0.5)
+                ? intervalBand.lowerBound
+                : intervalBand.upperBound
+            let intervalBeats = Double(intervalBars * beatsPerBar)
+            let slotPosition = Double(index) + 0.28 + (0.36 * random.nextUnitDouble())
+            var phraseStart = slotWidth * slotPosition
+            phraseStart = alignment == .gridAligned
+                ? phraseStart.rounded()
+                : (phraseStart * 4).rounded() / 4
+            var sequenceIndex = 0
+            while phraseStart < horizonBeats {
+                let admittedStart = nextAvailablePhraseStart(
+                    preferredStart: phraseStart,
+                    motifOffsets: plan.motif.offsetBeats,
+                    existingEvents: scheduled,
+                    horizonBeats: horizonBeats
+                )
+                guard let admittedStart else { break }
+                for motifStepIndex in plan.motif.offsetBeats.indices {
+                    let startBeat = admittedStart + plan.motif.offsetBeats[motifStepIndex]
+                    guard startBeat < horizonBeats else { continue }
+                    let velocity = plan.motif.velocityMultipliers.indices.contains(motifStepIndex)
+                        ? plan.motif.velocityMultipliers[motifStepIndex]
+                        : 1
+                    scheduled.append(HappeningScheduleEvent(
+                        happeningID: plan.happeningID,
+                        sequenceIndex: sequenceIndex,
+                        motifStepIndex: motifStepIndex,
+                        startBeat: startBeat,
+                        intervalBars: intervalBars,
+                        alignment: alignment,
+                        gain: plan.gain * velocity
+                    ))
+                    sequenceIndex += 1
+                }
+                phraseStart += intervalBeats
+            }
+            cursors.append(HappeningScheduleCursor(
+                happeningID: plan.happeningID,
+                nextSequenceIndex: sequenceIndex,
+                nextCandidateBeat: phraseStart
+            ))
+        }
+
+        scheduled.sort {
+            if $0.startBeat != $1.startBeat { return $0.startBeat < $1.startBeat }
+            if $0.happeningID != $1.happeningID { return $0.happeningID < $1.happeningID }
+            return $0.sequenceIndex < $1.sequenceIndex
+        }
+        return HappeningScheduleAllocation(
+            cycleBars: cycleBars,
+            horizonBars: horizonBars,
+            beatsPerBar: beatsPerBar,
+            intervalBandBars: intervalBand,
+            events: scheduled,
+            nextCursors: cursors.sorted { $0.happeningID < $1.happeningID }
+        )
+    }
+
+    private static func conversationalIntervalBand(for count: Int) -> ClosedRange<Int>? {
+        switch count {
+        case 1...2: 8...12
+        case 3...6: 12...16
+        case 7...10: 16...24
+        default: nil
+        }
+    }
+
+    private static func nextAvailablePhraseStart(
+        preferredStart: Double,
+        motifOffsets: [Double],
+        existingEvents: [HappeningScheduleEvent],
+        horizonBeats: Double
+    ) -> Double? {
+        var candidate = max(0, preferredStart)
+        while candidate < horizonBeats {
+            let positions = motifOffsets.map { candidate + $0 }.filter { $0 < horizonBeats }
+            let allPositions = existingEvents.map(\.startBeat) + positions
+            let ordered = allPositions.sorted()
+            let spacingIsSafe = zip(ordered, ordered.dropFirst()).allSatisfy {
+                $0.1 - $0.0 >= 0.25 - 0.000_001
+            }
+            let beatBudgetIsSafe = Dictionary(grouping: allPositions) {
+                Int($0.rounded(.down))
+            }.values.allSatisfy { $0.count <= 2 }
+            if spacingIsSafe && beatBudgetIsSafe { return candidate }
+            candidate += 0.25
+        }
+        return nil
     }
 
     private static func intervalBand(for count: Int) -> ClosedRange<Int>? {

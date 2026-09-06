@@ -3,6 +3,56 @@ import XCTest
 @testable import Steps4
 
 final class DeterministicMusicDirectorTests: XCTestCase {
+    func testSameDayAndSeedAreDeterministicInsideEachSoundWorld() {
+        for soundWorld in DayObjectsSoundWorld.allCases {
+            let first = makeWorldPlan(soundWorld: soundWorld)
+            let repeated = makeWorldPlan(soundWorld: soundWorld)
+
+            XCTAssertEqual(first, repeated)
+            XCTAssertEqual(first.soundWorld, soundWorld)
+        }
+    }
+
+    func testWorldsUseContrastingGrooveLeadAndHarmonyPalettes() {
+        let felt = makeWorldPlan(soundWorld: .feltAndWood)
+        let metal = makeWorldPlan(soundWorld: .metalAndCurrent)
+
+        XCTAssertTrue([GrooveMode.percussion, .bassBed].contains(felt.groove.mode))
+        XCTAssertTrue([GrooveMode.bassPulse, .bassArp].contains(metal.groove.mode))
+        XCTAssertNotEqual(felt.lead.instrumentID, metal.lead.instrumentID)
+        XCTAssertNotEqual(tonalInstrumentIDs(in: felt), tonalInstrumentIDs(in: metal))
+        XCTAssertNotEqual(felt.happenings.map(\.recipeID), metal.happenings.map(\.recipeID))
+    }
+
+    func testWorldsApplyContrastingProcessingWithoutChangingTheMeasuredDay() throws {
+        let felt = makeWorldPlan(soundWorld: .feltAndWood)
+        let metal = makeWorldPlan(soundWorld: .metalAndCurrent)
+
+        XCTAssertEqual(felt.input, metal.input)
+        XCTAssertEqual(felt.world, metal.world)
+        XCTAssertGreaterThan(average(felt.harmony.roles.map(\.attackSeconds)), average(metal.harmony.roles.map(\.attackSeconds)))
+        XCTAssertGreaterThan(average(felt.harmony.roles.map(\.releaseSeconds)), average(metal.harmony.roles.map(\.releaseSeconds)))
+        XCTAssertLessThan(average(felt.harmony.roles.map(\.delaySend)), average(metal.harmony.roles.map(\.delaySend)))
+
+        XCTAssertGreaterThan(felt.lead.portamentoMilliseconds, metal.lead.portamentoMilliseconds)
+        XCTAssertGreaterThan(felt.lead.attackSeconds, metal.lead.attackSeconds)
+        XCTAssertGreaterThan(felt.lead.releaseSeconds, metal.lead.releaseSeconds)
+        XCTAssertLessThan(felt.lead.delaySend, metal.lead.delaySend)
+        XCTAssertLessThan(felt.lead.maximumExpressionDepth, metal.lead.maximumExpressionDepth)
+
+        XCTAssertLessThan(average(felt.happenings.map(\.delaySend)), average(metal.happenings.map(\.delaySend)))
+        XCTAssertGreaterThan(average(felt.happenings.map(\.releaseSeconds)), average(metal.happenings.map(\.releaseSeconds)))
+    }
+
+    func testWorldChangeKeepsTheMeasuredDayInputsUntouched() {
+        let felt = makeWorldPlan(soundWorld: .feltAndWood)
+        let metal = makeWorldPlan(soundWorld: .metalAndCurrent)
+
+        XCTAssertEqual(felt.input, metal.input)
+        XCTAssertEqual(felt.world, metal.world)
+        XCTAssertEqual(felt.glitch, metal.glitch)
+    }
+
     func testSameInputAndSeedReproduceTheEntirePlanExactly() {
         let input = representativeInput()
 
@@ -243,6 +293,32 @@ final class DeterministicMusicDirectorTests: XCTestCase {
             happeningIDs: ["morning", "work", "evening"],
             spentColors: 25
         )
+    }
+
+    private func makeWorldPlan(soundWorld: DayObjectsSoundWorld) -> DayMusicPlan {
+        DeterministicMusicDirector.makePlan(
+            input: DayMusicInput(
+                countedSteps: 7_500,
+                stepGoal: 10_000,
+                countedSleepHours: 6.5,
+                sleepGoalHours: 8,
+                happeningIDs: (0..<10).map { "event-\($0)" },
+                spentColors: 35
+            ),
+            remixSeed: 0xD4A0_B1EC_75ED_0001,
+            soundWorld: soundWorld
+        )
+    }
+
+    private func tonalInstrumentIDs(in plan: DayMusicPlan) -> [DayObjectsInstrumentID] {
+        plan.harmony.roles.compactMap { role in
+            guard case let .tonal(id) = role.instrumentTarget else { return nil }
+            return id
+        }
+    }
+
+    private func average(_ values: [Double]) -> Double {
+        values.reduce(0, +) / Double(max(values.count, 1))
     }
 
     private func input(happeningIDs: [String]) -> DayMusicInput {

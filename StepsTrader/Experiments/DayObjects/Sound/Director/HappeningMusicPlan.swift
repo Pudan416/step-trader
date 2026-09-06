@@ -20,6 +20,30 @@ struct HappeningRecurrencePlan: Equatable, Sendable {
     let floatingOffsetBeats: Double
 }
 
+enum HappeningMotifRole: Equatable, Sendable {
+    case legacyAccent
+    case statement
+    case response
+    case texture
+}
+
+struct HappeningMotifPlan: Equatable, Sendable {
+    let role: HappeningMotifRole
+    let degreeOffsets: [Int]
+    let offsetBeats: [Double]
+    let velocityMultipliers: [Double]
+
+    var noteCount: Int { offsetBeats.count }
+    var isConversational: Bool { role != .legacyAccent }
+
+    static let legacyAccent = HappeningMotifPlan(
+        role: .legacyAccent,
+        degreeOffsets: [0],
+        offsetBeats: [0],
+        velocityMultipliers: [1]
+    )
+}
+
 struct HappeningMusicPlan: Equatable, Sendable {
     static let minimumAudibleGain = 0.62
 
@@ -33,12 +57,42 @@ struct HappeningMusicPlan: Equatable, Sendable {
     let releaseSeconds: Double
     let delaySend: Double
     let reverbSend: Double
+    let motif: HappeningMotifPlan
     let recurrence: HappeningRecurrencePlan
+
+    init(
+        happeningID: String,
+        family: HappeningSoundFamily,
+        recipeID: HappeningSoundRecipeID,
+        pan: Double,
+        gain: Double,
+        birthGain: Double,
+        attackSeconds: Double,
+        releaseSeconds: Double,
+        delaySend: Double,
+        reverbSend: Double,
+        motif: HappeningMotifPlan = .legacyAccent,
+        recurrence: HappeningRecurrencePlan
+    ) {
+        self.happeningID = happeningID
+        self.family = family
+        self.recipeID = recipeID
+        self.pan = pan
+        self.gain = gain
+        self.birthGain = birthGain
+        self.attackSeconds = attackSeconds
+        self.releaseSeconds = releaseSeconds
+        self.delaySend = delaySend
+        self.reverbSend = reverbSend
+        self.motif = motif
+        self.recurrence = recurrence
+    }
 }
 
 struct HappeningScheduleEvent: Equatable, Sendable {
     let happeningID: String
     let sequenceIndex: Int
+    let motifStepIndex: Int
     let startBeat: Double
     let intervalBars: Int
     let alignment: HappeningRecurrenceAlignment

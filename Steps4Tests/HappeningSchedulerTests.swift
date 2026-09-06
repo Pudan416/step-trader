@@ -239,9 +239,9 @@ final class HappeningSchedulerTests: XCTestCase {
         let recipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: plan.recipeID))
         let expectedEffects = HappeningEffectCommand(
             filterCutoffHz: recipe.filterEndHz,
-            delayMix: recipe.delayMix,
+            delayMix: plan.delaySend,
             delayFeedback: recipe.delayFeedback,
-            reverbMix: recipe.reverbMix
+            reverbMix: plan.reverbSend
         )
         XCTAssertTrue(calls.allSatisfy { $0.effects == expectedEffects })
 

@@ -7,6 +7,7 @@ struct DayObjectsLabMusicState: Equatable, Sendable {
     var happeningCount: Int
     var spentColors: Int
     var remixSeed: UInt64
+    var soundWorld: DayObjectsSoundWorld
 
     init(
         steps: Double = 10_000,
@@ -15,7 +16,8 @@ struct DayObjectsLabMusicState: Equatable, Sendable {
         sleepGoalHours: Double = 8,
         happeningCount: Int = 8,
         spentColors: Int = 0,
-        remixSeed: UInt64 = 0xD4A0_B1EC_75ED_0001
+        remixSeed: UInt64 = 0xD4A0_B1EC_75ED_0001,
+        soundWorld: DayObjectsSoundWorld = .feltAndWood
     ) {
         self.steps = steps
         self.stepGoal = stepGoal
@@ -24,6 +26,7 @@ struct DayObjectsLabMusicState: Equatable, Sendable {
         self.happeningCount = happeningCount
         self.spentColors = spentColors
         self.remixSeed = remixSeed
+        self.soundWorld = soundWorld
     }
 }
 #endif

@@ -656,6 +656,26 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         XCTAssertNil(call.resonantFilterHz)
     }
 
+    func testPlaybackEnvelopeOverrideReachesTheRealVoiceBackend() throws {
+        let recipe = makeRecipe(id: 1, resources: ["one.wav"], releaseSeconds: 0.4)
+        let harness = try makeHarness(recipes: [recipe])
+        try harness.pool.prepare(recipeIDs: [recipe.id])
+
+        let handle = try harness.pool.play(
+            sound(id: 1, resource: "one.wav"),
+            gain: 0.5,
+            priority: .birth,
+            effects: .init(filterCutoffHz: 8_000, delayMix: 0, delayFeedback: 0, reverbMix: 0),
+            attackSeconds: 0.18,
+            releaseSeconds: 2.4,
+            pan: 0
+        )
+        let call = try XCTUnwrap(harness.voices[handle.voiceID].playCalls.last)
+
+        XCTAssertEqual(call.attackSeconds, 0.18, accuracy: 1e-12)
+        XCTAssertEqual(call.releaseSeconds, 2.4, accuracy: 1e-12)
+    }
+
     func testResonantTargetsArePerVoiceAndNonResonantReuseResetsTheBackend() throws {
         let harness = try preparedHarness()
         let low = ResolvedHappeningSound(recipeID: id(1), resourceName: "1.wav", sourceRootMIDI: nil, targetMIDI: 60, playbackRate: 1, resonantFilterHz: 261.63)
@@ -718,9 +738,9 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         try pool.prepare(recipeIDs: Set(HappeningSoundCatalog.recipes.map(\.id)))
 
         XCTAssertEqual(pool.metrics.allocatedPlayerCount, 4)
-        XCTAssertEqual(pool.metrics.availableRecipeIDs.count, 30)
+        XCTAssertEqual(pool.metrics.availableRecipeIDs.count, 42)
         XCTAssertEqual(pool.metrics.unavailableRecipeIDs, [])
-        XCTAssertEqual(pool.metrics.decodedBufferCount, 102)
+        XCTAssertEqual(pool.metrics.decodedBufferCount, 114)
         XCTAssertLessThanOrEqual(pool.metrics.decodedByteCount, 48 * 1_024 * 1_024)
     }
 

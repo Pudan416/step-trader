@@ -36,6 +36,9 @@ def authored_definition_fixtures() -> list[dict]:
         "reverse-glass-unpitched",
         "dust-impact",
         "breath-exhale",
+        "felt-kalimba-whisper", "silk-string-pluck", "cedar-knock", "bamboo-air-pluck",
+        "frost-glass-tap", "glass-sustain-bloom", "current-metal-pluck", "brushed-resonator",
+        "paper-whisper", "cloth-swish", "water-pearl", "air-current",
     )
     tails = (
         "dry-damping",
@@ -50,6 +53,7 @@ def authored_definition_fixtures() -> list[dict]:
     recipe_ids = (
         1, 2, 3, 4, 5, 6, 7, 8, 12, 13, 14, 15, 16,
         19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+        31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42,
     )
     return [
         {
@@ -257,7 +261,7 @@ class HappeningSynthesisTests(unittest.TestCase):
 
     def test_unpitched_events_do_not_contain_a_stable_narrow_tonal_peak(self):
         for definition in authored_definition_fixtures():
-            if definition["id"] < 28:
+            if definition["id"] not in (28, 29, 30, 39, 40, 41, 42):
                 continue
             samples = synthesis.render_authored(definition, root_midi=60, seed=37).samples
             self.assertLess(narrow_tone_concentration(samples), 0.25, definition["kind"])
