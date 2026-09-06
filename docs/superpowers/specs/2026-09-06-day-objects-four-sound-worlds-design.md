@@ -24,6 +24,11 @@ Steps, sleep, happening count, and spent colors remain unchanged. Undo restores
 the complete previous visual and musical state. Reusing the same seed and input
 must reproduce the same result.
 
+Remix preserves happening identity but deliberately re-rolls object positions,
+shape, color, size, motion, material, palette, and background. This is the
+"throw the stones again" gesture; Undo restores the prior arrangement,
+including manually edited positions.
+
 The normal Canvas does not expose a preset browser or permanent world selector.
 After a remix, the selected world and mood may appear briefly as lightweight
 feedback. Diagnostic builds retain direct world, mood, layer, and instrument
