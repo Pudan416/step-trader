@@ -364,7 +364,7 @@ struct GalleryView: View {
         let baseEnergy: Int
         let spentSteps: Int
         let isBootstrapping: Bool
-        let additionIds: [String]
+        let additions: [OptionEntry]
         let gradientStyle: String
         let gradientPalette: String
     }
@@ -376,7 +376,7 @@ struct GalleryView: View {
             baseEnergy: model.baseEnergyToday,
             spentSteps: model.spentStepsToday,
             isBootstrapping: model.isBootstrapping,
-            additionIds: model.todayAdditions.map(\.id),
+            additions: model.todayAdditions,
             gradientStyle: currentGradientStyle,
             gradientPalette: currentGradientPalette
         )
@@ -974,6 +974,7 @@ struct GalleryView: View {
             }
         }
         .onChange(of: canvasSyncState) {
+            reconcileLoadedCanvasHappenings(at: .now)
             syncCanvasWithModel()
             if showHappeningPalette {
                 refreshHappeningPalette()
@@ -1706,7 +1707,10 @@ struct GalleryView: View {
                     } else {
                         let migrated = migratedLoadedCanvas(remote)
                         applyHydratedCanvas(migrated.canvas)
-                        CanvasStorageService.shared.saveCanvas(migrated.canvas)
+                        // Hydration may canonicalize duplicate binary palette
+                        // elements. Persist the resulting source of truth, not
+                        // the pre-reconciliation remote payload.
+                        CanvasStorageService.shared.saveCanvas(dayCanvas)
                         syncCanvasWithModel()
                         refreshWidgetSnapshot()
                     }
@@ -1739,13 +1743,22 @@ struct GalleryView: View {
     /// that projection only at a completed hydration boundary so an empty
     /// placeholder can never delete legitimate entries while a load is active.
     private func reconcileLoadedCanvasHappenings(at now: Date) {
-        guard canvasLoaded, activeDayKey == dayCanvas.dayKey else { return }
-        let reconciliation = CanvasHappeningReconciler.reconcile(
+        guard !isUnitTestHost, activeDayKey == dayCanvas.dayKey else { return }
+        guard let reconciliation = CanvasHappeningReconciliationPolicy.reconcileIfReady(
+            canvasLoaded: canvasLoaded,
+            appModelIsBootstrapping: model.isBootstrapping,
             canvas: dayCanvas,
             entries: model.todayAdditions,
             dayKey: dayCanvas.dayKey,
             now: now
-        )
+        ) else { return }
+
+        if !reconciliation.duplicateElementIDsToRemove.isEmpty {
+            let duplicateIDs = Set(reconciliation.duplicateElementIDsToRemove)
+            dayCanvas.elements.removeAll { duplicateIDs.contains($0.id) }
+            dayCanvas.lastModified = now
+            saveCanvasLocally()
+        }
 
         CanvasHappeningReconciliationTransaction.commit(
             reconciliation,

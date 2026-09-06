@@ -28,9 +28,11 @@ extension AppModel {
     func addHappening(
         id: String,
         colorHex: String,
+        assetVariant: Int? = nil,
         at date: Date = .now,
         recordUse: Bool = true,
-        entryId: String = UUID().uuidString
+        entryId: String = UUID().uuidString,
+        syncToCloud: Bool = true
     ) -> OptionEntry? {
         let dayKey = DayBoundary.dayKey(
             for: date,
@@ -45,7 +47,7 @@ extension AppModel {
             optionId: id,
             colorHex: colorHex,
             timestamp: date,
-            assetVariant: nil
+            assetVariant: assetVariant
         )
         todayAdditions.append(entry)
         removeSatisfiedActivitySuggestions()
@@ -57,17 +59,21 @@ extension AppModel {
         }
         recalculateDailyEnergy()
         persistTodayAdditions()
-        Task { await SupabaseSyncService.shared.syncOptionEntry(entry) }
-        Task { await SupabaseSyncService.shared.syncCustomHappenings(happeningStore.all) }
+        if syncToCloud {
+            Task { await SupabaseSyncService.shared.syncOptionEntry(entry) }
+            Task { await SupabaseSyncService.shared.syncCustomHappenings(happeningStore.all) }
+        }
         return entry
     }
 
-    func removeAddition(entryId: String) {
+    func removeAddition(entryId: String, syncToCloud: Bool = true) {
         guard let index = todayAdditions.firstIndex(where: { $0.id == entryId }) else { return }
         todayAdditions.remove(at: index)
         recalculateDailyEnergy()
         persistTodayAdditions()
-        Task { await SupabaseSyncService.shared.deleteOptionEntry(id: entryId) }
+        if syncToCloud {
+            Task { await SupabaseSyncService.shared.deleteOptionEntry(id: entryId) }
+        }
     }
 
     func createHappening(title: String, at date: Date = .now) -> Happening {

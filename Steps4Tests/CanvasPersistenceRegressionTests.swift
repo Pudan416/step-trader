@@ -126,6 +126,45 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
         )
     }
 
+    func testCanvasReconciliationWaitsForDailyAdditionsHydrationThenUsesHydratedEntries() {
+        let now = Date(timeIntervalSince1970: 1_786_176_000)
+        let dayKey = AppModel.dayKey(for: now)
+        let canvas = DayCanvas(dayKey: dayKey)
+        let restoredEntry = OptionEntry(
+            id: "server-restored-entry",
+            dayKey: dayKey,
+            optionId: "happening_walk",
+            colorHex: "#AABBCC",
+            timestamp: now,
+            assetVariant: 2
+        )
+
+        XCTAssertNil(
+            CanvasHappeningReconciliationPolicy.reconcileIfReady(
+                canvasLoaded: true,
+                appModelIsBootstrapping: true,
+                canvas: canvas,
+                entries: [],
+                dayKey: dayKey,
+                now: now
+            ),
+            "an empty pre-bootstrap projection must not be treated as hydrated truth"
+        )
+
+        XCTAssertEqual(
+            CanvasHappeningReconciliationPolicy.reconcileIfReady(
+                canvasLoaded: true,
+                appModelIsBootstrapping: false,
+                canvas: canvas,
+                entries: [restoredEntry],
+                dayKey: dayKey,
+                now: now
+            )?.entryIDsToRemove,
+            [restoredEntry.id],
+            "the hydration transition must reconcile the restored additions snapshot"
+        )
+    }
+
     func testCanvasReconciliationRemovesOrphanEntryAndIsIdempotent() {
         let now = Date(timeIntervalSince1970: 1_786_176_000)
         let dayKey = AppModel.dayKey(for: now)
@@ -237,6 +276,96 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
             "happening_walk",
             "happening_read",
         ])
+    }
+
+    func testReconciliationCommitPreservesAppearanceAndEmitsOneOrderedCloudPlan() throws {
+        let now = Date(timeIntervalSince1970: 1_786_176_000)
+        let dayKey = AppModel.dayKey(for: now)
+        let stableID = try XCTUnwrap(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"))
+        let stale = OptionEntry(
+            id: stableID.uuidString,
+            dayKey: dayKey,
+            optionId: "happening_read",
+            colorHex: "#000000",
+            timestamp: now.addingTimeInterval(-100),
+            assetVariant: nil
+        )
+        let canonical = OptionEntry(
+            id: stableID.uuidString,
+            dayKey: dayKey,
+            optionId: "happening_walk",
+            colorHex: "#A1B2C3",
+            timestamp: now,
+            assetVariant: 7
+        )
+        let model = makeModel()
+        model.loadDailyEnergyState()
+        model.todayAdditions = [stale]
+        var cloudPlans = [[CanvasHappeningReconciliationSyncOperation]]()
+
+        CanvasHappeningReconciliationTransaction.commit(
+            CanvasHappeningReconciliation(
+                entriesToAdd: [canonical],
+                entryIDsToRemove: [stale.id]
+            ),
+            model: model,
+            syncOperations: { cloudPlans.append($0) }
+        )
+
+        XCTAssertEqual(model.todayAdditions, [canonical])
+        XCTAssertEqual(cloudPlans, [[
+            .delete(entryID: stale.id),
+            .upsert(canonical),
+        ]])
+    }
+
+    func testReconciliationCanonicalizesDuplicateCanvasOptionsAndBecomesIdempotent() throws {
+        let now = Date(timeIntervalSince1970: 1_786_176_000)
+        let dayKey = AppModel.dayKey(for: now)
+        let firstID = try XCTUnwrap(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"))
+        let duplicateID = try XCTUnwrap(UUID(uuidString: "11111111-2222-3333-4444-555555555555"))
+        var canvas = DayCanvas(dayKey: dayKey)
+        canvas.elements = [
+            CanvasElement.spawn(
+                id: firstID, optionId: "happening_walk", label: "Walk",
+                existingElements: [], dayKey: dayKey,
+                composition: DayComposition.forDay(dayKey: dayKey, happeningCount: 0)
+            ),
+            CanvasElement.spawn(
+                id: duplicateID, optionId: "happening_walk", label: "Walk",
+                existingElements: [], dayKey: dayKey,
+                composition: DayComposition.forDay(dayKey: dayKey, happeningCount: 1)
+            ),
+        ]
+
+        let first = CanvasHappeningReconciler.reconcile(
+            canvas: canvas,
+            entries: [],
+            dayKey: dayKey,
+            now: now
+        )
+
+        XCTAssertEqual(first.entriesToAdd.map(\.id), [firstID.uuidString])
+        XCTAssertEqual(first.duplicateElementIDsToRemove, [duplicateID])
+
+        canvas.elements.removeAll { first.duplicateElementIDsToRemove.contains($0.id) }
+        let model = makeModel()
+        model.loadDailyEnergyState()
+        CanvasHappeningReconciliationTransaction.commit(
+            first,
+            model: model,
+            syncOperations: { _ in }
+        )
+
+        XCTAssertEqual(
+            CanvasHappeningReconciler.reconcile(
+                canvas: canvas,
+                entries: model.todayAdditions,
+                dayKey: dayKey,
+                now: now.addingTimeInterval(1)
+            ),
+            CanvasHappeningReconciliation(entriesToAdd: [], entryIDsToRemove: [])
+        )
     }
 
     func testDayEndReanchorMovesAdditionAndCanvasWithoutReopeningHappening() async throws {
