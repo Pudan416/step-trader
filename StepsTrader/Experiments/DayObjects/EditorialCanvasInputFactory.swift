@@ -45,6 +45,13 @@ enum EditorialCanvasInputFactory {
                 editorialLabConfiguration: DayObjectEditorialLabConfiguration(
                     materialMode: .generativeDNA,
                     placement: .depthField
+                ),
+                actorColorVariants: Dictionary(
+                    uniqueKeysWithValues: canvas.elements.compactMap { element in
+                        element.editorialColorVariant.map {
+                            (element.id.uuidString.lowercased(), $0)
+                        }
+                    }
                 )
             ),
             digitalImpact: DayObjectDigitalImpact(

@@ -1,6 +1,70 @@
 import SwiftUI
 import UIKit
 
+enum HappeningSelectionPhase: Equatable {
+    case idle
+    case previewing
+    case committing
+    case reflowing
+}
+
+enum HappeningSelectionTapDecision: Equatable {
+    case preview
+    case switchPreview(previousID: String)
+    case commit
+    case ignored
+}
+
+struct HappeningSelectionTransitionState: Equatable {
+    private(set) var phase: HappeningSelectionPhase = .idle
+    private(set) var selectedID: String?
+
+    mutating func handleTap(id: String) -> HappeningSelectionTapDecision {
+        switch phase {
+        case .idle:
+            selectedID = id
+            phase = .previewing
+            return .preview
+        case .previewing:
+            if selectedID == id {
+                phase = .committing
+                return .commit
+            }
+            let previousID = selectedID
+            selectedID = id
+            return previousID.map(HappeningSelectionTapDecision.switchPreview(previousID:)) ?? .preview
+        case .committing, .reflowing:
+            return .ignored
+        }
+    }
+
+    var isInteractionLocked: Bool {
+        phase == .committing || phase == .reflowing
+    }
+
+    mutating func resolveCommit(id: String, accepted: Bool) -> Bool {
+        guard phase == .committing, selectedID == id else { return false }
+        guard accepted else {
+            phase = .previewing
+            return false
+        }
+        phase = .reflowing
+        return true
+    }
+
+    mutating func finishCommit(id: String) -> Bool {
+        guard phase == .reflowing, selectedID == id else { return false }
+        phase = .idle
+        selectedID = nil
+        return true
+    }
+
+    mutating func cancelSelection() {
+        phase = .idle
+        selectedID = nil
+    }
+}
+
 enum RemovalPhase: Equatable {
     case idle
     case pressing
@@ -96,13 +160,17 @@ struct HappeningFieldPresentationState: Equatable {
     func layout(
         in size: CGSize,
         safeInsets: EdgeInsets,
-        dynamicTypeSize: DynamicTypeSize = .large
+        dynamicTypeSize: DynamicTypeSize = .large,
+        contentTopInset: CGFloat? = nil,
+        dockCenterY: CGFloat? = nil
     ) -> HappeningFieldLayout.Layout {
         HappeningFieldLayout.layout(
             count: presentedCount,
             in: size,
             safeInsets: safeInsets,
-            dynamicTypeSize: dynamicTypeSize
+            dynamicTypeSize: dynamicTypeSize,
+            contentTopInset: contentTopInset,
+            dockCenterY: dockCenterY
         )
     }
 

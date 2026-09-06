@@ -28,6 +28,7 @@ enum HappeningPanelAccessibilityOrder {
 /// sends the complete draft back to the owner for persistence.
 struct HappeningChooserView: View {
     let catalog: [Happening]
+    let onCreateNew: () -> Void
     let onSave: ([String]) -> Void
     let onCancel: () -> Void
 
@@ -37,10 +38,12 @@ struct HappeningChooserView: View {
     init(
         catalog: [Happening],
         selected: [String],
+        onCreateNew: @escaping () -> Void = {},
         onSave: @escaping ([String]) -> Void,
         onCancel: @escaping () -> Void
     ) {
         self.catalog = catalog
+        self.onCreateNew = onCreateNew
         self.onSave = onSave
         self.onCancel = onCancel
         _draft = State(initialValue: HappeningPaletteSelectionDraft(selected: selected, catalog: catalog))
@@ -125,6 +128,13 @@ struct HappeningChooserView: View {
                 Button("Cancel") {
                     draft.cancel()
                     onCancel()
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    onCreateNew()
+                } label: {
+                    Label("New", systemImage: "plus")
                 }
                 .buttonStyle(.bordered)
 

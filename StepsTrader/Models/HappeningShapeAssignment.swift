@@ -15,6 +15,98 @@ struct HappeningShapeAssignment: Hashable {
     let rotation: Double
 }
 
+/// The exact Editorial actor promised by a palette item. The UUID and color
+/// variation are persisted with the eventual canvas element, so the preview
+/// and the committed object travel through the same production recipe.
+struct HappeningEditorialAssignment: Equatable {
+    let elementID: UUID
+    let shape: DayObjectShape
+    let material: DayObjectEditorialMaterialV1
+    let colorVariant: Int
+}
+
+enum HappeningEditorialAssignmentResolver {
+    private static let colorVariationCount = 97
+
+    static func assignments(
+        happenings: [Happening],
+        baseInput: DayObjectSceneInput,
+        colorNonce: UInt64
+    ) -> [String: HappeningEditorialAssignment] {
+        happenings.reduce(into: [:]) { result, happening in
+            let elementID = stableElementID(happeningID: happening.id, dayKey: baseInput.dayKey)
+            let eventID = elementID.uuidString.lowercased()
+            let colorVariant = colorVariant(
+                happeningID: happening.id,
+                dayKey: baseInput.dayKey,
+                nonce: colorNonce
+            )
+            var variants = baseInput.actorColorVariants
+            variants[eventID] = colorVariant
+            let eventIDs = baseInput.eventIDs.contains(eventID)
+                ? baseInput.eventIDs
+                : baseInput.eventIDs + [eventID]
+            let input = DayObjectSceneInput(
+                dayKey: baseInput.dayKey,
+                identity: baseInput.identity,
+                eventIDs: eventIDs,
+                motionEnergy: baseInput.motionEnergy,
+                visualClarity: baseInput.visualClarity,
+                uiExclusionRegion: baseInput.uiExclusionRegion,
+                canvasCoverage: baseInput.canvasCoverage,
+                paletteCategories: baseInput.paletteCategories,
+                usesEditorialField: baseInput.usesEditorialField,
+                editorialBackground: baseInput.editorialBackground,
+                lowSleep: baseInput.lowSleep,
+                editorialPreview: baseInput.editorialPreview,
+                editorialLabConfiguration: baseInput.editorialLabConfiguration,
+                actorColorVariants: variants
+            )
+            guard let actor = DayObjectScene.make(input: input).sceneRecipeV1?.actor(eventID) else {
+                return
+            }
+            result[happening.id] = HappeningEditorialAssignment(
+                elementID: elementID,
+                shape: actor.shape,
+                material: actor.material,
+                colorVariant: colorVariant
+            )
+        }
+    }
+
+    private static func colorVariant(happeningID: String, dayKey: String, nonce: UInt64) -> Int {
+        let base = CanvasElement.makeSeed(
+            optionId: "editorial-color:\(happeningID)",
+            dayKey: dayKey,
+            index: 0
+        )
+        return Int((base &+ nonce) % UInt64(colorVariationCount))
+    }
+
+    private static func stableElementID(happeningID: String, dayKey: String) -> UUID {
+        let high = CanvasElement.makeSeed(
+            optionId: "editorial-element-high:\(happeningID)",
+            dayKey: dayKey,
+            index: 0
+        )
+        let low = CanvasElement.makeSeed(
+            optionId: "editorial-element-low:\(happeningID)",
+            dayKey: dayKey,
+            index: 0
+        )
+        var bytes = withUnsafeBytes(of: high.bigEndian, Array.init)
+            + withUnsafeBytes(of: low.bigEndian, Array.init)
+        bytes[6] = (bytes[6] & 0x0F) | 0x40
+        bytes[8] = (bytes[8] & 0x3F) | 0x80
+        return UUID(uuid: (
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        ))
+    }
+}
+
 /// Deterministic, storage-free derivation of a day's figures.
 ///
 /// Nothing is persisted but the nonce: the same `(id, dayKey, nonce)` always

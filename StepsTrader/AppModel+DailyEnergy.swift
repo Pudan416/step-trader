@@ -149,6 +149,10 @@ extension AppModel {
         )
     }
 
+    func paletteColorNonce(on date: Date = .now) -> UInt64 {
+        happeningShapeNonceStore.nonce(for: Self.dayKey(for: date))
+    }
+
     /// Shake. Only the field changes: additions already carry the colour they
     /// were logged with, and their canvas elements already froze their shape.
     func rerollPaletteFigures(on date: Date = .now) {

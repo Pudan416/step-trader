@@ -450,13 +450,13 @@ final class Steps4UITestsLaunchTests: XCTestCase {
             "Walk",
             "Workout",
             "Slept well",
-            "Called someone I love",
-            "Drinks with friends",
+            "Called someone",
+            "Drinks together",
             "Read",
             "Laughed",
             "Made something",
             "Time outside",
-            "Did nothing on purpose",
+            "Did nothing",
         ]
     }
 
@@ -491,6 +491,41 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         attachScreenshot(named: "palette-shapes-after-shake")
     }
 
+    func testEditorialHappeningPaletteScreenshots() throws {
+        let app = launchTask7App()
+        openPalette(in: app)
+
+        XCTAssertTrue(app.buttons["Walk"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Choose happenings"].isHittable)
+        XCTAssertTrue(app.buttons["Close"].isHittable)
+        XCTAssertFalse(app.buttons["tab_canvas"].exists)
+        XCTAssertTrue(app.otherElements["task7_accessibility_configuration"].exists)
+        Thread.sleep(forTimeInterval: 0.6)
+        attachScreenshot(named: "editorial-palette-circles")
+
+        app.buttons["Walk"].tap()
+        XCTAssertEqual(app.buttons["Walk"].value as? String, "Preview. Tap again to add")
+        for title in task7BuiltInTitles.dropFirst() {
+            XCTAssertEqual(app.buttons[title].value as? String ?? "", "")
+        }
+        Thread.sleep(forTimeInterval: 0.6)
+        attachScreenshot(named: "editorial-palette-shape-preview")
+
+        app.buttons["Walk"].tap()
+        XCTAssertFalse(app.buttons["Walk"].waitForExistence(timeout: 2))
+        XCTAssertEqual(
+            app.buttons.matching(
+                NSPredicate(format: "identifier BEGINSWITH 'happening_choice_'")
+            ).count,
+            9
+        )
+        XCTAssertTrue(app.buttons["Choose happenings"].isHittable)
+        XCTAssertTrue(app.buttons["Close"].isHittable)
+        XCTAssertFalse(app.buttons["tab_canvas"].exists)
+        Thread.sleep(forTimeInterval: 0.7)
+        attachScreenshot(named: "editorial-palette-reflow")
+    }
+
     private func launchTask7App(
         dynamicTypeSize: String? = nil,
         increasedContrast: Bool = false,
@@ -508,6 +543,11 @@ final class Steps4UITestsLaunchTests: XCTestCase {
             app.launchArguments += [
                 "-UIPreferredContentSizeCategoryName",
                 "UICTContentSizeCategoryAccessibilityM",
+            ]
+        } else {
+            app.launchArguments += [
+                "-UIPreferredContentSizeCategoryName",
+                "UICTContentSizeCategoryL",
             ]
         }
         if shakeTrigger {

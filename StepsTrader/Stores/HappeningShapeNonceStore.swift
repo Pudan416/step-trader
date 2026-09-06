@@ -28,15 +28,21 @@ final class HappeningShapeNonceStore {
     /// Shake.
     @discardableResult
     func reroll(for dayKey: String) -> UInt64 {
-        mint(for: dayKey)
+        let value = nonce(for: dayKey) &+ 1
+        persist(value, for: dayKey)
+        return value
     }
 
     /// `UserDefaults` has no `UInt64` accessor. Storing the bit pattern as
     /// `Int64` round-trips exactly, including nonces with the high bit set.
     private func mint(for dayKey: String) -> UInt64 {
         let value = UInt64.random(in: UInt64.min...UInt64.max)
+        persist(value, for: dayKey)
+        return value
+    }
+
+    private func persist(_ value: UInt64, for dayKey: String) {
         defaults.set(NSNumber(value: Int64(bitPattern: value)), forKey: SharedKeys.happeningShapeNonce)
         defaults.set(dayKey, forKey: SharedKeys.happeningShapeNonceDayKey)
-        return value
     }
 }

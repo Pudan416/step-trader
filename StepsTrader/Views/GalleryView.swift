@@ -96,6 +96,7 @@ struct GalleryView: View {
     @State private var paletteHappenings: [Happening] = []
     @State private var paletteCatalog: [Happening] = []
     @State private var paletteSelectedIDs: [String] = []
+    @State private var happeningPalettePanel: HappeningPalettePanel?
     @State private var canvasViewportSize: CGSize = .zero
     @State private var spawnPresentation = CanvasSpawnPresentationState()
     @State private var spawnFlightTasks: [UUID: Task<Void, Never>] = [:]
@@ -189,6 +190,37 @@ struct GalleryView: View {
                 spentProgress: decayNorm
             ),
             paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw)
+        )
+    }
+
+    private var paletteEditorialAssignments: [String: HappeningEditorialAssignment] {
+        HappeningEditorialAssignmentResolver.assignments(
+            happenings: paletteHappenings,
+            baseInput: editorialRenderInput.sceneInput,
+            colorNonce: model.paletteColorNonce()
+        )
+    }
+
+    private var displayedEditorialRenderInput: EditorialCanvasRenderInput {
+        guard showHappeningPalette else { return editorialRenderInput }
+        let input = editorialRenderInput.sceneInput
+        return EditorialCanvasRenderInput(
+            sceneInput: DayObjectSceneInput(
+                dayKey: input.dayKey,
+                identity: input.identity,
+                eventIDs: [],
+                motionEnergy: input.motionEnergy,
+                visualClarity: input.visualClarity,
+                uiExclusionRegion: input.uiExclusionRegion,
+                canvasCoverage: input.canvasCoverage,
+                paletteCategories: input.paletteCategories,
+                usesEditorialField: input.usesEditorialField,
+                editorialBackground: input.editorialBackground,
+                lowSleep: input.lowSleep,
+                editorialPreview: input.editorialPreview,
+                editorialLabConfiguration: input.editorialLabConfiguration
+            ),
+            digitalImpact: editorialRenderInput.digitalImpact
         )
     }
 
@@ -335,7 +367,8 @@ struct GalleryView: View {
     private var addHintQualifies: Bool { dayCanvas.elements.count < 2 }
 
     private var renderedCanvasElements: [CanvasElement] {
-        spawnPresentation.renderedElements(from: dayCanvas.elements)
+        guard !showHappeningPalette else { return [] }
+        return spawnPresentation.renderedElements(from: dayCanvas.elements)
     }
 
     private func refreshHappeningPalette() {
@@ -348,6 +381,7 @@ struct GalleryView: View {
         metricOverlay = nil
         send(.openHappeningPalette)
         refreshHappeningPalette()
+        happeningPalettePanel = nil
         withAnimation(.easeInOut(duration: 0.2)) {
             showHappeningPalette = true
         }
@@ -382,6 +416,7 @@ struct GalleryView: View {
 
     private func closeHappeningPalette() {
         withAnimation(.easeInOut(duration: 0.18)) {
+            happeningPalettePanel = nil
             showHappeningPalette = false
         }
     }
@@ -401,9 +436,10 @@ struct GalleryView: View {
         if showHappeningPalette, !presentation.isWideCanvas {
             HappeningPaletteView(
                 happenings: paletteHappenings,
-                figures: model.paletteFigures(),
+                assignments: paletteEditorialAssignments,
                 catalog: paletteCatalog,
                 selectedIDs: paletteSelectedIDs,
+                activePanel: $happeningPalettePanel,
                 onPick: handlePalettePick,
                 onCreate: handlePaletteCreation,
                 onSaveSelection: handlePaletteSelectionSave,
@@ -417,16 +453,17 @@ struct GalleryView: View {
         }
     }
 
-    private func handlePalettePick(_ happening: Happening, origin: CGPoint) -> Bool {
-        // The tile already showed this figure. Spawning anything else would
-        // make the palette a lie, so a missing figure refuses the pick rather
-        // than falling back to a random colour and shape.
-        guard let figure = model.paletteFigures()[happening.id] else { return false }
+    private func handlePalettePick(
+        _ happening: Happening,
+        assignment: HappeningEditorialAssignment,
+        origin: CGPoint
+    ) -> Bool {
         return addAndSpawnHappening(
             optionId: happening.id,
-            figure: figure,
+            elementID: assignment.elementID,
+            editorialColorVariant: assignment.colorVariant,
             recordUse: true,
-            origin: origin
+            origin: nil
         )
     }
 
@@ -580,7 +617,7 @@ struct GalleryView: View {
         ZStack {
             DayCanvasArtworkView(
                 style: dayCanvas.resolvedVisualStyle,
-                editorial: editorialRenderInput,
+                editorial: displayedEditorialRenderInput,
                 isAnimating: isCanvasSelected,
                 soundPulseBus: canvasSoundPulseBus
             ) {
@@ -689,6 +726,16 @@ struct GalleryView: View {
         }
         .overlay {
             happeningPaletteOverlay
+        }
+        .overlay {
+            if showHappeningPalette, !presentation.isWideCanvas {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    bottomControlsBar
+                        .padding(.horizontal, controlsGuardRail)
+                        .padding(.bottom, bottomControlsPadding)
+                }
+            }
         }
         .toolbar(.hidden, for: .navigationBar)
         .background(
@@ -954,7 +1001,7 @@ struct GalleryView: View {
 
     private var canvasControls: some View {
         ZStack {
-            if showQuickStartArea && !presentation.isWideCanvas {
+            if showQuickStartArea && !presentation.isWideCanvas && !showHappeningPalette {
                 emptyStateView
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
@@ -976,7 +1023,9 @@ struct GalleryView: View {
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
 
-                if !model.pendingActivitySuggestions.isEmpty && !presentation.isWideCanvas {
+                if !model.pendingActivitySuggestions.isEmpty
+                    && !presentation.isWideCanvas
+                    && !showHappeningPalette {
                     ActivitySuggestionBanner(
                         suggestions: model.pendingActivitySuggestions,
                         onAccept: { suggestion in
@@ -1000,7 +1049,7 @@ struct GalleryView: View {
                     )
                     .padding(.bottom, 14)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else if showAddHint {
+                } else if showAddHint && !showHappeningPalette {
                     addActivityHint
                         .padding(.bottom, 14)
                         .transition(
@@ -1008,8 +1057,10 @@ struct GalleryView: View {
                             .combined(with: .opacity)
                         )
                 }
-                bottomControlsBar
-                    .padding(.bottom, bottomControlsPadding)
+                if !showHappeningPalette {
+                    bottomControlsBar
+                        .padding(.bottom, bottomControlsPadding)
+                }
             }
         }
     }
@@ -1092,6 +1143,7 @@ struct GalleryView: View {
         // whenever the happening palette is presented, not just when the
         // canvas goes wide.
         if presentation.showsBottomActionRow,
+           !showHappeningPalette,
            HappeningPaletteChromeLayout.showsCanvasControls(isPalettePresented: showHappeningPalette) {
             VStack(spacing: 0) {
                 CanvasDataPanel(
@@ -1136,11 +1188,17 @@ struct GalleryView: View {
     private var bottomControlsBar: some View {
         CanvasBottomActionRow(
             isDataPanelOpen: presentation.showsDataPanel,
+            isHappeningPalettePresented: showHappeningPalette,
             soundAppearance: canvasSoundAppearance,
             onSound: handleCanvasSoundControl,
-            onAdd: {
+            onOpenHappeningList: {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    happeningPalettePanel = .chooser
+                }
+            },
+            onToggleHappeningPalette: {
                 CoachMarkManager.postAction(for: .tapPlusButton)
-                openHappeningPalette()
+                showHappeningPalette ? closeHappeningPalette() : openHappeningPalette()
             }
         )
     }
@@ -1563,6 +1621,8 @@ struct GalleryView: View {
     private func addAndSpawnHappening(
         optionId: String,
         figure: HappeningShapeAssignment? = nil,
+        elementID: UUID = UUID(),
+        editorialColorVariant: Int? = nil,
         recordUse: Bool = true,
         origin: CGPoint? = nil
     ) -> Bool {
@@ -1570,7 +1630,7 @@ struct GalleryView: View {
         let transactionDayKey = AppModel.dayKey(for: now)
         guard dayCanvas.dayKey == transactionDayKey else { return false }
         var element = CanvasElement.spawn(
-            id: UUID(),
+            id: elementID,
             optionId: optionId,
             label: model.resolveOptionTitle(for: optionId),
             existingElements: dayCanvas.elements,
@@ -1580,6 +1640,7 @@ struct GalleryView: View {
                 happeningCount: dayCanvas.elements.count),
             figure: figure
         )
+        element.editorialColorVariant = editorialColorVariant
         element.lastEditedAt = now
 
         let presentationOrigin: CGPoint?

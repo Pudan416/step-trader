@@ -264,6 +264,7 @@ struct DayObjectSceneRecipeV1: Equatable {
     let previewPaletteSet: DayObjectPaletteSet?
     let editorialLabConfiguration: DayObjectEditorialLabConfiguration?
     let artDirection: DayObjectArtDirection?
+    let actorColorVariants: [String: Int]
 
     var artDirectionSummary: String? {
         guard let artDirection else { return nil }
@@ -288,7 +289,8 @@ struct DayObjectSceneRecipeV1: Equatable {
         lowSleep: Bool,
         paletteSet: DayObjectPaletteSet? = nil,
         preview: DayObjectEditorialPreviewSpec? = nil,
-        editorialLabConfiguration: DayObjectEditorialLabConfiguration? = nil
+        editorialLabConfiguration: DayObjectEditorialLabConfiguration? = nil,
+        actorColorVariants: [String: Int] = [:]
     ) -> DayObjectSceneRecipeV1 {
         if let preview, let paletteSet {
             return makePreview(
@@ -297,7 +299,8 @@ struct DayObjectSceneRecipeV1: Equatable {
                 background: background,
                 lowSleep: lowSleep,
                 paletteSet: paletteSet,
-                preview: preview
+                preview: preview,
+                actorColorVariants: actorColorVariants
             )
         }
         if let editorialLabConfiguration, let paletteSet {
@@ -308,6 +311,7 @@ struct DayObjectSceneRecipeV1: Equatable {
                 lowSleep: lowSleep,
                 paletteSet: paletteSet,
                 configuration: editorialLabConfiguration,
+                actorColorVariants: actorColorVariants,
                 artDirection: editorialLabConfiguration.materialMode == .generativeDNA
                     ? DayObjectArtDirectionScheduler.make(dayKey: dayKey, identity: identity)
                     : nil
@@ -318,7 +322,8 @@ struct DayObjectSceneRecipeV1: Equatable {
             materialSeed: materialSeed,
             actors: actors,
             background: background,
-            lowSleep: lowSleep
+            lowSleep: lowSleep,
+            actorColorVariants: actorColorVariants
         )
     }
 
@@ -326,7 +331,8 @@ struct DayObjectSceneRecipeV1: Equatable {
         materialSeed: UInt64,
         actors: [DayObjectActor],
         background: DayObjectEditorialBackground,
-        lowSleep: Bool
+        lowSleep: Bool,
+        actorColorVariants: [String: Int]
     ) -> DayObjectSceneRecipeV1 {
         let recipeActors = Array(actors.prefix(template.count)).enumerated().map { index, actor in
             let geometry = template[index]
@@ -356,7 +362,8 @@ struct DayObjectSceneRecipeV1: Equatable {
             preview: nil,
             previewPaletteSet: nil,
             editorialLabConfiguration: nil,
-            artDirection: nil
+            artDirection: nil,
+            actorColorVariants: actorColorVariants
         )
     }
 
@@ -368,7 +375,8 @@ struct DayObjectSceneRecipeV1: Equatable {
                 background: background,
                 lowSleep: lowSleep,
                 paletteSet: previewPaletteSet,
-                preview: preview
+                preview: preview,
+                actorColorVariants: actorColorVariants
             )
         }
         if let editorialLabConfiguration, let previewPaletteSet {
@@ -379,6 +387,7 @@ struct DayObjectSceneRecipeV1: Equatable {
                 lowSleep: lowSleep,
                 paletteSet: previewPaletteSet,
                 configuration: editorialLabConfiguration,
+                actorColorVariants: actorColorVariants,
                 artDirection: artDirection
             )
         }
@@ -386,7 +395,8 @@ struct DayObjectSceneRecipeV1: Equatable {
             materialSeed: materialSeed,
             actors: actors,
             background: background,
-            lowSleep: lowSleep
+            lowSleep: lowSleep,
+            actorColorVariants: actorColorVariants
         )
     }
 
@@ -396,7 +406,8 @@ struct DayObjectSceneRecipeV1: Equatable {
         background: DayObjectEditorialBackground,
         lowSleep: Bool,
         paletteSet: DayObjectPaletteSet,
-        preview: DayObjectEditorialPreviewSpec
+        preview: DayObjectEditorialPreviewSpec,
+        actorColorVariants: [String: Int]
     ) -> DayObjectSceneRecipeV1 {
         let planned = CompositionPlanner.make(
             daySeed: rootSeed,
@@ -436,7 +447,8 @@ struct DayObjectSceneRecipeV1: Equatable {
                     eventID: actor.eventID,
                     slot: index,
                     material: preview.material,
-                    paletteSet: paletteSet
+                    paletteSet: paletteSet,
+                    colorVariant: actorColorVariants[actor.eventID] ?? 0
                 ),
                 motion: makeMotion(daySeed: rootSeed, eventID: actor.eventID)
             )
@@ -455,7 +467,8 @@ struct DayObjectSceneRecipeV1: Equatable {
             preview: preview,
             previewPaletteSet: paletteSet,
             editorialLabConfiguration: nil,
-            artDirection: nil
+            artDirection: nil,
+            actorColorVariants: actorColorVariants
         )
     }
 
@@ -466,6 +479,7 @@ struct DayObjectSceneRecipeV1: Equatable {
         lowSleep: Bool,
         paletteSet: DayObjectPaletteSet,
         configuration: DayObjectEditorialLabConfiguration,
+        actorColorVariants: [String: Int],
         artDirection: DayObjectArtDirection?
     ) -> DayObjectSceneRecipeV1 {
         let planned = CompositionPlanner.make(
@@ -499,14 +513,16 @@ struct DayObjectSceneRecipeV1: Equatable {
                     eventID: actor.eventID,
                     mechanism: $0.material,
                     direction: artDirection!,
-                    paletteSet: paletteSet
+                    paletteSet: paletteSet,
+                    colorVariant: actorColorVariants[actor.eventID] ?? 0
                 )
             } ?? makePreviewMaterial(
                 daySeed: rootSeed,
                 eventID: actor.eventID,
                 slot: index,
                 material: previewMaterial,
-                paletteSet: paletteSet
+                paletteSet: paletteSet,
+                colorVariant: actorColorVariants[actor.eventID] ?? 0
             )
             let geometryRegion = resolution?.geometry ?? .circle
             return DayObjectSceneRecipeActorV1(
@@ -538,7 +554,8 @@ struct DayObjectSceneRecipeV1: Equatable {
             preview: nil,
             previewPaletteSet: paletteSet,
             editorialLabConfiguration: configuration,
-            artDirection: artDirection
+            artDirection: artDirection,
+            actorColorVariants: actorColorVariants
         )
     }
 
@@ -556,7 +573,8 @@ struct DayObjectSceneRecipeV1: Equatable {
         eventID: String,
         mechanism: DayObjectMaterialMechanism,
         direction: DayObjectArtDirection,
-        paletteSet: DayObjectPaletteSet
+        paletteSet: DayObjectPaletteSet,
+        colorVariant: Int
     ) -> DayObjectEditorialMaterialV1 {
         let actorSeed = daySeed ^ stableHash(eventID)
         let lightnessShift = paletteSet.actorLightnessShift ?? 0
@@ -574,7 +592,10 @@ struct DayObjectSceneRecipeV1: Equatable {
             ? primary
             : secondary
         let actorColorPool = preferred.isEmpty ? (primary + secondary) : preferred
-        let actorStart = Int(actorSeed % UInt64(max(actorColorPool.count, 1)))
+        let actorStart = (
+            Int(actorSeed % UInt64(max(actorColorPool.count, 1)))
+                + normalizedColorVariant(colorVariant, count: actorColorPool.count)
+        ) % max(actorColorPool.count, 1)
         let gradientTopology = ComplexGradientTopology.make(daySeed: daySeed)
         let colors: [SIMD3<Float>]
         if mechanism == .smoothRadial {
@@ -586,6 +607,7 @@ struct DayObjectSceneRecipeV1: Equatable {
                 requestedCount: gradientTopology.colorCount,
                 daySeed: daySeed,
                 actorSeed: actorSeed,
+                colorVariant: colorVariant,
                 fallback: fallback
             )
         } else {
@@ -673,6 +695,7 @@ struct DayObjectSceneRecipeV1: Equatable {
         requestedCount: Int,
         daySeed: UInt64,
         actorSeed: UInt64,
+        colorVariant: Int,
         fallback: SIMD3<Float>
     ) -> [SIMD3<Float>] {
         let unique = pool.reduce(into: [SIMD3<Float>]()) { result, color in
@@ -693,10 +716,12 @@ struct DayObjectSceneRecipeV1: Equatable {
 
         let combinations = gradientCombinations(colors: grammar, count: colorCount)
         let variantCount = max(combinations.count * colorCount * 2, 1)
-        let variant = min(
+        let baseVariant = min(
             Int(actorUnit(actorSeed, salt: 0xC010_20A3) * Double(variantCount)),
             variantCount - 1
         )
+        let variant = (baseVariant + normalizedColorVariant(colorVariant, count: variantCount))
+            % variantCount
         var selected = combinations[variant % combinations.count]
         let rotation = (variant / combinations.count) % colorCount
         selected = Array(selected[rotation...] + selected[..<rotation])
@@ -1048,7 +1073,8 @@ struct DayObjectSceneRecipeV1: Equatable {
         eventID: String,
         slot: Int,
         material: DayObjectEditorialPreviewMaterial,
-        paletteSet: DayObjectPaletteSet
+        paletteSet: DayObjectPaletteSet,
+        colorVariant: Int
     ) -> DayObjectEditorialMaterialV1 {
         let actorSeed = daySeed ^ stableHash(eventID)
         let lightnessShift = paletteSet.actorLightnessShift ?? 0
@@ -1072,9 +1098,16 @@ struct DayObjectSceneRecipeV1: Equatable {
                 perceptualChroma(colorPool[$0]) > perceptualChroma(colorPool[$1])
             }.prefix(2)
             let candidates = Array(cleanCandidates)
-            start = candidates[Int(actorSeed % UInt64(max(candidates.count, 1)))]
+            let candidateIndex = (
+                Int(actorSeed % UInt64(max(candidates.count, 1)))
+                    + normalizedColorVariant(colorVariant, count: candidates.count)
+            ) % max(candidates.count, 1)
+            start = candidates[candidateIndex]
         } else {
-            start = Int(actorSeed % UInt64(max(colorPool.count, 1)))
+            start = (
+                Int(actorSeed % UInt64(max(colorPool.count, 1)))
+                    + normalizedColorVariant(colorVariant, count: colorPool.count)
+            ) % max(colorPool.count, 1)
         }
         let colors: [SIMD3<Float>]
         if material == .wideGradient, colorPool.count > 1 {
@@ -1131,6 +1164,12 @@ struct DayObjectSceneRecipeV1: Equatable {
         case .glass, .mist: .layeredMembrane
         case .halo, .outline, .counterform: .boundary
         }
+    }
+
+    private static func normalizedColorVariant(_ variant: Int, count: Int) -> Int {
+        guard count > 0 else { return 0 }
+        let remainder = variant % count
+        return remainder >= 0 ? remainder : remainder + count
     }
 
     private static func makePreviewFields(

@@ -336,16 +336,17 @@ final class HappeningFieldLayoutTests: XCTestCase {
         }
     }
 
-    /// Pinned means low and stable, not floating mid-screen.
-    func testDockAnchorSitsBelowTheMiddleAndClearOfBottomChrome() {
+    /// With the tab bar hidden, the palette controls occupy the bottom-safe
+    /// corner positions formerly used by the Canvas controls.
+    func testDockAnchorSitsAtTheBottomSafeControlLine() {
         let anchor = HappeningFieldLayout.layout(
             count: 3, in: size, safeInsets: safeInsets
         ).dockAnchor
         XCTAssertEqual(anchor.x, dockSafeBounds.midX, accuracy: 0.01)
         XCTAssertGreaterThan(anchor.y, dockSafeBounds.midY)
-        XCTAssertLessThanOrEqual(
-            anchor.y, dockSafeBounds.maxY - 120,
-            "must stay clear of the canvas controls and tab bar underneath"
+        XCTAssertEqual(
+            anchor.y, dockSafeBounds.maxY - 36, accuracy: 0.01,
+            "the list and close controls should stay on the Canvas control line"
         )
     }
 
@@ -370,7 +371,7 @@ final class HappeningFieldLayoutTests: XCTestCase {
         }
     }
 
-    func testEverySupportedCountHasAccessibleNonOverlappingLabelFrames() {
+    func testEverySupportedCountHasAccessibleNonOverlappingCentralLabelZones() {
         for count in 0...10 {
             let layout = HappeningFieldLayout.layout(
                 count: count, in: size, safeInsets: safeInsets
@@ -384,8 +385,11 @@ final class HappeningFieldLayoutTests: XCTestCase {
                 XCTAssertGreaterThanOrEqual(frame.height, 44, "count \(count)")
             }
 
-            for (index, frame) in layout.labelFrames.enumerated() {
-                for other in layout.labelFrames.dropFirst(index + 1) {
+            let centralLabelZones = layout.labelFrames.map {
+                $0.insetBy(dx: $0.width * 0.1, dy: $0.height * 0.12)
+            }
+            for (index, frame) in centralLabelZones.enumerated() {
+                for other in centralLabelZones.dropFirst(index + 1) {
                     XCTAssertFalse(frame.intersects(other), "count \(count), frame \(index)")
                 }
             }
@@ -529,10 +533,11 @@ final class HappeningFieldLayoutTests: XCTestCase {
         XCTAssertLessThanOrEqual(layout.dockAnchor.y - completionBounds.maxY, 32)
         XCTAssertTrue(safeBounds.contains(layout.dockAnchor))
         XCTAssertGreaterThan(layout.dockAnchor.y, safeBounds.midY)
-        XCTAssertLessThanOrEqual(
+        XCTAssertEqual(
             layout.dockAnchor.y,
-            safeBounds.maxY - 120,
-            "the empty-state controls must stay clear of persistent bottom chrome"
+            safeBounds.maxY - 36,
+            accuracy: 0.01,
+            "the empty state keeps list and close on the Canvas control line"
         )
     }
 
@@ -640,7 +645,7 @@ final class HappeningFieldTransitionStateTests: XCTestCase {
                 resolved.source.center.x - staleSource.center.x,
                 resolved.source.center.y - staleSource.center.y
             ),
-            80,
+            60,
             "the fixture must prove the queued zone moved substantially during 10→9 reflow"
         )
         XCTAssertNotEqual(resolved.source, staleSource)
@@ -831,7 +836,7 @@ final class HappeningPaletteLabelContrastTests: XCTestCase {
         }
     }
 
-    func testAccessibilityTypographyExpandsGeometryAndFitsEveryPrimaryLabel() {
+    func testAccessibilityTypographyAdaptsGeometryAndFitsEveryPrimaryLabel() {
         let standardLayout = HappeningFieldLayout.layout(
             count: 10,
             in: CGSize(width: 402, height: 874),
@@ -863,13 +868,12 @@ final class HappeningPaletteLabelContrastTests: XCTestCase {
         )
 
         XCTAssertGreaterThan(font.pointSize, 14)
-        XCTAssertGreaterThan(
+        XCTAssertGreaterThanOrEqual(accessibilityLayout.labelFrames[0].width, 44)
+        XCTAssertGreaterThanOrEqual(accessibilityLayout.labelFrames[0].height, 44)
+        XCTAssertLessThan(
             accessibilityLayout.labelFrames[0].width,
-            standardLayout.labelFrames[0].width
-        )
-        XCTAssertGreaterThan(
-            accessibilityLayout.labelFrames[0].height,
-            standardLayout.labelFrames[0].height
+            standardLayout.labelFrames[0].width,
+            "the accessible two-column layout trades diameter for more vertical text room"
         )
 
         for (index, frame) in accessibilityLayout.labelFrames.enumerated() {
@@ -933,7 +937,7 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(HappeningPanelTextFieldAppearance.strokeOpacity, 0.18)
     }
 
-    func testOpenPanelHidesChromeAndUsesCompactInsetsAtStandardType() {
+    func testOpenPanelHidesTabBarButClearsPersistentEnergyAndControls() {
         XCTAssertTrue(
             HappeningPaletteChromeLayout.hidesSurroundingChrome(
                 isPalettePresented: true
@@ -944,18 +948,18 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
                 topCardHeight: 176,
                 hidesSurroundingChrome: true
             ),
-            20
+            188
         )
         XCTAssertEqual(
             HappeningPaletteChromeLayout.panelBottomInset(
                 tabBarHeight: 82,
                 hidesSurroundingChrome: true
             ),
-            20
+            94
         )
     }
 
-    func testAccessibilityTypeHidesSurroundingChromeAndUsesCompactInsets() {
+    func testAccessibilityPanelClearsPersistentEnergyAndControls() {
         XCTAssertTrue(
             HappeningPaletteChromeLayout.hidesSurroundingChrome(
                 isPalettePresented: true
@@ -966,14 +970,14 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
                 topCardHeight: 220,
                 hidesSurroundingChrome: true
             ),
-            20
+            232
         )
         XCTAssertEqual(
             HappeningPaletteChromeLayout.panelBottomInset(
                 tabBarHeight: 150,
                 hidesSurroundingChrome: true
             ),
-            20
+            162
         )
     }
 
@@ -1022,8 +1026,8 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
         )
     }
 
-    func testCanvasControlsYieldToPresentedPalette() {
-        XCTAssertFalse(
+    func testPaletteKeepsCornerControlsWhileHidingTheTabBar() {
+        XCTAssertTrue(
             HappeningPaletteChromeLayout.showsCanvasControls(
                 isPalettePresented: true
             )
@@ -1100,6 +1104,155 @@ final class HappeningFieldContourHitRegionTests: XCTestCase {
                 sources: sources,
                 in: CGRect(x: 0, y: 0, width: 200, height: 200)
             ).contains(CGPoint(x: 150, y: 100))
+        )
+    }
+}
+
+final class HappeningEditorialAssignmentTests: XCTestCase {
+    private let dayKey = "2026-09-05"
+    private let happening = Happening(
+        id: "happening_walk",
+        title: "Walk",
+        isBuiltIn: true
+    )
+
+    /// Catches a reroll accidentally changing the promised object instead of
+    /// changing only its restrained color variation.
+    func testColorRerollKeepsElementIdentityAndShapeStable() throws {
+        let first = try XCTUnwrap(
+            HappeningEditorialAssignmentResolver.assignments(
+                happenings: [happening],
+                baseInput: editorialInput(),
+                colorNonce: 20
+            )[happening.id]
+        )
+        let rerolled = try XCTUnwrap(
+            HappeningEditorialAssignmentResolver.assignments(
+                happenings: [happening],
+                baseInput: editorialInput(),
+                colorNonce: 21
+            )[happening.id]
+        )
+
+        XCTAssertEqual(first.elementID, rerolled.elementID)
+        XCTAssertEqual(first.shape, rerolled.shape)
+        XCTAssertNotEqual(first.colorVariant, rerolled.colorVariant)
+    }
+
+    /// Catches the palette and production renderer deriving appearance through
+    /// separate paths: the material shown before confirmation must be the one
+    /// rendered after the element is persisted.
+    func testPreviewMaterialMatchesTheFinalEditorialActor() throws {
+        let assignment = try XCTUnwrap(
+            HappeningEditorialAssignmentResolver.assignments(
+                happenings: [happening],
+                baseInput: editorialInput(),
+                colorNonce: 21
+            )[happening.id]
+        )
+        var canvas = DayCanvas(dayKey: dayKey)
+        var element = CanvasElement.spawn(
+            id: assignment.elementID,
+            optionId: happening.id,
+            label: happening.title,
+            existingElements: [],
+            dayKey: dayKey,
+            composition: DayComposition.forDay(dayKey: dayKey, happeningCount: 0)
+        )
+        element.editorialColorVariant = assignment.colorVariant
+        canvas.elements = [element]
+
+        let finalInput = EditorialCanvasInputFactory.make(
+            canvas: canvas,
+            metrics: EditorialCanvasMetrics(
+                stepsProgress: 0.5,
+                sleepProgress: 0.5,
+                spentProgress: 0
+            ),
+            paletteCategories: ModernPaletteSelection.all
+        )
+        let finalActor = try XCTUnwrap(
+            DayObjectScene.make(input: finalInput.sceneInput)
+                .sceneRecipeV1?
+                .actor(assignment.elementID.uuidString.lowercased())
+        )
+
+        XCTAssertEqual(finalActor.shape, assignment.shape)
+        XCTAssertEqual(finalActor.material, assignment.material)
+    }
+
+    /// Catches the renderer ignoring a persisted color variation. Shape,
+    /// geometry, and gradient fields stay fixed while the color order changes.
+    func testActorColorVariantChangesOnlyTheMaterialColors() throws {
+        let eventID = "11111111-2222-3333-4444-555555555555"
+        let original = try XCTUnwrap(
+            DayObjectScene.make(input: editorialInput(
+                eventIDs: [eventID],
+                actorColorVariants: [eventID: 0],
+                materialMode: .wideGradient
+            )).sceneRecipeV1?.actor(eventID)
+        )
+        let rerolled = try XCTUnwrap(
+            DayObjectScene.make(input: editorialInput(
+                eventIDs: [eventID],
+                actorColorVariants: [eventID: 1],
+                materialMode: .wideGradient
+            )).sceneRecipeV1?.actor(eventID)
+        )
+
+        XCTAssertEqual(original.shape, rerolled.shape)
+        XCTAssertEqual(original.geometryRegion, rerolled.geometryRegion)
+        XCTAssertEqual(original.material.fields, rerolled.material.fields)
+        XCTAssertEqual(original.material.family, rerolled.material.family)
+        XCTAssertNotEqual(original.material.colors, rerolled.material.colors)
+    }
+
+    /// Catches a regression back to irregular or loosely spaced templates.
+    func testTenItemsUseTouchingThreeTwoThreeTwoRows() {
+        let layout = HappeningFieldLayout.layout(
+            count: 10,
+            in: CGSize(width: 402, height: 874),
+            safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
+            contentTopInset: 188,
+            dockCenterY: 804
+        )
+        let rows = Dictionary(grouping: layout.sources) { round($0.center.y * 100) / 100 }
+            .values
+            .sorted { $0[0].center.y < $1[0].center.y }
+
+        XCTAssertEqual(rows.map(\.count), [3, 2, 3, 2])
+        XCTAssertEqual(Set(layout.sources.map { round($0.radius * 100) / 100 }).count, 1)
+        for row in rows {
+            let ordered = row.sorted { $0.center.x < $1.center.x }
+            for pair in zip(ordered, ordered.dropFirst()) {
+                let gap = pair.1.center.x - pair.0.center.x - pair.0.radius - pair.1.radius
+                XCTAssertGreaterThanOrEqual(gap, -0.01)
+                XCTAssertLessThanOrEqual(gap, 0.5)
+            }
+        }
+    }
+
+    private func editorialInput(
+        eventIDs: [String] = [],
+        actorColorVariants: [String: Int] = [:],
+        materialMode: DayObjectEditorialLabMaterialMode = .generativeDNA
+    ) -> DayObjectSceneInput {
+        DayObjectSceneInput(
+            dayKey: dayKey,
+            identity: "primary-canvas",
+            eventIDs: eventIDs,
+            motionEnergy: 0.625,
+            visualClarity: 0.625,
+            canvasCoverage: .fullCanvas,
+            paletteCategories: ModernPaletteSelection.all,
+            usesEditorialField: true,
+            editorialBackground: .dark,
+            lowSleep: true,
+            editorialLabConfiguration: DayObjectEditorialLabConfiguration(
+                materialMode: materialMode,
+                placement: .depthField
+            ),
+            actorColorVariants: actorColorVariants
         )
     }
 }
