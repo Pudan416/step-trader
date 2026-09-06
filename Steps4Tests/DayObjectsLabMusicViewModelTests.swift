@@ -14,6 +14,7 @@ final class DayObjectsLabMusicViewModelTests: XCTestCase {
         XCTAssertEqual(state.happeningCount, 8)
         XCTAssertEqual(state.spentColors, 0)
         XCTAssertEqual(state.remixSeed, 0xD4A0_B1EC_75ED_0001)
+        XCTAssertEqual(state.soundWorld, .feltAndWood)
     }
 
     func testUIEditsClampToApprovedLabRanges() {
@@ -109,6 +110,30 @@ final class DayObjectsLabMusicViewModelTests: XCTestCase {
         XCTAssertEqual(model.state.happeningCount, originalState.happeningCount)
         XCTAssertEqual(model.state.spentColors, originalState.spentColors)
         XCTAssertFalse(model.worldSummary.isEmpty)
+    }
+
+    func testSoundWorldSelectionAndUndoRestoreThePreviousMusicalVariant() {
+        let model = DayObjectsLabMusicViewModel()
+        let original = model.state
+
+        model.selectSoundWorld(.metalAndCurrent)
+        model.remix()
+
+        XCTAssertEqual(model.musicPlan.soundWorld, .metalAndCurrent)
+        XCTAssertTrue(model.canUndoMusicRemix)
+
+        model.undoMusicRemix()
+        XCTAssertEqual(model.state.soundWorld, .metalAndCurrent)
+        XCTAssertEqual(model.state.remixSeed, original.remixSeed)
+
+        model.undoMusicRemix()
+        XCTAssertEqual(model.state.soundWorld, original.soundWorld)
+        XCTAssertEqual(model.state.remixSeed, original.remixSeed)
+        XCTAssertFalse(model.canUndoMusicRemix)
+        XCTAssertEqual(model.state.steps, original.steps)
+        XCTAssertEqual(model.state.sleepHours, original.sleepHours)
+        XCTAssertEqual(model.state.happeningCount, original.happeningCount)
+        XCTAssertEqual(model.state.spentColors, original.spentColors)
     }
 }
 #endif

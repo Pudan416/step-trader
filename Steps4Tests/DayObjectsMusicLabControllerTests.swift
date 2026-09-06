@@ -457,6 +457,34 @@ final class DayObjectsMusicLabControllerTests: XCTestCase {
         XCTAssertEqual(playback.structuralPlans.last?.seed, controller.currentPlan.seed)
     }
 
+    func testSoundWorldSelectionAndMusicUndoScheduleTheActualPlaybackWorld() async {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        let original = controller.state
+        await controller.toggleSound()
+
+        controller.selectSoundWorld(.metalAndCurrent)
+        controller.remix()
+
+        XCTAssertEqual(controller.currentPlan.soundWorld, .metalAndCurrent)
+        XCTAssertEqual(playback.structuralPlans.last, controller.currentPlan)
+        XCTAssertTrue(controller.canUndoMusicRemix)
+
+        controller.undoMusicRemix()
+        XCTAssertEqual(controller.state.soundWorld, .metalAndCurrent)
+        XCTAssertEqual(controller.state.remixSeed, original.remixSeed)
+        XCTAssertEqual(playback.structuralPlans.last, controller.currentPlan)
+
+        controller.undoMusicRemix()
+        XCTAssertEqual(controller.state.soundWorld, original.soundWorld)
+        XCTAssertEqual(controller.state.remixSeed, original.remixSeed)
+        XCTAssertFalse(controller.canUndoMusicRemix)
+        XCTAssertEqual(controller.state.steps, original.steps)
+        XCTAssertEqual(controller.state.sleepHours, original.sleepHours)
+        XCTAssertEqual(controller.state.happeningCount, original.happeningCount)
+        XCTAssertEqual(controller.state.spentColors, original.spentColors)
+    }
+
     func testLifecycleAndLeadGatesConvergeOnPlaybackWithoutAutoResume() async {
         let playback = RecordingLabPlayback()
         let controller = DayObjectsMusicLabController(playback: playback)

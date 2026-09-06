@@ -1,5 +1,5 @@
 #if DEBUG || INTERNAL_BUILD
-enum DayObjectsSoundWorld: String, Codable, CaseIterable, Equatable, Sendable {
+enum DayObjectsSoundWorld: String, Codable, CaseIterable, Equatable, Hashable, Sendable {
     case feltAndWood
     case metalAndCurrent
 
