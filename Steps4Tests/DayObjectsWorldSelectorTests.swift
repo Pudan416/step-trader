@@ -40,7 +40,7 @@ final class DayObjectsWorldSelectorTests: XCTestCase {
             XCTAssertEqual(value, DayObjectsWorldSelector.makeSelection(remixSeed: seed))
             XCTAssertEqual(
                 value.guestWorld,
-                expectedGuestWorld(remixSeed: seed, world: value.world),
+                expectedGuestWorld(remixSeed: seed, world: value.world, mood: value.mood),
                 "seed=\(seed) world=\(value.world.rawValue)"
             )
         }
@@ -65,14 +65,29 @@ final class DayObjectsWorldSelectorTests: XCTestCase {
 
     private func expectedGuestWorld(
         remixSeed: UInt64,
-        world: DayObjectsSoundWorld
+        world: DayObjectsSoundWorld,
+        mood: DayObjectsSoundMood
     ) -> DayObjectsSoundWorld? {
         var random = StableMusicRandom(
             seed: remixSeed,
             domain: MusicSeedDomain("world.guest")
         )
         guard random.bernoulli(probability: 0.15) else { return nil }
-        return random.choice(from: expectedGuestNeighbors(for: world))
+        return expectedGuestNeighbors(for: world)[mood == .moving ? 1 : 0]
+    }
+
+    func testEveryForcedWorldMoodUsesExactIndependentFifteenPercentGate() {
+        for world in DayObjectsSoundWorld.allCases {
+            for mood in DayObjectsSoundMood.allCases {
+                for seed in UInt64(0)..<512 {
+                    let selection = DayObjectsWorldSelector.makeSelection(
+                        remixSeed: seed, forcedWorld: world, forcedMood: mood
+                    )
+                    XCTAssertEqual(selection.guestWorld,
+                                   expectedGuestWorld(remixSeed: seed, world: world, mood: mood))
+                }
+            }
+        }
     }
 
     private func expectedGuestNeighbors(

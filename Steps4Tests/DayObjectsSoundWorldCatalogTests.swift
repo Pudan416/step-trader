@@ -124,4 +124,40 @@ final class DayObjectsSoundWorldCatalogTests: XCTestCase {
         )
         XCTAssertThrowsError(try invalid.resolvedVoice(mood: .sparse, sourceVoices: catalog.sourceVoices))
     }
+
+    func testEveryGroupHasOneCompatibleLeadGuestAndBothNeighborsAreCovered() throws {
+        let catalog = try DayObjectsSoundWorldCatalog.load(from: bundle)
+        for world in DayObjectsSoundWorld.allCases {
+            var neighbors: Set<DayObjectsSoundWorld> = []
+            for group in catalog.groups where group.world == world {
+                XCTAssertEqual(group.guestRecipeIDs.count, 1)
+                let id = try XCTUnwrap(group.guestRecipeIDs.first)
+                let recipe = try XCTUnwrap(catalog.recipes.first { $0.id == id })
+                XCTAssertEqual(recipe.role, .lead)
+                XCTAssertTrue(world.guestNeighbors.contains(recipe.world))
+                neighbors.insert(recipe.world)
+                for seed in UInt64(0)..<64 {
+                    let selection = DayObjectsWorldSelector.makeSelection(
+                        remixSeed: seed, forcedWorld: world, forcedMood: group.mood
+                    )
+                    if let guest = selection.guestWorld { XCTAssertEqual(guest, recipe.world) }
+                }
+            }
+            XCTAssertEqual(neighbors, Set(world.guestNeighbors))
+        }
+    }
+
+    func testNonAdjacentGuestIsRejected() throws {
+        let recipesURL = try XCTUnwrap(bundle.url(forResource: "synth-recipes-v1", withExtension: "json", subdirectory: "SoundWorlds"))
+        let groupsURL = try XCTUnwrap(bundle.url(forResource: "world-groups-v1", withExtension: "json", subdirectory: "SoundWorlds"))
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: groupsURL)) as? [String: Any])
+        var groups = json["groups"] as! [[String: Any]]
+        groups[0]["guestRecipeIDs"] = ["electric.lead.verbacious"]
+        json["groups"] = groups
+        XCTAssertThrowsError(try DayObjectsSoundWorldCatalog.load(
+            recipesData: Data(contentsOf: recipesURL),
+            groupsData: JSONSerialization.data(withJSONObject: json),
+            sourceVoices: DayObjectsSoundWorldCatalog.load(from: bundle).sourceVoices
+        ))
+    }
 }

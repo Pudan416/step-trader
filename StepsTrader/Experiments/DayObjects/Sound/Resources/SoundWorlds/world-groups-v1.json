@@ -45,7 +45,9 @@
         39,
         40
       ],
-      "guestRecipeIDs": []
+      "guestRecipeIDs": [
+        "living.lead.bird-reed"
+      ]
     },
     {
       "id": "acoustic.moving",
@@ -91,7 +93,9 @@
         39,
         40
       ],
-      "guestRecipeIDs": []
+      "guestRecipeIDs": [
+        "industrial.lead.silver-wire"
+      ]
     },
     {
       "id": "acoustic.strange",
@@ -137,7 +141,9 @@
         39,
         40
       ],
-      "guestRecipeIDs": []
+      "guestRecipeIDs": [
+        "living.lead.bird-reed"
+      ]
     },
     {
       "id": "living.sparse",
@@ -183,7 +189,9 @@
         39,
         40
       ],
-      "guestRecipeIDs": []
+      "guestRecipeIDs": [
+        "acoustic.lead.breath-reed"
+      ]
     },
     {
       "id": "living.moving",
@@ -229,7 +237,9 @@
         39,
         40
       ],
-      "guestRecipeIDs": []
+      "guestRecipeIDs": [
+        "electric.lead.verbacious"
+      ]
     },
     {
       "id": "living.strange",
@@ -275,7 +285,9 @@
         39,
         40
       ],
-      "guestRecipeIDs": []
+      "guestRecipeIDs": [
+        "acoustic.lead.breath-reed"
+      ]
     },
     {
       "id": "industrial.sparse",
@@ -325,7 +337,9 @@
         41,
         42
       ],
-      "guestRecipeIDs": []
+      "guestRecipeIDs": [
+        "electric.lead.verbacious"
+      ]
     },
     {
       "id": "industrial.moving",
@@ -375,7 +389,9 @@
         41,
         42
       ],
-      "guestRecipeIDs": []
+      "guestRecipeIDs": [
+        "acoustic.lead.breath-reed"
+      ]
     },
     {
       "id": "industrial.strange",
@@ -425,7 +441,9 @@
         41,
         42
       ],
-      "guestRecipeIDs": []
+      "guestRecipeIDs": [
+        "electric.lead.verbacious"
+      ]
     },
     {
       "id": "electric.sparse",
@@ -475,7 +493,9 @@
         41,
         42
       ],
-      "guestRecipeIDs": []
+      "guestRecipeIDs": [
+        "living.lead.bird-reed"
+      ]
     },
     {
       "id": "electric.moving",
@@ -525,7 +545,9 @@
         41,
         42
       ],
-      "guestRecipeIDs": []
+      "guestRecipeIDs": [
+        "industrial.lead.silver-wire"
+      ]
     },
     {
       "id": "electric.strange",
@@ -575,7 +597,9 @@
         41,
         42
       ],
-      "guestRecipeIDs": []
+      "guestRecipeIDs": [
+        "living.lead.bird-reed"
+      ]
     }
   ]
 }

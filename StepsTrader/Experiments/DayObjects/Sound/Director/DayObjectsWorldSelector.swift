@@ -24,7 +24,7 @@ enum DayObjectsWorldSelector {
             ?? moodRandom.choice(from: DayObjectsSoundMood.allCases)
             ?? .moving
         let guestWorld = guestRandom.bernoulli(probability: guestChance)
-            ? guestRandom.choice(from: world.guestNeighbors)
+            ? canonicalGuestWorld(world: world, mood: mood)
             : nil
 
         return DayObjectsWorldSelection(
@@ -32,6 +32,13 @@ enum DayObjectsWorldSelector {
             mood: mood,
             guestWorld: guestWorld
         )
+    }
+
+    /// The catalog curates one adjacent guest per world/mood group.
+    static func canonicalGuestWorld(
+        world: DayObjectsSoundWorld, mood: DayObjectsSoundMood
+    ) -> DayObjectsSoundWorld {
+        world.guestNeighbors[mood == .moving ? 1 : 0]
     }
 }
 #endif
