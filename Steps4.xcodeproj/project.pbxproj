@@ -13,6 +13,7 @@
 		C5A510020906202600000004 /* EditorialCanvasInputFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510020906202600000003 /* EditorialCanvasInputFactory.swift */; };
 		C5A510030906202600000002 /* DayCanvasArtworkRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510030906202600000001 /* DayCanvasArtworkRoutingTests.swift */; };
 		C5A510030906202600000004 /* DayCanvasArtworkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510030906202600000003 /* DayCanvasArtworkView.swift */; };
+		C5A510040906202600000002 /* DayObjectsImageRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510040906202600000001 /* DayObjectsImageRenderer.swift */; };
 		F5A900000000000000000002 /* DayObjectsLoudnessAnalyzerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A900000000000000000001 /* DayObjectsLoudnessAnalyzerTests.swift */; };
 		F5A900000000000000000004 /* DayObjectsLoudnessAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A900000000000000000003 /* DayObjectsLoudnessAnalyzer.swift */; };
 		F5A900000000000000000007 /* DayObjectsOfflineMixRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A900000000000000000006 /* DayObjectsOfflineMixRenderer.swift */; };
@@ -584,6 +585,7 @@
 		C5A510020906202600000003 /* EditorialCanvasInputFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorialCanvasInputFactory.swift; sourceTree = "<group>"; };
 		C5A510030906202600000001 /* DayCanvasArtworkRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayCanvasArtworkRoutingTests.swift; sourceTree = "<group>"; };
 		C5A510030906202600000003 /* DayCanvasArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayCanvasArtworkView.swift; sourceTree = "<group>"; };
+		C5A510040906202600000001 /* DayObjectsImageRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsImageRenderer.swift; sourceTree = "<group>"; };
 		F5A900000000000000000001 /* DayObjectsLoudnessAnalyzerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLoudnessAnalyzerTests.swift; sourceTree = "<group>"; };
 		F5A900000000000000000003 /* DayObjectsLoudnessAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLoudnessAnalyzer.swift; sourceTree = "<group>"; };
 		F5A900000000000000000006 /* DayObjectsOfflineMixRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsOfflineMixRenderer.swift; sourceTree = "<group>"; };
@@ -1189,6 +1191,7 @@
 				D0B100000000000000000016 /* DayObjectRenderFrame.swift */,
 				D0B100000000000000000018 /* DayObjectsRenderer.swift */,
 				C5A510020906202600000003 /* EditorialCanvasInputFactory.swift */,
+				C5A510040906202600000001 /* DayObjectsImageRenderer.swift */,
 				D0B100000000000000000019 /* DayObjectsMetalView.swift */,
 				DA0BDO020000000000000001 /* DayObjectsLabView.swift */,
 				DA0BDO030000000000000001 /* DayObjectsView.swift */,
@@ -2389,6 +2392,7 @@
 				D0B100000000000000000026 /* DayObjectRenderFrame.swift in Sources */,
 				D0B100000000000000000028 /* DayObjectsRenderer.swift in Sources */,
 				C5A510020906202600000004 /* EditorialCanvasInputFactory.swift in Sources */,
+				C5A510040906202600000002 /* DayObjectsImageRenderer.swift in Sources */,
 				D0B100000000000000000029 /* DayObjectsMetalView.swift in Sources */,
 				DA0BDO020000000000000002 /* DayObjectsLabView.swift in Sources */,
 				DA0BDO030000000000000002 /* DayObjectsView.swift in Sources */,

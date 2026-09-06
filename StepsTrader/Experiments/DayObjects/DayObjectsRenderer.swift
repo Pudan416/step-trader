@@ -1042,10 +1042,99 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     }
 
     func draw(in view: MTKView) {
-        resizeRenderTargets(to: view.drawableSize)
+        guard let drawable = view.currentDrawable,
+              let renderPass = view.currentRenderPassDescriptor,
+              let commandBuffer = encodeFrame(
+                  outputTexture: drawable.texture,
+                  outputPass: renderPass,
+                  drawableSize: view.drawableSize,
+                  pointToPixelScale: Float(view.contentScaleFactor),
+                  elapsedTime: clock.elapsedTime,
+                  present: drawable
+              )
+        else { return }
+        commandBuffer.commit()
+    }
 
-        let height = max(view.drawableSize.height, 1)
-        let elapsedTime = clock.elapsedTime
+    func renderOffscreen(
+        size: CGSize,
+        pointScale: CGFloat,
+        elapsedTime: TimeInterval,
+        completion: @escaping (MTLTexture?, DayObjectRenderFrame?) -> Void
+    ) {
+        guard size.width.isFinite,
+              size.height.isFinite,
+              pointScale.isFinite,
+              size.width > 0,
+              size.height > 0,
+              pointScale > 0
+        else {
+            completion(nil, nil)
+            return
+        }
+
+        let pixelSize = CGSize(
+            width: (size.width * pointScale).rounded(.toNearestOrAwayFromZero),
+            height: (size.height * pointScale).rounded(.toNearestOrAwayFromZero)
+        )
+        guard let width = Self.pixelDimension(pixelSize.width),
+              let height = Self.pixelDimension(pixelSize.height),
+              width <= 4_096,
+              height <= 4_096
+        else {
+            completion(nil, nil)
+            return
+        }
+
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: Self.colorPixelFormat,
+            width: width,
+            height: height,
+            mipmapped: false
+        )
+        descriptor.storageMode = .shared
+        descriptor.usage = [.renderTarget, .shaderRead]
+        guard let outputTexture = device.makeTexture(descriptor: descriptor) else {
+            completion(nil, nil)
+            return
+        }
+        outputTexture.label = "Day Objects offscreen display target"
+
+        let outputPass = MTLRenderPassDescriptor()
+        outputPass.colorAttachments[0].texture = outputTexture
+        guard let commandBuffer = encodeFrame(
+            outputTexture: outputTexture,
+            outputPass: outputPass,
+            drawableSize: pixelSize,
+            pointToPixelScale: Float(pointScale),
+            elapsedTime: elapsedTime,
+            present: nil
+        ) else {
+            completion(nil, nil)
+            return
+        }
+        let renderedFrame = currentFrame
+        commandBuffer.addCompletedHandler { completed in
+            guard completed.status == .completed else {
+                completion(nil, renderedFrame)
+                return
+            }
+            completion(outputTexture, renderedFrame)
+        }
+        commandBuffer.commit()
+    }
+
+    private func encodeFrame(
+        outputTexture: MTLTexture,
+        outputPass: MTLRenderPassDescriptor,
+        drawableSize: CGSize,
+        pointToPixelScale: Float,
+        elapsedTime: TimeInterval,
+        present drawable: MTLDrawable?
+    ) -> MTLCommandBuffer? {
+        resizeRenderTargets(to: drawableSize)
+
+        let height = max(drawableSize.height, 1)
         soundPulseTimeline.consume(soundPulseBus, at: elapsedTime)
         let transitionState = insertionTimeline.renderState(
             activeScene: scene,
@@ -1060,16 +1149,14 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             removals: transitionState.removals,
             actorInsertions: transitionState.actorInsertions,
             actorRemovals: transitionState.actorRemovals,
-            canvasAspect: view.drawableSize.width / height,
+            canvasAspect: drawableSize.width / height,
             soundPulseTimestamps: soundPulseTimeline.timestamps
         )
         currentFrame = frame
 
-        guard let drawable = view.currentDrawable,
-              let renderPass = view.currentRenderPassDescriptor,
-              let renderTargets,
+        guard let renderTargets,
               let commandBuffer = commandQueue.makeCommandBuffer()
-        else { return }
+        else { return nil }
 
         let backgroundPass = MTLRenderPassDescriptor()
         backgroundPass.colorAttachments[0].texture = renderTargets.background
@@ -1088,7 +1175,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         guard let backgroundEncoder = commandBuffer.makeRenderCommandEncoder(
             descriptor: backgroundPass
         ) else {
-            return
+            return nil
         }
         backgroundEncoder.label = "Day Objects half-resolution Mesh Gradient pass"
         backgroundEncoder.setRenderPipelineState(meshGradientPipeline)
@@ -1113,7 +1200,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             lightSoftness: Float(renderScene.visualLanguage.lightSoftness),
             globalTime: Float(frame.choreographyTime)
         )
-        guard let actorBufferLease = actorBufferRing.acquire() else { return }
+        guard let actorBufferLease = actorBufferRing.acquire() else { return nil }
         var submittedActorBuffer = false
         defer {
             if !submittedActorBuffer {
@@ -1132,7 +1219,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         scenePass.colorAttachments[0].storeAction = .store
         scenePass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1)
         guard let sceneEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: scenePass) else {
-            return
+            return nil
         }
         sceneEncoder.label = "Day Objects full-resolution scene composite"
         sceneEncoder.setRenderPipelineState(sceneUpscalePipeline)
@@ -1178,7 +1265,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                 Float(renderTargets.scene.width),
                 Float(renderTargets.scene.height)
             ),
-            pointToPixelScale: Float(view.contentScaleFactor)
+            pointToPixelScale: pointToPixelScale
         )
         var postSource = renderTargets.scene
         if postUniforms.blurRadiusPixels >= 0.01 {
@@ -1196,15 +1283,16 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                 pipeline: verticalBlurPipeline,
                 uniforms: &postUniforms,
                 label: "Day Objects vertical focus blur"
-            ) else { return }
+            ) else { return nil }
             postSource = renderTargets.blurPingPong[1]
         }
 
-        renderPass.colorAttachments[0].loadAction = .clear
-        renderPass.colorAttachments[0].storeAction = .store
-        renderPass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0)
-        guard let presentEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPass) else {
-            return
+        outputPass.colorAttachments[0].texture = outputTexture
+        outputPass.colorAttachments[0].loadAction = .clear
+        outputPass.colorAttachments[0].storeAction = .store
+        outputPass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0)
+        guard let presentEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: outputPass) else {
+            return nil
         }
 
         presentEncoder.label = "Day Objects sharp grain and display pass"
@@ -1237,10 +1325,12 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         presentEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         presentEncoder.endEncoding()
 
-        commandBuffer.present(drawable)
+        if let drawable {
+            commandBuffer.present(drawable)
+        }
         actorBufferRing.submit(actorBufferLease, on: commandBuffer)
-        commandBuffer.commit()
         submittedActorBuffer = true
+        return commandBuffer
     }
 
     private func encodePostPass(

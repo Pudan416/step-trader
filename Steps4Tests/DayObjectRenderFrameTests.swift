@@ -201,6 +201,65 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertEqual(later.actors.map(\.gpuAppearance), initial.actors.map(\.gpuAppearance))
     }
 
+    @MainActor
+    func testEditorialOffscreenImageMatchesFixedFrame() async throws {
+        let input = DayObjectSceneInput(
+            dayKey: "2026-09-06",
+            identity: "primary-canvas",
+            eventIDs: (0..<10).map { "offscreen-event-\($0)" },
+            motionEnergy: 0.7,
+            visualClarity: 0.8,
+            canvasCoverage: .fullCanvas,
+            paletteCategories: [.neon, .warm],
+            usesEditorialField: true,
+            editorialLabConfiguration: .init(
+                materialMode: .generativeDNA,
+                placement: .depthField
+            )
+        )
+
+        let renderedImage = await DayObjectsImageRenderer.image(
+            input: .init(sceneInput: input, digitalImpact: .init(spentColors: 30)),
+            size: CGSize(width: 390, height: 500),
+            scale: 1,
+            elapsedTime: 4
+        )
+        let image = try XCTUnwrap(renderedImage)
+        let cgImage = try XCTUnwrap(image.cgImage)
+        let statistics = try pixelStatistics(cgImage)
+
+        XCTAssertEqual(cgImage.width, 390)
+        XCTAssertEqual(cgImage.height, 500)
+        XCTAssertGreaterThan(statistics.nonTransparent, 390 * 500 * 9 / 10)
+        XCTAssertGreaterThan(statistics.chromatic, 390 * 500 / 20)
+    }
+
+    private func pixelStatistics(_ image: CGImage) throws -> (nonTransparent: Int, chromatic: Int) {
+        let bytesPerRow = image.width * 4
+        var bytes = [UInt8](repeating: 0, count: bytesPerRow * image.height)
+        let context = try XCTUnwrap(CGContext(
+            data: &bytes,
+            width: image.width,
+            height: image.height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+
+        var nonTransparent = 0
+        var chromatic = 0
+        for offset in stride(from: 0, to: bytes.count, by: 4) {
+            let red = Int(bytes[offset])
+            let green = Int(bytes[offset + 1])
+            let blue = Int(bytes[offset + 2])
+            if bytes[offset + 3] > 0 { nonTransparent += 1 }
+            if max(red, green, blue) - min(red, green, blue) > 10 { chromatic += 1 }
+        }
+        return (nonTransparent, chromatic)
+    }
+
     func testGenerativeRecipeUploadsResolvedCarrierShape() throws {
         let expectedShapes: [DayObjectGeometryRegion: DayObjectShape] = [
             .circle: .sphere,
