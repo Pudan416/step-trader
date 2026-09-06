@@ -51,22 +51,76 @@ enum LeadPlanner {
             )
         }
 
+        let processing = processing(for: soundWorld)
         return LeadPlan(
             instrumentID: instrument.id,
             maximumSimultaneousVoices: 1,
             register: register,
             pitchRegions: regions,
             compatibleChordMIDINotes: chordNotes,
-            portamentoMilliseconds: 110,
-            attackSeconds: 0.035,
-            releaseSeconds: 0.65,
-            cutoffMultiplierRange: 0.55...1.35,
-            pitchSmoothingMilliseconds: 45,
-            expressionSmoothingMilliseconds: 80,
-            maximumExpressionDepth: 0.25,
-            delaySend: 0.24,
-            reverbSend: 0.38
+            portamentoMilliseconds: processing.portamentoMilliseconds,
+            attackSeconds: processing.attackSeconds,
+            releaseSeconds: processing.releaseSeconds,
+            cutoffMultiplierRange: processing.cutoffMultiplierRange,
+            pitchSmoothingMilliseconds: processing.pitchSmoothingMilliseconds,
+            expressionSmoothingMilliseconds: processing.expressionSmoothingMilliseconds,
+            maximumExpressionDepth: processing.maximumExpressionDepth,
+            delaySend: processing.delaySend,
+            reverbSend: processing.reverbSend
         )
+    }
+
+    private struct Processing {
+        let portamentoMilliseconds: Double
+        let attackSeconds: Double
+        let releaseSeconds: Double
+        let cutoffMultiplierRange: ClosedRange<Double>
+        let pitchSmoothingMilliseconds: Double
+        let expressionSmoothingMilliseconds: Double
+        let maximumExpressionDepth: Double
+        let delaySend: Double
+        let reverbSend: Double
+    }
+
+    private static func processing(for soundWorld: DayObjectsSoundWorld?) -> Processing {
+        switch soundWorld {
+        case .feltAndWood:
+            return Processing(
+                portamentoMilliseconds: 165,
+                attackSeconds: 0.065,
+                releaseSeconds: 1.05,
+                cutoffMultiplierRange: 0.42...1.05,
+                pitchSmoothingMilliseconds: 62,
+                expressionSmoothingMilliseconds: 115,
+                maximumExpressionDepth: 0.18,
+                delaySend: 0.16,
+                reverbSend: 0.46
+            )
+        case .metalAndCurrent:
+            return Processing(
+                portamentoMilliseconds: 72,
+                attackSeconds: 0.018,
+                releaseSeconds: 0.72,
+                cutoffMultiplierRange: 0.70...1.55,
+                pitchSmoothingMilliseconds: 34,
+                expressionSmoothingMilliseconds: 58,
+                maximumExpressionDepth: 0.31,
+                delaySend: 0.34,
+                reverbSend: 0.50
+            )
+        case nil:
+            return Processing(
+                portamentoMilliseconds: 110,
+                attackSeconds: 0.035,
+                releaseSeconds: 0.65,
+                cutoffMultiplierRange: 0.55...1.35,
+                pitchSmoothingMilliseconds: 45,
+                expressionSmoothingMilliseconds: 80,
+                maximumExpressionDepth: 0.25,
+                delaySend: 0.24,
+                reverbSend: 0.38
+            )
+        }
     }
 
     private static func midiNotes(

@@ -28,7 +28,7 @@ enum BassPlanner {
             return nil
         }
 
-        let profile = profile(for: groove.mode)
+        let profile = processedProfile(profile(for: groove.mode), soundWorld: soundWorld)
         var patternRandom = StableMusicRandom(seed: remixSeed, domain: .bassPattern)
         var activationRandom = StableMusicRandom(seed: remixSeed, domain: .bassPattern)
         var articulationRandom = StableMusicRandom(seed: remixSeed, domain: .bassArticulation)
@@ -189,6 +189,52 @@ enum BassPlanner {
                 duckReleaseSeconds: 0.220
             )
         }
+    }
+
+    private static func processedProfile(
+        _ profile: Profile,
+        soundWorld: DayObjectsSoundWorld?
+    ) -> Profile {
+        guard let soundWorld else { return profile }
+        switch soundWorld {
+        case .feltAndWood:
+            return Profile(
+                articulation: profile.articulation,
+                glideMilliseconds: scaled(profile.glideMilliseconds, by: 1.25),
+                reverbSend: shifted(profile.reverbSend, by: 0.08, upperBound: 0.28),
+                duckingDecibels: profile.duckingDecibels,
+                cutoffMultiplier: profile.cutoffMultiplier * 0.78,
+                duckAttackSeconds: profile.duckAttackSeconds,
+                duckHoldSeconds: profile.duckHoldSeconds,
+                duckReleaseSeconds: profile.duckReleaseSeconds
+            )
+        case .metalAndCurrent:
+            return Profile(
+                articulation: profile.articulation,
+                glideMilliseconds: scaled(profile.glideMilliseconds, by: 0.75),
+                reverbSend: shifted(profile.reverbSend, by: 0.01, upperBound: 0.18),
+                duckingDecibels: profile.duckingDecibels,
+                cutoffMultiplier: profile.cutoffMultiplier * 1.12,
+                duckAttackSeconds: profile.duckAttackSeconds,
+                duckHoldSeconds: profile.duckHoldSeconds,
+                duckReleaseSeconds: profile.duckReleaseSeconds
+            )
+        }
+    }
+
+    private static func scaled(
+        _ range: ClosedRange<Double>,
+        by multiplier: Double
+    ) -> ClosedRange<Double> {
+        (range.lowerBound * multiplier)...(range.upperBound * multiplier)
+    }
+
+    private static func shifted(
+        _ range: ClosedRange<Double>,
+        by offset: Double,
+        upperBound: Double
+    ) -> ClosedRange<Double> {
+        min(range.lowerBound + offset, upperBound)...min(range.upperBound + offset, upperBound)
     }
 
     private static func makeCandidates(

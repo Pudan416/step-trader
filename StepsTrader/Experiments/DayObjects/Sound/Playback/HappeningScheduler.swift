@@ -389,7 +389,7 @@ final class HappeningScheduler {
             resonantFilterHz: resolvedSound.resonantFilterHz
         )
         let priority: HappeningPlaybackPriority = isBirth ? .birth : .recurrence
-        let effectCommand = effectCommand(for: recipe, glitch: eventGlitch)
+        let effectCommand = effectCommand(for: state.plan, recipe: recipe, glitch: eventGlitch)
         let handle: HappeningPlaybackHandle
         do {
             handle = try pool.play(
@@ -397,6 +397,8 @@ final class HappeningScheduler {
                 gain: gain,
                 priority: priority,
                 effects: effectCommand,
+                attackSeconds: state.plan.attackSeconds,
+                releaseSeconds: state.plan.releaseSeconds,
                 pan: state.plan.pan
             )
         } catch {
@@ -409,7 +411,7 @@ final class HappeningScheduler {
         nextVoiceID &+= 1
         let releaseSubdivisions = max(
             1,
-            Int64(ceil(recipe.releaseSeconds * currentTempoBPM / 60 * Double(MusicalPosition.subdivisionsPerBeat)))
+            Int64(ceil(state.plan.releaseSeconds * currentTempoBPM / 60 * Double(MusicalPosition.subdivisionsPerBeat)))
         )
         state.activeVoiceIDs.insert(nextVoiceID)
         state.activeVoices[nextVoiceID] = .init(
@@ -487,14 +489,15 @@ final class HappeningScheduler {
     }
 
     private func effectCommand(
-        for recipe: HappeningSoundRecipe,
+        for plan: HappeningMusicPlan,
+        recipe: HappeningSoundRecipe,
         glitch: DayObjectsGlitchCommand
     ) -> HappeningEffectCommand {
         .init(
             filterCutoffHz: recipe.filterEndHz,
-            delayMix: min(max(recipe.delayMix + glitch.delayTimeVariation, 0), 1),
+            delayMix: min(max(plan.delaySend + glitch.delayTimeVariation, 0), 1),
             delayFeedback: recipe.delayFeedback,
-            reverbMix: recipe.reverbMix
+            reverbMix: plan.reverbSend
         )
     }
 

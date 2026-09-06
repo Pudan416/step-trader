@@ -118,6 +118,15 @@ protocol DayObjectsHappeningSamplePoolProtocol: AnyObject {
         effects: HappeningEffectCommand,
         pan: Double
     ) throws -> HappeningPlaybackHandle
+    func play(
+        _ sound: ResolvedHappeningSound,
+        gain: Double,
+        priority: HappeningPlaybackPriority,
+        effects: HappeningEffectCommand,
+        attackSeconds: Double?,
+        releaseSeconds: Double?,
+        pan: Double
+    ) throws -> HappeningPlaybackHandle
     func applyEffects(_ command: HappeningEffectCommand, rampSeconds: Double)
     func update(_ handle: HappeningPlaybackHandle, gain: Double, playbackRate: Double)
     func stop(_ handle: HappeningPlaybackHandle)
@@ -185,6 +194,18 @@ extension DayObjectsHappeningSamplePoolProtocol {
         effects: HappeningEffectCommand
     ) throws -> HappeningPlaybackHandle {
         try play(sound, gain: gain, priority: priority, effects: effects, pan: 0)
+    }
+
+    func play(
+        _ sound: ResolvedHappeningSound,
+        gain: Double,
+        priority: HappeningPlaybackPriority,
+        effects: HappeningEffectCommand,
+        attackSeconds _: Double?,
+        releaseSeconds _: Double?,
+        pan: Double
+    ) throws -> HappeningPlaybackHandle {
+        try play(sound, gain: gain, priority: priority, effects: effects, pan: pan)
     }
 }
 
@@ -362,6 +383,27 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
         effects: HappeningEffectCommand,
         pan: Double
     ) throws -> HappeningPlaybackHandle {
+        try play(
+            sound,
+            gain: gain,
+            priority: priority,
+            effects: effects,
+            attackSeconds: nil,
+            releaseSeconds: nil,
+            pan: pan
+        )
+    }
+
+    @discardableResult
+    func play(
+        _ sound: ResolvedHappeningSound,
+        gain: Double,
+        priority: HappeningPlaybackPriority,
+        effects: HappeningEffectCommand,
+        attackSeconds: Double?,
+        releaseSeconds: Double?,
+        pan: Double
+    ) throws -> HappeningPlaybackHandle {
         guard availableRecipeIDs.contains(sound.recipeID),
               let recipe = recipesByID[sound.recipeID] else {
             throw HappeningSamplePoolError.recipeUnavailable(sound.recipeID)
@@ -392,11 +434,13 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
         let playbackGainScale = decoded.playbackNormalizationGain * Self.ambientHeadroomGain
         let playbackGain = min(max(requestedGain * playbackGainScale, 0), 1)
         let rate = min(max(sound.playbackRate.isFinite ? sound.playbackRate : 1, 0.5), 2)
+        let voiceAttack = min(max(attackSeconds?.isFinite == true ? attackSeconds! : recipe.attackSeconds, 0), 4.5)
+        let voiceRelease = min(max(releaseSeconds?.isFinite == true ? releaseSeconds! : recipe.releaseSeconds, 0), 4.5)
         slots[slotIndex].state = .active(
             handle: handle,
             priority: priority,
             startOrder: sequence,
-            releaseSeconds: recipe.releaseSeconds,
+            releaseSeconds: voiceRelease,
             effects: Self.sanitizedEffects(effects),
             playbackGainScale: playbackGainScale
         )
@@ -405,8 +449,8 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
             buffer: decoded.buffer,
             playbackRate: rate,
             gain: playbackGain,
-            attackSeconds: recipe.attackSeconds,
-            releaseSeconds: recipe.releaseSeconds,
+            attackSeconds: voiceAttack,
+            releaseSeconds: voiceRelease,
             resonantFilterHz: sound.resonantFilterHz,
             pan: pan
         )

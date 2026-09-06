@@ -24,6 +24,26 @@ final class DeterministicMusicDirectorTests: XCTestCase {
         XCTAssertNotEqual(felt.happenings.map(\.recipeID), metal.happenings.map(\.recipeID))
     }
 
+    func testWorldsApplyContrastingProcessingWithoutChangingTheMeasuredDay() throws {
+        let felt = makeWorldPlan(soundWorld: .feltAndWood)
+        let metal = makeWorldPlan(soundWorld: .metalAndCurrent)
+
+        XCTAssertEqual(felt.input, metal.input)
+        XCTAssertEqual(felt.world, metal.world)
+        XCTAssertGreaterThan(average(felt.harmony.roles.map(\.attackSeconds)), average(metal.harmony.roles.map(\.attackSeconds)))
+        XCTAssertGreaterThan(average(felt.harmony.roles.map(\.releaseSeconds)), average(metal.harmony.roles.map(\.releaseSeconds)))
+        XCTAssertLessThan(average(felt.harmony.roles.map(\.delaySend)), average(metal.harmony.roles.map(\.delaySend)))
+
+        XCTAssertGreaterThan(felt.lead.portamentoMilliseconds, metal.lead.portamentoMilliseconds)
+        XCTAssertGreaterThan(felt.lead.attackSeconds, metal.lead.attackSeconds)
+        XCTAssertGreaterThan(felt.lead.releaseSeconds, metal.lead.releaseSeconds)
+        XCTAssertLessThan(felt.lead.delaySend, metal.lead.delaySend)
+        XCTAssertLessThan(felt.lead.maximumExpressionDepth, metal.lead.maximumExpressionDepth)
+
+        XCTAssertLessThan(average(felt.happenings.map(\.delaySend)), average(metal.happenings.map(\.delaySend)))
+        XCTAssertGreaterThan(average(felt.happenings.map(\.releaseSeconds)), average(metal.happenings.map(\.releaseSeconds)))
+    }
+
     func testWorldChangeKeepsTheMeasuredDayInputsUntouched() {
         let felt = makeWorldPlan(soundWorld: .feltAndWood)
         let metal = makeWorldPlan(soundWorld: .metalAndCurrent)
@@ -295,6 +315,10 @@ final class DeterministicMusicDirectorTests: XCTestCase {
             guard case let .tonal(id) = role.instrumentTarget else { return nil }
             return id
         }
+    }
+
+    private func average(_ values: [Double]) -> Double {
+        values.reduce(0, +) / Double(max(values.count, 1))
     }
 
     private func input(happeningIDs: [String]) -> DayMusicInput {

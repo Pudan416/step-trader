@@ -71,6 +71,7 @@ enum HappeningMusicPlanner {
         let magnitude = scheduleRandom.bernoulli(probability: 0.5) ? 0.25 : 0.50
         let floatingOffset = scheduleRandom.bernoulli(probability: 0.5) ? magnitude : -magnitude
 
+        let processing = processing(for: recipe, soundWorld: soundWorld)
         return HappeningMusicPlan(
             happeningID: happeningID,
             family: family,
@@ -78,10 +79,10 @@ enum HappeningMusicPlanner {
             pan: pan,
             gain: gain,
             birthGain: birthGain,
-            attackSeconds: recipe.attackSeconds,
-            releaseSeconds: recipe.releaseSeconds,
-            delaySend: recipe.delayMix,
-            reverbSend: recipe.reverbMix,
+            attackSeconds: processing.attackSeconds,
+            releaseSeconds: processing.releaseSeconds,
+            delaySend: processing.delaySend,
+            reverbSend: processing.reverbSend,
             motif: motif(
                 happeningID: happeningID,
                 recipe: recipe,
@@ -94,6 +95,35 @@ enum HappeningMusicPlanner {
                 floatingOffsetBeats: floatingOffset
             )
         )
+    }
+
+    private static func processing(
+        for recipe: HappeningSoundRecipe,
+        soundWorld: DayObjectsSoundWorld?
+    ) -> (attackSeconds: Double, releaseSeconds: Double, delaySend: Double, reverbSend: Double) {
+        switch soundWorld {
+        case .feltAndWood:
+            return (
+                max(recipe.attackSeconds * 1.25, 0.035),
+                min(recipe.releaseSeconds * 1.35, 4.5),
+                recipe.delayMix * 0.55,
+                min(recipe.reverbMix + 0.12, 0.92)
+            )
+        case .metalAndCurrent:
+            return (
+                max(recipe.attackSeconds * 0.78, 0.008),
+                min(recipe.releaseSeconds * 0.92, 4.5),
+                min(recipe.delayMix + 0.14, 0.82),
+                min(recipe.reverbMix + 0.06, 0.90)
+            )
+        case nil:
+            return (
+                recipe.attackSeconds,
+                recipe.releaseSeconds,
+                recipe.delayMix,
+                recipe.reverbMix
+            )
+        }
     }
 
     private static func motif(

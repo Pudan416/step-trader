@@ -102,7 +102,10 @@ enum DeterministicMusicDirector {
                 input: normalizedInput,
                 remixSeed: remixSeed
             ),
-            mix: LayerMixPlanner.makePlan(happeningCount: happenings.count)
+            mix: LayerMixPlanner.makePlan(
+                happeningCount: happenings.count,
+                soundWorld: soundWorld
+            )
         )
     }
 

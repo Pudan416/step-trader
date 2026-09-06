@@ -20,6 +20,16 @@ final class BassPlannerTests: XCTestCase {
         }
     }
 
+    func testSoundWorldShapesBassProcessingWithoutChangingItsNotes() throws {
+        let felt = try XCTUnwrap(makeBass(mode: .bassBed, steps: 1, soundWorld: .feltAndWood))
+        let metal = try XCTUnwrap(makeBass(mode: .bassBed, steps: 1, soundWorld: .metalAndCurrent))
+
+        XCTAssertEqual(felt.events, metal.events)
+        XCTAssertLessThan(felt.cutoffMultiplier, metal.cutoffMultiplier)
+        XCTAssertGreaterThan(felt.glideMilliseconds, metal.glideMilliseconds)
+        XCTAssertGreaterThan(felt.reverbSend, metal.reverbSend)
+    }
+
     func testBassKeepsItsAuthoredPitchClassWhileStartingInTheLowerOctave() throws {
         let plan = try XCTUnwrap(makeBass(mode: .bassPulse, steps: 1))
         let first = try XCTUnwrap(plan.events.first)
@@ -235,14 +245,16 @@ final class BassPlannerTests: XCTestCase {
         mode: GrooveMode,
         steps: Double,
         tonalWorld: TonalWorldPlan? = nil,
-        descriptors: [DayObjectsInstrumentDescriptor] = DayObjectsInstrumentManifest.defaultDescriptors
+        descriptors: [DayObjectsInstrumentDescriptor] = DayObjectsInstrumentManifest.defaultDescriptors,
+        soundWorld: DayObjectsSoundWorld? = nil
     ) -> BassPlan? {
         BassPlanner.makePlan(
             input: makeInput(steps: steps),
             tonalWorld: tonalWorld ?? makeWorld(),
             groove: makeGroove(mode: mode),
             instrumentDescriptors: descriptors,
-            remixSeed: 42
+            remixSeed: 42,
+            soundWorld: soundWorld
         )
     }
 

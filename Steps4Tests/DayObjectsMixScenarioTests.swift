@@ -113,6 +113,67 @@ final class DayObjectsMixScenarioTests: XCTestCase {
         )
     }
 
+    func testExportsEqualInputSoundWorldPreviewsWhenExplicitlyRequested() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard environment["DAY_OBJECTS_SOUND_WORLD_PREVIEWS"] == "1" else {
+            throw XCTSkip("Set DAY_OBJECTS_SOUND_WORLD_PREVIEWS=1 to export the two listening references")
+        }
+        let outputDirectory = environment["DAY_OBJECTS_SOUND_WORLD_PREVIEW_DIR"]
+            .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? FileManager.default.temporaryDirectory
+                .appendingPathComponent("day-objects-sound-worlds", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: outputDirectory,
+            withIntermediateDirectories: true
+        )
+        let input = DayMusicInput(
+            countedSteps: 7_500,
+            stepGoal: 10_000,
+            countedSleepHours: 6.5,
+            sleepGoalHours: 8,
+            happeningIDs: (0..<10).map { "preview-happening-\($0)" },
+            spentColors: 25
+        )
+        let seed: UInt64 = 0xD4A0_B1EC_75ED_0001
+
+        for world in DayObjectsSoundWorld.allCases {
+            let plan = DeterministicMusicDirector.makePlan(
+                input: input,
+                remixSeed: seed,
+                soundWorld: world
+            )
+            let renderer = DayObjectsOfflineMixRenderer(
+                bundle: Bundle(for: type(of: self)),
+                leadGestureProfile: .held
+            )
+            let buffer = try await renderer.render(
+                plan: plan,
+                durationSeconds: 24,
+                sampleRate: Self.scenarioSampleRate
+            )
+            let outputURL = outputDirectory
+                .appendingPathComponent("\(world.rawValue).wav")
+            if FileManager.default.fileExists(atPath: outputURL.path) {
+                try FileManager.default.removeItem(at: outputURL)
+            }
+            let file = try AVAudioFile(
+                forWriting: outputURL,
+                settings: buffer.format.settings
+            )
+            try file.write(from: buffer)
+
+            let loudness = try DayObjectsStereoCaptureAdapter.analyze(buffer)
+            XCTAssertTrue(loudness.containsOnlyFiniteSamples)
+            XCTAssertGreaterThan(loudness.integratedLUFS, -120)
+            XCTAssertLessThanOrEqual(loudness.truePeakDBTP, -1)
+            print(
+                "DAY_OBJECTS_SOUND_WORLD_PREVIEW \(world.rawValue) "
+                    + "path=\(outputURL.path) lufs=\(loudness.integratedLUFS) "
+                    + "dbtp=\(loudness.truePeakDBTP)"
+            )
+        }
+    }
+
     func testProductionIsolationWithSelectedRoleHavingNoSourceIsSilentFromFrameZero() async throws {
         let renderer = DayObjectsOfflineMixRenderer(
             bundle: Bundle(for: type(of: self)),
