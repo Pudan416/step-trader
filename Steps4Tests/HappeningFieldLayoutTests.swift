@@ -384,20 +384,52 @@ final class HappeningFieldLayoutTests: XCTestCase {
         XCTAssertTrue(model.todayAdditions.isEmpty)
     }
 
-    func testEmptyCanonicalRemovalPersistencePropagatesSaveFailure() {
-        let canvas = DayCanvas(dayKey: "2026-08-08")
-        var savedCanvas: DayCanvas?
+    func testFailedEmptyCanonicalSaveKeepsCanvasAndMatchingDomainAddition() {
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        let model = makeRemovalModel()
+        defer { clearRemovalDefaults() }
+        let canvas = DayCanvas(dayKey: AppModel.dayKey(for: date))
+        let element = fixedRemovalElement(on: canvas)
+        var populatedCanvas = canvas
+        populatedCanvas.elements = [element]
+        XCTAssertNotNil(
+            model.addHappening(
+                id: "walk",
+                colorHex: element.hexColor,
+                at: date,
+                recordUse: false,
+                entryId: element.id.uuidString
+            )
+        )
+        var savedCanvases: [DayCanvas] = []
 
-        let persisted = CanvasHappeningRemovalPersistence.persist(
-            canvas,
-            save: {
-                savedCanvas = $0
-                return false
+        let failed = CanvasHappeningRemovalTransaction.commit(
+            canvasLoaded: true,
+            canvas: populatedCanvas,
+            model: model,
+            happeningID: "walk",
+            at: date,
+            persist: { canonical in
+                CanvasHappeningRemovalPersistence.persist(
+                    canonical,
+                    save: {
+                        savedCanvases.append($0)
+                        return false
+                    }
+                )
             }
         )
 
-        XCTAssertFalse(persisted)
-        XCTAssertTrue(savedCanvas?.elements.isEmpty ?? false)
+        XCTAssertNil(failed)
+        XCTAssertEqual(populatedCanvas.elements.map(\.id), [element.id])
+        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["walk"])
+        XCTAssertEqual(savedCanvases.count, 1)
+        guard let savedCanvas = savedCanvases.first else {
+            XCTFail("The empty canonical canvas should reach persistence")
+            return
+        }
+        XCTAssertTrue(savedCanvas.elements.isEmpty)
+        XCTAssertEqual(savedCanvas.lastModified, date)
     }
 
     func testRemovalRejectsMismatchedDayOrMissingHappeningWithoutSideEffects() {
