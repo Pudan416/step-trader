@@ -1707,7 +1707,9 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         let runtime = try DayObjectsLivePlaybackRuntime(
             bundle: Bundle(for: type(of: self)),
             diagnosticHostTimeProvider: {
-                defer { diagnosticTime += 0.001 }
+                // Shared allocator clock reads must not consume the 80 ms lead-in.
+                // 10 µs still exposes separately sampled deadlines at 1 µs tolerance.
+                defer { diagnosticTime += 0.000_01 }
                 return diagnosticTime
             }
         )
