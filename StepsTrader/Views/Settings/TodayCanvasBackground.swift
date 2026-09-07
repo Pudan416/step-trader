@@ -135,7 +135,11 @@ struct TodayCanvasUnlockFill: View {
 /// views, display links, gestures or audio are attached to these backgrounds.
 @MainActor
 final class TodayCanvasBackdropStore: ObservableObject {
-    static let shared = TodayCanvasBackdropStore()
+    static let shared = TodayCanvasBackdropStore(onRenderedCanvas: { canvas, categories in
+        Task { @MainActor in
+            _ = await MePosterSnapshotCache.shared.image(for: canvas, categories: categories)
+        }
+    })
     @Published private(set) var unlockPalette = TodayCanvasUnlockPalette.make(appearance: .initial)
     /// Feeds uses the day's original pigment, before snapshot lighting and haze.
     /// Keep the sampled palette for existing backgrounds and resource surfaces.
@@ -149,17 +153,20 @@ final class TodayCanvasBackdropStore: ObservableObject {
     private let load: (String) -> DayCanvas?
     private let render: (DayCanvas, Set<ModernPaletteCategory>) async -> UIImage?
     private let debounce: Duration
+    private let onRenderedCanvas: (DayCanvas, Set<ModernPaletteCategory>) -> Void
 
     init(
         debounce: Duration = .milliseconds(180),
         load: @escaping (String) -> DayCanvas? = { CanvasStorageService.shared.loadCanvas(for: $0) },
         render: @escaping (DayCanvas, Set<ModernPaletteCategory>) async -> UIImage? = { canvas, categories in
-            await CanvasStorageService.shared.renderedSnapshot(
+            return await CanvasStorageService.shared.renderedSnapshot(
                 canvas: canvas, size: CGSize(width: 390, height: 844), scale: 1.5,
                 paletteCategories: categories
             )
-        }
+        },
+        onRenderedCanvas: @escaping (DayCanvas, Set<ModernPaletteCategory>) -> Void = { _, _ in }
     ) {
+        self.onRenderedCanvas = onRenderedCanvas
         self.debounce = debounce
         self.load = load
         self.render = render
@@ -206,6 +213,8 @@ final class TodayCanvasBackdropStore: ObservableObject {
                         self.unlockPalette = TodayCanvasUnlockPalette.sampled(from: rendered)
                             ?? TodayCanvasUnlockPalette.make(appearance: request.appearance, canvas: canvas)
                         self.image = rendered
+                        // Rejected, obsolete exports must never warm the poster cache.
+                        self.onRenderedCanvas(canvas, ModernPaletteSelection.decode(request.appearance.categories))
                     }
                 } else if request == self.requested {
                     // Keep the last successful frame. An identical later refresh

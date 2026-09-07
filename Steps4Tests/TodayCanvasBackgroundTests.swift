@@ -269,6 +269,7 @@ final class TodayCanvasBackgroundTests: XCTestCase {
         let oldImage = UIImage()
         let newImage = UIImage()
         var renderCount = 0
+        var preparedDays: [String] = []
         let store = TodayCanvasBackdropStore(debounce: .zero, load: { _ in nil }, render: { _, _ in
             renderCount += 1
             if renderCount == 1 {
@@ -278,7 +279,7 @@ final class TodayCanvasBackgroundTests: XCTestCase {
                 }
             }
             return newImage
-        })
+        }, onRenderedCanvas: { canvas, _ in preparedDays.append(canvas.dayKey) })
         var published: [UIImage] = []
         let subscription = store.$image.compactMap { $0 }.sink {
             published.append($0)
@@ -291,6 +292,7 @@ final class TodayCanvasBackgroundTests: XCTestCase {
         continuation?.resume(returning: oldImage)
         await fulfillment(of: [finished], timeout: 2)
         XCTAssertEqual(renderCount, 2)
+        XCTAssertEqual(preparedDays, ["2026-09-08"], "Stale renders must not replace the poster snapshot")
         XCTAssertEqual(published.count, 1)
         XCTAssertTrue(published.first === newImage)
         withExtendedLifetime(subscription) { }
