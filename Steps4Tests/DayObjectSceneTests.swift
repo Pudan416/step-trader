@@ -965,13 +965,12 @@ final class DayObjectSceneTests: XCTestCase {
                 identity: "day-objects-lab"
             ).primaryMaterial == .smoothRadial
         }.prefix(24)
-        let visibleLabDayKeys = (0..<42).map { offset in
-            String(
-                format: "2026-%02d-%02d",
-                (offset / 28) % 12 + 1,
-                offset % 28 + 1
-            )
-        }.filter {
+        let visibleLabCandidates: [String] = (0..<42).map { (offset: Int) -> String in
+            let month: Int = (offset / 28) % 12 + 1
+            let day: Int = offset % 28 + 1
+            return String(format: "2026-%02d-%02d", month, day)
+        }
+        let visibleLabDayKeys: [String] = visibleLabCandidates.filter {
             DayObjectArtDirectionScheduler.make(
                 dayKey: $0,
                 identity: "day-objects-lab"
@@ -989,9 +988,9 @@ final class DayObjectSceneTests: XCTestCase {
                     )
                 ).sceneRecipeV1
             )
-            for material in recipe.actors.map(\.material).filter({
-                $0.mechanism == .smoothRadial
-            }) {
+            for actor in recipe.actors {
+                let material: DayObjectEditorialMaterialV1 = actor.material
+                guard material.mechanism == DayObjectMaterialMechanism.smoothRadial else { continue }
                 for lhs in material.colors.indices {
                     for rhs in material.colors.indices where rhs > lhs {
                         let lhsLab = DayObjectRGB(
