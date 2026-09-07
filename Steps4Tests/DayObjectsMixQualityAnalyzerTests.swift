@@ -230,21 +230,35 @@ final class DayObjectsMixQualityAnalyzerTests: XCTestCase {
         XCTAssertTrue(report.issues.contains(.excessiveTransientDensity))
     }
 
-    func testEnvelopeTransientDensityDoesNotFlagSteadyToneOrNoiseFloor() throws {
-        let steady = try makeMonoBuffer { frame, sampleRate in
-            0.1 * sin(2 * Double.pi * 600 * Double(frame) / sampleRate)
+    func testTransientDensityDoesNotFlagSteadyCarriers() throws {
+        let frequencies: [Double] = [20, 30, 40, 50, 60, 250, 1_000, 5_000]
+        for frequency in frequencies {
+            let steady = try makeMonoBuffer { frame, sampleRate in
+                0.2 * sin(2 * Double.pi * frequency * Double(frame) / sampleRate)
+            }
+            let report = try DayObjectsMixQualityAnalyzer.analyze(fullMix: steady, stems: [:])
+
+            XCTAssertLessThanOrEqual(
+                report.transientDensityPerSecond,
+                1,
+                "Unexpected onset density for \(frequency) Hz"
+            )
+            XCTAssertFalse(
+                report.issues.contains(.excessiveTransientDensity),
+                "Unexpected transient issue for \(frequency) Hz"
+            )
         }
+    }
+
+    func testTransientDensityDoesNotFlagNoiseFloor() throws {
         let noiseFloor = try makeMonoBuffer { frame, _ in
             let hash = (UInt64(frame) &* 2_862_933_555_777_941_757) &+ 3_037_000_493
             let normalized = (Double(hash & 0xffff) / 32_767.5) - 1
             return 0.002 * normalized
         }
 
-        let steadyReport = try DayObjectsMixQualityAnalyzer.analyze(fullMix: steady, stems: [:])
         let noiseReport = try DayObjectsMixQualityAnalyzer.analyze(fullMix: noiseFloor, stems: [:])
 
-        XCTAssertLessThanOrEqual(steadyReport.transientDensityPerSecond, 1)
-        XCTAssertFalse(steadyReport.issues.contains(.excessiveTransientDensity))
         XCTAssertEqual(noiseReport.transientDensityPerSecond, 0)
         XCTAssertFalse(noiseReport.issues.contains(.excessiveTransientDensity))
     }
@@ -333,6 +347,88 @@ final class DayObjectsMixQualityAnalyzerTests: XCTestCase {
         XCTAssertEqual(report.happeningsLeadMaskingScore, 0, accuracy: 0.000_01)
         XCTAssertFalse(report.issues.contains(.harmonyLeadMasking))
         XCTAssertFalse(report.issues.contains(.happeningsLeadMasking))
+    }
+
+    func testAdjacentIdenticalFrequenciesDoNotMaskAcrossFFTWindow() throws {
+        for gapMilliseconds in [0, 10, 20] {
+            let gapFrames = gapMilliseconds * 48
+            let boundary = 24_000
+            let harmony = try makeMonoBuffer { frame, sampleRate in
+                guard frame < boundary else { return 0 }
+                return 0.1 * sin(2 * Double.pi * 1_000 * Double(frame) / sampleRate)
+            }
+            let happenings = try makeMonoBuffer { frame, sampleRate in
+                guard frame < boundary else { return 0 }
+                return 0.1 * sin(2 * Double.pi * 1_000 * Double(frame) / sampleRate)
+            }
+            let lead = try makeMonoBuffer { frame, sampleRate in
+                guard frame >= boundary + gapFrames else { return 0 }
+                return 0.1 * sin(2 * Double.pi * 1_000 * Double(frame) / sampleRate)
+            }
+            let mix = try makeMonoBuffer { frame, sampleRate in
+                guard frame < boundary || frame >= boundary + gapFrames else { return 0 }
+                return 0.1 * sin(2 * Double.pi * 1_000 * Double(frame) / sampleRate)
+            }
+
+            let report = try DayObjectsMixQualityAnalyzer.analyze(
+                fullMix: mix,
+                stems: [.harmony: harmony, .happenings: happenings, .lead: lead],
+                activeRoles: [.harmony, .happenings, .lead]
+            )
+
+            XCTAssertEqual(
+                report.harmonyLeadMaskingScore,
+                0,
+                accuracy: 0.000_01,
+                "Gap: \(gapMilliseconds) ms"
+            )
+            XCTAssertEqual(
+                report.happeningsLeadMaskingScore,
+                0,
+                accuracy: 0.000_01,
+                "Gap: \(gapMilliseconds) ms"
+            )
+            XCTAssertFalse(report.issues.contains(.harmonyLeadMasking))
+            XCTAssertFalse(report.issues.contains(.happeningsLeadMasking))
+        }
+    }
+
+    func testMaskingScorePreservesWeakerStemLevelRatio() throws {
+        func report(weakerAmplitude: Double) throws -> DayObjectsMixQualityReport {
+            let lead = try makeMonoBuffer { frame, sampleRate in
+                0.1 * sin(2 * Double.pi * 1_000 * Double(frame) / sampleRate)
+            }
+            let weaker = try makeMonoBuffer { frame, sampleRate in
+                weakerAmplitude * sin(2 * Double.pi * 1_000 * Double(frame) / sampleRate)
+            }
+            let mix = try makeMonoBuffer { frame, sampleRate in
+                (0.1 + (2 * weakerAmplitude))
+                    * sin(2 * Double.pi * 1_000 * Double(frame) / sampleRate)
+            }
+            return try DayObjectsMixQualityAnalyzer.analyze(
+                fullMix: mix,
+                stems: [.harmony: weaker, .happenings: weaker, .lead: lead],
+                activeRoles: [.harmony, .happenings, .lead]
+            )
+        }
+
+        let equalLevel = try report(weakerAmplitude: 0.1)
+        let minus20DB = try report(weakerAmplitude: 0.01)
+        let minus40DB = try report(weakerAmplitude: 0.001)
+
+        XCTAssertGreaterThan(equalLevel.harmonyLeadMaskingScore, 0.95)
+        XCTAssertGreaterThan(equalLevel.happeningsLeadMaskingScore, 0.95)
+        XCTAssertLessThan(minus20DB.harmonyLeadMaskingScore, 0.2)
+        XCTAssertLessThan(minus20DB.happeningsLeadMaskingScore, 0.2)
+        XCTAssertLessThan(minus40DB.harmonyLeadMaskingScore, 0.02)
+        XCTAssertLessThan(minus40DB.happeningsLeadMaskingScore, 0.02)
+        XCTAssertFalse(minus20DB.issues.contains(.harmonyLeadMasking))
+        XCTAssertFalse(minus20DB.issues.contains(.happeningsLeadMasking))
+        XCTAssertFalse(minus40DB.issues.contains(.harmonyLeadMasking))
+        XCTAssertFalse(minus40DB.issues.contains(.happeningsLeadMasking))
+        XCTAssertTrue(minus20DB.suggestions.isEmpty)
+        XCTAssertTrue(minus40DB.suggestions.isEmpty)
+        assertSuggestionsAreBounded(equalLevel.suggestions)
     }
 
     func testSubAudibleStemDoesNotFlagContemporaneousMasking() throws {

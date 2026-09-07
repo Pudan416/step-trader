@@ -293,3 +293,94 @@ subset reaching stem loading, stems-plus-directory rejection, stem-as-mix
 rejection, multiple-input rejection, and help output. The five malformed usage
 cases were also run without a pipe and each returned status 64. No runtime audio
 application, ledger entry, or WAV file was changed.
+
+## Fix round 3
+
+This section supersedes the fix-round-2 transient and masking algorithms; all
+other thresholds and contracts remain unchanged.
+
+### Carrier-independent onset novelty
+
+Transient density now uses a deterministic high-frequency-content frame-energy
+novelty measure instead of rectified waveform amplitude. For each channel, the
+analyzer takes the first sample difference, measures its Hann-weighted RMS in a
+10 ms frame every 5 ms, and compares that value with a 50 ms exponential
+baseline. A candidate requires differenced energy `>= 0.01 full scale` and a
+positive rise over the baseline `>= 0.005 full scale`; candidates retain the
+40 ms refractory period. Reported density remains count divided by render
+duration, with the existing `> 12/second` issue gate. This removes carrier-cycle
+ripple without weakening the 5 ms attack/15 ms decay burst fixture.
+
+### Sample-time masking support and level-sensitive severity
+
+The 4,096-frame, 50%-hop FFT still supplies `160..<4,000 Hz` spectral shape and
+relative-energy weights. Before any window's cosine similarity can contribute,
+the analyzer now intersects audible support at sample time. At each sample it
+uses maximum channel magnitude and requires the mix and both stems to exceed
+`-80 dBFS`, with each stem also above `-42 dB` relative to the mix. A window's
+similarity is multiplied by the fraction of samples with simultaneous support.
+Adjacent tones that merely coexist inside a long FFT window therefore add zero
+masking evidence.
+
+For supported samples, the analyzer computes the weaker-to-stronger RMS level
+ratio `sqrt(min energy / max energy)`. The window contribution is now:
+
+```text
+cosine spectral overlap
+  × simultaneous-support fraction
+  × weaker-to-stronger level ratio
+  × min(lhs mid energy, rhs mid energy) / mix mid energy
+```
+
+The weighted report score remains finite and clamped to `0...1`; its existing
+`> 0.75` issue gate is unchanged. Because masking suggestion severity derives
+from that score, the contemporaneous level ratio is not normalized away.
+Equal-level simultaneous 1 kHz stems remain a strong issue, while `-20 dB` and
+`-40 dB` stems receive materially smaller scores and no masking correction.
+Harmony/lead and happenings/lead use the same path.
+
+### Fix-round RED evidence
+
+Command:
+
+```text
+xcodebuild test -quiet -project Steps4.xcodeproj -scheme Steps4 \
+  -destination 'platform=iOS Simulator,name=iPhone 16e' \
+  -resultBundlePath /tmp/day-objects-task6-fix3-red.NKHxRu/Task6Fix3RED.xcresult \
+  -only-testing:Steps4Tests/DayObjectsMixQualityAnalyzerTests/testTransientDensityDoesNotFlagSteadyCarriers \
+  -only-testing:Steps4Tests/DayObjectsMixQualityAnalyzerTests/testAdjacentIdenticalFrequenciesDoNotMaskAcrossFFTWindow \
+  -only-testing:Steps4Tests/DayObjectsMixQualityAnalyzerTests/testMaskingScorePreservesWeakerStemLevelRatio
+```
+
+Result: 3 selected, 0 passed, 3 failed for the expected behaviors. The 20 Hz,
+0.2-amplitude steady sine reported `20.0` onsets/second. Adjacent, sample-disjoint
+1 kHz roles with a 0 ms gap reported harmony/lead masking
+`0.896863024566152`; the 20 ms case still reported `0.9958626594414589`.
+The `-20 dB` weaker role reported `1.0`, and the `-40 dB` case remained
+approximately `1.0`, proving the prior weighted mean normalized level away.
+
+The final controls sweep steady `0.2`-amplitude carriers at 20, 30, 40, 50,
+60, 250, 1,000, and 5,000 Hz; each must remain at no more than one startup onset
+per second and never flag excessive density. The original 20-per-second,
+5 ms attack/15 ms decay 1 kHz burst fixture remains at `20 ± 0.5` and flagged.
+Masking controls cover exact zero sample overlap with 0, 10, and 20 ms gaps,
+plus simultaneous equal, `-20 dB`, and `-40 dB` levels for both role pairs.
+
+### Fix-round GREEN and final verification
+
+Final command:
+
+```text
+xcodebuild test -quiet -project Steps4.xcodeproj -scheme Steps4 \
+  -destination 'platform=iOS Simulator,name=iPhone 16e' \
+  -resultBundlePath /tmp/day-objects-task6-fix3-final.Suro9S/Task6Fix3.xcresult \
+  -only-testing:Steps4Tests/DayObjectsMixQualityAnalyzerTests \
+  -only-testing:Steps4Tests/DayObjectsLoudnessAnalyzerTests \
+  -only-testing:Steps4Tests/DayObjectsMixScenarioTests
+```
+
+Result bundle summary: 45 selected tests, 42 passed, 3 intentional opt-in
+long-render skips, 0 failed. The analyzer and loudness suites passed 32/32
+(23 mix-quality plus 9 loudness); the scenario suite supplied the remaining 13
+selected tests. The existing ten CLI validation/behavior checks also passed.
+No runtime audio application, ledger entry, or WAV file was changed.
