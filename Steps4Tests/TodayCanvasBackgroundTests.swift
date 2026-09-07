@@ -61,6 +61,53 @@ final class TodayCanvasBackgroundTests: XCTestCase {
         XCTAssertNotEqual(next.createdAt, originalDate)
     }
 
+    func testRemixedSnapshotPreservesSavedAppearanceWhileRefreshingMetrics() {
+        var saved = DayCanvas(dayKey: "2026-09-07")
+        saved.remixSeed = 99
+        saved.gradientStyle = GradientStyle.allCases.first { $0 != .radial }!.rawValue
+        saved.gradientPalette = GradientPalette.ocean.rawValue
+        saved.textureRaw = CanvasTexture.allCases.first { $0 != .grainSmall }!.rawValue
+        let result = appearance().canvas(from: saved)
+        XCTAssertEqual(result.remixSeed, 99)
+        XCTAssertEqual(result.gradientStyle, saved.gradientStyle)
+        XCTAssertEqual(result.gradientPalette, saved.gradientPalette)
+        XCTAssertEqual(result.textureRaw, saved.textureRaw)
+        XCTAssertEqual(result.stepsPoints, 15)
+        XCTAssertEqual(result.sleepPoints, 12)
+        XCTAssertEqual(result.inkSpent, 25)
+    }
+
+    func testSharedUnlockPaletteFollowsPersistedRemixAndUndo() async {
+        let input = appearance()
+        var saved = DayCanvas(dayKey: input.dayKey)
+        saved.remixSeed = 99
+        let first = expectation(description: "remixed background")
+        let second = expectation(description: "restored background")
+        var publications = 0
+        let store = TodayCanvasBackdropStore(debounce: .zero, load: { _ in saved }, render: { _, _ in UIImage() })
+        let subscription = store.$image.compactMap { $0 }.sink { _ in
+            publications += 1
+            if publications == 1 { first.fulfill() } else { second.fulfill() }
+        }
+        let sceneInput = EditorialCanvasInputFactory.make(
+            canvas: saved,
+            metrics: EditorialCanvasMetrics(stepsProgress: 0.5, sleepProgress: 0.5, spentProgress: 0),
+            paletteCategories: ModernPaletteSelection.all
+        ).sceneInput
+        let expected = DayObjectScene.make(input: sceneInput).paletteSet.background.hexes
+            .map { DayObjectRGB(hex: $0) }.sorted { $0.perceptualOKLab.x > $1.perceptualOKLab.x }
+        store.refresh(input)
+        XCTAssertEqual(store.feedPalette.colors, expected, "Feeds must immediately follow the saved visual/music remix")
+        await fulfillment(of: [first], timeout: 2)
+        XCTAssertEqual(store.unlockPalette.colors, expected)
+        saved.remixSeed = nil
+        store.refresh(input, reload: true)
+        XCTAssertEqual(store.feedPalette, TodayCanvasUnlockPalette.make(appearance: input), "Undo must restore the feed pigment immediately")
+        await fulfillment(of: [second], timeout: 2)
+        XCTAssertEqual(store.unlockPalette, TodayCanvasUnlockPalette.make(appearance: input))
+        withExtendedLifetime(subscription) { }
+    }
+
     func testLegacySnapshotIncludesItsFigures() async throws {
         var input = appearance()
         input.style = CanvasVisualStyle.legacy.rawValue

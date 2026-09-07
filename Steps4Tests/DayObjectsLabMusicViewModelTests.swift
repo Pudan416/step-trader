@@ -4,6 +4,24 @@ import XCTest
 
 @MainActor
 final class DayObjectsLabMusicViewModelTests: XCTestCase {
+    func testAllDiagnosticMoodsDriveThePlanAndSurviveRemixAndUndo() {
+        let model = DayObjectsLabMusicViewModel()
+        model.selectSoundWorld(.electricDream)
+        for mood in [DayObjectsSoundMood.sparse, .moving, .strange] {
+            model.selectSoundMood(mood)
+            XCTAssertEqual(model.musicPlan.mood, mood)
+            XCTAssertEqual(model.musicPlan.soundWorld, .electricDream)
+        }
+        let plan = model.musicPlan
+        model.remix()
+        XCTAssertEqual(model.musicPlan.mood, .strange)
+        XCTAssertEqual(model.musicPlan.seed, plan.seed &+ 1)
+        model.undoMusicRemix()
+        XCTAssertEqual(model.musicPlan, plan)
+        model.undoMusicRemix()
+        XCTAssertEqual(model.musicPlan.mood, .moving)
+    }
+
     func testFreshStateUsesApprovedDayDefaults() {
         let state = DayObjectsLabMusicState()
 

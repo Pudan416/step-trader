@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The dock shown while the canvas is raised for viewing.
 ///
-/// Full screen is a viewing state, so its two navigation actions carry visible
+/// Full screen is a viewing state, so its main actions carry visible
 /// labels rather than icons a user has to decode — "Edit" must never be
 /// something you press by accident on the way out. Share is passed in from the
 /// host because its context menu needs routines the dock knows nothing about.
@@ -10,6 +10,9 @@ struct CanvasFullScreenDock<Share: View>: View {
     let soundAppearance: CanvasSoundButtonAppearance
     let onSound: () -> Void
     let onEdit: () -> Void
+    let onRemix: () -> Void
+    let onUndoRemix: () -> Void
+    let canUndoRemix: Bool
     var showsEdit = true
     @ViewBuilder let share: () -> Share
 
@@ -26,6 +29,22 @@ struct CanvasFullScreenDock<Share: View>: View {
     }
 
     private var content: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 4) {
+                navigationControls
+                remixControls
+            }
+            VStack(spacing: 0) {
+                HStack(spacing: 4) { navigationControls }
+                HStack(spacing: 4) { remixControls }
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .liquidGlassControl(in: Capsule(style: .continuous))
+    }
+
+    private var navigationControls: some View {
         let sound = CanvasFullScreenSoundControlPresentation(appearance: soundAppearance)
         return HStack(spacing: 8) {
             label(
@@ -49,9 +68,24 @@ struct CanvasFullScreenDock<Share: View>: View {
                 .accessibilityIdentifier("canvas_edit_button")
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .liquidGlassControl(in: Capsule(style: .continuous))
+    }
+
+    private var remixControls: some View {
+        HStack(spacing: 4) {
+            label(String(localized: "Remix"), systemImage: "shuffle", action: onRemix)
+                .accessibilityIdentifier("canvas_remix_button")
+            Button(action: onUndoRemix) {
+                Image(systemName: "arrow.uturn.backward")
+                    .font(.geist(size: 16, weight: .regular))
+                    .foregroundStyle(ink)
+                    .frame(minWidth: 44, minHeight: 56)
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(!canUndoRemix)
+            .accessibilityLabel(String(localized: "Undo Remix"))
+            .accessibilityIdentifier("canvas_undo_remix_button")
+        }
     }
 
     private func label(
@@ -75,6 +109,12 @@ struct CanvasFullScreenDock<Share: View>: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)
+    }
+}
+
+enum CanvasFullScreenRemixPresentation {
+    static func isVisible(in state: CanvasPresentationState) -> Bool {
+        state == .fullScreen
     }
 }
 

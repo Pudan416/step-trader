@@ -19,6 +19,7 @@ struct CanvasAnimationOverlay: View {
     var labelColor: Color? = nil
     var hasStepsData: Bool = true
     var hasSleepData: Bool = true
+    var overlayStyleOverride: String? = nil
     var onGestureBegan: @MainActor (CanvasTouchGestureSample) -> Void = { _ in }
     var onGestureUpdated: @MainActor (CanvasTouchGestureSample) -> Void = { _ in }
     var onGestureEnded: @MainActor () -> Void = {}
@@ -31,7 +32,7 @@ struct CanvasAnimationOverlay: View {
     @Environment(\.scenePhase) private var scenePhase
 
     private var style: CanvasOverlayStyle {
-        CanvasOverlayStyle(rawValue: styleRaw) ?? .smudge
+        CanvasOverlayStyle(rawValue: overlayStyleOverride ?? styleRaw) ?? .smudge
     }
 
     private var isRenderingAllowed: Bool {

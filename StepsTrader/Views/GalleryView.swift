@@ -122,6 +122,9 @@ struct GalleryView: View {
     @Environment(\.dynamicTypeSize) private var paletteDynamicTypeSize
     @State private var canvasViewportSize: CGSize = .zero
     @State private var spawnPresentation = CanvasSpawnPresentationState()
+    @State private var remixHistory = CanvasRemixHistory()
+    @State private var remixFeedback: String?
+    @State private var remixFeedbackTask: Task<Void, Never>?
     @State private var spawnFlightTasks: [UUID: Task<Void, Never>] = [:]
     /// Directed nudge above the + button that invites the user to fill the
     /// day. It fires at most once per time-of-day window (morning / evening,
@@ -355,6 +358,7 @@ struct GalleryView: View {
             happeningIDs: dayCanvas.elements.map { $0.id.uuidString.lowercased() },
             spentColors: editorialRenderInput.digitalImpact.spentColors
         )
+        musicController.applyRemix(seed: dayCanvas.resolvedRemixSeed, selection: dayCanvas.resolvedMusicSelection)
     }
 #endif
 
@@ -762,6 +766,7 @@ struct GalleryView: View {
             GenerativeCanvasView(
                 elements: renderedCanvasElements,
                 dayKey: dayCanvas.dayKey,
+                remixSeed: dayCanvas.remixSeed,
                 sleepPoints: model.sleepPointsToday,
                 stepsPoints: model.stepsPointsToday,
                 sleepColor: Color(hex: sleepColorHex),
@@ -816,13 +821,17 @@ struct GalleryView: View {
                             sleepPoints: model.sleepPointsToday,
                             hasStepsData: model.hasStepsData,
                             hasSleepData: model.hasSleepData,
-                            showGrain: false
+                            showGrain: false,
+                            gradientStyleOverride: dayCanvas.remixSeed == nil ? nil : dayCanvas.gradientStyle,
+                            gradientPaletteOverride: dayCanvas.remixSeed == nil ? nil : dayCanvas.gradientPalette
                         )
                         .ignoresSafeArea()
                         .allowsHitTesting(false)
                     }
                     .overlay {
-                        TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
+                        TextureOverlayView(texture: CanvasTexture.fromStored(
+                            dayCanvas.remixSeed == nil ? canvasTextureRaw : (dayCanvas.textureRaw ?? canvasTextureRaw)
+                        ))
                             .transaction { $0.animation = nil }
                     }
             }
@@ -839,6 +848,7 @@ struct GalleryView: View {
                     labelColor: labelColor,
                     hasStepsData: model.hasStepsData,
                     hasSleepData: model.hasSleepData,
+                    overlayStyleOverride: dayCanvas.remixSeed == nil ? nil : dayCanvas.overlayStyle,
                     onGestureBegan: handleCanvasLeadBegan,
                     onGestureUpdated: handleCanvasLeadUpdated,
                     onGestureEnded: handleCanvasLeadEnded
@@ -888,7 +898,7 @@ struct GalleryView: View {
             dataPanelOverlay
         }
         .overlay {
-            if presentation.showsFullScreenDock {
+            if CanvasFullScreenRemixPresentation.isVisible(in: presentation) {
                 wideCanvasOverlay
                     .ignoresSafeArea()
             }
@@ -901,8 +911,7 @@ struct GalleryView: View {
                     onDone: {
                         send(.endEditing)
                         lightHapticTick &+= 1
-                    },
-                    onRemix: { remixCanvas() }
+                    }
                 )
                 .padding(.horizontal, 16)
                 // `deviceTopSafeAreaInset` (not `safeAreaTop`) — see its doc
@@ -994,6 +1003,16 @@ struct GalleryView: View {
             applyPreferredCanvasVisualStyle(rawValue)
         }
         .onChange(of: dayCanvas.elements.count) { refreshAddHint() }
+        .onChange(of: dayCanvas.dayKey) {
+            remixHistory = CanvasRemixHistory()
+            remixFeedbackTask?.cancel()
+            remixFeedback = nil
+        }
+        .onChange(of: dayCanvas.lastModified) {
+#if DEBUG || INTERNAL_BUILD
+            syncCanvasMusicInput()
+#endif
+        }
         .onChange(of: showHappeningPalette) { _, isPresented in
             refreshAddHint()
             onPalettePresentationChange(isPresented)
@@ -1858,15 +1877,15 @@ struct GalleryView: View {
 
         let currentOverlay = UserDefaults.stepsTrader().string(forKey: SharedKeys.canvasOverlayStyle) ?? CanvasOverlayStyle.smudge.rawValue
         let currentTexture = UserDefaults.standard.string(forKey: SharedKeys.canvasTexture) ?? CanvasTexture.grainSmall.rawValue
+        didChange = dayCanvas.applyVisualPreferences(
+            gradientStyle: currentGradientStyle, gradientPalette: currentGradientPalette,
+            overlayStyle: currentOverlay, textureRaw: currentTexture
+        )
 
         if dayCanvas.sleepPoints != newSleep
            || dayCanvas.stepsPoints != newSteps
            || dayCanvas.inkEarned != newEarned
            || dayCanvas.inkSpent != newSpent
-           || dayCanvas.gradientStyle != currentGradientStyle
-           || dayCanvas.gradientPalette != currentGradientPalette
-           || dayCanvas.overlayStyle != currentOverlay
-           || dayCanvas.textureRaw != currentTexture
            || dayCanvas.hasStepsData != model.hasStepsData
            || dayCanvas.hasSleepData != model.hasSleepData {
             dayCanvas.sleepPoints = newSleep
@@ -1875,10 +1894,6 @@ struct GalleryView: View {
             dayCanvas.inkSpent = newSpent
             dayCanvas.sleepColorHex = sleepColorHex
             dayCanvas.stepsColorHex = stepsColorHex
-            dayCanvas.gradientStyle = currentGradientStyle
-            dayCanvas.gradientPalette = currentGradientPalette
-            dayCanvas.overlayStyle = currentOverlay
-            dayCanvas.textureRaw = currentTexture
             dayCanvas.hasStepsData = model.hasStepsData
             dayCanvas.hasSleepData = model.hasSleepData
             didChange = true
@@ -1898,7 +1913,7 @@ struct GalleryView: View {
         // from disk on next launch.
         guard canvasLoaded else { return false }
         let didPersist: Bool
-        if dayCanvas.elements.isEmpty {
+        if dayCanvas.elements.isEmpty && dayCanvas.remixSeed == nil {
             CanvasStorageService.shared.deleteCanvas(for: dayCanvas.dayKey)
             didPersist = true
         } else {
@@ -1938,7 +1953,9 @@ struct GalleryView: View {
             dayKey: transactionDayKey,
             composition: DayComposition.forDay(
                 dayKey: transactionDayKey,
-                happeningCount: dayCanvas.elements.count),
+                happeningCount: dayCanvas.elements.count,
+                allowedTextureKinds: dayCanvas.remixSeed == nil ? TextureKind.allowedByUser : TextureKind.allCases,
+                remixSeed: dayCanvas.remixSeed),
             figure: figure
         )
         element.editorialColorVariant = editorialColorVariant
@@ -2038,7 +2055,7 @@ struct GalleryView: View {
     private func rerollElement(id: UUID) {
         guard let index = dayCanvas.elements.firstIndex(where: { $0.id == id }) else { return }
         let composition = DayComposition.forDay(
-            dayKey: dayCanvas.dayKey, happeningCount: dayCanvas.elements.count)
+            dayKey: dayCanvas.dayKey, happeningCount: dayCanvas.elements.count, remixSeed: dayCanvas.remixSeed)
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             dayCanvas.elements[index].reroll(rank: index, composition: composition)
             dayCanvas.elements[index].lastEditedAt = Date.now
@@ -2048,29 +2065,47 @@ struct GalleryView: View {
         saveCanvasLocally()
     }
 
-    /// Restyles every element at once: one mutation counter bump, one save, one
-    /// haptic. Positions, identities, energy and the background gradient are
-    /// exactly what they were.
+    /// One complete canvas replacement, persistence operation, and music plan.
     private func remixCanvas() {
-        guard !dayCanvas.elements.isEmpty else { return }
-        let composition = DayComposition.forDay(
-            dayKey: dayCanvas.dayKey,
-            happeningCount: dayCanvas.elements.count
-        )
-        let remixed = CanvasRemix.remixed(dayCanvas.elements, composition: composition)
-        // One ease for both motion settings on purpose: replacing the elements
-        // in place *is* the crossfade Reduce Motion asks for — nothing travels
-        // and nothing springs, so there is no motion to reduce.
+        guard canvasLoaded, CanvasFullScreenRemixPresentation.isVisible(in: presentation) else { return }
+        guard let result = remixHistory.commitRemix(canvas: dayCanvas, persist: {
+            CanvasStorageService.shared.saveCanvas($0)
+        }) else { return }
         withAnimation(.easeInOut(duration: 0.3)) {
-            dayCanvas.elements = remixed
+            dayCanvas = result.canvas
         }
-        dayCanvas.lastModified = Date.now
         localMutationCounter &+= 1
-        saveCanvasLocally()
+        publishCanvasPersistence(result.canvas)
+#if DEBUG || INTERNAL_BUILD
+        musicController.applyRemix(seed: result.seed, selection: result.musicSelection)
+        remixFeedbackTask?.cancel()
+        remixFeedback = "\(result.musicSelection.world.displayName) · \(result.musicSelection.mood.rawValue.capitalized)"
+        remixFeedbackTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.2)) { remixFeedback = nil }
+        }
+#endif
         mediumHapticTick &+= 1
         Task {
             await SupabaseSyncService.shared.trackAnalyticsEvent(name: "canvas_remixed")
         }
+    }
+
+    private func undoCanvasRemix() {
+        guard canvasLoaded, CanvasFullScreenRemixPresentation.isVisible(in: presentation),
+              let restored = remixHistory.commitUndo(into: dayCanvas, persist: {
+                  CanvasStorageService.shared.saveCanvas($0)
+              }) else { return }
+        withAnimation(.easeInOut(duration: 0.3)) { dayCanvas = restored }
+        localMutationCounter &+= 1
+        publishCanvasPersistence(restored)
+#if DEBUG || INTERNAL_BUILD
+        musicController.applyRemix(seed: restored.resolvedRemixSeed, selection: restored.resolvedMusicSelection)
+#endif
+        remixFeedbackTask?.cancel()
+        remixFeedback = nil
+        lightHapticTick &+= 1
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -2081,40 +2116,8 @@ struct GalleryView: View {
         VStack {
             Spacer()
 #if DEBUG || INTERNAL_BUILD
-            if musicController.soundState == .on {
-                HStack(spacing: 10) {
-                    Menu {
-                        ForEach(DayObjectsSoundWorld.allCases, id: \.self) { world in
-                            Button {
-                                musicController.selectSoundWorld(world)
-                            } label: {
-                                if musicController.state.soundWorld == world {
-                                    Label(world.displayName, systemImage: "checkmark")
-                                } else {
-                                    Text(world.displayName)
-                                }
-                            }
-                        }
-                    } label: {
-                        Label(musicController.state.soundWorld.displayName, systemImage: "waveform")
-                    }
-                    .accessibilityLabel("Sound world")
-
-                    Button {
-                        musicController.remix()
-                    } label: {
-                        Label("Music Remix", systemImage: "shuffle")
-                    }
-                    .accessibilityLabel("Remix music")
-
-                    Button {
-                        musicController.undoMusicRemix()
-                    } label: {
-                        Image(systemName: "arrow.uturn.backward")
-                    }
-                    .disabled(!musicController.canUndoMusicRemix)
-                    .accessibilityLabel("Undo music remix")
-                }
+            if let remixFeedback {
+                Text(remixFeedback)
                 .font(.geist(.caption))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 14)
@@ -2137,6 +2140,9 @@ struct GalleryView: View {
                     send(.beginEditing)
                     lightHapticTick &+= 1
                 },
+                onRemix: remixCanvas,
+                onUndoRemix: undoCanvasRemix,
+                canUndoRemix: remixHistory.canUndo,
                 showsEdit: dayCanvas.resolvedVisualStyle == .legacy,
                 share: { shareButton }
             )
@@ -2378,14 +2384,15 @@ struct GalleryView: View {
                             hasStepsData: model.hasStepsData,
                             hasSleepData: model.hasSleepData,
                             showGrain: true,
-                            gradientStyleOverride: currentGradientStyle,
-                            gradientPaletteOverride: currentGradientPalette,
+                            gradientStyleOverride: dayCanvas.remixSeed == nil ? currentGradientStyle : dayCanvas.gradientStyle,
+                            gradientPaletteOverride: dayCanvas.remixSeed == nil ? currentGradientPalette : dayCanvas.gradientPalette,
                             textureOverride: dayCanvas.textureRaw
                         )
 
                         GenerativeCanvasView(
                             elements: dayCanvas.elements,
                             dayKey: dayCanvas.dayKey,
+                            remixSeed: dayCanvas.remixSeed,
                             sleepPoints: model.sleepPointsToday,
                             stepsPoints: model.stepsPointsToday,
                             sleepColor: Color(hex: sleepColorHex),

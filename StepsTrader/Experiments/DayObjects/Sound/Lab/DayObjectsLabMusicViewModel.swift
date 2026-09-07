@@ -10,7 +10,7 @@ final class DayObjectsLabMusicViewModel: ObservableObject {
     static let maximumSpentColors = 100
 
     @Published private(set) var state: DayObjectsLabMusicState
-    private var musicVariantHistory: [(seed: UInt64, world: DayObjectsSoundWorld)] = []
+    private var musicVariantHistory: [(seed: UInt64, world: DayObjectsSoundWorld, mood: DayObjectsSoundMood)] = []
 
     init(state: DayObjectsLabMusicState = DayObjectsLabMusicState()) {
         self.state = state
@@ -48,7 +48,8 @@ final class DayObjectsLabMusicViewModel: ObservableObject {
         DeterministicMusicDirector.makePlan(
             input: dayMusicInput,
             remixSeed: state.remixSeed,
-            soundWorld: state.soundWorld
+            soundWorld: state.soundWorld,
+            mood: state.mood
         )
     }
 
@@ -102,11 +103,18 @@ final class DayObjectsLabMusicViewModel: ObservableObject {
         updateState { $0.soundWorld = soundWorld }
     }
 
+    func selectSoundMood(_ mood: DayObjectsSoundMood) {
+        guard state.mood != mood else { return }
+        rememberCurrentMusicVariant()
+        updateState { $0.mood = mood }
+    }
+
     func undoMusicRemix() {
         guard let previous = musicVariantHistory.popLast() else { return }
         updateState {
             $0.remixSeed = previous.seed
             $0.soundWorld = previous.world
+            $0.mood = previous.mood
         }
     }
 
@@ -144,7 +152,7 @@ final class DayObjectsLabMusicViewModel: ObservableObject {
     }
 
     private func rememberCurrentMusicVariant() {
-        musicVariantHistory.append((state.remixSeed, state.soundWorld))
+        musicVariantHistory.append((state.remixSeed, state.soundWorld, state.mood))
     }
 
     private static func clamp(_ value: Double, to range: ClosedRange<Double>) -> Double {

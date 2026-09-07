@@ -24,6 +24,15 @@ enum PlaybackWorldBankConfiguration {
         ]
     )
 
+    /// Phone playback uses the tonal keys already present in the harmony
+    /// arrangement. Preloading two copies of all twelve felt-piano samples
+    /// blocked the UI for several seconds before the first sound.
+    static let mobilePlaybackWorld = DayObjectsInstrumentBankConfiguration(
+        tonalPools: playbackWorld.tonalPools,
+        pianoVoiceCount: 0,
+        drumOverlapCounts: playbackWorld.drumOverlapCounts
+    )
+
     enum PoolName: String, CaseIterable, Sendable {
         case drone
         case primaryPad = "primary-pad"
@@ -88,20 +97,29 @@ final class PlaybackWorldBank: BassDuckBackend {
         try prepare(happeningRecipeIDs: nil)
     }
 
-    func prepare(happeningRecipeIDs: Set<HappeningSoundRecipeID>) throws {
-        try prepare(happeningRecipeIDs: Optional(happeningRecipeIDs))
+    func prepare(
+        happeningRecipeIDs: Set<HappeningSoundRecipeID>,
+        configuration: DayObjectsInstrumentBankConfiguration = .playbackWorld
+    ) throws {
+        try prepare(
+            happeningRecipeIDs: Optional(happeningRecipeIDs),
+            configuration: configuration
+        )
     }
 
-    private func prepare(happeningRecipeIDs: Set<HappeningSoundRecipeID>?) throws {
+    private func prepare(
+        happeningRecipeIDs: Set<HappeningSoundRecipeID>?,
+        configuration: DayObjectsInstrumentBankConfiguration = .playbackWorld
+    ) throws {
         guard !isPrepared else { return }
         if let happeningRecipeIDs,
            let focusedBank = instrumentBank as? DayObjectsInstrumentBank {
             try focusedBank.prepare(
-                configuration: .playbackWorld,
+                configuration: configuration,
                 happeningRecipeIDs: happeningRecipeIDs
             )
         } else {
-            try instrumentBank.prepare(configuration: .playbackWorld)
+            try instrumentBank.prepare(configuration: configuration)
         }
         var preparedPools: [PlaybackWorldBankConfiguration.PoolName: DayObjectsTonalVoicePoolProtocol] = [:]
         for name in PlaybackWorldBankConfiguration.PoolName.allCases {
@@ -121,7 +139,9 @@ final class PlaybackWorldBank: BassDuckBackend {
         case .secondaryPadOrKeys, .innerMotion:
             name = .secondaryPadOrKeys
         case .pianoOrKeysAccents:
-            name = .primaryPad
+            // Tonal keys must remain audible while the primary chord crossfades.
+            // Felt-piano targets bypass this routing and retain their piano pool.
+            name = .secondaryPadOrKeys
         }
         guard let pool = pools[name] else {
             throw DayObjectsInstrumentBankError.unknownTonalPool(name.rawValue)

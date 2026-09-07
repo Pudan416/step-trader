@@ -1,51 +1,10 @@
 #if DEBUG || INTERNAL_BUILD
-enum DayObjectsSoundWorld: String, Codable, CaseIterable, Equatable, Hashable, Sendable {
-    case feltAndWood
-    case metalAndCurrent
-
-    var displayName: String {
-        switch self {
-        case .feltAndWood: "Felt & Wood"
-        case .metalAndCurrent: "Metal & Current"
-        }
-    }
-
-    var harmonyInstrumentIDs: Set<String> {
-        switch self {
-        case .feltAndWood:
-            ["pad.forgotten-stories", "keys.bb-slow-poly", "keys.jec-polaroids-2"]
-        case .metalAndCurrent:
-            ["pad.interstellar", "pad.whispering-sands", "keys.maschinenmensch"]
-        }
-    }
-
-    var bassInstrumentIDs: Set<String> {
-        switch self {
-        case .feltAndWood: ["bass.hey-jakob", "bass.jec-hollores-2"]
-        case .metalAndCurrent: ["bass.analog-boom", "bass.bassliner"]
-        }
-    }
-
-    var leadInstrumentIDs: Set<String> {
-        switch self {
-        case .feltAndWood: ["lead.jec-softwah-2"]
-        case .metalAndCurrent: ["lead.verbacious", "lead.bb-silver-screen"]
-        }
-    }
-
-    var happeningRecipeRawIDs: Set<Int> {
-        switch self {
-        case .feltAndWood:
-            [4, 7, 9, 10, 11, 12, 15, 16, 17, 18, 24, 29, 30, 31, 32, 33, 34, 39, 40]
-        case .metalAndCurrent:
-            [1, 2, 3, 5, 6, 8, 13, 14, 19, 20, 21, 22, 23, 25, 26, 27, 28, 35, 36, 37, 38, 41, 42]
-        }
-    }
-}
-
 struct DayMusicPlan: Equatable, Sendable {
     let seed: UInt64
     let soundWorld: DayObjectsSoundWorld
+    let mood: DayObjectsSoundMood
+    let guestWorld: DayObjectsSoundWorld?
+    let guestInstrumentIDs: Set<DayObjectsInstrumentID>
     let input: NormalizedDayMusicInput
     let world: TonalWorldPlan
     let rhythm: RhythmPlan
@@ -60,6 +19,9 @@ struct DayMusicPlan: Equatable, Sendable {
     init(
         seed: UInt64,
         soundWorld: DayObjectsSoundWorld = .feltAndWood,
+        mood: DayObjectsSoundMood = .moving,
+        guestWorld: DayObjectsSoundWorld? = nil,
+        guestInstrumentIDs: Set<DayObjectsInstrumentID> = [],
         input: NormalizedDayMusicInput,
         world: TonalWorldPlan,
         rhythm: RhythmPlan,
@@ -73,6 +35,9 @@ struct DayMusicPlan: Equatable, Sendable {
     ) {
         self.seed = seed
         self.soundWorld = soundWorld
+        self.mood = mood
+        self.guestWorld = guestWorld
+        self.guestInstrumentIDs = guestInstrumentIDs
         self.input = input
         self.world = world
         self.rhythm = rhythm
@@ -83,6 +48,20 @@ struct DayMusicPlan: Equatable, Sendable {
         self.lead = lead
         self.glitch = glitch
         self.mix = mix
+    }
+
+    /// Lead is gesture-ready; health-gated bass counts only when it has audible events.
+    var activeLayerRoleCount: Int {
+        (rhythm.rhythmicRichness > 0 ? 1 : 0)
+            + (bass?.activeEvents.isEmpty == false ? 1 : 0)
+            + harmony.activeRoleCount + (happenings.isEmpty ? 0 : 1) + 1
+    }
+
+    var bassIsGuest: Bool { bass.map { guestInstrumentIDs.contains($0.instrumentID) } ?? false }
+    var primaryHarmonyIsGuest: Bool {
+        guard let role = harmony.role(for: .primaryPad),
+              case let .tonal(id) = role.instrumentTarget else { return false }
+        return guestInstrumentIDs.contains(id)
     }
 }
 #endif

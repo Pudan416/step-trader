@@ -3,6 +3,17 @@ import XCTest
 @testable import Steps4
 
 final class DeterministicMusicDirectorTests: XCTestCase {
+    func testDirectorUsesTheRequestedWorldAndMoodTonalGrammar() {
+        let input = representativeInput()
+        for world in DayObjectsSoundWorld.allCases {
+            for mood in DayObjectsSoundMood.allCases {
+                let plan = DeterministicMusicDirector.makePlan(input: input, remixSeed: 77, soundWorld: world, mood: mood)
+                XCTAssertEqual(plan.mood, mood)
+                XCTAssertEqual(plan.world, TonalWorldPlanner.makePlan(input: input.normalized(), remixSeed: 77, world: world, mood: mood))
+            }
+        }
+    }
+
     func testSameDayAndSeedAreDeterministicInsideEachSoundWorld() {
         for soundWorld in DayObjectsSoundWorld.allCases {
             let first = makeWorldPlan(soundWorld: soundWorld)
@@ -29,7 +40,7 @@ final class DeterministicMusicDirectorTests: XCTestCase {
         let metal = makeWorldPlan(soundWorld: .metalAndCurrent)
 
         XCTAssertEqual(felt.input, metal.input)
-        XCTAssertEqual(felt.world, metal.world)
+        XCTAssertNotEqual(felt.world.musicalFingerprint, metal.world.musicalFingerprint)
         XCTAssertGreaterThan(average(felt.harmony.roles.map(\.attackSeconds)), average(metal.harmony.roles.map(\.attackSeconds)))
         XCTAssertGreaterThan(average(felt.harmony.roles.map(\.releaseSeconds)), average(metal.harmony.roles.map(\.releaseSeconds)))
         XCTAssertLessThan(average(felt.harmony.roles.map(\.delaySend)), average(metal.harmony.roles.map(\.delaySend)))
@@ -49,7 +60,7 @@ final class DeterministicMusicDirectorTests: XCTestCase {
         let metal = makeWorldPlan(soundWorld: .metalAndCurrent)
 
         XCTAssertEqual(felt.input, metal.input)
-        XCTAssertEqual(felt.world, metal.world)
+        XCTAssertNotEqual(felt.world.musicalFingerprint, metal.world.musicalFingerprint)
         XCTAssertEqual(felt.glitch, metal.glitch)
     }
 

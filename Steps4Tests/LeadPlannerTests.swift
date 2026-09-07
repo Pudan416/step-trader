@@ -2,6 +2,52 @@ import XCTest
 @testable import Steps4
 
 final class LeadPlannerTests: XCTestCase {
+    func testNativeWorldLeadsChooseFourDistinctCuratedMoodSources() {
+        for mood in DayObjectsSoundMood.allCases {
+            let plans = DayObjectsSoundWorld.allCases.map { WorldArrangementFixture.plan($0, mood) }
+            XCTAssertEqual(Set(plans.map { $0.lead.instrumentID }).count, 4)
+            for plan in plans {
+                XCTAssertTrue(WorldArrangementFixture.runtimeIDs(
+                    WorldArrangementFixture.group(plan.soundWorld, mood).leadRecipeIDs, mood: mood
+                ).contains(plan.lead.instrumentID))
+                XCTAssertEqual(plan.lead.maximumSimultaneousVoices, 1)
+            }
+        }
+    }
+
+    func testGuestAdmissionUsesOnlyLeadAndPreservesEightyPercentNativePalette() throws {
+        for seed in UInt64(0)..<1024 {
+            let world = DayObjectsSoundWorld.allCases[Int(seed % 4)]
+            let mood = DayObjectsSoundMood.allCases[Int(seed % 3)]
+            let plan = WorldArrangementFixture.plan(world, mood, seed: seed, allowGuest: true)
+            let selection = DayObjectsWorldSelector.makeSelection(remixSeed: seed, forcedWorld: world, forcedMood: mood)
+            XCTAssertEqual(plan.guestWorld, selection.guestWorld)
+            XCTAssertFalse(plan.bassIsGuest)
+            XCTAssertFalse(plan.primaryHarmonyIsGuest)
+            XCTAssertLessThanOrEqual(plan.guestInstrumentIDs.count, 1)
+            if selection.guestWorld != nil && plan.activeLayerRoleCount >= 5 {
+                XCTAssertEqual(plan.guestInstrumentIDs, [plan.lead.instrumentID])
+            } else {
+                XCTAssertTrue(plan.guestInstrumentIDs.isEmpty)
+            }
+            XCTAssertGreaterThanOrEqual(1 - Double(plan.guestInstrumentIDs.count) / Double(plan.activeLayerRoleCount), 0.8)
+        }
+    }
+
+    func testMissingGuestFallsBackToNativeLeadAndLowHealthDoesNotAdmitGuest() throws {
+        let seed = try XCTUnwrap((UInt64(0)..<512).first {
+            DayObjectsWorldSelector.makeSelection(remixSeed: $0, forcedWorld: .electricDream, forcedMood: .moving).guestWorld != nil
+        })
+        let guest = WorldArrangementFixture.plan(.electricDream, .moving, seed: seed, allowGuest: true)
+        let fallback = WorldArrangementFixture.plan(.electricDream, .moving, seed: seed, allowGuest: true,
+            descriptors: WorldArrangementFixture.catalog.descriptors.filter { !guest.guestInstrumentIDs.contains($0.id) })
+        XCTAssertEqual(guest.guestWorld, fallback.guestWorld)
+        XCTAssertTrue(fallback.guestInstrumentIDs.isEmpty)
+        XCTAssertTrue(WorldArrangementFixture.runtimeIDs(WorldArrangementFixture.group(.electricDream, .moving).leadRecipeIDs, mood: .moving).contains(fallback.lead.instrumentID))
+        let low = WorldArrangementFixture.plan(.electricDream, .moving, seed: seed, steps: 0, sleep: 0, allowGuest: true)
+        XCTAssertNotNil(low.guestWorld)
+        XCTAssertTrue(low.guestInstrumentIDs.isEmpty)
+    }
     func testPlanPublishesOneApprovedLeadAndTwentyOneTonalChordAwareRegions() throws {
         let world = try XCTUnwrap(
             TonalWorldPlanner.makePlan(

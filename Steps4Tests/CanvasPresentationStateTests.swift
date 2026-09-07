@@ -6,6 +6,11 @@ import XCTest
 /// screen, edit mode without full screen, chrome over a full-screen canvas —
 /// must be unrepresentable, not merely unreachable.
 final class CanvasPresentationStateTests: XCTestCase {
+    func testRemixAndUndoControlsAreAvailableOnlyInFullScreenViewing() {
+        for state in CanvasPresentationState.allCases {
+            XCTAssertEqual(CanvasFullScreenRemixPresentation.isVisible(in: state), state == .fullScreen)
+        }
+    }
 
     func testCollapsedCanvasControlsFollowTheDeviceSafeArea() {
         XCTAssertEqual(
@@ -33,7 +38,7 @@ final class CanvasPresentationStateTests: XCTestCase {
                 isWideCanvas: true,
                 isEditing: false
             ),
-            84
+            50
         )
     }
 

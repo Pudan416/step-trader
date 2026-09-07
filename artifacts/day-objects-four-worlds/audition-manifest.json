@@ -1,0 +1,674 @@
+{
+  "entries" : [
+    {
+      "guestInstrumentIDs" : [
+
+      ],
+      "happeningRecipeIDs" : [
+        "11",
+        "11",
+        "15",
+        "15",
+        "15",
+        "17",
+        "18",
+        "33",
+        "39",
+        "9"
+      ],
+      "harmonySources" : [
+        "living.harmony.water-drone.strange",
+        "living.harmony.bell-mist.strange"
+      ],
+      "instrumentRecipeIDs" : [
+        "living.bass.tide-bed.strange",
+        "living.harmony.bell-mist.strange",
+        "living.harmony.water-drone.strange",
+        "living.lead.bird-reed.strange"
+      ],
+      "kitID" : "living.stone-breath",
+      "masterMakeupDB" : 4.41,
+      "mixPath" : "preview-01.wav",
+      "mood" : "strange",
+      "musicalFingerprint" : "majorPentatonic|0:48,55,81:6;9:52,66,81:5;2:50,69,83:5",
+      "progressionDegrees" : [
+        0,
+        9,
+        2
+      ],
+      "publicNumber" : 1,
+      "reverbSendScale" : 0.475,
+      "seed" : 99,
+      "sha256" : "b2044648900d65e6d41f54e4f6c31e7e69e2ab608f9d30f26546903632d1c21c",
+      "stemPaths" : {
+        "bass" : "private/01/bass.wav",
+        "happenings" : "private/01/happenings.wav",
+        "harmony" : "private/01/harmony.wav",
+        "lead" : "private/01/lead.wav",
+        "rhythm" : "private/01/rhythm.wav"
+      },
+      "stemSHA256" : {
+        "bass" : "ffaa5519662386ecdfdad50ab1213bb6632908c716ed97465405e0bfb61d5b95",
+        "happenings" : "e7d223afe62700634d4612ef273ab4a5caf37d728ce8fcc6efff192bdab31392",
+        "harmony" : "e07c3873bc6ebc5fff1db07dd61accec9e0eebb91b68b0fd22b0864867e9e755",
+        "lead" : "1c31cbc0092c59d13901a4cfe8caa59541ab80e1a092471bf97d3bee2e6b95a1",
+        "rhythm" : "62a45de2cdc688dd28b993a3df5031206d3f91513aa7586b6e4f84fd53165fe7"
+      },
+      "world" : "livingField"
+    },
+    {
+      "guestInstrumentIDs" : [
+
+      ],
+      "happeningRecipeIDs" : [
+        "11",
+        "12",
+        "12",
+        "15",
+        "18",
+        "24",
+        "24",
+        "30",
+        "32",
+        "7"
+      ],
+      "harmonySources" : [
+        "acoustic.harmony.muted-strings.strange",
+        "acoustic.harmony.air-reed.strange",
+        "acoustic.harmony.felt-haze.strange"
+      ],
+      "instrumentRecipeIDs" : [
+        "acoustic.bass.soft-reed.strange",
+        "acoustic.harmony.air-reed.strange",
+        "acoustic.harmony.felt-haze.strange",
+        "acoustic.harmony.muted-strings.strange",
+        "acoustic.lead.bowed-thread.strange"
+      ],
+      "kitID" : "acoustic.prepared-table",
+      "masterMakeupDB" : 4.01,
+      "mixPath" : "preview-02.wav",
+      "mood" : "strange",
+      "musicalFingerprint" : "dorian|0:48,50,53:6;10:48,51,58:5;5:53,55,58:5",
+      "progressionDegrees" : [
+        0,
+        10,
+        5
+      ],
+      "publicNumber" : 2,
+      "reverbSendScale" : 0.389,
+      "seed" : 99,
+      "sha256" : "94424040c7f26adfd85c6e8a7c32b972728b1846dca1ef389d15c3fdf3ec2a55",
+      "stemPaths" : {
+        "bass" : "private/02/bass.wav",
+        "happenings" : "private/02/happenings.wav",
+        "harmony" : "private/02/harmony.wav",
+        "lead" : "private/02/lead.wav",
+        "rhythm" : "private/02/rhythm.wav"
+      },
+      "stemSHA256" : {
+        "bass" : "63b949040cf1c731341c31077796d26ee8aea9f3375deff8f61a3abd19499723",
+        "happenings" : "4abe50a7129ccdee5c260b34062229da216f88722efb27604610997fd16f8696",
+        "harmony" : "2e6997c05798d1bdc6530fc3b260b299d39f1c8efbf70bd97ceab33ea0888fbc",
+        "lead" : "477b1161a3358a87660301d66da11cdfe3264ac506877c0ae08ba513aa2a1da4",
+        "rhythm" : "ba6f972ae09f8c0bca174f619a24b20df35ce11e4ab2e5b762e997e92c468781"
+      },
+      "world" : "feltAndWood"
+    },
+    {
+      "guestInstrumentIDs" : [
+
+      ],
+      "happeningRecipeIDs" : [
+        "11",
+        "11",
+        "15",
+        "15",
+        "15",
+        "17",
+        "18",
+        "33",
+        "39",
+        "9"
+      ],
+      "harmonySources" : [
+        "living.harmony.water-drone.sparse"
+      ],
+      "instrumentRecipeIDs" : [
+        "living.harmony.water-drone.sparse",
+        "living.lead.bird-reed.sparse"
+      ],
+      "kitID" : "living.seed-shaker",
+      "masterMakeupDB" : 9.52,
+      "mixPath" : "preview-03.wav",
+      "mood" : "sparse",
+      "musicalFingerprint" : "majorPentatonic|0:48,79:6;2:50,81:5;7:50,79:5",
+      "progressionDegrees" : [
+        0,
+        2,
+        7
+      ],
+      "publicNumber" : 3,
+      "reverbSendScale" : 1,
+      "seed" : 99,
+      "sha256" : "0d6e0e08b4ef377ddcca518b3986bb37106af9548be78b209e43969d0833709b",
+      "stemPaths" : {
+        "bass" : "private/03/bass.wav",
+        "happenings" : "private/03/happenings.wav",
+        "harmony" : "private/03/harmony.wav",
+        "lead" : "private/03/lead.wav",
+        "rhythm" : "private/03/rhythm.wav"
+      },
+      "stemSHA256" : {
+        "bass" : "55587efb0e197b02285979f342642d59d96fd1ccac7f72f97b19c5257c3c2c73",
+        "happenings" : "b1ade9537412cdcfe7c10044a841b749047195de751d8c5498df1d6a28d2e8e4",
+        "harmony" : "2c6bdd58272be8b645f32e97b42a2c3621ca6929fdf502a31d2b4725a2d152f6",
+        "lead" : "ae60cc7c0036019ee3e60469317bebd9d532d1a63b690a936a8c57443014a4b6",
+        "rhythm" : "9c9831d99596828686b0843d9bba1f264788409f48e4bdcf6ae70df30990f3d4"
+      },
+      "world" : "livingField"
+    },
+    {
+      "guestInstrumentIDs" : [
+
+      ],
+      "happeningRecipeIDs" : [
+        "11",
+        "12",
+        "12",
+        "15",
+        "18",
+        "24",
+        "24",
+        "30",
+        "32",
+        "7"
+      ],
+      "harmonySources" : [
+        "acoustic.harmony.muted-strings.moving",
+        "acoustic.harmony.air-reed.moving"
+      ],
+      "instrumentRecipeIDs" : [
+        "acoustic.bass.soft-reed.moving",
+        "acoustic.harmony.air-reed.moving",
+        "acoustic.harmony.muted-strings.moving",
+        "acoustic.lead.bowed-thread.moving"
+      ],
+      "kitID" : "acoustic.brushed-room",
+      "masterMakeupDB" : 4.92,
+      "mixPath" : "preview-04.wav",
+      "mood" : "moving",
+      "musicalFingerprint" : "dorian|0:48,50,55:6;5:48,53,55:5;10:48,53,58:5",
+      "progressionDegrees" : [
+        0,
+        5,
+        10
+      ],
+      "publicNumber" : 4,
+      "reverbSendScale" : 0.548,
+      "seed" : 99,
+      "sha256" : "dffc0cfb44de0f90cec248a6b65fb04c2f876e59f8acdbedcecc1e8425627f3b",
+      "stemPaths" : {
+        "bass" : "private/04/bass.wav",
+        "happenings" : "private/04/happenings.wav",
+        "harmony" : "private/04/harmony.wav",
+        "lead" : "private/04/lead.wav",
+        "rhythm" : "private/04/rhythm.wav"
+      },
+      "stemSHA256" : {
+        "bass" : "06b862f2894ee6d690b1110b1867ebaf5d18e4d39f6bf59bca1f99da0ff14ce5",
+        "happenings" : "c28e59b1d96599efd0014026f441a8ce4518cca2e1269d9ea2d15449d3fc8f1d",
+        "harmony" : "3439606bdf332302270f2c4dd4876388429c820161f6316e0b735b61c6607043",
+        "lead" : "ff316cf437a3eebaad49d3128d2157d2a9360568c7457bc21545f510ff5869ec",
+        "rhythm" : "d73a990e1e33722c8d34ed727b1325b666a2b2fad823a345748577751c15c1fa"
+      },
+      "world" : "feltAndWood"
+    },
+    {
+      "guestInstrumentIDs" : [
+
+      ],
+      "happeningRecipeIDs" : [
+        "19",
+        "20",
+        "27",
+        "3",
+        "37",
+        "41",
+        "41",
+        "42",
+        "5",
+        "6"
+      ],
+      "harmonySources" : [
+        "industrial.harmony.current-drone.strange",
+        "industrial.harmony.bowed-steel.strange",
+        "industrial.harmony.machine-choir.strange"
+      ],
+      "instrumentRecipeIDs" : [
+        "industrial.bass.sine-foundry.strange",
+        "industrial.harmony.bowed-steel.strange",
+        "industrial.harmony.current-drone.strange",
+        "industrial.harmony.machine-choir.strange",
+        "industrial.lead.current-needle.strange"
+      ],
+      "kitID" : "industrial.wire-ritual",
+      "masterMakeupDB" : 2.98,
+      "mixPath" : "preview-05.wav",
+      "mood" : "strange",
+      "musicalFingerprint" : "aeolian|0:36,55,56:4;7:43,50,51:4;0:36,55,56:4",
+      "progressionDegrees" : [
+        0,
+        7,
+        0
+      ],
+      "publicNumber" : 5,
+      "reverbSendScale" : 0.298,
+      "seed" : 99,
+      "sha256" : "0fa76ce147e7fafcd308659b3aad4299bb24488af1708f834daf264b0042d0ca",
+      "stemPaths" : {
+        "bass" : "private/05/bass.wav",
+        "happenings" : "private/05/happenings.wav",
+        "harmony" : "private/05/harmony.wav",
+        "lead" : "private/05/lead.wav",
+        "rhythm" : "private/05/rhythm.wav"
+      },
+      "stemSHA256" : {
+        "bass" : "4379bbe6fbd2e6b9f9fafce0a4c232ad43ec286eaa6e2070cd2d53e728e4fe17",
+        "happenings" : "0274d45db4cae4486dfc2a4d6efbeea28550477ca06ce215015f527d1a71e34e",
+        "harmony" : "82e0aecea8f093943f22b5cbe23924ef28c05f34c7821c45246dd5322956320f",
+        "lead" : "57130d50242210f06b10a3a6fef89a00ec79132c8393ca8b2b4b57e170799dd5",
+        "rhythm" : "bf6adc94a2832aaefb5212a2f5c3fce5efbe1ebcd502dc97e35d521dbbb2a765"
+      },
+      "world" : "metalAndCurrent"
+    },
+    {
+      "guestInstrumentIDs" : [
+
+      ],
+      "happeningRecipeIDs" : [
+        "19",
+        "20",
+        "27",
+        "3",
+        "37",
+        "41",
+        "41",
+        "42",
+        "5",
+        "6"
+      ],
+      "harmonySources" : [
+        "industrial.harmony.current-drone.moving",
+        "industrial.harmony.bowed-steel.moving"
+      ],
+      "instrumentRecipeIDs" : [
+        "industrial.bass.sine-foundry.moving",
+        "industrial.harmony.bowed-steel.moving",
+        "industrial.harmony.current-drone.moving",
+        "industrial.lead.current-needle.moving"
+      ],
+      "kitID" : "industrial.foundry-pulse",
+      "masterMakeupDB" : 0.8,
+      "mixPath" : "preview-06.wav",
+      "mood" : "moving",
+      "musicalFingerprint" : "aeolian|0:36,43:4;0:36,43:4;7:43,50:4",
+      "progressionDegrees" : [
+        0,
+        0,
+        7
+      ],
+      "publicNumber" : 6,
+      "reverbSendScale" : 0.893,
+      "seed" : 99,
+      "sha256" : "d90878f9eb1d6dc1f642de1568eafcf361d1cab5c6deef71439c1df0701227a9",
+      "stemPaths" : {
+        "bass" : "private/06/bass.wav",
+        "happenings" : "private/06/happenings.wav",
+        "harmony" : "private/06/harmony.wav",
+        "lead" : "private/06/lead.wav",
+        "rhythm" : "private/06/rhythm.wav"
+      },
+      "stemSHA256" : {
+        "bass" : "b74f898d5754e18b0bdbfb815b4f94bfac2372f3e4dbfc9afabad046441a8601",
+        "happenings" : "8a8b6f1d6f94c0de6379611dca3c322d51ae214ae49c792e261964a0c784982c",
+        "harmony" : "fa92f2634d7cff3d7474ac38b98aacf0aefaa125b469e4036cc36f0c03dcde67",
+        "lead" : "bc01c9b9a339184340c2092e5e9ca601c9735d1099960fb834afaaa3317de66d",
+        "rhythm" : "f6c68c62eae791fe2951f1ce367f0ef47247400dff0561688b14794e33b7fbf7"
+      },
+      "world" : "metalAndCurrent"
+    },
+    {
+      "guestInstrumentIDs" : [
+
+      ],
+      "happeningRecipeIDs" : [
+        "1",
+        "13",
+        "19",
+        "20",
+        "26",
+        "26",
+        "28",
+        "28",
+        "35",
+        "37"
+      ],
+      "harmonySources" : [
+        "electric.harmony.fm-haze.moving",
+        "electric.harmony.analog-cloud.moving"
+      ],
+      "instrumentRecipeIDs" : [
+        "electric.bass.velvet-sequence.moving",
+        "electric.harmony.analog-cloud.moving",
+        "electric.harmony.fm-haze.moving",
+        "electric.lead.neon-wah.moving"
+      ],
+      "kitID" : "electric.neon-drum",
+      "masterMakeupDB" : 5.6,
+      "mixPath" : "preview-07.wav",
+      "mood" : "moving",
+      "musicalFingerprint" : "mixolydian|0:60,67,70,74:3;7:62,67,69,77:3;2:62,69,72,76:2",
+      "progressionDegrees" : [
+        0,
+        7,
+        2
+      ],
+      "publicNumber" : 7,
+      "reverbSendScale" : 0.389,
+      "seed" : 99,
+      "sha256" : "6ed70f27533796cf5c0e96d5f4c42e159d075db692f9b3ecf1f5dd2d64bfe350",
+      "stemPaths" : {
+        "bass" : "private/07/bass.wav",
+        "happenings" : "private/07/happenings.wav",
+        "harmony" : "private/07/harmony.wav",
+        "lead" : "private/07/lead.wav",
+        "rhythm" : "private/07/rhythm.wav"
+      },
+      "stemSHA256" : {
+        "bass" : "5cabdcb2b7e91e4f3d5c9b715d7654b9017be94ea88077b6d9509da2ca7b39a4",
+        "happenings" : "b4cfdf33c92a1baa21d69970110428c8ec5c5aa58a73534432536236a3883aa6",
+        "harmony" : "e1d56055a1c2ccba4f74bdfb77c9550886ea865be96db614c1d82b5ca0425911",
+        "lead" : "7aac6073b2a1d35a2cb37056f55bbd1f929bc1704cb99f22d7def8b040e931b0",
+        "rhythm" : "d79dad53d52abbcf683be9f9b465b928183d17c39133e72a5d9d8c7b01c497a2"
+      },
+      "world" : "electricDream"
+    },
+    {
+      "guestInstrumentIDs" : [
+
+      ],
+      "happeningRecipeIDs" : [
+        "19",
+        "20",
+        "27",
+        "3",
+        "37",
+        "41",
+        "41",
+        "42",
+        "5",
+        "6"
+      ],
+      "harmonySources" : [
+        "industrial.harmony.current-drone.sparse"
+      ],
+      "instrumentRecipeIDs" : [
+        "industrial.harmony.current-drone.sparse",
+        "industrial.lead.current-needle.sparse"
+      ],
+      "kitID" : "industrial.plate-and-piston",
+      "masterMakeupDB" : 3.88,
+      "mixPath" : "preview-08.wav",
+      "mood" : "sparse",
+      "musicalFingerprint" : "aeolian|0:36,43:4;2:38,45:4;0:36,43:4",
+      "progressionDegrees" : [
+        0,
+        2,
+        0
+      ],
+      "publicNumber" : 8,
+      "reverbSendScale" : 0.232,
+      "seed" : 99,
+      "sha256" : "668d9771ef5cae9cd6d1070b3a6635edd9b23845865654bc9b07e000cac02aac",
+      "stemPaths" : {
+        "bass" : "private/08/bass.wav",
+        "happenings" : "private/08/happenings.wav",
+        "harmony" : "private/08/harmony.wav",
+        "lead" : "private/08/lead.wav",
+        "rhythm" : "private/08/rhythm.wav"
+      },
+      "stemSHA256" : {
+        "bass" : "55587efb0e197b02285979f342642d59d96fd1ccac7f72f97b19c5257c3c2c73",
+        "happenings" : "fe76a8f72e4bae03cad4e33b79c140be8a83e12e9cade4bdc7f90b7b32295ad8",
+        "harmony" : "de2817131be51ccab57870cce9069d56130d0433f4f1f339579614cba27a6ea7",
+        "lead" : "f41f704c4fb9c81faa6eceb12e7f09bb0058a12aa9b77c6e1af7735e33ee5060",
+        "rhythm" : "12aae7c8774b65433c19617454c8ba005b3b8715d1121e02e13ecfc2f78eeae2"
+      },
+      "world" : "metalAndCurrent"
+    },
+    {
+      "guestInstrumentIDs" : [
+
+      ],
+      "happeningRecipeIDs" : [
+        "1",
+        "13",
+        "19",
+        "20",
+        "26",
+        "26",
+        "28",
+        "28",
+        "35",
+        "37"
+      ],
+      "harmonySources" : [
+        "electric.harmony.fm-haze.sparse"
+      ],
+      "instrumentRecipeIDs" : [
+        "electric.harmony.fm-haze.sparse",
+        "electric.lead.neon-wah.sparse"
+      ],
+      "kitID" : "electric.soft-machine",
+      "masterMakeupDB" : 3.42,
+      "mixPath" : "preview-09.wav",
+      "mood" : "sparse",
+      "musicalFingerprint" : "mixolydian|0:60,70,79:4;2:60,69,74:4;9:57,67,76:4",
+      "progressionDegrees" : [
+        0,
+        2,
+        9
+      ],
+      "publicNumber" : 9,
+      "reverbSendScale" : 1,
+      "seed" : 99,
+      "sha256" : "5dc70fbd436cf0234e61191fe8e7a99657ce344e7056b04080565219cb695ab5",
+      "stemPaths" : {
+        "bass" : "private/09/bass.wav",
+        "happenings" : "private/09/happenings.wav",
+        "harmony" : "private/09/harmony.wav",
+        "lead" : "private/09/lead.wav",
+        "rhythm" : "private/09/rhythm.wav"
+      },
+      "stemSHA256" : {
+        "bass" : "55587efb0e197b02285979f342642d59d96fd1ccac7f72f97b19c5257c3c2c73",
+        "happenings" : "d2f5764c430745739a348e827550e93064290a62e343e36a65ac9baddc8f830c",
+        "harmony" : "2bedc9a6fe4e76732324af711c148a251ab81f3f8c1d59bbcf45eda3d6414d60",
+        "lead" : "df7424b6cff60dbb7e07134cd0055c129c7cf5595eb644e948a803d54402eef2",
+        "rhythm" : "5d54514decab5e83987735c79bfb179df52b09c9741cc517e977dfd04940116d"
+      },
+      "world" : "electricDream"
+    },
+    {
+      "guestInstrumentIDs" : [
+
+      ],
+      "happeningRecipeIDs" : [
+        "1",
+        "13",
+        "19",
+        "20",
+        "26",
+        "26",
+        "28",
+        "28",
+        "35",
+        "37"
+      ],
+      "harmonySources" : [
+        "electric.harmony.fm-haze.strange",
+        "electric.harmony.analog-cloud.strange",
+        "electric.harmony.fm-haze.strange"
+      ],
+      "instrumentRecipeIDs" : [
+        "electric.bass.velvet-sequence.strange",
+        "electric.harmony.analog-cloud.strange",
+        "electric.harmony.fm-haze.strange",
+        "electric.lead.neon-wah.strange"
+      ],
+      "kitID" : "electric.circuit-dust",
+      "masterMakeupDB" : 4.71,
+      "mixPath" : "preview-10.wav",
+      "mood" : "strange",
+      "musicalFingerprint" : "mixolydian|0:60,67,70,74:3;9:59,67,69,76:3;7:55,65,69,74:2",
+      "progressionDegrees" : [
+        0,
+        9,
+        7
+      ],
+      "publicNumber" : 10,
+      "reverbSendScale" : 0.369,
+      "seed" : 99,
+      "sha256" : "4adf503202c47885e4da7581526010d17da18857e52751e54f36d521f0f8f189",
+      "stemPaths" : {
+        "bass" : "private/10/bass.wav",
+        "happenings" : "private/10/happenings.wav",
+        "harmony" : "private/10/harmony.wav",
+        "lead" : "private/10/lead.wav",
+        "rhythm" : "private/10/rhythm.wav"
+      },
+      "stemSHA256" : {
+        "bass" : "883a3b88e8f66fccb67ab3e43ef8e1e31b25c3993824f1e6c674719472a36fd3",
+        "happenings" : "bb390bc364a8782f76541e11327751a960d87eb643cb5c353fca9df44ded62a6",
+        "harmony" : "0b8018413a151be9cd98b4b1be48d765d6298fb0505d325adc1946ef0cb41f53",
+        "lead" : "dc5736731923d02b43c93401e6307910ab3e4fdcc9638d4c1de4913bad642bd5",
+        "rhythm" : "408a39c5d2f2e16bcd9c409a70f7918ddb18cfbb04c5cf7173e4cde570673a77"
+      },
+      "world" : "electricDream"
+    },
+    {
+      "guestInstrumentIDs" : [
+
+      ],
+      "happeningRecipeIDs" : [
+        "11",
+        "12",
+        "12",
+        "15",
+        "18",
+        "24",
+        "24",
+        "30",
+        "32",
+        "7"
+      ],
+      "harmonySources" : [
+        "acoustic.harmony.muted-strings.sparse"
+      ],
+      "instrumentRecipeIDs" : [
+        "acoustic.harmony.muted-strings.sparse",
+        "acoustic.lead.bowed-thread.sparse"
+      ],
+      "kitID" : "acoustic.skin-and-wood",
+      "masterMakeupDB" : 3.28,
+      "mixPath" : "preview-11.wav",
+      "mood" : "sparse",
+      "musicalFingerprint" : "dorian|0:48,53,55:6;2:50,55,57:5;10:51,53,58:5",
+      "progressionDegrees" : [
+        0,
+        2,
+        10
+      ],
+      "publicNumber" : 11,
+      "reverbSendScale" : 1,
+      "seed" : 99,
+      "sha256" : "a71cb74e232847a41093c33b8eb1595ed8e8e8c0439b25c556ef00e8921278a5",
+      "stemPaths" : {
+        "bass" : "private/11/bass.wav",
+        "happenings" : "private/11/happenings.wav",
+        "harmony" : "private/11/harmony.wav",
+        "lead" : "private/11/lead.wav",
+        "rhythm" : "private/11/rhythm.wav"
+      },
+      "stemSHA256" : {
+        "bass" : "55587efb0e197b02285979f342642d59d96fd1ccac7f72f97b19c5257c3c2c73",
+        "happenings" : "09df4b4fb1286b4e07e3d8145f578c12d1abb91b798ae5700c6d09ecd07b2f52",
+        "harmony" : "1964c855aeb8f63ecf0b31b42c366b126a43527012b0905c9231a2ab12076dd4",
+        "lead" : "51eed9e5d3ae5b803a0bc1a1660793cf1d9673e21658f01712b02d8304ed654b",
+        "rhythm" : "751a4a59325af03a545d55f300debbacc4eff44657d01c4a2d2e209c07bacd89"
+      },
+      "world" : "feltAndWood"
+    },
+    {
+      "guestInstrumentIDs" : [
+
+      ],
+      "happeningRecipeIDs" : [
+        "11",
+        "11",
+        "15",
+        "15",
+        "15",
+        "17",
+        "18",
+        "33",
+        "39",
+        "9"
+      ],
+      "harmonySources" : [
+        "living.harmony.water-drone.moving",
+        "living.harmony.bell-mist.moving"
+      ],
+      "instrumentRecipeIDs" : [
+        "living.harmony.bell-mist.moving",
+        "living.harmony.water-drone.moving",
+        "living.lead.bird-reed.moving"
+      ],
+      "kitID" : "living.rain-pulse",
+      "masterMakeupDB" : 8.41,
+      "mixPath" : "preview-12.wav",
+      "mood" : "moving",
+      "musicalFingerprint" : "majorPentatonic|0:48,55,81:4;7:50,64,79:4;9:52,66,81:4",
+      "progressionDegrees" : [
+        0,
+        7,
+        9
+      ],
+      "publicNumber" : 12,
+      "reverbSendScale" : 0.757,
+      "seed" : 99,
+      "sha256" : "576a170c8c7aeb39a25600320217a20d8128df7b1b5f6f015588509f3c8c3cc4",
+      "stemPaths" : {
+        "bass" : "private/12/bass.wav",
+        "happenings" : "private/12/happenings.wav",
+        "harmony" : "private/12/harmony.wav",
+        "lead" : "private/12/lead.wav",
+        "rhythm" : "private/12/rhythm.wav"
+      },
+      "stemSHA256" : {
+        "bass" : "55587efb0e197b02285979f342642d59d96fd1ccac7f72f97b19c5257c3c2c73",
+        "happenings" : "8e59366659d82b33d78150946ed056a48f22164da4d268a8f1792395e0c31cc5",
+        "harmony" : "dc833aa6cdd853428ddf3c702352852cd3765ed9c818a715006cb90717438a01",
+        "lead" : "df3ab0cf5b6d0262f6f9bd595ca4d4598b6d4412d8deb3f39546f815842b62a7",
+        "rhythm" : "747d445a9b3bf7455a6447797839862fbf2b34f661cf2bd111cb348efa91be5b"
+      },
+      "world" : "livingField"
+    }
+  ],
+  "schedule" : {
+    "durationSeconds" : 24,
+    "eventEndSeconds" : 22,
+    "sampleRate" : 48000
+  },
+  "schemaVersion" : 1
+}

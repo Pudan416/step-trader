@@ -42,9 +42,11 @@ struct TodayCanvasAppearance: Equatable {
         canvas.hasStepsData = hasSteps
         canvas.hasSleepData = hasSleep
         canvas.visualStyleRaw = style
-        canvas.gradientStyle = gradient
-        canvas.gradientPalette = palette
-        canvas.textureRaw = texture
+        if canvas.remixSeed == nil {
+            canvas.gradientStyle = gradient
+            canvas.gradientPalette = palette
+            canvas.textureRaw = texture
+        }
         // Freeze after the newest shape has completed its spawn animation. A
         // reference-date frame would precede creation and make Legacy shapes invisible.
         let latestCreation = canvas.elements.map(\.createdAt).max() ?? canvas.createdAt
@@ -86,10 +88,11 @@ struct TodayCanvasUnlockPalette: Equatable {
         return Self(colors: [0.1, 0.35, 0.65, 0.9].map { colors[Int(Double(colors.count - 1) * $0)] })
     }
 
-    static func make(appearance: TodayCanvasAppearance) -> Self {
+    static func make(appearance: TodayCanvasAppearance, canvas: DayCanvas? = nil) -> Self {
+        let currentCanvas = canvas ?? appearance.canvas(from: nil)
         let colors: [DayObjectRGB]
-        if CanvasVisualStyle(rawValue: appearance.style) == .editorial {
-            let identity = "primary-canvas"
+        if currentCanvas.resolvedVisualStyle == .editorial {
+            let identity = currentCanvas.remixSeed.map { "primary-canvas:remix:\($0)" } ?? "primary-canvas"
             let seed = CanvasElement.makeSeed(
                 optionId: "dayObjects:\(identity)", dayKey: appearance.dayKey, index: 0
             )
@@ -99,7 +102,9 @@ struct TodayCanvasUnlockPalette: Equatable {
                 dayKey: appearance.dayKey, identity: identity
             ).hexes.map { DayObjectRGB(hex: $0) }
         } else {
-            let palette = EnergyGradientRenderer.palette(for: GradientPalette.normalized(rawValue: appearance.palette))
+            let palette = EnergyGradientRenderer.palette(for: GradientPalette.normalized(
+                rawValue: currentCanvas.gradientPalette ?? appearance.palette
+            ))
             colors = [palette.bright, palette.warm, palette.cool, palette.dark].map { color in
                 var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
                 UIColor(color).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
@@ -177,7 +182,8 @@ final class TodayCanvasBackdropStore: ObservableObject {
             encoder.outputFormatting = .sortedKeys
             sourceData = source.flatMap { try? encoder.encode($0) }
         }
-        let nextPalette = TodayCanvasUnlockPalette.make(appearance: appearance)
+        let saved = sourceData.flatMap { try? JSONDecoder().decode(DayCanvas.self, from: $0) }
+        let nextPalette = TodayCanvasUnlockPalette.make(appearance: appearance, canvas: appearance.canvas(from: saved))
         if feedPalette != nextPalette { feedPalette = nextPalette }
         if image == nil, unlockPalette != nextPalette { unlockPalette = nextPalette }
         requested = Request(appearance: appearance, sourceData: sourceData)
@@ -198,7 +204,7 @@ final class TodayCanvasBackdropStore: ObservableObject {
                     self.completed = request
                     if request == self.requested {
                         self.unlockPalette = TodayCanvasUnlockPalette.sampled(from: rendered)
-                            ?? TodayCanvasUnlockPalette.make(appearance: request.appearance)
+                            ?? TodayCanvasUnlockPalette.make(appearance: request.appearance, canvas: canvas)
                         self.image = rendered
                     }
                 } else if request == self.requested {

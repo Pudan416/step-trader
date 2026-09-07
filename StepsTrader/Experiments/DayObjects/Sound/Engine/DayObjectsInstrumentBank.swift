@@ -21,6 +21,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     typealias GraphFactory = ([DayObjectsTonalVoicePoolProtocol], DayObjectsDrumBankProtocol?, DayObjectsPianoPoolProtocol?, DayObjectsHappeningSamplePoolProtocol) throws -> DayObjectsInstrumentBankGraph
 
     let descriptors: [DayObjectsInstrumentDescriptor]
+    private(set) var soundWorldCatalogError: Error?
     private let descriptorByID: [DayObjectsInstrumentID: DayObjectsInstrumentDescriptor]
     private let tonalInstrumentLoader: TonalInstrumentLoader
     private let tonalPoolFactory: TonalPoolFactory
@@ -86,43 +87,46 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
 
     convenience init(
         bundle: Bundle = .main,
+        soundWorldResources: DayObjectsSoundWorldResources? = nil,
+        tonalVoiceProfile: DayObjectsTonalVoiceProfile = .fullFidelity,
         audioHostTimeProvider: @escaping () -> TimeInterval = {
             ProcessInfo.processInfo.systemUptime
         }
     ) {
-        let happenings = DayObjectsHappeningSamplePool(bundle: bundle)
+        let happenings = DayObjectsHappeningSamplePool(bundle: bundle, clock: audioHostTimeProvider)
         self.init(
             bundle: bundle,
+            soundWorldResources: soundWorldResources,
             engine: DayObjectsAudioKitInstrumentBankEngine(happenings: happenings),
             happenings: happenings,
+            tonalVoiceProfile: tonalVoiceProfile,
             audioHostTimeProvider: audioHostTimeProvider
         )
     }
 
     private convenience init(
         bundle: Bundle,
+        soundWorldResources: DayObjectsSoundWorldResources? = nil,
         engine: DayObjectsInstrumentBankEngine,
         happenings: DayObjectsHappeningSamplePool,
+        tonalVoiceProfile: DayObjectsTonalVoiceProfile = .fullFidelity,
         audioHostTimeProvider: @escaping () -> TimeInterval
     ) {
-        let descriptors = DayObjectsInstrumentManifest.defaultDescriptors
+        let resources = soundWorldResources ?? DayObjectsSoundWorldResources(bundle: bundle)
         self.init(
-            descriptors: descriptors,
+            descriptors: resources.descriptors,
             tonalInstrumentLoader: {
-                let records = try DayObjectsInstrumentManifest.loadSynthOneRecords(from: bundle)
-                let tonalDescriptors = descriptors.filter { $0.category != .drums && $0.category != .piano }
-                return Dictionary(uniqueKeysWithValues: zip(tonalDescriptors, records).map { descriptor, record in
-                    (descriptor.id, DayObjectsAudioParameters.clamped(SynthOnePresetAdapter.convert(record).voice))
-                })
+                try resources.tonalInstruments()
             },
             tonalPoolFactory: { specification, instruments in
                 // The prepared pool is detached and does not start an engine or audio session.
                 return DayObjectsAudioKitTonalPoolAdapter(
                     DayObjectsAudioKitTonalPool(
-                        specification: specification,
-                        instruments: instruments,
-                        hostTimeProvider: audioHostTimeProvider
-                    )
+                    specification: specification,
+                    instruments: instruments,
+                    voiceProfile: tonalVoiceProfile,
+                    hostTimeProvider: audioHostTimeProvider
+                )
                 )
             },
             drumBankFactory: { overlapCounts in
@@ -160,16 +164,19 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
             },
             engine: engine
         )
+        soundWorldCatalogError = resources.catalogError
     }
 
     static func makePlaybackPair(
         bundle: Bundle = .main,
+        soundWorldResources: DayObjectsSoundWorldResources? = nil,
         startFailureProvider: @escaping () -> DayObjectsPlaybackBankPairStartFailure? = { nil },
         individualStartFailureProvider: @escaping () -> Error? = { nil },
         outputGainHostTimeProvider: @escaping () -> TimeInterval = {
             ProcessInfo.processInfo.systemUptime
         }
     ) -> DayObjectsPlaybackBankPair {
+        let resources = soundWorldResources ?? DayObjectsSoundWorldResources(bundle: bundle)
         let happenings = DayObjectsHappeningSamplePool(bundle: bundle)
         let sharedEngine = DayObjectsSharedInstrumentBankEngine(
             happenings: happenings,
@@ -177,12 +184,14 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         )
         let bankA = DayObjectsInstrumentBank(
             bundle: bundle,
+            soundWorldResources: resources,
             engine: DayObjectsPairedInstrumentBankEngine(slot: .a, shared: sharedEngine),
             happenings: happenings,
             audioHostTimeProvider: outputGainHostTimeProvider
         )
         let bankB = DayObjectsInstrumentBank(
             bundle: bundle,
+            soundWorldResources: resources,
             engine: DayObjectsPairedInstrumentBankEngine(slot: .b, shared: sharedEngine),
             happenings: happenings,
             audioHostTimeProvider: outputGainHostTimeProvider
@@ -299,12 +308,22 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
 
             do { builtDrums = try drumBankFactory(configuration.drumOverlapCounts) }
             catch { throw DayObjectsInstrumentBankError.preparationFailed(.drums) }
-            do { builtPiano = try pianoPoolFactory(configuration.pianoVoiceCount) }
-            catch { throw DayObjectsInstrumentBankError.preparationFailed(.piano) }
+            do {
+                builtPiano = configuration.pianoVoiceCount == 0
+                    ? inactivePiano
+                    : try pianoPoolFactory(configuration.pianoVoiceCount)
+            } catch { throw DayObjectsInstrumentBankError.preparationFailed(.piano) }
             guard let builtDrums, let builtPiano else { throw DayObjectsInstrumentBankError.preparationFailed(.graph) }
 
             let graph: DayObjectsInstrumentBankGraph
-            do { graph = try graphFactory(builtTonalPools, builtDrums, builtPiano, builtHappenings) }
+            do {
+                graph = try graphFactory(
+                    builtTonalPools,
+                    builtDrums,
+                    configuration.pianoVoiceCount == 0 ? nil : builtPiano,
+                    builtHappenings
+                )
+            }
             catch { throw DayObjectsInstrumentBankError.preparationFailed(.graph) }
             do { try engine.attach(graph: graph) }
             catch { throw DayObjectsInstrumentBankError.preparationFailed(.engine) }
@@ -454,6 +473,10 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         prepared?.graph.offlineLimiterInputPeakDBFS ?? -120
     }
 
+    func advanceOfflineModulation() {
+        (prepared?.graph as? DayObjectsAudioKitInstrumentBankGraph)?.advanceOfflineModulation()
+    }
+
     func applyMix(_ state: DayObjectsMixState) {
         prepared?.graph.applyMix(state)
     }
@@ -540,7 +563,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         for name in configuration.tonalPools.map(\.name) where !seen.insert(name).inserted {
             throw DayObjectsInstrumentBankError.duplicateTonalPoolName(name)
         }
-        guard (1...8).contains(configuration.pianoVoiceCount) else { throw DayObjectsInstrumentBankError.invalidPianoVoiceCount }
+        guard (0...8).contains(configuration.pianoVoiceCount) else { throw DayObjectsInstrumentBankError.invalidPianoVoiceCount }
         if let invalid = configuration.drumOverlapCounts.filter({ !(1...8).contains($0.value) }).map(\.key).sorted(by: { $0.rawValue < $1.rawValue }).first {
             throw DayObjectsInstrumentBankError.invalidDrumOverlap(invalid)
         }
@@ -731,6 +754,10 @@ final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentBankGraph
     private let bassRecombine: Mixer?
     private let bassSaturation: TanhDistortion?
     private let tonalPools: [DayObjectsAudioKitTonalPool]
+
+    func advanceOfflineModulation() {
+        tonalPools.forEach { $0.advanceOfflineModulation() }
+    }
     private let drums: DayObjectsAudioKitDrumBank?
     private let piano: DayObjectsAudioKitFeltPiano?
     private var outputGainTarget = 1.0
@@ -1635,7 +1662,7 @@ final class DayObjectsPersistentMasterGraph {
                     : -60,
                 -60
             ),
-            Self.masterTrimDecibels
+            Self.masterTrimDecibels + (state.worldGroupCalibration?.masterMakeupDB ?? 0)
         )
         currentMasterTrimDecibels = requestedMasterDB
         ramp(masterTrim, to: pow(10, requestedMasterDB / 20), duration: duration)

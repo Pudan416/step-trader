@@ -4,6 +4,72 @@ import XCTest
 
 @MainActor
 final class HarmonyPlayerTests: XCTestCase {
+    func testTonalAccentUsesExistingSecondaryPoolIndependentlyOfPrimaryPad() throws {
+        let harness = try makeHarness()
+        let accent = try harness.world.tonalPool(for: .pianoOrKeysAccents)
+        let secondary = try harness.world.tonalPool(named: .secondaryPadOrKeys)
+
+        XCTAssertTrue(accent === secondary)
+        XCTAssertFalse(accent === harness.primary)
+        XCTAssertEqual(accent.metrics.allocatedVoiceCount, 2)
+        XCTAssertEqual(harness.world.metrics.allocatedTonalVoiceCount, 9)
+        XCTAssertEqual(harness.bank.preparedConfigurations.count, 1)
+    }
+
+    func testFullSleepAcousticStrangeEmitsAccentNotesDuringPrimaryChordCrossfade() throws {
+        let plan = WorldArrangementFixture.plan(.feltAndWood, .strange, sleep: 1, happenings: [])
+        let accent = try XCTUnwrap(plan.harmony.role(for: .pianoOrKeysAccents))
+        let accentChord = try XCTUnwrap(accent.chordSchedule.first)
+        guard case let .tonal(accentID) = accent.instrumentTarget else {
+            return XCTFail("Acoustic strange must retain its curated tonal keys timbre")
+        }
+        let bank = ProductionCapacityHarmonyBank()
+        let world = PlaybackWorldBank(instrumentBank: bank)
+        let player = HarmonyPlayer(worldBank: world)
+        try player.configure(plan.harmony)
+        defer { player.releaseAll() }
+        let primary = try world.tonalPool(for: .primaryPad)
+        let baseline = world.metrics.allocatedTonalVoiceCount
+
+        // Run two cycles: the first accent competes with the primary chord change;
+        // the second also exercises replacement of the accent's own sounding notes.
+        for cycle in 0..<2 {
+            let boundary = Int64(cycle * plan.harmony.cycleBars + accentChord.startBar)
+                * MusicalPosition.subdivisionsPerBar
+            let cycleStart = Int64(cycle * plan.harmony.cycleBars) * MusicalPosition.subdivisionsPerBar
+            for subdivision in cycleStart...boundary {
+                bank.now = Double(subdivision) / 4
+                player.render(subdivision: event(.subdivision, at: subdivision))
+                if subdivision % MusicalPosition.subdivisionsPerBar == 0 {
+                    player.render(barBoundary: event(.barBoundary, at: subdivision))
+                }
+            }
+            XCTAssertEqual(primary.metrics.allocatedVoiceCount, 4)
+            XCTAssertEqual(primary.metrics.occupiedVoiceCount, 4, "Sounding notes and release tails fill the primary pad at the accent boundary")
+            let accentVoices = bank.voices.filter { $0.requests.contains { $0.instrumentID == accentID } }
+            XCTAssertFalse(accentVoices.isEmpty, "The production allocator must emit actual accent note-on events")
+            let fadeEnd = boundary + Int64((accent.crossfadeBars * Double(MusicalPosition.subdivisionsPerBar)).rounded())
+            let releaseEnd = fadeEnd + Int64(ceil(accent.releaseSeconds * 4)) + 1
+            for subdivision in (boundary + 1)...max(boundary + 1, releaseEnd) {
+                bank.now = Double(subdivision) / 4
+                player.render(subdivision: event(.subdivision, at: subdivision))
+            }
+            let emitted = bank.voices.flatMap(\.requests).filter { $0.instrumentID == accentID }
+            XCTAssertEqual(emitted.count, (cycle + 1) * min(2, accentChord.voicedMIDINotes.count))
+            XCTAssertTrue(emitted.allSatisfy { accentChord.voicedMIDINotes.contains($0.midiNote) })
+            XCTAssertTrue(bank.voices.contains { $0.requests.last?.instrumentID == accentID && $0.expression > 0 })
+            XCTAssertEqual(world.metrics.allocatedTonalVoiceCount, baseline)
+        }
+        XCTAssertEqual(bank.prepareCount, 1, "No additional bank or pool is prepared for accents")
+        let emittedCount = bank.voices.flatMap(\.requests).count
+        player.render(subdivision: event(.subdivision, at: Int64(bank.now * 4) + 1))
+        XCTAssertEqual(bank.voices.flatMap(\.requests).count, emittedCount, "Completed retries must not duplicate notes")
+        player.releaseAll()
+        XCTAssertEqual(player.metrics.activeVoiceCount, 0)
+        XCTAssertEqual(player.metrics.pendingReleaseTokenCount, 0)
+        XCTAssertEqual(world.metrics.activeTonalVoiceCount, 0)
+    }
+
     func testWorldBankPreallocatesTheExactFixedRoleAndDrumCapacities() throws {
         let bank = RecordingPlaybackInstrumentBank()
         let world = PlaybackWorldBank(instrumentBank: bank)
@@ -544,6 +610,65 @@ private struct HarmonyHarness {
     let world: PlaybackWorldBank
     let primary: RecordingHarmonyTonalPool
     let player: HarmonyPlayer
+}
+
+/// Real fixed-capacity allocator; only the final audio backend is replaced by a
+/// note-event recorder, so denied allocations cannot appear as emitted notes.
+@MainActor
+private final class ProductionCapacityHarmonyBank: DayObjectsInstrumentBankProtocol {
+    let descriptors = WorldArrangementFixture.catalog.descriptors
+    let drums: DayObjectsDrumBankProtocol = RecordingHarmonyDrumBank()
+    let piano: DayObjectsPianoPoolProtocol = RecordingHarmonyPianoPool(capacity: 2)
+    var now: TimeInterval = 0
+    private(set) var prepareCount = 0
+    private(set) var voices: [EmittedHarmonyVoice] = []
+    private var pools: [String: ProductionHarmonyPoolAdapter] = [:]
+    var metrics: DayObjectsInstrumentBankMetrics {
+        .init(state: .prepared, tonalPoolCount: pools.count, graph: nil, allocationFingerprint: nil,
+              drumMetrics: drums.metrics, pianoMetrics: piano.metrics)
+    }
+    func prepare(configuration: DayObjectsInstrumentBankConfiguration) throws {
+        prepareCount += 1
+        for specification in configuration.tonalPools {
+            pools[specification.name] = ProductionHarmonyPoolAdapter(DayObjectsTonalVoicePool(
+                specification: specification,
+                instrumentProvider: { id in try XCTUnwrap(WorldArrangementFixture.catalog.resolvedInstruments[id]) },
+                voiceFactory: {
+                    let voice = EmittedHarmonyVoice()
+                    self.voices.append(voice)
+                    return voice
+                },
+                monotonicTime: { self.now }
+            ))
+        }
+    }
+    func tonalPool(named id: String) throws -> DayObjectsTonalVoicePoolProtocol { try XCTUnwrap(pools[id]) }
+    func start() throws {}
+    func stop() async { releaseWorldLocalVoices() }
+    func releaseWorldLocalVoices() { pools.values.forEach { $0.releaseAll() } }
+    func releaseAllIncludingSharedHappenings() { releaseWorldLocalVoices() }
+}
+
+private final class ProductionHarmonyPoolAdapter: DayObjectsTonalVoicePoolProtocol {
+    let pool: DayObjectsTonalVoicePool
+    init(_ pool: DayObjectsTonalVoicePool) { self.pool = pool }
+    var metrics: DayObjectsTonalPoolMetrics { pool.metrics }
+    func prepareInstrument(_ id: DayObjectsInstrumentID) throws { try pool.prepareInstrument(id) }
+    func prepareInstruments(_ ids: [DayObjectsInstrumentID]) throws { try pool.prepareInstruments(ids) }
+    func noteOn(_ request: DayObjectsTonalNoteRequest) -> DayObjectsVoiceToken? { pool.noteOn(request) }
+    func update(_ token: DayObjectsVoiceToken, with update: DayObjectsVoiceUpdate) { pool.update(token, with: update) }
+    func noteOff(_ token: DayObjectsVoiceToken) { pool.noteOff(token) }
+    func releaseAll() { pool.releaseAll() }
+}
+
+private final class EmittedHarmonyVoice: DayObjectsTonalVoiceBackend {
+    let allocatedNodeCount = 1
+    private(set) var requests: [DayObjectsTonalNoteRequest] = []
+    private(set) var expression: Double = 0
+    func replacePreset(_ preset: NormalizedSynthVoice, instrumentID: DayObjectsInstrumentID, transitionDuration: TimeInterval) {}
+    func noteOn(_ request: DayObjectsTonalNoteRequest) { requests.append(request); expression = request.velocity }
+    func update(_ update: DayObjectsVoiceUpdate) { if let value = update.expression { expression = value } }
+    func noteOff() { expression = 0 }
 }
 
 @MainActor

@@ -8,6 +8,8 @@ struct DayObjectsLabMusicState: Equatable, Sendable {
     var spentColors: Int
     var remixSeed: UInt64
     var soundWorld: DayObjectsSoundWorld
+    var mood: DayObjectsSoundMood
+    var guestWorld: DayObjectsSoundWorld?
 
     init(
         steps: Double = 10_000,
@@ -17,7 +19,9 @@ struct DayObjectsLabMusicState: Equatable, Sendable {
         happeningCount: Int = 8,
         spentColors: Int = 0,
         remixSeed: UInt64 = 0xD4A0_B1EC_75ED_0001,
-        soundWorld: DayObjectsSoundWorld = .feltAndWood
+        soundWorld: DayObjectsSoundWorld = .feltAndWood,
+        mood: DayObjectsSoundMood = .moving,
+        guestWorld: DayObjectsSoundWorld? = nil
     ) {
         self.steps = steps
         self.stepGoal = stepGoal
@@ -27,6 +31,8 @@ struct DayObjectsLabMusicState: Equatable, Sendable {
         self.spentColors = spentColors
         self.remixSeed = remixSeed
         self.soundWorld = soundWorld
+        self.mood = mood
+        self.guestWorld = guestWorld
     }
 }
 #endif

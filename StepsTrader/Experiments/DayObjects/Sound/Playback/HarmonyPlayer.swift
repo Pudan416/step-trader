@@ -123,9 +123,11 @@ final class HarmonyPlayer {
         let totalNewVoiceCount: Int
         let startSubdivision: Int64
         let endSubdivision: Int64
+        let retryDeadlineSubdivision: Int64
         let totalStagedVoiceCount: Int
         var completedStagedVoiceCount = 0
         var isCurrentStagedVoiceOpened = false
+        var isCurrentStagedOldVoiceReleased = false
     }
 
     private struct GainRamp {
@@ -289,7 +291,8 @@ final class HarmonyPlayer {
                 chord: chord,
                 forRoleAt: index,
                 at: currentSubdivision,
-                hostTimeSeconds: event.hostTimeSeconds
+                hostTimeSeconds: event.hostTimeSeconds,
+                tempoBPM: event.tempoBPM
             )
             roles[index].lastScheduledAbsoluteBar = event.position.bar
         }
@@ -309,7 +312,8 @@ final class HarmonyPlayer {
         chord: HarmonyChordScheduleEntry,
         forRoleAt index: Int,
         at subdivision: Int64,
-        hostTimeSeconds: TimeInterval
+        hostTimeSeconds: TimeInterval,
+        tempoBPM: Double
     ) {
         completeInterruptedTransition(at: index)
         let role = roles[index].plan
@@ -325,6 +329,8 @@ final class HarmonyPlayer {
             1,
             Int64((role.crossfadeBars * Double(MusicalPosition.subdivisionsPerBar)).rounded())
         )
+        let subdivisionsPerSecond = tempoBPM / 60 * Double(MusicalPosition.subdivisionsPerBeat)
+        let releaseSubdivisions = Int64(ceil(max(0, role.releaseSeconds) * subdivisionsPerSecond))
         roles[index].activeVoices = newVoices
         roles[index].transition = .init(
             oldVoices: oldVoices,
@@ -334,6 +340,7 @@ final class HarmonyPlayer {
             totalNewVoiceCount: min(chord.voicedMIDINotes.count, capacity),
             startSubdivision: subdivision,
             endSubdivision: subdivision + duration,
+            retryDeadlineSubdivision: subdivision + duration + releaseSubdivisions + 1,
             totalStagedVoiceCount: stagedNotes.count
         )
         if !newVoices.isEmpty || !stagedNotes.isEmpty {
@@ -372,6 +379,12 @@ final class HarmonyPlayer {
                 voiceCount: transition.totalNewVoiceCount
             ) * mixGain * glitchCommand.dryGain
             if transition.totalStagedVoiceCount > 0 {
+                if progress >= 1 {
+                    // All old notes have finished their musical fade. Their
+                    // production slots may still be reserved for release tails.
+                    transition.oldVoices.forEach { $0.token.release() }
+                    transition.oldVoices.removeAll(keepingCapacity: true)
+                }
                 transition.newVoices.prefix(transition.initiallyOpenedVoiceCount).forEach {
                     $0.token.setExpression(target * progress)
                 }
@@ -384,11 +397,13 @@ final class HarmonyPlayer {
                     if !transition.isCurrentStagedVoiceOpened {
                         openNextStagedVoice(in: &transition, forRoleAt: index)
                     }
+                    guard transition.isCurrentStagedVoiceOpened else { break }
                     transition.newVoices.last?.token.setExpression(target)
                     transition.completedStagedVoiceCount += 1
                     transition.isCurrentStagedVoiceOpened = false
                 }
-                if transition.completedStagedVoiceCount < transition.totalStagedVoiceCount {
+                if transition.completedStagedVoiceCount == completedTarget,
+                   transition.completedStagedVoiceCount < transition.totalStagedVoiceCount {
                     let localProgress = scaledProgress - Double(transition.completedStagedVoiceCount)
                     transition.oldVoices.dropFirst().forEach { $0.token.setExpression(target) }
                     if localProgress < 0.5 {
@@ -416,7 +431,7 @@ final class HarmonyPlayer {
                     hostTimeSeconds: hostTimeSeconds
                 )
             }
-            if progress >= 1 {
+            if progress >= 1 && (transition.stagedNotes.isEmpty || subdivision >= transition.retryDeadlineSubdivision) {
                 transition.oldVoices.forEach { $0.token.release() }
                 transition.newVoices.forEach { $0.token.setExpression(target) }
                 roles[index].activeVoices = transition.newVoices
@@ -428,13 +443,19 @@ final class HarmonyPlayer {
     }
 
     private func openNextStagedVoice(in transition: inout ChordTransition, forRoleAt index: Int) {
-        guard let old = transition.oldVoices.first,
-              let note = transition.stagedNotes.first
-        else { return }
-        old.token.release()
-        transition.oldVoices.removeFirst()
-        transition.stagedNotes.removeFirst()
+        guard let note = transition.stagedNotes.first else { return }
+        if !transition.isCurrentStagedOldVoiceReleased {
+            transition.oldVoices.first?.token.release()
+            if !transition.oldVoices.isEmpty { transition.oldVoices.removeFirst() }
+            transition.isCurrentStagedOldVoiceReleased = true
+        }
         let opened = openVoices([note], for: roles[index].plan, expression: 0)
+        // A released production slot is unavailable until its tail drains.
+        // Retain this note and retry on subsequent subdivisions, without
+        // releasing another old voice or counting a denied attack as emitted.
+        guard !opened.isEmpty else { return }
+        transition.stagedNotes.removeFirst()
+        transition.isCurrentStagedOldVoiceReleased = false
         transition.newVoices.append(contentsOf: opened)
         roles[index].activeVoices.append(contentsOf: opened)
         transition.isCurrentStagedVoiceOpened = !opened.isEmpty

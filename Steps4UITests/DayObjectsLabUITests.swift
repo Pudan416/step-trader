@@ -1,6 +1,38 @@
 import XCTest
 
 final class DayObjectsLabUITests: XCTestCase {
+    func testMoodPickerSelectsEveryMoodAndRemixPreservesDiagnosticSelection() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiLab", "dayObjects", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let mood = app.segmentedControls["dayObjects.soundMood"]
+        XCTAssertTrue(mood.waitForExistence(timeout: 5))
+        for name in ["Sparse", "Moving", "Strange"] {
+            mood.buttons[name].tap()
+            XCTAssertTrue(mood.buttons[name].isSelected)
+        }
+        app.buttons["dayObjects.remix"].tap()
+        XCTAssertTrue(mood.buttons["Strange"].isSelected)
+        app.buttons["dayObjects.musicUndo"].tap()
+        XCTAssertTrue(mood.buttons["Strange"].isSelected)
+        app.buttons["dayObjects.musicUndo"].tap()
+        XCTAssertTrue(mood.buttons["Moving"].isSelected)
+    }
+
+    func testAuditionExportAppearsOnlyInsideInstrumentDiagnostics() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiLab", "dayObjects", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let diagnostics = app.buttons["dayObjects.instrumentDiagnostics"]
+        XCTAssertTrue(diagnostics.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["dayObjects.audition.export"].exists)
+        diagnostics.tap()
+        XCTAssertTrue(app.buttons["dayObjects.audition.export"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["dayObjects.audition.exportProgress"].label, "0 / 12 previews")
+        diagnostics.tap()
+        XCTAssertFalse(app.buttons["dayObjects.audition.export"].exists)
+    }
+
     override func setUpWithError() throws {
         continueAfterFailure = false
     }
@@ -19,6 +51,28 @@ final class DayObjectsLabUITests: XCTestCase {
 
         app.buttons["dayObjects.controlsToggle"].tap()
         XCTAssertTrue(sound.exists)
+        XCTAssertFalse(app.buttons["dayObjects.remix"].exists)
+    }
+
+    func testCanvasRemainsResponsiveWhileSoundIsStarting() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiLab", "dayObjects", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+
+        let sound = app.buttons["dayObjects.sound"]
+        let controls = app.buttons["dayObjects.controlsToggle"]
+        XCTAssertTrue(sound.waitForExistence(timeout: 5))
+        XCTAssertTrue(controls.waitForExistence(timeout: 5))
+
+        let interactionStartedAt = ProcessInfo.processInfo.systemUptime
+        sound.tap()
+        controls.tap()
+
+        XCTAssertLessThan(
+            ProcessInfo.processInfo.systemUptime - interactionStartedAt,
+            6,
+            "Audio graph preparation must not monopolize the app's main thread"
+        )
         XCTAssertFalse(app.buttons["dayObjects.remix"].exists)
     }
 
@@ -204,7 +258,7 @@ final class DayObjectsLabUITests: XCTestCase {
         XCTAssertTrue(reset.exists)
 
         motion.adjust(toNormalizedSliderPosition: 0)
-        XCTAssertTrue(String(describing: motion.value).contains("0.00"))
+        XCTAssertTrue(String(describing: motion.value).contains("0.00"), "Motion value: \(String(describing: motion.value)); frame: \(motion.frame)")
         reset.tap()
         XCTAssertTrue(String(describing: motion.value).contains("1.00"))
     }
@@ -455,7 +509,8 @@ final class DayObjectsLabUITests: XCTestCase {
         let canvas = app.otherElements["dayObjects.canvas"]
         let category = app.buttons["dayObjects.audition.category"]
         XCTAssertTrue(canvas.exists)
-        XCTAssertFalse(canvas.frame.intersects(category.frame), "Controls must be laid out below the Lead canvas")
+        XCTAssertTrue(category.isHittable, "Diagnostics must remain usable over the full-area Canvas background")
+        XCTAssertTrue(app.buttons["dayObjects.audition.export"].exists)
 
         app.buttons["dayObjects.gridToggle"].tap()
         XCTAssertTrue(app.otherElements["dayObjects.grid"].waitForExistence(timeout: 5))

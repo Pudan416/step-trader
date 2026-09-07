@@ -79,6 +79,59 @@ private func renderAntiPhaseBassProbe(frequency: Double) -> AVAudioPCMBuffer {
 
 @MainActor
 final class DayObjectsInstrumentBankTests: XCTestCase {
+    func testMissingInvalidAndIncompleteWorldCatalogsPrepareCompatibleLegacyVoices() async throws {
+        let bundle = Bundle(for: type(of: self))
+        let valid = try DayObjectsSoundWorldCatalog.load(from: bundle)
+        let recipesURL = try XCTUnwrap(bundle.url(forResource: "synth-recipes-v1", withExtension: "json", subdirectory: "SoundWorlds"))
+        let groupsURL = try XCTUnwrap(bundle.url(forResource: "world-groups-v1", withExtension: "json", subdirectory: "SoundWorlds"))
+        let recipes = try Data(contentsOf: recipesURL)
+        let groups = try Data(contentsOf: groupsURL)
+        let fixtures: [(Bundle) throws -> DayObjectsSoundWorldCatalog] = [
+            { _ in throw DayObjectsSoundWorldCatalogError.resourceMissing("synth-recipes-v1") },
+            { _ in try DayObjectsSoundWorldCatalog.load(recipesData: Data("invalid JSON".utf8),
+                groupsData: groups, sourceVoices: valid.sourceVoices) },
+            { _ in try DayObjectsSoundWorldCatalog.load(recipesData: recipes,
+                groupsData: Data(#"{"schemaVersion":1,"groups":[]}"#.utf8), sourceVoices: valid.sourceVoices) },
+        ]
+        for loader in fixtures {
+            let resources = DayObjectsSoundWorldResources(bundle: bundle, catalogLoader: loader)
+            XCTAssertNotNil(resources.catalogError)
+            XCTAssertNil(resources.catalog)
+            let input = DayMusicInput(countedSteps: 7_500, stepGoal: 10_000, countedSleepHours: 6.5,
+                sleepGoalHours: 8, happeningIDs: [], spentColors: 25)
+            let plan = DeterministicMusicDirector.makePlan(input: input, remixSeed: 38,
+                selection: .init(world: .livingField, mood: .strange, guestWorld: nil), resources: resources)
+            XCTAssertEqual(plan, DeterministicMusicDirector.makePlan(input: input, remixSeed: 38))
+            let bank = DayObjectsInstrumentBank(bundle: bundle, soundWorldResources: resources)
+            try bank.prepare(configuration: smallPlaybackPairConfiguration(), happeningRecipeIDs: [])
+            XCTAssertNotNil(bank.soundWorldCatalogError)
+            XCTAssertEqual(bank.descriptors, DayObjectsInstrumentManifest.defaultDescriptors)
+            let pool = try bank.tonalPool(named: "world")
+            try pool.prepareInstrument(plan.lead.instrumentID)
+            let token = try XCTUnwrap(pool.noteOn(.init(instrumentID: plan.lead.instrumentID,
+                midiNote: 60, velocity: 0.7, role: .lead, envelopeVariant: nil,
+                pan: 0, delaySend: 0, reverbSend: 0)))
+            XCTAssertEqual(pool.metrics.activeVoiceCount, 1)
+            pool.noteOff(token)
+            await bank.stop()
+        }
+    }
+
+    func testProductionBankBindsEveryMoodRecipeWithoutGrowingPoolsOrGraph() async throws {
+        let bank = DayObjectsInstrumentBank(bundle: Bundle(for: type(of: self)))
+        try bank.prepare(configuration: smallPlaybackPairConfiguration())
+        XCTAssertEqual(bank.descriptors.count, 160)
+        let pool = try bank.tonalPool(named: "world")
+        let before = bank.metrics.allocationFingerprint
+        for descriptor in bank.descriptors {
+            XCTAssertNoThrow(try pool.prepareInstrument(descriptor.id), descriptor.id.rawValue)
+        }
+        XCTAssertEqual(bank.metrics.allocationFingerprint, before)
+        XCTAssertEqual(bank.metrics.tonalPoolCount, 1)
+        XCTAssertThrowsError(try pool.prepareInstrument(.init(rawValue: "acoustic.harmony.felt-haze")))
+        await bank.stop()
+    }
+
     func testPersistentMasterUsesRealRatioGlueWithBoundedRenderedReduction() {
         func measure(amplitude: AUValue) -> Double {
             let happenings = DayObjectsHappeningSamplePool(bundle: Bundle(for: type(of: self)))
@@ -200,6 +253,31 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         let reset = graph.meterSnapshots(graphs: [], happeningVoiceCount: 0, now: 3).1
         XCTAssertEqual(reset.estimatedLimiterReductionDB, 0, accuracy: 1e-12)
         XCTAssertEqual(reset.peakDBFS, -120)
+    }
+
+    func testWorldGroupCalibrationUsesExistingFaderAndRetainsLimiterCeilingAndTopology() {
+        let graph = DayObjectsPersistentMasterGraph(
+            happenings: DayObjectsHappeningSamplePool(bundle: Bundle(for: type(of: self)))
+        )
+        let topology = graph.topologyMetrics(graphs: [])
+        var state = DayObjectsMixState.testingFiveRoleMix(masterDecibels: 0.5)
+        state.worldGroupCalibration = .init(masterMakeupDB: 9.5, reverbSendScale: 0.4)
+        graph.applyMix(state)
+        XCTAssertEqual(graph.masterTrim.$leftGain.parameter.value, Float(pow(10, 0.5 / 20)), accuracy: 1e-6)
+        XCTAssertEqual(graph.masterTrim.$rightGain.parameter.value, Float(pow(10, 0.5 / 20)), accuracy: 1e-6)
+        XCTAssertEqual(graph.limiter.$preGain.parameter.value, 0)
+        XCTAssertEqual(graph.limiter.$attackTime.parameter.value, 0.012, accuracy: 1e-6)
+        XCTAssertEqual(graph.limiter.$decayTime.parameter.value, 0.024, accuracy: 1e-6)
+        let roleGain = pow(10, DayObjectsPersistentMasterGraph.harmonyPathCalibrationDecibels / 20)
+        XCTAssertEqual(graph.harmonySend.$leftGain.parameter.value, Float(0.28 * 2 * roleGain), accuracy: 1e-6)
+        XCTAssertEqual(graph.happeningsSend.$leftGain.parameter.value, Float(0.34 * 3.4 * roleGain), accuracy: 1e-6)
+        XCTAssertEqual(graph.leadSend.$leftGain.parameter.value, Float(0.24 * roleGain), accuracy: 1e-6)
+        XCTAssertEqual(graph.finalOutput.linearGain, pow(10, -1.35 / 20), accuracy: 1e-6)
+        XCTAssertEqual(graph.topologyMetrics(graphs: []).persistentMasterNodeIdentities, topology.persistentMasterNodeIdentities)
+        XCTAssertEqual(graph.topologyMetrics(graphs: []).finalPeakLimiterIdentities, topology.finalPeakLimiterIdentities)
+        state.worldGroupCalibration = nil
+        graph.applyMix(state)
+        XCTAssertEqual(graph.masterTrim.$leftGain.parameter.value, Float(pow(10, -6.0 / 20)), accuracy: 1e-6)
     }
 
     func testPairedMetricsExposeAppliedMasterTrimInsteadOfDefaultConstant() throws {
@@ -460,7 +538,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         let pool = worlds[0].happenings
         let playerIdentities = pool.metrics.fixedPlayerIdentities
         let bufferIdentities = pool.metrics.decodedBufferIdentities
-        XCTAssertEqual(bufferIdentities.count, 102)
+        XCTAssertEqual(bufferIdentities.count, 114)
 
         for cycle in 0..<8 {
             let firstRecipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: lifecycleRecipeID((cycle % 10) + 1)))
@@ -983,11 +1061,11 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(baseline.finalPeakLimiterCount, 1)
         XCTAssertTrue(pair.bankA.happenings === pair.bankB.happenings)
         XCTAssertEqual(pair.bankA.happenings.metrics.allocatedPlayerCount, 4)
-        XCTAssertEqual(pair.bankA.happenings.metrics.decodedBufferCount, 102)
+        XCTAssertEqual(pair.bankA.happenings.metrics.decodedBufferCount, 114)
         XCTAssertEqual(Set(baseline.happeningFixedPlayerIdentities).count, 4)
         XCTAssertEqual(baseline.happeningFixedPlayerIdentities.count, 4)
-        XCTAssertEqual(Set(baseline.happeningDecodedBufferIdentities).count, 102)
-        XCTAssertEqual(baseline.happeningDecodedBufferIdentities.count, 102)
+        XCTAssertEqual(Set(baseline.happeningDecodedBufferIdentities).count, 114)
+        XCTAssertEqual(baseline.happeningDecodedBufferIdentities.count, 114)
         XCTAssertLessThanOrEqual(baseline.happeningDecodedByteCount, 48 * 1_024 * 1_024)
         XCTAssertEqual(Set(baseline.finalPeakLimiterIdentities).count, 1)
         XCTAssertEqual(baseline.sharedMasterTrimDecibels, -6, accuracy: 0.001)
@@ -2111,6 +2189,7 @@ private final class FakeHappeningSamplePool: DayObjectsHappeningSamplePoolProtoc
     }
     func applyEffects(_ command: HappeningEffectCommand, rampSeconds: Double) {}
     func update(_ handle: HappeningPlaybackHandle, gain: Double, playbackRate: Double) {}
+    func updateReverbSend(_ handle: HappeningPlaybackHandle, sendLevel: Double, rampSeconds: Double) {}
     func stop(_ handle: HappeningPlaybackHandle) {
         guard active[handle.voiceID]?.handle == handle else { return }
         active[handle.voiceID] = nil

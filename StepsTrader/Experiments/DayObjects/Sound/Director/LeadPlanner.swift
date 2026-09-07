@@ -12,15 +12,21 @@ enum LeadPlanner {
         tonalWorld: TonalWorldPlan,
         instrumentDescriptors: [DayObjectsInstrumentDescriptor],
         remixSeed: UInt64,
-        soundWorld: DayObjectsSoundWorld? = nil
+        soundWorld: DayObjectsSoundWorld? = nil,
+        recipeIDs: [DayObjectsInstrumentID]? = nil,
+        arrangement: DayObjectsArrangementProfile? = nil,
+        reverbSendScale: Double = 1
     ) -> LeadPlan? {
         guard !tonalWorld.progression.isEmpty else { return nil }
-        let descriptors = instrumentDescriptors
+        let curated = instrumentDescriptors.filter { descriptor in
+            descriptor.category == .lead && (recipeIDs?.contains(descriptor.id) ?? false)
+        }
+        let descriptors = (curated.isEmpty ? instrumentDescriptors
             .filter { descriptor in
                 descriptor.category == .lead
                     && approvedLeadIDs.contains(descriptor.id.rawValue)
                     && (soundWorld?.leadInstrumentIDs.contains(descriptor.id.rawValue) ?? true)
-            }
+            } : curated)
             .sorted { $0.id.rawValue < $1.id.rawValue }
         var random = StableMusicRandom(seed: remixSeed, domain: .effects)
         guard let instrument = random.choice(from: descriptors) else { return nil }
@@ -60,13 +66,13 @@ enum LeadPlanner {
             compatibleChordMIDINotes: chordNotes,
             portamentoMilliseconds: processing.portamentoMilliseconds,
             attackSeconds: processing.attackSeconds,
-            releaseSeconds: processing.releaseSeconds,
+            releaseSeconds: processing.releaseSeconds * (arrangement?.harmonyReleaseMultiplier ?? 1),
             cutoffMultiplierRange: processing.cutoffMultiplierRange,
-            pitchSmoothingMilliseconds: processing.pitchSmoothingMilliseconds,
-            expressionSmoothingMilliseconds: processing.expressionSmoothingMilliseconds,
+            pitchSmoothingMilliseconds: processing.pitchSmoothingMilliseconds * (arrangement?.leadGestureSmoothingMultiplier ?? 1),
+            expressionSmoothingMilliseconds: processing.expressionSmoothingMilliseconds * (arrangement?.leadGestureSmoothingMultiplier ?? 1),
             maximumExpressionDepth: processing.maximumExpressionDepth,
             delaySend: processing.delaySend,
-            reverbSend: processing.reverbSend
+            reverbSend: processing.reverbSend * DayObjectsWorldGroupCalibration(reverbSendScale: reverbSendScale).reverbSendScale
         )
     }
 
@@ -84,7 +90,7 @@ enum LeadPlanner {
 
     private static func processing(for soundWorld: DayObjectsSoundWorld?) -> Processing {
         switch soundWorld {
-        case .feltAndWood:
+        case .feltAndWood, .livingField:
             return Processing(
                 portamentoMilliseconds: 165,
                 attackSeconds: 0.065,
@@ -96,7 +102,7 @@ enum LeadPlanner {
                 delaySend: 0.16,
                 reverbSend: 0.46
             )
-        case .metalAndCurrent:
+        case .metalAndCurrent, .electricDream:
             return Processing(
                 portamentoMilliseconds: 72,
                 attackSeconds: 0.018,

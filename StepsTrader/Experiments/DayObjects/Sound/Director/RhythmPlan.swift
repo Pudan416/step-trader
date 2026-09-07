@@ -71,6 +71,7 @@ struct RhythmVoicePlan: Equatable, Sendable {
 }
 
 struct RhythmPlan: Equatable, Sendable {
+    let kitID: String
     let baseTempoBPM: Double
     let tempoBPM: Double
     let stepsProgress: Double
@@ -88,6 +89,7 @@ struct RhythmPlan: Equatable, Sendable {
     let maximumHarmonyDuckingDecibels: Double
 
     init(
+        kitID: String = "legacy",
         baseTempoBPM: Double,
         tempoBPM: Double,
         stepsProgress: Double,
@@ -104,6 +106,7 @@ struct RhythmPlan: Equatable, Sendable {
         velocityHumanizationRange: ClosedRange<Double>,
         maximumHarmonyDuckingDecibels: Double
     ) {
+        self.kitID = kitID
         self.baseTempoBPM = baseTempoBPM
         self.tempoBPM = tempoBPM
         self.stepsProgress = stepsProgress

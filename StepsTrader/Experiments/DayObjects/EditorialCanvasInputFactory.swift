@@ -23,7 +23,10 @@ enum EditorialCanvasInputFactory {
 
         let eventIDs = canvas.elements.map { $0.id.uuidString.lowercased() }
         let backgrounds = DayObjectEditorialBackground.allCases
-        let backgroundSeed = CanvasElement.makeSeed(
+        let backgroundSeed = canvas.remixSeed.map {
+            var random = SeededRNG.derived(from: $0, domain: "editorial.background")
+            return random.next()
+        } ?? CanvasElement.makeSeed(
             optionId: "editorial-primary-background",
             dayKey: canvas.dayKey,
             index: 0
@@ -33,7 +36,7 @@ enum EditorialCanvasInputFactory {
         return EditorialCanvasRenderInput(
             sceneInput: DayObjectSceneInput(
                 dayKey: canvas.dayKey,
-                identity: "primary-canvas",
+                identity: canvas.remixSeed.map { "primary-canvas:remix:\($0)" } ?? "primary-canvas",
                 eventIDs: eventIDs,
                 motionEnergy: 0.25 + 0.75 * steps,
                 visualClarity: 0.35 + 0.55 * sleep,

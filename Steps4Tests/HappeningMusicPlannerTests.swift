@@ -2,6 +2,26 @@ import XCTest
 @testable import Steps4
 
 final class HappeningMusicPlannerTests: XCTestCase {
+    func testGroupHappeningsKeepIdentityAndLivingSchedulesHaveLongestGaps() {
+        for mood in DayObjectsSoundMood.allCases {
+            let worlds = DayObjectsSoundWorld.allCases.map { WorldArrangementFixture.plan($0, mood) }
+            let allocations = worlds.map { HappeningScheduleAllocator.allocate(plans: $0.happenings, remixSeed: 77, cycleCount: 2) }
+            for (index, plan) in worlds.enumerated() {
+                XCTAssertEqual(plan.happenings.map(\.happeningID), ["one", "two"])
+                XCTAssertTrue(plan.happenings.allSatisfy {
+                    WorldArrangementFixture.group(plan.soundWorld, mood).happeningRecipeIDs.contains($0.recipeID)
+                })
+                let added = WorldArrangementFixture.plan(plan.soundWorld, mood, happenings: ["two", "one", "three"])
+                for happening in plan.happenings {
+                    XCTAssertEqual(happening, added.happenings.first { $0.happeningID == happening.happeningID })
+                }
+                if index != 1 {
+                    XCTAssertGreaterThan(allocations[1].intervalBandBars!.lowerBound, allocations[index].intervalBandBars!.lowerBound)
+                }
+                XCTAssertTrue(plan.happenings.allSatisfy { $0.releaseSeconds <= 4.5 })
+            }
+        }
+    }
     func testWorldIdentitySurvivesInsertionAndRemovalAtAnyListPosition() throws {
         let originalIDs = ["bravo", "charlie", "delta"]
         let original = makePlans(ids: originalIDs, soundWorld: .metalAndCurrent)

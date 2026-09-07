@@ -318,3 +318,124 @@ represented as physical acceptance.
 | Glitch 0/100 | pending | pending | compare texture vs loudness |
 | Lead slow/fast | pending | pending | check upper-mid harshness |
 | Worst-case overlap | pending | pending | check crackle/pumping |
+
+## Four-world acceptance — 2026-09-07
+
+This run uses the unified Remix branch transplanted onto exact integration
+baseline `7ba05dbd297a5f795615db1ec0d6ed819e7ab3b9`, including the Happening
+Palette changes. The eight original palette/persistence suites passed all 110
+current tests (106 baseline cases plus four Remix persistence regressions).
+The full focused run passed 204 tests: 200 unit and four UI, including palette
+add/remove and full-screen Remix/Undo. A shared-background integration correction
+then passed 43 focused tests, including two new regressions for saved Remix
+appearance and the matching unlock gradient.
+
+The single broader audio run selected 240 tests: 235 passed, four expected
+opt-in tests skipped, and one diagnostic timing fixture failed. The fake clock
+advanced 1 ms per read, so newly shared allocator clock reads exhausted its
+80 ms scheduling lead-in. A test-only correction uses 10 µs per read while
+retaining the strict 1 µs deadline tolerance and all forced-immediate checks.
+The exact failed case, its mobile sibling, and the related scheduler tests
+then passed all 12 cases. The full broader run was not repeated; its original
+failure evidence is retained, not relabeled as a clean pass.
+
+Both generic Debug builds passed for simulator and physical iOS, then passed
+again after the calibration commit `e71047f`. The refreshed signed Debug app
+was installed on paired iPhone Costa (iPhone 15 Pro) without launching it.
+Phone-speaker and headphone listening remain pending.
+
+The public audition set belongs at `artifacts/day-objects-four-worlds`, with
+`preview-01.wav` through `preview-12.wav`, five private stems per number, and
+`audition-manifest.json` / `mix-quality.json`. Every render uses the actual app
+graph, seed 99, 48 kHz stereo, a 22-second scheduled passage, and two seconds of
+release. Health input is fixed at 7,500/10,000 steps, 6.5/8 hours of sleep, ten
+happenings, and 25 spent colors. WAVs remain local and untracked.
+
+The first CLI invocation was rejected before any app/test render because Xcode
+does not accept `-test-iterations 1`. No WAVs were created. The one-line CLI
+correction uses the default single pass; its command-construction regression
+passed. The separately authorized first real export completed all 72 WAVs,
+with valid structure, unique mixes, and finite PCM. All 12 true peaks passed,
+but only two loudness readings passed and nine groups had excessive tails;
+no preview met every automated threshold. That complete rejected pack is
+preserved recoverably at `artifacts/day-objects-four-worlds-rejected-1`.
+
+An approved, measured catalog calibration adds bounded per-group master makeup
+(0...10.5 dB) and reverb-send scale (0.20...1), with neutral legacy defaults.
+It uses the existing master Fader and existing wet paths, preserves Happening
+dry gain, and leaves limiter, output ceiling, and topology unchanged. The
+implementation passed 174 focused tests; independent review passed 15 more
+checks with no findings. A second and final real pack was explicitly authorized
+after that review. It completed normally in 37 minutes 28 seconds, with one
+passing export test. All 12 mixes and 60 stems have matching hashes, finite
+float32 samples, correct schedule/metadata, and 12 distinct mix hashes.
+All original failure/result bundles and separate export memory/log records
+remain preserved in the Task 8 report.
+
+**Final audio acceptance is not met.** All 12 true peaks are at most -1 dBTP;
+11/12 mixes meet -18...-16 LUFS. Only 03, 09, and 11 pass every automated gate.
+Nine previews still exceed the 0.20 post-event tail-ratio limit, and 08 also
+measures too quiet. No further calibration, post-hoc audio processing, threshold
+relaxation, or third export was performed. The canonical pack is final evidence,
+not an accepted release candidate. Its manifest contains the private group
+mapping and exact calibration values; keep that mapping closed for blind ratings.
+
+| Preview | LUFS | True peak dBTP | Tail issue (>0.20) |
+|---|---:|---:|---|
+| 01 | -16.920 | -2.103 | Harmony 0.719 |
+| 02 | -16.886 | -1.321 | Happenings 0.974 |
+| 03 | -17.494 | -1.335 | none |
+| 04 | -17.270 | -1.318 | Happenings 0.558 |
+| 05 | -17.599 | -1.414 | Harmony 0.581; Happenings 1.266 |
+| 06 | -17.440 | -2.388 | Harmony 0.223 |
+| 07 | -17.320 | -1.332 | Harmony 1.247; Happenings 0.319 |
+| 08 | -20.091 | -1.330 | Happenings 5.775 |
+| 09 | -17.254 | -3.015 | none |
+| 10 | -17.714 | -1.312 | Harmony 1.378 |
+| 11 | -17.250 | -2.131 | none |
+| 12 | -17.481 | -1.329 | Harmony 0.314 |
+
+The final onset measurements range from 0.833 to 5.792 per second (20...139
+detected onsets in 24 seconds), below the unchanged, reachable 12/s gate.
+Clipping is zero; no other quality issue was reported. Bass is intentionally
+inactive in 03/08/09/11/12 and its silent stems are excluded from active-role
+tail/audibility checks.
+
+The final directory is 663,888,885 logical bytes (633.134 MiB; WAVs alone
+663,846,912 bytes). Observed simulator app RSS peaked at 721.078 MiB over the
+whole sequential render/report run, and at 553.703 MiB during the first full-mix
+render including startup. The latter used 25 one-second samples before the
+first WAV completed. These are process observations, not device playback-memory
+guarantees. Memory measurement did not launch an additional export.
+
+Use the supported command (an optional `--xctestrun PATH` reuses a fresh build):
+
+```sh
+DAY_OBJECTS_AUDITION_PACK=1 \
+  Scripts/day_objects_audio/export_sound_world_auditions.swift \
+  --directory artifacts/day-objects-four-worlds --seed 99 \
+  --destination 'platform=iOS Simulator,name=iPhone 16e'
+```
+
+The command is recorded for reproducibility, not permission to run again.
+The two authorized real packs are complete; there is no third attempt. Do not
+rerun it against an existing pack. Read numbered files before opening
+the manifest mapping. Rate each preview from 1 (unusable) to 5 (ready), with
+timestamped notes on bass translation, lead clarity, harmony, tails, clicks,
+and whether its musical identity feels distinct. No human ratings are inferred
+from automated measurements.
+
+| Preview | Phone speaker /5 | Headphones /5 | Timestamped listening notes |
+|---|---|---|---|
+| 01 | pending | pending | |
+| 02 | pending | pending | |
+| 03 | pending | pending | |
+| 04 | pending | pending | |
+| 05 | pending | pending | |
+| 06 | pending | pending | |
+| 07 | pending | pending | |
+| 08 | pending | pending | |
+| 09 | pending | pending | |
+| 10 | pending | pending | |
+| 11 | pending | pending | |
+| 12 | pending | pending | |

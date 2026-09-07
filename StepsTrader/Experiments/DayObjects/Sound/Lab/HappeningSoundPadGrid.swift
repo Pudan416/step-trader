@@ -72,6 +72,7 @@ struct HappeningSoundPadGrid: View {
         case .loading: "Loading"
         case .soundStopping: "Sound stopping"
         case .unavailable: "Sound unavailable"
+        case .exporting: "Export in progress"
         }
     }
 

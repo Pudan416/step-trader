@@ -2,6 +2,19 @@ import XCTest
 @testable import Steps4
 
 final class LayerMixPlannerTests: XCTestCase {
+    func testWorldMoodMixKeepsHeadroomAndLivingRhythmBehindOtherWorlds() {
+        for mood in DayObjectsSoundMood.allCases {
+            let plans = DayObjectsSoundWorld.allCases.map { WorldArrangementFixture.plan($0, mood) }
+            for plan in plans {
+                XCTAssertLessThanOrEqual(plan.mix.masterTargetDecibelsBeforeLimiter, -9)
+                XCTAssertLessThanOrEqual(plan.mix.maximumHarmonyDuckingDecibels, 2.5)
+                XCTAssertTrue(plan.mix.happeningPerVoiceTargetDecibels.isFinite)
+            }
+            for plan in plans where plan.soundWorld != .livingField {
+                XCTAssertLessThan(plans[1].mix.rhythmTargetDecibels, plan.mix.rhythmTargetDecibels)
+            }
+        }
+    }
     func testPlanUsesMeasuredFiveRoleTargetsWithSixDecibelsOfMasterHeadroom() {
         let plan = LayerMixPlanner.makePlan(happeningCount: 1)
 

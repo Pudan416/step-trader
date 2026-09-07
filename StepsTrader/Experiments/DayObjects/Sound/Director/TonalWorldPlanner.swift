@@ -5,6 +5,50 @@ enum TonalWorldPlanner {
 
     static func makePlan(
         input: NormalizedDayMusicInput,
+        remixSeed: UInt64,
+        world: DayObjectsSoundWorld,
+        mood: DayObjectsSoundMood
+    ) -> TonalWorldPlan {
+        let grammar = DayObjectsHarmonyGrammar.for(world: world, mood: mood)
+        var keyRandom = StableMusicRandom(seed: remixSeed, domain: .worldKey)
+        var modeRandom = StableMusicRandom(seed: remixSeed, domain: .worldMode)
+        // Keep length selection independent of mood and other random choices.
+        var lengthRandom = StableMusicRandom(seed: remixSeed, domain: .worldProgression)
+        var grammarRandom = StableMusicRandom(seed: remixSeed, domain: MusicSeedDomain("world.harmony-grammar"))
+        let center = keyRandom.choice(from: allowedCenterPitchClasses) ?? 0
+        let mode = modeRandom.choice(from: grammar.allowedModes) ?? .dorian
+        let sleep = input.sleepProgress.isFinite ? min(1, max(0, input.sleepProgress)) : 0
+        let length = selectedProgressionLength(sleepProgress: sleep, random: &lengthRandom)
+        let template = grammarRandom.choice(from: grammar.progressionTemplates) ?? [0]
+        let degrees = Array(template.prefix(length))
+        let cycleBars = grammarRandom.choice(from: grammar.cycleBarChoices) ?? 12
+        let durations = chordDurations(chordCount: degrees.count, cycleBars: cycleBars)
+        let safePitchClasses = mode.scaleIntervals.map { normalizedPitchClass(center + $0) }
+        var previousNotes: [UInt8]?
+        let progression = degrees.enumerated().map { index, degree -> ChordPlan in
+            let root = normalizedPitchClass(center + degree)
+            let pitchClasses = ([0] + grammar.allowedExtensions).prefix(grammar.maximumChordTones).map {
+                normalizedPitchClass(root + $0)
+            }
+            let notes = AmbientVoiceLeading.nearestVoicing(
+                chordPitchClasses: pitchClasses, previousNotes: previousNotes,
+                world: world, mood: mood, chordIndex: index
+            )
+            previousNotes = notes
+            return ChordPlan(
+                modalDegree: degree, rootPitchClass: root,
+                chordPitchClasses: pitchClasses, safePassingPitchClasses: safePitchClasses,
+                voicedMIDINotes: notes, durationBars: durations[index]
+            )
+        }
+        return TonalWorldPlan(
+            centerPitchClass: center, mode: mode, scalePitchClasses: safePitchClasses,
+            progression: progression, cycleBars: cycleBars
+        )
+    }
+
+    static func makePlan(
+        input: NormalizedDayMusicInput,
         remixSeed: UInt64
     ) -> TonalWorldPlan {
         var keyRandom = StableMusicRandom(seed: remixSeed, domain: .worldKey)
