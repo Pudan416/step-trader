@@ -11,6 +11,46 @@ enum DayObjectsSoundWorldCatalogError: Error, Equatable {
     case incompleteCatalog
 }
 
+/// One resource decision shared by planning and playback. The optional world
+/// catalog remains strict, while valid legacy sources can keep Sound available.
+struct DayObjectsSoundWorldResources {
+    static let bundled = Self(bundle: .main)
+
+    let catalog: DayObjectsSoundWorldCatalog?
+    let catalogError: Error?
+    private let instruments: Result<[DayObjectsInstrumentID: NormalizedSynthVoice], Error>
+
+    var descriptors: [DayObjectsInstrumentDescriptor] {
+        DayObjectsInstrumentManifest.defaultDescriptors + (catalog?.descriptors ?? [])
+    }
+
+    init(
+        bundle: Bundle,
+        catalogLoader: (Bundle) throws -> DayObjectsSoundWorldCatalog = DayObjectsSoundWorldCatalog.load(from:)
+    ) {
+        do {
+            let loaded = try catalogLoader(bundle)
+            try loaded.validate()
+            catalog = loaded
+            catalogError = nil
+            instruments = .success(loaded.sourceVoices.merging(loaded.resolvedInstruments) { _, recipe in recipe })
+        } catch {
+            catalog = nil
+            catalogError = error
+            // Retain a source failure as a preparation error; only optional
+            // world resources are allowed to degrade to legacy playback.
+            instruments = Result {
+                let records = try DayObjectsInstrumentManifest.loadSynthOneRecords(from: bundle)
+                return try SynthOnePresetAdapter.convertSelectedRecords(records)
+            }
+        }
+    }
+
+    func tonalInstruments() throws -> [DayObjectsInstrumentID: NormalizedSynthVoice] {
+        try instruments.get()
+    }
+}
+
 struct DayObjectsCompatibilityGroup: Codable, Equatable, Sendable {
     let id: String
     let world: DayObjectsSoundWorld

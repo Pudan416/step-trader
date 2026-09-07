@@ -104,7 +104,9 @@ private struct FileReport: Codable {
         containsOnlyFiniteSamples
             && passesIntegratedLoudness
             && passesTruePeak
-            && quality.passes
+            // These two measurements use the command's explicit limits above;
+            // the embedded quality report retains the default diagnostic gates.
+            && quality.issues.allSatisfy { $0 == .integratedLoudness || $0 == .truePeak }
     }
 }
 
@@ -157,7 +159,7 @@ private func parseActiveStemRoles(_ value: String) throws -> Set<DayObjectsMixRo
     return roles
 }
 
-private func parseArguments() throws -> (
+private func parseArguments(_ arguments: [String] = CommandLine.arguments) throws -> (
     URL,
     URL?,
     URL?,
@@ -170,7 +172,6 @@ private func parseArguments() throws -> (
     var activeStemRoles: Set<DayObjectsMixRole>?
     var inputURLs: [URL] = []
     var index = 1
-    let arguments = CommandLine.arguments
     func value(after option: String) throws -> String {
         guard index + 1 < arguments.count else {
             throw CommandError.usage("Missing value after \(option)")
@@ -210,6 +211,7 @@ private func parseArguments() throws -> (
                     + "[--max-dbtp -1] [--stems-directory directory "
                     + "--active-stems role,...] "
                     + "[--output report.json] <PCM file (or directory without stems)>"
+                    + "\nLUFS/peak options replace the default acceptance limits; all other quality gates still apply."
             )
         default:
             guard !arguments[index].hasPrefix("-") else {
@@ -357,6 +359,7 @@ private func analyze(
     )
 }
 
+#if !DAY_OBJECTS_ANALYZER_TESTING
 do {
     let (inputURL, outputURL, stemsDirectoryURL, activeStemRoles, limits) = try parseArguments()
     try validateStemAnalysisInput(inputURL, stemsDirectory: stemsDirectoryURL)
@@ -384,4 +387,5 @@ do {
     FileHandle.standardError.write(Data("\(error)\n".utf8))
     exit(64)
 }
+#endif
 #endif

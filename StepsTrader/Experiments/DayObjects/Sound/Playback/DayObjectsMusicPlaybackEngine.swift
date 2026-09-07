@@ -819,7 +819,9 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan) {
             guard mode != .kickBassSidechain else { return }
             diagnosticAuditionMode = mode
-            applyMix(plan, ducking: 0)
+            // The controller may already describe a pending Remix. Isolation
+            // changes the mix of the world that is currently sounding.
+            applyMix(self.plan ?? plan, ducking: 0)
         }
 
         func resetDiagnosticAudition() {
@@ -1023,6 +1025,10 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
             from update: DayMusicPlan,
             into structural: DayMusicPlan
         ) -> DayMusicPlan {
+            // Group gain and wet recipes belong to the instruments that are
+            // sounding. A pending world/mood must bring its entire calibration
+            // at the structural boundary, including its calibrated base mix.
+            let sameGroup = update.soundWorld == structural.soundWorld && update.mood == structural.mood
             let rhythmVoices = structural.rhythm.voices.map { old in
                 let fresh = update.rhythm.voice(for: old.role) ?? old
                 return RhythmVoicePlan(
@@ -1031,7 +1037,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                     stepProbabilities: fresh.stepProbabilities,
                     velocityRange: fresh.velocityRange,
                     microtimingMilliseconds: fresh.microtimingMilliseconds,
-                    roomSend: fresh.roomSend,
+                    roomSend: sameGroup ? fresh.roomSend : old.roomSend,
                     activation: .init(
                         startProgress: old.activation.startProgress,
                         fullProgress: old.activation.fullProgress,
@@ -1068,8 +1074,8 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                     gain: fresh.gain,
                     attackSeconds: fresh.attackSeconds,
                     releaseSeconds: fresh.releaseSeconds,
-                    delaySend: fresh.delaySend,
-                    reverbSend: fresh.reverbSend,
+                    delaySend: sameGroup ? fresh.delaySend : old.delaySend,
+                    reverbSend: sameGroup ? fresh.reverbSend : old.reverbSend,
                     activation: .init(
                         startProgress: old.activation.startProgress,
                         fullProgress: old.activation.fullProgress,
@@ -1098,8 +1104,8 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 pitchSmoothingMilliseconds: update.lead.pitchSmoothingMilliseconds,
                 expressionSmoothingMilliseconds: update.lead.expressionSmoothingMilliseconds,
                 maximumExpressionDepth: update.lead.maximumExpressionDepth,
-                delaySend: update.lead.delaySend,
-                reverbSend: update.lead.reverbSend
+                delaySend: sameGroup ? update.lead.delaySend : structural.lead.delaySend,
+                reverbSend: sameGroup ? update.lead.reverbSend : structural.lead.reverbSend
             )
             let glitchRoles = structural.glitch.roles.map { old in
                 let fresh = update.glitch.role(for: old.role) ?? old
@@ -1121,7 +1127,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 stereoSeparationAddition: update.glitch.stereoSeparationAddition,
                 realization: structural.glitch.realization
             )
-            let bass = mergedBass(from: update.bass, into: structural.bass)
+            let bass = mergedBass(from: update.bass, into: structural.bass, preserveWetSend: !sameGroup)
             return DayMusicPlan(
                 seed: structural.seed,
                 soundWorld: structural.soundWorld,
@@ -1137,13 +1143,14 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 happenings: structural.happenings,
                 lead: lead,
                 glitch: glitch,
-                mix: update.mix
+                mix: sameGroup ? update.mix : structural.mix
             )
         }
 
         private static func mergedBass(
             from update: BassPlan?,
-            into structural: BassPlan?
+            into structural: BassPlan?,
+            preserveWetSend: Bool
         ) -> BassPlan? {
             guard let structural, let update else { return structural }
             guard hasSameBassStructure(structural, update) else { return structural }
@@ -1170,7 +1177,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 stepsProgress: update.stepsProgress,
                 cutoffMultiplier: update.cutoffMultiplier,
                 glideMilliseconds: update.glideMilliseconds,
-                reverbSend: update.reverbSend,
+                reverbSend: preserveWetSend ? structural.reverbSend : update.reverbSend,
                 ducking: BassDuckingPlan(
                     maximumAttenuationDecibels: update.ducking.maximumAttenuationDecibels,
                     attackSeconds: structural.ducking.attackSeconds,
@@ -1408,11 +1415,13 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
 
     init(
         bundle: Bundle = .main,
+        soundWorldResources: DayObjectsSoundWorldResources? = nil,
         diagnosticHostTimeProvider: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
     ) throws {
         self.diagnosticHostTimeProvider = diagnosticHostTimeProvider
         pair = DayObjectsInstrumentBank.makePlaybackPair(
             bundle: bundle,
+            soundWorldResources: soundWorldResources,
             outputGainHostTimeProvider: diagnosticHostTimeProvider
         )
         worldA = WorldState(bank: PlaybackWorldBank(instrumentBank: pair.bankA))
@@ -1926,12 +1935,14 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
 
     init(
         bundle: Bundle = .main,
+        soundWorldResources: DayObjectsSoundWorldResources? = nil,
         diagnosticHostTimeProvider: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
     ) {
         self.diagnosticHostTimeProvider = diagnosticHostTimeProvider
         world = DayObjectsLivePlaybackRuntime.WorldState(
             bank: PlaybackWorldBank(instrumentBank: DayObjectsInstrumentBank(
                 bundle: bundle,
+                soundWorldResources: soundWorldResources,
                 audioHostTimeProvider: diagnosticHostTimeProvider
             ))
         )

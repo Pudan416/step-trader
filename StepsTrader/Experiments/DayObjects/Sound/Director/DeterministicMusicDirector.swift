@@ -2,8 +2,6 @@
 import Foundation
 
 enum DeterministicMusicDirector {
-    private static let catalog = try? DayObjectsSoundWorldCatalog.load(from: .main)
-
     static func makePlan(input: DayMusicInput, remixSeed: UInt64) -> DayMusicPlan {
         makePlanLegacy(input: input, instrumentDescriptors: DayObjectsInstrumentManifest.defaultDescriptors, remixSeed: remixSeed)
     }
@@ -17,11 +15,12 @@ enum DeterministicMusicDirector {
     }
 
     static func makePlan(
-        input: DayMusicInput, remixSeed: UInt64, selection: DayObjectsWorldSelection
+        input: DayMusicInput, remixSeed: UInt64, selection: DayObjectsWorldSelection,
+        resources: DayObjectsSoundWorldResources = .bundled
     ) -> DayMusicPlan {
         makePlan(input: input,
-                 instrumentDescriptors: DayObjectsInstrumentManifest.defaultDescriptors + (catalog?.descriptors ?? []),
-                 remixSeed: remixSeed, selection: selection)
+                 instrumentDescriptors: resources.descriptors,
+                 remixSeed: remixSeed, selection: selection, resources: resources)
     }
 
     static func makePlan(
@@ -39,17 +38,21 @@ enum DeterministicMusicDirector {
 
     static func makePlan(
         input: DayMusicInput, instrumentDescriptors: [DayObjectsInstrumentDescriptor],
-        remixSeed: UInt64, selection: DayObjectsWorldSelection
+        remixSeed: UInt64, selection: DayObjectsWorldSelection,
+        resources: DayObjectsSoundWorldResources = .bundled
     ) -> DayMusicPlan {
+        guard let catalog = resources.catalog else {
+            return makePlanLegacy(input: input, instrumentDescriptors: instrumentDescriptors, remixSeed: remixSeed)
+        }
         let soundWorld = selection.world
         let mood = selection.mood
         let normalizedInput = input.normalized()
         let arrangement = DayObjectsArrangementProfile.for(world: soundWorld, mood: mood)
-        let group = catalog?.groups.first { $0.world == soundWorld && $0.mood == mood }
+        let group = catalog.groups.first { $0.world == soundWorld && $0.mood == mood }
         let calibration = group?.calibration
         let reverbScale = calibration?.reverbSendScale ?? 1
         func runtimeIDs(_ ids: [DayObjectsInstrumentID]?) -> [DayObjectsInstrumentID]? {
-            guard let ids, let catalog else { return nil }
+            guard let ids else { return nil }
             return catalog.recipes.filter { ids.contains($0.id) }.map { $0.resolvedInstrumentID(for: mood) }
         }
         let world = TonalWorldPlanner.makePlan(input: normalizedInput, remixSeed: remixSeed, world: soundWorld, mood: mood)
@@ -82,7 +85,7 @@ enum DeterministicMusicDirector {
         // fallback preserves the 80% palette share while retaining Remix identity.
         if audibleRoleCount >= 5, let guestWorld = selection.guestWorld,
            soundWorld.guestNeighbors.contains(guestWorld),
-           let guest = catalog?.recipes.first(where: {
+           let guest = catalog.recipes.first(where: {
                group?.guestRecipeIDs.contains($0.id) == true && $0.world == guestWorld && $0.role == .lead
            }) {
             let id = guest.resolvedInstrumentID(for: mood)

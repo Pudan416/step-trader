@@ -429,6 +429,23 @@ struct DayObjectsLabView: View {
             .pickerStyle(.segmented)
             .accessibilityIdentifier("dayObjects.soundWorld")
 
+            Picker("Sound mood", selection: Binding(
+                get: { musicController.state.mood },
+                set: { musicController.selectSoundMood($0) }
+            )) {
+                ForEach(DayObjectsSoundMood.allCases, id: \.self) { mood in
+                    Text(mood.rawValue.capitalized).tag(mood)
+                }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("dayObjects.soundMood")
+
+            if let diagnostic = musicController.soundWorldCatalogDiagnostic {
+                Text(diagnostic)
+                    .font(.caption)
+                    .accessibilityIdentifier("dayObjects.soundWorldDiagnostic")
+            }
+
             Button {
                 musicController.remix()
             } label: {
@@ -437,6 +454,7 @@ struct DayObjectsLabView: View {
             }
             .buttonStyle(.borderedProminent)
             .accessibilityIdentifier("dayObjects.remix")
+            .accessibilityHint("Changes the seed while keeping the selected world and mood.")
 
             Button {
                 musicController.undoMusicRemix()

@@ -1,6 +1,24 @@
 import XCTest
 
 final class DayObjectsLabUITests: XCTestCase {
+    func testMoodPickerSelectsEveryMoodAndRemixPreservesDiagnosticSelection() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiLab", "dayObjects", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let mood = app.segmentedControls["dayObjects.soundMood"]
+        XCTAssertTrue(mood.waitForExistence(timeout: 5))
+        for name in ["Sparse", "Moving", "Strange"] {
+            mood.buttons[name].tap()
+            XCTAssertTrue(mood.buttons[name].isSelected)
+        }
+        app.buttons["dayObjects.remix"].tap()
+        XCTAssertTrue(mood.buttons["Strange"].isSelected)
+        app.buttons["dayObjects.musicUndo"].tap()
+        XCTAssertTrue(mood.buttons["Strange"].isSelected)
+        app.buttons["dayObjects.musicUndo"].tap()
+        XCTAssertTrue(mood.buttons["Moving"].isSelected)
+    }
+
     func testAuditionExportAppearsOnlyInsideInstrumentDiagnostics() {
         let app = XCUIApplication()
         app.launchArguments = ["-uiLab", "dayObjects", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
@@ -218,7 +236,7 @@ final class DayObjectsLabUITests: XCTestCase {
         XCTAssertTrue(reset.exists)
 
         motion.adjust(toNormalizedSliderPosition: 0)
-        XCTAssertTrue(String(describing: motion.value).contains("0.00"))
+        XCTAssertTrue(String(describing: motion.value).contains("0.00"), "Motion value: \(String(describing: motion.value)); frame: \(motion.frame)")
         reset.tap()
         XCTAssertTrue(String(describing: motion.value).contains("1.00"))
     }

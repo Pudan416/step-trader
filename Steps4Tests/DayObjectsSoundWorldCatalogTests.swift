@@ -2,6 +2,14 @@ import XCTest
 @testable import Steps4
 
 final class DayObjectsSoundWorldCatalogTests: XCTestCase {
+    func testOptionalCatalogFallbackRetainsMissingLegacySourceFailure() {
+        let resources = DayObjectsSoundWorldResources(bundle: Bundle(for: XCTestCase.self))
+        XCTAssertNotNil(resources.catalogError)
+        XCTAssertThrowsError(try resources.tonalInstruments()) { error in
+            XCTAssertEqual(error as? DayObjectsInstrumentManifestError, .resourceMissing)
+        }
+    }
+
     func testDirectorCarriesEachCatalogCalibrationAndScalesPlannerWetSendsOnce() throws {
         let catalog = try DayObjectsSoundWorldCatalog.load(from: bundle)
         let input = DayMusicInput(countedSteps: 7_500, stepGoal: 10_000, countedSleepHours: 6.5,

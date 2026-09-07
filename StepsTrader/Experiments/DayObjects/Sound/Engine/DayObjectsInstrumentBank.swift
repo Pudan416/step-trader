@@ -21,6 +21,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     typealias GraphFactory = ([DayObjectsTonalVoicePoolProtocol], DayObjectsDrumBankProtocol?, DayObjectsPianoPoolProtocol?, DayObjectsHappeningSamplePoolProtocol) throws -> DayObjectsInstrumentBankGraph
 
     let descriptors: [DayObjectsInstrumentDescriptor]
+    private(set) var soundWorldCatalogError: Error?
     private let descriptorByID: [DayObjectsInstrumentID: DayObjectsInstrumentDescriptor]
     private let tonalInstrumentLoader: TonalInstrumentLoader
     private let tonalPoolFactory: TonalPoolFactory
@@ -86,6 +87,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
 
     convenience init(
         bundle: Bundle = .main,
+        soundWorldResources: DayObjectsSoundWorldResources? = nil,
         audioHostTimeProvider: @escaping () -> TimeInterval = {
             ProcessInfo.processInfo.systemUptime
         }
@@ -93,6 +95,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         let happenings = DayObjectsHappeningSamplePool(bundle: bundle, clock: audioHostTimeProvider)
         self.init(
             bundle: bundle,
+            soundWorldResources: soundWorldResources,
             engine: DayObjectsAudioKitInstrumentBankEngine(happenings: happenings),
             happenings: happenings,
             audioHostTimeProvider: audioHostTimeProvider
@@ -101,20 +104,16 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
 
     private convenience init(
         bundle: Bundle,
+        soundWorldResources: DayObjectsSoundWorldResources? = nil,
         engine: DayObjectsInstrumentBankEngine,
         happenings: DayObjectsHappeningSamplePool,
         audioHostTimeProvider: @escaping () -> TimeInterval
     ) {
-        // Capture the transaction so descriptor expansion and preparation share one
-        // conversion of the 16 sources. A malformed resource fails preparation.
-        let catalog = Result { try DayObjectsSoundWorldCatalog.load(from: bundle) }
-        let descriptors = DayObjectsInstrumentManifest.defaultDescriptors
-            + ((try? catalog.get().descriptors) ?? [])
+        let resources = soundWorldResources ?? DayObjectsSoundWorldResources(bundle: bundle)
         self.init(
-            descriptors: descriptors,
+            descriptors: resources.descriptors,
             tonalInstrumentLoader: {
-                let resolved = try catalog.get()
-                return resolved.sourceVoices.merging(resolved.resolvedInstruments) { _, recipe in recipe }
+                try resources.tonalInstruments()
             },
             tonalPoolFactory: { specification, instruments in
                 // The prepared pool is detached and does not start an engine or audio session.
@@ -161,16 +160,19 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
             },
             engine: engine
         )
+        soundWorldCatalogError = resources.catalogError
     }
 
     static func makePlaybackPair(
         bundle: Bundle = .main,
+        soundWorldResources: DayObjectsSoundWorldResources? = nil,
         startFailureProvider: @escaping () -> DayObjectsPlaybackBankPairStartFailure? = { nil },
         individualStartFailureProvider: @escaping () -> Error? = { nil },
         outputGainHostTimeProvider: @escaping () -> TimeInterval = {
             ProcessInfo.processInfo.systemUptime
         }
     ) -> DayObjectsPlaybackBankPair {
+        let resources = soundWorldResources ?? DayObjectsSoundWorldResources(bundle: bundle)
         let happenings = DayObjectsHappeningSamplePool(bundle: bundle)
         let sharedEngine = DayObjectsSharedInstrumentBankEngine(
             happenings: happenings,
@@ -178,12 +180,14 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         )
         let bankA = DayObjectsInstrumentBank(
             bundle: bundle,
+            soundWorldResources: resources,
             engine: DayObjectsPairedInstrumentBankEngine(slot: .a, shared: sharedEngine),
             happenings: happenings,
             audioHostTimeProvider: outputGainHostTimeProvider
         )
         let bankB = DayObjectsInstrumentBank(
             bundle: bundle,
+            soundWorldResources: resources,
             engine: DayObjectsPairedInstrumentBankEngine(slot: .b, shared: sharedEngine),
             happenings: happenings,
             audioHostTimeProvider: outputGainHostTimeProvider

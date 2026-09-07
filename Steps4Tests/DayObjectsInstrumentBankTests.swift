@@ -79,6 +79,44 @@ private func renderAntiPhaseBassProbe(frequency: Double) -> AVAudioPCMBuffer {
 
 @MainActor
 final class DayObjectsInstrumentBankTests: XCTestCase {
+    func testMissingInvalidAndIncompleteWorldCatalogsPrepareCompatibleLegacyVoices() async throws {
+        let bundle = Bundle(for: type(of: self))
+        let valid = try DayObjectsSoundWorldCatalog.load(from: bundle)
+        let recipesURL = try XCTUnwrap(bundle.url(forResource: "synth-recipes-v1", withExtension: "json", subdirectory: "SoundWorlds"))
+        let groupsURL = try XCTUnwrap(bundle.url(forResource: "world-groups-v1", withExtension: "json", subdirectory: "SoundWorlds"))
+        let recipes = try Data(contentsOf: recipesURL)
+        let groups = try Data(contentsOf: groupsURL)
+        let fixtures: [(Bundle) throws -> DayObjectsSoundWorldCatalog] = [
+            { _ in throw DayObjectsSoundWorldCatalogError.resourceMissing("synth-recipes-v1") },
+            { _ in try DayObjectsSoundWorldCatalog.load(recipesData: Data("invalid JSON".utf8),
+                groupsData: groups, sourceVoices: valid.sourceVoices) },
+            { _ in try DayObjectsSoundWorldCatalog.load(recipesData: recipes,
+                groupsData: Data(#"{"schemaVersion":1,"groups":[]}"#.utf8), sourceVoices: valid.sourceVoices) },
+        ]
+        for loader in fixtures {
+            let resources = DayObjectsSoundWorldResources(bundle: bundle, catalogLoader: loader)
+            XCTAssertNotNil(resources.catalogError)
+            XCTAssertNil(resources.catalog)
+            let input = DayMusicInput(countedSteps: 7_500, stepGoal: 10_000, countedSleepHours: 6.5,
+                sleepGoalHours: 8, happeningIDs: [], spentColors: 25)
+            let plan = DeterministicMusicDirector.makePlan(input: input, remixSeed: 38,
+                selection: .init(world: .livingField, mood: .strange, guestWorld: nil), resources: resources)
+            XCTAssertEqual(plan, DeterministicMusicDirector.makePlan(input: input, remixSeed: 38))
+            let bank = DayObjectsInstrumentBank(bundle: bundle, soundWorldResources: resources)
+            try bank.prepare(configuration: smallPlaybackPairConfiguration(), happeningRecipeIDs: [])
+            XCTAssertNotNil(bank.soundWorldCatalogError)
+            XCTAssertEqual(bank.descriptors, DayObjectsInstrumentManifest.defaultDescriptors)
+            let pool = try bank.tonalPool(named: "world")
+            try pool.prepareInstrument(plan.lead.instrumentID)
+            let token = try XCTUnwrap(pool.noteOn(.init(instrumentID: plan.lead.instrumentID,
+                midiNote: 60, velocity: 0.7, role: .lead, envelopeVariant: nil,
+                pan: 0, delaySend: 0, reverbSend: 0)))
+            XCTAssertEqual(pool.metrics.activeVoiceCount, 1)
+            pool.noteOff(token)
+            await bank.stop()
+        }
+    }
+
     func testProductionBankBindsEveryMoodRecipeWithoutGrowingPoolsOrGraph() async throws {
         let bank = DayObjectsInstrumentBank(bundle: Bundle(for: type(of: self)))
         try bank.prepare(configuration: smallPlaybackPairConfiguration())

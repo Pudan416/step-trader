@@ -75,6 +75,10 @@ final class DayObjectsMusicLabController: ObservableObject {
     let soundPulseBus = DayObjectsSoundPulseBus()
 
     private let playback: any DayObjectsMusicPlaybackProtocol
+    private let soundWorldResources: DayObjectsSoundWorldResources
+    var soundWorldCatalogDiagnostic: String? {
+        soundWorldResources.catalogError.map { "Sound worlds unavailable; using legacy instruments. \($0)" }
+    }
     private let auditionExport: AuditionExport
     private var auditionExportTask: Task<Void, Never>?
     private var isLeadHeld = false
@@ -108,8 +112,10 @@ final class DayObjectsMusicLabController: ObservableObject {
     init(
         state: DayObjectsLabMusicState = DayObjectsLabMusicState(),
         playback: (any DayObjectsMusicPlaybackProtocol)? = nil,
+        soundWorldResources: DayObjectsSoundWorldResources = .bundled,
         auditionExport: AuditionExport? = nil
     ) {
+        self.soundWorldResources = soundWorldResources
         self.auditionExport = auditionExport ?? { input, seed, directory, progress in
             _ = try await DayObjectsAuditionPackExporter(progress: progress)
                 .export(input: input, seed: seed, directory: directory)
@@ -122,11 +128,11 @@ final class DayObjectsMusicLabController: ObservableObject {
         self.state = sanitized
         let initialHappeningIDs = Self.happeningIDs(count: sanitized.happeningCount)
         configuredHappeningIDs = initialHappeningIDs
-        currentPlan = Self.makePlan(for: sanitized, happeningIDs: initialHappeningIDs)
+        currentPlan = Self.makePlan(for: sanitized, happeningIDs: initialHappeningIDs, resources: soundWorldResources)
         if let playback {
             self.playback = playback
         } else {
-            let runtime = DayObjectsMobilePlaybackRuntime()
+            let runtime = DayObjectsMobilePlaybackRuntime(soundWorldResources: soundWorldResources)
             self.playback = DayObjectsMusicPlaybackEngine(
                 audioSession: DayObjectsSystemAudioSession(),
                 runtime: runtime
@@ -415,6 +421,8 @@ final class DayObjectsMusicLabController: ObservableObject {
     }
 
     func remix() {
+        // Diagnostic Remix varies the seed within the explicitly selected world
+        // and mood. The fullscreen Canvas supplies its own complete selection.
         rememberCurrentMusicVariant()
         updateState { $0.remixSeed &+= 1 }
     }
@@ -436,6 +444,12 @@ final class DayObjectsMusicLabController: ObservableObject {
         guard state.soundWorld != soundWorld else { return }
         rememberCurrentMusicVariant()
         updateState { $0.soundWorld = soundWorld }
+    }
+
+    func selectSoundMood(_ mood: DayObjectsSoundMood) {
+        guard state.mood != mood else { return }
+        rememberCurrentMusicVariant()
+        updateState { $0.mood = mood }
     }
 
     func undoMusicRemix() {
@@ -591,7 +605,8 @@ final class DayObjectsMusicLabController: ObservableObject {
         }
         let nextPlan = Self.makePlan(
             for: nextState,
-            happeningIDs: configuredHappeningIDs
+            happeningIDs: configuredHappeningIDs,
+            resources: soundWorldResources
         )
         currentPlan = nextPlan
         guard !isExportingAuditions, soundState == .on else { return }
@@ -711,7 +726,8 @@ final class DayObjectsMusicLabController: ObservableObject {
 
     private static func makePlan(
         for state: DayObjectsLabMusicState,
-        happeningIDs: [String]
+        happeningIDs: [String],
+        resources: DayObjectsSoundWorldResources
     ) -> DayMusicPlan {
         DeterministicMusicDirector.makePlan(
             input: .init(
@@ -723,7 +739,8 @@ final class DayObjectsMusicLabController: ObservableObject {
                 spentColors: state.spentColors
             ),
             remixSeed: state.remixSeed,
-            selection: .init(world: state.soundWorld, mood: state.mood, guestWorld: state.guestWorld)
+            selection: .init(world: state.soundWorld, mood: state.mood, guestWorld: state.guestWorld),
+            resources: resources
         )
     }
 

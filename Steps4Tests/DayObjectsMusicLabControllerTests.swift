@@ -5,6 +5,72 @@ import SwiftUI
 
 @MainActor
 final class DayObjectsMusicLabControllerTests: XCTestCase {
+    func testControllerSeed38To39KeepsCurrentMasterAndWetUntilTheBarBoundary() async throws {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(state: .init(steps: 7_500, sleepHours: 6.5,
+            happeningCount: 2, spentColors: 25, remixSeed: 38, soundWorld: .metalAndCurrent), playback: playback)
+        let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        try runtime.prepare(plan: controller.currentPlan)
+        try runtime.startPreparedWorldForTesting()
+        playback.continuousHandler = runtime.applyContinuous
+        playback.structuralHandler = runtime.scheduleStructuralPlan
+        await controller.toggleSound()
+        let before = try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state)
+
+        controller.applyRemix(seed: 39, selection: DayObjectsWorldSelector.makeSelection(remixSeed: 39))
+
+        let pending = try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state)
+        XCTAssertEqual(runtime.activePlanForTesting?.seed, 38)
+        XCTAssertEqual(pending.masterTargetDecibelsBeforeLimiter, before.masterTargetDecibelsBeforeLimiter)
+        XCTAssertEqual(pending.buses, before.buses)
+        runtime.renderForTesting(.init(kind: .subdivision, position: .init(absoluteSubdivision: 32),
+            hostTimeSeconds: 4, tempoBPM: controller.currentPlan.rhythm.tempoBPM))
+        XCTAssertEqual(runtime.activePlanForTesting, controller.currentPlan)
+        XCTAssertEqual(try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state).worldGroupCalibration,
+            .init(masterMakeupDB: 9.52, reverbSendScale: 1))
+    }
+
+    func testCatalogFailureRemainsVisibleWhileControllerUsesLegacyPlan() {
+        let resources = DayObjectsSoundWorldResources(bundle: Bundle(for: type(of: self)), catalogLoader: { _ in
+            throw DayObjectsSoundWorldCatalogError.resourceMissing("synth-recipes-v1")
+        })
+        let controller = DayObjectsMusicLabController(playback: RecordingLabPlayback(), soundWorldResources: resources)
+        controller.selectSoundWorld(.livingField)
+        controller.selectSoundMood(.strange)
+        controller.remix()
+        XCTAssertNotNil(controller.soundWorldCatalogDiagnostic)
+        XCTAssertEqual(controller.currentPlan.soundWorld, .feltAndWood)
+        XCTAssertNil(controller.currentPlan.mix.worldGroupCalibration)
+        XCTAssertTrue(DayObjectsInstrumentManifest.defaultDescriptors.contains { $0.id == controller.currentPlan.lead.instrumentID })
+    }
+
+    func testDiagnosticsSelectEveryMoodAndPreserveForcedWorldMoodOnRemixAndUndo() async {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        controller.selectSoundWorld(.livingField)
+        await controller.toggleSound()
+        let seed = controller.state.remixSeed
+        let input = controller.currentPlan.input
+        for mood in [DayObjectsSoundMood.sparse, .moving, .strange] {
+            controller.selectSoundMood(mood)
+            XCTAssertEqual(controller.state.mood, mood)
+            XCTAssertEqual(controller.currentPlan.mood, mood)
+            XCTAssertEqual(controller.currentPlan.soundWorld, .livingField)
+            XCTAssertEqual(controller.currentPlan.seed, seed)
+            XCTAssertEqual(controller.currentPlan.input, input)
+            XCTAssertEqual(playback.structuralPlans.last, controller.currentPlan)
+        }
+        let forced = controller.currentPlan
+        controller.remix()
+        XCTAssertEqual(controller.currentPlan.seed, seed &+ 1)
+        XCTAssertEqual(controller.currentPlan.soundWorld, .livingField)
+        XCTAssertEqual(controller.currentPlan.mood, .strange)
+        controller.undoMusicRemix()
+        XCTAssertEqual(controller.currentPlan, forced)
+        controller.undoMusicRemix()
+        XCTAssertEqual(controller.currentPlan.mood, .moving)
+    }
+
     func testExportSurvivesDiagnosticViewReplacementAndBlocksCompetingAudio() async throws {
         let playback = RecordingLabPlayback()
         let gate = CheckedContinuationGate()
@@ -852,6 +918,8 @@ final class DayObjectsMusicLabControllerTests: XCTestCase {
 
 @MainActor
 private final class RecordingLabPlayback: DayObjectsMusicPlaybackProtocol {
+    var continuousHandler: ((DayMusicPlan) -> Void)?
+    var structuralHandler: ((DayMusicPlan) -> Void)?
     var state: DayObjectsSoundState = .off
     var metrics = DayObjectsPlaybackMetrics()
     var startError: DayObjectsAudioError?
@@ -904,11 +972,15 @@ private final class RecordingLabPlayback: DayObjectsMusicPlaybackProtocol {
     }
     func resumeStop() { suspendStop = false; stopContinuation?.resume(); stopContinuation = nil }
     func resumeStart() { suspendStart = false; startContinuation?.resume(); startContinuation = nil }
-    func applyContinuous(_ plan: DayMusicPlan) { commands.append("continuous") }
+    func applyContinuous(_ plan: DayMusicPlan) {
+        commands.append("continuous")
+        continuousHandler?(plan)
+    }
     func scheduleStructuralPlan(_ plan: DayMusicPlan) {
         structuralPlans.append(plan)
         metrics.pendingRemixCount = 1
         commands.append("structural")
+        structuralHandler?(plan)
     }
     func addHappening(_ plan: HappeningMusicPlan, playBirth: Bool) {
         activeHappeningIDs.insert(plan.happeningID)
