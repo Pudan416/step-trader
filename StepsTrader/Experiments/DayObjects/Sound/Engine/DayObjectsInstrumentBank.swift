@@ -90,7 +90,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
             ProcessInfo.processInfo.systemUptime
         }
     ) {
-        let happenings = DayObjectsHappeningSamplePool(bundle: bundle)
+        let happenings = DayObjectsHappeningSamplePool(bundle: bundle, clock: audioHostTimeProvider)
         self.init(
             bundle: bundle,
             engine: DayObjectsAudioKitInstrumentBankEngine(happenings: happenings),
@@ -455,6 +455,10 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         prepared?.graph.offlineLimiterInputPeakDBFS ?? -120
     }
 
+    func advanceOfflineModulation() {
+        (prepared?.graph as? DayObjectsAudioKitInstrumentBankGraph)?.advanceOfflineModulation()
+    }
+
     func applyMix(_ state: DayObjectsMixState) {
         prepared?.graph.applyMix(state)
     }
@@ -732,6 +736,10 @@ final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentBankGraph
     private let bassRecombine: Mixer?
     private let bassSaturation: TanhDistortion?
     private let tonalPools: [DayObjectsAudioKitTonalPool]
+
+    func advanceOfflineModulation() {
+        tonalPools.forEach { $0.advanceOfflineModulation() }
+    }
     private let drums: DayObjectsAudioKitDrumBank?
     private let piano: DayObjectsAudioKitFeltPiano?
     private var outputGainTarget = 1.0

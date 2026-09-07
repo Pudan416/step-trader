@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D30700000000000000000004 /* DayObjectsAuditionPackExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30700000000000000000003 /* DayObjectsAuditionPackExporter.swift */; };
+		D30700000000000000000002 /* DayObjectsAuditionPackExporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30700000000000000000001 /* DayObjectsAuditionPackExporterTests.swift */; };
 		D10400000000000000000012 /* DayObjectsSynthRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10400000000000000000011 /* DayObjectsSynthRecipe.swift */; };
 		D10400000000000000000014 /* DayObjectsSoundWorldCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10400000000000000000013 /* DayObjectsSoundWorldCatalog.swift */; };
 		D10400000000000000000022 /* SoundWorlds in Resources */ = {isa = PBXBuildFile; fileRef = D10400000000000000000021 /* SoundWorlds */; };
@@ -605,6 +607,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		D30700000000000000000003 /* DayObjectsAuditionPackExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsAuditionPackExporter.swift; sourceTree = "<group>"; };
+		D30700000000000000000001 /* DayObjectsAuditionPackExporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsAuditionPackExporterTests.swift; sourceTree = "<group>"; };
 		D10400000000000000000011 /* DayObjectsSynthRecipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsSynthRecipe.swift; sourceTree = "<group>"; };
 		D10400000000000000000013 /* DayObjectsSoundWorldCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsSoundWorldCatalog.swift; sourceTree = "<group>"; };
 		D10400000000000000000021 /* SoundWorlds */ = {isa = PBXFileReference; lastKnownFileType = folder; path = SoundWorlds; sourceTree = "<group>"; };
@@ -1282,6 +1286,7 @@
 				D30600000000000000000003 /* DayObjectsMixQualityReport.swift */,
 				D30600000000000000000005 /* DayObjectsMixQualityAnalyzer.swift */,
 				F5A900000000000000000006 /* DayObjectsOfflineMixRenderer.swift */,
+				D30700000000000000000003 /* DayObjectsAuditionPackExporter.swift */,
 			);
 			path = Diagnostics;
 			sourceTree = "<group>";
@@ -1900,6 +1905,7 @@
 			children = (
 				F5A900000000000000000001 /* DayObjectsLoudnessAnalyzerTests.swift */,
 				D30600000000000000000001 /* DayObjectsMixQualityAnalyzerTests.swift */,
+				D30700000000000000000001 /* DayObjectsAuditionPackExporterTests.swift */,
 				F5A900000000000000000008 /* DayObjectsMixScenarioTests.swift */,
 				D0FB00000000000000000001 /* DayObjectsBusMeterTests.swift */,
 				D0F900000000000000000007 /* DayObjectsMusicLabControllerTests.swift */,
@@ -2384,6 +2390,7 @@
 				D30600000000000000000004 /* DayObjectsMixQualityReport.swift in Sources */,
 				D30600000000000000000006 /* DayObjectsMixQualityAnalyzer.swift in Sources */,
 				F5A900000000000000000007 /* DayObjectsOfflineMixRenderer.swift in Sources */,
+				D30700000000000000000004 /* DayObjectsAuditionPackExporter.swift in Sources */,
 				D0FB00000000000000000004 /* DayObjectsBusMeter.swift in Sources */,
 				D0F90000000000000000000A /* DayObjectsMusicLabController.swift in Sources */,
 				D0F900000000000000000004 /* DayObjectsAudioSessionProtocol.swift in Sources */,
@@ -2738,6 +2745,7 @@
 			files = (
 				F5A900000000000000000002 /* DayObjectsLoudnessAnalyzerTests.swift in Sources */,
 				D30600000000000000000002 /* DayObjectsMixQualityAnalyzerTests.swift in Sources */,
+				D30700000000000000000002 /* DayObjectsAuditionPackExporterTests.swift in Sources */,
 				F5A900000000000000000009 /* DayObjectsMixScenarioTests.swift in Sources */,
 				D0FB00000000000000000002 /* DayObjectsBusMeterTests.swift in Sources */,
 				D0F900000000000000000008 /* DayObjectsMusicLabControllerTests.swift in Sources */,

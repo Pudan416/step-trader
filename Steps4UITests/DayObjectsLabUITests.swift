@@ -1,6 +1,20 @@
 import XCTest
 
 final class DayObjectsLabUITests: XCTestCase {
+    func testAuditionExportAppearsOnlyInsideInstrumentDiagnostics() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiLab", "dayObjects", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let diagnostics = app.buttons["dayObjects.instrumentDiagnostics"]
+        XCTAssertTrue(diagnostics.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["dayObjects.audition.export"].exists)
+        diagnostics.tap()
+        XCTAssertTrue(app.buttons["dayObjects.audition.export"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["dayObjects.audition.exportProgress"].label, "0 / 12 previews")
+        diagnostics.tap()
+        XCTAssertFalse(app.buttons["dayObjects.audition.export"].exists)
+    }
+
     override func setUpWithError() throws {
         continueAfterFailure = false
     }
@@ -455,7 +469,8 @@ final class DayObjectsLabUITests: XCTestCase {
         let canvas = app.otherElements["dayObjects.canvas"]
         let category = app.buttons["dayObjects.audition.category"]
         XCTAssertTrue(canvas.exists)
-        XCTAssertFalse(canvas.frame.intersects(category.frame), "Controls must be laid out below the Lead canvas")
+        XCTAssertTrue(category.isHittable, "Diagnostics must remain usable over the full-area Canvas background")
+        XCTAssertTrue(app.buttons["dayObjects.audition.export"].exists)
 
         app.buttons["dayObjects.gridToggle"].tap()
         XCTAssertTrue(app.otherElements["dayObjects.grid"].waitForExistence(timeout: 5))

@@ -294,6 +294,10 @@ final class DayObjectsAudioKitTonalPool {
         voices.forEach { $0.synchronizeGraphIfAttached() }
     }
 
+    func advanceOfflineModulation() {
+        voices.forEach { $0.advanceOfflineModulation() }
+    }
+
     private let voices: [DayObjectsTonalVoice]
 
     init(
@@ -322,7 +326,8 @@ final class DayObjectsAudioKitTonalPool {
             voiceFactory: {
                 defer { nextVoice += 1 }
                 return builtVoices[nextVoice]
-            }
+            },
+            monotonicTime: hostTimeProvider
         )
     }
 }
@@ -403,6 +408,23 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
     private var currentModulationPhase = 0.0
     private var pitchRampEndsAt: TimeInterval?
     private var cutoffRampEndsAt: TimeInterval?
+
+    // The very same envelopes/LFO run from the engine sample clock in manual
+    // mode. Live playback retains its wall-clock timer and time origin.
+    private var modulationTime: TimeInterval {
+        if let engine = output.avAudioNode.engine, engine.isInManualRenderingMode {
+            return Double(engine.manualRenderingSampleTime) / engine.manualRenderingFormat.sampleRate
+        }
+        return Date.timeIntervalSinceReferenceDate
+    }
+
+    func advanceOfflineModulation() {
+        controlExecutor.sync {
+            guard output.avAudioNode.engine?.isInManualRenderingMode == true,
+                  modulationLifecycle.isTimerActive else { return }
+            applyModulation(at: modulationTime)
+        }
+    }
 
     init(gateScheduler: DayObjectsTonalGateScheduler = .init()) {
         self.gateScheduler = gateScheduler
@@ -620,7 +642,7 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
 
         if let midiNote = update.midiNote {
             setFrequencies(midiNote: midiNote, pitchSemitoneOffset: 0, duration: pitchDuration)
-            pitchRampEndsAt = Date.timeIntervalSinceReferenceDate + Double(pitchDuration)
+            pitchRampEndsAt = modulationTime + Double(pitchDuration)
         }
         if let cutoffHz = update.cutoffHz {
             let currentCutoff = modulationState?.filterCutoff(
@@ -628,7 +650,7 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
                 lfoPhase: currentModulationPhase
             ) ?? cutoffHz
             setFilterCutoff(currentCutoff, duration: cutoffDuration)
-            cutoffRampEndsAt = Date.timeIntervalSinceReferenceDate + Double(cutoffDuration)
+            cutoffRampEndsAt = modulationTime + Double(cutoffDuration)
         }
         rampEffects(duration: controlDuration)
         rampSaturation(duration: Float(
@@ -665,7 +687,7 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
         amplitudeEnvelope.releaseDuration = value(release)
         gateScheduler.close(amplitudeEnvelope)
         rampOutput(expression: 0, pan: pan, duration: Float(release))
-        releaseStartedAt = Date.timeIntervalSinceReferenceDate
+        releaseStartedAt = modulationTime
         releaseStartEnvelopeLevel = currentFilterEnvelopeLevel
     }
 
@@ -767,13 +789,14 @@ final class DayObjectsTonalVoice: DayObjectsTonalVoiceBackend {
     private func startModulation() {
         assertOnControlExecutor()
         stopModulation()
-        let now = Date.timeIntervalSinceReferenceDate
+        let now = modulationTime
         noteStartedAt = now
         releaseStartedAt = nil
         currentFilterEnvelopeLevel = 0
         currentModulationPhase = 0
         applyModulation(at: now)
         modulationLifecycle.start()
+        guard output.avAudioNode.engine?.isInManualRenderingMode != true else { return }
         modulationTimer = controlExecutor.makeRepeatingTimer(interval: 1.0 / 120) { [weak self] in
             self?.applyModulation(at: Date.timeIntervalSinceReferenceDate)
         }

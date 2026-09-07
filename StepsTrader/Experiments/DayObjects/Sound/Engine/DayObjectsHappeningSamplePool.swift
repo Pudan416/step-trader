@@ -269,7 +269,10 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
         )
     }
 
-    convenience init(bundle: Bundle = .main) {
+    convenience init(
+        bundle: Bundle = .main,
+        clock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    ) {
         self.init(
             recipes: HappeningSoundCatalog.recipes,
             resourceResolver: { resourceName in
@@ -280,7 +283,8 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
                 )
             },
             bufferLoader: Self.decodeBuffer,
-            voiceFactory: { DayObjectsAudioKitHappeningSampleVoice(voiceID: $0) }
+            voiceFactory: { DayObjectsAudioKitHappeningSampleVoice(voiceID: $0) },
+            clock: clock
         )
     }
 
