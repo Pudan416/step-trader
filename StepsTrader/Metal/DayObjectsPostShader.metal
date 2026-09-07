@@ -177,137 +177,144 @@ static float dayObjectsGrainNoise(
     return medium * 0.72 + large * 0.28;
 }
 
-static float dayObjectsGlitchHash(uint value) {
+static float dayObjectsGlitchUnit(uint value) {
     value ^= value >> 16;
     value *= 0x7FEB352Du;
     value ^= value >> 15;
     value *= 0x846CA68Bu;
     value ^= value >> 16;
-    return float(value) / 4294967295.0;
+    return float(value >> 8) / 16777216.0;
 }
 
-// Adapted from SwiftUIShaders' bcs_glitch: stable horizontal block
-// displacement, RGB channel separation, and scan-line corruption. Day Objects
-// replaces the source's intermittent trigger and bright flash with cumulative,
-// day-seeded scars driven by absolute spent colors.
+// Soft double exposure and chromatic edges, plus a few day-seeded local tears.
+// Uniform background stays clean outside the sparse strips; no scan-line grid.
 static float4 dayObjectsApplyDigitalImpact(
     texture2d<float> sceneTexture,
+    texture2d<float> actorEchoTexture,
     sampler linearSampler,
     float2 uv,
     float4 original,
     constant DayObjectsGlitchUniforms &glitch,
-    constant DayObjectsGlitchBandUniform *bands
+    constant DayObjectsGlitchBandUniform *bands,
+    constant float2 &echoDirection
 ) {
     const float damage = saturate(glitch.levels.x);
-    if (damage <= 0.0) {
-        return original;
-    }
-
-    const float scarStrength = saturate(glitch.levels.y);
-    const float signalCorruption = saturate(glitch.levels.z);
-    const float visibleCorruption = 1.0 - pow(1.0 - signalCorruption, 4.0);
-    const float ambientMotion = saturate(glitch.levels.w);
+    if (damage <= 0.0) { return original; }
     const float2 resolution = max(float2(sceneTexture.get_width(), sceneTexture.get_height()), 1.0);
-    const float time = max(glitch.rendering.x, 0.0);
-    const float maximumDisplacementPixels = max(glitch.rendering.y, 0.0);
-    const float maximumColorShiftPixels = max(glitch.rendering.z, 0.0);
-    const float maximumScanLineStrength = saturate(glitch.rendering.w);
+    const float scale = min(resolution.x, resolution.y) / 390.0;
     const uint seed = glitch.metadata.x;
-    const uint bandCount = min(glitch.metadata.y, dayObjectsGlitchBandCapacity);
-    const float edgeWidth = max(1.5 / resolution.y, 0.001);
+    const float time = max(glitch.rendering.x, 0.0);
+    const float phase = dayObjectsGlitchUnit(seed) * dayObjectsTwoPi;
+    // Keep low-spend details perceptible; their small masks and capped opacity protect the artwork.
+    const float strength = pow(damage, 0.65);
+    // Sparse, day-seeded events: ~11 seconds apart at low spend. Higher spend
+    // gradually reveals the intervening events, without moving existing ones.
+    const uint slot = uint(min(floor(time / 3.6), 4294967040.0));
+    const uint eventSeed = seed ^ (slot * 0x9E3779B9u);
+    const float age = fmod(time, 3.6) - (1.2 + 0.8 * dayObjectsGlitchUnit(eventSeed));
+    const float eventGain = slot % 3u == 0u ? 1.0 : smoothstep(0.25, 0.85, damage);
+    const float envelope = smoothstep(0.0, 0.055, age)
+        * (1.0 - smoothstep(0.28, 0.46, age)) * eventGain;
+    // A quick outward step, a smaller reverse step, then a soft return.
+    const float kick = envelope * (1.0 - 1.35 * smoothstep(0.10, 0.15, age)
+        + 0.35 * smoothstep(0.22, 0.30, age));
+    const float2 direction = float2(cos(phase), sin(phase));
+    const float restingOffset = 14.0 + 8.0 * dayObjectsGlitchUnit(seed ^ 0x68E31DA4u);
+    const float2 echoOffset = direction * restingOffset * scale / resolution;
+    const float3 ghost = sceneTexture.sample(linearSampler, saturate(uv - echoOffset)).rgb;
+    float3 color = mix(original.rgb, ghost, 0.22);
 
-    float horizontalOffsetPixels = 0.0;
-    float rgbDirection = 0.0;
-    float coveredScar = 0.0;
-    for (uint index = 0; index < dayObjectsGlitchBandCapacity; ++index) {
-        if (index >= bandCount) {
-            break;
-        }
-        const DayObjectsGlitchBandUniform band = bands[index];
-        const float reveal = saturate(
-            (damage - saturate(band.geometry.w) + 0.01) * float(dayObjectsGlitchBandCapacity)
-        );
-        const float halfHeight = max(band.geometry.y, 0.001);
-        const float coverage = 1.0 - smoothstep(
-            halfHeight,
-            halfHeight + edgeWidth,
-            abs(uv.y - band.geometry.x)
-        );
-        const float weight = coverage * reveal;
-        if (weight <= 0.0) {
-            continue;
-        }
+    // A much tighter colour registration supplies a tinted edge to the full
+    // secondary exposure. Constant fills remain unchanged by both samples.
+    const float2 fringe = direction * 3.0 * scale / resolution;
+    const float3 chromatic = float3(
+        sceneTexture.sample(linearSampler, saturate(uv - fringe)).r,
+        original.g,
+        sceneTexture.sample(linearSampler, saturate(uv + fringe)).b
+    );
+    color = mix(color, chromatic, 0.12);
 
-        const float frequency = 0.15 + 1.35 * ambientMotion;
-        const float phase = band.motion.z + time * frequency * dayObjectsTwoPi;
-        const float twitch = sin(phase) * ambientMotion * 0.18;
-        const float displacement = maximumDisplacementPixels
-            * max(band.geometry.z, 0.0)
-            * (0.12 + 0.88 * scarStrength)
-            * (1.0 + twitch);
-        horizontalOffsetPixels += band.motion.x * displacement * weight;
-        rgbDirection += band.motion.y * weight;
-        coveredScar = max(coveredScar, weight);
+    float weight = 0.0;
+    float stripOffset = 0.0;
+    float stripTone = 0.0;
+    float stripPulse = 0.0;
+    const float2 edge = max(float2(0.8) / resolution, float2(0.0005));
+    const uint availableBands = min(glitch.metadata.y, dayObjectsGlitchBandCapacity);
+    const uint stripCount = min(availableBands, 6u);
+    for (uint index = 0; index < stripCount; ++index) {
+        // Bands are vertically sorted; sample the full height, not only its top half.
+        const uint bandIndex = index * availableBands / stripCount;
+        const DayObjectsGlitchBandUniform band = bands[bandIndex];
+        const uint stripSeed = seed ^ ((index + 1u) * 0x9E3779B9u);
+        const float position = dayObjectsGlitchUnit(stripSeed);
+        const float variation = dayObjectsGlitchUnit(stripSeed ^ 0xB5297A4Du);
+        // Only one local strip moves during each event.
+        const bool selected = index == uint(dayObjectsGlitchUnit(eventSeed ^ 0x68E31DA4u) * float(stripCount));
+        const float drift = selected ? kick * 3.0 : 0.0;
+        const float2 center = float2(0.16 + 0.68 * position + drift * 0.018, band.geometry.x);
+        const float2 halfSize = float2(0.065 + 0.09 * variation, (1.5 + 2.5 * variation) * scale / resolution.y);
+        const float2 coverage = 1.0 - smoothstep(halfSize, halfSize + edge, abs(uv - center));
+        const float candidate = coverage.x * coverage.y;
+        if (candidate <= weight) { continue; }
+        weight = candidate;
+        stripOffset = (position < 0.5 ? -1.0 : 1.0) * (6.0 + 8.0 * variation + drift) * scale;
+        stripTone = variation < 0.5 ? 0.015 : 0.96;
+        stripPulse = selected ? envelope : 0.0;
     }
-
-    // Quantized macro-block displacement makes the whole signal progressively
-    // unstable while the immutable bands remain recognizable daily scars.
-    const float blockHeightPixels = mix(38.0, 11.0, visibleCorruption);
-    const uint blockY = uint(floor(uv.y * resolution.y / blockHeightPixels));
-    const float blockNoise = dayObjectsGlitchHash(seed ^ (blockY * 0x9E3779B9u));
-    const float blockDirection = blockNoise < 0.5 ? -1.0 : 1.0;
-    const float blockMagnitude = smoothstep(0.28, 1.0, blockNoise)
-        * maximumDisplacementPixels
-        * visibleCorruption
-        * 0.72;
-    horizontalOffsetPixels += blockDirection * blockMagnitude;
-
-    const float2 displacedUV = saturate(
-        uv + float2(horizontalOffsetPixels / resolution.x, 0.0)
-    );
-    const float direction = abs(rgbDirection) > 0.001
-        ? sign(rgbDirection)
-        : blockDirection;
-    const float rgbPixels = maximumColorShiftPixels
-        * (0.12 * coveredScar * scarStrength + 0.88 * visibleCorruption);
-    const float2 rgbOffset = float2(direction * rgbPixels / resolution.x, 0.0);
-
-    const float4 center = sceneTexture.sample(linearSampler, displacedUV);
-    const float4 red = sceneTexture.sample(linearSampler, saturate(displacedUV + rgbOffset));
-    const float4 blue = sceneTexture.sample(linearSampler, saturate(displacedUV - rgbOffset));
-    float3 corrupted = float3(red.r, center.g, blue.b);
-
-    const float pixelY = uv.y * resolution.y;
-    const float scanWave = pow(sin(pixelY * 3.14159265) * 0.5 + 0.5, 4.0);
-    const float scanStrength = maximumScanLineStrength
-        * (0.22 * scarStrength + 0.78 * visibleCorruption);
-    corrupted *= 1.0 - scanWave * scanStrength;
-
-    // At maximum damage 28% of the untouched image remains, keeping the day's
-    // composition readable beneath the digital erosion.
-    const float corruptionMix = min(
-        0.72,
-        0.18 * scarStrength + 0.54 * visibleCorruption
-    );
-    return float4(mix(original.rgb, corrupted, corruptionMix), original.a);
+    if (weight > 0.0) {
+        const float3 shifted = sceneTexture.sample(linearSampler,
+            saturate(uv + float2(stripOffset / resolution.x, 0.0))).rgb;
+        // A faint intrinsic tint keeps a short tear legible over a flat area.
+        const float3 stripColor = mix(shifted, float3(stripTone), 0.10);
+        color = mix(color, stripColor, weight * (0.40 + 0.12 * stripPulse));
+    }
+    // Capped opacity preserves the source artwork, including during a twitch.
+    float3 result = mix(original.rgb, color, strength);
+    { // The digital layer exists in still frames too; pulses only animate it.
+        // This texture contains only the selected actor, BEFORE scene blur.
+        // Its displaced silhouette supplies a distinct coloured crescent;
+        // the original silhouette masks the copy away from the figure's body.
+        const float2 shift = echoDirection * (restingOffset + (12.0 + 6.0 * damage) * kick) * scale / resolution;
+        const float2 sampleUV = uv - shift;
+        const bool inside = all(sampleUV >= 0.0) && all(sampleUV <= 1.0);
+        const float4 echo = inside ? actorEchoTexture.sample(linearSampler, sampleUV) : float4(0.0);
+        const float body = actorEchoTexture.sample(linearSampler, uv).a;
+        // Compare matching contours: a broader body mask would swallow the
+        // translated copy inside the actor's existing soft halo.
+        const float crescent = max(smoothstep(0.20, 0.55, echo.a)
+            - smoothstep(0.20, 0.55, body), 0.0);
+        const float3 pigment = echo.rgb / max(echo.a, 0.0001);
+        const float3 tint = mix(pigment, float3(0.48, 0.22, 0.64), 0.55);
+        // Spend controls a persistent pigment layer, independently of sleep/focus.
+        // Never multiply the whole echo by the transient animation envelope.
+        const float restingOpacity = 0.28 * pow(damage, 0.25);
+        const float peakOpacity = max(restingOpacity, min(0.50, pow(damage, 0.35) * 0.64));
+        const float opacity = mix(restingOpacity, peakOpacity, envelope);
+        result = mix(result, tint, crescent * opacity);
+    }
+    return float4(result, original.a);
 }
 
 fragment float4 dayObjectsDisplayFragment(
     DayObjectsPostVertexOut in [[stage_in]],
     texture2d<float> sceneTexture [[texture(0)]],
+    texture2d<float> actorEchoTexture [[texture(1)]],
     sampler linearSampler [[sampler(0)]],
     constant DayObjectsPostUniforms &uniforms [[buffer(0)]],
     constant DayObjectsGlitchUniforms &glitch [[buffer(1)]],
-    constant DayObjectsGlitchBandUniform *glitchBands [[buffer(2)]]
+    constant DayObjectsGlitchBandUniform *glitchBands [[buffer(2)]],
+    constant float2 &echoDirection [[buffer(3)]]
 ) {
     const float4 original = sceneTexture.sample(linearSampler, saturate(in.uv));
     const float4 sampled = dayObjectsApplyDigitalImpact(
         sceneTexture,
+        actorEchoTexture,
         linearSampler,
         saturate(in.uv),
         original,
         glitch,
-        glitchBands
+        glitchBands,
+        echoDirection
     );
     float3 color = max(sampled.rgb, 0.0);
 

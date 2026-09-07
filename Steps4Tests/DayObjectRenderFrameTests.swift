@@ -9,6 +9,49 @@ import simd
 @testable import Steps4
 
 final class DayObjectRenderFrameTests: XCTestCase {
+    private var glitchReviewActorIDs: [String] {
+        [
+            "0F4C9B1A-2D3E-4A50-8B61-7C8D9E0F1AA7",
+            "1A2B3C4D-5E6F-4789-9ABC-DEF0123456B7",
+            "2B7E41C9-8A30-4D65-AF12-903C5E7B14C7",
+            "3C8F52DA-9B41-4E76-B023-A14D6F8C25D7",
+            "4D9063EB-AC52-4F87-8134-B25E709D36E7",
+        ]
+    }
+
+    @MainActor
+    func testHappeningPaletteSuppressesGlitchAndCanvasRestoresIt() async throws {
+        let scene = editorialScene()
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.75)
+        let renderer = try XCTUnwrap(DayObjectsRenderer.create(
+            scene: scene, environment: environment, presentationMode: paletteMode()
+        ))
+        func capture(mode: DayObjectsPresentationMode, spent: Int) async throws -> [UInt8] {
+            renderer.update(scene: scene, environment: environment,
+                digitalImpact: .init(spentColors: spent), presentationMode: mode)
+            let pixels: [UInt8]? = await withCheckedContinuation { continuation in
+                renderer.renderOffscreen(size: CGSize(width: 96, height: 144), pointScale: 1,
+                    elapsedTime: 4) { texture, _ in
+                    guard let texture else { continuation.resume(returning: nil); return }
+                    var bytes = [UInt8](repeating: 0, count: texture.width * texture.height * 4)
+                    texture.getBytes(&bytes, bytesPerRow: texture.width * 4,
+                        from: MTLRegionMake2D(0, 0, texture.width, texture.height), mipmapLevel: 0)
+                    continuation.resume(returning: bytes)
+                }
+            }
+            return try XCTUnwrap(pixels)
+        }
+        for active in [false, true] {
+            let clean = try await capture(mode: paletteMode(active: active), spent: 0)
+            let spent = try await capture(mode: paletteMode(active: active), spent: 100)
+            XCTAssertTrue(clean == spent, "The add-happening list must be independent of canvas glitch, including transitions")
+        }
+        let cleanCanvas = try await capture(mode: .canvas, spent: 0)
+        let spentCanvas = try await capture(mode: .canvas, spent: 100)
+        XCTAssertTrue(cleanCanvas != spentCanvas, "Returning to the canvas must restore the spent-energy effect")
+    }
+
+
     func testPaletteBackgroundCacheChangesOnlyWithRevisionOrTargetSize() {
         var policy = DayObjectsBackgroundRenderPolicy()
         let plan = DayObjectsRenderTargetPlan(drawableWidth: 390, drawableHeight: 844)
@@ -1148,6 +1191,219 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertLessThan(structuralSharpness[1], structuralSharpness[2])
     }
 
+    func testLowSpendEchoSurvivesLowFocusAndFrozenWallpaperFrames() throws {
+        let scene = DayObjectScene.make(input: .init(
+            dayKey: "2026-09-06", identity: "primary-canvas",
+            eventIDs: Array(glitchReviewActorIDs.prefix(5)),
+            motionEnergy: 0.55, visualClarity: 0.05,
+            canvasCoverage: .fullCanvas, usesEditorialField: true,
+            editorialLabConfiguration: .init(materialMode: .generativeDNA, placement: .depthField)
+        ))
+        let harness = try PostRenderHarness(width: 390, height: 640)
+        for clarity in [0.05, 0.7] {
+            let natural = try harness.render(scene: scene, clarity: clarity, elapsed: 4).noGrain
+            let reference = XCTAttachment(data: try natural.pngData(), uniformTypeIdentifier: UTType.png.identifier)
+            reference.name = "persistent-echo-focus-\(clarity)-spent-0-time-4.0"
+            reference.lifetime = .keepAlways
+            add(reference)
+            for spent in [10, 20] {
+                for phase in [0.0, 4.0, 8.375] {
+                    let changed = try autoreleasepool {
+                        try harness.render(scene: scene, clarity: clarity, elapsed: 4,
+                            digitalImpact: .init(spentColors: spent), glitchElapsed: phase).noGrain
+                    }
+                    let differences = zip(natural.rgb, changed.rgb).map { simd_distance($0.0, $0.1) }.sorted()
+                    XCTAssertGreaterThan(differences[Int(Double(differences.count - 1) * 0.99)], 0.025,
+                        "A frozen image must retain a visible echo at clarity \(clarity), spend \(spent), time \(phase)")
+                    XCTAssertGreaterThan(changed.luminanceField.correlation(with: natural.luminanceField), 0.98)
+                    let attachment = XCTAttachment(data: try changed.pngData(), uniformTypeIdentifier: UTType.png.identifier)
+                    attachment.name = "persistent-echo-focus-\(clarity)-spent-\(spent)-time-\(phase)"
+                    attachment.lifetime = .keepAlways
+                    add(attachment)
+                }
+            }
+        }
+    }
+
+    // Catches an invisible slow drift or a continuously shaking canvas.
+    func testLowSpendGlitchHasVisibleBriefMovementAndLongPauses() throws {
+        let scene = DayObjectScene.make(input: .init(
+            dayKey: "2026-09-06", identity: "primary-canvas",
+            eventIDs: Array(glitchReviewActorIDs.prefix(5)),
+            motionEnergy: 0.55, visualClarity: 0.7,
+            canvasCoverage: .fullCanvas, usesEditorialField: true,
+            editorialLabConfiguration: .init(materialMode: .generativeDNA, placement: .depthField)
+        ))
+        let harness = try PostRenderHarness(width: 390, height: 640)
+        var previous: PostPixelCapture?
+        var quietFrames = 0
+        var movingFrames = 0
+        var peak: Float = 0
+        for tick in 0...120 {
+            let capture = try autoreleasepool {
+                try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375,
+                    digitalImpact: .init(spentColors: 20), glitchElapsed: Double(tick) / 10).noGrain
+            }
+            let attachment = XCTAttachment(data: try capture.pngData(), uniformTypeIdentifier: UTType.png.identifier)
+            attachment.name = String(format: "pulse-20-frame-%03d", tick)
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            if let previous {
+                let distances = zip(previous.rgb, capture.rgb).map { simd_distance($0.0, $0.1) }.sorted()
+                let localChange = distances[Int(Double(distances.count - 1) * 0.99)]
+                peak = max(peak, localChange)
+                if localChange < 0.0005 { quietFrames += 1 }
+                if localChange > 0.005 { movingFrames += 1 }
+                XCTAssertLessThan(capture.meanAbsoluteDifference(from: previous), 0.006,
+                    "A twitch must not disturb the whole canvas")
+            }
+            previous = capture
+        }
+        print("GLITCH_RHYTHM quiet=\(quietFrames) moving=\(movingFrames) peak=\(peak)")
+        XCTAssertGreaterThan(peak, 0.04, "A distinct echo edge must move visibly even on the soft full-canvas artwork")
+        XCTAssertGreaterThan(movingFrames, 1)
+        XCTAssertGreaterThan(quietFrames, 100, "Most of the viewing time should remain calm")
+        XCTAssertLessThan(movingFrames, 15)
+    }
+
+    func testTwentySpentEnergyKeepsCanvasArtworkNearlyUnchanged() throws {
+        let scene = fixtureScene(ids: (0..<10).map { "subtle-glitch-\($0)" })
+        let harness = try PostRenderHarness(width: 390, height: 640)
+        let natural = try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375).noGrain
+        let changed = try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375,
+            digitalImpact: .init(spentColors: 20)).noGrain
+        XCTAssertLessThan(changed.meanAbsoluteDifference(from: natural), 0.006,
+            "Twenty spent energy must add a subtle layer, not dominate the artwork")
+        XCTAssertGreaterThan(changed.luminanceField.correlation(with: natural.luminanceField), 0.99)
+        let differences = zip(natural.rgb, changed.rgb).map { simd_distance($0.0, $0.1) }.sorted()
+        // Allow visible local edges while retaining the strict mean and structure bounds above.
+        XCTAssertLessThan(differences[Int(Double(differences.count - 1) * 0.995)], 0.065)
+    }
+
+    func testLocalTearsArePerceptibleAtTwentySpentEnergy() throws {
+        let scene = fixtureScene(ids: [])
+        let harness = try PostRenderHarness(width: 390, height: 640)
+        let flat = SIMD3<Float>(0.85, 0.22, 0.035)
+        let base = try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375, flatSceneColor: flat).noGrain
+        let changed = try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375,
+            digitalImpact: .init(spentColors: 20), flatSceneColor: flat).noGrain
+        let differences = zip(base.rgb, changed.rgb).map { simd_distance($0.0, $0.1) }.sorted()
+        XCTAssertGreaterThan(differences[Int(Double(differences.count - 1) * 0.995)], 0.012,
+            "Short strips should be discernible at low spend without affecting the full background")
+        XCTAssertGreaterThan(Double(differences.filter { $0 < 0.001 }.count) / Double(differences.count), 0.85)
+    }
+
+    func testArtisticGlitchLeavesMostOfFlatCanvasClean() throws {
+        let scene = fixtureScene(ids: [])
+        let harness = try PostRenderHarness(width: 390, height: 640)
+        let colour = SIMD3<Float>(0.85, 0.22, 0.035)
+        let natural = try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375, flatSceneColor: colour).noGrain
+        let changed = try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375,
+            digitalImpact: .init(spentColors: 100), flatSceneColor: colour).noGrain
+        let differences = zip(natural.rgb, changed.rgb).map { simd_distance($0.0, $0.1) }
+        XCTAssertGreaterThan(Double(differences.filter { $0 < 0.001 }.count) / Double(differences.count), 0.85,
+            "Rare local tears must leave the smooth background intact")
+        XCTAssertGreaterThan(Double(differences.filter { $0 > 0.003 }.count) / Double(differences.count), 0.005)
+        for quarter in 0..<4 {
+            let start = quarter * differences.count / 4
+            let end = (quarter + 1) * differences.count / 4
+            XCTAssertTrue(differences[start..<end].contains { $0 > 0.003 },
+                "Local tears should be distributed across the full canvas height")
+        }
+        for y in 0..<natural.height {
+            let changedPixels = differences[(y * natural.width)..<((y + 1) * natural.width)].filter { $0 > 0.003 }.count
+            XCTAssertLessThan(Double(changedPixels) / Double(natural.width), 0.65,
+                "No full-width television stripes")
+        }
+    }
+
+    func testArtisticEchoRemainsVisibleBeyondTheLocalTears() throws {
+        let scene = fixtureScene(ids: (0..<10).map { "echo-\($0)" })
+        let harness = try PostRenderHarness(width: 192, height: 256)
+        let flat = SIMD3<Float>(repeating: 0.4)
+        let base = try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375).noGrain
+        let echo = try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375,
+            digitalImpact: .init(spentColors: 100)).noGrain
+        let flatBase = try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375, flatSceneColor: flat).noGrain
+        let flatEcho = try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375,
+            digitalImpact: .init(spentColors: 100), flatSceneColor: flat).noGrain
+        let changedBeyondTears = base.rgb.indices.filter { i in
+            simd_distance(flatBase.rgb[i], flatEcho.rgb[i]) < 0.0001 &&
+            simd_distance(base.rgb[i], echo.rgb[i]) > 0.003
+        }.count
+        XCTAssertGreaterThan(Double(changedBeyondTears) / Double(base.rgb.count), 0.02,
+            "The image needs a secondary exposure, not just isolated strips")
+    }
+
+    func testDigitalGlitchRemainsVisibleOnUniformColours() throws {
+        let scene = fixtureScene(ids: [])
+        let harness = try PostRenderHarness(width: 390, height: 640)
+        let colours: [(String, SIMD3<Float>)] = [
+            ("orange", SIMD3(0.85, 0.22, 0.035)),
+            ("purple", SIMD3(0.25, 0.08, 0.24)),
+            ("black", .zero),
+            ("white", SIMD3(repeating: 1)),
+        ]
+        for (name, colour) in colours {
+            let natural = try autoreleasepool {
+                try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375, flatSceneColor: colour).noGrain
+            }
+            for spent in [10, 36, 60, 100] {
+                let capture = try autoreleasepool {
+                    try harness.render(
+                        scene: scene, clarity: 0.7, elapsed: 8.375,
+                        digitalImpact: .init(spentColors: spent), flatSceneColor: colour
+                    ).noGrain
+                }
+                let differences = zip(natural.rgb, capture.rgb).map { simd_distance($0.0, $0.1) }.sorted()
+                XCTAssertLessThan(differences[Int(Double(differences.count - 1) * 0.995)], 0.07)
+                XCTAssertGreaterThan(differences[Int(Double(differences.count - 1) * 0.995)], 0.0001,
+                    "Glitch must remain visible on \(name) at \(spent)% without source edges")
+                let attachment = XCTAttachment(data: try capture.pngData(), uniformTypeIdentifier: UTType.png.identifier)
+                attachment.name = "flat-glitch-\(name)-\(spent)"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+            }
+        }
+    }
+
+    func testEditorialGlitchReviewStagesRetainReadableComposition() throws {
+        let harness = try PostRenderHarness(width: 390, height: 640)
+        for day in ["2026-09-06", "2026-09-07", "2026-09-08"] {
+            let scene = DayObjectScene.make(input: .init(
+                dayKey: day, identity: "primary-canvas",
+                eventIDs: Array(glitchReviewActorIDs.prefix(5)),
+                motionEnergy: 0.55, visualClarity: 0.7,
+                canvasCoverage: .fullCanvas, usesEditorialField: true,
+                editorialLabConfiguration: .init(materialMode: .generativeDNA, placement: .depthField)
+            ))
+            let natural = try autoreleasepool {
+                try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375).noGrain
+            }
+            var previousDifference = 0.0
+            for spent in [0, 20, 50, 100] {
+                let capture = try autoreleasepool {
+                    try harness.render(
+                        scene: scene, clarity: 0.7, elapsed: 8.375,
+                        digitalImpact: .init(spentColors: spent)
+                    ).noGrain
+                }
+                let attachment = XCTAttachment(data: try capture.pngData(), uniformTypeIdentifier: UTType.png.identifier)
+                attachment.name = "glitch-\(day)-\(spent)"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+                let difference = capture.meanAbsoluteDifference(from: natural)
+                if spent == 0 {
+                    XCTAssertEqual(capture.checksum, natural.checksum)
+                } else {
+                    XCTAssertGreaterThan(difference, previousDifference, "\(day) at \(spent)%")
+                    XCTAssertGreaterThan(capture.luminanceField.correlation(with: natural.luminanceField), 0.97)
+                }
+                previousDifference = difference
+            }
+        }
+    }
+
     func testGlitchDamageGrowsMonotonicallyFromNaturalDisplay() throws {
         let scene = fixtureScene(ids: (0..<12).map { "glitch-event-\($0)" })
         let harness = try PostRenderHarness(width: 192, height: 256)
@@ -1185,9 +1441,9 @@ final class DayObjectRenderFrameTests: XCTestCase {
             elapsed: 8.375,
             digitalImpact: .none
         ).noGrain
-        let reviewPresets: [(spentColors: Int, minimumDifference: Double)] = [
-            (25, 0.015),
-            (50, 0.030),
+        let reviewPresets: [(spentColors: Int, minimumLocalDifference: Double)] = [
+            (25, 0.001),
+            (50, 0.003),
         ]
 
         for preset in reviewPresets {
@@ -1197,15 +1453,22 @@ final class DayObjectRenderFrameTests: XCTestCase {
                 elapsed: 8.375,
                 digitalImpact: DayObjectDigitalImpact(spentColors: preset.spentColors)
             ).noGrain
+            // Judge visible tears rather than requiring the clean majority of
+            // the canvas to change. At least 1% of pixels must carry clear RGB
+            // separation from the natural image; isolated hot pixels cannot pass.
+            let differences = zip(damaged.rgb, natural.rgb).map {
+                simd_distance($0.0, $0.1)
+            }.sorted()
+            let localDifference = Double(differences[Int(Double(differences.count - 1) * 0.99)])
             XCTAssertGreaterThanOrEqual(
-                damaged.meanAbsoluteDifference(from: natural),
-                preset.minimumDifference,
-                "Spent colors \(preset.spentColors) should be visibly distinct"
+                localDifference,
+                preset.minimumLocalDifference,
+                "Spent colors \(preset.spentColors) should have visible localized tears"
             )
         }
     }
 
-    func testGlitchIsDeterministicAndAdvancesWithTime() throws {
+    func testGlitchIsDeterministicDuringQuietIntervals() throws {
         let scene = fixtureScene(ids: (0..<12).map { "glitch-event-\($0)" })
         let harness = try PostRenderHarness(width: 192, height: 256)
         let impact = DayObjectDigitalImpact(spentColors: 75)
@@ -1230,7 +1493,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
             glitchElapsed: 9.375
         ).noGrain
         XCTAssertEqual(first.checksum, repeated.checksum)
-        XCTAssertNotEqual(first.checksum, later.checksum)
+        XCTAssertEqual(first.checksum, later.checksum, "No residual drift during the quiet interval")
     }
 
     func testMaximumGlitchDamageRetainsSourceStructure() throws {
@@ -4020,6 +4283,7 @@ private final class DisplayTransferReadbackHarness {
             length: MemoryLayout<PostUniformBytes>.stride,
             index: 0
         )
+        encoder.setFragmentTexture(source, index: 1)
         bindNaturalGlitch(to: encoder)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
@@ -4123,6 +4387,7 @@ private final class DisplayTransferReadbackHarness {
             length: MemoryLayout<PostUniformBytes>.stride,
             index: 0
         )
+        encoder.setFragmentTexture(source, index: 1)
         bindNaturalGlitch(to: encoder)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
@@ -4142,6 +4407,8 @@ private final class DisplayTransferReadbackHarness {
     }
 
     private func bindNaturalGlitch(to encoder: MTLRenderCommandEncoder) {
+        var direction = SIMD2<Float>(1, 0)
+        encoder.setFragmentBytes(&direction, length: MemoryLayout<SIMD2<Float>>.stride, index: 3)
         var uniforms = DayObjectsGlitchUniforms(
             impact: .none,
             elapsedTime: 0,
@@ -4280,7 +4547,8 @@ private final class PostRenderHarness {
         removals: [String: TimeInterval] = [:],
         digitalImpact: DayObjectDigitalImpact = .none,
         glitchSeed: UInt64? = nil,
-        glitchElapsed: TimeInterval? = nil
+        glitchElapsed: TimeInterval? = nil,
+        flatSceneColor: SIMD3<Float>? = nil
     ) throws -> PostRenderResult {
         let environment = DayObjectEnvironment(
             motionEnergy: motionEnergy,
@@ -4405,6 +4673,16 @@ private final class PostRenderHarness {
         }
         sceneEncoder.endEncoding()
 
+        // A genuinely constant source isolates glitch visibility from scene
+        // edges, textures and colour gradients.
+        if let flatSceneColor {
+            let flatPass = renderPass(texture: sceneTexture, clearColor: MTLClearColorMake(
+                Double(flatSceneColor.x), Double(flatSceneColor.y), Double(flatSceneColor.z), 1
+            ))
+            let flatEncoder = try XCTUnwrap(commandBuffer.makeRenderCommandEncoder(descriptor: flatPass))
+            flatEncoder.endEncoding()
+        }
+
         var postSource = sceneTexture
         if postUniforms.blurRadiusPixels >= 0.01 {
             encodeFullscreenPass(
@@ -4424,6 +4702,44 @@ private final class PostRenderHarness {
             postSource = blurB
         }
 
+        var echoDirection = SIMD2<Float>(1, 0)
+        let echoPass = renderPass(texture: blurA, clearColor: MTLClearColorMake(0, 0, 0, 0))
+        let echoEncoder = try XCTUnwrap(commandBuffer.makeRenderCommandEncoder(descriptor: echoPass))
+        if flatSceneColor == nil, digitalImpact.damage > 0,
+           let echoIndex = DayObjectsGlitchUniforms.echoActorIndex(
+            actors: upload.actors, resolution: SIMD2(Float(width), Float(height)),
+            elapsedTime: glitchElapsed ?? elapsed, seed: resolvedGlitchSeed
+        ) {
+            let position = upload.actors[echoIndex].position
+            let inward = SIMD2(-position.x, position.y)
+            if simd_length(inward) > 0.001 { echoDirection = simd_normalize(inward) }
+            var actorUniforms = upload.uniforms
+            echoEncoder.setRenderPipelineState(actorPipeline)
+            echoEncoder.setFragmentTexture(backgroundTexture, index: 0)
+            echoEncoder.setFragmentSamplerState(sampler, index: 0)
+            echoEncoder.setVertexBuffer(quadBuffer, offset: 0, index: 0)
+            echoEncoder.setVertexBuffer(actorBuffer, offset: 0, index: 1)
+            echoEncoder.setVertexBytes(
+                &actorUniforms,
+                length: MemoryLayout<DayObjectsActorUniforms>.stride,
+                index: 3
+            )
+            echoEncoder.setFragmentBuffer(appearanceBuffer, offset: 0, index: 2)
+            echoEncoder.setFragmentBytes(
+                &actorUniforms,
+                length: MemoryLayout<DayObjectsActorUniforms>.stride,
+                index: 3
+            )
+            echoEncoder.drawPrimitives(
+                type: .triangleStrip,
+                vertexStart: 0,
+                vertexCount: 4,
+                instanceCount: 1,
+                baseInstance: echoIndex
+            )
+        }
+        echoEncoder.endEncoding()
+
         encodeDisplayPass(
             commandBuffer: commandBuffer,
             target: output,
@@ -4431,7 +4747,8 @@ private final class PostRenderHarness {
             pipeline: displayPipeline,
             uniforms: &postUniforms,
             glitchUniforms: &glitchUniforms,
-            glitchBandUniforms: glitchBandUniforms
+            glitchBandUniforms: glitchBandUniforms,
+            echoTexture: blurA, echoDirection: echoDirection
         )
         encodeDisplayPass(
             commandBuffer: commandBuffer,
@@ -4440,7 +4757,8 @@ private final class PostRenderHarness {
             pipeline: productionDisplayPipeline,
             uniforms: &postUniforms,
             glitchUniforms: &glitchUniforms,
-            glitchBandUniforms: glitchBandUniforms
+            glitchBandUniforms: glitchBandUniforms,
+            echoTexture: blurA, echoDirection: echoDirection
         )
         var noGrainUniforms = PostUniformBytes(postUniforms, grainIntensity: 0)
         encodeDisplayPass(
@@ -4450,7 +4768,8 @@ private final class PostRenderHarness {
             pipeline: displayPipeline,
             uniforms: &noGrainUniforms,
             glitchUniforms: &glitchUniforms,
-            glitchBandUniforms: glitchBandUniforms
+            glitchBandUniforms: glitchBandUniforms,
+            echoTexture: blurA, echoDirection: echoDirection
         )
 
         commandBuffer.commit()
@@ -4492,13 +4811,17 @@ private final class PostRenderHarness {
         pipeline: MTLRenderPipelineState,
         uniforms: inout Uniforms,
         glitchUniforms: inout DayObjectsGlitchUniforms,
-        glitchBandUniforms: [DayObjectsGlitchBandUniform]
+        glitchBandUniforms: [DayObjectsGlitchBandUniform],
+        echoTexture: MTLTexture, echoDirection: SIMD2<Float>
     ) {
         let pass = renderPass(texture: target, clearColor: MTLClearColorMake(0, 0, 0, 1))
         guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else {
             XCTFail("Could not create Day Objects display encoder")
             return
         }
+        encoder.setFragmentTexture(echoTexture, index: 1)
+        var direction = echoDirection
+        encoder.setFragmentBytes(&direction, length: MemoryLayout<SIMD2<Float>>.stride, index: 3)
         encoder.setRenderPipelineState(pipeline)
         encoder.setFragmentTexture(source, index: 0)
         encoder.setFragmentSamplerState(sampler, index: 0)

@@ -252,6 +252,30 @@ struct DayObjectsGlitchUniforms: Equatable {
     static let maximumColorShiftPixels: Float = 20
     static let maximumScanLineStrength: Float = 0.42
 
+    /// Keep the persistent echo on a day-seeded visible figure, including still exports.
+    static func echoActorIndex(
+        actors: [DayObjectGPUActor], resolution: SIMD2<Float>,
+        elapsedTime _: TimeInterval, seed: UInt64
+    ) -> Int? {
+        let span = resolution / max(min(resolution.x, resolution.y), 1)
+        // Ignore tiny/sliver candidates when larger visible figures exist.
+        // Bounding-box intersection also accounts for clipping at canvas edges.
+        let visibleAreas = actors.map { actor -> Float in
+            guard actor.opacity > 0.1 else { return 0 }
+            let radius = max(actor.halfSize.x, actor.halfSize.y)
+            let low = simd_max(actor.position - SIMD2(repeating: radius), -span * 0.5)
+            let high = simd_min(actor.position + SIMD2(repeating: radius), span * 0.5)
+            let extent = simd_max(high - low, .zero)
+            return extent.x * extent.y * actor.opacity
+        }
+        guard let largest = visibleAreas.max(), largest > 0 else { return nil }
+        let visible = actors.indices.filter { visibleAreas[$0] >= largest * 0.40 }
+        // Changing the clock must not teleport a permanent outline to another figure.
+        var choice = seed &* 0x7FEB352D
+        choice ^= choice >> 16
+        return visible[Int(choice % UInt64(visible.count))]
+    }
+
     let levels: SIMD4<Float>
     let rendering: SIMD4<Float>
     let metadata: SIMD4<UInt32>
@@ -1204,10 +1228,12 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
 
         let height = max(drawableSize.height, 1)
         soundPulseTimeline.consume(soundPulseBus, at: elapsedTime)
+        let renderImpact: DayObjectDigitalImpact
         let renderScene: DayObjectScene
         let frame: DayObjectRenderFrame
         switch presentationMode {
         case .canvas:
+            renderImpact = digitalImpact
             let transitionState = insertionTimeline.renderState(activeScene: scene, elapsed: elapsedTime)
             renderScene = transitionState.scene
             frame = DayObjectRenderFrame.make(
@@ -1217,6 +1243,8 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                 canvasAspect: drawableSize.width / height, soundPulseTimestamps: soundPulseTimeline.timestamps
             )
         case let .happeningPalette(presentation):
+            // The chooser is interface content, not the spent-energy artwork.
+            renderImpact = .none
             renderScene = scene
             paletteTimeline.update(to: presentation, elapsed: elapsedTime)
             frame = HappeningPaletteRenderFrame.make(
@@ -1365,6 +1393,55 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             postSource = renderTargets.blurPingPong[1]
         }
 
+        // The first blur target is no longer read after the vertical pass.
+        // Reuse it for one sharp, transparent actor; the soft scene remains in
+        // blur B (or scene when blur is disabled). No additional texture memory.
+        var echoDirection = SIMD2<Float>(1, 0)
+        let echoPass = MTLRenderPassDescriptor()
+        echoPass.colorAttachments[0].texture = renderTargets.blurPingPong[0]
+        echoPass.colorAttachments[0].loadAction = .clear
+        echoPass.colorAttachments[0].storeAction = .store
+        echoPass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0)
+        guard let echoEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: echoPass) else { return nil }
+        echoEncoder.label = "Day Objects isolated digital echo"
+        if renderImpact.damage > 0, let echoIndex = DayObjectsGlitchUniforms.echoActorIndex(
+            actors: actorUpload.actors, resolution: postUniforms.resolution,
+            elapsedTime: elapsedTime, seed: renderScene.rootSeed
+        ) {
+            let position = actorUpload.actors[echoIndex].position
+            let inward = SIMD2(-position.x, position.y)
+            if simd_length(inward) > 0.001 { echoDirection = simd_normalize(inward) }
+            var actorUniforms = actorUpload.uniforms
+            echoEncoder.setRenderPipelineState(actorPipeline)
+            echoEncoder.setVertexBuffer(quadBuffer, offset: 0, index: 0)
+            echoEncoder.setVertexBuffer(actorBufferLease.poseBuffer, offset: 0, index: 1)
+            echoEncoder.setFragmentTexture(renderTargets.background, index: 0)
+            echoEncoder.setFragmentSamplerState(linearSampler, index: 0)
+            echoEncoder.setVertexBytes(
+                &actorUniforms,
+                length: MemoryLayout<DayObjectsActorUniforms>.stride,
+                index: 3
+            )
+            echoEncoder.setFragmentBuffer(
+                actorBufferLease.appearanceBuffer,
+                offset: 0,
+                index: 2
+            )
+            echoEncoder.setFragmentBytes(
+                &actorUniforms,
+                length: MemoryLayout<DayObjectsActorUniforms>.stride,
+                index: 3
+            )
+            echoEncoder.drawPrimitives(
+                type: .triangleStrip,
+                vertexStart: 0,
+                vertexCount: 4,
+                instanceCount: 1,
+                baseInstance: echoIndex
+            )
+        }
+        echoEncoder.endEncoding()
+
         outputPass.colorAttachments[0].texture = outputTexture
         outputPass.colorAttachments[0].loadAction = .clear
         outputPass.colorAttachments[0].storeAction = .store
@@ -1376,6 +1453,8 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         presentEncoder.label = "Day Objects sharp grain and display pass"
         presentEncoder.setRenderPipelineState(displayPipeline)
         presentEncoder.setFragmentTexture(postSource, index: 0)
+        presentEncoder.setFragmentTexture(renderTargets.blurPingPong[0], index: 1)
+        presentEncoder.setFragmentBytes(&echoDirection, length: MemoryLayout<SIMD2<Float>>.stride, index: 3)
         presentEncoder.setFragmentSamplerState(linearSampler, index: 0)
         presentEncoder.setFragmentBytes(
             &postUniforms,
@@ -1383,7 +1462,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             index: 0
         )
         var glitchUniforms = DayObjectsGlitchUniforms(
-            impact: digitalImpact,
+            impact: renderImpact,
             elapsedTime: elapsedTime,
             seed: renderScene.rootSeed
         )
