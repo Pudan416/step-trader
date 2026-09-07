@@ -94,7 +94,7 @@ func main() throws {
     let testRun = temporary.appendingPathComponent("Auditions.xctestrun")
     try PropertyListSerialization.data(fromPropertyList: modified, format: .xml, options: 0).write(to: testRun)
     try run(["test-without-building", "-quiet", "-xctestrun", testRun.path,
-             "-destination", destination, "-parallel-testing-enabled", "NO", "-test-iterations", "1",
+             "-destination", destination, "-parallel-testing-enabled", "NO",
              "-only-testing:Steps4Tests/DayObjectsMixScenarioTests/testExportsTwelveAuditionsWhenExplicitlyRequested",
              "-resultBundlePath", temporary.appendingPathComponent("Export.xcresult").path], at: root)
     print("Audition pack: \(output.path)")
