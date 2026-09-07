@@ -96,17 +96,19 @@ enum HappeningScheduleAllocator {
         cycleCount: Int,
         beatsPerBar: Int
     ) -> HappeningScheduleAllocation {
-        guard let intervalBand = conversationalIntervalBand(for: plans.count),
+        guard let baseIntervalBand = conversationalIntervalBand(for: plans.count),
               (1...maximumCycleCount).contains(cycleCount),
               (1...maximumBeatsPerBar).contains(beatsPerBar)
         else {
             return emptyAllocation(beatsPerBar: beatsPerBar)
         }
 
+        let density = plans.map { $0.recurrence.densityMultiplier }.min() ?? 1
+        let intervalBand = Int((Double(baseIntervalBand.lowerBound) / density).rounded(.up))...Int((Double(baseIntervalBand.upperBound) / density).rounded(.up))
         let cycleBars = intervalBand.upperBound
         let horizonBars = cycleBars * cycleCount
         let horizonBeats = Double(horizonBars * beatsPerBar)
-        let introductionBeats = Double(min(12, cycleBars) * beatsPerBar)
+        let introductionBeats = Double(min(12, baseIntervalBand.upperBound) * beatsPerBar) / density
         let orderedPlans = plans.sorted {
             if $0.recurrence.alignmentRank != $1.recurrence.alignmentRank {
                 return $0.recurrence.alignmentRank < $1.recurrence.alignmentRank
@@ -140,7 +142,8 @@ enum HappeningScheduleAllocator {
                     preferredStart: phraseStart,
                     motifOffsets: plan.motif.offsetBeats,
                     existingEvents: scheduled,
-                    horizonBeats: horizonBeats
+                    horizonBeats: horizonBeats,
+                    maximumAttacksPerBeat: min(plan.recurrence.maximumConcurrentVoices, 2)
                 )
                 guard let admittedStart else { break }
                 for motifStepIndex in plan.motif.offsetBeats.indices {
@@ -197,7 +200,8 @@ enum HappeningScheduleAllocator {
         preferredStart: Double,
         motifOffsets: [Double],
         existingEvents: [HappeningScheduleEvent],
-        horizonBeats: Double
+        horizonBeats: Double,
+        maximumAttacksPerBeat: Int = 2
     ) -> Double? {
         var candidate = max(0, preferredStart)
         while candidate < horizonBeats {
@@ -209,7 +213,7 @@ enum HappeningScheduleAllocator {
             }
             let beatBudgetIsSafe = Dictionary(grouping: allPositions) {
                 Int($0.rounded(.down))
-            }.values.allSatisfy { $0.count <= 2 }
+            }.values.allSatisfy { $0.count <= maximumAttacksPerBeat }
             if spacingIsSafe && beatBudgetIsSafe { return candidate }
             candidate += 0.25
         }

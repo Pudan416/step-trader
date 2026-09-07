@@ -3,6 +3,26 @@ import XCTest
 @testable import Steps4
 
 final class DayMusicPlanDifferTests: XCTestCase {
+    func testKitOnlyChangeIsStructural() {
+        let old = makePlan()
+        let new = replacing(old, rhythm: rhythm(old.rhythm, kitID: "acoustic.skin-and-wood"))
+        let change = DayMusicPlanDiffer.change(from: old, to: new)
+        XCTAssertEqual(change.structuralPlan, new)
+        XCTAssertNil(change.continuousPlan)
+    }
+    func testWorldMoodAndKitAreStructuralWhileWorldHealthUpdatesStayContinuous() {
+        let old = WorldArrangementFixture.plan(.electricDream, .moving, steps: 0.5, sleep: 0.5)
+        for new in [
+            WorldArrangementFixture.plan(.livingField, .moving, steps: 0.5, sleep: 0.5),
+            WorldArrangementFixture.plan(.electricDream, .strange, steps: 0.5, sleep: 0.5)
+        ] {
+            XCTAssertEqual(DayMusicPlanDiffer.change(from: old, to: new).structuralPlan, new)
+        }
+        let health = WorldArrangementFixture.plan(.electricDream, .moving, steps: 0.6, sleep: 0.6)
+        let change = DayMusicPlanDiffer.change(from: old, to: health)
+        XCTAssertNil(change.structuralPlan)
+        XCTAssertEqual(change.continuousPlan, health)
+    }
     private let seed: UInt64 = 0xD4A0_B1EC_75ED_0001
 
     func testIdenticalPlansProduceNoPlaybackCommands() {
@@ -761,12 +781,14 @@ final class DayMusicPlanDifferTests: XCTestCase {
 
     private func rhythm(
         _ plan: RhythmPlan,
+        kitID: String? = nil,
         voices: [RhythmVoicePlan]? = nil,
         maximumMicrotimingMilliseconds: Double? = nil,
         velocityHumanizationRange: ClosedRange<Double>? = nil,
         maximumHarmonyDuckingDecibels: Double? = nil
     ) -> RhythmPlan {
         RhythmPlan(
+            kitID: kitID ?? plan.kitID,
             baseTempoBPM: plan.baseTempoBPM,
             tempoBPM: plan.tempoBPM,
             stepsProgress: plan.stepsProgress,

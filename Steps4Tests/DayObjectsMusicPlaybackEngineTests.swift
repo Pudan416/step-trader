@@ -34,7 +34,7 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         }
 
         let records = runtime.auditionRecordsForTesting
-        XCTAssertEqual(records.count, 30)
+        XCTAssertEqual(records.count, 42)
         XCTAssertTrue(records.allSatisfy { $0.priority == .manualAudition })
         for record in records {
             let recipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: record.resolvedSound.recipeID))
@@ -1181,7 +1181,7 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
 
     func testMobileRuntimePreparesOnlyOnePlaybackWorld() throws {
         let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
-        let plan = makePlaybackEnginePlan(seed: 32)
+        let plan = WorldArrangementFixture.plan(.electricDream, .strange, seed: 32)
 
         try runtime.prepare(plan: plan)
 
@@ -1429,6 +1429,24 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(audible.harmony.sleepProgress, mixed.harmony.sleepProgress)
         XCTAssertEqual(audible.glitch.progress, mixed.glitch.progress)
         XCTAssertEqual(audible.mix, mixed.mix)
+    }
+
+    func testWorldContinuousMergePreservesWorldMoodGuestAndKitUntilBoundary() throws {
+        let seed = try XCTUnwrap((UInt64(0)..<512).first {
+            DayObjectsWorldSelector.makeSelection(remixSeed: $0, forcedWorld: .electricDream, forcedMood: .strange).guestWorld != nil
+        })
+        let initial = WorldArrangementFixture.plan(.electricDream, .strange, seed: seed, allowGuest: true)
+        let update = WorldArrangementFixture.plan(.livingField, .sparse, steps: 0.2, sleep: 0.3)
+        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        try runtime.prepare(plan: initial)
+        runtime.applyContinuous(update)
+        let audible = try XCTUnwrap(runtime.activePlanForTesting)
+        XCTAssertEqual(audible.soundWorld, .electricDream)
+        XCTAssertEqual(audible.mood, .strange)
+        XCTAssertEqual(audible.guestWorld, initial.guestWorld)
+        XCTAssertEqual(audible.guestInstrumentIDs, initial.guestInstrumentIDs)
+        XCTAssertEqual(audible.rhythm.kitID, initial.rhythm.kitID)
+        XCTAssertEqual(audible.rhythm.stepsProgress, 0.2)
     }
 
     func testLiveContinuousUpdatePreservesBassStructureAndRefreshesBassActivation() throws {
@@ -2234,8 +2252,8 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         let metrics = runtime.playbackPairMetricsForTesting
         XCTAssertEqual(Set(metrics.happeningFixedPlayerIdentities).count, 4)
         XCTAssertEqual(metrics.happeningFixedPlayerIdentities.count, 4)
-        XCTAssertEqual(Set(metrics.happeningDecodedBufferIdentities).count, 102)
-        XCTAssertEqual(metrics.happeningDecodedBufferIdentities.count, 102)
+        XCTAssertEqual(Set(metrics.happeningDecodedBufferIdentities).count, 114)
+        XCTAssertEqual(metrics.happeningDecodedBufferIdentities.count, 114)
         XCTAssertLessThanOrEqual(metrics.happeningDecodedByteCount, 48 * 1_024 * 1_024)
         XCTAssertEqual(Set(metrics.finalPeakLimiterIdentities).count, 1)
         XCTAssertEqual(metrics.sharedAudioEngineCount, 1)

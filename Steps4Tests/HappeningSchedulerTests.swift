@@ -4,6 +4,24 @@ import XCTest
 
 @MainActor
 final class HappeningSchedulerTests: XCTestCase {
+    func testWorldArrangementConcurrencyCapReachesThePlayingScheduler() throws {
+        for (world, mood, expectedCap) in [
+            (DayObjectsSoundWorld.livingField, DayObjectsSoundMood.strange, 1),
+            (.electricDream, .strange, 2)
+        ] {
+            let plan = WorldArrangementFixture.plan(world, mood, happenings: (0..<10).map { "world-event-\($0)" })
+            let bank = RecordingHappeningBank()
+            let scheduler = HappeningScheduler(worldBank: PlaybackWorldBank(instrumentBank: bank))
+            try scheduler.configure(plans: plan.happenings, tonalWorld: plan.world, remixSeed: plan.seed)
+            try scheduler.start(playInitialBirths: false)
+            for subdivision in Int64(0)...Int64(128 * MusicalPosition.subdivisionsPerBar) {
+                scheduler.render(event(.subdivision, subdivision: subdivision), currentChord: plan.world.progression[0])
+                XCTAssertLessThanOrEqual(scheduler.metrics.activeVoiceCount, expectedCap)
+            }
+            XCTAssertFalse(scheduler.metrics.attackHistory.isEmpty)
+        }
+    }
+
     func testAttackObserverPublishesOnlySuccessfullyStartedHappening() throws {
         let harness = try makeHarness(count: 0)
         let plan = makePlan(index: 1, seed: 202)

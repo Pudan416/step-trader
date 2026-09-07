@@ -1,5 +1,5 @@
 #if DEBUG || INTERNAL_BUILD
-enum BassArticulation: Equatable, Sendable {
+enum BassArticulation: Hashable, Sendable {
     case pulse
     case arpeggio
     case sustained

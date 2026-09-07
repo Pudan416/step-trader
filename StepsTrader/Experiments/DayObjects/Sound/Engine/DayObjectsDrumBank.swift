@@ -385,6 +385,37 @@ final class DayObjectsAudioKitDrumLayerScheduler: DayObjectsDrumLayerScheduling 
 }
 
 final class DayObjectsDrumBank {
+    /// Curated source routing reuses the existing fixed player bank. Kits select
+    /// different acoustic/sample/noise sources without allocating another graph.
+    static func voice(for role: RhythmRole, kitID: String) -> DayObjectsDrumVoice {
+        let sources: [DayObjectsDrumVoice]
+        switch kitID {
+        case "acoustic.skin-and-wood": sources = [.organicLow, .stick, .shaker, .organicHigh, .stick, .clapSoft]
+        case "acoustic.brushed-room": sources = [.organicLow, .shaker, .hatClosed, .stick, .organicHigh, .clapSoft]
+        case "acoustic.prepared-table": sources = [.stick, .organicHigh, .shaker, .organicLow, .clapSoft, .stick]
+        case "living.seed-shaker": sources = [.organicLow, .shaker, .shaker, .stick, .organicLow, .hatClosed]
+        case "living.rain-pulse": sources = [.organicLow, .hatClosed, .shaker, .shaker, .stick, .organicHigh]
+        case "living.stone-breath": sources = [.stick, .shaker, .hatClosed, .organicLow, .shaker, .stick]
+        case "industrial.plate-and-piston": sources = [.organicHigh, .hatClosed, .stick, .clapSoft, .hatOpen, .organicHigh]
+        case "industrial.foundry-pulse": sources = [.organicLow, .hatOpen, .hatClosed, .organicHigh, .stick, .clapSoft]
+        case "industrial.wire-ritual": sources = [.clapSoft, .stick, .hatClosed, .hatOpen, .organicHigh, .organicLow]
+        case "electric.soft-machine": sources = [.organicLow, .hatClosed, .shaker, .clapSoft, .hatClosed, .clapSoft]
+        case "electric.neon-drum": sources = [.clapSoft, .hatClosed, .hatOpen, .organicHigh, .shaker, .clapSoft]
+        case "electric.circuit-dust": sources = [.organicHigh, .shaker, .hatClosed, .clapSoft, .stick, .hatOpen]
+        default: sources = [.organicLow, .hatClosed, .shaker, .organicHigh, .stick, .clapSoft]
+        }
+        switch role {
+        case .lowPulse: return sources[0]
+        case .halfTimeKick: return kitID.hasPrefix("industrial.") ? .kickFull : .kickSoft
+        case .closedHat: return sources[1]
+        case .shaker: return sources[2]
+        case .kickVariation: return .kickFull
+        case .organicPercussion: return sources[3]
+        case .syncopatedGhost: return sources[4]
+        case .fills: return sources[5]
+        }
+    }
+
     typealias ResourceResolver = (DayObjectsDrumSample) -> URL?
     typealias PlayerFactory = (DayObjectsDrumRecipe, DayObjectsDrumSample?, URL?) -> any DayObjectsDrumPlayerBackend
 

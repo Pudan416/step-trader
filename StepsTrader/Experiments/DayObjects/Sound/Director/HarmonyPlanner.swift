@@ -21,9 +21,13 @@ enum HarmonyPlanner {
         instrumentDescriptors: [DayObjectsInstrumentDescriptor],
         remixSeed: UInt64,
         soundWorld: DayObjectsSoundWorld? = nil,
-        mood: DayObjectsSoundMood = .moving
+        mood: DayObjectsSoundMood = .moving,
+        recipeIDs: [DayObjectsInstrumentID]? = nil,
+        arrangement: DayObjectsArrangementProfile? = nil
     ) -> HarmonyPlan {
         let sleepProgress = unitValue(input.sleepProgress)
+        let curated = instrumentDescriptors.filter { recipeIDs?.contains($0.id) ?? false }
+            .sorted { $0.id.rawValue < $1.id.rawValue }
         let worldDescriptors = soundWorld.map { world in
             instrumentDescriptors.filter { world.harmonyInstrumentIDs.contains($0.id.rawValue) }
         } ?? instrumentDescriptors
@@ -49,7 +53,7 @@ enum HarmonyPlanner {
             excluding: secondaryAlternatives.isEmpty ? [] : Set([primaryID].compactMap { $0 })
         )
 
-        let selectedByRole: [HarmonyRole: HarmonyInstrumentTarget?] = [
+        var selectedByRole: [HarmonyRole: HarmonyInstrumentTarget?] = [
             .drone: selectedDescriptor(
                 for: template(for: .drone),
                 from: sortedDescriptors,
@@ -66,8 +70,16 @@ enum HarmonyPlanner {
                 excluding: []
             ).map { .tonal($0.id) }
         ]
+        if !curated.isEmpty {
+            var random = StableMusicRandom(seed: remixSeed, domain: .harmonyInstruments)
+            let ordered = random.shuffled(curated)
+            for (index, role) in HarmonyRole.allCases.enumerated() {
+                selectedByRole[role] = .tonal(ordered[index % ordered.count].id)
+            }
+        }
 
         let roles = roleTemplates.compactMap { baseTemplate -> HarmonyRolePlan? in
+            if let arrangement, !arrangement.harmonyRoles.contains(baseTemplate.role) { return nil }
             let template = processedTemplate(baseTemplate, soundWorld: soundWorld, mood: mood)
             guard let instrumentTarget = selectedByRole[template.role] ?? nil else { return nil }
             let amount = activationAmount(
@@ -82,7 +94,7 @@ enum HarmonyPlanner {
                 register: template.register,
                 gain: template.targetGain * amount,
                 attackSeconds: template.attackSeconds,
-                releaseSeconds: template.releaseSeconds,
+                releaseSeconds: template.releaseSeconds * (arrangement?.harmonyReleaseMultiplier ?? 1),
                 delaySend: template.delaySend,
                 reverbSend: template.reverbSend,
                 activation: HarmonyActivationPlan(

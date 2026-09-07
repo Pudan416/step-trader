@@ -2,6 +2,33 @@ import XCTest
 @testable import Steps4
 
 final class DayObjectsSoundWorldCatalogTests: XCTestCase {
+    func testCatalogMatchesTheApprovedFamilyAndKitInventory() throws {
+        let catalog = try DayObjectsSoundWorldCatalog.load(from: bundle)
+        let expected: [(DayObjectsSoundWorld, DayObjectsSynthRole, [String])] = [
+            (.feltAndWood, .harmony, ["felt-haze", "muted-strings", "prepared-mallet", "air-reed"]),
+            (.feltAndWood, .bass, ["round-felt-sub", "hollow-wood", "muted-string", "soft-reed"]),
+            (.feltAndWood, .lead, ["breath-reed", "tape-whistle", "bowed-thread", "soft-wah"]),
+            (.livingField, .harmony, ["wind-canopy", "water-drone", "moss-choir", "bell-mist"]),
+            (.livingField, .bass, ["earth-sub", "root-pulse", "tide-bed", "hollow-stone"]),
+            (.livingField, .lead, ["bird-reed", "leaf-flute", "dew-bell", "water-whistle"]),
+            (.metalAndCurrent, .harmony, ["bowed-steel", "machine-choir", "current-drone", "cold-plate"]),
+            (.metalAndCurrent, .bass, ["deep-current", "bassliner", "low-motor", "sine-foundry"]),
+            (.metalAndCurrent, .lead, ["silver-wire", "diode-cry", "current-needle", "resonant-metal"]),
+            (.electricDream, .harmony, ["analog-cloud", "neon-poly", "fm-haze", "arpeggio-bed"]),
+            (.electricDream, .bass, ["round-analog", "electric-pulse", "fm-sub", "velvet-sequence"]),
+            (.electricDream, .lead, ["verbacious", "prism-fm", "soft-sync", "neon-wah"])
+        ]
+        for (world, role, families) in expected {
+            XCTAssertEqual(Set(catalog.recipes(world: world, role: role).map(\.family)), Set(families))
+        }
+        XCTAssertEqual(Set(catalog.groups.map(\.drumKitID)), Set([
+            "acoustic.skin-and-wood", "acoustic.brushed-room", "acoustic.prepared-table",
+            "living.seed-shaker", "living.rain-pulse", "living.stone-breath",
+            "industrial.plate-and-piston", "industrial.foundry-pulse", "industrial.wire-ritual",
+            "electric.soft-machine", "electric.neon-drum", "electric.circuit-dust"
+        ]))
+    }
+
     private var bundle: Bundle { Bundle(for: type(of: self)) }
 
     func testResolutionAppliesBaseThenMoodAndClampsOnlyTheResolvedVoice() throws {

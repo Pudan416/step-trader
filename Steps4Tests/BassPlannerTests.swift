@@ -2,6 +2,22 @@ import XCTest
 @testable import Steps4
 
 final class BassPlannerTests: XCTestCase {
+    func testWorldBassRoutesOnlyAvailableGroupRecipesAndKeepsHealthCandidates() throws {
+        for world in DayObjectsSoundWorld.allCases {
+            let full = WorldArrangementFixture.plan(world, .strange)
+            let low = WorldArrangementFixture.plan(world, .strange, steps: 0)
+            let bass = try XCTUnwrap(full.bass)
+            let group = WorldArrangementFixture.group(world, .strange)
+            let allowed = WorldArrangementFixture.runtimeIDs(group.bassRecipeIDs, mood: .strange)
+            XCTAssertTrue(allowed.contains(bass.instrumentID))
+            XCTAssertEqual(low.bass?.events, bass.events)
+            XCTAssertEqual(low.bass?.activeEvents.count, 0)
+            let remaining = WorldArrangementFixture.catalog.descriptors.filter { $0.id != bass.instrumentID }
+            let fallback = WorldArrangementFixture.plan(world, .strange, descriptors: remaining)
+            XCTAssertTrue(allowed.contains(try XCTUnwrap(fallback.bass).instrumentID))
+            XCTAssertNotEqual(fallback.bass?.instrumentID, bass.instrumentID)
+        }
+    }
     func testPercussionModePublishesNoBassPlan() {
         XCTAssertNil(makeBass(mode: .percussion, steps: 1))
     }

@@ -363,6 +363,10 @@ final class HappeningScheduler {
               var state = states[id],
               let recipe = HappeningSoundCatalog.recipe(for: state.plan.recipeID)
         else { return false }
+        let activeVoiceCount = states.values.reduce(0) { $0 + $1.activeVoices.count }
+        // Legacy plans retain the pool's existing priority/stealing policy.
+        if state.plan.recurrence.maximumConcurrentVoices < 4,
+           activeVoiceCount >= state.plan.recurrence.maximumConcurrentVoices { return false }
         let eventGlitch = glitchProcessor?.previewRealizedEvent(
             plan: glitchPlan,
             role: .happening,

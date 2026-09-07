@@ -4,6 +4,7 @@ struct DayMusicPlan: Equatable, Sendable {
     let soundWorld: DayObjectsSoundWorld
     let mood: DayObjectsSoundMood
     let guestWorld: DayObjectsSoundWorld?
+    let guestInstrumentIDs: Set<DayObjectsInstrumentID>
     let input: NormalizedDayMusicInput
     let world: TonalWorldPlan
     let rhythm: RhythmPlan
@@ -20,6 +21,7 @@ struct DayMusicPlan: Equatable, Sendable {
         soundWorld: DayObjectsSoundWorld = .feltAndWood,
         mood: DayObjectsSoundMood = .moving,
         guestWorld: DayObjectsSoundWorld? = nil,
+        guestInstrumentIDs: Set<DayObjectsInstrumentID> = [],
         input: NormalizedDayMusicInput,
         world: TonalWorldPlan,
         rhythm: RhythmPlan,
@@ -35,6 +37,7 @@ struct DayMusicPlan: Equatable, Sendable {
         self.soundWorld = soundWorld
         self.mood = mood
         self.guestWorld = guestWorld
+        self.guestInstrumentIDs = guestInstrumentIDs
         self.input = input
         self.world = world
         self.rhythm = rhythm
@@ -45,6 +48,20 @@ struct DayMusicPlan: Equatable, Sendable {
         self.lead = lead
         self.glitch = glitch
         self.mix = mix
+    }
+
+    /// Lead is gesture-ready; health-gated bass counts only when it has audible events.
+    var activeLayerRoleCount: Int {
+        (rhythm.rhythmicRichness > 0 ? 1 : 0)
+            + (bass?.activeEvents.isEmpty == false ? 1 : 0)
+            + harmony.activeRoleCount + (happenings.isEmpty ? 0 : 1) + 1
+    }
+
+    var bassIsGuest: Bool { bass.map { guestInstrumentIDs.contains($0.instrumentID) } ?? false }
+    var primaryHarmonyIsGuest: Bool {
+        guard let role = harmony.role(for: .primaryPad),
+              case let .tonal(id) = role.instrumentTarget else { return false }
+        return guestInstrumentIDs.contains(id)
     }
 }
 #endif

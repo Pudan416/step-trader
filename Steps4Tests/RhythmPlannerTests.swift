@@ -2,6 +2,46 @@ import XCTest
 @testable import Steps4
 
 final class RhythmPlannerTests: XCTestCase {
+    func testWorldKitsDensityAndHumanizationReachTheActualRhythmVoices() throws {
+        for mood in DayObjectsSoundMood.allCases {
+            let plans = DayObjectsSoundWorld.allCases.map { WorldArrangementFixture.plan($0, mood) }
+            XCTAssertEqual(Set(plans.map { $0.rhythm.kitID }).count, 4)
+            XCTAssertEqual(Set(plans.map { $0.rhythm.voices.map { $0.drumVoice.rawValue }.joined(separator: ",") }).count, 4)
+            let living = plans[1].rhythm
+            let industrial = plans[2].rhythm
+            for plan in plans where plan.soundWorld != .livingField {
+                XCTAssertLessThan(living.rhythmicRichness, plan.rhythm.rhythmicRichness)
+            }
+            XCTAssertEqual(industrial.family, .grounded)
+            XCTAssertEqual(plans[0].rhythm.humanizationProfile, .loose)
+            for plan in plans.dropFirst() {
+                XCTAssertLessThan(plan.rhythm.humanizationProfile.depth, plans[0].rhythm.humanizationProfile.depth)
+            }
+            for plan in plans {
+                for voice in plan.rhythm.voices {
+                    XCTAssertEqual(voice.drumVoice, DayObjectsDrumBank.voice(for: voice.role, kitID: plan.rhythm.kitID))
+                }
+            }
+        }
+        let kits = WorldArrangementFixture.catalog.groups.map(\.drumKitID)
+        let signatures = kits.map { kit in RhythmRole.allCases.map { DayObjectsDrumBank.voice(for: $0, kitID: kit).rawValue }.joined(separator: ",") }
+        XCTAssertEqual(Set(signatures).count, 12)
+    }
+
+    func testWorldArrangementNeverMovesHealthActivationThresholds() {
+        for world in DayObjectsSoundWorld.allCases {
+            for mood in DayObjectsSoundMood.allCases {
+                let low = WorldArrangementFixture.plan(world, mood, steps: 0, sleep: 0)
+                XCTAssertEqual(low.rhythm.rhythmicRichness, 0)
+                XCTAssertTrue(low.bass?.activeEvents.isEmpty ?? true)
+                let full = WorldArrangementFixture.plan(world, mood)
+                for voice in full.rhythm.voices {
+                    let boundary = WorldArrangementFixture.plan(world, mood, steps: voice.activation.startProgress)
+                    XCTAssertEqual(boundary.rhythm.voice(for: voice.role)?.activation.amount, 0)
+                }
+            }
+        }
+    }
     func testPlanPublishesExplicitFamilyProfileAndCounterRealizationState() {
         let plan = makePlan(stepsProgress: 1, remixSeed: 0x1)
 

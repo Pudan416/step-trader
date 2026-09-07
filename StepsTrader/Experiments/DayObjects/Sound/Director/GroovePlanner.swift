@@ -39,16 +39,19 @@ enum GroovePlanner {
 
     static func makePlan(
         remixSeed: UInt64,
-        soundWorld: DayObjectsSoundWorld
+        soundWorld: DayObjectsSoundWorld,
+        mood: DayObjectsSoundMood = .moving
     ) -> GroovePlan {
         var modeRandom = StableMusicRandom(seed: remixSeed, domain: .grooveMode)
-        let bucket = Int(modeRandom.nextUInt64() % 100)
+        let profile = DayObjectsArrangementProfile.for(world: soundWorld, mood: mood)
+        let sample = modeRandom.nextUnitDouble()
         let mode: GrooveMode
-        switch soundWorld {
-        case .feltAndWood, .livingField:
-            mode = bucket < 35 ? .percussion : .bassBed
-        case .metalAndCurrent, .electricDream:
-            mode = bucket < 55 ? .bassPulse : .bassArp
+        if !profile.usesBass {
+            mode = .percussion
+        } else {
+            let pulse = profile.bassArticulationWeights[.pulse, default: 0]
+            let arpeggio = profile.bassArticulationWeights[.arpeggio, default: 0]
+            mode = sample < pulse ? .bassPulse : sample < pulse + arpeggio ? .bassArp : .bassBed
         }
         var thinningRandom = StableMusicRandom(seed: remixSeed, domain: .grooveThinning)
         return plan(mode: mode, thinningSeed: thinningRandom.nextUInt64())

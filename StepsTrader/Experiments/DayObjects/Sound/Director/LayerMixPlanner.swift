@@ -4,7 +4,8 @@ import Foundation
 enum LayerMixPlanner {
     static func makePlan(
         happeningCount: Int,
-        soundWorld: DayObjectsSoundWorld? = nil
+        soundWorld: DayObjectsSoundWorld? = nil,
+        arrangement: DayObjectsArrangementProfile? = nil
     ) -> LayerMixPlan {
         let boundedCount = min(max(happeningCount, 0), 10)
         let happeningTarget = -3.3
@@ -20,7 +21,7 @@ enum LayerMixPlanner {
         }
 
         return LayerMixPlan(
-            rhythmTargetDecibels: 0,
+            rhythmTargetDecibels: arrangement?.world == .livingField ? -3 : 0,
             bassTargetDecibels: -4,
             harmonyTargetDecibels: 0,
             happeningAggregateTargetDecibels: happeningTarget,

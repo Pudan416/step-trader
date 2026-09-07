@@ -1038,6 +1038,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 )
             }
             let rhythm = RhythmPlan(
+                kitID: structural.rhythm.kitID,
                 baseTempoBPM: structural.rhythm.baseTempoBPM,
                 tempoBPM: update.rhythm.tempoBPM,
                 stepsProgress: update.rhythm.stepsProgress,
@@ -1119,6 +1120,10 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
             let bass = mergedBass(from: update.bass, into: structural.bass)
             return DayMusicPlan(
                 seed: structural.seed,
+                soundWorld: structural.soundWorld,
+                mood: structural.mood,
+                guestWorld: structural.guestWorld,
+                guestInstrumentIDs: structural.guestInstrumentIDs,
                 input: update.input,
                 world: structural.world,
                 rhythm: rhythm,

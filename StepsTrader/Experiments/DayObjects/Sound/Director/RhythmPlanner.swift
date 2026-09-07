@@ -28,28 +28,32 @@ enum RhythmPlanner {
     static func makePlan(
         input: NormalizedDayMusicInput,
         remixSeed: UInt64,
-        groove: GroovePlan
+        groove: GroovePlan,
+        kitID: String = "legacy",
+        arrangement: DayObjectsArrangementProfile? = nil
     ) -> RhythmPlan {
         let stepsProgress = unitValue(input.stepsProgress)
         var familyRandom = StableMusicRandom(seed: remixSeed, domain: .rhythmFamily)
         let baseTempoBPM = 58 + Double(familyRandom.nextInt(upperBound: 25) ?? 0)
-        let family = familyRandom.choice(from: RhythmFamily.allCases) ?? .grounded
+        let sampledFamily = familyRandom.choice(from: RhythmFamily.allCases) ?? .grounded
+        let family = arrangement?.world == .metalAndCurrent ? .grounded : sampledFamily
         var patternRandom = StableMusicRandom(seed: remixSeed, domain: .rhythmPattern)
         let patternSeed = patternRandom.nextUInt64()
         let cycleKey = patternRandom.nextUInt64()
         let patternOffsetSteps = (patternRandom.nextInt(upperBound: 2) ?? 0) * 8
         var humanizationRandom = StableMusicRandom(seed: remixSeed, domain: .rhythmHumanization)
         let humanizationSeed = humanizationRandom.nextUInt64()
-        let humanizationProfile = humanizationRandom.choice(
+        let sampledHumanization = humanizationRandom.choice(
             from: RhythmHumanizationProfile.allCases
         ) ?? .tight
+        let humanizationProfile = arrangement?.humanization ?? sampledHumanization
 
         let voices = voiceTemplates.map { template in
             RhythmVoicePlan(
                 role: template.role,
-                drumVoice: template.drumVoice,
+                drumVoice: kitID == "legacy" ? template.drumVoice : DayObjectsDrumBank.voice(for: template.role, kitID: kitID),
                 stepProbabilities: transformedPattern(
-                    template.probabilities,
+                    template.probabilities.map { $0 * (arrangement?.rhythmicDensityMultiplier ?? 1) },
                     family: family,
                     offsetSteps: patternOffsetSteps
                 ),
@@ -71,6 +75,7 @@ enum RhythmPlanner {
         }
 
         return RhythmPlan(
+            kitID: kitID,
             baseTempoBPM: baseTempoBPM,
             tempoBPM: min(102, baseTempoBPM + (20 * stepsProgress)),
             stepsProgress: stepsProgress,
@@ -85,7 +90,7 @@ enum RhythmPlanner {
                 counterMapping: .roleCycleStepParameterV1
             ),
             voices: voices,
-            maximumSimultaneousAttacks: 3,
+            maximumSimultaneousAttacks: arrangement?.world == .livingField ? 1 : 3,
             maximumFillsPerWindow: 1,
             fillWindowBars: 8,
             maximumMicrotimingMilliseconds: 18,

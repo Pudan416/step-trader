@@ -4,11 +4,13 @@ enum HappeningMusicPlanner {
         input: NormalizedDayMusicInput,
         tonalWorld: TonalWorldPlan,
         remixSeed: UInt64,
-        soundWorld: DayObjectsSoundWorld? = nil
+        soundWorld: DayObjectsSoundWorld? = nil,
+        recipeIDs: [HappeningSoundRecipeID]? = nil,
+        arrangement: DayObjectsArrangementProfile? = nil
     ) -> [HappeningMusicPlan] {
         if let soundWorld {
             let recipes = HappeningSoundCatalog.recipes.filter {
-                soundWorld.happeningRecipeRawIDs.contains($0.id.rawValue)
+                recipeIDs?.contains($0.id) ?? soundWorld.happeningRecipeRawIDs.contains($0.id.rawValue)
             }
             return input.happeningIDs.prefix(10).compactMap { happeningID in
                 var random = StableMusicRandom(
@@ -21,7 +23,8 @@ enum HappeningMusicPlanner {
                     tonalWorld: tonalWorld,
                     recipe: recipe,
                     remixSeed: remixSeed,
-                    soundWorld: soundWorld
+                    soundWorld: soundWorld,
+                    arrangement: arrangement
                 )
             }
         }
@@ -42,7 +45,8 @@ enum HappeningMusicPlanner {
         tonalWorld: TonalWorldPlan,
         recipe: HappeningSoundRecipe,
         remixSeed: UInt64,
-        soundWorld: DayObjectsSoundWorld?
+        soundWorld: DayObjectsSoundWorld?,
+        arrangement: DayObjectsArrangementProfile? = nil
     ) -> HappeningMusicPlan {
         var identityRandom = StableMusicRandom(
             seed: remixSeed,
@@ -80,7 +84,9 @@ enum HappeningMusicPlanner {
             gain: gain,
             birthGain: birthGain,
             attackSeconds: processing.attackSeconds,
-            releaseSeconds: processing.releaseSeconds,
+            releaseSeconds: arrangement.map {
+                min(processing.releaseSeconds * $0.harmonyReleaseMultiplier, 4.5)
+            } ?? processing.releaseSeconds,
             delaySend: processing.delaySend,
             reverbSend: processing.reverbSend,
             motif: motif(
@@ -92,7 +98,9 @@ enum HappeningMusicPlanner {
             recurrence: HappeningRecurrencePlan(
                 scheduleSeed: scheduleSeed,
                 alignmentRank: alignmentRank,
-                floatingOffsetBeats: floatingOffset
+                floatingOffsetBeats: floatingOffset,
+                densityMultiplier: arrangement?.happeningDensityMultiplier ?? 1,
+                maximumConcurrentVoices: arrangement?.maximumConcurrentHappenings ?? 4
             )
         )
     }

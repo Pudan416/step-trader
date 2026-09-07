@@ -2,6 +2,29 @@ import XCTest
 @testable import Steps4
 
 final class HarmonyPlannerTests: XCTestCase {
+    func testArrangementMoodLimitsAndLivingTailsPreserveSleepGates() throws {
+        for mood in DayObjectsSoundMood.allCases {
+            let plans = DayObjectsSoundWorld.allCases.map { WorldArrangementFixture.plan($0, mood) }
+            for plan in plans {
+                let allowed: ClosedRange<Int> = mood == .sparse ? 3...4 : mood == .moving ? 5...6 : 5...7
+                XCTAssertTrue(allowed.contains(plan.activeLayerRoleCount), "\(plan.soundWorld) \(mood): \(plan.activeLayerRoleCount)")
+                let group = WorldArrangementFixture.group(plan.soundWorld, mood)
+                let ids = WorldArrangementFixture.runtimeIDs(group.harmonyRecipeIDs, mood: mood)
+                for role in plan.harmony.roles {
+                    guard case let .tonal(id) = role.instrumentTarget else { return XCTFail("World harmony must route its curated recipes") }
+                    XCTAssertTrue(ids.contains(id))
+                    if role.role != .drone {
+                        let boundary = WorldArrangementFixture.plan(plan.soundWorld, mood, sleep: role.activation.startProgress)
+                        XCTAssertEqual(boundary.harmony.role(for: role.role)?.gain, 0)
+                    }
+                }
+            }
+            let livingTail = try XCTUnwrap(plans[1].harmony.role(for: .drone)).releaseSeconds
+            for plan in plans where plan.soundWorld != .livingField {
+                XCTAssertGreaterThan(livingTail, try XCTUnwrap(plan.harmony.role(for: .drone)).releaseSeconds)
+            }
+        }
+    }
     func testSleepStillAddsInformationForEveryWorldAndMood() {
         for world in DayObjectsSoundWorld.allCases {
             for mood in DayObjectsSoundMood.allCases {
