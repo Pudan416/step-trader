@@ -1,9 +1,92 @@
 #if DEBUG || INTERNAL_BUILD
 import XCTest
+import SwiftUI
 @testable import Steps4
 
 @MainActor
 final class DayObjectsMusicLabControllerTests: XCTestCase {
+    func testExportSurvivesDiagnosticViewReplacementAndBlocksCompetingAudio() async throws {
+        let playback = RecordingLabPlayback()
+        let gate = CheckedContinuationGate()
+        var invocationCount = 0
+        let controller = DayObjectsMusicLabController(playback: playback, auditionExport: { _, _, _, progress in
+            invocationCount += 1
+            progress(3)
+            await gate.suspend()
+            progress(12)
+        })
+        let audition = DayObjectsInstrumentAuditionController()
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("fake-audition-export")
+        let hosting = UIHostingController(rootView: AnyView(DayObjectsInstrumentAuditionView(controller: audition, musicController: controller)))
+        hosting.loadViewIfNeeded()
+        let task = try XCTUnwrap(controller.beginAuditionExport(stopping: audition, directory: directory))
+        XCTAssertNil(controller.beginAuditionExport(stopping: audition, directory: directory))
+        await gate.waitUntilSuspended()
+        XCTAssertEqual(invocationCount, 1)
+        XCTAssertEqual(controller.auditionExportProgress, 3)
+
+        hosting.rootView = AnyView(EmptyView())
+        controller.disableDiagnostics()
+        hosting.rootView = AnyView(DayObjectsInstrumentAuditionView(controller: audition, musicController: controller))
+        XCTAssertTrue(controller.isExportingAuditions)
+        XCTAssertEqual(controller.auditionExportProgress, 3)
+        XCTAssertNil(controller.beginAuditionExport(stopping: audition, directory: directory))
+        XCTAssertNil(controller.acceptSoundButtonIntent())
+        XCTAssertFalse(controller.canToggleSound)
+        XCTAssertFalse(audition.allowsNote)
+        XCTAssertFalse(audition.allowsChord)
+        XCTAssertFalse(audition.allowsHit)
+        XCTAssertFalse(audition.allowsLeadXY)
+        let recipe = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 25))
+        XCTAssertEqual(controller.happeningPadStatus(for: recipe), .exporting)
+        XCTAssertNil(controller.beginHappeningPadAudition(recipe, beforeAudition: {}))
+        XCTAssertNil(controller.beginKickBassSidechainAudition(preferredBassID: nil))
+        let commandsBefore = playback.commands
+        await controller.toggleSound()
+        do { try await controller.auditionHappening(recipe); XCTFail("Export must block direct sample audition") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        await audition.turnSoundOn()
+        await audition.auditionNote()
+        audition.selectCategory(.drums)
+        XCTAssertEqual(audition.selectedCategory, .pad)
+        XCTAssertEqual(audition.soundState, .off)
+        XCTAssertEqual(playback.commands, commandsBefore)
+        XCTAssertTrue(audition.isAuditionExportInProgress)
+
+        gate.resume()
+        await task.value
+        XCTAssertEqual(invocationCount, 1)
+        XCTAssertFalse(controller.isExportingAuditions)
+        XCTAssertFalse(audition.isAuditionExportInProgress)
+        XCTAssertEqual(controller.auditionExportProgress, 12)
+        XCTAssertEqual(controller.auditionExportDirectory, directory)
+        XCTAssertNil(controller.auditionExportError)
+    }
+
+    func testLeavingWholeLabCancelsOwnedExportAndRestoresAudioActionsAfterCleanup() async throws {
+        let started = expectation(description: "Export started")
+        let playback = RecordingLabPlayback()
+        var cleanupCount = 0
+        let controller = DayObjectsMusicLabController(playback: playback, auditionExport: { _, _, _, progress in
+            defer { cleanupCount += 1 }
+            progress(1)
+            started.fulfill()
+            try await Task.sleep(for: .seconds(60))
+        })
+        let audition = DayObjectsInstrumentAuditionController()
+        let task = try XCTUnwrap(controller.beginAuditionExport(stopping: audition,
+            directory: FileManager.default.temporaryDirectory.appendingPathComponent("cancelled-fake-export")))
+        await fulfillment(of: [started], timeout: 2)
+        await controller.viewDidDisappear()
+        await task.value
+        XCTAssertEqual(cleanupCount, 1)
+        XCTAssertFalse(controller.isExportingAuditions)
+        XCTAssertFalse(audition.isAuditionExportInProgress)
+        XCTAssertEqual(controller.auditionExportError, "Export cancelled")
+        await controller.toggleSound()
+        XCTAssertEqual(controller.soundState, .on)
+    }
+
     func testUnifiedRemixAppliesOneCompleteSelectionWhileSoundIsOff() {
         let playback = RecordingLabPlayback()
         let controller = DayObjectsMusicLabController(playback: playback)

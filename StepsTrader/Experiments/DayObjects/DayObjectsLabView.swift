@@ -386,6 +386,7 @@ struct DayObjectsLabView: View {
                     beforeAudition: { await audition.stop() }
                 )
                 remixControls
+                    .disabled(musicController.isExportingAuditions)
                 fineTuning
                 instrumentDiagnostics
                 navigationControls
@@ -712,7 +713,7 @@ struct DayObjectsLabView: View {
                 .frame(width: 44, height: 44)
                 .background(.ultraThinMaterial, in: Circle())
         }
-        .disabled(musicController.soundState == .starting)
+        .disabled(!musicController.canToggleSound)
         .accessibilityLabel(soundLabel)
         .accessibilityValue(soundValue)
         .accessibilityIdentifier("dayObjects.sound")
@@ -753,6 +754,7 @@ struct DayObjectsLabView: View {
     private var leadAuditionSurface: some View {
         DayObjectsLeadGestureSurface(
             isEnabled: musicController.soundState == .on
+                && !musicController.isExportingAuditions
                 && !showsGrid
                 && !leadCoordinator.isVoiceOverRunning,
             // This surface is already laid out strictly inside the canvas;

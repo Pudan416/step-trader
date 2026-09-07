@@ -5,10 +5,6 @@ struct DayObjectsInstrumentAuditionView: View {
     @ObservedObject var controller: DayObjectsInstrumentAuditionController
     @ObservedObject var musicController: DayObjectsMusicLabController
     var beforeAudition: @MainActor () async -> Void = {}
-    @State private var isExporting = false
-    @State private var exportProgress = 0
-    @State private var exportDirectory: URL?
-    @State private var exportError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -87,53 +83,26 @@ struct DayObjectsInstrumentAuditionView: View {
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("dayObjects.audition.diagnostics")
         }
-        .disabled(isExporting)
+        .disabled(musicController.isExportingAuditions)
         .accessibilityElement(children: .contain)
     }
 
     private var auditionExportControls: some View {
         VStack(alignment: .leading, spacing: 6) {
             Button("Export 12 previews") {
-                guard !isExporting else { return }
-                isExporting = true
-                exportProgress = 0
-                exportDirectory = nil
-                exportError = nil
-                let state = musicController.state
-                let input = DayMusicInput(
-                    countedSteps: state.steps, stepGoal: state.stepGoal,
-                    countedSleepHours: state.sleepHours, sleepGoalHours: state.sleepGoalHours,
-                    happeningIDs: musicController.currentPlan.input.happeningIDs,
-                    spentColors: state.spentColors
-                )
-                Task { @MainActor in
-                    defer { isExporting = false }
-                    await musicController.turnSoundOff()
-                    await controller.stop()
-                    do {
-                        let documents = try FileManager.default.url(
-                            for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true
-                        )
-                        let directory = documents.appendingPathComponent("Auditions/\(UUID().uuidString)", isDirectory: true)
-                        exportDirectory = directory
-                        _ = try await DayObjectsAuditionPackExporter(progress: { exportProgress = $0 })
-                            .export(input: input, seed: state.remixSeed, directory: directory)
-                    } catch {
-                        exportError = error.localizedDescription
-                    }
-                }
+                musicController.beginAuditionExport(stopping: controller)
             }
             .buttonStyle(.bordered)
             .accessibilityIdentifier("dayObjects.audition.export")
-            Text("\(exportProgress) / 12 previews")
+            Text("\(musicController.auditionExportProgress) / 12 previews")
                 .accessibilityIdentifier("dayObjects.audition.exportProgress")
-            if isExporting { ProgressView(value: Double(exportProgress), total: 12) }
-            if let exportDirectory {
+            if musicController.isExportingAuditions { ProgressView(value: Double(musicController.auditionExportProgress), total: 12) }
+            if let exportDirectory = musicController.auditionExportDirectory {
                 Text(exportDirectory.path)
                     .textSelection(.enabled)
                     .accessibilityIdentifier("dayObjects.audition.exportDirectory")
             }
-            if let exportError {
+            if let exportError = musicController.auditionExportError {
                 Text(exportError)
                     .foregroundStyle(.red)
                     .accessibilityIdentifier("dayObjects.audition.exportError")

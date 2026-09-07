@@ -7,6 +7,7 @@ enum HappeningPadAuditionStatus: Equatable, Sendable {
     case loading
     case soundStopping
     case unavailable
+    case exporting
 }
 
 enum DayObjectsLabLifecycleEvent: Sendable {
@@ -47,6 +48,7 @@ struct DayObjectsSoundButtonIntent: Sendable {
 /// Sound is explicitly on.
 @MainActor
 final class DayObjectsMusicLabController: ObservableObject {
+    typealias AuditionExport = @MainActor (DayMusicInput, UInt64, URL, @escaping @MainActor (Int) -> Void) async throws -> Void
     static let maximumSteps = 10_000.0
     static let maximumSleepHours = 8.0
     static let maximumHappenings = 10
@@ -55,6 +57,10 @@ final class DayObjectsMusicLabController: ObservableObject {
     @Published private(set) var state: DayObjectsLabMusicState
     @Published private(set) var currentPlan: DayMusicPlan
     @Published private(set) var soundState: DayObjectsSoundState = .off
+    @Published private(set) var isExportingAuditions = false
+    @Published private(set) var auditionExportProgress = 0
+    @Published private(set) var auditionExportDirectory: URL?
+    @Published private(set) var auditionExportError: String?
     @Published private(set) var loadingHappeningRecipeIDs: Set<HappeningSoundRecipeID> = []
     @Published private(set) var unavailableHappeningRecipeIDs: Set<HappeningSoundRecipeID> = []
     @Published private(set) var auditionMode: DayObjectsAuditionMode = .fullComposition
@@ -69,6 +75,8 @@ final class DayObjectsMusicLabController: ObservableObject {
     let soundPulseBus = DayObjectsSoundPulseBus()
 
     private let playback: any DayObjectsMusicPlaybackProtocol
+    private let auditionExport: AuditionExport
+    private var auditionExportTask: Task<Void, Never>?
     private var isLeadHeld = false
     private var isLeadAvailable = true
     private var stopTask: Task<Void, Never>?
@@ -99,8 +107,13 @@ final class DayObjectsMusicLabController: ObservableObject {
 
     init(
         state: DayObjectsLabMusicState = DayObjectsLabMusicState(),
-        playback: (any DayObjectsMusicPlaybackProtocol)? = nil
+        playback: (any DayObjectsMusicPlaybackProtocol)? = nil,
+        auditionExport: AuditionExport? = nil
     ) {
+        self.auditionExport = auditionExport ?? { input, seed, directory, progress in
+            _ = try await DayObjectsAuditionPackExporter(progress: progress)
+                .export(input: input, seed: seed, directory: directory)
+        }
         var sanitized = state
         sanitized.steps = Self.clamp(state.steps, to: 0...Self.maximumSteps)
         sanitized.sleepHours = Self.clamp(state.sleepHours, to: 0...Self.maximumSleepHours)
@@ -130,6 +143,9 @@ final class DayObjectsMusicLabController: ObservableObject {
     var happeningIDs: [String] { configuredHappeningIDs }
     var metrics: DayObjectsPlaybackMetrics { playback.metrics }
     var canUndoMusicRemix: Bool { !musicVariantHistory.isEmpty }
+    var canToggleSound: Bool {
+        !isExportingAuditions && acceptedSoundButtonIntent == nil && soundState != .starting
+    }
 
     var worldSummary: String {
         let world = currentPlan.world
@@ -138,10 +154,63 @@ final class DayObjectsMusicLabController: ObservableObject {
         return "\(center) \(Self.modeName(world.mode)) · \(world.progression.count) \(chordLabel) · \(world.cycleBars)-bar cycle"
     }
 
+    /// Owned by the lab, not its removable diagnostics panel. The synchronous
+    /// guard reserves all lab audio actions before any stop/render suspension.
+    @discardableResult
+    func beginAuditionExport(
+        stopping audition: DayObjectsInstrumentAuditionController,
+        directory requestedDirectory: URL? = nil
+    ) -> Task<Void, Never>? {
+        guard !isExportingAuditions else { return nil }
+        isExportingAuditions = true
+        auditionExportProgress = 0
+        auditionExportDirectory = nil
+        auditionExportError = nil
+        acceptedSoundButtonIntent = nil
+        cancelHappeningPadTasks(deactivate: false)
+        invalidateDiagnosticActions()
+        audition.setAuditionExportInProgress(true)
+        let input = DayMusicInput(
+            countedSteps: state.steps, stepGoal: state.stepGoal,
+            countedSleepHours: state.sleepHours, sleepGoalHours: state.sleepGoalHours,
+            happeningIDs: currentPlan.input.happeningIDs, spentColors: state.spentColors
+        )
+        let seed = state.remixSeed
+        let task = Task { @MainActor [self, audition] in
+            defer {
+                audition.setAuditionExportInProgress(false)
+                isExportingAuditions = false
+                auditionExportTask = nil
+            }
+            await turnSoundOff()
+            await audition.stop()
+            do {
+                try Task.checkCancellation()
+                let directory: URL
+                if let requestedDirectory {
+                    directory = requestedDirectory
+                } else {
+                    directory = try FileManager.default.url(
+                        for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true
+                    ).appendingPathComponent("Auditions/\(UUID().uuidString)", isDirectory: true)
+                }
+                auditionExportDirectory = directory
+                try await auditionExport(input, seed, directory) { [weak self] progress in
+                    self?.auditionExportProgress = min(max(progress, 0), 12)
+                }
+                try Task.checkCancellation()
+            } catch {
+                auditionExportError = Task.isCancelled ? "Export cancelled" : error.localizedDescription
+            }
+        }
+        auditionExportTask = task
+        return task
+    }
+
     /// Changes the already running composition mix only after the user has
     /// explicitly enabled canvas Sound. This is state-only while Sound is off.
     func selectAuditionMode(_ mode: DayObjectsAuditionMode) {
-        guard soundState == .on else { return }
+        guard !isExportingAuditions, soundState == .on else { return }
         auditionMode = mode
         playback.applyDiagnosticAudition(mode, plan: currentPlan)
     }
@@ -173,7 +242,7 @@ final class DayObjectsMusicLabController: ObservableObject {
         beforeAudition: @escaping @MainActor () async -> Void = {},
         onResult: @escaping @MainActor (DayObjectsSidechainAuditionResult) -> Void = { _ in }
     ) -> Task<Void, Never>? {
-        guard soundState == .on, diagnosticActionTask == nil else { return nil }
+        guard !isExportingAuditions, soundState == .on, diagnosticActionTask == nil else { return nil }
         let generation = diagnosticActionGeneration
         let task = Task { @MainActor [weak self] in
             await beforeAudition()
@@ -199,8 +268,7 @@ final class DayObjectsMusicLabController: ObservableObject {
     }
 
     func acceptSoundButtonIntent() -> DayObjectsSoundButtonIntent? {
-        guard acceptedSoundButtonIntent == nil,
-              soundState != .starting else { return nil }
+        guard canToggleSound else { return nil }
         let action: DayObjectsSoundButtonIntent.Action = soundState == .on ? .turnOff : .turnOn
         let intent = DayObjectsSoundButtonIntent(id: UUID(), action: action)
         acceptedSoundButtonIntent = intent
@@ -211,7 +279,7 @@ final class DayObjectsMusicLabController: ObservableObject {
     }
 
     func completeSoundButtonIntent(_ intent: DayObjectsSoundButtonIntent) async {
-        guard acceptedSoundButtonIntent?.id == intent.id else { return }
+        guard !isExportingAuditions, acceptedSoundButtonIntent?.id == intent.id else { return }
         defer {
             if acceptedSoundButtonIntent?.id == intent.id {
                 acceptedSoundButtonIntent = nil
@@ -271,7 +339,7 @@ final class DayObjectsMusicLabController: ObservableObject {
         _ recipeID: HappeningSoundRecipeID,
         beforeAudition: @escaping @MainActor () async -> Void
     ) -> Task<Void, Never>? {
-        guard happeningPadLifecycleIsActive,
+        guard !isExportingAuditions, happeningPadLifecycleIsActive,
               stopTask == nil,
               acceptedSoundButtonIntent?.action != .turnOff,
               !unavailableHappeningRecipeIDs.contains(recipeID),
@@ -298,6 +366,7 @@ final class DayObjectsMusicLabController: ObservableObject {
     }
 
     func happeningPadStatus(for recipeID: HappeningSoundRecipeID) -> HappeningPadAuditionStatus {
+        if isExportingAuditions { return .exporting }
         if unavailableHappeningRecipeIDs.contains(recipeID) { return .unavailable }
         if acceptedSoundButtonIntent?.action == .turnOff { return .soundStopping }
         if loadingHappeningRecipeIDs.contains(recipeID) { return .loading }
@@ -388,13 +457,13 @@ final class DayObjectsMusicLabController: ObservableObject {
             isGridVisible: isGridVisible,
             isVoiceOverRunning: isVoiceOverRunning
         )
-        guard soundState == .on, isLeadAvailable else { return }
+        guard !isExportingAuditions, soundState == .on, isLeadAvailable else { return }
         isLeadHeld = true
         playback.beginLead(gesture)
     }
 
     func updateLead(_ gesture: LeadGestureSample) {
-        guard soundState == .on, isLeadAvailable, isLeadHeld else { return }
+        guard !isExportingAuditions, soundState == .on, isLeadAvailable, isLeadHeld else { return }
         playback.updateLead(gesture)
     }
 
@@ -428,6 +497,9 @@ final class DayObjectsMusicLabController: ObservableObject {
             event: event
         )
         if !event.isActive {
+            // Leaving the whole lab, backgrounding, or an interruption cancels
+            // owned work; merely collapsing diagnostics never reaches here.
+            auditionExportTask?.cancel()
             acceptedSoundButtonIntent = nil
             disableDiagnostics()
         }
@@ -438,6 +510,7 @@ final class DayObjectsMusicLabController: ObservableObject {
     func completeLifecycleEvent(_ intent: DayObjectsLabLifecycleIntent) async {
         guard intent.generation == lifecycleEventGeneration,
               intent.event.requiresAudioStop else { return }
+        if let auditionExportTask { await auditionExportTask.value }
         await stop(includingSampleOnly: true)
     }
 
@@ -521,7 +594,7 @@ final class DayObjectsMusicLabController: ObservableObject {
             happeningIDs: configuredHappeningIDs
         )
         currentPlan = nextPlan
-        guard soundState == .on else { return }
+        guard !isExportingAuditions, soundState == .on else { return }
 
         routePlaybackChange(from: oldPlan, to: nextPlan)
     }
@@ -576,7 +649,7 @@ final class DayObjectsMusicLabController: ObservableObject {
         _ recipeID: HappeningSoundRecipeID,
         generation: UInt64
     ) async throws {
-        guard happeningPadLifecycleIsActive,
+        guard !isExportingAuditions, happeningPadLifecycleIsActive,
               stopTask == nil,
               generation == happeningPadGeneration else { throw CancellationError() }
         guard !unavailableHappeningRecipeIDs.contains(recipeID) else {
