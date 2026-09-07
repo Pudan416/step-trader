@@ -1,4 +1,5 @@
 #if DEBUG || INTERNAL_BUILD
+import Accelerate
 import AVFAudio
 import Foundation
 
@@ -26,12 +27,13 @@ enum DayObjectsMixQualityAnalyzer {
     private static let kickBassCorrelationThreshold = 0.8
     private static let reverbTailSeconds = 2.0
     private static let maskingAbsoluteFloorDBFS = -80.0
-    private static let transientFrameSeconds = 0.01
+    private static let transientFrameSeconds = 0.064
     private static let transientHopSeconds = 0.005
-    private static let transientHistorySeconds = 0.05
+    private static let transientHistorySeconds = 0.1
     private static let transientEnergyFloor = 0.01
-    private static let transientMinimumRise = 0.005
-    private static let transientRelativeRise = 0.5
+    private static let transientMinimumNovelty = 0.001
+    private static let transientRelativeNovelty = 0.03
+    private static let transientEnergyRiseDB = 0.6
     private static let transientDeviationMultiplier = 3.0
     private static let transientRefractorySeconds = 0.04
 
@@ -325,11 +327,18 @@ enum DayObjectsMixQualityAnalyzer {
         return (peak, Double(clippedCount) / Double(sampleCount))
     }
 
-    /// Frequency-neutral onset novelty: 10 ms full-band RMS, sampled every
-    /// 5 ms, is compared with the preceding 50 ms using a median and median
-    /// absolute deviation. The adaptive rise threshold rejects stable pitched
-    /// carriers and stationary noise without making low notes harder to detect.
-    /// Detections retain the 40 ms refractory period.
+    /// Positive Hann spectral flux, supported by an actual frame-RMS rise.
+    /// A 64 ms window resolves the lowest audible carriers without following
+    /// individual cycles; a 5 ms hop still resolves dense percussion. A pair
+    /// of 20 Hz high-pass poles rejects DC/infrasonic envelope drift. Both
+    /// spectral magnitudes and RMS retain amplitude units at every sample rate.
+    ///
+    /// Weighting flux by the positive RMS rise prevents spectral redistribution
+    /// during a decay from raising the adaptive onset baseline. Its threshold
+    /// uses the preceding 100 ms median/MAD, plus absolute and relative floors.
+    /// A candidate also requires a 0.6 dB RMS rise per hop. Ten milliseconds
+    /// below threshold rearms the detector; detections stay at least 40 ms apart.
+    /// All FFT, sample-ring, and history storage is allocated once and reused.
     private static func transientDensityPerSecond(
         channels: [[Float]],
         sampleRate: Double
@@ -337,64 +346,144 @@ enum DayObjectsMixQualityAnalyzer {
         guard let first = channels.first, !first.isEmpty else { return 0 }
         let windowFrames = max(Int((transientFrameSeconds * sampleRate).rounded()), 2)
         let hopFrames = max(Int((transientHopSeconds * sampleRate).rounded()), 1)
+        var transformSize = 2
+        while transformSize < windowFrames { transformSize <<= 1 }
+        let transformExponent = vDSP_Length(transformSize.trailingZeroBitCount)
+        let transformSetup = vDSP_create_fftsetupD(transformExponent, FFTRadix(kFFTRadix2))
+        defer {
+            if let transformSetup { vDSP_destroy_fftsetupD(transformSetup) }
+        }
+        let binCount = (transformSize / 2) + 1
+        let window = (0..<windowFrames).map {
+            0.5 - (0.5 * cos(2 * .pi * Double($0) / Double(windowFrames - 1)))
+        }
+        let windowEnergy = window.reduce(0) { $0 + ($1 * $1) }
+        let energyNormalization = windowEnergy * Double(channels.count)
+        let magnitudeNormalization = 2 / (Double(transformSize) * energyNormalization)
+        let highPassCoefficient = exp(-2 * .pi * 20 / sampleRate)
+        let minimumEnergyRatio = pow(10, transientEnergyRiseDB / 20)
         let historyCount = max(
             Int((transientHistorySeconds / transientHopSeconds).rounded()),
-            1
+            2
         )
         let refractoryFrames = max(Int((transientRefractorySeconds * sampleRate).rounded()), 1)
-        var history: [Double] = []
-        history.reserveCapacity(historyCount)
-        var wasAboveThreshold = false
+        var sampleRing = channels.map { _ in [Double](repeating: 0, count: windowFrames) }
+        var lowPassFirst = [Double](repeating: 0, count: channels.count)
+        var lowPassSecond = lowPassFirst
+        var real = [Double](repeating: 0, count: transformSize)
+        var imaginary = real
+        var binEnergy = [Double](repeating: 0, count: binCount)
+        var previousMagnitudes = binEnergy
+        var history = [Double](repeating: 0, count: historyCount)
+        var scratch = history
+        var historyIndex = 0
+        var inputFrame = 0
+        var previousRMS = 0.0
+        var isArmed = true
+        var belowThresholdHops = 0
         var lastDetection = -refractoryFrames
         var count = 0
 
-        for start in stride(from: 0, to: first.count, by: hopFrames) {
-            let availableFrames = min(windowFrames, first.count - start)
+        // Include the leading zero-padded half-window so startup is measured
+        // with the same timing as subsequent attacks, and the trailing half
+        // so the final attack receives the same amount of lookahead.
+        for end in stride(from: 0, to: first.count + (windowFrames / 2), by: hopFrames) {
+            while inputFrame < min(end, first.count) {
+                let ringIndex = inputFrame % windowFrames
+                for channel in channels.indices {
+                    let sample = Double(channels[channel][inputFrame])
+                    lowPassFirst[channel] = (highPassCoefficient * lowPassFirst[channel])
+                        + ((1 - highPassCoefficient) * sample)
+                    let firstHighPass = sample - lowPassFirst[channel]
+                    lowPassSecond[channel] = (highPassCoefficient * lowPassSecond[channel])
+                        + ((1 - highPassCoefficient) * firstHighPass)
+                    sampleRing[channel][ringIndex] = firstHighPass - lowPassSecond[channel]
+                }
+                inputFrame += 1
+            }
+            for bin in 0..<binCount { binEnergy[bin] = 0 }
             var energy = 0.0
-            for channel in channels {
-                for offset in 0..<availableFrames {
-                    let sample = Double(channel[start + offset])
+            let start = end - windowFrames
+            for channel in channels.indices {
+                for offset in 0..<transformSize {
+                    real[offset] = 0
+                    imaginary[offset] = 0
+                }
+                for offset in 0..<windowFrames {
+                    let frame = start + offset
+                    guard frame >= 0, frame < first.count else { continue }
+                    let sample = sampleRing[channel][frame % windowFrames] * window[offset]
+                    real[offset] = sample
                     energy += sample * sample
                 }
+                if let transformSetup {
+                    real.withUnsafeMutableBufferPointer { realBuffer in
+                        imaginary.withUnsafeMutableBufferPointer { imaginaryBuffer in
+                            var split = DSPDoubleSplitComplex(
+                                realp: realBuffer.baseAddress!,
+                                imagp: imaginaryBuffer.baseAddress!
+                            )
+                            vDSP_fft_zipD(transformSetup, &split, 1, transformExponent, FFTDirection(FFT_FORWARD))
+                        }
+                    }
+                } else {
+                    // Preserve analysis if the accelerated setup is unavailable.
+                    radix2FFT(real: &real, imaginary: &imaginary)
+                }
+                for bin in 1..<binCount {
+                    binEnergy[bin] += (real[bin] * real[bin]) + (imaginary[bin] * imaginary[bin])
+                }
             }
-            let frameEnergy = sqrt(
-                energy / Double(availableFrames * channels.count)
+            let frameRMS = sqrt(energy / energyNormalization)
+            var positiveFluxEnergy = 0.0
+            for bin in 1..<binCount {
+                let symmetryWeight = bin == binCount - 1 ? 0.5 : 1.0
+                let magnitude = sqrt(binEnergy[bin] * magnitudeNormalization * symmetryWeight)
+                let increase = max(0, magnitude - previousMagnitudes[bin])
+                positiveFluxEnergy += increase * increase
+                previousMagnitudes[bin] = magnitude
+            }
+            let spectralFlux = sqrt(positiveFluxEnergy)
+            let novelty = sqrt(spectralFlux * max(0, frameRMS - previousRMS))
+            for index in history.indices { scratch[index] = history[index] }
+            let baseline = medianInPlace(&scratch)
+            for index in history.indices { scratch[index] = abs(history[index] - baseline) }
+            let deviation = medianInPlace(&scratch)
+            let threshold = max(
+                transientMinimumNovelty,
+                frameRMS * transientRelativeNovelty,
+                baseline + (deviation * transientDeviationMultiplier)
             )
-            let baseline = median(history)
-            let deviation = median(history.map { abs($0 - baseline) })
-            let requiredRise = max(
-                transientMinimumRise,
-                baseline * transientRelativeRise,
-                deviation * transientDeviationMultiplier
-            )
-            let novelty = frameEnergy - baseline
-            let isAboveThreshold = frameEnergy >= transientEnergyFloor
-                && novelty >= requiredRise
-            if isAboveThreshold,
-               !wasAboveThreshold,
-               start - lastDetection >= refractoryFrames {
-                count += 1
-                lastDetection = start
+            let isAboveThreshold = frameRMS >= transientEnergyFloor
+                && frameRMS >= previousRMS * minimumEnergyRatio
+                && novelty > threshold
+            if isAboveThreshold {
+                belowThresholdHops = 0
+                if isArmed, end - lastDetection >= refractoryFrames {
+                    count += 1
+                    lastDetection = end
+                    isArmed = false
+                }
+            } else {
+                belowThresholdHops = min(belowThresholdHops + 1, 2)
+                if belowThresholdHops == 2 { isArmed = true }
             }
-            wasAboveThreshold = isAboveThreshold
-            history.append(frameEnergy)
-            if history.count > historyCount {
-                history.removeFirst()
-            }
+            history[historyIndex] = novelty
+            historyIndex = (historyIndex + 1) % historyCount
+            previousRMS = frameRMS
         }
         let duration = Double(first.count) / sampleRate
         guard duration.isFinite, duration > 0 else { return 0 }
         return Double(count) / duration
     }
 
-    private static func median(_ values: [Double]) -> Double {
-        guard !values.isEmpty else { return 0 }
-        let sorted = values.sorted()
-        let midpoint = sorted.count / 2
-        if sorted.count.isMultiple(of: 2) {
-            return (sorted[midpoint - 1] + sorted[midpoint]) / 2
+    private static func medianInPlace(_ values: inout [Double]) -> Double {
+        values.sort()
+        let midpoint = values.count / 2
+        if values.count.isMultiple(of: 2) {
+            return (values[midpoint - 1] + values[midpoint]) / 2
         }
-        return sorted[midpoint]
+        return values[midpoint]
     }
 
     /// Compares up to two seconds after the caller-provided end-of-event frame

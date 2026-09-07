@@ -240,6 +240,78 @@ final class DayObjectsMixQualityAnalyzerTests: XCTestCase {
         }
     }
 
+    func testTwentyFourSecondSteadyBassDoesNotBecomeTwentyFiveOnsetsPerSecond() throws {
+        let steady = try makeMonoBuffer(seconds: 24) { frame, sampleRate in
+            0.2 * sin((2 * .pi * 25 * Double(frame) / sampleRate) + 0.37)
+        }
+        let report = try DayObjectsMixQualityAnalyzer.analyze(fullMix: steady, stems: [:])
+
+        XCTAssertLessThanOrEqual(report.transientDensityPerSecond, 1.0 / 24)
+        XCTAssertFalse(report.issues.contains(.excessiveTransientDensity))
+    }
+
+    func testTwentyFourSecondExponentialPercussionRetainsTwentyOnsetsPerSecond() throws {
+        let percussion = try makeMonoBuffer(seconds: 24) { frame, sampleRate in
+            let time = Double(frame) / sampleRate
+            let elapsed = time.truncatingRemainder(dividingBy: 0.05)
+            let envelope = min(elapsed / 0.002, 1) * exp(-elapsed / 0.03)
+            return 0.5 * envelope * sin(2 * .pi * 1_000 * time)
+        }
+        let report = try DayObjectsMixQualityAnalyzer.analyze(fullMix: percussion, stems: [:])
+
+        XCTAssertEqual(report.transientDensityPerSecond, 20, accuracy: 0.1)
+        XCTAssertTrue(report.issues.contains(.excessiveTransientDensity))
+    }
+
+    func testSteadyCarrierOnsetsStayIndependentOfPhaseLevelAndSampleRate() throws {
+        let frequencies: [Double] = [20, 25, 32, 40, 55, 80, 100, 250, 440, 1_000, 2_500, 5_000]
+        let sampleRates: [Double] = [16_000, 44_100, 48_000, 96_000]
+        let amplitudes: [Double] = [0.03, 0.2, 0.8]
+        for (frequencyIndex, frequency) in frequencies.enumerated() {
+            for phaseIndex in 0..<32 {
+                let sampleRate = sampleRates[(phaseIndex + frequencyIndex) % sampleRates.count]
+                let amplitude = amplitudes[(phaseIndex / 4 + frequencyIndex) % amplitudes.count]
+                let phase = 2 * .pi * Double(phaseIndex) / 32
+                let steady = try makeMonoBuffer(seconds: 1, sampleRate: sampleRate) { frame, rate in
+                    amplitude * sin((2 * .pi * frequency * Double(frame) / rate) + phase)
+                }
+                let report = try DayObjectsMixQualityAnalyzer.analyze(fullMix: steady, stems: [:])
+                let label = "steady \(frequency) Hz, phase \(phaseIndex)/32, amplitude \(amplitude), rate \(sampleRate)"
+                XCTAssertLessThanOrEqual(report.transientDensityPerSecond, 1, label)
+                XCTAssertFalse(report.issues.contains(.excessiveTransientDensity), label)
+            }
+        }
+    }
+
+    func testPercussiveOnsetDensityAcrossPitchEnvelopeTempoAndOffset() throws {
+        let frequencies: [Double] = [40, 60, 100, 250, 440, 1_000, 5_000]
+        let densities: [Double] = [2, 8, 12, 16, 20]
+        let envelopes: [(attack: Double, decay: Double)] = [(0.002, 0.03), (0.005, 0.015), (0.01, 0.06)]
+        let sampleRates: [Double] = [16_000, 44_100, 48_000]
+        let offsets: [Double] = [0, 0.0017, 0.013]
+        for (frequencyIndex, frequency) in frequencies.enumerated() {
+            for (densityIndex, density) in densities.enumerated() {
+                for (envelopeIndex, envelope) in envelopes.enumerated() {
+                    for (offsetIndex, offset) in offsets.enumerated() {
+                        let sampleRate = sampleRates[(frequencyIndex + densityIndex + offsetIndex) % 3]
+                        let amplitude = [0.15, 0.5, 0.8][(envelopeIndex + offsetIndex) % 3]
+                        let percussion = try makeMonoBuffer(seconds: 2, sampleRate: sampleRate) { frame, rate in
+                            let time = Double(frame) / rate
+                            guard time >= offset else { return 0 }
+                            let elapsed = (time - offset).truncatingRemainder(dividingBy: 1 / density)
+                            let level = min(elapsed / envelope.attack, 1) * exp(-elapsed / envelope.decay)
+                            return amplitude * level * sin((2 * .pi * frequency * time) + 0.37)
+                        }
+                        let report = try DayObjectsMixQualityAnalyzer.analyze(fullMix: percussion, stems: [:])
+                        let label = "bursts \(frequency) Hz, \(density)/s, attack/decay \(envelope), offset \(offset), rate \(sampleRate)"
+                        XCTAssertEqual(report.transientDensityPerSecond, density, accuracy: 0.5, label)
+                        XCTAssertEqual(report.issues.contains(.excessiveTransientDensity), density > 12, label)
+                    }
+                }
+            }
+        }
+    }
+
     func testTransientDensityDoesNotFlagSteadyCarriers() throws {
         let frequencies: [Double] = [20, 30, 40, 50, 60, 100, 250, 400, 600, 1_000, 5_000]
         for frequency in frequencies {
@@ -299,6 +371,105 @@ final class DayObjectsMixQualityAnalyzerTests: XCTestCase {
                     report.issues.contains(.excessiveTransientDensity),
                     "Stationary noise seed \(seed), amplitude \(amplitude)"
                 )
+            }
+        }
+    }
+
+    func testFilteredStationaryNoiseDoesNotCrossExcessiveDensityGate() throws {
+        for (cutoffIndex, cutoff) in [20.0, 32, 40, 55, 100, 250, 1_500].enumerated() {
+            for seed in 0..<16 {
+                let sampleRate = [16_000.0, 44_100, 48_000][(seed + cutoffIndex) % 3]
+                let amplitude = [0.03, 0.2, 0.8][(seed / 3 + cutoffIndex) % 3]
+                let noise = try makeFilteredNoiseBuffer(
+                    seconds: 2, sampleRate: sampleRate, cutoff: cutoff,
+                    amplitude: amplitude, seed: UInt64(seed)
+                )
+                let report = try DayObjectsMixQualityAnalyzer.analyze(fullMix: noise, stems: [:])
+                let label = "stationary low-pass \(cutoff) Hz, seed \(seed), amplitude \(amplitude), rate \(sampleRate)"
+                // Narrow bass noise has real random envelope swells. Its
+                // acceptance contract is no excessive-density issue, rather
+                // than a claim that stationary noise has a constant envelope.
+                XCTAssertLessThanOrEqual(report.transientDensityPerSecond, 12, label)
+                XCTAssertFalse(report.issues.contains(.excessiveTransientDensity), label)
+                XCTAssertTrue(report.suggestions.isEmpty, label)
+            }
+        }
+    }
+
+    func testTwentyFourSecondStrongStationaryBassNoiseStaysBelowDensityGate() throws {
+        for (cutoff, seed) in [(20.0, UInt64(28)), (32.0, 10), (40.0, 1), (55.0, 0xdead_beef)] {
+            let noise = try makeFilteredNoiseBuffer(
+                seconds: 24, sampleRate: 16_000, cutoff: cutoff,
+                amplitude: 0.8, seed: seed
+            )
+            let report = try DayObjectsMixQualityAnalyzer.analyze(fullMix: noise, stems: [:])
+            let label = "24s stationary low-pass \(cutoff) Hz, seed \(seed)"
+            XCTAssertLessThanOrEqual(report.transientDensityPerSecond, 12, label)
+            XCTAssertFalse(report.issues.contains(.excessiveTransientDensity), label)
+            XCTAssertTrue(report.suggestions.isEmpty, label)
+        }
+    }
+
+    func testNoiseBurstDensityAcrossColorEnvelopeAndTempo() throws {
+        for (cutoffIndex, cutoff) in [40.0, 250, 1_000, 5_000].enumerated() {
+            for (densityIndex, density) in [2.0, 12, 20].enumerated() {
+                for (envelopeIndex, envelope) in [(0.002, 0.03), (0.005, 0.015), (0.01, 0.06)].enumerated() {
+                    let sampleRate = [16_000.0, 44_100, 48_000][(cutoffIndex + densityIndex + envelopeIndex) % 3]
+                    let offset = [0.0, 0.0017, 0.013][envelopeIndex]
+                    let coefficient = exp(-2 * .pi * cutoff / sampleRate)
+                    var lowPass = 0.0
+                    let noise = try makeMonoBuffer(seconds: 2, sampleRate: sampleRate) { frame, rate in
+                        let white = seededNoise(frame: frame, seed: UInt64(1 + cutoffIndex + densityIndex + envelopeIndex))
+                        lowPass = (coefficient * lowPass) + ((1 - coefficient) * white)
+                        let time = Double(frame) / rate
+                        guard time >= offset else { return 0 }
+                        let elapsed = (time - offset).truncatingRemainder(dividingBy: 1 / density)
+                        let level = min(elapsed / envelope.0, 1) * exp(-elapsed / envelope.1)
+                        return 0.8 * level * (white - lowPass)
+                    }
+                    let report = try DayObjectsMixQualityAnalyzer.analyze(fullMix: noise, stems: [:])
+                    let label = "noise bursts above \(cutoff) Hz, \(density)/s, envelope \(envelope), offset \(offset)"
+                    XCTAssertEqual(report.transientDensityPerSecond, density, accuracy: 0.5, label)
+                    XCTAssertEqual(report.issues.contains(.excessiveTransientDensity), density > 12, label)
+                }
+            }
+        }
+    }
+
+    func testPitchSweptKickOnsetsSurviveLongOverlappingDecays() throws {
+        for frequency in [40.0, 60, 100] {
+            for density in [2.0, 12, 20] {
+                let kick = try makeMonoBuffer(seconds: 2) { frame, sampleRate in
+                    let time = Double(frame) / sampleRate
+                    let elapsed = time.truncatingRemainder(dividingBy: 1 / density)
+                    let level = min(elapsed / 0.002, 1) * exp(-elapsed / 0.03)
+                    let cycles = (frequency * elapsed) + (180 * 0.02 * (1 - exp(-elapsed / 0.02)))
+                    return 0.5 * level * sin((2 * .pi * cycles) + 0.37)
+                }
+                let report = try DayObjectsMixQualityAnalyzer.analyze(fullMix: kick, stems: [:])
+                let label = "pitch-swept \(frequency) Hz kick, \(density)/s"
+                XCTAssertEqual(report.transientDensityPerSecond, density, accuracy: 0.5, label)
+                XCTAssertEqual(report.issues.contains(.excessiveTransientDensity), density > 12, label)
+            }
+        }
+    }
+
+    func testShortCaptureCountsSilenceAndStartupWithoutEndPaddingOnsets() throws {
+        for sampleRate in [8_000.0, 48_000, 96_000] {
+            let silence = try makeMonoBuffer(seconds: 0.4, sampleRate: sampleRate) { _, _ in 0 }
+            let silentReport = try DayObjectsMixQualityAnalyzer.analyze(fullMix: silence, stems: [:])
+            XCTAssertEqual(silentReport.transientDensityPerSecond, 0)
+            for frequency in [20.0, 25, 1_000] {
+                for onset in [0.0, 0.2] {
+                    let tone = try makeMonoBuffer(seconds: 0.4, sampleRate: sampleRate) { frame, rate in
+                        let time = Double(frame) / rate
+                        return time < onset ? 0 : 0.2 * sin((2 * .pi * frequency * time) + 0.37)
+                    }
+                    let report = try DayObjectsMixQualityAnalyzer.analyze(fullMix: tone, stems: [:])
+                    XCTAssertEqual(report.transientDensityPerSecond, 2.5, accuracy: 0.001,
+                                   "short \(frequency) Hz, start \(onset), rate \(sampleRate)")
+                    XCTAssertFalse(report.issues.contains(.excessiveTransientDensity))
+                }
             }
         }
     }
@@ -648,6 +819,30 @@ final class DayObjectsMixQualityAnalyzerTests: XCTestCase {
             samples[frame] = Float(sample(frame, sampleRate))
         }
         return buffer
+    }
+
+    private func seededNoise(frame: Int, seed: UInt64) -> Double {
+        var value = UInt64(bitPattern: Int64(frame)) &+ (seed &* 0x9e37_79b9_7f4a_7c15)
+        value = (value ^ (value >> 30)) &* 0xbf58_476d_1ce4_e5b9
+        value = (value ^ (value >> 27)) &* 0x94d0_49bb_1331_11eb
+        value ^= value >> 31
+        return (Double(value >> 11) / 4_503_599_627_370_495.5) - 1
+    }
+
+    private func makeFilteredNoiseBuffer(
+        seconds: Double, sampleRate: Double, cutoff: Double,
+        amplitude: Double, seed: UInt64
+    ) throws -> AVAudioPCMBuffer {
+        let coefficient = exp(-2 * .pi * cutoff / sampleRate)
+        let normalization = sqrt((1 + coefficient) / (1 - coefficient))
+        var state = 0.0
+        for frame in -Int(sampleRate)..<0 {
+            state = (coefficient * state) + ((1 - coefficient) * seededNoise(frame: frame, seed: seed))
+        }
+        return try makeMonoBuffer(seconds: seconds, sampleRate: sampleRate) { frame, _ in
+            state = (coefficient * state) + ((1 - coefficient) * seededNoise(frame: frame, seed: seed))
+            return amplitude * normalization * state
+        }
     }
 }
 #endif

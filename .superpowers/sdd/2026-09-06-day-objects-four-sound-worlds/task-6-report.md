@@ -470,3 +470,151 @@ unmastered system sound used as the fixture did not meet the mix gates).
   passed.
 - Only the analyzer, its regression tests, and this report changed. The two
   pre-existing untracked audition WAVs were not read, modified, or staged.
+
+## Fix round 5
+
+This section supersedes the fix-round-4 onset algorithm. The two reproduced
+regressions were a steady 25 Hz carrier at phase `0.37` being counted as
+25 attacks/second, and 20-per-second exponential percussion being reduced to
+one startup attack. Both follow from using 10 ms RMS as the onset measure: it
+tracks sub-cycle bass phase, while a 50 ms energy baseline follows the sustained
+level of overlapping percussion.
+
+### Deterministic spectral onset measure
+
+Onset analysis now uses positive spectral flux, with explicit evidence that
+the signal's frame energy is increasing. The positive-bin-difference operation
+is the conventional spectral-flux building block, also described in the
+[librosa onset-strength documentation](https://librosa.org/doc/0.11.0/generated/librosa.onset.onset_strength.html).
+The energy weighting and acceptance gates below are this analyzer's additions.
+
+1. Two cascaded 20 Hz high-pass poles reject DC and infrasonic drift in the
+   onset path. Their state is kept per channel; no filtered copy of the entire
+   capture is allocated.
+2. A 64 ms Hann window advances every 5 ms, with both dimensions rounded from
+   the actual sample rate. It is zero-padded to the next power of two for the
+   FFT. Leading/trailing padding gives the first and last attacks the same
+   measurement support as interior attacks.
+3. Channel spectral powers are summed before taking magnitudes, so opposing
+   channel phases cannot cancel an onset. Magnitudes are normalized by FFT
+   length, Hann squared-weight sum, and channel count into RMS-amplitude units.
+   The one-sided Nyquist bin receives its proper half weighting. DC is omitted
+   from flux. Frame RMS is measured directly from the same weighted samples.
+4. `flux = sqrt(sum(max(0, magnitude - previousMagnitude)^2))` and
+   `novelty = sqrt(flux * max(0, RMS - previousRMS))`. The geometric mean
+   requires both spectral growth and a real energy rise. Spectral redistribution
+   while the sound decays therefore cannot lift the onset baseline and hide
+   subsequent attacks.
+5. The threshold is the maximum of `0.001 FS`, `0.03 * frameRMS`, and the
+   preceding 100 ms novelty median plus three median absolute deviations.
+   A candidate must also have RMS at least `0.01 FS` and rise at least
+   `0.6 dB` over the previous hop. Two below-threshold hops rearm detection;
+   the existing 40 ms minimum interval between counted onsets remains.
+
+Density remains the detected count divided by the original capture duration,
+and the public issue gate remains strictly `> 12/second`. No public API, report
+field, masking path, tail path, issue/suggestion policy, or live audio behavior
+changed.
+
+The sample ring, FFT arrays, previous magnitudes, 20-value history, and sorting
+scratch buffer are allocated once and reused. Additional storage is bounded by
+sample rate/channel count, never capture duration. Accelerate performs only the
+onset FFT with one reusable setup; allocation failure retains the existing
+deterministic radix-2 fallback. The separate masking FFT is unchanged.
+
+### Exact RED evidence
+
+```text
+xcodebuild test -quiet -project Steps4.xcodeproj -scheme Steps4 \
+  -destination 'platform=iOS Simulator,name=iPhone 16e' \
+  -resultBundlePath /tmp/day-objects-task6-fix5-red.IoMTck/Task6Fix5RED.xcresult \
+  -only-testing:Steps4Tests/DayObjectsMixQualityAnalyzerTests/testTwentyFourSecondSteadyBassDoesNotBecomeTwentyFiveOnsetsPerSecond \
+  -only-testing:Steps4Tests/DayObjectsMixQualityAnalyzerTests/testTwentyFourSecondExponentialPercussionRetainsTwentyOnsetsPerSecond
+```
+
+Both tests failed against `84ccc3c`, before production edits:
+
+- 24 s, 48 kHz, `0.2 * sin(2*pi*25*t + 0.37)`: **25.0/s**, incorrectly flagged.
+- 24 s, 48 kHz, 1 kHz sine, amplitude `0.5`, period `0.05 s`, envelope
+  `min(e / 0.002, 1) * exp(-e / 0.03)`: **0.041666666666666664/s**, not flagged.
+
+The complete expanded analyzer tests also ran against the old production code
+in an optimized native XCTest runner. Seven of 33 tests failed, with 209
+assertion failures, including the phase sweep, pitch/tempo/envelope sweep,
+noise bursts, pitch-swept kicks, and short/startup controls. Evidence:
+`/tmp/day-objects-task6-fix5-lab.uCPaDW/native-red.log`.
+
+### GREEN coverage
+
+Nine new test methods exercise 883 synthetic captures through the public
+`analyze(fullMix:stems:)` boundary:
+
+- 384 steady-tone cases: 20/25/32/40/55/80/100/250/440/1000/2500/5000 Hz,
+  all 32 evenly spaced phases, balanced across 16/44.1/48/96 kHz and amplitudes
+  0.03/0.2/0.8. Each permits at most one startup onset and no density issue.
+- 315 pitched-burst cases: 40...5000 Hz, 2/8/12/16/20 attacks per second,
+  attack/decay pairs 2/30, 5/15, and 10/60 ms, three offsets, three amplitudes,
+  and three sample rates. Expected density is the independent scheduled rate,
+  within 0.5/s, and issue presence must equal `scheduledRate > 12`.
+- 112 stationary low-pass-noise cases: seven cutoffs spanning 20...1500 Hz,
+  16 seeds, three rates, and three levels, plus four strong 24-second cases.
+  Filtering is warmed for a second before capture and variance-normalized, so
+  low-cutoff negatives are not made artificially quiet.
+- 36 noise-burst cases: high-pass colors 40/250/1000/5000 Hz, three envelopes,
+  offsets, sample rates, and 2/12/20 scheduled attacks per second; nine
+  pitch-swept kick cases at 40/60/100 Hz and 2/12/20 attacks per second.
+- 21 short-capture controls cover silence and immediate/delayed steady-tone
+  startup at 8/48/96 kHz. The two exact 24-second reproductions remain separate.
+
+All 33 analyzer tests passed in the final native optimized runner in 10.204 s:
+`/tmp/day-objects-task6-fix5-lab.uCPaDW/native-accelerated-green.log`.
+The exact public reproductions now measure **0.041666666666666664/s, no issue**
+and **20.0/s, excessive-density issue**, respectively.
+
+A separate 300-case production-API probe extended the negative controls:
+12 full 24-second phase-0.37 tone cases across four rates and three amplitudes,
+and 288 low-pass-noise cases spanning nine cutoffs from 20...1000 Hz, 32 seeds,
+2/24-second durations, 16...96 kHz, and amplitudes 0.8/1.2. All passed; maximum
+noise density was **11.0/s** and no noise case emitted a density issue or
+suggestion. Evidence: `/tmp/day-objects-task6-fix5-verified.ckSssO/probes.log`.
+
+Twelve additional public-API boundary probes passed at 8/192/384 kHz using
+0.4-second captures in mono and opposing-phase stereo: steady 25 Hz startup
+measured exactly one onset (`2.5/s`), and 20/s exponential percussion measured
+exactly `20.0/s`, with the corresponding issue gate correct in every case.
+
+Stationary narrow-band bass noise has genuine random envelope swells. Its
+nonzero onset metric is intentional and disclosed: the acceptance contract for
+these controls is no false `> 12/s` issue, not an assertion that a stationary
+random process has a constant envelope. White-noise and steady-tone startup
+controls retain their stricter existing expectations.
+
+### Final simulator and CLI verification
+
+```text
+xcodebuild test -quiet -project Steps4.xcodeproj -scheme Steps4 \
+  -destination 'platform=iOS Simulator,name=iPhone 16e' \
+  -resultBundlePath /tmp/day-objects-task6-fix5-verified.ckSssO/Task6Fix5.xcresult \
+  -only-testing:Steps4Tests/DayObjectsMixQualityAnalyzerTests \
+  -only-testing:Steps4Tests/DayObjectsLoudnessAnalyzerTests \
+  -only-testing:Steps4Tests/DayObjectsMixScenarioTests
+```
+
+Simulator result: **55 selected, 52 passed, 3 expected opt-in long-render
+skips, 0 failures**. This includes all 33 analyzer tests and all nine loudness
+tests; the scenario suite supplied the remaining 13 selected tests. The full
+Debug run took 716.315 s. `git diff --check` also passed.
+
+CLI bootstrap/help compilation passed. Ten CLI checks passed: missing, empty,
+unknown, duplicate, and directory-less active-role metadata; directory, stem,
+and multiple-file mix rejection; help; and valid explicit active roles producing
+a schema-4 quality report. Invalid invocations returned 64, and the valid
+unmastered fixture returned 2 with its expected quality report. The fixture WAVs
+were reused from the previous round's temporary CLI folder, without mutation.
+
+The initial simulator run was intentionally stopped after a debug performance
+probe found the Swift-only FFT slow. Reusing Accelerate reduced two 24-second
+debug public-API probes from 91.62 s to 30.66 s while retaining their exact onset
+counts. The native suite and 300-case probe were rerun after that refactor.
+Only the analyzer, analyzer tests, and this report changed; the progress ledger
+and pre-existing untracked audition WAVs were not edited or staged.
