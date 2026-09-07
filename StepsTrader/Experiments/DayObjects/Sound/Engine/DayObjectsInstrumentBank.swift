@@ -88,6 +88,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     convenience init(
         bundle: Bundle = .main,
         soundWorldResources: DayObjectsSoundWorldResources? = nil,
+        tonalVoiceProfile: DayObjectsTonalVoiceProfile = .fullFidelity,
         audioHostTimeProvider: @escaping () -> TimeInterval = {
             ProcessInfo.processInfo.systemUptime
         }
@@ -98,6 +99,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
             soundWorldResources: soundWorldResources,
             engine: DayObjectsAudioKitInstrumentBankEngine(happenings: happenings),
             happenings: happenings,
+            tonalVoiceProfile: tonalVoiceProfile,
             audioHostTimeProvider: audioHostTimeProvider
         )
     }
@@ -107,6 +109,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         soundWorldResources: DayObjectsSoundWorldResources? = nil,
         engine: DayObjectsInstrumentBankEngine,
         happenings: DayObjectsHappeningSamplePool,
+        tonalVoiceProfile: DayObjectsTonalVoiceProfile = .fullFidelity,
         audioHostTimeProvider: @escaping () -> TimeInterval
     ) {
         let resources = soundWorldResources ?? DayObjectsSoundWorldResources(bundle: bundle)
@@ -119,10 +122,11 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
                 // The prepared pool is detached and does not start an engine or audio session.
                 return DayObjectsAudioKitTonalPoolAdapter(
                     DayObjectsAudioKitTonalPool(
-                        specification: specification,
-                        instruments: instruments,
-                        hostTimeProvider: audioHostTimeProvider
-                    )
+                    specification: specification,
+                    instruments: instruments,
+                    voiceProfile: tonalVoiceProfile,
+                    hostTimeProvider: audioHostTimeProvider
+                )
                 )
             },
             drumBankFactory: { overlapCounts in
@@ -304,12 +308,22 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
 
             do { builtDrums = try drumBankFactory(configuration.drumOverlapCounts) }
             catch { throw DayObjectsInstrumentBankError.preparationFailed(.drums) }
-            do { builtPiano = try pianoPoolFactory(configuration.pianoVoiceCount) }
-            catch { throw DayObjectsInstrumentBankError.preparationFailed(.piano) }
+            do {
+                builtPiano = configuration.pianoVoiceCount == 0
+                    ? inactivePiano
+                    : try pianoPoolFactory(configuration.pianoVoiceCount)
+            } catch { throw DayObjectsInstrumentBankError.preparationFailed(.piano) }
             guard let builtDrums, let builtPiano else { throw DayObjectsInstrumentBankError.preparationFailed(.graph) }
 
             let graph: DayObjectsInstrumentBankGraph
-            do { graph = try graphFactory(builtTonalPools, builtDrums, builtPiano, builtHappenings) }
+            do {
+                graph = try graphFactory(
+                    builtTonalPools,
+                    builtDrums,
+                    configuration.pianoVoiceCount == 0 ? nil : builtPiano,
+                    builtHappenings
+                )
+            }
             catch { throw DayObjectsInstrumentBankError.preparationFailed(.graph) }
             do { try engine.attach(graph: graph) }
             catch { throw DayObjectsInstrumentBankError.preparationFailed(.engine) }
@@ -549,7 +563,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         for name in configuration.tonalPools.map(\.name) where !seen.insert(name).inserted {
             throw DayObjectsInstrumentBankError.duplicateTonalPoolName(name)
         }
-        guard (1...8).contains(configuration.pianoVoiceCount) else { throw DayObjectsInstrumentBankError.invalidPianoVoiceCount }
+        guard (0...8).contains(configuration.pianoVoiceCount) else { throw DayObjectsInstrumentBankError.invalidPianoVoiceCount }
         if let invalid = configuration.drumOverlapCounts.filter({ !(1...8).contains($0.value) }).map(\.key).sorted(by: { $0.rawValue < $1.rawValue }).first {
             throw DayObjectsInstrumentBankError.invalidDrumOverlap(invalid)
         }

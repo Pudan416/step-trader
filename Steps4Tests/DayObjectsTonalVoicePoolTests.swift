@@ -5,6 +5,14 @@ final class DayObjectsTonalVoicePoolTests: XCTestCase {
     private let firstID = DayObjectsInstrumentID(rawValue: "pad.first")
     private let secondID = DayObjectsInstrumentID(rawValue: "lead.second")
 
+    func testMobileRealtimeVoiceKeepsPhoneDSPBounded() {
+        XCTAssertEqual(DayObjectsMobileTonalVoice.graphLayout.allocatedNodeCount, 8)
+        XCTAssertEqual(DayObjectsMobileTonalVoice.graphLayout.delaySendCount, 0)
+        XCTAssertEqual(DayObjectsMobileTonalVoice.graphLayout.reverbSendCount, 0)
+        XCTAssertEqual(DayObjectsMobileTonalVoice.graphLayout.phaserCount, 0)
+        XCTAssertEqual(DayObjectsMobileTonalVoice.modulationUpdateInterval, 1.0 / 30.0)
+    }
+
     func testPreparedPresetRemainsPendingUntilTheFixedGraphCanSynchronize() {
         var lifecycle = DayObjectsTonalVoiceGraphLifecycle()
 

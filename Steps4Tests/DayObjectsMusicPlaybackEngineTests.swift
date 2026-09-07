@@ -1192,6 +1192,11 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(runtime.playbackMetrics.pendingRemixCount, 0)
         XCTAssertEqual(runtime.instrumentAllocationCountForTesting, 1)
         XCTAssertEqual(
+            runtime.allocatedPianoVoiceCountForTesting,
+            0,
+            "Phone playback must not synchronously decode the felt-piano sample bank"
+        )
+        XCTAssertEqual(
             runtime.preparedHappeningRecipeIDsForTesting,
             Set(plan.happenings.map(\.recipeID))
         )
@@ -1427,7 +1432,7 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         runtime.applyContinuous(updated)
         XCTAssertEqual(runtime.activePlanForTesting?.mix.worldGroupCalibration, mix.worldGroupCalibration)
         XCTAssertEqual(try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state).masterTargetDecibelsBeforeLimiter,
-                       state.masterTargetDecibelsBeforeLimiter + 0.1, accuracy: 1e-12)
+                       min(state.masterTargetDecibelsBeforeLimiter + 0.1, -4.5), accuracy: 1e-12)
         runtime.applyDiagnosticAudition(.isolatedBus(.harmony), plan: updated)
         let isolated = try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state)
         XCTAssertEqual(isolated.worldGroupCalibration, mix.worldGroupCalibration)
@@ -1474,7 +1479,7 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(runtime.activePlanForTesting, next)
         let changed = try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state)
         XCTAssertEqual(changed.worldGroupCalibration, next.mix.worldGroupCalibration)
-        XCTAssertEqual(changed.masterTargetDecibelsBeforeLimiter, 0.52, accuracy: 1e-9)
+        XCTAssertEqual(changed.masterTargetDecibelsBeforeLimiter, -4.5, accuracy: 1e-9)
         XCTAssertEqual(changed.buses.lead.sendLevel, next.lead.reverbSend, accuracy: 1e-9)
     }
 

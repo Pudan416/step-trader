@@ -11,7 +11,7 @@ final class DayObjectsMixControllerTests: XCTestCase {
         controller.apply(plan, activeChordVoiceCount: 3, harmonyDuckingDecibels: 0,
                          spatial: testSpatial, rampDurationSeconds: 0.25)
         let state = try XCTUnwrap(backend.states.last)
-        XCTAssertEqual(state.masterTargetDecibelsBeforeLimiter, 0.5, accuracy: 1e-12)
+        XCTAssertEqual(state.masterTargetDecibelsBeforeLimiter, -4.5, accuracy: 1e-12)
         XCTAssertEqual(state.worldGroupCalibration, plan.worldGroupCalibration)
         XCTAssertEqual(state.rampDurationSeconds, 0.25)
         // Spatial inputs already contain upstream calibration; do not scale twice.
@@ -21,6 +21,27 @@ final class DayObjectsMixControllerTests: XCTestCase {
                          spatial: testSpatial, rampDurationSeconds: 0)
         XCTAssertEqual(backend.states.last?.masterTargetDecibelsBeforeLimiter, -9)
         XCTAssertNil(backend.states.last?.worldGroupCalibration)
+    }
+
+    func testWorldGroupMakeupCannotDriveRealtimeMasterIntoLimiter() throws {
+        let backend = RecordingMixBackend()
+        let controller = DayObjectsMixController(backend: backend)
+        var plan = LayerMixPlanner.makePlan(happeningCount: 10, soundWorld: .livingField)
+        plan.worldGroupCalibration = .init(masterMakeupDB: 9.5, reverbSendScale: 0.4)
+
+        controller.apply(
+            plan,
+            activeChordVoiceCount: 4,
+            harmonyDuckingDecibels: 0,
+            spatial: testSpatial,
+            rampDurationSeconds: 0.25
+        )
+
+        XCTAssertLessThanOrEqual(
+            try XCTUnwrap(backend.states.last).masterTargetDecibelsBeforeLimiter,
+            -4.5,
+            "World loudness calibration must retain headroom instead of making the limiter the normal gain stage"
+        )
     }
 
     func testPlanAwareGainCalibrationHasExactGrooveModeTargetsAtMidDensity() {

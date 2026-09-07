@@ -54,6 +54,28 @@ final class DayObjectsLabUITests: XCTestCase {
         XCTAssertFalse(app.buttons["dayObjects.remix"].exists)
     }
 
+    func testCanvasRemainsResponsiveWhileSoundIsStarting() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiLab", "dayObjects", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+
+        let sound = app.buttons["dayObjects.sound"]
+        let controls = app.buttons["dayObjects.controlsToggle"]
+        XCTAssertTrue(sound.waitForExistence(timeout: 5))
+        XCTAssertTrue(controls.waitForExistence(timeout: 5))
+
+        let interactionStartedAt = ProcessInfo.processInfo.systemUptime
+        sound.tap()
+        controls.tap()
+
+        XCTAssertLessThan(
+            ProcessInfo.processInfo.systemUptime - interactionStartedAt,
+            6,
+            "Audio graph preparation must not monopolize the app's main thread"
+        )
+        XCTAssertFalse(app.buttons["dayObjects.remix"].exists)
+    }
+
     func testEditorialFieldMVPVisualHandoff() throws {
         let app = XCUIApplication()
         app.launchArguments = [

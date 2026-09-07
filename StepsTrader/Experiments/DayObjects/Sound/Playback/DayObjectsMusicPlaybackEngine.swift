@@ -699,7 +699,8 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
 
         func configure(
             _ plan: DayMusicPlan,
-            diagnosticAuditionMode: DayObjectsAuditionMode = .fullComposition
+            diagnosticAuditionMode: DayObjectsAuditionMode = .fullComposition,
+            usesSampledPiano: Bool = true
         ) throws {
             guard let bass = bassPlayer,
                   let harmony = harmonyPlayer,
@@ -714,7 +715,9 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 plan.bass,
                 cycleLengthSubdivisions: Int64(max(plan.world.cycleBars, 1)) * MusicalPosition.subdivisionsPerBar
             )
-            try harmony.configure(plan.harmony)
+            try harmony.configure(
+                usesSampledPiano ? plan.harmony : plan.harmony.replacingFeltPianoWithTonalKeys()
+            )
             try happenings.configure(
                 plans: plan.happenings,
                 tonalWorld: plan.world,
@@ -1854,6 +1857,9 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
     var instrumentAllocationCountForTesting: Int {
         world.bank.instrumentBank.metrics.allocationFingerprint == nil ? 0 : 1
     }
+    var allocatedPianoVoiceCountForTesting: Int {
+        world.bank.metrics.allocatedPianoVoiceCount
+    }
     var preparedHappeningRecipeIDsForTesting: Set<HappeningSoundRecipeID> {
         world.bank.happenings.metrics.availableRecipeIDs
     }
@@ -1943,16 +1949,24 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
             bank: PlaybackWorldBank(instrumentBank: DayObjectsInstrumentBank(
                 bundle: bundle,
                 soundWorldResources: soundWorldResources,
+                tonalVoiceProfile: .mobileRealtime,
                 audioHostTimeProvider: diagnosticHostTimeProvider
             ))
         )
     }
 
     func prepare(plan: DayMusicPlan) throws {
-        try world.bank.prepare(happeningRecipeIDs: Set(plan.happenings.map(\.recipeID)))
+        try world.bank.prepare(
+            happeningRecipeIDs: Set(plan.happenings.map(\.recipeID)),
+            configuration: PlaybackWorldBankConfiguration.mobilePlaybackWorld
+        )
         try world.bindPreparedPlayersIfNeeded()
         world.releaseAll()
-        try world.configure(plan, diagnosticAuditionMode: diagnosticAuditionMode)
+        try world.configure(
+            plan,
+            diagnosticAuditionMode: diagnosticAuditionMode,
+            usesSampledPiano: false
+        )
         auditionReleaseTasks.values.forEach { $0.cancel() }
         auditionReleaseTasks.removeAll()
         auditionHandles.removeAll()
@@ -2097,7 +2111,11 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
            let plan = pendingStructuralPlan {
             world.releaseAll()
             do {
-                try world.configure(plan, diagnosticAuditionMode: diagnosticAuditionMode)
+                try world.configure(
+                    plan,
+                    diagnosticAuditionMode: diagnosticAuditionMode,
+                    usesSampledPiano: false
+                )
                 try world.startScheduling(at: event.position)
                 pendingStructuralPlan = nil
                 updateTransport(for: plan)
@@ -2135,6 +2153,49 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
 private extension Collection {
     subscript(safe index: Index) -> Element? {
         indices.contains(index) ? self[index] : nil
+    }
+}
+
+private extension HarmonyPlan {
+    func replacingFeltPianoWithTonalKeys() -> HarmonyPlan {
+        let fallback = roles.lazy.compactMap { role -> DayObjectsInstrumentID? in
+            guard role.role == .secondaryPadOrKeys || role.role == .innerMotion else { return nil }
+            if case let .tonal(id) = role.instrumentTarget { return id }
+            return nil
+        }.first ?? roles.lazy.compactMap { role -> DayObjectsInstrumentID? in
+            if case let .tonal(id) = role.instrumentTarget { return id }
+            return nil
+        }.first
+
+        guard let fallback else {
+            return .init(
+                sleepProgress: sleepProgress,
+                cycleBars: cycleBars,
+                chordCount: chordCount,
+                roles: roles.filter { $0.instrumentTarget != .feltPiano }
+            )
+        }
+        return .init(
+            sleepProgress: sleepProgress,
+            cycleBars: cycleBars,
+            chordCount: chordCount,
+            roles: roles.map { role in
+                guard role.instrumentTarget == .feltPiano else { return role }
+                return .init(
+                    role: role.role,
+                    instrumentTarget: .tonal(fallback),
+                    register: role.register,
+                    gain: role.gain,
+                    attackSeconds: role.attackSeconds,
+                    releaseSeconds: role.releaseSeconds,
+                    delaySend: role.delaySend,
+                    reverbSend: role.reverbSend,
+                    activation: role.activation,
+                    chordSchedule: role.chordSchedule,
+                    crossfadeBars: role.crossfadeBars
+                )
+            }
+        )
     }
 }
 #endif

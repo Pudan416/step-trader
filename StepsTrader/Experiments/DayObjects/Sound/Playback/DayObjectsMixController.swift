@@ -182,6 +182,7 @@ final class DayObjectsMixController {
     private static let minimumDecibels = -60.0
     private static let maximumLayerDecibels = 0.0
     private static let maximumMasterDecibels = -6.0
+    private static let maximumCalibratedMasterDecibels = -4.5
     private static let maximumHarmonyDuckingDecibels = 2.5
 
     private let backend: DayObjectsMixBackend
@@ -243,7 +244,10 @@ final class DayObjectsMixController {
 
         let baseMaster = min(decibels(plan.masterTargetDecibelsBeforeLimiter), Self.maximumMasterDecibels)
         let calibratedMaster = baseMaster <= Self.minimumDecibels ? Self.minimumDecibels
-            : baseMaster + (plan.worldGroupCalibration?.masterMakeupDB ?? 0)
+            : min(
+                baseMaster + (plan.worldGroupCalibration?.masterMakeupDB ?? 0),
+                Self.maximumCalibratedMasterDecibels
+            )
         backend.apply(.init(
             buses: .init(
                 rhythm: bus(
