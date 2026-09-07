@@ -136,10 +136,38 @@ private enum CommandError: Error, CustomStringConvertible {
     }
 }
 
-private func parseArguments() throws -> (URL, URL?, URL?, Limits) {
+private func parseActiveStemRoles(_ value: String) throws -> Set<DayObjectsMixRole> {
+    let names = value.split(separator: ",", omittingEmptySubsequences: false).map {
+        $0.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    guard !names.isEmpty, names.allSatisfy({ !$0.isEmpty }) else {
+        throw CommandError.usage("--active-stems requires at least one role")
+    }
+    var roles = Set<DayObjectsMixRole>()
+    for name in names {
+        guard let role = DayObjectsMixRole(rawValue: name) else {
+            throw CommandError.usage(
+                "Unknown active stem role: \(name); expected rhythm,bass,harmony,happenings,lead"
+            )
+        }
+        guard roles.insert(role).inserted else {
+            throw CommandError.usage("--active-stems roles must be unique")
+        }
+    }
+    return roles
+}
+
+private func parseArguments() throws -> (
+    URL,
+    URL?,
+    URL?,
+    Set<DayObjectsMixRole>?,
+    Limits
+) {
     var limits = Limits()
     var outputURL: URL?
     var stemsDirectoryURL: URL?
+    var activeStemRoles: Set<DayObjectsMixRole>?
     var inputURLs: [URL] = []
     var index = 1
     let arguments = CommandLine.arguments
@@ -171,10 +199,16 @@ private func parseArguments() throws -> (URL, URL?, URL?, Limits) {
             outputURL = URL(fileURLWithPath: try value(after: arguments[index]))
         case "--stems-directory":
             stemsDirectoryURL = URL(fileURLWithPath: try value(after: arguments[index]))
+        case "--active-stems":
+            guard activeStemRoles == nil else {
+                throw CommandError.usage("--active-stems may be specified only once")
+            }
+            activeStemRoles = try parseActiveStemRoles(try value(after: arguments[index]))
         case "--help", "-h":
             throw CommandError.usage(
                 "Usage: analyze_day_objects_mix.swift [--min-lufs -18] [--max-lufs -16] "
-                    + "[--max-dbtp -1] [--stems-directory directory] "
+                    + "[--max-dbtp -1] [--stems-directory directory "
+                    + "--active-stems role,...] "
                     + "[--output report.json] <PCM file (or directory without stems)>"
             )
         default:
@@ -188,6 +222,14 @@ private func parseArguments() throws -> (URL, URL?, URL?, Limits) {
     guard limits.minimumIntegratedLUFS <= limits.maximumIntegratedLUFS else {
         throw CommandError.usage("Minimum LUFS must not exceed maximum LUFS")
     }
+    if stemsDirectoryURL != nil, activeStemRoles == nil {
+        throw CommandError.usage(
+            "--active-stems is required whenever --stems-directory is used"
+        )
+    }
+    if stemsDirectoryURL == nil, activeStemRoles != nil {
+        throw CommandError.usage("--active-stems requires --stems-directory")
+    }
     if stemsDirectoryURL != nil, inputURLs.count != 1 {
         throw CommandError.stemsRequireSingleMix(
             "--stems-directory requires exactly one full-mix file"
@@ -199,7 +241,7 @@ private func parseArguments() throws -> (URL, URL?, URL?, Limits) {
     guard inputURLs.count == 1 else {
         throw CommandError.usage("Unexpected argument: \(inputURLs[1].path)")
     }
-    return (inputURL, outputURL, stemsDirectoryURL, limits)
+    return (inputURL, outputURL, stemsDirectoryURL, activeStemRoles, limits)
 }
 
 private func pcmFiles(at inputURL: URL) throws -> [URL] {
@@ -293,10 +335,15 @@ private func readStems(at directory: URL?) throws -> [DayObjectsMixRole: AVAudio
 private func analyze(
     _ url: URL,
     stems: [DayObjectsMixRole: AVAudioPCMBuffer],
+    activeRoles: Set<DayObjectsMixRole>?,
     limits: Limits
 ) throws -> FileReport {
     let buffer = try readPCMBuffer(url)
-    let quality = try DayObjectsMixQualityAnalyzer.analyze(fullMix: buffer, stems: stems)
+    let quality = try DayObjectsMixQualityAnalyzer.analyze(
+        fullMix: buffer,
+        stems: stems,
+        activeRoles: activeRoles
+    )
     return FileReport(
         path: url.path,
         integratedLUFS: quality.integratedLUFS,
@@ -311,14 +358,14 @@ private func analyze(
 }
 
 do {
-    let (inputURL, outputURL, stemsDirectoryURL, limits) = try parseArguments()
+    let (inputURL, outputURL, stemsDirectoryURL, activeStemRoles, limits) = try parseArguments()
     try validateStemAnalysisInput(inputURL, stemsDirectory: stemsDirectoryURL)
     let stems = try readStems(at: stemsDirectoryURL)
     let reports = try pcmFiles(at: inputURL).map {
-        try analyze($0, stems: stems, limits: limits)
+        try analyze($0, stems: stems, activeRoles: activeStemRoles, limits: limits)
     }
     let report = CommandReport(
-        schemaVersion: 3,
+        schemaVersion: 4,
         analyzer: "ITU-R BS.1770 loudness/4x true peak; deterministic 4096-point FFT mix quality",
         limits: limits,
         files: reports,

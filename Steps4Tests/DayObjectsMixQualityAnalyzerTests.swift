@@ -96,6 +96,7 @@ final class DayObjectsMixQualityAnalyzerTests: XCTestCase {
             report.happeningsLeadMaskingScore,
             report.reverbTailEnergyRatio,
         ].allSatisfy(\.isFinite))
+        XCTAssertTrue(report.reverbTailEnergyRatioByRole.values.allSatisfy(\.isFinite))
     }
 
     func testRejectsMismatchedStemSampleRateAndFrameCount() throws {
@@ -204,18 +205,48 @@ final class DayObjectsMixQualityAnalyzerTests: XCTestCase {
         XCTAssertGreaterThan(clippedSamples.clippedSampleRatio, 0)
     }
 
-    func testTransientDensityFlagsFrequentSeparatedImpulses() throws {
-        let impulseTrain = try makeMonoBuffer { frame, _ in
-            frame.isMultiple(of: 2_400) ? 0.8 : 0
+    func testEnvelopeTransientDensityFlagsRealisticToneBursts() throws {
+        let toneBursts = try makeMonoBuffer { frame, sampleRate in
+            let eventFrame = frame % Int(0.05 * sampleRate)
+            let eventTime = Double(eventFrame) / sampleRate
+            let envelope: Double
+            if eventTime < 0.005 {
+                envelope = eventTime / 0.005
+            } else if eventTime < 0.020 {
+                envelope = 1 - ((eventTime - 0.005) / 0.015)
+            } else {
+                envelope = 0
+            }
+            return 0.5 * envelope
+                * sin(2 * Double.pi * 1_000 * Double(frame) / sampleRate)
         }
 
         let report = try DayObjectsMixQualityAnalyzer.analyze(
-            fullMix: impulseTrain,
+            fullMix: toneBursts,
             stems: [:]
         )
 
-        XCTAssertEqual(report.transientDensityPerSecond, 20, accuracy: 0.001)
+        XCTAssertEqual(report.transientDensityPerSecond, 20, accuracy: 0.5)
         XCTAssertTrue(report.issues.contains(.excessiveTransientDensity))
+    }
+
+    func testEnvelopeTransientDensityDoesNotFlagSteadyToneOrNoiseFloor() throws {
+        let steady = try makeMonoBuffer { frame, sampleRate in
+            0.1 * sin(2 * Double.pi * 600 * Double(frame) / sampleRate)
+        }
+        let noiseFloor = try makeMonoBuffer { frame, _ in
+            let hash = (UInt64(frame) &* 2_862_933_555_777_941_757) &+ 3_037_000_493
+            let normalized = (Double(hash & 0xffff) / 32_767.5) - 1
+            return 0.002 * normalized
+        }
+
+        let steadyReport = try DayObjectsMixQualityAnalyzer.analyze(fullMix: steady, stems: [:])
+        let noiseReport = try DayObjectsMixQualityAnalyzer.analyze(fullMix: noiseFloor, stems: [:])
+
+        XCTAssertLessThanOrEqual(steadyReport.transientDensityPerSecond, 1)
+        XCTAssertFalse(steadyReport.issues.contains(.excessiveTransientDensity))
+        XCTAssertEqual(noiseReport.transientDensityPerSecond, 0)
+        XCTAssertFalse(noiseReport.issues.contains(.excessiveTransientDensity))
     }
 
     func testSpectralMaskingClassifiesHarmonyAndHappeningsAgainstLead() throws {
@@ -272,7 +303,62 @@ final class DayObjectsMixQualityAnalyzerTests: XCTestCase {
         XCTAssertFalse(report.issues.contains(.happeningsLeadMasking))
     }
 
-    func testSteadyToneDoesNotFlagTransientDensityOrTailAccumulation() throws {
+    func testIdenticalFrequenciesSeparatedInTimeDoNotFlagMasking() throws {
+        let harmony = try makeMonoBuffer(seconds: 2) { frame, sampleRate in
+            guard frame < Int(0.7 * sampleRate) else { return 0 }
+            return 0.1 * sin(2 * Double.pi * 1_000 * Double(frame) / sampleRate)
+        }
+        let happenings = try makeMonoBuffer(seconds: 2) { frame, sampleRate in
+            guard frame < Int(0.7 * sampleRate) else { return 0 }
+            return 0.1 * sin(2 * Double.pi * 1_000 * Double(frame) / sampleRate)
+        }
+        let lead = try makeMonoBuffer(seconds: 2) { frame, sampleRate in
+            guard frame >= Int(1.3 * sampleRate) else { return 0 }
+            return 0.1 * sin(2 * Double.pi * 1_000 * Double(frame) / sampleRate)
+        }
+        let mix = try makeMonoBuffer(seconds: 2) { frame, sampleRate in
+            guard frame < Int(0.7 * sampleRate) || frame >= Int(1.3 * sampleRate) else {
+                return 0
+            }
+            return 0.1 * sin(2 * Double.pi * 1_000 * Double(frame) / sampleRate)
+        }
+
+        let report = try DayObjectsMixQualityAnalyzer.analyze(
+            fullMix: mix,
+            stems: [.harmony: harmony, .happenings: happenings, .lead: lead],
+            activeRoles: [.harmony, .happenings, .lead]
+        )
+
+        XCTAssertEqual(report.harmonyLeadMaskingScore, 0, accuracy: 0.000_01)
+        XCTAssertEqual(report.happeningsLeadMaskingScore, 0, accuracy: 0.000_01)
+        XCTAssertFalse(report.issues.contains(.harmonyLeadMasking))
+        XCTAssertFalse(report.issues.contains(.happeningsLeadMasking))
+    }
+
+    func testSubAudibleStemDoesNotFlagContemporaneousMasking() throws {
+        let lead = try makeMonoBuffer { frame, sampleRate in
+            0.1 * sin(2 * Double.pi * 1_000 * Double(frame) / sampleRate)
+        }
+        let subAudibleHarmony = try makeMonoBuffer { frame, sampleRate in
+            (0.1 * sin(2 * Double.pi * 80 * Double(frame) / sampleRate))
+                + (0.000_01 * sin(2 * Double.pi * 1_000 * Double(frame) / sampleRate))
+        }
+        let mix = try makeMonoBuffer { frame, sampleRate in
+            (0.1 * sin(2 * Double.pi * 80 * Double(frame) / sampleRate))
+                + (0.100_01 * sin(2 * Double.pi * 1_000 * Double(frame) / sampleRate))
+        }
+
+        let report = try DayObjectsMixQualityAnalyzer.analyze(
+            fullMix: mix,
+            stems: [.harmony: subAudibleHarmony, .lead: lead],
+            activeRoles: [.harmony, .lead]
+        )
+
+        XCTAssertLessThan(report.harmonyLeadMaskingScore, 0.01)
+        XCTAssertFalse(report.issues.contains(.harmonyLeadMasking))
+    }
+
+    func testSteadyToneWithoutTailBoundarySkipsTailClassification() throws {
         let steady = try makeMonoBuffer(seconds: 4) { frame, sampleRate in
             0.1 * sin(2 * Double.pi * 600 * Double(frame) / sampleRate)
         }
@@ -282,8 +368,8 @@ final class DayObjectsMixQualityAnalyzerTests: XCTestCase {
             stems: [:]
         )
 
-        XCTAssertEqual(report.transientDensityPerSecond, 0)
-        XCTAssertEqual(report.reverbTailEnergyRatio, 1, accuracy: 0.000_01)
+        XCTAssertTrue(report.reverbTailEnergyRatioByRole.isEmpty)
+        XCTAssertEqual(report.reverbTailEnergyRatio, 0)
         XCTAssertFalse(report.issues.contains(.excessiveTransientDensity))
         XCTAssertFalse(report.issues.contains(.excessiveReverbTail))
     }
@@ -305,23 +391,76 @@ final class DayObjectsMixQualityAnalyzerTests: XCTestCase {
         }
     }
 
-    func testReverbTailAccumulationUsesRelativeTrailingEnergy() throws {
-        let accumulatingTail = try makeMonoBuffer(seconds: 4) { frame, sampleRate in
-            guard frame >= Int(2 * sampleRate) else { return 0 }
-            return 0.15 * sin(2 * Double.pi * 600 * Double(frame) / sampleRate)
+    func testKnownBoundaryClassifiesLongExponentialTailForEvidencedRole() throws {
+        let longTail = try makeMonoBuffer(seconds: 4) { frame, sampleRate in
+            let time = Double(frame) / sampleRate
+            let envelope = time < 2 ? 0.1 : 0.1 * exp(-(time - 2) / 1.5)
+            return envelope * sin(2 * Double.pi * 600 * time)
         }
 
         let report = try DayObjectsMixQualityAnalyzer.analyze(
-            fullMix: accumulatingTail,
-            stems: [.harmony: accumulatingTail],
-            activeRoles: [.harmony]
+            fullMix: longTail,
+            stems: [.harmony: longTail],
+            activeRoles: [.harmony],
+            tailBoundaryFrames: [.harmony: 96_000]
         )
 
-        XCTAssertGreaterThan(report.reverbTailEnergyRatio, 1.5)
+        XCTAssertGreaterThan(report.reverbTailEnergyRatioByRole["harmony"] ?? 0, 0.2)
         XCTAssertTrue(report.issues.contains(.excessiveReverbTail))
         let suggestion = try XCTUnwrap(report.suggestions.first { $0.role == .harmony })
         XCTAssertLessThan(suggestion.reverbSendAdjustment, 0)
+        XCTAssertEqual(report.suggestions.map(\.role), [.harmony])
         assertSuggestionsAreBounded(report.suggestions)
+    }
+
+    func testDryHarmonyTailIsNotBlamedForLateDryBass() throws {
+        let harmony = try makeMonoBuffer(seconds: 4) { frame, sampleRate in
+            guard frame < Int(2 * sampleRate) else { return 0 }
+            return 0.1 * sin(2 * Double.pi * 600 * Double(frame) / sampleRate)
+        }
+        let lateBass = try makeMonoBuffer(seconds: 4) { frame, sampleRate in
+            guard frame >= Int(3.5 * sampleRate) else { return 0 }
+            return 0.15 * sin(2 * Double.pi * 80 * Double(frame) / sampleRate)
+        }
+        let mix = try makeMonoBuffer(seconds: 4) { frame, sampleRate in
+            if frame < Int(2 * sampleRate) {
+                return 0.1 * sin(2 * Double.pi * 600 * Double(frame) / sampleRate)
+            }
+            guard frame >= Int(3.5 * sampleRate) else { return 0 }
+            return 0.15 * sin(2 * Double.pi * 80 * Double(frame) / sampleRate)
+        }
+
+        let report = try DayObjectsMixQualityAnalyzer.analyze(
+            fullMix: mix,
+            stems: [.harmony: harmony, .bass: lateBass],
+            activeRoles: [.harmony, .bass],
+            tailBoundaryFrames: [.harmony: 96_000]
+        )
+
+        XCTAssertEqual(report.reverbTailEnergyRatioByRole["harmony"], 0)
+        XCTAssertNil(report.reverbTailEnergyRatioByRole["bass"])
+        XCTAssertFalse(report.issues.contains(.excessiveReverbTail))
+        XCTAssertFalse(report.suggestions.contains { $0.reverbSendAdjustment < 0 })
+    }
+
+    func testRejectsTailBoundaryOutsideStemFrames() throws {
+        let harmony = try makeMonoBuffer { frame, sampleRate in
+            0.1 * sin(2 * Double.pi * 600 * Double(frame) / sampleRate)
+        }
+
+        XCTAssertThrowsError(
+            try DayObjectsMixQualityAnalyzer.analyze(
+                fullMix: harmony,
+                stems: [.harmony: harmony],
+                activeRoles: [.harmony],
+                tailBoundaryFrames: [.harmony: 48_000]
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? DayObjectsMixQualityAnalyzerError,
+                .invalidTailBoundary(role: .harmony, frame: 48_000)
+            )
+        }
     }
 
     func testShortSupportedCaptureUsesZeroPaddedSpectrum() throws {

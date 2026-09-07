@@ -196,3 +196,100 @@ Four CLI regression checks passed: stems-plus-directory rejection,
 stems-plus-stem-path rejection, stems-plus-multiple-input rejection, and help
 output. `plutil -lint Steps4.xcodeproj/project.pbxproj` and `git diff --check`
 also passed. No runtime audio behavior, ledger entry, or WAV file was changed.
+
+## Fix round 2
+
+### Active-stem and Task 7 caller contract
+
+When `--stems-directory` is present, the schema-4 CLI now requires
+`--active-stems role,...`. The comma-separated list must be nonempty, contain
+unique names, and be a subset of `rhythm,bass,harmony,happenings,lead`; malformed
+input exits with usage status 64. `--active-stems` without a stems directory is
+also rejected. The validated set is passed directly to
+`DayObjectsMixQualityAnalyzer`, so an intentionally active silent stem still
+fails audibility while an exported inactive silent bus does not.
+
+Task 7 must call `analyze(fullMix:stems:activeRoles:tailBoundaryFrames:)` with
+the roles actually scheduled for that render, even though its pack writes all
+five stem files. For every active role eligible for tail analysis, it must pass
+the first frame after that role's last intended event (before the rendered
+effect decay). A boundary must be strictly inside the shared stem frame range
+and belong to an active role. Task 7 must omit a role when it cannot provide a
+trustworthy boundary; omission intentionally skips tail classification for that
+role. The default parameters preserve source compatibility for legacy callers:
+omitted `activeRoles` still means `stems.keys`, and omitted boundaries mean no
+tail gate.
+
+### Revised deterministic algorithms
+
+- Transient density uses the maximum absolute channel sample to feed a 5 ms
+  moving mean-absolute envelope. An onset is a below-to-above crossing where
+  that short envelope exceeds a 50 ms exponential slow envelope by
+  `max(0.02 full scale, 0.25 × full-mix RMS)`. A 40 ms refractory period bounds
+  repeat detections. The existing `> 12 onsets/second` issue gate is unchanged.
+- Harmony/lead and happenings/lead masking use aligned 4,096-frame Hann FFT
+  windows with 50% hop. A window contributes only when the mix and both stems
+  exceed `-80 dBFS` RMS and each stem's `160..<4,000 Hz` energy is above
+  `-42 dB` relative to the mix in that window. Per-window cosine overlap is
+  weighted by `min(lhs mid energy, rhs mid energy) / mix mid energy`, clamped to
+  `0...1`; the weighted mean retains the `> 0.75` issue gate. Non-overlapping
+  windows do not contribute.
+- Tail analysis is per role, never full-mix-derived. For a caller-supplied
+  boundary, it compares mean-square energy for up to two seconds after the
+  boundary with an equally sized reference immediately before it in the same
+  stem. The ratio is finite and clamped to `0...120`; `> 0.2` reports excessive
+  persistence. `reverbTailEnergyRatioByRole` contains only evidenced roles,
+  while the backward-compatible scalar is their maximum or zero. Suggestions
+  are emitted only for evidenced roles over the gate and remain bounded,
+  deterministic report data that is never applied live.
+
+### Fix-round RED evidence
+
+Analyzer RED command:
+
+```text
+xcodebuild test -quiet -project Steps4.xcodeproj -scheme Steps4 \
+  -destination 'platform=iOS Simulator,name=iPhone 16e' \
+  -only-testing:Steps4Tests/DayObjectsMixQualityAnalyzerTests
+```
+
+Result: expected compile failure on the missing `tailBoundaryFrames`,
+`invalidTailBoundary`, and `reverbTailEnergyRatioByRole` API; 0 tests executed.
+The added fixtures cover 5 ms attack/15 ms decay bursts at 20 per second,
+steady tone/noise-floor negative controls, simultaneous and separated-in-time
+masking, a spectrally subaudible overlap, dry harmony followed by late dry bass,
+an exponential post-boundary tail, and invalid boundary metadata.
+
+The CLI RED matrix ran missing, duplicate, unknown, and empty `--active-stems`
+cases through the executable and grepped for the required usage diagnostics.
+All four grep commands exited 1/no match against the prior parser.
+
+An additional masking RED ran only
+`testSubAudibleStemDoesNotFlagContemporaneousMasking`: 0 passed, 1 failed. The
+full-band window gate scored the fixture `0.04135880573906027`; after switching
+audibility and weights to mid-band energy it scored `0.004338612768865985`,
+below the independently chosen `0.01` negative-control ceiling.
+
+### Fix-round GREEN and final verification
+
+Final command:
+
+```text
+xcodebuild test -quiet -project Steps4.xcodeproj -scheme Steps4 \
+  -destination 'platform=iOS Simulator,name=iPhone 16e' \
+  -resultBundlePath /tmp/day-objects-task6-fix2-verify.nYuyOA/Task6Fix2.xcresult \
+  -only-testing:Steps4Tests/DayObjectsMixQualityAnalyzerTests \
+  -only-testing:Steps4Tests/DayObjectsLoudnessAnalyzerTests \
+  -only-testing:Steps4Tests/DayObjectsMixScenarioTests
+```
+
+Result bundle summary: 42 selected tests, 39 passed, 3 intentional opt-in
+long-render skips, 0 failed. The analyzer and loudness suites passed 29/29
+(20 mix-quality plus 9 loudness); the scenario suite supplied the remaining 13
+selected tests.
+
+Ten CLI behavior checks passed: the five active-stem validation paths, a valid
+subset reaching stem loading, stems-plus-directory rejection, stem-as-mix
+rejection, multiple-input rejection, and help output. The five malformed usage
+cases were also run without a pipe and each returned status 64. No runtime audio
+application, ledger entry, or WAV file was changed.

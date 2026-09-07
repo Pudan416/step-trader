@@ -6,6 +6,8 @@ enum DayObjectsMixQualityAnalyzerError: Error, Equatable, Sendable {
     case sampleRateMismatch(role: DayObjectsMixRole)
     case frameCountMismatch(role: DayObjectsMixRole)
     case missingActiveStem(role: DayObjectsMixRole)
+    case tailBoundaryForInactiveRole(role: DayObjectsMixRole)
+    case invalidTailBoundary(role: DayObjectsMixRole, frame: Int)
 }
 
 enum DayObjectsMixQualityAnalyzer {
@@ -17,18 +19,27 @@ enum DayObjectsMixQualityAnalyzer {
     static let minimumActiveStemAudibilityDB = -42.0
     static let maximumTransientDensityPerSecond = 12.0
     static let maximumSpectralMaskingScore = 0.75
-    static let maximumReverbTailEnergyRatio = 1.5
+    static let maximumReverbTailEnergyRatio = 0.2
 
     private static let silentFloorDB = -120.0
     private static let clippingAmplitude = 1.0
     private static let kickBassCorrelationThreshold = 0.8
     private static let reverbTailSeconds = 2.0
+    private static let maskingAbsoluteFloorDBFS = -80.0
+    private static let transientShortEnvelopeSeconds = 0.005
+    private static let transientSlowEnvelopeSeconds = 0.05
+    private static let transientOnsetFloor = 0.02
     private static let transientRefractorySeconds = 0.04
 
+    /// Task 7 callers must pass the actual scheduled `activeRoles`, even when
+    /// all five exported buffers exist. `tailBoundaryFrames` maps an active
+    /// role to the first frame after its last intended event; roles without a
+    /// trustworthy boundary are not evaluated for tail accumulation.
     static func analyze(
         fullMix: AVAudioPCMBuffer,
         stems: [DayObjectsMixRole: AVAudioPCMBuffer],
-        activeRoles: Set<DayObjectsMixRole>? = nil
+        activeRoles: Set<DayObjectsMixRole>? = nil,
+        tailBoundaryFrames: [DayObjectsMixRole: Int] = [:]
     ) throws -> DayObjectsMixQualityReport {
         let resolvedActiveRoles = activeRoles ?? Set(stems.keys)
         if let missingRole = DayObjectsMixRole.allCases.first(where: {
@@ -47,6 +58,11 @@ enum DayObjectsMixQualityAnalyzer {
             sampleRate: fullMixSamples.sampleRate,
             frameCount: fullMixSamples.frameCount
         )
+        try validateTailBoundaries(
+            tailBoundaryFrames,
+            activeRoles: resolvedActiveRoles,
+            frameCount: fullMixSamples.frameCount
+        )
 
         let rms = rootMeanSquare(fullMixSamples.channels)
         let sampleStatistics = samplePeakAndClippingRatio(fullMixSamples.channels)
@@ -58,10 +74,8 @@ enum DayObjectsMixQualityAnalyzer {
             .map(channelMean)
             .map(abs)
             .max() ?? 0
-        let fullMixSpectrum = spectralEnergy(
-            channels: fullMixSamples.channels,
-            sampleRate: fullMixSamples.sampleRate
-        )
+        let fullMixSpectralFrames = spectralFrames(channels: fullMixSamples.channels)
+        let fullMixSpectrum = accumulatedSpectrum(fullMixSpectralFrames)
         let bands = bandEnergyRatios(
             spectrum: fullMixSpectrum,
             sampleRate: fullMixSamples.sampleRate
@@ -70,10 +84,17 @@ enum DayObjectsMixQualityAnalyzer {
             channels: fullMixSamples.channels,
             sampleRate: fullMixSamples.sampleRate
         )
-        let reverbTailRatio = trailingEnergyRatio(
-            channels: fullMixSamples.channels,
-            sampleRate: fullMixSamples.sampleRate
-        )
+        var reverbTailRatiosByRole: [String: Double] = [:]
+        for role in DayObjectsMixRole.allCases {
+            guard let boundary = tailBoundaryFrames[role],
+                  let samples = stemSamples[role] else { continue }
+            reverbTailRatiosByRole[role.rawValue] = postEventTailEnergyRatio(
+                channels: samples.channels,
+                boundaryFrame: boundary,
+                sampleRate: samples.sampleRate
+            )
+        }
+        let reverbTailRatio = reverbTailRatiosByRole.values.max() ?? 0
 
         var layerAudibilityDB: [String: Double] = [:]
         for role in DayObjectsMixRole.allCases {
@@ -96,23 +117,22 @@ enum DayObjectsMixQualityAnalyzer {
             kickBassCorrelation = 0
         }
 
-        var stemSpectra: [DayObjectsMixRole: [Double]] = [:]
+        var stemSpectralFrames: [DayObjectsMixRole: [SpectralFrame]] = [:]
         for role in [DayObjectsMixRole.harmony, .happenings, .lead]
             where resolvedActiveRoles.contains(role) {
             guard let samples = stemSamples[role] else { continue }
-            stemSpectra[role] = spectralEnergy(
-                channels: samples.channels,
-                sampleRate: samples.sampleRate
-            )
+            stemSpectralFrames[role] = spectralFrames(channels: samples.channels)
         }
         let harmonyLeadMasking = spectralMaskingScore(
-            lhs: stemSpectra[.harmony],
-            rhs: stemSpectra[.lead],
+            lhs: stemSpectralFrames[.harmony],
+            rhs: stemSpectralFrames[.lead],
+            mix: fullMixSpectralFrames,
             sampleRate: fullMixSamples.sampleRate
         )
         let happeningsLeadMasking = spectralMaskingScore(
-            lhs: stemSpectra[.happenings],
-            rhs: stemSpectra[.lead],
+            lhs: stemSpectralFrames[.happenings],
+            rhs: stemSpectralFrames[.lead],
+            mix: fullMixSpectralFrames,
             sampleRate: fullMixSamples.sampleRate
         )
 
@@ -151,7 +171,11 @@ enum DayObjectsMixQualityAnalyzer {
         if happeningsLeadMasking > maximumSpectralMaskingScore {
             detected.insert(.happeningsLeadMasking)
         }
-        if reverbTailRatio > maximumReverbTailEnergyRatio {
+        let excessiveTailRoles = DayObjectsMixRole.allCases.filter {
+            reverbTailRatiosByRole[$0.rawValue, default: 0]
+                > maximumReverbTailEnergyRatio
+        }
+        if !excessiveTailRoles.isEmpty {
             detected.insert(.excessiveReverbTail)
         }
 
@@ -182,12 +206,9 @@ enum DayObjectsMixQualityAnalyzer {
                 reverbSendAdjustment: -0.05 * severity
             )
         }
-        if detected.contains(.excessiveReverbTail),
-           let role = mostAccumulatedSpatialRole(
-               stemSamples,
-               activeRoles: resolvedActiveRoles
-           ) {
-            let severity = ((reverbTailRatio - maximumReverbTailEnergyRatio)
+        for role in excessiveTailRoles {
+            let roleRatio = reverbTailRatiosByRole[role.rawValue, default: 0]
+            let severity = ((roleRatio - maximumReverbTailEnergyRatio)
                 / maximumReverbTailEnergyRatio).clamped(to: 0 ... 1)
             suggestionValues[role, default: .neutral].merge(
                 gainAdjustmentDB: -severity,
@@ -214,6 +235,7 @@ enum DayObjectsMixQualityAnalyzer {
             harmonyLeadMaskingScore: harmonyLeadMasking,
             happeningsLeadMaskingScore: happeningsLeadMasking,
             reverbTailEnergyRatio: reverbTailRatio,
+            reverbTailEnergyRatioByRole: reverbTailRatiosByRole,
             issues: DayObjectsMixIssue.allCases.filter(detected.contains),
             suggestions: suggestions
         )
@@ -237,6 +259,25 @@ enum DayObjectsMixQualityAnalyzer {
             result[role] = samples
         }
         return result
+    }
+
+    private static func validateTailBoundaries(
+        _ boundaries: [DayObjectsMixRole: Int],
+        activeRoles: Set<DayObjectsMixRole>,
+        frameCount: Int
+    ) throws {
+        for role in DayObjectsMixRole.allCases {
+            guard let frame = boundaries[role] else { continue }
+            guard activeRoles.contains(role) else {
+                throw DayObjectsMixQualityAnalyzerError.tailBoundaryForInactiveRole(role: role)
+            }
+            guard frame > 0, frame < frameCount else {
+                throw DayObjectsMixQualityAnalyzerError.invalidTailBoundary(
+                    role: role,
+                    frame: frame
+                )
+            }
+        }
     }
 
     private static func channelMean(_ samples: [Float]) -> Double {
@@ -274,64 +315,87 @@ enum DayObjectsMixQualityAnalyzer {
         return (peak, Double(clippedCount) / Double(sampleCount))
     }
 
-    /// Counts separated full-band onsets. A rise must exceed max(0.02 FS,
-    /// 1.5 x full-mix RMS), and detections have a 40 ms refractory period.
+    /// Counts onsets where a 5 ms mean-absolute envelope rises above a 50 ms
+    /// adaptive envelope by max(0.02 FS, 0.25 x full-mix RMS). Detections have
+    /// a 40 ms refractory period.
     private static func transientDensityPerSecond(
         channels: [[Float]],
         sampleRate: Double
     ) -> Double {
         guard let first = channels.first, !first.isEmpty else { return 0 }
-        let threshold = max(0.02, 1.5 * rootMeanSquare(channels))
+        let shortWindowFrames = max(
+            Int((transientShortEnvelopeSeconds * sampleRate).rounded()),
+            1
+        )
+        let slowCoefficient = 1 - exp(
+            -1 / (transientSlowEnvelopeSeconds * sampleRate)
+        )
+        let threshold = max(transientOnsetFloor, 0.25 * rootMeanSquare(channels))
         let refractoryFrames = max(Int((transientRefractorySeconds * sampleRate).rounded()), 1)
-        var previousMagnitude = 0.0
+        var shortHistory = [Double](repeating: 0, count: shortWindowFrames)
+        var shortSum = 0.0
+        var slowEnvelope = 0.0
+        var wasAboveThreshold = false
         var lastDetection = -refractoryFrames
         var count = 0
         for frame in first.indices {
             let magnitude = channels.reduce(0.0) {
                 max($0, abs(Double($1[frame])))
             }
-            if magnitude - previousMagnitude >= threshold,
+            let historyIndex = frame % shortWindowFrames
+            shortSum += magnitude - shortHistory[historyIndex]
+            shortHistory[historyIndex] = magnitude
+            let populatedFrames = min(frame + 1, shortWindowFrames)
+            let shortEnvelope = shortSum / Double(populatedFrames)
+            slowEnvelope += slowCoefficient * (shortEnvelope - slowEnvelope)
+            let isAboveThreshold = shortEnvelope - slowEnvelope >= threshold
+            if isAboveThreshold,
+               !wasAboveThreshold,
                frame - lastDetection >= refractoryFrames {
                 count += 1
                 lastDetection = frame
             }
-            previousMagnitude = magnitude
+            wasAboveThreshold = isAboveThreshold
         }
         let duration = Double(first.count) / sampleRate
         guard duration.isFinite, duration > 0 else { return 0 }
         return Double(count) / duration
     }
 
-    /// Ratio of mean-square energy in the final two seconds to mean-square
-    /// energy across the whole render. Steady material is 1.0; values above
-    /// 1.5 indicate energy is accumulating into the acceptance-render tail.
-    private static func trailingEnergyRatio(
+    /// Compares up to two seconds after the caller-provided end-of-event frame
+    /// against an equally sized pre-boundary reference from the same stem.
+    private static func postEventTailEnergyRatio(
         channels: [[Float]],
+        boundaryFrame: Int,
         sampleRate: Double
     ) -> Double {
         guard let frameCount = channels.first?.count, frameCount > 0 else { return 0 }
-        let totalEnergy = channels.reduce(0.0) { sum, channel in
-            sum + channel.reduce(0.0) {
-                let value = Double($1)
-                return $0 + (value * value)
-            }
-        }
-        guard totalEnergy.isFinite, totalEnergy > 0 else { return 0 }
-        let tailFrames = min(
+        let comparisonFrames = min(
             max(Int((reverbTailSeconds * sampleRate).rounded()), 1),
-            frameCount
+            boundaryFrame,
+            frameCount - boundaryFrame
         )
-        let tailStart = frameCount - tailFrames
-        let tailEnergy = channels.reduce(0.0) { sum, channel in
-            sum + channel[tailStart..<frameCount].reduce(0.0) {
-                let value = Double($1)
-                return $0 + (value * value)
+        guard comparisonFrames > 0 else { return 0 }
+        let preRange = (boundaryFrame - comparisonFrames)..<boundaryFrame
+        let postRange = boundaryFrame..<(boundaryFrame + comparisonFrames)
+        let preEnergy = meanSquareEnergy(channels, frames: preRange)
+        let postEnergy = meanSquareEnergy(channels, frames: postRange)
+        guard preEnergy > 0 else { return postEnergy > 0 ? 120 : 0 }
+        return (postEnergy / preEnergy).clamped(to: 0 ... 120)
+    }
+
+    private static func meanSquareEnergy(
+        _ channels: [[Float]],
+        frames: Range<Int>
+    ) -> Double {
+        guard !channels.isEmpty, !frames.isEmpty else { return 0 }
+        let energy = channels.reduce(0.0) { sum, channel in
+            sum + channel[frames].reduce(0.0) {
+                let sample = Double($1)
+                return $0 + (sample * sample)
             }
         }
-        let totalMeanSquare = totalEnergy / Double(frameCount * channels.count)
-        let tailMeanSquare = tailEnergy / Double(tailFrames * channels.count)
-        guard totalMeanSquare > 0 else { return 0 }
-        return (tailMeanSquare / totalMeanSquare).clamped(to: 0 ... 120)
+        return energy / Double(frames.count * channels.count)
     }
 
     private static func relativeAudibilityDB(stemRMS: Double, mixRMS: Double) -> Double {
@@ -367,38 +431,55 @@ enum DayObjectsMixQualityAnalyzer {
         return (energy.low / total, energy.mid / total, energy.high / total)
     }
 
-    /// Accumulates Hann-windowed 4,096-point FFT energy with a 50% hop.
-    /// The final window, including a short only window, is zero-padded.
-    private static func spectralEnergy(
-        channels: [[Float]],
-        sampleRate: Double
-    ) -> [Double] {
+    /// Produces Hann-windowed 4,096-point FFT energy with a 50% hop. The final
+    /// window, including a short only window, is zero-padded.
+    private static func spectralFrames(channels: [[Float]]) -> [SpectralFrame] {
         let windowSize = 4_096
-        guard channels.allSatisfy({ !$0.isEmpty }) else {
-            return [Double](repeating: 0, count: (windowSize / 2) + 1)
-        }
+        guard let frameCount = channels.first?.count,
+              frameCount > 0,
+              channels.allSatisfy({ $0.count == frameCount }) else { return [] }
         let hopSize = windowSize / 2
         let window = (0..<windowSize).map { index in
             0.5 - (0.5 * cos(2 * Double.pi * Double(index) / Double(windowSize - 1)))
         }
-        var energy = [Double](repeating: 0, count: (windowSize / 2) + 1)
+        var result: [SpectralFrame] = []
 
-        for channel in channels {
-            for start in stride(from: 0, to: channel.count, by: hopSize) {
+        for start in stride(from: 0, to: frameCount, by: hopSize) {
+            let availableFrames = min(windowSize, frameCount - start)
+            var frameEnergy = [Double](repeating: 0, count: (windowSize / 2) + 1)
+            var timeDomainEnergy = 0.0
+            for channel in channels {
                 var real = [Double](repeating: 0, count: windowSize)
                 var imaginary = [Double](repeating: 0, count: windowSize)
-                let availableFrames = min(windowSize, channel.count - start)
                 for index in 0..<availableFrames {
-                    real[index] = Double(channel[start + index]) * window[index]
+                    let sample = Double(channel[start + index])
+                    real[index] = sample * window[index]
+                    timeDomainEnergy += sample * sample
                 }
                 radix2FFT(real: &real, imaginary: &imaginary)
                 for bin in 0...(windowSize / 2) {
                     let binEnergy = (real[bin] * real[bin]) + (imaginary[bin] * imaginary[bin])
-                    energy[bin] += binEnergy
+                    frameEnergy[bin] += binEnergy
                 }
             }
+            let sampleCount = availableFrames * channels.count
+            let rms = sampleCount > 0
+                ? sqrt(timeDomainEnergy / Double(sampleCount))
+                : 0
+            result.append(SpectralFrame(energy: frameEnergy, rms: rms))
         }
-        return energy
+        return result
+    }
+
+    private static func accumulatedSpectrum(_ frames: [SpectralFrame]) -> [Double] {
+        let binCount = frames.first?.energy.count ?? 2_049
+        var result = [Double](repeating: 0, count: binCount)
+        for frame in frames {
+            for bin in frame.energy.indices {
+                result[bin] += frame.energy[bin]
+            }
+        }
+        return result
     }
 
     private static func radix2FFT(real: inout [Double], imaginary: inout [Double]) {
@@ -465,28 +546,67 @@ enum DayObjectsMixQualityAnalyzer {
         return (abs(dot) / denominator).clamped(to: 0 ... 1)
     }
 
-    /// Cosine similarity of 160...4,000 Hz FFT energy. This is phase
-    /// independent: identical occupied bins score 1, disjoint bins score 0.
+    /// Relative-energy-weighted cosine overlap of 160...4,000 Hz FFT energy.
+    /// Only contemporaneous frames where both stems exceed -42 dB relative to
+    /// the mix and -80 dBFS absolute RMS contribute.
     private static func spectralMaskingScore(
-        lhs: [Double]?,
-        rhs: [Double]?,
+        lhs: [SpectralFrame]?,
+        rhs: [SpectralFrame]?,
+        mix: [SpectralFrame],
         sampleRate: Double
     ) -> Double {
-        guard let lhs, let rhs, lhs.count == rhs.count, lhs.count > 1 else { return 0 }
-        let transformSize = (lhs.count - 1) * 2
-        var dot = 0.0
-        var lhsEnergy = 0.0
-        var rhsEnergy = 0.0
-        for bin in lhs.indices {
-            let frequency = Double(bin) * sampleRate / Double(transformSize)
-            guard frequency >= 160, frequency < 4_000 else { continue }
-            dot += lhs[bin] * rhs[bin]
-            lhsEnergy += lhs[bin] * lhs[bin]
-            rhsEnergy += rhs[bin] * rhs[bin]
+        guard let lhs, let rhs,
+              lhs.count == rhs.count,
+              lhs.count == mix.count,
+              let binCount = lhs.first?.energy.count,
+              binCount > 1 else { return 0 }
+        let minimumRelativeEnergy = pow(10, minimumActiveStemAudibilityDB / 10)
+        let minimumAbsoluteAmplitude = pow(10, maskingAbsoluteFloorDBFS / 20)
+        let transformSize = (binCount - 1) * 2
+        var weightedOverlap = 0.0
+        var totalWeight = 0.0
+
+        for frameIndex in lhs.indices {
+            let lhsFrame = lhs[frameIndex]
+            let rhsFrame = rhs[frameIndex]
+            let mixFrame = mix[frameIndex]
+            guard mixFrame.rms >= minimumAbsoluteAmplitude,
+                  lhsFrame.rms >= minimumAbsoluteAmplitude,
+                  rhsFrame.rms >= minimumAbsoluteAmplitude else { continue }
+
+            var dot = 0.0
+            var lhsVectorNorm = 0.0
+            var rhsVectorNorm = 0.0
+            var lhsBandEnergy = 0.0
+            var rhsBandEnergy = 0.0
+            var mixBandEnergy = 0.0
+            for bin in 0..<binCount {
+                let frequency = Double(bin) * sampleRate / Double(transformSize)
+                guard frequency >= 160, frequency < 4_000 else { continue }
+                let lhsValue = lhsFrame.energy[bin]
+                let rhsValue = rhsFrame.energy[bin]
+                dot += lhsValue * rhsValue
+                lhsVectorNorm += lhsValue * lhsValue
+                rhsVectorNorm += rhsValue * rhsValue
+                lhsBandEnergy += lhsValue
+                rhsBandEnergy += rhsValue
+                mixBandEnergy += mixFrame.energy[bin]
+            }
+            guard mixBandEnergy.isFinite,
+                  mixBandEnergy > 0,
+                  lhsBandEnergy / mixBandEnergy > minimumRelativeEnergy,
+                  rhsBandEnergy / mixBandEnergy > minimumRelativeEnergy else { continue }
+            let denominator = sqrt(lhsVectorNorm * rhsVectorNorm)
+            guard denominator.isFinite, denominator > 0 else { continue }
+            let overlap = (dot / denominator).clamped(to: 0 ... 1)
+            let relativeWeight = (
+                min(lhsBandEnergy, rhsBandEnergy) / mixBandEnergy
+            ).clamped(to: 0 ... 1)
+            weightedOverlap += overlap * relativeWeight
+            totalWeight += relativeWeight
         }
-        let denominator = sqrt(lhsEnergy * rhsEnergy)
-        guard denominator.isFinite, denominator > 0 else { return 0 }
-        return (dot / denominator).clamped(to: 0 ... 1)
+        guard totalWeight.isFinite, totalWeight > 0 else { return 0 }
+        return (weightedOverlap / totalWeight).clamped(to: 0 ... 1)
     }
 
     private static func maskingSeverity(_ score: Double) -> Double {
@@ -494,30 +614,11 @@ enum DayObjectsMixQualityAnalyzer {
             .clamped(to: 0 ... 1)
     }
 
-    private static func mostAccumulatedSpatialRole(
-        _ stems: [DayObjectsMixRole: DayObjectsPCMBufferSamples],
-        activeRoles: Set<DayObjectsMixRole>
-    ) -> DayObjectsMixRole? {
-        let spatialRoles: [DayObjectsMixRole] = [.harmony, .happenings, .lead]
-        return spatialRoles
-            .filter(activeRoles.contains)
-            .compactMap { role -> (DayObjectsMixRole, Double)? in
-                guard let samples = stems[role] else { return nil }
-                return (
-                    role,
-                    trailingEnergyRatio(
-                        channels: samples.channels,
-                        sampleRate: samples.sampleRate
-                    )
-                )
-            }
-            .max { lhs, rhs in
-                if lhs.1 == rhs.1 {
-                    return spatialRoles.firstIndex(of: lhs.0)! > spatialRoles.firstIndex(of: rhs.0)!
-                }
-                return lhs.1 < rhs.1
-            }?.0
-    }
+}
+
+private struct SpectralFrame {
+    let energy: [Double]
+    let rms: Double
 }
 
 private struct SuggestionValues {

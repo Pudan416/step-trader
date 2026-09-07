@@ -61,6 +61,7 @@ struct DayObjectsMixQualityReport: Codable, Equatable, Sendable {
     let harmonyLeadMaskingScore: Double
     let happeningsLeadMaskingScore: Double
     let reverbTailEnergyRatio: Double
+    let reverbTailEnergyRatioByRole: [String: Double]
     let issues: [DayObjectsMixIssue]
     let suggestions: [DayObjectsMixSuggestion]
 
