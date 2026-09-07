@@ -7,6 +7,19 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A70FE0020000000000000001 /* Onest-Black.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000001 /* Onest-Black.ttf */; };
+		A70FE0020000000000000002 /* Onest-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000002 /* Onest-Bold.ttf */; };
+		A70FE0020000000000000003 /* Onest-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000003 /* Onest-ExtraBold.ttf */; };
+		A70FE0020000000000000004 /* Onest-ExtraLight.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000004 /* Onest-ExtraLight.ttf */; };
+		A70FE0020000000000000005 /* Onest-Light.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000005 /* Onest-Light.ttf */; };
+		A70FE0020000000000000006 /* Onest-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000006 /* Onest-Medium.ttf */; };
+		A70FE0020000000000000007 /* Onest-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000007 /* Onest-Regular.ttf */; };
+		A70FE0020000000000000008 /* Onest-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000008 /* Onest-SemiBold.ttf */; };
+		A70FE0020000000000000009 /* Onest-Thin.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000009 /* Onest-Thin.ttf */; };
+		A70FE002000000000000000A /* NowhereDisplay02-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE001000000000000000A /* NowhereDisplay02-Regular.ttf */; };
+		A70FE002000000000000000B /* NowhereDisplay02-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE001000000000000000B /* NowhereDisplay02-Bold.ttf */; };
+		A70FE002000000000000000C /* Onest-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = A70FE001000000000000000C /* Onest-OFL.txt */; };
+		A70FE002000000000000000D /* NowhereDisplay-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = A70FE001000000000000000D /* NowhereDisplay-OFL.txt */; };
 		C5A510010906202600000002 /* CanvasVisualStyleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510010906202600000001 /* CanvasVisualStyleTests.swift */; };
 		C5A510010906202600000004 /* CanvasVisualStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510010906202600000003 /* CanvasVisualStyle.swift */; };
 		C5A510020906202600000002 /* EditorialCanvasInputFactoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510020906202600000001 /* EditorialCanvasInputFactoryTests.swift */; };
@@ -164,12 +177,6 @@
 		D0B100000000000000000002 /* DayObjectSceneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000001 /* DayObjectSceneTests.swift */; };
 		D0F100000000000000000002 /* DayObjectsLabMusicViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F100000000000000000001 /* DayObjectsLabMusicViewModelTests.swift */; };
 		91F0A0023100000000000002 /* AppTypographyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91F0A0013100000000000001 /* AppTypographyTests.swift */; };
-		91F0A0043100000000000004 /* Unbounded[wght].ttf in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A0033100000000000003 /* Unbounded[wght].ttf */; };
-		91F0A0063100000000000006 /* Unbounded-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A0053100000000000005 /* Unbounded-OFL.txt */; };
-		91F0A0083100000000000008 /* Unbounded-Black.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A0073100000000000007 /* Unbounded-Black.ttf */; };
-		91F0A00A310000000000000A /* GeistMono-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A0093100000000000009 /* GeistMono-Medium.ttf */; };
-		91F0A00C310000000000000C /* GeistMono-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A00B310000000000000B /* GeistMono-OFL.txt */; };
-		91F0A00E310000000000000E /* Geist-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A00D310000000000000D /* Geist-Medium.ttf */; };
 		A16C90010000000000000001 /* ExperimentalFeatures.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000001 /* ExperimentalFeatures.swift */; };
 		DA0BDO010000000000000002 /* DayObjectComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0BDO010000000000000001 /* DayObjectComposition.swift */; };
 		DA0BDO020000000000000002 /* DayObjectsLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0BDO020000000000000001 /* DayObjectsLabView.swift */; };
@@ -590,6 +597,19 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A70FE0010000000000000001 /* Onest-Black.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-Black.ttf"; sourceTree = "<group>"; };
+		A70FE0010000000000000002 /* Onest-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-Bold.ttf"; sourceTree = "<group>"; };
+		A70FE0010000000000000003 /* Onest-ExtraBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-ExtraBold.ttf"; sourceTree = "<group>"; };
+		A70FE0010000000000000004 /* Onest-ExtraLight.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-ExtraLight.ttf"; sourceTree = "<group>"; };
+		A70FE0010000000000000005 /* Onest-Light.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-Light.ttf"; sourceTree = "<group>"; };
+		A70FE0010000000000000006 /* Onest-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-Medium.ttf"; sourceTree = "<group>"; };
+		A70FE0010000000000000007 /* Onest-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-Regular.ttf"; sourceTree = "<group>"; };
+		A70FE0010000000000000008 /* Onest-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-SemiBold.ttf"; sourceTree = "<group>"; };
+		A70FE0010000000000000009 /* Onest-Thin.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-Thin.ttf"; sourceTree = "<group>"; };
+		A70FE001000000000000000A /* NowhereDisplay02-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "NowhereDisplay02-Regular.ttf"; sourceTree = "<group>"; };
+		A70FE001000000000000000B /* NowhereDisplay02-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "NowhereDisplay02-Bold.ttf"; sourceTree = "<group>"; };
+		A70FE001000000000000000C /* Onest-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Onest-OFL.txt"; sourceTree = "<group>"; };
+		A70FE001000000000000000D /* NowhereDisplay-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "NowhereDisplay-OFL.txt"; sourceTree = "<group>"; };
 		C5A510010906202600000001 /* CanvasVisualStyleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasVisualStyleTests.swift; sourceTree = "<group>"; };
 		C5A510010906202600000003 /* CanvasVisualStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasVisualStyle.swift; path = StepsTrader/Models/CanvasVisualStyle.swift; sourceTree = SOURCE_ROOT; };
 		C5A510020906202600000001 /* EditorialCanvasInputFactoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorialCanvasInputFactoryTests.swift; sourceTree = "<group>"; };
@@ -735,12 +755,6 @@
 		D0B100000000000000000001 /* DayObjectSceneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectSceneTests.swift; sourceTree = "<group>"; };
 		D0F100000000000000000001 /* DayObjectsLabMusicViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLabMusicViewModelTests.swift; sourceTree = "<group>"; };
 		91F0A0013100000000000001 /* AppTypographyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppTypographyTests.swift; path = Steps4Tests/AppTypographyTests.swift; sourceTree = SOURCE_ROOT; };
-		91F0A0033100000000000003 /* Unbounded[wght].ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Unbounded[wght].ttf"; sourceTree = "<group>"; };
-		91F0A0053100000000000005 /* Unbounded-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Unbounded-OFL.txt"; sourceTree = "<group>"; };
-		91F0A0073100000000000007 /* Unbounded-Black.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Unbounded-Black.ttf"; sourceTree = "<group>"; };
-		91F0A0093100000000000009 /* GeistMono-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "GeistMono-Medium.ttf"; sourceTree = "<group>"; };
-		91F0A00B310000000000000B /* GeistMono-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "GeistMono-OFL.txt"; sourceTree = "<group>"; };
-		91F0A00D310000000000000D /* Geist-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Geist-Medium.ttf"; sourceTree = "<group>"; };
 		A16C80010000000000000001 /* ExperimentalFeatures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExperimentalFeatures.swift; sourceTree = "<group>"; };
 		DA0BDO010000000000000001 /* DayObjectComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectComposition.swift; sourceTree = "<group>"; };
 		DA0BDO020000000000000001 /* DayObjectsLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLabView.swift; sourceTree = "<group>"; };
@@ -1770,12 +1784,19 @@
 		20F0NT032FFF040000000003 /* Fonts */ = {
 			isa = PBXGroup;
 			children = (
-				91F0A00D310000000000000D /* Geist-Medium.ttf */,
-				91F0A0093100000000000009 /* GeistMono-Medium.ttf */,
-				91F0A00B310000000000000B /* GeistMono-OFL.txt */,
-				91F0A0033100000000000003 /* Unbounded[wght].ttf */,
-				91F0A0073100000000000007 /* Unbounded-Black.ttf */,
-				91F0A0053100000000000005 /* Unbounded-OFL.txt */,
+				A70FE0010000000000000001 /* Onest-Black.ttf */,
+				A70FE0010000000000000002 /* Onest-Bold.ttf */,
+				A70FE0010000000000000003 /* Onest-ExtraBold.ttf */,
+				A70FE0010000000000000004 /* Onest-ExtraLight.ttf */,
+				A70FE0010000000000000005 /* Onest-Light.ttf */,
+				A70FE0010000000000000006 /* Onest-Medium.ttf */,
+				A70FE0010000000000000007 /* Onest-Regular.ttf */,
+				A70FE0010000000000000008 /* Onest-SemiBold.ttf */,
+				A70FE0010000000000000009 /* Onest-Thin.ttf */,
+				A70FE001000000000000000A /* NowhereDisplay02-Regular.ttf */,
+				A70FE001000000000000000B /* NowhereDisplay02-Bold.ttf */,
+				A70FE001000000000000000C /* Onest-OFL.txt */,
+				A70FE001000000000000000D /* NowhereDisplay-OFL.txt */,
 			);
 			path = Fonts;
 			sourceTree = "<group>";
@@ -2247,6 +2268,19 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A70FE0020000000000000001 /* Onest-Black.ttf in Resources */,
+				A70FE0020000000000000002 /* Onest-Bold.ttf in Resources */,
+				A70FE0020000000000000003 /* Onest-ExtraBold.ttf in Resources */,
+				A70FE0020000000000000004 /* Onest-ExtraLight.ttf in Resources */,
+				A70FE0020000000000000005 /* Onest-Light.ttf in Resources */,
+				A70FE0020000000000000006 /* Onest-Medium.ttf in Resources */,
+				A70FE0020000000000000007 /* Onest-Regular.ttf in Resources */,
+				A70FE0020000000000000008 /* Onest-SemiBold.ttf in Resources */,
+				A70FE0020000000000000009 /* Onest-Thin.ttf in Resources */,
+				A70FE002000000000000000A /* NowhereDisplay02-Regular.ttf in Resources */,
+				A70FE002000000000000000B /* NowhereDisplay02-Bold.ttf in Resources */,
+				A70FE002000000000000000C /* Onest-OFL.txt in Resources */,
+				A70FE002000000000000000D /* NowhereDisplay-OFL.txt in Resources */,
 				D0A0D1000000000000000004 /* AudioKitSynthOne-MIT.txt in Resources */,
 				D0A0D1000000000000000007 /* AudioKitCookbook-MIT.txt in Resources */,
 				D0A0D100000000000000000A /* OsirisPiano-CC0-1.0.txt in Resources */,
@@ -2257,12 +2291,6 @@
 				D0C400000000000000000002 /* Happenings in Resources */,
 				D0A0D2000000000000000017 /* audio-assets-manifest.json in Resources */,
 				D0C400000000000000000005 /* VCSL-CC0-1.0.txt in Resources */,
-				91F0A00E310000000000000E /* Geist-Medium.ttf in Resources */,
-				91F0A00A310000000000000A /* GeistMono-Medium.ttf in Resources */,
-				91F0A00C310000000000000C /* GeistMono-OFL.txt in Resources */,
-				91F0A0043100000000000004 /* Unbounded[wght].ttf in Resources */,
-				91F0A0083100000000000008 /* Unbounded-Black.ttf in Resources */,
-				91F0A0063100000000000006 /* Unbounded-OFL.txt in Resources */,
 				2089F0BF2E71A18F00ABF5FA /* Preview Assets.xcassets in Resources */,
 				20E3AE142F3F6C1C007CF1EC /* Assets.xcassets in Resources */,
 				20F6C0022F3E100100000002 /* Localizable.xcstrings in Resources */,
