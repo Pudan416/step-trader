@@ -1,5 +1,7 @@
 import XCTest
 import Metal
+import MetalKit
+import SwiftUI
 import simd
 @testable import Steps4
 
@@ -281,5 +283,154 @@ final class SmudgeComputeRegionTests: XCTestCase {
         XCTAssertNotEqual(full.0, pixels, "Fixture must actually displace the image")
         XCTAssertTrue(cropped.0 == full.0, "Cropping must preserve all displaced and untouched pixels")
         XCTAssertTrue(cropped.1 == full.1, "Cropping must preserve the age field and relaxation behavior")
+    }
+}
+
+final class CanvasResourceReuseTests: XCTestCase {
+    @MainActor
+    func testPosterCoordinatorDoesNotBuildMetalBeforeViewCanAppear() {
+        let scene = DayObjectScene.make(input: .init(
+            dayKey: "2026-09-07", identity: "reuse-test", eventIDs: [],
+            motionEnergy: 0.5, visualClarity: 0.5, canvasCoverage: .fullCanvas,
+            usesEditorialField: true, editorialBackground: .lowContrast
+        ))
+        let coordinator = DayObjectsMetalView.Coordinator(
+            scene: scene, environment: .init(motionEnergy: 0.5, visualClarity: 0.5),
+            digitalImpact: .none, soundPulseBus: nil
+        )
+        XCTAssertNil(coordinator.renderer, "View construction must not synchronously initialize Metal")
+    }
+
+    func testPostersSharePipelinesButNotMutableBuffers() throws {
+        let scene = DayObjectScene.make(input: .init(
+            dayKey: "2026-09-07", identity: "reuse-test", eventIDs: [],
+            motionEnergy: 0.5, visualClarity: 0.5, canvasCoverage: .fullCanvas,
+            usesEditorialField: true, editorialBackground: .lowContrast
+        ))
+        let environment = DayObjectEnvironment(motionEnergy: 0.5, visualClarity: 0.5)
+        let first = try XCTUnwrap(DayObjectsRenderer.create(scene: scene, environment: environment))
+        let second = try XCTUnwrap(DayObjectsRenderer.create(scene: scene, environment: environment))
+        func member(_ object: Any, _ name: String) throws -> AnyObject {
+            try XCTUnwrap(Mirror(reflecting: object).children.first { $0.label == name }?.value as AnyObject?)
+        }
+        for name in ["meshGradientPipeline", "sceneUpscalePipeline", "actorPipeline", "horizontalBlurPipeline", "verticalBlurPipeline", "displayPipeline", "linearSampler", "quadBuffer"] {
+            XCTAssertTrue(try member(first, name) === member(second, name), name)
+        }
+        XCTAssertFalse(try member(first, "actorBufferRing") === member(second, "actorBufferRing"))
+    }
+}
+
+@MainActor
+final class SmudgePreparationTests: XCTestCase {
+    func testSmudgeCoordinatorDoesNotCompileMetalDuringViewConstruction() {
+        XCTAssertNil(SmudgeOverlayView.Coordinator().renderer)
+    }
+
+    func testVisibleSmudgePreparesTextureBeforeTouch() async throws {
+        let overlay = SmudgeOverlayView(
+            elements: [], sleepPoints: 10, stepsPoints: 12, sleepColor: .blue,
+            stepsColor: .orange, decayNorm: 0, backgroundColor: .black,
+            isRenderingAllowed: true
+        )
+        let host = UIHostingController(rootView: overlay)
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 128, height: 256))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        host.view.layoutIfNeeded()
+        func find(_ view: UIView) -> SmudgeMTKView? {
+            if let match = view as? SmudgeMTKView { return match }
+            return view.subviews.compactMap { find($0) }.first
+        }
+        let view = try XCTUnwrap(find(host.view))
+        for _ in 0..<100 {
+            if let renderer = view.delegate as? MetalSmudgeRenderer, !renderer.needsSnapshot { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let renderer = try XCTUnwrap(view.delegate as? MetalSmudgeRenderer)
+        XCTAssertFalse(renderer.needsSnapshot, "First touch must not pay for ImageRenderer or texture upload")
+        XCTAssertFalse(renderer.isDistorted, "Preparation must not show a phantom ripple")
+        XCTAssertTrue(view.isPaused)
+    }
+}
+
+final class SmudgeRegionSequenceTests: XCTestCase {
+    func testProductionRegionCopyMatchesFullDispatchForOverlappingAndDisjointStrokes() throws {
+        let renderer = try XCTUnwrap(MetalSmudgeRenderer.create())
+        let device = renderer.device
+        let size = 64
+        let image = UIGraphicsImageRenderer(size: CGSize(width: size, height: size), format: {
+            let format = UIGraphicsImageRendererFormat(); format.scale = 1; return format
+        }()).image { ctx in
+            for x in 0..<size {
+                UIColor(red: CGFloat(x) / 64, green: 0.3, blue: 1 - CGFloat(x) / 64, alpha: 1).setFill()
+                ctx.fill(CGRect(x: x, y: 0, width: 1, height: size))
+            }
+        }
+        renderer.updateBaseTexture(from: try XCTUnwrap(image.cgImage))
+        func member<T>(_ name: String, as type: T.Type) throws -> T {
+            try XCTUnwrap(Mirror(reflecting: renderer).children.first { $0.label == name }?.value as? T)
+        }
+        let queue = try member("commandQueue", as: MTLCommandQueue.self)
+        let base = try member("baseTexture", as: MTLTexture.self)
+        let actual = try member("interactiveA", as: MTLTexture.self)
+        let actualAge = try member("ageA", as: MTLTexture.self)
+        let region = MTLRegionMake2D(0, 0, size, size)
+        func texture(_ format: MTLPixelFormat) throws -> MTLTexture {
+            let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: format, width: size, height: size, mipmapped: false)
+            descriptor.usage = [.shaderRead, .shaderWrite]
+            descriptor.storageMode = .shared
+            return try XCTUnwrap(device.makeTexture(descriptor: descriptor))
+        }
+        let references = try [texture(.bgra8Unorm), texture(.bgra8Unorm)]
+        let ages = try [texture(.r32Float), texture(.r32Float)]
+        let readback = try texture(.bgra8Unorm)
+        let ageReadback = try texture(.r32Float)
+        let command = try XCTUnwrap(queue.makeCommandBuffer())
+        let initial = try XCTUnwrap(command.makeBlitCommandEncoder())
+        for i in 0..<2 {
+            initial.copy(from: base, to: references[i])
+            initial.copy(from: actualAge, to: ages[i])
+        }
+        initial.endEncoding()
+        let library = try XCTUnwrap(device.makeDefaultLibrary())
+        let pipeline = try device.makeComputePipelineState(function: XCTUnwrap(library.makeFunction(name: "smudgeKernel")))
+        let strokes = [
+            StrokeSegment(p0: SIMD2(2, 3), p1: SIMD2(22, 20), radius: 8, strength: 0.6, dragFactor: 5, direction: SIMD2(0.76, 0.65)),
+            StrokeSegment(p0: SIMD2(22, 20), p1: SIMD2(12, 30), radius: 6, strength: 0.7, dragFactor: 8, direction: SIMD2(-0.707, 0.707)),
+            StrokeSegment(p0: SIMD2(58, 56), p1: SIMD2(63, 63), radius: 10, strength: 0.9, dragFactor: 4, direction: SIMD2(0.58, 0.81))
+        ]
+        var index = 0
+        for stroke in strokes {
+            renderer.applySmudge(stroke, commandBuffer: command)
+            let encoder = try XCTUnwrap(command.makeComputeCommandEncoder())
+            encoder.setComputePipelineState(pipeline)
+            encoder.setTexture(references[index], index: 0)
+            encoder.setTexture(references[1 - index], index: 1)
+            encoder.setTexture(ages[index], index: 2)
+            encoder.setTexture(ages[1 - index], index: 3)
+            var params = SmudgeParams(p0: stroke.p0, p1: stroke.p1, radius: stroke.radius, strength: stroke.strength, dragFactor: stroke.dragFactor, direction: stroke.direction)
+            var origin = SIMD2<UInt32>.zero
+            encoder.setBytes(&params, length: MemoryLayout<SmudgeParams>.stride, index: 0)
+            encoder.setBytes(&origin, length: MemoryLayout<SIMD2<UInt32>>.stride, index: 1)
+            encoder.dispatchThreads(MTLSize(width: size, height: size, depth: 1), threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+            encoder.endEncoding()
+            index = 1 - index
+        }
+        let blit = try XCTUnwrap(command.makeBlitCommandEncoder())
+        blit.copy(from: actual, to: readback)
+        blit.copy(from: actualAge, to: ageReadback)
+        blit.endEncoding()
+        command.commit()
+        command.waitUntilCompleted()
+        XCTAssertEqual(command.status, .completed)
+        func bytes(_ texture: MTLTexture) -> [UInt8] {
+            var result = [UInt8](repeating: 0, count: size * size * 4)
+            result.withUnsafeMutableBytes { texture.getBytes($0.baseAddress!, bytesPerRow: size * 4, from: region, mipmapLevel: 0) }
+            return result
+        }
+        XCTAssertEqual(bytes(readback), bytes(references[index]))
+        XCTAssertEqual(bytes(ageReadback), bytes(ages[index]))
+        XCTAssertNotEqual(bytes(readback), bytes(base))
     }
 }

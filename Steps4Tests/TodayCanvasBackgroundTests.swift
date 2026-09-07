@@ -55,6 +55,24 @@ final class TodayCanvasBackgroundTests: XCTestCase {
         XCTAssertNotEqual(try XCTUnwrap(empty?.pngData()), try XCTUnwrap(populated?.pngData()))
     }
 
+    func testRenderedPaletteUsesActualPixelsOrderedByLightness() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 120, height: 120), format: format).image { ctx in
+            UIColor(red: 0.8, green: 0.6, blue: 0.6, alpha: 1).setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 60, height: 120))
+            UIColor(red: 0.3, green: 0.2, blue: 0.2, alpha: 1).setFill()
+            ctx.fill(CGRect(x: 60, y: 0, width: 60, height: 120))
+        }
+        let palette = try XCTUnwrap(TodayCanvasUnlockPalette.sampled(from: image))
+        XCTAssertEqual(palette.colors.first!.sRGB.x, 0.8, accuracy: 0.01)
+        XCTAssertEqual(palette.colors.last!.sRGB.x, 0.3, accuracy: 0.01)
+        XCTAssertTrue(zip(palette.colors, palette.colors.dropFirst()).allSatisfy {
+            $0.perceptualOKLab.x >= $1.perceptualOKLab.x
+        })
+        XCTAssertNil(TodayCanvasUnlockPalette.sampled(from: UIImage()))
+    }
+
     func testUnlockGradientUsesSelectedLegacyPaletteFromLightToDark() {
         var input = appearance()
         input.style = CanvasVisualStyle.legacy.rawValue
@@ -84,6 +102,67 @@ final class TodayCanvasBackgroundTests: XCTestCase {
                 .sorted { $0.perceptualOKLab.x > $1.perceptualOKLab.x }
             XCTAssertEqual(TodayCanvasUnlockPalette.make(appearance: input).colors, expected)
         }
+    }
+
+    func testFirstRenderDoesNotWaitForUpdateDebounce() async {
+        let started = expectation(description: "first frame starts immediately")
+        let store = TodayCanvasBackdropStore(debounce: .seconds(30), load: { _ in nil }, render: { _, _ in
+            started.fulfill()
+            return UIImage()
+        })
+        store.refresh(appearance())
+        XCTAssertFalse(store.unlockPalette.colors.isEmpty, "Today's palette must be ready before the snapshot")
+        await fulfillment(of: [started], timeout: 1)
+    }
+
+    func testFailedRefreshKeepsImageAndCanRetrySameInput() async {
+        let first = UIImage()
+        let recovered = UIImage()
+        var count = 0
+        let store = TodayCanvasBackdropStore(debounce: .zero, load: { _ in nil }, render: { _, _ in
+            count += 1
+            return count == 1 ? first : (count == 2 ? nil : recovered)
+        })
+        store.refresh(appearance())
+        for _ in 0..<100 { await Task.yield() }
+        XCTAssertTrue(store.image === first)
+        var updated = appearance()
+        updated.steps += 1
+        store.refresh(updated)
+        for _ in 0..<100 { await Task.yield() }
+        XCTAssertTrue(store.image === first, "A failed export must not blank a visible screen")
+        XCTAssertEqual(count, 2, "Failure must not spin in a retry loop")
+        store.refresh(updated)
+        for _ in 0..<100 { await Task.yield() }
+        XCTAssertTrue(store.image === recovered)
+        XCTAssertEqual(count, 3)
+    }
+
+    func testWidgetExportsSerializeAndKeepOnlyLatestPendingCanvas() async {
+        let started = expectation(description: "first export")
+        let finished = expectation(description: "latest export")
+        var resume: CheckedContinuation<Void, Never>?
+        var renderedSteps: [Int] = []
+        let queue = CanvasWidgetSnapshotQueue(debounce: .zero) { canvas, _ in
+            renderedSteps.append(canvas.stepsPoints)
+            if canvas.stepsPoints == 1 {
+                await withCheckedContinuation { resume = $0; started.fulfill() }
+            }
+            if canvas.stepsPoints == 3 { finished.fulfill() }
+        }
+        var canvas = appearance().canvas(from: nil)
+        canvas.stepsPoints = 1
+        queue.submit(canvas, categories: ModernPaletteSelection.all)
+        await fulfillment(of: [started], timeout: 2)
+        canvas.stepsPoints = 2
+        queue.submit(canvas, categories: ModernPaletteSelection.all)
+        canvas.stepsPoints = 3
+        queue.submit(canvas, categories: ModernPaletteSelection.all)
+        for _ in 0..<100 { await Task.yield() }
+        XCTAssertEqual(renderedSteps, [1], "Exports must not overlap")
+        resume?.resume()
+        await fulfillment(of: [finished], timeout: 2)
+        XCTAssertEqual(renderedSteps, [1, 3], "Intermediate stale states must not be rendered")
     }
 
     func testIdenticalRefreshesReuseOneImageAndAvoidDiskReads() async {

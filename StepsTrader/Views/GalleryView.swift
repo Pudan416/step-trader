@@ -1840,12 +1840,9 @@ struct GalleryView: View {
     private func refreshWidgetSnapshot() {
         let canvas = dayCanvas
         let categories = ModernPaletteSelection.decode(modernPaletteCategoriesRaw)
-        Task { @MainActor in
-            await CanvasStorageService.shared.saveWidgetSnapshot(
-                for: canvas,
-                paletteCategories: categories
-            )
-        }
+        CanvasStorageService.shared.scheduleWidgetSnapshot(
+            for: canvas, paletteCategories: categories
+        )
     }
 
     private func syncCanvasWithModel() {

@@ -20,6 +20,19 @@ struct TodayCanvasAppearance: Equatable {
     var texture: String
     var categories: String
 
+    static var initial: Self {
+        let defaults = UserDefaults.standard
+        return Self(
+            dayKey: AppModel.dayKey(for: .now), steps: 0, sleep: 0, earned: 0, spent: 0,
+            hasSteps: false, hasSleep: false,
+            style: defaults.string(forKey: SharedKeys.canvasVisualStyle) ?? CanvasVisualStyle.editorial.rawValue,
+            gradient: defaults.string(forKey: SharedKeys.gradientStyle) ?? GradientStyle.radial.rawValue,
+            palette: defaults.string(forKey: SharedKeys.gradientPalette) ?? GradientPalette.warmSunset.rawValue,
+            texture: defaults.string(forKey: SharedKeys.canvasTexture) ?? CanvasTexture.grainSmall.rawValue,
+            categories: defaults.string(forKey: SharedKeys.modernPaletteCategories) ?? ""
+        )
+    }
+
     func canvas(from saved: DayCanvas?) -> DayCanvas {
         var canvas = saved.flatMap { $0.dayKey == dayKey ? $0 : nil } ?? DayCanvas(dayKey: dayKey)
         canvas.stepsPoints = steps
@@ -44,6 +57,34 @@ struct TodayCanvasAppearance: Equatable {
 /// Computed when the shared backdrop changes, never during a timer tick.
 struct TodayCanvasUnlockPalette: Equatable {
     let colors: [DayObjectRGB]
+
+    /// Sample the rendered colors, including the canvas's lighting/post processing.
+    /// A tiny grid is evaluated once per snapshot, never per card or animation frame.
+    static func sampled(from image: UIImage) -> Self? {
+        guard let source = image.cgImage else { return nil }
+        let side = 12
+        var pixels = [UInt8](repeating: 0, count: side * side * 4)
+        let drawn = pixels.withUnsafeMutableBytes { bytes -> Bool in
+            guard let context = CGContext(
+                data: bytes.baseAddress, width: side, height: side,
+                bitsPerComponent: 8, bytesPerRow: side * 4,
+                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return false }
+            context.interpolationQuality = .high
+            context.draw(source, in: CGRect(x: 0, y: 0, width: side, height: side))
+            return true
+        }
+        guard drawn else { return nil }
+        let colors = stride(from: 0, to: pixels.count, by: 4).compactMap { i -> DayObjectRGB? in
+            let alpha = Float(pixels[i + 3]) / 255
+            guard alpha > 0.9 else { return nil }
+            return DayObjectRGB(sRGB: SIMD3(Float(pixels[i]), Float(pixels[i + 1]), Float(pixels[i + 2])) / (255 * alpha))
+        }.sorted { $0.perceptualOKLab.x > $1.perceptualOKLab.x }
+        guard !colors.isEmpty else { return nil }
+        // Trim extremes so tiny dark actors/highlights do not dominate a whole card.
+        return Self(colors: [0.1, 0.35, 0.65, 0.9].map { colors[Int(Double(colors.count - 1) * $0)] })
+    }
 
     static func make(appearance: TodayCanvasAppearance) -> Self {
         let colors: [DayObjectRGB]
@@ -70,11 +111,12 @@ struct TodayCanvasUnlockPalette: Equatable {
 }
 
 struct TodayCanvasUnlockFill: View {
+    var darkToLight = false
     @ObservedObject private var backdrop = TodayCanvasBackdropStore.shared
 
     var body: some View {
         LinearGradient(
-            colors: backdrop.unlockPalette.colors.map { color in
+            colors: (darkToLight ? Array(backdrop.unlockPalette.colors.reversed()) : backdrop.unlockPalette.colors).map { color in
                 Color(.sRGB, red: Double(color.sRGB.x), green: Double(color.sRGB.y), blue: Double(color.sRGB.z))
             },
             startPoint: .leading, endPoint: .trailing
@@ -89,7 +131,7 @@ struct TodayCanvasUnlockFill: View {
 @MainActor
 final class TodayCanvasBackdropStore: ObservableObject {
     static let shared = TodayCanvasBackdropStore()
-    @Published private(set) var unlockPalette = TodayCanvasUnlockPalette(colors: [])
+    @Published private(set) var unlockPalette = TodayCanvasUnlockPalette.make(appearance: .initial)
     @Published private(set) var image: UIImage?
     @Published private(set) var dayKey: String?
     private var sourceData: Data?
@@ -132,6 +174,8 @@ final class TodayCanvasBackdropStore: ObservableObject {
             encoder.outputFormatting = .sortedKeys
             sourceData = source.flatMap { try? encoder.encode($0) }
         }
+        let nextPalette = TodayCanvasUnlockPalette.make(appearance: appearance)
+        if image == nil, unlockPalette != nextPalette { unlockPalette = nextPalette }
         requested = Request(appearance: appearance, sourceData: sourceData)
         guard requested != completed, worker == nil else { return }
         worker = Task { @MainActor [weak self] in
@@ -139,17 +183,24 @@ final class TodayCanvasBackdropStore: ObservableObject {
             // Coalesce bursts of preference / Health / persistence updates. A single
             // worker also prevents simultaneous GPU exports if input changes mid-render.
             while self.requested != self.completed {
-                try? await Task.sleep(for: self.debounce)
+                if self.image != nil { try? await Task.sleep(for: self.debounce) }
                 guard let request = self.requested else { break }
                 let saved = request.sourceData.flatMap { try? JSONDecoder().decode(DayCanvas.self, from: $0) }
                 let canvas = request.appearance.canvas(from: saved)
                 let rendered = await self.render(
                     canvas, ModernPaletteSelection.decode(request.appearance.categories)
                 )
-                self.completed = request
-                if request == self.requested {
-                    self.unlockPalette = TodayCanvasUnlockPalette.make(appearance: request.appearance)
-                    self.image = rendered
+                if let rendered {
+                    self.completed = request
+                    if request == self.requested {
+                        self.unlockPalette = TodayCanvasUnlockPalette.sampled(from: rendered)
+                            ?? TodayCanvasUnlockPalette.make(appearance: request.appearance)
+                        self.image = rendered
+                    }
+                } else if request == self.requested {
+                    // Keep the last successful frame. An identical later refresh
+                    // can retry, but an export failure must not create a busy loop.
+                    break
                 }
             }
             self.worker = nil
@@ -159,6 +210,7 @@ final class TodayCanvasBackdropStore: ObservableObject {
 
 struct TodayCanvasBackground: View {
     var detail = false
+    var matchesCanvas = false
     @ObservedObject private var backdrop = TodayCanvasBackdropStore.shared
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
@@ -166,13 +218,21 @@ struct TodayCanvasBackground: View {
         GeometryReader { geometry in
             ZStack {
                 AppColors.Night.background
+                LinearGradient(
+                    colors: backdrop.unlockPalette.colors.map {
+                        Color(.sRGB, red: Double($0.sRGB.x), green: Double($0.sRGB.y), blue: Double($0.sRGB.z))
+                    },
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                )
                 if let image = backdrop.image {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .clipped()
-                        .blur(radius: detail ? 12 : 6, opaque: true)
+                        .blur(radius: matchesCanvas ? 0 : (detail ? 12 : 6), opaque: true)
+                }
+                if !matchesCanvas {
                     Color.black.opacity(reduceTransparency ? 0.78 : (detail ? 0.68 : 0.58))
                 }
             }
@@ -244,7 +304,7 @@ struct TodayCanvasBackdropHost: ViewModifier {
 }
 
 extension View {
-    func todayCanvasBackground(detail: Bool = false) -> some View {
-        background { TodayCanvasBackground(detail: detail) }
+    func todayCanvasBackground(detail: Bool = false, matchesCanvas: Bool = false) -> some View {
+        background { TodayCanvasBackground(detail: detail, matchesCanvas: matchesCanvas) }
     }
 }

@@ -128,6 +128,16 @@ final class CanvasStorageService {
         }
     }
 
+    @MainActor
+    private static let widgetSnapshotQueue = CanvasWidgetSnapshotQueue { canvas, categories in
+        await CanvasStorageService.shared.saveWidgetSnapshot(for: canvas, paletteCategories: categories)
+    }
+
+    @MainActor
+    func scheduleWidgetSnapshot(for canvas: DayCanvas, paletteCategories: Set<ModernPaletteCategory>) {
+        Self.widgetSnapshotQueue.submit(canvas, categories: paletteCategories)
+    }
+
     /// Saves a smaller canvas snapshot to the shared App Group container
     /// so the widget extension can display today's canvas preview.
     /// Renders on main actor, then writes JPEG to disk in the background.
@@ -153,7 +163,7 @@ final class CanvasStorageService {
         }
 
         let fm = self.fileManager
-        Task.detached(priority: .utility) {
+        await Task.detached(priority: .utility) {
             guard let containerURL = fm.containerURL(
                 forSecurityApplicationGroupIdentifier: SharedKeys.appGroupId
             ) else { return }
@@ -170,7 +180,7 @@ final class CanvasStorageService {
             } catch {
                 Self.log.error("Failed to save widget snapshot: \(error.localizedDescription)")
             }
-        }
+        }.value
     }
 
     @MainActor
@@ -271,5 +281,35 @@ final class CanvasStorageService {
 
     private func snapshotURL(for dayKey: String) -> URL {
         snapshotDirectory.appending(path: "canvas_\(dayKey).png")
+    }
+}
+
+/// Coordinates optional widget exports separately from the visible canvas.
+@MainActor
+final class CanvasWidgetSnapshotQueue {
+    typealias Export = (DayCanvas, Set<ModernPaletteCategory>) async -> Void
+    private let export: Export
+    private let debounce: Duration
+    private var pending: (DayCanvas, Set<ModernPaletteCategory>)?
+    private var worker: Task<Void, Never>?
+
+    init(debounce: Duration = .milliseconds(300), export: @escaping Export) {
+        self.debounce = debounce
+        self.export = export
+    }
+
+    func submit(_ canvas: DayCanvas, categories: Set<ModernPaletteCategory>) {
+        pending = (canvas, categories)
+        guard worker == nil else { return }
+        worker = Task { @MainActor [weak self] in
+            guard let self else { return }
+            while self.pending != nil {
+                try? await Task.sleep(for: self.debounce)
+                guard let request = self.pending else { break }
+                self.pending = nil
+                await self.export(request.0, request.1)
+            }
+            self.worker = nil
+        }
     }
 }

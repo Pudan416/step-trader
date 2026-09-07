@@ -71,12 +71,13 @@ final class DayObjectRenderFrameTests: XCTestCase {
     }
 
     @MainActor
-    func testPaletteDisplaySettlesToStaticAndCanvasResumesOnSameCoordinator() throws {
+    func testPaletteDisplaySettlesToStaticAndCanvasResumesOnSameCoordinator() async throws {
         let scene = editorialScene()
         let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.75)
         let coordinator = DayObjectsMetalView.Coordinator(
             scene: scene, environment: environment, digitalImpact: .none, soundPulseBus: nil
         )
+        await coordinator.prepareRenderer()
         let renderer = try XCTUnwrap(coordinator.renderer)
         let view = MTKView(frame: CGRect(x: 0, y: 0, width: 390, height: 844), device: renderer.device)
         view.delegate = renderer

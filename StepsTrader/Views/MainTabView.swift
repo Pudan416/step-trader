@@ -133,6 +133,12 @@ struct MainTabView: View {
 
     var body: some View {
         ZStack {
+            // Cover the window during lazy tab materialization and transitions.
+            // This lightweight palette is ready before any offscreen export.
+            TodayCanvasUnlockFill()
+                .overlay(Color.black.opacity(0.58))
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
             TabView(selection: selectionBinding) {
                 // 0: My Canvas (default) — canvas goes full-bleed behind card
                 Group {

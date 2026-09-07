@@ -57,6 +57,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
     }
 
     static func dismantleUIView(_ uiView: MTKView, coordinator: Coordinator) {
+        coordinator.cancelPreparation()
         coordinator.renderer?.setAnimating(false)
         uiView.isPaused = true
         uiView.delegate = nil
@@ -64,8 +65,15 @@ struct DayObjectsMetalView: UIViewRepresentable {
     }
 
     @MainActor final class Coordinator {
-        let renderer: DayObjectsRenderer?
+        private(set) var renderer: DayObjectsRenderer?
         weak var mtkView: MTKView?
+        private var preparation: Task<Void, Never>?
+        private var scene: DayObjectScene
+        private var environment: DayObjectEnvironment
+        private var digitalImpact: DayObjectDigitalImpact
+        private var soundPulseBus: DayObjectsSoundPulseBus?
+        private var presentationMode: DayObjectsPresentationMode
+        private var isAnimating = false
 
         init(
             scene: DayObjectScene,
@@ -74,13 +82,28 @@ struct DayObjectsMetalView: UIViewRepresentable {
             soundPulseBus: DayObjectsSoundPulseBus?,
             presentationMode: DayObjectsPresentationMode = .canvas
         ) {
+            self.scene = scene
+            self.environment = environment
+            self.digitalImpact = digitalImpact
+            self.soundPulseBus = soundPulseBus
+            self.presentationMode = presentationMode
+        }
+
+        func prepareRenderer() async {
+            guard renderer == nil else { return }
+            await Task.detached(priority: .userInitiated) {
+                DayObjectsRenderer.prepareResources()
+            }.value
+            guard !Task.isCancelled, renderer == nil else { return }
             renderer = DayObjectsRenderer.create(
-                scene: scene,
-                environment: environment,
-                digitalImpact: digitalImpact,
-                soundPulseBus: soundPulseBus,
-                presentationMode: presentationMode
+                scene: scene, environment: environment, digitalImpact: digitalImpact,
+                soundPulseBus: soundPulseBus, presentationMode: presentationMode
             )
+        }
+
+        func cancelPreparation() {
+            preparation?.cancel()
+            preparation = nil
         }
 
         func update(
@@ -92,10 +115,33 @@ struct DayObjectsMetalView: UIViewRepresentable {
             presentationMode: DayObjectsPresentationMode,
             isAnimating: Bool
         ) {
-            guard let renderer else {
+            self.scene = scene
+            self.environment = environment
+            self.digitalImpact = digitalImpact
+            self.soundPulseBus = soundPulseBus
+            self.presentationMode = presentationMode
+            self.isAnimating = isAnimating
+            mtkView = view
+            guard renderer != nil else {
                 view.isPaused = true
+                if preparation == nil {
+                    preparation = Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        await self.prepareRenderer()
+                        guard !Task.isCancelled else { return }
+                        self.preparation = nil
+                        self.applyCurrentState()
+                    }
+                }
                 return
             }
+            applyCurrentState()
+        }
+
+        private func applyCurrentState() {
+            guard let renderer, let view = mtkView else { return }
+            if view.device == nil { view.device = renderer.device }
+            view.delegate = renderer
             renderer.update(scene: scene, environment: environment, digitalImpact: digitalImpact,
                             soundPulseBus: soundPulseBus, presentationMode: presentationMode)
             renderer.setAnimating(isAnimating)

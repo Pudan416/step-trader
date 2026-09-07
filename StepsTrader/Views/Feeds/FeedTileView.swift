@@ -224,15 +224,17 @@ struct FeedRowView: View {
                 .fill(.ultraThinMaterial)
                 .overlay(Color.black.opacity(0.16))
 
-            TodayCanvasUnlockFill()
+            TodayCanvasUnlockFill(darkToLight: true)
                 .frame(width: max(0, fillWidth))
                 .frame(maxHeight: .infinity)
 
-            // Keep white text readable even when today's palette is all pastels.
-            // Uniform dimming preserves the light-to-dark order of the active fill.
+            // Shade only the text side, leaving the light end true to the canvas.
             Group {
                 if remainingMinutes != nil {
-                    Color.black.opacity(0.62)
+                    LinearGradient(
+                        colors: [.black.opacity(0.42), .black.opacity(0.18), .clear],
+                        startPoint: .leading, endPoint: .trailing
+                    )
                 } else {
                     LinearGradient(
                         stops: [

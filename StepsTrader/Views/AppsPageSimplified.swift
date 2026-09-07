@@ -123,7 +123,7 @@ struct AppsPageSimplified: View {
                 .zIndex(0)
 
             }
-            .todayCanvasBackground()
+            .todayCanvasBackground(matchesCanvas: true)
             .background(Color.clear)
             .safeAreaInset(edge: .top, spacing: 0) {
                 Color.clear.frame(height: topCardHeight)

@@ -936,16 +936,26 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         super.init()
     }
 
-    static func create(
-        scene: DayObjectScene,
-        environment: DayObjectEnvironment,
-        digitalImpact: DayObjectDigitalImpact = .none,
-        soundPulseBus: DayObjectsSoundPulseBus? = nil,
-        presentationMode: DayObjectsPresentationMode = .canvas,
-        clock: DayObjectsClock = DayObjectsClock()
-    ) -> DayObjectsRenderer? {
+    private struct SharedResources {
+        let device: MTLDevice
+        let meshGradientPipeline: MTLRenderPipelineState
+        let sceneUpscalePipeline: MTLRenderPipelineState
+        let actorPipeline: MTLRenderPipelineState
+        let horizontalBlurPipeline: MTLRenderPipelineState
+        let verticalBlurPipeline: MTLRenderPipelineState
+        let displayPipeline: MTLRenderPipelineState
+        let linearSampler: MTLSamplerState
+        let quadBuffer: MTLBuffer
+    }
+
+    // Swift initializes static let exactly once, including concurrent exports.
+    // Mutable frame buffers, command queues and clocks remain per renderer.
+    private static let sharedResources: SharedResources? = makeSharedResources()
+
+    static func prepareResources() { _ = sharedResources }
+
+    private static func makeSharedResources() -> SharedResources? {
         guard let device = MTLCreateSystemDefaultDevice(),
-              let commandQueue = device.makeCommandQueue(),
               let library = device.makeDefaultLibrary(),
               let fullscreenVertex = library.makeFunction(name: "dayObjectsFullscreenVertex"),
               let meshGradientFragment = library.makeFunction(name: "dayObjectsMeshGradientFragment"),
@@ -1028,21 +1038,9 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             guard let baseAddress = bytes.baseAddress else { return nil }
             return device.makeBuffer(bytes: baseAddress, length: bytes.count, options: .storageModeShared)
         }
-        guard let quadBuffer,
-              let actorBufferRing = DayObjectsActorBufferRing(
-                  device: device,
-                  slotCount: 3,
-                  actorCapacity: actorCapacity
-              )
-        else {
-            AppLogger.ui.error("[DAY_OBJECTS] Buffer allocation failed; using static fallback")
-            return nil
-        }
+        guard let quadBuffer else { return nil }
         quadBuffer.label = "Day Objects immutable quad"
-
-        return DayObjectsRenderer(
-            device: device,
-            commandQueue: commandQueue,
+        return SharedResources(device: device,
             meshGradientPipeline: meshGradientPipeline,
             sceneUpscalePipeline: sceneUpscalePipeline,
             actorPipeline: actorPipeline,
@@ -1050,7 +1048,33 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             verticalBlurPipeline: verticalBlurPipeline,
             displayPipeline: displayPipeline,
             linearSampler: linearSampler,
-            quadBuffer: quadBuffer,
+            quadBuffer: quadBuffer)
+    }
+
+    static func create(
+        scene: DayObjectScene,
+        environment: DayObjectEnvironment,
+        digitalImpact: DayObjectDigitalImpact = .none,
+        soundPulseBus: DayObjectsSoundPulseBus? = nil,
+        presentationMode: DayObjectsPresentationMode = .canvas,
+        clock: DayObjectsClock = DayObjectsClock()
+    ) -> DayObjectsRenderer? {
+        guard let resources = sharedResources,
+              let commandQueue = resources.device.makeCommandQueue(),
+              let actorBufferRing = DayObjectsActorBufferRing(
+                  device: resources.device, slotCount: 3, actorCapacity: actorCapacity
+              ) else { return nil }
+        return DayObjectsRenderer(
+            device: resources.device,
+            commandQueue: commandQueue,
+            meshGradientPipeline: resources.meshGradientPipeline,
+            sceneUpscalePipeline: resources.sceneUpscalePipeline,
+            actorPipeline: resources.actorPipeline,
+            horizontalBlurPipeline: resources.horizontalBlurPipeline,
+            verticalBlurPipeline: resources.verticalBlurPipeline,
+            displayPipeline: resources.displayPipeline,
+            linearSampler: resources.linearSampler,
+            quadBuffer: resources.quadBuffer,
             actorBufferRing: actorBufferRing,
             clock: clock,
             scene: scene,

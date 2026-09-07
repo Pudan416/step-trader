@@ -159,6 +159,7 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
     private(set) var isActive = true
 
     var needsSnapshot: Bool { !isBaseInitialized_ }
+    var onEffectSettled: (() -> Void)?
 
     // ── Tuning constants ────────────────────────────────────────────
     private let relaxationTimeout: CFTimeInterval = 4.0
@@ -296,7 +297,7 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
             pixelFormat: .r32Float,
             width: width, height: height, mipmapped: false
         )
-        desc.usage       = [.shaderRead, .shaderWrite]
+        desc.usage       = [.shaderRead, .shaderWrite, .renderTarget]
         desc.storageMode = .shared
         return device.makeTexture(descriptor: desc)
     }
@@ -324,6 +325,8 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
         let width  = cgImage.width
         let height = cgImage.height
         ensureTextures(width: width, height: height)
+        // Never overwrite a shared resource that an earlier GPU frame can read.
+        baseTexture = makeSharedTexture(width: width, height: height)
         guard let base = baseTexture else { return }
 
         let bpp = 4
@@ -377,24 +380,20 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
                   destinationOrigin: origin)
 
         blit.endEncoding()
+        // Reset ages on the same queue, ordered before subsequent effect frames.
+        // No CPU/GPU rendezvous in the UI input path.
+        for texture in [ageA, ageB].compactMap({ $0 }) {
+            let pass = MTLRenderPassDescriptor()
+            pass.colorAttachments[0].texture = texture
+            pass.colorAttachments[0].loadAction = .clear
+            pass.colorAttachments[0].storeAction = .store
+            pass.colorAttachments[0].clearColor = MTLClearColorMake(99, 0, 0, 0)
+            cb.makeRenderCommandEncoder(descriptor: pass)?.endEncoding()
+        }
         cb.commit()
-        cb.waitUntilCompleted()
-
-        initializeAgeTextures()
 
         useA = true
         isBaseInitialized_ = true
-    }
-
-    private func initializeAgeTextures() {
-        guard let a = ageA, let b = ageB else { return }
-        let w = textureWidth
-        let h = textureHeight
-        let bytesPerRow = w * MemoryLayout<Float>.size
-        var data = [Float](repeating: 99.0, count: w * h)
-        let region = MTLRegionMake2D(0, 0, w, h)
-        a.replace(region: region, mipmapLevel: 0, withBytes: &data, bytesPerRow: bytesPerRow)
-        b.replace(region: region, mipmapLevel: 0, withBytes: &data, bytesPerRow: bytesPerRow)
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -489,6 +488,7 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
     }
 
     func invalidateBaseSnapshot() {
+        cancelActiveInteraction()
         isBaseInitialized_ = false
         isDistorted = false
         activeRipples.removeAll()
@@ -605,6 +605,7 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
                 activeRipples.removeAll()
                 activeTouches.removeAll()
                 view.isPaused = true
+                onEffectSettled?()
                 if let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: rpd) {
                     encoder.endEncoding()
                 }
@@ -624,7 +625,7 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
     // MARK: - Compute Passes
     // ════════════════════════════════════════════════════════════════
 
-    private func applySmudge(_ stroke: StrokeSegment, commandBuffer: MTLCommandBuffer) {
+    func applySmudge(_ stroke: StrokeSegment, commandBuffer: MTLCommandBuffer) {
         guard let input   = currentInteractive,
               let output  = otherInteractive,
               let ageIn   = currentAge,
@@ -635,19 +636,7 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
         let minY = max(0, Int(floor(min(stroke.p0.y, stroke.p1.y) - stroke.radius)))
         let maxX = min(textureWidth, Int(ceil(max(stroke.p0.x, stroke.p1.x) + stroke.radius)) + 1)
         let maxY = min(textureHeight, Int(ceil(max(stroke.p0.y, stroke.p1.y) + stroke.radius)) + 1)
-        guard maxX > minX, maxY > minY,
-              let blit = commandBuffer.makeBlitCommandEncoder() else { return }
-        // Ping-pong targets can contain an older stroke. Preserve unchanged
-        // pixels with a GPU copy, then run the brush math only in its bounds.
-        let origin = MTLOrigin(x: 0, y: 0, z: 0)
-        let size = MTLSize(width: textureWidth, height: textureHeight, depth: 1)
-        blit.copy(from: input, sourceSlice: 0, sourceLevel: 0,
-                  sourceOrigin: origin, sourceSize: size,
-                  to: output, destinationSlice: 0, destinationLevel: 0, destinationOrigin: origin)
-        blit.copy(from: ageIn, sourceSlice: 0, sourceLevel: 0,
-                  sourceOrigin: origin, sourceSize: size,
-                  to: ageOut, destinationSlice: 0, destinationLevel: 0, destinationOrigin: origin)
-        blit.endEncoding()
+        guard maxX > minX, maxY > minY else { return }
         guard let encoder = commandBuffer.makeComputeCommandEncoder() else { return }
         encoder.setComputePipelineState(smudgePipeline)
 
@@ -673,7 +662,18 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
         )
         encoder.endEncoding()
 
-        useA.toggle()
+        // The output is scratch storage. Publish only the region just computed
+        // back to the source; both colors and ages outside it stay untouched.
+        guard let blit = commandBuffer.makeBlitCommandEncoder() else { return }
+        let origin = MTLOrigin(x: minX, y: minY, z: 0)
+        let size = MTLSize(width: maxX - minX, height: maxY - minY, depth: 1)
+        blit.copy(from: output, sourceSlice: 0, sourceLevel: 0,
+                  sourceOrigin: origin, sourceSize: size,
+                  to: input, destinationSlice: 0, destinationLevel: 0, destinationOrigin: origin)
+        blit.copy(from: ageOut, sourceSlice: 0, sourceLevel: 0,
+                  sourceOrigin: origin, sourceSize: size,
+                  to: ageIn, destinationSlice: 0, destinationLevel: 0, destinationOrigin: origin)
+        blit.endEncoding()
     }
 
     private func applyRelaxDiffuse(dt: Float, commandBuffer: MTLCommandBuffer) {

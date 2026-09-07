@@ -55,6 +55,25 @@ final class SettingsRedesignUITests: XCTestCase {
         XCTAssertTrue(String(describing: app.otherElements["settings.yourDay.steps.adjustable"].value).contains("12,345"))
     }
 
+    func testLiveCanvasSurvivesRepeatedTabSwitches() {
+        let app = launchSettings()
+        openSettingsDestination("settings.destination.appearance", in: app)
+        app.buttons["settings.appearance.style.editorial"].tap()
+        let apply = app.buttons["settings.appearance.apply"]
+        if apply.isEnabled { apply.tap() }
+        else { app.navigationBars.buttons.element(boundBy: 0).tap() }
+        app.buttons["settings.close"].tap()
+        for index in 0..<3 {
+            app.buttons["tab_feeds"].tap()
+            app.buttons["tab_me"].tap()
+            XCTAssertTrue(app.descendants(matching: .any)["me_poster_carousel"].waitForExistence(timeout: 3))
+            capture(app, name: "Live Me return \(index)")
+            app.buttons["tab_canvas"].tap()
+            XCTAssertTrue(app.otherElements["dayObjects.canvas"].firstMatch.waitForExistence(timeout: 3))
+            capture(app, name: "Live Canvas return \(index)")
+        }
+    }
+
     func testDailyCanvasAcrossTabsAndSettings() {
         let app = launchSettings(extraArguments: ["ui-testing-me-static-poster"])
         for style in ["legacy", "editorial"] {

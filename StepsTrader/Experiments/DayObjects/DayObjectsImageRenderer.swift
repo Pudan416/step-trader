@@ -9,6 +9,10 @@ enum DayObjectsImageRenderer {
         scale: CGFloat,
         elapsedTime: TimeInterval
     ) async -> UIImage? {
+        await Task.detached(priority: .utility) {
+            DayObjectsRenderer.prepareResources()
+        }.value
+        guard !Task.isCancelled else { return nil }
         let scene = DayObjectScene.make(input: input.sceneInput)
         let environment = DayObjectEnvironment(
             motionEnergy: input.sceneInput.motionEnergy,
