@@ -121,13 +121,17 @@ private enum CommandError: Error, CustomStringConvertible {
     case noPCMFiles(String)
     case fileTooLarge(String)
     case missingStem(String)
+    case stemsRequireSingleMix(String)
+    case inputIsStem(String)
 
     var description: String {
         switch self {
         case let .usage(message),
              let .noPCMFiles(message),
              let .fileTooLarge(message),
-             let .missingStem(message): message
+             let .missingStem(message),
+             let .stemsRequireSingleMix(message),
+             let .inputIsStem(message): message
         }
     }
 }
@@ -136,7 +140,7 @@ private func parseArguments() throws -> (URL, URL?, URL?, Limits) {
     var limits = Limits()
     var outputURL: URL?
     var stemsDirectoryURL: URL?
-    var inputURL: URL?
+    var inputURLs: [URL] = []
     var index = 1
     let arguments = CommandLine.arguments
     func value(after option: String) throws -> String {
@@ -171,21 +175,29 @@ private func parseArguments() throws -> (URL, URL?, URL?, Limits) {
             throw CommandError.usage(
                 "Usage: analyze_day_objects_mix.swift [--min-lufs -18] [--max-lufs -16] "
                     + "[--max-dbtp -1] [--stems-directory directory] "
-                    + "[--output report.json] <PCM file or directory>"
+                    + "[--output report.json] <PCM file (or directory without stems)>"
             )
         default:
-            guard !arguments[index].hasPrefix("-"), inputURL == nil else {
+            guard !arguments[index].hasPrefix("-") else {
                 throw CommandError.usage("Unexpected argument: \(arguments[index])")
             }
-            inputURL = URL(fileURLWithPath: arguments[index])
+            inputURLs.append(URL(fileURLWithPath: arguments[index]))
         }
         index += 1
     }
     guard limits.minimumIntegratedLUFS <= limits.maximumIntegratedLUFS else {
         throw CommandError.usage("Minimum LUFS must not exceed maximum LUFS")
     }
-    guard let inputURL else {
+    if stemsDirectoryURL != nil, inputURLs.count != 1 {
+        throw CommandError.stemsRequireSingleMix(
+            "--stems-directory requires exactly one full-mix file"
+        )
+    }
+    guard let inputURL = inputURLs.first else {
         throw CommandError.usage("A PCM file or directory is required; use --help for usage")
+    }
+    guard inputURLs.count == 1 else {
+        throw CommandError.usage("Unexpected argument: \(inputURLs[1].path)")
     }
     return (inputURL, outputURL, stemsDirectoryURL, limits)
 }
@@ -216,6 +228,32 @@ private func pcmFiles(at inputURL: URL) throws -> [URL] {
         throw CommandError.noPCMFiles("No PCM files found under: \(inputURL.path)")
     }
     return files
+}
+
+private func validateStemAnalysisInput(
+    _ inputURL: URL,
+    stemsDirectory: URL?
+) throws {
+    guard let stemsDirectory else { return }
+    var isDirectory: ObjCBool = false
+    if FileManager.default.fileExists(atPath: inputURL.path, isDirectory: &isDirectory),
+       isDirectory.boolValue {
+        throw CommandError.stemsRequireSingleMix(
+            "--stems-directory requires exactly one full-mix file; directories are not supported"
+        )
+    }
+    let resolvedInput = inputURL.standardizedFileURL.resolvingSymlinksInPath()
+    for role in DayObjectsMixRole.allCases {
+        let stem = stemsDirectory
+            .appendingPathComponent("\(role.rawValue).wav")
+            .standardizedFileURL
+            .resolvingSymlinksInPath()
+        if resolvedInput == stem {
+            throw CommandError.inputIsStem(
+                "Full-mix input must not be a stem path: \(inputURL.path)"
+            )
+        }
+    }
 }
 
 private func readPCMBuffer(_ url: URL) throws -> AVAudioPCMBuffer {
@@ -274,12 +312,13 @@ private func analyze(
 
 do {
     let (inputURL, outputURL, stemsDirectoryURL, limits) = try parseArguments()
+    try validateStemAnalysisInput(inputURL, stemsDirectory: stemsDirectoryURL)
     let stems = try readStems(at: stemsDirectoryURL)
     let reports = try pcmFiles(at: inputURL).map {
         try analyze($0, stems: stems, limits: limits)
     }
     let report = CommandReport(
-        schemaVersion: 2,
+        schemaVersion: 3,
         analyzer: "ITU-R BS.1770 loudness/4x true peak; deterministic 4096-point FFT mix quality",
         limits: limits,
         files: reports,

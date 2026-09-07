@@ -13,10 +13,15 @@ enum DayObjectsMixIssue: String, Codable, CaseIterable, Sendable {
     case silence
     case integratedLoudness
     case truePeak
+    case clipping
     case dcOffset
     case excessiveBrightness
+    case excessiveTransientDensity
     case inaudibleStem
     case kickBassMasking
+    case harmonyLeadMasking
+    case happeningsLeadMasking
+    case excessiveReverbTail
 }
 
 struct DayObjectsMixSuggestion: Codable, Equatable, Sendable {
@@ -51,6 +56,11 @@ struct DayObjectsMixQualityReport: Codable, Equatable, Sendable {
     let highBandEnergyRatio: Double
     let layerAudibilityDB: [String: Double]
     let kickBassLowBandCorrelation: Double
+    let clippedSampleRatio: Double
+    let transientDensityPerSecond: Double
+    let harmonyLeadMaskingScore: Double
+    let happeningsLeadMaskingScore: Double
+    let reverbTailEnergyRatio: Double
     let issues: [DayObjectsMixIssue]
     let suggestions: [DayObjectsMixSuggestion]
 
