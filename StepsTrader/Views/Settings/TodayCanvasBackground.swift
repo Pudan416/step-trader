@@ -132,6 +132,9 @@ struct TodayCanvasUnlockFill: View {
 final class TodayCanvasBackdropStore: ObservableObject {
     static let shared = TodayCanvasBackdropStore()
     @Published private(set) var unlockPalette = TodayCanvasUnlockPalette.make(appearance: .initial)
+    /// Feeds uses the day's original pigment, before snapshot lighting and haze.
+    /// Keep the sampled palette for existing backgrounds and resource surfaces.
+    @Published private(set) var feedPalette = TodayCanvasUnlockPalette.make(appearance: .initial)
     @Published private(set) var image: UIImage?
     @Published private(set) var dayKey: String?
     private var sourceData: Data?
@@ -175,6 +178,7 @@ final class TodayCanvasBackdropStore: ObservableObject {
             sourceData = source.flatMap { try? encoder.encode($0) }
         }
         let nextPalette = TodayCanvasUnlockPalette.make(appearance: appearance)
+        if feedPalette != nextPalette { feedPalette = nextPalette }
         if image == nil, unlockPalette != nextPalette { unlockPalette = nextPalette }
         requested = Request(appearance: appearance, sourceData: sourceData)
         guard requested != completed, worker == nil else { return }

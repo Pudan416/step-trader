@@ -331,6 +331,9 @@
     "%lld hours" : {
 
     },
+    "%lld min" : {
+      "comment" : "Compact feed duration in minutes"
+    },
     "%lld min left" : {
       "comment" : "Active feed row status"
     },
@@ -1375,6 +1378,9 @@
     },
     "Open %@" : {
       "comment" : "Feeds surface – open the unlocked app\nHandoff – open button accessibility"
+    },
+    "Open for a little while" : {
+      "comment" : "Gentle prompt above a feed's inline duration choices"
     },
     "Open Settings" : {
       "comment" : "Permission recovery action"

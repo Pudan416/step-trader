@@ -13,6 +13,36 @@ final class TodayCanvasBackgroundTests: XCTestCase {
         )
     }
 
+    func testFeedPigmentKeepsSourcePaletteAfterWashedOutSnapshotAndPreferenceChange() async throws {
+        let washedOut = UIGraphicsImageRenderer(size: CGSize(width: 12, height: 12)).image { ctx in
+            UIColor.lightGray.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 12, height: 12))
+        }
+        let firstRendered = expectation(description: "first snapshot published")
+        let secondRendered = expectation(description: "updated snapshot published")
+        let store = TodayCanvasBackdropStore(debounce: .zero, load: { _ in nil }, render: { _, _ in washedOut })
+        var publishedCount = 0
+        let subscription = store.$image.compactMap { $0 }.sink { _ in
+            publishedCount += 1
+            if publishedCount == 1 { firstRendered.fulfill() }
+            if publishedCount == 2 { secondRendered.fulfill() }
+        }
+        var input = appearance()
+        input.style = CanvasVisualStyle.legacy.rawValue
+        input.palette = GradientPalette.ocean.rawValue
+        store.refresh(input)
+        await fulfillment(of: [firstRendered], timeout: 3)
+        XCTAssertEqual(store.feedPalette.colors.first?.sRGB.x ?? -1, Float(0x7F) / 255, accuracy: 0.001)
+        XCTAssertEqual(store.feedPalette.colors.last?.sRGB.z ?? -1, Float(0x33) / 255, accuracy: 0.001)
+        XCTAssertNotEqual(store.feedPalette, store.unlockPalette, "Rendered haze must not replace the pigment used in Feeds")
+        let ocean = store.feedPalette
+        input.palette = GradientPalette.aurora.rawValue
+        store.refresh(input)
+        XCTAssertNotEqual(store.feedPalette, ocean, "A preference change must reach Feeds even while a snapshot already exists")
+        await fulfillment(of: [secondRendered], timeout: 3)
+        withExtendedLifetime(subscription) {}
+    }
+
     func testCurrentPreferencesAndMetricsApplyWithoutRewritingSavedCanvas() {
         var saved = DayCanvas(dayKey: "2026-09-07")
         saved.visualStyleRaw = CanvasVisualStyle.legacy.rawValue

@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import Steps4
 
 final class FeedRowModelTests: XCTestCase {
@@ -221,8 +222,8 @@ final class FeedCardLayoutTests: XCTestCase {
         XCTAssertGreaterThan(expanded - collapsed, 44)
     }
 
-    func testUnlockCostReadsAsAPriceOnTheOppositeSide() {
-        XCTAssertEqual(FeedCardLayout.priceLabel(cost: 30), "− 30")
+    func testUnlockCostUsesUnsignedAmountBesideCurrencySymbol() {
+        XCTAssertEqual(FeedCardLayout.priceLabel(cost: 30), "30")
     }
 
     func testCircularFeedControlsShareTheMinimumTouchTarget() {
@@ -231,5 +232,116 @@ final class FeedCardLayoutTests: XCTestCase {
             FeedCardLayout.optionsControlDiameter
         )
         XCTAssertGreaterThanOrEqual(FeedCardLayout.addControlDiameter, 44)
+    }
+}
+
+@MainActor
+final class FeedPigmentTests: XCTestCase {
+    func testMenuInkFollowsPigmentAtEachDotBeforeFullWidthIsUnlocked() {
+        let palette = TodayCanvasUnlockPalette(colors: [DayObjectRGB(hex: "#FFFFFF"), DayObjectRGB(hex: "#111111")])
+        XCTAssertTrue(FeedPigment.menuUsesDarkInk(palette: palette, fraction: 28.0 / 30, position: 0.90))
+        XCTAssertFalse(FeedPigment.menuUsesDarkInk(palette: palette, fraction: 0.85, position: 0.90))
+        XCTAssertTrue(FeedPigment.menuUsesDarkInk(palette: palette, fraction: 0.91, position: 0.88))
+        XCTAssertFalse(FeedPigment.menuUsesDarkInk(palette: palette, fraction: 0.91, position: 0.926))
+    }
+
+    func testRenderFeedStatesForVisualReview() async throws {
+        let model = AppModel(healthKitService: MockHealthKitService(), familyControlsService: MockFamilyControlsService(),
+                             notificationService: MockNotificationService(), budgetEngine: MockBudgetEngine(),
+                             subscriptionStore: SubscriptionStore())
+        model.stepsBalance = 48
+        model.bonusSteps = 0
+        let store = TodayCanvasBackdropStore(load: { _ in nil }, render: { _, _ in nil })
+        let appearance = TodayCanvasAppearance(dayKey: "2026-09-07", steps: 15, sleep: 12, earned: 62, spent: 14,
+            hasSteps: true, hasSleep: true, style: CanvasVisualStyle.editorial.rawValue,
+            gradient: GradientStyle.radial.rawValue, palette: GradientPalette.warmSunset.rawValue,
+            texture: CanvasTexture.grainSmall.rawValue, categories: "")
+        store.refresh(appearance)
+        for (width, textSize, label) in [(390.0, DynamicTypeSize.large, "standard"),
+                                        (320.0, .xxxLarge, "narrow-large"),
+                                        (320.0, .accessibility3, "accessibility") ] {
+            let content = VStack(spacing: 12) {
+                row("Instagram", state: .active(remainingMinutes: 10, fillFraction: 1), model: model, backdrop: store)
+                row("YouTube", state: .active(remainingMinutes: 22, fillFraction: 22.0 / 30), model: model, backdrop: store)
+                row("TikTok", state: .locked, model: model, backdrop: store)
+            }
+            .padding(20)
+            .frame(width: width)
+            .background(LinearGradient(colors: [Color(red: 0.55, green: 0.35, blue: 0.37), Color(red: 0.85, green: 0.55, blue: 0.45)],
+                                       startPoint: .topLeading, endPoint: .bottomTrailing))
+            .environment(\.dynamicTypeSize, textSize)
+            .environment(\.appTheme, .night)
+            .preferredColorScheme(.dark)
+            let host = UIHostingController(rootView: content)
+            host.safeAreaRegions = []
+            let size = host.sizeThatFits(in: CGSize(width: width, height: 4000))
+            let window = UIWindow(frame: CGRect(origin: .zero, size: size))
+            window.rootViewController = host
+            window.makeKeyAndVisible()
+            defer { window.isHidden = true }
+            host.view.frame = window.bounds
+            host.view.layoutIfNeeded()
+            try await Task.sleep(for: .milliseconds(100))
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 2
+            let image = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+                host.view.drawHierarchy(in: host.view.bounds, afterScreenUpdates: true)
+            }
+            XCTAssertEqual(image.size.width, width)
+            let attachment = XCTAttachment(image: image)
+            attachment.name = "feeds-soft-\(label)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+    }
+
+    private func row(_ name: String, state: FeedRowAccessState, model: AppModel, backdrop: TodayCanvasBackdropStore) -> some View {
+        FeedRowView(model: model,
+                    group: TicketGroup(id: name, name: name, settings: .init(entryCostSteps: 10, dayPassCostSteps: 100)),
+                    accessState: state, canOpen: true, showsUnlockOptions: state == .locked,
+                    onTap: {}, onSettings: {}, onDelete: {}, onPurchased: {}, backdrop: backdrop)
+    }
+
+    func testProgressClipsColorInPlaceAndDoesNotRevealBackdropThroughPigment() throws {
+        let palette = TodayCanvasUnlockPalette(colors: [DayObjectRGB(hex: "#F78870"), DayObjectRGB(hex: "#34245E")])
+        func image(_ fraction: Double, _ background: Color) throws -> CGImage {
+            let renderer = ImageRenderer(content: FeedProgressFill(palette: palette, fraction: fraction)
+                .frame(width: 300, height: 80).background(background))
+            renderer.scale = 1
+            return try XCTUnwrap(renderer.cgImage)
+        }
+        let full = try image(1, .black)
+        let partial = try image(0.6, .black)
+        let onWhite = try image(1, .white)
+        for x in [12, 80, 140] {
+            XCTAssertEqual(pixel(full, x: x), pixel(partial, x: x), "Spending time must crop, not squeeze, the same daily gradient")
+            XCTAssertEqual(pixel(full, x: x), pixel(onWhite, x: x), "The canvas behind the card must not wash out its fill")
+        }
+        XCTAssertEqual(pixel(partial, x: 220), [0, 0, 0, 255])
+        XCTAssertNotEqual(pixel(full, x: 220), pixel(partial, x: 220))
+    }
+
+    func testAllDailyPalettesKeepWhiteLabelsReadableWithoutNeutralizingHue() {
+        for palette in ModernPaletteCatalog.all {
+            let source = TodayCanvasUnlockPalette(colors: palette.hexes.map { DayObjectRGB(hex: $0) })
+            let stops = FeedPigment.stops(for: source)
+            for stop in stops where stop.location <= FeedPigment.textEdge {
+                XCTAssertGreaterThanOrEqual(contrastRatio(stop.color.linearRGB, SIMD3(repeating: 1)), 5.5, palette.code)
+            }
+            let brightest = source.colors.max { $0.perceptualOKLab.x < $1.perceptualOKLab.x }
+            XCTAssertEqual(stops.last?.color, brightest, "The bright edge keeps the actual day's color")
+        }
+    }
+
+    private func pixel(_ image: CGImage, x: Int) -> [UInt8] {
+        var bytes = [UInt8](repeating: 0, count: 4)
+        bytes.withUnsafeMutableBytes { storage in
+            let context = CGContext(data: storage.baseAddress, width: 1, height: 1, bitsPerComponent: 8,
+                                    bytesPerRow: 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+            context.translateBy(x: -CGFloat(x), y: -40)
+            context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        }
+        return bytes
     }
 }
