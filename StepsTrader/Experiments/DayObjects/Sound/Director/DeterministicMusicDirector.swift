@@ -46,6 +46,8 @@ enum DeterministicMusicDirector {
         let normalizedInput = input.normalized()
         let arrangement = DayObjectsArrangementProfile.for(world: soundWorld, mood: mood)
         let group = catalog?.groups.first { $0.world == soundWorld && $0.mood == mood }
+        let calibration = group?.calibration
+        let reverbScale = calibration?.reverbSendScale ?? 1
         func runtimeIDs(_ ids: [DayObjectsInstrumentID]?) -> [DayObjectsInstrumentID]? {
             guard let ids, let catalog else { return nil }
             return catalog.recipes.filter { ids.contains($0.id) }.map { $0.resolvedInstrumentID(for: mood) }
@@ -55,17 +57,17 @@ enum DeterministicMusicDirector {
         let bass = BassPlanner.makePlan(
             input: normalizedInput, tonalWorld: world, groove: groove,
             instrumentDescriptors: instrumentDescriptors, remixSeed: remixSeed, soundWorld: soundWorld,
-            recipeIDs: runtimeIDs(group?.bassRecipeIDs)
+            recipeIDs: runtimeIDs(group?.bassRecipeIDs), reverbSendScale: reverbScale
         )
         if groove.usesBass && bass == nil { groove = .percussion }
         let rhythm = RhythmPlanner.makePlan(
             input: normalizedInput, remixSeed: remixSeed, groove: groove,
-            kitID: group?.drumKitID ?? "legacy", arrangement: arrangement
+            kitID: group?.drumKitID ?? "legacy", arrangement: arrangement, reverbSendScale: reverbScale
         )
         let harmony = HarmonyPlanner.makePlan(
             input: normalizedInput, tonalWorld: world, instrumentDescriptors: instrumentDescriptors,
             remixSeed: remixSeed, soundWorld: soundWorld, mood: mood,
-            recipeIDs: runtimeIDs(group?.harmonyRecipeIDs), arrangement: arrangement
+            recipeIDs: runtimeIDs(group?.harmonyRecipeIDs), arrangement: arrangement, reverbSendScale: reverbScale
         )
         let happenings = HappeningMusicPlanner.makePlans(
             input: normalizedInput, tonalWorld: world, remixSeed: remixSeed, soundWorld: soundWorld,
@@ -91,7 +93,7 @@ enum DeterministicMusicDirector {
         }
         guard let lead = LeadPlanner.makePlan(
             tonalWorld: world, instrumentDescriptors: instrumentDescriptors, remixSeed: remixSeed,
-            soundWorld: soundWorld, recipeIDs: leadRecipeIDs, arrangement: arrangement
+            soundWorld: soundWorld, recipeIDs: leadRecipeIDs, arrangement: arrangement, reverbSendScale: reverbScale
         ) else {
             preconditionFailure("The checked-in instrument manifest must contain an approved Lead")
         }
@@ -100,7 +102,8 @@ enum DeterministicMusicDirector {
             guestInstrumentIDs: guestInstrumentIDs, input: normalizedInput, world: world,
             rhythm: rhythm, groove: groove, bass: bass, harmony: harmony, happenings: happenings, lead: lead,
             glitch: GlitchPlanner.makePlan(input: normalizedInput, remixSeed: remixSeed),
-            mix: LayerMixPlanner.makePlan(happeningCount: happenings.count, soundWorld: soundWorld, arrangement: arrangement)
+            mix: LayerMixPlanner.makePlan(happeningCount: happenings.count, soundWorld: soundWorld,
+                                          arrangement: arrangement, worldGroupCalibration: calibration)
         )
     }
 

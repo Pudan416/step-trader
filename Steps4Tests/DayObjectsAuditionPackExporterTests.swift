@@ -41,6 +41,9 @@ final class DayObjectsAuditionPackExporterTests: XCTestCase {
         XCTAssertEqual(Set(result.entries.map { "\($0.world.rawValue)/\($0.mood.rawValue)" }).count, 12)
         XCTAssertEqual(result.entries.map(\.publicNumber), Array(1...12))
         for entry in result.entries {
+            let calibration = try XCTUnwrap(calls[(entry.publicNumber - 1) * 6].0.mix.worldGroupCalibration)
+            XCTAssertEqual(entry.masterMakeupDB, calibration.masterMakeupDB)
+            XCTAssertEqual(entry.reverbSendScale, calibration.reverbSendScale)
             XCTAssertEqual(entry.mixPath, String(format: "preview-%02d.wav", entry.publicNumber))
             XCTAssertEqual(Set(entry.stemPaths.keys), Set(["rhythm", "bass", "harmony", "happenings", "lead"]))
             XCTAssertFalse(entry.instrumentRecipeIDs.isEmpty)

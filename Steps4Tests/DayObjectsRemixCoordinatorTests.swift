@@ -1179,6 +1179,10 @@ private final class RecordingRemixHappeningPool: DayObjectsHappeningSamplePoolPr
     func applyEffects(_ command: HappeningEffectCommand, rampSeconds: Double) {}
 
     func update(_ handle: HappeningPlaybackHandle, gain: Double, playbackRate: Double) {}
+    func updateReverbSend(_ handle: HappeningPlaybackHandle, sendLevel: Double, rampSeconds: Double) {
+        guard let voice = active[handle.voiceID], voice.handle == handle else { return }
+        active[handle.voiceID] = .init(handle: handle, effects: voice.effects.withReverbSend(sendLevel))
+    }
 
     func stop(_ handle: HappeningPlaybackHandle) {
         guard active[handle.voiceID]?.handle == handle else { return }

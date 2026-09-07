@@ -3,6 +3,26 @@ import XCTest
 @testable import Steps4
 
 final class DayMusicPlanDifferTests: XCTestCase {
+    func testWorldGroupCalibrationChangesAreContinuousIncludingWithHappeningAddition() {
+        let old = makePlan(happeningIDs: ["one", "two"])
+        var mix = old.mix
+        mix.worldGroupCalibration = .init(masterMakeupDB: 5, reverbSendScale: 0.5)
+        let updated = replacing(old, mix: mix)
+        let change = DayMusicPlanDiffer.change(from: old, to: updated)
+        XCTAssertEqual(change.continuousPlan, updated)
+        XCTAssertNil(change.structuralPlan)
+        XCTAssertTrue(change.addedHappenings.isEmpty)
+        XCTAssertTrue(change.removedHappeningIDs.isEmpty)
+        let added = makePlan(happeningIDs: ["one", "two", "three"])
+        var addedMix = added.mix
+        addedMix.worldGroupCalibration = mix.worldGroupCalibration
+        let withAddition = replacing(added, mix: addedMix)
+        let combined = DayMusicPlanDiffer.change(from: old, to: withAddition)
+        XCTAssertEqual(combined.continuousPlan, withAddition)
+        XCTAssertNil(combined.structuralPlan)
+        XCTAssertEqual(combined.addedHappenings.map(\.happeningID), ["three"])
+    }
+
     func testKitOnlyChangeIsStructural() {
         let old = makePlan()
         let new = replacing(old, rhythm: rhythm(old.rhythm, kitID: "acoustic.skin-and-wood"))

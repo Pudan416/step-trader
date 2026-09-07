@@ -1400,6 +1400,46 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(runtime.activeBassSchedulingOriginForTesting, 128)
     }
 
+    func testWorldGroupCalibrationReachesLiveMixContinuousUpdatesAndDiagnosticIsolation() throws {
+        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let plan = DeterministicMusicDirector.makePlan(
+            input: .init(countedSteps: 7_500, stepGoal: 10_000, countedSleepHours: 6.5,
+                         sleepGoalHours: 8, happeningIDs: ["one", "two"], spentColors: 25),
+            remixSeed: 99, soundWorld: .livingField, mood: .strange)
+        try runtime.prepare(plan: plan)
+        let calibration = try XCTUnwrap(plan.mix.worldGroupCalibration)
+        let state = try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state)
+        let groove = DayObjectsPlanAwareGainCalibration.make(grooveMode: plan.groove.mode, stepsActivityDensity: plan.rhythm.stepsProgress)
+        XCTAssertEqual(state.worldGroupCalibration, calibration)
+        XCTAssertEqual(state.masterTargetDecibelsBeforeLimiter, -9 + calibration.masterMakeupDB, accuracy: 1e-12)
+        XCTAssertEqual(state.buses.rhythm.sendLevel, 0.08 * calibration.reverbSendScale * pow(10, groove.rhythmAdjustmentDecibels / 20), accuracy: 1e-12)
+        XCTAssertEqual(state.buses.harmony.sendLevel, (plan.harmony.roles.map(\.reverbSend).max() ?? 0) * pow(10, groove.harmonyAdjustmentDecibels / 20), accuracy: 1e-12)
+        XCTAssertEqual(state.buses.happenings.sendLevel, (plan.happenings.map(\.reverbSend).max() ?? 0) * calibration.reverbSendScale, accuracy: 1e-12)
+        XCTAssertEqual(state.buses.lead.sendLevel, plan.lead.reverbSend, accuracy: 1e-12)
+        let topology = runtime.engineTopologyForTesting
+        var mix = plan.mix
+        mix.worldGroupCalibration = .init(masterMakeupDB: calibration.masterMakeupDB + 0.1,
+                                         reverbSendScale: calibration.reverbSendScale)
+        let updated = DayMusicPlan(seed: plan.seed, soundWorld: plan.soundWorld, mood: plan.mood,
+            guestWorld: plan.guestWorld, guestInstrumentIDs: plan.guestInstrumentIDs, input: plan.input,
+            world: plan.world, rhythm: plan.rhythm, groove: plan.groove, bass: plan.bass,
+            harmony: plan.harmony, happenings: plan.happenings, lead: plan.lead, glitch: plan.glitch, mix: mix)
+        runtime.applyContinuous(updated)
+        XCTAssertEqual(runtime.activePlanForTesting?.mix.worldGroupCalibration, mix.worldGroupCalibration)
+        XCTAssertEqual(try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state).masterTargetDecibelsBeforeLimiter,
+                       state.masterTargetDecibelsBeforeLimiter + 0.1, accuracy: 1e-12)
+        runtime.applyDiagnosticAudition(.isolatedBus(.harmony), plan: updated)
+        let isolated = try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state)
+        XCTAssertEqual(isolated.worldGroupCalibration, mix.worldGroupCalibration)
+        XCTAssertEqual(isolated.buses.lead.directTargetDecibels, -60)
+        XCTAssertEqual(runtime.engineTopologyForTesting.acceptedParameterValues["lead.reverbSend.leftLinear"], 0)
+        XCTAssertEqual(runtime.engineTopologyForTesting.acceptedParameterValues["lead.delaySend.leftLinear"], 0)
+        XCTAssertEqual(runtime.engineTopologyForTesting.persistentMasterNodeIdentities, topology.persistentMasterNodeIdentities)
+        XCTAssertEqual(runtime.engineTopologyForTesting.parallelSpatialReturnIdentities, topology.parallelSpatialReturnIdentities)
+        XCTAssertEqual(runtime.engineTopologyForTesting.acceptedParameterValues["master.limiter.preGainDB"], 0)
+        XCTAssertEqual(runtime.engineTopologyForTesting.limiterCeilingDBFS, -1.35)
+    }
+
     func testLiveContinuousUpdateDoesNotExposeStructuralWorldBeforeBoundary() throws {
         let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
         let initial = makePlaybackEnginePlan(seed: 601)

@@ -6,6 +6,25 @@ import XCTest
 
 @MainActor
 final class DayObjectsHappeningSamplePoolTests: XCTestCase {
+    func testOwnedReverbCalibrationPreservesDryDelayPlayersAndReleasedContribution() throws {
+        let harness = try preparedHarness()
+        let original = HappeningEffectCommand(filterCutoffHz: 8_000, delayMix: 0.3, delayFeedback: 0.2, reverbMix: 0.8)
+        let handle = try harness.pool.play(sound(id: 1, resource: "1.wav"), gain: 1,
+                                          priority: .manualAudition, effects: original, pan: 0)
+        let players = harness.pool.metrics.fixedPlayerIdentities
+        harness.pool.updateReverbSend(handle, sendLevel: 0.2, rampSeconds: 0.25)
+        XCTAssertEqual(harness.pool.metrics.effects.reverbSend, 0.2, accuracy: 1e-12)
+        XCTAssertEqual(harness.pool.metrics.effects.directLevel, original.directLevel)
+        XCTAssertEqual(harness.pool.metrics.effects.delaySend, original.delaySend)
+        XCTAssertEqual(harness.pool.metrics.effects.delayFeedback, original.delayFeedback)
+        XCTAssertEqual(harness.pool.metrics.fixedPlayerIdentities, players)
+        XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 1)
+        XCTAssertEqual(harness.pool.metrics.lastEffectRampSeconds, 0.25)
+        harness.pool.stop(handle)
+        harness.pool.updateReverbSend(handle, sendLevel: 1, rampSeconds: 0)
+        XCTAssertEqual(harness.pool.metrics.effects.reverbSend, 0.2, accuracy: 1e-12)
+    }
+
     func testConstantPowerPanMapsEdgesAndCenterToExpectedStereoGains() {
         XCTAssertEqual(HappeningPan.gains(for: -1).left, 1, accuracy: 1e-12)
         XCTAssertEqual(HappeningPan.gains(for: -1).right, 0, accuracy: 1e-12)

@@ -2,6 +2,76 @@ import XCTest
 @testable import Steps4
 
 final class DayObjectsSoundWorldCatalogTests: XCTestCase {
+    func testDirectorCarriesEachCatalogCalibrationAndScalesPlannerWetSendsOnce() throws {
+        let catalog = try DayObjectsSoundWorldCatalog.load(from: bundle)
+        let input = DayMusicInput(countedSteps: 7_500, stepGoal: 10_000, countedSleepHours: 6.5,
+                                 sleepGoalHours: 8, happeningIDs: ["one", "two"], spentColors: 25)
+        let descriptors = DayObjectsInstrumentManifest.defaultDescriptors + catalog.descriptors
+        for group in catalog.groups {
+            let plan = DeterministicMusicDirector.makePlan(input: input, remixSeed: 99, soundWorld: group.world, mood: group.mood)
+            let scale = group.calibration.reverbSendScale
+            XCTAssertEqual(plan.mix.worldGroupCalibration, group.calibration)
+            let arrangement = DayObjectsArrangementProfile.for(world: group.world, mood: group.mood)
+            let harmony = HarmonyPlanner.makePlan(input: input.normalized(), tonalWorld: plan.world,
+                instrumentDescriptors: descriptors, remixSeed: 99, soundWorld: group.world, mood: group.mood,
+                recipeIDs: group.harmonyRecipeIDs.map { .init(rawValue: "\($0.rawValue).\(group.mood.rawValue)") },
+                arrangement: arrangement)
+            for role in plan.harmony.roles {
+                XCTAssertEqual(role.reverbSend, try XCTUnwrap(harmony.role(for: role.role)).reverbSend * scale, accuracy: 1e-12)
+            }
+            let rhythm = RhythmPlanner.makePlan(input: input.normalized(), remixSeed: 99, groove: plan.groove,
+                                               kitID: group.drumKitID, arrangement: arrangement)
+            for voice in plan.rhythm.voices {
+                XCTAssertEqual(voice.roomSend, try XCTUnwrap(rhythm.voice(for: voice.role)).roomSend * scale, accuracy: 1e-12)
+            }
+            let lead = try XCTUnwrap(LeadPlanner.makePlan(tonalWorld: plan.world, instrumentDescriptors: descriptors,
+                remixSeed: 99, soundWorld: group.world, recipeIDs: [plan.lead.instrumentID], arrangement: arrangement))
+            XCTAssertEqual(plan.lead.reverbSend, lead.reverbSend * scale, accuracy: 1e-12)
+            if let actualBass = plan.bass {
+                let bass = try XCTUnwrap(BassPlanner.makePlan(input: input.normalized(), tonalWorld: plan.world,
+                    groove: plan.groove, instrumentDescriptors: descriptors, remixSeed: 99, soundWorld: group.world,
+                    recipeIDs: [actualBass.instrumentID]))
+                XCTAssertEqual(actualBass.reverbSend, bass.reverbSend * scale, accuracy: 1e-12)
+            }
+        }
+        XCTAssertNil(DeterministicMusicDirector.makePlan(input: input, remixSeed: 99).mix.worldGroupCalibration)
+    }
+
+    func testWorldGroupCalibrationRuntimeClampsAndLegacyJSONDefaultsAreNeutral() throws {
+        XCTAssertEqual(DayObjectsWorldGroupCalibration(masterMakeupDB: .nan, reverbSendScale: .infinity), .neutral)
+        XCTAssertEqual(DayObjectsWorldGroupCalibration(masterMakeupDB: 50, reverbSendScale: -1),
+                       .init(masterMakeupDB: 10.5, reverbSendScale: 0.2))
+        let catalog = try DayObjectsSoundWorldCatalog.load(from: bundle)
+        var group = try XCTUnwrap(catalog.groups.first)
+        group.masterMakeupDB = nil
+        group.reverbSendScale = nil
+        let data = try JSONEncoder().encode(group)
+        XCTAssertEqual(try JSONDecoder().decode(DayObjectsCompatibilityGroup.self, from: data).calibration, .neutral)
+        group.masterMakeupDB = .nan
+        XCTAssertFalse(group.hasValidCalibration)
+        group.masterMakeupDB = 0
+        group.reverbSendScale = .infinity
+        XCTAssertFalse(group.hasValidCalibration)
+    }
+
+    func testWorldGroupCalibrationRejectsOutOfBoundsAndWrongTypes() throws {
+        let recipesURL = try XCTUnwrap(bundle.url(forResource: "synth-recipes-v1", withExtension: "json", subdirectory: "SoundWorlds"))
+        let groupsURL = try XCTUnwrap(bundle.url(forResource: "world-groups-v1", withExtension: "json", subdirectory: "SoundWorlds"))
+        let sources = try DayObjectsSoundWorldCatalog.load(from: bundle).sourceVoices
+        for (key, value) in [("masterMakeupDB", -0.01 as Any), ("masterMakeupDB", 10.51),
+                             ("reverbSendScale", 0.19), ("reverbSendScale", 1.01),
+                             ("masterMakeupDB", "NaN"), ("reverbSendScale", "infinity")] {
+            var json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: groupsURL)) as? [String: Any])
+            var groups = json["groups"] as! [[String: Any]]
+            groups[0][key] = value
+            json["groups"] = groups
+            XCTAssertThrowsError(try DayObjectsSoundWorldCatalog.load(
+                recipesData: Data(contentsOf: recipesURL),
+                groupsData: JSONSerialization.data(withJSONObject: json), sourceVoices: sources
+            ), "Accepted invalid \(key): \(value)")
+        }
+    }
+
     func testCatalogMatchesTheApprovedFamilyAndKitInventory() throws {
         let catalog = try DayObjectsSoundWorldCatalog.load(from: bundle)
         let expected: [(DayObjectsSoundWorld, DayObjectsSynthRole, [String])] = [

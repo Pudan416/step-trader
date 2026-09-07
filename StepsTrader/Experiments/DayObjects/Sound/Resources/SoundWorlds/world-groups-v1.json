@@ -3,6 +3,8 @@
   "groups": [
     {
       "id": "acoustic.sparse",
+      "masterMakeupDB": 3.28,
+      "reverbSendScale": 1.0,
       "world": "feltAndWood",
       "mood": "sparse",
       "harmonyRecipeIDs": [
@@ -51,6 +53,8 @@
     },
     {
       "id": "acoustic.moving",
+      "masterMakeupDB": 4.92,
+      "reverbSendScale": 0.548,
       "world": "feltAndWood",
       "mood": "moving",
       "harmonyRecipeIDs": [
@@ -99,6 +103,8 @@
     },
     {
       "id": "acoustic.strange",
+      "masterMakeupDB": 4.01,
+      "reverbSendScale": 0.389,
       "world": "feltAndWood",
       "mood": "strange",
       "harmonyRecipeIDs": [
@@ -147,6 +153,8 @@
     },
     {
       "id": "living.sparse",
+      "masterMakeupDB": 9.52,
+      "reverbSendScale": 1.0,
       "world": "livingField",
       "mood": "sparse",
       "harmonyRecipeIDs": [
@@ -195,6 +203,8 @@
     },
     {
       "id": "living.moving",
+      "masterMakeupDB": 8.41,
+      "reverbSendScale": 0.757,
       "world": "livingField",
       "mood": "moving",
       "harmonyRecipeIDs": [
@@ -243,6 +253,8 @@
     },
     {
       "id": "living.strange",
+      "masterMakeupDB": 4.41,
+      "reverbSendScale": 0.475,
       "world": "livingField",
       "mood": "strange",
       "harmonyRecipeIDs": [
@@ -291,6 +303,8 @@
     },
     {
       "id": "industrial.sparse",
+      "masterMakeupDB": 3.88,
+      "reverbSendScale": 0.232,
       "world": "metalAndCurrent",
       "mood": "sparse",
       "harmonyRecipeIDs": [
@@ -343,6 +357,8 @@
     },
     {
       "id": "industrial.moving",
+      "masterMakeupDB": 0.80,
+      "reverbSendScale": 0.893,
       "world": "metalAndCurrent",
       "mood": "moving",
       "harmonyRecipeIDs": [
@@ -395,6 +411,8 @@
     },
     {
       "id": "industrial.strange",
+      "masterMakeupDB": 2.98,
+      "reverbSendScale": 0.298,
       "world": "metalAndCurrent",
       "mood": "strange",
       "harmonyRecipeIDs": [
@@ -447,6 +465,8 @@
     },
     {
       "id": "electric.sparse",
+      "masterMakeupDB": 3.42,
+      "reverbSendScale": 1.0,
       "world": "electricDream",
       "mood": "sparse",
       "harmonyRecipeIDs": [
@@ -499,6 +519,8 @@
     },
     {
       "id": "electric.moving",
+      "masterMakeupDB": 5.60,
+      "reverbSendScale": 0.389,
       "world": "electricDream",
       "mood": "moving",
       "harmonyRecipeIDs": [
@@ -551,6 +573,8 @@
     },
     {
       "id": "electric.strange",
+      "masterMakeupDB": 4.71,
+      "reverbSendScale": 0.369,
       "world": "electricDream",
       "mood": "strange",
       "harmonyRecipeIDs": [

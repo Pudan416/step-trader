@@ -217,6 +217,31 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(reset.peakDBFS, -120)
     }
 
+    func testWorldGroupCalibrationUsesExistingFaderAndRetainsLimiterCeilingAndTopology() {
+        let graph = DayObjectsPersistentMasterGraph(
+            happenings: DayObjectsHappeningSamplePool(bundle: Bundle(for: type(of: self)))
+        )
+        let topology = graph.topologyMetrics(graphs: [])
+        var state = DayObjectsMixState.testingFiveRoleMix(masterDecibels: 0.5)
+        state.worldGroupCalibration = .init(masterMakeupDB: 9.5, reverbSendScale: 0.4)
+        graph.applyMix(state)
+        XCTAssertEqual(graph.masterTrim.$leftGain.parameter.value, Float(pow(10, 0.5 / 20)), accuracy: 1e-6)
+        XCTAssertEqual(graph.masterTrim.$rightGain.parameter.value, Float(pow(10, 0.5 / 20)), accuracy: 1e-6)
+        XCTAssertEqual(graph.limiter.$preGain.parameter.value, 0)
+        XCTAssertEqual(graph.limiter.$attackTime.parameter.value, 0.012, accuracy: 1e-6)
+        XCTAssertEqual(graph.limiter.$decayTime.parameter.value, 0.024, accuracy: 1e-6)
+        let roleGain = pow(10, DayObjectsPersistentMasterGraph.harmonyPathCalibrationDecibels / 20)
+        XCTAssertEqual(graph.harmonySend.$leftGain.parameter.value, Float(0.28 * 2 * roleGain), accuracy: 1e-6)
+        XCTAssertEqual(graph.happeningsSend.$leftGain.parameter.value, Float(0.34 * 3.4 * roleGain), accuracy: 1e-6)
+        XCTAssertEqual(graph.leadSend.$leftGain.parameter.value, Float(0.24 * roleGain), accuracy: 1e-6)
+        XCTAssertEqual(graph.finalOutput.linearGain, pow(10, -1.35 / 20), accuracy: 1e-6)
+        XCTAssertEqual(graph.topologyMetrics(graphs: []).persistentMasterNodeIdentities, topology.persistentMasterNodeIdentities)
+        XCTAssertEqual(graph.topologyMetrics(graphs: []).finalPeakLimiterIdentities, topology.finalPeakLimiterIdentities)
+        state.worldGroupCalibration = nil
+        graph.applyMix(state)
+        XCTAssertEqual(graph.masterTrim.$leftGain.parameter.value, Float(pow(10, -6.0 / 20)), accuracy: 1e-6)
+    }
+
     func testPairedMetricsExposeAppliedMasterTrimInsteadOfDefaultConstant() throws {
         let pair = DayObjectsInstrumentBank.makePlaybackPair(bundle: Bundle(for: type(of: self)))
         try pair.prepare(configuration: smallPlaybackPairConfiguration())
@@ -2126,6 +2151,7 @@ private final class FakeHappeningSamplePool: DayObjectsHappeningSamplePoolProtoc
     }
     func applyEffects(_ command: HappeningEffectCommand, rampSeconds: Double) {}
     func update(_ handle: HappeningPlaybackHandle, gain: Double, playbackRate: Double) {}
+    func updateReverbSend(_ handle: HappeningPlaybackHandle, sendLevel: Double, rampSeconds: Double) {}
     func stop(_ handle: HappeningPlaybackHandle) {
         guard active[handle.voiceID]?.handle == handle else { return }
         active[handle.voiceID] = nil

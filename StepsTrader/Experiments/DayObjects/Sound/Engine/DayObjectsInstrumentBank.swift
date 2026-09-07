@@ -1644,7 +1644,7 @@ final class DayObjectsPersistentMasterGraph {
                     : -60,
                 -60
             ),
-            Self.masterTrimDecibels
+            Self.masterTrimDecibels + (state.worldGroupCalibration?.masterMakeupDB ?? 0)
         )
         currentMasterTrimDecibels = requestedMasterDB
         ramp(masterTrim, to: pow(10, requestedMasterDB / 20), duration: duration)

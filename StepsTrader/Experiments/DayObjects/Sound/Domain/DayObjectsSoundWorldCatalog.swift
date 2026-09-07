@@ -21,6 +21,17 @@ struct DayObjectsCompatibilityGroup: Codable, Equatable, Sendable {
     let drumKitID: String
     let happeningRecipeIDs: [HappeningSoundRecipeID]
     let guestRecipeIDs: [DayObjectsInstrumentID]
+    var masterMakeupDB: Double? = nil
+    var reverbSendScale: Double? = nil
+
+    var calibration: DayObjectsWorldGroupCalibration {
+        .init(masterMakeupDB: masterMakeupDB ?? 0, reverbSendScale: reverbSendScale ?? 1)
+    }
+
+    var hasValidCalibration: Bool {
+        (masterMakeupDB.map { $0.isFinite && DayObjectsWorldGroupCalibration.makeupBounds.contains($0) } ?? true)
+            && (reverbSendScale.map { $0.isFinite && DayObjectsWorldGroupCalibration.reverbScaleBounds.contains($0) } ?? true)
+    }
 }
 
 struct DayObjectsSoundWorldCatalog: Sendable {
@@ -125,7 +136,7 @@ struct DayObjectsSoundWorldCatalog: Sendable {
             let members: [(DayObjectsSynthRole, [DayObjectsInstrumentID])] = [
                 (.harmony, group.harmonyRecipeIDs), (.bass, group.bassRecipeIDs), (.lead, group.leadRecipeIDs)
             ]
-            guard !group.id.isEmpty, group.guestRecipeIDs.count <= 1,
+            guard !group.id.isEmpty, group.hasValidCalibration, group.guestRecipeIDs.count <= 1,
                   Self.drumKitIDs[group.world]?.contains(group.drumKitID) == true,
                   !group.happeningRecipeIDs.isEmpty,
                   Set(group.happeningRecipeIDs).count == group.happeningRecipeIDs.count,

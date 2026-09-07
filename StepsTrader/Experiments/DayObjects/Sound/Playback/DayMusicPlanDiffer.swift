@@ -259,6 +259,7 @@ private struct NonHappeningLayerMixSignature: Equatable {
     let leadTargetDecibels: Double
     let masterTargetDecibelsBeforeLimiter: Double
     let maximumHarmonyDuckingDecibels: Double
+    let worldGroupCalibration: DayObjectsWorldGroupCalibration?
 
     init(plan: LayerMixPlan) {
         rhythmTargetDecibels = plan.rhythmTargetDecibels
@@ -267,6 +268,7 @@ private struct NonHappeningLayerMixSignature: Equatable {
         leadTargetDecibels = plan.leadTargetDecibels
         masterTargetDecibelsBeforeLimiter = plan.masterTargetDecibelsBeforeLimiter
         maximumHarmonyDuckingDecibels = plan.maximumHarmonyDuckingDecibels
+        worldGroupCalibration = plan.worldGroupCalibration
     }
 }
 

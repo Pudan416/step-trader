@@ -4,6 +4,24 @@ import XCTest
 
 @MainActor
 final class HappeningSchedulerTests: XCTestCase {
+    func testContinuousReverbCalibrationUpdatesOwnedVoicesWithoutRestartOrDryBoost() throws {
+        let harness = try makeHarness(count: 1, playInitialBirths: true)
+        render(subdivisions: 0...0, through: harness.scheduler, chord: harness.world.progression[0])
+        let original = try XCTUnwrap(harness.pool.successfulPlayCalls.first)
+        let history = harness.scheduler.metrics.attackHistory
+        let count = harness.pool.successfulPlayCalls.count
+        harness.scheduler.applyReverbSendScale(0.4)
+        XCTAssertEqual(harness.pool.metrics.effects.reverbSend, original.effects.reverbSend * 0.4, accuracy: 1e-12)
+        XCTAssertEqual(harness.pool.metrics.effects.directLevel, original.effects.directLevel)
+        XCTAssertEqual(harness.pool.metrics.effects.delaySend, original.effects.delaySend)
+        XCTAssertEqual(harness.scheduler.metrics.attackHistory, history)
+        XCTAssertEqual(harness.pool.successfulPlayCalls.count, count)
+        XCTAssertTrue(harness.pool.stopCalls.isEmpty)
+        XCTAssertTrue(harness.pool.explicitGlobalEffectCalls.isEmpty)
+        harness.scheduler.applyReverbSendScale(1)
+        XCTAssertEqual(harness.pool.metrics.effects.reverbSend, original.effects.reverbSend, accuracy: 1e-12)
+    }
+
     func testWorldArrangementConcurrencyCapReachesThePlayingScheduler() throws {
         for (world, mood, expectedCap) in [
             (DayObjectsSoundWorld.livingField, DayObjectsSoundMood.strange, 1),
@@ -782,6 +800,12 @@ private final class RecordingHappeningSamplePool: DayObjectsHappeningSamplePoolP
         updateCalls.append((handle, gain, playbackRate))
     }
 
+    func updateReverbSend(_ handle: HappeningPlaybackHandle, sendLevel: Double, rampSeconds: Double) {
+        guard let call = active[handle.voiceID], call.handle == handle else { return }
+        active[handle.voiceID] = .init(handle: handle, sound: call.sound, gain: call.gain, priority: call.priority,
+                                     effects: call.effects.withReverbSend(sendLevel), pan: call.pan)
+    }
+
     func stop(_ handle: HappeningPlaybackHandle) {
         guard let play = active[handle.voiceID], play.handle == handle else { return }
         active[handle.voiceID] = nil
@@ -798,9 +822,11 @@ private final class RecordingHappeningSamplePool: DayObjectsHappeningSamplePoolP
         let count = Double(values.count)
         return .init(
             filterCutoffHz: values.reduce(0) { $0 + $1.filterCutoffHz } / count,
-            delayMix: values.reduce(0) { $0 + $1.delayMix } / count,
+            directLevel: values.reduce(0) { $0 + $1.directLevel } / count,
+            delaySend: values.reduce(0) { $0 + $1.delaySend } / count,
             delayFeedback: values.reduce(0) { $0 + $1.delayFeedback } / count,
-            reverbMix: values.reduce(0) { $0 + $1.reverbMix } / count
+            reverbSend: values.reduce(0) { $0 + $1.reverbSend } / count,
+            reverbDecay: values.reduce(0) { $0 + $1.reverbDecay } / count
         )
     }
 }

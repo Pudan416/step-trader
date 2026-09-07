@@ -104,6 +104,7 @@ struct DayObjectsMixState: Equatable, Sendable {
     let harmonyDuckingDecibels: Double
     let rampDurationSeconds: TimeInterval
     let leadVoiceTargetDecibels: Double
+    var worldGroupCalibration: DayObjectsWorldGroupCalibration? = nil
 
     init(
         buses: DayObjectsFiveRoleBusMixParameters,
@@ -112,7 +113,8 @@ struct DayObjectsMixState: Equatable, Sendable {
         masterTargetDecibelsBeforeLimiter: Double,
         harmonyDuckingDecibels: Double,
         rampDurationSeconds: TimeInterval,
-        leadVoiceTargetDecibels: Double? = nil
+        leadVoiceTargetDecibels: Double? = nil,
+        worldGroupCalibration: DayObjectsWorldGroupCalibration? = nil
     ) {
         self.buses = buses
         self.harmonyPerVoiceTargetDecibels = harmonyPerVoiceTargetDecibels
@@ -121,6 +123,7 @@ struct DayObjectsMixState: Equatable, Sendable {
         self.harmonyDuckingDecibels = harmonyDuckingDecibels
         self.rampDurationSeconds = rampDurationSeconds
         self.leadVoiceTargetDecibels = leadVoiceTargetDecibels ?? buses.lead.directTargetDecibels
+        self.worldGroupCalibration = worldGroupCalibration
     }
 
     var rhythmTargetDecibels: Double { buses.rhythm.directTargetDecibels }
@@ -238,6 +241,9 @@ final class DayObjectsMixController {
             Self.minimumDecibels
         )
 
+        let baseMaster = min(decibels(plan.masterTargetDecibelsBeforeLimiter), Self.maximumMasterDecibels)
+        let calibratedMaster = baseMaster <= Self.minimumDecibels ? Self.minimumDecibels
+            : baseMaster + (plan.worldGroupCalibration?.masterMakeupDB ?? 0)
         backend.apply(.init(
             buses: .init(
                 rhythm: bus(
@@ -263,13 +269,11 @@ final class DayObjectsMixController {
             ),
             harmonyPerVoiceTargetDecibels: harmonyPerVoice,
             happeningPerVoiceTargetDecibels: happeningPerVoice,
-            masterTargetDecibelsBeforeLimiter: min(
-                decibels(plan.masterTargetDecibelsBeforeLimiter),
-                Self.maximumMasterDecibels
-            ),
+            masterTargetDecibelsBeforeLimiter: calibratedMaster,
             harmonyDuckingDecibels: ducking,
             rampDurationSeconds: duration(rampDurationSeconds),
-            leadVoiceTargetDecibels: decibels(plan.leadTargetDecibels)
+            leadVoiceTargetDecibels: decibels(plan.leadTargetDecibels),
+            worldGroupCalibration: plan.worldGroupCalibration
         ))
     }
 
@@ -332,4 +336,5 @@ final class DayObjectsMixController {
         return min(max(value, 0), 2)
     }
 }
+
 #endif

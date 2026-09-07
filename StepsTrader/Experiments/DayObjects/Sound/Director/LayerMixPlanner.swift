@@ -5,7 +5,8 @@ enum LayerMixPlanner {
     static func makePlan(
         happeningCount: Int,
         soundWorld: DayObjectsSoundWorld? = nil,
-        arrangement: DayObjectsArrangementProfile? = nil
+        arrangement: DayObjectsArrangementProfile? = nil,
+        worldGroupCalibration: DayObjectsWorldGroupCalibration? = nil
     ) -> LayerMixPlan {
         let boundedCount = min(max(happeningCount, 0), 10)
         let happeningTarget = -3.3
@@ -29,7 +30,8 @@ enum LayerMixPlanner {
             happeningCount: boundedCount,
             leadTargetDecibels: -3.1,
             masterTargetDecibelsBeforeLimiter: masterTargetDecibelsBeforeLimiter,
-            maximumHarmonyDuckingDecibels: 2.5
+            maximumHarmonyDuckingDecibels: 2.5,
+            worldGroupCalibration: worldGroupCalibration
         )
     }
 }

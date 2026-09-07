@@ -43,6 +43,8 @@ struct DayObjectsAuditionPackEntry: Codable, Equatable, Sendable {
     let kitID: String
     let sha256: String
     let stemSHA256: [String: String]
+    var masterMakeupDB: Double? = nil
+    var reverbSendScale: Double? = nil
 }
 
 struct DayObjectsAuditionQualityEntry: Codable, Equatable, Sendable {
@@ -187,7 +189,9 @@ final class DayObjectsAuditionPackExporter {
                     happeningRecipeIDs: plan.happenings.map { String($0.recipeID.rawValue) }.sorted(),
                     progressionDegrees: plan.world.progression.map(\.modalDegree),
                     musicalFingerprint: plan.world.musicalFingerprint, kitID: plan.rhythm.kitID,
-                    sha256: mixHash, stemSHA256: hashes
+                    sha256: mixHash, stemSHA256: hashes,
+                    masterMakeupDB: plan.mix.worldGroupCalibration?.masterMakeupDB,
+                    reverbSendScale: plan.mix.worldGroupCalibration?.reverbSendScale
                 ))
                 layer = "report"
                 // Persist every completed report, including quality issues. A later

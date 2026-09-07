@@ -14,7 +14,8 @@ enum LeadPlanner {
         remixSeed: UInt64,
         soundWorld: DayObjectsSoundWorld? = nil,
         recipeIDs: [DayObjectsInstrumentID]? = nil,
-        arrangement: DayObjectsArrangementProfile? = nil
+        arrangement: DayObjectsArrangementProfile? = nil,
+        reverbSendScale: Double = 1
     ) -> LeadPlan? {
         guard !tonalWorld.progression.isEmpty else { return nil }
         let curated = instrumentDescriptors.filter { descriptor in
@@ -71,7 +72,7 @@ enum LeadPlanner {
             expressionSmoothingMilliseconds: processing.expressionSmoothingMilliseconds * (arrangement?.leadGestureSmoothingMultiplier ?? 1),
             maximumExpressionDepth: processing.maximumExpressionDepth,
             delaySend: processing.delaySend,
-            reverbSend: processing.reverbSend
+            reverbSend: processing.reverbSend * DayObjectsWorldGroupCalibration(reverbSendScale: reverbSendScale).reverbSendScale
         )
     }
 

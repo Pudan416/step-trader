@@ -30,7 +30,8 @@ enum RhythmPlanner {
         remixSeed: UInt64,
         groove: GroovePlan,
         kitID: String = "legacy",
-        arrangement: DayObjectsArrangementProfile? = nil
+        arrangement: DayObjectsArrangementProfile? = nil,
+        reverbSendScale: Double = 1
     ) -> RhythmPlan {
         let stepsProgress = unitValue(input.stepsProgress)
         var familyRandom = StableMusicRandom(seed: remixSeed, domain: .rhythmFamily)
@@ -59,7 +60,7 @@ enum RhythmPlanner {
                 ),
                 velocityRange: template.velocityRange,
                 microtimingMilliseconds: template.microtimingMilliseconds,
-                roomSend: template.roomSend,
+                roomSend: template.roomSend * DayObjectsWorldGroupCalibration(reverbSendScale: reverbSendScale).reverbSendScale,
                 activation: RhythmActivationPlan(
                     startProgress: template.activationStart,
                     fullProgress: template.activationFull,

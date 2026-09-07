@@ -16,7 +16,8 @@ enum BassPlanner {
         instrumentDescriptors: [DayObjectsInstrumentDescriptor],
         remixSeed: UInt64,
         soundWorld: DayObjectsSoundWorld? = nil,
-        recipeIDs: [DayObjectsInstrumentID]? = nil
+        recipeIDs: [DayObjectsInstrumentID]? = nil,
+        reverbSendScale: Double = 1
     ) -> BassPlan? {
         guard groove.usesBass,
               let instrument = selectedInstrument(
@@ -70,7 +71,8 @@ enum BassPlanner {
             stepsProgress: unitValue(input.stepsProgress),
             cutoffMultiplier: profile.cutoffMultiplier,
             glideMilliseconds: randomValue(in: profile.glideMilliseconds, random: &articulationRandom),
-            reverbSend: randomValue(in: profile.reverbSend, random: &articulationRandom),
+            reverbSend: randomValue(in: profile.reverbSend, random: &articulationRandom)
+                * DayObjectsWorldGroupCalibration(reverbSendScale: reverbSendScale).reverbSendScale,
             ducking: BassDuckingPlan(
                 maximumAttenuationDecibels: randomValue(
                     in: profile.duckingDecibels,

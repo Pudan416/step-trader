@@ -23,7 +23,8 @@ enum HarmonyPlanner {
         soundWorld: DayObjectsSoundWorld? = nil,
         mood: DayObjectsSoundMood = .moving,
         recipeIDs: [DayObjectsInstrumentID]? = nil,
-        arrangement: DayObjectsArrangementProfile? = nil
+        arrangement: DayObjectsArrangementProfile? = nil,
+        reverbSendScale: Double = 1
     ) -> HarmonyPlan {
         let sleepProgress = unitValue(input.sleepProgress)
         let curated = instrumentDescriptors.filter { recipeIDs?.contains($0.id) ?? false }
@@ -96,7 +97,7 @@ enum HarmonyPlanner {
                 attackSeconds: template.attackSeconds,
                 releaseSeconds: template.releaseSeconds * (arrangement?.harmonyReleaseMultiplier ?? 1),
                 delaySend: template.delaySend,
-                reverbSend: template.reverbSend,
+                reverbSend: template.reverbSend * DayObjectsWorldGroupCalibration(reverbSendScale: reverbSendScale).reverbSendScale,
                 activation: HarmonyActivationPlan(
                     startProgress: template.activationStart,
                     fullProgress: template.activationFull,

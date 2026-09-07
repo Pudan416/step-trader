@@ -720,6 +720,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 tonalWorld: plan.world,
                 remixSeed: plan.seed
             )
+            happenings.applyReverbSendScale(plan.mix.worldGroupCalibration?.reverbSendScale ?? 1)
             try lead.configure(
                 plan: plan.lead,
                 gainDecibels: plan.mix.leadTargetDecibels,
@@ -809,6 +810,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
             harmony.applyContinuous(audiblePlan.harmony)
             lead.applyContinuous(audiblePlan.lead)
             happenings.configureGlitch(plan: audiblePlan.glitch, processor: glitch)
+            happenings.applyReverbSendScale(audiblePlan.mix.worldGroupCalibration?.reverbSendScale ?? 1)
             glitch.apply(audiblePlan.glitch)
             applyMix(audiblePlan, ducking: 0)
             self.plan = audiblePlan
@@ -938,6 +940,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         ) {
             let harmonySend = plan.harmony.roles.map(\.reverbSend).max() ?? 0
             let happeningSend = plan.happenings.map(\.reverbSend).max() ?? 0
+            let reverbScale = plan.mix.worldGroupCalibration?.reverbSendScale ?? 1
             let calibration = DayObjectsPlanAwareGainCalibration.make(
                 grooveMode: plan.groove.mode,
                 stepsActivityDensity: plan.rhythm.stepsProgress
@@ -947,10 +950,10 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 activeChordVoiceCount: max(1, harmonyPlayer?.metrics.activeVoiceCount ?? 0),
                 harmonyDuckingDecibels: ducking,
                 spatial: .init(
-                    rhythm: .init(sendLevel: 0.08, decay: 0.42),
+                    rhythm: .init(sendLevel: 0.08 * reverbScale, decay: 0.42),
                     bass: .init(sendLevel: plan.bass?.reverbSend ?? 0, decay: 0.36),
                     harmony: .init(sendLevel: harmonySend, decay: 0.72),
-                    happenings: .init(sendLevel: happeningSend, decay: 0.84),
+                    happenings: .init(sendLevel: happeningSend * reverbScale, decay: 0.84),
                     lead: .init(
                         sendLevel: plan.lead.reverbSend,
                         decay: 0.62,
@@ -977,7 +980,8 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 happeningCount: mix.happeningCount,
                 leadTargetDecibels: role == .lead ? mix.leadTargetDecibels : muted,
                 masterTargetDecibelsBeforeLimiter: mix.masterTargetDecibelsBeforeLimiter,
-                maximumHarmonyDuckingDecibels: 0
+                maximumHarmonyDuckingDecibels: 0,
+                worldGroupCalibration: mix.worldGroupCalibration
             )
         }
 
