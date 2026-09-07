@@ -688,7 +688,7 @@ Run DayObjectsAuditionPackExporterTests and DayObjectsMixScenarioTests. Expect 1
 - Consumes all prior tasks.
 - Produces a reviewable commit series, 12 local WAVs, reports, and an installable Debug device build.
 
-- [ ] **Step 1: Run focused domain/planner/UI tests**
+- [x] **Step 1: Run focused domain/planner/UI tests**
 
     xcodebuild test -quiet -project Steps4.xcodeproj -scheme Steps4 \
       -destination 'platform=iOS Simulator,name=iPhone 16e' \
@@ -701,24 +701,58 @@ Run DayObjectsAuditionPackExporterTests and DayObjectsMixScenarioTests. Expect 1
 
 Expected: zero failures.
 
-- [ ] **Step 2: Export exactly one audition pack**
+- [x] **Step 2: Export exactly one audition pack**
 
     DAY_OBJECTS_AUDITION_PACK=1 \
       Scripts/day_objects_audio/export_sound_world_auditions.swift \
-      --output artifacts/day-objects-four-worlds \
-      --duration 24 --sample-rate 48000 --seed 99
+      --directory artifacts/day-objects-four-worlds --seed 99 \
+      --destination 'platform=iOS Simulator,name=iPhone 16e'
+
+The app-owned schedule fixes every mix/stem at 24 seconds and 48 kHz (22 seconds
+of scheduled music plus two seconds of release). The CLI injects the opt-in into
+the app-hosted test. Add `--xctestrun PATH` to reuse a freshly built test product;
+otherwise the CLI builds the app/tests in a new temporary directory. The only
+supported options are `--directory`, `--seed`, `--destination`, and `--xctestrun`.
 
 Do not run another export concurrently. Confirm the exporter process ends before analysis.
+
+Execution exception, explicitly approved during Task 8: the initial CLI was
+rejected before any test/app startup or WAV creation (`-test-iterations 1` is
+invalid). Its scoped fix uses the default single pass. The first real pack then
+completed normally but failed quality. A measured catalog/runtime calibration
+was approved, implemented in `e71047f`, passed 174 focused tests and an independent
+15-test review, and one second/final real pack was authorized after review.
+The first pack was recoverably renamed to
+`artifacts/day-objects-four-worlds-rejected-1`; the canonical second pack completed
+normally in 37m28s. No exports ran concurrently; all exporter/app processes ended
+before external analysis. No third export is authorized.
 
 - [ ] **Step 3: Validate reports and inspect resource cost**
 
 Confirm 12 mixes and 60 stems, no duplicate full-mix hashes, all finite samples, at most -1 dBTP, and full mixes within -18...-16 LUFS after accepted bounded calibration. Record directory size and the app's peak resident memory during one sequential render. Do not commit the WAVs.
 
-- [ ] **Step 4: Run broader audio regression suites**
+Validation was performed, but full acceptance remains unmet, so this step is
+not checked off. The final pack has 12 mixes / 60 stems, 12 unique mix hashes,
+72 finite float32 PCM files with matching hashes, correct metadata/schedule,
+and exact committed calibration values. True peak passes 12/12; loudness passes
+11/12; all quality gates pass only 3/12 (03, 09, 11). Nine previews retain excessive
+tails and 08 is -20.091 LUFS. See the listening checklist and private JSON mapping
+for the exact rejected groups. No further calibration, analyzer change, or
+export was attempted. Size: 663,888,885 logical bytes (633.134 MiB). Peak app RSS:
+721.078 MiB overall; 553.703 MiB during the first sequential full-mix render.
+No separate render was launched for memory measurement.
+
+- [x] **Step 4: Run broader audio regression suites**
 
 Run resource, instrument-bank, playback-engine, scheduler, plan-differ, loudness, mix-quality, and scenario tests in one xcodebuild process. If simulator bootstrap fails without a test assertion, preserve the result bundle and report the infrastructure failure; do not loop indefinitely.
 
-- [ ] **Step 5: Build simulator and physical-device Debug products**
+Executed once: 240 selected, 235 passed, four expected opt-in skips, one
+diagnostic fake-clock failure. The authorized fixture-only correction retained
+the 1 µs assertion tolerance and passed the exact live/mobile cases and ten
+related timing tests (12/12). The original broad result remains preserved;
+the complete suite was not rerun or represented as a clean pass.
+
+- [x] **Step 5: Build simulator and physical-device Debug products**
 
     xcodebuild build -quiet -project Steps4.xcodeproj -scheme Steps4 \
       -configuration Debug -destination 'generic/platform=iOS Simulator' \
@@ -729,11 +763,20 @@ Run resource, instrument-bank, playback-engine, scheduler, plan-differ, loudness
 
 Expected: both builds succeed. Installation and subjective listening require the connected, trusted iPhone.
 
-- [ ] **Step 6: Update checklist and plan progress**
+Both generic Debug builds passed again on calibrated HEAD `e71047f`. The signed
+Debug app was installed on paired, available iPhone Costa (iPhone 15 Pro) without
+launching. Phone-speaker and headphone listening remain pending.
+
+- [x] **Step 6: Update checklist and plan progress**
 
 Record test counts, build outcomes, report thresholds, memory, artifact paths, manual listening still required, and any rejected combination IDs. Add phone-speaker and headphone ratings for previews 01...12 without revealing the manifest mapping until ratings are complete.
 
-- [ ] **Step 7: Commit reports and documentation**
+Recorded all automated evidence and a blind numbered rating table. Human ratings
+remain explicitly pending; none are inferred from automated results. Task 8 is
+not claimed accepted or complete while Step 3 quality gates and listening remain
+unmet.
+
+- [x] **Step 7: Commit reports and documentation**
 
     git add artifacts/day-objects-four-worlds/audition-manifest.json \
       artifacts/day-objects-four-worlds/mix-quality.json \
@@ -741,10 +784,14 @@ Record test counts, build outcomes, report thresholds, memory, artifact paths, m
       docs/superpowers/plans/2026-09-06-day-objects-four-sound-worlds.md
     git commit -m "docs: record four-world audio verification"
 
-- [ ] **Step 8: Review the final branch**
+- [x] **Step 8: Review the final branch**
 
     git diff --check
     git status --short
     git log --oneline --decorate -12
 
-Expected: only intentionally untracked audition WAV directories remain. Do not merge, force-push, or overwrite unrelated user work.
+Expected: only intentionally untracked audition WAVs and the preserved rejected
+pack remain. The final documentation commit contains only the canonical JSON
+manifest/quality report and these two documents, never WAVs. `git diff --check`,
+status, log, exact integration ancestry, and the absence of new merge commits
+were checked. Do not merge, force-push, or overwrite unrelated user work.
