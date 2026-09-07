@@ -20,6 +20,9 @@
 		C5A510030906202600000004 /* DayCanvasArtworkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510030906202600000003 /* DayCanvasArtworkView.swift */; };
 		C5A510040906202600000002 /* DayObjectsImageRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510040906202600000001 /* DayObjectsImageRenderer.swift */; };
 		F5A900000000000000000002 /* DayObjectsLoudnessAnalyzerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A900000000000000000001 /* DayObjectsLoudnessAnalyzerTests.swift */; };
+		D30600000000000000000002 /* DayObjectsMixQualityAnalyzerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30600000000000000000001 /* DayObjectsMixQualityAnalyzerTests.swift */; };
+		D30600000000000000000004 /* DayObjectsMixQualityReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30600000000000000000003 /* DayObjectsMixQualityReport.swift */; };
+		D30600000000000000000006 /* DayObjectsMixQualityAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30600000000000000000005 /* DayObjectsMixQualityAnalyzer.swift */; };
 		F5A900000000000000000004 /* DayObjectsLoudnessAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A900000000000000000003 /* DayObjectsLoudnessAnalyzer.swift */; };
 		F5A900000000000000000007 /* DayObjectsOfflineMixRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A900000000000000000006 /* DayObjectsOfflineMixRenderer.swift */; };
 		F5A900000000000000000009 /* DayObjectsMixScenarioTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A900000000000000000008 /* DayObjectsMixScenarioTests.swift */; };
@@ -614,6 +617,9 @@
 		C5A510030906202600000003 /* DayCanvasArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayCanvasArtworkView.swift; sourceTree = "<group>"; };
 		C5A510040906202600000001 /* DayObjectsImageRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsImageRenderer.swift; sourceTree = "<group>"; };
 		F5A900000000000000000001 /* DayObjectsLoudnessAnalyzerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLoudnessAnalyzerTests.swift; sourceTree = "<group>"; };
+		D30600000000000000000001 /* DayObjectsMixQualityAnalyzerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsMixQualityAnalyzerTests.swift; sourceTree = "<group>"; };
+		D30600000000000000000003 /* DayObjectsMixQualityReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsMixQualityReport.swift; sourceTree = "<group>"; };
+		D30600000000000000000005 /* DayObjectsMixQualityAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsMixQualityAnalyzer.swift; sourceTree = "<group>"; };
 		F5A900000000000000000003 /* DayObjectsLoudnessAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLoudnessAnalyzer.swift; sourceTree = "<group>"; };
 		F5A900000000000000000006 /* DayObjectsOfflineMixRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsOfflineMixRenderer.swift; sourceTree = "<group>"; };
 		F5A900000000000000000008 /* DayObjectsMixScenarioTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsMixScenarioTests.swift; sourceTree = "<group>"; };
@@ -1273,6 +1279,8 @@
 			isa = PBXGroup;
 			children = (
 				F5A900000000000000000003 /* DayObjectsLoudnessAnalyzer.swift */,
+				D30600000000000000000003 /* DayObjectsMixQualityReport.swift */,
+				D30600000000000000000005 /* DayObjectsMixQualityAnalyzer.swift */,
 				F5A900000000000000000006 /* DayObjectsOfflineMixRenderer.swift */,
 			);
 			path = Diagnostics;
@@ -1891,6 +1899,7 @@
 			isa = PBXGroup;
 			children = (
 				F5A900000000000000000001 /* DayObjectsLoudnessAnalyzerTests.swift */,
+				D30600000000000000000001 /* DayObjectsMixQualityAnalyzerTests.swift */,
 				F5A900000000000000000008 /* DayObjectsMixScenarioTests.swift */,
 				D0FB00000000000000000001 /* DayObjectsBusMeterTests.swift */,
 				D0F900000000000000000007 /* DayObjectsMusicLabControllerTests.swift */,
@@ -2372,6 +2381,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				F5A900000000000000000004 /* DayObjectsLoudnessAnalyzer.swift in Sources */,
+				D30600000000000000000004 /* DayObjectsMixQualityReport.swift in Sources */,
+				D30600000000000000000006 /* DayObjectsMixQualityAnalyzer.swift in Sources */,
 				F5A900000000000000000007 /* DayObjectsOfflineMixRenderer.swift in Sources */,
 				D0FB00000000000000000004 /* DayObjectsBusMeter.swift in Sources */,
 				D0F90000000000000000000A /* DayObjectsMusicLabController.swift in Sources */,
@@ -2726,6 +2737,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F5A900000000000000000002 /* DayObjectsLoudnessAnalyzerTests.swift in Sources */,
+				D30600000000000000000002 /* DayObjectsMixQualityAnalyzerTests.swift in Sources */,
 				F5A900000000000000000009 /* DayObjectsMixScenarioTests.swift in Sources */,
 				D0FB00000000000000000002 /* DayObjectsBusMeterTests.swift in Sources */,
 				D0F900000000000000000008 /* DayObjectsMusicLabControllerTests.swift in Sources */,

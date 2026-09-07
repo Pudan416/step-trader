@@ -12,10 +12,18 @@ private func repositoryRoot() -> URL? {
     ]
     while let candidate = candidates.first {
         candidates.removeFirst()
-        let analyzer = candidate.appendingPathComponent(
-            "StepsTrader/Experiments/DayObjects/Sound/Diagnostics/DayObjectsLoudnessAnalyzer.swift"
+        let diagnostics = candidate.appendingPathComponent(
+            "StepsTrader/Experiments/DayObjects/Sound/Diagnostics",
+            isDirectory: true
         )
-        if fileManager.fileExists(atPath: analyzer.path) { return candidate }
+        let requiredSources = [
+            "DayObjectsLoudnessAnalyzer.swift",
+            "DayObjectsMixQualityReport.swift",
+            "DayObjectsMixQualityAnalyzer.swift",
+        ]
+        if requiredSources.allSatisfy({
+            fileManager.fileExists(atPath: diagnostics.appendingPathComponent($0).path)
+        }) { return candidate }
         let parent = candidate.deletingLastPathComponent()
         if parent.path != candidate.path, !candidates.contains(parent) {
             candidates.append(parent)
@@ -40,11 +48,15 @@ do {
     let executable = temporaryDirectory.appendingPathComponent("analyze-day-objects-mix")
     let compiler = Process()
     compiler.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+    let diagnostics = root.appendingPathComponent(
+        "StepsTrader/Experiments/DayObjects/Sound/Diagnostics",
+        isDirectory: true
+    )
     compiler.arguments = [
         "swiftc", "-D", "DEBUG", "-D", "DAY_OBJECTS_ANALYZER_COMPILED",
-        root.appendingPathComponent(
-            "StepsTrader/Experiments/DayObjects/Sound/Diagnostics/DayObjectsLoudnessAnalyzer.swift"
-        ).path,
+        diagnostics.appendingPathComponent("DayObjectsLoudnessAnalyzer.swift").path,
+        diagnostics.appendingPathComponent("DayObjectsMixQualityReport.swift").path,
+        diagnostics.appendingPathComponent("DayObjectsMixQualityAnalyzer.swift").path,
         mainSource.path,
         "-o", executable.path,
     ]
@@ -86,9 +98,13 @@ private struct FileReport: Codable {
     let containsOnlyFiniteSamples: Bool
     let passesIntegratedLoudness: Bool
     let passesTruePeak: Bool
+    let quality: DayObjectsMixQualityReport
 
     var passes: Bool {
-        containsOnlyFiniteSamples && passesIntegratedLoudness && passesTruePeak
+        containsOnlyFiniteSamples
+            && passesIntegratedLoudness
+            && passesTruePeak
+            && quality.passes
     }
 }
 
@@ -104,17 +120,22 @@ private enum CommandError: Error, CustomStringConvertible {
     case usage(String)
     case noPCMFiles(String)
     case fileTooLarge(String)
+    case missingStem(String)
 
     var description: String {
         switch self {
-        case let .usage(message), let .noPCMFiles(message), let .fileTooLarge(message): message
+        case let .usage(message),
+             let .noPCMFiles(message),
+             let .fileTooLarge(message),
+             let .missingStem(message): message
         }
     }
 }
 
-private func parseArguments() throws -> (URL, URL?, Limits) {
+private func parseArguments() throws -> (URL, URL?, URL?, Limits) {
     var limits = Limits()
     var outputURL: URL?
+    var stemsDirectoryURL: URL?
     var inputURL: URL?
     var index = 1
     let arguments = CommandLine.arguments
@@ -144,10 +165,13 @@ private func parseArguments() throws -> (URL, URL?, Limits) {
             limits.maximumTruePeakDBTP = value
         case "--output":
             outputURL = URL(fileURLWithPath: try value(after: arguments[index]))
+        case "--stems-directory":
+            stemsDirectoryURL = URL(fileURLWithPath: try value(after: arguments[index]))
         case "--help", "-h":
             throw CommandError.usage(
                 "Usage: analyze_day_objects_mix.swift [--min-lufs -18] [--max-lufs -16] "
-                    + "[--max-dbtp -1] [--output report.json] <PCM file or directory>"
+                    + "[--max-dbtp -1] [--stems-directory directory] "
+                    + "[--output report.json] <PCM file or directory>"
             )
         default:
             guard !arguments[index].hasPrefix("-"), inputURL == nil else {
@@ -163,7 +187,7 @@ private func parseArguments() throws -> (URL, URL?, Limits) {
     guard let inputURL else {
         throw CommandError.usage("A PCM file or directory is required; use --help for usage")
     }
-    return (inputURL, outputURL, limits)
+    return (inputURL, outputURL, stemsDirectoryURL, limits)
 }
 
 private func pcmFiles(at inputURL: URL) throws -> [URL] {
@@ -194,7 +218,7 @@ private func pcmFiles(at inputURL: URL) throws -> [URL] {
     return files
 }
 
-private func analyze(_ url: URL, limits: Limits) throws -> FileReport {
+private func readPCMBuffer(_ url: URL) throws -> AVAudioPCMBuffer {
     let file = try AVAudioFile(forReading: url)
     guard file.length > 0, file.length <= Int64(AVAudioFrameCount.max) else {
         throw CommandError.fileTooLarge("Unsupported frame count in: \(url.path)")
@@ -207,25 +231,56 @@ private func analyze(_ url: URL, limits: Limits) throws -> FileReport {
         throw CommandError.fileTooLarge("Could not allocate PCM buffer for: \(url.path)")
     }
     try file.read(into: buffer)
-    let loudness = try DayObjectsStereoCaptureAdapter.analyze(buffer)
+    return buffer
+}
+
+private func readStems(at directory: URL?) throws -> [DayObjectsMixRole: AVAudioPCMBuffer] {
+    guard let directory else { return [:] }
+    var isDirectory: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: directory.path, isDirectory: &isDirectory),
+          isDirectory.boolValue else {
+        throw CommandError.missingStem("Stems directory does not exist: \(directory.path)")
+    }
+    var stems: [DayObjectsMixRole: AVAudioPCMBuffer] = [:]
+    for role in DayObjectsMixRole.allCases {
+        let url = directory.appendingPathComponent("\(role.rawValue).wav")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CommandError.missingStem("Missing required stem: \(url.path)")
+        }
+        stems[role] = try readPCMBuffer(url)
+    }
+    return stems
+}
+
+private func analyze(
+    _ url: URL,
+    stems: [DayObjectsMixRole: AVAudioPCMBuffer],
+    limits: Limits
+) throws -> FileReport {
+    let buffer = try readPCMBuffer(url)
+    let quality = try DayObjectsMixQualityAnalyzer.analyze(fullMix: buffer, stems: stems)
     return FileReport(
         path: url.path,
-        integratedLUFS: loudness.integratedLUFS,
-        truePeakDBTP: loudness.truePeakDBTP,
-        durationSeconds: loudness.durationSeconds,
-        containsOnlyFiniteSamples: loudness.containsOnlyFiniteSamples,
+        integratedLUFS: quality.integratedLUFS,
+        truePeakDBTP: quality.truePeakDBTP,
+        durationSeconds: Double(buffer.frameLength) / buffer.format.sampleRate,
+        containsOnlyFiniteSamples: true,
         passesIntegratedLoudness: (limits.minimumIntegratedLUFS ... limits.maximumIntegratedLUFS)
-            .contains(loudness.integratedLUFS),
-        passesTruePeak: loudness.truePeakDBTP <= limits.maximumTruePeakDBTP
+            .contains(quality.integratedLUFS),
+        passesTruePeak: quality.truePeakDBTP <= limits.maximumTruePeakDBTP,
+        quality: quality
     )
 }
 
 do {
-    let (inputURL, outputURL, limits) = try parseArguments()
-    let reports = try pcmFiles(at: inputURL).map { try analyze($0, limits: limits) }
+    let (inputURL, outputURL, stemsDirectoryURL, limits) = try parseArguments()
+    let stems = try readStems(at: stemsDirectoryURL)
+    let reports = try pcmFiles(at: inputURL).map {
+        try analyze($0, stems: stems, limits: limits)
+    }
     let report = CommandReport(
-        schemaVersion: 1,
-        analyzer: "ITU-R BS.1770 K-weighting; 400 ms blocks; 75% overlap; -70 LUFS absolute / -10 LU relative gates; 4x true peak",
+        schemaVersion: 2,
+        analyzer: "ITU-R BS.1770 loudness/4x true peak; deterministic 4096-point FFT mix quality",
         limits: limits,
         files: reports,
         passes: reports.allSatisfy(\.passes)
