@@ -8,6 +8,7 @@ struct GenerativeCanvasView: View {
     /// The day this canvas belongs to. Feeds `dayComposition` — never persisted,
     /// just re-derived per render.
     let dayKey: String
+    var remixSeed: UInt64? = nil
     let sleepPoints: Int
     let stepsPoints: Int
     let sleepColor: Color
@@ -261,7 +262,7 @@ struct GenerativeCanvasView: View {
         // One composition per frame, not per organic blob — `DayComposition.forDay`
         // does real work (archetype/palette/texture-policy derivation), so calling
         // it from inside `drawElement` recomputed it once per blob per frame.
-        let dayComposition = DayComposition.forDay(dayKey: dayKey, happeningCount: elements.count)
+        let dayComposition = renderedComposition
         let elementCount = elements.count
         let lowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
 
@@ -336,6 +337,14 @@ struct GenerativeCanvasView: View {
                 drawLabel(element, at: center, context: &context, labelColor: lblColor, shadowColor: shadowClr)
             }
         }
+    }
+
+    var renderedComposition: DayComposition {
+        .forDay(
+            dayKey: dayKey, happeningCount: elements.count,
+            allowedTextureKinds: remixSeed == nil ? TextureKind.allowedByUser : TextureKind.allCases,
+            remixSeed: remixSeed
+        )
     }
 
     // MARK: - Cross-Element Interaction Model

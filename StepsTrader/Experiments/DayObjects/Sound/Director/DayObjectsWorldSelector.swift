@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 struct DayObjectsWorldSelection: Equatable, Codable, Sendable {
     let world: DayObjectsSoundWorld
     let mood: DayObjectsSoundMood
@@ -41,4 +40,3 @@ enum DayObjectsWorldSelector {
         world.guestNeighbors[mood == .moving ? 1 : 0]
     }
 }
-#endif

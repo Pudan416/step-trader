@@ -373,6 +373,7 @@
 		30A1D1B32F3C000100000005 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1D1A32F3C000100000003 /* NotificationSettingsView.swift */; };
 		30CA0001300000000000CA01 /* CanvasElement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0002300000000000CA02 /* CanvasElement.swift */; };
 		CA51B0030000000000000003 /* CanvasRemix.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0030000000000000003 /* CanvasRemix.swift */; };
+		C5A520020906202600000002 /* CanvasUnifiedRemix.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A520020906202600000001 /* CanvasUnifiedRemix.swift */; };
 		CA51B0010000000000000001 /* CanvasEnergyStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0010000000000000001 /* CanvasEnergyStatus.swift */; };
 		DA0003000300030003000031 /* Happening.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0003000300030003000030 /* Happening.swift */; };
 		DA0022002200220022000011 /* HappeningShapeAssignment.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0022002200220022000010 /* HappeningShapeAssignment.swift */; };
@@ -954,6 +955,7 @@
 		30A1D1A32F3C000100000003 /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
 		30CA0002300000000000CA02 /* CanvasElement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasElement.swift; sourceTree = "<group>"; };
 		CA51F0030000000000000003 /* CanvasRemix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasRemix.swift; sourceTree = "<group>"; };
+		C5A520020906202600000001 /* CanvasUnifiedRemix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasUnifiedRemix.swift; sourceTree = "<group>"; };
 		CA51F0010000000000000001 /* CanvasEnergyStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasEnergyStatus.swift; sourceTree = "<group>"; };
 		DA0003000300030003000030 /* Happening.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Happening.swift; sourceTree = "<group>"; };
 		DA0022002200220022000010 /* HappeningShapeAssignment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningShapeAssignment.swift; sourceTree = "<group>"; };
@@ -1543,6 +1545,7 @@
 				AA00NOTE2F3A000100000002 /* Note.swift */,
 				30CA0002300000000000CA02 /* CanvasElement.swift */,
 				CA51F0030000000000000003 /* CanvasRemix.swift */,
+				C5A520020906202600000001 /* CanvasUnifiedRemix.swift */,
 				CA51F0010000000000000001 /* CanvasEnergyStatus.swift */,
 				DA0003000300030003000030 /* Happening.swift */,
 				DA0022002200220022000010 /* HappeningShapeAssignment.swift */,
@@ -2552,6 +2555,7 @@
 				2061EBD02F269D30009FEC24 /* GalleryView.swift in Sources */,
 				30CA0001300000000000CA01 /* CanvasElement.swift in Sources */,
 				CA51B0030000000000000003 /* CanvasRemix.swift in Sources */,
+				C5A520020906202600000002 /* CanvasUnifiedRemix.swift in Sources */,
 				CA51B0010000000000000001 /* CanvasEnergyStatus.swift in Sources */,
 				DA0003000300030003000031 /* Happening.swift in Sources */,
 				DA0022002200220022000011 /* HappeningShapeAssignment.swift in Sources */,

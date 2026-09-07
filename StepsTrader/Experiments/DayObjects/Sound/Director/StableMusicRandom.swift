@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 struct MusicEventCounterMapping: Equatable, Sendable {
     let version: UInt8
     let cycleStride: UInt64
@@ -105,4 +104,3 @@ struct StableMusicRandom: Sendable {
         return hash
     }
 }
-#endif

@@ -18,6 +18,46 @@ struct DayCanvas: Codable {
     var visualStyleRaw: String?
     var hasStepsData: Bool?
     var hasSleepData: Bool?
+    /// Optional so historical canvases retain their exact pre-Remix artwork.
+    var remixSeed: UInt64?
+    var soundWorldRaw: String?
+    var soundMoodRaw: String?
+    var guestSoundWorldRaw: String?
+
+    var resolvedRemixSeed: UInt64 {
+        remixSeed ?? CanvasElement.makeSeed(
+            optionId: "dayObjects:primary-canvas", dayKey: dayKey, index: 0
+        )
+    }
+
+    var resolvedMusicSelection: DayObjectsWorldSelection {
+        let fallback = DayObjectsWorldSelector.makeSelection(remixSeed: resolvedRemixSeed)
+        return .init(
+            world: soundWorldRaw.flatMap(DayObjectsSoundWorld.init(rawValue:)) ?? fallback.world,
+            mood: soundMoodRaw.flatMap(DayObjectsSoundMood.init(rawValue:)) ?? fallback.mood,
+            guestWorld: soundWorldRaw == nil
+                ? fallback.guestWorld
+                : guestSoundWorldRaw.flatMap(DayObjectsSoundWorld.init(rawValue:))
+        )
+    }
+
+    /// Preferences continue to style untouched days. A Remix owns its saved
+    /// background, so later health refreshes cannot replace it.
+    @discardableResult
+    mutating func applyVisualPreferences(
+        gradientStyle: String, gradientPalette: String,
+        overlayStyle: String, textureRaw: String
+    ) -> Bool {
+        guard remixSeed == nil else { return false }
+        let changed = self.gradientStyle != gradientStyle
+            || self.gradientPalette != gradientPalette
+            || self.overlayStyle != overlayStyle || self.textureRaw != textureRaw
+        self.gradientStyle = gradientStyle
+        self.gradientPalette = gradientPalette
+        self.overlayStyle = overlayStyle
+        self.textureRaw = textureRaw
+        return changed
+    }
 
     /// 0.0 = pristine (nothing spent), 1.0 = fully degraded (all colors spent)
     var decayNorm: Double {

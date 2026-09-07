@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 struct MusicSeedDomain: Equatable, Sendable {
     let rawValue: String
 
@@ -51,4 +50,3 @@ extension MusicSeedDomain {
         return "%\(hexadecimal[high])\(hexadecimal[low])"
     }
 }
-#endif

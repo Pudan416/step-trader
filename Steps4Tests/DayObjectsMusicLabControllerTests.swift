@@ -4,6 +4,54 @@ import XCTest
 
 @MainActor
 final class DayObjectsMusicLabControllerTests: XCTestCase {
+    func testUnifiedRemixAppliesOneCompleteSelectionWhileSoundIsOff() {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        let input = controller.currentPlan.input
+        controller.applyRemix(seed: 77, selection: .init(world: .electricDream, mood: .strange, guestWorld: .livingField))
+        XCTAssertEqual(controller.currentPlan.seed, 77)
+        XCTAssertEqual(controller.currentPlan.soundWorld, .electricDream)
+        XCTAssertEqual(controller.currentPlan.mood, .strange)
+        XCTAssertEqual(controller.currentPlan.guestWorld, .livingField)
+        XCTAssertEqual(controller.currentPlan.input, input)
+        XCTAssertTrue(playback.commands.isEmpty)
+        XCTAssertEqual(controller.soundState, .off)
+        XCTAssertFalse(controller.canUndoMusicRemix, "Unified history belongs to the canvas")
+    }
+
+    func testUnifiedRemixAndUndoRouteOneCompletePlanEachWithStableHappenings() async {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        let originalSeed = controller.state.remixSeed
+        let originalSelection = DayObjectsWorldSelection(world: controller.state.soundWorld, mood: controller.state.mood, guestWorld: controller.state.guestWorld)
+        await controller.toggleSound()
+        let input = controller.currentPlan.input
+        controller.applyRemix(seed: 91, selection: .init(world: .livingField, mood: .sparse, guestWorld: nil))
+        XCTAssertEqual(playback.structuralPlans.count, 1)
+        XCTAssertEqual(playback.structuralPlans.last, controller.currentPlan)
+        XCTAssertEqual(controller.currentPlan.guestWorld, nil)
+        controller.applyRemix(seed: originalSeed, selection: originalSelection)
+        XCTAssertEqual(playback.structuralPlans.count, 2)
+        XCTAssertEqual(playback.structuralPlans.last, controller.currentPlan)
+        XCTAssertEqual(controller.currentPlan.input, input)
+        XCTAssertFalse(playback.commands.contains { $0.hasPrefix("add:") || $0.hasPrefix("remove:") })
+    }
+
+    func testCanvasRefreshAfterUnifiedRemixDoesNotScheduleTheSamePlanTwice() async {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        await controller.toggleSound()
+        let selection = DayObjectsWorldSelection(world: .electricDream, mood: .strange, guestWorld: nil)
+        controller.applyRemix(seed: 19, selection: selection)
+        let state = controller.state
+        controller.setDayInput(
+            countedSteps: state.steps, stepGoal: state.stepGoal,
+            countedSleepHours: state.sleepHours, sleepGoalHours: state.sleepGoalHours,
+            happeningIDs: controller.happeningIDs, spentColors: state.spentColors
+        )
+        controller.applyRemix(seed: 19, selection: selection)
+        XCTAssertEqual(playback.structuralPlans.count, 1)
+    }
     func testSuccessfulPlaybackAttackFeedsTheVisualPulseBus() {
         let playback = RecordingLabPlayback()
         let controller = DayObjectsMusicLabController(playback: playback)

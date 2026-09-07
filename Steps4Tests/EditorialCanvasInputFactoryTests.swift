@@ -4,6 +4,40 @@ import XCTest
 @testable import Steps4
 
 final class EditorialCanvasInputFactoryTests: XCTestCase {
+    func testRemixSeedChangesVisibleEditorialRecipeDeterministicallyWithoutChangingEvents() throws {
+        var canvas = DayCanvas(dayKey: "2026-09-06")
+        canvas.elements = (0..<10).map { index in
+            var value = element(id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", index))!)
+            value.editorialColorVariant = index
+            return value
+        }
+        func scene(_ canvas: DayCanvas) -> DayObjectScene {
+            DayObjectScene.make(input: EditorialCanvasInputFactory.make(
+                canvas: canvas,
+                metrics: .init(stepsProgress: 0.6, sleepProgress: 0.8, spentProgress: 0.3),
+                paletteCategories: [.neon, .warm]
+            ).sceneInput)
+        }
+        let legacy = scene(canvas)
+        canvas.remixSeed = 77
+        let first = scene(canvas)
+        XCTAssertEqual(first, scene(canvas))
+        XCTAssertEqual(first.actorIDs, legacy.actorIDs)
+        XCTAssertEqual(first.input.actorColorVariants, legacy.input.actorColorVariants)
+        XCTAssertEqual(first.input.motionEnergy, legacy.input.motionEnergy)
+        XCTAssertEqual(first.input.visualClarity, legacy.input.visualClarity)
+        let before = try XCTUnwrap(legacy.sceneRecipeV1)
+        let after = try XCTUnwrap(first.sceneRecipeV1)
+        XCTAssertNotEqual(after.actors.map(\.position), before.actors.map(\.position))
+        XCTAssertNotEqual(after.actors.map(\.shape), before.actors.map(\.shape))
+        XCTAssertNotEqual(after.actors.map(\.diameter), before.actors.map(\.diameter))
+        XCTAssertNotEqual(after.actors.map(\.material), before.actors.map(\.material))
+        XCTAssertNotEqual(after.actors.map(\.motion), before.actors.map(\.motion))
+        XCTAssertNotEqual(after.backgroundStyle, before.backgroundStyle)
+        XCTAssertNotEqual(first.paletteSet, legacy.paletteSet)
+        canvas.remixSeed = nil
+        XCTAssertEqual(scene(canvas), legacy, "Undo to an unremixed day restores the exact legacy renderer input")
+    }
     func testBuildsFullCanvasEditorialInputWithStableElementIdentity() {
         let firstID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
         let secondID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!

@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 enum DayObjectsSoundWorld: String, Codable, CaseIterable, Equatable, Hashable, Sendable {
     case feltAndWood
     case livingField
@@ -23,6 +22,7 @@ enum DayObjectsSoundWorld: String, Codable, CaseIterable, Equatable, Hashable, S
         }
     }
 
+#if DEBUG || INTERNAL_BUILD
     var harmonyInstrumentIDs: Set<String> {
         switch self {
         case .feltAndWood, .livingField:
@@ -54,5 +54,5 @@ enum DayObjectsSoundWorld: String, Codable, CaseIterable, Equatable, Hashable, S
             [1, 2, 3, 5, 6, 8, 13, 14, 19, 20, 21, 22, 23, 25, 26, 27, 28, 35, 36, 37, 38, 41, 42]
         }
     }
-}
 #endif
+}

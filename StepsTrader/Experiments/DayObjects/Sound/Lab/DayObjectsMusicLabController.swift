@@ -88,6 +88,8 @@ final class DayObjectsMusicLabController: ObservableObject {
     private struct MusicVariant: Equatable {
         let remixSeed: UInt64
         let soundWorld: DayObjectsSoundWorld
+        let mood: DayObjectsSoundMood
+        let guestWorld: DayObjectsSoundWorld?
     }
 
     private struct HappeningPadTask {
@@ -348,6 +350,19 @@ final class DayObjectsMusicLabController: ObservableObject {
         updateState { $0.remixSeed &+= 1 }
     }
 
+    /// Canvas owns history and persistence. Apply the complete identity in one
+    /// state mutation, without starting Sound or building an intermediate plan.
+    func applyRemix(seed: UInt64, selection: DayObjectsWorldSelection) {
+        guard state.remixSeed != seed || state.soundWorld != selection.world
+            || state.mood != selection.mood || state.guestWorld != selection.guestWorld else { return }
+        updateState {
+            $0.remixSeed = seed
+            $0.soundWorld = selection.world
+            $0.mood = selection.mood
+            $0.guestWorld = selection.guestWorld
+        }
+    }
+
     func selectSoundWorld(_ soundWorld: DayObjectsSoundWorld) {
         guard state.soundWorld != soundWorld else { return }
         rememberCurrentMusicVariant()
@@ -359,6 +374,8 @@ final class DayObjectsMusicLabController: ObservableObject {
         updateState {
             $0.remixSeed = previous.remixSeed
             $0.soundWorld = previous.soundWorld
+            $0.mood = previous.mood
+            $0.guestWorld = previous.guestWorld
         }
     }
 
@@ -494,6 +511,7 @@ final class DayObjectsMusicLabController: ObservableObject {
         let oldPlan = currentPlan
         var nextState = state
         mutation(&nextState)
+        guard nextState != state || (happeningIDs ?? configuredHappeningIDs) != configuredHappeningIDs else { return }
         state = nextState
         if let happeningIDs {
             configuredHappeningIDs = happeningIDs
@@ -511,7 +529,9 @@ final class DayObjectsMusicLabController: ObservableObject {
     private func rememberCurrentMusicVariant() {
         musicVariantHistory.append(.init(
             remixSeed: state.remixSeed,
-            soundWorld: state.soundWorld
+            soundWorld: state.soundWorld,
+            mood: state.mood,
+            guestWorld: state.guestWorld
         ))
     }
 
@@ -630,7 +650,7 @@ final class DayObjectsMusicLabController: ObservableObject {
                 spentColors: state.spentColors
             ),
             remixSeed: state.remixSeed,
-            soundWorld: state.soundWorld
+            selection: .init(world: state.soundWorld, mood: state.mood, guestWorld: state.guestWorld)
         )
     }
 

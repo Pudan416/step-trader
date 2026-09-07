@@ -4,6 +4,69 @@ import HealthKit
 
 @MainActor
 final class CanvasPersistenceRegressionTests: XCTestCase {
+    func testCloudCanvasRoundTripPreservesFullWidthRemixAndShapeSeeds() throws {
+        var canvas = CanvasUnifiedRemix.next(canvas: DayCanvas(dayKey: "2026-08-18")).canvas
+        canvas.remixSeed = UInt64.max
+        var element = CanvasElement.spawn(
+            optionId: "walk", label: "Walk", existingElements: [],
+            dayKey: canvas.dayKey,
+            composition: .forDay(dayKey: canvas.dayKey, happeningCount: 1)
+        )
+        element.shapeSeed = 0xD4A0_B1EC_75ED_0001
+        canvas.elements = [element]
+        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(canvas))
+        let envelope = try JSONSerialization.data(withJSONObject: ["canvas_json": json])
+        let row = try JSONDecoder().decode(DayCanvasReadRow.self, from: envelope)
+        let restored = try JSONDecoder().decode(
+            DayCanvas.self, from: JSONSerialization.data(withJSONObject: row.canvasJson)
+        )
+        XCTAssertEqual(restored.remixSeed, UInt64.max)
+        XCTAssertEqual(restored.elements[0].shapeSeed, 0xD4A0_B1EC_75ED_0001)
+        XCTAssertEqual(restored.resolvedMusicSelection, canvas.resolvedMusicSelection)
+    }
+    func testLegacyCanvasDecodesWithoutRemixFieldsAndResolvesStableDayIdentity() throws {
+        let canvas = DayCanvas(dayKey: "2026-08-18")
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(canvas)) as? [String: Any])
+        ["remixSeed", "soundWorldRaw", "soundMoodRaw", "guestSoundWorldRaw"].forEach { json.removeValue(forKey: $0) }
+        let decoded = try JSONDecoder().decode(DayCanvas.self, from: JSONSerialization.data(withJSONObject: json))
+        XCTAssertNil(decoded.remixSeed)
+        XCTAssertEqual(decoded.resolvedRemixSeed, CanvasElement.makeSeed(optionId: "dayObjects:primary-canvas", dayKey: "2026-08-18", index: 0))
+        XCTAssertEqual(decoded.resolvedMusicSelection, DayObjectsWorldSelector.makeSelection(remixSeed: decoded.resolvedRemixSeed))
+    }
+
+    func testRemixIdentityAndBackgroundSurviveStorageAndLaterHealthSync() throws {
+        let key = "2098-12-27"
+        let prior = CanvasStorageService.shared.loadCanvas(for: key)
+        defer {
+            CanvasStorageService.shared.deleteCanvas(for: key)
+            if let prior { _ = CanvasStorageService.shared.saveCanvas(prior) }
+        }
+        var canvas = CanvasUnifiedRemix.next(canvas: DayCanvas(dayKey: key)).canvas
+        canvas.remixSeed = UInt64.max
+        canvas.soundWorldRaw = "metalAndCurrent"
+        canvas.soundMoodRaw = "strange"
+        canvas.guestSoundWorldRaw = "electricDream"
+        let palette = canvas.gradientPalette
+        let texture = canvas.textureRaw
+        XCTAssertFalse(canvas.applyVisualPreferences(gradientStyle: "radial", gradientPalette: "ocean", overlayStyle: "smudge", textureRaw: "grainSmall"))
+        canvas.stepsPoints = 20
+        XCTAssertTrue(CanvasStorageService.shared.saveCanvas(canvas))
+        let restored = try XCTUnwrap(CanvasStorageService.shared.loadCanvas(for: key))
+        XCTAssertEqual(restored.remixSeed, UInt64.max)
+        XCTAssertEqual(restored.soundWorldRaw, "metalAndCurrent")
+        XCTAssertEqual(restored.soundMoodRaw, "strange")
+        XCTAssertEqual(restored.guestSoundWorldRaw, "electricDream")
+        XCTAssertEqual(restored.gradientPalette, palette)
+        XCTAssertEqual(restored.textureRaw, texture)
+        XCTAssertEqual(restored.stepsPoints, 20)
+    }
+
+    func testLegacyCanvasStillAdoptsVisualPreferences() {
+        var canvas = DayCanvas(dayKey: "2026-08-18")
+        XCTAssertTrue(canvas.applyVisualPreferences(gradientStyle: "radial", gradientPalette: "ocean", overlayStyle: "smudge", textureRaw: "grainSmall"))
+        XCTAssertEqual(canvas.gradientPalette, "ocean")
+        XCTAssertEqual(canvas.textureRaw, "grainSmall")
+    }
     private var defaults: UserDefaults!
 
     override func setUp() {

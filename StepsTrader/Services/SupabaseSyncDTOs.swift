@@ -487,6 +487,12 @@ struct AnyCodable: Decodable {
             value = arr.map { $0.value }
         } else if let s = try? container.decode(String.self) {
             value = s
+        } else if let integer = try? container.decode(Int64.self) {
+            value = integer
+        } else if let unsigned = try? container.decode(UInt64.self) {
+            // Remix and procedural shape seeds use all 64 bits. Decoding
+            // through Double first would round them during a cloud reload.
+            value = unsigned
         } else if let d = try? container.decode(Double.self) {
             value = d
         } else if let b = try? container.decode(Bool.self) {
