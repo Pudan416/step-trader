@@ -4,10 +4,17 @@
 <dict>
 	<key>UIAppFonts</key>
 	<array>
-		<string>Geist-Medium.ttf</string>
-		<string>GeistMono-Medium.ttf</string>
-		<string>Unbounded[wght].ttf</string>
-		<string>Unbounded-Black.ttf</string>
+		<string>Onest-Black.ttf</string>
+		<string>Onest-Bold.ttf</string>
+		<string>Onest-ExtraBold.ttf</string>
+		<string>Onest-ExtraLight.ttf</string>
+		<string>Onest-Light.ttf</string>
+		<string>Onest-Medium.ttf</string>
+		<string>Onest-Regular.ttf</string>
+		<string>Onest-SemiBold.ttf</string>
+		<string>Onest-Thin.ttf</string>
+		<string>NowhereDisplay02-Regular.ttf</string>
+		<string>NowhereDisplay02-Bold.ttf</string>
 	</array>
 	<key>CFBundleDisplayName</key>
 	<string>Nowhere</string>
