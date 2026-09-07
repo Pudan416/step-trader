@@ -121,7 +121,9 @@ final class PlaybackWorldBank: BassDuckBackend {
         case .secondaryPadOrKeys, .innerMotion:
             name = .secondaryPadOrKeys
         case .pianoOrKeysAccents:
-            name = .primaryPad
+            // Tonal keys must remain audible while the primary chord crossfades.
+            // Felt-piano targets bypass this routing and retain their piano pool.
+            name = .secondaryPadOrKeys
         }
         guard let pool = pools[name] else {
             throw DayObjectsInstrumentBankError.unknownTonalPool(name.rawValue)
