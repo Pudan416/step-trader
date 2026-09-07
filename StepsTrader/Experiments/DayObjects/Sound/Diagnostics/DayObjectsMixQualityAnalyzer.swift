@@ -28,9 +28,11 @@ enum DayObjectsMixQualityAnalyzer {
     private static let maskingAbsoluteFloorDBFS = -80.0
     private static let transientFrameSeconds = 0.01
     private static let transientHopSeconds = 0.005
-    private static let transientSlowEnvelopeSeconds = 0.05
+    private static let transientHistorySeconds = 0.05
     private static let transientEnergyFloor = 0.01
-    private static let transientNoveltyThreshold = 0.005
+    private static let transientMinimumRise = 0.005
+    private static let transientRelativeRise = 0.5
+    private static let transientDeviationMultiplier = 3.0
     private static let transientRefractorySeconds = 0.04
 
     /// Task 7 callers must pass the actual scheduled `activeRoles`, even when
@@ -323,10 +325,11 @@ enum DayObjectsMixQualityAnalyzer {
         return (peak, Double(clippedCount) / Double(sampleCount))
     }
 
-    /// High-frequency-content onset novelty: 10 ms Hann-windowed RMS of the
-    /// first difference, sampled every 5 ms, is compared with a 50 ms
-    /// exponential baseline. Energy must exceed 0.01 FS and positive novelty
-    /// must exceed 0.005 FS; detections have a 40 ms refractory period.
+    /// Frequency-neutral onset novelty: 10 ms full-band RMS, sampled every
+    /// 5 ms, is compared with the preceding 50 ms using a median and median
+    /// absolute deviation. The adaptive rise threshold rejects stable pitched
+    /// carriers and stationary noise without making low notes harder to detect.
+    /// Detections retain the 40 ms refractory period.
     private static func transientDensityPerSecond(
         channels: [[Float]],
         sampleRate: Double
@@ -334,37 +337,39 @@ enum DayObjectsMixQualityAnalyzer {
         guard let first = channels.first, !first.isEmpty else { return 0 }
         let windowFrames = max(Int((transientFrameSeconds * sampleRate).rounded()), 2)
         let hopFrames = max(Int((transientHopSeconds * sampleRate).rounded()), 1)
-        let window = (0..<windowFrames).map { index in
-            sin(Double.pi * Double(index) / Double(windowFrames - 1))
-        }
-        let windowEnergy = window.reduce(0) { $0 + ($1 * $1) }
-        let slowCoefficient = 1 - exp(
-            -Double(hopFrames) / (transientSlowEnvelopeSeconds * sampleRate)
+        let historyCount = max(
+            Int((transientHistorySeconds / transientHopSeconds).rounded()),
+            1
         )
         let refractoryFrames = max(Int((transientRefractorySeconds * sampleRate).rounded()), 1)
-        var slowEnvelope = 0.0
+        var history: [Double] = []
+        history.reserveCapacity(historyCount)
         var wasAboveThreshold = false
         var lastDetection = -refractoryFrames
         var count = 0
 
         for start in stride(from: 0, to: first.count, by: hopFrames) {
             let availableFrames = min(windowFrames, first.count - start)
-            var weightedEnergy = 0.0
+            var energy = 0.0
             for channel in channels {
                 for offset in 0..<availableFrames {
-                    let frame = start + offset
-                    let current = Double(channel[frame])
-                    let previous = frame > 0 ? Double(channel[frame - 1]) : 0
-                    let difference = (current - previous) * window[offset]
-                    weightedEnergy += difference * difference
+                    let sample = Double(channel[start + offset])
+                    energy += sample * sample
                 }
             }
             let frameEnergy = sqrt(
-                weightedEnergy / (windowEnergy * Double(channels.count))
+                energy / Double(availableFrames * channels.count)
             )
-            let novelty = max(0, frameEnergy - slowEnvelope)
+            let baseline = median(history)
+            let deviation = median(history.map { abs($0 - baseline) })
+            let requiredRise = max(
+                transientMinimumRise,
+                baseline * transientRelativeRise,
+                deviation * transientDeviationMultiplier
+            )
+            let novelty = frameEnergy - baseline
             let isAboveThreshold = frameEnergy >= transientEnergyFloor
-                && novelty >= transientNoveltyThreshold
+                && novelty >= requiredRise
             if isAboveThreshold,
                !wasAboveThreshold,
                start - lastDetection >= refractoryFrames {
@@ -372,11 +377,24 @@ enum DayObjectsMixQualityAnalyzer {
                 lastDetection = start
             }
             wasAboveThreshold = isAboveThreshold
-            slowEnvelope += slowCoefficient * (frameEnergy - slowEnvelope)
+            history.append(frameEnergy)
+            if history.count > historyCount {
+                history.removeFirst()
+            }
         }
         let duration = Double(first.count) / sampleRate
         guard duration.isFinite, duration > 0 else { return 0 }
         return Double(count) / duration
+    }
+
+    private static func median(_ values: [Double]) -> Double {
+        guard !values.isEmpty else { return 0 }
+        let sorted = values.sorted()
+        let midpoint = sorted.count / 2
+        if sorted.count.isMultiple(of: 2) {
+            return (sorted[midpoint - 1] + sorted[midpoint]) / 2
+        }
+        return sorted[midpoint]
     }
 
     /// Compares up to two seconds after the caller-provided end-of-event frame

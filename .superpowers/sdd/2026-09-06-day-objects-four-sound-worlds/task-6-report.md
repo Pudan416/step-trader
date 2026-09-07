@@ -384,3 +384,89 @@ long-render skips, 0 failed. The analyzer and loudness suites passed 32/32
 (23 mix-quality plus 9 loudness); the scenario suite supplied the remaining 13
 selected tests. The existing ten CLI validation/behavior checks also passed.
 No runtime audio application, ledger entry, or WAV file was changed.
+
+## Fix round 4
+
+This section supersedes the fix-round-3 onset algorithm only. Masking,
+active-role CLI metadata, tail-boundary analysis, public report fields, issue
+gates, and suggestion semantics are unchanged.
+
+### Root cause and adaptive detector
+
+The first-difference energy used in fix round 3 scales with carrier frequency.
+Consequently the fixed `0.01` energy floor suppressed otherwise identical
+100/250 Hz attacks while passing 1 kHz attacks. The second fixed novelty floor
+also had no estimate of local variance, so random frame-to-frame fluctuation in
+audible stationary noise repeatedly crossed it.
+
+Transient density now measures frequency-neutral, full-band RMS in a 10 ms
+window every 5 ms. Each frame is compared with the preceding, bounded 50 ms
+history. Its baseline is the history median and its local variation is the
+median absolute deviation. A candidate must exceed `0.01 FS` and rise over the
+baseline by the largest of `0.005 FS`, 50% of the baseline, or three local
+deviations. The existing 40 ms refractory period remains. This makes steady
+tones and stationary texture establish their own deterministic threshold,
+while the silence-to-attack transition of a pitched burst remains visible at
+every tested pitch.
+
+The history is capped at ten scalar frames. Runtime is linear in input frames,
+channels, and the fixed 10 ms measurement window; robust-statistic work sorts
+at most ten values. No additional buffer proportional to render length is
+allocated.
+
+### RED evidence
+
+Command:
+
+```text
+xcodebuild test -quiet -project Steps4.xcodeproj -scheme Steps4 \
+  -destination 'platform=iOS Simulator,name=iPhone 16e' \
+  -resultBundlePath /tmp/day-objects-task6-fix4-red.qXQJ3L/Task6Fix4RED.xcresult \
+  -only-testing:Steps4Tests/DayObjectsMixQualityAnalyzerTests/testEnvelopeTransientDensityFlagsRealisticToneBurstsAcrossPitch \
+  -only-testing:Steps4Tests/DayObjectsMixQualityAnalyzerTests/testTransientDensityDoesNotFlagAudibleStationaryNoise
+```
+
+Result: 2 selected, 0 passed, 2 failed for the intended regressions. The
+0.5-amplitude 5 ms attack/15 ms decay fixtures reported `0.0` rather than
+`20.0` onsets/second at both 100 and 250 Hz. Seeded stationary noise reported
+13...17 onsets/second across three seeds and amplitudes 0.15/0.20.
+
+### GREEN and regression verification
+
+The first focused GREEN passed four tests covering pitched bursts at
+100/250/400/600/1,000 Hz, steady carriers at
+20/30/40/50/60/100/250/400/600/1,000/5,000 Hz, the existing low-level noise
+floor, and three seeds of audible stationary noise at amplitudes 0.15 and 0.20.
+An additional range check added and passed 5,000 Hz burst coverage.
+
+Final command:
+
+```text
+xcodebuild test -quiet -project Steps4.xcodeproj -scheme Steps4 \
+  -destination 'platform=iOS Simulator,name=iPhone 16e' \
+  -resultBundlePath /tmp/day-objects-task6-fix4-final.lXupcF/Task6Fix4.xcresult \
+  -only-testing:Steps4Tests/DayObjectsMixQualityAnalyzerTests \
+  -only-testing:Steps4Tests/DayObjectsLoudnessAnalyzerTests \
+  -only-testing:Steps4Tests/DayObjectsMixScenarioTests
+```
+
+Result bundle summary: 46 selected, 43 passed, 3 intentional opt-in
+long-render skips, 0 failed. CLI bootstrap/help compilation passed; eight
+negative parser/input regression paths passed; and a valid
+`--stems-directory` plus `--active-stems harmony,lead` invocation produced a
+schema-4 report containing `transientDensityPerSecond` (exit 2 only because the
+unmastered system sound used as the fixture did not meet the mix gates).
+`git diff --check` also passed.
+
+### Self-review
+
+- The public analyzer/report API and the `> 12 onsets/second` issue gate are
+  unchanged.
+- The threshold is adaptive to both steady pitched energy and stochastic local
+  variance, but retains an absolute audibility floor for silence/low noise.
+- Test expectations are literal and exercise the real analyzer; no production
+  helper computes expected densities.
+- The masking and tail code paths were not edited and their full selected suites
+  passed.
+- Only the analyzer, its regression tests, and this report changed. The two
+  pre-existing untracked audition WAVs were not read, modified, or staged.

@@ -205,33 +205,43 @@ final class DayObjectsMixQualityAnalyzerTests: XCTestCase {
         XCTAssertGreaterThan(clippedSamples.clippedSampleRatio, 0)
     }
 
-    func testEnvelopeTransientDensityFlagsRealisticToneBursts() throws {
-        let toneBursts = try makeMonoBuffer { frame, sampleRate in
-            let eventFrame = frame % Int(0.05 * sampleRate)
-            let eventTime = Double(eventFrame) / sampleRate
-            let envelope: Double
-            if eventTime < 0.005 {
-                envelope = eventTime / 0.005
-            } else if eventTime < 0.020 {
-                envelope = 1 - ((eventTime - 0.005) / 0.015)
-            } else {
-                envelope = 0
+    func testEnvelopeTransientDensityFlagsRealisticToneBurstsAcrossPitch() throws {
+        for frequency in [100.0, 250, 400, 600, 1_000, 5_000] {
+            let toneBursts = try makeMonoBuffer { frame, sampleRate in
+                let eventFrame = frame % Int(0.05 * sampleRate)
+                let eventTime = Double(eventFrame) / sampleRate
+                let envelope: Double
+                if eventTime < 0.005 {
+                    envelope = eventTime / 0.005
+                } else if eventTime < 0.020 {
+                    envelope = 1 - ((eventTime - 0.005) / 0.015)
+                } else {
+                    envelope = 0
+                }
+                return 0.5 * envelope
+                    * sin(2 * Double.pi * frequency * Double(frame) / sampleRate)
             }
-            return 0.5 * envelope
-                * sin(2 * Double.pi * 1_000 * Double(frame) / sampleRate)
+
+            let report = try DayObjectsMixQualityAnalyzer.analyze(
+                fullMix: toneBursts,
+                stems: [:]
+            )
+
+            XCTAssertEqual(
+                report.transientDensityPerSecond,
+                20,
+                accuracy: 0.5,
+                "Missed pitched bursts at \(frequency) Hz"
+            )
+            XCTAssertTrue(
+                report.issues.contains(.excessiveTransientDensity),
+                "Missed transient issue at \(frequency) Hz"
+            )
         }
-
-        let report = try DayObjectsMixQualityAnalyzer.analyze(
-            fullMix: toneBursts,
-            stems: [:]
-        )
-
-        XCTAssertEqual(report.transientDensityPerSecond, 20, accuracy: 0.5)
-        XCTAssertTrue(report.issues.contains(.excessiveTransientDensity))
     }
 
     func testTransientDensityDoesNotFlagSteadyCarriers() throws {
-        let frequencies: [Double] = [20, 30, 40, 50, 60, 250, 1_000, 5_000]
+        let frequencies: [Double] = [20, 30, 40, 50, 60, 100, 250, 400, 600, 1_000, 5_000]
         for frequency in frequencies {
             let steady = try makeMonoBuffer { frame, sampleRate in
                 0.2 * sin(2 * Double.pi * frequency * Double(frame) / sampleRate)
@@ -261,6 +271,36 @@ final class DayObjectsMixQualityAnalyzerTests: XCTestCase {
 
         XCTAssertEqual(noiseReport.transientDensityPerSecond, 0)
         XCTAssertFalse(noiseReport.issues.contains(.excessiveTransientDensity))
+    }
+
+    func testTransientDensityDoesNotFlagAudibleStationaryNoise() throws {
+        for seed in [UInt64(1), 0x1234_5678, 0xdead_beef] {
+            for amplitude in [0.15, 0.2] {
+                let stationaryNoise = try makeMonoBuffer { frame, _ in
+                    var value = UInt64(frame) &+ (seed &* 0x9e37_79b9_7f4a_7c15)
+                    value = (value ^ (value >> 30)) &* 0xbf58_476d_1ce4_e5b9
+                    value = (value ^ (value >> 27)) &* 0x94d0_49bb_1331_11eb
+                    value ^= value >> 31
+                    let normalized = (Double(value >> 11) / 4_503_599_627_370_495.5) - 1
+                    return amplitude * normalized
+                }
+
+                let report = try DayObjectsMixQualityAnalyzer.analyze(
+                    fullMix: stationaryNoise,
+                    stems: [:]
+                )
+
+                XCTAssertLessThanOrEqual(
+                    report.transientDensityPerSecond,
+                    1,
+                    "Stationary noise seed \(seed), amplitude \(amplitude)"
+                )
+                XCTAssertFalse(
+                    report.issues.contains(.excessiveTransientDensity),
+                    "Stationary noise seed \(seed), amplitude \(amplitude)"
+                )
+            }
+        }
     }
 
     func testSpectralMaskingClassifiesHarmonyAndHappeningsAgainstLead() throws {
