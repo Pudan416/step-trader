@@ -129,7 +129,7 @@ class ChatIndexTests(unittest.TestCase):
             [("user", "Найди старое решение"), ("assistant", "Вот нужный подход.")],
         )
 
-    def test_render_markdown_is_stable_and_readable(self):
+    def test_render_markdown_contains_only_title_requests_and_answers(self):
         from chat_index import Conversation, Message, render_markdown
 
         conversation = Conversation(
@@ -150,11 +150,15 @@ class ChatIndexTests(unittest.TestCase):
         second = render_markdown(conversation, "2026-09-09T12:00:00Z")
 
         self.assertEqual(first.content_hash, second.content_hash)
-        self.assertIn('schema: "llm-chat/v1"', first.text)
-        self.assertIn('id: "codex:id-1"', first.text)
+        self.assertTrue(first.text.startswith("# План: локально\n"))
         self.assertIn("# План: локально", first.text)
-        self.assertIn("## User", first.text)
+        self.assertIn("## Запрос", first.text)
+        self.assertIn("## Ответ", first.text)
         self.assertIn("Первый ответ", first.text)
+        self.assertNotIn("llm-chat/v1", first.text)
+        self.assertNotIn("source_path", first.text)
+        self.assertNotIn("2026-09-02", first.text)
+        self.assertNotIn("codex:id-1", first.text)
 
     def test_sync_writes_each_source_once_and_preserves_archive_when_source_disappears(self):
         from chat_index import sync
@@ -276,6 +280,28 @@ class ChatIndexTests(unittest.TestCase):
 
         self.assertEqual(result["locked"], 1)
         self.assertEqual(result["written"], 0)
+
+    def test_sync_rewrites_legacy_markdown_that_contains_service_frontmatter(self):
+        from chat_index import sync
+
+        home = self.root / "home"
+        source = home / ".claude/projects/p/session.jsonl"
+        source.parent.mkdir(parents=True)
+        source.write_text(
+            json.dumps({"type": "user", "sessionId": "s1", "message": {"role": "user", "content": "Чистый диалог"}}) + "\n",
+            encoding="utf-8",
+        )
+        chat_root = self.root / "chats"
+        state_root = self.root / "state"
+        sync(home, chat_root, state_root, host_id="host-a")
+        output = next((chat_root / "_Unified").rglob("*.md"))
+        output.write_text('---\nschema: "llm-chat/v1"\nsource_path: "/tmp/source"\n---\n' + output.read_text(), encoding="utf-8")
+
+        result = sync(home, chat_root, state_root, host_id="host-a")
+
+        self.assertEqual(result["written"], 1)
+        self.assertTrue(output.read_text(encoding="utf-8").startswith("# "))
+        self.assertNotIn("source_path", output.read_text(encoding="utf-8"))
 
     def test_atomic_writer_falls_back_when_icloud_rejects_replacement(self):
         from chat_index import _atomic_write

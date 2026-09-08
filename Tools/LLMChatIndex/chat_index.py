@@ -156,34 +156,14 @@ def parse_codex(path: Path, host_id: str, titles: Mapping[str, str]) -> Conversa
     )
 
 
-def _json_scalar(value: object) -> str:
-    return json.dumps(value, ensure_ascii=False)
-
-
 def render_markdown(conversation: Conversation, imported_at: str) -> RenderedMarkdown:
     body_parts = ["# " + conversation.title.replace("\n", " ").strip(), ""]
     for message in conversation.messages:
-        body_parts.append("## " + ("User" if message.role == "user" else "Assistant"))
-        if message.timestamp:
-            body_parts.extend(["", "_" + message.timestamp + "_"])
+        body_parts.append("## " + ("Запрос" if message.role == "user" else "Ответ"))
         body_parts.extend(["", message.text, ""])
     body = "\n".join(body_parts).rstrip() + "\n"
     content_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
-    fields = (
-        ("schema", "llm-chat/v1"),
-        ("id", conversation.conversation_id),
-        ("title", conversation.title),
-        ("source", conversation.source),
-        ("host_id", conversation.host_id),
-        ("source_path", str(conversation.source_path)),
-        ("created_at", conversation.created_at),
-        ("updated_at", conversation.updated_at),
-        ("imported_at", imported_at),
-        ("message_count", len(conversation.messages)),
-        ("content_hash", content_hash),
-    )
-    frontmatter = ["---"] + [name + ": " + _json_scalar(value) for name, value in fields] + ["---", ""]
-    return RenderedMarkdown("\n".join(frontmatter) + body, content_hash)
+    return RenderedMarkdown(body, content_hash)
 
 
 def _atomic_write(path: Path, text: str) -> None:
@@ -349,7 +329,14 @@ def _sync_unlocked(
             stat = path.stat()
             fingerprint = [stat.st_size, stat.st_mtime_ns]
             previous = entries.get(source_key)
-            if isinstance(previous, dict) and previous.get("fingerprint") == fingerprint:
+            needs_migration = False
+            if isinstance(previous, dict) and isinstance(previous.get("output"), str):
+                try:
+                    with Path(previous["output"]).open("r", encoding="utf-8", errors="replace") as existing:
+                        needs_migration = existing.readline() == "---\n"
+                except OSError:
+                    pass
+            if isinstance(previous, dict) and previous.get("fingerprint") == fingerprint and not needs_migration:
                 unchanged += 1
                 continue
             conversation = (
@@ -364,7 +351,7 @@ def _sync_unlocked(
             rendered = render_markdown(conversation, imported_at)
             output = chat_root / "_Unified" / source / host_id / _safe_filename(conversation.conversation_id)
             old_hash = previous.get("content_hash") if isinstance(previous, dict) else None
-            if old_hash != rendered.content_hash or not output.is_file():
+            if old_hash != rendered.content_hash or not output.is_file() or needs_migration:
                 _atomic_write(output, rendered.text)
                 written += 1
             else:
