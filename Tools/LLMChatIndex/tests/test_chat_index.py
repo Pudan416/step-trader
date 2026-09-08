@@ -229,12 +229,38 @@ class ChatIndexTests(unittest.TestCase):
             + "\n",
             encoding="utf-8",
         )
+        unindexed_main_path = home / ".codex/sessions/2026/09/unindexed-main.jsonl"
+        unindexed_main_path.write_text(
+            "\n".join(
+                [
+                    json.dumps(
+                        {
+                            "type": "session_meta",
+                            "payload": {"id": "main-without-title", "source": "vscode", "originator": "Codex Desktop"},
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "type": "response_item",
+                            "payload": {
+                                "type": "message",
+                                "role": "user",
+                                "content": [{"type": "input_text", "text": "Visible unindexed Codex task"}],
+                            },
+                        }
+                    ),
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
 
         first = sync(home, chat_root, state_root, host_id="host-a", imported_at="2026-09-08T12:00:00Z")
         outputs = sorted((chat_root / "_Unified").rglob("*.md"))
-        self.assertEqual(first["written"], 2)
-        self.assertEqual(len(outputs), 2)
+        self.assertEqual(first["written"], 3)
+        self.assertEqual(len(outputs), 3)
         self.assertIn("Claude visible", "\n".join(path.read_text() for path in outputs))
+        self.assertIn("Visible unindexed Codex task", "\n".join(path.read_text() for path in outputs))
         mtimes = {path: path.stat().st_mtime_ns for path in outputs}
 
         time.sleep(0.01)
@@ -245,7 +271,7 @@ class ChatIndexTests(unittest.TestCase):
         claude_path.unlink()
         third = sync(home, chat_root, state_root, host_id="host-a", imported_at="2026-09-10T12:00:00Z")
         self.assertEqual(third["missing"], 1)
-        self.assertEqual(len(list((chat_root / "_Unified").rglob("*.md"))), 2)
+        self.assertEqual(len(list((chat_root / "_Unified").rglob("*.md"))), 3)
 
     def test_search_ranks_matching_markdown_and_returns_a_bounded_excerpt(self):
         from chat_index import search_chats

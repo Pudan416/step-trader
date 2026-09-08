@@ -36,6 +36,11 @@ class CliAndInstallTests(unittest.TestCase):
 
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
+            self.assertEqual(main(common + ["status", "--json"]), 0)
+        self.assertEqual(json.loads(output.getvalue())["by_source"], {"claude-code": 1})
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
             self.assertEqual(main(common + ["search", "локальные заметки", "--json"]), 0)
         results = json.loads(output.getvalue())
         self.assertEqual(len(results), 1)

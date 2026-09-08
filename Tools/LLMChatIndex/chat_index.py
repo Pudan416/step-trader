@@ -258,22 +258,18 @@ def _safe_filename(conversation_id: str) -> str:
     return safe + ".md"
 
 
-def _codex_session_id(path: Path) -> Optional[str]:
-    if path.stem:
-        match = re.search(r"([0-9a-f]{8}-[0-9a-f-]{27,})", path.stem, flags=re.IGNORECASE)
-        if match:
-            return match.group(1)
+def _codex_session_info(path: Path) -> Tuple[Optional[str], bool]:
     try:
         for index, record in enumerate(_read_codex_jsonl(path)):
             if record.get("type") == "session_meta" and isinstance(record.get("payload"), dict):
                 payload = record["payload"]
                 value = payload.get("id") or payload.get("session_id")
-                return str(value) if value else None
+                return (str(value) if value else None, payload.get("source") == "vscode")
             if index >= 4:
                 break
     except OSError:
-        return None
-    return None
+        return (None, False)
+    return (None, False)
 
 
 def _source_paths(home: Path, codex_ids: Iterable[str]) -> List[Tuple[str, Path]]:
@@ -288,11 +284,10 @@ def _source_paths(home: Path, codex_ids: Iterable[str]) -> List[Tuple[str, Path]
     allowed_codex_ids = set(codex_ids)
     for root in (home / ".codex/sessions", home / ".codex/archived_sessions"):
         if root.is_dir():
-            found.extend(
-                ("codex", path)
-                for path in root.rglob("*.jsonl")
-                if _codex_session_id(path) in allowed_codex_ids
-            )
+            for path in root.rglob("*.jsonl"):
+                session_id, is_user_session = _codex_session_info(path)
+                if is_user_session or session_id in allowed_codex_ids:
+                    found.append(("codex", path))
     return sorted(found, key=lambda item: (item[0], str(item[1])))
 
 
@@ -532,20 +527,24 @@ def main(argv: Optional[List[str]] = None) -> int:
     state = loaded if isinstance(loaded, dict) else {}
     entries = state.get("sources", {}) if isinstance(state.get("sources", {}), dict) else {}
     statuses = {}
+    by_source = {}
     for entry in entries.values():
         if isinstance(entry, dict):
             status = str(entry.get("status", "unknown"))
             statuses[status] = statuses.get(status, 0) + 1
+            source = str(entry.get("source", "unknown"))
+            by_source[source] = by_source.get(source, 0) + 1
     result = {
         "host_id": state.get("host_id"),
         "chat_root": str(args.chat_root),
         "sources": len(entries),
+        "by_source": by_source,
         "statuses": statuses,
     }
     if args.json:
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     else:
-        print("Host: {0}\nChats: {1}\nSources: {2}\nStatuses: {3}".format(result["host_id"] or "not initialized", result["chat_root"], result["sources"], result["statuses"]))
+        print("Host: {0}\nChats: {1}\nSources: {2}\nBy source: {3}\nStatuses: {4}".format(result["host_id"] or "not initialized", result["chat_root"], result["sources"], result["by_source"], result["statuses"]))
     return 0
 
 
