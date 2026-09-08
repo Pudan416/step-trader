@@ -2,22 +2,23 @@ import XCTest
 @testable import Steps4
 
 final class MetalShapeGenomeCatalogTests: XCTestCase {
-    func testCatalogKeepsOneSoftShapeAndAddsSnowflakeAndWindflower() {
+    func testCatalogKeepsOnlyDistinctFamiliesAndAddsConcaveSquare() {
         let presets = MetalShapeGenomeCatalog.presets
-        XCTAssertEqual(presets.count, 10)
+        XCTAssertEqual(presets.count, 8)
         XCTAssertEqual(presets.filter { $0.source == .genome }.count, 4)
-        XCTAssertEqual(presets.filter { $0.source == .legacy }.count, 6)
+        XCTAssertEqual(presets.filter { $0.source == .legacy }.count, 4)
         XCTAssertEqual(Set(presets.map(\.id)).count, presets.count)
 
         XCTAssertEqual(
             presets.filter { $0.source == .genome }.map(\.id),
             [
-                "genome.soft-drift", "genome.lobed-triad",
-                "genome.snowflake", "genome.windflower",
+                "genome.soft-drift", "genome.snowflake",
+                "genome.windflower", "genome.concave-square",
             ]
         )
-        XCTAssertFalse(presets.map(\.id).contains("genome.soft-orbit"))
-        XCTAssertFalse(presets.map(\.id).contains("genome.soft-cell"))
+        XCTAssertTrue(Set([
+            "genome.lobed-triad", "legacy.rounded-pentagon", "legacy.star-3-shallow",
+        ]).isDisjoint(with: presets.map(\.id)))
     }
 
     func testLegacySelectionUsesTheApprovedExistingMetalCoordinates() {
@@ -29,9 +30,7 @@ final class MetalShapeGenomeCatalogTests: XCTestCase {
             "legacy.circle:0:1",
             "legacy.soft-square:6:17",
             "legacy.rounded-triangle:5:5",
-            "legacy.rounded-pentagon:5:7",
             "legacy.rounded-hexagon:5:8",
-            "legacy.star-3-shallow:4:1",
         ])
     }
 
@@ -40,7 +39,7 @@ final class MetalShapeGenomeCatalogTests: XCTestCase {
             guard case let .genome(genome) = preset.contour else { return nil }
             return genome
         }
-        XCTAssertEqual(Set(genomes.map { $0.morphology }).count, 2)
+        XCTAssertEqual(Set(genomes.map { $0.morphology }), [.softRadial])
         for genome in genomes {
             XCTAssertTrue((2...12).contains(Int(genome.superformula.x)))
             XCTAssertGreaterThan(genome.superformula.y, 0)

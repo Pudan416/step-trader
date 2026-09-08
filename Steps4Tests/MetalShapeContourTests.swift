@@ -13,9 +13,12 @@ final class MetalShapeContourTests: XCTestCase {
             XCTAssertEqual(points.count, 2_048)
             XCTAssertTrue(points.allSatisfy { $0.x.isFinite && $0.y.isFinite }, preset.id)
             let radii = points.map(simd_length)
-            let minimumRadius: Float = preset.morphology.rawValue == "snowflake"
-                ? 0.05
-                : (preset.morphology.rawValue == "windflower" ? 0.10 : 0.68)
+            let minimumRadius: Float = switch preset.morphology {
+            case .snowflake: 0.05
+            case .windflower: 0.10
+            case .concaveSquare: 0.62
+            default: 0.68
+            }
             XCTAssertGreaterThanOrEqual(radii.min() ?? 0, minimumRadius, preset.id)
             XCTAssertLessThanOrEqual(radii.max() ?? 2, 1.34, preset.id)
             for index in points.indices {
@@ -36,7 +39,7 @@ final class MetalShapeContourTests: XCTestCase {
     func testSnowflakeMatchesTheStaticLegacyRectMorphFamily() throws {
         let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.snowflake" })
         let rect = CGRect(x: 0, y: 0, width: 1_000, height: 1_000)
-        for seed in [UInt64(30), 64, 59] {
+        for seed in [UInt64(64), 59, 48] {
             let metalRadii = try MetalShapeContour.sample(preset: preset, count: 64, seed: seed).map(simd_length)
             let legacyRadii = ProceduralShapeGenerator.rectMorphFrame(seed: seed, time: 0, in: rect).textureProfile.radii
             let meanDelta = zip(metalRadii, legacyRadii)
@@ -48,7 +51,7 @@ final class MetalShapeContourTests: XCTestCase {
 
     func testWindflowerContoursAreClosedDistinctAndPinched() throws {
         let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.windflower" })
-        let samples = try [UInt64(30), 64, 59].map {
+        let samples = try [UInt64(64), 59, 48].map {
             try MetalShapeContour.sample(preset: preset, count: 1_024, seed: $0)
         }
         for points in samples {

@@ -109,6 +109,13 @@ static float metalShapeWindflowerRadius(float theta, constant MetalShapeGenomeUn
     return valley + (tip - valley) * (1.0 - pow(distance, exponent));
 }
 
+static float metalShapeConcaveSquareRadius(float theta, constant MetalShapeGenomeUniforms &g) {
+    const float valley = clamp(g.transform.z, 0.62, 0.72);
+    const float exponent = clamp(g.transform.w, 2.4, 4.0);
+    const float corner = abs(cos(2.0 * (theta - M_PI_F * 0.25)));
+    return valley + (1.0 - valley) * pow(corner, exponent);
+}
+
 static float metalShapeRegularPolygonDistance(float2 p, float sides) {
     const float sector = 2.0 * M_PI_F / sides;
     const float angle = atan2(p.y, p.x);
@@ -148,6 +155,7 @@ static float metalShapeDistance(float2 point, constant MetalShapeGenomeUniforms 
     const float theta = atan2(p.y, p.x);
     if (g.metadata.x == 2u) return length(p) - metalShapeSnowflakeRadius(theta, g);
     if (g.metadata.x == 3u) return length(p) - metalShapeWindflowerRadius(theta, g);
+    if (g.metadata.x == 4u) return length(p) - metalShapeConcaveSquareRadius(theta, g);
     return length(p) - metalShapeGenomeRadius(theta, g);
 }
 

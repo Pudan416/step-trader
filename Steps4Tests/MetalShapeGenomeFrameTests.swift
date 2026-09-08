@@ -48,25 +48,39 @@ final class MetalShapeGenomeFrameTests: XCTestCase {
 
     func testSnowflakeUsesTheUnrestrictedLegacyFoldChoices() throws {
         let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.snowflake" })
-        let frames = [30, 64, 59].map {
+        let frames = [64, 59, 48].map {
             MetalShapeGenomeFrame.make(preset: preset, material: .sideLight, seed: UInt64($0))
         }
 
-        XCTAssertEqual(frames.map(\.geometry.metadata.z), [3, 6, 12])
+        XCTAssertEqual(frames.map(\.geometry.metadata.z), [6, 12, 8])
         XCTAssertTrue(frames.allSatisfy { $0.geometry.sourceKind == 2 })
         XCTAssertEqual(
             frames[0],
-            MetalShapeGenomeFrame.make(preset: preset, material: .sideLight, seed: 30)
+            MetalShapeGenomeFrame.make(preset: preset, material: .sideLight, seed: 64)
         )
     }
 
     func testWindflowerProducesThreeFiveAndSevenPetals() throws {
         let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.windflower" })
-        let frames = [30, 64, 59].map {
+        let frames = [64, 59, 48].map {
             MetalShapeGenomeFrame.make(preset: preset, material: .sideLight, seed: UInt64($0))
         }
-        XCTAssertEqual(frames.map(\.geometry.metadata.z), [3, 5, 7])
+        XCTAssertEqual(frames.map(\.geometry.metadata.z), [5, 7, 3])
         XCTAssertTrue(frames.allSatisfy { $0.geometry.sourceKind == 3 })
+    }
+
+    func testConcaveSquareVariesItsRotationBySeedWithoutLosingFourfoldGeometry() throws {
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.concave-square" })
+        let frames = [43, 59, 64].map {
+            MetalShapeGenomeFrame.make(preset: preset, material: .sideLight, seed: UInt64($0))
+        }
+
+        XCTAssertTrue(frames.allSatisfy { $0.geometry.sourceKind == 4 })
+        XCTAssertTrue(frames.allSatisfy { $0.geometry.metadata.z == 4 })
+        XCTAssertTrue(frames.allSatisfy { (0..<(2 * Float.pi)).contains($0.geometry.transform.x) })
+        XCTAssertEqual(Set(frames.map { $0.geometry.transform.x }).count, 3)
+        XCTAssertTrue(frames.allSatisfy { (0.62...0.72).contains($0.geometry.transform.z) })
+        XCTAssertTrue(frames.allSatisfy { (2.4...4.0).contains($0.geometry.transform.w) })
     }
 
     func testSideLightUsesTwoTonalStops() throws {

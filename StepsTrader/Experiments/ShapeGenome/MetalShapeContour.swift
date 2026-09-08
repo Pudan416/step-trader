@@ -15,6 +15,8 @@ enum MetalShapeContour {
             return point(snowflake: MetalShapeSnowflake.make(seed: seed), angle: angle)
         case .windflower:
             return point(windflower: MetalShapeWindflower.make(seed: seed), angle: angle)
+        case .concaveSquare:
+            return point(concaveSquare: MetalShapeConcaveSquare.make(seed: seed), angle: angle)
         case .legacy:
             throw MetalShapeContourError.unsupportedLegacyPreset
         }
@@ -40,6 +42,12 @@ enum MetalShapeContour {
             return (0..<count).map { index in
                 let angle = Float(index) * 2 * .pi / Float(count)
                 return point(windflower: form, angle: angle)
+            }
+        case .concaveSquare:
+            let form = MetalShapeConcaveSquare.make(seed: seed)
+            return (0..<count).map { index in
+                let angle = Float(index) * 2 * .pi / Float(count)
+                return point(concaveSquare: form, angle: angle)
             }
         case .legacy:
             throw MetalShapeContourError.unsupportedLegacyPreset
@@ -108,6 +116,15 @@ enum MetalShapeContour {
     ) -> SIMD2<Float> {
         let localAngle = angle - windflower.rotation
         let radius = min(MetalShapeWindflower.radius(angle: localAngle, parameters: windflower), 1)
+        return SIMD2(cos(angle), sin(angle)) * radius
+    }
+
+    private static func point(
+        concaveSquare: MetalShapeConcaveSquareParameters,
+        angle: Float
+    ) -> SIMD2<Float> {
+        let localAngle = angle - concaveSquare.rotation
+        let radius = MetalShapeConcaveSquare.radius(angle: localAngle, parameters: concaveSquare)
         return SIMD2(cos(angle), sin(angle)) * radius
     }
 }
