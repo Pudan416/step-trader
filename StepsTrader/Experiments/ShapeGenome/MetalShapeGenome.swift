@@ -9,6 +9,7 @@ struct MetalShapeHarmonic: Codable, Equatable, Sendable {
 enum MetalShapeMorphology: String, Codable, CaseIterable, Sendable {
     case softRadial
     case lobed
+    case superform
     case foldedRosette
     case crystalline
     case legacyRound
@@ -51,6 +52,7 @@ enum MetalShapeSource: String, Codable, Sendable {
 
 enum MetalShapeContourDescriptor: Codable, Equatable, Sendable {
     case genome(MetalShapeGenome)
+    case superform
     case legacy(shape: UInt32, variant: UInt32)
 }
 

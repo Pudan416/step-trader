@@ -231,7 +231,7 @@ extension MetalShapeMaterial {
         case .proceduralLight: "Процедурный свет"
         case .proceduralFlow: "Процедурное течение"
         case .proceduralContour: "Процедурный контур"
-        case .eclipseGlow: "Свет из-за фигуры"
+        case .eclipseGlow: "Светящийся контур"
         }
     }
 }

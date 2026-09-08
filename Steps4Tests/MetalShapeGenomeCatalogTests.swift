@@ -2,10 +2,10 @@ import XCTest
 @testable import Steps4
 
 final class MetalShapeGenomeCatalogTests: XCTestCase {
-    func testCatalogContainsTwelveGenomeAndEightCuratedLegacyShapes() {
+    func testCatalogContainsOneSeededSuperformAndEightCuratedLegacyShapes() {
         let presets = MetalShapeGenomeCatalog.presets
-        XCTAssertEqual(presets.count, 20)
-        XCTAssertEqual(presets.filter { $0.source == .genome }.count, 12)
+        XCTAssertEqual(presets.count, 15)
+        XCTAssertEqual(presets.filter { $0.source == .genome }.count, 7)
         XCTAssertEqual(presets.filter { $0.source == .legacy }.count, 8)
         XCTAssertEqual(Set(presets.map(\.id)).count, presets.count)
 
@@ -14,10 +14,10 @@ final class MetalShapeGenomeCatalogTests: XCTestCase {
             [
                 "genome.soft-orbit", "genome.soft-drift", "genome.soft-cell",
                 "genome.lobed-triad", "genome.lobed-quartet", "genome.lobed-penta",
-                "genome.folded-rosette-5", "genome.folded-rosette-7", "genome.folded-rosette-9",
-                "genome.crystal-4", "genome.crystal-6", "genome.crystal-8",
+                "genome.superform",
             ]
         )
+        XCTAssertEqual(presets.filter { $0.morphology == .superform }.map(\.id), ["genome.superform"])
     }
 
     func testLegacySelectionUsesTheApprovedExistingMetalCoordinates() {
@@ -42,7 +42,7 @@ final class MetalShapeGenomeCatalogTests: XCTestCase {
             guard case let .genome(genome) = preset.contour else { return nil }
             return genome
         }
-        XCTAssertEqual(Set(genomes.map { $0.morphology }).count, 4)
+        XCTAssertEqual(Set(genomes.map { $0.morphology }).count, 2)
         for genome in genomes {
             XCTAssertTrue((2...12).contains(Int(genome.superformula.x)))
             XCTAssertGreaterThan(genome.superformula.y, 0)

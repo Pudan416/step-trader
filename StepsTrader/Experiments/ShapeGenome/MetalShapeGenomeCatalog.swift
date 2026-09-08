@@ -64,6 +64,24 @@ enum MetalShapeGenomeCatalog {
         )
     }
 
+    private static let superform = MetalShapePreset(
+        id: "genome.superform",
+        title: "Суперформа",
+        source: .genome,
+        morphology: .superform,
+        contour: .superform,
+        compatibility: policy(
+            preferred: [.sideLight, .proceduralLight, .proceduralFlow, .proceduralContour, .eclipseGlow],
+            allowed: lightMaterials,
+            roles: [.primary, .supporting, .accent],
+            size: 0.18...0.62,
+            maxInstances: 1,
+            complexity: 0.56,
+            mass: 0.56,
+            halo: 0.13
+        )
+    )
+
     private static let genomePresets: [MetalShapePreset] = [
         genome("genome.soft-orbit", "Мягкая орбита", morphology: .softRadial,
                m: 2, n: SIMD3(1.7, 1.8, 1.8),
@@ -97,34 +115,7 @@ enum MetalShapeGenomeCatalog {
                offset: SIMD2(0.02, -0.025),
                policy: policy(preferred: [.proceduralFlow, .proceduralContour, .sideLight], allowed: lightMaterials, roles: [.supporting, .accent], size: 0.16...0.48, maxInstances: 1, complexity: 0.58, mass: 0.52)),
 
-        genome("genome.folded-rosette-5", "Складчатая розетка 5", morphology: .foldedRosette,
-               m: 5, n: SIMD3(0.62, 1.05, 1.05),
-               harmonics: [.init(frequency: 10, amplitude: 0.045, phase: 0.25)],
-               policy: policy(preferred: [.proceduralContour, .eclipseGlow, .radialThree], allowed: lightMaterials, roles: [.primary, .accent], size: 0.20...0.58, maxInstances: 1, complexity: 0.72, mass: 0.55)),
-        genome("genome.folded-rosette-7", "Складчатая розетка 7", morphology: .foldedRosette,
-               m: 7, n: SIMD3(0.66, 1.08, 1.08),
-               harmonics: [.init(frequency: 7, amplitude: 0.035, phase: 0.9)],
-               rotation: 0.16,
-               policy: policy(preferred: [.contour, .proceduralLight, .proceduralContour], allowed: lightMaterials, roles: [.primary, .accent], size: 0.18...0.52, maxInstances: 1, complexity: 0.80, mass: 0.50)),
-        genome("genome.folded-rosette-9", "Складчатая розетка 9", morphology: .foldedRosette,
-               m: 9, n: SIMD3(0.70, 1.10, 1.10),
-               harmonics: [.init(frequency: 9, amplitude: 0.03, phase: 1.75)],
-               policy: policy(preferred: [.proceduralContour, .eclipseGlow], allowed: [.contour, .proceduralLight, .proceduralFlow, .proceduralContour, .eclipseGlow], roles: [.accent], size: 0.14...0.38, maxInstances: 1, complexity: 0.90, mass: 0.42)),
-
-        genome("genome.crystal-4", "Кристалл 4", morphology: .crystalline,
-               m: 4, n: SIMD3(0.38, 0.72, 0.72),
-               harmonics: [.init(frequency: 8, amplitude: 0.025, phase: 0.3)],
-               rotation: 0.39,
-               policy: policy(preferred: [.solid, .sideLight, .eclipseGlow], roles: [.primary, .accent], size: 0.18...0.58, maxInstances: 1, complexity: 0.62, mass: 0.70)),
-        genome("genome.crystal-6", "Кристалл 6", morphology: .crystalline,
-               m: 6, n: SIMD3(0.42, 0.76, 0.76),
-               harmonics: [.init(frequency: 6, amplitude: 0.03, phase: 1.1)],
-               policy: policy(preferred: [.contour, .radialThree, .proceduralLight], allowed: lightMaterials, roles: [.primary, .supporting, .accent], size: 0.16...0.52, maxInstances: 1, complexity: 0.70, mass: 0.60)),
-        genome("genome.crystal-8", "Кристалл 8", morphology: .crystalline,
-               m: 8, n: SIMD3(0.48, 0.80, 0.80),
-               harmonics: [.init(frequency: 8, amplitude: 0.025, phase: 2.0)],
-               rotation: 0.20,
-               policy: policy(preferred: [.proceduralContour, .eclipseGlow], allowed: [.contour, .radialThree, .proceduralLight, .proceduralContour, .eclipseGlow], roles: [.accent], size: 0.13...0.36, maxInstances: 1, complexity: 0.84, mass: 0.45)),
+        superform,
     ]
 
     private static func legacy(

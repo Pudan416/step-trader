@@ -7,22 +7,30 @@ enum MetalShapeContourError: Error, Equatable {
 }
 
 enum MetalShapeContour {
-    static func point(for preset: MetalShapePreset, angle: Float) throws -> SIMD2<Float> {
-        guard case let .genome(genome) = preset.contour else {
+    static func point(for preset: MetalShapePreset, angle: Float, seed: UInt64 = 42) throws -> SIMD2<Float> {
+        guard let genome = genome(for: preset, seed: seed) else {
             throw MetalShapeContourError.unsupportedLegacyPreset
         }
         return point(genome: genome, angle: angle, normalization: normalization(for: genome))
     }
 
-    static func sample(preset: MetalShapePreset, count: Int) throws -> [SIMD2<Float>] {
+    static func sample(preset: MetalShapePreset, count: Int, seed: UInt64 = 42) throws -> [SIMD2<Float>] {
         guard count >= 3 else { throw MetalShapeContourError.invalidSampleCount }
-        guard case let .genome(genome) = preset.contour else {
+        guard let genome = genome(for: preset, seed: seed) else {
             throw MetalShapeContourError.unsupportedLegacyPreset
         }
         let scale = normalization(for: genome)
         return (0..<count).map { index in
             let angle = Float(index) * 2 * .pi / Float(count)
             return point(genome: genome, angle: angle, normalization: scale)
+        }
+    }
+
+    private static func genome(for preset: MetalShapePreset, seed: UInt64) -> MetalShapeGenome? {
+        switch preset.contour {
+        case let .genome(genome): genome
+        case .superform: MetalShapeSuperform.make(seed: seed)
+        case .legacy: nil
         }
     }
 

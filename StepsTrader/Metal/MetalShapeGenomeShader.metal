@@ -125,7 +125,7 @@ fragment float4 metalShapeGenomeFragment(
 
     if (material == 1u) {
         const float light = smoothstep(-1.05, 0.88, dot(p, direction) + 0.22 * sin(p.y * 1.8 + materialPhase));
-        color = metalShapePalette(light, m);
+        color = mix(m.color0.rgb, m.color1.rgb, light);
     } else if (material == 2u) {
         const float line = 1.0 - smoothstep(0.018, 0.045, abs(distance));
         alpha = line;
@@ -161,8 +161,7 @@ fragment float4 metalShapeGenomeFragment(
     } else if (material == 7u) {
         const float warped = dot(p, direction) * 5.4
             + sin(dot(p, float2(-direction.y, direction.x)) * 3.1 + materialPhase) * 1.25;
-        const float ribbon = smoothstep(0.12, 0.62, 0.5 + 0.5 * sin(warped));
-        alpha = body * (0.14 + ribbon * 0.78);
+        alpha = body;
         color = metalShapePalette(0.5 + 0.5 * sin(warped * 0.54 + 1.1), m);
     } else if (material == 8u) {
         const float bands = abs(sin(distance * (48.0 + m.params2.x * 28.0) + materialPhase));
@@ -172,10 +171,10 @@ fragment float4 metalShapeGenomeFragment(
         color = mix(m.color0.rgb, m.color1.rgb, interiorLines);
     } else if (material == 9u) {
         const float outside = max(distance, 0.0);
-        const float halo = exp(-outside * outside * 38.0) * smoothstep(0.34, -0.02, outside);
-        alpha = max(body * 0.90, halo * 0.92);
-        const float3 core = mix(float3(0.025, 0.022, 0.04), m.color2.rgb * 0.20, 0.28);
-        color = body > 0.02 ? core : mix(m.color1.rgb, m.color0.rgb, smoothstep(0.0, 0.32, outside));
+        const float edge = exp(-distance * distance * 2100.0);
+        const float halo = exp(-outside * outside * 58.0) * smoothstep(0.30, 0.0, outside);
+        alpha = max(edge, halo * 0.72) * smoothstep(-0.10, -0.015, distance);
+        color = mix(m.color1.rgb, m.color0.rgb, smoothstep(0.0, 0.28, outside));
     }
 
     return float4(color * alpha, alpha);

@@ -68,11 +68,12 @@ struct MetalShapeGenomeFrame: Equatable, Sendable {
         blurMode: UInt32 = 0
     ) -> MetalShapeGenomeFrame {
         var random = MetalShapeAtlasRandom(seed: seed ^ stableHash(preset.id))
-        let geometry = geometry(for: preset)
+        let geometry = geometry(for: preset, seed: seed)
         let phase = random.nextUnit()
         let angle = random.nextUnit() * 2 * .pi
         let direction = SIMD2(cos(angle), sin(angle))
-        let palette = palette(seed: seed, random: &random)
+        var palette = palette(seed: seed, random: &random)
+        if material == .sideLight { palette.2 = palette.1 }
         let materialIndex = UInt32(MetalShapeMaterial.allCases.firstIndex(of: material) ?? 0)
         let materialUniforms = MetalShapeMaterialUniforms(
             color0: palette.0,
@@ -87,8 +88,11 @@ struct MetalShapeGenomeFrame: Equatable, Sendable {
         return MetalShapeGenomeFrame(geometry: geometry, material: materialUniforms)
     }
 
-    private static func geometry(for preset: MetalShapePreset) -> MetalShapeGenomeUniforms {
-        switch preset.contour {
+    private static func geometry(for preset: MetalShapePreset, seed: UInt64) -> MetalShapeGenomeUniforms {
+        let descriptor: MetalShapeContourDescriptor = preset.contour == .superform
+            ? .genome(MetalShapeSuperform.make(seed: seed))
+            : preset.contour
+        switch descriptor {
         case let .genome(genome):
             let harmonics = Array(genome.harmonics.prefix(3))
             func packed(_ index: Int) -> SIMD4<Float> {
@@ -120,6 +124,8 @@ struct MetalShapeGenomeFrame: Equatable, Sendable {
                 metadata: SIMD4(1, shape, variant, 0),
                 reserved: .zero
             )
+        case .superform:
+            preconditionFailure("Superform descriptors are resolved before packing")
         }
     }
 
@@ -152,6 +158,26 @@ struct MetalShapeGenomeFrame: Equatable, Sendable {
         value.utf8.reduce(14_695_981_039_346_656_037) { partial, byte in
             (partial ^ UInt64(byte)) &* 1_099_511_628_211
         }
+    }
+}
+
+enum MetalShapeSuperform {
+    static func make(seed: UInt64) -> MetalShapeGenome {
+        var random = MetalShapeAtlasRandom(seed: seed ^ 0x5355_5045_5246_4F52)
+        let lobes = 3 + Int(seed % 5)
+        let depth = 0.10 + random.nextUnit() * 0.075
+        let companionFrequency = max(2, lobes - 1)
+        return MetalShapeGenome(
+            morphology: .superform,
+            superformula: SIMD4(Float(lobes), 2, 2, 2),
+            harmonics: [
+                .init(frequency: lobes, amplitude: depth, phase: random.nextUnit() * 2 * .pi),
+                .init(frequency: companionFrequency, amplitude: 0.008 + random.nextUnit() * 0.010, phase: random.nextUnit() * 2 * .pi),
+            ],
+            anisotropy: SIMD2(0.97 + random.nextUnit() * 0.06, 0.97 + random.nextUnit() * 0.06),
+            centerOffset: .zero,
+            rotation: random.nextUnit() * 2 * .pi
+        )
     }
 }
 

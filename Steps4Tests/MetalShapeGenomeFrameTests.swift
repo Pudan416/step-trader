@@ -46,6 +46,27 @@ final class MetalShapeGenomeFrameTests: XCTestCase {
         XCTAssertGreaterThan(frame.geometry.normalization, 0)
     }
 
+    func testSuperformUsesTheSeedToProduceThreeRelatedGeometryExamples() throws {
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.superform" })
+        let frames = [42, 314, 2_718].map {
+            MetalShapeGenomeFrame.make(preset: preset, material: .sideLight, seed: UInt64($0))
+        }
+
+        XCTAssertEqual(Set(frames.map(\.geometry.superformula.x)).count, 3)
+        XCTAssertTrue(frames.allSatisfy { (3...7).contains($0.geometry.superformula.x) })
+        XCTAssertTrue(frames.allSatisfy { (0.08...0.20).contains($0.geometry.harmonic0.y) })
+        XCTAssertEqual(
+            frames[0],
+            MetalShapeGenomeFrame.make(preset: preset, material: .sideLight, seed: 42)
+        )
+    }
+
+    func testSideLightUsesTwoTonalStops() throws {
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first)
+        let frame = MetalShapeGenomeFrame.make(preset: preset, material: .sideLight, seed: 42)
+        XCTAssertEqual(frame.material.color2, frame.material.color1)
+    }
+
     func testRendererProducesAnActualMetalImageAtTheRequestedSize() async throws {
         let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first)
         let image = try await MetalShapeGenomeRenderer.image(
@@ -57,5 +78,39 @@ final class MetalShapeGenomeFrameTests: XCTestCase {
         )
         XCTAssertEqual(image.cgImage?.width, 96)
         XCTAssertEqual(image.cgImage?.height, 96)
+    }
+
+
+    func testProceduralFlowKeepsTheShapeCenterOpaque() async throws {
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.superform" })
+        let image = try await MetalShapeGenomeRenderer.image(
+            preset: preset,
+            material: .proceduralFlow,
+            seed: 42,
+            size: CGSize(width: 96, height: 96),
+            scale: 1
+        )
+        XCTAssertGreaterThan(alpha(in: image, x: 48, y: 48), 245)
+    }
+
+    func testEclipseGlowHasATransparentCenterAndLuminousEdge() async throws {
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.superform" })
+        let image = try await MetalShapeGenomeRenderer.image(
+            preset: preset,
+            material: .eclipseGlow,
+            seed: 42,
+            size: CGSize(width: 96, height: 96),
+            scale: 1
+        )
+        XCTAssertLessThan(alpha(in: image, x: 48, y: 48), 20)
+        let strongestEdge = (0..<96).map { alpha(in: image, x: $0, y: 48) }.max() ?? 0
+        XCTAssertGreaterThan(strongestEdge, 160)
+    }
+
+    private func alpha(in image: UIImage, x: Int, y: Int) -> UInt8 {
+        guard let cgImage = image.cgImage,
+              let data = cgImage.dataProvider?.data,
+              let bytes = CFDataGetBytePtr(data) else { return 0 }
+        return bytes[y * cgImage.bytesPerRow + x * 4 + 3]
     }
 }
