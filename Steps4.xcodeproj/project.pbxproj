@@ -175,6 +175,9 @@
 		D0C400000000000000000006 /* VCSL-CC0-1.0.txt in Resources */ = {isa = PBXBuildFile; fileRef = D0C400000000000000000004 /* VCSL-CC0-1.0.txt */; };
 		D0C400000000000000000008 /* happening-source-map.json in Resources */ = {isa = PBXBuildFile; fileRef = D0C400000000000000000007 /* happening-source-map.json */; };
 		D0B100000000000000000002 /* DayObjectSceneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000001 /* DayObjectSceneTests.swift */; };
+		A7A500000000000000000002 /* MetalShapeGenomeCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7A500000000000000000001 /* MetalShapeGenomeCatalogTests.swift */; };
+		A7A500000000000000000004 /* MetalShapeGenome.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7A500000000000000000003 /* MetalShapeGenome.swift */; };
+		A7A500000000000000000006 /* MetalShapeGenomeCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7A500000000000000000005 /* MetalShapeGenomeCatalog.swift */; };
 		D0F100000000000000000002 /* DayObjectsLabMusicViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F100000000000000000001 /* DayObjectsLabMusicViewModelTests.swift */; };
 		91F0A0023100000000000002 /* AppTypographyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91F0A0013100000000000001 /* AppTypographyTests.swift */; };
 		A16C90010000000000000001 /* ExperimentalFeatures.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000001 /* ExperimentalFeatures.swift */; };
@@ -753,6 +756,9 @@
 		D0C400000000000000000004 /* VCSL-CC0-1.0.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "VCSL-CC0-1.0.txt"; sourceTree = "<group>"; };
 		D0C400000000000000000007 /* happening-source-map.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = "happening-source-map.json"; path = Scripts/day_objects_audio/happening-source-map.json; sourceTree = SOURCE_ROOT; };
 		D0B100000000000000000001 /* DayObjectSceneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectSceneTests.swift; sourceTree = "<group>"; };
+		A7A500000000000000000001 /* MetalShapeGenomeCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalShapeGenomeCatalogTests.swift; sourceTree = "<group>"; };
+		A7A500000000000000000003 /* MetalShapeGenome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalShapeGenome.swift; sourceTree = "<group>"; };
+		A7A500000000000000000005 /* MetalShapeGenomeCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalShapeGenomeCatalog.swift; sourceTree = "<group>"; };
 		D0F100000000000000000001 /* DayObjectsLabMusicViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLabMusicViewModelTests.swift; sourceTree = "<group>"; };
 		91F0A0013100000000000001 /* AppTypographyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppTypographyTests.swift; path = Steps4Tests/AppTypographyTests.swift; sourceTree = SOURCE_ROOT; };
 		A16C80010000000000000001 /* ExperimentalFeatures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExperimentalFeatures.swift; sourceTree = "<group>"; };
@@ -1212,6 +1218,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		A7A500000000000000000007 /* ShapeGenome */ = {
+			isa = PBXGroup;
+			children = (
+				A7A500000000000000000003 /* MetalShapeGenome.swift */,
+				A7A500000000000000000005 /* MetalShapeGenomeCatalog.swift */,
+			);
+			path = Experiments/ShapeGenome;
+			sourceTree = "<group>";
+		};
 		DA0BG0010000000000000001 /* DayObjects */ = {
 			isa = PBXGroup;
 			children = (
@@ -1610,6 +1625,7 @@
 			isa = PBXGroup;
 			children = (
 				DA0BG0010000000000000001 /* DayObjects */,
+				A7A500000000000000000007 /* ShapeGenome */,
 				9E5C000100000000000000D1 /* ExperimentalLabRoute.swift */,
 				2089F0E32E71AE3400ABF5FA /* Models */,
 				2089F0E62E71AE3400ABF5FA /* Services */,
@@ -1927,6 +1943,7 @@
 				D0A0D1000000000000000001 /* DayObjectsAudioResourceTests.swift */,
 				D0F100000000000000000001 /* DayObjectsLabMusicViewModelTests.swift */,
 				D0B100000000000000000001 /* DayObjectSceneTests.swift */,
+				A7A500000000000000000001 /* MetalShapeGenomeCatalogTests.swift */,
 				D0B100000000000000000003 /* DayObjectPaletteTests.swift */,
 				D0B100000000000000000005 /* DayObjectChoreographyTests.swift */,
 				D0B100000000000000000007 /* DayObjectRenderFrameTests.swift */,
@@ -2463,6 +2480,8 @@
 				E0F100000000000000000002 /* DayObjectSceneRecipeV1.swift in Sources */,
 				E0F300000000000000000002 /* DayObjectEditorialPreview.swift in Sources */,
 				E0F400000000000000000002 /* DayObjectGenerativeDNA.swift in Sources */,
+				A7A500000000000000000004 /* MetalShapeGenome.swift in Sources */,
+				A7A500000000000000000006 /* MetalShapeGenomeCatalog.swift in Sources */,
 				E0F200000000000000000002 /* CompositionPlanner.swift in Sources */,
 				E0F200000000000000000004 /* EditorialGrammar.swift in Sources */,
 				E0F200000000000000000006 /* SceneRecipe.swift in Sources */,
@@ -2756,6 +2775,7 @@
 				D0A0D1000000000000000002 /* DayObjectsAudioResourceTests.swift in Sources */,
 				D0F100000000000000000002 /* DayObjectsLabMusicViewModelTests.swift in Sources */,
 				D0B100000000000000000002 /* DayObjectSceneTests.swift in Sources */,
+				A7A500000000000000000002 /* MetalShapeGenomeCatalogTests.swift in Sources */,
 				D0B100000000000000000004 /* DayObjectPaletteTests.swift in Sources */,
 				D0B100000000000000000006 /* DayObjectChoreographyTests.swift in Sources */,
 				D0B100000000000000000008 /* DayObjectRenderFrameTests.swift in Sources */,
