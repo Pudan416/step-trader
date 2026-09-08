@@ -71,14 +71,14 @@ enum MetalShapeGenomeCatalog {
         morphology: .superform,
         contour: .superform,
         compatibility: policy(
-            preferred: [.sideLight, .proceduralLight, .proceduralFlow, .proceduralContour, .eclipseGlow],
-            allowed: lightMaterials,
-            roles: [.primary, .supporting, .accent],
-            size: 0.18...0.62,
+            preferred: [.proceduralLight, .proceduralContour, .eclipseGlow],
+            allowed: [.contour, .radialTwo, .proceduralLight, .proceduralContour, .eclipseGlow],
+            roles: [.accent],
+            size: 0.16...0.48,
             maxInstances: 1,
-            complexity: 0.56,
-            mass: 0.56,
-            halo: 0.13
+            complexity: 0.72,
+            mass: 0.35,
+            halo: 0.15
         )
     )
 
@@ -104,17 +104,6 @@ enum MetalShapeGenomeCatalog {
                harmonics: [.init(frequency: 3, amplitude: 0.075, phase: 0.15)],
                rotation: -0.18,
                policy: policy(preferred: [.sideLight, .proceduralContour, .radialThree], roles: [.primary, .supporting], size: 0.22...0.66, maxInstances: 2, complexity: 0.44, mass: 0.63)),
-        genome("genome.lobed-quartet", "Четырёхдольник", morphology: .lobed,
-               m: 4, n: SIMD3(0.95, 1.4, 1.4),
-               harmonics: [.init(frequency: 4, amplitude: 0.065, phase: 0.7)],
-               anisotropy: SIMD2(1.06, 0.96), rotation: 0.12,
-               policy: policy(preferred: [.contour, .proceduralLight, .eclipseGlow], roles: [.primary, .supporting, .accent], size: 0.18...0.60, maxInstances: 2, complexity: 0.50, mass: 0.58)),
-        genome("genome.lobed-penta", "Пятидольник", morphology: .lobed,
-               m: 5, n: SIMD3(0.92, 1.45, 1.45),
-               harmonics: [.init(frequency: 5, amplitude: 0.06, phase: 1.4)],
-               offset: SIMD2(0.02, -0.025),
-               policy: policy(preferred: [.proceduralFlow, .proceduralContour, .sideLight], allowed: lightMaterials, roles: [.supporting, .accent], size: 0.16...0.48, maxInstances: 1, complexity: 0.58, mass: 0.52)),
-
         superform,
     ]
 
@@ -151,7 +140,5 @@ enum MetalShapeGenomeCatalog {
         legacy("legacy.rounded-pentagon", "Сдержанный пятиугольник", shape: 5, variant: 7, morphology: .legacyPolygon, preferred: [.radialTwo, .proceduralLight, .contour], roles: [.supporting, .accent]),
         legacy("legacy.rounded-hexagon", "Сдержанный шестиугольник", shape: 5, variant: 8, morphology: .legacyPolygon, preferred: [.solid, .sideLight, .radialThree], roles: [.primary, .supporting]),
         legacy("legacy.star-3-shallow", "Мелкая трёхлучевая звезда", shape: 4, variant: 1, morphology: .legacyStar, preferred: [.proceduralContour, .sideLight, .eclipseGlow], roles: [.supporting, .accent]),
-        legacy("legacy.star-4-moderate", "Умеренная четырёхлучевая звезда", shape: 4, variant: 6, morphology: .legacyStar, preferred: [.contour, .proceduralLight, .eclipseGlow], roles: [.primary, .accent]),
-        legacy("legacy.star-5-restrained", "Сдержанная пятилучевая звезда", shape: 4, variant: 3, morphology: .legacyStar, preferred: [.proceduralContour, .radialThree, .eclipseGlow], roles: [.accent]),
     ]
 }

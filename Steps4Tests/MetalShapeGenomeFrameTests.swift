@@ -52,9 +52,11 @@ final class MetalShapeGenomeFrameTests: XCTestCase {
             MetalShapeGenomeFrame.make(preset: preset, material: .sideLight, seed: UInt64($0))
         }
 
-        XCTAssertEqual(Set(frames.map(\.geometry.superformula.x)).count, 3)
-        XCTAssertTrue(frames.allSatisfy { (3...7).contains($0.geometry.superformula.x) })
-        XCTAssertTrue(frames.allSatisfy { (0.08...0.20).contains($0.geometry.harmonic0.y) })
+        XCTAssertEqual(frames.map(\.geometry.superformLobes), [5, 6, 7])
+        XCTAssertTrue(frames.allSatisfy { $0.geometry.sourceKind == 2 })
+        XCTAssertEqual(frames[0].geometry.superformIrregularity, 0, accuracy: 0.0001)
+        XCTAssertGreaterThan(frames[1].geometry.superformIrregularity, 0.08)
+        XCTAssertGreaterThan(frames[2].geometry.superformIrregularity, frames[1].geometry.superformIrregularity)
         XCTAssertEqual(
             frames[0],
             MetalShapeGenomeFrame.make(preset: preset, material: .sideLight, seed: 42)

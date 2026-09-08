@@ -13,7 +13,8 @@ final class MetalShapeContourTests: XCTestCase {
             XCTAssertEqual(points.count, 2_048)
             XCTAssertTrue(points.allSatisfy { $0.x.isFinite && $0.y.isFinite }, preset.id)
             let radii = points.map(simd_length)
-            XCTAssertGreaterThanOrEqual(radii.min() ?? 0, 0.68, preset.id)
+            let minimumRadius: Float = preset.morphology == .superform ? 0.40 : 0.68
+            XCTAssertGreaterThanOrEqual(radii.min() ?? 0, minimumRadius, preset.id)
             XCTAssertLessThanOrEqual(radii.max() ?? 2, 1.34, preset.id)
             for index in points.indices {
                 let next = points[(index + 1) % points.count]
@@ -28,6 +29,20 @@ final class MetalShapeContourTests: XCTestCase {
             let points = try MetalShapeContour.sample(preset: preset, count: 512)
             XCTAssertFalse(hasSelfIntersection(points), preset.id)
         }
+    }
+
+    func testSuperformExamplesHaveDeepSharpValleysAndDifferentPetalRhythms() throws {
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.superform" })
+        for seed in [UInt64(42), 314, 2_718] {
+            let points = try MetalShapeContour.sample(preset: preset, count: 2_048, seed: seed)
+            let radii = points.map(simd_length)
+            XCTAssertLessThan((radii.min() ?? 1) / (radii.max() ?? 1), 0.62, "seed \(seed)")
+            XCTAssertFalse(hasSelfIntersection(points), "seed \(seed)")
+        }
+        XCTAssertNotEqual(
+            try MetalShapeContour.sample(preset: preset, count: 512, seed: 42),
+            try MetalShapeContour.sample(preset: preset, count: 512, seed: 314)
+        )
     }
 
     func testInvalidSamplingRequestsAreRejected() {

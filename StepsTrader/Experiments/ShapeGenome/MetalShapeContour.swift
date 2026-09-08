@@ -8,29 +8,33 @@ enum MetalShapeContourError: Error, Equatable {
 
 enum MetalShapeContour {
     static func point(for preset: MetalShapePreset, angle: Float, seed: UInt64 = 42) throws -> SIMD2<Float> {
-        guard let genome = genome(for: preset, seed: seed) else {
+        switch preset.contour {
+        case let .genome(genome):
+            return point(genome: genome, angle: angle, normalization: normalization(for: genome))
+        case .superform:
+            return point(superform: MetalShapeSuperform.make(seed: seed), angle: angle)
+        case .legacy:
             throw MetalShapeContourError.unsupportedLegacyPreset
         }
-        return point(genome: genome, angle: angle, normalization: normalization(for: genome))
     }
 
     static func sample(preset: MetalShapePreset, count: Int, seed: UInt64 = 42) throws -> [SIMD2<Float>] {
         guard count >= 3 else { throw MetalShapeContourError.invalidSampleCount }
-        guard let genome = genome(for: preset, seed: seed) else {
-            throw MetalShapeContourError.unsupportedLegacyPreset
-        }
-        let scale = normalization(for: genome)
-        return (0..<count).map { index in
-            let angle = Float(index) * 2 * .pi / Float(count)
-            return point(genome: genome, angle: angle, normalization: scale)
-        }
-    }
-
-    private static func genome(for preset: MetalShapePreset, seed: UInt64) -> MetalShapeGenome? {
         switch preset.contour {
-        case let .genome(genome): genome
-        case .superform: MetalShapeSuperform.make(seed: seed)
-        case .legacy: nil
+        case let .genome(genome):
+            let scale = normalization(for: genome)
+            return (0..<count).map { index in
+                let angle = Float(index) * 2 * .pi / Float(count)
+                return point(genome: genome, angle: angle, normalization: scale)
+            }
+        case .superform:
+            let form = MetalShapeSuperform.make(seed: seed)
+            return (0..<count).map { index in
+                let angle = Float(index) * 2 * .pi / Float(count)
+                return point(superform: form, angle: angle)
+            }
+        case .legacy:
+            throw MetalShapeContourError.unsupportedLegacyPreset
         }
     }
 
@@ -80,5 +84,14 @@ enum MetalShapeContour {
             SIMD2(repeating: -0.12),
             SIMD2(repeating: 0.12)
         )
+    }
+
+    private static func point(
+        superform: MetalShapeSuperformParameters,
+        angle: Float
+    ) -> SIMD2<Float> {
+        let radius = min(MetalShapeSuperform.radius(angle: angle, parameters: superform), 1)
+        let rotatedAngle = angle + superform.rotation
+        return SIMD2(cos(rotatedAngle), sin(rotatedAngle)) * radius
     }
 }

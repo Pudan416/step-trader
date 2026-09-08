@@ -18,6 +18,8 @@ struct MetalShapeGenomeUniforms: Equatable, Sendable {
     var legacyShape: UInt32 { metadata.y }
     var legacyVariant: UInt32 { metadata.z }
     var normalization: Float { transform.y }
+    var superformLobes: Int { sourceKind == 2 ? Int(metadata.z) : 0 }
+    var superformIrregularity: Float { sourceKind == 2 ? superformula.z : 0 }
 
     var isFiniteAndBounded: Bool {
         let values = [
@@ -89,10 +91,7 @@ struct MetalShapeGenomeFrame: Equatable, Sendable {
     }
 
     private static func geometry(for preset: MetalShapePreset, seed: UInt64) -> MetalShapeGenomeUniforms {
-        let descriptor: MetalShapeContourDescriptor = preset.contour == .superform
-            ? .genome(MetalShapeSuperform.make(seed: seed))
-            : preset.contour
-        switch descriptor {
+        switch preset.contour {
         case let .genome(genome):
             let harmonics = Array(genome.harmonics.prefix(3))
             func packed(_ index: Int) -> SIMD4<Float> {
@@ -125,7 +124,17 @@ struct MetalShapeGenomeFrame: Equatable, Sendable {
                 reserved: .zero
             )
         case .superform:
-            preconditionFailure("Superform descriptors are resolved before packing")
+            let form = MetalShapeSuperform.make(seed: seed)
+            return MetalShapeGenomeUniforms(
+                superformula: SIMD4(Float(form.lobes), form.innerRadius, form.irregularity, 0),
+                harmonic0: .zero,
+                harmonic1: .zero,
+                harmonic2: .zero,
+                anisotropyOffset: SIMD4(1, 1, 0, 0),
+                transform: SIMD4(form.rotation, 1, 1, 0),
+                metadata: SIMD4(2, form.seed, UInt32(form.lobes), 0),
+                reserved: .zero
+            )
         }
     }
 
@@ -161,23 +170,83 @@ struct MetalShapeGenomeFrame: Equatable, Sendable {
     }
 }
 
+struct MetalShapeSuperformParameters: Equatable, Sendable {
+    let lobes: Int
+    let innerRadius: Float
+    let irregularity: Float
+    let rotation: Float
+    let seed: UInt32
+}
+
 enum MetalShapeSuperform {
-    static func make(seed: UInt64) -> MetalShapeGenome {
+    static func make(seed: UInt64) -> MetalShapeSuperformParameters {
+        let compactSeed = UInt32(truncatingIfNeeded: seed)
+        let code = (seed &* 2) ^ (seed >> 3)
+        let lobes = 5 + Int(code % 3)
+        let irregularity: Float = switch lobes {
+        case 5: 0
+        case 6: 0.13
+        default: 0.24
+        }
+        let innerRadius: Float = switch lobes {
+        case 5: 0.43
+        case 6: 0.47
+        default: 0.50
+        }
         var random = MetalShapeAtlasRandom(seed: seed ^ 0x5355_5045_5246_4F52)
-        let lobes = 3 + Int(seed % 5)
-        let depth = 0.10 + random.nextUnit() * 0.075
-        let companionFrequency = max(2, lobes - 1)
-        return MetalShapeGenome(
-            morphology: .superform,
-            superformula: SIMD4(Float(lobes), 2, 2, 2),
-            harmonics: [
-                .init(frequency: lobes, amplitude: depth, phase: random.nextUnit() * 2 * .pi),
-                .init(frequency: companionFrequency, amplitude: 0.008 + random.nextUnit() * 0.010, phase: random.nextUnit() * 2 * .pi),
-            ],
-            anisotropy: SIMD2(0.97 + random.nextUnit() * 0.06, 0.97 + random.nextUnit() * 0.06),
-            centerOffset: .zero,
-            rotation: random.nextUnit() * 2 * .pi
+        return MetalShapeSuperformParameters(
+            lobes: lobes,
+            innerRadius: innerRadius,
+            irregularity: irregularity,
+            rotation: random.nextUnit() * 2 * .pi,
+            seed: compactSeed
         )
+    }
+
+    static func radius(angle theta: Float, parameters form: MetalShapeSuperformParameters) -> Float {
+        let sector = 2 * Float.pi / Float(form.lobes)
+        let shifted = (theta + sector * 0.5) / sector
+        let cell = floor(shifted)
+        let local = (shifted - cell) * sector - sector * 0.5
+        let petal = positiveModulo(Int(cell), form.lobes)
+
+        let tipRadius = 1 - form.irregularity * (0.12 + 0.58 * hash(form.seed, petal, 0))
+        let skew = (hash(form.seed, petal, 1) - 0.5) * sector * form.irregularity * 0.72
+        let leftRadius = form.innerRadius * (1 + form.irregularity * 0.20 * (hash(form.seed, petal, 2) - 0.5))
+        let rightRadius = form.innerRadius * (1 + form.irregularity * 0.20 * (hash(form.seed, petal, 3) - 0.5))
+
+        let left = polar(radius: leftRadius, angle: -sector * 0.5)
+        let tip = polar(radius: tipRadius, angle: skew)
+        let right = polar(radius: rightRadius, angle: sector * 0.5)
+        let edge = local < skew ? (left, tip) : (tip, right)
+        let direction = polar(radius: 1, angle: local)
+        let vector = edge.1 - edge.0
+        let denominator = cross(direction, vector)
+        guard abs(denominator) > 0.000_01 else { return tipRadius }
+        return max(cross(edge.0, vector) / denominator, 0.000_01)
+    }
+
+    private static func hash(_ seed: UInt32, _ petal: Int, _ channel: UInt32) -> Float {
+        var value = seed ^ (UInt32(petal) &* 0x9E37_79B9) ^ (channel &* 0x85EB_CA6B)
+        value ^= value >> 16
+        value &*= 0x7FEB_352D
+        value ^= value >> 15
+        value &*= 0x846C_A68B
+        value ^= value >> 16
+        return Float(value & 0x00FF_FFFF) / Float(0x0100_0000)
+    }
+
+    private static func polar(radius: Float, angle: Float) -> SIMD2<Float> {
+        SIMD2(cos(angle), sin(angle)) * radius
+    }
+
+    private static func cross(_ lhs: SIMD2<Float>, _ rhs: SIMD2<Float>) -> Float {
+        lhs.x * rhs.y - lhs.y * rhs.x
+    }
+
+    private static func positiveModulo(_ value: Int, _ divisor: Int) -> Int {
+        let result = value % divisor
+        return result >= 0 ? result : result + divisor
     }
 }
 
