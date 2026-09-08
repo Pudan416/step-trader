@@ -58,7 +58,7 @@ struct MetalShapeAtlasManifest: Codable, Equatable, Sendable {
 }
 
 enum MetalShapeAtlasExport {
-    static let seeds: [UInt64] = [42, 314, 2_718]
+    static let seeds: [UInt64] = [30, 64, 59]
 
     static func makeManifest() throws -> MetalShapeAtlasManifest {
         let shapes = MetalShapeGenomeCatalog.presets.map { preset in

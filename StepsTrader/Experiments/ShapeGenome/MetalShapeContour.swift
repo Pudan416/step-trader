@@ -11,8 +11,10 @@ enum MetalShapeContour {
         switch preset.contour {
         case let .genome(genome):
             return point(genome: genome, angle: angle, normalization: normalization(for: genome))
-        case .superform:
-            return point(superform: MetalShapeSuperform.make(seed: seed), angle: angle)
+        case .snowflake:
+            return point(snowflake: MetalShapeSnowflake.make(seed: seed), angle: angle)
+        case .windflower:
+            return point(windflower: MetalShapeWindflower.make(seed: seed), angle: angle)
         case .legacy:
             throw MetalShapeContourError.unsupportedLegacyPreset
         }
@@ -27,11 +29,17 @@ enum MetalShapeContour {
                 let angle = Float(index) * 2 * .pi / Float(count)
                 return point(genome: genome, angle: angle, normalization: scale)
             }
-        case .superform:
-            let form = MetalShapeSuperform.make(seed: seed)
+        case .snowflake:
+            let form = MetalShapeSnowflake.make(seed: seed)
             return (0..<count).map { index in
                 let angle = Float(index) * 2 * .pi / Float(count)
-                return point(superform: form, angle: angle)
+                return point(snowflake: form, angle: angle)
+            }
+        case .windflower:
+            let form = MetalShapeWindflower.make(seed: seed)
+            return (0..<count).map { index in
+                let angle = Float(index) * 2 * .pi / Float(count)
+                return point(windflower: form, angle: angle)
             }
         case .legacy:
             throw MetalShapeContourError.unsupportedLegacyPreset
@@ -87,11 +95,19 @@ enum MetalShapeContour {
     }
 
     private static func point(
-        superform: MetalShapeSuperformParameters,
+        snowflake: MetalShapeSnowflakeParameters,
         angle: Float
     ) -> SIMD2<Float> {
-        let radius = min(MetalShapeSuperform.radius(angle: angle, parameters: superform), 1)
-        let rotatedAngle = angle + superform.rotation
-        return SIMD2(cos(rotatedAngle), sin(rotatedAngle)) * radius
+        let radius = min(MetalShapeSnowflake.radius(angle: angle, parameters: snowflake), 1)
+        return SIMD2(cos(angle), sin(angle)) * radius
+    }
+
+    private static func point(
+        windflower: MetalShapeWindflowerParameters,
+        angle: Float
+    ) -> SIMD2<Float> {
+        let localAngle = angle - windflower.rotation
+        let radius = min(MetalShapeWindflower.radius(angle: localAngle, parameters: windflower), 1)
+        return SIMD2(cos(angle), sin(angle)) * radius
     }
 }

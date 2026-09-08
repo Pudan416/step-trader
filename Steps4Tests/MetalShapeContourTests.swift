@@ -13,7 +13,9 @@ final class MetalShapeContourTests: XCTestCase {
             XCTAssertEqual(points.count, 2_048)
             XCTAssertTrue(points.allSatisfy { $0.x.isFinite && $0.y.isFinite }, preset.id)
             let radii = points.map(simd_length)
-            let minimumRadius: Float = preset.morphology == .superform ? 0.40 : 0.68
+            let minimumRadius: Float = preset.morphology.rawValue == "snowflake"
+                ? 0.05
+                : (preset.morphology.rawValue == "windflower" ? 0.10 : 0.68)
             XCTAssertGreaterThanOrEqual(radii.min() ?? 0, minimumRadius, preset.id)
             XCTAssertLessThanOrEqual(radii.max() ?? 2, 1.34, preset.id)
             for index in points.indices {
@@ -31,18 +33,31 @@ final class MetalShapeContourTests: XCTestCase {
         }
     }
 
-    func testSuperformExamplesHaveDeepSharpValleysAndDifferentPetalRhythms() throws {
-        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.superform" })
-        for seed in [UInt64(42), 314, 2_718] {
-            let points = try MetalShapeContour.sample(preset: preset, count: 2_048, seed: seed)
-            let radii = points.map(simd_length)
-            XCTAssertLessThan((radii.min() ?? 1) / (radii.max() ?? 1), 0.62, "seed \(seed)")
-            XCTAssertFalse(hasSelfIntersection(points), "seed \(seed)")
+    func testSnowflakeMatchesTheStaticLegacyRectMorphFamily() throws {
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.snowflake" })
+        let rect = CGRect(x: 0, y: 0, width: 1_000, height: 1_000)
+        for seed in [UInt64(30), 64, 59] {
+            let metalRadii = try MetalShapeContour.sample(preset: preset, count: 64, seed: seed).map(simd_length)
+            let legacyRadii = ProceduralShapeGenerator.rectMorphFrame(seed: seed, time: 0, in: rect).textureProfile.radii
+            let meanDelta = zip(metalRadii, legacyRadii)
+                .map { abs(Double($0) - $1) }
+                .reduce(0, +) / 64
+            XCTAssertLessThan(meanDelta, 0.055, "seed \(seed)")
         }
-        XCTAssertNotEqual(
-            try MetalShapeContour.sample(preset: preset, count: 512, seed: 42),
-            try MetalShapeContour.sample(preset: preset, count: 512, seed: 314)
-        )
+    }
+
+    func testWindflowerContoursAreClosedDistinctAndPinched() throws {
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.windflower" })
+        let samples = try [UInt64(30), 64, 59].map {
+            try MetalShapeContour.sample(preset: preset, count: 1_024, seed: $0)
+        }
+        for points in samples {
+            let radii = points.map(simd_length)
+            XCTAssertLessThan((radii.min() ?? 1) / (radii.max() ?? 1), 0.58)
+            XCTAssertFalse(hasSelfIntersection(points))
+        }
+        XCTAssertNotEqual(samples[0], samples[1])
+        XCTAssertNotEqual(samples[1], samples[2])
     }
 
     func testInvalidSamplingRequestsAreRejected() {

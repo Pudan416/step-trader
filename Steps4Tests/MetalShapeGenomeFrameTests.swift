@@ -46,21 +46,27 @@ final class MetalShapeGenomeFrameTests: XCTestCase {
         XCTAssertGreaterThan(frame.geometry.normalization, 0)
     }
 
-    func testSuperformUsesTheSeedToProduceThreeRelatedGeometryExamples() throws {
-        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.superform" })
-        let frames = [42, 314, 2_718].map {
+    func testSnowflakeUsesTheUnrestrictedLegacyFoldChoices() throws {
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.snowflake" })
+        let frames = [30, 64, 59].map {
             MetalShapeGenomeFrame.make(preset: preset, material: .sideLight, seed: UInt64($0))
         }
 
-        XCTAssertEqual(frames.map(\.geometry.superformLobes), [5, 6, 7])
+        XCTAssertEqual(frames.map(\.geometry.metadata.z), [3, 6, 12])
         XCTAssertTrue(frames.allSatisfy { $0.geometry.sourceKind == 2 })
-        XCTAssertEqual(frames[0].geometry.superformIrregularity, 0, accuracy: 0.0001)
-        XCTAssertGreaterThan(frames[1].geometry.superformIrregularity, 0.08)
-        XCTAssertGreaterThan(frames[2].geometry.superformIrregularity, frames[1].geometry.superformIrregularity)
         XCTAssertEqual(
             frames[0],
-            MetalShapeGenomeFrame.make(preset: preset, material: .sideLight, seed: 42)
+            MetalShapeGenomeFrame.make(preset: preset, material: .sideLight, seed: 30)
         )
+    }
+
+    func testWindflowerProducesThreeFiveAndSevenPetals() throws {
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.windflower" })
+        let frames = [30, 64, 59].map {
+            MetalShapeGenomeFrame.make(preset: preset, material: .sideLight, seed: UInt64($0))
+        }
+        XCTAssertEqual(frames.map(\.geometry.metadata.z), [3, 5, 7])
+        XCTAssertTrue(frames.allSatisfy { $0.geometry.sourceKind == 3 })
     }
 
     func testSideLightUsesTwoTonalStops() throws {
@@ -84,7 +90,7 @@ final class MetalShapeGenomeFrameTests: XCTestCase {
 
 
     func testProceduralFlowKeepsTheShapeCenterOpaque() async throws {
-        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.superform" })
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.soft-drift" })
         let image = try await MetalShapeGenomeRenderer.image(
             preset: preset,
             material: .proceduralFlow,
@@ -96,7 +102,7 @@ final class MetalShapeGenomeFrameTests: XCTestCase {
     }
 
     func testEclipseGlowHasATransparentCenterAndLuminousEdge() async throws {
-        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.superform" })
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.snowflake" })
         let image = try await MetalShapeGenomeRenderer.image(
             preset: preset,
             material: .eclipseGlow,

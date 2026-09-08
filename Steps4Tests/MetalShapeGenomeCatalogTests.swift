@@ -2,28 +2,22 @@ import XCTest
 @testable import Steps4
 
 final class MetalShapeGenomeCatalogTests: XCTestCase {
-    func testCatalogContainsOneSeededSuperformAndSixCuratedLegacyShapes() {
+    func testCatalogKeepsOneSoftShapeAndAddsSnowflakeAndWindflower() {
         let presets = MetalShapeGenomeCatalog.presets
-        XCTAssertEqual(presets.count, 11)
-        XCTAssertEqual(presets.filter { $0.source == .genome }.count, 5)
+        XCTAssertEqual(presets.count, 10)
+        XCTAssertEqual(presets.filter { $0.source == .genome }.count, 4)
         XCTAssertEqual(presets.filter { $0.source == .legacy }.count, 6)
         XCTAssertEqual(Set(presets.map(\.id)).count, presets.count)
 
         XCTAssertEqual(
             presets.filter { $0.source == .genome }.map(\.id),
             [
-                "genome.soft-orbit", "genome.soft-drift", "genome.soft-cell",
-                "genome.lobed-triad",
-                "genome.superform",
+                "genome.soft-drift", "genome.lobed-triad",
+                "genome.snowflake", "genome.windflower",
             ]
         )
-        XCTAssertEqual(presets.filter { $0.morphology == .superform }.map(\.id), ["genome.superform"])
-
-        let superform = presets.first { $0.id == "genome.superform" }!
-        XCTAssertEqual(superform.compatibility.roles, [.accent])
-        XCTAssertEqual(superform.compatibility.preferred, [.proceduralLight, .proceduralContour, .eclipseGlow])
-        XCTAssertFalse(superform.compatibility.allowed.contains(.sideLight))
-        XCTAssertFalse(superform.compatibility.allowed.contains(.proceduralFlow))
+        XCTAssertFalse(presets.map(\.id).contains("genome.soft-orbit"))
+        XCTAssertFalse(presets.map(\.id).contains("genome.soft-cell"))
     }
 
     func testLegacySelectionUsesTheApprovedExistingMetalCoordinates() {

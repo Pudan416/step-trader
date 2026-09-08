@@ -67,36 +67,46 @@ static float metalShapeHash(uint seed, uint petal, uint channel) {
     return float(value & 0x00FFFFFFu) / float(0x01000000u);
 }
 
-static float metalShapeCross(float2 a, float2 b) {
-    return a.x * b.y - a.y * b.x;
+static float metalShapeSnowflakeRadius(float theta, constant MetalShapeGenomeUniforms &g) {
+    const float halfSector = M_PI_F / float(clamp(g.metadata.z, 3u, 12u));
+    float local = fmod(theta, 2.0 * halfSector);
+    if (local < 0.0) local += 2.0 * halfSector;
+    const float folded = local > halfSector ? 2.0 * halfSector - local : local;
+    const float unit = folded / halfSector;
+    const float u = unit * M_PI_F;
+    const uint count = min(g.metadata.w, 5u);
+    float radius = 1.0;
+    if (count > 0u) radius += g.harmonic0.y * cos(u * g.harmonic0.x);
+    if (count > 1u) radius += g.harmonic0.w * cos(u * g.harmonic0.z);
+    if (count > 2u) radius += g.harmonic1.y * cos(u * g.harmonic1.x);
+    if (count > 3u) radius += g.harmonic1.w * cos(u * g.harmonic1.z);
+    if (count > 4u) radius += g.harmonic2.y * cos(u * g.harmonic2.x);
+    if (g.harmonic2.z > 0.0) {
+        const float spike = max(0.0, 1.0 - abs(unit) / max(g.harmonic2.w, 1e-4));
+        radius += g.harmonic2.z * spike * spike;
+    }
+    if (g.transform.z > 0.0) {
+        const float distance = (unit - g.transform.w) / 0.12;
+        radius -= g.transform.z * exp(-(distance * distance));
+    }
+    return max(radius, 0.12) * g.transform.y;
 }
 
-static float2 metalShapePolar(float radius, float angle) {
-    return float2(cos(angle), sin(angle)) * radius;
-}
-
-static float metalShapeSuperformRadius(float theta, constant MetalShapeGenomeUniforms &g) {
-    const uint lobes = clamp(g.metadata.z, 5u, 7u);
-    const float sector = 2.0 * M_PI_F / float(lobes);
+static float metalShapeWindflowerRadius(float theta, constant MetalShapeGenomeUniforms &g) {
+    const uint petals = clamp(g.metadata.z, 3u, 7u);
+    const float sector = 2.0 * M_PI_F / float(petals);
     const float shifted = (theta + sector * 0.5) / sector;
     const int rawCell = int(floor(shifted));
-    const uint petal = uint((rawCell % int(lobes) + int(lobes)) % int(lobes));
+    const uint petal = uint((rawCell % int(petals) + int(petals)) % int(petals));
     const float local = fract(shifted) * sector - sector * 0.5;
     const float irregularity = g.superformula.z;
-    const float tipRadius = 1.0 - irregularity * (0.12 + 0.58 * metalShapeHash(g.metadata.y, petal, 0u));
-    const float skew = (metalShapeHash(g.metadata.y, petal, 1u) - 0.5) * sector * irregularity * 0.72;
-    const float leftRadius = g.superformula.y
-        * (1.0 + irregularity * 0.20 * (metalShapeHash(g.metadata.y, petal, 2u) - 0.5));
-    const float rightRadius = g.superformula.y
-        * (1.0 + irregularity * 0.20 * (metalShapeHash(g.metadata.y, petal, 3u) - 0.5));
-    const float2 left = metalShapePolar(leftRadius, -sector * 0.5);
-    const float2 tip = metalShapePolar(tipRadius, skew);
-    const float2 right = metalShapePolar(rightRadius, sector * 0.5);
-    const float2 a = local < skew ? left : tip;
-    const float2 b = local < skew ? tip : right;
-    const float2 edge = b - a;
-    const float denominator = metalShapeCross(metalShapePolar(1.0, local), edge);
-    return abs(denominator) > 1e-5 ? max(metalShapeCross(a, edge) / denominator, 1e-5) : tipRadius;
+    const float skew = (metalShapeHash(g.metadata.y, petal, 0u) - 0.5) * sector * irregularity * 0.55;
+    const float span = local < skew ? skew + sector * 0.5 : sector * 0.5 - skew;
+    const float distance = min(abs(local - skew) / max(span, 1e-5), 1.0);
+    const float exponent = g.superformula.w * (0.88 + 0.24 * metalShapeHash(g.metadata.y, petal, 1u));
+    const float tip = 1.0 - irregularity * (0.05 + 0.42 * metalShapeHash(g.metadata.y, petal, 2u));
+    const float valley = g.superformula.y * (0.94 + 0.12 * metalShapeHash(g.metadata.y, petal, 3u));
+    return valley + (tip - valley) * (1.0 - pow(distance, exponent));
 }
 
 static float metalShapeRegularPolygonDistance(float2 p, float sides) {
@@ -136,7 +146,8 @@ static float metalShapeDistance(float2 point, constant MetalShapeGenomeUniforms 
     p /= clamp(g.anisotropyOffset.xy, float2(0.82), float2(1.18));
     if (g.metadata.x == 1u) return metalShapeLegacyDistance(p, g.metadata.y, g.metadata.z);
     const float theta = atan2(p.y, p.x);
-    if (g.metadata.x == 2u) return length(p) - metalShapeSuperformRadius(theta, g);
+    if (g.metadata.x == 2u) return length(p) - metalShapeSnowflakeRadius(theta, g);
+    if (g.metadata.x == 3u) return length(p) - metalShapeWindflowerRadius(theta, g);
     return length(p) - metalShapeGenomeRadius(theta, g);
 }
 

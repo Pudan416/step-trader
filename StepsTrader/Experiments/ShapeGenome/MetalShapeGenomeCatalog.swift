@@ -64,47 +64,55 @@ enum MetalShapeGenomeCatalog {
         )
     }
 
-    private static let superform = MetalShapePreset(
-        id: "genome.superform",
-        title: "Суперформа",
+    private static let snowflake = MetalShapePreset(
+        id: "genome.snowflake",
+        title: "Snowflake · стоп-кадр",
         source: .genome,
-        morphology: .superform,
-        contour: .superform,
+        morphology: .snowflake,
+        contour: .snowflake,
         compatibility: policy(
-            preferred: [.proceduralLight, .proceduralContour, .eclipseGlow],
-            allowed: [.contour, .radialTwo, .proceduralLight, .proceduralContour, .eclipseGlow],
+            preferred: [.sideLight, .proceduralContour, .eclipseGlow],
+            allowed: [.sideLight, .contour, .radialTwo, .proceduralLight, .proceduralContour, .eclipseGlow],
             roles: [.accent],
             size: 0.16...0.48,
             maxInstances: 1,
-            complexity: 0.72,
-            mass: 0.35,
+            complexity: 0.78,
+            mass: 0.30,
             halo: 0.15
         )
     )
 
+    private static let windflower = MetalShapePreset(
+        id: "genome.windflower",
+        title: "Ветряной цветок",
+        source: .genome,
+        morphology: .windflower,
+        contour: .windflower,
+        compatibility: policy(
+            preferred: [.sideLight, .proceduralLight, .proceduralContour],
+            allowed: [.sideLight, .contour, .radialTwo, .proceduralLight, .proceduralContour, .eclipseGlow],
+            roles: [.primary, .accent],
+            size: 0.18...0.58,
+            maxInstances: 1,
+            complexity: 0.64,
+            mass: 0.42,
+            halo: 0.12
+        )
+    )
+
     private static let genomePresets: [MetalShapePreset] = [
-        genome("genome.soft-orbit", "Мягкая орбита", morphology: .softRadial,
-               m: 2, n: SIMD3(1.7, 1.8, 1.8),
-               harmonics: [.init(frequency: 2, amplitude: 0.045, phase: 0.4)],
-               anisotropy: SIMD2(1.08, 0.94), offset: SIMD2(0.035, -0.02),
-               policy: policy(preferred: [.sideLight, .radialThree, .proceduralLight], roles: [.primary, .supporting], size: 0.24...0.72, maxInstances: 2, complexity: 0.18, mass: 0.72)),
         genome("genome.soft-drift", "Мягкий дрейф", morphology: .softRadial,
                m: 2, n: SIMD3(2.1, 2.5, 1.65),
                harmonics: [.init(frequency: 3, amplitude: 0.055, phase: 1.2)],
                anisotropy: SIMD2(0.92, 1.12), offset: SIMD2(-0.05, 0.025), rotation: 0.22,
                policy: policy(preferred: [.solid, .sideLight, .directionalBlur], roles: [.primary, .supporting], size: 0.22...0.68, maxInstances: 2, complexity: 0.22, mass: 0.76)),
-        genome("genome.soft-cell", "Мягкая клетка", morphology: .softRadial,
-               m: 4, n: SIMD3(2.6, 2.8, 2.8),
-               harmonics: [.init(frequency: 2, amplitude: 0.035, phase: 2.1)],
-               anisotropy: SIMD2(1.04, 0.97),
-               policy: policy(preferred: [.radialTwo, .proceduralFlow, .contour], roles: [.primary, .supporting], size: 0.20...0.64, maxInstances: 2, complexity: 0.26, mass: 0.68)),
-
         genome("genome.lobed-triad", "Трёхдольник", morphology: .lobed,
                m: 3, n: SIMD3(1.0, 1.35, 1.35),
                harmonics: [.init(frequency: 3, amplitude: 0.075, phase: 0.15)],
                rotation: -0.18,
                policy: policy(preferred: [.sideLight, .proceduralContour, .radialThree], roles: [.primary, .supporting], size: 0.22...0.66, maxInstances: 2, complexity: 0.44, mass: 0.63)),
-        superform,
+        snowflake,
+        windflower,
     ]
 
     private static func legacy(
