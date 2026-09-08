@@ -17,6 +17,26 @@ enum MetalShapeGenomeRendererError: Error {
 }
 
 enum MetalShapeGenomeRenderer {
+    private static let device = MTLCreateSystemDefaultDevice()
+    private static let queue = device?.makeCommandQueue()
+    private static let pipeline: MTLRenderPipelineState? = {
+        guard let device,
+              let library = device.makeDefaultLibrary(),
+              let vertex = library.makeFunction(name: "metalShapeGenomeVertex"),
+              let fragment = library.makeFunction(name: "metalShapeGenomeFragment")
+        else { return nil }
+        let descriptor = MTLRenderPipelineDescriptor()
+        descriptor.vertexFunction = vertex
+        descriptor.fragmentFunction = fragment
+        descriptor.colorAttachments[0].pixelFormat = .bgra8Unorm_srgb
+        descriptor.colorAttachments[0].isBlendingEnabled = true
+        descriptor.colorAttachments[0].sourceRGBBlendFactor = .one
+        descriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+        descriptor.colorAttachments[0].sourceAlphaBlendFactor = .one
+        descriptor.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+        return try? device.makeRenderPipelineState(descriptor: descriptor)
+    }()
+
     static func image(
         preset: MetalShapePreset,
         material: MetalShapeMaterial,
@@ -27,31 +47,13 @@ enum MetalShapeGenomeRenderer {
     ) async throws -> UIImage {
         let width = max(Int((size.width * scale).rounded()), 1)
         let height = max(Int((size.height * scale).rounded()), 1)
-        guard let device = MTLCreateSystemDefaultDevice() else {
+        guard let device else {
             throw MetalShapeGenomeRendererError.unavailableDevice
         }
-        guard let queue = device.makeCommandQueue() else {
+        guard let queue else {
             throw MetalShapeGenomeRendererError.unavailableCommandQueue
         }
-        guard let library = device.makeDefaultLibrary() else {
-            throw MetalShapeGenomeRendererError.unavailableLibrary
-        }
-        guard let vertex = library.makeFunction(name: "metalShapeGenomeVertex") else {
-            throw MetalShapeGenomeRendererError.unavailableFunction("metalShapeGenomeVertex")
-        }
-        guard let fragment = library.makeFunction(name: "metalShapeGenomeFragment") else {
-            throw MetalShapeGenomeRendererError.unavailableFunction("metalShapeGenomeFragment")
-        }
-        let descriptor = MTLRenderPipelineDescriptor()
-        descriptor.vertexFunction = vertex
-        descriptor.fragmentFunction = fragment
-        descriptor.colorAttachments[0].pixelFormat = .bgra8Unorm_srgb
-        descriptor.colorAttachments[0].isBlendingEnabled = true
-        descriptor.colorAttachments[0].sourceRGBBlendFactor = .one
-        descriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
-        descriptor.colorAttachments[0].sourceAlphaBlendFactor = .one
-        descriptor.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
-        guard let pipeline = try? await device.makeRenderPipelineState(descriptor: descriptor) else {
+        guard let pipeline else {
             throw MetalShapeGenomeRendererError.unavailablePipeline
         }
 

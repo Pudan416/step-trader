@@ -10,6 +10,7 @@ import SwiftUI
 /// compile this file's call site.
 enum ExperimentalLabRoute: String, CaseIterable {
     case dayObjects
+    case shapeGenomeExport
 
     static var current: ExperimentalLabRoute? {
         // iOS folds `-key value` launch arguments into the NSArgumentDomain,
@@ -30,6 +31,7 @@ enum ExperimentalLabRoute: String, CaseIterable {
     var view: some View {
         switch self {
         case .dayObjects: DayObjectsLabView()
+        case .shapeGenomeExport: MetalShapeAtlasExportView()
         }
     }
 }

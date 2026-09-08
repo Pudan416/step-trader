@@ -187,6 +187,9 @@
 		A7A500000000000000000015 /* MetalShapeCompatibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7A500000000000000000014 /* MetalShapeCompatibilityTests.swift */; };
 		A7A500000000000000000017 /* MetalShapeScenePlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7A500000000000000000016 /* MetalShapeScenePlannerTests.swift */; };
 		A7A500000000000000000019 /* MetalShapeScenePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7A500000000000000000018 /* MetalShapeScenePlanner.swift */; };
+		A7A50000000000000000001B /* MetalShapeAtlasManifestTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7A50000000000000000001A /* MetalShapeAtlasManifestTests.swift */; };
+		A7A50000000000000000001D /* MetalShapeAtlasExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7A50000000000000000001C /* MetalShapeAtlasExport.swift */; };
+		A7A50000000000000000001F /* MetalShapeAtlasExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7A50000000000000000001E /* MetalShapeAtlasExportView.swift */; };
 		D0F100000000000000000002 /* DayObjectsLabMusicViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F100000000000000000001 /* DayObjectsLabMusicViewModelTests.swift */; };
 		91F0A0023100000000000002 /* AppTypographyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91F0A0013100000000000001 /* AppTypographyTests.swift */; };
 		A16C90010000000000000001 /* ExperimentalFeatures.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000001 /* ExperimentalFeatures.swift */; };
@@ -777,6 +780,9 @@
 		A7A500000000000000000014 /* MetalShapeCompatibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalShapeCompatibilityTests.swift; sourceTree = "<group>"; };
 		A7A500000000000000000016 /* MetalShapeScenePlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalShapeScenePlannerTests.swift; sourceTree = "<group>"; };
 		A7A500000000000000000018 /* MetalShapeScenePlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalShapeScenePlanner.swift; sourceTree = "<group>"; };
+		A7A50000000000000000001A /* MetalShapeAtlasManifestTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalShapeAtlasManifestTests.swift; sourceTree = "<group>"; };
+		A7A50000000000000000001C /* MetalShapeAtlasExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalShapeAtlasExport.swift; sourceTree = "<group>"; };
+		A7A50000000000000000001E /* MetalShapeAtlasExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalShapeAtlasExportView.swift; sourceTree = "<group>"; };
 		D0F100000000000000000001 /* DayObjectsLabMusicViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLabMusicViewModelTests.swift; sourceTree = "<group>"; };
 		91F0A0013100000000000001 /* AppTypographyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppTypographyTests.swift; path = Steps4Tests/AppTypographyTests.swift; sourceTree = SOURCE_ROOT; };
 		A16C80010000000000000001 /* ExperimentalFeatures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExperimentalFeatures.swift; sourceTree = "<group>"; };
@@ -1245,6 +1251,8 @@
 				A7A50000000000000000000E /* MetalShapeGenomeFrame.swift */,
 				A7A500000000000000000010 /* MetalShapeGenomeRenderer.swift */,
 				A7A500000000000000000018 /* MetalShapeScenePlanner.swift */,
+				A7A50000000000000000001C /* MetalShapeAtlasExport.swift */,
+				A7A50000000000000000001E /* MetalShapeAtlasExportView.swift */,
 			);
 			path = Experiments/ShapeGenome;
 			sourceTree = "<group>";
@@ -1971,6 +1979,7 @@
 				A7A50000000000000000000C /* MetalShapeGenomeFrameTests.swift */,
 				A7A500000000000000000014 /* MetalShapeCompatibilityTests.swift */,
 				A7A500000000000000000016 /* MetalShapeScenePlannerTests.swift */,
+				A7A50000000000000000001A /* MetalShapeAtlasManifestTests.swift */,
 				D0B100000000000000000003 /* DayObjectPaletteTests.swift */,
 				D0B100000000000000000005 /* DayObjectChoreographyTests.swift */,
 				D0B100000000000000000007 /* DayObjectRenderFrameTests.swift */,
@@ -2513,6 +2522,8 @@
 				A7A50000000000000000000F /* MetalShapeGenomeFrame.swift in Sources */,
 				A7A500000000000000000011 /* MetalShapeGenomeRenderer.swift in Sources */,
 				A7A500000000000000000019 /* MetalShapeScenePlanner.swift in Sources */,
+				A7A50000000000000000001D /* MetalShapeAtlasExport.swift in Sources */,
+				A7A50000000000000000001F /* MetalShapeAtlasExportView.swift in Sources */,
 				E0F200000000000000000002 /* CompositionPlanner.swift in Sources */,
 				E0F200000000000000000004 /* EditorialGrammar.swift in Sources */,
 				E0F200000000000000000006 /* SceneRecipe.swift in Sources */,
@@ -2812,6 +2823,7 @@
 				A7A50000000000000000000D /* MetalShapeGenomeFrameTests.swift in Sources */,
 				A7A500000000000000000015 /* MetalShapeCompatibilityTests.swift in Sources */,
 				A7A500000000000000000017 /* MetalShapeScenePlannerTests.swift in Sources */,
+				A7A50000000000000000001B /* MetalShapeAtlasManifestTests.swift in Sources */,
 				D0B100000000000000000004 /* DayObjectPaletteTests.swift in Sources */,
 				D0B100000000000000000006 /* DayObjectChoreographyTests.swift in Sources */,
 				D0B100000000000000000008 /* DayObjectRenderFrameTests.swift in Sources */,
