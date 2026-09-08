@@ -10,6 +10,7 @@ import re
 import tempfile
 import unicodedata
 import uuid
+import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -482,6 +483,106 @@ def search_chats(chat_root: Path, query: str, limit: int = 10) -> List[Dict[str,
     return results[: max(1, min(limit, 50))]
 
 
+def _chat_role_heading(line: str) -> Optional[str]:
+    match = re.match(r"^##\s+(.+?)\s*$", line.strip(), flags=re.IGNORECASE)
+    if not match:
+        return None
+    label = match.group(1).strip()
+    lowered = label.casefold()
+    if lowered in {"user", "запрос"} or re.match(r"^пользователь\s+[—-]\s+", lowered):
+        return "user"
+    if lowered in {"assistant", "ответ"} or re.match(r"^claude\s+[—-]\s+", lowered):
+        return "assistant"
+    if lowered in {"system", "developer", "tool", "tool result", "system prompt"}:
+        return "skip"
+    return None
+
+
+def format_obsidian_chat(text: str, fallback_title: str) -> Optional[str]:
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    title = fallback_title.strip() or "Без названия"
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("# "):
+            title = stripped[2:].strip() or title
+        break
+
+    markers = []
+    fence = None
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            token = stripped[:3]
+            fence = None if fence == token else (token if fence is None else fence)
+            continue
+        if fence is None:
+            role = _chat_role_heading(line)
+            if role is not None:
+                markers.append((index, role))
+    if not markers or not any(role in {"user", "assistant"} for _, role in markers):
+        return None
+
+    messages = []
+    for marker_index, (start, role) in enumerate(markers):
+        end = markers[marker_index + 1][0] if marker_index + 1 < len(markers) else len(lines)
+        content = "\n".join(lines[start + 1 : end]).strip()
+        if role in {"user", "assistant"} and content:
+            messages.append((role, content))
+    if not messages:
+        return None
+
+    output = ["# " + title.replace("\n", " ").strip(), ""]
+    for role, content in messages:
+        output.extend(["## " + ("Запрос" if role == "user" else "Ответ"), "", content, ""])
+    return "\n".join(output).rstrip() + "\n"
+
+
+def format_chat_archive(chat_root: Path, state_root: Path) -> Dict[str, object]:
+    scanned = skipped = errors = 0
+    changes = []
+    state = _load_json(state_root / "state.json", {})
+    host_id = state.get("host_id") if isinstance(state, dict) else None
+    for path in sorted(chat_root.rglob("*.md")) if chat_root.is_dir() else ():
+        if "_Tools" in path.parts:
+            continue
+        if "_Unified" in path.parts and (not isinstance(host_id, str) or host_id not in path.parts):
+            continue
+        scanned += 1
+        try:
+            original = path.read_text(encoding="utf-8", errors="replace")
+            formatted = format_obsidian_chat(original, path.stem)
+        except OSError:
+            errors += 1
+            continue
+        if formatted is None:
+            skipped += 1
+        elif formatted != original:
+            changes.append((path, original, formatted))
+
+    backup_path = None
+    if changes:
+        backup_root = state_root / "backups"
+        backup_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
+        backup_path = backup_root / ("llm-chats-before-obsidian-format-" + stamp + ".zip")
+        with zipfile.ZipFile(backup_path, "x", compression=zipfile.ZIP_DEFLATED) as archive:
+            for path, original, _ in changes:
+                archive.writestr(str(path.relative_to(chat_root)), original.encode("utf-8"))
+        backup_path.chmod(0o600)
+        for path, _, formatted in changes:
+            _atomic_write(path, formatted)
+    return {
+        "scanned": scanned,
+        "formatted": len(changes),
+        "unchanged": scanned - skipped - errors - len(changes),
+        "skipped": skipped,
+        "errors": errors,
+        "backup": str(backup_path) if backup_path else None,
+    }
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Archive and search local Codex and Claude Code chats")
     default_home = Path.home()
@@ -497,6 +598,8 @@ def _build_parser() -> argparse.ArgumentParser:
     search_parser.add_argument("--json", action="store_true")
     status_parser = commands.add_parser("status", help="Show local importer state")
     status_parser.add_argument("--json", action="store_true")
+    format_parser = commands.add_parser("format", help="Normalize recognized chats for Obsidian")
+    format_parser.add_argument("--json", action="store_true")
     return parser
 
 
@@ -523,6 +626,17 @@ def main(argv: Optional[List[str]] = None) -> int:
             for index, result in enumerate(results, 1):
                 print("{0}. {1}\n   {2}\n   {3}\n".format(index, result["title"], result["path"], result["excerpt"]))
         return 0
+    if args.command == "format":
+        result = format_chat_archive(args.chat_root, args.state_root)
+        if args.json:
+            print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+        else:
+            print(
+                "Formatted {formatted}; unchanged {unchanged}; skipped {skipped}; errors {errors}. Backup: {backup}".format(
+                    **result
+                )
+            )
+        return 1 if result["errors"] else 0
     loaded = _load_json(args.state_root / "state.json", {})
     state = loaded if isinstance(loaded, dict) else {}
     entries = state.get("sources", {}) if isinstance(state.get("sources", {}), dict) else {}

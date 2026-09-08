@@ -342,6 +342,36 @@ class ChatIndexTests(unittest.TestCase):
         self.assertEqual(destination.read_text(encoding="utf-8"), "new content")
         self.assertEqual(list(destination.parent.glob(".tmp-*")), [])
 
+    def test_obsidian_formatter_normalizes_chatgpt_and_claude_role_headings(self):
+        from chat_index import format_obsidian_chat
+
+        chatgpt = "## user\n\nПервый вопрос\n\n## assistant\n\nПервый ответ\n"
+        claude = (
+            "# Разговор Claude\n\n"
+            "## Пользователь — 2025-03-02T17:51:36Z\n\nВторой вопрос\n\n"
+            "## Claude — 2025-03-02T17:51:44Z\n\nВторой ответ\n"
+        )
+
+        formatted_chatgpt = format_obsidian_chat(chatgpt, "Имя файла")
+        formatted_claude = format_obsidian_chat(claude, "Другое имя")
+
+        self.assertEqual(
+            formatted_chatgpt,
+            "# Имя файла\n\n## Запрос\n\nПервый вопрос\n\n## Ответ\n\nПервый ответ\n",
+        )
+        self.assertEqual(
+            formatted_claude,
+            "# Разговор Claude\n\n## Запрос\n\nВторой вопрос\n\n## Ответ\n\nВторой ответ\n",
+        )
+        self.assertEqual(format_obsidian_chat(formatted_claude, "ignored"), formatted_claude)
+
+    def test_obsidian_formatter_skips_markdown_without_dialogue_roles(self):
+        from chat_index import format_obsidian_chat
+
+        ordinary_note = "# Проект\n\n## Задачи\n\nОбычная заметка без диалога.\n"
+
+        self.assertIsNone(format_obsidian_chat(ordinary_note, "Проект"))
+
 
 if __name__ == "__main__":
     unittest.main()

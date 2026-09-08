@@ -4,6 +4,7 @@ import json
 import plistlib
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 
@@ -80,6 +81,54 @@ class CliAndInstallTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         printed = output.getvalue()
         self.assertEqual(json.loads(printed[printed.index("{") :])["loaded"], False)
+
+    def test_format_command_rewrites_only_chats_and_creates_recovery_zip(self):
+        from chat_index import main
+
+        home = self.root / "home"
+        chat_root = self.root / "LLM CHATS"
+        state_root = self.root / "state"
+        chat_root.mkdir(parents=True)
+        chat = chat_root / "Старый чат.md"
+        note = chat_root / "Заметка.md"
+        local_chat = chat_root / "_Unified/codex/host-a/local.md"
+        remote_chat = chat_root / "_Unified/codex/host-b/remote.md"
+        local_chat.parent.mkdir(parents=True)
+        remote_chat.parent.mkdir(parents=True)
+        chat.write_text("## user\n\nВопрос\n\n## assistant\n\nОтвет\n", encoding="utf-8")
+        note.write_text("# Заметка\n\nПросто текст.\n", encoding="utf-8")
+        local_chat.write_text("## user\n\nЛокальный вопрос\n\n## assistant\n\nЛокальный ответ\n", encoding="utf-8")
+        remote_chat.write_text("## user\n\nУдалённый вопрос\n\n## assistant\n\nУдалённый ответ\n", encoding="utf-8")
+        state_root.mkdir(parents=True)
+        (state_root / "state.json").write_text(json.dumps({"host_id": "host-a", "sources": {}}), encoding="utf-8")
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            exit_code = main(
+                [
+                    "--home",
+                    str(home),
+                    "--chat-root",
+                    str(chat_root),
+                    "--state-root",
+                    str(state_root),
+                    "format",
+                    "--json",
+                ]
+            )
+
+        result = json.loads(output.getvalue())
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(result["formatted"], 2)
+        self.assertEqual(result["skipped"], 1)
+        self.assertTrue(chat.read_text(encoding="utf-8").startswith("# Старый чат\n\n## Запрос"))
+        self.assertTrue(local_chat.read_text(encoding="utf-8").startswith("# local\n\n## Запрос"))
+        self.assertTrue(remote_chat.read_text(encoding="utf-8").startswith("## user"))
+        self.assertEqual(note.read_text(encoding="utf-8"), "# Заметка\n\nПросто текст.\n")
+        backup = Path(result["backup"])
+        self.assertTrue(backup.is_file())
+        with zipfile.ZipFile(backup) as archive:
+            self.assertEqual(archive.read("Старый чат.md").decode("utf-8"), "## user\n\nВопрос\n\n## assistant\n\nОтвет\n")
 
 
 if __name__ == "__main__":

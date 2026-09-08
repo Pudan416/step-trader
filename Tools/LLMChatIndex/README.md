@@ -8,7 +8,10 @@ It also searches all Markdown below `LLM CHATS`, including the existing official
 chat-index search "история iCloud"
 chat-index status
 chat-index sync
+chat-index format
 ```
+
+`chat-index format` recognizes existing ChatGPT-style `## user` / `## assistant`, official Claude role headings, and already normalized chats. It rewrites recognized conversations as `# Title`, `## Запрос`, and `## Ответ`, leaves non-chat Markdown untouched, and creates a recovery ZIP under `~/Library/Application Support/LLMChatIndexLite/backups` before changing files. In `_Unified`, each Mac formats only its own host folder to avoid editing files that another Mac is actively synchronizing.
 
 Original source logs are read-only. If a source disappears, its normalized Markdown remains in the archive.
 
