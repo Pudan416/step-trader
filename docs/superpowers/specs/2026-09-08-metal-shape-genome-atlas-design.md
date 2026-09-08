@@ -6,7 +6,7 @@ Date: 2026-09-08
 
 Add a new, Metal-only generative-shape study above the existing “Формы × заполнения” matrix on the Nowhere Composition Atlas. The current matrix, controls, assets, and behavior remain unchanged.
 
-The new study introduces one coherent family of closed procedural contours rather than more hand-enumerated circles, rounded polygons, and stars. A deterministic shape genome produces twelve curated presets across four morphological groups. A shared Metal rendering pipeline applies only compatible materials to each preset. A compact scene laboratory demonstrates which objects can act as centers, supporting forms, or accents.
+The new study combines the strongest existing Metal silhouettes with one coherent new family of closed procedural contours. It is a curated continuation of the current vocabulary, not a disconnected replacement. A deterministic shape genome produces twelve new presets across four morphological groups; a small selection of visually distinct legacy circles, soft polygons, and restrained stars is brought forward beside them. A shared Metal rendering pipeline applies only compatible materials to every selected shape. A compact scene laboratory demonstrates which objects can act as centers, supporting forms, or accents.
 
 The first version is an isolated laboratory and website study. It does not change the production daily-canvas generator or user-visible behavior in the shipping app.
 
@@ -29,6 +29,7 @@ The system should make hierarchy visible through generated scenes, not through a
 
 - A deterministic closed-contour genome implemented for Metal rendering.
 - Twelve curated shape presets divided across four morphological groups.
+- Six to eight visually distinct legacy Metal silhouettes selected from the current matrix.
 - Ten approved Metal material treatments.
 - Per-shape material compatibility and role metadata.
 - A small scene laboratory using compatible primary, supporting, and accent objects.
@@ -41,6 +42,7 @@ The system should make hierarchy visible through generated scenes, not through a
 
 - Removing, hiding, rewriting, or reordering the current matrix.
 - Replacing existing site assets.
+- Carrying every legacy roundness and star-depth permutation into the new curated table.
 - Enabling the new shapes in the production daily-canvas generator.
 - User-facing settings for editing raw mathematical parameters.
 - A general-purpose vector editor.
@@ -89,6 +91,21 @@ The public table shows named groups, not raw equations:
 4. **Crystalline** — irregular snowflake relatives with sharper peaks and restrained symmetry-breaking.
 
 Each group contributes three curated presets, for twelve rows total. Presets must be separated by silhouette metrics and human visual review; a parameter change alone does not earn a row.
+
+### Curated legacy shapes
+
+The new table also brings forward six to eight existing silhouettes that remain useful in the expanded system. The baseline candidate set is:
+
+- circle;
+- one clearly square soft-square state;
+- one directional rounded-triangle state;
+- one restrained rounded-pentagon state;
+- one restrained rounded-hexagon state;
+- up to three visually separated stars: a shallow three-ray form, a moderate four-ray form, and at most one restrained five- or six-ray form.
+
+The exact roundness and depth IDs are chosen from normalized Metal comparisons. Neighboring parameter states do not appear together unless their silhouettes remain clearly distinguishable at table-preview size.
+
+Legacy selections are re-rendered through the same export pipeline, framing, palette, and material parameters as the new genomes. Existing PNGs may remain as historical evidence in the untouched matrix, but they are not reused when doing so would preserve the current scale or palette mismatch.
 
 ### Rejection rules
 
@@ -159,7 +176,7 @@ Only the primary smooth wake appears as a main table column. The other modes app
 
 ## Compatibility and Composition Roles
 
-Each curated preset has a compact internal manifest:
+Each curated new or legacy shape has a compact internal manifest:
 
 - allowed materials;
 - preferred materials and weights;
@@ -210,11 +227,12 @@ Rerolling changes the deterministic selection while preserving all compatibility
 
 ### New comparison table
 
-The second block contains twelve shape rows. Columns are the ten approved materials, but only compatible cells render. An incompatible cell uses a quiet dash and does not create or request an asset.
+The second block contains twelve new genome rows plus six to eight curated legacy rows. New and legacy groups are visually separated but share the same columns and comparison rules. Columns are the ten approved materials, but only compatible cells render. An incompatible cell uses a quiet dash and does not create or request an asset.
 
 Controls allow filtering by:
 
 - morphological group;
+- source: curated legacy or new genome;
 - role;
 - material;
 - shared seed.
@@ -227,8 +245,8 @@ The current `#matrix` element and its contents remain byte-for-byte unchanged un
 
 ## Data and Asset Flow
 
-1. Curated genome presets and compatibility metadata live in the iOS experiment code.
-2. A deterministic export harness renders every allowed genome/material combination at fixed preview and full sizes.
+1. Curated genome presets, selected legacy-shape IDs, and compatibility metadata live in the iOS experiment code.
+2. A deterministic export harness renders every allowed new or legacy shape/material combination at fixed preview and full sizes.
 3. Export filenames include genome ID, material ID, and render seed.
 4. A generated manifest records rows, allowed cells, roles, visual-mass metadata, and asset paths.
 5. The website reads the manifest and constructs the new lab and table without changing the legacy matrix data.
@@ -269,7 +287,7 @@ The generated manifest is the boundary between the Metal implementation and the 
 
 ### Metal render tests
 
-- Snapshot representative presets from all four morphological groups.
+- Snapshot representative presets from all four new morphological groups and every selected legacy family.
 - Snapshot every material at least once.
 - Explicit regression images for smooth directional blur and eclipse glow.
 - Verify preview, hero, and export tiers.
@@ -280,7 +298,7 @@ The generated manifest is the boundary between the Metal implementation and the 
 Perform one bounded visual pass over:
 
 - the scene laboratory at representative seeds;
-- all twelve rows with their compatible materials;
+- all twelve new rows and all curated legacy rows with their compatible materials;
 - the focused directional-blur variants;
 - desktop and narrow layouts;
 - reduced-motion and keyboard navigation behavior;
