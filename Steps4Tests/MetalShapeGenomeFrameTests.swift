@@ -130,7 +130,7 @@ final class MetalShapeGenomeFrameTests: XCTestCase {
         XCTAssertGreaterThan(alpha(in: image, x: 48, y: 48), 245)
     }
 
-    func testDirectionalBlurKeepsTheOriginalShapeOpaque() async throws {
+    func testDirectionalBlurHasASharpAnchorAndASoftOneSidedVaporEdge() async throws {
         let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "legacy.circle" })
         let seed: UInt64 = 64
         let size = 160
@@ -146,13 +146,23 @@ final class MetalShapeGenomeFrameTests: XCTestCase {
             material: .directionalBlur,
             seed: seed
         ).material.direction
-        let first = pixel(for: direction * 0.82, size: size)
-        let second = pixel(for: -direction * 0.82, size: size)
+        let firstEdge = pixel(for: direction * 0.82, size: size)
+        let secondEdge = pixel(for: -direction * 0.82, size: size)
+        let edgeAlphas = [
+            alpha(in: image, x: firstEdge.x, y: firstEdge.y),
+            alpha(in: image, x: secondEdge.x, y: secondEdge.y),
+        ]
+        XCTAssertGreaterThan(edgeAlphas.max() ?? 0, 220)
+        XCTAssertLessThan(edgeAlphas.min() ?? 255, 205)
 
-        XCTAssertGreaterThan(min(
-            alpha(in: image, x: first.x, y: first.y),
-            alpha(in: image, x: second.x, y: second.y)
-        ), 220)
+        let firstOutside = pixel(for: direction * 1.12, size: size)
+        let secondOutside = pixel(for: -direction * 1.12, size: size)
+        let outsideAlphas = [
+            alpha(in: image, x: firstOutside.x, y: firstOutside.y),
+            alpha(in: image, x: secondOutside.x, y: secondOutside.y),
+        ]
+        XCTAssertGreaterThan(outsideAlphas.max() ?? 0, 24)
+        XCTAssertLessThan(outsideAlphas.min() ?? 255, 16)
     }
 
     func testEclipseGlowHasATransparentCenterAndLuminousEdge() async throws {

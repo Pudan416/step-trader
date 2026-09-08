@@ -205,23 +205,35 @@ fragment float4 metalShapeGenomeFragment(
         alpha = line;
         color = mix(m.color0.rgb, m.color1.rgb, 0.58);
     } else if (material == 3u) {
-        float trail = 0.0;
-        float trailWeight = 0.0;
-        for (uint tap = 1u; tap <= 28u; ++tap) {
-            const float t = float(tap) / 28.0;
-            const float curve = m.metadata.y == 3u ? sin(t * M_PI_F) * 0.22 : 0.0;
-            const float2 bent = direction * t * m.params1.z + float2(-direction.y, direction.x) * curve;
-            float weight = exp(-t * 2.35);
-            if (m.metadata.y == 1u) weight *= 0.56 + 0.44 * sin(t * 35.0) * sin(t * 35.0);
-            const float softness = mix(0.010, 0.052, t);
-            trail += metalShapeSoftCoverage(p + bent, g, softness) * weight;
-            trailWeight += weight;
+        const float axis = dot(p, direction);
+        const float anchorMask = 1.0 - smoothstep(-0.24, 0.26, axis);
+        const float anchorAlpha = body * anchorMask;
+        float vapor = 0.0;
+        float vaporWeight = 0.0;
+        for (uint tap = 0u; tap <= 36u; ++tap) {
+            const float t = float(tap) / 36.0;
+            const float curve = m.metadata.y == 3u ? sin(t * M_PI_F) * 0.24 : 0.0;
+            const float2 sourcePoint = p
+                - direction * t * m.params1.z
+                - float2(-direction.y, direction.x) * curve;
+            const float sourceAxis = dot(sourcePoint, direction);
+            const float sourceGate = smoothstep(-0.34, 0.30, sourceAxis);
+            float weight = exp(-t * 2.05);
+            if (m.metadata.y == 1u) weight *= 0.72 + 0.28 * sin(t * 38.0) * sin(t * 38.0);
+            const float softness = mix(0.024, 0.30, t);
+            vapor += metalShapeSoftCoverage(sourcePoint, g, softness) * sourceGate * weight;
+            vaporWeight += weight;
         }
-        const float trailAlpha = trail / max(trailWeight, 1e-4);
-        alpha = max(body, trailAlpha * 0.76);
-        const float progression = smoothstep(-0.9, 0.9, dot(p, direction));
-        color = metalShapePalette(progression, m);
-        if (m.metadata.y == 2u) color = mix(color, color.brg, smoothstep(0.2, 0.9, 1.0 - body) * 0.42);
+        const float vaporAlpha = vapor / max(vaporWeight, 1e-4);
+        const float vaporFade = 1.0 - smoothstep(0.58, 1.52, axis);
+        alpha = max(anchorAlpha, vaporAlpha * vaporFade * 0.56);
+
+        const float brightTransition = smoothstep(-0.52, 0.14, axis);
+        const float paleVapor = smoothstep(0.12, 1.08, axis);
+        const float3 anchorColor = m.color2.rgb * 0.22;
+        color = mix(anchorColor, m.color0.rgb, brightTransition);
+        color = mix(color, m.color1.rgb, paleVapor);
+        if (m.metadata.y == 2u) color = mix(color, color.brg, paleVapor * 0.34);
     } else if (material == 4u || material == 5u) {
         const float2 focus = (m.params2.xy - 0.5) * 0.68;
         const float radial = clamp(length(p - focus) / 1.28, 0.0, 1.0);
