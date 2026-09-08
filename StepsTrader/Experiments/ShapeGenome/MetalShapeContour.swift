@@ -17,6 +17,8 @@ enum MetalShapeContour {
             return point(windflower: MetalShapeWindflower.make(seed: seed), angle: angle)
         case .concaveSquare:
             return point(concaveSquare: MetalShapeConcaveSquare.make(seed: seed), angle: angle)
+        case .softClover:
+            return point(softClover: MetalShapeSoftClover.make(seed: seed), angle: angle)
         case .legacy:
             throw MetalShapeContourError.unsupportedLegacyPreset
         }
@@ -48,6 +50,12 @@ enum MetalShapeContour {
             return (0..<count).map { index in
                 let angle = Float(index) * 2 * .pi / Float(count)
                 return point(concaveSquare: form, angle: angle)
+            }
+        case .softClover:
+            let form = MetalShapeSoftClover.make(seed: seed)
+            return (0..<count).map { index in
+                let angle = Float(index) * 2 * .pi / Float(count)
+                return point(softClover: form, angle: angle)
             }
         case .legacy:
             throw MetalShapeContourError.unsupportedLegacyPreset
@@ -126,5 +134,16 @@ enum MetalShapeContour {
         let localAngle = angle - concaveSquare.rotation
         let radius = MetalShapeConcaveSquare.radius(angle: localAngle, parameters: concaveSquare)
         return SIMD2(cos(angle), sin(angle)) * radius
+    }
+
+    private static func point(
+        softClover: MetalShapeSoftCloverParameters,
+        angle: Float
+    ) -> SIMD2<Float> {
+        let localAngle = angle - softClover.rotation
+        let radius = MetalShapeSoftClover.radius(angle: localAngle, parameters: softClover)
+        var point = SIMD2(cos(angle), sin(angle)) * radius
+        point *= softClover.anisotropy
+        return point
     }
 }

@@ -2,10 +2,10 @@ import XCTest
 @testable import Steps4
 
 final class MetalShapeGenomeCatalogTests: XCTestCase {
-    func testCatalogKeepsOnlyDistinctFamiliesAndAddsConcaveSquare() {
+    func testCatalogKeepsOnlyDistinctFamiliesAndAddsTheSoftClover() {
         let presets = MetalShapeGenomeCatalog.presets
-        XCTAssertEqual(presets.count, 8)
-        XCTAssertEqual(presets.filter { $0.source == .genome }.count, 4)
+        XCTAssertEqual(presets.count, 9)
+        XCTAssertEqual(presets.filter { $0.source == .genome }.count, 5)
         XCTAssertEqual(presets.filter { $0.source == .legacy }.count, 4)
         XCTAssertEqual(Set(presets.map(\.id)).count, presets.count)
 
@@ -14,6 +14,7 @@ final class MetalShapeGenomeCatalogTests: XCTestCase {
             [
                 "genome.soft-drift", "genome.snowflake",
                 "genome.windflower", "genome.concave-square",
+                "genome.soft-clover",
             ]
         )
         XCTAssertTrue(Set([

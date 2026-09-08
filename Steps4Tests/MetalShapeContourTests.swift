@@ -17,6 +17,7 @@ final class MetalShapeContourTests: XCTestCase {
             case .snowflake: 0.05
             case .windflower: 0.10
             case .concaveSquare: 0.62
+            case .softClover: 0.43
             default: 0.68
             }
             XCTAssertGreaterThanOrEqual(radii.min() ?? 0, minimumRadius, preset.id)

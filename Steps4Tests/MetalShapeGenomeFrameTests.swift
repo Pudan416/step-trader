@@ -83,6 +83,21 @@ final class MetalShapeGenomeFrameTests: XCTestCase {
         XCTAssertTrue(frames.allSatisfy { (2.4...4.0).contains($0.geometry.transform.w) })
     }
 
+    func testSoftCloverVariesGentlyWhileKeepingFourRoundedLobes() throws {
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.soft-clover" })
+        let frames = [48, 59, 64].map {
+            MetalShapeGenomeFrame.make(preset: preset, material: .sideLight, seed: UInt64($0))
+        }
+
+        XCTAssertTrue(frames.allSatisfy { $0.geometry.sourceKind == 5 })
+        XCTAssertTrue(frames.allSatisfy { $0.geometry.metadata.z == 4 })
+        XCTAssertEqual(Set(frames.map { $0.geometry.transform.x }).count, 3)
+        XCTAssertTrue(frames.allSatisfy { (0.46...0.58).contains($0.geometry.transform.z) })
+        XCTAssertTrue(frames.allSatisfy { (0.54...0.74).contains($0.geometry.transform.w) })
+        XCTAssertTrue(frames.allSatisfy { (0.95...1.05).contains($0.geometry.anisotropyOffset.x) })
+        XCTAssertTrue(frames.allSatisfy { (0.95...1.05).contains($0.geometry.anisotropyOffset.y) })
+    }
+
     func testSideLightUsesTwoTonalStops() throws {
         let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first)
         let frame = MetalShapeGenomeFrame.make(preset: preset, material: .sideLight, seed: 42)
@@ -115,6 +130,31 @@ final class MetalShapeGenomeFrameTests: XCTestCase {
         XCTAssertGreaterThan(alpha(in: image, x: 48, y: 48), 245)
     }
 
+    func testDirectionalBlurKeepsTheOriginalShapeOpaque() async throws {
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "legacy.circle" })
+        let seed: UInt64 = 64
+        let size = 160
+        let image = try await MetalShapeGenomeRenderer.image(
+            preset: preset,
+            material: .directionalBlur,
+            seed: seed,
+            size: CGSize(width: size, height: size),
+            scale: 1
+        )
+        let direction = MetalShapeGenomeFrame.make(
+            preset: preset,
+            material: .directionalBlur,
+            seed: seed
+        ).material.direction
+        let first = pixel(for: direction * 0.82, size: size)
+        let second = pixel(for: -direction * 0.82, size: size)
+
+        XCTAssertGreaterThan(min(
+            alpha(in: image, x: first.x, y: first.y),
+            alpha(in: image, x: second.x, y: second.y)
+        ), 220)
+    }
+
     func testEclipseGlowHasATransparentCenterAndLuminousEdge() async throws {
         let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.snowflake" })
         let image = try await MetalShapeGenomeRenderer.image(
@@ -134,5 +174,13 @@ final class MetalShapeGenomeFrameTests: XCTestCase {
               let data = cgImage.dataProvider?.data,
               let bytes = CFDataGetBytePtr(data) else { return 0 }
         return bytes[y * cgImage.bytesPerRow + x * 4 + 3]
+    }
+
+    private func pixel(for point: SIMD2<Float>, size: Int) -> (x: Int, y: Int) {
+        let uv = point / 2.72 + SIMD2(repeating: 0.5)
+        return (
+            min(max(Int((uv.x * Float(size)).rounded()), 0), size - 1),
+            min(max(Int((uv.y * Float(size)).rounded()), 0), size - 1)
+        )
     }
 }

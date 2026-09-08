@@ -116,6 +116,13 @@ static float metalShapeConcaveSquareRadius(float theta, constant MetalShapeGenom
     return valley + (1.0 - valley) * pow(corner, exponent);
 }
 
+static float metalShapeSoftCloverRadius(float theta, constant MetalShapeGenomeUniforms &g) {
+    const float valley = clamp(g.transform.z, 0.46, 0.58);
+    const float exponent = clamp(g.transform.w, 0.54, 0.74);
+    const float lobe = abs(cos(2.0 * (theta - M_PI_F * 0.25)));
+    return valley + (1.0 - valley) * pow(lobe, exponent);
+}
+
 static float metalShapeRegularPolygonDistance(float2 p, float sides) {
     const float sector = 2.0 * M_PI_F / sides;
     const float angle = atan2(p.y, p.x);
@@ -156,13 +163,18 @@ static float metalShapeDistance(float2 point, constant MetalShapeGenomeUniforms 
     if (g.metadata.x == 2u) return length(p) - metalShapeSnowflakeRadius(theta, g);
     if (g.metadata.x == 3u) return length(p) - metalShapeWindflowerRadius(theta, g);
     if (g.metadata.x == 4u) return length(p) - metalShapeConcaveSquareRadius(theta, g);
+    if (g.metadata.x == 5u) return length(p) - metalShapeSoftCloverRadius(theta, g);
     return length(p) - metalShapeGenomeRadius(theta, g);
 }
 
-static float metalShapeCoverage(float2 p, constant MetalShapeGenomeUniforms &g) {
+static float metalShapeSoftCoverage(
+    float2 p,
+    constant MetalShapeGenomeUniforms &g,
+    float softness
+) {
     const float distance = metalShapeDistance(p, g);
-    const float antialias = max(fwidth(distance), 0.0025);
-    return smoothstep(antialias, -antialias, distance);
+    const float edge = max(max(fwidth(distance), 0.0025), softness);
+    return smoothstep(edge, -edge, distance);
 }
 
 static float3 metalShapePalette(float t, constant MetalShapeMaterialUniforms &m) {
@@ -193,18 +205,20 @@ fragment float4 metalShapeGenomeFragment(
         alpha = line;
         color = mix(m.color0.rgb, m.color1.rgb, 0.58);
     } else if (material == 3u) {
-        float weighted = body;
-        float weightSum = 1.0;
-        for (uint tap = 1u; tap <= 18u; ++tap) {
-            const float t = float(tap) / 18.0;
+        float trail = 0.0;
+        float trailWeight = 0.0;
+        for (uint tap = 1u; tap <= 28u; ++tap) {
+            const float t = float(tap) / 28.0;
             const float curve = m.metadata.y == 3u ? sin(t * M_PI_F) * 0.22 : 0.0;
             const float2 bent = direction * t * m.params1.z + float2(-direction.y, direction.x) * curve;
-            float weight = exp(-t * 2.1);
+            float weight = exp(-t * 2.35);
             if (m.metadata.y == 1u) weight *= 0.56 + 0.44 * sin(t * 35.0) * sin(t * 35.0);
-            weighted += metalShapeCoverage(p + bent, g) * weight;
-            weightSum += weight;
+            const float softness = mix(0.010, 0.052, t);
+            trail += metalShapeSoftCoverage(p + bent, g, softness) * weight;
+            trailWeight += weight;
         }
-        alpha = clamp(weighted / weightSum, 0.0, 1.0);
+        const float trailAlpha = trail / max(trailWeight, 1e-4);
+        alpha = max(body, trailAlpha * 0.76);
         const float progression = smoothstep(-0.9, 0.9, dot(p, direction));
         color = metalShapePalette(progression, m);
         if (m.metadata.y == 2u) color = mix(color, color.brg, smoothstep(0.2, 0.9, 1.0 - body) * 0.42);

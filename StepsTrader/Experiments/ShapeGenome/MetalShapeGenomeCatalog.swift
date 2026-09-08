@@ -118,6 +118,24 @@ enum MetalShapeGenomeCatalog {
         )
     )
 
+    private static let softClover = MetalShapePreset(
+        id: "genome.soft-clover",
+        title: "Мягкий четырёхлистник",
+        source: .genome,
+        morphology: .softClover,
+        contour: .softClover,
+        compatibility: policy(
+            preferred: [.solid, .sideLight, .radialTwo, .proceduralLight],
+            allowed: [.solid, .sideLight, .contour, .directionalBlur, .radialTwo, .radialThree, .proceduralLight, .proceduralFlow, .proceduralContour, .eclipseGlow],
+            roles: [.primary, .supporting],
+            size: 0.20...0.66,
+            maxInstances: 2,
+            complexity: 0.38,
+            mass: 0.64,
+            halo: 0.11
+        )
+    )
+
     private static let genomePresets: [MetalShapePreset] = [
         genome("genome.soft-drift", "Мягкий дрейф", morphology: .softRadial,
                m: 2, n: SIMD3(2.1, 2.5, 1.65),
@@ -127,6 +145,7 @@ enum MetalShapeGenomeCatalog {
         snowflake,
         windflower,
         concaveSquare,
+        softClover,
     ]
 
     private static func legacy(

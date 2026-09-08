@@ -12,6 +12,7 @@ enum MetalShapeMorphology: String, Codable, CaseIterable, Sendable {
     case snowflake
     case windflower
     case concaveSquare
+    case softClover
     case foldedRosette
     case crystalline
     case legacyRound
@@ -57,6 +58,7 @@ enum MetalShapeContourDescriptor: Codable, Equatable, Sendable {
     case snowflake
     case windflower
     case concaveSquare
+    case softClover
     case legacy(shape: UInt32, variant: UInt32)
 }
 
