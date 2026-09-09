@@ -18,6 +18,17 @@ struct HappeningRecurrencePlan: Equatable, Sendable {
     let scheduleSeed: UInt64
     let alignmentRank: UInt64
     let floatingOffsetBeats: Double
+    let densityMultiplier: Double
+    let maximumConcurrentVoices: Int
+
+    init(scheduleSeed: UInt64, alignmentRank: UInt64, floatingOffsetBeats: Double,
+         densityMultiplier: Double = 1, maximumConcurrentVoices: Int = 4) {
+        self.scheduleSeed = scheduleSeed
+        self.alignmentRank = alignmentRank
+        self.floatingOffsetBeats = floatingOffsetBeats
+        self.densityMultiplier = densityMultiplier.isFinite ? min(max(densityMultiplier, 0.1), 1) : 1
+        self.maximumConcurrentVoices = min(max(maximumConcurrentVoices, 1), 4)
+    }
 }
 
 enum HappeningMotifRole: Equatable, Sendable {

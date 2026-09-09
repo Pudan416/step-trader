@@ -1,4 +1,6 @@
 import XCTest
+import SwiftUI
+import MetalKit
 @testable import Steps4
 
 final class MeWeekStatsTests: XCTestCase {
@@ -650,5 +652,188 @@ final class MeHappeningPreviewStyleTests: XCTestCase {
         XCTAssertEqual(element.hexColor, "#6098CC")
         XCTAssertEqual(element.frozenShapeType, .organicBlob)
         XCTAssertEqual(element.shapeSeed, 42)
+    }
+}
+
+@MainActor
+final class MePosterSnapshotTests: XCTestCase {
+    private func fixtureImage(_ color: UIColor) -> UIImage {
+        UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8)).image { context in
+            color.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+        }
+    }
+
+    func testSaveDuringAnExistingLoadReadsTheNewCanvasAfterward() async {
+        let started = expectation(description: "old canvas read")
+        var continuation: CheckedContinuation<DayCanvas?, Never>?
+        var reads = 0
+        let old = DayCanvas(dayKey: "2026-09-07")
+        var updated = old
+        updated.remixSeed = 99
+        let coordinator = MePosterCanvasLoadCoordinator { _, _ in
+            reads += 1
+            if reads == 1 {
+                return await withCheckedContinuation { continuation = $0; started.fulfill() }
+            }
+            return updated
+        }
+        let first = Task { await coordinator.canvas(for: old.dayKey, hasTrackedSnapshot: false) }
+        await fulfillment(of: [started], timeout: 2)
+        // The actor cannot resume the old read until this task suspends inside
+        // the forced reload, so this always exercises the in-flight branch.
+        Task { @MainActor in continuation?.resume(returning: old) }
+        let loaded = await coordinator.canvas(for: old.dayKey, hasTrackedSnapshot: false, forceRefresh: true)
+        _ = await first.value
+        XCTAssertEqual(loaded?.remixSeed, 99)
+        XCTAssertEqual(reads, 2)
+    }
+
+    func testFailedRefreshRetainsThePreviousImageAndRetries() async {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let first = fixtureImage(.red), next = fixtureImage(.blue)
+        var renders = 0
+        let cache = MePosterSnapshotCache(directory: directory) { _, _ in
+            renders += 1
+            return renders == 1 ? first : (renders == 2 ? nil : next)
+        }
+        var canvas = DayCanvas(dayKey: "2026-09-07")
+        _ = await cache.image(for: canvas, categories: ModernPaletteSelection.all)
+        canvas.remixSeed = 5
+        _ = await cache.image(for: canvas, categories: ModernPaletteSelection.all)
+        XCTAssertTrue(cache.cachedImage(for: canvas.dayKey) === first)
+        _ = await cache.image(for: canvas, categories: ModernPaletteSelection.all)
+        XCTAssertTrue(cache.cachedImage(for: canvas.dayKey) === next)
+        XCTAssertEqual(renders, 3)
+    }
+
+    func testSnapshotSurvivesReopeningAndTimestampOnlySavesWithoutRenderingAgain() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let image = fixtureImage(.red)
+        var renders = 0
+        let cache = MePosterSnapshotCache(directory: directory) { _, _ in renders += 1; return image }
+        var canvas = DayCanvas(dayKey: "2026-09-07")
+        _ = await cache.image(for: canvas, categories: ModernPaletteSelection.all)
+        canvas.lastModified = canvas.lastModified.addingTimeInterval(100)
+        canvas.soundMoodRaw = "changed-music-only"
+        _ = await cache.image(for: canvas, categories: ModernPaletteSelection.all)
+        XCTAssertEqual(renders, 1)
+        let reopened = MePosterSnapshotCache(directory: directory) { _, _ in renders += 1; return nil }
+        XCTAssertNotNil(reopened.cachedImage(for: canvas.dayKey), "A cached poster must be available synchronously on entry")
+        let restored = await reopened.image(for: canvas, categories: ModernPaletteSelection.all)
+        XCTAssertNotNil(restored)
+        XCTAssertEqual(renders, 1, "App relaunch must reuse the saved bitmap")
+    }
+
+    func testSnapshotRefreshesWhenAnElementIsAddedRemovedOrCanvasIsRemixed() async {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var renders = 0
+        let cache = MePosterSnapshotCache(directory: directory) { _, _ in
+            renders += 1
+            return self.fixtureImage(.blue)
+        }
+        var canvas = DayCanvas(dayKey: "2026-09-07")
+        _ = await cache.image(for: canvas, categories: ModernPaletteSelection.all)
+        canvas.elements = [CanvasElement(id: UUID(), kind: .circle, optionId: "walk", label: "Walk",
+            hexColor: "#FF0000", size: 0.2, basePosition: CGPoint(x: 0.5, y: 0.5), phaseOffset: 0,
+            driftSpeed: 0, driftAmplitude: 0, pulseFrequency: 0, pulseAmplitude: 0,
+            rotationSpeed: 0, opacity: 1, createdAt: Date(timeIntervalSince1970: 100))]
+        _ = await cache.image(for: canvas, categories: ModernPaletteSelection.all)
+        canvas.elements.removeAll()
+        _ = await cache.image(for: canvas, categories: ModernPaletteSelection.all)
+        canvas.remixSeed = 99
+        _ = await cache.image(for: canvas, categories: ModernPaletteSelection.all)
+        XCTAssertEqual(renders, 4)
+    }
+
+    func testConcurrentRequestsShareRenderingAndAnOlderResultCannotReplaceTheNewSnapshot() async {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let oldImage = fixtureImage(.red), newImage = fixtureImage(.blue)
+        var pending: CheckedContinuation<UIImage?, Never>?
+        var renders = 0
+        let started = expectation(description: "old render started")
+        let cache = MePosterSnapshotCache(directory: directory) { canvas, _ in
+            renders += 1
+            if canvas.remixSeed == nil {
+                return await withCheckedContinuation { pending = $0; started.fulfill() }
+            }
+            return newImage
+        }
+        let original = DayCanvas(dayKey: "2026-09-07")
+        let first = Task { await cache.image(for: original, categories: ModernPaletteSelection.all) }
+        await fulfillment(of: [started], timeout: 2)
+        let duplicate = Task { await cache.image(for: original, categories: ModernPaletteSelection.all) }
+        await Task.yield()
+        var updated = original
+        updated.remixSeed = 42
+        _ = await cache.image(for: updated, categories: ModernPaletteSelection.all)
+        pending?.resume(returning: oldImage)
+        _ = await first.value
+        _ = await duplicate.value
+        XCTAssertEqual(renders, 2)
+        XCTAssertTrue(cache.cachedImage(for: original.dayKey) === newImage)
+    }
+
+    func testPosterDisplaysRasterArtworkWithoutStartingAnotherMetalCanvas() async throws {
+        let model = AppModel(healthKitService: MockHealthKitService(), familyControlsService: MockFamilyControlsService(),
+                             notificationService: MockNotificationService(), budgetEngine: MockBudgetEngine(),
+                             subscriptionStore: SubscriptionStore())
+        let key = "2099-12-30"
+        var saved = DayCanvas(dayKey: key)
+        saved.visualStyleRaw = CanvasVisualStyle.editorial.rawValue
+        XCTAssertTrue(CanvasStorageService.shared.saveCanvas(saved))
+        defer { CanvasStorageService.shared.deleteCanvas(for: key) }
+        let loaded = await MePosterCanvasLoadCoordinator.shared.canvas(
+            for: key, hasTrackedSnapshot: false, forceRefresh: true)
+        XCTAssertEqual(loaded?.resolvedVisualStyle, .editorial)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = MePosterSnapshotCache(directory: directory) { _, _ in self.fixtureImage(.red) }
+        let poster = MeSelectedDayPoster(snapshots: cache, model: model, dayKey: key,
+            snapshot: nil, health: nil, unlockRecords: [], shareRequestID: 0, onShareAvailabilityChange: { _ in })
+            .environment(\.appTheme, .night)
+            .environment(\.renderingIsActive, true)
+        let host = UIHostingController(rootView: poster)
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 544))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        host.view.frame = window.bounds
+        host.beginAppearanceTransition(true, animated: false)
+        host.endAppearanceTransition()
+        host.view.layoutIfNeeded()
+        for _ in 0..<100 {
+            if cache.cachedImage(for: key) != nil { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertNotNil(cache.cachedImage(for: key),
+                        "The poster must contain rendered artwork, not just an empty placeholder")
+        host.view.layoutIfNeeded()
+        func countMetalViews(_ view: UIView) -> Int {
+            (view is MTKView ? 1 : 0) + view.subviews.reduce(0) { $0 + countMetalViews($1) }
+        }
+        let image = UIGraphicsImageRenderer(size: window.bounds.size).image { _ in
+            host.view.drawHierarchy(in: host.view.bounds, afterScreenUpdates: true)
+        }
+        let cg = try XCTUnwrap(image.cgImage)
+        let center = try XCTUnwrap(cg.cropping(to: CGRect(x: cg.width / 2, y: cg.height / 2, width: 1, height: 1)))
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let context = CGContext(data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                                space: CGColorSpaceCreateDeviceRGB(),
+                                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        context?.draw(center, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        XCTAssertGreaterThan(pixel[0], 240, "The cached red bitmap must actually be visible in the artwork area")
+        XCTAssertLessThan(pixel[1], 15)
+        XCTAssertLessThan(pixel[2], 15)
+        let attachment = XCTAttachment(image: image)
+        attachment.name = "me-static-poster"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        XCTAssertEqual(countMetalViews(host.view), 0,
+                       "Me must display a cached bitmap, not start a second animated Canvas")
     }
 }

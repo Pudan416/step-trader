@@ -72,6 +72,7 @@ struct DayObjectsInstrumentAuditionView: View {
             .controlSize(.small)
 
             diagnosticMixControls
+            auditionExportControls
 
             Text(controller.attribution)
                 .font(.geist(.caption2))
@@ -82,7 +83,32 @@ struct DayObjectsInstrumentAuditionView: View {
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("dayObjects.audition.diagnostics")
         }
+        .disabled(musicController.isExportingAuditions)
         .accessibilityElement(children: .contain)
+    }
+
+    private var auditionExportControls: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button("Export 12 previews") {
+                musicController.beginAuditionExport(stopping: controller)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("dayObjects.audition.export")
+            Text("\(musicController.auditionExportProgress) / 12 previews")
+                .accessibilityIdentifier("dayObjects.audition.exportProgress")
+            if musicController.isExportingAuditions { ProgressView(value: Double(musicController.auditionExportProgress), total: 12) }
+            if let exportDirectory = musicController.auditionExportDirectory {
+                Text(exportDirectory.path)
+                    .textSelection(.enabled)
+                    .accessibilityIdentifier("dayObjects.audition.exportDirectory")
+            }
+            if let exportError = musicController.auditionExportError {
+                Text(exportError)
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("dayObjects.audition.exportError")
+            }
+        }
+        .font(.geist(.caption2))
     }
 
     private var diagnosticMixControls: some View {

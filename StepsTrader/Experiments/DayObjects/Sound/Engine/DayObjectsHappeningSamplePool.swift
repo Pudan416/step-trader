@@ -31,6 +31,11 @@ struct HappeningEffectCommand: Equatable, Sendable {
     var delayMix: Double { delaySend }
     var reverbMix: Double { reverbSend }
 
+    func withReverbSend(_ value: Double) -> Self {
+        .init(filterCutoffHz: filterCutoffHz, directLevel: directLevel, delaySend: delaySend,
+              delayFeedback: delayFeedback, reverbSend: value, reverbDecay: reverbDecay)
+    }
+
     init(
         filterCutoffHz: Double,
         directLevel: Double,
@@ -129,6 +134,7 @@ protocol DayObjectsHappeningSamplePoolProtocol: AnyObject {
     ) throws -> HappeningPlaybackHandle
     func applyEffects(_ command: HappeningEffectCommand, rampSeconds: Double)
     func update(_ handle: HappeningPlaybackHandle, gain: Double, playbackRate: Double)
+    func updateReverbSend(_ handle: HappeningPlaybackHandle, sendLevel: Double, rampSeconds: Double)
     func stop(_ handle: HappeningPlaybackHandle)
     func releaseAll()
 }
@@ -269,7 +275,10 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
         )
     }
 
-    convenience init(bundle: Bundle = .main) {
+    convenience init(
+        bundle: Bundle = .main,
+        clock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    ) {
         self.init(
             recipes: HappeningSoundCatalog.recipes,
             resourceResolver: { resourceName in
@@ -280,7 +289,8 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
                 )
             },
             bufferLoader: Self.decodeBuffer,
-            voiceFactory: { DayObjectsAudioKitHappeningSampleVoice(voiceID: $0) }
+            voiceFactory: { DayObjectsAudioKitHappeningSampleVoice(voiceID: $0) },
+            clock: clock
         )
     }
 
@@ -463,6 +473,15 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
         applyEffectsToBus(sanitized, duration: duration)
     }
 
+    func updateReverbSend(_ handle: HappeningPlaybackHandle, sendLevel: Double, rampSeconds: Double) {
+        guard let index = slotIndex(matching: handle),
+              case let .active(activeHandle, priority, order, release, effects, gainScale) = slots[index].state else { return }
+        slots[index].state = .active(handle: activeHandle, priority: priority, startOrder: order,
+                                     releaseSeconds: release, effects: Self.sanitizedEffects(effects.withReverbSend(sendLevel)),
+                                     playbackGainScale: gainScale)
+        recomputeRecipeEffects(rampSeconds: rampSeconds)
+    }
+
     func update(_ handle: HappeningPlaybackHandle, gain: Double, playbackRate: Double) {
         guard let slotIndex = slotIndex(matching: handle),
               case let .active(_, _, _, _, _, playbackGainScale) = slots[slotIndex].state else { return }
@@ -559,7 +578,7 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
         }
     }
 
-    private func recomputeRecipeEffects() {
+    private func recomputeRecipeEffects(rampSeconds: Double = 0) {
         let contributions = slots.compactMap { slot -> HappeningEffectCommand? in
             switch slot.state {
             case let .active(_, _, _, _, effects, _),
@@ -582,7 +601,7 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
             reverbSend: contributions.reduce(0) { $0 + $1.reverbSend } / divisor,
             reverbDecay: contributions.reduce(0) { $0 + $1.reverbDecay } / divisor
         )
-        applyEffectsToBus(aggregate, duration: 0)
+        applyEffectsToBus(aggregate, duration: min(Self.nonnegative(rampSeconds), 2))
     }
 
     private static func sanitizedEffects(_ command: HappeningEffectCommand) -> HappeningEffectCommand {
@@ -873,6 +892,7 @@ final class DayObjectsInactiveHappeningSamplePool: DayObjectsHappeningSamplePool
     }
     func applyEffects(_ command: HappeningEffectCommand, rampSeconds: Double) {}
     func update(_ handle: HappeningPlaybackHandle, gain: Double, playbackRate: Double) {}
+    func updateReverbSend(_ handle: HappeningPlaybackHandle, sendLevel: Double, rampSeconds: Double) {}
     func stop(_ handle: HappeningPlaybackHandle) {}
     func releaseAll() {}
 }

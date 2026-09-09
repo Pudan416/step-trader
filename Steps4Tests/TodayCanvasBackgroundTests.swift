@@ -52,6 +52,36 @@ final class TodayCanvasBackgroundTests: XCTestCase {
         XCTAssertNil(store.visibleFrame, "The picker/dismantled canvas must not become a backdrop")
     }
 
+    func testFeedPigmentKeepsSourcePaletteAfterWashedOutSnapshotAndPreferenceChange() async throws {
+        let washedOut = UIGraphicsImageRenderer(size: CGSize(width: 12, height: 12)).image { ctx in
+            UIColor.lightGray.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 12, height: 12))
+        }
+        let firstRendered = expectation(description: "first snapshot published")
+        let secondRendered = expectation(description: "updated snapshot published")
+        let store = TodayCanvasBackdropStore(debounce: .zero, load: { _ in nil }, render: { _, _ in washedOut })
+        var publishedCount = 0
+        let subscription = store.$image.compactMap { $0 }.sink { _ in
+            publishedCount += 1
+            if publishedCount == 1 { firstRendered.fulfill() }
+            if publishedCount == 2 { secondRendered.fulfill() }
+        }
+        var input = appearance()
+        input.style = CanvasVisualStyle.legacy.rawValue
+        input.palette = GradientPalette.ocean.rawValue
+        store.refresh(input)
+        await fulfillment(of: [firstRendered], timeout: 3)
+        XCTAssertEqual(store.feedPalette.colors.first?.sRGB.x ?? -1, Float(0x7F) / 255, accuracy: 0.001)
+        XCTAssertEqual(store.feedPalette.colors.last?.sRGB.z ?? -1, Float(0x33) / 255, accuracy: 0.001)
+        XCTAssertNotEqual(store.feedPalette, store.unlockPalette, "Rendered haze must not replace the pigment used in Feeds")
+        let ocean = store.feedPalette
+        input.palette = GradientPalette.aurora.rawValue
+        store.refresh(input)
+        XCTAssertNotEqual(store.feedPalette, ocean, "A preference change must reach Feeds even while a snapshot already exists")
+        await fulfillment(of: [secondRendered], timeout: 3)
+        withExtendedLifetime(subscription) {}
+    }
+
     func testCurrentPreferencesAndMetricsApplyWithoutRewritingSavedCanvas() {
         var saved = DayCanvas(dayKey: "2026-09-07")
         saved.visualStyleRaw = CanvasVisualStyle.legacy.rawValue
@@ -68,6 +98,53 @@ final class TodayCanvasBackgroundTests: XCTestCase {
         let next = appearance(day: "2026-09-08").canvas(from: saved)
         XCTAssertEqual(next.dayKey, "2026-09-08")
         XCTAssertNotEqual(next.createdAt, originalDate)
+    }
+
+    func testRemixedSnapshotPreservesSavedAppearanceWhileRefreshingMetrics() {
+        var saved = DayCanvas(dayKey: "2026-09-07")
+        saved.remixSeed = 99
+        saved.gradientStyle = GradientStyle.allCases.first { $0 != .radial }!.rawValue
+        saved.gradientPalette = GradientPalette.ocean.rawValue
+        saved.textureRaw = CanvasTexture.allCases.first { $0 != .grainSmall }!.rawValue
+        let result = appearance().canvas(from: saved)
+        XCTAssertEqual(result.remixSeed, 99)
+        XCTAssertEqual(result.gradientStyle, saved.gradientStyle)
+        XCTAssertEqual(result.gradientPalette, saved.gradientPalette)
+        XCTAssertEqual(result.textureRaw, saved.textureRaw)
+        XCTAssertEqual(result.stepsPoints, 15)
+        XCTAssertEqual(result.sleepPoints, 12)
+        XCTAssertEqual(result.inkSpent, 25)
+    }
+
+    func testSharedUnlockPaletteFollowsPersistedRemixAndUndo() async {
+        let input = appearance()
+        var saved = DayCanvas(dayKey: input.dayKey)
+        saved.remixSeed = 99
+        let first = expectation(description: "remixed background")
+        let second = expectation(description: "restored background")
+        var publications = 0
+        let store = TodayCanvasBackdropStore(debounce: .zero, load: { _ in saved }, render: { _, _ in UIImage() })
+        let subscription = store.$image.compactMap { $0 }.sink { _ in
+            publications += 1
+            if publications == 1 { first.fulfill() } else { second.fulfill() }
+        }
+        let sceneInput = EditorialCanvasInputFactory.make(
+            canvas: saved,
+            metrics: EditorialCanvasMetrics(stepsProgress: 0.5, sleepProgress: 0.5, spentProgress: 0),
+            paletteCategories: ModernPaletteSelection.all
+        ).sceneInput
+        let expected = DayObjectScene.make(input: sceneInput).paletteSet.background.hexes
+            .map { DayObjectRGB(hex: $0) }.sorted { $0.perceptualOKLab.x > $1.perceptualOKLab.x }
+        store.refresh(input)
+        XCTAssertEqual(store.feedPalette.colors, expected, "Feeds must immediately follow the saved visual/music remix")
+        await fulfillment(of: [first], timeout: 2)
+        XCTAssertEqual(store.unlockPalette.colors, expected)
+        saved.remixSeed = nil
+        store.refresh(input, reload: true)
+        XCTAssertEqual(store.feedPalette, TodayCanvasUnlockPalette.make(appearance: input), "Undo must restore the feed pigment immediately")
+        await fulfillment(of: [second], timeout: 2)
+        XCTAssertEqual(store.unlockPalette, TodayCanvasUnlockPalette.make(appearance: input))
+        withExtendedLifetime(subscription) { }
     }
 
     func testLegacySnapshotIncludesItsFigures() async throws {
@@ -231,6 +308,7 @@ final class TodayCanvasBackgroundTests: XCTestCase {
         let oldImage = UIImage()
         let newImage = UIImage()
         var renderCount = 0
+        var preparedDays: [String] = []
         let store = TodayCanvasBackdropStore(debounce: .zero, load: { _ in nil }, render: { _, _ in
             renderCount += 1
             if renderCount == 1 {
@@ -240,7 +318,7 @@ final class TodayCanvasBackgroundTests: XCTestCase {
                 }
             }
             return newImage
-        })
+        }, onRenderedCanvas: { canvas, _ in preparedDays.append(canvas.dayKey) })
         var published: [UIImage] = []
         let subscription = store.$image.compactMap { $0 }.sink {
             published.append($0)
@@ -253,6 +331,7 @@ final class TodayCanvasBackgroundTests: XCTestCase {
         continuation?.resume(returning: oldImage)
         await fulfillment(of: [finished], timeout: 2)
         XCTAssertEqual(renderCount, 2)
+        XCTAssertEqual(preparedDays, ["2026-09-08"], "Stale renders must not replace the poster snapshot")
         XCTAssertEqual(published.count, 1)
         XCTAssertTrue(published.first === newImage)
         withExtendedLifetime(subscription) { }

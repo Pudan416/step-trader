@@ -34,7 +34,7 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         }
 
         let records = runtime.auditionRecordsForTesting
-        XCTAssertEqual(records.count, 30)
+        XCTAssertEqual(records.count, 42)
         XCTAssertTrue(records.allSatisfy { $0.priority == .manualAudition })
         for record in records {
             let recipe = try XCTUnwrap(HappeningSoundCatalog.recipe(for: record.resolvedSound.recipeID))
@@ -1181,7 +1181,7 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
 
     func testMobileRuntimePreparesOnlyOnePlaybackWorld() throws {
         let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
-        let plan = makePlaybackEnginePlan(seed: 32)
+        let plan = WorldArrangementFixture.plan(.electricDream, .strange, seed: 32)
 
         try runtime.prepare(plan: plan)
 
@@ -1191,6 +1191,11 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(runtime.playbackMetrics.activeVoiceCount, 0)
         XCTAssertEqual(runtime.playbackMetrics.pendingRemixCount, 0)
         XCTAssertEqual(runtime.instrumentAllocationCountForTesting, 1)
+        XCTAssertEqual(
+            runtime.allocatedPianoVoiceCountForTesting,
+            0,
+            "Phone playback must not synchronously decode the felt-piano sample bank"
+        )
         XCTAssertEqual(
             runtime.preparedHappeningRecipeIDsForTesting,
             Set(plan.happenings.map(\.recipeID))
@@ -1400,6 +1405,155 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(runtime.activeBassSchedulingOriginForTesting, 128)
     }
 
+    func testWorldGroupCalibrationReachesLiveMixContinuousUpdatesAndDiagnosticIsolation() throws {
+        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let plan = DeterministicMusicDirector.makePlan(
+            input: .init(countedSteps: 7_500, stepGoal: 10_000, countedSleepHours: 6.5,
+                         sleepGoalHours: 8, happeningIDs: ["one", "two"], spentColors: 25),
+            remixSeed: 99, soundWorld: .livingField, mood: .strange)
+        try runtime.prepare(plan: plan)
+        let calibration = try XCTUnwrap(plan.mix.worldGroupCalibration)
+        let state = try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state)
+        let groove = DayObjectsPlanAwareGainCalibration.make(grooveMode: plan.groove.mode, stepsActivityDensity: plan.rhythm.stepsProgress)
+        XCTAssertEqual(state.worldGroupCalibration, calibration)
+        XCTAssertEqual(state.masterTargetDecibelsBeforeLimiter, -9 + calibration.masterMakeupDB, accuracy: 1e-12)
+        XCTAssertEqual(state.buses.rhythm.sendLevel, 0.08 * calibration.reverbSendScale * pow(10, groove.rhythmAdjustmentDecibels / 20), accuracy: 1e-12)
+        XCTAssertEqual(state.buses.harmony.sendLevel, (plan.harmony.roles.map(\.reverbSend).max() ?? 0) * pow(10, groove.harmonyAdjustmentDecibels / 20), accuracy: 1e-12)
+        XCTAssertEqual(state.buses.happenings.sendLevel, (plan.happenings.map(\.reverbSend).max() ?? 0) * calibration.reverbSendScale, accuracy: 1e-12)
+        XCTAssertEqual(state.buses.lead.sendLevel, plan.lead.reverbSend, accuracy: 1e-12)
+        let topology = runtime.engineTopologyForTesting
+        var mix = plan.mix
+        mix.worldGroupCalibration = .init(masterMakeupDB: calibration.masterMakeupDB + 0.1,
+                                         reverbSendScale: calibration.reverbSendScale)
+        let updated = DayMusicPlan(seed: plan.seed, soundWorld: plan.soundWorld, mood: plan.mood,
+            guestWorld: plan.guestWorld, guestInstrumentIDs: plan.guestInstrumentIDs, input: plan.input,
+            world: plan.world, rhythm: plan.rhythm, groove: plan.groove, bass: plan.bass,
+            harmony: plan.harmony, happenings: plan.happenings, lead: plan.lead, glitch: plan.glitch, mix: mix)
+        runtime.applyContinuous(updated)
+        XCTAssertEqual(runtime.activePlanForTesting?.mix.worldGroupCalibration, mix.worldGroupCalibration)
+        XCTAssertEqual(try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state).masterTargetDecibelsBeforeLimiter,
+                       min(state.masterTargetDecibelsBeforeLimiter + 0.1, -4.5), accuracy: 1e-12)
+        runtime.applyDiagnosticAudition(.isolatedBus(.harmony), plan: updated)
+        let isolated = try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state)
+        XCTAssertEqual(isolated.worldGroupCalibration, mix.worldGroupCalibration)
+        XCTAssertEqual(isolated.buses.lead.directTargetDecibels, -60)
+        XCTAssertEqual(runtime.engineTopologyForTesting.acceptedParameterValues["lead.reverbSend.leftLinear"], 0)
+        XCTAssertEqual(runtime.engineTopologyForTesting.acceptedParameterValues["lead.delaySend.leftLinear"], 0)
+        XCTAssertEqual(runtime.engineTopologyForTesting.persistentMasterNodeIdentities, topology.persistentMasterNodeIdentities)
+        XCTAssertEqual(runtime.engineTopologyForTesting.parallelSpatialReturnIdentities, topology.parallelSpatialReturnIdentities)
+        XCTAssertEqual(runtime.engineTopologyForTesting.acceptedParameterValues["master.limiter.preGainDB"], 0)
+        XCTAssertEqual(runtime.engineTopologyForTesting.limiterCeilingDBFS, -1.35)
+    }
+
+    func testSeed38To39RemixKeepsAudibleCalibrationAndWetSendsUntilBoundary() throws {
+        let input = DayMusicInput(countedSteps: 7_500, stepGoal: 10_000, countedSleepHours: 6.5,
+                                 sleepGoalHours: 8, happeningIDs: ["one", "two"], spentColors: 25)
+        let initial = DeterministicMusicDirector.makePlan(input: input, remixSeed: 38,
+            selection: DayObjectsWorldSelector.makeSelection(remixSeed: 38))
+        let next = DeterministicMusicDirector.makePlan(input: input, remixSeed: 39,
+            selection: DayObjectsWorldSelector.makeSelection(remixSeed: 39))
+        XCTAssertEqual(initial.soundWorld, .metalAndCurrent)
+        XCTAssertEqual(initial.mood, .moving)
+        XCTAssertEqual(next.soundWorld, .livingField)
+        XCTAssertEqual(next.mood, .sparse)
+        let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        try runtime.prepare(plan: initial)
+        try runtime.startPreparedWorldForTesting()
+        let oldMix = try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state)
+
+        runtime.applyContinuous(next)
+        runtime.scheduleStructuralPlan(next)
+
+        let waiting = try XCTUnwrap(runtime.activePlanForTesting)
+        let waitingMix = try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state)
+        XCTAssertEqual(waiting.mix, initial.mix)
+        XCTAssertEqual(waitingMix.masterTargetDecibelsBeforeLimiter, oldMix.masterTargetDecibelsBeforeLimiter)
+        XCTAssertEqual(waitingMix.buses, oldMix.buses)
+        XCTAssertEqual(waiting.rhythm.voices.map(\.roomSend), initial.rhythm.voices.map(\.roomSend))
+        XCTAssertEqual(waiting.harmony.roles.map(\.reverbSend), initial.harmony.roles.map(\.reverbSend))
+        XCTAssertEqual(waiting.bass?.reverbSend, initial.bass?.reverbSend)
+        XCTAssertEqual(waiting.lead.reverbSend, initial.lead.reverbSend)
+
+        runtime.renderForTesting(.init(kind: .subdivision, position: .init(absoluteSubdivision: 32),
+                                       hostTimeSeconds: 4, tempoBPM: initial.rhythm.tempoBPM))
+        XCTAssertEqual(runtime.activePlanForTesting, next)
+        let changed = try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state)
+        XCTAssertEqual(changed.worldGroupCalibration, next.mix.worldGroupCalibration)
+        XCTAssertEqual(changed.masterTargetDecibelsBeforeLimiter, -4.5, accuracy: 1e-9)
+        XCTAssertEqual(changed.buses.lead.sendLevel, next.lead.reverbSend, accuracy: 1e-9)
+    }
+
+    func testDiagnosticIsolationOfPendingRemixUsesTheAudibleWorldCalibration() throws {
+        let initial = WorldArrangementFixture.plan(.metalAndCurrent, .moving, seed: 38)
+        let next = WorldArrangementFixture.plan(.livingField, .sparse, seed: 39)
+        let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        try runtime.prepare(plan: initial)
+        try runtime.startPreparedWorldForTesting()
+        runtime.applyContinuous(next)
+        runtime.scheduleStructuralPlan(next)
+        let before = try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state)
+
+        runtime.applyDiagnosticAudition(.isolatedBus(.harmony), plan: next)
+
+        let isolated = try XCTUnwrap(runtime.activeProgramEffectMetricsForTesting.state)
+        XCTAssertEqual(isolated.worldGroupCalibration, before.worldGroupCalibration)
+        XCTAssertEqual(isolated.masterTargetDecibelsBeforeLimiter, before.masterTargetDecibelsBeforeLimiter)
+        XCTAssertEqual(isolated.buses.harmony.sendLevel, before.buses.harmony.sendLevel)
+        runtime.releaseDiagnosticAudition(plan: next)
+        XCTAssertEqual(runtime.activeProgramEffectMetricsForTesting.state?.buses, before.buses)
+    }
+
+    func testOwnedHappeningWetHandlesKeepCurrentGroupThenAcceptSameGroupCalibrationAndHealthUpdates() throws {
+        let initial = WorldArrangementFixture.plan(.metalAndCurrent, .moving, seed: 38)
+        let destination = WorldArrangementFixture.plan(.livingField, .sparse, seed: 39)
+        let bank = DayObjectsInstrumentBank(bundle: Bundle(for: type(of: self)), audioHostTimeProvider: { 100 })
+        let worldBank = PlaybackWorldBank(instrumentBank: bank)
+        try worldBank.prepare(happeningRecipeIDs: Set(initial.happenings.map(\.recipeID)))
+        let world = DayObjectsLivePlaybackRuntime.WorldState(bank: worldBank)
+        try world.bindPreparedPlayersIfNeeded()
+        try world.configure(initial)
+        try world.startScheduling()
+        world.render(.init(kind: .subdivision, position: .init(absoluteSubdivision: 0),
+                           hostTimeSeconds: 100, tempoBPM: initial.rhythm.tempoBPM))
+        let active = bank.happenings.metrics
+        XCTAssertGreaterThan(active.activeVoiceCount, 0)
+        XCTAssertGreaterThan(active.effects.reverbSend, 0)
+        world.applyContinuous(destination)
+        XCTAssertEqual(bank.happenings.metrics.effects.reverbSend, active.effects.reverbSend)
+        XCTAssertEqual(bank.happenings.metrics.activeVoiceCount, active.activeVoiceCount)
+
+        struct GroupDocument: Encodable {
+            let schemaVersion = 1
+            let groups: [DayObjectsCompatibilityGroup]
+        }
+        let catalog = WorldArrangementFixture.catalog
+        var groups = catalog.groups
+        let groupIndex = try XCTUnwrap(groups.firstIndex { $0.world == .metalAndCurrent && $0.mood == .moving })
+        groups[groupIndex].masterMakeupDB = 1.3
+        groups[groupIndex].reverbSendScale = 0.5
+        let groupsData = try JSONEncoder().encode(GroupDocument(groups: groups))
+        let bundle = Bundle(for: type(of: self))
+        let recipesURL = try XCTUnwrap(bundle.url(forResource: "synth-recipes-v1", withExtension: "json", subdirectory: "SoundWorlds"))
+        let resources = DayObjectsSoundWorldResources(bundle: bundle, catalogLoader: { _ in
+            try DayObjectsSoundWorldCatalog.load(recipesData: Data(contentsOf: recipesURL),
+                groupsData: groupsData, sourceVoices: catalog.sourceVoices)
+        })
+        XCTAssertNil(resources.catalogError)
+        let updated = DeterministicMusicDirector.makePlan(input: .init(countedSteps: 2_000, stepGoal: 10_000,
+            countedSleepHours: 2.4, sleepGoalHours: 8, happeningIDs: ["one", "two"], spentColors: 0),
+            remixSeed: 38, selection: .init(world: .metalAndCurrent, mood: .moving, guestWorld: nil), resources: resources)
+        world.applyContinuous(updated)
+        XCTAssertEqual(world.plan?.rhythm.stepsProgress, 0.2)
+        XCTAssertEqual(world.plan?.harmony.sleepProgress, 0.3)
+        XCTAssertEqual(world.plan?.mix.worldGroupCalibration, .init(masterMakeupDB: 1.3, reverbSendScale: 0.5))
+        XCTAssertEqual(bank.programEffectMetrics.state?.worldGroupCalibration, .init(masterMakeupDB: 1.3, reverbSendScale: 0.5))
+        XCTAssertEqual(bank.happenings.metrics.effects.reverbSend, active.effects.reverbSend * 0.5 / 0.893, accuracy: 1e-9)
+        XCTAssertEqual(bank.happenings.metrics.effects.directLevel, active.effects.directLevel)
+        XCTAssertEqual(bank.happenings.metrics.activeVoiceCount, active.activeVoiceCount)
+        XCTAssertEqual(world.plan?.harmony.roles.map(\.reverbSend), updated.harmony.roles.map(\.reverbSend))
+        world.releaseAll()
+    }
+
     func testLiveContinuousUpdateDoesNotExposeStructuralWorldBeforeBoundary() throws {
         let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
         let initial = makePlaybackEnginePlan(seed: 601)
@@ -1429,6 +1583,24 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(audible.harmony.sleepProgress, mixed.harmony.sleepProgress)
         XCTAssertEqual(audible.glitch.progress, mixed.glitch.progress)
         XCTAssertEqual(audible.mix, mixed.mix)
+    }
+
+    func testWorldContinuousMergePreservesWorldMoodGuestAndKitUntilBoundary() throws {
+        let seed = try XCTUnwrap((UInt64(0)..<512).first {
+            DayObjectsWorldSelector.makeSelection(remixSeed: $0, forcedWorld: .electricDream, forcedMood: .strange).guestWorld != nil
+        })
+        let initial = WorldArrangementFixture.plan(.electricDream, .strange, seed: seed, allowGuest: true)
+        let update = WorldArrangementFixture.plan(.livingField, .sparse, steps: 0.2, sleep: 0.3)
+        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        try runtime.prepare(plan: initial)
+        runtime.applyContinuous(update)
+        let audible = try XCTUnwrap(runtime.activePlanForTesting)
+        XCTAssertEqual(audible.soundWorld, .electricDream)
+        XCTAssertEqual(audible.mood, .strange)
+        XCTAssertEqual(audible.guestWorld, initial.guestWorld)
+        XCTAssertEqual(audible.guestInstrumentIDs, initial.guestInstrumentIDs)
+        XCTAssertEqual(audible.rhythm.kitID, initial.rhythm.kitID)
+        XCTAssertEqual(audible.rhythm.stepsProgress, 0.2)
     }
 
     func testLiveContinuousUpdatePreservesBassStructureAndRefreshesBassActivation() throws {
@@ -1689,7 +1861,9 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         let runtime = try DayObjectsLivePlaybackRuntime(
             bundle: Bundle(for: type(of: self)),
             diagnosticHostTimeProvider: {
-                defer { diagnosticTime += 0.001 }
+                // Shared allocator clock reads must not consume the 80 ms lead-in.
+                // 10 µs still exposes separately sampled deadlines at 1 µs tolerance.
+                defer { diagnosticTime += 0.000_01 }
                 return diagnosticTime
             }
         )
@@ -2234,8 +2408,8 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         let metrics = runtime.playbackPairMetricsForTesting
         XCTAssertEqual(Set(metrics.happeningFixedPlayerIdentities).count, 4)
         XCTAssertEqual(metrics.happeningFixedPlayerIdentities.count, 4)
-        XCTAssertEqual(Set(metrics.happeningDecodedBufferIdentities).count, 102)
-        XCTAssertEqual(metrics.happeningDecodedBufferIdentities.count, 102)
+        XCTAssertEqual(Set(metrics.happeningDecodedBufferIdentities).count, 114)
+        XCTAssertEqual(metrics.happeningDecodedBufferIdentities.count, 114)
         XCTAssertLessThanOrEqual(metrics.happeningDecodedByteCount, 48 * 1_024 * 1_024)
         XCTAssertEqual(Set(metrics.finalPeakLimiterIdentities).count, 1)
         XCTAssertEqual(metrics.sharedAudioEngineCount, 1)

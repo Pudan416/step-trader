@@ -4,6 +4,7 @@ import Foundation
 
 enum DayObjectsOfflineMixRendererError: Error, Equatable, Sendable {
     case invalidDuration
+    case invalidEventEnd
     case unsupportedSampleRate
     case unableToAllocateBuffer
     case renderFailed
@@ -80,27 +81,32 @@ final class DayObjectsOfflineMixRenderer {
     private let leadGestureProfile: DayObjectsOfflineLeadGestureProfile
     private let stressProfile: DayObjectsOfflineStressProfile
     private let offlineBeginCheckpoint: () throws -> Void
+    private let contextRetryLimit: Int
 
     private(set) var lastDiagnostics: DayObjectsOfflineMixDiagnostics?
+    private(set) var lastEventEndFrame: Int?
 
     init(
         bundle: Bundle = .main,
         auditionMode: DayObjectsAuditionMode = .fullComposition,
         leadGestureProfile: DayObjectsOfflineLeadGestureProfile = .none,
         stressProfile: DayObjectsOfflineStressProfile = .none,
+        contextRetryLimit: Int = 8,
         offlineBeginCheckpoint: @escaping () throws -> Void = {}
     ) {
         self.bundle = bundle
         self.auditionMode = auditionMode
         self.leadGestureProfile = leadGestureProfile
         self.stressProfile = stressProfile
+        self.contextRetryLimit = max(contextRetryLimit, 0)
         self.offlineBeginCheckpoint = offlineBeginCheckpoint
     }
 
     func render(
         plan: DayMusicPlan,
         durationSeconds: Double,
-        sampleRate: Double
+        sampleRate: Double,
+        eventEndSeconds: Double? = nil
     ) async throws -> AVAudioPCMBuffer {
         guard durationSeconds.isFinite, (1...60).contains(durationSeconds) else {
             throw DayObjectsOfflineMixRendererError.invalidDuration
@@ -108,6 +114,11 @@ final class DayObjectsOfflineMixRenderer {
         guard sampleRate.isFinite, (8_000...384_000).contains(sampleRate) else {
             throw DayObjectsOfflineMixRendererError.unsupportedSampleRate
         }
+        if let eventEndSeconds,
+           !eventEndSeconds.isFinite || eventEndSeconds <= 0 || eventEndSeconds >= durationSeconds {
+            throw DayObjectsOfflineMixRendererError.invalidEventEnd
+        }
+        let eventEndFrame = eventEndSeconds.map { Int(($0 * sampleRate).rounded()) }
         guard let format = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
             sampleRate: sampleRate,
@@ -133,6 +144,7 @@ final class DayObjectsOfflineMixRenderer {
         }
 
         lastDiagnostics = nil
+        lastEventEndFrame = nil
         let initialHostTime = 1.0
         let clock = DayObjectsOfflineTransportClock(now: initialHostTime)
         let bank = DayObjectsInstrumentBank(
@@ -165,6 +177,8 @@ final class DayObjectsOfflineMixRenderer {
             applyLeadGestureIfNeeded(world: world, elapsedSeconds: 0, durationSeconds: durationSeconds)
 
             let activeTransport = DayObjectsTransport(clock: clock) { event in
+                if let eventEndSeconds,
+                   event.hostTimeSeconds - initialHostTime >= eventEndSeconds { return }
                 await world.render(event)
                 await stressCoordinator.observe(event)
             }
@@ -177,14 +191,17 @@ final class DayObjectsOfflineMixRenderer {
             try stressCoordinator.checkpoint()
 
             var renderedFrames = 0
+            var didEndSchedule = false
             var diagnosticAccumulator = DayObjectsOfflineDiagnosticAccumulator()
+            let modulationFrames = max(Int((sampleRate / 120).rounded()), 1)
             while renderedFrames < totalFrameCount {
                 try Task.checkCancellation()
+                bank.advanceOfflineModulation()
                 let nextTransportDeadline = clock.nextDeadline
                 let nextTransportFrame = nextTransportDeadline.map {
                     max(Int((($0 - initialHostTime) * sampleRate).rounded()), renderedFrames)
                 }
-                let nextLeadFrame = nextLeadGestureFrame(
+                let nextLeadFrame = didEndSchedule ? nil : nextLeadGestureFrame(
                     after: renderedFrames,
                     durationSeconds: durationSeconds,
                     sampleRate: sampleRate
@@ -197,7 +214,8 @@ final class DayObjectsOfflineMixRenderer {
                             renderedFrames
                         )
                     }
-                let nextBoundary = [nextTransportFrame, nextLeadFrame, nextBassReleaseFrame]
+                let nextModulationFrame = ((renderedFrames / modulationFrames) + 1) * modulationFrames
+                let nextBoundary = [nextTransportFrame, nextLeadFrame, nextBassReleaseFrame, eventEndFrame, nextModulationFrame]
                     .compactMap { $0 }
                     .filter { $0 > renderedFrames }
                     .min()
@@ -238,16 +256,22 @@ final class DayObjectsOfflineMixRenderer {
                 )
                 clock.advance(to: newHostTime)
                 stressCoordinator.releaseBassIfDue(atHostTime: newHostTime)
-                applyLeadGestureIfNeeded(
+                if let eventEndFrame, !didEndSchedule, renderedFrames >= eventEndFrame {
+                    await activeTransport.stop()
+                    world.releaseAll()
+                    didEndSchedule = true
+                    lastEventEndFrame = renderedFrames
+                }
+                if !didEndSchedule { applyLeadGestureIfNeeded(
                     world: world,
                     elapsedSeconds: elapsedSeconds,
                     durationSeconds: durationSeconds
-                )
+                ) }
                 diagnosticAccumulator.capture(
                     bank.diagnosticMeterSnapshot(atHostTime: newHostTime),
                     limiterInputPeakDBFS: bank.offlineLimiterInputPeakDBFS
                 )
-                if reachedTransportDeadline, renderedFrames < totalFrameCount {
+                if reachedTransportDeadline, !didEndSchedule, renderedFrames < totalFrameCount {
                     try await waitForTransportDeadline(
                         clock,
                         after: nextTransportDeadline
@@ -303,7 +327,7 @@ final class DayObjectsOfflineMixRenderer {
                 }
                 output.frameLength = AVAudioFrameCount(destinationFrameOffset) + requestedFrames
                 return
-            case .cannotDoInCurrentContext where contextRetryCount < 8:
+            case .cannotDoInCurrentContext where contextRetryCount < contextRetryLimit:
                 contextRetryCount += 1
                 await Task.yield()
             case .insufficientDataFromInputNode, .cannotDoInCurrentContext, .error:

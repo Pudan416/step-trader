@@ -4,11 +4,13 @@ enum HappeningMusicPlanner {
         input: NormalizedDayMusicInput,
         tonalWorld: TonalWorldPlan,
         remixSeed: UInt64,
-        soundWorld: DayObjectsSoundWorld? = nil
+        soundWorld: DayObjectsSoundWorld? = nil,
+        recipeIDs: [HappeningSoundRecipeID]? = nil,
+        arrangement: DayObjectsArrangementProfile? = nil
     ) -> [HappeningMusicPlan] {
         if let soundWorld {
             let recipes = HappeningSoundCatalog.recipes.filter {
-                soundWorld.happeningRecipeRawIDs.contains($0.id.rawValue)
+                recipeIDs?.contains($0.id) ?? soundWorld.happeningRecipeRawIDs.contains($0.id.rawValue)
             }
             return input.happeningIDs.prefix(10).compactMap { happeningID in
                 var random = StableMusicRandom(
@@ -21,7 +23,8 @@ enum HappeningMusicPlanner {
                     tonalWorld: tonalWorld,
                     recipe: recipe,
                     remixSeed: remixSeed,
-                    soundWorld: soundWorld
+                    soundWorld: soundWorld,
+                    arrangement: arrangement
                 )
             }
         }
@@ -42,7 +45,8 @@ enum HappeningMusicPlanner {
         tonalWorld: TonalWorldPlan,
         recipe: HappeningSoundRecipe,
         remixSeed: UInt64,
-        soundWorld: DayObjectsSoundWorld?
+        soundWorld: DayObjectsSoundWorld?,
+        arrangement: DayObjectsArrangementProfile? = nil
     ) -> HappeningMusicPlan {
         var identityRandom = StableMusicRandom(
             seed: remixSeed,
@@ -80,7 +84,9 @@ enum HappeningMusicPlanner {
             gain: gain,
             birthGain: birthGain,
             attackSeconds: processing.attackSeconds,
-            releaseSeconds: processing.releaseSeconds,
+            releaseSeconds: arrangement.map {
+                min(processing.releaseSeconds * $0.harmonyReleaseMultiplier, 4.5)
+            } ?? processing.releaseSeconds,
             delaySend: processing.delaySend,
             reverbSend: processing.reverbSend,
             motif: motif(
@@ -92,7 +98,9 @@ enum HappeningMusicPlanner {
             recurrence: HappeningRecurrencePlan(
                 scheduleSeed: scheduleSeed,
                 alignmentRank: alignmentRank,
-                floatingOffsetBeats: floatingOffset
+                floatingOffsetBeats: floatingOffset,
+                densityMultiplier: arrangement?.happeningDensityMultiplier ?? 1,
+                maximumConcurrentVoices: arrangement?.maximumConcurrentHappenings ?? 4
             )
         )
     }
@@ -102,14 +110,14 @@ enum HappeningMusicPlanner {
         soundWorld: DayObjectsSoundWorld?
     ) -> (attackSeconds: Double, releaseSeconds: Double, delaySend: Double, reverbSend: Double) {
         switch soundWorld {
-        case .feltAndWood:
+        case .feltAndWood, .livingField:
             return (
                 max(recipe.attackSeconds * 1.25, 0.035),
                 min(recipe.releaseSeconds * 1.35, 4.5),
                 recipe.delayMix * 0.55,
                 min(recipe.reverbMix + 0.12, 0.92)
             )
-        case .metalAndCurrent:
+        case .metalAndCurrent, .electricDream:
             return (
                 max(recipe.attackSeconds * 0.78, 0.008),
                 min(recipe.releaseSeconds * 0.92, 4.5),
@@ -154,7 +162,7 @@ enum HappeningMusicPlanner {
             domain: .happeningIdentity(stableID: "motif.\(soundWorld.rawValue).\(happeningID)")
         )
         switch soundWorld {
-        case .feltAndWood:
+        case .feltAndWood, .livingField:
             let descending = random.bernoulli(probability: 0.5)
             return HappeningMotifPlan(
                 role: .statement,
@@ -162,7 +170,7 @@ enum HappeningMusicPlanner {
                 offsetBeats: [0, random.bernoulli(probability: 0.5) ? 1.25 : 1.75],
                 velocityMultipliers: [0.88, 0.68]
             )
-        case .metalAndCurrent:
+        case .metalAndCurrent, .electricDream:
             let turn = random.bernoulli(probability: 0.5) ? [0, 2, 1] : [1, 0, 2]
             return HappeningMotifPlan(
                 role: .response,

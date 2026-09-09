@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import CryptoKit
 
 // MARK: - MeView support types
 //
@@ -177,7 +178,10 @@ final class MePosterCanvasLoadCoordinator {
         )
 
         if let active = inFlight[loadID] {
-            return await active.value
+            let loaded = await active.value
+            guard forceRefresh else { return loaded }
+            // A save may have happened after the existing read captured its data.
+            return await canvas(for: dayKey, hasTrackedSnapshot: hasTrackedSnapshot, forceRefresh: true)
         }
 
         if forceRefresh {
@@ -191,21 +195,124 @@ final class MePosterCanvasLoadCoordinator {
 
         let operation = loadOperation
         let task = Task { @MainActor in
-            await operation(dayKey, hasTrackedSnapshot)
+            let loaded = await operation(dayKey, hasTrackedSnapshot)
+            self.inFlight.removeValue(forKey: loadID)
+            if let loaded {
+                self.cachedCanvases[dayKey] = loaded
+                self.missingLoads = self.missingLoads.filter { $0.dayKey != dayKey }
+            } else if !hasTrackedSnapshot {
+                // Tracked days remain retryable if remote recovery failed.
+                self.missingLoads.insert(loadID)
+            }
+            return loaded
         }
         inFlight[loadID] = task
+        return await task.value
+    }
+}
 
-        let loaded = await task.value
-        inFlight.removeValue(forKey: loadID)
-        if let loaded {
-            cachedCanvases[dayKey] = loaded
-            missingLoads = missingLoads.filter { $0.dayKey != dayKey }
-        } else if !hasTrackedSnapshot {
-            // A tracked day may be unresolved because remote recovery failed.
-            // Let a later visit retry once connectivity returns.
-            missingLoads.insert(loadID)
+/// A poster is a settled frame, retained across tab switches and app launches.
+/// Only visual content participates in the key; saves and music never advance it.
+@MainActor
+final class MePosterSnapshotCache: ObservableObject {
+    typealias Render = @MainActor (DayCanvas, Set<ModernPaletteCategory>) async -> UIImage?
+    static let shared = MePosterSnapshotCache()
+    @Published private(set) var revision = 0
+
+    private struct Entry {
+        let key: String
+        let image: UIImage
+    }
+    private struct DiskEntry: Codable {
+        let key: String
+        let png: Data
+    }
+    private let directory: URL
+    private let render: Render
+    private var entries: [String: Entry] = [:]
+    private var recency: [String] = []
+    private var inFlight: [String: Task<UIImage?, Never>] = [:]
+    private var requestedKeys: [String: String] = [:]
+
+    init(
+        directory: URL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("MePosterSnapshots-v1", isDirectory: true),
+        render: @escaping Render = { canvas, categories in
+            var frozen = canvas
+            frozen.lastModified = (canvas.elements.map(\.createdAt).max() ?? canvas.createdAt)
+                .addingTimeInterval(4)
+            return await CanvasStorageService.shared.renderedSnapshot(
+                canvas: frozen, size: CGSize(width: 482, height: 659), scale: 2,
+                paletteCategories: categories
+            )
         }
-        return loaded
+    ) {
+        self.directory = directory
+        self.render = render
+    }
+
+    func cachedImage(for dayKey: String) -> UIImage? {
+        if let entry = entries[dayKey] { return entry.image }
+        guard let data = try? Data(contentsOf: fileURL(dayKey)),
+              let stored = try? PropertyListDecoder().decode(DiskEntry.self, from: data),
+              let image = UIImage(data: stored.png) else { return nil }
+        remember(Entry(key: stored.key, image: image), for: dayKey)
+        return image
+    }
+
+    func image(for canvas: DayCanvas, categories: Set<ModernPaletteCategory>) async -> UIImage? {
+        guard let key = contentKey(canvas, categories: categories) else { return nil }
+        let dayKey = canvas.dayKey
+        requestedKeys[dayKey] = key
+        _ = cachedImage(for: dayKey)
+        if let entry = entries[dayKey], entry.key == key { return entry.image }
+        if let active = inFlight[key] { return await active.value }
+        let task = Task { @MainActor in
+            let image = await self.render(canvas, categories)
+            if let image, self.requestedKeys[dayKey] == key {
+                self.remember(Entry(key: key, image: image), for: dayKey)
+                if let png = image.pngData(),
+                   let data = try? PropertyListEncoder().encode(DiskEntry(key: key, png: png)) {
+                    try? FileManager.default.createDirectory(at: self.directory, withIntermediateDirectories: true)
+                    try? data.write(to: self.fileURL(dayKey), options: .atomic)
+                }
+                self.revision &+= 1
+            }
+            self.inFlight.removeValue(forKey: key)
+            return image
+        }
+        inFlight[key] = task
+        return await task.value
+    }
+
+    private func remember(_ entry: Entry, for dayKey: String) {
+        entries[dayKey] = entry
+        recency.removeAll { $0 == dayKey }
+        recency.append(dayKey)
+        if recency.count > 30 { entries.removeValue(forKey: recency.removeFirst()) }
+    }
+
+    private func fileURL(_ dayKey: String) -> URL {
+        directory.appendingPathComponent(digest(Data(dayKey.utf8))).appendingPathExtension("plist")
+    }
+
+    private func contentKey(_ canvas: DayCanvas, categories: Set<ModernPaletteCategory>) -> String? {
+        guard let data = try? JSONEncoder().encode(canvas),
+              var content = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+        for field in ["createdAt", "lastModified", "soundWorldRaw", "soundMoodRaw", "guestSoundWorldRaw"] {
+            content.removeValue(forKey: field)
+        }
+        if var elements = content["elements"] as? [[String: Any]] {
+            for index in elements.indices { elements[index].removeValue(forKey: "lastEditedAt") }
+            content["elements"] = elements
+        }
+        content["posterPaletteCategories"] = categories.map(\.rawValue).sorted()
+        guard let canonical = try? JSONSerialization.data(withJSONObject: content, options: [.sortedKeys]) else { return nil }
+        return digest(canonical)
+    }
+
+    private func digest(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }
 
@@ -670,6 +777,7 @@ struct MeGalleryPoster<Content: View>: View {
 }
 
 struct MeSelectedDayPoster: View {
+    @ObservedObject var snapshots = MePosterSnapshotCache.shared
     @ObservedObject var model: AppModel
     let dayKey: String
     let snapshot: PastDaySnapshot?
@@ -786,7 +894,7 @@ struct MeSelectedDayPoster: View {
             events: displayEvents,
             unlocks: displayedUnlocks
         ) {
-            canvasLayer(isOffscreenRender: false)
+            canvasLayer
         }
         .shadow(color: .black.opacity(0.24), radius: 18, y: 10)
         .accessibilityIdentifier("me_selected_day_poster")
@@ -798,6 +906,15 @@ struct MeSelectedDayPoster: View {
         .onChange(of: renderingIsActive) { wasActive, isActive in
             guard isToday, isActive, !wasActive, artworkCanvas != nil else { return }
             Task { await loadCanvas(forceRefresh: true) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .todayCanvasStorageDidChange)
+            .receive(on: DispatchQueue.main)) { notification in
+                guard notification.object as? String == dayKey else { return }
+                Task { await loadCanvas(forceRefresh: true) }
+            }
+        .onChange(of: todayAppearance) { _, _ in
+            guard isToday else { return }
+            Task { await loadCanvas() }
         }
         .onChange(of: canShare, initial: true) { _, available in
             onShareAvailabilityChange(available)
@@ -814,15 +931,12 @@ struct MeSelectedDayPoster: View {
     }
 
     @ViewBuilder
-    private func canvasLayer(isOffscreenRender: Bool) -> some View {
-        if let canvas = artworkCanvas {
-            DayCanvasArtworkView(
-                style: canvas.resolvedVisualStyle,
-                editorial: editorialInput(for: canvas),
-                isAnimating: !isOffscreenRender && renderingIsActive
-            ) {
-                legacyCanvasLayer(canvas: canvas, isOffscreenRender: isOffscreenRender)
-            }
+    private var canvasLayer: some View {
+        if let image = snapshots.cachedImage(for: dayKey) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .accessibilityIdentifier("me_poster_snapshot")
         } else if posterMode == .emptyPast {
             ZStack {
                 Color.black.opacity(0.12)
@@ -875,13 +989,26 @@ struct MeSelectedDayPoster: View {
         guard !Task.isCancelled else { return }
         dayCanvas = loaded
         let captureTime = loaded?.lastModified ?? Date.now
-        artworkCanvas = resolvedArtworkCanvas(from: loaded, capturedAt: captureTime)
+        let resolved = resolvedArtworkCanvas(from: loaded, capturedAt: captureTime)
+        artworkCanvas = resolved
+        _ = await snapshots.image(for: resolved, categories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw))
+    }
+
+    private var todayAppearance: TodayCanvasAppearance {
+        TodayCanvasAppearance(
+            dayKey: dayKey, steps: model.stepsPointsToday, sleep: model.sleepPointsToday,
+            earned: model.baseEnergyToday, spent: model.spentStepsToday,
+            hasSteps: model.hasStepsData, hasSleep: model.hasSleepData,
+            style: preferredCanvasVisualStyleRaw, gradient: liveGradientStyle,
+            palette: liveGradientPalette, texture: liveTextureRaw, categories: modernPaletteCategoriesRaw
+        )
     }
 
     private func resolvedArtworkCanvas(
         from loaded: DayCanvas?,
         capturedAt captureTime: Date
     ) -> DayCanvas {
+        if isToday { return todayAppearance.canvas(from: loaded) }
         if let loaded { return loaded }
 
         var canvas = isToday ? DayCanvas.newDailyCanvas(dayKey: dayKey) : DayCanvas(dayKey: dayKey)
@@ -978,6 +1105,7 @@ struct MeSelectedDayPoster: View {
             GenerativeCanvasView(
                 elements: canvas.elements,
                 dayKey: canvas.dayKey,
+                remixSeed: canvas.remixSeed,
                 sleepPoints: canvas.sleepPoints,
                 stepsPoints: canvas.stepsPoints,
                 sleepColor: Color(hex: canvas.sleepColorHex),

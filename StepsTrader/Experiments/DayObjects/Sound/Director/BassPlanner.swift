@@ -15,14 +15,17 @@ enum BassPlanner {
         groove: GroovePlan,
         instrumentDescriptors: [DayObjectsInstrumentDescriptor],
         remixSeed: UInt64,
-        soundWorld: DayObjectsSoundWorld? = nil
+        soundWorld: DayObjectsSoundWorld? = nil,
+        recipeIDs: [DayObjectsInstrumentID]? = nil,
+        reverbSendScale: Double = 1
     ) -> BassPlan? {
         guard groove.usesBass,
               let instrument = selectedInstrument(
                 from: instrumentDescriptors,
                 mode: groove.mode,
                 remixSeed: remixSeed,
-                soundWorld: soundWorld
+                soundWorld: soundWorld,
+                recipeIDs: recipeIDs
               )
         else {
             return nil
@@ -68,7 +71,8 @@ enum BassPlanner {
             stepsProgress: unitValue(input.stepsProgress),
             cutoffMultiplier: profile.cutoffMultiplier,
             glideMilliseconds: randomValue(in: profile.glideMilliseconds, random: &articulationRandom),
-            reverbSend: randomValue(in: profile.reverbSend, random: &articulationRandom),
+            reverbSend: randomValue(in: profile.reverbSend, random: &articulationRandom)
+                * DayObjectsWorldGroupCalibration(reverbSendScale: reverbSendScale).reverbSendScale,
             ducking: BassDuckingPlan(
                 maximumAttenuationDecibels: randomValue(
                     in: profile.duckingDecibels,
@@ -107,8 +111,15 @@ enum BassPlanner {
         from descriptors: [DayObjectsInstrumentDescriptor],
         mode: GrooveMode,
         remixSeed: UInt64,
-        soundWorld: DayObjectsSoundWorld?
+        soundWorld: DayObjectsSoundWorld?,
+        recipeIDs: [DayObjectsInstrumentID]?
     ) -> DayObjectsInstrumentDescriptor? {
+        if let recipeIDs {
+            let candidates = descriptors.filter { $0.category == .bass && recipeIDs.contains($0.id) }
+                .sorted { $0.id.rawValue < $1.id.rawValue }
+            var random = StableMusicRandom(seed: remixSeed, domain: .bassInstrument)
+            if let selected = random.choice(from: candidates) { return selected }
+        }
         var approvedByID: [String: DayObjectsInstrumentDescriptor] = [:]
         for descriptor in descriptors where descriptor.category == .bass {
             guard approvedInstrumentIDs.contains(descriptor.id.rawValue),
@@ -197,7 +208,7 @@ enum BassPlanner {
     ) -> Profile {
         guard let soundWorld else { return profile }
         switch soundWorld {
-        case .feltAndWood:
+        case .feltAndWood, .livingField:
             return Profile(
                 articulation: profile.articulation,
                 glideMilliseconds: scaled(profile.glideMilliseconds, by: 1.25),
@@ -208,7 +219,7 @@ enum BassPlanner {
                 duckHoldSeconds: profile.duckHoldSeconds,
                 duckReleaseSeconds: profile.duckReleaseSeconds
             )
-        case .metalAndCurrent:
+        case .metalAndCurrent, .electricDream:
             return Profile(
                 articulation: profile.articulation,
                 glideMilliseconds: scaled(profile.glideMilliseconds, by: 0.75),

@@ -223,6 +223,7 @@ final class CanvasStorageService {
             GenerativeCanvasView(
                 elements: canvas.elements,
                 dayKey: canvas.dayKey,
+                remixSeed: canvas.remixSeed,
                 sleepPoints: canvas.sleepPoints,
                 stepsPoints: canvas.stepsPoints,
                 sleepColor: Color(hex: canvas.sleepColorHex),

@@ -79,6 +79,9 @@ enum DayMusicPlanDiffer {
 
         return StructuralSignature(
             seed: plan.seed,
+            soundWorld: plan.soundWorld,
+            mood: plan.mood,
+            guestWorld: plan.guestWorld,
             world: plan.world,
             rhythm: StructuralRhythmSignature(plan: plan.rhythm),
             groove: StructuralGrooveSignature(plan: plan.groove),
@@ -256,6 +259,7 @@ private struct NonHappeningLayerMixSignature: Equatable {
     let leadTargetDecibels: Double
     let masterTargetDecibelsBeforeLimiter: Double
     let maximumHarmonyDuckingDecibels: Double
+    let worldGroupCalibration: DayObjectsWorldGroupCalibration?
 
     init(plan: LayerMixPlan) {
         rhythmTargetDecibels = plan.rhythmTargetDecibels
@@ -264,11 +268,15 @@ private struct NonHappeningLayerMixSignature: Equatable {
         leadTargetDecibels = plan.leadTargetDecibels
         masterTargetDecibelsBeforeLimiter = plan.masterTargetDecibelsBeforeLimiter
         maximumHarmonyDuckingDecibels = plan.maximumHarmonyDuckingDecibels
+        worldGroupCalibration = plan.worldGroupCalibration
     }
 }
 
 private struct StructuralSignature: Equatable {
     let seed: UInt64
+    let soundWorld: DayObjectsSoundWorld
+    let mood: DayObjectsSoundMood
+    let guestWorld: DayObjectsSoundWorld?
     let world: TonalWorldPlan
     let rhythm: StructuralRhythmSignature
     let groove: StructuralGrooveSignature
@@ -334,6 +342,7 @@ private struct StructuralBassEventSignature: Equatable {
 }
 
 private struct StructuralRhythmSignature: Equatable {
+    let kitID: String
     let baseTempoBPM: Double
     let family: RhythmFamily
     let patternOffsetSteps: Int
@@ -345,6 +354,7 @@ private struct StructuralRhythmSignature: Equatable {
     let fillWindowBars: Int
 
     init(plan: RhythmPlan) {
+        kitID = plan.kitID
         baseTempoBPM = plan.baseTempoBPM
         family = plan.family
         patternOffsetSteps = plan.patternOffsetSteps

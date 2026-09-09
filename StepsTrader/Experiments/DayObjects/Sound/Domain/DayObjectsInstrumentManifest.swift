@@ -96,6 +96,19 @@ enum DayObjectsInstrumentManifest {
         defaultDescriptors.filter { $0.category == category }
     }
 
+    static func descriptor(
+        recipe: DayObjectsSynthRecipe, mood: DayObjectsSoundMood, voice: NormalizedSynthVoice
+    ) -> DayObjectsInstrumentDescriptor {
+        .init(
+            id: recipe.resolvedInstrumentID(for: mood), category: recipe.role.category,
+            displayName: "\(recipe.family.replacingOccurrences(of: "-", with: " ").capitalized) · \(mood.rawValue.capitalized)",
+            bankName: recipe.world.displayName,
+            sourceUID: defaultDescriptors.first { $0.id == recipe.sourceInstrumentID }?.sourceUID,
+            referenceMIDI: voice.referenceMIDI, auditionChord: voice.auditionChord,
+            outputTrimDB: voice.outputTrimDB
+        )
+    }
+
     /// Loads and validates the selected source file as one preparation-time transaction.
     /// The returned array is immutable and ordered by the stable descriptor catalog.
     static func loadSynthOneRecords(from bundle: Bundle) throws -> [SynthOnePresetRecord] {

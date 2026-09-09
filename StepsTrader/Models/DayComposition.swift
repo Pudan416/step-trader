@@ -135,8 +135,8 @@ struct TexturePolicy: Codable, Hashable {
 
 // MARK: - Composition
 
-/// One composition per day, derived from the day. Never persisted — it is a
-/// pure function of `dayKey`, so it survives reinstalls and syncs for free.
+/// Derived from the optional persisted Remix seed, or the day for untouched
+/// canvases. The composition itself needs no separately persisted fields.
 struct DayComposition: Codable, Hashable {
     var archetype: CompositionArchetype
     /// 3–5 hex colours, drawn from one region of the palette.
@@ -163,9 +163,10 @@ struct DayComposition: Codable, Hashable {
     static func forDay(
         dayKey: String,
         happeningCount: Int,
-        allowedTextureKinds: [TextureKind] = TextureKind.allowedByUser
+        allowedTextureKinds: [TextureKind] = TextureKind.allowedByUser,
+        remixSeed: UInt64? = nil
     ) -> DayComposition {
-        let seed = CanvasElement.makeSeed(optionId: "composition", dayKey: dayKey, index: 0)
+        let seed = remixSeed ?? CanvasElement.makeSeed(optionId: "composition", dayKey: dayKey, index: 0)
 
         var archetypeRng = SeededRNG.derived(from: seed, domain: "archetype")
         let archetypes = CompositionArchetype.allCases   // CaseIterable order is stable

@@ -31,7 +31,7 @@ enum DayObjectsLoudnessAnalyzer {
         try analyze(channels: [samples], channelWeights: [1], sampleRate: sampleRate)
     }
 
-    fileprivate static func analyze(
+    static func analyze(
         channels: [[Float]],
         channelWeights: [Double],
         sampleRate: Double
@@ -174,6 +174,32 @@ enum DayObjectsLoudnessAnalyzer {
 /// summed as waveforms, so anti-phase stereo cannot cancel from loudness.
 enum DayObjectsStereoCaptureAdapter {
     static func analyze(_ buffer: AVAudioPCMBuffer) throws -> DayObjectsLoudnessReport {
+        let samples = try DayObjectsPCMBufferAdapter.samples(from: buffer)
+        return try DayObjectsLoudnessAnalyzer.analyze(
+            channels: samples.channels,
+            channelWeights: [Double](repeating: 1, count: samples.channels.count),
+            sampleRate: samples.sampleRate
+        )
+    }
+}
+
+struct DayObjectsPCMBufferSamples {
+    let channels: [[Float]]
+    let sampleRate: Double
+
+    var frameCount: Int { channels.first?.count ?? 0 }
+
+    var mono: [Double] {
+        guard let first = channels.first else { return [] }
+        guard channels.count > 1 else { return first.map(Double.init) }
+        return first.indices.map { index in
+            channels.reduce(0.0) { $0 + Double($1[index]) } / Double(channels.count)
+        }
+    }
+}
+
+enum DayObjectsPCMBufferAdapter {
+    static func samples(from buffer: AVAudioPCMBuffer) throws -> DayObjectsPCMBufferSamples {
         guard buffer.format.commonFormat == .pcmFormatFloat32 else {
             throw DayObjectsLoudnessAnalyzerError.unsupportedPCMFormat
         }
@@ -208,9 +234,11 @@ enum DayObjectsStereoCaptureAdapter {
                 Array(UnsafeBufferPointer(start: channelData[channel], count: frameCount))
             }
         }
-        return try DayObjectsLoudnessAnalyzer.analyze(
+        guard channels.allSatisfy({ $0.allSatisfy(\.isFinite) }) else {
+            throw DayObjectsLoudnessAnalyzerError.nonFiniteSample
+        }
+        return DayObjectsPCMBufferSamples(
             channels: channels,
-            channelWeights: [Double](repeating: 1, count: channelCount),
             sampleRate: buffer.format.sampleRate
         )
     }

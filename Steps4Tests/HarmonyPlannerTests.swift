@@ -2,6 +2,57 @@ import XCTest
 @testable import Steps4
 
 final class HarmonyPlannerTests: XCTestCase {
+    func testArrangementMoodLimitsAndLivingTailsPreserveSleepGates() throws {
+        for mood in DayObjectsSoundMood.allCases {
+            let plans = DayObjectsSoundWorld.allCases.map { WorldArrangementFixture.plan($0, mood) }
+            for plan in plans {
+                let allowed: ClosedRange<Int> = mood == .sparse ? 3...4 : mood == .moving ? 5...6 : 5...7
+                XCTAssertTrue(allowed.contains(plan.activeLayerRoleCount), "\(plan.soundWorld) \(mood): \(plan.activeLayerRoleCount)")
+                let group = WorldArrangementFixture.group(plan.soundWorld, mood)
+                let ids = WorldArrangementFixture.runtimeIDs(group.harmonyRecipeIDs, mood: mood)
+                for role in plan.harmony.roles {
+                    guard case let .tonal(id) = role.instrumentTarget else { return XCTFail("World harmony must route its curated recipes") }
+                    XCTAssertTrue(ids.contains(id))
+                    if role.role != .drone {
+                        let boundary = WorldArrangementFixture.plan(plan.soundWorld, mood, sleep: role.activation.startProgress)
+                        XCTAssertEqual(boundary.harmony.role(for: role.role)?.gain, 0)
+                    }
+                }
+            }
+            let livingTail = try XCTUnwrap(plans[1].harmony.role(for: .drone)).releaseSeconds
+            for plan in plans where plan.soundWorld != .livingField {
+                XCTAssertGreaterThan(livingTail, try XCTUnwrap(plan.harmony.role(for: .drone)).releaseSeconds)
+            }
+        }
+    }
+    func testSleepStillAddsInformationForEveryWorldAndMood() {
+        for world in DayObjectsSoundWorld.allCases {
+            for mood in DayObjectsSoundMood.allCases {
+                var previous: HarmonyPlan?
+                var lowSleepInformation = 0.0
+                for sleep in [0.0, 0.2, 0.35, 0.36, 0.7, 0.71, 0.99, 1.0] {
+                    let day = input(stepsProgress: 0.61, sleepProgress: sleep)
+                    let tonal = TonalWorldPlanner.makePlan(input: day, remixSeed: 77, world: world, mood: mood)
+                    let harmony = HarmonyPlanner.makePlan(input: day, tonalWorld: tonal, instrumentDescriptors: DayObjectsInstrumentManifest.defaultDescriptors, remixSeed: 77, soundWorld: world, mood: mood)
+                    if let previous {
+                        XCTAssertGreaterThanOrEqual(harmony.chordCount, previous.chordCount)
+                        XCTAssertGreaterThanOrEqual(harmony.activeRoleCount, previous.activeRoleCount)
+                        XCTAssertGreaterThanOrEqual(harmony.harmonicInformationScore, previous.harmonicInformationScore)
+                    }
+                    XCTAssertTrue(harmony.roles.allSatisfy { role in
+                        role.chordSchedule.allSatisfy { !$0.voicedMIDINotes.isEmpty && $0.voicedMIDINotes.allSatisfy(role.register.contains) }
+                    })
+                    if let primary = harmony.role(for: .primaryPad) {
+                        XCTAssertEqual(primary.chordSchedule.map(\.voicedMIDINotes), tonal.progression.map(\.voicedMIDINotes))
+                    }
+                    if sleep == 0.2 { lowSleepInformation = harmony.harmonicInformationScore }
+                    previous = harmony
+                }
+                XCTAssertGreaterThan(previous?.harmonicInformationScore ?? 0, lowSleepInformation)
+            }
+        }
+    }
+
     func testActivePianoAccentPublishesTheFeltPianoPlaybackTargetWithTheRealCatalog() throws {
         let plan = makePlan(
             sleepProgress: 1,

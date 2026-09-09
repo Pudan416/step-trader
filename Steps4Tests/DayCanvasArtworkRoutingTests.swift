@@ -28,6 +28,11 @@ final class DayCanvasArtworkRoutingTests: XCTestCase {
         }
         host.view.layoutIfNeeded()
         let original = try XCTUnwrap(metalViews(in: host.view).first)
+        // Renderer resources are prepared asynchronously to keep Canvas startup responsive.
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while original.delegate == nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
         let renderer = try XCTUnwrap(original.delegate)
         for mode: DayObjectsPresentationMode in [
             .happeningPalette(.init(slots: [], viewportSize: window.bounds.size,

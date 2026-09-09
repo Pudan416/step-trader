@@ -20,9 +20,15 @@ enum HarmonyPlanner {
         tonalWorld: TonalWorldPlan,
         instrumentDescriptors: [DayObjectsInstrumentDescriptor],
         remixSeed: UInt64,
-        soundWorld: DayObjectsSoundWorld? = nil
+        soundWorld: DayObjectsSoundWorld? = nil,
+        mood: DayObjectsSoundMood = .moving,
+        recipeIDs: [DayObjectsInstrumentID]? = nil,
+        arrangement: DayObjectsArrangementProfile? = nil,
+        reverbSendScale: Double = 1
     ) -> HarmonyPlan {
         let sleepProgress = unitValue(input.sleepProgress)
+        let curated = instrumentDescriptors.filter { recipeIDs?.contains($0.id) ?? false }
+            .sorted { $0.id.rawValue < $1.id.rawValue }
         let worldDescriptors = soundWorld.map { world in
             instrumentDescriptors.filter { world.harmonyInstrumentIDs.contains($0.id.rawValue) }
         } ?? instrumentDescriptors
@@ -48,7 +54,7 @@ enum HarmonyPlanner {
             excluding: secondaryAlternatives.isEmpty ? [] : Set([primaryID].compactMap { $0 })
         )
 
-        let selectedByRole: [HarmonyRole: HarmonyInstrumentTarget?] = [
+        var selectedByRole: [HarmonyRole: HarmonyInstrumentTarget?] = [
             .drone: selectedDescriptor(
                 for: template(for: .drone),
                 from: sortedDescriptors,
@@ -65,9 +71,17 @@ enum HarmonyPlanner {
                 excluding: []
             ).map { .tonal($0.id) }
         ]
+        if !curated.isEmpty {
+            var random = StableMusicRandom(seed: remixSeed, domain: .harmonyInstruments)
+            let ordered = random.shuffled(curated)
+            for (index, role) in HarmonyRole.allCases.enumerated() {
+                selectedByRole[role] = .tonal(ordered[index % ordered.count].id)
+            }
+        }
 
         let roles = roleTemplates.compactMap { baseTemplate -> HarmonyRolePlan? in
-            let template = processedTemplate(baseTemplate, soundWorld: soundWorld)
+            if let arrangement, !arrangement.harmonyRoles.contains(baseTemplate.role) { return nil }
+            let template = processedTemplate(baseTemplate, soundWorld: soundWorld, mood: mood)
             guard let instrumentTarget = selectedByRole[template.role] ?? nil else { return nil }
             let amount = activationAmount(
                 for: template.role,
@@ -81,9 +95,9 @@ enum HarmonyPlanner {
                 register: template.register,
                 gain: template.targetGain * amount,
                 attackSeconds: template.attackSeconds,
-                releaseSeconds: template.releaseSeconds,
+                releaseSeconds: template.releaseSeconds * (arrangement?.harmonyReleaseMultiplier ?? 1),
                 delaySend: template.delaySend,
-                reverbSend: template.reverbSend,
+                reverbSend: template.reverbSend * DayObjectsWorldGroupCalibration(reverbSendScale: reverbSendScale).reverbSendScale,
                 activation: HarmonyActivationPlan(
                     startProgress: template.activationStart,
                     fullProgress: template.activationFull,
@@ -92,7 +106,9 @@ enum HarmonyPlanner {
                 chordSchedule: chordSchedule(
                     for: template.role,
                     tonalWorld: tonalWorld,
-                    register: template.register
+                    register: template.register,
+                    soundWorld: soundWorld,
+                    mood: mood
                 ),
                 crossfadeBars: template.crossfadeBars
             )
@@ -152,7 +168,9 @@ enum HarmonyPlanner {
     private static func chordSchedule(
         for role: HarmonyRole,
         tonalWorld: TonalWorldPlan,
-        register: ClosedRange<UInt8>
+        register: ClosedRange<UInt8>,
+        soundWorld: DayObjectsSoundWorld?,
+        mood: DayObjectsSoundMood
     ) -> [HarmonyChordScheduleEntry] {
         var startBar = 0
         var previousNotes: [UInt8]?
@@ -166,12 +184,20 @@ enum HarmonyPlanner {
                 pitchClasses = chord.chordPitchClasses
                 voiceCount = min(4, max(3, pitchClasses.count))
             }
-            let voicedNotes = AmbientVoiceLeading.nearestVoicing(
-                chordPitchClasses: pitchClasses,
-                previousNotes: previousNotes,
-                register: register,
-                voiceCount: voiceCount
-            )
+            let voicedNotes: [UInt8]
+            if let soundWorld {
+                voicedNotes = AmbientVoiceLeading.nearestVoicing(
+                    chordPitchClasses: pitchClasses, previousNotes: previousNotes,
+                    world: soundWorld, mood: mood, register: register, chordIndex: index
+                )
+            } else {
+                voicedNotes = AmbientVoiceLeading.nearestVoicing(
+                    chordPitchClasses: pitchClasses,
+                    previousNotes: previousNotes,
+                    register: register,
+                    voiceCount: voiceCount
+                )
+            }
             previousNotes = voicedNotes
             let entry = HarmonyChordScheduleEntry(
                 chordIndex: index,
@@ -206,20 +232,29 @@ enum HarmonyPlanner {
 
     private static func processedTemplate(
         _ template: RoleTemplate,
-        soundWorld: DayObjectsSoundWorld?
+        soundWorld: DayObjectsSoundWorld?,
+        mood: DayObjectsSoundMood
     ) -> RoleTemplate {
         guard let soundWorld else { return template }
+        let grammar = DayObjectsHarmonyGrammar.for(world: soundWorld, mood: mood)
+        let register: ClosedRange<UInt8>
+        if template.role == .primaryPad {
+            register = grammar.register
+        } else {
+            let shift = Int(grammar.register.lowerBound) - Int(AmbientVoiceLeading.ambientRegister.lowerBound)
+            register = UInt8(Int(template.register.lowerBound) + shift)...UInt8(Int(template.register.upperBound) + shift)
+        }
         let attackMultiplier: Double
         let releaseMultiplier: Double
         let delayMultiplier: Double
         let reverbMultiplier: Double
         switch soundWorld {
-        case .feltAndWood:
+        case .feltAndWood, .livingField:
             attackMultiplier = 1.18
             releaseMultiplier = 1.22
             delayMultiplier = 0.62
             reverbMultiplier = 1.08
-        case .metalAndCurrent:
+        case .metalAndCurrent, .electricDream:
             attackMultiplier = 0.72
             releaseMultiplier = 0.82
             delayMultiplier = 1.45
@@ -229,7 +264,7 @@ enum HarmonyPlanner {
             role: template.role,
             compatibleCategories: template.compatibleCategories,
             preferredCategory: template.preferredCategory,
-            register: template.register,
+            register: register,
             targetGain: template.targetGain,
             attackSeconds: template.attackSeconds * attackMultiplier,
             releaseSeconds: template.releaseSeconds * releaseMultiplier,

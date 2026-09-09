@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Editing chrome: Done in the top-left, Remix at the bottom, and a one-time
+/// Editing chrome: Done in the top-left and a one-time
 /// line telling the user the only gesture there is.
 ///
 /// There is no Select / Draw / Text / Elements toolbar. The canvas is not a
@@ -9,7 +9,6 @@ import SwiftUI
 struct CanvasEditingDock: View {
     let showsDragHint: Bool
     let onDone: () -> Void
-    let onRemix: () -> Void
     var nativeRecipe: Binding<NativeAtlasRecipe?>? = nil
     var automaticTraceStrength: Float = 0
 
@@ -35,7 +34,6 @@ struct CanvasEditingDock: View {
                 if let binding = nativeRecipe, binding.wrappedValue?.isSupported == true {
                     nativeControls(binding)
                 }
-                remixControl
             }
         }
     }
@@ -85,20 +83,6 @@ struct CanvasEditingDock: View {
         .buttonStyle(.plain)
         .accessibilityLabel(String(localized: "Done editing", comment: "Canvas editing – Done VoiceOver label"))
         .accessibilityIdentifier("canvas_done_button")
-    }
-
-    private var remixControl: some View {
-        Button(action: onRemix) {
-            Text(String(localized: "Remix", comment: "Canvas editing – restyle every element"))
-                .font(.geist(size: 16, weight: .semibold))
-                .foregroundStyle(AppAccentInk.primary)
-                .padding(.horizontal, 28)
-                .frame(minHeight: 56)
-                .background(AppColors.brandAccent, in: Capsule(style: .continuous))
-                .contentShape(Capsule(style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("canvas_remix_button")
     }
 
     private var dragHint: some View {

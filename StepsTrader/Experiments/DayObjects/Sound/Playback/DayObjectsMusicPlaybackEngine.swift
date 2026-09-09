@@ -699,7 +699,8 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
 
         func configure(
             _ plan: DayMusicPlan,
-            diagnosticAuditionMode: DayObjectsAuditionMode = .fullComposition
+            diagnosticAuditionMode: DayObjectsAuditionMode = .fullComposition,
+            usesSampledPiano: Bool = true
         ) throws {
             guard let bass = bassPlayer,
                   let harmony = harmonyPlayer,
@@ -714,12 +715,15 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 plan.bass,
                 cycleLengthSubdivisions: Int64(max(plan.world.cycleBars, 1)) * MusicalPosition.subdivisionsPerBar
             )
-            try harmony.configure(plan.harmony)
+            try harmony.configure(
+                usesSampledPiano ? plan.harmony : plan.harmony.replacingFeltPianoWithTonalKeys()
+            )
             try happenings.configure(
                 plans: plan.happenings,
                 tonalWorld: plan.world,
                 remixSeed: plan.seed
             )
+            happenings.applyReverbSendScale(plan.mix.worldGroupCalibration?.reverbSendScale ?? 1)
             try lead.configure(
                 plan: plan.lead,
                 gainDecibels: plan.mix.leadTargetDecibels,
@@ -809,6 +813,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
             harmony.applyContinuous(audiblePlan.harmony)
             lead.applyContinuous(audiblePlan.lead)
             happenings.configureGlitch(plan: audiblePlan.glitch, processor: glitch)
+            happenings.applyReverbSendScale(audiblePlan.mix.worldGroupCalibration?.reverbSendScale ?? 1)
             glitch.apply(audiblePlan.glitch)
             applyMix(audiblePlan, ducking: 0)
             self.plan = audiblePlan
@@ -817,7 +822,9 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan) {
             guard mode != .kickBassSidechain else { return }
             diagnosticAuditionMode = mode
-            applyMix(plan, ducking: 0)
+            // The controller may already describe a pending Remix. Isolation
+            // changes the mix of the world that is currently sounding.
+            applyMix(self.plan ?? plan, ducking: 0)
         }
 
         func resetDiagnosticAudition() {
@@ -938,6 +945,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         ) {
             let harmonySend = plan.harmony.roles.map(\.reverbSend).max() ?? 0
             let happeningSend = plan.happenings.map(\.reverbSend).max() ?? 0
+            let reverbScale = plan.mix.worldGroupCalibration?.reverbSendScale ?? 1
             let calibration = DayObjectsPlanAwareGainCalibration.make(
                 grooveMode: plan.groove.mode,
                 stepsActivityDensity: plan.rhythm.stepsProgress
@@ -947,10 +955,10 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 activeChordVoiceCount: max(1, harmonyPlayer?.metrics.activeVoiceCount ?? 0),
                 harmonyDuckingDecibels: ducking,
                 spatial: .init(
-                    rhythm: .init(sendLevel: 0.08, decay: 0.42),
+                    rhythm: .init(sendLevel: 0.08 * reverbScale, decay: 0.42),
                     bass: .init(sendLevel: plan.bass?.reverbSend ?? 0, decay: 0.36),
                     harmony: .init(sendLevel: harmonySend, decay: 0.72),
-                    happenings: .init(sendLevel: happeningSend, decay: 0.84),
+                    happenings: .init(sendLevel: happeningSend * reverbScale, decay: 0.84),
                     lead: .init(
                         sendLevel: plan.lead.reverbSend,
                         decay: 0.62,
@@ -977,7 +985,8 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 happeningCount: mix.happeningCount,
                 leadTargetDecibels: role == .lead ? mix.leadTargetDecibels : muted,
                 masterTargetDecibelsBeforeLimiter: mix.masterTargetDecibelsBeforeLimiter,
-                maximumHarmonyDuckingDecibels: 0
+                maximumHarmonyDuckingDecibels: 0,
+                worldGroupCalibration: mix.worldGroupCalibration
             )
         }
 
@@ -1019,6 +1028,10 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
             from update: DayMusicPlan,
             into structural: DayMusicPlan
         ) -> DayMusicPlan {
+            // Group gain and wet recipes belong to the instruments that are
+            // sounding. A pending world/mood must bring its entire calibration
+            // at the structural boundary, including its calibrated base mix.
+            let sameGroup = update.soundWorld == structural.soundWorld && update.mood == structural.mood
             let rhythmVoices = structural.rhythm.voices.map { old in
                 let fresh = update.rhythm.voice(for: old.role) ?? old
                 return RhythmVoicePlan(
@@ -1027,7 +1040,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                     stepProbabilities: fresh.stepProbabilities,
                     velocityRange: fresh.velocityRange,
                     microtimingMilliseconds: fresh.microtimingMilliseconds,
-                    roomSend: fresh.roomSend,
+                    roomSend: sameGroup ? fresh.roomSend : old.roomSend,
                     activation: .init(
                         startProgress: old.activation.startProgress,
                         fullProgress: old.activation.fullProgress,
@@ -1038,6 +1051,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 )
             }
             let rhythm = RhythmPlan(
+                kitID: structural.rhythm.kitID,
                 baseTempoBPM: structural.rhythm.baseTempoBPM,
                 tempoBPM: update.rhythm.tempoBPM,
                 stepsProgress: update.rhythm.stepsProgress,
@@ -1063,8 +1077,8 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                     gain: fresh.gain,
                     attackSeconds: fresh.attackSeconds,
                     releaseSeconds: fresh.releaseSeconds,
-                    delaySend: fresh.delaySend,
-                    reverbSend: fresh.reverbSend,
+                    delaySend: sameGroup ? fresh.delaySend : old.delaySend,
+                    reverbSend: sameGroup ? fresh.reverbSend : old.reverbSend,
                     activation: .init(
                         startProgress: old.activation.startProgress,
                         fullProgress: old.activation.fullProgress,
@@ -1093,8 +1107,8 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 pitchSmoothingMilliseconds: update.lead.pitchSmoothingMilliseconds,
                 expressionSmoothingMilliseconds: update.lead.expressionSmoothingMilliseconds,
                 maximumExpressionDepth: update.lead.maximumExpressionDepth,
-                delaySend: update.lead.delaySend,
-                reverbSend: update.lead.reverbSend
+                delaySend: sameGroup ? update.lead.delaySend : structural.lead.delaySend,
+                reverbSend: sameGroup ? update.lead.reverbSend : structural.lead.reverbSend
             )
             let glitchRoles = structural.glitch.roles.map { old in
                 let fresh = update.glitch.role(for: old.role) ?? old
@@ -1116,9 +1130,13 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 stereoSeparationAddition: update.glitch.stereoSeparationAddition,
                 realization: structural.glitch.realization
             )
-            let bass = mergedBass(from: update.bass, into: structural.bass)
+            let bass = mergedBass(from: update.bass, into: structural.bass, preserveWetSend: !sameGroup)
             return DayMusicPlan(
                 seed: structural.seed,
+                soundWorld: structural.soundWorld,
+                mood: structural.mood,
+                guestWorld: structural.guestWorld,
+                guestInstrumentIDs: structural.guestInstrumentIDs,
                 input: update.input,
                 world: structural.world,
                 rhythm: rhythm,
@@ -1128,13 +1146,14 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 happenings: structural.happenings,
                 lead: lead,
                 glitch: glitch,
-                mix: update.mix
+                mix: sameGroup ? update.mix : structural.mix
             )
         }
 
         private static func mergedBass(
             from update: BassPlan?,
-            into structural: BassPlan?
+            into structural: BassPlan?,
+            preserveWetSend: Bool
         ) -> BassPlan? {
             guard let structural, let update else { return structural }
             guard hasSameBassStructure(structural, update) else { return structural }
@@ -1161,7 +1180,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 stepsProgress: update.stepsProgress,
                 cutoffMultiplier: update.cutoffMultiplier,
                 glideMilliseconds: update.glideMilliseconds,
-                reverbSend: update.reverbSend,
+                reverbSend: preserveWetSend ? structural.reverbSend : update.reverbSend,
                 ducking: BassDuckingPlan(
                     maximumAttenuationDecibels: update.ducking.maximumAttenuationDecibels,
                     attackSeconds: structural.ducking.attackSeconds,
@@ -1399,11 +1418,13 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
 
     init(
         bundle: Bundle = .main,
+        soundWorldResources: DayObjectsSoundWorldResources? = nil,
         diagnosticHostTimeProvider: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
     ) throws {
         self.diagnosticHostTimeProvider = diagnosticHostTimeProvider
         pair = DayObjectsInstrumentBank.makePlaybackPair(
             bundle: bundle,
+            soundWorldResources: soundWorldResources,
             outputGainHostTimeProvider: diagnosticHostTimeProvider
         )
         worldA = WorldState(bank: PlaybackWorldBank(instrumentBank: pair.bankA))
@@ -1836,6 +1857,9 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
     var instrumentAllocationCountForTesting: Int {
         world.bank.instrumentBank.metrics.allocationFingerprint == nil ? 0 : 1
     }
+    var allocatedPianoVoiceCountForTesting: Int {
+        world.bank.metrics.allocatedPianoVoiceCount
+    }
     var preparedHappeningRecipeIDsForTesting: Set<HappeningSoundRecipeID> {
         world.bank.happenings.metrics.availableRecipeIDs
     }
@@ -1917,22 +1941,32 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
 
     init(
         bundle: Bundle = .main,
+        soundWorldResources: DayObjectsSoundWorldResources? = nil,
         diagnosticHostTimeProvider: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
     ) {
         self.diagnosticHostTimeProvider = diagnosticHostTimeProvider
         world = DayObjectsLivePlaybackRuntime.WorldState(
             bank: PlaybackWorldBank(instrumentBank: DayObjectsInstrumentBank(
                 bundle: bundle,
+                soundWorldResources: soundWorldResources,
+                tonalVoiceProfile: .mobileRealtime,
                 audioHostTimeProvider: diagnosticHostTimeProvider
             ))
         )
     }
 
     func prepare(plan: DayMusicPlan) throws {
-        try world.bank.prepare(happeningRecipeIDs: Set(plan.happenings.map(\.recipeID)))
+        try world.bank.prepare(
+            happeningRecipeIDs: Set(plan.happenings.map(\.recipeID)),
+            configuration: PlaybackWorldBankConfiguration.mobilePlaybackWorld
+        )
         try world.bindPreparedPlayersIfNeeded()
         world.releaseAll()
-        try world.configure(plan, diagnosticAuditionMode: diagnosticAuditionMode)
+        try world.configure(
+            plan,
+            diagnosticAuditionMode: diagnosticAuditionMode,
+            usesSampledPiano: false
+        )
         auditionReleaseTasks.values.forEach { $0.cancel() }
         auditionReleaseTasks.removeAll()
         auditionHandles.removeAll()
@@ -2077,7 +2111,11 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
            let plan = pendingStructuralPlan {
             world.releaseAll()
             do {
-                try world.configure(plan, diagnosticAuditionMode: diagnosticAuditionMode)
+                try world.configure(
+                    plan,
+                    diagnosticAuditionMode: diagnosticAuditionMode,
+                    usesSampledPiano: false
+                )
                 try world.startScheduling(at: event.position)
                 pendingStructuralPlan = nil
                 updateTransport(for: plan)
@@ -2115,6 +2153,49 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
 private extension Collection {
     subscript(safe index: Index) -> Element? {
         indices.contains(index) ? self[index] : nil
+    }
+}
+
+private extension HarmonyPlan {
+    func replacingFeltPianoWithTonalKeys() -> HarmonyPlan {
+        let fallback = roles.lazy.compactMap { role -> DayObjectsInstrumentID? in
+            guard role.role == .secondaryPadOrKeys || role.role == .innerMotion else { return nil }
+            if case let .tonal(id) = role.instrumentTarget { return id }
+            return nil
+        }.first ?? roles.lazy.compactMap { role -> DayObjectsInstrumentID? in
+            if case let .tonal(id) = role.instrumentTarget { return id }
+            return nil
+        }.first
+
+        guard let fallback else {
+            return .init(
+                sleepProgress: sleepProgress,
+                cycleBars: cycleBars,
+                chordCount: chordCount,
+                roles: roles.filter { $0.instrumentTarget != .feltPiano }
+            )
+        }
+        return .init(
+            sleepProgress: sleepProgress,
+            cycleBars: cycleBars,
+            chordCount: chordCount,
+            roles: roles.map { role in
+                guard role.instrumentTarget == .feltPiano else { return role }
+                return .init(
+                    role: role.role,
+                    instrumentTarget: .tonal(fallback),
+                    register: role.register,
+                    gain: role.gain,
+                    attackSeconds: role.attackSeconds,
+                    releaseSeconds: role.releaseSeconds,
+                    delaySend: role.delaySend,
+                    reverbSend: role.reverbSend,
+                    activation: role.activation,
+                    chordSchedule: role.chordSchedule,
+                    crossfadeBars: role.crossfadeBars
+                )
+            }
+        )
     }
 }
 #endif

@@ -20,6 +20,13 @@
 		A70FE002000000000000000B /* NowhereDisplay02-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE001000000000000000B /* NowhereDisplay02-Bold.ttf */; };
 		A70FE002000000000000000C /* Onest-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = A70FE001000000000000000C /* Onest-OFL.txt */; };
 		A70FE002000000000000000D /* NowhereDisplay-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = A70FE001000000000000000D /* NowhereDisplay-OFL.txt */; };
+		D30700000000000000000004 /* DayObjectsAuditionPackExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30700000000000000000003 /* DayObjectsAuditionPackExporter.swift */; };
+		D30700000000000000000002 /* DayObjectsAuditionPackExporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30700000000000000000001 /* DayObjectsAuditionPackExporterTests.swift */; };
+		D10400000000000000000012 /* DayObjectsSynthRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10400000000000000000011 /* DayObjectsSynthRecipe.swift */; };
+		D10400000000000000000014 /* DayObjectsSoundWorldCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10400000000000000000013 /* DayObjectsSoundWorldCatalog.swift */; };
+		D10400000000000000000022 /* SoundWorlds in Resources */ = {isa = PBXBuildFile; fileRef = D10400000000000000000021 /* SoundWorlds */; };
+		D10400000000000000000023 /* SoundWorlds in Resources */ = {isa = PBXBuildFile; fileRef = D10400000000000000000021 /* SoundWorlds */; };
+		D10400000000000000000002 /* DayObjectsSoundWorldCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10400000000000000000001 /* DayObjectsSoundWorldCatalogTests.swift */; };
 		C5A510010906202600000002 /* CanvasVisualStyleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510010906202600000001 /* CanvasVisualStyleTests.swift */; };
 		C5A510010906202600000004 /* CanvasVisualStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510010906202600000003 /* CanvasVisualStyle.swift */; };
 		C5A510020906202600000002 /* EditorialCanvasInputFactoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510020906202600000001 /* EditorialCanvasInputFactoryTests.swift */; };
@@ -28,6 +35,9 @@
 		C5A510030906202600000004 /* DayCanvasArtworkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510030906202600000003 /* DayCanvasArtworkView.swift */; };
 		C5A510040906202600000002 /* DayObjectsImageRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A510040906202600000001 /* DayObjectsImageRenderer.swift */; };
 		F5A900000000000000000002 /* DayObjectsLoudnessAnalyzerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A900000000000000000001 /* DayObjectsLoudnessAnalyzerTests.swift */; };
+		D30600000000000000000002 /* DayObjectsMixQualityAnalyzerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30600000000000000000001 /* DayObjectsMixQualityAnalyzerTests.swift */; };
+		D30600000000000000000004 /* DayObjectsMixQualityReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30600000000000000000003 /* DayObjectsMixQualityReport.swift */; };
+		D30600000000000000000006 /* DayObjectsMixQualityAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30600000000000000000005 /* DayObjectsMixQualityAnalyzer.swift */; };
 		F5A900000000000000000004 /* DayObjectsLoudnessAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A900000000000000000003 /* DayObjectsLoudnessAnalyzer.swift */; };
 		F5A900000000000000000007 /* DayObjectsOfflineMixRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A900000000000000000006 /* DayObjectsOfflineMixRenderer.swift */; };
 		F5A900000000000000000009 /* DayObjectsMixScenarioTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A900000000000000000008 /* DayObjectsMixScenarioTests.swift */; };
@@ -50,6 +60,8 @@
 		D0E300000000000000000004 /* AmbientVoiceLeadingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E300000000000000000003 /* AmbientVoiceLeadingTests.swift */; };
 		D0E300000000000000000008 /* TonalWorldPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E300000000000000000005 /* TonalWorldPlan.swift */; };
 		D0E300000000000000000009 /* TonalWorldPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E300000000000000000006 /* TonalWorldPlanner.swift */; };
+		D30300000000000000000002 /* DayObjectsHarmonyGrammar.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30300000000000000000001 /* DayObjectsHarmonyGrammar.swift */; };
+		D30400000000000000000002 /* DayObjectsArrangementProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30400000000000000000001 /* DayObjectsArrangementProfile.swift */; };
 		D0E30000000000000000000A /* AmbientVoiceLeading.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E300000000000000000007 /* AmbientVoiceLeading.swift */; };
 		D0E400000000000000000002 /* SmoothActivationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E400000000000000000001 /* SmoothActivationTests.swift */; };
 		D0E400000000000000000004 /* RhythmPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E400000000000000000003 /* RhythmPlannerTests.swift */; };
@@ -59,6 +71,10 @@
 		D10200000000000000000002 /* BassPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10200000000000000000001 /* BassPlannerTests.swift */; };
 		D10200000000000000000004 /* BassPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10200000000000000000003 /* BassPlan.swift */; };
 		D10200000000000000000006 /* BassPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10200000000000000000005 /* BassPlanner.swift */; };
+		D10300000000000000000002 /* DayObjectsWorldSelectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10300000000000000000001 /* DayObjectsWorldSelectorTests.swift */; };
+		D10300000000000000000004 /* DayObjectsSoundWorld.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10300000000000000000003 /* DayObjectsSoundWorld.swift */; };
+		D10300000000000000000006 /* DayObjectsSoundMood.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10300000000000000000005 /* DayObjectsSoundMood.swift */; };
+		D10300000000000000000008 /* DayObjectsWorldSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10300000000000000000007 /* DayObjectsWorldSelector.swift */; };
 		D0E400000000000000000006 /* SmoothActivation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E400000000000000000005 /* SmoothActivation.swift */; };
 		D0E400000000000000000008 /* RhythmPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E400000000000000000007 /* RhythmPlan.swift */; };
 		D0E40000000000000000000A /* RhythmPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E400000000000000000009 /* RhythmPlanner.swift */; };
@@ -384,6 +400,7 @@
 		30A1D1B32F3C000100000005 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1D1A32F3C000100000003 /* NotificationSettingsView.swift */; };
 		30CA0001300000000000CA01 /* CanvasElement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0002300000000000CA02 /* CanvasElement.swift */; };
 		CA51B0030000000000000003 /* CanvasRemix.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0030000000000000003 /* CanvasRemix.swift */; };
+		C5A520020906202600000002 /* CanvasUnifiedRemix.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A520020906202600000001 /* CanvasUnifiedRemix.swift */; };
 		CA51B0010000000000000001 /* CanvasEnergyStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0010000000000000001 /* CanvasEnergyStatus.swift */; };
 		DA0003000300030003000031 /* Happening.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0003000300030003000030 /* Happening.swift */; };
 		DA0022002200220022000011 /* HappeningShapeAssignment.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0022002200220022000010 /* HappeningShapeAssignment.swift */; };
@@ -625,6 +642,12 @@
 		A70FE001000000000000000B /* NowhereDisplay02-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "NowhereDisplay02-Bold.ttf"; sourceTree = "<group>"; };
 		A70FE001000000000000000C /* Onest-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Onest-OFL.txt"; sourceTree = "<group>"; };
 		A70FE001000000000000000D /* NowhereDisplay-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "NowhereDisplay-OFL.txt"; sourceTree = "<group>"; };
+		D30700000000000000000003 /* DayObjectsAuditionPackExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsAuditionPackExporter.swift; sourceTree = "<group>"; };
+		D30700000000000000000001 /* DayObjectsAuditionPackExporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsAuditionPackExporterTests.swift; sourceTree = "<group>"; };
+		D10400000000000000000011 /* DayObjectsSynthRecipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsSynthRecipe.swift; sourceTree = "<group>"; };
+		D10400000000000000000013 /* DayObjectsSoundWorldCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsSoundWorldCatalog.swift; sourceTree = "<group>"; };
+		D10400000000000000000021 /* SoundWorlds */ = {isa = PBXFileReference; lastKnownFileType = folder; path = SoundWorlds; sourceTree = "<group>"; };
+		D10400000000000000000001 /* DayObjectsSoundWorldCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsSoundWorldCatalogTests.swift; sourceTree = "<group>"; };
 		C5A510010906202600000001 /* CanvasVisualStyleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasVisualStyleTests.swift; sourceTree = "<group>"; };
 		C5A510010906202600000003 /* CanvasVisualStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasVisualStyle.swift; path = StepsTrader/Models/CanvasVisualStyle.swift; sourceTree = SOURCE_ROOT; };
 		C5A510020906202600000001 /* EditorialCanvasInputFactoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorialCanvasInputFactoryTests.swift; sourceTree = "<group>"; };
@@ -633,6 +656,9 @@
 		C5A510030906202600000003 /* DayCanvasArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayCanvasArtworkView.swift; sourceTree = "<group>"; };
 		C5A510040906202600000001 /* DayObjectsImageRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsImageRenderer.swift; sourceTree = "<group>"; };
 		F5A900000000000000000001 /* DayObjectsLoudnessAnalyzerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLoudnessAnalyzerTests.swift; sourceTree = "<group>"; };
+		D30600000000000000000001 /* DayObjectsMixQualityAnalyzerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsMixQualityAnalyzerTests.swift; sourceTree = "<group>"; };
+		D30600000000000000000003 /* DayObjectsMixQualityReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsMixQualityReport.swift; sourceTree = "<group>"; };
+		D30600000000000000000005 /* DayObjectsMixQualityAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsMixQualityAnalyzer.swift; sourceTree = "<group>"; };
 		F5A900000000000000000003 /* DayObjectsLoudnessAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLoudnessAnalyzer.swift; sourceTree = "<group>"; };
 		F5A900000000000000000006 /* DayObjectsOfflineMixRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsOfflineMixRenderer.swift; sourceTree = "<group>"; };
 		F5A900000000000000000008 /* DayObjectsMixScenarioTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsMixScenarioTests.swift; sourceTree = "<group>"; };
@@ -645,6 +671,8 @@
 		D0E300000000000000000003 /* AmbientVoiceLeadingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmbientVoiceLeadingTests.swift; sourceTree = "<group>"; };
 		D0E300000000000000000005 /* TonalWorldPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonalWorldPlan.swift; sourceTree = "<group>"; };
 		D0E300000000000000000006 /* TonalWorldPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonalWorldPlanner.swift; sourceTree = "<group>"; };
+		D30300000000000000000001 /* DayObjectsHarmonyGrammar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsHarmonyGrammar.swift; sourceTree = "<group>"; };
+		D30400000000000000000001 /* DayObjectsArrangementProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsArrangementProfile.swift; sourceTree = "<group>"; };
 		D0E300000000000000000007 /* AmbientVoiceLeading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmbientVoiceLeading.swift; sourceTree = "<group>"; };
 		D0E400000000000000000001 /* SmoothActivationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmoothActivationTests.swift; sourceTree = "<group>"; };
 		D0E400000000000000000003 /* RhythmPlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RhythmPlannerTests.swift; sourceTree = "<group>"; };
@@ -654,6 +682,10 @@
 		D10200000000000000000001 /* BassPlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BassPlannerTests.swift; sourceTree = "<group>"; };
 		D10200000000000000000003 /* BassPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BassPlan.swift; sourceTree = "<group>"; };
 		D10200000000000000000005 /* BassPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BassPlanner.swift; sourceTree = "<group>"; };
+		D10300000000000000000001 /* DayObjectsWorldSelectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsWorldSelectorTests.swift; sourceTree = "<group>"; };
+		D10300000000000000000003 /* DayObjectsSoundWorld.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsSoundWorld.swift; sourceTree = "<group>"; };
+		D10300000000000000000005 /* DayObjectsSoundMood.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsSoundMood.swift; sourceTree = "<group>"; };
+		D10300000000000000000007 /* DayObjectsWorldSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsWorldSelector.swift; sourceTree = "<group>"; };
 		D0E400000000000000000005 /* SmoothActivation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmoothActivation.swift; sourceTree = "<group>"; };
 		D0E400000000000000000007 /* RhythmPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RhythmPlan.swift; sourceTree = "<group>"; };
 		D0E400000000000000000009 /* RhythmPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RhythmPlanner.swift; sourceTree = "<group>"; };
@@ -977,6 +1009,7 @@
 		30A1D1A32F3C000100000003 /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
 		30CA0002300000000000CA02 /* CanvasElement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasElement.swift; sourceTree = "<group>"; };
 		CA51F0030000000000000003 /* CanvasRemix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasRemix.swift; sourceTree = "<group>"; };
+		C5A520020906202600000001 /* CanvasUnifiedRemix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasUnifiedRemix.swift; sourceTree = "<group>"; };
 		CA51F0010000000000000001 /* CanvasEnergyStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasEnergyStatus.swift; sourceTree = "<group>"; };
 		DA0003000300030003000030 /* Happening.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Happening.swift; sourceTree = "<group>"; };
 		DA0022002200220022000010 /* HappeningShapeAssignment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningShapeAssignment.swift; sourceTree = "<group>"; };
@@ -1309,7 +1342,10 @@
 			isa = PBXGroup;
 			children = (
 				F5A900000000000000000003 /* DayObjectsLoudnessAnalyzer.swift */,
+				D30600000000000000000003 /* DayObjectsMixQualityReport.swift */,
+				D30600000000000000000005 /* DayObjectsMixQualityAnalyzer.swift */,
 				F5A900000000000000000006 /* DayObjectsOfflineMixRenderer.swift */,
+				D30700000000000000000003 /* DayObjectsAuditionPackExporter.swift */,
 			);
 			path = Diagnostics;
 			sourceTree = "<group>";
@@ -1350,6 +1386,9 @@
 		D0E100000000000000000010 /* Director */ = {
 			isa = PBXGroup;
 			children = (
+				D10300000000000000000003 /* DayObjectsSoundWorld.swift */,
+				D10300000000000000000005 /* DayObjectsSoundMood.swift */,
+				D10300000000000000000007 /* DayObjectsWorldSelector.swift */,
 				D0E800000000000000000007 /* DayMusicPlan.swift */,
 				D0E800000000000000000009 /* DeterministicMusicDirector.swift */,
 				D0E700000000000000000007 /* LeadPlan.swift */,
@@ -1372,6 +1411,8 @@
 				D0E400000000000000000009 /* RhythmPlanner.swift */,
 				D0E300000000000000000005 /* TonalWorldPlan.swift */,
 				D0E300000000000000000006 /* TonalWorldPlanner.swift */,
+				D30300000000000000000001 /* DayObjectsHarmonyGrammar.swift */,
+				D30400000000000000000001 /* DayObjectsArrangementProfile.swift */,
 				D0E300000000000000000007 /* AmbientVoiceLeading.swift */,
 				D0E200000000000000000003 /* MusicSeedDomain.swift */,
 				D0E200000000000000000004 /* StableMusicRandom.swift */,
@@ -1416,6 +1457,8 @@
 				D0C30000000000000000001B /* HappeningSoundRecipe.swift */,
 				D0C30000000000000000001D /* HappeningSoundCatalog.swift */,
 				D0C300000000000000000011 /* DayObjectsInstrumentID.swift */,
+				D10400000000000000000011 /* DayObjectsSynthRecipe.swift */,
+				D10400000000000000000013 /* DayObjectsSoundWorldCatalog.swift */,
 				D0C300000000000000000013 /* DayObjectsInstrumentManifest.swift */,
 				D0C300000000000000000015 /* NormalizedSynthVoice.swift */,
 				D0C300000000000000000017 /* SynthOnePresetAdapter.swift */,
@@ -1430,6 +1473,7 @@
 			children = (
 				D0A0D1000000000000000013 /* AudioLicenses */,
 				D0A0D2000000000000000001 /* SynthOnePresets */,
+				D10400000000000000000021 /* SoundWorlds */,
 				D0A0D2000000000000000002 /* Drums */,
 				D0A0D2000000000000000003 /* FeltPiano */,
 				D0C400000000000000000001 /* Happenings */,
@@ -1573,6 +1617,7 @@
 				AA00NOTE2F3A000100000002 /* Note.swift */,
 				30CA0002300000000000CA02 /* CanvasElement.swift */,
 				CA51F0030000000000000003 /* CanvasRemix.swift */,
+				C5A520020906202600000001 /* CanvasUnifiedRemix.swift */,
 				CA51F0010000000000000001 /* CanvasEnergyStatus.swift */,
 				DA0003000300030003000030 /* Happening.swift */,
 				DA0022002200220022000010 /* HappeningShapeAssignment.swift */,
@@ -1927,6 +1972,8 @@
 			isa = PBXGroup;
 			children = (
 				F5A900000000000000000001 /* DayObjectsLoudnessAnalyzerTests.swift */,
+				D30600000000000000000001 /* DayObjectsMixQualityAnalyzerTests.swift */,
+				D30700000000000000000001 /* DayObjectsAuditionPackExporterTests.swift */,
 				F5A900000000000000000008 /* DayObjectsMixScenarioTests.swift */,
 				D0FB00000000000000000001 /* DayObjectsBusMeterTests.swift */,
 				D0F900000000000000000007 /* DayObjectsMusicLabControllerTests.swift */,
@@ -1958,6 +2005,8 @@
 				D0E400000000000000000003 /* RhythmPlannerTests.swift */,
 				D10100000000000000000001 /* GroovePlannerTests.swift */,
 				D10200000000000000000001 /* BassPlannerTests.swift */,
+				D10300000000000000000001 /* DayObjectsWorldSelectorTests.swift */,
+				D10400000000000000000001 /* DayObjectsSoundWorldCatalogTests.swift */,
 				D0E300000000000000000001 /* TonalWorldPlannerTests.swift */,
 				D0E300000000000000000003 /* AmbientVoiceLeadingTests.swift */,
 				D0E200000000000000000001 /* StableMusicRandomTests.swift */,
@@ -2339,6 +2388,7 @@
 				D0A0D100000000000000000A /* OsirisPiano-CC0-1.0.txt in Resources */,
 				D0A0D100000000000000000D /* SOURCES.json in Resources */,
 				D0A0D2000000000000000011 /* SynthOnePresets in Resources */,
+				D10400000000000000000022 /* SoundWorlds in Resources */,
 				D0A0D2000000000000000013 /* Drums in Resources */,
 				D0A0D2000000000000000015 /* FeltPiano in Resources */,
 				D0C400000000000000000002 /* Happenings in Resources */,
@@ -2361,6 +2411,7 @@
 				D0A0D100000000000000000B /* OsirisPiano-CC0-1.0.txt in Resources */,
 				D0A0D100000000000000000E /* SOURCES.json in Resources */,
 				D0A0D2000000000000000012 /* SynthOnePresets in Resources */,
+				D10400000000000000000023 /* SoundWorlds in Resources */,
 				D0A0D2000000000000000014 /* Drums in Resources */,
 				D0A0D2000000000000000016 /* FeltPiano in Resources */,
 				D0C400000000000000000003 /* Happenings in Resources */,
@@ -2417,7 +2468,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				F5A900000000000000000004 /* DayObjectsLoudnessAnalyzer.swift in Sources */,
+				D30600000000000000000004 /* DayObjectsMixQualityReport.swift in Sources */,
+				D30600000000000000000006 /* DayObjectsMixQualityAnalyzer.swift in Sources */,
 				F5A900000000000000000007 /* DayObjectsOfflineMixRenderer.swift in Sources */,
+				D30700000000000000000004 /* DayObjectsAuditionPackExporter.swift in Sources */,
 				D0FB00000000000000000004 /* DayObjectsBusMeter.swift in Sources */,
 				D0F90000000000000000000A /* DayObjectsMusicLabController.swift in Sources */,
 				D0F900000000000000000004 /* DayObjectsAudioSessionProtocol.swift in Sources */,
@@ -2447,6 +2501,9 @@
 				D0F20000000000000000000A /* LeadGestureSample.swift in Sources */,
 				D0F100000000000000000004 /* DayObjectsLabMusicState.swift in Sources */,
 				D0F100000000000000000006 /* DayObjectsLabMusicViewModel.swift in Sources */,
+				D10300000000000000000004 /* DayObjectsSoundWorld.swift in Sources */,
+				D10300000000000000000006 /* DayObjectsSoundMood.swift in Sources */,
+				D10300000000000000000008 /* DayObjectsWorldSelector.swift in Sources */,
 				D0E800000000000000000008 /* DayMusicPlan.swift in Sources */,
 				D0E80000000000000000000A /* DeterministicMusicDirector.swift in Sources */,
 				D0E700000000000000000008 /* LeadPlan.swift in Sources */,
@@ -2469,6 +2526,8 @@
 				D0E40000000000000000000A /* RhythmPlanner.swift in Sources */,
 				D0E300000000000000000008 /* TonalWorldPlan.swift in Sources */,
 				D0E300000000000000000009 /* TonalWorldPlanner.swift in Sources */,
+				D30300000000000000000002 /* DayObjectsHarmonyGrammar.swift in Sources */,
+				D30400000000000000000002 /* DayObjectsArrangementProfile.swift in Sources */,
 				D0E30000000000000000000A /* AmbientVoiceLeading.swift in Sources */,
 				D0E200000000000000000007 /* MusicSeedDomain.swift in Sources */,
 				D0E200000000000000000008 /* StableMusicRandom.swift in Sources */,
@@ -2489,6 +2548,8 @@
 				D0D700000000000000000014 /* DayObjectsInstrumentBank.swift in Sources */,
 				D0D700000000000000000018 /* DayObjectsHappeningSamplePool.swift in Sources */,
 				D0C300000000000000000012 /* DayObjectsInstrumentID.swift in Sources */,
+				D10400000000000000000012 /* DayObjectsSynthRecipe.swift in Sources */,
+				D10400000000000000000014 /* DayObjectsSoundWorldCatalog.swift in Sources */,
 				D0C300000000000000000014 /* DayObjectsInstrumentManifest.swift in Sources */,
 				D0C300000000000000000016 /* NormalizedSynthVoice.swift in Sources */,
 				D0C300000000000000000018 /* SynthOnePresetAdapter.swift in Sources */,
@@ -2602,6 +2663,7 @@
 				2061EBD02F269D30009FEC24 /* GalleryView.swift in Sources */,
 				30CA0001300000000000CA01 /* CanvasElement.swift in Sources */,
 				CA51B0030000000000000003 /* CanvasRemix.swift in Sources */,
+				C5A520020906202600000002 /* CanvasUnifiedRemix.swift in Sources */,
 				CA51B0010000000000000001 /* CanvasEnergyStatus.swift in Sources */,
 				DA0003000300030003000031 /* Happening.swift in Sources */,
 				DA0022002200220022000011 /* HappeningShapeAssignment.swift in Sources */,
@@ -2772,6 +2834,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				F5A900000000000000000002 /* DayObjectsLoudnessAnalyzerTests.swift in Sources */,
+				D30600000000000000000002 /* DayObjectsMixQualityAnalyzerTests.swift in Sources */,
+				D30700000000000000000002 /* DayObjectsAuditionPackExporterTests.swift in Sources */,
 				F5A900000000000000000009 /* DayObjectsMixScenarioTests.swift in Sources */,
 				D0FB00000000000000000002 /* DayObjectsBusMeterTests.swift in Sources */,
 				D0F900000000000000000008 /* DayObjectsMusicLabControllerTests.swift in Sources */,
@@ -2802,6 +2866,8 @@
 				D0E400000000000000000004 /* RhythmPlannerTests.swift in Sources */,
 				D10100000000000000000002 /* GroovePlannerTests.swift in Sources */,
 				D10200000000000000000002 /* BassPlannerTests.swift in Sources */,
+				D10300000000000000000002 /* DayObjectsWorldSelectorTests.swift in Sources */,
+				D10400000000000000000002 /* DayObjectsSoundWorldCatalogTests.swift in Sources */,
 				D0E300000000000000000002 /* TonalWorldPlannerTests.swift in Sources */,
 				D0E300000000000000000004 /* AmbientVoiceLeadingTests.swift in Sources */,
 				D0E200000000000000000002 /* StableMusicRandomTests.swift in Sources */,
@@ -3400,6 +3466,7 @@
 				ENABLE_PREVIEWS = YES;
 				EXCLUDED_SOURCE_FILE_NAMES = (
 					SynthOnePresets,
+					SoundWorlds,
 					Drums,
 					FeltPiano,
 					"audio-assets-manifest.json",

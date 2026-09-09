@@ -39,6 +39,7 @@ final class HappeningScheduler {
     private static let birthRetryRearmSubdivisions: Int64 = MusicalPosition.subdivisionsPerBar
     private let worldBank: PlaybackWorldBank
     private var happeningPool: DayObjectsHappeningSamplePoolProtocol?
+    private var reverbSendScale = 1.0
     private var states: [String: ActiveHappeningState] = [:]
     private var tonalWorld: TonalWorldPlan?
     private var remixSeed: UInt64 = 0
@@ -88,6 +89,7 @@ final class HappeningScheduler {
         remixSeed: UInt64
     ) throws {
         releaseAllOwnedVoices()
+        reverbSendScale = 1
         try worldBank.prepare()
         let pool = worldBank.happenings
         let requestedPlans = Self.uniquePlans(plans)
@@ -183,6 +185,17 @@ final class HappeningScheduler {
             ? pow(10, min(max(decibels, -60), 0) / 20)
             : 0
         updateActiveVoices()
+    }
+
+    func applyReverbSendScale(_ value: Double) {
+        let scale = DayObjectsWorldGroupCalibration(reverbSendScale: value).reverbSendScale
+        guard scale != reverbSendScale else { return }
+        reverbSendScale = scale
+        for state in states.values {
+            for voice in state.activeVoices.values {
+                voice.pool.updateReverbSend(voice.handle, sendLevel: state.plan.reverbSend * scale, rampSeconds: 0.25)
+            }
+        }
     }
 
     func applyGlitch(_ command: DayObjectsGlitchCommand) {
@@ -363,6 +376,10 @@ final class HappeningScheduler {
               var state = states[id],
               let recipe = HappeningSoundCatalog.recipe(for: state.plan.recipeID)
         else { return false }
+        let activeVoiceCount = states.values.reduce(0) { $0 + $1.activeVoices.count }
+        // Legacy plans retain the pool's existing priority/stealing policy.
+        if state.plan.recurrence.maximumConcurrentVoices < 4,
+           activeVoiceCount >= state.plan.recurrence.maximumConcurrentVoices { return false }
         let eventGlitch = glitchProcessor?.previewRealizedEvent(
             plan: glitchPlan,
             role: .happening,
@@ -493,12 +510,14 @@ final class HappeningScheduler {
         recipe: HappeningSoundRecipe,
         glitch: DayObjectsGlitchCommand
     ) -> HappeningEffectCommand {
-        .init(
+        let original = HappeningEffectCommand(
             filterCutoffHz: recipe.filterEndHz,
             delayMix: min(max(plan.delaySend + glitch.delayTimeVariation, 0), 1),
             delayFeedback: recipe.delayFeedback,
             reverbMix: plan.reverbSend
         )
+        // Preserve the existing direct-level curve while reducing only wet gain.
+        return original.withReverbSend(original.reverbSend * reverbSendScale)
     }
 
     private func removeStaleOwnership(of poolVoiceID: Int) {

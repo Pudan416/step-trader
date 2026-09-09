@@ -8,6 +8,71 @@ final class DayObjectsMixScenarioTests: XCTestCase {
     private static let scenarioDurationSeconds = 60.0
     private static let scenarioSampleRate = 48_000.0
 
+    func testExportsTwelveAuditionsWhenExplicitlyRequested() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard environment["DAY_OBJECTS_AUDITION_PACK"] == "1" else {
+            throw XCTSkip("Use export_sound_world_auditions.swift for the real sequential acceptance export")
+        }
+        let directory = try XCTUnwrap(environment["DAY_OBJECTS_AUDITION_PACK_DIR"])
+        let seed = try XCTUnwrap(environment["DAY_OBJECTS_AUDITION_PACK_SEED"].flatMap(UInt64.init))
+        let input = DayMusicInput(countedSteps: 7_500, stepGoal: 10_000,
+                                 countedSleepHours: 6.5, sleepGoalHours: 8,
+                                 happeningIDs: (0..<10).map { "preview-happening-\($0)" }, spentColors: 25)
+        let result = try await DayObjectsAuditionPackExporter(
+            bundle: Bundle(for: type(of: self)),
+            progress: { print("DAY_OBJECTS_AUDITION_PROGRESS \($0)/12") }
+        ).export(input: input, seed: seed, directory: URL(fileURLWithPath: directory, isDirectory: true))
+        XCTAssertEqual(result.entries.count, 12)
+        print("DAY_OBJECTS_AUDITION_DIRECTORY \(directory)")
+    }
+
+    func testRendererUsesExplicitGateFrameAndRejectsInvalidTailSchedules() async throws {
+        let renderer = DayObjectsOfflineMixRenderer(bundle: Bundle(for: type(of: self)), leadGestureProfile: .held)
+        for boundary in [0.0, 1.0, .nan] {
+            do {
+                _ = try await renderer.render(plan: makePlan(), durationSeconds: 1,
+                                              sampleRate: 48_000, eventEndSeconds: boundary)
+                XCTFail("Expected invalid gate boundary")
+            } catch {
+                XCTAssertEqual(error as? DayObjectsOfflineMixRendererError, .invalidEventEnd)
+            }
+        }
+        let buffer = try await renderer.render(plan: makePlan(), durationSeconds: 1,
+                                               sampleRate: 48_000, eventEndSeconds: 0.5)
+        XCTAssertEqual(buffer.frameLength, 48_000)
+        XCTAssertEqual(renderer.lastEventEndFrame, 24_000)
+    }
+
+    func testRepeatedGatedEngineRendersHaveIdenticalSamples() async throws {
+        let renderer = DayObjectsOfflineMixRenderer(bundle: Bundle(for: type(of: self)), leadGestureProfile: .held)
+        let first = try await renderer.render(plan: makePlan(), durationSeconds: 1,
+                                              sampleRate: 48_000, eventEndSeconds: 0.5)
+        let second = try await renderer.render(plan: makePlan(), durationSeconds: 1,
+                                               sampleRate: 48_000, eventEndSeconds: 0.5)
+        for channel in 0..<2 {
+            let lhs = Data(bytes: first.floatChannelData![channel], count: Int(first.frameLength) * MemoryLayout<Float>.stride)
+            let rhs = Data(bytes: second.floatChannelData![channel], count: Int(second.frameLength) * MemoryLayout<Float>.stride)
+            XCTAssertEqual(lhs, rhs, "Identical seed and schedule must yield identical rendered PCM")
+        }
+    }
+
+    func testWorldRecipeModulationAndReleaseTailsRepeatAcrossFreshGraphs() async throws {
+        for world in [DayObjectsSoundWorld.electricDream, .livingField] {
+            let plan = DeterministicMusicDirector.makePlan(input: input(), remixSeed: 99,
+                                                          soundWorld: world, mood: .strange)
+            let renderer = DayObjectsOfflineMixRenderer(bundle: Bundle(for: type(of: self)), leadGestureProfile: .slow)
+            let first = try await renderer.render(plan: plan, durationSeconds: 3,
+                                                 sampleRate: 48_000, eventEndSeconds: 1)
+            let second = try await renderer.render(plan: plan, durationSeconds: 3,
+                                                  sampleRate: 48_000, eventEndSeconds: 1)
+            for channel in 0..<2 {
+                let count = Int(first.frameLength) * MemoryLayout<Float>.stride
+                XCTAssertEqual(Data(bytes: first.floatChannelData![channel], count: count),
+                               Data(bytes: second.floatChannelData![channel], count: count), world.rawValue)
+            }
+        }
+    }
+
     func testRendererRejectsDurationsOutsideOneToSixtySeconds() async throws {
         let renderer = DayObjectsOfflineMixRenderer(bundle: Bundle(for: type(of: self)))
         let plan = makePlan()

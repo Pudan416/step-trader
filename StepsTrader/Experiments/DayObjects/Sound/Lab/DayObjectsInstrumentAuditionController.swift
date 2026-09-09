@@ -117,6 +117,7 @@ final class DayObjectsSystemInstrumentAuditionSession: DayObjectsInstrumentAudit
 @MainActor
 final class DayObjectsInstrumentAuditionController: ObservableObject {
     @Published private(set) var soundState: DayObjectsInstrumentAuditionState = .off
+    @Published private(set) var isAuditionExportInProgress = false
     @Published private(set) var selectedCategory: DayObjectsInstrumentCategory = .pad
     @Published private(set) var selectedDescriptorID: DayObjectsInstrumentID?
     @Published private(set) var displayedSidechainReductionDB = 0.0
@@ -158,10 +159,14 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
         selectedDescriptor?.category == .bass ? selectedDescriptorID : nil
     }
 
-    var allowsNote: Bool { selectedCategory != .drums }
-    var allowsChord: Bool { selectedCategory != .drums }
-    var allowsHit: Bool { selectedCategory == .drums }
-    var allowsLeadXY: Bool { soundState == .on && selectedCategory == .lead && teardownTask == nil }
+    var allowsNote: Bool { !isAuditionExportInProgress && selectedCategory != .drums }
+    var allowsChord: Bool { !isAuditionExportInProgress && selectedCategory != .drums }
+    var allowsHit: Bool { !isAuditionExportInProgress && selectedCategory == .drums }
+    var allowsLeadXY: Bool { !isAuditionExportInProgress && soundState == .on && selectedCategory == .lead && teardownTask == nil }
+
+    func setAuditionExportInProgress(_ isInProgress: Bool) {
+        isAuditionExportInProgress = isInProgress
+    }
 
     var attribution: String {
         guard let descriptor = selectedDescriptor else {
@@ -185,23 +190,23 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
     }
 
     func selectCategory(_ category: DayObjectsInstrumentCategory) {
-        guard selectedCategory != category else { return }
+        guard !isAuditionExportInProgress, selectedCategory != category else { return }
         releaseHeldGates()
         selectedCategory = category
         selectedDescriptorID = bank.descriptors.first(where: { $0.category == category })?.id
     }
 
     func selectPreset(_ id: DayObjectsInstrumentID) {
-        guard presets.contains(where: { $0.id == id }), selectedDescriptorID != id else { return }
+        guard !isAuditionExportInProgress, presets.contains(where: { $0.id == id }), selectedDescriptorID != id else { return }
         releaseHeldGates()
         selectedDescriptorID = id
     }
 
     func turnSoundOn() async {
-        guard soundState != .on, soundState != .starting, teardownTask == nil else { return }
+        guard !isAuditionExportInProgress, soundState != .on, soundState != .starting, teardownTask == nil else { return }
         if isSessionActive || bankMayOwnResources {
             await requestTeardown(finalState: .off)
-            guard !isSessionActive, !bankMayOwnResources else { return }
+            guard !isAuditionExportInProgress, !isSessionActive, !bankMayOwnResources else { return }
         }
         soundState = .starting
         do {
@@ -230,7 +235,7 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
     }
 
     func auditionNote() async {
-        guard await ensureSoundIsOn() else { return }
+        guard await ensureSoundIsOn(), !isAuditionExportInProgress else { return }
         if selectedCategory == .piano {
             _ = bank.piano.noteOn(60, velocity: 0.82)
             return
@@ -240,7 +245,7 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
     }
 
     func auditionChord() async {
-        guard await ensureSoundIsOn() else { return }
+        guard await ensureSoundIsOn(), !isAuditionExportInProgress else { return }
         if selectedCategory == .piano {
             [48, 55, 60, 64].forEach { _ = bank.piano.noteOn(UInt8($0), velocity: 0.72) }
             return
@@ -250,7 +255,7 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
     }
 
     func auditionHit() async {
-        guard selectedCategory == .drums, await ensureSoundIsOn() else { return }
+        guard selectedCategory == .drums, await ensureSoundIsOn(), !isAuditionExportInProgress else { return }
         bank.drums.hit(.kickFull, velocity: 0.82)
     }
 
@@ -259,10 +264,11 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
     }
 
     private func ensureSoundIsOn() async -> Bool {
+        guard !isAuditionExportInProgress else { return false }
         if soundState != .on {
             await turnSoundOn()
         }
-        return soundState == .on
+        return !isAuditionExportInProgress && soundState == .on
     }
 
     func beginLead(at point: DayObjectNormalizedPoint) {
@@ -310,6 +316,7 @@ final class DayObjectsInstrumentAuditionController: ObservableObject {
         notes: [UInt8],
         role: DayObjectsTonalVoiceRole
     ) async {
+        guard !isAuditionExportInProgress else { return }
         do {
             let pool = try bank.tonalPool(named: DayObjectsTonalPoolSpecification.manualAudition.name)
             try pool.prepareInstrument(descriptor.id)

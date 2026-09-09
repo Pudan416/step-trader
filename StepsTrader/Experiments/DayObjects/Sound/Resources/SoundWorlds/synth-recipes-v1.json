@@ -1,0 +1,3845 @@
+{
+  "schemaVersion": 1,
+  "recipes": [
+    {
+      "id": "acoustic.harmony.felt-haze",
+      "world": "feltAndWood",
+      "role": "harmony",
+      "family": "felt-haze",
+      "sourceInstrumentID": "pad.forgotten-stories",
+      "basePatch": {
+        "oscillator1WaveOffset": -0.23,
+        "oscillator2WaveOffset": -0.04,
+        "oscillatorBalanceOffset": -0.12,
+        "subLevelOffset": -0.06,
+        "noiseLevelOffset": 0.015,
+        "cutoffMultiplier": 0.3456,
+        "resonanceOffset": -0.08,
+        "attackMultiplier": 1.8,
+        "releaseMultiplier": 1.25,
+        "lfoRateMultiplier": 0.55,
+        "lfoDepthMultiplier": 0.65,
+        "delayMixOffset": 0.015,
+        "reverbMixOffset": 0.04
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 62,
+      "outputTrimDB": -16
+    },
+    {
+      "id": "acoustic.harmony.muted-strings",
+      "world": "feltAndWood",
+      "role": "harmony",
+      "family": "muted-strings",
+      "sourceInstrumentID": "keys.bb-slow-poly",
+      "basePatch": {
+        "oscillator1WaveOffset": -0.11,
+        "oscillator2WaveOffset": -0.15,
+        "oscillatorBalanceOffset": 0.07,
+        "subLevelOffset": 0.02,
+        "noiseLevelOffset": 0.019,
+        "cutoffMultiplier": 0.4896,
+        "resonanceOffset": -0.062,
+        "attackMultiplier": 2.2,
+        "releaseMultiplier": 1.41,
+        "lfoRateMultiplier": 0.71,
+        "lfoDepthMultiplier": 0.8,
+        "delayMixOffset": 0.03,
+        "reverbMixOffset": 0.052
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 62,
+      "outputTrimDB": -16.65
+    },
+    {
+      "id": "acoustic.harmony.prepared-mallet",
+      "world": "feltAndWood",
+      "role": "harmony",
+      "family": "prepared-mallet",
+      "sourceInstrumentID": "pluck.play-something-sad",
+      "basePatch": {
+        "oscillator1WaveOffset": -0.03,
+        "oscillator2WaveOffset": 0.01,
+        "oscillatorBalanceOffset": -0.04,
+        "subLevelOffset": -0.03,
+        "noiseLevelOffset": 0.023,
+        "cutoffMultiplier": 0.5952,
+        "resonanceOffset": -0.044,
+        "attackMultiplier": 0.7,
+        "releaseMultiplier": 1.57,
+        "lfoRateMultiplier": 0.87,
+        "lfoDepthMultiplier": 0.95,
+        "delayMixOffset": 0.045,
+        "reverbMixOffset": 0.064
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 62,
+      "outputTrimDB": -17.3
+    },
+    {
+      "id": "acoustic.harmony.air-reed",
+      "world": "feltAndWood",
+      "role": "harmony",
+      "family": "air-reed",
+      "sourceInstrumentID": "keys.jec-polaroids-2",
+      "basePatch": {
+        "oscillator1WaveOffset": -0.17,
+        "oscillator2WaveOffset": -0.1,
+        "oscillatorBalanceOffset": 0.13,
+        "subLevelOffset": 0.04,
+        "noiseLevelOffset": 0.027,
+        "cutoffMultiplier": 0.4224,
+        "resonanceOffset": -0.026,
+        "attackMultiplier": 1.3,
+        "releaseMultiplier": 1.73,
+        "lfoRateMultiplier": 1.03,
+        "lfoDepthMultiplier": 1.1,
+        "delayMixOffset": 0.06,
+        "reverbMixOffset": 0.076
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 62,
+      "outputTrimDB": -17.95
+    },
+    {
+      "id": "acoustic.bass.round-felt-sub",
+      "world": "feltAndWood",
+      "role": "bass",
+      "family": "round-felt-sub",
+      "sourceInstrumentID": "bass.hey-jakob",
+      "basePatch": {
+        "oscillator1WaveOffset": -0.23,
+        "oscillator2WaveOffset": -0.04,
+        "oscillatorBalanceOffset": -0.12,
+        "subLevelOffset": 0.2,
+        "noiseLevelOffset": 0.015,
+        "cutoffMultiplier": 0.19008,
+        "resonanceOffset": -0.08,
+        "attackMultiplier": 0.6,
+        "releaseMultiplier": 0.65,
+        "lfoRateMultiplier": 0.55,
+        "lfoDepthMultiplier": 0.65,
+        "delayMixOffset": -0.12,
+        "reverbMixOffset": -0.18
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 38,
+      "outputTrimDB": -19
+    },
+    {
+      "id": "acoustic.bass.hollow-wood",
+      "world": "feltAndWood",
+      "role": "bass",
+      "family": "hollow-wood",
+      "sourceInstrumentID": "bass.jec-hollores-2",
+      "basePatch": {
+        "oscillator1WaveOffset": -0.11,
+        "oscillator2WaveOffset": -0.15,
+        "oscillatorBalanceOffset": 0.07,
+        "subLevelOffset": 0.08,
+        "noiseLevelOffset": 0.019,
+        "cutoffMultiplier": 0.26928,
+        "resonanceOffset": -0.062,
+        "attackMultiplier": 0.3,
+        "releaseMultiplier": 0.81,
+        "lfoRateMultiplier": 0.71,
+        "lfoDepthMultiplier": 0.8,
+        "delayMixOffset": -0.12,
+        "reverbMixOffset": -0.18
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 38,
+      "outputTrimDB": -19.65
+    },
+    {
+      "id": "acoustic.bass.muted-string",
+      "world": "feltAndWood",
+      "role": "bass",
+      "family": "muted-string",
+      "sourceInstrumentID": "bass.analog-boom",
+      "basePatch": {
+        "oscillator1WaveOffset": -0.03,
+        "oscillator2WaveOffset": 0.01,
+        "oscillatorBalanceOffset": -0.04,
+        "subLevelOffset": 0.14,
+        "noiseLevelOffset": 0.023,
+        "cutoffMultiplier": 0.32736,
+        "resonanceOffset": -0.044,
+        "attackMultiplier": 0.8,
+        "releaseMultiplier": 0.97,
+        "lfoRateMultiplier": 0.87,
+        "lfoDepthMultiplier": 0.95,
+        "delayMixOffset": -0.12,
+        "reverbMixOffset": -0.18
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 38,
+      "outputTrimDB": -20.3
+    },
+    {
+      "id": "acoustic.bass.soft-reed",
+      "world": "feltAndWood",
+      "role": "bass",
+      "family": "soft-reed",
+      "sourceInstrumentID": "bass.hey-jakob",
+      "basePatch": {
+        "oscillator1WaveOffset": -0.17,
+        "oscillator2WaveOffset": -0.1,
+        "oscillatorBalanceOffset": 0.13,
+        "subLevelOffset": 0.04,
+        "noiseLevelOffset": 0.027,
+        "cutoffMultiplier": 0.23232,
+        "resonanceOffset": -0.026,
+        "attackMultiplier": 1.1,
+        "releaseMultiplier": 1.13,
+        "lfoRateMultiplier": 1.03,
+        "lfoDepthMultiplier": 1.1,
+        "delayMixOffset": -0.12,
+        "reverbMixOffset": -0.18
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 38,
+      "outputTrimDB": -20.95
+    },
+    {
+      "id": "acoustic.lead.breath-reed",
+      "world": "feltAndWood",
+      "role": "lead",
+      "family": "breath-reed",
+      "sourceInstrumentID": "lead.jec-softwah-2",
+      "basePatch": {
+        "oscillator1WaveOffset": -0.23,
+        "oscillator2WaveOffset": -0.04,
+        "oscillatorBalanceOffset": -0.12,
+        "subLevelOffset": -0.06,
+        "noiseLevelOffset": 0.015,
+        "cutoffMultiplier": 0.3456,
+        "resonanceOffset": -0.08,
+        "attackMultiplier": 1.3,
+        "releaseMultiplier": 1.25,
+        "lfoRateMultiplier": 0.55,
+        "lfoDepthMultiplier": 0.65,
+        "delayMixOffset": 0.015,
+        "reverbMixOffset": 0.04
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 69,
+      "outputTrimDB": -18
+    },
+    {
+      "id": "acoustic.lead.tape-whistle",
+      "world": "feltAndWood",
+      "role": "lead",
+      "family": "tape-whistle",
+      "sourceInstrumentID": "lead.bb-silver-screen",
+      "basePatch": {
+        "oscillator1WaveOffset": -0.11,
+        "oscillator2WaveOffset": -0.15,
+        "oscillatorBalanceOffset": 0.07,
+        "subLevelOffset": 0.02,
+        "noiseLevelOffset": 0.019,
+        "cutoffMultiplier": 0.4896,
+        "resonanceOffset": -0.062,
+        "attackMultiplier": 0.65,
+        "releaseMultiplier": 1.41,
+        "lfoRateMultiplier": 0.71,
+        "lfoDepthMultiplier": 0.8,
+        "delayMixOffset": 0.03,
+        "reverbMixOffset": 0.052
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 69,
+      "outputTrimDB": -18.65
+    },
+    {
+      "id": "acoustic.lead.bowed-thread",
+      "world": "feltAndWood",
+      "role": "lead",
+      "family": "bowed-thread",
+      "sourceInstrumentID": "lead.verbacious",
+      "basePatch": {
+        "oscillator1WaveOffset": -0.03,
+        "oscillator2WaveOffset": 0.01,
+        "oscillatorBalanceOffset": -0.04,
+        "subLevelOffset": -0.03,
+        "noiseLevelOffset": 0.023,
+        "cutoffMultiplier": 0.5952,
+        "resonanceOffset": -0.044,
+        "attackMultiplier": 1.8,
+        "releaseMultiplier": 1.57,
+        "lfoRateMultiplier": 0.87,
+        "lfoDepthMultiplier": 0.95,
+        "delayMixOffset": 0.045,
+        "reverbMixOffset": 0.064
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 69,
+      "outputTrimDB": -19.3
+    },
+    {
+      "id": "acoustic.lead.soft-wah",
+      "world": "feltAndWood",
+      "role": "lead",
+      "family": "soft-wah",
+      "sourceInstrumentID": "lead.jec-softwah-2",
+      "basePatch": {
+        "oscillator1WaveOffset": -0.17,
+        "oscillator2WaveOffset": -0.1,
+        "oscillatorBalanceOffset": 0.13,
+        "subLevelOffset": 0.04,
+        "noiseLevelOffset": 0.027,
+        "cutoffMultiplier": 0.4224,
+        "resonanceOffset": -0.026,
+        "attackMultiplier": 0.85,
+        "releaseMultiplier": 1.73,
+        "lfoRateMultiplier": 1.03,
+        "lfoDepthMultiplier": 1.1,
+        "delayMixOffset": 0.06,
+        "reverbMixOffset": 0.076
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 69,
+      "outputTrimDB": -19.95
+    },
+    {
+      "id": "living.harmony.wind-canopy",
+      "world": "livingField",
+      "role": "harmony",
+      "family": "wind-canopy",
+      "sourceInstrumentID": "pad.whispering-sands",
+      "basePatch": {
+        "oscillator1WaveOffset": -0.03,
+        "oscillator2WaveOffset": 0.15,
+        "oscillatorBalanceOffset": -0.12,
+        "subLevelOffset": -0.06,
+        "noiseLevelOffset": 0.032,
+        "cutoffMultiplier": 0.5184,
+        "resonanceOffset": 0.02,
+        "attackMultiplier": 2.034,
+        "releaseMultiplier": 1.35,
+        "lfoRateMultiplier": 0.75,
+        "lfoDepthMultiplier": 1.2,
+        "delayMixOffset": 0.015,
+        "reverbMixOffset": 0.065
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 62,
+      "outputTrimDB": -16.2
+    },
+    {
+      "id": "living.harmony.water-drone",
+      "world": "livingField",
+      "role": "harmony",
+      "family": "water-drone",
+      "sourceInstrumentID": "pad.interstellar",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.09,
+        "oscillator2WaveOffset": 0.04,
+        "oscillatorBalanceOffset": 0.07,
+        "subLevelOffset": 0.02,
+        "noiseLevelOffset": 0.036,
+        "cutoffMultiplier": 0.7344,
+        "resonanceOffset": 0.038,
+        "attackMultiplier": 2.486,
+        "releaseMultiplier": 1.51,
+        "lfoRateMultiplier": 0.91,
+        "lfoDepthMultiplier": 1.35,
+        "delayMixOffset": 0.03,
+        "reverbMixOffset": 0.077
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 62,
+      "outputTrimDB": -16.849999999999998
+    },
+    {
+      "id": "living.harmony.moss-choir",
+      "world": "livingField",
+      "role": "harmony",
+      "family": "moss-choir",
+      "sourceInstrumentID": "pad.forgotten-stories",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.17,
+        "oscillator2WaveOffset": 0.2,
+        "oscillatorBalanceOffset": -0.04,
+        "subLevelOffset": -0.03,
+        "noiseLevelOffset": 0.04,
+        "cutoffMultiplier": 0.8928,
+        "resonanceOffset": 0.056,
+        "attackMultiplier": 0.791,
+        "releaseMultiplier": 1.67,
+        "lfoRateMultiplier": 1.07,
+        "lfoDepthMultiplier": 1.5,
+        "delayMixOffset": 0.045,
+        "reverbMixOffset": 0.089
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 62,
+      "outputTrimDB": -17.5
+    },
+    {
+      "id": "living.harmony.bell-mist",
+      "world": "livingField",
+      "role": "harmony",
+      "family": "bell-mist",
+      "sourceInstrumentID": "pluck.jec-ambient-pizz-2",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.03,
+        "oscillator2WaveOffset": 0.09,
+        "oscillatorBalanceOffset": 0.13,
+        "subLevelOffset": 0.04,
+        "noiseLevelOffset": 0.044,
+        "cutoffMultiplier": 0.6336,
+        "resonanceOffset": 0.074,
+        "attackMultiplier": 1.469,
+        "releaseMultiplier": 1.83,
+        "lfoRateMultiplier": 1.23,
+        "lfoDepthMultiplier": 1.65,
+        "delayMixOffset": 0.06,
+        "reverbMixOffset": 0.101
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 62,
+      "outputTrimDB": -18.15
+    },
+    {
+      "id": "living.bass.earth-sub",
+      "world": "livingField",
+      "role": "bass",
+      "family": "earth-sub",
+      "sourceInstrumentID": "bass.analog-boom",
+      "basePatch": {
+        "oscillator1WaveOffset": -0.03,
+        "oscillator2WaveOffset": 0.15,
+        "oscillatorBalanceOffset": -0.12,
+        "subLevelOffset": 0.2,
+        "noiseLevelOffset": 0.032,
+        "cutoffMultiplier": 0.28512,
+        "resonanceOffset": 0.02,
+        "attackMultiplier": 0.678,
+        "releaseMultiplier": 0.75,
+        "lfoRateMultiplier": 0.75,
+        "lfoDepthMultiplier": 1.2,
+        "delayMixOffset": -0.12,
+        "reverbMixOffset": -0.18
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 38,
+      "outputTrimDB": -19.2
+    },
+    {
+      "id": "living.bass.root-pulse",
+      "world": "livingField",
+      "role": "bass",
+      "family": "root-pulse",
+      "sourceInstrumentID": "bass.hey-jakob",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.09,
+        "oscillator2WaveOffset": 0.04,
+        "oscillatorBalanceOffset": 0.07,
+        "subLevelOffset": 0.08,
+        "noiseLevelOffset": 0.036,
+        "cutoffMultiplier": 0.40392,
+        "resonanceOffset": 0.038,
+        "attackMultiplier": 0.339,
+        "releaseMultiplier": 0.91,
+        "lfoRateMultiplier": 0.91,
+        "lfoDepthMultiplier": 1.35,
+        "delayMixOffset": -0.12,
+        "reverbMixOffset": -0.18
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 38,
+      "outputTrimDB": -19.849999999999998
+    },
+    {
+      "id": "living.bass.tide-bed",
+      "world": "livingField",
+      "role": "bass",
+      "family": "tide-bed",
+      "sourceInstrumentID": "bass.jec-hollores-2",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.17,
+        "oscillator2WaveOffset": 0.2,
+        "oscillatorBalanceOffset": -0.04,
+        "subLevelOffset": 0.14,
+        "noiseLevelOffset": 0.04,
+        "cutoffMultiplier": 0.49104,
+        "resonanceOffset": 0.056,
+        "attackMultiplier": 0.904,
+        "releaseMultiplier": 1.07,
+        "lfoRateMultiplier": 1.07,
+        "lfoDepthMultiplier": 1.5,
+        "delayMixOffset": -0.12,
+        "reverbMixOffset": -0.18
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 38,
+      "outputTrimDB": -20.5
+    },
+    {
+      "id": "living.bass.hollow-stone",
+      "world": "livingField",
+      "role": "bass",
+      "family": "hollow-stone",
+      "sourceInstrumentID": "bass.bassliner",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.03,
+        "oscillator2WaveOffset": 0.09,
+        "oscillatorBalanceOffset": 0.13,
+        "subLevelOffset": 0.04,
+        "noiseLevelOffset": 0.044,
+        "cutoffMultiplier": 0.34848,
+        "resonanceOffset": 0.074,
+        "attackMultiplier": 1.243,
+        "releaseMultiplier": 1.23,
+        "lfoRateMultiplier": 1.23,
+        "lfoDepthMultiplier": 1.65,
+        "delayMixOffset": -0.12,
+        "reverbMixOffset": -0.18
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 38,
+      "outputTrimDB": -21.15
+    },
+    {
+      "id": "living.lead.bird-reed",
+      "world": "livingField",
+      "role": "lead",
+      "family": "bird-reed",
+      "sourceInstrumentID": "lead.jec-softwah-2",
+      "basePatch": {
+        "oscillator1WaveOffset": -0.03,
+        "oscillator2WaveOffset": 0.15,
+        "oscillatorBalanceOffset": -0.12,
+        "subLevelOffset": -0.06,
+        "noiseLevelOffset": 0.032,
+        "cutoffMultiplier": 0.5184,
+        "resonanceOffset": 0.02,
+        "attackMultiplier": 1.469,
+        "releaseMultiplier": 1.35,
+        "lfoRateMultiplier": 0.75,
+        "lfoDepthMultiplier": 1.2,
+        "delayMixOffset": 0.015,
+        "reverbMixOffset": 0.065
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 69,
+      "outputTrimDB": -18.2
+    },
+    {
+      "id": "living.lead.leaf-flute",
+      "world": "livingField",
+      "role": "lead",
+      "family": "leaf-flute",
+      "sourceInstrumentID": "lead.bb-silver-screen",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.09,
+        "oscillator2WaveOffset": 0.04,
+        "oscillatorBalanceOffset": 0.07,
+        "subLevelOffset": 0.02,
+        "noiseLevelOffset": 0.036,
+        "cutoffMultiplier": 0.7344,
+        "resonanceOffset": 0.038,
+        "attackMultiplier": 0.7345,
+        "releaseMultiplier": 1.51,
+        "lfoRateMultiplier": 0.91,
+        "lfoDepthMultiplier": 1.35,
+        "delayMixOffset": 0.03,
+        "reverbMixOffset": 0.077
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 69,
+      "outputTrimDB": -18.849999999999998
+    },
+    {
+      "id": "living.lead.dew-bell",
+      "world": "livingField",
+      "role": "lead",
+      "family": "dew-bell",
+      "sourceInstrumentID": "pluck.spider-filter-pluck",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.17,
+        "oscillator2WaveOffset": 0.2,
+        "oscillatorBalanceOffset": -0.04,
+        "subLevelOffset": -0.03,
+        "noiseLevelOffset": 0.04,
+        "cutoffMultiplier": 0.8928,
+        "resonanceOffset": 0.056,
+        "attackMultiplier": 2.034,
+        "releaseMultiplier": 1.67,
+        "lfoRateMultiplier": 1.07,
+        "lfoDepthMultiplier": 1.5,
+        "delayMixOffset": 0.045,
+        "reverbMixOffset": 0.089
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 69,
+      "outputTrimDB": -19.5
+    },
+    {
+      "id": "living.lead.water-whistle",
+      "world": "livingField",
+      "role": "lead",
+      "family": "water-whistle",
+      "sourceInstrumentID": "lead.verbacious",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.03,
+        "oscillator2WaveOffset": 0.09,
+        "oscillatorBalanceOffset": 0.13,
+        "subLevelOffset": 0.04,
+        "noiseLevelOffset": 0.044,
+        "cutoffMultiplier": 0.6336,
+        "resonanceOffset": 0.074,
+        "attackMultiplier": 0.9605,
+        "releaseMultiplier": 1.83,
+        "lfoRateMultiplier": 1.23,
+        "lfoDepthMultiplier": 1.65,
+        "delayMixOffset": 0.06,
+        "reverbMixOffset": 0.101
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 69,
+      "outputTrimDB": -20.15
+    },
+    {
+      "id": "industrial.harmony.bowed-steel",
+      "world": "metalAndCurrent",
+      "role": "harmony",
+      "family": "bowed-steel",
+      "sourceInstrumentID": "pad.interstellar",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.11,
+        "oscillator2WaveOffset": 0.21,
+        "oscillatorBalanceOffset": -0.12,
+        "subLevelOffset": -0.06,
+        "noiseLevelOffset": 0.048,
+        "cutoffMultiplier": 0.6264,
+        "resonanceOffset": 0.14,
+        "attackMultiplier": 2.268,
+        "releaseMultiplier": 1.45,
+        "lfoRateMultiplier": 1.25,
+        "lfoDepthMultiplier": 1.6,
+        "delayMixOffset": 0.015,
+        "reverbMixOffset": 0.09
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 62,
+      "outputTrimDB": -16.4
+    },
+    {
+      "id": "industrial.harmony.machine-choir",
+      "world": "metalAndCurrent",
+      "role": "harmony",
+      "family": "machine-choir",
+      "sourceInstrumentID": "keys.maschinenmensch",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.23,
+        "oscillator2WaveOffset": 0.1,
+        "oscillatorBalanceOffset": 0.07,
+        "subLevelOffset": 0.02,
+        "noiseLevelOffset": 0.052,
+        "cutoffMultiplier": 0.8874,
+        "resonanceOffset": 0.158,
+        "attackMultiplier": 2.772,
+        "releaseMultiplier": 1.61,
+        "lfoRateMultiplier": 1.41,
+        "lfoDepthMultiplier": 1.75,
+        "delayMixOffset": 0.03,
+        "reverbMixOffset": 0.102
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 62,
+      "outputTrimDB": -17.049999999999997
+    },
+    {
+      "id": "industrial.harmony.current-drone",
+      "world": "metalAndCurrent",
+      "role": "harmony",
+      "family": "current-drone",
+      "sourceInstrumentID": "pad.whispering-sands",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.31,
+        "oscillator2WaveOffset": 0.26,
+        "oscillatorBalanceOffset": -0.04,
+        "subLevelOffset": -0.03,
+        "noiseLevelOffset": 0.056,
+        "cutoffMultiplier": 1.0788,
+        "resonanceOffset": 0.176,
+        "attackMultiplier": 0.882,
+        "releaseMultiplier": 1.77,
+        "lfoRateMultiplier": 1.57,
+        "lfoDepthMultiplier": 1.9,
+        "delayMixOffset": 0.045,
+        "reverbMixOffset": 0.114
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 62,
+      "outputTrimDB": -17.7
+    },
+    {
+      "id": "industrial.harmony.cold-plate",
+      "world": "metalAndCurrent",
+      "role": "harmony",
+      "family": "cold-plate",
+      "sourceInstrumentID": "pluck.spider-filter-pluck",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.17,
+        "oscillator2WaveOffset": 0.15,
+        "oscillatorBalanceOffset": 0.13,
+        "subLevelOffset": 0.04,
+        "noiseLevelOffset": 0.06,
+        "cutoffMultiplier": 0.7656,
+        "resonanceOffset": 0.194,
+        "attackMultiplier": 1.638,
+        "releaseMultiplier": 1.93,
+        "lfoRateMultiplier": 1.73,
+        "lfoDepthMultiplier": 2.05,
+        "delayMixOffset": 0.06,
+        "reverbMixOffset": 0.126
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 62,
+      "outputTrimDB": -18.349999999999998
+    },
+    {
+      "id": "industrial.bass.deep-current",
+      "world": "metalAndCurrent",
+      "role": "bass",
+      "family": "deep-current",
+      "sourceInstrumentID": "bass.analog-boom",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.11,
+        "oscillator2WaveOffset": 0.21,
+        "oscillatorBalanceOffset": -0.12,
+        "subLevelOffset": 0.2,
+        "noiseLevelOffset": 0.048,
+        "cutoffMultiplier": 0.34452,
+        "resonanceOffset": 0.14,
+        "attackMultiplier": 0.756,
+        "releaseMultiplier": 0.85,
+        "lfoRateMultiplier": 1.25,
+        "lfoDepthMultiplier": 1.6,
+        "delayMixOffset": -0.12,
+        "reverbMixOffset": -0.18
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 38,
+      "outputTrimDB": -19.4
+    },
+    {
+      "id": "industrial.bass.bassliner",
+      "world": "metalAndCurrent",
+      "role": "bass",
+      "family": "bassliner",
+      "sourceInstrumentID": "bass.bassliner",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.23,
+        "oscillator2WaveOffset": 0.1,
+        "oscillatorBalanceOffset": 0.07,
+        "subLevelOffset": 0.08,
+        "noiseLevelOffset": 0.052,
+        "cutoffMultiplier": 0.48807,
+        "resonanceOffset": 0.158,
+        "attackMultiplier": 0.378,
+        "releaseMultiplier": 1.01,
+        "lfoRateMultiplier": 1.41,
+        "lfoDepthMultiplier": 1.75,
+        "delayMixOffset": -0.12,
+        "reverbMixOffset": -0.18
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 38,
+      "outputTrimDB": -20.049999999999997
+    },
+    {
+      "id": "industrial.bass.low-motor",
+      "world": "metalAndCurrent",
+      "role": "bass",
+      "family": "low-motor",
+      "sourceInstrumentID": "bass.hey-jakob",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.31,
+        "oscillator2WaveOffset": 0.26,
+        "oscillatorBalanceOffset": -0.04,
+        "subLevelOffset": 0.14,
+        "noiseLevelOffset": 0.056,
+        "cutoffMultiplier": 0.59334,
+        "resonanceOffset": 0.176,
+        "attackMultiplier": 1.008,
+        "releaseMultiplier": 1.17,
+        "lfoRateMultiplier": 1.57,
+        "lfoDepthMultiplier": 1.9,
+        "delayMixOffset": -0.12,
+        "reverbMixOffset": -0.18
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 38,
+      "outputTrimDB": -20.7
+    },
+    {
+      "id": "industrial.bass.sine-foundry",
+      "world": "metalAndCurrent",
+      "role": "bass",
+      "family": "sine-foundry",
+      "sourceInstrumentID": "bass.jec-hollores-2",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.17,
+        "oscillator2WaveOffset": 0.15,
+        "oscillatorBalanceOffset": 0.13,
+        "subLevelOffset": 0.04,
+        "noiseLevelOffset": 0.06,
+        "cutoffMultiplier": 0.42108,
+        "resonanceOffset": 0.194,
+        "attackMultiplier": 1.386,
+        "releaseMultiplier": 1.33,
+        "lfoRateMultiplier": 1.73,
+        "lfoDepthMultiplier": 2.05,
+        "delayMixOffset": -0.12,
+        "reverbMixOffset": -0.18
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 38,
+      "outputTrimDB": -21.349999999999998
+    },
+    {
+      "id": "industrial.lead.silver-wire",
+      "world": "metalAndCurrent",
+      "role": "lead",
+      "family": "silver-wire",
+      "sourceInstrumentID": "lead.bb-silver-screen",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.11,
+        "oscillator2WaveOffset": 0.21,
+        "oscillatorBalanceOffset": -0.12,
+        "subLevelOffset": -0.06,
+        "noiseLevelOffset": 0.048,
+        "cutoffMultiplier": 0.6264,
+        "resonanceOffset": 0.14,
+        "attackMultiplier": 1.638,
+        "releaseMultiplier": 1.45,
+        "lfoRateMultiplier": 1.25,
+        "lfoDepthMultiplier": 1.6,
+        "delayMixOffset": 0.015,
+        "reverbMixOffset": 0.09
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 69,
+      "outputTrimDB": -18.4
+    },
+    {
+      "id": "industrial.lead.diode-cry",
+      "world": "metalAndCurrent",
+      "role": "lead",
+      "family": "diode-cry",
+      "sourceInstrumentID": "lead.verbacious",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.23,
+        "oscillator2WaveOffset": 0.1,
+        "oscillatorBalanceOffset": 0.07,
+        "subLevelOffset": 0.02,
+        "noiseLevelOffset": 0.052,
+        "cutoffMultiplier": 0.8874,
+        "resonanceOffset": 0.158,
+        "attackMultiplier": 0.819,
+        "releaseMultiplier": 1.61,
+        "lfoRateMultiplier": 1.41,
+        "lfoDepthMultiplier": 1.75,
+        "delayMixOffset": 0.03,
+        "reverbMixOffset": 0.102
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 69,
+      "outputTrimDB": -19.049999999999997
+    },
+    {
+      "id": "industrial.lead.current-needle",
+      "world": "metalAndCurrent",
+      "role": "lead",
+      "family": "current-needle",
+      "sourceInstrumentID": "lead.jec-softwah-2",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.31,
+        "oscillator2WaveOffset": 0.26,
+        "oscillatorBalanceOffset": -0.04,
+        "subLevelOffset": -0.03,
+        "noiseLevelOffset": 0.056,
+        "cutoffMultiplier": 1.0788,
+        "resonanceOffset": 0.176,
+        "attackMultiplier": 2.268,
+        "releaseMultiplier": 1.77,
+        "lfoRateMultiplier": 1.57,
+        "lfoDepthMultiplier": 1.9,
+        "delayMixOffset": 0.045,
+        "reverbMixOffset": 0.114
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 69,
+      "outputTrimDB": -19.7
+    },
+    {
+      "id": "industrial.lead.resonant-metal",
+      "world": "metalAndCurrent",
+      "role": "lead",
+      "family": "resonant-metal",
+      "sourceInstrumentID": "keys.maschinenmensch",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.17,
+        "oscillator2WaveOffset": 0.15,
+        "oscillatorBalanceOffset": 0.13,
+        "subLevelOffset": 0.04,
+        "noiseLevelOffset": 0.06,
+        "cutoffMultiplier": 0.7656,
+        "resonanceOffset": 0.194,
+        "attackMultiplier": 1.071,
+        "releaseMultiplier": 1.93,
+        "lfoRateMultiplier": 1.73,
+        "lfoDepthMultiplier": 2.05,
+        "delayMixOffset": 0.06,
+        "reverbMixOffset": 0.126
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 69,
+      "outputTrimDB": -20.349999999999998
+    },
+    {
+      "id": "electric.harmony.analog-cloud",
+      "world": "electricDream",
+      "role": "harmony",
+      "family": "analog-cloud",
+      "sourceInstrumentID": "pad.interstellar",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.01,
+        "oscillator2WaveOffset": 0.09,
+        "oscillatorBalanceOffset": -0.12,
+        "subLevelOffset": -0.06,
+        "noiseLevelOffset": 0.008,
+        "cutoffMultiplier": 0.7776,
+        "resonanceOffset": 0.07,
+        "attackMultiplier": 2.502,
+        "releaseMultiplier": 1.55,
+        "lfoRateMultiplier": 1.1,
+        "lfoDepthMultiplier": 1.05,
+        "delayMixOffset": 0.015,
+        "reverbMixOffset": 0.115
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 62,
+      "outputTrimDB": -16.6
+    },
+    {
+      "id": "electric.harmony.neon-poly",
+      "world": "electricDream",
+      "role": "harmony",
+      "family": "neon-poly",
+      "sourceInstrumentID": "keys.bb-slow-poly",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.13,
+        "oscillator2WaveOffset": -0.02,
+        "oscillatorBalanceOffset": 0.07,
+        "subLevelOffset": 0.02,
+        "noiseLevelOffset": 0.012,
+        "cutoffMultiplier": 1.1016,
+        "resonanceOffset": 0.088,
+        "attackMultiplier": 3.058,
+        "releaseMultiplier": 1.71,
+        "lfoRateMultiplier": 1.26,
+        "lfoDepthMultiplier": 1.2,
+        "delayMixOffset": 0.03,
+        "reverbMixOffset": 0.127
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 62,
+      "outputTrimDB": -17.25
+    },
+    {
+      "id": "electric.harmony.fm-haze",
+      "world": "electricDream",
+      "role": "harmony",
+      "family": "fm-haze",
+      "sourceInstrumentID": "keys.jec-polaroids-2",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.21,
+        "oscillator2WaveOffset": 0.14,
+        "oscillatorBalanceOffset": -0.04,
+        "subLevelOffset": -0.03,
+        "noiseLevelOffset": 0.016,
+        "cutoffMultiplier": 1.3392,
+        "resonanceOffset": 0.106,
+        "attackMultiplier": 0.973,
+        "releaseMultiplier": 1.87,
+        "lfoRateMultiplier": 1.42,
+        "lfoDepthMultiplier": 1.35,
+        "delayMixOffset": 0.045,
+        "reverbMixOffset": 0.139
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 62,
+      "outputTrimDB": -17.900000000000002
+    },
+    {
+      "id": "electric.harmony.arpeggio-bed",
+      "world": "electricDream",
+      "role": "harmony",
+      "family": "arpeggio-bed",
+      "sourceInstrumentID": "pluck.play-something-sad",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.07,
+        "oscillator2WaveOffset": 0.03,
+        "oscillatorBalanceOffset": 0.13,
+        "subLevelOffset": 0.04,
+        "noiseLevelOffset": 0.02,
+        "cutoffMultiplier": 0.9504,
+        "resonanceOffset": 0.124,
+        "attackMultiplier": 1.807,
+        "releaseMultiplier": 2.03,
+        "lfoRateMultiplier": 1.58,
+        "lfoDepthMultiplier": 1.5,
+        "delayMixOffset": 0.06,
+        "reverbMixOffset": 0.151
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 62,
+      "outputTrimDB": -18.55
+    },
+    {
+      "id": "electric.bass.round-analog",
+      "world": "electricDream",
+      "role": "bass",
+      "family": "round-analog",
+      "sourceInstrumentID": "bass.analog-boom",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.01,
+        "oscillator2WaveOffset": 0.09,
+        "oscillatorBalanceOffset": -0.12,
+        "subLevelOffset": 0.2,
+        "noiseLevelOffset": 0.008,
+        "cutoffMultiplier": 0.42768,
+        "resonanceOffset": 0.07,
+        "attackMultiplier": 0.834,
+        "releaseMultiplier": 0.95,
+        "lfoRateMultiplier": 1.1,
+        "lfoDepthMultiplier": 1.05,
+        "delayMixOffset": -0.12,
+        "reverbMixOffset": -0.18
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 38,
+      "outputTrimDB": -19.6
+    },
+    {
+      "id": "electric.bass.electric-pulse",
+      "world": "electricDream",
+      "role": "bass",
+      "family": "electric-pulse",
+      "sourceInstrumentID": "bass.bassliner",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.13,
+        "oscillator2WaveOffset": -0.02,
+        "oscillatorBalanceOffset": 0.07,
+        "subLevelOffset": 0.08,
+        "noiseLevelOffset": 0.012,
+        "cutoffMultiplier": 0.60588,
+        "resonanceOffset": 0.088,
+        "attackMultiplier": 0.417,
+        "releaseMultiplier": 1.11,
+        "lfoRateMultiplier": 1.26,
+        "lfoDepthMultiplier": 1.2,
+        "delayMixOffset": -0.12,
+        "reverbMixOffset": -0.18
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 38,
+      "outputTrimDB": -20.25
+    },
+    {
+      "id": "electric.bass.fm-sub",
+      "world": "electricDream",
+      "role": "bass",
+      "family": "fm-sub",
+      "sourceInstrumentID": "bass.jec-hollores-2",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.21,
+        "oscillator2WaveOffset": 0.14,
+        "oscillatorBalanceOffset": -0.04,
+        "subLevelOffset": 0.14,
+        "noiseLevelOffset": 0.016,
+        "cutoffMultiplier": 0.73656,
+        "resonanceOffset": 0.106,
+        "attackMultiplier": 1.112,
+        "releaseMultiplier": 1.27,
+        "lfoRateMultiplier": 1.42,
+        "lfoDepthMultiplier": 1.35,
+        "delayMixOffset": -0.12,
+        "reverbMixOffset": -0.18
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 38,
+      "outputTrimDB": -20.900000000000002
+    },
+    {
+      "id": "electric.bass.velvet-sequence",
+      "world": "electricDream",
+      "role": "bass",
+      "family": "velvet-sequence",
+      "sourceInstrumentID": "bass.hey-jakob",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.07,
+        "oscillator2WaveOffset": 0.03,
+        "oscillatorBalanceOffset": 0.13,
+        "subLevelOffset": 0.04,
+        "noiseLevelOffset": 0.02,
+        "cutoffMultiplier": 0.52272,
+        "resonanceOffset": 0.124,
+        "attackMultiplier": 1.529,
+        "releaseMultiplier": 1.43,
+        "lfoRateMultiplier": 1.58,
+        "lfoDepthMultiplier": 1.5,
+        "delayMixOffset": -0.12,
+        "reverbMixOffset": -0.18
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 38,
+      "outputTrimDB": -21.55
+    },
+    {
+      "id": "electric.lead.verbacious",
+      "world": "electricDream",
+      "role": "lead",
+      "family": "verbacious",
+      "sourceInstrumentID": "lead.verbacious",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.01,
+        "oscillator2WaveOffset": 0.09,
+        "oscillatorBalanceOffset": -0.12,
+        "subLevelOffset": -0.06,
+        "noiseLevelOffset": 0.008,
+        "cutoffMultiplier": 0.7776,
+        "resonanceOffset": 0.07,
+        "attackMultiplier": 1.807,
+        "releaseMultiplier": 1.55,
+        "lfoRateMultiplier": 1.1,
+        "lfoDepthMultiplier": 1.05,
+        "delayMixOffset": 0.015,
+        "reverbMixOffset": 0.115
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 69,
+      "outputTrimDB": -18.6
+    },
+    {
+      "id": "electric.lead.prism-fm",
+      "world": "electricDream",
+      "role": "lead",
+      "family": "prism-fm",
+      "sourceInstrumentID": "lead.bb-silver-screen",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.13,
+        "oscillator2WaveOffset": -0.02,
+        "oscillatorBalanceOffset": 0.07,
+        "subLevelOffset": 0.02,
+        "noiseLevelOffset": 0.012,
+        "cutoffMultiplier": 1.1016,
+        "resonanceOffset": 0.088,
+        "attackMultiplier": 0.9035,
+        "releaseMultiplier": 1.71,
+        "lfoRateMultiplier": 1.26,
+        "lfoDepthMultiplier": 1.2,
+        "delayMixOffset": 0.03,
+        "reverbMixOffset": 0.127
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 69,
+      "outputTrimDB": -19.25
+    },
+    {
+      "id": "electric.lead.soft-sync",
+      "world": "electricDream",
+      "role": "lead",
+      "family": "soft-sync",
+      "sourceInstrumentID": "lead.jec-softwah-2",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.21,
+        "oscillator2WaveOffset": 0.14,
+        "oscillatorBalanceOffset": -0.04,
+        "subLevelOffset": -0.03,
+        "noiseLevelOffset": 0.016,
+        "cutoffMultiplier": 1.3392,
+        "resonanceOffset": 0.106,
+        "attackMultiplier": 2.502,
+        "releaseMultiplier": 1.87,
+        "lfoRateMultiplier": 1.42,
+        "lfoDepthMultiplier": 1.35,
+        "delayMixOffset": 0.045,
+        "reverbMixOffset": 0.139
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 69,
+      "outputTrimDB": -19.900000000000002
+    },
+    {
+      "id": "electric.lead.neon-wah",
+      "world": "electricDream",
+      "role": "lead",
+      "family": "neon-wah",
+      "sourceInstrumentID": "lead.jec-softwah-2",
+      "basePatch": {
+        "oscillator1WaveOffset": 0.07,
+        "oscillator2WaveOffset": 0.03,
+        "oscillatorBalanceOffset": 0.13,
+        "subLevelOffset": 0.04,
+        "noiseLevelOffset": 0.02,
+        "cutoffMultiplier": 0.9504,
+        "resonanceOffset": 0.124,
+        "attackMultiplier": 1.1815,
+        "releaseMultiplier": 2.03,
+        "lfoRateMultiplier": 1.58,
+        "lfoDepthMultiplier": 1.5,
+        "delayMixOffset": 0.06,
+        "reverbMixOffset": 0.151
+      },
+      "moodPatches": [
+        {
+          "mood": "sparse",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": -0.006,
+            "cutoffMultiplier": 0.78,
+            "resonanceOffset": 0,
+            "attackMultiplier": 1.3,
+            "releaseMultiplier": 1.4,
+            "lfoRateMultiplier": 0.7,
+            "lfoDepthMultiplier": 0.75,
+            "delayMixOffset": -0.025,
+            "reverbMixOffset": 0.035
+          }
+        },
+        {
+          "mood": "moving",
+          "patch": {
+            "oscillator1WaveOffset": 0,
+            "oscillator2WaveOffset": 0,
+            "oscillatorBalanceOffset": 0.035,
+            "subLevelOffset": 0,
+            "noiseLevelOffset": 0,
+            "cutoffMultiplier": 1.08,
+            "resonanceOffset": 0,
+            "attackMultiplier": 0.8,
+            "releaseMultiplier": 0.9,
+            "lfoRateMultiplier": 1.25,
+            "lfoDepthMultiplier": 1.15,
+            "delayMixOffset": 0.04,
+            "reverbMixOffset": -0.015
+          }
+        },
+        {
+          "mood": "strange",
+          "patch": {
+            "oscillator1WaveOffset": 0.12,
+            "oscillator2WaveOffset": -0.09,
+            "oscillatorBalanceOffset": -0.07,
+            "subLevelOffset": 0.025,
+            "noiseLevelOffset": 0.018,
+            "cutoffMultiplier": 1.22,
+            "resonanceOffset": 0.08,
+            "attackMultiplier": 1.1,
+            "releaseMultiplier": 1.2,
+            "lfoRateMultiplier": 1.7,
+            "lfoDepthMultiplier": 1.6,
+            "delayMixOffset": 0.08,
+            "reverbMixOffset": 0.06
+          }
+        }
+      ],
+      "referenceMIDI": 69,
+      "outputTrimDB": -20.55
+    }
+  ]
+}

@@ -151,6 +151,86 @@ struct FeedPlaceholderTileView: View {
 
 // MARK: - Row timer design
 
+/// Dark pigment under the labels, the unmodified bright color at the free edge.
+/// Multiplying RGB keeps its hue/saturation, unlike mixing in gray or white glass.
+enum FeedPigment {
+    struct Stop {
+        let color: DayObjectRGB
+        let location: Double
+    }
+
+    static let textEdge = 0.64
+
+    static func stops(for palette: TodayCanvasUnlockPalette, textEdge: Double = FeedPigment.textEdge) -> [Stop] {
+        let colors = palette.colors.sorted { $0.perceptualOKLab.x < $1.perceptualOKLab.x }
+        guard let bright = colors.last else {
+            return [Stop(color: DayObjectRGB(hex: "#332F3B"), location: 0)]
+        }
+        let readingColors = colors.count > 2 ? Array(colors.dropLast()) : colors
+        var result = readingColors.enumerated().map { index, color in
+            Stop(color: readable(color), location: Double(index) / Double(max(1, readingColors.count - 1)) * textEdge)
+        }
+        if readingColors.count == 1 {
+            result.append(Stop(color: readable(bright), location: textEdge))
+        }
+        result.append(Stop(color: bright, location: 1))
+        return result
+    }
+
+    static func menuUsesDarkInk(palette: TodayCanvasUnlockPalette, fraction: Double, position: Double,
+                               textEdge: Double = FeedPigment.textEdge) -> Bool {
+        guard position < fraction else { return false }
+        let stops = stops(for: palette, textEdge: textEdge)
+        var color = stops[0].color
+        for (left, right) in zip(stops, stops.dropFirst()) where position >= left.location {
+            let progress = Float(min(max((position - left.location) / (right.location - left.location), 0), 1))
+            color = DayObjectRGB(sRGB: left.color.sRGB + (right.color.sRGB - left.color.sRGB) * progress)
+        }
+        return relativeLuminance(color.linearRGB) > 0.18
+    }
+
+    private static func readable(_ color: DayObjectRGB) -> DayObjectRGB {
+        let white = SIMD3<Float>(repeating: 1)
+        guard contrastRatio(color.linearRGB, white) < 5.5 else { return color }
+        var lower: Float = 0
+        var upper: Float = 1
+        for _ in 0..<16 {
+            let middle = (lower + upper) / 2
+            if contrastRatio(color.darkened(by: middle).linearRGB, white) >= 5.5 {
+                lower = middle
+            } else {
+                upper = middle
+            }
+        }
+        return color.darkened(by: lower)
+    }
+}
+
+struct FeedProgressFill: View {
+    let palette: TodayCanvasUnlockPalette
+    let fraction: Double
+    var textEdge = FeedPigment.textEdge
+
+    var body: some View {
+        GeometryReader { geometry in
+            LinearGradient(
+                stops: FeedPigment.stops(for: palette, textEdge: textEdge).map { stop in
+                    .init(color: Color(.sRGB, red: Double(stop.color.sRGB.x),
+                                       green: Double(stop.color.sRGB.y), blue: Double(stop.color.sRGB.z)),
+                          location: stop.location)
+                },
+                startPoint: .leading, endPoint: .trailing
+            )
+            .mask(alignment: .leading) {
+                Rectangle().frame(width: geometry.size.width * min(max(fraction, 0), 1))
+            }
+        }
+        .animation(nil, value: fraction)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
 /// A full-height continuous capsule. The management menu sits inside the
 /// trailing cap, matching the approved reference instead of cutting a notch
 /// out of the card.
@@ -177,6 +257,21 @@ struct FeedRowView: View {
     let onSettings: () -> Void
     let onDelete: () -> Void
     let onPurchased: () -> Void
+    @ObservedObject var backdrop: TodayCanvasBackdropStore = .shared
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @ScaledMetric(relativeTo: .body) private var headerHeight = FeedCardLayout.collapsedHeight
+    @ScaledMetric(relativeTo: .body) private var choiceHeight: CGFloat = 70
+
+    private var textEdge: Double {
+        dynamicTypeSize.isAccessibilitySize || remainingMinutes == nil ? 0.80 : FeedPigment.textEdge
+    }
+
+    private var optionsHeight: CGFloat {
+        dynamicTypeSize.isAccessibilitySize
+            ? choiceHeight * CGFloat(group.enabledIntervals.count) + CGFloat(max(0, group.enabledIntervals.count - 1)) * 8 + 20
+            : choiceHeight + 20
+    }
 
     private var fillFraction: Double {
         if case .active(_, let fraction) = accessState { return fraction }
@@ -195,65 +290,42 @@ struct FeedRowView: View {
 
     var body: some View {
         rowGeometry
-            .frame(height: FeedCardLayout.height(showsUnlockOptions: showsUnlockOptions))
+            .frame(height: headerHeight + (showsUnlockOptions ? optionsHeight : 0))
     }
 
     private var rowGeometry: some View {
         GeometryReader { geometry in
-            rowSurface(fillWidth: geometry.size.width * CGFloat(fillFraction))
+            rowSurface(width: geometry.size.width)
         }
     }
 
-    private func rowSurface(fillWidth: CGFloat) -> some View {
+    private func rowSurface(width: CGFloat) -> some View {
         ZStack(alignment: .topTrailing) {
-            ticketBody(fillWidth: fillWidth)
-            optionsMenu
+            ticketBody(width: width)
+            optionsMenu(width: width)
                 .padding(.trailing, 12)
                 .padding(
                     .top,
-                    (FeedCardLayout.collapsedHeight - FeedCardLayout.optionsControlDiameter) / 2
+                    (headerHeight - FeedCardLayout.optionsControlDiameter) / 2
                 )
         }
     }
 
-    private func ticketBody(fillWidth: CGFloat) -> some View {
+    private func ticketBody(width: CGFloat) -> some View {
         ZStack(alignment: .leading) {
             Rectangle()
-                .fill(.ultraThinMaterial)
-                .environment(\.colorScheme, .dark)
-                .overlay(Color.black.opacity(0.16))
+                .fill(Color(red: 0.16, green: 0.13, blue: 0.19).opacity(reduceTransparency ? 1 : 0.86))
 
-            TodayCanvasUnlockFill(darkToLight: true)
-                .frame(width: max(0, fillWidth))
-                .frame(maxHeight: .infinity)
-
-            // Shade only the text side, leaving the light end true to the canvas.
-            Group {
-                if remainingMinutes != nil {
-                    LinearGradient(
-                        colors: [.black.opacity(0.42), .black.opacity(0.18), .clear],
-                        startPoint: .leading, endPoint: .trailing
-                    )
-                } else {
-                    LinearGradient(
-                        stops: [
-                            .init(color: .black.opacity(0.30), location: 0),
-                            .init(color: .black.opacity(0.12), location: 0.58),
-                            .init(color: .clear, location: 0.84),
-                        ],
-                        startPoint: .leading, endPoint: .trailing
-                    )
-                }
-            }
-            .allowsHitTesting(false)
+            FeedProgressFill(palette: backdrop.feedPalette, fraction: fillFraction, textEdge: textEdge)
 
             VStack(spacing: 0) {
                 Button(action: onTap) {
-                    rowContent
+                    rowContent(width: width)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .frame(height: FeedCardLayout.collapsedHeight)
+                .frame(height: headerHeight)
+                .accessibilityIdentifier("feed.\(group.id).access")
                 .accessibilityLabel(accessibilityLabel)
                 .accessibilityHint(accessibilityHint)
                 .accessibilityAction(named: String(localized: "Settings"), onSettings)
@@ -265,53 +337,53 @@ struct FeedRowView: View {
                         group: group,
                         onPurchased: onPurchased
                     )
-                    .frame(height: FeedCardLayout.unlockOptionsHeight)
+                    .frame(height: optionsHeight)
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
         }
         .clipShape(FeedTicketShape())
-        .overlay {
-            FeedTicketShape()
-                .stroke(Color.white.opacity(0.16), lineWidth: 0.75)
-                .allowsHitTesting(false)
-        }
     }
 
-    private var rowContent: some View {
+    private func rowContent(width: CGFloat) -> some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 5) {
                 Text(displayName)
-                    .font(.geist(size: 19, weight: .semibold, design: .rounded))
-                    .lineLimit(1)
+                    .font(.geist(19, relativeTo: .body))
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
 
                 HStack(spacing: 6) {
-                    Image(systemName: remainingMinutes == nil ? "lock.fill" : "clock.fill")
-                        .font(.geist(size: 12, weight: .semibold))
+                    if remainingMinutes == nil && !showsUnlockOptions {
+                        Image(systemName: "lock.fill")
+                            .font(.geist(12, relativeTo: .caption))
+                    }
                     Text(statusText)
-                        .font(.geist(size: 14, weight: .medium, design: .rounded))
+                        .font(.geist(14, relativeTo: .body))
                         .monospacedDigit()
-                        .lineLimit(1)
+                        .lineLimit(2)
                 }
-                .opacity(0.82)
+                .opacity(0.92)
             }
+            .frame(width: max(0, width * textEdge - 22), alignment: .leading)
 
             Spacer(minLength: 0)
         }
         .foregroundStyle(.white)
         .padding(.leading, 22)
-        .padding(.trailing, 68)
+        .padding(.trailing, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
     private var statusText: String {
         guard let remainingMinutes else {
-            return String(localized: "Choose time")
+            return showsUnlockOptions
+                ? String(localized: "Open for a little while", comment: "Gentle prompt above a feed's inline duration choices")
+                : String(localized: "Choose time")
         }
         return String(localized: "\(remainingMinutes) min left", comment: "Active feed row status")
     }
 
-    private var optionsMenu: some View {
+    private func optionsMenu(width: CGFloat) -> some View {
         Menu {
             Button(action: onSettings) {
                 Label(String(localized: "Settings"), systemImage: "gearshape")
@@ -321,9 +393,13 @@ struct FeedRowView: View {
             }
         } label: {
             HStack(spacing: 4) {
-                ForEach(0..<3, id: \.self) { _ in
+                ForEach(0..<3, id: \.self) { index in
+                    let position = (width - 12 - FeedCardLayout.optionsControlDiameter / 2 + CGFloat(index - 1) * 8) / max(1, width)
+                    let darkInk = FeedPigment.menuUsesDarkInk(palette: backdrop.feedPalette,
+                        fraction: fillFraction, position: position, textEdge: textEdge)
                     Circle()
-                        .fill(Color.white.opacity(0.94))
+                        .fill(darkInk ? Color.black.opacity(0.85) : Color.white)
+                        .overlay(Circle().stroke(darkInk ? Color.white.opacity(0.5) : Color.black.opacity(0.5), lineWidth: 0.5))
                         .frame(width: 4, height: 4)
                 }
             }
@@ -331,15 +407,10 @@ struct FeedRowView: View {
                 width: FeedCardLayout.optionsControlDiameter,
                 height: FeedCardLayout.optionsControlDiameter
             )
-            .background(
-                Circle()
-                    .fill(.ultraThinMaterial)
-                    .overlay(Circle().fill(Color.black.opacity(0.12)))
-            )
-            .overlay(Circle().stroke(Color.white.opacity(0.22), lineWidth: 0.75))
             .contentShape(Circle())
         }
         .accessibilityLabel(String(localized: "Feed options"))
+        .accessibilityIdentifier("feed.\(group.id).options")
     }
 
     private var accessibilityLabel: String {
@@ -366,31 +437,23 @@ struct FeedInlineDurationOptions: View {
     let onPurchased: () -> Void
 
     @State private var purchasingWindow: AccessWindow?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var choiceHeight: CGFloat = 70
 
     private var windows: [AccessWindow] {
         AccessWindow.allCases.filter(group.enabledIntervals.contains)
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach(Array(windows.enumerated()), id: \.element) { index, window in
-                if index > 0 {
-                    Rectangle()
-                        .fill(Color.white.opacity(0.13))
-                        .frame(width: 0.75, height: 24)
-                        .accessibilityHidden(true)
-                }
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 8)) : AnyLayout(HStackLayout(spacing: 8))
+        return layout {
+            ForEach(windows, id: \.self) { window in
                 durationButton(window)
             }
         }
-        .padding(.horizontal, 14)
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(Color.white.opacity(0.13))
-                .frame(height: 0.75)
-                .padding(.horizontal, 18)
-                .accessibilityHidden(true)
-        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 20)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(String(localized: "Choose how long to unlock"))
     }
@@ -402,13 +465,10 @@ struct FeedInlineDurationOptions: View {
         return Button {
             purchase(window: window, cost: cost)
         } label: {
-            HStack(spacing: 4) {
-                Text(window.displayName)
-                    .font(.geist(size: 12, weight: .semibold, design: .rounded))
+            VStack(spacing: 7) {
+                Text(String(localized: "\(window.minutes) min", comment: "Compact feed duration in minutes"))
+                    .font(.geist(16, relativeTo: .body))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-
-                Spacer(minLength: 3)
 
                 Group {
                     if purchasingWindow == window {
@@ -416,24 +476,22 @@ struct FeedInlineDurationOptions: View {
                             .controlSize(.mini)
                             .tint(AppColors.brandAccent)
                     } else {
-                        Text(FeedCardLayout.priceLabel(cost: cost))
-                            .font(.geist(size: 11, weight: .bold, design: .rounded))
-                            .monospacedDigit()
+                        HStack(spacing: 5) {
+                            Image(systemName: "drop.fill")
+                                .font(.geist(12, relativeTo: .caption))
+                            Text(FeedCardLayout.priceLabel(cost: cost))
+                                .font(.geist(16, relativeTo: .body))
+                                .monospacedDigit()
+                        }
                     }
                 }
                 .foregroundStyle(canAfford ? AppColors.brandAccent : Color.white.opacity(0.58))
-                .padding(.horizontal, 6)
-                .frame(minWidth: 34, minHeight: 24)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(AppColors.brandAccent.opacity(canAfford ? 0.14 : 0.06))
-                )
             }
-            .padding(.horizontal, 7)
             .frame(maxWidth: .infinity)
-            .frame(minHeight: 44)
+            .frame(height: choiceHeight)
             .foregroundStyle(.white)
-            .contentShape(Rectangle())
+            .background(Color.white.opacity(0.11), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
         .buttonStyle(.plain)
         .disabled(!canAfford || purchasingWindow != nil)
@@ -441,6 +499,7 @@ struct FeedInlineDurationOptions: View {
         .accessibilityLabel(
             String(localized: "\(window.displayName), \(cost) colors")
         )
+        .accessibilityIdentifier("feed.\(group.id).duration.\(window.minutes)")
         .accessibilityHint(
             canAfford
                 ? String(localized: "Double tap to unlock")
