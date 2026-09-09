@@ -1,0 +1,22 @@
+#pragma once
+#include "../MetalShapeUniforms.metalh"
+
+static float metalShapeHarmonic(float theta, float4 harmonic) {
+    if (harmonic.w < 0.5) return 0;
+    return harmonic.y * cos(harmonic.x * theta + harmonic.z);
+}
+
+static float metalShapeGenomeRadius(float theta, constant MetalShapeGenomeUniforms &g) {
+    const float m = clamp(g.superformula.x, 2.0, 12.0);
+    const float n1 = clamp(g.superformula.y, 0.2, 8.0);
+    const float n2 = clamp(g.superformula.z, 0.2, 8.0);
+    const float n3 = clamp(g.superformula.w, 0.2, 8.0);
+    const float a = pow(max(abs(cos(m * theta * 0.25)), 1e-5), n2);
+    const float b = pow(max(abs(sin(m * theta * 0.25)), 1e-5), n3);
+    const float base = pow(max(a + b, 1e-5), -1.0 / n1);
+    const float modulation = 1.0
+        + metalShapeHarmonic(theta, g.harmonic0)
+        + metalShapeHarmonic(theta, g.harmonic1)
+        + metalShapeHarmonic(theta, g.harmonic2);
+    return clamp(base * modulation * g.transform.y, 0.72, 1.0);
+}

@@ -1,0 +1,41 @@
+#pragma once
+#include "../MetalShapeUniforms.metalh"
+
+static float metalShapeHash(uint seed, uint petal, uint channel) {
+    uint value = seed ^ (petal * 0x9E3779B9u) ^ (channel * 0x85EBCA6Bu);
+    value ^= value >> 16;
+    value *= 0x7FEB352Du;
+    value ^= value >> 15;
+    value *= 0x846CA68Bu;
+    value ^= value >> 16;
+    return float(value & 0x00FFFFFFu) / float(0x01000000u);
+}
+
+static float metalShapeRegularPolygonDistance(float2 p, float sides) {
+    const float sector = 2.0 * M_PI_F / sides;
+    const float angle = atan2(p.y, p.x);
+    const float folded = angle - sector * floor((angle + sector * 0.5) / sector);
+    const float boundary = cos(M_PI_F / sides) / max(cos(folded), 1e-4);
+    return length(p) - boundary;
+}
+
+static float metalShapeLegacyDistance(float2 p, uint shape, uint variant) {
+    if (shape == 6u) {
+        const float exponent = 2.3 + 1.2 * floor(float(max(variant, 1u) - 1u) / 16.0);
+        return pow(pow(abs(p.x), exponent) + pow(abs(p.y), exponent), 1.0 / exponent) - 1.0;
+    }
+    if (shape == 5u) {
+        const float sides = 3.0 + float((max(variant, 1u) - 1u) % 4u);
+        const float polygon = metalShapeRegularPolygonDistance(p, sides);
+        return mix(polygon, length(p) - 0.94, 0.12);
+    }
+    if (shape == 4u) {
+        const uint value = max(variant, 1u) - 1u;
+        const float rays = 3.0 + float(value % 4u);
+        const float depth = float((value / 4u) % 4u) / 3.0;
+        const float boundary = (1.0 + (0.12 + 0.105 * depth) * cos(rays * atan2(p.y, p.x)))
+            / (1.0 + 0.12 + 0.105 * depth);
+        return length(p) - boundary;
+    }
+    return length(p) - 1.0;
+}

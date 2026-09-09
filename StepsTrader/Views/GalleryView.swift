@@ -121,6 +121,9 @@ struct GalleryView: View {
     @State private var canvasSafeInsets = EdgeInsets()
     @Environment(\.dynamicTypeSize) private var paletteDynamicTypeSize
     @State private var canvasViewportSize: CGSize = .zero
+    private var isCleanLandscape: Bool {
+        presentation == .fullScreen && canvasViewportSize.width > canvasViewportSize.height
+    }
     @State private var spawnPresentation = CanvasSpawnPresentationState()
     @State private var remixHistory = CanvasRemixHistory()
     @State private var remixFeedback: String?
@@ -810,61 +813,64 @@ struct GalleryView: View {
     }
 
     private var canvasLayers: some View {
-        ZStack {
-            DayCanvasArtworkView(
-                style: showHappeningPalette ? .editorial : dayCanvas.resolvedVisualStyle,
-                editorial: displayedEditorialRenderInput,
-                isAnimating: isCanvasSelected,
-                soundPulseBus: canvasSoundPulseBus,
-                presentationMode: paletteRenderMode
-            ) {
-                legacyCanvasLayers
-                    .background {
-                        EnergyGradientBackground(
-                            stepsPoints: model.stepsPointsToday,
-                            sleepPoints: model.sleepPointsToday,
-                            hasStepsData: model.hasStepsData,
-                            hasSleepData: model.hasSleepData,
-                            showGrain: false,
-                            gradientStyleOverride: dayCanvas.remixSeed == nil ? nil : dayCanvas.gradientStyle,
-                            gradientPaletteOverride: dayCanvas.remixSeed == nil ? nil : dayCanvas.gradientPalette
-                        )
-                        .ignoresSafeArea()
-                        .allowsHitTesting(false)
-                    }
-                    .overlay {
-                        TextureOverlayView(texture: CanvasTexture.fromStored(
-                            dayCanvas.remixSeed == nil ? canvasTextureRaw : (dayCanvas.textureRaw ?? canvasTextureRaw)
-                        ))
-                            .transaction { $0.animation = nil }
-                    }
-            }
+        GeometryReader { viewport in
+            ZStack {
+                DayCanvasArtworkView(
+                    style: showHappeningPalette ? .editorial : dayCanvas.resolvedVisualStyle,
+                    editorial: displayedEditorialRenderInput,
+                    isAnimating: isCanvasSelected,
+                    soundPulseBus: canvasSoundPulseBus,
+                    presentationMode: paletteRenderMode
+                ) {
+                    legacyCanvasLayers
+                        .background {
+                            EnergyGradientBackground(
+                                stepsPoints: model.stepsPointsToday,
+                                sleepPoints: model.sleepPointsToday,
+                                hasStepsData: model.hasStepsData,
+                                hasSleepData: model.hasSleepData,
+                                showGrain: false,
+                                gradientStyleOverride: dayCanvas.remixSeed == nil ? nil : dayCanvas.gradientStyle,
+                                gradientPaletteOverride: dayCanvas.remixSeed == nil ? nil : dayCanvas.gradientPalette
+                            )
+                            .ignoresSafeArea()
+                            .allowsHitTesting(false)
+                        }
+                        .overlay {
+                            TextureOverlayView(texture: CanvasTexture.fromStored(
+                                dayCanvas.remixSeed == nil ? canvasTextureRaw : (dayCanvas.textureRaw ?? canvasTextureRaw)
+                            ))
+                                .transaction { $0.animation = nil }
+                        }
+                }
+                .frame(width: viewport.size.width, height: viewport.size.height)
 
-            if !presentation.isEditing {
-                CanvasAnimationOverlay(
-                    elements: renderedCanvasElements,
-                    sleepPoints: model.sleepPointsToday,
-                    stepsPoints: model.stepsPointsToday,
-                    sleepColor: Color(hex: sleepColorHex),
-                    stepsColor: Color(hex: stepsColorHex),
-                    decayNorm: decayNorm,
-                    backgroundColor: canvasBackground,
-                    labelColor: labelColor,
-                    hasStepsData: model.hasStepsData,
-                    hasSleepData: model.hasSleepData,
-                    overlayStyleOverride: dayCanvas.remixSeed == nil ? nil : dayCanvas.overlayStyle,
-                    onGestureBegan: handleCanvasLeadBegan,
-                    onGestureUpdated: handleCanvasLeadUpdated,
-                    onGestureEnded: handleCanvasLeadEnded
-                )
-                .frame(
-                    width: GenerativeCanvasView.canonicalPortraitSize.width,
-                    height: GenerativeCanvasView.canonicalPortraitSize.height
-                )
-                .ignoresSafeArea()
+                if !presentation.isEditing {
+                    CanvasAnimationOverlay(
+                        elements: renderedCanvasElements,
+                        sleepPoints: model.sleepPointsToday,
+                        stepsPoints: model.stepsPointsToday,
+                        sleepColor: Color(hex: sleepColorHex),
+                        stepsColor: Color(hex: stepsColorHex),
+                        decayNorm: decayNorm,
+                        backgroundColor: canvasBackground,
+                        labelColor: labelColor,
+                        hasStepsData: model.hasStepsData,
+                        hasSleepData: model.hasSleepData,
+                        overlayStyleOverride: dayCanvas.remixSeed == nil ? nil : dayCanvas.overlayStyle,
+                        onGestureBegan: handleCanvasLeadBegan,
+                        onGestureUpdated: handleCanvasLeadUpdated,
+                        onGestureEnded: handleCanvasLeadEnded
+                    )
+                    .frame(
+                        width: GenerativeCanvasView.canonicalPortraitSize.width,
+                        height: GenerativeCanvasView.canonicalPortraitSize.height
+                    )
+                    .ignoresSafeArea()
+                }
             }
+            .frame(width: viewport.size.width, height: viewport.size.height)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
         .environment(\.isTodayCanvasSource, !showHappeningPalette)
     }
@@ -903,7 +909,7 @@ struct GalleryView: View {
             dataPanelOverlay
         }
         .overlay {
-            if CanvasFullScreenRemixPresentation.isVisible(in: presentation) {
+            if CanvasFullScreenRemixPresentation.isVisible(in: presentation), !isCleanLandscape {
                 wideCanvasOverlay
                     .ignoresSafeArea()
             }
@@ -949,6 +955,8 @@ struct GalleryView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .statusBarHidden(isCleanLandscape)
+        .persistentSystemOverlays(isCleanLandscape ? .hidden : .automatic)
         .background(
             GeometryReader { geo in
                 Color.clear
@@ -1052,6 +1060,7 @@ struct GalleryView: View {
             rollOverCanvas(to: newKey)
         }
         .onChange(of: presentation, initial: true) { old, new in
+            AppDelegate.allowCanvasRotation(new == .fullScreen)
             if !new.showsDataPanel {
                 metricOverlay = nil
             }
@@ -1188,6 +1197,7 @@ struct GalleryView: View {
             if !isPresented { toolbar.shareImage = nil }
         }
         .onDisappear {
+            AppDelegate.allowCanvasRotation(false)
             if presentation.isEditing && dayCanvas.artworkRecipe != nil { saveCanvasLocally() }
             cancelPaletteInteraction()
 #if DEBUG || INTERNAL_BUILD
@@ -2146,23 +2156,14 @@ struct GalleryView: View {
             }
 #endif
             CanvasFullScreenDock(
-                soundAppearance: canvasSoundAppearance,
-                onSound: {
-#if DEBUG || INTERNAL_BUILD
-                    handleFullScreenSoundControl()
-#else
+                onClose: {
                     send(.exitFullScreen)
                     lightHapticTick &+= 1
+#if DEBUG || INTERNAL_BUILD
+                    Task { await musicController.turnSoundOff() }
 #endif
                 },
-                onEdit: {
-                    send(.beginEditing)
-                    lightHapticTick &+= 1
-                },
                 onRemix: remixCanvas,
-                onUndoRemix: undoCanvasRemix,
-                canUndoRemix: remixHistory.canUndo,
-                showsEdit: dayCanvas.resolvedVisualStyle == .legacy || dayCanvas.artworkRecipe?.isSupported == true,
                 share: { shareButton }
             )
             .padding(.horizontal, 8)

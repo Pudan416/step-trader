@@ -3,6 +3,42 @@ import XCTest
 /// The Canvas screen's four states and the paths between them. These assert
 /// structure, not looks: which controls exist, and where a tap lands you.
 final class CanvasSimplificationUITests: XCTestCase {
+    func testViewingDockClosesAndLandscapeHidesAllControls() {
+        XCUIDevice.shared.orientation = .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launchCanvas()
+        app.buttons["canvas_sound_button"].tap()
+        let close = app.buttons["canvas_close_fullscreen_button"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["canvas_remix_button"].exists)
+        XCTAssertFalse(app.buttons["canvas_edit_button"].exists)
+        XCTAssertFalse(app.buttons["canvas_undo_remix_button"].exists)
+        let portraitCapture = XCTAttachment(screenshot: app.screenshot())
+        portraitCapture.name = "compact-viewing-dock"; portraitCapture.lifetime = .keepAlways; add(portraitCapture)
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let landscape = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            app.frame.width > app.frame.height && !close.exists
+        }, object: nil)
+        let rotationResult = XCTWaiter.wait(for: [landscape], timeout: 8)
+        let rotationCapture = XCTAttachment(screenshot: app.screenshot())
+        rotationCapture.name = "rotation-diagnostic"; rotationCapture.lifetime = .keepAlways; add(rotationCapture)
+        XCTAssertEqual(rotationResult, .completed, "frame=\(app.frame), close=\(close.exists)\n\(app.debugDescription)")
+        XCTAssertFalse(app.buttons["canvas_remix_button"].exists)
+        XCTAssertFalse(app.buttons["tab_canvas"].exists)
+        let artwork = app.otherElements["dayObjects.canvas"]
+        XCTAssertEqual(artwork.frame.width, app.frame.width, accuracy: 2)
+        XCTAssertEqual(artwork.frame.height, app.frame.height, accuracy: 2)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "clean-landscape-canvas"; screenshot.lifetime = .keepAlways; add(screenshot)
+        XCUIDevice.shared.orientation = .landscapeRight
+        XCTAssertFalse(close.exists)
+        XCUIDevice.shared.orientation = .portrait
+        XCTAssertTrue(close.waitForExistence(timeout: 8))
+        close.tap()
+        XCTAssertTrue(app.buttons["canvas_add_button"].waitForExistence(timeout: 5))
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertLessThan(app.frame.width, app.frame.height)
+    }
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -212,117 +248,44 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertEqual(suggestion.frame.midY, frameBefore.midY, accuracy: 1)
     }
 
-    /// Raising the canvas is a viewing action. Nothing in it may start an edit.
     func testFullScreenHidesChromeAndDoesNotStartEditing() {
         let app = launchCanvas(additionalArguments: ["-canvasVisualStyle_v1", "legacy"])
-        XCTAssertFalse(app.buttons["canvas_remix_button"].exists)
-
         app.buttons["canvas_sound_button"].tap()
-
-        XCTAssertTrue(app.buttons["canvas_sound_off_button"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.buttons["canvas_edit_button"].exists)
+        XCTAssertTrue(app.buttons["canvas_close_fullscreen_button"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["canvas_fullscreen_share_button"].exists)
+        XCTAssertTrue(app.buttons["canvas_remix_button"].exists)
+        XCTAssertFalse(app.buttons["canvas_edit_button"].exists)
+        XCTAssertFalse(app.buttons["canvas_undo_remix_button"].exists)
         XCTAssertFalse(app.buttons["canvas_add_button"].exists)
         XCTAssertFalse(dataHandle(in: app).exists)
         XCTAssertFalse(app.buttons["tab_canvas"].exists)
-        XCTAssertTrue(app.buttons["canvas_remix_button"].exists)
-        XCTAssertEqual(app.buttons.matching(identifier: "canvas_remix_button").count, 1)
-        XCTAssertFalse(app.buttons["canvas_done_button"].exists)
     }
 
-    func testSoundControlExpandsAndSoundOffReturnsToCanvas() {
+    func testCloseReturnsToCanvasWithoutWaitingForAudioStartup() {
         let app = launchCanvas()
-
         app.buttons["canvas_sound_button"].tap()
-
-        let soundOff = app.buttons["canvas_sound_off_button"]
-        XCTAssertTrue(soundOff.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["tab_canvas"].exists)
-        XCTAssertFalse(app.buttons["canvas_add_button"].exists)
-
-        let soundResolved = XCTNSPredicateExpectation(
-            predicate: NSPredicate { object, _ in
-                guard let button = object as? XCUIElement,
-                      let value = button.value as? String else { return false }
-                return value == "on" || value == "error, retry available"
-            },
-            object: soundOff
-        )
-        XCTAssertEqual(
-            XCTWaiter.wait(for: [soundResolved], timeout: 12),
-            .completed,
-            "The full-screen dock must expose the actual audio start result"
-        )
-
-        let resolvedValue = soundOff.value as? String
-        soundOff.tap()
-        if resolvedValue == "on" {
-            XCTAssertTrue(app.buttons["canvas_sound_button"].waitForExistence(timeout: 5))
-            XCTAssertTrue(app.buttons["tab_canvas"].exists)
-            XCTAssertTrue(app.buttons["canvas_add_button"].exists)
-        } else {
-            XCTAssertTrue(soundOff.exists, "Retry keeps the canvas full screen")
-        }
+        let close = app.buttons["canvas_close_fullscreen_button"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        XCTAssertTrue(close.isEnabled)
+        close.tap()
+        XCTAssertTrue(app.buttons["canvas_add_button"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["tab_canvas"].exists)
     }
 
-    func testDoneReturnsToFullScreenAndExitReturnsToCanvas() {
-        let app = launchCanvas(additionalArguments: ["-canvasVisualStyle_v1", "legacy"])
-
-        app.buttons["canvas_sound_button"].tap()
-        XCTAssertTrue(app.buttons["canvas_edit_button"].waitForExistence(timeout: 3))
-        app.buttons["canvas_edit_button"].tap()
-
-        XCTAssertTrue(app.buttons["canvas_done_button"].waitForExistence(timeout: 3))
-        XCTAssertFalse(app.buttons["canvas_remix_button"].exists)
-        XCTAssertFalse(app.buttons["canvas_undo_remix_button"].exists)
-
-        app.buttons["canvas_done_button"].tap()
-        // Done goes back to viewing, not all the way out.
-        XCTAssertTrue(app.buttons["canvas_sound_off_button"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.buttons["canvas_remix_button"].exists)
-        XCTAssertFalse(app.buttons["canvas_add_button"].exists)
-
-        app.buttons["canvas_sound_off_button"].tap()
-        XCTAssertTrue(app.buttons["canvas_add_button"].waitForExistence(timeout: 3))
-    }
-
-    func testFullScreenRemixEnablesOneUnifiedUndo() {
+    func testFullScreenRemixKeepsCompactViewingActions() {
         let app = launchCanvas()
-        XCTAssertFalse(app.buttons["canvas_remix_button"].exists)
         app.buttons["canvas_sound_button"].tap()
         let remix = app.buttons["canvas_remix_button"]
-        let undo = app.buttons["canvas_undo_remix_button"]
         XCTAssertTrue(remix.waitForExistence(timeout: 5))
-        XCTAssertTrue(undo.exists)
-        XCTAssertFalse(undo.isEnabled)
         remix.tap()
-        XCTAssertTrue(undo.isEnabled)
+        XCTAssertTrue(app.buttons["canvas_close_fullscreen_button"].exists)
+        XCTAssertTrue(app.buttons["canvas_fullscreen_share_button"].exists)
+        XCTAssertFalse(app.buttons["canvas_edit_button"].exists)
+        XCTAssertFalse(app.buttons["canvas_undo_remix_button"].exists)
         let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = "Unified Remix full-screen dock"
+        attachment.name = "Compact viewing dock"
         attachment.lifetime = .keepAlways
         add(attachment)
-        undo.tap()
-        XCTAssertFalse(undo.isEnabled)
-        XCTAssertTrue(app.buttons["canvas_sound_off_button"].exists)
-        XCTAssertFalse(app.buttons["canvas_done_button"].exists)
-    }
-
-    func testLiveAndEditingGalleryNeverSelectDayObjectsRenderer() {
-        let app = launchCanvas()
-        let dayObjects = app.otherElements["dayObjects.canvas"]
-
-        XCTAssertTrue(dayObjects.waitForNonExistence(timeout: 3))
-
-        app.buttons["canvas_sound_button"].tap()
-        XCTAssertTrue(app.buttons["canvas_edit_button"].waitForExistence(timeout: 3))
-        XCTAssertFalse(dayObjects.exists)
-
-        app.buttons["canvas_edit_button"].tap()
-        XCTAssertTrue(app.buttons["canvas_done_button"].waitForExistence(timeout: 3))
-        XCTAssertTrue(dayObjects.waitForNonExistence(timeout: 3))
-
-        app.buttons["canvas_done_button"].tap()
-        XCTAssertTrue(app.buttons["canvas_edit_button"].waitForExistence(timeout: 3))
-        XCTAssertFalse(dayObjects.exists)
     }
 
     func testAddReplacesTheTabBarWithTheHappeningDock() {

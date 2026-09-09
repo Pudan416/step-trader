@@ -1,0 +1,20 @@
+#pragma once
+#include "../MetalShapeUniforms.metalh"
+
+static void metalShapeShadeSunset(
+    float2 p,
+    constant MetalShapeMaterialUniforms & m,
+    thread float3 & color,
+    thread float & alpha) {
+    const float2 sun = p * 1.48;
+    const float edgeDistance = length(sun) - 0.88;
+    const float lower = smoothstep(-0.20, 0.90, sun.y);
+    const float softness = mix(0.018, 0.19, lower);
+    const float disk = 1.0 / (1.0 + exp(clamp(edgeDistance / softness, -30.0, 30.0)));
+    const float fade = 1.0 - smoothstep(0.0, 1.0, sun.y);
+    const float halo = exp(-max(edgeDistance, 0.0) * 7.0)
+        * (1.0 - smoothstep(-0.35, 0.55, sun.y)) * 0.30;
+    alpha = max(disk * fade, halo) * (1.0 - smoothstep(1.35, 1.90, length(sun)));
+    const float warmth = smoothstep(-0.88, 0.25, sun.y + (m.params0.x - 0.5) * 0.12);
+    color = mix(float3(1.0, 0.64, 0.008), float3(1.0, 0.025, 0.035), warmth);
+}
