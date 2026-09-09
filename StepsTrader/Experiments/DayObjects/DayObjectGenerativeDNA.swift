@@ -433,3 +433,32 @@ enum DayObjectArtDirectionScheduler {
         Double(mixed(value) >> 11) / Double(UInt64(1) << 53)
     }
 }
+
+
+/// Stable geometry identity, independent of colour rerolls, focus and actor count.
+/// Variant zero preserves legacy/curated preview contours. Positive variants
+/// encode lobe count, contour depth and square rounding for the Metal shader.
+struct DayObjectSilhouette: Equatable {
+    let variant: UInt32
+    let aspect: Float
+    let rotation: Float
+
+    static let legacy = DayObjectSilhouette(variant: 0, aspect: 1, rotation: 0)
+
+    static func make(eventID: String) -> DayObjectSilhouette {
+        var hash = eventID.lowercased().utf8.reduce(UInt64(0xCBF2_9CE4_8422_2325)) {
+            ($0 ^ UInt64($1)) &* 0x0000_0100_0000_01B3
+        }
+        hash = (hash ^ (hash >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        hash = (hash ^ (hash >> 27)) &* 0x94D0_49BB_1331_11EB
+        hash ^= hash >> 31
+        return DayObjectSilhouette(
+            variant: 1 + UInt32(hash % 64),
+            aspect: 1,
+            rotation: Float(Double((hash >> 16) % 65536) / 65536 * 2 * .pi)
+        )
+    }
+
+    /// Coarse visual bins deliberately ignore colour and tiny numerical differences.
+    var proportionClass: Int { Int((aspect * 10).rounded()) }
+}

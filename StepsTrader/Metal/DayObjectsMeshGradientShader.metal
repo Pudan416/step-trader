@@ -158,6 +158,28 @@ fragment float4 dayObjectsMeshGradientFragment(
         ) + 0.5;
     }
 
+    if (uniforms.colors[0].a > 1.5) {
+        // Atlas backgrounds retain broad areas of the actual swatches. The
+        // legacy weighted mesh below is unchanged for historical artwork.
+        float2 p = uv - 0.5;
+        float2 axis = float2(cos(uniforms.phase), sin(uniforms.phase));
+        float2 lateral = float2(-axis.y, axis.x);
+        float along = dot(p, axis);
+        float across = dot(p, lateral);
+        float field = 0.5 + along;
+        if (uniforms.archetype == 2u || uniforms.archetype == 3u)
+            field += 0.16 * sin(across * 4.0 + uniforms.phase);
+        if (uniforms.archetype == 4u)
+            field = length(p - axis * 0.18) * 1.35;
+        float blend = smoothstep(0.28, 0.72, field);
+        float3 color = mix(uniforms.colors[0].rgb, uniforms.colors[1].rgb, blend);
+        if (length(uniforms.colors[2].rgb - uniforms.colors[0].rgb) > 0.001) {
+            float accent = 1.0 - smoothstep(0.04, 0.32, length(p - lateral * 0.48));
+            color = mix(color, uniforms.colors[2].rgb, accent * 0.85);
+        }
+        return float4(color, 1.0);
+    }
+
     uint colorCount = clamp(uniforms.colorCount, 3u, 5u);
     float fieldRadius;
     switch (uniforms.archetype) {

@@ -1,5 +1,8 @@
 import XCTest
 import HealthKit
+import Metal
+import UIKit
+import SwiftUI
 @testable import Steps4
 
 @MainActor
@@ -655,5 +658,332 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
             budgetEngine: MockBudgetEngine(),
             subscriptionStore: SubscriptionStore.shared
         )
+    }
+}
+final class NativeAtlasRecipeTests: XCTestCase {
+    func testInterfaceThemeHonorsDayNightAndSystemWithoutChangingCanvas() {
+        XCTAssertTrue(AppTheme.normalized(rawValue: "daylight").isLight(in: .dark))
+        XCTAssertFalse(AppTheme.normalized(rawValue: "night").isLight(in: .light))
+        XCTAssertTrue(AppTheme.normalized(rawValue: "system").isLight(in: .light))
+        XCTAssertFalse(AppTheme.normalized(rawValue: "system").isLight(in: .dark))
+    }
+
+    @MainActor
+    func testCanvasActionsHaveDistinctBrandAccents() throws {
+        let content = CanvasBottomActionRow(isDataPanelOpen: false, isHappeningPalettePresented: false, soundAppearance: .readyToPlay, onSound: {}, onOpenHappeningList: {}, onToggleHappeningPalette: {})
+            .frame(width: 320, height: 60).background(Color.white)
+        let renderer = ImageRenderer(content: content); renderer.scale = 1
+        let image = try XCTUnwrap(renderer.uiImage), p = try pixels(image)
+        let sound = (30 * 320 + 14) * 4
+        XCTAssertLessThan((p[sound] + p[sound + 1] + p[sound + 2]) / 3, 0.45)
+        let add = (30 * 320 + 278) * 4
+        XCTAssertGreaterThan(p[add], 0.9)
+        XCTAssertGreaterThan(p[add + 1], 0.7)
+        XCTAssertLessThan(p[add + 2], 0.55)
+        let goldSoundPixels = (8..<49).flatMap { x in (10..<50).map { y in (y * 320 + x) * 4 } }
+            .filter { p[$0] > 0.7 && p[$0 + 1] > 0.5 && p[$0] - p[$0 + 2] > 0.25 }
+        XCTAssertGreaterThan(goldSoundPixels.count, 20, "Audio should be distinguished from neutral navigation")
+    }
+
+    @MainActor
+    func testAvailablePickerIsNeutralButSelectionRevealsColor() async throws {
+        let available = try await pickerImage(presetID: "legacy.soft-square", state: .available)
+        let selected = try await pickerImage(presetID: "legacy.soft-square", state: .additionPreview)
+        func chroma(_ image: UIImage) throws -> Double {
+            let p = try pixels(image), i = (100 * 200 + 100) * 4
+            return (p[i..<i + 3].max() ?? 0) - (p[i..<i + 3].min() ?? 0)
+        }
+        XCTAssertLessThan(try chroma(available), 0.04)
+        XCTAssertGreaterThan(try chroma(selected), 0.15)
+    }
+
+    func testNativeBackgroundKeepsDistinctPaletteColors() {
+        let input = DayObjectSceneInput(dayKey: "2026-09-10", identity: "primary-canvas", eventIDs: [], motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true, nativeAtlasRecipe: .make(dayKey: "2026-09-10"))
+        let scene = DayObjectScene.make(input: input)
+        let colors = scene.meshGradientStyle.colors
+        let palette = scene.paletteSet.background.hexes.map { DayObjectRGB(hex: $0).linearRGB }
+        XCTAssertTrue(colors.allSatisfy { palette.contains($0) }, "Use the chosen palette, not neutral replacement colors")
+        let differences: [Float] = colors.flatMap { a in colors.map { b in
+            max(abs(a.x - b.x), max(abs(a.y - b.y), abs(a.z - b.z)))
+        } }
+        XCTAssertGreaterThan(differences.max() ?? 0, 0.3)
+    }
+
+    func testNativeBackgroundShowsBothPaletteEndpointsInPixels() async throws {
+        let input = DayObjectSceneInput(dayKey: "2026-09-10", identity: "primary-canvas", eventIDs: [], motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true, nativeAtlasRecipe: .make(dayKey: "2026-09-10"))
+        let scene = DayObjectScene.make(input: input)
+        let result = await DayObjectsImageRenderer.image(input: .init(sceneInput: input, digitalImpact: .none), size: CGSize(width: 300, height: 400), scale: 1, elapsedTime: 4)
+        let image = try XCTUnwrap(result), p = try pixels(image)
+        for color in scene.meshGradientStyle.colors.prefix(2) {
+            let swatch = try XCTUnwrap(scene.palette.colors.first { $0.linearRGB == color }).sRGB
+            var nearest = Double.infinity
+            for y in stride(from: 12, to: 388, by: 6) {
+                for x in stride(from: 12, to: 288, by: 6) {
+                    let i = (y * 300 + x) * 4
+                    let error = max(abs(p[i] - Double(swatch.z)), max(abs(p[i + 1] - Double(swatch.y)), abs(p[i + 2] - Double(swatch.x))))
+                    nearest = min(nearest, error)
+                }
+            }
+            XCTAssertLessThan(nearest, 0.12, "Each dominant swatch must remain visible, not disappear into an average")
+        }
+    }
+
+    @MainActor
+    func testEnergyPanelStaysDarkOnWhiteCanvas() throws {
+        let content = CanvasEnergyStatusPill(status: .init(stepsBalance: 58, baseEnergyToday: 72, maximum: 100))
+            .frame(width: 208, height: 58)
+            .background(Color.white)
+            .environment(\.colorScheme, .light)
+        let renderer = ImageRenderer(content: content)
+        renderer.scale = 1
+        let image = try XCTUnwrap(renderer.uiImage)
+        let p = try pixels(image)
+        let i = (29 * 208 + 7) * 4
+        XCTAssertLessThan((p[i] + p[i + 1] + p[i + 2]) / 3, 0.45, "The energy surface needs its own dark backing even on white")
+        let attachment = XCTAttachment(image: image); attachment.name = "energy-on-white"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+
+    func testPrimaryGeneratorNeverSelectsDenseInteriorContours() {
+        for seed in 0..<100 {
+            let recipe = NativeAtlasRecipe.make(dayKey: "safe-fill-\(seed)").reconciled(eventIDs: (0..<10).map(String.init))
+            XCTAssertFalse(recipe.actors.contains { $0.materialID == .proceduralContour })
+        }
+    }
+
+    func testNativeGrainIsSharperThanHistoricalPaperTexture() async throws {
+        func render(native: Bool) async -> UIImage? {
+            let input = DayObjectSceneInput(dayKey: "2026-09-10", identity: "primary-canvas", eventIDs: [], motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true, nativeAtlasRecipe: native ? .make(dayKey: "2026-09-10") : nil)
+            let base = DayObjectScene.make(input: input)
+            // Compare the two finish pipelines with the SAME new background.
+            // Historical background selection itself must remain unchanged.
+            let style = DayObjectMeshGradientStyle.primaryCanvas(seed: UInt64(NativeAtlasRecipe.make(dayKey: input.dayKey).seedHex, radix: 16)!, palette: base.palette)
+            let scene = DayObjectScene(input: input, rootSeed: base.rootSeed, composition: base.composition, compositionPlan: base.compositionPlan, paletteSet: base.paletteSet, choreographyConfiguration: base.choreographyConfiguration, visualLanguage: base.visualLanguage, motionPlan: base.motionPlan, palette: base.palette, meshGradientStyle: style, score: base.score, actors: base.actors, sceneRecipeV1: base.sceneRecipeV1)
+            DayObjectsRenderer.prepareResources()
+            guard let renderer = DayObjectsRenderer.create(scene: scene, environment: .init(motionEnergy: 0.5, visualClarity: 1)) else { return nil }
+            return await withCheckedContinuation { continuation in
+                renderer.renderOffscreen(size: CGSize(width: 300, height: 400), pointScale: 1, elapsedTime: 4) { texture, _ in
+                    continuation.resume(returning: texture.flatMap { DayObjectsImageRenderer.makeImage(texture: $0, scale: 1) })
+                }
+            }
+        }
+        let referenceResult = await render(native: false)
+        let nativeResult = await render(native: true)
+        let reference = try XCTUnwrap(referenceResult)
+        let native = try XCTUnwrap(nativeResult)
+        let a = try pixels(reference), b = try pixels(native)
+        func detail(_ values: [Double]) -> [Double] {
+            var result: [Double] = []
+            for y in stride(from: 8, to: 392, by: 3) {
+                for x in stride(from: 8, to: 292, by: 3) {
+                    func l(_ xx: Int, _ yy: Int) -> Double {
+                        let i = (yy * 300 + xx) * 4
+                        return (values[i] + values[i + 1] + values[i + 2]) / 3
+                    }
+                    result.append(l(x, y) - (l(x - 1, y) + l(x + 1, y) + l(x, y - 1) + l(x, y + 1)) / 4)
+                }
+            }
+            return result
+        }
+        let da = detail(a), db = detail(b)
+        let originalDetail = da.map { abs($0) }.reduce(0, +) / Double(da.count)
+        let newDetail = db.map { abs($0) }.reduce(0, +) / Double(db.count)
+        XCTAssertGreaterThan(newDetail, originalDetail * 2, "Photographic grain needs visible fine detail, not only smooth paper fields")
+        XCTAssertGreaterThan(newDetail, 0.006)
+        XCTAssertLessThan(newDetail, 0.08, "Grain must not overwhelm the artwork")
+        for (name, image) in [("restored-native-background", native), ("reference-background", reference)] {
+            let attachment = XCTAttachment(image: image); attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
+        }
+    }
+
+    private func pixels(_ image: UIImage) throws -> [Double] {
+        let data = try XCTUnwrap(image.cgImage?.dataProvider?.data)
+        return Array(data as Data).map { Double($0) / 255 }
+    }
+
+    @MainActor
+    func testNativePickerStartsAsCirclesThenRevealsAndDesaturatesShape() async throws {
+        let square = try await pickerImage(presetID: "legacy.soft-square", state: .available)
+        let flower = try await pickerImage(presetID: "genome.windflower", state: .available)
+        XCTAssertEqual(square.pngData(), flower.pngData(), "Before selection, every item is a circle, not its final silhouette")
+        let selected = try await pickerImage(presetID: "legacy.soft-square", state: .additionPreview)
+        XCTAssertNotEqual(square.pngData(), selected.pngData(), "First tap must reveal the actual figure")
+        let added = try await pickerImage(presetID: "legacy.soft-square", state: .added)
+        // Sample the center of the opaque figure, independently of the background.
+        let p = try pixels(added), index = (100 * 200 + 100) * 4
+        XCTAssertLessThan((p[index..<index + 3].max() ?? 1) - (p[index..<index + 3].min() ?? 0), 0.04)
+        for (name, image) in [("picker-1-circle", square), ("picker-2-selected", selected), ("picker-3-added", added)] {
+            let attachment = XCTAttachment(image: image); attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
+        }
+    }
+
+    @MainActor
+    func testPreviouslySavedDenseFillRendersAsSimpleContour() async throws {
+        let dense = try await pickerImage(presetID: "legacy.soft-square", state: .additionPreview, material: .proceduralContour)
+        let outline = try await pickerImage(presetID: "legacy.soft-square", state: .additionPreview, material: .contour)
+        XCTAssertEqual(dense.pngData(), outline.pngData(), "Already saved bad fills must also stop rendering nested lines")
+    }
+
+    @MainActor
+    private func pickerImage(presetID: String, state: HappeningPaletteSlotVisualState, material: MetalShapeMaterial = .solid) async throws -> UIImage {
+        let base = DayObjectSceneInput(dayKey: "2026-09-10", identity: "native-picker-regression", eventIDs: [], motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true)
+        let assignment = try XCTUnwrap(HappeningEditorialAssignmentResolver.assignments(happenings: [.init(id: "h0", title: "Test", isBuiltIn: true)], baseInput: base, colorNonce: 7)["h0"])
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == presetID })
+        let generated = MetalShapeGenomeFrame.make(preset: preset, material: material, seed: 71)
+        let referencePreset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "legacy.soft-square" })
+        let sharedMaterial = MetalShapeGenomeFrame.make(preset: referencePreset, material: material, seed: 71).material
+        var recipe = NativeAtlasRecipe.make(dayKey: base.dayKey)
+        recipe.actors = [.init(eventID: assignment.elementID.uuidString.lowercased(), presetID: presetID, materialID: material, seedHex: "47", geometry: generated.geometry, material: sharedMaterial, position: SIMD2(0.5, 0.5), size: 0.5, rotation: 0, slot: 0)]
+        let input = DayObjectSceneInput(dayKey: base.dayKey, identity: base.identity, eventIDs: [], motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true, nativeAtlasRecipe: recipe)
+        let presentation = HappeningPaletteRenderPresentation(slots: [.init(happeningID: "h0", assignment: assignment, visualState: state, source: .init(index: 0, center: CGPoint(x: 100, y: 100), radius: 60))], viewportSize: CGSize(width: 200, height: 200), reduceMotion: true, isTransitionActive: false, backgroundRevision: 1)
+        DayObjectsRenderer.prepareResources()
+        let renderer = try XCTUnwrap(DayObjectsRenderer.create(scene: .make(input: input), environment: .init(motionEnergy: 0.5, visualClarity: 1), presentationMode: .happeningPalette(presentation)))
+        let image: UIImage? = await withCheckedContinuation { continuation in
+            renderer.renderOffscreen(size: CGSize(width: 200, height: 200), pointScale: 1, elapsedTime: 4) { texture, _ in
+                continuation.resume(returning: texture.flatMap { DayObjectsImageRenderer.makeImage(texture: $0, scale: 1) })
+            }
+        }
+        return try XCTUnwrap(image)
+    }
+    @MainActor
+    func testNativePaletteUsesAtlasInsteadOfObsoleteAssignedSilhouette() async throws {
+        let input = DayObjectSceneInput(dayKey: "2026-09-10", identity: "native-palette", eventIDs: [], motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true, nativeAtlasRecipe: .make(dayKey: "2026-09-10"))
+        let assignment = try XCTUnwrap(HappeningEditorialAssignmentResolver.assignments(happenings: [.init(id: "h0", title: "Test", isBuiltIn: true)], baseInput: input, colorNonce: 7)["h0"])
+        DayObjectsRenderer.prepareResources()
+        func render(_ rootKey: String) async throws -> Data? {
+            let changed = assignment
+            var recipe = NativeAtlasRecipe.make(dayKey: input.dayKey)
+            recipe.actors = NativeAtlasRecipe.make(dayKey: rootKey).reconciled(eventIDs: [assignment.elementID.uuidString.lowercased()]).actors
+            let nativeInput = DayObjectSceneInput(dayKey: input.dayKey, identity: input.identity, eventIDs: [], motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true, nativeAtlasRecipe: recipe)
+            let mode = DayObjectsPresentationMode.happeningPalette(.init(slots: [.init(happeningID: "h0", assignment: changed, visualState: .additionPreview, source: .init(index: 0, center: CGPoint(x: 64, y: 80), radius: 32))], viewportSize: CGSize(width: 128, height: 160), reduceMotion: true, isTransitionActive: false, backgroundRevision: 1))
+            let renderer = try XCTUnwrap(DayObjectsRenderer.create(scene: .make(input: nativeInput), environment: .init(motionEnergy: 0.5, visualClarity: 1), presentationMode: mode))
+            return await withCheckedContinuation { continuation in
+                renderer.renderOffscreen(size: CGSize(width: 128, height: 160), pointScale: 1, elapsedTime: 4) { texture, _ in
+                    continuation.resume(returning: texture.flatMap { DayObjectsImageRenderer.makeImage(texture: $0, scale: 1)?.pngData() })
+                }
+            }
+        }
+        let sphere = try await render("2026-09-10")
+        let lens = try await render("2026-09-11")
+        XCTAssertNotNil(sphere)
+        XCTAssertNotEqual(sphere, lens)
+    }
+
+    func testArtworkLockRetainsBackgroundAndFutureGenerationSeed() {
+        var recipe = NativeAtlasRecipe.make(dayKey: "locked").reconciled(eventIDs: ["a"])
+        recipe.locks.insert("artwork")
+        let changed = recipe.remixed(seedKey: "other")
+        XCTAssertEqual(changed.background, recipe.background)
+        XCTAssertEqual(changed.seedHex, recipe.seedHex)
+        XCTAssertEqual(changed.actors, recipe.actors)
+    }
+
+    func testNativeAdapterPreservesEventIdentityAndSoundPulse() throws {
+        let recipe = NativeAtlasRecipe.make(dayKey: "sound").reconciled(eventIDs: ["a", "b"])
+        let scene = DayObjectScene.make(input: .init(dayKey: "sound", identity: "native", eventIDs: ["a", "b"], motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true, nativeAtlasRecipe: recipe))
+        let frame = DayObjectRenderFrame.make(scene: scene, environment: .init(motionEnergy: 0.5, visualClarity: 1), elapsed: 3.05, insertions: [:])
+        let renderer = try XCTUnwrap(NativeAtlasMetalRenderer(device: try XCTUnwrap(MTLCreateSystemDefaultDevice())))
+        let original = renderer.adapt(frame, recipe: recipe, aspect: 0.8, elapsed: 3.05)
+        let pulsed = renderer.adapt(frame, recipe: recipe, aspect: 0.8, elapsed: 3.05, soundPulses: ["a": 3])
+        XCTAssertEqual(Set(pulsed.actors.map(\.eventID)), ["a", "b"])
+        for actor in pulsed.actors {
+            let before = try XCTUnwrap(original.actors.first { $0.eventID == actor.eventID })
+            XCTAssertEqual(actor.gpuActor.position, before.gpuActor.position)
+            XCTAssertEqual(actor.gpuActor.opacity, before.gpuActor.opacity)
+            if actor.eventID == "a" { XCTAssertGreaterThan(actor.halfSize.x, before.halfSize.x) }
+            else { XCTAssertEqual(actor.halfSize, before.halfSize) }
+        }
+    }
+
+    func testAllNativeTraceTypesAreNoOpAtZeroAndChangeTheImageAtFullStrength() async throws {
+        var recipe = NativeAtlasRecipe.make(dayKey: "trace-probe").reconciled(eventIDs: (0..<10).map(String.init))
+        var pristine: Data?
+        for type in 0..<5 {
+            recipe.glitchType = type
+            func render(_ strength: Float) async -> Data? {
+                var configured = recipe
+                configured.glitchStrength = strength
+                let input = EditorialCanvasRenderInput(sceneInput: .init(dayKey: "trace-probe", identity: "native", eventIDs: (0..<10).map(String.init), motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true, nativeAtlasRecipe: configured), digitalImpact: .none)
+                return await DayObjectsImageRenderer.image(input: input, size: CGSize(width: 300, height: 400), scale: 1, elapsedTime: 4)?.pngData()
+            }
+            let zero = await render(0)
+            let full = await render(1)
+            XCTAssertNotNil(zero)
+            if let pristine { XCTAssertEqual(zero, pristine) } else { pristine = zero }
+            XCTAssertNotEqual(zero, full, "Trace \(type) must affect visible pixels")
+        }
+    }
+    func testNewStoredCanvasUsesAtlasWithoutMigratingExistingCanvas() {
+        let key = "native-atlas-test-\(UUID().uuidString)"
+        let storage = CanvasStorageService.shared
+        defer { storage.deleteCanvas(for: key) }
+        let fresh = storage.loadOrCreateCanvas(for: key)
+        XCTAssertTrue(fresh.artworkRecipe?.isSupported == true)
+        XCTAssertEqual(fresh.resolvedVisualStyle, .editorial)
+        storage.saveCanvas(DayCanvas(dayKey: key))
+        XCTAssertNil(storage.loadOrCreateCanvas(for: key).artworkRecipe)
+    }
+
+    func testNativeCanvasRespondsToClarityAndColorSelection() async throws {
+        let recipe = NativeAtlasRecipe.make(dayKey: "2026-09-10").reconciled(eventIDs: ["a", "b", "c"])
+        func input(clarity: Double, variant: Int?) -> EditorialCanvasRenderInput {
+            .init(sceneInput: .init(dayKey: "2026-09-10", identity: "native-test", eventIDs: ["a", "b", "c"], motionEnergy: 0.5, visualClarity: clarity, usesEditorialField: true, actorColorVariants: variant.map { ["a": $0, "b": $0, "c": $0] } ?? [:], nativeAtlasRecipe: recipe), digitalImpact: .none)
+        }
+        let original = await DayObjectsImageRenderer.image(input: input(clarity: 1, variant: nil), size: CGSize(width: 240, height: 300), scale: 1, elapsedTime: 4)
+        let sleepy = await DayObjectsImageRenderer.image(input: input(clarity: 0, variant: nil), size: CGSize(width: 240, height: 300), scale: 1, elapsedTime: 4)
+        let recolored = await DayObjectsImageRenderer.image(input: input(clarity: 1, variant: 3), size: CGSize(width: 240, height: 300), scale: 1, elapsedTime: 4)
+        XCTAssertNotNil(original)
+        XCTAssertNotEqual(original?.pngData(), sleepy?.pngData())
+        XCTAssertNotEqual(original?.pngData(), recolored?.pngData())
+        if let original {
+            let attachment = XCTAttachment(image: original)
+            attachment.name = "native-atlas-preview"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+    }
+    func testNativeMetalRendersDeterministicallyAndGlitchChangesPixels() async throws {
+        let recipe = NativeAtlasRecipe.make(dayKey: "2026-09-10").reconciled(eventIDs: ["a", "b", "c"])
+        let scene = DayObjectSceneInput(dayKey: "2026-09-10", identity: "native-test", eventIDs: ["a", "b", "c"], motionEnergy: 0.5, visualClarity: 0.8, usesEditorialField: true, nativeAtlasRecipe: recipe)
+        let input = EditorialCanvasRenderInput(sceneInput: scene, digitalImpact: .none)
+        let first = await DayObjectsImageRenderer.image(input: input, size: CGSize(width: 160, height: 200), scale: 1, elapsedTime: 4)
+        let second = await DayObjectsImageRenderer.image(input: input, size: CGSize(width: 160, height: 200), scale: 1, elapsedTime: 4)
+        XCTAssertNotNil(first)
+        XCTAssertEqual(first?.pngData(), second?.pngData())
+        let damaged = await DayObjectsImageRenderer.image(input: .init(sceneInput: scene, digitalImpact: .init(spentColors: 100)), size: CGSize(width: 160, height: 200), scale: 1, elapsedTime: 4)
+        XCTAssertNotNil(damaged)
+        XCTAssertNotEqual(first?.pngData(), damaged?.pngData())
+    }
+    func testHistoricalCanvasDoesNotAcquireRecipeWhenDecoded() throws {
+        let canvas = DayCanvas(dayKey: "2026-08-01")
+        let data = try JSONEncoder().encode(canvas)
+        let decoded = try JSONDecoder().decode(DayCanvas.self, from: data)
+        XCTAssertNil(decoded.artworkRecipe)
+    }
+
+    func testRecipeRoundTripAndEventReconciliationAreStable() throws {
+        let recipe = NativeAtlasRecipe.make(dayKey: "2026-09-10")
+            .reconciled(eventIDs: ["a", "b", "a"])
+        XCTAssertEqual(recipe.actors.map(\.eventID), ["a", "b"])
+        XCTAssertEqual(recipe, NativeAtlasRecipe.make(dayKey: "2026-09-10").reconciled(eventIDs: ["a", "b"]))
+        XCTAssertEqual(recipe, try JSONDecoder().decode(NativeAtlasRecipe.self, from: JSONEncoder().encode(recipe)))
+        let expanded = recipe.reconciled(eventIDs: ["a", "b", "c"])
+        XCTAssertEqual(Array(expanded.actors.prefix(2)), recipe.actors)
+        XCTAssertEqual(expanded.reconciled(eventIDs: ["b"]).actors, [recipe.actors[1]])
+        XCTAssertEqual(recipe.reconciled(eventIDs: []).actors.count, 0)
+        XCTAssertEqual(recipe.reconciled(eventIDs: (0..<20).map(String.init)).actors.count, 10)
+    }
+
+    func testSelectedMaterialsAreCompatibleAndUnknownVersionsAreNotRegenerated() {
+        for day in 1...50 {
+            let recipe = NativeAtlasRecipe.make(dayKey: "test-\(day)").reconciled(eventIDs: (0..<10).map(String.init))
+            for actor in recipe.actors {
+                let preset = MetalShapeGenomeCatalog.presets.first { $0.id == actor.presetID }!
+                XCTAssertTrue(preset.compatibility.allowed.contains(actor.materialID))
+                if actor.materialID == .sunset { XCTAssertEqual(actor.presetID, "legacy.circle") }
+            }
+        }
+        var future = NativeAtlasRecipe.make(dayKey: "future")
+        future.schemaVersion = 99
+        XCTAssertEqual(future.reconciled(eventIDs: ["new"]), future)
     }
 }

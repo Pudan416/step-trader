@@ -220,7 +220,7 @@ struct MeCalendarStrip: View {
     private var recentDaysTitle: some View {
         Text(String(localized: "LAST 7 CALENDAR DAYS", comment: "MeView – recent calendar section header"))
             .font(.geist(.caption).weight(.medium))
-            .foregroundStyle(theme.textSecondary.opacity(0.72))
+            .foregroundStyle(theme.textSecondary)
             .tracking(1.1)
     }
 
@@ -232,7 +232,7 @@ struct MeCalendarStrip: View {
                     .font(.geist(.caption2).weight(.semibold))
             }
             .font(.geist(.subheadline).weight(.medium))
-            .foregroundStyle(AppColors.brandAccent)
+            .foregroundStyle(theme.accentColor)
             .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
@@ -321,7 +321,7 @@ struct DayHistoryTile: View {
             }
 
             LinearGradient(
-                colors: [.black.opacity(0.05), .black.opacity(0.38)],
+                colors: [.black.opacity(0.38), .black.opacity(0.46)],
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -329,7 +329,7 @@ struct DayHistoryTile: View {
             VStack(spacing: 4) {
                 Text(weekdayLabel)
                     .font(.geist(.caption2).weight(isSelected ? .bold : .medium))
-                    .foregroundStyle(isSelected ? AppColors.brandAccent : theme.textPrimary.opacity(0.75))
+                    .foregroundStyle(isSelected ? AppColors.brandAccent : AppColors.Night.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
 
@@ -338,7 +338,7 @@ struct DayHistoryTile: View {
                 Text(dayNumber)
                     .font(.unbounded(18, weight: .medium, relativeTo: .title3))
                     .fontDesign(nil)
-                    .foregroundStyle(isSelected ? AppColors.brandAccent : theme.textPrimary.opacity(0.9))
+                    .foregroundStyle(isSelected ? AppColors.brandAccent : AppColors.Night.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.62)
             }

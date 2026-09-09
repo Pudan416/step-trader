@@ -2,7 +2,7 @@ import Foundation
 import simd
 
 @_alignment(16)
-struct MetalShapeGenomeUniforms: Equatable, Sendable {
+struct MetalShapeGenomeUniforms: Codable, Equatable, Sendable {
     static let metalStride = 128
 
     let superformula: SIMD4<Float>
@@ -33,7 +33,7 @@ struct MetalShapeGenomeUniforms: Equatable, Sendable {
 }
 
 @_alignment(16)
-struct MetalShapeMaterialUniforms: Equatable, Sendable {
+struct MetalShapeMaterialUniforms: Codable, Equatable, Sendable {
     static let metalStride = 128
 
     let color0: SIMD4<Float>
@@ -47,6 +47,27 @@ struct MetalShapeMaterialUniforms: Equatable, Sendable {
 
     var materialIndex: UInt32 { metadata.x }
     var direction: SIMD2<Float> { SIMD2(params1.x, params1.y) }
+
+    /// Keep old saved parameters readable, but never draw the dense nested
+    /// contour fill on the primary canvas or its picker.
+    var primaryCanvasMaterial: Self {
+        guard materialIndex == 8 else { return self }
+        var safeMetadata = metadata
+        safeMetadata.x = 2
+        return Self(color0: color0, color1: color1, color2: color2, params0: params0, params1: params1, params2: params2, params3: params3, metadata: safeMetadata)
+    }
+
+    /// Rotate the frozen palette, retaining one/two-color material relationships.
+    func withColorVariant(_ variant: Int) -> Self {
+        let angle = Float(variant % 97 + 1) * 2.3999632
+        let axis = SIMD3<Float>(repeating: 1 / sqrt(3))
+        func rotate(_ c: SIMD4<Float>) -> SIMD4<Float> {
+            let rgb = SIMD3(c.x, c.y, c.z)
+            let value = simd_clamp(rgb * cos(angle) + simd_cross(axis, rgb) * sin(angle) + axis * simd_dot(axis, rgb) * (1 - cos(angle)), SIMD3(repeating: 0), SIMD3(repeating: 1))
+            return SIMD4(value, c.w)
+        }
+        return Self(color0: rotate(color0), color1: rotate(color1), color2: rotate(color2), params0: params0, params1: params1, params2: params2, params3: params3, metadata: metadata)
+    }
 
     var colorsAreFiniteAndBounded: Bool {
         [color0, color1, color2].allSatisfy { color in
@@ -71,7 +92,15 @@ struct MetalShapeGenomeFrame: Equatable, Sendable {
         let geometry = geometry(for: preset, seed: seed)
         let phase = random.nextUnit()
         let angle = random.nextUnit() * 2 * .pi
-        let direction = SIMD2(cos(angle), sin(angle))
+        var direction = SIMD2(cos(angle), sin(angle))
+        if material == .directionalBlur {
+            switch preset.id {
+            case "legacy.soft-square": direction = SIMD2(-1, 0)
+            case "legacy.rounded-triangle": direction = SIMD2(1, 0)
+            case "legacy.rounded-hexagon": direction = SIMD2(0, 1)
+            default: break
+            }
+        }
         var palette = palette(seed: seed, random: &random)
         if material == .sideLight { palette.2 = palette.1 }
         let materialIndex = UInt32(MetalShapeMaterial.allCases.firstIndex(of: material) ?? 0)

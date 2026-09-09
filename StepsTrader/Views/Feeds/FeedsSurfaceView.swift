@@ -21,6 +21,7 @@ import SwiftUI
 /// that type is explicitly designed to be advanced by discrete observations,
 /// not recomputed from scratch each render.
 struct FeedsSurfaceView: View {
+    @Environment(\.appTheme) private var theme
     @ObservedObject var model: AppModel
     let selectedGroup: String?
     /// Unspent minutes on `selectedGroup`'s window; 0 when nothing is selected
@@ -140,8 +141,8 @@ struct FeedsSurfaceView: View {
             Image(systemName: "ellipsis")
                 .font(.geist(size: 16, weight: .semibold))
                 .foregroundStyle(.white)
-                .frame(width: 32, height: 32)
-                .background(Circle().fill(.white.opacity(0.16)))
+                .frame(width: 44, height: 44)
+                .smokedCanvasControl(in: Circle())
         }
         .accessibilityLabel(String(localized: "Feed options", comment: "Feeds surface – corner menu VoiceOver label"))
     }
@@ -183,14 +184,7 @@ struct FeedsSurfaceView: View {
             .padding(.horizontal, 18)
             .padding(.vertical, 15)
             .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(.white.opacity(0.14))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(.white.opacity(0.16), lineWidth: 0.5)
-            )
+            .smokedCanvasControl(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
         .opacity(isDisabled ? 0.4 : 1.0)
@@ -230,12 +224,9 @@ struct FeedsSurfaceView: View {
                 // room for the other.
                 Text(display.digits)
                     .font(.geist(Self.digitsSize, weight: .bold, relativeTo: .largeTitle))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.textPrimary)
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
-                    // The canvas underneath is unscrimmed, so legibility is
-                    // bought here rather than by dimming the artwork.
-                    .shadow(color: .black.opacity(0.45), radius: 12, y: 2)
                     .padding(.top, 8)
 
                 Spacer(minLength: 12)
@@ -281,13 +272,10 @@ struct FeedsSurfaceView: View {
                 Image(systemName: "arrow.up.forward")
                     .font(.geist(size: 13, weight: .semibold))
             }
-            // Outlined, not filled: against an unscrimmed canvas a solid
-            // block of accent would fight the disc for attention.
-            .foregroundStyle(AppColors.brandAccent)
+            .foregroundStyle(AppColors.Night.textPrimary)
             .padding(.horizontal, 28)
             .padding(.vertical, 15)
-            .background(Capsule().fill(.black.opacity(0.18)))
-            .overlay(Capsule().strokeBorder(AppColors.brandAccent, lineWidth: 1.5))
+            .smokedCanvasControl(in: Capsule())
         }
         .buttonStyle(.plain)
         .disabled(!canOpen)

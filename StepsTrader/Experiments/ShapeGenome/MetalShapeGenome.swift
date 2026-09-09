@@ -40,6 +40,7 @@ enum MetalShapeMaterial: String, Codable, CaseIterable, Sendable {
     case proceduralFlow
     case proceduralContour
     case eclipseGlow
+    case sunset
 }
 
 enum MetalShapeRole: String, Codable, CaseIterable, Sendable {

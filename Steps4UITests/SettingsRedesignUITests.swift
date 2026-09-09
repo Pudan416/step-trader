@@ -65,6 +65,11 @@ final class SettingsRedesignUITests: XCTestCase {
         app.buttons["settings.close"].tap()
         for index in 0..<3 {
             app.buttons["tab_feeds"].tap()
+            let selected = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                app.buttons["tab_feeds"].isSelected
+            }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 5), .completed)
+            capture(app, name: "Glass Feeds return \(index)")
             app.buttons["tab_me"].tap()
             XCTAssertTrue(app.descendants(matching: .any)["me_poster_carousel"].waitForExistence(timeout: 3))
             capture(app, name: "Live Me return \(index)")

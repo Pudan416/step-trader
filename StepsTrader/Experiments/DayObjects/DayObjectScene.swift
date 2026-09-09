@@ -129,7 +129,9 @@ struct DayObjectScene: Equatable {
             visualLanguage: visualLanguage,
             motionPlan: motionPlan,
             palette: palette,
-            meshGradientStyle: sceneRecipeV1?.backgroundStyle ?? legacyMeshGradientStyle,
+            meshGradientStyle: input.nativeAtlasRecipe?.isSupported == true
+                ? .primaryCanvas(seed: UInt64(input.nativeAtlasRecipe!.seedHex, radix: 16) ?? rootSeed, palette: palette)
+                : sceneRecipeV1?.backgroundStyle ?? legacyMeshGradientStyle,
             score: score,
             actors: actors,
             sceneRecipeV1: sceneRecipeV1
@@ -151,7 +153,8 @@ struct DayObjectScene: Equatable {
             lowSleep: input.lowSleep,
             editorialPreview: input.editorialPreview,
             editorialLabConfiguration: input.editorialLabConfiguration,
-            actorColorVariants: input.actorColorVariants
+            actorColorVariants: input.actorColorVariants,
+            nativeAtlasRecipe: input.nativeAtlasRecipe
         )
     }
 

@@ -366,6 +366,105 @@ final class DayObjectPaletteTests: XCTestCase {
         }
     }
 
+    func testProductionActorColorsRemainReadableAgainstActualMetalMeshOutput() throws {
+        let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        let commandQueue = try XCTUnwrap(device.makeCommandQueue())
+        let library = try XCTUnwrap(device.makeDefaultLibrary())
+        let vertexFunction = try XCTUnwrap(library.makeFunction(name: "dayObjectsFullscreenVertex"))
+        let fragmentFunction = try XCTUnwrap(
+            library.makeFunction(name: "dayObjectsMeshGradientFragment")
+        )
+        let descriptor = MTLRenderPipelineDescriptor()
+        descriptor.vertexFunction = vertexFunction
+        descriptor.fragmentFunction = fragmentFunction
+        descriptor.colorAttachments[0].pixelFormat = .rgba16Float
+        let pipeline = try device.makeRenderPipelineState(descriptor: descriptor)
+        let plan = DayObjectsRenderTargetPlan(drawableWidth: 96, drawableHeight: 208)
+        let scenes = representativeProductionScenesByArchetype()
+
+        XCTAssertEqual(
+            Set(scenes.map(\.meshGradientStyle.archetype)),
+            Set(DayObjectMeshGradientArchetype.allCases)
+        )
+
+        var renderedFields = [[SIMD3<Float>]]()
+        var minimumCorrectContrast = Double.infinity
+        for scene in scenes {
+            XCTAssertEqual(
+                scene.paletteSet,
+                DayObjectPaletteSet.make(
+                    rootSeed: scene.rootSeed,
+                    categories: ModernPaletteSelection.all,
+                    dayKey: scene.input.dayKey,
+                    identity: "gallery-day-objects-v1"
+                )
+            )
+            let emittedActorColors = scene.actors.flatMap {
+                $0.appearance.colorAssignment.colors.map(\.linearRGB)
+            }
+            XCTAssertFalse(emittedActorColors.isEmpty)
+
+            for elapsedTime: TimeInterval in [0, 19, 53] {
+                let pixels = try renderMeshGradient(
+                    style: scene.meshGradientStyle,
+                    elapsedTime: elapsedTime,
+                    plan: plan,
+                    device: device,
+                    commandQueue: commandQueue,
+                    pipeline: pipeline
+                )
+                let field = linearRGBPixels(pixels)
+                renderedFields.append(field)
+                for color in emittedActorColors {
+                    let measured = lowPercentileContrast(actor: color, backgrounds: field)
+                    minimumCorrectContrast = min(minimumCorrectContrast, measured)
+                    XCTAssertGreaterThanOrEqual(
+                        measured,
+                        1.35 - 0.000_001,
+                        "day=\(scene.input.dayKey) archetype="
+                            + "\(scene.meshGradientStyle.archetype) time=\(elapsedTime) "
+                            + "background=\(scene.paletteSet.background.code) "
+                            + "actor=\(color) actorL=\(relativeLuminance(color)) "
+                            + "proxy=\(lowPercentileContrast(actor: color, backgrounds: representativeMeshSamples(palette: scene.paletteSet.background))) "
+                            + "fieldL="
+                            + "\(field.map(relativeLuminance).min() ?? 0)..."
+                            + "\(field.map(relativeLuminance).max() ?? 0)"
+                    )
+                }
+            }
+        }
+
+        // A deliberately crossed day proves this behavioral gate is sensitive
+        // to an actor palette being paired with the wrong production shader field.
+        let primaryFields = stride(from: 0, to: renderedFields.count, by: 3).map {
+            renderedFields[$0]
+        }
+        let mismatchedMinimum = scenes.indices.flatMap { sceneIndex in
+            primaryFields.indices.compactMap { fieldIndex -> Double? in
+                guard sceneIndex != fieldIndex else { return nil }
+                return scenes[sceneIndex].actors.flatMap { actor in
+                    actor.appearance.colorAssignment.colors.map {
+                        lowPercentileContrast(
+                            actor: $0.linearRGB,
+                            backgrounds: primaryFields[fieldIndex]
+                        )
+                    }
+                }
+                .min()
+            }
+        }.min()
+        XCTAssertLessThan(
+            try XCTUnwrap(mismatchedMinimum),
+            1.35,
+            "the fixed cross-day mutation must demonstrate that a shader/palette mismatch fails"
+        )
+        print(
+            "DAY_OBJECTS_ACTUAL_METAL_CONTRAST minimumCorrect=\(minimumCorrectContrast) "
+                + "minimumCrossDayMismatch=\(try XCTUnwrap(mismatchedMinimum)) "
+                + "threshold=1.35 archetypes=\(scenes.count) times=3"
+        )
+    }
+
     func testEveryCatalogPaletteCanBackVisibleDeterministicActorColors() {
         let catalog = ModernPaletteCatalog.all
         for (index, background) in catalog.enumerated() {
@@ -844,6 +943,109 @@ final class DayObjectPaletteTests: XCTestCase {
             appearances.values.filter { $0.mutationRole == .accent }.count,
             3
         )
+    }
+
+    func testCanonicalUUIDMaterialRolesHashAllBytesInsteadOfTrailingDecimal() throws {
+        let rootSeed: UInt64 = 44
+        let paletteSet = DayObjectPaletteSet.make(
+            rootSeed: rootSeed,
+            categories: [.pastel, .cold, .warm]
+        )
+        let language = DayObjectVisualLanguage.make(
+            rootSeed: rootSeed,
+            paletteSet: paletteSet,
+            choreography: DayObjectChoreographyConfiguration.make(seed: rootSeed)
+        )
+        let appearances = language.appearances(
+            eventIDs: canonicalGalleryUUIDsWithSameTrailingDecimal,
+            rootSeed: rootSeed
+        )
+        let expected: [String: DayObjectMutationRole] = [
+            "0F4C9B1A-2D3E-4A50-8B61-7C8D9E0F1AA7": .base,
+            "1A2B3C4D-5E6F-4789-9ABC-DEF0123456B7": .soft,
+            "2B7E41C9-8A30-4D65-AF12-903C5E7B14C7": .base,
+            "3C8F52DA-9B41-4E76-B023-A14D6F8C25D7": .base,
+            "4D9063EB-AC52-4F87-8134-B25E709D36E7": .accent,
+            "5EA174FC-BD63-4098-9245-C36F81AE47F7": .soft,
+            "6FB2850D-CE74-41A9-A356-D47092BF58A7": .base,
+            "70C3961E-DF85-42BA-B467-E581A3C069B7": .base,
+            "81D4A72F-E096-43CB-8578-F692B4D17AC7": .soft,
+            "92E5B830-F1A7-44DC-9689-07A3C5E28BD7": .soft,
+        ]
+
+        XCTAssertEqual(Set(expected.values), Set(DayObjectMutationRole.allCases))
+        for eventID in canonicalGalleryUUIDsWithSameTrailingDecimal {
+            XCTAssertEqual(
+                try XCTUnwrap(appearances[eventID]).mutationRole,
+                try XCTUnwrap(expected[eventID]),
+                eventID
+            )
+        }
+    }
+
+    func testCanonicalUUIDMaterialRolesStayActorLocalAcrossInsertionRemovalAndReorder() throws {
+        let rootSeed: UInt64 = 73
+        let paletteSet = DayObjectPaletteSet.make(
+            rootSeed: rootSeed,
+            categories: [.pastel, .cold, .warm]
+        )
+        let language = DayObjectVisualLanguage.make(
+            rootSeed: rootSeed,
+            paletteSet: paletteSet,
+            choreography: DayObjectChoreographyConfiguration.make(seed: rootSeed)
+        )
+        let eventIDs = canonicalGalleryUUIDsWithSameTrailingDecimal
+        let full = language.appearances(eventIDs: eventIDs, rootSeed: rootSeed)
+        let reordered = language.appearances(
+            eventIDs: Array(eventIDs.reversed()),
+            rootSeed: rootSeed
+        )
+        let removed = language.appearances(
+            eventIDs: Array(eventIDs.dropFirst().dropLast()),
+            rootSeed: rootSeed
+        )
+
+        for eventID in eventIDs {
+            let alone = language.appearances(eventIDs: [eventID], rootSeed: rootSeed)
+            XCTAssertEqual(
+                try XCTUnwrap(alone[eventID]).mutationRole,
+                try XCTUnwrap(full[eventID]).mutationRole,
+                "actor-local role: \(eventID)"
+            )
+            XCTAssertEqual(
+                try XCTUnwrap(reordered[eventID]).mutationRole,
+                try XCTUnwrap(full[eventID]).mutationRole,
+                "reorder-stable role: \(eventID)"
+            )
+            if removed[eventID] != nil {
+                XCTAssertEqual(
+                    try XCTUnwrap(removed[eventID]).mutationRole,
+                    try XCTUnwrap(full[eventID]).mutationRole,
+                    "removal-stable role: \(eventID)"
+                )
+            }
+        }
+    }
+
+    func testExplicitSyntheticFixtureIDsRetainTrailingOrdinalMaterialRoles() throws {
+        let rootSeed: UInt64 = 44
+        let paletteSet = DayObjectPaletteSet.make(
+            rootSeed: rootSeed,
+            categories: [.pastel, .cold, .warm]
+        )
+        let language = DayObjectVisualLanguage.make(
+            rootSeed: rootSeed,
+            paletteSet: paletteSet,
+            choreography: DayObjectChoreographyConfiguration.make(seed: rootSeed)
+        )
+        let appearances = language.appearances(
+            eventIDs: ["fixture-0", "fixture-1", "fixture-3"],
+            rootSeed: rootSeed
+        )
+
+        XCTAssertEqual(try XCTUnwrap(appearances["fixture-0"]).mutationRole, .base)
+        XCTAssertEqual(try XCTUnwrap(appearances["fixture-1"]).mutationRole, .soft)
+        XCTAssertEqual(try XCTUnwrap(appearances["fixture-3"]).mutationRole, .accent)
     }
 
     func testExistingAppearanceDoesNotChangeWhenLaterHappeningIsAdded() throws {
@@ -1732,6 +1934,37 @@ final class DayObjectPaletteTests: XCTestCase {
             }
         }
         return result
+    }
+
+    private func representativeProductionScenesByArchetype() -> [DayObjectScene] {
+        var byArchetype = [DayObjectMeshGradientArchetype: DayObjectScene]()
+        for dayKey in isoDayKeys(from: 2026, through: 2026) {
+            let scene = DayObjectScene.make(
+                input: DayObjectSceneInput(
+                    dayKey: dayKey,
+                    identity: "gallery-day-objects-v1",
+                    eventIDs: canonicalGalleryUUIDsWithSameTrailingDecimal,
+                    motionEnergy: 0.5,
+                    visualClarity: 0.5,
+                    canvasCoverage: .fullCanvas,
+                    paletteCategories: ModernPaletteSelection.all
+                )
+            )
+            byArchetype[scene.meshGradientStyle.archetype] =
+                byArchetype[scene.meshGradientStyle.archetype] ?? scene
+            if byArchetype.count == DayObjectMeshGradientArchetype.allCases.count { break }
+        }
+        return DayObjectMeshGradientArchetype.allCases.compactMap { byArchetype[$0] }
+    }
+
+    private func linearRGBPixels(_ pixels: [UInt16]) -> [SIMD3<Float>] {
+        stride(from: 0, to: pixels.count, by: 4).map { index in
+            SIMD3(
+                Float(Float16(bitPattern: pixels[index])),
+                Float(Float16(bitPattern: pixels[index + 1])),
+                Float(Float16(bitPattern: pixels[index + 2]))
+            )
+        }
     }
 
     private func broadFieldMetrics(

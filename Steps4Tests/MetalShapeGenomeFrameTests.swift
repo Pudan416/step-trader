@@ -146,8 +146,8 @@ final class MetalShapeGenomeFrameTests: XCTestCase {
             material: .directionalBlur,
             seed: seed
         ).material.direction
-        let firstEdge = pixel(for: direction * 0.82, size: size)
-        let secondEdge = pixel(for: -direction * 0.82, size: size)
+        let firstEdge = pixel(for: direction * (0.82 / 1.42), size: size)
+        let secondEdge = pixel(for: -direction * (0.82 / 1.42), size: size)
         let edgeAlphas = [
             alpha(in: image, x: firstEdge.x, y: firstEdge.y),
             alpha(in: image, x: secondEdge.x, y: secondEdge.y),
@@ -155,8 +155,8 @@ final class MetalShapeGenomeFrameTests: XCTestCase {
         XCTAssertGreaterThan(edgeAlphas.max() ?? 0, 220)
         XCTAssertLessThan(edgeAlphas.min() ?? 255, 205)
 
-        let firstOutside = pixel(for: direction * 1.12, size: size)
-        let secondOutside = pixel(for: -direction * 1.12, size: size)
+        let firstOutside = pixel(for: direction * (1.12 / 1.42), size: size)
+        let secondOutside = pixel(for: -direction * (1.12 / 1.42), size: size)
         let outsideAlphas = [
             alpha(in: image, x: firstOutside.x, y: firstOutside.y),
             alpha(in: image, x: secondOutside.x, y: secondOutside.y),

@@ -279,6 +279,7 @@ struct DayObjectMeshGradientStyle: Equatable {
     let scale: Double
     let phase: Double
     let motionDirection: Double
+    let preservesColorFields: Bool
 
     init(
         colors: [SIMD3<Float>],
@@ -289,7 +290,8 @@ struct DayObjectMeshGradientStyle: Equatable {
         speed: Double,
         scale: Double,
         phase: Double,
-        motionDirection: Double = 1
+        motionDirection: Double = 1,
+        preservesColorFields: Bool = false
     ) {
         self.colors = colors
         self.archetype = archetype
@@ -300,6 +302,7 @@ struct DayObjectMeshGradientStyle: Equatable {
         self.scale = scale
         self.phase = phase
         self.motionDirection = motionDirection < 0 ? -1 : 1
+        self.preservesColorFields = preservesColorFields
     }
 
     static func make(seed: UInt64, palette: DayObjectPalette) -> DayObjectMeshGradientStyle {
@@ -354,5 +357,32 @@ struct DayObjectMeshGradientStyle: Equatable {
             phase: rng.nextDouble(in: 0...(2 * .pi - Double.ulpOfOne)),
             motionDirection: direction
         )
+    }
+
+    /// Keep two genuinely different palette colors instead of averaging every
+    /// swatch into a pale wash. Only the atlas route opts into this direction.
+    static func primaryCanvas(seed: UInt64, palette: DayObjectPalette) -> DayObjectMeshGradientStyle {
+        let base = make(seed: seed, palette: palette)
+        let colors = palette.colors.map(\.linearRGB)
+        var pair = (0, 1)
+        var separation: Float = -1
+        for i in colors.indices {
+            for j in colors.indices where j > i {
+                let delta = colors[i] - colors[j]
+                let distance = delta.x * delta.x + delta.y * delta.y + delta.z * delta.z
+                if distance > separation { separation = distance; pair = (i, j) }
+            }
+        }
+        var rng = SeededRNG.derived(from: seed, domain: "primary-background")
+        if rng.nextInt(in: 0...1) == 1 { pair = (pair.1, pair.0) }
+        let remaining = colors.indices.filter { $0 != pair.0 && $0 != pair.1 }
+        let accent = !remaining.isEmpty && rng.nextInt(in: 0...3) == 0
+            ? colors[remaining[rng.nextInt(in: 0...(remaining.count - 1))]]
+            : colors[pair.0]
+        return Self(colors: [colors[pair.0], colors[pair.1], accent],
+                    archetype: base.archetype, offset: base.offset,
+                    distortion: base.distortion, swirl: base.swirl,
+                    speed: base.speed, scale: 0.72, phase: base.phase,
+                    motionDirection: base.motionDirection, preservesColorFields: true)
     }
 }

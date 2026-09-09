@@ -121,14 +121,12 @@ struct FeedAddTileView: View {
     var body: some View {
         Button(action: onTap) {
             ZStack {
-                Circle()
-                    .fill(Color.white.opacity(0.13))
-                    .overlay(Circle().strokeBorder(.white.opacity(0.14), lineWidth: 0.5))
                 Image(systemName: "plus")
                     .font(.geist(size: 28, weight: .light))
                     .foregroundStyle(AppColors.Night.textPrimary)
             }
             .frame(width: FeedTileView.diameter, height: FeedTileView.diameter)
+            .smokedCanvasControl(in: Circle())
             .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -222,6 +220,7 @@ struct FeedRowView: View {
         ZStack(alignment: .leading) {
             Rectangle()
                 .fill(.ultraThinMaterial)
+                .environment(\.colorScheme, .dark)
                 .overlay(Color.black.opacity(0.16))
 
             TodayCanvasUnlockFill(darkToLight: true)

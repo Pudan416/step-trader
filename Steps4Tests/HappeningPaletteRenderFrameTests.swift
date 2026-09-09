@@ -23,6 +23,8 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
         XCTAssertEqual(available.gpuActor.paletteMorph, 0)
         XCTAssertEqual(preview.gpuActor.paletteMorph, 1)
         XCTAssertEqual(preview.gpuActor.shape, assignment.shape.numericValue)
+        XCTAssertEqual(preview.gpuActor.silhouetteVariant, assignment.silhouette.variant)
+        XCTAssertEqual(preview.halfSize.y / preview.halfSize.x, assignment.silhouette.aspect, accuracy: 0.0001)
         XCTAssertEqual(preview.gpuAppearance, assignment.material.gpuAppearance)
         XCTAssertEqual(added.gpuActor.presentationSaturation, 0.08, accuracy: 0.001)
         XCTAssertEqual(removal.gpuActor.removalEmphasis, 1)
@@ -70,7 +72,8 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
         // positive y directly to Metal clip space, which grows upward.
         XCTAssertEqual(actor.gpuActor.position.y, 1.0, accuracy: 0.0001)
         XCTAssertEqual(actor.gpuActor.halfSize.x, Float(source.radius / 390), accuracy: 0.0001)
-        XCTAssertEqual(actor.gpuActor.halfSize.y, Float(source.radius / 390), accuracy: 0.0001)
+        let silhouette = try XCTUnwrap(presentation.slots.first?.assignment.silhouette)
+        XCTAssertEqual(actor.gpuActor.halfSize.y, Float(source.radius / 390) * silhouette.aspect, accuracy: 0.0001)
     }
 
     func testTransitionTimelineInterpolatesControlsAndGeometryThroughCompletion() {

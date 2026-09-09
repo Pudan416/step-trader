@@ -67,7 +67,7 @@ struct AppsPageSimplified: View {
     /// this determines how much yellow remains in the row.
     @State private var initialMinutes: [String: Int] = [:]
 
-    private var buttonTint: Color { AppColors.Night.textPrimary }
+    private var buttonTint: Color { theme.textPrimary }
     @State private var showCustomNamePrompt = false
     @State private var customTicketName = ""
     @State private var deleteHapticTick = 0
@@ -97,12 +97,12 @@ struct AppsPageSimplified: View {
                         } label: {
                             Image(systemName: "plus")
                                 .font(.geist(size: 17, weight: .regular))
-                                .foregroundStyle(buttonTint)
+                                .foregroundStyle(AppColors.Night.textPrimary)
                                 .frame(
                                     width: FeedCardLayout.addControlDiameter,
                                     height: FeedCardLayout.addControlDiameter
                                 )
-                                .liquidGlassControl(in: Circle())
+                                .smokedCanvasControl(in: Circle())
                         }
                         #if DEBUG
                         .coachMarkAnchor(.unlockSuccess)
@@ -346,7 +346,7 @@ struct AppsPageSimplified: View {
         VStack(spacing: 16) {
             Image(systemName: "rectangle.stack.badge.plus")
                 .font(.geist(size: 34, weight: .light))
-                .foregroundStyle(AppColors.brandAccent)
+                .foregroundStyle(theme.accentColor)
                 .frame(width: 72, height: 72)
                 .background(Circle().fill(Color.white.opacity(0.1)))
 

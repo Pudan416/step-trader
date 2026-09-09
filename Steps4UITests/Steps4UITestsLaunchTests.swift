@@ -15,6 +15,36 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         app.launch()
     }
 
+    func testCalmPaletteAndSmokedChromeAppearances() throws {
+        for appearance in ["Light", "Dark"] {
+            let app = XCUIApplication()
+            app.launchArguments = ["ui-testing", "ui-testing-task7", "-AppleLanguages", "(en)", "-AppleLocale", "en_US", "-AppleInterfaceStyle", appearance, "-appTheme", appearance == "Light" ? "daylight" : "night"]
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
+            app.launch()
+            XCTAssertTrue(app.buttons["tab_canvas"].waitForExistence(timeout: 10))
+            XCTAssertTrue(app.descendants(matching: .any)["canvas_energy_pill"].exists)
+            attachScreenshot(named: "smoked-canvas-\(appearance)")
+            openPalette(in: app)
+            let walk = app.buttons["happening_choice_happening_walk"]
+            XCTAssertTrue(walk.waitForExistence(timeout: 5))
+            attachScreenshot(named: "neutral-picker-\(appearance)")
+            walk.tap()
+            XCTAssertEqual(walk.value as? String, "Previewing addition to Canvas")
+            attachScreenshot(named: "revealed-picker-\(appearance)")
+            walk.tap()
+            XCTAssertEqual(walk.value as? String, "On Canvas")
+            app.buttons["Close"].tap()
+            XCTAssertTrue(app.buttons["tab_me"].waitForExistence(timeout: 5))
+            app.buttons["tab_me"].tap()
+            XCTAssertTrue(app.buttons["me_archive_button"].waitForExistence(timeout: 8))
+            attachScreenshot(named: "smoked-me-\(appearance)")
+            app.buttons["tab_feeds"].tap()
+            XCTAssertTrue(app.staticTexts["Feeds"].waitForExistence(timeout: 5))
+            attachScreenshot(named: "frost-feeds-\(appearance)")
+            app.terminate()
+        }
+    }
+
     func testMeCalendarAllButtonKeepsTheFullCalendarPresented() throws {
         let app = XCUIApplication()
         app.launchArguments = ["ui-testing"]
@@ -505,14 +535,18 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         let walk = app.buttons["happening_choice_happening_walk"]
         XCTAssertTrue(walk.waitForExistence(timeout: 5))
         walk.tap()
-        XCTAssertTrue(app.staticTexts["Tap again to add to Canvas"].waitForExistence(timeout: 1))
+        XCTAssertTrue(walk.staticTexts["Add"].waitForExistence(timeout: 2))
+        XCTAssertFalse(app.staticTexts["Tap again to add to Canvas"].exists)
         XCTAssertEqual(walk.value as? String, "Previewing addition to Canvas")
         walk.tap()
         XCTAssertEqual(walk.value as? String, "On Canvas")
+        XCTAssertFalse(app.staticTexts["On Canvas"].exists)
+        XCTAssertFalse(walk.staticTexts["Add"].exists)
         XCTAssertFalse(app.otherElements["happening_status_added_happening_walk"].exists)
         assertPersistentPaletteChrome(in: app)
         walk.tap()
-        XCTAssertTrue(app.staticTexts["Tap again to remove from Canvas"].waitForExistence(timeout: 1))
+        XCTAssertTrue(walk.staticTexts["Delete"].waitForExistence(timeout: 2))
+        XCTAssertFalse(app.staticTexts["Tap again to remove from Canvas"].exists)
         XCTAssertEqual(walk.value as? String, "Previewing removal from Canvas")
         walk.tap()
         XCTAssertEqual(walk.value as? String, "Available")
@@ -577,7 +611,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         app.buttons["happening_choice_happening_walk"]
             .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
             .tap()
-        XCTAssertTrue(app.staticTexts["Tap again to remove from Canvas"].waitForExistence(timeout: 1))
+        XCTAssertTrue(app.buttons["happening_choice_happening_walk"].staticTexts["Delete"].waitForExistence(timeout: 2))
         XCTAssertEqual(app.buttons["Walk"].value as? String, "Previewing removal from Canvas")
         Thread.sleep(forTimeInterval: 0.6)
         attachScreenshot(named: "editorial-palette-removal-preview")

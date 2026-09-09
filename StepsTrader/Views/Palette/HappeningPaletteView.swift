@@ -172,7 +172,9 @@ struct HappeningPaletteView: View {
                 .accessibilityHidden(activePanel != nil)
                 .allowsHitTesting(activePanel == nil)
 
-                if let instruction {
+                // Actions live on the selected object. Keep only failures here;
+                // the full state announcements remain available to VoiceOver.
+                if let instruction, instruction.kind == .error {
                     HappeningPaletteInstructionView(instruction: instruction)
                         .frame(width: min(320, max(1, proxy.size.width - 48)))
                         .position(x: layout.dockAnchor.x, y: layout.dockAnchor.y - 68)

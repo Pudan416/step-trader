@@ -51,7 +51,7 @@ struct CanvasFullScreenDock<Share: View>: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
-        .liquidGlassControl(in: Capsule(style: .continuous))
+        .smokedCanvasControl(in: Capsule(style: .continuous))
     }
 
     private func label(

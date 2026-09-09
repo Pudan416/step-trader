@@ -10,6 +10,8 @@ struct CanvasEditingDock: View {
     let showsDragHint: Bool
     let onDone: () -> Void
     let onRemix: () -> Void
+    var nativeRecipe: Binding<NativeAtlasRecipe?>? = nil
+    var automaticTraceStrength: Float = 0
 
     private var ink: Color { AppColors.Night.textPrimary }
 
@@ -30,9 +32,44 @@ struct CanvasEditingDock: View {
 
             VStack {
                 Spacer(minLength: 0)
+                if let binding = nativeRecipe, binding.wrappedValue?.isSupported == true {
+                    nativeControls(binding)
+                }
                 remixControl
             }
         }
+    }
+
+    private func nativeControls(_ binding: Binding<NativeAtlasRecipe?>) -> some View {
+        VStack(spacing: 10) {
+            Menu {
+                ForEach(Array(["Сдвиги полос", "Расслоение цвета", "Пиксельные фрагменты", "Волна", "Повторные контуры"].enumerated()), id: \.offset) { index, title in
+                    Button(title) { binding.wrappedValue?.glitchType = index }
+                }
+                Button("Сила по расходу красок") { binding.wrappedValue?.glitchStrength = nil }
+            } label: { Label("Цифровой след", systemImage: "waveform.path") }
+            Text(binding.wrappedValue?.glitchStrength == nil ? "По расходу красок" : "Сила: \(Int((binding.wrappedValue?.glitchStrength ?? 0) * 100)) / 100")
+                .font(.caption)
+            Slider(value: Binding(get: { Double(binding.wrappedValue?.glitchStrength ?? automaticTraceStrength) * 100 }, set: { binding.wrappedValue?.glitchStrength = Float($0 / 100) }), in: 0...100) {
+                Text("Сила глитча")
+            }
+            Menu {
+                ForEach(Array(["Прозрачное смешивание", "Светящийся шов", "Наложение"].enumerated()), id: \.offset) { index, title in
+                    Button(title) { binding.wrappedValue?.intersectionType = index }
+                }
+            } label: { Label("Пересечения", systemImage: "square.on.square") }
+            Slider(value: Binding(get: { Double(binding.wrappedValue?.intersectionStrength ?? 0) * 100 }, set: { binding.wrappedValue?.intersectionStrength = Float($0 / 100) }), in: 0...100) {
+                Text("Сила пересечений")
+            }
+            Toggle("Закрепить эффекты", isOn: Binding(get: { binding.wrappedValue?.locks.contains("effects") == true }, set: { value in
+                if value { binding.wrappedValue?.locks.insert("effects") } else { binding.wrappedValue?.locks.remove("effects") }
+            }))
+            Toggle("Закрепить картину", isOn: Binding(get: { binding.wrappedValue?.locks.contains("artwork") == true }, set: { value in
+                if value { binding.wrappedValue?.locks.insert("artwork") } else { binding.wrappedValue?.locks.remove("artwork") }
+            }))
+        }
+        .font(.system(size: 15)).padding(16)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
     }
 
     private var doneControl: some View {

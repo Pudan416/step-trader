@@ -295,6 +295,37 @@ static float4 dayObjectsApplyDigitalImpact(
     return float4(result, original.a);
 }
 
+static float3 dayObjectsDisplayColor(float3 source, float2 uv, constant DayObjectsPostUniforms &uniforms, bool photographic = false) {
+    float3 color = max(source, 0.0);
+
+    const float sourceLuminance = dot(color, float3(0.2126, 0.7152, 0.0722));
+    color = mix(float3(sourceLuminance), color, max(uniforms.saturation, 0.0));
+    color = (color - 0.5) * max(uniforms.contrast, 0.0) + 0.5;
+    color = saturate(color);
+
+    // Grain is evaluated from the final drawable pixel and applied only after
+    // the scene texture has been blurred and display-adjusted. Modulating one
+    // luminance value keeps the noise monochrome and avoids unrelated hue.
+    if (photographic) {
+        // Static, monochrome silver-like grains at final drawable resolution.
+        // No time/phase input: the texture never boils over still artwork.
+        const float2 pixel = saturate(uv) * max(uniforms.resolution, float2(1.0));
+        const float fine = dayObjectsGrainHash01(uint2(floor(pixel / 1.5)), uniforms.grainSeed);
+        const float clusters = dayObjectsSmoothGrainField(pixel, 3.5, uniforms.grainSeed ^ 0xA511E9B3u);
+        const float noise = (fine * 0.8 + clusters * 0.2) * 2.0 - 1.0;
+        return saturate(color + noise * clamp(uniforms.grainIntensity, 0.0, 0.075) * 1.25);
+    }
+    const float grain = dayObjectsGrainNoise(uv, uniforms) * 2.0 - 1.0;
+    const float luminance = dot(color, float3(0.2126, 0.7152, 0.0722));
+    const float strength = clamp(uniforms.grainIntensity, 0.0, 0.075) * abs(grain);
+    const float grainLuminance = grain < 0.0
+        ? luminance - luminance * (1.0 - luminance) * strength
+        : luminance + (sqrt(max(luminance, 0.0)) - luminance) * strength;
+    color = saturate(color + (grainLuminance - luminance));
+
+    return color;
+}
+
 fragment float4 dayObjectsDisplayFragment(
     DayObjectsPostVertexOut in [[stage_in]],
     texture2d<float> sceneTexture [[texture(0)]],
@@ -307,32 +338,19 @@ fragment float4 dayObjectsDisplayFragment(
 ) {
     const float4 original = sceneTexture.sample(linearSampler, saturate(in.uv));
     const float4 sampled = dayObjectsApplyDigitalImpact(
-        sceneTexture,
-        actorEchoTexture,
-        linearSampler,
-        saturate(in.uv),
-        original,
-        glitch,
-        glitchBands,
-        echoDirection
+        sceneTexture, actorEchoTexture, linearSampler, saturate(in.uv),
+        original, glitch, glitchBands, echoDirection
     );
-    float3 color = max(sampled.rgb, 0.0);
+    return float4(dayObjectsDisplayColor(sampled.rgb, in.uv, uniforms), sampled.a);
+}
 
-    const float sourceLuminance = dot(color, float3(0.2126, 0.7152, 0.0722));
-    color = mix(float3(sourceLuminance), color, max(uniforms.saturation, 0.0));
-    color = (color - 0.5) * max(uniforms.contrast, 0.0) + 0.5;
-    color = saturate(color);
-
-    // Grain is evaluated from the final drawable pixel and applied only after
-    // the scene texture has been blurred and display-adjusted. Modulating one
-    // luminance value keeps the noise monochrome and avoids unrelated hue.
-    const float grain = dayObjectsGrainNoise(in.uv, uniforms) * 2.0 - 1.0;
-    const float luminance = dot(color, float3(0.2126, 0.7152, 0.0722));
-    const float strength = clamp(uniforms.grainIntensity, 0.0, 0.075) * abs(grain);
-    const float grainLuminance = grain < 0.0
-        ? luminance - luminance * (1.0 - luminance) * strength
-        : luminance + (sqrt(max(luminance, 0.0)) - luminance) * strength;
-    color = saturate(color + (grainLuminance - luminance));
-
-    return float4(color, sampled.a);
+// Native geometry has its own seeded trace pass, but shares the established
+// final color adjustment, with a sharper static grain for the new artwork.
+fragment float4 nativeAtlasFinishFragment(
+    DayObjectsPostVertexOut in [[stage_in]],
+    texture2d<float> sceneTexture [[texture(0)]],
+    constant DayObjectsPostUniforms &uniforms [[buffer(0)]]
+) {
+    constexpr sampler linearSampler(coord::normalized, address::clamp_to_edge, filter::linear);
+    return float4(dayObjectsDisplayColor(sceneTexture.sample(linearSampler, in.uv).rgb, in.uv, uniforms, true), 1.0);
 }

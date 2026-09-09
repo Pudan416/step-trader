@@ -47,7 +47,7 @@ struct MeView: View {
     var body: some View {
         NavigationStack {
             mainScrollContent
-                .todayCanvasBackground()
+        .todayCanvasBackground(matchesCanvas: true)
                 // No inset for the energy card: it is not drawn on Me, and
                 // `\.topCardHeight` still reports the height it has on the other
                 // tabs — reserving it here would leave an empty band.
@@ -259,7 +259,7 @@ struct MeView: View {
                     .lineLimit(1)
                 Text(label)
                     .font(.geist(.caption))
-                    .foregroundStyle(theme.textSecondary.opacity(0.6))
+                    .foregroundStyle(theme.textSecondary)
             }
 
             if let trend {
@@ -271,7 +271,7 @@ struct MeView: View {
                         .foregroundStyle(theme.accentColor.opacity(0.9))
                     Text(String(localized: "vs last week", comment: "MeView – comparison period"))
                         .font(.geist(.caption2))
-                        .foregroundStyle(theme.textSecondary.opacity(0.5))
+                        .foregroundStyle(theme.textSecondary)
                 }
             }
         }
@@ -300,14 +300,14 @@ struct MeView: View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(greetingString + ",")
                 .font(greetingFont)
-                .foregroundStyle(theme.textPrimary.opacity(0.55))
+                    .foregroundStyle(theme.textSecondary)
             Button {
                 if authService.hasAppleAccount { showProfileEditor = true }
                 else { showLogin = true }
             } label: {
                 Text(userName)
                     .font(greetingFont.weight(.semibold))
-                    .foregroundStyle(theme.textPrimary)
+                    .foregroundStyle(theme.isLightTheme ? Color.black : AppColors.brandAccent)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(String(localized: "Profile, \(userName). Double tap to edit.", comment: "MeView – profile pill VoiceOver label"))
@@ -360,7 +360,7 @@ struct MeView: View {
     private func sectionHeader(_ title: String) -> some View {
         Text(title)
             .font(.geist(size: useTightMeLayout ? 11 : 12, weight: .medium))
-            .foregroundStyle(theme.textSecondary.opacity(0.55))
+            .foregroundStyle(theme.textSecondary)
             .tracking(0.6)
     }
 

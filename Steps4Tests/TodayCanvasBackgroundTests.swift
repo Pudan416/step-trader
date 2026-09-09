@@ -1,5 +1,6 @@
 import XCTest
 import Combine
+import MetalKit
 @testable import Steps4
 
 @MainActor
@@ -11,6 +12,44 @@ final class TodayCanvasBackgroundTests: XCTestCase {
             gradient: GradientStyle.radial.rawValue, palette: GradientPalette.warmSunset.rawValue,
             texture: CanvasTexture.grainSmall.rawValue, categories: ""
         )
+    }
+
+    func testVisibleFrameKeepsCanvasViewportAndReleasesPausedRenderer() async throws {
+        let store = TodayCanvasBackdropStore(debounce: .zero, load: { _ in nil }, render: { _, _ in UIImage() })
+        store.refresh(appearance())
+        for _ in 0..<20 { await Task.yield() }
+        let scene = DayObjectScene.make(input: .init(
+            dayKey: "2026-09-07", identity: "viewport-test", eventIDs: [],
+            motionEnergy: 0.5, visualClarity: 0.5, canvasCoverage: .fullCanvas,
+            usesEditorialField: true, editorialBackground: .lowContrast
+        ))
+        let renderer = try XCTUnwrap(DayObjectsRenderer.create(
+            scene: scene, environment: .init(motionEnergy: 0.5, visualClarity: 0.5)
+        ))
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 320, height: 640))
+        let controller = UIViewController()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        let view = MTKView(frame: CGRect(x: 12, y: 30, width: 240, height: 460), device: renderer.device)
+        DayObjectsRenderer.configureDisplay(view)
+        view.delegate = renderer
+        view.framebufferOnly = true
+        controller.view.addSubview(view)
+        defer { view.isPaused = true; window.isHidden = true }
+        store.registerSource(view, renderer: renderer)
+        store.unregisterSource(MTKView()) // Other posters cannot clear the canvas source.
+        view.draw()
+        await store.captureVisibleFrame()
+        let captured = try XCTUnwrap(store.visibleFrame)
+        XCTAssertEqual(captured.windowRect, view.convert(view.bounds, to: nil))
+        XCTAssertEqual(captured.image.size.width, view.bounds.width, accuracy: 0.1)
+        XCTAssertEqual(captured.image.size.height, view.bounds.height, accuracy: 0.1)
+        XCTAssertFalse(view.isPaused, "The capture must not leave the canvas frozen")
+        store.refresh(appearance(day: "2026-09-08"))
+        XCTAssertNil(store.visibleFrame, "A captured frame must not survive a day change")
+        store.unregisterSource(view)
+        await store.captureVisibleFrame()
+        XCTAssertNil(store.visibleFrame, "The picker/dismantled canvas must not become a backdrop")
     }
 
     func testCurrentPreferencesAndMetricsApplyWithoutRewritingSavedCanvas() {

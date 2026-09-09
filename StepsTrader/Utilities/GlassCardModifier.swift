@@ -194,6 +194,11 @@ struct GlassCardModifier: ViewModifier {
 }
 
 extension View {
+    /// Stable neutral chrome over artwork: never takes on the palette shimmer.
+    func smokedCanvasControl<S: InsettableShape>(in shape: S) -> some View {
+        modifier(SmokedCanvasControlModifier(shape: shape))
+    }
+
     /// Liquid Glass card. Defaults to `.lens` with the global cycling tint.
     /// Use `tint: .off` for clean lens, `tint: .fixed(.something)` to pin a color.
     func glassCard(
@@ -212,6 +217,25 @@ extension View {
     /// Compact inset field (note inputs inside choice rows).
     func inlineGlassField(cornerRadius: CGFloat = 10) -> some View {
         modifier(InlineGlassFieldModifier(cornerRadius: cornerRadius))
+    }
+}
+
+private struct SmokedCanvasControlModifier<S: InsettableShape>: ViewModifier {
+    let shape: S
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                if reduceTransparency {
+                    shape.fill(AppColors.graphite)
+                } else {
+                    shape.fill(.regularMaterial)
+                        .overlay(shape.fill(AppColors.graphite.opacity(contrast == .increased ? 1 : 0.91)))
+                        .environment(\.colorScheme, .dark)
+                }
+            }
     }
 }
 

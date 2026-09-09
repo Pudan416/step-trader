@@ -112,7 +112,7 @@ private struct StepsTraderProductionRoot: View {
     @StateObject private var authService = AuthenticationService.shared
     @StateObject private var announcementService = AnnouncementService.shared
     @State private var coachMarkManager = CoachMarkManager()
-    @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.night.rawValue
+    @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
     /// Single versioned int that replaces the old 4-flag onboarding state machine
     /// (`hasSeenIntro_v3`, `hasSeenEnergySetup_v1`, `hasCompletedOnboarding_v1`,
     /// `hasMigratedOnboarding_v1`). Migration from those flags happens once on
@@ -224,7 +224,7 @@ private struct StepsTraderProductionRoot: View {
         standardDefaults.set(nextLaunchCount, forKey: "appLaunchCount")
 
         // Mirror theme to app-group so the wallpaper Shortcut intent can read it reliably.
-        let themeRaw = UserDefaults.standard.string(forKey: "appTheme") ?? AppTheme.night.rawValue
+        let themeRaw = UserDefaults.standard.string(forKey: "appTheme") ?? AppTheme.system.rawValue
         UserDefaults(suiteName: SharedKeys.appGroupId)?.set(themeRaw, forKey: "appTheme")
 
         // NOTE: UINavigationBar / UITabBar appearance proxies were previously

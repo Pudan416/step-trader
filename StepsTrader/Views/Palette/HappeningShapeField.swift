@@ -31,15 +31,23 @@ struct HappeningShapeField: View {
             Button {
                 onActivate(happening)
             } label: {
-                Text(happening.localizedTitle())
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                ZStack {
+                    Text(happening.localizedTitle())
+                        .font(.geist(size: 14, weight: .semibold))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .frame(width: side * 0.80)
+
+                    if state == .additionPreview || state == .removalPreview {
+                        Text(state == .additionPreview ? LocalizedStringKey("Add") : LocalizedStringKey("Delete"))
+                            .font(.geist(size: 12, weight: .medium))
+                            .accessibilityIdentifier("happening_action_\(happening.id)")
+                            .offset(y: side * 0.30)
+                    }
+                }
                     .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    // A tiny crisp edge plus a soft glyph halo keeps white type
-                    // readable over the yellow sphere without adding a label plate.
-                    .shadow(color: .black.opacity(0.9), radius: 0, x: 0, y: 0.75)
-                    .shadow(color: .black.opacity(0.7), radius: 1.25)
+                    // Local contrast stays behind the glyphs, not a label plate.
+                    .shadow(color: .black.opacity(0.65), radius: 1.5, y: 0.5)
                     .frame(width: side * 0.80, height: side * 0.76)
                     .frame(width: side, height: side)
                     .contentShape(Circle())
@@ -51,8 +59,8 @@ struct HappeningShapeField: View {
             .accessibilityHint(hint(for: state, locked: locked))
             .accessibilityIdentifier("happening_choice_\(happening.id)")
 
-            if state == .added || state == .removalPreview {
-                Image(systemName: state == .removalPreview ? "minus" : "checkmark")
+            if state == .added {
+                Image(systemName: "checkmark")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(width: 24, height: 24)

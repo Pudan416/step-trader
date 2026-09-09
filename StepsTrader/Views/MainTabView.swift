@@ -22,6 +22,26 @@ struct MainTabView: View {
         nonmutating set { storedSelection = Tab.resolve(storedRawValue: newValue).rawValue }
     }
 
+    @State private var tabTransition: Task<Void, Never>?
+    @State private var pendingTab: Tab?
+
+    private func selectTab(_ tab: Tab, animated: Bool) {
+        pendingTab = tab
+        guard tabTransition == nil else { return }
+        let previous = selection
+        tabTransition = Task { @MainActor in
+            defer { tabTransition = nil }
+            if previous == Tab.canvas.rawValue, tab != .canvas {
+                await TodayCanvasBackdropStore.shared.captureVisibleFrame()
+            }
+            guard !Task.isCancelled, selection == previous, let destination = pendingTab else { return }
+            pendingTab = nil
+            if animated {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { selection = destination.rawValue }
+            } else { selection = destination.rawValue }
+        }
+    }
+
     private var selectionBinding: Binding<Int> {
         Binding(get: { selection }, set: { selection = $0 })
     }
@@ -135,8 +155,7 @@ struct MainTabView: View {
         ZStack {
             // Cover the window during lazy tab materialization and transitions.
             // This lightweight palette is ready before any offscreen export.
-            TodayCanvasUnlockFill()
-                .overlay(Color.black.opacity(0.58))
+            TodayCanvasBackground(matchesCanvas: true)
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
             TabView(selection: selectionBinding) {
@@ -420,10 +439,7 @@ struct MainTabView: View {
         GlassEffectContainer(spacing: 8) {
             tabBarItems(animated: true)
                 .padding(6)
-                // Tab bar follows the global cycling shimmer tint via
-                // `liquidGlassControl(in:)` — same effect as `.glassEffect(.clear.interactive())`
-                // but reads `\.glassShimmerColor` from the env so it slowly cycles.
-                .liquidGlassControl(in: Capsule(style: .continuous))
+                .smokedCanvasControl(in: Capsule(style: .continuous))
         }
         .padding(.bottom, 4)
     }
@@ -431,7 +447,7 @@ struct MainTabView: View {
     private var legacyTabBar: some View {
         tabBarItems(animated: false)
             .padding(6)
-            .liquidGlassControl(in: Capsule(style: .continuous))
+            .smokedCanvasControl(in: Capsule(style: .continuous))
             .clipShape(Capsule(style: .continuous))
             .padding(.bottom, 4)
     }
@@ -442,13 +458,7 @@ struct MainTabView: View {
             ForEach(Tab.allCases, id: \.rawValue) { tab in
                 let isSelected = selection == tab.rawValue
                 Button {
-                    if animated {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            selection = tab.rawValue
-                        }
-                    } else {
-                        selection = tab.rawValue
-                    }
+                    selectTab(tab, animated: animated)
                 } label: {
                     ZStack(alignment: .topTrailing) {
                         Image(systemName: tab.icon)
@@ -470,7 +480,7 @@ struct MainTabView: View {
                     .background {
                         if isSelected {
                             Capsule(style: .continuous)
-                                .fill(tabTint.opacity(0.09))
+                                .fill(tabTint.opacity(0.16))
                         }
                     }
                     .contentShape(Capsule(style: .continuous))

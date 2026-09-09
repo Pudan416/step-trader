@@ -72,7 +72,7 @@ final class CanvasStorageService {
         if let existing = loadCanvas(for: dayKey) {
             return existing
         }
-        let canvas = DayCanvas(dayKey: dayKey)
+        let canvas = DayCanvas.newDailyCanvas(dayKey: dayKey)
         saveCanvas(canvas)
         return canvas
     }

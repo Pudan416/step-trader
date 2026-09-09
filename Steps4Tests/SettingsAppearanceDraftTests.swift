@@ -9,6 +9,7 @@ final class SettingsAppearanceDraftTests: XCTestCase {
         defaults.set(GradientPalette.warmSunset.rawValue, forKey: SharedKeys.gradientPalette)
         let before = defaults.dictionaryRepresentation()
         var draft = SettingsAppearanceDraft.load(from: defaults)
+        draft.interfaceTheme = "daylight"
         draft.palette = GradientPalette.ocean.rawValue
         draft.setAutomatic(true)
         draft.reroll()
@@ -23,12 +24,15 @@ final class SettingsAppearanceDraftTests: XCTestCase {
         let defaults = UserDefaults(suiteName: name)!, shared = UserDefaults(suiteName: sharedName)!
         defer { defaults.removePersistentDomain(forName: name); shared.removePersistentDomain(forName: sharedName) }
         var draft = SettingsAppearanceDraft.load(from: defaults)
+        draft.interfaceTheme = "daylight"
         draft.palette = GradientPalette.ocean.rawValue
         draft.setAutomatic(true)
         draft.reroll()
         draft.shapes = [.circle]
         draft.fills = [.outline]
         draft.apply(to: defaults, shared: shared, dayKey: "2026-09-06")
+        XCTAssertEqual(defaults.string(forKey: "appTheme"), "daylight")
+        XCTAssertEqual(shared.string(forKey: "appTheme"), "daylight")
         XCTAssertEqual(defaults.string(forKey: SharedKeys.gradientPalette), draft.palette)
         XCTAssertEqual(shared.string(forKey: SharedKeys.gradientStyle), draft.style)
         XCTAssertEqual(defaults.string(forKey: SharedKeys.dailyRandomThemeLastRolledKey), "2026-09-06")

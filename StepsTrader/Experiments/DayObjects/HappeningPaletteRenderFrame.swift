@@ -252,8 +252,9 @@ enum HappeningPaletteRenderFrame {
                 eventID: slot.happeningID,
                 gpuActor: DayObjectGPUActor(
                     position: position,
-                    direction: SIMD2(0, -1),
-                    halfSize: SIMD2(repeating: halfSize),
+                    direction: slot.assignment.silhouette.variant == 0 ? SIMD2(0, -1)
+                        : SIMD2(cos(slot.assignment.silhouette.rotation), sin(slot.assignment.silhouette.rotation)),
+                    halfSize: SIMD2(halfSize, halfSize * slot.assignment.silhouette.aspect),
                     opacity: Float(slot.controls.opacity),
                     trailLength: 0,
                     shape: slot.assignment.shape.numericValue,
@@ -263,7 +264,8 @@ enum HappeningPaletteRenderFrame {
                     localDepthSoftness: 0,
                     paletteMorph: Float(slot.controls.paletteMorph),
                     presentationSaturation: Float(slot.controls.saturation),
-                    removalEmphasis: Float(slot.controls.removalEmphasis)
+                    removalEmphasis: Float(slot.controls.removalEmphasis),
+                    silhouetteVariant: slot.assignment.silhouette.variant
                 ),
                 gpuAppearance: slot.assignment.material.gpuAppearance
             )

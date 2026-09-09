@@ -294,6 +294,9 @@ struct DayObjectVisualLanguage: Equatable {
     }
 
     private func stableOrdinal(eventID: String, rootSeed: UInt64) -> Int {
+        if let uuidBytes = canonicalUUIDBytes(eventID) {
+            return Int(canonicalMaterialPriority(uuidBytes, rootSeed: rootSeed) % 10)
+        }
         let trailingDigits = eventID.reversed().prefix { $0.isNumber }.reversed()
         if !trailingDigits.isEmpty, let ordinal = Int(String(trailingDigits)) {
             return ordinal
@@ -390,6 +393,34 @@ struct DayObjectVisualLanguage: Equatable {
         }
         hash ^= hash >> 31
         return hash
+    }
+
+    private func canonicalMaterialPriority(
+        _ bytes: [UInt8],
+        rootSeed: UInt64
+    ) -> UInt64 {
+        var hash = rootSeed ^ 0x4528_21E6_38D0_1377
+        for byte in bytes {
+            hash = (hash ^ UInt64(byte)) &* 0x0000_0100_0000_01B3
+        }
+        hash ^= hash >> 31
+        return hash
+    }
+
+    private func canonicalUUIDBytes(_ value: String) -> [UInt8]? {
+        let bytes = Array(value.utf8)
+        guard bytes.count == 36,
+              bytes[8] == 45, bytes[13] == 45, bytes[18] == 45, bytes[23] == 45,
+              UUID(uuidString: value) != nil
+        else { return nil }
+
+        let hexadecimal = value.replacingOccurrences(of: "-", with: "")
+        let parsed = stride(from: 0, to: 32, by: 2).compactMap { offset -> UInt8? in
+            let start = hexadecimal.index(hexadecimal.startIndex, offsetBy: offset)
+            let end = hexadecimal.index(start, offsetBy: 2)
+            return UInt8(hexadecimal[start..<end], radix: 16)
+        }
+        return parsed.count == 16 ? parsed : nil
     }
 
     private func eventSeed(rootSeed: UInt64, eventID: String) -> UInt64 {

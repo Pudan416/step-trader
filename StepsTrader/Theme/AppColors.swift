@@ -3,6 +3,8 @@ import SwiftUI
 /// Centralized color constants for the app
 /// Replaces hardcoded Color(red:green:blue:) values throughout the codebase
 enum AppColors {
+    /// Neutral floating controls, shared by navigation, energy, add and sound.
+    static let graphite = Color(red: 48.0 / 255, green: 50.0 / 255, blue: 53.0 / 255)
     // MARK: - Brand Colors
     /// Primary accent — gold marker.
     static let brandAccent = Color(red: 0xFF/255, green: 0xD3/255, blue: 0x69/255)   // #FFD369

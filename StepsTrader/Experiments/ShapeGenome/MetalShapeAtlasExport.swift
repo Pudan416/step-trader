@@ -105,7 +105,7 @@ enum MetalShapeAtlasExport {
                 )
             }
         }
-        let blurTitles = ["Мягкий след", "Ребристый след", "Цветовое расщепление", "Изогнутый след"]
+        let blurTitles = ["Один цвет · мягкое размытие", "Один цвет · компактное размытие", "Два цвета · мягкий градиент", "Один цвет · широкое размытие"]
         let blurStudy = (0..<4).map { index in
             MetalShapeAtlasImageRecord(
                 id: ["smooth", "ribbed", "chromatic", "curved"][index],
@@ -232,6 +232,7 @@ extension MetalShapeMaterial {
         case .proceduralFlow: "Процедурное течение"
         case .proceduralContour: "Процедурный контур"
         case .eclipseGlow: "Светящийся контур"
+        case .sunset: "Закат · только круг"
         }
     }
 }

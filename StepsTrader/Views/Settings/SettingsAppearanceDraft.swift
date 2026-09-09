@@ -12,6 +12,7 @@ struct SettingsAppearanceDraft: Equatable {
     var fills: Set<TextureKind>
     var manualStyle: String
     var manualPalette: String
+    var interfaceTheme: String = AppTheme.system.rawValue
 
     static func load(from defaults: UserDefaults = .standard) -> Self {
         let shapeKeys = [SharedKeys.bodyCanvasShape, SharedKeys.mindCanvasShape, SharedKeys.heartCanvasShape]
@@ -32,7 +33,8 @@ struct SettingsAppearanceDraft: Equatable {
             shapes: Set(shapes.isEmpty ? CanvasShapeType.selectableCases : shapes),
             fills: Set(fills.isEmpty ? TextureKind.allCases : fills),
             manualStyle: defaults.string(forKey: SharedKeys.userGradientStyle) ?? GradientStyle.radial.rawValue,
-            manualPalette: defaults.string(forKey: SharedKeys.userGradientPalette) ?? GradientPalette.warmSunset.rawValue
+            manualPalette: defaults.string(forKey: SharedKeys.userGradientPalette) ?? GradientPalette.warmSunset.rawValue,
+            interfaceTheme: AppTheme.normalized(rawValue: defaults.string(forKey: "appTheme") ?? "system").rawValue
         )
     }
 
@@ -56,6 +58,7 @@ struct SettingsAppearanceDraft: Equatable {
 
     func apply(to defaults: UserDefaults = .standard, shared: UserDefaults?, dayKey: String) {
         let values: [String: Any] = [
+            "appTheme": interfaceTheme,
             SharedKeys.gradientStyle: style, SharedKeys.gradientPalette: palette,
             SharedKeys.dailyRandomThemeEnabled: automatic, SharedKeys.canvasTexture: texture,
             SharedKeys.modernPaletteCategories: categories, SharedKeys.canvasVisualStyle: canvasStyle,

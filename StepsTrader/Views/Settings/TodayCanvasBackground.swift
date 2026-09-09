@@ -1,5 +1,17 @@
 import SwiftUI
 import Combine
+import MetalKit
+
+private struct TodayCanvasSourceKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var isTodayCanvasSource: Bool {
+        get { self[TodayCanvasSourceKey.self] }
+        set { self[TodayCanvasSourceKey.self] = newValue }
+    }
+}
 
 extension Notification.Name {
     static let todayCanvasStorageDidChange = Notification.Name("todayCanvasStorageDidChange")
@@ -34,7 +46,7 @@ struct TodayCanvasAppearance: Equatable {
     }
 
     func canvas(from saved: DayCanvas?) -> DayCanvas {
-        var canvas = saved.flatMap { $0.dayKey == dayKey ? $0 : nil } ?? DayCanvas(dayKey: dayKey)
+        var canvas = saved.flatMap { $0.dayKey == dayKey ? $0 : nil } ?? DayCanvas.newDailyCanvas(dayKey: dayKey)
         canvas.stepsPoints = steps
         canvas.sleepPoints = sleep
         canvas.inkEarned = earned
@@ -134,6 +146,48 @@ final class TodayCanvasBackdropStore: ObservableObject {
     @Published private(set) var unlockPalette = TodayCanvasUnlockPalette.make(appearance: .initial)
     @Published private(set) var image: UIImage?
     @Published private(set) var dayKey: String?
+    struct VisibleFrame {
+        let image: UIImage
+        let windowRect: CGRect
+    }
+    @Published private(set) var visibleFrame: VisibleFrame?
+    private weak var sourceView: MTKView?
+    private weak var sourceRenderer: DayObjectsRenderer?
+
+    func registerSource(_ view: MTKView, renderer: DayObjectsRenderer) {
+        sourceView = view
+        sourceRenderer = renderer
+    }
+
+    func unregisterSource(_ view: MTKView) {
+        guard sourceView === view else { return }
+        sourceView = nil
+        sourceRenderer = nil
+    }
+
+    func captureVisibleFrame() async {
+        guard let view = sourceView, view.window != nil, !view.isPaused,
+              let renderer = sourceRenderer else { return }
+        let rect = view.convert(view.bounds, to: nil)
+        let size = view.bounds.size
+        let scale = view.contentScaleFactor
+        let appearance = requested?.appearance
+        view.isPaused = true
+        let texture: MTLTexture? = await withCheckedContinuation { continuation in
+            renderer.renderOffscreen(size: size, pointScale: scale,
+                                     elapsedTime: renderer.lastDisplayedTime) { texture, _ in
+                continuation.resume(returning: texture)
+            }
+        }
+        defer {
+            renderer.configureAnimation(view, requestsStaticFrame: false)
+        }
+        guard !Task.isCancelled, sourceView === view, sourceRenderer === renderer,
+              appearance == requested?.appearance, let texture,
+              let image = DayObjectsImageRenderer.makeImage(texture: texture, scale: scale) else { return }
+        visibleFrame = VisibleFrame(image: image, windowRect: rect)
+    }
+
     private var sourceData: Data?
     private var requested: Request?
     private var completed: Request?
@@ -163,6 +217,7 @@ final class TodayCanvasBackdropStore: ObservableObject {
     }
 
     func refresh(_ appearance: TodayCanvasAppearance, reload: Bool = false) {
+        if requested?.appearance != appearance { visibleFrame = nil }
         if dayKey != appearance.dayKey || reload {
             if dayKey != appearance.dayKey {
                 unlockPalette = TodayCanvasUnlockPalette(colors: [])
@@ -172,7 +227,9 @@ final class TodayCanvasBackdropStore: ObservableObject {
             let source = load(appearance.dayKey)
             let encoder = JSONEncoder()
             encoder.outputFormatting = .sortedKeys
-            sourceData = source.flatMap { try? encoder.encode($0) }
+            let updatedSource = source.flatMap { try? encoder.encode($0) }
+            if sourceData != updatedSource { visibleFrame = nil }
+            sourceData = updatedSource
         }
         let nextPalette = TodayCanvasUnlockPalette.make(appearance: appearance)
         if image == nil, unlockPalette != nextPalette { unlockPalette = nextPalette }
@@ -211,30 +268,40 @@ final class TodayCanvasBackdropStore: ObservableObject {
 struct TodayCanvasBackground: View {
     var detail = false
     var matchesCanvas = false
+    @Environment(\.appTheme) private var theme
     @ObservedObject private var backdrop = TodayCanvasBackdropStore.shared
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                AppColors.Night.background
+                theme.backgroundColor
                 LinearGradient(
                     colors: backdrop.unlockPalette.colors.map {
                         Color(.sRGB, red: Double($0.sRGB.x), green: Double($0.sRGB.y), blue: Double($0.sRGB.z))
                     },
                     startPoint: .topLeading, endPoint: .bottomTrailing
                 )
-                if let image = backdrop.image {
+                if matchesCanvas, let frame = backdrop.visibleFrame {
+                    Image(uiImage: frame.image)
+                        .resizable()
+                        .frame(width: frame.windowRect.width, height: frame.windowRect.height)
+                        .position(
+                            x: frame.windowRect.midX - geometry.frame(in: .global).minX,
+                            y: frame.windowRect.midY - geometry.frame(in: .global).minY
+                        )
+                        .blur(radius: 28, opaque: true)
+                } else if let image = backdrop.image {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .clipped()
-                        .blur(radius: matchesCanvas ? 0 : (detail ? 12 : 6), opaque: true)
+                        .blur(radius: 28, opaque: true)
                 }
-                if !matchesCanvas {
-                    Color.black.opacity(reduceTransparency ? 0.78 : (detail ? 0.68 : 0.58))
-                }
+                // Fixed theme veil, not per-frame contrast detection. Both
+                // reading tabs share the same artwork and frost treatment.
+                theme.backgroundColor.opacity(reduceTransparency ? 1 : (theme.isLightTheme ? 0.76 : 0.78))
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .clipped()

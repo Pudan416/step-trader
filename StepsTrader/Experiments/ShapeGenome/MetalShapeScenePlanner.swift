@@ -27,7 +27,7 @@ struct MetalShapeSceneActor: Codable, Equatable, Sendable {
         switch material {
         case .directionalBlur:
             expansion = preset.compatibility.blurFootprint
-        case .eclipseGlow:
+        case .eclipseGlow, .sunset:
             expansion = preset.compatibility.haloFootprint
         default:
             expansion = 0.025

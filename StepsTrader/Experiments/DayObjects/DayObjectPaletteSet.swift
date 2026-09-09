@@ -675,6 +675,10 @@ enum DayObjectColorAllocator {
 /// spend most of their time.
 private struct DayObjectActorContrastAdjustment: Equatable {
     static let minimumContrast = 1.35
+    /// The lightweight field proxy understated the actual Metal mesh's lower
+    /// contrast tail in the behavioral gate. Keep the public/readback
+    /// requirement at 1.35 while selecting against a small production margin.
+    static let proxySelectionContrast = 1.38
     private static let maximumLightnessShift: Float = 0.25
 
     enum Direction: Equatable {
@@ -938,7 +942,7 @@ private struct DayObjectActorContrastAdjustment: Equatable {
             direction: direction,
             amount: boundedAmount,
             achievedContrast: achieved,
-            meetsMinimum: achieved >= minimumContrast - 0.000_001,
+            meetsMinimum: achieved >= proxySelectionContrast - 0.000_001,
             milkyRisk: milkyRisk,
             preservationMargin: preservationMargin
         )
@@ -1061,7 +1065,7 @@ private struct DayObjectReadablePairEvaluation: Equatable {
         let adjustedSecondary = secondaryColors.map(adjustment.apply)
         let primaryReadable = adjustedPrimary.indices.filter {
             backgroundField.lowPercentileContrast(color: adjustedPrimary[$0])
-                >= DayObjectActorContrastAdjustment.minimumContrast - 0.000_001
+                >= DayObjectActorContrastAdjustment.proxySelectionContrast - 0.000_001
                 && movesCoherently(
                     source: primaryColors[$0],
                     adjusted: adjustedPrimary[$0],
@@ -1070,7 +1074,7 @@ private struct DayObjectReadablePairEvaluation: Equatable {
         }
         let secondaryReadable = adjustedSecondary.indices.filter {
             backgroundField.lowPercentileContrast(color: adjustedSecondary[$0])
-                >= DayObjectActorContrastAdjustment.minimumContrast - 0.000_001
+                >= DayObjectActorContrastAdjustment.proxySelectionContrast - 0.000_001
                 && movesCoherently(
                     source: secondaryColors[$0],
                     adjusted: adjustedSecondary[$0],

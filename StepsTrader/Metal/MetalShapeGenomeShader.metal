@@ -183,17 +183,17 @@ static float3 metalShapePalette(float t, constant MetalShapeMaterialUniforms &m)
     return mix(mix(m.color0.rgb, m.color1.rgb, first), m.color2.rgb, second);
 }
 
-fragment float4 metalShapeGenomeFragment(
-    MetalShapeVertexOut in [[stage_in]],
-    constant MetalShapeGenomeUniforms &g [[buffer(0)]],
-    constant MetalShapeMaterialUniforms &m [[buffer(1)]]) {
+static float4 metalShapeGenomeShade(
+    MetalShapeVertexOut in,
+    constant MetalShapeGenomeUniforms &g,
+    constant MetalShapeMaterialUniforms &m) {
     const float2 p = (in.uv - 0.5) * 2.72;
     const float distance = metalShapeDistance(p, g);
     const float antialias = max(fwidth(distance), 0.0025);
     const float body = smoothstep(antialias, -antialias, distance);
     const float2 direction = normalize(m.params1.xy);
     const float materialPhase = m.params0.x * 2.0 * M_PI_F;
-    const uint material = min(m.metadata.x, 9u);
+    const uint material = min(m.metadata.x, 10u);
     float3 color = m.color0.rgb;
     float alpha = body;
 
@@ -205,35 +205,38 @@ fragment float4 metalShapeGenomeFragment(
         alpha = line;
         color = mix(m.color0.rgb, m.color1.rgb, 0.58);
     } else if (material == 3u) {
-        const float axis = dot(p, direction);
-        const float anchorMask = 1.0 - smoothstep(-0.24, 0.26, axis);
-        const float anchorAlpha = body * anchorMask;
-        float vapor = 0.0;
-        float vaporWeight = 0.0;
-        for (uint tap = 0u; tap <= 36u; ++tap) {
-            const float t = float(tap) / 36.0;
-            const float curve = m.metadata.y == 3u ? sin(t * M_PI_F) * 0.24 : 0.0;
-            const float2 sourcePoint = p
-                - direction * t * m.params1.z
-                - float2(-direction.y, direction.x) * curve;
-            const float sourceAxis = dot(sourcePoint, direction);
-            const float sourceGate = smoothstep(-0.34, 0.30, sourceAxis);
-            float weight = exp(-t * 2.05);
-            if (m.metadata.y == 1u) weight *= 0.72 + 0.28 * sin(t * 38.0) * sin(t * 38.0);
-            const float softness = mix(0.024, 0.30, t);
-            vapor += metalShapeSoftCoverage(sourcePoint, g, softness) * sourceGate * weight;
-            vaporWeight += weight;
+        const float2 blurPoint = p * 1.42;
+        const float axis = dot(blurPoint, direction);
+        // A continuous increase in edge softness, with no seam between body and blur.
+        const float progression = smoothstep(-0.65, 0.95, axis);
+        const float extent = m.metadata.y == 1u ? 0.42 : (m.metadata.y == 3u ? 0.70 : 0.56);
+        const float spread = mix(0.0025, extent, progression * progression);
+        const float shiftedDistance = metalShapeDistance(blurPoint - direction * progression * 0.10, g);
+        const float sigma = max(antialias, spread);
+        alpha = 1.0 / (1.0 + exp(clamp(1.7 * shiftedDistance / sigma, -30.0, 30.0)));
+        alpha *= 1.0 - smoothstep(1.38, 1.90, length(blurPoint));
+        if (g.metadata.x == 1u && g.metadata.y == 6u && g.metadata.z == 17u) {
+            // Only a narrow leading rim stays crisp; softness grows immediately behind it.
+            const float early = smoothstep(-0.98, 0.10, axis);
+            const float edgeSoftness = 0.0025 + 0.82 * pow(early, 1.1);
+            const float edgeDistance = metalShapeDistance(blurPoint - direction * early * 0.15, g);
+            alpha = 1.0 / (1.0 + exp(clamp(1.7 * edgeDistance / max(antialias, edgeSoftness), -30.0, 30.0)));
+            alpha *= 1.0 - smoothstep(-0.88, 1.30, axis);
+            alpha *= 1.0 - smoothstep(1.40, 1.91, length(blurPoint));
         }
-        const float vaporAlpha = vapor / max(vaporWeight, 1e-4);
-        const float vaporFade = 1.0 - smoothstep(0.58, 1.52, axis);
-        alpha = max(anchorAlpha, vaporAlpha * vaporFade * 0.56);
-
-        const float brightTransition = smoothstep(-0.52, 0.14, axis);
-        const float paleVapor = smoothstep(0.12, 1.08, axis);
-        const float3 anchorColor = m.color2.rgb * 0.22;
-        color = mix(anchorColor, m.color0.rgb, brightTransition);
-        color = mix(color, m.color1.rgb, paleVapor);
-        if (m.metadata.y == 2u) color = mix(color, color.brg, paleVapor * 0.34);
+        if (g.metadata.x == 1u && g.metadata.y == 5u && g.metadata.z == 5u) {
+            // Keep only the leading tip: the rest opens into a diffuse light beam.
+            const float travel = axis + 0.86;
+            const float crossAxis = dot(blurPoint, float2(-direction.y, direction.x));
+            const float diffusion = smoothstep(0.0, 1.75, travel);
+            const float beamSigma = 0.004 + 0.60 * pow(diffusion, 1.15);
+            const float sideDistance = abs(crossAxis) - max(travel, 0.0) * 0.44;
+            const float sides = 1.0 / (1.0 + exp(clamp(1.7 * sideDistance / beamSigma, -30.0, 30.0)));
+            alpha = sides * smoothstep(-0.015, 0.035, travel)
+                * (1.0 - smoothstep(0.16, 2.58, travel))
+                * (1.0 - smoothstep(1.45, 1.91, length(blurPoint)));
+        }
+        color = m.metadata.y == 2u ? mix(m.color0.rgb, m.color1.rgb, progression) : m.color0.rgb;
     } else if (material == 4u || material == 5u) {
         const float2 focus = (m.params2.xy - 0.5) * 0.68;
         const float radial = clamp(length(p - focus) / 1.28, 0.0, 1.0);
@@ -265,5 +268,129 @@ fragment float4 metalShapeGenomeFragment(
         color = mix(m.color1.rgb, m.color0.rgb, smoothstep(0.0, 0.28, outside));
     }
 
+    if (material == 10u) {
+        const float2 sun = p * 1.48;
+        const float edgeDistance = length(sun) - 0.88;
+        const float lower = smoothstep(-0.20, 0.90, sun.y);
+        const float softness = mix(0.018, 0.19, lower);
+        const float disk = 1.0 / (1.0 + exp(clamp(edgeDistance / softness, -30.0, 30.0)));
+        const float fade = 1.0 - smoothstep(0.0, 1.0, sun.y);
+        const float halo = exp(-max(edgeDistance, 0.0) * 7.0)
+            * (1.0 - smoothstep(-0.35, 0.55, sun.y)) * 0.30;
+        alpha = max(disk * fade, halo) * (1.0 - smoothstep(1.35, 1.90, length(sun)));
+        const float warmth = smoothstep(-0.88, 0.25, sun.y + (m.params0.x - 0.5) * 0.12);
+        color = mix(float3(1.0, 0.64, 0.008), float3(1.0, 0.025, 0.035), warmth);
+    }
     return float4(color * alpha, alpha);
+}
+
+fragment float4 metalShapeGenomeFragment(MetalShapeVertexOut in [[stage_in]], constant MetalShapeGenomeUniforms &g [[buffer(0)]], constant MetalShapeMaterialUniforms &m [[buffer(1)]]) {
+    return metalShapeGenomeShade(in, g, m);
+}
+
+struct NativeAtlasPlacement { float4 pose; float4 canvas; float4 effects; float4 presentation; };
+static_assert(sizeof(NativeAtlasPlacement) == 64, "Native placement must match four Swift float4 values");
+
+fragment float4 nativeAtlasComposite(MetalShapeVertexOut in [[stage_in]],
+    constant MetalShapeGenomeUniforms &g [[buffer(0)]],
+    constant MetalShapeMaterialUniforms &m [[buffer(1)]],
+    constant NativeAtlasPlacement &placement [[buffer(2)]],
+    texture2d<float> previous [[texture(0)]]) {
+    constexpr sampler linearSampler(coord::normalized, address::clamp_to_edge, filter::linear);
+    const float2 resolution = placement.canvas.xy;
+    float2 local = (in.uv - placement.pose.xy) * resolution / min(resolution.x, resolution.y) / max(placement.pose.z, 0.001);
+    const float c = cos(placement.pose.w), s = sin(placement.pose.w);
+    local = float2(local.x * c + local.y * s, -local.x * s + local.y * c);
+    MetalShapeVertexOut shapeIn = in; shapeIn.uv = local + 0.5;
+    float4 shape = metalShapeGenomeShade(shapeIn, g, m);
+    const float morph = saturate(placement.presentation.x);
+    if (morph < 1.0) {
+        // The first stage is always a solid circle. On the first tap the
+        // existing picker timeline reveals its actual silhouette and fill.
+        const float2 point = local * 2.72;
+        const float distance = mix(length(point) - 1.0, metalShapeDistance(point, g), morph);
+        const float aa = max(fwidth(distance), 0.0025);
+        const float filled = smoothstep(aa, -aa, distance);
+        const float reveal = smoothstep(0.45, 1.0, morph);
+        const float alpha = mix(filled, shape.a, reveal);
+        const float3 targetColor = shape.a > 0.00001 ? shape.rgb / shape.a : m.color0.rgb;
+        shape = float4(mix(float3(0.14), targetColor, reveal) * alpha, alpha);
+    }
+    float4 foreground = shape * placement.canvas.z;
+    const float4 background = previous.sample(linearSampler, in.uv);
+    const float a = clamp(foreground.a, 0.0, 1.0);
+    const float coverageDerivative = fwidth(a);
+    float3 color = foreground.rgb / max(a, 0.00001);
+    color = mix(float3(dot(color, float3(0.2126, 0.7152, 0.0722))), color, placement.effects.z);
+    color *= 1.0 - placement.effects.w * 0.15;
+    const bool eligible = placement.canvas.w > 0.5;
+    const float strength = clamp(placement.effects.y, 0.0, 1.0);
+    if (eligible && background.a > 0.5 && a > 0.001) {
+        const uint mode = uint(placement.effects.x);
+        if (mode == 0u) color = mix(color, background.rgb, strength * 0.65);
+        if (mode == 2u) {
+            const float3 overlay = select(2.0 * background.rgb * color, 1.0 - 2.0 * (1.0 - background.rgb) * (1.0 - color), background.rgb > 0.5);
+            color = mix(color, overlay, strength);
+        }
+        if (mode == 1u && a > 0.5) {
+            const float2 delta = 2.0 / resolution;
+            const float neighbor = min(min(previous.sample(linearSampler, in.uv + float2(delta.x, 0)).a, previous.sample(linearSampler, in.uv - float2(delta.x, 0)).a), min(previous.sample(linearSampler, in.uv + float2(0, delta.y)).a, previous.sample(linearSampler, in.uv - float2(0, delta.y)).a));
+            const float edge = max(smoothstep(0.015, 0.15, coverageDerivative), 1.0 - smoothstep(0.1, 0.6, neighbor));
+            color = mix(color, float3(1.0), edge * strength * 0.9);
+        }
+    }
+    float3 combined = color * a + background.rgb * (1.0 - a);
+    if (placement.presentation.y > 0.5) {
+        // Added picker items stay neutral even over saturated artwork. Keep
+        // the outside background untouched and preserve the opacity transition.
+        float neutral = (1.0 - placement.effects.z) * smoothstep(0.05, 0.9, a);
+        combined = mix(combined, float3(dot(combined, float3(0.2126, 0.7152, 0.0722))), neutral);
+    }
+    return float4(combined, eligible ? a + background.a * (1.0 - a) : background.a * (1.0 - a));
+}
+
+fragment float4 nativeAtlasDisplay(MetalShapeVertexOut in [[stage_in]], texture2d<float> scene [[texture(0)]], constant float4 &effect [[buffer(0)]], constant float4 &finish [[buffer(1)]]) {
+    constexpr sampler linearSampler(coord::normalized, address::clamp_to_edge, filter::linear);
+    const float2 uv = in.uv;
+    const float strength = clamp(effect.x, 0.0, 1.0), amount = strength * strength * 0.085;
+    const float phase = effect.z * 6.2831853, angle = effect.w * 6.2831853;
+    const float2 direction = float2(cos(angle), sin(angle));
+    float2 shifted = uv;
+    const uint type = uint(effect.y);
+    if (type == 0u) {
+        const float band = floor(uv.y / (0.018 + effect.z * 0.045));
+        const float random = fract(sin(band * 127.1 + phase) * 43758.5453);
+        if (random < 0.06 + strength * 0.88) shifted.x += (random * 2.0 - 1.0) * amount * 2.0;
+    } else if (type == 2u && strength > 0.0) {
+        const float cell = 0.008 + strength * 0.065;
+        const float2 grid = floor(uv / cell);
+        if (fract(sin(dot(grid, float2(127.1, 311.7)) + phase) * 43758.5453) < 0.06 + strength * 0.88) shifted = (grid + 0.5) * cell;
+    } else if (type == 3u) {
+        const float coordinate = dot(uv, direction);
+        shifted += float2(-direction.y, direction.x) * sin(coordinate * (12.0 + effect.z * 28.0) + phase) * amount * (0.25 + 0.75 * pow(0.5 + 0.5 * sin(coordinate * 5.0 + phase), 2.0));
+    }
+    float3 color = scene.sample(linearSampler, shifted).rgb;
+    if (type == 1u) {
+        const float2 offset = direction * amount * (0.25 + 0.75 * (0.5 + 0.5 * sin(uv.y * 8.0 + uv.x * 3.0 + phase)));
+        color.r = scene.sample(linearSampler, uv + offset).r;
+        color.b = scene.sample(linearSampler, uv - offset).b;
+    } else if (type == 4u && strength > 0.0) {
+        const float2 texel = 1.0 / float2(scene.get_width(), scene.get_height());
+        for (uint index = 1u; index <= 3u; index++) {
+            const float2 point = uv - direction * amount * float(index);
+            const float3 echo = scene.sample(linearSampler, point).rgb;
+            const float edge = length(scene.sample(linearSampler, point + texel * 2.0).rgb - scene.sample(linearSampler, point - texel * 2.0).rgb);
+            color = mix(color, echo, min(0.8, edge * strength * 2.0) / float(index));
+        }
+    }
+    // Health-driven softness and color clarity remain independent of digital damage.
+    if (finish.x > 0.0001) {
+        float3 soft = color * 0.4;
+        for (uint i = 0; i < 6; i++) {
+            const float a = float(i) * 1.04719755;
+            soft += scene.sample(linearSampler, shifted + float2(cos(a), sin(a)) * finish.x).rgb * 0.1;
+        }
+        color = soft;
+    }
+    return float4(clamp(color, 0.0, 1.0), 1.0);
 }

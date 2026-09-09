@@ -1252,3 +1252,105 @@ final class DayObjectCompositionTests: XCTestCase {
         XCTAssertEqual(DayObjectShape.roundedSquare.numericValue, 6)
     }
 }
+
+
+final class DayObjectSilhouetteVarietyTests: XCTestCase {
+    private func input(_ ids: [String]) -> DayObjectSceneInput {
+        DayObjectSceneInput(dayKey: "2026-09-07", identity: "primary-canvas",
+            eventIDs: ids, motionEnergy: 0.5, visualClarity: 0.5,
+            canvasCoverage: .fullCanvas, paletteCategories: ModernPaletteSelection.all,
+            usesEditorialField: true,
+            editorialLabConfiguration: .init(materialMode: .generativeDNA, placement: .depthField))
+    }
+
+    // Catches seeded compression returning to production silhouettes.
+    func testProductionFiguresKeepNaturalProportionsWhenAdding() throws {
+        let ids = (0..<10).map { "silhouette-event-\($0)" }
+        func frame(_ ids: [String]) -> DayObjectRenderFrame {
+            DayObjectRenderFrame.make(scene: DayObjectScene.make(input: input(ids)),
+                environment: .init(motionEnergy: 0, visualClarity: 0.3), elapsed: 0, insertions: [:])
+        }
+        let full = frame(ids)
+        let aspects = full.actors.map { $0.halfSize.y / $0.halfSize.x }
+        for aspect in aspects { XCTAssertEqual(aspect, 1, accuracy: 0.0001) }
+        let prefix = frame(Array(ids.prefix(3)))
+        for actor in prefix.actors {
+            let retained = try XCTUnwrap(full.actors.first { $0.eventID == actor.eventID })
+            XCTAssertEqual(actor.halfSize.y / actor.halfSize.x,
+                           retained.halfSize.y / retained.halfSize.x, accuracy: 0.0001)
+        }
+    }
+
+    // Catches independent random picks offering another base shape when an accent is needed.
+    func testSecondHappeningOffersDifferentShapeAndKeepsCommittedIdentity() throws {
+        let happenings = (0..<6).map { Happening(id: "variety-\($0)", title: "Event", isBuiltIn: false) }
+        let first = try XCTUnwrap(HappeningEditorialAssignmentResolver.assignments(
+            happenings: happenings, baseInput: input([]), colorNonce: 0)[happenings[0].id])
+        let element = CanvasElement.spawn(id: first.elementID, optionId: happenings[0].id,
+            label: "Event", existingElements: [], dayKey: "2026-09-07",
+            composition: DayComposition.forDay(dayKey: "2026-09-07", happeningCount: 0))
+        let next = HappeningEditorialAssignmentResolver.snapshot(request: .init(
+            happenings: happenings, baseInput: input([first.elementID.uuidString.lowercased()]),
+            committedElements: [element], colorNonce: 0))
+        XCTAssertEqual(next.assignments[happenings[0].id]?.elementID, first.elementID)
+        for happening in happenings.dropFirst() {
+            XCTAssertNotEqual(try XCTUnwrap(next.assignments[happening.id]).shape, first.shape)
+        }
+    }
+}
+
+
+extension DayObjectSilhouetteVarietyTests {
+    func testPalettePromiseSurvivesCommitRerollAndRemovalOfAnotherHappening() throws {
+        let happenings = (0..<4).map { Happening(id: "commit-variety-\($0)", title: "Event", isBuiltIn: false) }
+        var elements = [CanvasElement]()
+        var promises = [HappeningEditorialAssignment]()
+        for happening in happenings {
+            let base = input(elements.map { $0.id.uuidString.lowercased() })
+            let assignment = try XCTUnwrap(HappeningEditorialAssignmentResolver.snapshot(request: .init(
+                happenings: happenings, baseInput: base, committedElements: elements, colorNonce: 11))
+                .assignments[happening.id])
+            var element = CanvasElement.spawn(id: assignment.elementID, optionId: happening.id,
+                label: "Event", existingElements: elements, dayKey: base.dayKey,
+                composition: DayComposition.forDay(dayKey: base.dayKey, happeningCount: elements.count))
+            element.editorialColorVariant = assignment.colorVariant
+            elements.append(element)
+            promises.append(assignment)
+        }
+        for retained in [elements, Array(elements.dropFirst())] {
+            let base = input(retained.map { $0.id.uuidString.lowercased() })
+            let snapshot = HappeningEditorialAssignmentResolver.snapshot(request: .init(
+                happenings: happenings, baseInput: base, committedElements: retained, colorNonce: 99))
+            let recipe = try XCTUnwrap(DayObjectScene.make(input: base).sceneRecipeV1)
+            for element in retained {
+                let promise = try XCTUnwrap(promises.first { $0.elementID == element.id })
+                let assignment = try XCTUnwrap(snapshot.assignments[element.optionId])
+                let actor = try XCTUnwrap(recipe.actor(element.id.uuidString.lowercased()))
+                XCTAssertEqual(assignment.elementID, promise.elementID)
+                XCTAssertEqual(assignment.shape, promise.shape)
+                XCTAssertEqual(assignment.silhouette, promise.silhouette)
+                XCTAssertEqual(actor.silhouette, promise.silhouette)
+                XCTAssertEqual(actor.shape, promise.shape)
+            }
+        }
+    }
+}
+
+
+extension DayObjectSilhouetteVarietyTests {
+    func testProductionDaysActuallySelectAllThreeArtisticFills() throws {
+        var patterns = Set<Int>()
+        for day in 1...14 {
+            let scene = DayObjectScene.make(input: DayObjectSceneInput(
+                dayKey: String(format: "2026-09-%02d", day), identity: "primary-canvas",
+                eventIDs: (0..<10).map { "fill-event-\($0)" },
+                motionEnergy: 0.5, visualClarity: 0.3, canvasCoverage: .fullCanvas,
+                paletteCategories: ModernPaletteSelection.all, usesEditorialField: true,
+                editorialLabConfiguration: .init(materialMode: .generativeDNA, placement: .depthField)))
+            for actor in try XCTUnwrap(scene.sceneRecipeV1).actors {
+                patterns.insert(Int(actor.material.structuralParameters.x))
+            }
+        }
+        XCTAssertTrue(Set([1, 2, 3, 4]).isSubset(of: patterns))
+    }
+}

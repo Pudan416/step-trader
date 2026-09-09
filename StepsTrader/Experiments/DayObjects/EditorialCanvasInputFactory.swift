@@ -52,7 +52,8 @@ enum EditorialCanvasInputFactory {
                             (element.id.uuidString.lowercased(), $0)
                         }
                     }
-                )
+                ),
+                nativeAtlasRecipe: canvas.artworkRecipe?.reconciled(eventIDs: eventIDs)
             ),
             digitalImpact: DayObjectDigitalImpact(
                 spentColors: Int((spent * Double(DayObjectDigitalImpact.maximumSpentColors)).rounded())

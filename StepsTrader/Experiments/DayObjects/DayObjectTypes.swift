@@ -99,6 +99,7 @@ struct DayObjectSceneInput: Equatable {
     let editorialPreview: DayObjectEditorialPreviewSpec?
     let editorialLabConfiguration: DayObjectEditorialLabConfiguration?
     let actorColorVariants: [String: Int]
+    let nativeAtlasRecipe: NativeAtlasRecipe?
 
     init(
         dayKey: String,
@@ -114,7 +115,8 @@ struct DayObjectSceneInput: Equatable {
         lowSleep: Bool = false,
         editorialPreview: DayObjectEditorialPreviewSpec? = nil,
         editorialLabConfiguration: DayObjectEditorialLabConfiguration? = nil,
-        actorColorVariants: [String: Int] = [:]
+        actorColorVariants: [String: Int] = [:],
+        nativeAtlasRecipe: NativeAtlasRecipe? = nil
     ) {
         self.dayKey = dayKey
         self.identity = identity
@@ -131,6 +133,7 @@ struct DayObjectSceneInput: Equatable {
         self.editorialPreview = editorialPreview
         self.editorialLabConfiguration = editorialLabConfiguration
         self.actorColorVariants = actorColorVariants
+        self.nativeAtlasRecipe = nativeAtlasRecipe
     }
 }
 

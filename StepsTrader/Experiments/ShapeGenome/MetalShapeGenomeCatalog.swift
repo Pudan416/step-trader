@@ -3,7 +3,7 @@ import Foundation
 enum MetalShapeGenomeCatalog {
     static let presets: [MetalShapePreset] = genomePresets + legacyPresets
 
-    private static let broadMaterials = Set(MetalShapeMaterial.allCases)
+    private static let broadMaterials = Set(MetalShapeMaterial.allCases).subtracting([.sunset])
     private static let lightMaterials: Set<MetalShapeMaterial> = [
         .sideLight, .contour, .radialTwo, .radialThree, .proceduralLight,
         .proceduralFlow, .proceduralContour, .eclipseGlow,
@@ -12,6 +12,7 @@ enum MetalShapeGenomeCatalog {
     private static func policy(
         preferred: Set<MetalShapeMaterial>,
         allowed: Set<MetalShapeMaterial> = broadMaterials,
+        allowDirectionalBlur: Bool = false,
         roles: Set<MetalShapeRole>,
         size: ClosedRange<Float>,
         maxInstances: Int,
@@ -21,8 +22,8 @@ enum MetalShapeGenomeCatalog {
         blur: Float = 0.14
     ) -> MetalShapeCompatibility {
         MetalShapeCompatibility(
-            preferred: preferred,
-            allowed: allowed,
+            preferred: allowDirectionalBlur ? preferred : preferred.subtracting([.directionalBlur]),
+            allowed: allowDirectionalBlur ? allowed : allowed.subtracting([.directionalBlur]),
             roles: roles,
             minimumSize: size.lowerBound,
             maximumSize: size.upperBound,
@@ -165,6 +166,8 @@ enum MetalShapeGenomeCatalog {
             contour: .legacy(shape: shape, variant: variant),
             compatibility: policy(
                 preferred: preferred,
+                allowed: id == "legacy.circle" ? broadMaterials.union([.sunset]) : broadMaterials,
+                allowDirectionalBlur: true,
                 roles: roles,
                 size: roles.contains(.primary) ? 0.20...0.72 : 0.14...0.48,
                 maxInstances: 2,

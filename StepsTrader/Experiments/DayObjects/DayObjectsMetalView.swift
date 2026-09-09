@@ -2,6 +2,7 @@ import MetalKit
 import SwiftUI
 
 struct DayObjectsMetalView: UIViewRepresentable {
+    @Environment(\.isTodayCanvasSource) private var isTodayCanvasSource
     let scene: DayObjectScene
     let environment: DayObjectEnvironment
     let digitalImpact: DayObjectDigitalImpact
@@ -45,6 +46,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: MTKView, context: Context) {
+        context.coordinator.isTodayCanvasSource = isTodayCanvasSource
         context.coordinator.update(
             uiView,
             scene: scene,
@@ -57,6 +59,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
     }
 
     static func dismantleUIView(_ uiView: MTKView, coordinator: Coordinator) {
+        TodayCanvasBackdropStore.shared.unregisterSource(uiView)
         coordinator.cancelPreparation()
         coordinator.renderer?.setAnimating(false)
         uiView.isPaused = true
@@ -66,6 +69,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
 
     @MainActor final class Coordinator {
         private(set) var renderer: DayObjectsRenderer?
+        var isTodayCanvasSource = false
         weak var mtkView: MTKView?
         private var preparation: Task<Void, Never>?
         private var scene: DayObjectScene
@@ -142,6 +146,11 @@ struct DayObjectsMetalView: UIViewRepresentable {
             guard let renderer, let view = mtkView else { return }
             if view.device == nil { view.device = renderer.device }
             view.delegate = renderer
+            if isTodayCanvasSource {
+                TodayCanvasBackdropStore.shared.registerSource(view, renderer: renderer)
+            } else {
+                TodayCanvasBackdropStore.shared.unregisterSource(view)
+            }
             renderer.update(scene: scene, environment: environment, digitalImpact: digitalImpact,
                             soundPulseBus: soundPulseBus, presentationMode: presentationMode)
             renderer.setAnimating(isAnimating)

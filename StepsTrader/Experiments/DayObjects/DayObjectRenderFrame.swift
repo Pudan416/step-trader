@@ -162,7 +162,7 @@ struct DayObjectGPUActor: Equatable {
     let depth: Float                 // bytes 48...51
     let materialPhase: Float         // bytes 52...55
     let localDepthSoftness: Float    // bytes 56...59
-    private let tailPadding: Float   // bytes 60...63
+    let silhouetteVariant: UInt32   // bytes 60...63; zero keeps curated legacy contours
     let paletteMorph: Float          // bytes 64...67
     let presentationSaturation: Float // bytes 68...71
     let removalEmphasis: Float       // bytes 72...75
@@ -181,7 +181,8 @@ struct DayObjectGPUActor: Equatable {
         localDepthSoftness: Float,
         paletteMorph: Float = 1,
         presentationSaturation: Float = 1,
-        removalEmphasis: Float = 0
+        removalEmphasis: Float = 0,
+        silhouetteVariant: UInt32 = 0
     ) {
         self.position = Self.finite(position)
         self.direction = Self.normalized(direction)
@@ -197,7 +198,7 @@ struct DayObjectGPUActor: Equatable {
             max(localDepthSoftness.isFinite ? localDepthSoftness : 0, 0),
             1
         )
-        tailPadding = 0
+        self.silhouetteVariant = min(silhouetteVariant, 64)
         self.paletteMorph = Self.clampedUnit(paletteMorph)
         self.presentationSaturation = Self.clampedUnit(presentationSaturation)
         self.removalEmphasis = Self.clampedUnit(removalEmphasis)
@@ -250,7 +251,8 @@ struct DayObjectGPUActor: Equatable {
             localDepthSoftness: localDepthSoftness,
             paletteMorph: paletteMorph,
             presentationSaturation: presentationSaturation,
-            removalEmphasis: removalEmphasis
+            removalEmphasis: removalEmphasis,
+            silhouetteVariant: silhouetteVariant
         )
     }
 
@@ -457,6 +459,13 @@ struct DayObjectGPUAppearance: Equatable {
                 Self.bounded(recipe1.y, 0.01...0.08),
                 Self.bounded(recipe1.z, 0.14...0.34),
                 Self.bounded(recipe1.w, 0.58...0.98)
+            )
+        case .gradient, .glass:
+            self.recipe1 = SIMD4(
+                Float(min(max(Int(Self.bounded(recipe1.x, 0...5).rounded()), 0), 5)),
+                Self.bounded(recipe1.y, -2 * .pi...2 * .pi),
+                Self.bounded(recipe1.z, 0...1),
+                Self.bounded(recipe1.w, 0...1)
             )
         default:
             self.recipe1 = .zero
@@ -759,17 +768,21 @@ struct DayObjectRenderFrame: Equatable {
                 1,
                 recipeActor.localBlur * 10 + effectiveDepth * 0.20 + foregroundSoftness
             )
+            let silhouette = recipeActor.silhouette
+            let silhouetteDirection = silhouette.variant == 0 ? direction
+                : SIMD2<Float>(cos(silhouette.rotation), sin(silhouette.rotation))
             let gpuActor = DayObjectGPUActor(
                 position: position,
-                direction: direction,
-                halfSize: SIMD2(repeating: halfDiameter),
+                direction: silhouetteDirection,
+                halfSize: SIMD2(halfDiameter, halfDiameter * silhouette.aspect),
                 opacity: Float(insertion.opacity * removal.opacity),
                 trailLength: 0,
                 shape: recipeActor.shape.numericValue,
                 appearanceIndex: 0,
                 depth: Float(effectiveDepth),
                 materialPhase: 0,
-                localDepthSoftness: Float(localSoftness)
+                localDepthSoftness: Float(localSoftness),
+                silhouetteVariant: silhouette.variant
             )
             rendered.append(DayObjectRenderActor(
                 actorID: actor.id,

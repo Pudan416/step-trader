@@ -23,6 +23,7 @@ struct HappeningEditorialAssignment: Equatable {
     let shape: DayObjectShape
     let material: DayObjectEditorialMaterialV1
     let colorVariant: Int
+    var silhouette: DayObjectSilhouette = .legacy
 }
 
 /// Every value that influences the exact Editorial actor shown for a happening
@@ -79,12 +80,15 @@ enum HappeningEditorialAssignmentResolver {
     static func snapshot(
         request: HappeningEditorialAssignmentRequest
     ) -> HappeningEditorialAssignmentSnapshot {
+        let direction = request.baseInput.editorialLabConfiguration?.materialMode == .generativeDNA
+            ? DayObjectArtDirectionScheduler.make(dayKey: request.baseInput.dayKey, identity: request.baseInput.identity)
+            : nil
         let assignments: [String: HappeningEditorialAssignment] = request.happenings.reduce(into: [:]) { result, happening in
             let committedElement = request.committedElements.first {
                 $0.optionId == happening.id
             }
             let elementID = committedElement?.id
-                ?? stableElementID(happeningID: happening.id, dayKey: request.baseInput.dayKey)
+                ?? variedElementID(happeningID: happening.id, request: request, direction: direction)
             let colorVariant = committedElement?.editorialColorVariant
                 ?? (committedElement == nil
                     ? colorVariant(
@@ -106,7 +110,8 @@ enum HappeningEditorialAssignmentResolver {
                 elementID: elementID,
                 shape: actor.shape,
                 material: actor.material,
-                colorVariant: colorVariant
+                colorVariant: colorVariant,
+                silhouette: actor.silhouette
             )
         }
         return HappeningEditorialAssignmentSnapshot(
@@ -167,16 +172,55 @@ enum HappeningEditorialAssignmentResolver {
         return Int((base &+ nonce) % UInt64(colorVariationCount))
     }
 
-    private static func stableElementID(happeningID: String, dayKey: String) -> UUID {
+    /// Pick only an uncommitted identity. Once added, its persisted UUID wins,
+    /// so later additions, removals and colour rerolls cannot reshape it.
+    private static func variedElementID(
+        happeningID: String,
+        request: HappeningEditorialAssignmentRequest,
+        direction: DayObjectArtDirection?
+    ) -> UUID {
+        let original = stableElementID(happeningID: happeningID, dayKey: request.baseInput.dayKey)
+        guard let direction, !request.committedElements.isEmpty else { return original }
+        let retained = request.committedElements.map { $0.id.uuidString.lowercased() }
+        func score(_ id: UUID) -> Int {
+            let eventID = id.uuidString.lowercased()
+            let candidate = direction.resolution(eventID: eventID)
+            let silhouette = DayObjectSilhouette.make(eventID: eventID)
+            return retained.reduce(0) { total, other in
+                let existing = direction.resolution(eventID: other)
+                guard existing.geometry == candidate.geometry else { return total }
+                let otherSilhouette = DayObjectSilhouette.make(eventID: other)
+                return total + 12
+                    + (existing.material == candidate.material ? 3 : 0)
+                    + (otherSilhouette.proportionClass == silhouette.proportionClass ? 4 : 0)
+                    + (otherSilhouette.variant % 4 == silhouette.variant % 4 ? 2 : 0)
+            }
+        }
+        var best = original
+        var bestScore = score(best)
+        for attempt in 1...64 where bestScore > 0 {
+            let candidate = stableElementID(happeningID: happeningID,
+                dayKey: request.baseInput.dayKey, variation: attempt)
+            guard !retained.contains(candidate.uuidString.lowercased()) else { continue }
+            let candidateScore = score(candidate)
+            if candidateScore < bestScore {
+                best = candidate
+                bestScore = candidateScore
+            }
+        }
+        return best
+    }
+
+    private static func stableElementID(happeningID: String, dayKey: String, variation: Int = 0) -> UUID {
         let high = CanvasElement.makeSeed(
             optionId: "editorial-element-high:\(happeningID)",
             dayKey: dayKey,
-            index: 0
+            index: variation
         )
         let low = CanvasElement.makeSeed(
             optionId: "editorial-element-low:\(happeningID)",
             dayKey: dayKey,
-            index: 0
+            index: variation
         )
         var bytes = withUnsafeBytes(of: high.bigEndian, Array.init)
             + withUnsafeBytes(of: low.bigEndian, Array.init)

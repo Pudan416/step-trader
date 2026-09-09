@@ -13,7 +13,7 @@ struct alignas(16) DayObjectGPUActor {
     float depth;
     float materialPhase;
     float localDepthSoftness;
-    float tailPadding;
+    uint silhouetteVariant;
     float paletteMorph;
     float presentationSaturation;
     float removalEmphasis;
@@ -69,6 +69,7 @@ struct DayObjectsActorVertexOut {
     float presentationSaturation;
     float removalEmphasis;
     uint shape [[flat]];
+    uint silhouetteVariant [[flat]];
     uint appearanceIndex [[flat]];
 };
 
@@ -80,6 +81,7 @@ constant float dayObjectsTrailSigmaSupport = 3.2;
 vertex DayObjectsActorVertexOut dayObjectsActorVertex(
     const device float2 *quadPositions [[buffer(0)]],
     const device DayObjectGPUActor *actors [[buffer(1)]],
+    const device DayObjectGPUAppearance *appearances [[buffer(2)]],
     constant DayObjectsActorUniforms &uniforms [[buffer(3)]],
     uint vertexID [[vertex_id]],
     uint instanceID [[instance_id]]
@@ -93,13 +95,19 @@ vertex DayObjectsActorVertexOut dayObjectsActorVertex(
         1.25 / shortSidePixels
     );
     const float mergeReach = halfSize.x * 0.18;
-    const float radialReach = actor.shape == 4
+    const float radialReach = actor.silhouetteVariant > 0 ? 1.25 : actor.shape == 4
         ? dayObjectsSoftStarRadialReach
         : (actor.shape == 3 ? dayObjectsSoftBlobRadialReach : 1.0);
-    const float bodyMajorReach = halfSize.x * radialReach + mergeReach;
+    const DayObjectGPUAppearance appearance = appearances[actor.appearanceIndex];
+    const bool fragmentBlur = (appearance.metadata.x == 0u || appearance.metadata.x == 3u)
+        && uint(round(appearance.recipe1.x)) == 4u;
+    // Include all taps and their soft support, only for the blurred material.
+    const float blurReach = fragmentBlur
+        ? halfSize.x * 2.1 : 0.0;
+    const float bodyMajorReach = halfSize.x * radialReach + mergeReach + blurReach;
     const float bodyMinorReach = (actor.paletteMorph < 1.0
         ? max(halfSize.y * radialReach, halfSize.x)
-        : halfSize.y * radialReach) + mergeReach;
+        : halfSize.y * radialReach) + mergeReach + blurReach;
     const float trailMinimumX = -halfSize.x - max(actor.trailLength, 0.0);
 
     // The local quad spans the body plus the complete exponential/Gaussian
@@ -144,6 +152,7 @@ vertex DayObjectsActorVertexOut dayObjectsActorVertex(
     out.presentationSaturation = clamp(actor.presentationSaturation, 0.0, 1.0);
     out.removalEmphasis = clamp(actor.removalEmphasis, 0.0, 1.0);
     out.shape = actor.shape;
+    out.silhouetteVariant = actor.silhouetteVariant;
     out.appearanceIndex = actor.appearanceIndex;
     return out;
 }
@@ -298,17 +307,106 @@ static float3 dayObjectsLayeredRadialColor(
     return mix(result * layeredLight, result, localSoftness * 0.24);
 }
 
+// Broad, static patterns remain readable without animation or fine texture.
+// Returns straight colour; alpha is used only by the translucent-sheet pattern.
+static float4 dayObjectsArtisticFill(float2 point, DayObjectGPUAppearance appearance) {
+    const uint pattern = uint(round(appearance.recipe1.x));
+    const float angle = appearance.recipe1.y;
+    const float2 q = float2(cos(angle) * point.x - sin(angle) * point.y,
+        sin(angle) * point.x + cos(angle) * point.y);
+    const float bend = appearance.recipe1.z;
+    const float offset = (appearance.recipe1.w - 0.5) * 0.65;
+    const float3 a = appearance.color0.rgb;
+    const float3 b = appearance.color1.rgb;
+    const float3 c = appearance.color2.rgb;
+    if (pattern == 5u) {
+        // Experimental radial volume: a movable light centre, with two or
+        // three colour stops. The circular boundary stays dark when offset.
+        const float2 centre = float2(cos(angle), -sin(angle))
+            * clamp(appearance.recipe1.w, 0.0, 0.65);
+        const float2 delta = point - centre;
+        const float radius = length(delta);
+        const float2 ray = delta / max(radius, 1e-5);
+        const float projection = dot(centre, ray);
+        const float boundary = -projection
+            + sqrt(max(0.001, projection * projection + 1.0 - dot(centre, centre)));
+        const float t = clamp(radius / max(boundary, 0.1), 0.0, 1.0);
+        if (appearance.recipe1.z < 0.5)
+            return float4(mix(a, c, smoothstep(0.08, 1.0, t)), 1.0);
+        const float3 inner = mix(a, b, smoothstep(0.12, 0.68, t));
+        return float4(mix(inner, c, smoothstep(0.52, 1.0, t)), 1.0);
+    }
+    if (pattern == 1u) {
+        const float sweep = smoothstep(-0.75 + offset, 0.85 + offset, q.x);
+        const float3 base = mix(a, b, sweep);
+        return float4(mix(base, c, 0.13 * (1.0 - q.y * q.y)), 1.0);
+    }
+    if (pattern == 4u) {
+        // A broad colour field keeps the defocused volume saturated.
+        const float3 base = mix(a, b, smoothstep(-0.65 + offset, 0.15 + offset, q.x));
+        return float4(mix(base, c, smoothstep(0.15 + offset, 0.95 + offset, q.x)), 1.0);
+    }
+    if (pattern == 2u) {
+        const float center = offset + (0.22 + bend * 0.32) * sin(q.y * 2.25);
+        const float ribbon = 1.0 - smoothstep(0.18 + bend * 0.08,
+            0.48 + bend * 0.08, abs(q.x - center));
+        const float3 base = mix(a, c, smoothstep(-1.0, 1.0, q.y) * 0.38);
+        return float4(mix(base, b, ribbon * 0.94), 1.0);
+    }
+    const float boundary1 = q.y + 0.27 * sin(q.x * 1.9) - offset;
+    const float boundary2 = q.x - 0.34 * sin(q.y * 1.7 + bend) + offset;
+    const float layer1 = smoothstep(-0.25, -0.08, boundary1);
+    const float layer2 = smoothstep(0.12, 0.29, boundary2);
+    float3 color = mix(a, b, layer1 * 0.63);
+    color = mix(color, c, layer2 * 0.57);
+    const float seams = exp(-pow((boundary1 + 0.165) / 0.028, 2.0))
+        + exp(-pow((boundary2 - 0.205) / 0.028, 2.0));
+    color = mix(color, mix(b, c, 0.5), min(seams * 0.18, 0.30));
+    return float4(color, 0.42 + 0.16 * layer1 + 0.18 * layer2);
+}
+
 /// Seven circle-derived bodies in local units. None of the variants can produce
 /// the old triangles, slabs, petals, or thin Figma-like particles.
 static float dayObjectsActorBody(
     uint shape,
     float2 point,
     float aspect,
-    float radialVariation
+    float radialVariation,
+    uint silhouetteVariant
 ) {
     const float2 ellipsePoint = float2(point.x, point.y / max(aspect, 1e-4));
     const float radius = length(ellipsePoint);
     const float angle = atan2(ellipsePoint.y, ellipsePoint.x);
+    // Variant zero keeps curated scenes pixel-compatible. A compact descriptor
+    // controls broad geometry, independently of animated material phase.
+    if (silhouetteVariant > 0) {
+        const uint variant = min(silhouetteVariant, 64u) - 1u;
+        const float lobes = 3.0 + float(variant % 4u);
+        const float depth = float((variant / 4u) % 4u) / 3.0;
+        if (shape == 4u) {
+            const float amplitude = mix(0.12, 0.225, depth);
+            return radius - (1.0 + amplitude * cos(lobes * angle));
+        }
+        if (shape == 5u) {
+            const float sector = 2.0 * M_PI_F / lobes;
+            const float folded = angle - sector * floor((angle + sector * 0.5) / sector);
+            // Distance to the nearest side segment, rounded by an actual
+            // circular offset. This avoids cusps from blending radial masks.
+            const float rounding = mix(0.30, 0.12, depth);
+            const float coreRadius = 1.0 - rounding;
+            const float apothem = coreRadius * cos(M_PI_F / lobes);
+            const float sideHalfLength = coreRadius * sin(M_PI_F / lobes);
+            const float2 foldedPoint = radius * float2(cos(folded), sin(folded));
+            const float2 nearest = float2(apothem,
+                clamp(foldedPoint.y, -sideHalfLength, sideHalfLength));
+            return length(foldedPoint - nearest) * sign(foldedPoint.x - apothem) - rounding;
+        }
+        if (shape == 6u) {
+            const float exponent = 2.3 + 1.2 * float(variant / 16u);
+            return pow(pow(abs(ellipsePoint.x), exponent)
+                + pow(abs(ellipsePoint.y), exponent), 1.0 / exponent) - 1.0;
+        }
+    }
     switch (shape) {
     case 1: // ellipse
         return radius - 1.0;
@@ -373,7 +471,8 @@ fragment float4 dayObjectsActorFragment(
         in.shape,
         bodyPoint,
         aspect,
-        in.materialPhase * 2.0 - 1.0
+        in.materialPhase * 2.0 - 1.0,
+        in.silhouetteVariant
     ) * majorHalfSize * in.shortSidePixels;
     const float paletteProgress = smoothstep(0.0, 1.0, in.paletteMorph);
     const float sphereRadius = length(bodyPoint);
@@ -393,7 +492,7 @@ fragment float4 dayObjectsActorFragment(
         fwidth(signedBodyDistancePixels),
         0.70 + combinedLocalSoftness * 12.0 + recipeEdgePixels
     );
-    const float baseBodyCoverage = 1.0 - smoothstep(
+    float baseBodyCoverage = 1.0 - smoothstep(
         -antialiasPixels,
         antialiasPixels,
         signedBodyDistancePixels
@@ -401,35 +500,117 @@ fragment float4 dayObjectsActorFragment(
     const uint material = min(appearance.metadata.x, 8u);
     const float localAntialias = antialiasPixels
         / max(majorHalfSize * in.shortSidePixels, 1.0);
+    // A directional footprint carries colour away from the focused edge.
+    // Coverage and colour use the same samples to avoid a dark fringe.
+    const bool fragmentBlur = (material == 0u || material == 3u)
+        && uint(round(appearance.recipe1.x)) == 4u;
+    float fragmentBlurMask = 0.0;
+    float3 fragmentBlurColor = float3(0.0);
+    DayObjectGPUAppearance artisticAppearance = appearance;
+    if (fragmentBlur) {
+        float angle = appearance.recipe1.y;
+        // Focus a triangle vertex; other flat-sided shapes focus a face.
+        // The focused direction is opposite the direction of defocus.
+        // Resolve it in local shape coordinates so actor rotation is preserved.
+        if (in.shape == 6u || (in.shape == 5u && in.silhouetteVariant > 0u)) {
+            const float sides = in.shape == 6u ? 4.0
+                : 3.0 + float((min(in.silhouetteVariant, 64u) - 1u) % 4u);
+            const float sector = 2.0 * M_PI_F / sides;
+            const float focusOffset = sides == 3.0 ? sector * 0.5 : 0.0;
+            const float focusNormal = round((M_PI_F - angle - focusOffset) / sector)
+                * sector + focusOffset;
+            angle = M_PI_F - focusNormal;
+        }
+        artisticAppearance.recipe1.y = angle;
+        const float2 axis = float2(cos(angle), -sin(angle));
+        const float side = dot(bodyPoint, axis);
+        const float offset = (appearance.recipe1.w - 0.5) * 0.20;
+        const float2 across = float2(-axis.y, axis.x);
+        // Anchor the narrow focused rim to this silhouette, not a circle-sized
+        // box. Rounded triangles can meet this ray well before radius one.
+        float insideRadius = 0.0;
+        float outsideRadius = 1.3;
+        for (int search = 0; search < 8; ++search) {
+            const float radius = (insideRadius + outsideRadius) * 0.5;
+            const float2 point = -axis * radius;
+            const float target = dayObjectsActorBody(in.shape, point, aspect,
+                in.materialPhase * 2.0 - 1.0, in.silhouetteVariant);
+            const float distance = mix(radius - 1.0, target, paletteProgress);
+            if (distance < 0.0) insideRadius = radius;
+            else outsideRadius = radius;
+        }
+        const float focusedEdge = -(insideRadius + outsideRadius) * 0.5;
+        const float fromEdge = side - focusedEdge;
+        fragmentBlurMask = smoothstep(0.04, 0.18, fromEdge);
+        const float progress = clamp((fromEdge - 0.08) / (1.8 + offset), 0.0, 1.0);
+        const float spread = progress * progress;
+        const float strength = 0.8 + 0.2 * clamp(appearance.recipe1.z, 0.0, 1.0);
+        const float sigmaAlong = 0.035 + 0.62 * spread * strength;
+        const float sigmaAcross = 0.025 + 0.40 * spread * strength;
+        const float drift = 0.22 * spread;
+        const float sampleSoftness = max(antialiasPixels,
+            sigmaAlong * majorHalfSize * in.shortSidePixels * 0.60);
+        // Normalized convolution preserves the opaque colour volume. Only the
+        // real blurred coverage fades at the far edge; no extra opacity ramp.
+        float blurredCoverage = 0.0;
+        float3 coveredColor = float3(0.0);
+        // Half-step Gaussian sampling avoids separate ghost contours from the
+        // sparse five-tap grid, especially on the defocused triangle base.
+        const float gaussianWeights[5] = { 1.0, 0.8824969, 0.6065307, 0.3246525, 0.1353353 };
+        const float gaussianTotal = 4.8980308;
+        for (int y = -4; y <= 4; ++y) {
+            const float wy = gaussianWeights[abs(y)];
+            for (int x = -4; x <= 4; ++x) {
+                const float wx = gaussianWeights[abs(x)];
+                const float weight = wx * wy / (gaussianTotal * gaussianTotal);
+                const float2 samplePoint = bodyPoint - axis * drift
+                    + axis * (float(x) * 0.5 * sigmaAlong)
+                    + across * (float(y) * 0.5 * sigmaAcross);
+                const float targetDistance = dayObjectsActorBody(in.shape, samplePoint,
+                    aspect, in.materialPhase * 2.0 - 1.0, in.silhouetteVariant);
+                const float distance = mix(length(samplePoint) - 1.0,
+                    targetDistance, paletteProgress) * majorHalfSize * in.shortSidePixels;
+                const float coverage = 1.0 - smoothstep(-sampleSoftness, sampleSoftness, distance);
+                const float2 sampleEllipse = float2(samplePoint.x, samplePoint.y / max(aspect, 1e-4));
+                coveredColor += dayObjectsArtisticFill(sampleEllipse, artisticAppearance).rgb * coverage * weight;
+                blurredCoverage += coverage * weight;
+            }
+        }
+        fragmentBlurColor = coveredColor / max(blurredCoverage, 1e-5);
+        baseBodyCoverage = mix(baseBodyCoverage, blurredCoverage, fragmentBlurMask);
+    }
     float bodyCoverage = baseBodyCoverage;
     float structuralCoverage = 0.0;
     float3 structuralColor = appearance.color2.rgb;
 
     if (material == 7u) { // Outline
         const int outlineCount = clamp(int(round(appearance.recipe1.x)), 1, 3);
-        const float outlineWidth = clamp(appearance.recipe1.y, 0.002, 0.075);
+        const float outlineWidth = clamp(appearance.recipe1.y, 0.002, 0.020);
+        const float outlineAAPixels = max(fwidth(signedBodyDistancePixels), 0.70);
+        const float outlineAA = outlineAAPixels / max(majorHalfSize * in.shortSidePixels, 1.0);
         const float outlineSpacing = clamp(appearance.recipe1.z, 0.02, 0.09);
-        const float outlineWobble = clamp(appearance.recipe1.w, 0.01, 0.08);
-        const float contourAngle = atan2(ellipticalPoint.y, ellipticalPoint.x);
-        const float contourRadius = radialDistance
-            + outlineWobble * 0.22 * sin(3.0 * contourAngle + in.materialPhase * 2.0 * M_PI_F);
+        // Use the same field as the silhouette, including during palette morph.
+        // Radial normalization at the centre of a lobed field is singular and
+        // would create a false interior ring, so retain its signed local units.
+        const float contourDistance = signedBodyDistancePixels
+            / max(majorHalfSize * in.shortSidePixels, 1.0);
         float rings = 0.0;
         for (int index = 0; index < 3; ++index) {
             if (index < outlineCount) {
-                const float ringRadius = 0.96 - float(index)
+                const float inset = outlineWidth + float(index)
                     * (outlineSpacing + outlineWidth * 1.4);
-                const float ringDistance = abs(contourRadius - ringRadius);
+                const float ringDistance = abs(contourDistance + inset);
                 rings = max(
                     rings,
                     1.0 - smoothstep(
                         outlineWidth,
-                        outlineWidth + localAntialias,
+                        outlineWidth + outlineAA,
                         ringDistance
                     )
                 );
             }
         }
-        bodyCoverage = rings * baseBodyCoverage;
+        bodyCoverage = rings * (1.0 - smoothstep(-outlineAAPixels, outlineAAPixels, signedBodyDistancePixels));
     } else if (material == 8u) { // Counterform
         const float cutoutRadius = clamp(appearance.recipe1.x, 0.44, 0.62);
         const float cutoutSoftness = clamp(appearance.recipe1.y, 0.01, 0.08);
@@ -498,8 +679,10 @@ fragment float4 dayObjectsActorFragment(
     const float mergeCoverage = (1.0 - baseBodyCoverage) * (
         1.0 - smoothstep(0.0, mergeReachPixels, max(signedBodyDistancePixels, 0.0))
     );
+    // Do not refill the dissolving side with the silhouette's merge rim.
     const float mergeAlpha = mergeCoverage * actorOpacity * materialBodyOpacity
-        * 0.16;
+        * 0.16 * (fragmentBlur ? 1.0 - fragmentBlurMask : 1.0)
+        * (material == 7u ? 0.0 : 1.0);
     const float visibleMergeAlpha = mergeAlpha * (1.0 - bodyAlpha)
         * (1.0 - visibleTrailAlpha);
 
@@ -582,7 +765,7 @@ fragment float4 dayObjectsActorFragment(
     }
     case 7u: { // Outline
         bodyColor *= 0.78 + 0.22 * softenedLight;
-        haloAlpha = haloCoverage * visibilityGate * appearance.optical0.y * 0.24;
+        haloAlpha = 0.0; // Plain outline has no outward glow.
         break;
     }
     case 8u: { // Counterform
@@ -607,6 +790,16 @@ fragment float4 dayObjectsActorFragment(
         centerMask
     );
     bodyAlpha = max(bodyAlpha, bodyCoverage * minimumOpacity);
+
+    // Only production gradient/glass descriptors opt in. Legacy materials and
+    // curated previews keep their existing shading and GPU buffer layout.
+    if ((material == 0u || material == 3u) && appearance.recipe1.x >= 1.0) {
+        const float4 fill = dayObjectsArtisticFill(ellipticalPoint, artisticAppearance);
+        bodyColor = fragmentBlur ? mix(fill.rgb, fragmentBlurColor, fragmentBlurMask) : fill.rgb;
+        if (uint(round(appearance.recipe1.x)) == 3u) {
+            bodyAlpha = bodyCoverage * actorOpacity * fill.a;
+        }
+    }
 
     const float structuralAlpha = structuralCoverage * max(
         actorOpacity,
@@ -633,13 +826,29 @@ fragment float4 dayObjectsActorFragment(
         return float4(premultiplied, alpha);
     }
 
-    const float3 yellow = dayObjectsPresentationLinearRGB(float3(246.0, 185.0, 30.0) / 255.0);
-    const float3 softYellow = dayObjectsPresentationLinearRGB(float3(255.0, 217.0, 106.0) / 255.0);
-    const float3 paleYellow = dayObjectsPresentationLinearRGB(float3(255.0, 240.0, 176.0) / 255.0);
-    const float neutralEdge = smoothstep(0.15, 0.88, sphereRadius);
-    const float neutralAlpha = mix(0.10, 0.88, neutralEdge) * baseBodyCoverage * actorOpacity;
-    float3 neutralColor = mix(paleYellow, yellow, smoothstep(0.0, 0.82, sphereRadius));
-    neutralColor = mix(neutralColor, softYellow, smoothstep(0.82, 1.0, sphereRadius) * 0.65);
+    // A translucent smoke lens, with champagne only on the lit shoulder.
+    // The shared post pass supplies grain; no extra texture or blur pass is
+    // needed. Keep the centre clear and avoid an emissive, closed yellow rim.
+    const float3 smoke = dayObjectsPresentationLinearRGB(float3(78.0, 70.0, 79.0) / 255.0);
+    const float3 champagne = dayObjectsPresentationLinearRGB(float3(221.0, 207.0, 184.0) / 255.0);
+    const float3 pearl = dayObjectsPresentationLinearRGB(float3(249.0, 241.0, 225.0) / 255.0);
+    // Screen-space derivatives remove the eventual shape's rotation from
+    // the neutral lens lighting, so all ten share one upper-left light.
+    const float2 screenRadial = float2(
+        dot(bodyPoint, dfdx(bodyPoint)), dot(bodyPoint, dfdy(bodyPoint))
+    );
+    const float2 lensNormal = screenRadial / max(length(screenRadial), 1e-5);
+    const float lensLight = smoothstep(0.10, 0.95, dot(lensNormal, float2(-0.6, -0.8)));
+    const float shoulder = smoothstep(0.40, 0.90, sphereRadius);
+    const float edgeBand = smoothstep(0.86, 0.96, sphereRadius)
+        * (1.0 - smoothstep(0.975, 1.02, sphereRadius));
+    const float smokeAlpha = 0.12 + shoulder * 0.08;
+    const float tintAlpha = shoulder * (0.045 + lensLight * 0.08);
+    const float glintAlpha = edgeBand * lensLight * 0.25;
+    const float lensAlpha = smokeAlpha + tintAlpha + glintAlpha;
+    const float neutralAlpha = lensAlpha * baseBodyCoverage * actorOpacity;
+    const float3 neutralColor = (smoke * smokeAlpha + champagne * tintAlpha
+        + pearl * glintAlpha) / lensAlpha;
     const float presentedAlpha = mix(neutralAlpha, alpha, paletteProgress);
     float3 presentedRGB = mix(neutralColor * neutralAlpha, premultiplied, paletteProgress);
     float3 straightRGB = presentedAlpha > 1e-6 ? presentedRGB / presentedAlpha : float3(0.0);

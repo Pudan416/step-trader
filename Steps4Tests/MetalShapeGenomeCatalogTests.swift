@@ -54,13 +54,14 @@ final class MetalShapeGenomeCatalogTests: XCTestCase {
         }
     }
 
-    func testCatalogExposesTenApprovedMaterialsAndThreeRoles() {
-        XCTAssertEqual(MetalShapeMaterial.allCases.count, 10)
+    func testCatalogExposesElevenApprovedMaterialsAndThreeRoles() {
+        XCTAssertEqual(MetalShapeMaterial.allCases.count, 11)
         XCTAssertEqual(Set(MetalShapeMaterial.allCases.map(\.rawValue)), Set([
             "solid", "sideLight", "contour", "directionalBlur", "radialTwo",
             "radialThree", "proceduralLight", "proceduralFlow", "proceduralContour",
-            "eclipseGlow",
+            "eclipseGlow", "sunset",
         ]))
         XCTAssertEqual(MetalShapeRole.allCases, [.primary, .supporting, .accent])
+        XCTAssertEqual(MetalShapeGenomeCatalog.presets.filter { $0.compatibility.allowed.contains(.sunset) }.map(\.id), ["legacy.circle"])
     }
 }

@@ -239,7 +239,8 @@ struct GalleryView: View {
                 editorialBackground: input.editorialBackground,
                 lowSleep: input.lowSleep,
                 editorialPreview: input.editorialPreview,
-                editorialLabConfiguration: input.editorialLabConfiguration
+                editorialLabConfiguration: input.editorialLabConfiguration,
+                nativeAtlasRecipe: input.nativeAtlasRecipe
             ),
             digitalImpact: editorialRenderInput.digitalImpact
         )
@@ -446,6 +447,9 @@ struct GalleryView: View {
         }
         let next = presentation.applying(event)
         guard next != presentation else { return }
+        if presentation.isEditing && !next.isEditing && dayCanvas.artworkRecipe != nil {
+            saveCanvasLocally()
+        }
         withAnimation(
             reduceMotion
                 ? nil
@@ -852,6 +856,7 @@ struct GalleryView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
+        .environment(\.isTodayCanvasSource, !showHappeningPalette)
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -895,14 +900,20 @@ struct GalleryView: View {
         }
         .overlay {
             if presentation.showsEditingChrome,
-               dayCanvas.resolvedVisualStyle == .legacy {
+               (dayCanvas.resolvedVisualStyle == .legacy || dayCanvas.artworkRecipe?.isSupported == true) {
                 CanvasEditingDock(
-                    showsDragHint: showsEditDragHint,
+                    showsDragHint: showsEditDragHint && dayCanvas.artworkRecipe == nil,
                     onDone: {
                         send(.endEditing)
                         lightHapticTick &+= 1
                     },
-                    onRemix: { remixCanvas() }
+                    onRemix: { remixCanvas() },
+                    nativeRecipe: dayCanvas.artworkRecipe == nil ? nil : Binding(get: { dayCanvas.artworkRecipe }, set: { recipe in
+                        dayCanvas.artworkRecipe = recipe
+                        dayCanvas.lastModified = .now
+                        localMutationCounter &+= 1
+                    }),
+                    automaticTraceStrength: Float(editorialRenderInput.digitalImpact.damage)
                 )
                 .padding(.horizontal, 16)
                 // `deviceTopSafeAreaInset` (not `safeAreaTop`) — see its doc
@@ -1158,6 +1169,7 @@ struct GalleryView: View {
             if !isPresented { toolbar.shareImage = nil }
         }
         .onDisappear {
+            if presentation.isEditing && dayCanvas.artworkRecipe != nil { saveCanvasLocally() }
             cancelPaletteInteraction()
 #if DEBUG || INTERNAL_BUILD
             let intent = musicController.acceptLifecycleEvent(.viewDisappeared)
@@ -1610,7 +1622,7 @@ struct GalleryView: View {
     // ═══════════════════════════════════════════════════════════
 
     private func makeNewCanvas(dayKey: String) -> DayCanvas {
-        var canvas = DayCanvas(dayKey: dayKey)
+        var canvas = preferredCanvasVisualStyle == .editorial ? DayCanvas.newDailyCanvas(dayKey: dayKey) : DayCanvas(dayKey: dayKey)
         canvas.visualStyleRaw = preferredCanvasVisualStyle.rawValue
         return canvas
     }
@@ -1822,6 +1834,13 @@ struct GalleryView: View {
             }
         }
         var merged = remote
+        // Preserve local recipe edits when both sides belong to the new
+        // generation. A historical remote canvas must not be auto-migrated by
+        // the temporary fresh canvas used while hydration is in flight.
+        if remote.artworkRecipe != nil, local.artworkRecipe != nil,
+           local.lastModified >= remote.lastModified {
+            merged.artworkRecipe = local.artworkRecipe
+        }
         if merged.visualStyleRaw == nil {
             merged.visualStyleRaw = local.visualStyleRaw
         }
@@ -1898,7 +1917,7 @@ struct GalleryView: View {
         // from disk on next launch.
         guard canvasLoaded else { return false }
         let didPersist: Bool
-        if dayCanvas.elements.isEmpty {
+        if dayCanvas.elements.isEmpty && dayCanvas.artworkRecipe == nil {
             CanvasStorageService.shared.deleteCanvas(for: dayCanvas.dayKey)
             didPersist = true
         } else {
@@ -2053,6 +2072,14 @@ struct GalleryView: View {
     /// exactly what they were.
     private func remixCanvas() {
         guard !dayCanvas.elements.isEmpty else { return }
+        if let recipe = dayCanvas.artworkRecipe, recipe.isSupported {
+            dayCanvas.artworkRecipe = recipe.remixed(seedKey: UUID().uuidString)
+            dayCanvas.lastModified = .now
+            localMutationCounter &+= 1
+            saveCanvasLocally()
+            mediumHapticTick &+= 1
+            return
+        }
         let composition = DayComposition.forDay(
             dayKey: dayCanvas.dayKey,
             happeningCount: dayCanvas.elements.count
@@ -2137,7 +2164,7 @@ struct GalleryView: View {
                     send(.beginEditing)
                     lightHapticTick &+= 1
                 },
-                showsEdit: dayCanvas.resolvedVisualStyle == .legacy,
+                showsEdit: dayCanvas.resolvedVisualStyle == .legacy || dayCanvas.artworkRecipe?.isSupported == true,
                 share: { shareButton }
             )
             .padding(.horizontal, 8)

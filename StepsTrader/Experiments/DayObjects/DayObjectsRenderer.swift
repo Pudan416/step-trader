@@ -43,6 +43,8 @@ struct DayObjectsMeshGradientUniforms: Equatable {
         while colors.count < 3 {
             colors.append(fallback)
         }
+        // Alpha is unused by the opaque background; retain the 128-byte ABI.
+        if style.preservesColorFields { colors[0].w = 2 }
         color0 = colors[0]
         color1 = colors[1]
         color2 = colors[2]
@@ -583,6 +585,144 @@ final class DayObjectsActorBufferRing {
     }
 }
 
+struct DayObjectsRendererPerformanceSnapshot {
+    let attemptedFrames: Int
+    let submittedFrames: Int
+    let completedFrames: Int
+    let pendingFrames: Int
+    let maximumInFlightFrames: Int
+    let actorBacklogDrops: Int
+    let resourceDrops: Int
+    let allocationFailures: Int
+    let renderTargetBytes: Int
+    let blurTargetBytes: Int
+    let gpuDurations: [TimeInterval]
+
+    var meanGPUDuration: TimeInterval {
+        gpuDurations.reduce(0, +) / Double(max(gpuDurations.count, 1))
+    }
+
+    func gpuDurationPercentile(_ fraction: Double) -> TimeInterval {
+        guard !gpuDurations.isEmpty else { return .infinity }
+        let sorted = gpuDurations.sorted()
+        let bounded = min(max(fraction, 0), 1)
+        let index = min(
+            Int((bounded * Double(sorted.count - 1)).rounded()),
+            sorted.count - 1
+        )
+        return sorted[index]
+    }
+}
+
+final class DayObjectsRendererPerformanceProbe {
+    private struct State {
+        var attemptedFrames = 0
+        var submittedFrames = 0
+        var completedFrames = 0
+        var pendingFrames = 0
+        var maximumInFlightFrames = 0
+        var actorBacklogDrops = 0
+        var resourceDrops = 0
+        var allocationFailures = 0
+        var renderTargetBytes = 0
+        var blurTargetBytes = 0
+        var gpuDurations = [TimeInterval]()
+    }
+
+    private let lock = NSLock()
+    private var state = State()
+
+    var snapshot: DayObjectsRendererPerformanceSnapshot {
+        lock.lock()
+        defer { lock.unlock() }
+        return DayObjectsRendererPerformanceSnapshot(
+            attemptedFrames: state.attemptedFrames,
+            submittedFrames: state.submittedFrames,
+            completedFrames: state.completedFrames,
+            pendingFrames: state.pendingFrames,
+            maximumInFlightFrames: state.maximumInFlightFrames,
+            actorBacklogDrops: state.actorBacklogDrops,
+            resourceDrops: state.resourceDrops,
+            allocationFailures: state.allocationFailures,
+            renderTargetBytes: state.renderTargetBytes,
+            blurTargetBytes: state.blurTargetBytes,
+            gpuDurations: state.gpuDurations
+        )
+    }
+
+    func resetMeasurementsPreservingAllocationState() {
+        lock.lock()
+        let renderTargetBytes = state.renderTargetBytes
+        let blurTargetBytes = state.blurTargetBytes
+        state = State()
+        state.renderTargetBytes = renderTargetBytes
+        state.blurTargetBytes = blurTargetBytes
+        lock.unlock()
+    }
+
+    fileprivate func recordAttempt() {
+        lock.lock()
+        state.attemptedFrames += 1
+        lock.unlock()
+    }
+
+    fileprivate func recordActorBacklogDrop() {
+        lock.lock()
+        state.actorBacklogDrops += 1
+        lock.unlock()
+    }
+
+    fileprivate func recordResourceDrop() {
+        lock.lock()
+        state.resourceDrops += 1
+        lock.unlock()
+    }
+
+    fileprivate func recordAllocationFailure() {
+        lock.lock()
+        state.allocationFailures += 1
+        state.renderTargetBytes = 0
+        state.blurTargetBytes = 0
+        lock.unlock()
+    }
+
+    fileprivate func recordAllocation(plan: DayObjectsRenderTargetPlan) {
+        let bytesPerPixel = 8
+        let backgroundBytes = plan.background.pixelCount * bytesPerPixel
+        let sceneBytes = plan.scene.pixelCount * bytesPerPixel
+        let blurBytes = plan.blurPingPong.reduce(0) {
+            $0 + $1.pixelCount * bytesPerPixel
+        }
+        lock.lock()
+        state.renderTargetBytes = backgroundBytes + sceneBytes + blurBytes
+        state.blurTargetBytes = blurBytes
+        lock.unlock()
+    }
+
+    fileprivate func recordSubmission(_ commandBuffer: MTLCommandBuffer) {
+        lock.lock()
+        state.submittedFrames += 1
+        state.pendingFrames += 1
+        state.maximumInFlightFrames = max(
+            state.maximumInFlightFrames,
+            state.pendingFrames
+        )
+        lock.unlock()
+
+        commandBuffer.addCompletedHandler { [weak self] completed in
+            guard let self else { return }
+            let duration = completed.gpuEndTime - completed.gpuStartTime
+            self.lock.lock()
+            self.state.completedFrames += 1
+            self.state.pendingFrames = max(self.state.pendingFrames - 1, 0)
+            if duration.isFinite, duration > 0 {
+                self.state.gpuDurations.append(duration)
+            }
+            self.lock.unlock()
+        }
+    }
+}
+
 /// Monotonic elapsed time owned by one renderer instance.
 ///
 /// Pausing retains elapsed time and moves the local origin when playback
@@ -864,6 +1004,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     private var scene: DayObjectScene
     private var environment: DayObjectEnvironment
     private var digitalImpact: DayObjectDigitalImpact
+    private lazy var nativeAtlasRenderer = NativeAtlasMetalRenderer(device: device)
     private var soundPulseBus: DayObjectsSoundPulseBus?
     private var soundPulseTimeline = DayObjectsSoundPulseTimeline()
     private var glitchBandSeed: UInt64
@@ -875,7 +1016,9 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     private var isAnimationAllowed = true
     private var attemptedTargetPlan: DayObjectsRenderTargetPlan?
     private var renderTargets: RenderTargets?
+    private var performanceProbe: DayObjectsRendererPerformanceProbe?
     private(set) var currentFrame: DayObjectRenderFrame?
+    private(set) var lastDisplayedTime: TimeInterval = 0
 
     private struct RenderTargets {
         let background: MTLTexture
@@ -1142,6 +1285,13 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         }
     }
 
+    func installPerformanceProbe(_ probe: DayObjectsRendererPerformanceProbe) {
+        performanceProbe = probe
+        if let attemptedTargetPlan, renderTargets != nil {
+            probe.recordAllocation(plan: attemptedTargetPlan)
+        }
+    }
+
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
         resizeRenderTargets(to: size)
         if Self.shouldDrawStaticFrame(isPaused: view.isPaused, drawableSize: size) {
@@ -1156,6 +1306,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     }
 
     func draw(in view: MTKView) {
+        performanceProbe?.recordAttempt()
         let elapsedTime = clock.elapsedTime
         guard let drawable = view.currentDrawable,
               let renderPass = view.currentRenderPassDescriptor,
@@ -1167,7 +1318,11 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                   elapsedTime: elapsedTime,
                   present: drawable
               )
-        else { return }
+        else {
+            performanceProbe?.recordResourceDrop()
+            return
+        }
+        lastDisplayedTime = elapsedTime
         commandBuffer.commit()
         configureAnimation(view, elapsedTime: elapsedTime, requestsStaticFrame: false)
     }
@@ -1248,8 +1403,6 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         elapsedTime: TimeInterval,
         present drawable: MTLDrawable?
     ) -> MTLCommandBuffer? {
-        resizeRenderTargets(to: drawableSize)
-
         let height = max(drawableSize.height, 1)
         soundPulseTimeline.consume(soundPulseBus, at: elapsedTime)
         let renderImpact: DayObjectDigitalImpact
@@ -1278,6 +1431,30 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         }
         currentFrame = frame
 
+        if var recipe = renderScene.input.nativeAtlasRecipe, recipe.isSupported {
+            guard let renderer = nativeAtlasRenderer, let buffer = commandQueue.makeCommandBuffer() else { return nil }
+            var isPalette = false
+            var variants = renderScene.input.actorColorVariants
+            if case let .happeningPalette(presentation) = presentationMode {
+                isPalette = true
+                let original = recipe
+                recipe.actors = presentation.slots.compactMap { slot in
+                    let id = slot.assignment.elementID.uuidString.lowercased()
+                    guard let spec = original.reconciled(eventIDs: [id]).actors.first else { return nil }
+                    variants[slot.happeningID] = slot.assignment.colorVariant
+                    return NativeAtlasRecipe.Actor(eventID: slot.happeningID, presetID: spec.presetID, materialID: spec.materialID, seedHex: spec.seedHex, geometry: spec.geometry, material: spec.material, position: spec.position, size: spec.size, rotation: spec.rotation, slot: spec.slot)
+                }
+                recipe.intersectionStrength = 0
+            }
+            let nativeFrame = renderer.adapt(frame, recipe: recipe, aspect: Float(drawableSize.width / max(drawableSize.height, 1)), elapsed: elapsedTime, soundPulses: soundPulseTimeline.timestamps, isPalette: isPalette)
+            currentFrame = nativeFrame
+            guard renderer.encode(commandBuffer: buffer, output: outputTexture, recipe: recipe, frame: nativeFrame, damage: isPalette ? 0 : (recipe.glitchStrength ?? Float(renderImpact.damage)), scene: renderScene, elapsed: elapsedTime, pointToPixelScale: pointToPixelScale, isPalette: isPalette, colorVariants: variants) else { return nil }
+            if let drawable { buffer.present(drawable) }
+            performanceProbe?.recordSubmission(buffer)
+            return buffer
+        }
+
+        resizeRenderTargets(to: drawableSize)
         guard let renderTargets,
               let attemptedTargetPlan,
               let commandBuffer = commandQueue.makeCommandBuffer()
@@ -1330,7 +1507,10 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             lightSoftness: Float(renderScene.visualLanguage.lightSoftness),
             globalTime: Float(frame.choreographyTime)
         )
-        guard let actorBufferLease = actorBufferRing.acquire() else { return nil }
+        guard let actorBufferLease = actorBufferRing.acquire() else {
+            performanceProbe?.recordActorBacklogDrop()
+            return nil
+        }
         var submittedActorBuffer = false
         defer {
             if !submittedActorBuffer {
@@ -1362,6 +1542,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             sceneEncoder.setRenderPipelineState(actorPipeline)
             sceneEncoder.setVertexBuffer(quadBuffer, offset: 0, index: 0)
             sceneEncoder.setVertexBuffer(actorBufferLease.poseBuffer, offset: 0, index: 1)
+            sceneEncoder.setVertexBuffer(actorBufferLease.appearanceBuffer, offset: 0, index: 2)
             sceneEncoder.setFragmentTexture(renderTargets.background, index: 0)
             sceneEncoder.setFragmentSamplerState(linearSampler, index: 0)
             sceneEncoder.setVertexBytes(
@@ -1439,6 +1620,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             echoEncoder.setRenderPipelineState(actorPipeline)
             echoEncoder.setVertexBuffer(quadBuffer, offset: 0, index: 0)
             echoEncoder.setVertexBuffer(actorBufferLease.poseBuffer, offset: 0, index: 1)
+            echoEncoder.setVertexBuffer(actorBufferLease.appearanceBuffer, offset: 0, index: 2)
             echoEncoder.setFragmentTexture(renderTargets.background, index: 0)
             echoEncoder.setFragmentSamplerState(linearSampler, index: 0)
             echoEncoder.setVertexBytes(
@@ -1510,6 +1692,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             commandBuffer.present(drawable)
         }
         actorBufferRing.submit(actorBufferLease, on: commandBuffer)
+        performanceProbe?.recordSubmission(commandBuffer)
         submittedActorBuffer = true
         // Only cache an encoded background once every pass succeeded and the caller can submit it.
         if rendersBackground {
@@ -1569,12 +1752,18 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     }
 
     private func resizeRenderTargets(to drawableSize: CGSize) {
+        if scene.input.nativeAtlasRecipe?.isSupported == true {
+            renderTargets = nil
+            attemptedTargetPlan = nil
+            return
+        }
         guard let width = Self.pixelDimension(drawableSize.width),
               let height = Self.pixelDimension(drawableSize.height)
         else {
             attemptedTargetPlan = nil
             renderTargets = nil
             backgroundRenderPolicy.invalidate()
+            performanceProbe?.recordResourceDrop()
             return
         }
 
@@ -1593,6 +1782,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
               let blurA = makeTexture(for: plan.blurPingPong[0], label: "Day Objects blur A"),
               let blurB = makeTexture(for: plan.blurPingPong[1], label: "Day Objects blur B")
         else {
+            performanceProbe?.recordAllocationFailure()
             AppLogger.ui.error("[DAY_OBJECTS] Render-target allocation failed; using static fallback")
             return
         }
@@ -1602,6 +1792,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             scene: scene,
             blurPingPong: [blurA, blurB]
         )
+        performanceProbe?.recordAllocation(plan: plan)
     }
 
     private func makeTexture(

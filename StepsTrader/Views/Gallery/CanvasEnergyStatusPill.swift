@@ -31,7 +31,7 @@ struct CanvasEnergyStatusPill: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .frame(minWidth: Self.minWidth, maxWidth: Self.maxWidth, minHeight: Self.minHeight)
-        .glassCard(cornerRadius: 16, style: .lens)
+        .smokedCanvasControl(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             String(localized: "Daily energy", comment: "Canvas status pill – VoiceOver label")
@@ -81,11 +81,10 @@ struct CanvasEnergyStatusPill: View {
             Text("\(status.maximum)")
                 .font(.geist(size: 13, weight: .medium))
                 .monospacedDigit()
-                .foregroundStyle(textPrimary.opacity(0.45))
+                .foregroundStyle(textPrimary.opacity(0.75))
         }
         .lineLimit(1)
         .minimumScaleFactor(0.8)
-        .contrastingOnGlass()
     }
 
     private var progressBar: some View {

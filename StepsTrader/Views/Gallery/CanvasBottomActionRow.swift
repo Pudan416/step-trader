@@ -22,14 +22,7 @@ struct CanvasBottomActionRow: View {
     let onOpenHappeningList: () -> Void
     let onToggleHappeningPalette: () -> Void
 
-    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
-
     private var ink: Color { AppColors.Night.textPrimary }
-
-    /// Increase Contrast lifts the outlined circle off a busy canvas.
-    private var outlineOpacity: Double {
-        colorSchemeContrast == .increased ? 0.65 : 0.35
-    }
 
     var body: some View {
         Group {
@@ -73,11 +66,10 @@ struct CanvasBottomActionRow: View {
         Button(action: onSound) {
             Image(systemName: soundAppearance.systemImage)
                 .font(.geist(size: 20, weight: .regular))
-                .foregroundStyle(ink)
+                .foregroundStyle(AppColors.brandAccent)
                 .frame(width: 48, height: 48)
-                // Outline, not glass: the canvas is the subject here, and a
-                // filled pill in the corner competes with it.
-                .overlay(Circle().strokeBorder(ink.opacity(outlineOpacity), lineWidth: 1))
+                .smokedCanvasControl(in: Circle())
+                .overlay(Circle().strokeBorder(AppColors.brandAccent, lineWidth: 1))
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -97,7 +89,7 @@ struct CanvasBottomActionRow: View {
                 .font(.geist(size: 20, weight: .regular))
                 .foregroundStyle(ink)
                 .frame(width: 52, height: 52)
-                .liquidGlassControl(in: Circle(), tint: .off)
+                .smokedCanvasControl(in: Circle())
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -114,11 +106,7 @@ struct CanvasBottomActionRow: View {
                 .foregroundStyle(AppAccentInk.primary)
                 .rotationEffect(.degrees(isHappeningPalettePresented ? 45 : 0))
                 .frame(width: 52, height: 52)
-                .liquidGlassControl(
-                    in: Circle(),
-                    style: .lensTinted,
-                    tint: .fixed(AppColors.brandAccent)
-                )
+                .background(AppColors.brandAccent, in: Circle())
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)

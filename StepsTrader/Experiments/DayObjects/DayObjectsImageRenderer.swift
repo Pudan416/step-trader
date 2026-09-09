@@ -37,7 +37,7 @@ enum DayObjectsImageRenderer {
         return makeImage(texture: texture, scale: scale)
     }
 
-    private static func makeImage(texture: MTLTexture, scale: CGFloat) -> UIImage? {
+    static func makeImage(texture: MTLTexture, scale: CGFloat) -> UIImage? {
         let bytesPerRow = texture.width * 4
         var bytes = [UInt8](repeating: 0, count: bytesPerRow * texture.height)
         texture.getBytes(

@@ -61,6 +61,8 @@ struct DayObjectEditorialMaterialV1: Equatable {
     let contourCount: Int
     let counterformRadius: Double?
     let counterformSoftness: Double
+    /// Gradient/glass: pattern (0 legacy, 1 side light, 2 flow, 3 sheets, 4 fragment blur),
+    /// orientation in radians, bend amount and layer offset.
     let structuralParameters: SIMD4<Float>
 
     var gpuAppearance: DayObjectGPUAppearance {
@@ -125,6 +127,8 @@ struct DayObjectEditorialMaterialV1: Equatable {
                 0.22,
                 0.74
             )
+        case .gradient, .glass:
+            structuralParameters
         default:
             .zero
         }
@@ -244,6 +248,7 @@ struct DayObjectSceneRecipeActorV1: Equatable {
     let drawOrder: Int
     let material: DayObjectEditorialMaterialV1
     let motion: DayObjectEditorialMotionV1
+    var silhouette: DayObjectSilhouette = .legacy
 }
 
 /// Minimal Lab MVP recipe frozen from the approved visible continuity corpus.
@@ -537,7 +542,8 @@ struct DayObjectSceneRecipeV1: Equatable {
                 cropAllowance: geometry.cropAllowance,
                 drawOrder: geometry.drawOrder,
                 material: material,
-                motion: makeMotion(daySeed: rootSeed, eventID: actor.eventID)
+                motion: makeMotion(daySeed: rootSeed, eventID: actor.eventID),
+                silhouette: artDirection == nil ? .legacy : .make(eventID: actor.eventID)
             )
         }
         return DayObjectSceneRecipeV1(
@@ -598,13 +604,13 @@ struct DayObjectSceneRecipeV1: Equatable {
         ) % max(actorColorPool.count, 1)
         let gradientTopology = ComplexGradientTopology.make(daySeed: daySeed)
         let colors: [SIMD3<Float>]
-        if mechanism == .smoothRadial {
+        if mechanism == .smoothRadial || mechanism == .layeredMembrane {
             // A day chooses one coherent gradient grammar. Actors may move and
             // deform independently, but they keep the same approved colour
             // relationship instead of each rolling a different gradient.
             colors = makeComplexGradientColors(
                 pool: primary + secondary,
-                requestedCount: gradientTopology.colorCount,
+                requestedCount: mechanism == .layeredMembrane ? 3 : gradientTopology.colorCount,
                 daySeed: daySeed,
                 actorSeed: actorSeed,
                 colorVariant: colorVariant,
@@ -666,7 +672,8 @@ struct DayObjectSceneRecipeV1: Equatable {
             counterformSoftness: 0,
             structuralParameters: structuralParameters(
                 mechanism: mechanism,
-                actorSeed: actorSeed
+                actorSeed: actorSeed,
+                daySeed: daySeed
             )
         )
     }
@@ -904,11 +911,25 @@ struct DayObjectSceneRecipeV1: Equatable {
 
     private static func structuralParameters(
         mechanism: DayObjectMaterialMechanism,
-        actorSeed: UInt64
+        actorSeed: UInt64,
+        daySeed: UInt64
     ) -> SIMD4<Float> {
-        _ = mechanism
-        _ = actorSeed
-        return .zero
+        let pattern: Float
+        switch mechanism {
+        case .smoothRadial:
+            // One leading grammar per day, with a restrained supporting fill.
+            let leading: Float = actorUnit(daySeed, salt: 0xF111_DA70) < 0.5 ? 1 : 2
+            let choice = actorUnit(actorSeed, salt: 0xF111_0001)
+            pattern = choice < 0.72 ? leading : choice < 0.88 ? 3 - leading : 4
+        case .layeredMembrane:
+            pattern = 3
+        case .solid, .boundary:
+            return .zero
+        }
+        return SIMD4(pattern,
+            Float(actorUnit(actorSeed, salt: 0xF111_0002) * 2 * .pi),
+            Float(0.30 + actorUnit(actorSeed, salt: 0xF111_0003) * 0.45),
+            Float(0.20 + actorUnit(actorSeed, salt: 0xF111_0004) * 0.60))
     }
 
     private static func vividPreviewBackgroundStyle(

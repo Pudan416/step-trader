@@ -128,6 +128,15 @@ struct SettingsAppearancePage: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+                    Picker("Appearance", selection: $draft.interfaceTheme) {
+                        Text("System").tag(AppTheme.system.rawValue)
+                        Text("Light").tag(AppTheme.daylight.rawValue)
+                        Text("Dark").tag(AppTheme.night.rawValue)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, 16)
+                    .accessibilityIdentifier("settings.appearance.interfaceTheme")
+
                     canvasStylePicker
                         .padding(.horizontal, 16)
 
