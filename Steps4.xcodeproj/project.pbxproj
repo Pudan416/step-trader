@@ -590,8 +590,9 @@
 		A71000000000000000000013 /* GateArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000001 /* GateArtwork.swift */; };
 		A71000000000000000000014 /* GateArtworkRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000002 /* GateArtworkRenderer.swift */; };
 		A71000000000000000000015 /* GateArtworkRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000002 /* GateArtworkRenderer.swift */; };
-		A71000000000000000000016 /* GradientPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 008E480BBB86AEC405B9C2EE /* GradientPalette.swift */; };
 		A71000000000000000000017 /* GateArtworkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000003 /* GateArtworkTests.swift */; };
+		A71100000000000000000002 /* GateArtworkImages in Resources */ = {isa = PBXBuildFile; fileRef = A71100000000000000000001 /* GateArtworkImages */; };
+		A71100000000000000000003 /* GateArtworkImages in Resources */ = {isa = PBXBuildFile; fileRef = A71100000000000000000001 /* GateArtworkImages */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1243,6 +1244,7 @@
 		A71000000000000000000001 /* GateArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GateArtwork.swift; path = Shared/GateArtwork.swift; sourceTree = SOURCE_ROOT; };
 		A71000000000000000000002 /* GateArtworkRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GateArtworkRenderer.swift; path = Shared/GateArtworkRenderer.swift; sourceTree = SOURCE_ROOT; };
 		A71000000000000000000003 /* GateArtworkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GateArtworkTests.swift; path = Steps4Tests/GateArtworkTests.swift; sourceTree = SOURCE_ROOT; };
+		A71100000000000000000001 /* GateArtworkImages */ = {isa = PBXFileReference; lastKnownFileType = folder; name = GateArtworkImages; path = Shared/GateArtworkImages; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -1892,6 +1894,7 @@
 				20DB000A2F85000000000001 /* DayBoundary.swift */,
 				A71000000000000000000001 /* GateArtwork.swift */,
 				A71000000000000000000002 /* GateArtworkRenderer.swift */,
+				A71100000000000000000001 /* GateArtworkImages */,
 				20AA247F2F70BD6F002F2F2C /* ShieldRebuildHelper.swift */,
 			);
 			path = Shared;
@@ -2516,6 +2519,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A71100000000000000000003 /* GateArtworkImages in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2530,6 +2534,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A71100000000000000000002 /* GateArtworkImages in Resources */,
 				A70FE0020000000000000001 /* Onest-Black.ttf in Resources */,
 				A70FE0020000000000000002 /* Onest-Bold.ttf in Resources */,
 				A70FE0020000000000000003 /* Onest-ExtraBold.ttf in Resources */,
@@ -2613,7 +2618,6 @@
 				20B0A3592E8C65E700D5EBE4 /* SharedKeys.swift in Sources */,
 				A71000000000000000000012 /* GateArtwork.swift in Sources */,
 				A71000000000000000000015 /* GateArtworkRenderer.swift in Sources */,
-				A71000000000000000000016 /* GradientPalette.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -58,6 +58,25 @@ struct MetalShapeAtlasManifest: Codable, Equatable, Sendable {
 }
 
 enum MetalShapeAtlasExport {
+    /// Export the exact happening contours/materials for the app and Screen Time extension.
+    @MainActor
+    static func exportGateArtwork(to destination: URL) async throws {
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        for index in 0..<GateArtwork.variantCount {
+            let artwork = GateArtwork(seed: UInt32(index))
+            guard let preset = MetalShapeGenomeCatalog.presets.first(where: { $0.id == artwork.presetID }),
+                  let material = MetalShapeMaterial(rawValue: artwork.materialID),
+                  preset.compatibility.allowed.contains(material) else {
+                throw MetalShapeGenomeRendererError.renderingFailed
+            }
+            let image = try await MetalShapeGenomeRenderer.image(
+                preset: preset, material: material, seed: artwork.renderSeed,
+                size: CGSize(width: 768, height: 768), scale: 1
+            )
+            try write(image: image, relativePath: artwork.resourceName + ".png", root: destination)
+        }
+    }
+
     static let seeds: [UInt64] = [64, 59, 48]
 
     static func makeManifest() throws -> MetalShapeAtlasManifest {

@@ -18,7 +18,11 @@ struct MetalShapeAtlasExportView: View {
                     appropriateFor: nil,
                     create: true
                 )
-                try await MetalShapeAtlasExport.export(to: documents.appendingPathComponent("MetalShapeAtlasExport"))
+                if UserDefaults.standard.bool(forKey: "gateArtworkExport") {
+                    try await MetalShapeAtlasExport.exportGateArtwork(to: documents.appendingPathComponent("GateArtwork"))
+                } else {
+                    try await MetalShapeAtlasExport.export(to: documents.appendingPathComponent("MetalShapeAtlasExport"))
+                }
                 status = "Экспорт готов"
             } catch {
                 status = "Ошибка экспорта: \(error.localizedDescription)"
