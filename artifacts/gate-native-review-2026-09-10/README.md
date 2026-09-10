@@ -1,5 +1,7 @@
 # Happenings artwork on gate screens — 10 September 2026
 
+Historical screenshots: the subsequent color revision in `../gate-color-review-2026-09-10` replaces radial and three-color fills with soft side-light variants.
+
 The independent silhouette generator has been replaced by transparent snapshots from the app's actual Metal happening catalog. `objects.png` shows all 21 bundled variants.
 
 - `03-paygate.png` through `06-paygate-alternative.png`: real simulator screenshots of production `PayGateView`, with temporary fixture data. Includes a normal balance, insufficient colors and the approaching day boundary.

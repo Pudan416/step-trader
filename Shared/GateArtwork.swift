@@ -11,14 +11,23 @@ struct GateArtwork: Codable, Equatable {
         "genome.snowflake", "legacy.soft-square", "legacy.rounded-triangle",
         "legacy.rounded-hexagon",
     ]
-    static let materialIDs = ["sideLight", "radialTwo", "proceduralLight"]
-    static let renderSeeds: [UInt64] = [64, 59, 48]
-    static var variantCount: Int { presetIDs.count * materialIDs.count }
+    // One quiet two-color material; hue variants reuse the canvas color rotation.
+    static let colorVariants: [Int?] = [nil, 0, 1, 2, 3, 4, 5]
+    static let colorwayCount = 3
+    static var variantCount: Int { presetIDs.count * colorwayCount }
     var variantIndex: Int { Int(seed % UInt32(Self.variantCount)) }
     var presetID: String { Self.presetIDs[variantIndex % Self.presetIDs.count] }
-    var materialID: String { Self.materialIDs[variantIndex / Self.presetIDs.count] }
-    var renderSeed: UInt64 { Self.renderSeeds[variantIndex / Self.presetIDs.count] }
-    var resourceName: String { "\(presetID)-\(materialID)-\(renderSeed)" }
+    var materialID: String { "sideLight" }
+    var renderSeed: UInt64 { 64 }
+    var colorVariant: Int? {
+        let shape = variantIndex % Self.presetIDs.count
+        let colorway = variantIndex / Self.presetIDs.count
+        return Self.colorVariants[(shape + colorway * 2) % Self.colorVariants.count]
+    }
+    var resourceName: String {
+        let color = colorVariant.map(String.init) ?? "original"
+        return "\(presetID)-\(materialID)-\(renderSeed)-c\(color)"
+    }
 
     static func random(excluding previous: GateArtwork? = nil) -> GateArtwork {
         var candidate = GateArtwork(seed: .random(in: 0...UInt32.max))

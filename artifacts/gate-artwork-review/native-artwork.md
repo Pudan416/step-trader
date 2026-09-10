@@ -2,7 +2,7 @@
 
 Replaces the independent CoreGraphics silhouette generator from commit 38a0bb94.
 
-The 21 transparent PNGs in `Shared/GateArtworkImages` were exported at 768 × 768 with `MetalShapeGenomeRenderer.image`, using the same `MetalShapeGenomeCatalog`, `MetalShapeGenomeFrame.make` and shader contour/material functions used by the native happening atlas. Seven catalog presets × three compatible materials; IDs and render seeds are defined in `GateArtwork`.
+The 21 transparent PNGs in `Shared/GateArtworkImages` were exported at 768 × 768 with `MetalShapeGenomeRenderer.image`, using the same `MetalShapeGenomeCatalog`, `MetalShapeGenomeFrame.make` and shader contour/material functions used by the native happening atlas. Seven catalog presets × three colorways of the soft `sideLight` material. Each row gives every shape a different hue through the existing canvas `withColorVariant` function; it preserves the two-color relationship. The three-color procedural fill and radial material are no longer in the gate pool. IDs, render seed and color variants are defined in `GateArtwork`.
 
 The snapshots are decorative, independent of a user's events or balance. Both the app and ShieldConfiguration bundle the same directory. Rendering downsamples to the requested size; the Screen Time extension does not initialize Metal or read personal canvas data. Random selection avoids an immediate repeat of the visible variant. The existing shield-to-PayGate seed handoff is preserved.
 

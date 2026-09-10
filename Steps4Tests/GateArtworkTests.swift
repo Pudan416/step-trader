@@ -69,6 +69,10 @@ final class GateArtworkTests: XCTestCase {
             let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == artwork.presetID })
             let material = try XCTUnwrap(MetalShapeMaterial(rawValue: artwork.materialID))
             XCTAssertTrue(preset.compatibility.allowed.contains(material))
+            XCTAssertEqual(material, .sideLight, "Gate icons keep the quiet two-color treatment")
+            let frame = MetalShapeGenomeFrame.make(preset: preset, material: material, seed: artwork.renderSeed)
+            let colors = artwork.colorVariant.map { frame.material.withColorVariant($0) } ?? frame.material
+            XCTAssertEqual(colors.color1, colors.color2, "Hue changes must not introduce a third color")
         }
     }
 

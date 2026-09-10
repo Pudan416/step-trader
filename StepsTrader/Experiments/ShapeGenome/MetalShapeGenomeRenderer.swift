@@ -43,7 +43,8 @@ enum MetalShapeGenomeRenderer {
         seed: UInt64,
         size: CGSize,
         scale: CGFloat,
-        blurMode: UInt32 = 0
+        blurMode: UInt32 = 0,
+        colorVariant: Int? = nil
     ) async throws -> UIImage {
         let width = max(Int((size.width * scale).rounded()), 1)
         let height = max(Int((size.height * scale).rounded()), 1)
@@ -87,7 +88,7 @@ enum MetalShapeGenomeRenderer {
             blurMode: blurMode
         )
         var geometry = frame.geometry
-        var materialUniforms = frame.material
+        var materialUniforms = colorVariant.map { frame.material.withColorVariant($0) } ?? frame.material
         encoder.setRenderPipelineState(pipeline)
         encoder.setFragmentBytes(
             &geometry,

@@ -20,10 +20,10 @@ import UniformTypeIdentifiers
                 .font: NSFont.systemFont(ofSize: size), .foregroundColor: NSColor(white: 1, alpha: alpha)])
         }
         text("Nowhere / реальные формы happenings", 48, 1050, 34)
-        text("Те же контуры и материалы. Случайный объект доступен даже до первого события.", 48, 1010, 22, 0.6)
+        text("Мягкий двухцветный градиент. У каждой формы — свой цвет.", 48, 1010, 22, 0.6)
         let names = ["Вогнутый квадрат", "Четырёхлистник", "Ветряной цветок", "Снежинка", "Мягкий квадрат", "Треугольник", "Шестиугольник"]
         for row in 0..<3 {
-            text(GateArtwork.materialIDs[row], 48, CGFloat(960 - row * 300), 18, 0.6)
+            text("Цветовой набор \(row + 1)", 48, CGFloat(960 - row * 300), 18, 0.6)
             for column in 0..<7 {
                 let artwork = GateArtwork(seed: UInt32(row * 7 + column))
                 let image = NSImage(contentsOf: root.appendingPathComponent(artwork.resourceName + ".png"))!

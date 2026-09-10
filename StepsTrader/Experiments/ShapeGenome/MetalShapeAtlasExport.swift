@@ -71,7 +71,7 @@ enum MetalShapeAtlasExport {
             }
             let image = try await MetalShapeGenomeRenderer.image(
                 preset: preset, material: material, seed: artwork.renderSeed,
-                size: CGSize(width: 768, height: 768), scale: 1
+                size: CGSize(width: 768, height: 768), scale: 1, colorVariant: artwork.colorVariant
             )
             try write(image: image, relativePath: artwork.resourceName + ".png", root: destination)
         }
