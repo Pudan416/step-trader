@@ -585,6 +585,13 @@
 		AC090900000000000000003D /* NativeAtlasComposite.metal in Sources */ = {isa = PBXBuildFile; fileRef = AC090900000000000000003C /* NativeAtlasComposite.metal */; };
 		AC090900000000000000003F /* NativeAtlasDisplay.metal in Sources */ = {isa = PBXBuildFile; fileRef = AC090900000000000000003E /* NativeAtlasDisplay.metal */; };
 		AC0910000000000000000002 /* DayObjectMeshGradientStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0910000000000000000001 /* DayObjectMeshGradientStyle.swift */; };
+		A71000000000000000000011 /* GateArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000001 /* GateArtwork.swift */; };
+		A71000000000000000000012 /* GateArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000001 /* GateArtwork.swift */; };
+		A71000000000000000000013 /* GateArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000001 /* GateArtwork.swift */; };
+		A71000000000000000000014 /* GateArtworkRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000002 /* GateArtworkRenderer.swift */; };
+		A71000000000000000000015 /* GateArtworkRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000002 /* GateArtworkRenderer.swift */; };
+		A71000000000000000000016 /* GradientPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 008E480BBB86AEC405B9C2EE /* GradientPalette.swift */; };
+		A71000000000000000000017 /* GateArtworkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000003 /* GateArtworkTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1233,6 +1240,9 @@
 		AC0909000000000000000042 /* DayObjectsGrain.metalh */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "StepsTrader/Metal/Post/DayObjectsGrain.metalh"; sourceTree = SOURCE_ROOT; };
 		AC0909000000000000000043 /* DayObjectsDigitalImpact.metalh */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "StepsTrader/Metal/Post/DayObjectsDigitalImpact.metalh"; sourceTree = SOURCE_ROOT; };
 		AC0910000000000000000001 /* DayObjectMeshGradientStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectMeshGradientStyle.swift; sourceTree = "<group>"; };
+		A71000000000000000000001 /* GateArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GateArtwork.swift; path = Shared/GateArtwork.swift; sourceTree = SOURCE_ROOT; };
+		A71000000000000000000002 /* GateArtworkRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GateArtworkRenderer.swift; path = Shared/GateArtworkRenderer.swift; sourceTree = SOURCE_ROOT; };
+		A71000000000000000000003 /* GateArtworkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GateArtworkTests.swift; path = Steps4Tests/GateArtworkTests.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -1880,6 +1890,8 @@
 			isa = PBXGroup;
 			children = (
 				20DB000A2F85000000000001 /* DayBoundary.swift */,
+				A71000000000000000000001 /* GateArtwork.swift */,
+				A71000000000000000000002 /* GateArtworkRenderer.swift */,
 				20AA247F2F70BD6F002F2F2C /* ShieldRebuildHelper.swift */,
 			);
 			path = Shared;
@@ -2124,6 +2136,7 @@
 				CM7A00CM7A00CM7A00F003 /* CoachMarkTourTests.swift */,
 				T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */,
 				201816132F33C8CC0006B350 /* DayBoundaryTests.swift */,
+				A71000000000000000000003 /* GateArtworkTests.swift */,
 				20095A8A2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift */,
 				C5A510010906202600000001 /* CanvasVisualStyleTests.swift */,
 				C5A510020906202600000001 /* EditorialCanvasInputFactoryTests.swift */,
@@ -2598,6 +2611,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				20B0A3592E8C65E700D5EBE4 /* SharedKeys.swift in Sources */,
+				A71000000000000000000012 /* GateArtwork.swift in Sources */,
+				A71000000000000000000015 /* GateArtworkRenderer.swift in Sources */,
+				A71000000000000000000016 /* GradientPalette.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2606,6 +2622,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				20B0A35A2E8C65E700D5EBE4 /* SharedKeys.swift in Sources */,
+				A71000000000000000000013 /* GateArtwork.swift in Sources */,
 				20DB000F2F85000000000006 /* ShieldRebuildHelper.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -2803,6 +2820,8 @@
 				2061EBA32F269D19009FEC24 /* AppSelectionComponents.swift in Sources */,
 				20B0A3542E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift in Sources */,
 				20B0A3562E8C65E700D5EBE4 /* SharedKeys.swift in Sources */,
+				A71000000000000000000011 /* GateArtwork.swift in Sources */,
+				A71000000000000000000014 /* GateArtworkRenderer.swift in Sources */,
 				2089F0EE2E71AE3400ABF5FA /* HealthKitService.swift in Sources */,
 				30A1D1B12F3C000100000003 /* DayEndSettingsView.swift in Sources */,
 				30A1D1B32F3C000100000005 /* NotificationSettingsView.swift in Sources */,
@@ -3065,6 +3084,7 @@
 				91F0A0023100000000000002 /* AppTypographyTests.swift in Sources */,
 				AA000001AA000001AA000002 /* SharedMocks.swift in Sources */,
 				201816142F33C8CC0006B350 /* DayBoundaryTests.swift in Sources */,
+				A71000000000000000000017 /* GateArtworkTests.swift in Sources */,
 				T1E5T5B22E71A18F00ABF5FA /* BudgetEngineTests.swift in Sources */,
 				PREF5702570057005700B002 /* PreferencesStoreTests.swift in Sources */,
 				CM7A00CM7A00CM7A00B003 /* CoachMarkTourTests.swift in Sources */,

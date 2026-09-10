@@ -49,11 +49,17 @@ class ShieldActionExtension: ShieldActionDelegate {
             defaults.set(now, forKey: lastRequestKey)
             
             persistPayGateIntent(groupId: resolved.groupId, bundleId: resolved.bundleId, defaults: defaults)
+            if let target = artworkTarget(for: application) {
+                GateArtworkStore(defaults: defaults).prepareHandoff(from: target, groupID: resolved.groupId)
+            }
             sendUnlockNotification(for: resolved, defaults: defaults) {
                 defaults.set(Date(), forKey: SharedKeys.shieldPushSentAt)
                 completionHandler(.defer)
             }
         case .secondaryButtonPressed:
+            if let target = artworkTarget(for: application) {
+                GateArtworkStore(defaults: defaults).endShield(for: target)
+            }
             completionHandler(.close)
         @unknown default:
             completionHandler(.close)
@@ -109,6 +115,11 @@ class ShieldActionExtension: ShieldActionDelegate {
     }
     
     // MARK: - Private helpers
+
+    private func artworkTarget(for application: ApplicationToken) -> String? {
+        guard let data = try? NSKeyedArchiver.archivedData(withRootObject: application, requiringSecureCoding: true) else { return nil }
+        return "app:\(data.base64EncodedString())"
+    }
     
     private func persistPayGateIntent(groupId: String?, bundleId: String?, defaults: UserDefaults) {
         defaults.set(true, forKey: SharedKeys.shouldShowPayGate)

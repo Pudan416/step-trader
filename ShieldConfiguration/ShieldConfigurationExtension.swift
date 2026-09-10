@@ -67,11 +67,13 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     /// Base configuration with our brand styling
     private func baseConfiguration(
         title: String,
+        artwork: GateArtwork,
         subtitle: String,
         primaryButtonText: String,
         secondaryButtonText: String? = nil
     ) -> ShieldConfiguration {
-        let appIcon = UIImage(named: "ShieldIcon") ?? UIImage(systemName: "eye.fill")
+        let appIcon = GateArtworkRenderer.image(artwork, pointSize: 80)
+            ?? UIImage(named: "ShieldIcon")
         
         return ShieldConfiguration(
             backgroundBlurStyle: .systemUltraThinMaterialDark,
@@ -87,6 +89,9 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     
     override func configuration(shielding application: Application) -> ShieldConfiguration {
         let appName = getAppName(for: application)
+        let artworkTarget = application.token.flatMap(Self.base64).map { "app:\($0)" }
+            ?? "app-name:\(appName)"
+        let artwork = GateArtworkStore(defaults: sharedDefaults()).shieldArtwork(for: artworkTarget)
         
         if let token = application.token,
            let base64 = Self.base64(for: token) {
@@ -109,6 +114,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         if wasPushRecentlySent() {
             return baseConfiguration(
                 title: title,
+                artwork: artwork,
                 subtitle: String(format: NSLocalizedString("\nNowhere sent you a push.\nTap it to unlock %@.", comment: "Shield subtitle after push sent"), appName),
                 primaryButtonText: NSLocalizedString("one more push", comment: "Shield primary button — resend push"),
                 secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button")
@@ -117,6 +123,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
 
         return baseConfiguration(
             title: title,
+            artwork: artwork,
             subtitle: NSLocalizedString("\nSpend some colors\nto unlock it", comment: "Shield subtitle"),
             primaryButtonText: NSLocalizedString("unlock with push", comment: "Shield primary button — request notification"),
             secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button — conscious opt-out")
@@ -129,11 +136,13 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     
     override func configuration(shielding webDomain: WebDomain) -> ShieldConfiguration {
         let domain = webDomain.domain ?? NSLocalizedString("this site", comment: "Fallback name for unknown web domain")
+        let artwork = GateArtworkStore(defaults: sharedDefaults()).shieldArtwork(for: "web:\(domain)")
         let title = String(format: NSLocalizedString("%@ is locked\nby Nowhere.", comment: "Shield title for blocked domain"), domain)
 
         if wasPushRecentlySent() {
             return baseConfiguration(
                 title: title,
+                artwork: artwork,
                 subtitle: String(format: NSLocalizedString("\nNowhere sent you a push.\nTap it to unlock %@.", comment: "Shield subtitle after push sent"), domain),
                 primaryButtonText: NSLocalizedString("one more push", comment: "Shield primary button — resend push"),
                 secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button")
@@ -142,6 +151,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
 
         return baseConfiguration(
             title: title,
+            artwork: artwork,
             subtitle: NSLocalizedString("\nSpend some colors\nto unlock it", comment: "Shield subtitle"),
             primaryButtonText: NSLocalizedString("unlock with push", comment: "Shield primary button — request notification"),
             secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button — conscious opt-out")
