@@ -152,13 +152,13 @@ struct PayGateView: View {
                 .scaleEffect(appeared ? 1 : 0.85)
 
             VStack(spacing: 6) {
-                Text(String(localized: "spend what you lived", comment: "PayGate title"))
-                    .font(.unbounded(24, weight: .medium, relativeTo: .title2))
+                Text(group.displayIdentity.title)
+                    .font(.onest(24, weight: .medium, relativeTo: .title2))
                     .fontDesign(nil)
                     .foregroundStyle(PayGatePalette.textPrimary)
                     .multilineTextAlignment(.center)
 
-                Text(group.name)
+                Text(group.displayIdentity.detail)
                     .font(.geist(.subheadline))
                     .foregroundStyle(PayGatePalette.textSecondary)
             }
@@ -292,7 +292,7 @@ struct PayGateView: View {
         }
         .disabled(isDisabled)
         .buttonStyle(ScaleButtonStyle())
-        .accessibilityLabel(String(localized: "Unlock for \(unlockLabel(window)), costs \(cost) colors"))
+        .accessibilityLabel(String(localized: "Unlock \(group.displayIdentity.title) for \(window.minutes) minutes, \(cost) colors"))
         .accessibilityHint(canPay ? String(localized: "Double tap to unlock") : String(localized: "Not enough colors"))
     }
 

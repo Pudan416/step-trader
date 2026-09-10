@@ -30,45 +30,36 @@ struct SettingsWallpaperControls: View {
     private let shortcutURL = AppConstants.URLs.wallpaperShortcut
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 12) {
-                Label(String(localized: "Auto-wallpaper"), systemImage: "sparkles")
-                    .font(.geist(.subheadline).weight(.semibold))
-                    .foregroundStyle(theme.adaptivePrimaryText)
-                Text(String(localized: "Set today's energy canvas as your Lock Screen wallpaper automatically each time you close the app."))
-                    .font(.geist(.subheadline))
-                    .foregroundStyle(theme.adaptiveSecondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            setupStep("1", title: String(localized: "Install the shortcut"), detail: String(localized: "Add the Nowhere wallpaper shortcut in Shortcuts, then run it once and allow the requested access."))
             Button { openURL(shortcutURL) } label: {
-                Label(String(localized: "Get Wallpaper Shortcut"), systemImage: "square.and.arrow.down")
-                    .font(.geist(.subheadline).weight(.semibold))
-                    .foregroundStyle(AppAccentInk.primary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(Capsule().fill(AppColors.brandAccent))
+                SettingsActionLabel(title: String(localized: "Install wallpaper shortcut"), icon: "square.and.arrow.down")
             }
             .buttonStyle(MattePressStyle())
             .accessibilityIdentifier("settings.wallpaper.install")
 
-            VStack(alignment: .leading, spacing: 20) {
-                setupStep("2", title: String(localized: "Create an automation"), detail: String(localized: "In Shortcuts → Automation → +, choose App → Nowhere → Is Closed. Choose Run Immediately (or turn off Ask Before Running), then select the wallpaper shortcut as the action."))
-                Button {
-                    if let url = URL(string: "shortcuts://") { openURL(url) }
-                } label: {
-                    Label(String(localized: "Open Shortcuts"), systemImage: "arrow.up.forward.app")
-                        .font(.geist(.subheadline).weight(.semibold))
-                        .frame(minHeight: 44)
+            DisclosureGroup(String(localized: "Setup")) {
+                VStack(alignment: .leading, spacing: 16) {
+                    setupStep("1", title: String(localized: "Run once"), detail: String(localized: "Run the installed shortcut and allow access."))
+                    setupStep("2", title: String(localized: "Create an automation"), detail: String(localized: "Shortcuts → Automation → Nowhere → Is Closed → Run Immediately. Add the wallpaper shortcut."))
+                    Button {
+                        if let url = URL(string: "shortcuts://") { openURL(url) }
+                    } label: {
+                        Label(String(localized: "Open Shortcuts"), systemImage: "arrow.up.forward.app")
+                            .font(.geist(.subheadline).weight(.semibold))
+                            .frame(minHeight: 44)
+                    }
+                    .accessibilityIdentifier("settings.wallpaper.openShortcuts")
+                    setupStep("3", title: String(localized: "Check your Lock Screen"), detail: String(localized: "Leave Nowhere, then lock your phone."))
                 }
-                .accessibilityIdentifier("settings.wallpaper.openShortcuts")
-                setupStep("3", title: String(localized: "Check your Lock Screen"), detail: String(localized: "Open Nowhere, then leave the app. Lock your phone and check that the wallpaper changes to today's Canvas. If it does not, run the shortcut manually and check the automation in Shortcuts."))
-                SettingsFooter(text: String(localized: "Nowhere cannot check whether a Shortcuts automation is installed or running. A saved wallpaper image only confirms that an image was saved."))
+                .padding(.top, 12)
             }
             .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("settings.wallpaper.instructions")
+            .accessibilityIdentifier("settings.wallpaper.instructions")
+            .tint(.white)
+            .environment(\.colorScheme, .dark)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("settings.wallpaper.controls")
+        .foregroundStyle(.white)
     }
 
     private func setupStep(_ number: String, title: String, detail: String) -> some View {
@@ -82,7 +73,7 @@ struct SettingsWallpaperControls: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(title)
                     .font(.geist(.subheadline).weight(.semibold))
-                    .foregroundStyle(theme.adaptivePrimaryText)
+                    .foregroundStyle(.white)
                 Text(detail)
                     .font(.geist(.subheadline))
                     .foregroundStyle(theme.adaptiveSecondaryText)

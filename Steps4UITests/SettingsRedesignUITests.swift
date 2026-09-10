@@ -105,12 +105,92 @@ final class SettingsRedesignUITests: XCTestCase {
         }
     }
 
+    func testAppearanceActionsRemainCompactAtAccessibilitySize() {
+        let app = launchSettings(contentSizeCategory: "UICTContentSizeCategoryAccessibilityM")
+        openSettingsDestination("settings.destination.appearance", in: app)
+        let actions = app.otherElements["settings.appearance.actions"]
+        XCTAssertTrue(actions.waitForExistence(timeout: 3))
+        XCTAssertLessThan(actions.frame.height, app.frame.height / 3)
+        XCTAssertTrue(app.buttons["settings.appearance.style.legacy"].isHittable)
+        capture(app, name: "Review Appearance accessibility actions")
+    }
+
+    func testProfileAndWidgetInstallationScreenshotsInLightMode() {
+        let app = launchSettings(contentSizeCategory: "UICTContentSizeCategoryL", appearance: "Light",
+                                 extraArguments: ["ui-testing-settings-account"])
+        openSettingsDestination("settings.account", in: app)
+        app.buttons["settings.account.editProfile"].tap()
+        XCTAssertTrue(app.buttons["Save"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Save"].isHittable)
+        capture(app, name: "Review Profile editor Light")
+        app.buttons["Cancel"].tap()
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        openSettingsDestination("settings.destination.widgets", in: app)
+        app.buttons["settings.widgets.install"].tap()
+        XCTAssertTrue(app.navigationBars["Add widget"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Done"].isHittable)
+        capture(app, name: "Review Widget install Light")
+    }
+
     func testSettingsDesignScreenshotsInLightAndLargeText() {
         for (size, appearance) in [("UICTContentSizeCategoryL", "Light"), ("UICTContentSizeCategoryAccessibilityM", "Dark")] {
-            let app = launchSettings(contentSizeCategory: size, appearance: appearance)
-            capture(app, name: "Settings \(appearance) \(size)")
-            openSettingsDestination("settings.destination.appearance", in: app)
-            capture(app, name: "Appearance \(appearance) \(size)")
+            let app = launchSettings(contentSizeCategory: size, appearance: appearance,
+                                     extraArguments: ["ui-testing-settings-account"])
+            capture(app, name: "Review Home \(appearance)")
+            let destinations = [
+                ("settings.account", "Account"), ("settings.yourDay", "Goals & schedule"),
+                ("settings.destination.appearance", "Appearance"),
+                ("settings.destination.notifications", "Notifications"),
+                ("settings.destination.permissions", "Permissions"),
+                ("settings.destination.widgets", "Widgets"),
+                ("settings.destination.wallpaper", "Wallpaper"),
+                ("settings.destination.help", "Help & feedback"),
+                ("settings.destination.notes", "Notes from Kosta"),
+                ("settings.destination.about", "About"),
+                ("settings.destination.developer", "Developer")
+            ]
+            for (id, title) in destinations {
+                openSettingsDestination(id, in: app)
+                XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5), title)
+                capture(app, name: "Review \(title) \(appearance) top")
+                app.swipeUp()
+                capture(app, name: "Review \(title) \(appearance) lower")
+                if title == "Appearance" {
+                    let ingredients = app.buttons["Canvas ingredients"]
+                    if ingredients.exists {
+                        revealWallpaperControl(ingredients, in: app)
+                        ingredients.tap()
+                        app.swipeUp()
+                        capture(app, name: "Review Canvas ingredients \(appearance)")
+                    }
+                }
+                if title == "Widgets" {
+                    let install = app.buttons["settings.widgets.install"]
+                    revealWallpaperControl(install, in: app)
+                    assertMinimumHitTarget(install)
+                    install.tap()
+                    XCTAssertTrue(app.navigationBars["Add widget"].waitForExistence(timeout: 3))
+                    capture(app, name: "Review Widget install \(appearance)")
+                    app.buttons["Done"].tap()
+                }
+                if title == "Account" {
+                    let edit = app.buttons["settings.account.editProfile"]
+                    revealWallpaperControl(edit, in: app)
+                    edit.tap()
+                    XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 3))
+                    capture(app, name: "Review Profile editor \(appearance)")
+                    app.buttons["Cancel"].tap()
+                }
+                if title == "Wallpaper" {
+                    let setup = app.buttons["Setup"]
+                    revealWallpaperControl(setup, in: app)
+                    setup.tap()
+                    capture(app, name: "Review Wallpaper instructions \(appearance)")
+                }
+                app.navigationBars.buttons.element(boundBy: 0).tap()
+                XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+                if title == "Widgets" { capture(app, name: "Review Home Screen \(appearance)") }
+            }
             app.terminate()
         }
     }
@@ -463,25 +543,30 @@ final class SettingsRedesignUITests: XCTestCase {
     }
 
     func testNotesRemainUsableAtAccessibilitySize() {
-        let app = launchSettings(contentSizeCategory: "UICTContentSizeCategoryAccessibilityM")
-        openSettingsDestination("settings.destination.notes", in: app)
-
-        XCTAssertTrue(app.otherElements["settings.notes.card"].waitForExistence(timeout: 3))
-        let allNotes = app.buttons["settings.notes.all"]
-        XCTAssertTrue(allNotes.waitForExistence(timeout: 3))
-        XCTAssertTrue(allNotes.isHittable)
-        assertMinimumHitTarget(allNotes)
-        allNotes.tap()
-
-        XCTAssertTrue(app.scrollViews["settings.notes.allList"].waitForExistence(timeout: 3))
-        let firstNote = app.buttons["settings.notes.item.about_canvas"]
-        XCTAssertTrue(firstNote.waitForExistence(timeout: 3))
-        XCTAssertTrue(firstNote.isHittable)
-        assertMinimumHitTarget(firstNote)
-        let done = app.buttons["settings.notes.done"]
-        XCTAssertTrue(done.waitForExistence(timeout: 3))
-        XCTAssertTrue(done.isHittable)
-        assertMinimumHitTarget(done)
+        for (size, name) in [("UICTContentSizeCategoryL", "Light"), ("UICTContentSizeCategoryAccessibilityM", "Dark")] {
+            let app = launchSettings(contentSizeCategory: size)
+            openSettingsDestination("settings.destination.notes", in: app)
+            XCTAssertTrue(app.otherElements["settings.notes.card"].waitForExistence(timeout: 3))
+            capture(app, name: "Review Notes from Kosta \(name) top")
+            app.swipeUp()
+            capture(app, name: "Review Notes from Kosta \(name) lower")
+            let allNotes = app.buttons["settings.notes.all"]
+            XCTAssertTrue(allNotes.waitForExistence(timeout: 3))
+            XCTAssertTrue(allNotes.isHittable)
+            assertMinimumHitTarget(allNotes)
+            allNotes.tap()
+            XCTAssertTrue(app.scrollViews["settings.notes.allList"].waitForExistence(timeout: 3))
+            let firstNote = app.buttons["settings.notes.item.about_canvas"]
+            XCTAssertTrue(firstNote.waitForExistence(timeout: 3))
+            XCTAssertTrue(firstNote.isHittable)
+            assertMinimumHitTarget(firstNote)
+            let done = app.buttons["settings.notes.done"]
+            XCTAssertTrue(done.waitForExistence(timeout: 3))
+            XCTAssertTrue(done.isHittable)
+            assertMinimumHitTarget(done)
+            capture(app, name: "Review Notes list \(name)")
+            app.terminate()
+        }
     }
 
     func testYourDayEditorsExposeContextualSemanticsAndMinimumHitTargets() {
@@ -553,7 +638,8 @@ final class SettingsRedesignUITests: XCTestCase {
             "settings.destination.appearance",
             "settings.destination.notifications",
             "settings.destination.permissions",
-            "settings.destination.widgetsWallpaper",
+            "settings.destination.widgets",
+            "settings.destination.wallpaper",
             "settings.destination.notes",
             "settings.destination.about",
         ] {
@@ -593,9 +679,9 @@ final class SettingsRedesignUITests: XCTestCase {
         XCTAssertTrue(notifications.isHittable)
 
         app.swipeUp()
-        let widgets = app.buttons["settings.destination.widgetsWallpaper"]
+        let widgets = app.buttons["settings.destination.widgets"]
         XCTAssertTrue(widgets.waitForExistence(timeout: 3))
-        XCTAssertEqual(widgets.label, "Widgets & wallpaper")
+        XCTAssertEqual(widgets.label, "Widgets")
         XCTAssertGreaterThan(widgets.frame.width, 250)
         XCTAssertGreaterThanOrEqual(widgets.frame.height, 112)
     }
@@ -649,24 +735,97 @@ final class SettingsRedesignUITests: XCTestCase {
         }
     }
 
-    func testWidgetsAndWallpaperShareOneDetailPage() {
+    func testWidgetsAndWallpaperHaveSeparateInstallFlows() {
         let app = launchSettings()
-        let combined = app.buttons["settings.destination.widgetsWallpaper"]
-        XCTAssertTrue(combined.waitForExistence(timeout: 3))
-        combined.tap()
+        openSettingsDestination("settings.destination.widgets", in: app)
 
-        XCTAssertTrue(app.staticTexts["Widgets & wallpaper"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.navigationBars["Widgets"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["settings.widgets.install"].exists)
+        XCTAssertFalse(app.otherElements["settings.wallpaper.controls"].exists)
         XCTAssertTrue(app.otherElements["settings.widgets.controls"].exists)
-        app.swipeUp()
+        capture(app, name: "Simplified widget setup")
+        let transparent = app.buttons["settings.widgets.background.clear"]
+        revealWallpaperControl(transparent, in: app)
+        transparent.tap()
+        XCTAssertTrue(app.staticTexts["settings.widgets.clearInstructions"].exists)
+        XCTAssertFalse(app.segmentedControls["settings.widgets.position"].exists)
+        XCTAssertEqual(transparent.value as? String, "Not selected")
+        capture(app, name: "Transparent widget preview")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        openSettingsDestination("settings.destination.wallpaper", in: app)
+        XCTAssertTrue(app.navigationBars["Wallpaper"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.otherElements["settings.wallpaper.controls"].exists)
+        XCTAssertFalse(app.otherElements["settings.widgets.controls"].exists)
+        assertMinimumHitTarget(app.buttons["settings.wallpaper.install"])
+        capture(app, name: "Separate wallpaper setup")
+    }
+
+    // Scroll from the outer gutter: dragging through the background-choice
+    // buttons can activate a choice during XCTest's press-and-drag gesture.
+    private func revealWallpaperControl(_ element: XCUIElement, in app: XCUIApplication) {
+        // SwiftUI segmented controls can report isHittable=false even when visible.
+        // Position taps below use coordinates and verify the selected state.
+        let topEdge = app.navigationBars.firstMatch.frame.maxY
+        for _ in 0..<24 {
+            if element.exists && element.frame.width > 0 && element.frame.minY >= topEdge - 1
+                && element.frame.maxY < app.frame.maxY - 90 { return }
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.60))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.48))
+            if element.exists && element.frame.minY < topEdge {
+                end.press(forDuration: 0.1, thenDragTo: start)
+            } else {
+                start.press(forDuration: 0.1, thenDragTo: end)
+            }
+        }
+        capture(app, name: "Wallpaper control unreachable")
+        XCTFail("Wallpaper control did not become visible")
+    }
+
+    private func waitForWallpaperSelection(_ button: XCUIElement) {
+        let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: button)
+        XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 3), .completed)
+    }
+
+    func testWallpaperAlignmentPositionPersists() {
+        let app = launchSettings()
+        openSettingsDestination("settings.destination.widgets", in: app)
+        let match = app.buttons["settings.widgets.matchWallpaper"]
+        revealWallpaperControl(match, in: app)
+        match.tap()
+        let position = app.segmentedControls["settings.widgets.position"]
+        revealWallpaperControl(position.buttons["Bottom"], in: app)
+        position.buttons["Bottom"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        waitForWallpaperSelection(position.buttons["Bottom"])
+        XCTAssertEqual(match.value as? String, "Selected")
+        capture(app, name: "Wallpaper alignment bottom")
+        app.terminate()
+        launchSettings(app, seedSettings: false)
+        openSettingsDestination("settings.destination.widgets", in: app)
+        revealWallpaperControl(position.buttons["Bottom"], in: app)
+        waitForWallpaperSelection(position.buttons["Bottom"])
+        position.buttons["Top"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        waitForWallpaperSelection(position.buttons["Top"])
+        let tune = app.buttons["Adjust"]
+        revealWallpaperControl(tune, in: app)
+        tune.tap()
+        let slider = app.sliders["Top edge"]
+        revealWallpaperControl(slider, in: app)
+        slider.adjust(toNormalizedSliderPosition: 0.5)
+        capture(app, name: "Wallpaper alignment calibration")
+        let reset = app.buttons["Reset alignment"]
+        revealWallpaperControl(reset, in: app)
+        reset.tap()
     }
 
     func testWallpaperOffersInstallBeforeOptionalInstructions() {
         let app = launchSettings()
-        openSettingsDestination("settings.destination.widgetsWallpaper", in: app)
+        openSettingsDestination("settings.destination.wallpaper", in: app)
         let install = app.buttons["settings.wallpaper.install"]
         reveal(install, in: app)
         assertMinimumHitTarget(install)
+        let setup = app.buttons["Setup"]
+        revealWallpaperControl(setup, in: app)
+        setup.tap()
         let openShortcuts = app.buttons["settings.wallpaper.openShortcuts"]
         reveal(openShortcuts, in: app)
         assertMinimumHitTarget(openShortcuts)
@@ -734,12 +893,28 @@ final class SettingsRedesignUITests: XCTestCase {
         line: UInt = #line
     ) {
         let destination = app.buttons[identifier]
-        for _ in 0..<3 where !destination.isHittable {
-            app.swipeUp()
+        for _ in 0..<24 {
+            let topEdge = app.navigationBars.firstMatch.frame.maxY + 8
+            let viewport = CGRect(x: 0, y: topEdge, width: app.frame.width,
+                                  height: app.frame.maxY - topEdge - 48)
+            if destination.exists {
+                let visible = destination.frame.intersection(viewport)
+                if !visible.isNull && visible.height >= 32 {
+                    app.coordinate(withNormalizedOffset: .zero)
+                        .withOffset(CGVector(dx: visible.midX, dy: visible.midY)).tap()
+                    return
+                }
+            }
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.70))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.48))
+            if destination.exists && destination.frame.maxY < topEdge {
+                end.press(forDuration: 0.05, thenDragTo: start)
+            } else {
+                start.press(forDuration: 0.05, thenDragTo: end)
+            }
         }
-        XCTAssertTrue(destination.waitForExistence(timeout: 3), file: file, line: line)
-        XCTAssertTrue(destination.isHittable, file: file, line: line)
-        destination.tap()
+        capture(app, name: "Unreachable settings destination")
+        XCTFail("Settings destination is not reachable: \(identifier)", file: file, line: line)
     }
 
     private func assertPermissionActionTargets(
@@ -753,9 +928,7 @@ final class SettingsRedesignUITests: XCTestCase {
             "settings.permissions.notifications.action",
         ] {
             let action = app.buttons[identifier]
-            if !action.isHittable {
-                app.swipeUp()
-            }
+            revealWallpaperControl(action, in: app)
             XCTAssertTrue(action.isHittable, "Permission action is not reachable: \(identifier)", file: file, line: line)
             assertMinimumHitTarget(action, file: file, line: line)
         }

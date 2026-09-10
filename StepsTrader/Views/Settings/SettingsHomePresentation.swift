@@ -86,6 +86,7 @@ enum SettingsGridLayout {
 }
 
 enum SettingsCardAppearance {
+    static let primaryText = Color(white: 0.95)
     /// A dark matte wash keeps card content independent of the animated palette.
     static let surfaceOpacity = 0.70
     static let captionOpacity = 0.78

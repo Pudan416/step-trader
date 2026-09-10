@@ -37,7 +37,7 @@ struct SettingsAboutPage: View {
                             Text(Identity.brandName)
                                 .font(.unbounded(28, weight: .semibold, relativeTo: .title2))
                                 .fontDesign(nil)
-                                .foregroundStyle(theme.adaptivePrimaryText)
+                                .foregroundStyle(SettingsCardAppearance.primaryText)
 
                             Text(String(localized: "You are not nowhere. You are now here.", comment: "App philosophy tagline"))
                                 .font(.geist(.subheadline))
@@ -58,11 +58,6 @@ struct SettingsAboutPage: View {
                         DetailInfoRow(
                             label: String(localized: "Developer"),
                             value: Identity.developerName
-                        )
-                        DetailDivider()
-                        DetailInfoRow(
-                            label: String(localized: "Version"),
-                            value: appVersion
                         )
                     }
                     .padding(.horizontal, 16)
@@ -141,6 +136,7 @@ struct SettingsAboutPage: View {
                         )
                     }
                     .buttonStyle(MattePressStyle())
+                    .settingsCardSurface()
                     .padding(.horizontal, 16)
                 }
                 .padding(.bottom, 80)

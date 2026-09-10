@@ -74,13 +74,13 @@ struct ManualsPage: View {
                             .font(.geist(13, weight: .medium, relativeTo: .caption))
                             .tracking(1.5)
                             .textCase(.uppercase)
-                            .foregroundStyle(theme.textSecondary.opacity(0.5))
+                            .foregroundStyle(SettingsCardAppearance.primaryText.opacity(0.78))
                             .padding(.bottom, 20)
 
                         Text(note.body)
                             .font(.geist(20, weight: .light, relativeTo: .title3))
                             .italic()
-                            .foregroundStyle(theme.textPrimary)
+                            .foregroundStyle(SettingsCardAppearance.primaryText)
                             .fixedSize(horizontal: false, vertical: true)
                             .lineSpacing(6)
                             .multilineTextAlignment(.leading)
@@ -130,7 +130,7 @@ struct ManualsPage: View {
                             .frame(width: 6, height: 6)
                     }
                 }
-                .foregroundStyle(theme.textPrimary)
+                .foregroundStyle(SettingsCardAppearance.primaryText)
                 .padding(.horizontal, 20)
                 .frame(minHeight: 44)
                 .settingsCardSurface()
@@ -176,12 +176,12 @@ struct AllNotesListView: View {
                                                 weight: readTracker.isRead(note) ? .regular : .medium,
                                                 relativeTo: .subheadline
                                             ))
-                                            .foregroundStyle(.primary)
+                                            .foregroundStyle(SettingsCardAppearance.primaryText)
 
                                         Text(note.body)
                                             .font(.geist(13, weight: .light, relativeTo: .footnote))
                                             .italic()
-                                            .foregroundStyle(.secondary)
+                                            .foregroundStyle(SettingsCardAppearance.primaryText.opacity(0.78))
                                             .lineLimit(2)
                                     }
 
@@ -189,7 +189,7 @@ struct AllNotesListView: View {
 
                                     Image(systemName: "chevron.right")
                                         .font(.geist(12, weight: .light, relativeTo: .caption))
-                                        .foregroundStyle(.secondary.opacity(0.4))
+                                        .foregroundStyle(SettingsCardAppearance.primaryText.opacity(0.65))
                                 }
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 14)
@@ -218,6 +218,7 @@ struct AllNotesListView: View {
                     .font(.geist(15, weight: .regular, relativeTo: .subheadline))
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
+                    .foregroundStyle(theme.accentColor)
                     .accessibilityIdentifier("settings.notes.done")
                 }
             }

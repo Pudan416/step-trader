@@ -60,7 +60,7 @@ struct DetailInfoRow: View {
     private var labelText: some View {
         Text(label)
             .font(.geist(.subheadline))
-            .foregroundStyle(theme.adaptivePrimaryText)
+            .foregroundStyle(SettingsCardAppearance.primaryText)
     }
 
     private var valueText: some View {
@@ -79,8 +79,9 @@ struct SettingsSectionLabel: View {
     var body: some View {
         Text(SettingsLocalizedCasing.uppercase(text))
             .font(.geist(.caption2).weight(.semibold))
-            .tracking(3)
-            .foregroundStyle(theme.adaptiveMutedText)
+            .tracking(2)
+            .foregroundStyle(theme.adaptivePrimaryText.opacity(0.8))
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -147,7 +148,8 @@ struct SettingsToggleRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.geist(.subheadline))
-                        .foregroundStyle(theme.adaptivePrimaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .foregroundStyle(SettingsCardAppearance.primaryText)
                     if let subtitle {
                         Text(subtitle)
                             .font(.geist(.caption))
@@ -169,31 +171,28 @@ struct SettingsNavRow: View {
     let icon: String
     let title: String
     var value: String? = nil
-    @Environment(\.appTheme) private var theme
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .center, spacing: 12) {
             Image(systemName: icon)
-                .font(.geist(size: 15))
-                .foregroundStyle(theme.adaptiveSecondaryText)
-                .frame(width: 24)
+                .font(.geist(size: 15)).frame(width: 24)
                 .accessibilityHidden(true)
-            Text(title)
-                .font(.geist(.subheadline))
-                .foregroundStyle(theme.adaptivePrimaryText)
-            Spacer()
-            if let value {
-                Text(value)
-                    .font(.geist(.subheadline))
-                    .foregroundStyle(theme.adaptiveSecondaryText)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.geist(.subheadline))
+                    .fixedSize(horizontal: false, vertical: true)
+                if let value {
+                    Text(value).font(.geist(.caption)).opacity(0.8)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+            Spacer(minLength: 4)
             Image(systemName: "chevron.right")
                 .font(.geist(size: 12, weight: .semibold))
-                .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
                 .accessibilityHidden(true)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 13)
+        .foregroundStyle(SettingsCardAppearance.primaryText)
+        .padding(.horizontal, 14).padding(.vertical, 13)
+        .frame(minHeight: 44)
         .contentShape(Rectangle())
     }
 }
@@ -251,7 +250,7 @@ struct SettingsLinkRow: View {
                 .accessibilityHidden(true)
             Text(title)
                 .font(.geist(.subheadline))
-                .foregroundStyle(theme.adaptivePrimaryText)
+                .foregroundStyle(SettingsCardAppearance.primaryText)
         }
     }
 
@@ -280,7 +279,8 @@ struct SettingsFooter: View {
     var body: some View {
         Text(text)
             .font(.geist(.caption))
-            .foregroundStyle(theme.adaptiveSecondaryText)
+            .foregroundStyle(theme.adaptivePrimaryText.opacity(0.8))
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 4)
     }
 }
@@ -352,11 +352,12 @@ struct SettingsCardSurface: ViewModifier {
             .overlay {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .strokeBorder(
-                        theme.adaptivePrimaryText.opacity(SettingsCardAppearance.outlineOpacity),
+                        SettingsCardAppearance.primaryText.opacity(SettingsCardAppearance.outlineOpacity),
                         lineWidth: 0.75
                     )
             }
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .foregroundStyle(SettingsCardAppearance.primaryText)
     }
 }
 
@@ -427,4 +428,22 @@ extension View {
 struct GradientPreviewConfig: Identifiable {
     let id = UUID()
     let style: GradientStyle
+}
+
+/// A primary action expands with its title instead of clipping enlarged text.
+struct SettingsActionLabel: View {
+    let title: String
+    let icon: String
+
+    var body: some View {
+        Label(title, systemImage: icon)
+            .font(.geist(.subheadline).weight(.semibold))
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .foregroundStyle(AppAccentInk.primary)
+            .padding(.horizontal, 16).padding(.vertical, 14)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .background(AppColors.brandAccent, in: RoundedRectangle(cornerRadius: 18))
+            .contentShape(Rectangle())
+    }
 }

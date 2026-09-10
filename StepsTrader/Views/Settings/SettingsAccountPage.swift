@@ -45,12 +45,12 @@ struct SettingsAccountPage: View {
                         .padding(.top, 12)
 
                     accountSection(String(localized: "SYNC", comment: "Settings account section header")) {
-                        HStack {
+                        (dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout())) {
                             Text(String(localized: "Automatic sync", comment: "Settings account sync status label"))
                                 .font(.geist(.subheadline))
-                                .foregroundStyle(theme.adaptivePrimaryText)
-                            Spacer()
-                            Text(String(localized: "Included with your account", comment: "Settings account sync capability"))
+                                .foregroundStyle(SettingsCardAppearance.primaryText)
+                            if !dynamicTypeSize.isAccessibilitySize { Spacer() }
+                            Text(String(localized: "Included", comment: "Settings account sync capability"))
                                 .font(.geist(.subheadline).weight(.semibold))
                                 .foregroundStyle(theme.adaptiveSecondaryText)
                                 .multilineTextAlignment(.trailing)
@@ -60,7 +60,7 @@ struct SettingsAccountPage: View {
                         .padding(.vertical, 13)
                         .accessibilityIdentifier("settings.account.automaticSync")
                     } footer: {
-                        SettingsFooter(text: String(localized: "Your account supports automatic sync of settings and history when connected. This page does not verify whether the latest changes have reached your other devices.", comment: "Settings account sync footer"))
+                        SettingsFooter(text: String(localized: "Settings and history sync when connected.", comment: "Settings account sync footer"))
                     }
 
                     accountSection(String(localized: "ACCOUNT", comment: "Settings account section header")) {
@@ -91,6 +91,7 @@ struct SettingsAccountPage: View {
                             .foregroundStyle(coral)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 13)
+                            .frame(minHeight: 44)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(MattePressStyle())
@@ -170,7 +171,7 @@ struct SettingsAccountPage: View {
 
                 Text(user?.email ?? String(localized: "—", comment: "Settings account unavailable email"))
                     .font(.geist(.subheadline))
-                    .foregroundStyle(theme.adaptiveSecondaryText)
+                    .foregroundStyle(theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -181,7 +182,7 @@ struct SettingsAccountPage: View {
             showProfileEditor = true
         }
         .font(.geist(.subheadline).weight(.semibold))
-        .foregroundStyle(AppColors.brandAccent)
+        .foregroundStyle(theme.accentColor)
         .frame(minWidth: 44, minHeight: 44)
         .contentShape(Rectangle())
         .buttonStyle(MattePressStyle())
@@ -233,11 +234,13 @@ struct SettingsAccountPage: View {
         HStack {
             Text(title)
                 .font(.geist(.subheadline).weight(.semibold))
-                .foregroundStyle(theme.adaptivePrimaryText)
+                .foregroundStyle(SettingsCardAppearance.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
             Spacer()
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 13)
+        .frame(minHeight: 44)
         .contentShape(Rectangle())
     }
 

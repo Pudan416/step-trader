@@ -25,9 +25,6 @@ struct SettingsEnergyPage: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    SettingsFooter(text: String(localized: "Your step and sleep goals shape the energy shown on your Canvas. Changes take effect right away."))
-                        .padding(.horizontal, 20)
-
                     // MARK: - Steps
                     SettingsGroupedSurface {
                         VStack(spacing: 12) {
@@ -38,6 +35,7 @@ struct SettingsEnergyPage: View {
                             )
 
                             StepGoalDrumPicker(value: $stepsTarget)
+                                .environment(\.appTheme, .night)
                                 .padding(.bottom, 14)
                                 .onChange(of: stepsTarget) { _, _ in
                                     model.recalculateDailyEnergy()
@@ -47,8 +45,6 @@ struct SettingsEnergyPage: View {
                     .padding(.horizontal, 16)
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("settings.yourDay.steps")
-
-                    DetailDivider().padding(.horizontal, 16)
 
                     // MARK: - Sleep Goal
                     SettingsGroupedSurface {
@@ -60,6 +56,7 @@ struct SettingsEnergyPage: View {
                             )
 
                             SleepDurationStepper(hours: $sleepTarget)
+                                .environment(\.appTheme, .night)
                                 .frame(maxWidth: .infinity)
                                 .padding(.bottom, 14)
                                 .onChange(of: sleepTarget) { _, _ in
@@ -70,8 +67,6 @@ struct SettingsEnergyPage: View {
                     .padding(.horizontal, 16)
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("settings.yourDay.sleep")
-
-                    DetailDivider().padding(.horizontal, 16)
 
                     // MARK: - Day Start
                     SettingsGroupedSurface {
@@ -93,7 +88,7 @@ struct SettingsEnergyPage: View {
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("settings.yourDay.boundary")
 
-                    SettingsFooter(text: String(localized: "A new Canvas day begins at this time. Choose a later time to keep late-night activity in the previous day."))
+                    SettingsFooter(text: String(localized: "Late-night activity stays in the previous day until this time."))
                         .padding(.horizontal, 20)
                 }
                 .padding(.bottom, 80)
@@ -114,7 +109,7 @@ struct SettingsEnergyPage: View {
                 .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
             Text(title)
                 .font(.geist(.subheadline).weight(.semibold))
-                .foregroundStyle(theme.adaptivePrimaryText)
+                .foregroundStyle(SettingsCardAppearance.primaryText)
             Spacer()
             if let value {
                 Text(value)

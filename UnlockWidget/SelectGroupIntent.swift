@@ -49,7 +49,7 @@ struct TicketGroupQuery: EntityQuery {
 
 struct SelectGroupIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "Select Groups"
-    static var description: IntentDescription = "Choose which app groups to display. Medium uses Slot 1. Large uses all four."
+    static var description: IntentDescription = "Choose up to four app groups and the wallpaper position."
 
     @Parameter(title: "Slot 1")
     var group1: TicketGroupEntity?
@@ -62,6 +62,9 @@ struct SelectGroupIntent: WidgetConfigurationIntent {
 
     @Parameter(title: "Slot 4")
     var group4: TicketGroupEntity?
+
+    @Parameter(title: "Wallpaper position", default: .appDefault)
+    var wallpaperPosition: WallpaperPositionOption
 
     init() {}
 
@@ -79,6 +82,9 @@ struct SelectSingleGroupIntent: WidgetConfigurationIntent {
     @Parameter(title: "App Group")
     var group: TicketGroupEntity?
 
+    @Parameter(title: "Wallpaper position", default: .appDefault)
+    var wallpaperPosition: WallpaperPositionOption
+
     init() {}
 
     var selectedId: String? { group?.id }
@@ -89,4 +95,22 @@ struct SelectSingleGroupIntent: WidgetConfigurationIntent {
 enum MediumWidgetMode: String {
     case stats = "stats"
     case app = "app"
+}
+
+
+enum WallpaperPositionOption: String, AppEnum {
+    case appDefault, top, middle, bottom
+    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Wallpaper position")
+    static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
+        .appDefault: "Use app setting", .top: "Top", .middle: "Middle", .bottom: "Bottom"
+    ]
+    var position: WidgetWallpaperPosition? { WidgetWallpaperPosition(rawValue: rawValue) }
+}
+
+struct StatusWidgetIntent: WidgetConfigurationIntent {
+    static var title: LocalizedStringResource = "Energy Status"
+    static var description: IntentDescription = "Choose the wallpaper position. Enable Match wallpaper in Nowhere first."
+    @Parameter(title: "Wallpaper position", default: .appDefault)
+    var wallpaperPosition: WallpaperPositionOption
+    init() {}
 }

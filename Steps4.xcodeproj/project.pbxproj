@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A90FE0020000000000000001 /* Onest-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000007 /* Onest-Regular.ttf */; };
+		A90FE0020000000000000002 /* Onest-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000006 /* Onest-Medium.ttf */; };
+		A90FE0020000000000000003 /* Onest-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = A70FE001000000000000000C /* Onest-OFL.txt */; };
+		A90FE0020000000000000004 /* Font+Custom.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F0NT012FFF040000000001 /* Font+Custom.swift */; };
 		A70FE0020000000000000001 /* Onest-Black.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000001 /* Onest-Black.ttf */; };
 		A70FE0020000000000000002 /* Onest-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000002 /* Onest-Bold.ttf */; };
 		A70FE0020000000000000003 /* Onest-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000003 /* Onest-ExtraBold.ttf */; };
@@ -2598,6 +2602,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A90FE0020000000000000001 /* Onest-Regular.ttf in Resources */,
+				A90FE0020000000000000002 /* Onest-Medium.ttf in Resources */,
+				A90FE0020000000000000003 /* Onest-OFL.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3165,6 +3172,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A90FE0020000000000000004 /* Font+Custom.swift in Sources */,
 				20AA247D2F70BD1D002F2F2C /* AppUnlockSettings.swift in Sources */,
 				20AA247B2F70BCF5002F2F2C /* SharedKeys.swift in Sources */,
 				8B384FC0B75371B21BDF1BC6 /* WidgetSnapshot.swift in Sources */,

@@ -59,6 +59,7 @@ Nowhere is a quiet anti-compulsion companion and visual diary, not a conventiona
 3. Separate recent rhythm from lasting archive. Seven calendar days explain the week; saved traces build the collection.
 4. Reward return without punishing absence. Empty days are quiet space, not broken streaks.
 5. Prefer recognition over interpretation. A person should understand a day's state and tap result before interacting.
+6. Keep visible copy minimal. Use previews, short labels, and direct controls. Put instructions and secondary explanations behind optional help; show necessary errors and action consequences at the point of use. Preserve descriptive VoiceOver labels without turning them into visible paragraphs.
 
 ## Accessibility & Inclusion
 

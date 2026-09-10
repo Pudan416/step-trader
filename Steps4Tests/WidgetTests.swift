@@ -3,6 +3,151 @@ import XCTest
 
 final class WidgetTests: XCTestCase {
 
+    func testGroupIdentityKeepsCustomNameForPresetApp() {
+        let identity = AppGroupIdentity(name: "Evening break", templateApp: "com.burbn.instagram", applicationCount: 1)
+        XCTAssertEqual(identity.title, "Evening break")
+        XCTAssertEqual(identity.detail, "Instagram")
+    }
+
+    func testGroupIdentityShowsActualScopeForCustomGroups() {
+        let identity = AppGroupIdentity(name: "Social feeds", templateApp: nil,
+                                        applicationCount: 3, categoryCount: 2, webDomainCount: 1)
+        XCTAssertEqual(identity.title, "Social feeds")
+        XCTAssertEqual(identity.detail, "3 apps · 2 categories · 1 website")
+    }
+
+    func testMissingSelectionDoesNotInventOneApp() {
+        let identity = AppGroupIdentity(name: "Study", templateApp: nil, selectionData: nil)
+        XCTAssertEqual(identity.detail, "App group")
+        let corrupt = AppGroupIdentity(name: "Study", templateApp: nil, selectionData: Data("invalid".utf8))
+        XCTAssertEqual(corrupt, identity)
+    }
+
+    func testBlankPresetNameFallsBackToApplicationName() {
+        let identity = AppGroupIdentity(name: "  \n ", templateApp: "com.google.ios.youtube", applicationCount: 0)
+        XCTAssertEqual(identity.title, "YouTube")
+        XCTAssertEqual(identity.detail, "1 app")
+    }
+
+    // Coordinates deliberately use a simple 400 × 800 screen at 3× scale.
+    // These catch using a scaled whole wallpaper instead of a positioned crop.
+    func testWallpaperCropPreservesScreenScaleAndPosition() throws {
+        let expectedY: [WidgetWallpaperPosition: CGFloat] = [.top: 240, .middle: 840, .bottom: 1440]
+        for position in WidgetWallpaperPosition.allCases {
+            let rect = try XCTUnwrap(WidgetWallpaperGeometry.cropRect(
+                imageSize: CGSize(width: 1200, height: 2400),
+                screenSize: CGSize(width: 400, height: 800),
+                widgetSize: CGSize(width: 340, height: 160), position: position))
+            XCTAssertEqual(rect.origin.x, 90, accuracy: 0.001)
+            XCTAssertEqual(rect.origin.y, expectedY[position]!, accuracy: 0.001)
+            XCTAssertEqual(rect.width, 1020, accuracy: 0.001)
+            XCTAssertEqual(rect.height, 480, accuracy: 0.001)
+        }
+    }
+
+    func testWallpaperCropUsesCenteredAspectFillAndLargeSize() throws {
+        let rect = try XCTUnwrap(WidgetWallpaperGeometry.cropRect(
+            imageSize: CGSize(width: 1600, height: 2400),
+            screenSize: CGSize(width: 400, height: 800),
+            widgetSize: CGSize(width: 340, height: 360), position: .bottom))
+        XCTAssertEqual(rect.minX, 290, accuracy: 0.001)
+        XCTAssertEqual(rect.minY, 840, accuracy: 0.001)
+        XCTAssertEqual(rect.width, 1020, accuracy: 0.001)
+        XCTAssertEqual(rect.height, 1080, accuracy: 0.001)
+    }
+
+    func testWallpaperCropAppliesCalibration() throws {
+        let rect = try XCTUnwrap(WidgetWallpaperGeometry.cropRect(
+            imageSize: CGSize(width: 1200, height: 2400),
+            screenSize: CGSize(width: 400, height: 800),
+            widgetSize: CGSize(width: 340, height: 160), position: .top,
+            top: 0.125, bottom: 0.85))
+        XCTAssertEqual(rect.minY, 300, accuracy: 0.001)
+    }
+
+    func testWallpaperCropRejectsInvalidOrUnsupportedGeometry() {
+        for size in [CGSize.zero, CGSize(width: CGFloat.nan, height: 800), CGSize(width: 400, height: -1)] {
+            XCTAssertNil(WidgetWallpaperGeometry.cropRect(
+                imageSize: CGSize(width: 1200, height: 2400), screenSize: size,
+                widgetSize: CGSize(width: 340, height: 160), position: .top))
+        }
+        XCTAssertNil(WidgetWallpaperGeometry.cropRect(
+            imageSize: CGSize(width: 1200, height: 2400), screenSize: CGSize(width: 400, height: 800),
+            widgetSize: CGSize(width: 600, height: 160), position: .top))
+        XCTAssertNil(WidgetWallpaperGeometry.cropRect(
+            imageSize: CGSize(width: 1200, height: 2400), screenSize: CGSize(width: 400, height: 800),
+            widgetSize: CGSize(width: 340, height: 160), position: .top, top: .nan))
+    }
+
+    @MainActor
+    func testWallpaperFileUsesSavedScreenAndPerWidgetOverride() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let suite = "widget-wallpaper-tests-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+            defaults.removePersistentDomain(forName: suite)
+        }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 800), format: format).image { context in
+            UIColor.red.setFill(); context.fill(CGRect(x: 0, y: 0, width: 400, height: 240))
+            UIColor.green.setFill(); context.fill(CGRect(x: 0, y: 240, width: 400, height: 240))
+            UIColor.blue.setFill(); context.fill(CGRect(x: 0, y: 480, width: 400, height: 320))
+        }
+        let data = try XCTUnwrap(image.pngData())
+        try WidgetWallpaperFile.write(.init(imageData: data, screenSize: CGSize(width: 400, height: 800)), to: directory)
+        XCTAssertEqual(WidgetWallpaperFile.read(from: directory)?.imageData, data)
+        defaults.set("aligned", forKey: SharedKeys.widgetBackgroundMode)
+        defaults.set("bottom", forKey: SharedKeys.widgetWallpaperPosition)
+        let bottom = try XCTUnwrap(WidgetWallpaperFile.background(widgetSize: CGSize(width: 340, height: 160),
+                                                                 defaults: defaults, directory: directory))
+        XCTAssertEqual(bottom.size, CGSize(width: 340, height: 160))
+        XCTAssertEqual(try centerRGB(bottom), [0, 0, 255])
+        let top = try XCTUnwrap(WidgetWallpaperFile.background(widgetSize: CGSize(width: 340, height: 160),
+                                                              position: .top, defaults: defaults, directory: directory))
+        XCTAssertEqual(try centerRGB(top), [255, 0, 0], "One widget must not inherit another widget's selected position")
+        defaults.set("basic", forKey: SharedKeys.widgetBackgroundMode)
+        XCTAssertNil(WidgetWallpaperFile.background(widgetSize: CGSize(width: 340, height: 160),
+                                                    defaults: defaults, directory: directory))
+    }
+
+    @MainActor
+    func testLegacyWallpaperIsAvailableButDoesNotPretendToBeAligned() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let suite = "widget-wallpaper-legacy-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+            defaults.removePersistentDomain(forName: suite)
+        }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 40, height: 80)).image { context in
+            UIColor.blue.setFill(); context.fill(CGRect(x: 0, y: 0, width: 40, height: 80))
+        }
+        try XCTUnwrap(image.jpegData(compressionQuality: 1)).write(to: directory.appendingPathComponent("wallpaper_bg.jpg"))
+        defaults.set("wallpaper", forKey: SharedKeys.widgetBackgroundMode)
+        XCTAssertNotNil(WidgetWallpaperFile.background(widgetSize: CGSize(width: 340, height: 160), defaults: defaults, directory: directory))
+        defaults.set("aligned", forKey: SharedKeys.widgetBackgroundMode)
+        XCTAssertNil(WidgetWallpaperFile.background(widgetSize: CGSize(width: 340, height: 160), defaults: defaults, directory: directory))
+        try WidgetWallpaperFile.write(.init(imageData: Data([0, 1, 2]), screenSize: CGSize(width: 400, height: 800)), to: directory)
+        XCTAssertNil(WidgetWallpaperFile.background(widgetSize: CGSize(width: 340, height: 160), defaults: defaults, directory: directory))
+    }
+
+    private func centerRGB(_ image: UIImage) throws -> [UInt8] {
+        let cgImage = try XCTUnwrap(image.cgImage)
+        let pixel = try XCTUnwrap(cgImage.cropping(to: CGRect(x: cgImage.width / 2, y: cgImage.height / 2, width: 1, height: 1)))
+        var bytes = [UInt8](repeating: 0, count: 4)
+        try bytes.withUnsafeMutableBytes { buffer in
+            let context = try XCTUnwrap(CGContext(data: buffer.baseAddress, width: 1, height: 1,
+                                                 bitsPerComponent: 8, bytesPerRow: 4,
+                                                 space: CGColorSpaceCreateDeviceRGB(),
+                                                 bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue))
+            context.draw(pixel, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        }
+        return Array(bytes.prefix(3))
+    }
+
     // MARK: - WidgetSnapshot encoding/decoding
 
     func testWidgetSnapshot_roundTrip() throws {

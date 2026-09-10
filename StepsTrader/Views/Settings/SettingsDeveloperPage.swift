@@ -290,7 +290,8 @@ struct SettingsDeveloperPage: View {
             rowIcon(icon)
             Text(text)
                 .font(.geist(.subheadline))
-                .foregroundStyle(highlight ? .green : theme.adaptivePrimaryText)
+                .foregroundStyle(highlight ? .green : SettingsCardAppearance.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
             Spacer()
             if let trailing {
                 Image(systemName: trailing)
@@ -298,7 +299,9 @@ struct SettingsDeveloperPage: View {
                     .foregroundStyle(theme.adaptiveMutedText.opacity(0.7))
             }
         }
+        .padding(.horizontal, 14)
         .padding(.vertical, 12)
+        .frame(minHeight: 44)
         .contentShape(Rectangle())
     }
 

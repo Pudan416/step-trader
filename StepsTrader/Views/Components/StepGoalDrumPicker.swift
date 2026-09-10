@@ -58,16 +58,12 @@ struct StepGoalDrumPicker: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(String(localized: "Enter exact step goal"))
+                .accessibilityHint(String(localized: "Adjust by 500 steps, or tap the number to enter a goal."))
                 .accessibilityValue(accessibilityValue)
                 .accessibilityIdentifier("settings.yourDay.steps.exactValue")
 
                 stepButton(increasing: true)
             }
-            Text(String(localized: "Adjust by 500 steps, or tap the number to enter a goal."))
-                .font(.geist(.caption))
-                .foregroundStyle(theme.adaptiveSecondaryText)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 14)
         }
         .sensoryFeedback(.impact(weight: .light), trigger: value)
         .accessibilityElement(children: .contain)

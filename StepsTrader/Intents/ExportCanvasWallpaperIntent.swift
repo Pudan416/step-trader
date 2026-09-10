@@ -205,13 +205,13 @@ struct ExportCanvasWallpaperIntent: AppIntent {
             throw ExportCanvasError.renderFailed
         }
 
-        Self.saveWallpaperToWidgetContainer(image: image)
+        Self.saveWallpaperToWidgetContainer(image: image, pngData: data, screenSize: screen.bounds.size)
 
         let file = IntentFile(data: data, filename: "canvas-wallpaper.png", type: .png)
         return .result(value: file)
     }
 
-    private static func saveWallpaperToWidgetContainer(image: UIImage) {
+    private static func saveWallpaperToWidgetContainer(image: UIImage, pngData: Data, screenSize: CGSize) {
         guard let containerURL = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: SharedKeys.appGroupId
         ) else { return }
@@ -219,6 +219,12 @@ struct ExportCanvasWallpaperIntent: AppIntent {
         let dir = containerURL.appendingPathComponent("widget_snapshots", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
+        // Keep exactly the same PNG that is returned to the wallpaper shortcut.
+        do {
+            try WidgetWallpaperFile.write(.init(imageData: pngData, screenSize: screenSize), to: dir)
+        } catch {
+            return
+        }
         let url = dir.appendingPathComponent("wallpaper_bg.jpg")
         guard let data = image.jpegData(compressionQuality: 0.85) else { return }
         try? data.write(to: url, options: .atomic)

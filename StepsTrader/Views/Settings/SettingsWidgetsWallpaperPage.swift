@@ -1,34 +1,26 @@
 import SwiftUI
 
+/// Compatibility entry point; installation flows stay on separate destinations.
 struct SettingsWidgetsWallpaperPage: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
         ZStack {
             SettingsDetailBackground(model: model)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
-                    SettingsSectionLabel(text: String(localized: "Widget", comment: "Settings section title"))
-                    SettingsGroupedSurface {
-                        SettingsWidgetControls(model: model)
-                            .padding(14)
+            VStack {
+                SettingsGroupedSurface {
+                    NavigationLink { SettingsWidgetPage(model: model) } label: {
+                        SettingsNavRow(icon: "rectangle.grid.1x2", title: String(localized: "Widgets"))
                     }
-                    SettingsSectionLabel(text: String(localized: "Wallpaper", comment: "Settings section title"))
-                    SettingsGroupedSurface {
-                        SettingsWallpaperControls()
-                            .padding(14)
+                    DetailDivider()
+                    NavigationLink { SettingsShortcutPage(model: model) } label: {
+                        SettingsNavRow(icon: "photo", title: String(localized: "Wallpaper"))
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 80)
+                .padding(16)
+                Spacer()
             }
         }
-        .settingsDetailPage(title: String(localized: "Widgets & wallpaper", comment: "Settings row and combined page title"))
-    }
-}
-
-#Preview {
-    NavigationStack {
-        SettingsWidgetsWallpaperPage(model: DIContainer.shared.makeAppModel())
+        .settingsDetailPage(title: String(localized: "Home Screen"))
     }
 }

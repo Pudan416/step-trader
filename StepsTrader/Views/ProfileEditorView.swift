@@ -3,6 +3,7 @@ import SwiftUI
 struct ProfileEditorView: View {
     @ObservedObject var authService: AuthenticationService
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
     @State private var nickname: String = ""
     @State private var avatarImage: UIImage?
     @State private var showImagePicker: Bool = false
@@ -89,7 +90,8 @@ struct ProfileEditorView: View {
                 } header: {
                     Text(String(localized: "Nickname", comment: "ProfileEditor – nickname field"))
                 } footer: {
-                    Text(String(localized: "This name will be displayed instead of my real name", comment: "ProfileEditor – nickname hint"))
+                    Text(String(localized: "Shown on your profile.", comment: "ProfileEditor – nickname hint"))
+                        .foregroundStyle(theme.textSecondary)
                 }
                 
                 // Email (read-only)
@@ -101,11 +103,13 @@ struct ProfileEditorView: View {
                                 .frame(width: 24)
                             Text(email)
                                 .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     } header: {
                         Text(String(localized: "Email", comment: "ProfileEditor – email label"))
                     } footer: {
-                        Text(String(localized: "Email is managed by Apple ID", comment: "ProfileEditor – email hint"))
+                        Text(String(localized: "Managed by Apple ID.", comment: "ProfileEditor – email hint"))
+                            .foregroundStyle(theme.textSecondary)
                     }
                 }
                 
@@ -114,11 +118,13 @@ struct ProfileEditorView: View {
             .todayCanvasBackground(detail: true)
             .navigationTitle(String(localized: "Edit Profile", comment: "ProfileEditor – navigation title"))
             .navigationBarTitleDisplayMode(.inline)
+            .tint(theme.accentColor)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(String(localized: "Cancel", comment: "ProfileEditor – dismiss button")) {
                         dismiss()
                     }
+                    .foregroundStyle(theme.accentColor)
                     .disabled(isSaving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
@@ -131,6 +137,7 @@ struct ProfileEditorView: View {
                             }
                         }
                         .fontWeight(.semibold)
+                        .foregroundStyle(theme.accentColor)
                     }
                 }
             }

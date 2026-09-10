@@ -107,7 +107,7 @@ struct FeedTileView: View {
     #endif
 
     private var accessibilityLabel: String {
-        let name = group.templateApp.map { TargetResolver.displayName(for: $0) } ?? group.name
+        let name = group.displayIdentity.title
         return isUnlocked
             ? String(localized: "\(name), unlocked, \(remainingMinutes) minutes left", comment: "Feeds tile – VoiceOver, window open")
             : String(localized: "\(name), locked", comment: "Feeds tile – VoiceOver, window closed")
@@ -284,8 +284,7 @@ struct FeedRowView: View {
     }
 
     private var displayName: String {
-        group.templateApp.map { TargetResolver.displayName(for: $0) }
-            ?? (group.name.isEmpty ? String(localized: "Feed") : group.name)
+        group.displayIdentity.title
     }
 
     var body: some View {
@@ -347,10 +346,15 @@ struct FeedRowView: View {
 
     private func rowContent(width: CGFloat) -> some View {
         HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(displayName)
                     .font(.geist(19, relativeTo: .body))
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+
+                Text(group.displayIdentity.detail)
+                    .font(.onest(11, relativeTo: .caption))
+                    .lineLimit(1)
+                    .opacity(0.8)
 
                 HStack(spacing: 6) {
                     if remainingMinutes == nil && !showsUnlockOptions {
@@ -409,7 +413,7 @@ struct FeedRowView: View {
             )
             .contentShape(Circle())
         }
-        .accessibilityLabel(String(localized: "Feed options"))
+        .accessibilityLabel(String(localized: "Options for \(group.displayIdentity.title)"))
         .accessibilityIdentifier("feed.\(group.id).options")
     }
 
@@ -455,7 +459,7 @@ struct FeedInlineDurationOptions: View {
         .padding(.horizontal, 20)
         .padding(.bottom, 20)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(String(localized: "Choose how long to unlock"))
+        .accessibilityLabel(String(localized: "Unlock \(group.displayIdentity.title)"))
     }
 
     private func durationButton(_ window: AccessWindow) -> some View {
@@ -497,7 +501,7 @@ struct FeedInlineDurationOptions: View {
         .disabled(!canAfford || purchasingWindow != nil)
         .opacity((!canAfford || purchasingWindow != nil) ? 0.55 : 1)
         .accessibilityLabel(
-            String(localized: "\(window.displayName), \(cost) colors")
+            String(localized: "Unlock \(group.displayIdentity.title) for \(window.minutes) minutes, \(cost) colors")
         )
         .accessibilityIdentifier("feed.\(group.id).duration.\(window.minutes)")
         .accessibilityHint(

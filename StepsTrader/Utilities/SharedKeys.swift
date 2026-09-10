@@ -150,6 +150,9 @@ enum SharedKeys {
 
     // MARK: - Widget
     static let widgetBackgroundMode = "widgetBackgroundMode_v1"
+    static let widgetWallpaperPosition = "widgetWallpaperPosition_v1"
+    static let widgetWallpaperTop = "widgetWallpaperTop_v1"
+    static let widgetWallpaperBottom = "widgetWallpaperBottom_v1"
     static let hasMediumWidget = "hasMediumWidget_v1"
     static let hasLargeWidget = "hasLargeWidget_v1"
 

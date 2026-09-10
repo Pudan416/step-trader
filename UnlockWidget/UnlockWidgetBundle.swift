@@ -21,8 +21,9 @@ struct StatusWidget: Widget {
     let kind = WidgetKind.status
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(
+        AppIntentConfiguration(
             kind: kind,
+            intent: StatusWidgetIntent.self,
             provider: StatusTimelineProvider()
         ) { entry in
             UnlockWidgetEntryView(entry: entry)

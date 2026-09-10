@@ -29,7 +29,7 @@ struct SettingsAccountCardLabel: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.geist(.subheadline).weight(.semibold))
-                    .foregroundStyle(theme.adaptivePrimaryText)
+                    .foregroundStyle(SettingsCardAppearance.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(subtitle)
                     .font(.geist(.caption))
@@ -60,10 +60,10 @@ struct SettingsAccountCardLabel: View {
         case .signedOut:
             ZStack {
                 Circle()
-                    .fill(theme.adaptivePrimaryText.opacity(0.08))
+                    .fill(SettingsCardAppearance.primaryText.opacity(0.08))
                 Image(systemName: "apple.logo")
                     .font(.geist(size: 22, weight: .medium))
-                    .foregroundStyle(theme.adaptivePrimaryText)
+                    .foregroundStyle(SettingsCardAppearance.primaryText)
             }
             .frame(width: 48, height: 48)
             .accessibilityHidden(true)
@@ -79,10 +79,10 @@ struct SettingsAccountCardLabel: View {
             } else {
                 ZStack {
                     Circle()
-                        .fill(theme.adaptivePrimaryText.opacity(0.08))
+                        .fill(SettingsCardAppearance.primaryText.opacity(0.08))
                     Text(initials)
                         .font(.geist(.headline).weight(.bold))
-                        .foregroundStyle(theme.adaptivePrimaryText)
+                        .foregroundStyle(SettingsCardAppearance.primaryText)
                 }
                 .frame(width: 48, height: 48)
                 .accessibilityHidden(true)
@@ -123,7 +123,7 @@ struct SettingsYourDayCardLabel: View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title)
                 .font(.geist(.title3).weight(.bold))
-                .foregroundStyle(theme.adaptivePrimaryText)
+                .foregroundStyle(SettingsCardAppearance.primaryText)
                 .padding(.bottom, 12)
 
             metrics
@@ -138,7 +138,7 @@ struct SettingsYourDayCardLabel: View {
             HStack {
                 Text(String(localized: "Edit goals & schedule", comment: "Settings Your day card action"))
                     .font(.geist(.subheadline).weight(.semibold))
-                    .foregroundStyle(theme.adaptivePrimaryText)
+                    .foregroundStyle(SettingsCardAppearance.primaryText)
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.geist(size: 12, weight: .semibold))
@@ -177,13 +177,13 @@ struct SettingsYourDayCardLabel: View {
         VStack(alignment: .leading, spacing: 5) {
             Text(value)
                 .font(.geist(.headline).weight(.bold).monospacedDigit())
-                .foregroundStyle(theme.adaptivePrimaryText)
+                .foregroundStyle(SettingsCardAppearance.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
             Text(SettingsLocalizedCasing.uppercase(label))
                 .font(.geist(.caption2).weight(.semibold))
                 .tracking(0.5)
                 .foregroundStyle(
-                    theme.adaptivePrimaryText.opacity(SettingsCardAppearance.captionOpacity)
+                    SettingsCardAppearance.primaryText.opacity(SettingsCardAppearance.captionOpacity)
                 )
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -196,13 +196,13 @@ struct SettingsYourDayCardLabel: View {
                 .font(.geist(.caption2).weight(.semibold))
                 .tracking(0.5)
                 .foregroundStyle(
-                    theme.adaptivePrimaryText.opacity(SettingsCardAppearance.captionOpacity)
+                    SettingsCardAppearance.primaryText.opacity(SettingsCardAppearance.captionOpacity)
                 )
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
             Text(value)
                 .font(.geist(.headline).weight(.bold).monospacedDigit())
-                .foregroundStyle(theme.adaptivePrimaryText)
+                .foregroundStyle(SettingsCardAppearance.primaryText)
                 .multilineTextAlignment(.trailing)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -223,7 +223,7 @@ struct SettingsDestinationCardLabel: View {
                 .font(.geist(size: 19, weight: .semibold))
                 .foregroundStyle(theme.adaptiveSecondaryText)
                 .frame(width: 34, height: 34)
-                .background(theme.adaptivePrimaryText.opacity(0.07), in: Circle())
+                .background(SettingsCardAppearance.primaryText.opacity(0.07), in: Circle())
                 .accessibilityHidden(true)
 
             if let warningText {
@@ -236,7 +236,7 @@ struct SettingsDestinationCardLabel: View {
 
             Text(title)
                 .font(.geist(.subheadline).weight(.semibold))
-                .foregroundStyle(theme.adaptivePrimaryText)
+                .foregroundStyle(SettingsCardAppearance.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
             if let summary {
                 Text(summary)

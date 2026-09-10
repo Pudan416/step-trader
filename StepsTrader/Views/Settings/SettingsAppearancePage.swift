@@ -186,12 +186,13 @@ struct SettingsAppearancePage: View {
                 ToolbarItem(placement: .topBarLeading) {
                     HStack(spacing: 0) {
                         Button { showDiscard = true } label: {
-                            Text("Cancel")
+                            Image(systemName: "xmark")
                                 .foregroundStyle(theme.adaptivePrimaryText)
                                 .frame(minWidth: 44, minHeight: 44)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Cancel")
                         .accessibilityIdentifier("settings.appearance.cancel")
                     }
                 }
@@ -208,11 +209,11 @@ struct SettingsAppearancePage: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            HStack {
+            (dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout())) {
                 Text(draft == original ? String(localized: "Preview") : String(localized: "Unsaved changes"))
                     .font(.geist(.caption))
-                    .foregroundStyle(theme.adaptiveSecondaryText)
-                Spacer()
+                    .foregroundStyle(theme.textSecondary)
+                if !dynamicTypeSize.isAccessibilitySize { Spacer() }
                 Button("Apply") { applyAppearance() }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
@@ -221,8 +222,11 @@ struct SettingsAppearancePage: View {
                     .disabled(draft == original)
                     .accessibilityIdentifier("settings.appearance.apply")
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
             .background(theme.backgroundColor)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("settings.appearance.actions")
         }
         .confirmationDialog("Discard appearance changes?", isPresented: $showDiscard, titleVisibility: .visible) {
             Button("Discard changes", role: .destructive) { dismiss() }
@@ -243,9 +247,6 @@ struct SettingsAppearancePage: View {
                 HStack(alignment: .top, spacing: 12) { styleCards }
 
             }
-            Text("Explore a style, then tap Apply to save it.")
-                .font(.geist(.caption))
-                .foregroundStyle(theme.adaptiveSecondaryText)
             SettingsAppearancePreview(draft: draft)
                 .frame(height: 180)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -253,9 +254,9 @@ struct SettingsAppearancePage: View {
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Canvas appearance preview")
                 .accessibilityIdentifier("settings.appearance.preview")
-            Text("Sample canvas. Style and background apply to today and future days. Shapes and fills affect new happenings.")
+            Text("Applies to today and future days.")
                 .font(.geist(.caption))
-                .foregroundStyle(theme.adaptiveSecondaryText)
+                .foregroundStyle(theme.textSecondary)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("settings.appearance.canvasStyle")
@@ -276,11 +277,10 @@ struct SettingsAppearancePage: View {
                     .accessibilityHidden(true)
                 HStack {
                     Text(title).font(.geist(.subheadline).weight(.semibold))
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 4)
                     if selected { Image(systemName: "checkmark.circle.fill").foregroundStyle(AppColors.brandAccent) }
                 }
-                Text(detail).font(.geist(.caption)).foregroundStyle(theme.adaptiveSecondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
             }
             .foregroundStyle(theme.adaptivePrimaryText)
             .padding(12)
@@ -361,7 +361,8 @@ struct SettingsAppearancePage: View {
                     .background(Circle().fill(AppColors.brandAccent.opacity(0.12)))
                 Text(String(localized: "Re-roll today's theme"))
                     .font(.geist(.subheadline).weight(.medium))
-                    .foregroundStyle(theme.adaptivePrimaryText)
+                    .foregroundStyle(SettingsCardAppearance.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 Image(systemName: "arrow.clockwise")
                     .font(.geist(size: 12, weight: .semibold))
@@ -400,9 +401,10 @@ struct SettingsAppearancePage: View {
             } label: {
                 Text(String(localized: "Canvas ingredients", comment: "Appearance manual disclosure label"))
                     .font(.geist(.subheadline).weight(.semibold))
-                    .foregroundStyle(theme.adaptivePrimaryText)
+                    .foregroundStyle(SettingsCardAppearance.primaryText)
             }
-            .tint(theme.adaptiveSecondaryText)
+            .tint(.white)
+            .environment(\.colorScheme, .dark)
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
         }
@@ -529,7 +531,7 @@ struct SettingsAppearancePage: View {
                             Text(style.displayName)
                                 .font(.geist(.caption2).weight(isSelected ? .bold : .medium))
                                 .foregroundStyle(isSelected ? .primary : .secondary)
-                                .lineLimit(1)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                     .buttonStyle(.plain)
@@ -574,9 +576,9 @@ struct SettingsAppearancePage: View {
             }
             .scrollIndicators(.hidden)
 
-            Text("Choose color families for your canvas. Each day draws a palette from your selection; All includes every family.")
+            Text("A new palette each day.")
                 .font(.geist(.caption))
-                .foregroundStyle(theme.adaptiveMutedText)
+                .foregroundStyle(theme.textSecondary)
                 .padding(.horizontal, 16)
         }
     }
@@ -644,7 +646,7 @@ struct SettingsAppearancePage: View {
                     .font(.geist(size: 9, weight: .bold))
             }
         }
-        .foregroundStyle(isSelected ? AppColors.brandAccent : theme.adaptiveSecondaryText)
+        .foregroundStyle(isSelected ? theme.accentColor : theme.textSecondary)
         .padding(.horizontal, 10)
         .frame(minHeight: 44)
         .background(
@@ -695,7 +697,7 @@ struct SettingsAppearancePage: View {
 
     private var canvasFillsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionLabel(String(localized: "CANVAS FILLS", comment: "Appearance section header"))
+            cardSectionLabel(String(localized: "CANVAS FILLS", comment: "Appearance section header"))
                 .padding(.horizontal, 16)
 
             ScrollView(.horizontal) {
@@ -732,15 +734,15 @@ struct SettingsAppearancePage: View {
                 Image(systemName: fill.iconName)
                     .font(.geist(size: 20, weight: .medium))
                     .frame(width: 52, height: 42)
-                    .foregroundStyle(isSelected ? AppColors.brandAccent : theme.adaptiveSecondaryText)
+                    .foregroundStyle(isSelected ? AppColors.brandAccent : AppTheme.night.textSecondary)
                     .background(
                         RoundedRectangle(cornerRadius: 9)
-                            .fill(theme.adaptivePrimaryText.opacity(isSelected ? 0.10 : 0.04))
+                            .fill(SettingsCardAppearance.primaryText.opacity(isSelected ? 0.10 : 0.04))
                     )
                     .overlay {
                         RoundedRectangle(cornerRadius: 9)
                             .strokeBorder(
-                                isSelected ? AppColors.brandAccent : theme.adaptivePrimaryText.opacity(0.06),
+                                isSelected ? AppColors.brandAccent : SettingsCardAppearance.primaryText.opacity(0.06),
                                 lineWidth: isSelected ? 2 : 0.5
                             )
                     }
@@ -748,13 +750,13 @@ struct SettingsAppearancePage: View {
                         if isSelected {
                             Image(systemName: "checkmark.circle.fill")
                                 .font(.geist(size: 14, weight: .bold))
-                                .foregroundStyle(theme.adaptivePrimaryText, AppColors.brandAccent)
+                                .foregroundStyle(SettingsCardAppearance.primaryText, AppColors.brandAccent)
                                 .offset(x: 5, y: -5)
                         }
                     }
                 Text(fill.displayName)
                     .font(.geist(.caption2).weight(isSelected ? .bold : .medium))
-                    .foregroundStyle(isSelected ? theme.adaptivePrimaryText : theme.adaptiveSecondaryText)
+                    .foregroundStyle(isSelected ? SettingsCardAppearance.primaryText : theme.adaptiveSecondaryText)
             }
         }
         .buttonStyle(.plain)
@@ -768,7 +770,7 @@ struct SettingsAppearancePage: View {
     private var canvasShapesSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                sectionLabel(String(localized: "CANVAS SHAPES", comment: "Appearance section header"))
+                cardSectionLabel(String(localized: "CANVAS SHAPES", comment: "Appearance section header"))
             }
             .padding(.horizontal, 16)
 
@@ -784,21 +786,12 @@ struct SettingsAppearancePage: View {
     /// single-select per-category rows. Shape choice is no longer derived from
     /// a category, so there is nothing left to key the rows on.
     private var shapeMultiSelectRow: some View {
-        return HStack(spacing: 10) {
-            Text("Shapes", comment: "Canvas shapes multi-select row label")
-                .font(.geist(.caption).weight(.semibold))
-                .foregroundStyle(theme.adaptivePrimaryText)
-                .frame(width: 72, alignment: .leading)
-
-            Spacer(minLength: 0)
-
-            HStack(spacing: 6) {
-                ForEach(CanvasShapeType.selectableCases) { shape in
-                    shapeChipButton(shape: shape)
-                }
+        HStack(spacing: 6) {
+            ForEach(CanvasShapeType.selectableCases) { shape in
+                shapeChipButton(shape: shape)
             }
-
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
     }
@@ -832,7 +825,7 @@ struct SettingsAppearancePage: View {
     private func compactShapeChip(shape: CanvasShapeType, isSelected: Bool) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 8)
-                .fill(theme.adaptivePrimaryText.opacity(isSelected ? 0.1 : 0.04))
+                .fill(SettingsCardAppearance.primaryText.opacity(isSelected ? 0.1 : 0.04))
                 .frame(width: 48, height: 48)
 
             shapeTypePreview(shape: shape)
@@ -841,7 +834,7 @@ struct SettingsAppearancePage: View {
         .overlay {
             RoundedRectangle(cornerRadius: 8)
                 .strokeBorder(
-                    isSelected ? AppColors.brandAccent : theme.adaptivePrimaryText.opacity(0.06),
+                    isSelected ? AppColors.brandAccent : SettingsCardAppearance.primaryText.opacity(0.06),
                     lineWidth: isSelected ? 2 : 0.5
                 )
         }
@@ -849,7 +842,7 @@ struct SettingsAppearancePage: View {
             if isSelected {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.geist(size: 14, weight: .bold))
-                    .foregroundStyle(theme.adaptivePrimaryText, AppColors.brandAccent)
+                    .foregroundStyle(SettingsCardAppearance.primaryText, AppColors.brandAccent)
                     .offset(x: 4, y: -4)
             }
         }
@@ -902,7 +895,7 @@ struct SettingsAppearancePage: View {
 
     private var textureSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionLabel(String(localized: "TEXTURE", comment: "Appearance section header"))
+            cardSectionLabel(String(localized: "TEXTURE", comment: "Appearance section header"))
                 .padding(.horizontal, 16)
 
             ScrollView(.horizontal) {
@@ -942,7 +935,7 @@ struct SettingsAppearancePage: View {
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                     } else {
                         RoundedRectangle(cornerRadius: 10)
-                            .fill(theme.adaptivePrimaryText.opacity(0.06))
+                            .fill(SettingsCardAppearance.primaryText.opacity(0.06))
                             .frame(width: 56, height: 56)
                         Image(systemName: "circle.slash")
                             .font(.geist(size: 18, weight: .ultraLight))
@@ -961,7 +954,7 @@ struct SettingsAppearancePage: View {
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.geist(size: 15, weight: .bold))
-                            .foregroundStyle(theme.adaptivePrimaryText, AppColors.brandAccent)
+                            .foregroundStyle(SettingsCardAppearance.primaryText, AppColors.brandAccent)
                             .offset(x: 5, y: -5)
                     }
                 }
@@ -969,7 +962,7 @@ struct SettingsAppearancePage: View {
                 Text(texture.displayName)
                     .font(.geist(.caption2).weight(isSelected ? .bold : .medium))
                     .foregroundStyle(isSelected ? .primary : .secondary)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .buttonStyle(.plain)
@@ -978,11 +971,20 @@ struct SettingsAppearancePage: View {
 
     // MARK: - Shared Helpers
 
+    private func cardSectionLabel(_ text: String) -> some View {
+        Text(SettingsLocalizedCasing.uppercase(text))
+            .font(.geist(.caption2).weight(.semibold))
+            .tracking(2)
+            .foregroundStyle(SettingsCardAppearance.primaryText.opacity(0.8))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
     private func sectionLabel(_ text: String) -> some View {
         Text(SettingsLocalizedCasing.uppercase(text))
             .font(.geist(.caption2).weight(.semibold))
-            .tracking(3)
-            .foregroundStyle(theme.adaptiveMutedText)
+            .tracking(2)
+            .foregroundStyle(theme.adaptivePrimaryText.opacity(0.8))
+            .fixedSize(horizontal: false, vertical: true)
     }
 
 }

@@ -56,6 +56,14 @@ struct TicketSettingsContentView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(group.displayIdentity.title)
+                    .font(.onest(.headline))
+                Text(group.displayIdentity.detail)
+                    .font(.onest(.caption))
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .combine)
             unlockButtonsSection
 
             Divider()

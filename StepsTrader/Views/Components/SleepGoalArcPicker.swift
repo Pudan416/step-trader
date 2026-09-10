@@ -6,6 +6,7 @@ struct DayResetTimePicker: View {
     @Binding var selectedMinutes: Int
     let allowedMinutes: [Int]
     @Environment(\.locale) private var locale
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var showsPicker = false
     @State private var pendingMinutes = 0
@@ -58,7 +59,7 @@ struct DayResetTimePicker: View {
                     }
                 }
             }
-            .presentationDetents([.height(320)])
+            .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.height(320)])
         }
 
     }

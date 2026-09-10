@@ -167,8 +167,13 @@ struct SettingsPermissionsPage: View {
                     }
                     .padding(.horizontal, 16)
 
-                    SettingsFooter(text: String(localized: "Manage Health access in Settings → Apps → Health → Data Access & Devices → Nowhere. Other permission buttons open the relevant request or app settings.", comment: "Permissions – footer hint"))
-                        .padding(.horizontal, 16)
+                    DisclosureGroup(String(localized: "Manage Health access")) {
+                        Text(String(localized: "Settings → Apps → Health → Data Access & Devices → Nowhere"))
+                            .font(.geist(.caption)).fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 8)
+                    }
+                    .foregroundStyle(theme.adaptivePrimaryText)
+                    .padding(.horizontal, 16)
                 }
                 .padding(.bottom, 80)
             }
@@ -196,9 +201,6 @@ struct SettingsPermissionsPage: View {
                 Text(String(localized: "Some permissions are missing", comment: "Permissions – missing banner title"))
                     .font(.geist(.subheadline).weight(.semibold))
                     .foregroundStyle(theme.adaptivePrimaryText)
-                Text(String(localized: "Review the affected features below."))
-                    .font(.geist(.caption))
-                    .foregroundStyle(theme.adaptiveSecondaryText)
             }
             Spacer()
         }
@@ -265,7 +267,7 @@ struct SettingsPermissionsPage: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.geist(.subheadline))
-                    .foregroundStyle(theme.adaptivePrimaryText)
+                    .foregroundStyle(SettingsCardAppearance.primaryText)
                 Text(subtitle)
                     .font(.geist(.caption))
                     .foregroundStyle(theme.adaptiveSecondaryText)
@@ -291,11 +293,18 @@ struct SettingsPermissionsPage: View {
                 .accessibilityIdentifier("\(identifier).status")
 
             if presentation.action != nil, let actionTitle {
-                Button(actionTitle, action: onFix)
-                    .font(.geist(.caption).weight(.semibold))
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
-                    .buttonStyle(.bordered)
+                Button(action: onFix) {
+                    Text(actionTitle)
+                        .font(.geist(.caption).weight(.semibold))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .foregroundStyle(SettingsCardAppearance.primaryText)
+                        .padding(.horizontal, 12).padding(.vertical, 10)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .background(AppColors.brandAccent.opacity(0.18), in: RoundedRectangle(cornerRadius: 14))
+                        .contentShape(Rectangle())
+                }
+                    .buttonStyle(.plain)
                     .accessibilityIdentifier("\(identifier).action")
             }
         }
@@ -432,9 +441,9 @@ struct SettingsPermissionsPage: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(failure.message)
                 .font(.geist(.subheadline).weight(.semibold))
-                .foregroundStyle(theme.adaptivePrimaryText)
+                .foregroundStyle(SettingsCardAppearance.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 12) {
+            (dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 12))) {
                 if failure.actions.contains(.tryAgain) {
                     Button(String(localized: "Try Again", comment: "Permission retry action")) {
                         retry(failure.permission)

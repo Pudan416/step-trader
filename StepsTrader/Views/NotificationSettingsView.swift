@@ -6,6 +6,7 @@ struct NotificationSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @AppStorage(SharedKeys.notifyOneMinBefore, store: UserDefaults.stepsTrader())
     private var oneMinBefore: Bool = true
@@ -96,7 +97,7 @@ struct NotificationSettingsView: View {
                             title: String(localized: "Notification access", comment: "Notification authorization section header"),
                             surfaceIdentifier: "settings.notifications.authorization"
                         ) {
-                            HStack(spacing: 12) {
+                            (dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 12))) {
                                 Image(systemName: "bell.badge")
                                     .font(.geist(size: 15))
                                     .foregroundStyle(notificationStatusColor)
@@ -105,9 +106,10 @@ struct NotificationSettingsView: View {
 
                                 Text(String(localized: "System notifications", comment: "Notification authorization row title"))
                                     .font(.geist(.subheadline))
-                                    .foregroundStyle(theme.adaptivePrimaryText)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .foregroundStyle(SettingsCardAppearance.primaryText)
 
-                                Spacer(minLength: 12)
+                                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 12) }
 
                                 Text(notificationPresentation.status.displayText)
                                     .font(.geist(.caption).weight(.semibold))
@@ -139,7 +141,7 @@ struct NotificationSettingsView: View {
                         if notificationDeliveryIsUnavailable {
                             SettingsFooter(text: String(localized: "Reminders will not be delivered until notifications are allowed.", comment: "Notifications unavailable footer"))
                         } else if !(oneMinBefore || timerOver || canvasReminder || dayResetWarning) {
-                            SettingsFooter(text: String(localized: "All reminders are off. Notification access is optional until you enable a reminder."))
+                            SettingsFooter(text: String(localized: "All reminders are off."))
                         }
                     }
                     .padding(.horizontal, 16)
@@ -172,8 +174,7 @@ struct NotificationSettingsView: View {
                         SettingsToggleRow(
                             icon: "paintpalette",
                             title: String(localized: "Daily canvas reminder"),
-                            isOn: $canvasReminder,
-                            subtitle: String(localized: "Get a nudge to fill your canvas with the things that colored up your day.")
+                            isOn: $canvasReminder
                         )
                         .onChange(of: canvasReminder) { _, _ in rescheduleCanvas() }
 
@@ -192,12 +193,13 @@ struct NotificationSettingsView: View {
                                         .accessibilityHidden(true)
                                     Text(String(localized: "Remind at", comment: "Canvas reminder time label"))
                                         .font(.geist(.subheadline))
-                                        .foregroundStyle(theme.adaptivePrimaryText)
+                                        .foregroundStyle(SettingsCardAppearance.primaryText)
                                 }
                             }
                             .tint(AppColors.brandAccent)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 10)
+                            .frame(minHeight: 44)
                         }
                     }
                     .padding(.horizontal, 16)
@@ -209,23 +211,23 @@ struct NotificationSettingsView: View {
                         SettingsToggleRow(
                             icon: "arrow.counterclockwise",
                             title: String(localized: "Canvas reset warning"),
-                            isOn: $dayResetWarning,
-                            subtitle: String(localized: "A heads-up before your canvas resets for a new day.")
+                            isOn: $dayResetWarning
                         )
                         .onChange(of: dayResetWarning) { _, _ in rescheduleDayReset() }
 
                         if dayResetWarning {
                             DetailDivider()
 
-                            HStack(spacing: 12) {
+                            (dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 12))) {
                                 Image(systemName: "hourglass")
                                     .font(.geist(size: 15))
                                     .foregroundStyle(theme.adaptiveSecondaryText)
                                     .frame(width: 24)
                                 Text(String(localized: "Warn before reset"))
                                     .font(.geist(.subheadline))
-                                    .foregroundStyle(theme.adaptivePrimaryText)
-                                Spacer()
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .foregroundStyle(SettingsCardAppearance.primaryText)
+                                if !dynamicTypeSize.isAccessibilitySize { Spacer() }
                                 Menu {
                                     ForEach([1, 2, 3], id: \.self) { h in
                                         Button {
@@ -252,6 +254,7 @@ struct NotificationSettingsView: View {
                             }
                             .padding(.horizontal, 14)
                             .padding(.vertical, 10)
+                            .frame(minHeight: 44)
                         }
                     }
                     .padding(.horizontal, 16)
@@ -349,10 +352,10 @@ struct NotificationSettingsView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(failure.message)
                 .font(.geist(.subheadline).weight(.semibold))
-                .foregroundStyle(theme.adaptivePrimaryText)
+                .foregroundStyle(SettingsCardAppearance.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
-            HStack(spacing: 12) {
+            (dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 12))) {
                 if failure.actions.contains(.tryAgain) {
                     Button(String(localized: "Try Again", comment: "Permission retry action")) {
                         requestNotificationAuthorization()
