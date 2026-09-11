@@ -415,9 +415,9 @@ struct TodayCanvasBackdropHost: ViewModifier {
     func body(content: Content) -> some View {
         content
             .environment(\.canvasChromePalette, backdrop.chromePalette)
-            .onChange(of: appearance, initial: true) { _, value in
+            .onChange(of: appearance, initial: true) { _, _ in
                 guard scenePhase == .active else { return }
-                TodayCanvasBackdropStore.shared.refresh(value)
+                refresh()
             }
             .onChange(of: dayEndHour * 60 + dayEndMinute) { _, _ in
                 if scenePhase == .active { refresh(reload: true) }
@@ -440,6 +440,9 @@ struct TodayCanvasBackdropHost: ViewModifier {
     }
 
     private func refresh(reload: Bool = false) {
+        // Resolve the day and reset its economy before taking one appearance
+        // snapshot. A queued onChange value can belong to yesterday.
+        model.checkDayBoundary()
         let key = AppModel.dayKey(for: .now)
         currentDay = key
         var value = appearance

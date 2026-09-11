@@ -96,19 +96,28 @@ extension AppModel {
         g.set(newDayStart, forKey: SharedKeys.stepsBalanceAnchor)
         lastDayKey = Self.dayKey(for: now)
 
-        // Clamp, never extend. A purchased window now carries its own wall-clock
-        // deadline, so re-stamping every active budget to the new day's boundary would
-        // hand back time nobody bought. Pull an expiry in only when it would otherwise
-        // outlive the new boundary.
+        // Preserve usage already counted, and only shorten calendar validity.
         let newDayEnd = DayBoundary.nextBoundary(
             after: now,
             dayEndHour: dayEndHour,
             dayEndMinute: dayEndMinute
         )
-        for group in ticketGroups where g.integer(forKey: SharedKeys.usageBudgetKey(group.id)) > 0 {
-            let expiryKey = SharedKeys.usageBudgetExpiryKey(group.id)
-            let existing = g.object(forKey: expiryKey) as? Date
-            g.set(min(existing ?? newDayEnd, newDayEnd), forKey: expiryKey)
+        do {
+            try ShieldRebuildHelper.withUsageBudgetLock {
+                g.synchronize()
+                defer { g.synchronize() }
+                for group in ticketGroups where g.integer(forKey: SharedKeys.usageBudgetKey(group.id)) > 0 {
+                    let expiryKey = SharedKeys.usageBudgetExpiryKey(group.id)
+                    let existing = g.object(forKey: expiryKey) as? Date
+                    g.set(min(existing ?? newDayEnd, newDayEnd), forKey: expiryKey)
+                    if var session = UsageBudgetSession.load(from: g, groupId: group.id) {
+                        session.expiresAt = min(session.expiresAt, newDayEnd)
+                        session.save(to: g, groupId: group.id)
+                    }
+                }
+            }
+        } catch {
+            AppLogger.shield.error("Cannot update budget day boundary: \(error.localizedDescription)")
         }
 
         ensureUsageBudgetMonitoringForActiveGroups()

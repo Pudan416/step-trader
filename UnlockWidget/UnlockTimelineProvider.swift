@@ -113,7 +113,7 @@ enum WidgetRefreshPolicy {
            let lite = try? widgetDecoder.decode(_MinLiteConfig.self, from: liteData) {
             groupIds.append(contentsOf: lite.groups.map(\.id))
         }
-        return groupIds.contains { ShieldRebuildHelper.isUsageBudgetWallClockActive(defaults: g, groupId: $0) }
+        return groupIds.contains { ShieldRebuildHelper.isUsageBudgetActive(defaults: g, groupId: $0) }
     }
 
     private struct _MinGroupStub: Decodable { let id: String }
@@ -238,7 +238,7 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
                     id: group.id,
                     name: group.name,
                     enabledIntervals: intervals,
-                    isUnlocked: budgetMinutes > 0,
+                    isUnlocked: ShieldRebuildHelper.isUsageBudgetActive(defaults: g, groupId: group.id, at: date),
                     templateApp: group.templateApp,
                     appsCount: 1,
                     spentToday: 0,
@@ -707,7 +707,7 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
             id: group.id,
             name: group.name,
             enabledIntervals: intervals,
-            isUnlocked: budgetMinutes > 0,
+            isUnlocked: ShieldRebuildHelper.isUsageBudgetActive(defaults: g, groupId: group.id, at: date),
             templateApp: group.templateApp,
             appsCount: 1,
             spentToday: 0,

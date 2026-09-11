@@ -65,7 +65,8 @@ struct UnlockGroupWidgetIntent: AppIntent {
         if let last = defaults.object(forKey: debounceKey) as? Date,
            Date().timeIntervalSince(last) < 3 { return .result() }
         defaults.set(Date(), forKey: debounceKey)
-        guard model.totalStepsBalance >= group.cost(for: window) else {
+        guard model.totalStepsBalance >= group.cost(for: window)
+                || ShieldRebuildHelper.hasRecoverableUsageBudget(defaults: defaults, groupId: groupId) else {
             throw WidgetPurchaseFailure(message: String(localized: "Not enough colors"))
         }
         model.payGateError = nil

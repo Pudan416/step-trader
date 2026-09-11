@@ -335,6 +335,22 @@ final class PaymentTests: XCTestCase {
         XCTAssertNil(model.payGateError)
     }
 
+    func testRolloverIsNotSuppressedByRecentSameDayCheck() {
+        let model = makeModel()
+        model.isBootstrapping = true
+        model.checkDayBoundary()
+        let yesterday = model.currentDayStart(for: .now).addingTimeInterval(-3600)
+        defaults.set(yesterday, forKey: SharedKeys.dailyEnergyAnchor)
+        defaults.set(19, forKey: SharedKeys.spentStepsToday)
+        model.spentStepsToday = 19
+        model.checkDayBoundary()
+        XCTAssertEqual(model.spentStepsToday, 0)
+        XCTAssertEqual(defaults.integer(forKey: SharedKeys.spentStepsToday), 0)
+        model.recalculateDailyEnergy()
+        model.loadDailyEnergyState()
+        XCTAssertEqual(model.spentStepsToday, 0, "Recalculation and reload must not resurrect yesterday's spending")
+    }
+
     private func makeModel() -> AppModel {
         let store = SubscriptionStore()
         return AppModel(

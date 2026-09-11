@@ -605,6 +605,7 @@
 		A71300000000000000000013 /* DailyInterfacePalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71300000000000000000001 /* DailyInterfacePalette.swift */; };
 		A71300000000000000000021 /* DailyInterfaceColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71300000000000000000002 /* DailyInterfaceColors.swift */; };
 		FA0111111111111111111101 /* UnlockGroupWidgetIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0111111111111111111102 /* UnlockGroupWidgetIntent.swift */; };
+		A291D7C74CA84690A433F038 /* DayBoundary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20DB000A2F85000000000001 /* DayBoundary.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -2656,6 +2657,7 @@
 				20B0A35A2E8C65E700D5EBE4 /* SharedKeys.swift in Sources */,
 				A71000000000000000000013 /* GateArtwork.swift in Sources */,
 				20DB000F2F85000000000006 /* ShieldRebuildHelper.swift in Sources */,
+				A291D7C74CA84690A433F038 /* DayBoundary.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

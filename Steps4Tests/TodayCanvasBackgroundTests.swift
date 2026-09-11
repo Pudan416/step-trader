@@ -77,6 +77,15 @@ final class TodayCanvasBackgroundTests: XCTestCase {
         XCTAssertNil(store.image)
     }
 
+    func testAdjacentDailyCanvasesKeepVisiblyDifferentButtonPigments() {
+        let yesterday = TodayCanvasUnlockPalette.make(appearance: appearance(day: "2026-09-11"))
+        let today = TodayCanvasUnlockPalette.make(appearance: appearance(day: "2026-09-12"))
+        let a = CanvasChromePalette.resolve(backgroundColors: yesterday.colors).accent.perceptualOKLab
+        let b = CanvasChromePalette.resolve(backgroundColors: today.colors).accent.perceptualOKLab
+        let distance = sqrt(pow(a.y - b.y, 2) + pow(a.z - b.z, 2))
+        XCTAssertGreaterThan(distance, 0.025, "The new artwork must not collapse into yesterday's almost identical button hue")
+    }
+
     private func appearance(day: String = "2026-09-07") -> TodayCanvasAppearance {
         TodayCanvasAppearance(
             dayKey: day, steps: 15, sleep: 12, earned: 100, spent: 25,

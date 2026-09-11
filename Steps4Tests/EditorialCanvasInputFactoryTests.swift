@@ -4,6 +4,36 @@ import XCTest
 @testable import Steps4
 
 final class EditorialCanvasInputFactoryTests: XCTestCase {
+    @MainActor
+    func testNewDayZeroSpendRoundTripHasNoAutomaticDigitalTrace() async throws {
+        var canvas = DayCanvas.newDailyCanvas(dayKey: "2026-09-12")
+        canvas.elements = [element(id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!)]
+        canvas.inkEarned = 6
+        canvas.inkSpent = 0
+        let restored = try JSONDecoder().decode(DayCanvas.self, from: JSONEncoder().encode(canvas))
+        XCTAssertEqual(restored.inkSpent, 0)
+        XCTAssertNil(restored.artworkRecipe?.glitchStrength)
+        func input(_ value: DayCanvas) -> EditorialCanvasRenderInput {
+            EditorialCanvasInputFactory.make(canvas: value,
+                metrics: .init(stepsProgress: 0, sleepProgress: 0, spentProgress: value.decayNorm),
+                paletteCategories: ModernPaletteSelection.all)
+        }
+        let automatic = input(restored)
+        XCTAssertEqual(automatic.digitalImpact, .none)
+        var explicitZero = restored
+        explicitZero.artworkRecipe?.glitchStrength = 0
+        let a = await DayObjectsImageRenderer.image(input: automatic,
+            size: CGSize(width: 300, height: 500), scale: 1, elapsedTime: 4)
+        let b = await DayObjectsImageRenderer.image(input: input(explicitZero),
+            size: CGSize(width: 300, height: 500), scale: 1, elapsedTime: 4)
+        XCTAssertNotNil(a)
+        XCTAssertEqual(a?.pngData(), b?.pngData(), "Automatic zero spend must match explicitly disabled trace pixels")
+        if let a {
+            let attachment = XCTAttachment(image: a)
+            attachment.name = "New-day-zero-spend-low-health"; attachment.lifetime = .keepAlways; add(attachment)
+        }
+    }
+
     func testRemixSeedChangesVisibleEditorialRecipeDeterministicallyWithoutChangingEvents() throws {
         var canvas = DayCanvas(dayKey: "2026-09-06")
         canvas.elements = (0..<10).map { index in

@@ -15,14 +15,15 @@ extension AppModel {
         unspentUsageBudgetMatchingShield(for: groupId)
     }
 
-    /// Remaining purchased time, including the final partial minute, bounded by
-    /// the same wall-clock deadline that closes the access window.
+    /// Remaining usage minutes reported by Screen Time, valid until day reset.
+    /// Idle time does not change this value.
     func unspentUsageBudgetMatchingShield(for groupId: String) -> Int {
         Self.unspentUsageBudgetMatchingShield(for: groupId, defaults: UserDefaults.stepsTrader())
     }
 
     static func unspentUsageBudgetMatchingShield(for groupId: String, defaults: UserDefaults) -> Int {
-        ShieldRebuildHelper.remainingUsageBudget(defaults: defaults, groupId: groupId)
+        guard ShieldRebuildHelper.isUsageBudgetActive(defaults: defaults, groupId: groupId) else { return 0 }
+        return ShieldRebuildHelper.remainingUsageBudget(defaults: defaults, groupId: groupId)
     }
 
     /// Seconds until the custom day boundary fires and all unused budgets are wiped.

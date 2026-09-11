@@ -293,15 +293,17 @@ final class AppModel: ObservableObject {
     }
 
     func checkDayBoundary() {
-        // Throttle: foreground/timer/significant-time-change can fan out 4× rapid calls.
-        // First call does the work; subsequent calls within 1s become no-ops (the body is
-        // idempotent — once the day key is updated, re-running adds no value). 1s is short
-        // enough to never miss a real day change (those happen at midnight, not in 1s bursts).
-        if let last = lastDayBoundaryCheck, Date.now.timeIntervalSince(last) < 1.0 { return }
-        lastDayBoundaryCheck = Date.now
-
-        let currentKey = Self.dayKey(for: Date.now)
+        let now = Date.now
+        let currentKey = Self.dayKey(for: now)
         let dayChanged = currentKey != lastDayKey
+        let anchor = UserDefaults.stepsTrader().object(forKey: SharedKeys.dailyEnergyAnchor) as? Date
+        let needsReset = anchor.map { !isSameCustomDay($0, now) } ?? false
+        // Coalesce duplicate checks only within the same day. A timer firing
+        // immediately before the cutoff cannot suppress the foreground reset.
+        if !dayChanged, !needsReset,
+           let last = lastDayBoundaryCheck, now.timeIntervalSince(last) < 1.0 { return }
+        lastDayBoundaryCheck = now
+
         if dayChanged {
             lastDayKey = currentKey
         }
@@ -342,6 +344,7 @@ final class AppModel: ObservableObject {
             defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(group.id))
             defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(group.id))
             defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(group.id))
+            defaults.removeObject(forKey: UsageBudgetSession.key(group.id))
 
             #if canImport(DeviceActivity)
             DeviceActivityCenter().stopMonitoring([DeviceActivityName("usageBudget_\(group.id)")])

@@ -87,110 +87,14 @@ final class UsageBudgetScheduleTests: XCTestCase {
 }
 #endif
 
-/// Cover for `DayBoundary.purchaseExpiry`.
-///
-/// The bug it guards: every purchase stamped `usageBudgetExpiry_*` at the end of the
-/// user's custom day regardless of how many minutes were actually bought, so
-/// `shouldSkipShieldingDueToActiveUsageBudget` had no real deadline to enforce. The only
-/// thing that could re-shield before the day rolled over was the DeviceActivity
-/// usage-tick chain — so a window whose ticks never arrived (monitoring failed to
-/// register, or the user simply never accumulated that much foreground usage) stayed
-/// open, and ten purchased minutes bought the rest of the evening.
-///
-/// The calendar is injected rather than taken from the device so these assertions mean
-/// the same thing on every machine and on CI.
+/// Purchased usage survives idle time until the custom day closes.
 final class PurchaseExpiryTests: XCTestCase {
-
-    private let calendar: Calendar = {
-        var c = Calendar(identifier: .gregorian)
-        c.timeZone = TimeZone(identifier: "Europe/Podgorica")!
-        return c
-    }()
-
-    /// 2026-07-27 — no DST transition that week, so these cases exercise the expiry
-    /// rule itself rather than `DayBoundary`'s clock-change behaviour.
-    private func date(_ hour: Int, _ minute: Int) -> Date {
-        var comps = DateComponents()
-        comps.year = 2026
-        comps.month = 7
-        comps.day = 27
-        comps.hour = hour
-        comps.minute = minute
-        comps.second = 0
-        return calendar.date(from: comps)!
+    func testTenUsageMinutesRemainAvailableUntilCustomDayBoundary() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Belgrade")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 12, hour: 14))!
+        let expiry = DayBoundary.purchaseExpiry(minutes: 10, dayEndHour: 1, dayEndMinute: 0,
+            now: now, calendar: calendar)
+        XCTAssertEqual(expiry, DayBoundary.nextBoundary(after: now, dayEndHour: 1, dayEndMinute: 0, calendar: calendar))
     }
-
-    private func expiry(minutes: Int, at now: Date, dayEnd: (hour: Int, minute: Int) = (4, 0)) -> Date {
-        DayBoundary.purchaseExpiry(
-            minutes: minutes,
-            dayEndHour: dayEnd.hour,
-            dayEndMinute: dayEnd.minute,
-            now: now,
-            calendar: calendar
-        )
-    }
-
-    // MARK: - The regression
-
-    /// A ten-minute purchase must expire in ten minutes, not in fourteen hours.
-    func testExpiryIsPurchaseMomentPlusMinutes_notEndOfDay() {
-        let now = date(14, 0)
-        let result = expiry(minutes: 10, at: now)
-
-        XCTAssertEqual(result.timeIntervalSince(now), 10 * 60, accuracy: 1)
-
-        let dayEnd = DayBoundary.nextBoundary(
-            after: now, dayEndHour: 4, dayEndMinute: 0, calendar: calendar
-        )
-        XCTAssertEqual(dayEnd.timeIntervalSince(now), 14 * 3600, accuracy: 1,
-                       "sanity: the old behaviour would have granted this much")
-        XCTAssertLessThan(result, dayEnd)
-    }
-
-    // MARK: - Boundary clamp
-
-    /// Day-boundary resets clear budgets, so an expiry past the boundary could never be
-    /// honoured — it must be pulled back to the boundary itself.
-    func testExpiryClampsAtCustomDayBoundary() {
-        let result = expiry(minutes: 60, at: date(3, 30))
-        XCTAssertEqual(result, date(4, 0))
-    }
-
-    func testExpiryClampsAtMidnightBoundary() {
-        let now = date(23, 30)
-        let result = expiry(minutes: 60, at: now, dayEnd: (0, 0))
-        XCTAssertEqual(result.timeIntervalSince(now), 30 * 60, accuracy: 1)
-    }
-
-    // MARK: - Extending
-
-    /// Unlike `wallClockFallbackExpiry`, which clamps against whatever is already on
-    /// disk, extending a window has to be able to move the deadline later.
-    func testExtendingPushesTheDeadlineOut() {
-        let now = date(14, 0)
-        XCTAssertGreaterThan(expiry(minutes: 40, at: now), expiry(minutes: 10, at: now))
-    }
-
-    // MARK: - Degenerate input
-
-    func testNonPositiveMinutesNeverExpireInThePast() {
-        let now = date(14, 0)
-        XCTAssertEqual(expiry(minutes: 0, at: now), now)
-        XCTAssertEqual(expiry(minutes: -5, at: now), now)
-    }
-    func testExtensionPreservesRemainingSecondsWithoutRoundingThemUp() {
-        let now = date(14, 0)
-        let existing = now.addingTimeInterval(30)
-        let result = DayBoundary.purchaseExpiry(minutes: 10, dayEndHour: 4, dayEndMinute: 0,
-            now: now, calendar: calendar, extending: existing)
-        XCTAssertEqual(result.timeIntervalSince(now), 630)
-    }
-
-    func testExpiredWindowCannotBeResurrectedByAnExtension() {
-        let now = date(14, 0)
-        let result = DayBoundary.purchaseExpiry(minutes: 10, dayEndHour: 4, dayEndMinute: 0,
-            now: now, calendar: calendar, extending: now.addingTimeInterval(-30))
-        XCTAssertEqual(result.timeIntervalSince(now), 600)
-    }
-
 }

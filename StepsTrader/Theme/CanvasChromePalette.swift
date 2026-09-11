@@ -2,7 +2,7 @@ import SwiftUI
 import simd
 
 /// Stable control colors derived from saved background pigment, never a rendered frame.
-/// Curated tonal families bound saturation; measured contrast keeps text and actions readable.
+/// Preserve a real pigment from the artwork; contrast adjustments only change its tone.
 struct CanvasChromePalette: Equatable {
     enum Family: CaseIterable { case sage, blue, lilac, clay, neutral }
 
@@ -24,7 +24,6 @@ struct CanvasChromePalette: Equatable {
             if $0.sRGB.y != $1.sRGB.y { return $0.sRGB.y < $1.sRGB.y }
             return $0.sRGB.z < $1.sRGB.z
         }
-        var pigment = SIMD3<Float>.zero
         var hueVector = SIMD2<Float>.zero
         var weight: Float = 0
         for color in colors {
@@ -33,11 +32,15 @@ struct CanvasChromePalette: Equatable {
             // Near-white and gray palette entries should not erase the day's hue.
             guard chroma > 0.025 else { continue }
             let importance = min(chroma, 0.18)
-            pigment += color.sRGB * importance
             hueVector += SIMD2(lab.y, lab.z) * importance
             weight += importance
         }
-        let source = weight > 0 ? DayObjectRGB(sRGB: pigment / weight) : DayObjectRGB(hex: "#808080")
+        // Averaging complementary gradient stops made very different days share
+        // the same green/brown tint. Use the strongest saved pigment instead.
+        let source = colors.max {
+            let a = $0.perceptualOKLab, b = $1.perceptualOKLab
+            return simd_length(SIMD2(a.y, a.z)) < simd_length(SIMD2(b.y, b.z))
+        } ?? DayObjectRGB(hex: "#808080")
         let family: Family
         if weight == 0 || simd_length(hueVector / max(weight, 0.001)) < 0.015 {
             family = .neutral
@@ -55,11 +58,13 @@ struct CanvasChromePalette: Equatable {
         func mix(_ a: DayObjectRGB, _ b: DayObjectRGB, _ amount: Float) -> DayObjectRGB {
             DayObjectRGB(sRGB: a.sRGB * (1 - amount) + b.sRGB * amount)
         }
-        let surface = mix(DayObjectRGB(hex: t.surface), source.darkened(by: 0.28), family == .neutral ? 0 : 0.12)
+        let neutral = family == .neutral
+        let pigment = mix(DayObjectRGB(hex: "#808080"), source, 0.78)
+        let surface = neutral ? DayObjectRGB(hex: t.surface)
+            : pigment.shiftingPerceptualLightness(by: 0.27 - pigment.perceptualOKLab.x)
         let text = DayObjectRGB(hex: t.text).lightened(toMinimumContrast: 7, against: surface.linearRGB)
-        let secondary = DayObjectRGB(hex: t.secondary).lightened(toMinimumContrast: 4.5, against: surface.linearRGB)
-        let softSource = source.lightened(toMinimumContrast: 8, against: surface.linearRGB)
-        let accent = mix(DayObjectRGB(hex: t.accent), softSource, family == .neutral ? 0 : 0.18)
+        let secondary = DayObjectRGB(hex: t.secondary).lightened(toMinimumContrast: 4.6, against: surface.linearRGB)
+        let accent = (neutral ? DayObjectRGB(hex: t.accent) : pigment)
             .lightened(toMinimumContrast: 7, against: surface.linearRGB)
         return Self(family: family, surface: surface, textPrimary: text, textSecondary: secondary,
                     accent: accent, onAccent: surface,

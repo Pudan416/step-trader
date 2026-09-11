@@ -98,6 +98,22 @@ extension AppModel {
             return false
         }
         
+        // A paid continuation that could not register is resumed before a new
+        // charge. Never turn recovery into another purchase.
+        let store = UserDefaults.stepsTrader()
+        if ShieldRebuildHelper.hasRecoverableUsageBudget(defaults: store, groupId: groupId),
+           let session = UsageBudgetSession.load(from: store, groupId: groupId) {
+            if let failure = startUsageBudgetMonitoring(groupId: groupId, minutes: session.remainingMinutes) {
+                payGateError = failure.userFacingMessage
+                dismissPayGate(reason: .programmatic)
+                return false
+            }
+            ShieldRebuildHelper.rebuild()
+            rebuildFamilyControlsShield()
+            dismissPayGate(reason: .programmatic)
+            return true
+        }
+
         let cost = costOverride ?? group.cost(for: window)
         let minutes = window.minutes
         
@@ -111,56 +127,15 @@ extension AppModel {
         AppLogger.shield.debug("✅ Payment successful! New balance: \(self.totalStepsBalance)")
         
         let defaults = UserDefaults.stepsTrader()
-        let budgetKey = SharedKeys.usageBudgetKey(groupId)
-        let startedKey = SharedKeys.usageBudgetStartedKey(groupId)
-
-        let now = Date.now
-        let previousKeys = [budgetKey, startedKey, SharedKeys.usageBudgetInitialKey(groupId), SharedKeys.usageBudgetExpiryKey(groupId)]
-        let previousState = previousKeys.map { ($0, defaults.object(forKey: $0)) }
-        let existingExpiry = ShieldRebuildHelper.usageBudgetDisplayExpiry(defaults: defaults, groupId: groupId, at: now)
-        let existingBudget = ShieldRebuildHelper.remainingUsageBudget(defaults: defaults, groupId: groupId, at: now)
-        let totalMinutes = existingBudget + minutes
-        let initialKey = SharedKeys.usageBudgetInitialKey(groupId)
-
-        defaults.set(totalMinutes, forKey: budgetKey)
-        defaults.set(totalMinutes, forKey: initialKey)
-        defaults.set(now, forKey: startedKey)
-
-        let dayEndH = defaults.object(forKey: SharedKeys.dayEndHour) as? Int ?? 0
-        let dayEndM = defaults.object(forKey: SharedKeys.dayEndMinute) as? Int ?? 0
-        // Preserve remaining seconds when extending; rounded display minutes must
-        // not hand back elapsed time on every purchase.
-        let expiry = DayBoundary.purchaseExpiry(
-            minutes: minutes,
-            dayEndHour: dayEndH,
-            dayEndMinute: dayEndM,
-            now: now,
-            extending: existingExpiry
-        )
-        defaults.set(expiry, forKey: SharedKeys.usageBudgetExpiryKey(groupId))
-
-        if let failure = startUsageBudgetMonitoring(groupId: groupId, minutes: totalMinutes) {
-            // DeviceActivity wouldn't start — refund the colors, clear the keys, and
-            // surface a user-visible error before dismissing. Otherwise the user just
-            // sees the balance bounce back with no explanation and assumes the
-            // purchase silently failed. (§5.1)
-            //
-            // Hitting the twenty-activity cap gets its own message: "try again in a
-            // moment" is useless advice for a ceiling that only clears when a window
-            // is closed.
-            AppLogger.shield.error("❌ Monitoring failed after payment (\(String(describing: failure))) — refunding \(cost) colors")
+        do {
+            try ShieldRebuildHelper.purchaseUsageBudget(defaults: defaults, groupId: groupId, minutes: minutes)
+        } catch {
             refund(cost: cost)
-            for (key, value) in previousState {
-                if let value { defaults.set(value, forKey: key) }
-                else { defaults.removeObject(forKey: key) }
-            }
-            // Keep an earlier paid window intact when extending fails.
-            if existingBudget > 0 { startUsageBudgetMonitoring(groupId: groupId, minutes: existingBudget) }
-            payGateError = failure.userFacingMessage
+            payGateError = UsageBudgetMonitoringError.classify(error).userFacingMessage
             dismissPayGate(reason: .programmatic)
             return false
         }
-        
+
         // NOTE: addSpentSteps records full `cost` (base + bonus) in per-app/per-day
         // dictionaries for analytics. This differs from spentStepsToday (set in pay())
         // which only tracks base-energy consumption. Both are intentional:
@@ -183,17 +158,17 @@ extension AppModel {
         return true
     }
 
-    /// Returns nil only after the deadline monitor has been registered.
+    /// Returns nil only after the usage thresholds has been registered.
     @discardableResult
     private func startUsageBudgetMonitoring(groupId: String, minutes: Int) -> UsageBudgetMonitoringError? {
         #if canImport(DeviceActivity) && canImport(FamilyControls)
         let defaults = UserDefaults.stepsTrader()
         do {
             try ShieldRebuildHelper.startUsageBudgetMonitoring(defaults: defaults, groupId: groupId)
-            defaults.set("OK deadline monitor usageBudget_\(groupId), \(minutes)m", forKey: SharedKeys.lastStartMonitoringLog)
+            defaults.set("OK usage thresholds usageBudget_\(groupId), \(minutes)m", forKey: SharedKeys.lastStartMonitoringLog)
             return nil
         } catch {
-            defaults.set("FAIL deadline monitor usageBudget_\(groupId): \(error.localizedDescription)", forKey: SharedKeys.lastStartMonitoringLog)
+            defaults.set("FAIL usage thresholds usageBudget_\(groupId): \(error.localizedDescription)", forKey: SharedKeys.lastStartMonitoringLog)
             return UsageBudgetMonitoringError.classify(error)
         }
         #else
@@ -267,7 +242,7 @@ extension AppModel {
     }
 
     /// After `intervalDidEnd` stops monitors without clearing prefs, restart DeviceActivity for any group
-    /// that still has budget + valid wall clock but no registered `usageBudget_*` activity.
+    /// that still has budget valid for this custom day but no registered `usageBudget_*` activity.
     func ensureUsageBudgetMonitoringForActiveGroups() {
         #if canImport(DeviceActivity) && canImport(FamilyControls)
         let defaults = UserDefaults.stepsTrader()
@@ -284,13 +259,18 @@ extension AppModel {
             }
             let name = DeviceActivityName("usageBudget_\(gid)")
             if let current = center.schedule(for: name),
-               !current.repeats, current.intervalEnd == desired.intervalEnd {
+               !current.repeats, current.intervalEnd == desired.intervalEnd,
+               let session = UsageBudgetSession.load(from: defaults, groupId: gid),
+               !session.needsNextSegment, !session.monitoringFailed,
+               ShieldRebuildHelper.usageSelectionMatches(defaults: defaults, groupId: gid, session: session),
+               center.events(for: name)[DeviceActivityEvent.Name(session.eventName(minute: session.initialMinutes))] != nil {
                 continue
             }
-            // Also upgrades pre-fix schedules and applies shortened day boundaries.
-            // Preserve start/initial values: the authoritative deadline already
-            // accounts for elapsed time, so recovery must not subtract it again.
-            startUsageBudgetMonitoring(groupId: gid, minutes: remaining)
+            // Do not replace a healthy monitor on app launch: Apple's partial
+            // usage lives there. Recover only absent/obsolete registrations.
+            if let failure = startUsageBudgetMonitoring(groupId: gid, minutes: remaining) {
+                payGateError = failure.userFacingMessage
+            }
         }
         #endif
     }
@@ -301,6 +281,7 @@ extension AppModel {
         defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(groupId))
         defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(groupId))
         defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(groupId))
+        defaults.removeObject(forKey: UsageBudgetSession.key(groupId))
         #if canImport(DeviceActivity)
         DeviceActivityCenter().stopMonitoring([DeviceActivityName("usageBudget_\(groupId)")])
         #endif

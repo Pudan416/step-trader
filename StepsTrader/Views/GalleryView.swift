@@ -1956,8 +1956,10 @@ struct GalleryView: View {
     }
 
     private func syncCanvasWithModel() {
-        guard canvasLoaded else { return }
-        guard activeDayKey == dayCanvas.dayKey else { return }
+        guard canvasLoaded, !model.isBootstrapping else { return }
+        model.checkDayBoundary()
+        guard activeDayKey == dayCanvas.dayKey,
+              dayCanvas.dayKey == AppModel.dayKey(for: .now) else { return }
         var didChange = false
 
         // 2. Update canvas metrics from model (sleep, steps, energy)
