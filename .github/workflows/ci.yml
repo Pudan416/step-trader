@@ -20,6 +20,7 @@ jobs:
     # The app uses the iOS 26 Liquid Glass API (`Glass`), which Xcode 16 cannot
     # parse even behind @available. macOS 26 runners ship Xcode 26.
     runs-on: macos-26
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -49,20 +50,28 @@ jobs:
         run: python3 Scripts/test_usage_budget_contract.py
 
       - name: Run Steps4Tests
+        timeout-minutes: 80
         # The HealthStoreTests observer flake (a fixed-sleep wait on a MainActor
         # hop) was fixed by polling deterministically, so the global
         # -retry-tests-on-failure crutch is gone — a flaky test now fails the
         # gate instead of being silently absorbed.
         run: |
           set -o pipefail
+          python3 Scripts/capture_test_stalls.py "$RUNNER_TEMP/Steps4Tests.log" "$RUNNER_TEMP/test-stacks" &
+          monitor_pid=$!
+          trap 'kill "$monitor_pid" 2>/dev/null || true; wait "$monitor_pid" 2>/dev/null || true' EXIT
           xcodebuild test \
             -project Steps4.xcodeproj \
             -scheme Steps4 \
             -configuration Debug \
             -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
             -only-testing:Steps4Tests \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 900 \
+            -maximum-test-execution-time-allowance 900 \
+            -collect-test-diagnostics on-failure \
             -resultBundlePath "$RUNNER_TEMP/Steps4Tests.xcresult" \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/Steps4Tests.log"
 
       - name: Retain iOS test results and crash diagnostics
         if: always()
@@ -71,6 +80,8 @@ jobs:
           name: ios-test-results
           path: |
             ${{ runner.temp }}/Steps4Tests.xcresult
+            ${{ runner.temp }}/Steps4Tests.log
+            ${{ runner.temp }}/test-stacks
             ~/Library/Logs/DiagnosticReports
           retention-days: 7
           if-no-files-found: warn
