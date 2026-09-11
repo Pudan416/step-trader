@@ -598,6 +598,7 @@ private struct StepsTraderProductionRoot: View {
     }
 
     private func handleWidgetOpenApp(_ url: URL) {
+        SharedKeys.recordWidgetInteraction("URL received scheme=\(url.scheme ?? "nil") host=\(url.host ?? "nil") state=\(UIApplication.shared.applicationState.rawValue)", source: "app")
         // §5.7: validate `bundleId` against a strict reverse-DNS pattern before
         // looking it up. Caps the input shape to what real bundle IDs look like
         // (`com.example.app`, optionally with dots and hyphens) so unexpected
@@ -608,10 +609,16 @@ private struct StepsTraderProductionRoot: View {
               let bundleId = components.queryItems?.first(where: { $0.name == "bundleId" })?.value,
               bundleId.range(of: bundleIdPattern, options: .regularExpression) != nil,
               TargetResolver.canOpen(bundleId: bundleId)
-        else { return }
+        else {
+            SharedKeys.recordWidgetInteraction("URL rejected by openapp route validation", source: "app")
+            return
+        }
 
         Task { @MainActor in
-            AppLauncher.open(bundleId: bundleId)
+            SharedKeys.recordWidgetInteraction("opening registered target=\(bundleId) state=\(UIApplication.shared.applicationState.rawValue)", source: "app")
+            AppLauncher.open(bundleId: bundleId) { success in
+                SharedKeys.recordWidgetInteraction("target open result=\(success) target=\(bundleId) state=\(UIApplication.shared.applicationState.rawValue)", source: "app")
+            }
         }
     }
 

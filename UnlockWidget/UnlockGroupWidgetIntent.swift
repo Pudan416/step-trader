@@ -45,7 +45,10 @@ struct UnlockGroupWidgetIntent: AppIntent {
         // button cannot present an error, so a charge for an unlock that can never
         // happen would be entirely silent. Refuse before touching the balance.
         #if canImport(FamilyControls)
-        guard AuthorizationCenter.shared.authorizationStatus == .approved else {
+        let authorization = AuthorizationCenter.shared.authorizationStatus
+        SharedKeys.recordWidgetInteraction("unlock entered group=\(groupId) window=\(windowRaw) authorization=\(authorization) container=\(FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: SharedKeys.appGroupId) != nil)", source: "extension")
+        guard authorization == .approved else {
+            SharedKeys.recordWidgetInteraction("unlock refused: Screen Time authorization=\(authorization)", source: "extension")
             WidgetKind.reloadAllKinds()
             return .result()
         }
@@ -62,6 +65,7 @@ struct UnlockGroupWidgetIntent: AppIntent {
         let now = Date()
         if let last = g.object(forKey: debounceKey) as? Date,
            now.timeIntervalSince(last) < 3 {
+            SharedKeys.recordWidgetInteraction("unlock refused: debounce", source: "extension")
             WidgetKind.reloadAllKinds()
             return .result()
         }
@@ -79,6 +83,7 @@ struct UnlockGroupWidgetIntent: AppIntent {
         let totalBalance = stepsBalance + bonusSteps
 
         guard totalBalance >= cost else {
+            SharedKeys.recordWidgetInteraction("unlock refused: balance=\(totalBalance) cost=\(cost) stale=\(defaultsStale)", source: "extension")
             WidgetKind.reloadAllKinds()
             return .result()
         }
@@ -101,6 +106,7 @@ struct UnlockGroupWidgetIntent: AppIntent {
             dayEndMinute: dayEndMinute, now: now, extending: existingExpiry)
 
         guard ShieldRebuildHelper.loadGroups(defaults: g).contains(where: { $0.id == groupId && $0.active }) else {
+            SharedKeys.recordWidgetInteraction("unlock refused: group missing or inactive", source: "extension")
             WidgetKind.reloadAllKinds()
             return .result()
         }
@@ -111,6 +117,7 @@ struct UnlockGroupWidgetIntent: AppIntent {
         do {
             try ShieldRebuildHelper.startUsageBudgetMonitoring(defaults: g, groupId: groupId, now: now)
         } catch {
+            SharedKeys.recordWidgetInteraction("unlock refused: monitoring domain=\((error as NSError).domain) code=\((error as NSError).code)", source: "extension")
             for (key, value) in previousState {
                 if let value { g.set(value, forKey: key) }
                 else { g.removeObject(forKey: key) }
@@ -156,6 +163,8 @@ struct UnlockGroupWidgetIntent: AppIntent {
         g.synchronize()
 
         ShieldRebuildHelper.rebuild()
+
+        SharedKeys.recordWidgetInteraction("unlock completed group=\(groupId) minutes=\(minutes) balance=\(newBalance + updatedBonus)", source: "extension")
 
         WidgetKind.reloadAllKinds()
 

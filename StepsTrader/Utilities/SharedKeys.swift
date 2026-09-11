@@ -5,6 +5,27 @@ import WidgetKit
 /// Single source of truth for all UserDefaults and App Group keys.
 /// Shared across the main app and extensions (ShieldAction, ShieldConfiguration, DeviceActivityMonitor).
 enum SharedKeys {
+    private static let widgetDiagnosticLock = NSLock()
+
+    /// Bounded, local-only breadcrumbs for physical-device widget diagnosis.
+    /// Callers pass only routing/status metadata, never arbitrary incoming URLs.
+    static func recordWidgetInteraction(_ message: String, source: String) {
+        #if DEBUG
+        let line = "[\(ISO8601DateFormatter().string(from: Date()))] \(message)"
+        Logger(subsystem: "com.personalproject.StepsTrader", category: "WidgetInteraction")
+            .notice("\(source, privacy: .public): \(line, privacy: .public)")
+        widgetDiagnosticLock.lock()
+        defer { widgetDiagnosticLock.unlock() }
+        if let defaults = UserDefaults(suiteName: appGroupId) {
+            let key = "widgetInteractionDiagnostic_\(source)_v1"
+            var history = defaults.stringArray(forKey: key) ?? []
+            history.append(line)
+            defaults.set(Array(history.suffix(40)), forKey: key)
+            defaults.synchronize()
+        }
+        #endif
+    }
+
     static let appGroupId = "group.personal-project.StepsTrader"
     static func appGroupDefaults() -> UserDefaults {
         if let defaults = UserDefaults(suiteName: appGroupId) {
