@@ -732,20 +732,21 @@ final class NativeAtlasRecipeTests: XCTestCase {
     }
 
     @MainActor
-    func testCanvasActionsHaveDistinctBrandAccents() throws {
+    func testCanvasActionsUseReadableDailyPalette() throws {
+        let palette = CanvasChromePalette.resolve(backgroundColors: [DayObjectRGB(hex: "#78966B")])
         let content = CanvasBottomActionRow(isDataPanelOpen: false, isHappeningPalettePresented: false, soundAppearance: .readyToPlay, onSound: {}, onOpenHappeningList: {}, onToggleHappeningPalette: {})
+            .environment(\.canvasChromePalette, palette)
             .frame(width: 320, height: 60).background(Color.white)
         let renderer = ImageRenderer(content: content); renderer.scale = 1
         let image = try XCTUnwrap(renderer.uiImage), p = try pixels(image)
-        let sound = (30 * 320 + 14) * 4
-        XCTAssertLessThan((p[sound] + p[sound + 1] + p[sound + 2]) / 3, 0.45)
-        let add = (30 * 320 + 278) * 4
-        XCTAssertGreaterThan(p[add], 0.9)
-        XCTAssertGreaterThan(p[add + 1], 0.7)
-        XCTAssertLessThan(p[add + 2], 0.55)
-        let goldSoundPixels = (8..<49).flatMap { x in (10..<50).map { y in (y * 320 + x) * 4 } }
-            .filter { p[$0] > 0.7 && p[$0 + 1] > 0.5 && p[$0] - p[$0 + 2] > 0.25 }
-        XCTAssertGreaterThan(goldSoundPixels.count, 20, "Audio should be distinguished from neutral navigation")
+        func matches(_ pixel: Int, _ color: DayObjectRGB) -> Bool {
+            (0..<3).allSatisfy { abs(p[pixel + $0] - Double(color.sRGB[$0])) < 0.05 }
+        }
+        XCTAssertTrue(matches((30 * 320 + 14) * 4, palette.surface), "Play uses the daily dark surface")
+        XCTAssertTrue(matches((30 * 320 + 278) * 4, palette.accent), "Add uses the daily light accent")
+        let playAccentPixels = (8..<49).flatMap { x in (10..<50).map { y in (y * 320 + x) * 4 } }
+            .filter { matches($0, palette.accent) }
+        XCTAssertGreaterThan(playAccentPixels.count, 20, "Play remains visible against its tonal surface")
     }
 
     @MainActor

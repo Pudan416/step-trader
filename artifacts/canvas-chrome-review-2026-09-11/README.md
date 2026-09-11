@@ -23,3 +23,9 @@ Each metric has a label/value line and its own thin progress line. Progress no l
 The focused regression run passed 96 tests (0 failures): palette contrast/determinism, energy semantics, Canvas presentation, saved palette/backdrop updates, widget behavior and gate artwork. Contrast checks cover every ModernPaletteCatalog entry plus black, white, gray, empty and opposing saturated inputs. Primary and secondary text and button labels meet 4.5:1; the progress accent against its track meets 3:1.
 
 After the large-text adjustment, all 18 palette/background tests and 3 targeted drawer UI tests passed (21 checks, 0 failures). The UI checks cover row geometry, inline explanation toggles, and hiding/restoring the sound/add controls. Across both runs, 99 distinct checks passed. Simulator captures are not physical-device verification. This change has not been installed on the phone; the last recorded combined installation remains `258a9507`.
+
+## Play button follow-up
+
+The sound-start control now shows `play.fill`; playback shows `waveform`, while starting and retry keep their state indicators. The alternate sound-control presentation also uses Play for starting. Actions and accessibility identifiers remain unchanged. `canvas-play.png` is the updated full Canvas screenshot from the UI test. The earlier four-color comparison retains its original speaker icon.
+
+All 34 focused checks passed: 31 presentation checks, the updated rendered-button color check, and two UI checks covering drawer layout and exit from music viewing.

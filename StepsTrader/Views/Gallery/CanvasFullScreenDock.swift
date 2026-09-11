@@ -60,7 +60,7 @@ struct CanvasFullScreenSoundControlPresentation: Equatable {
     init(appearance: CanvasSoundButtonAppearance) {
         switch appearance {
         case .readyToPlay:
-            self.init(title: "Start sound", systemImage: "speaker.wave.2", isEnabled: true)
+            self.init(title: "Play", systemImage: "play.fill", isEnabled: true)
         case .starting:
             self.init(title: "Starting sound", systemImage: "hourglass", isEnabled: false)
         case .playing:

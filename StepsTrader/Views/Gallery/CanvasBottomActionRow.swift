@@ -142,9 +142,9 @@ enum CanvasSoundButtonAppearance: Equatable {
 
     var systemImage: String {
         switch self {
-        case .readyToPlay: "speaker.wave.2"
+        case .readyToPlay: "play.fill"
         case .starting: "hourglass"
-        case .playing: "speaker.wave.2.fill"
+        case .playing: "waveform"
         case .retry: "arrow.clockwise"
         }
     }
