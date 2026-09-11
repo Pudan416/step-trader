@@ -113,7 +113,7 @@ enum WidgetRefreshPolicy {
            let lite = try? widgetDecoder.decode(_MinLiteConfig.self, from: liteData) {
             groupIds.append(contentsOf: lite.groups.map(\.id))
         }
-        return groupIds.contains { g.integer(forKey: SharedKeys.usageBudgetKey($0)) > 0 }
+        return groupIds.contains { ShieldRebuildHelper.isUsageBudgetWallClockActive(defaults: g, groupId: $0) }
     }
 
     private struct _MinGroupStub: Decodable { let id: String }
@@ -178,6 +178,13 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
             refreshPolicy = resetDate.addingTimeInterval(60)
         }
 
+        let observations = ShieldRebuildHelper.budgetObservationDates(from: now, through: refreshPolicy,
+            expiries: currentEntry.groups.compactMap(\.budgetExpiryDate))
+        for date in observations where !entries.contains(where: { $0.date == date }) {
+            entries.append(buildEntry(at: date, selectedGroupIds: ids))
+        }
+        entries.sort { $0.date < $1.date }
+
         let wallpaper = WidgetWallpaperFile.currentBackground(size: context.displaySize, mode: configuration.background,
                                                              position: configuration.wallpaperPosition.position)
         return Timeline(entries: entries.map { $0.withWallpaper(wallpaper) }, policy: .after(refreshPolicy))
@@ -214,8 +221,7 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
                     return group.hasActiveSettings
                 }
                 .map { group in
-                let budgetKey = SharedKeys.usageBudgetKey(group.id)
-                let budgetMinutes = g.integer(forKey: budgetKey)
+                let budgetMinutes = ShieldRebuildHelper.remainingUsageBudget(defaults: g, groupId: group.id, at: date)
                 let budgetInitial = g.integer(forKey: SharedKeys.usageBudgetInitialKey(group.id))
 
                 let intervals: Set<AccessWindow> = {
@@ -226,9 +232,7 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
                     return parsed.isEmpty ? [.minutes10, .minutes30, .hour1] : parsed
                 }()
 
-                let expiryDate: Date? = budgetMinutes > 0
-                    ? date.addingTimeInterval(TimeInterval(budgetMinutes * 60))
-                    : nil
+                let expiryDate = ShieldRebuildHelper.usageBudgetDisplayExpiry(defaults: g, groupId: group.id, at: date)
 
                 return UnlockEntry.GroupSnapshot(
                     id: group.id,
@@ -587,6 +591,13 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
             refreshPolicy = resetDate.addingTimeInterval(60)
         }
 
+        let observations = ShieldRebuildHelper.budgetObservationDates(from: now, through: refreshPolicy,
+            expiries: entry.groups.compactMap(\.budgetExpiryDate))
+        for date in observations where !entries.contains(where: { $0.date == date }) {
+            entries.append(buildEntry(at: date, selectedGroupId: configuration.selectedId))
+        }
+        entries.sort { $0.date < $1.date }
+
         let wallpaper = WidgetWallpaperFile.currentBackground(size: context.displaySize, mode: configuration.background,
                                                              position: configuration.wallpaperPosition.position)
         return Timeline(entries: entries.map { $0.withWallpaper(wallpaper) }, policy: .after(refreshPolicy))
@@ -651,7 +662,7 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
 
         var groupSnapshot: UnlockEntry.GroupSnapshot?
         if let selectedGroupId {
-            groupSnapshot = loadGroupSnapshot(id: selectedGroupId, defaults: g)
+            groupSnapshot = loadGroupSnapshot(id: selectedGroupId, defaults: g, at: date)
         }
 
         let groups = groupSnapshot.map { [$0] } ?? []
@@ -668,7 +679,7 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
         )
     }
 
-    private func loadGroupSnapshot(id: String, defaults g: UserDefaults) -> UnlockEntry.GroupSnapshot? {
+    private func loadGroupSnapshot(id: String, defaults g: UserDefaults, at date: Date) -> UnlockEntry.GroupSnapshot? {
         let activeIds = loadActiveGroupIds(defaults: g)
 
         guard let data = g.data(forKey: SharedKeys.ticketGroups)
@@ -681,7 +692,7 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
         if let activeIds, !activeIds.contains(group.id) { return nil }
         if activeIds == nil, !(group.settings?.familyControlsModeEnabled ?? false) { return nil }
 
-        let budgetMinutes = g.integer(forKey: SharedKeys.usageBudgetKey(group.id))
+        let budgetMinutes = ShieldRebuildHelper.remainingUsageBudget(defaults: g, groupId: group.id, at: date)
         let budgetInitial = g.integer(forKey: SharedKeys.usageBudgetInitialKey(group.id))
 
         let intervals: Set<AccessWindow> = {
@@ -702,9 +713,7 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
             spentToday: 0,
             budgetMinutes: budgetMinutes,
             budgetInitial: budgetInitial,
-            budgetExpiryDate: budgetMinutes > 0
-                ? Date().addingTimeInterval(TimeInterval(budgetMinutes * 60))
-                : nil,
+            budgetExpiryDate: ShieldRebuildHelper.usageBudgetDisplayExpiry(defaults: g, groupId: group.id, at: date),
             identity: AppGroupIdentity(name: group.name, templateApp: group.templateApp, selectionData: group.selectionData)
         )
     }

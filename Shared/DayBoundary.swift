@@ -67,17 +67,17 @@ enum DayBoundary {
     /// Clamping at the day boundary keeps the existing invariant that day-boundary
     /// resets clear budgets: an expiry past it could never be honoured anyway.
     ///
-    /// Deliberately *not* the same as `wallClockFallbackExpiry`, which clamps against any
-    /// expiry already on disk because it serves the late-evening path where no schedule
-    /// can be created. Extending a window must be able to push the deadline out.
+    /// An extension starts at the still-valid existing deadline, preserving seconds
+    /// rather than renewing rounded, unspent usage minutes.
     static func purchaseExpiry(
         minutes: Int,
         dayEndHour: Int,
         dayEndMinute: Int,
         now: Date = Date(),
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        extending existingExpiry: Date? = nil
     ) -> Date {
-        let requested = now.addingTimeInterval(TimeInterval(max(0, minutes) * 60))
+        let requested = max(now, existingExpiry ?? now).addingTimeInterval(TimeInterval(max(0, minutes)) * 60)
         let dayEnd = nextBoundary(
             after: now,
             dayEndHour: dayEndHour,

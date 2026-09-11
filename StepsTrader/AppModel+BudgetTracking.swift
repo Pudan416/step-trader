@@ -111,6 +111,8 @@ extension AppModel {
             g.set(min(existing ?? newDayEnd, newDayEnd), forKey: expiryKey)
         }
 
+        ensureUsageBudgetMonitoringForActiveGroups()
+
         // Recompute balance + widgets from the preserved state. spentStepsToday,
         // selections, base energy and the canvas are all left untouched.
         recalculateDailyEnergy()

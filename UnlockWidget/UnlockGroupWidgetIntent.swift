@@ -90,33 +90,48 @@ struct UnlockGroupWidgetIntent: AppIntent {
         let newSpent = spentToday + consumeFromBase
         let newBalance = max(0, baseEnergy - newSpent)
 
-        g.set(newSpent, forKey: SharedKeys.spentStepsToday)
-        g.set(newBalance, forKey: SharedKeys.stepsBalance)
-
         let remainingCost = max(0, cost - consumeFromBase)
-        if remainingCost > 0 {
-            let newBonus = max(0, bonusSteps - remainingCost)
-            g.set(newBonus, forKey: SharedKeys.bonusSteps)
-        }
-
-        let existingBudget = g.integer(forKey: SharedKeys.usageBudgetKey(groupId))
+        let keys = [SharedKeys.usageBudgetKey(groupId), SharedKeys.usageBudgetInitialKey(groupId),
+                    SharedKeys.usageBudgetStartedKey(groupId), SharedKeys.usageBudgetExpiryKey(groupId)]
+        let previousState = keys.map { ($0, g.object(forKey: $0)) }
+        let existingExpiry = ShieldRebuildHelper.usageBudgetDisplayExpiry(defaults: g, groupId: groupId, at: now)
+        let existingBudget = ShieldRebuildHelper.remainingUsageBudget(defaults: g, groupId: groupId, at: now)
         let totalMinutes = existingBudget + minutes
+        let expiry = DayBoundary.purchaseExpiry(minutes: minutes, dayEndHour: dayEndHour,
+            dayEndMinute: dayEndMinute, now: now, extending: existingExpiry)
 
+        guard ShieldRebuildHelper.loadGroups(defaults: g).contains(where: { $0.id == groupId && $0.active }) else {
+            WidgetKind.reloadAllKinds()
+            return .result()
+        }
         g.set(totalMinutes, forKey: SharedKeys.usageBudgetKey(groupId))
         g.set(totalMinutes, forKey: SharedKeys.usageBudgetInitialKey(groupId))
-        g.set(Date(), forKey: SharedKeys.usageBudgetStartedKey(groupId))
-
-        // Same deadline rule as the in-app purchase path — see
-        // DayBoundary.purchaseExpiry.
-        let expiry = DayBoundary.purchaseExpiry(
-            minutes: totalMinutes,
-            dayEndHour: dayEndHour,
-            dayEndMinute: dayEndMinute
-        )
+        g.set(now, forKey: SharedKeys.usageBudgetStartedKey(groupId))
         g.set(expiry, forKey: SharedKeys.usageBudgetExpiryKey(groupId))
+        do {
+            try ShieldRebuildHelper.startUsageBudgetMonitoring(defaults: g, groupId: groupId, now: now)
+        } catch {
+            for (key, value) in previousState {
+                if let value { g.set(value, forKey: key) }
+                else { g.removeObject(forKey: key) }
+            }
+            if existingBudget > 0 {
+                try? ShieldRebuildHelper.startUsageBudgetMonitoring(defaults: g, groupId: groupId)
+            }
+            g.set("FAIL widget deadline monitor: \(error.localizedDescription)", forKey: SharedKeys.lastStartMonitoringLog)
+            WidgetKind.reloadAllKinds()
+            return .result()
+        }
+        g.removeObject(forKey: SharedKeys.pendingBudgetMonitoringPrefix + groupId)
+        g.removeObject(forKey: SharedKeys.pendingBudgetMinutesPrefix + groupId)
 
-        g.set(true, forKey: SharedKeys.pendingBudgetMonitoringPrefix + groupId)
-        g.set(totalMinutes, forKey: SharedKeys.pendingBudgetMinutesPrefix + groupId)
+        // Only charge after a deadline callback has been registered. Failed monitoring
+        // must not silently sell an unlimited window from an interactive widget.
+        g.set(newSpent, forKey: SharedKeys.spentStepsToday)
+        g.set(newBalance, forKey: SharedKeys.stepsBalance)
+        if remainingCost > 0 {
+            g.set(max(0, bonusSteps - remainingCost), forKey: SharedKeys.bonusSteps)
+        }
 
         let existingPendingSpend = g.integer(forKey: SharedKeys.pendingSpendAmountKey(groupId))
         g.set(existingPendingSpend + cost, forKey: SharedKeys.pendingSpendAmountKey(groupId))

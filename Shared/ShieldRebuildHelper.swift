@@ -135,33 +135,52 @@ enum ShieldRebuildHelper {
         }
     }
 
-    /// True while a positive usage budget should keep the group unshielded (wall-clock purchase window).
-    /// - Important: If `usageBudgetExpiry` is missing (CFPreferences lag after widget unlock, or legacy data),
-    ///   we infer the window from `usageBudgetStarted` + `usageBudgetInitial` instead of wiping the budget.
-    ///   Previously, nil expiry was treated as expired and keys were removed — main app then showed 0 min.
-    private static func shouldSkipShieldingDueToActiveUsageBudget(defaults: UserDefaults, groupId: String) -> Bool {
-        let budgetKey = SharedKeys.usageBudgetKey(groupId)
-        guard defaults.integer(forKey: budgetKey) > 0 else { return false }
-
-        let expiryObj = defaults.object(forKey: SharedKeys.usageBudgetExpiryKey(groupId))
-        if let expiry = coercedDate(from: expiryObj) {
-            return Date() < expiry
+    /// The stored deadline is authoritative; legacy records can recover it from start + initial.
+    static func usageBudgetDeadline(defaults: UserDefaults, groupId: String) -> Date? {
+        if let expiry = coercedDate(from: defaults.object(forKey: SharedKeys.usageBudgetExpiryKey(groupId))) {
+            return expiry
         }
-
-        let started = coercedDate(from: defaults.object(forKey: SharedKeys.usageBudgetStartedKey(groupId)))
+        guard let started = coercedDate(from: defaults.object(forKey: SharedKeys.usageBudgetStartedKey(groupId))) else { return nil }
         let initial = defaults.integer(forKey: SharedKeys.usageBudgetInitialKey(groupId))
-        if let started, initial > 0 {
-            return Date() < started.addingTimeInterval(TimeInterval(initial * 60))
-        }
-
-        // Budget > 0 but no usable timing metadata — default to shielded to prevent bypass.
-        return false
+        return initial > 0 ? started.addingTimeInterval(TimeInterval(initial) * 60) : nil
     }
 
-    /// Whether prefs show an active usage budget whose wall-clock window has not passed (Screen Time budget may still apply separately).
+    /// A single observation shared by the app and widgets. Legacy usage counters may
+    /// shorten a window, but can never advertise access beyond its wall-clock deadline.
+    static func usageBudgetDisplayExpiry(defaults: UserDefaults, groupId: String, at now: Date = Date()) -> Date? {
+        let stored = defaults.integer(forKey: SharedKeys.usageBudgetKey(groupId))
+        guard stored > 0, let expiry = usageBudgetDeadline(defaults: defaults, groupId: groupId), expiry > now else { return nil }
+        return min(expiry, now.addingTimeInterval(TimeInterval(stored) * 60))
+    }
+
+    static func remainingUsageBudget(defaults: UserDefaults, groupId: String, at now: Date = Date()) -> Int {
+        guard let expiry = usageBudgetDisplayExpiry(defaults: defaults, groupId: groupId, at: now) else { return 0 }
+        return Int(ceil(expiry.timeIntervalSince(now) / 60))
+    }
+
+    /// Precompute the labels' minute transitions and closed state inside a widget
+    /// timeline. These entries need no additional WidgetKit reload budget.
+    static func budgetObservationDates(from now: Date, through horizon: Date, expiries: [Date]) -> [Date] {
+        guard horizon > now else { return [] }
+        var dates = Set<Date>()
+        for expiry in expiries where expiry > now {
+            let wholeMinutes = floor(expiry.timeIntervalSince(now) / 60)
+            var tick = expiry.addingTimeInterval(-wholeMinutes * 60)
+            if tick <= now { tick = tick.addingTimeInterval(60) }
+            while tick <= min(expiry, horizon) {
+                dates.insert(tick)
+                tick = tick.addingTimeInterval(60)
+            }
+        }
+        return dates.sorted()
+    }
+
+    private static func shouldSkipShieldingDueToActiveUsageBudget(defaults: UserDefaults, groupId: String) -> Bool {
+        usageBudgetDisplayExpiry(defaults: defaults, groupId: groupId) != nil
+    }
+
     static func isUsageBudgetWallClockActive(defaults: UserDefaults, groupId: String) -> Bool {
-        guard defaults.integer(forKey: SharedKeys.usageBudgetKey(groupId)) > 0 else { return false }
-        return shouldSkipShieldingDueToActiveUsageBudget(defaults: defaults, groupId: groupId)
+        shouldSkipShieldingDueToActiveUsageBudget(defaults: defaults, groupId: groupId)
     }
 
     // MARK: - Public
@@ -231,58 +250,46 @@ enum ShieldRebuildHelper {
     /// Shortest interval DeviceActivity accepts before throwing `MonitoringError.intervalTooShort`.
     static let minimumScheduleMinutes = 15
 
-    /// Builds the `usageBudget_*` schedule anchored at `now` instead of midnight.
+    /// The nonrepeating interval ends at the purchased deadline. For short windows,
+    /// only its start is padded into the past to satisfy DeviceActivity's 15-minute
+    /// minimum. Full date components preserve windows that cross midnight.
     ///
-    /// DeviceActivity evaluates event thresholds as cumulative usage **since
-    /// `intervalStart`**, and it back-fills from Screen Time data recorded before
-    /// `startMonitoring` was ever called. With the previous `00:00:00 → 23:59:59`
-    /// interval, a "30 minutes" purchase therefore meant "30 minutes of this app
-    /// since local midnight": once the day's usage already exceeded the budget,
-    /// every threshold — `usageBudgetDone_` included — was satisfied the instant
-    /// monitoring started, and the shield came back within a minute while the
-    /// user's colors were already spent.
-    ///
-    /// Anchoring `intervalStart` at the purchase moment gives the thresholds a
-    /// fresh zero. `intervalEnd` stays at 23:59:59 so the interval never wraps
-    /// past midnight — `end < start` is treated as already-ended and kills the
-    /// monitor before any event can fire.
-    ///
-    /// - Returns: `nil` when fewer than `minimumScheduleMinutes` remain before
-    ///   23:59:59, since DeviceActivity would reject that interval. Callers must
-    ///   fall back to wall-clock expiry for that window.
+    /// No usage events are attached: historical activity during that padding must
+    /// not spend the new window. The contract is elapsed time, not foreground usage.
+    /// Apple delivers interval callbacks when the device is used, not while asleep.
     static func usageBudgetSchedule(
+        endingAt expiry: Date,
         anchoredAt now: Date = Date(),
         calendar: Calendar = .current
     ) -> DeviceActivitySchedule? {
-        let parts = calendar.dateComponents([.hour, .minute, .second], from: now)
-        guard let hour = parts.hour, let minute = parts.minute, let second = parts.second else { return nil }
-
-        let endOfDaySeconds = 23 * 3600 + 59 * 60 + 59
-        let nowSeconds = hour * 3600 + minute * 60 + second
-        guard endOfDaySeconds - nowSeconds >= minimumScheduleMinutes * 60 else { return nil }
-
-        return DeviceActivitySchedule(
-            intervalStart: DateComponents(hour: hour, minute: minute, second: second),
-            intervalEnd: DateComponents(hour: 23, minute: 59, second: 59),
-            repeats: true
-        )
+        guard expiry > now else { return nil }
+        // Never round the end down: an early callback would see a still-valid expiry
+        // and there would be no later interval-end callback to clear the shield.
+        let end = Date(timeIntervalSince1970: ceil(expiry.timeIntervalSince1970))
+        let start = Date(timeIntervalSince1970: floor(min(
+            now.timeIntervalSince1970,
+            end.timeIntervalSince1970 - TimeInterval(minimumScheduleMinutes * 60)
+        )))
+        let components: Set<Calendar.Component> = [.year, .month, .day, .hour, .minute, .second]
+        var startComponents = calendar.dateComponents(components, from: start)
+        var endComponents = calendar.dateComponents(components, from: end)
+        startComponents.calendar = calendar
+        startComponents.timeZone = calendar.timeZone
+        endComponents.calendar = calendar
+        endComponents.timeZone = calendar.timeZone
+        return DeviceActivitySchedule(intervalStart: startComponents, intervalEnd: endComponents, repeats: false)
     }
 
-    /// Wall-clock expiry used when `usageBudgetSchedule` can't produce a valid interval.
-    ///
-    /// Never extends an already-stored expiry (the caller anchors that to the custom
-    /// day boundary), so a late-evening fallback can't outlive the day it was bought in.
-    static func wallClockFallbackExpiry(
-        defaults: UserDefaults,
-        groupId: String,
-        minutes: Int,
-        now: Date = Date()
-    ) -> Date {
-        let requested = now.addingTimeInterval(TimeInterval(minutes * 60))
-        guard let existing = coercedDate(from: defaults.object(forKey: SharedKeys.usageBudgetExpiryKey(groupId))) else {
-            return requested
+    /// Registration succeeds before a purchase removes the shield. Replacing the
+    /// same activity avoids the extra slot and stale callback race of stop-then-start.
+    static func startUsageBudgetMonitoring(defaults: UserDefaults, groupId: String, now: Date = Date()) throws {
+        guard let expiry = usageBudgetDeadline(defaults: defaults, groupId: groupId),
+              let schedule = usageBudgetSchedule(endingAt: expiry, anchoredAt: now) else {
+            throw NSError(domain: "Nowhere.UsageBudget", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: "Access window has expired"])
         }
-        return min(requested, existing)
+        try DeviceActivityCenter().startMonitoring(
+            DeviceActivityName("usageBudget_\(groupId)"), during: schedule, events: [:])
     }
     #endif
 
@@ -291,92 +298,30 @@ enum ShieldRebuildHelper {
     /// Starts DeviceActivity monitoring for widget-initiated budgets. Called from rebuild()
     /// so monitoring begins immediately when the widget removes the shield, rather than
     /// waiting for the main app to foreground (which may be minutes/hours later).
+    static func startPendingWidgetBudgets() {
+        let defaults = SharedKeys.appGroupDefaults()
+        startPendingWidgetBudgets(defaults: defaults, groups: loadGroups(defaults: defaults))
+    }
+
     private static func startPendingWidgetBudgets(defaults: UserDefaults, groups: [GroupTuple]) {
         #if canImport(DeviceActivity) && canImport(FamilyControls)
-        let center = DeviceActivityCenter()
-
         for group in groups where group.active {
             let pendingKey = SharedKeys.pendingBudgetMonitoringPrefix + group.id
             let minutesKey = SharedKeys.pendingBudgetMinutesPrefix + group.id
             guard defaults.bool(forKey: pendingKey) else { continue }
-
-            let minutes = defaults.integer(forKey: minutesKey)
-            guard minutes > 0 else {
+            guard isUsageBudgetWallClockActive(defaults: defaults, groupId: group.id) else {
                 defaults.removeObject(forKey: pendingKey)
                 defaults.removeObject(forKey: minutesKey)
                 continue
             }
-
-            guard defaults.integer(forKey: SharedKeys.usageBudgetKey(group.id)) > 0 else {
-                defaults.removeObject(forKey: pendingKey)
-                defaults.removeObject(forKey: minutesKey)
-                continue
-            }
-
-            guard let selectionData = group.selectionData,
-                  let sel = cachedSelection(for: group.id, data: selectionData)
-            else { continue }
-
-            let activityName = DeviceActivityName("usageBudget_\(group.id)")
-            guard !center.activities.contains(activityName) else {
-                defaults.removeObject(forKey: pendingKey)
-                defaults.removeObject(forKey: minutesKey)
-                continue
-            }
-
-            var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]
-            for m in 1..<minutes {
-                events[DeviceActivityEvent.Name("usageBudgetTick_\(group.id)_\(m)")] = DeviceActivityEvent(
-                    applications: sel.applicationTokens,
-                    categories: sel.categoryTokens,
-                    threshold: DateComponents(minute: m)
-                )
-            }
-
-            let widgetMilestones: [Double] = [0.25, 0.50, 0.75, 0.90]
-            var seenWidgetMinutes = Set<Int>()
-            for frac in widgetMilestones {
-                let m = Int(Double(minutes) * frac)
-                guard m >= 1, m < minutes, !seenWidgetMinutes.contains(m) else { continue }
-                seenWidgetMinutes.insert(m)
-                events[DeviceActivityEvent.Name("usageBudgetWidgetTick_\(group.id)_\(m)")] = DeviceActivityEvent(
-                    applications: sel.applicationTokens,
-                    categories: sel.categoryTokens,
-                    threshold: DateComponents(minute: m)
-                )
-            }
-
-            events[DeviceActivityEvent.Name("usageBudgetDone_\(group.id)")] = DeviceActivityEvent(
-                applications: sel.applicationTokens,
-                categories: sel.categoryTokens,
-                threshold: DateComponents(minute: minutes)
-            )
-
-            // Anchored at now, not midnight — see usageBudgetSchedule.
-            guard let schedule = usageBudgetSchedule() else {
-                let expiry = wallClockFallbackExpiry(defaults: defaults, groupId: group.id, minutes: minutes)
-                defaults.set(expiry, forKey: SharedKeys.usageBudgetExpiryKey(group.id))
-                defaults.removeObject(forKey: pendingKey)
-                defaults.removeObject(forKey: minutesKey)
-
-                let ts = isoFormatter.string(from: Date())
-                let msg = "[\(ts)] WALLCLOCK usageBudget_\(group.id) \(minutes)m — <\(minimumScheduleMinutes)m before 23:59:59, expiry=\(isoFormatter.string(from: expiry))"
-                defaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
-                continue
-            }
-
             do {
-                try center.startMonitoring(activityName, during: schedule, events: events)
+                // Always replace: an older monitor may still target an earlier purchase.
+                try startUsageBudgetMonitoring(defaults: defaults, groupId: group.id)
                 defaults.removeObject(forKey: pendingKey)
                 defaults.removeObject(forKey: minutesKey)
-
-                let ts = isoFormatter.string(from: Date())
-                let start = schedule.intervalStart
-                let schedDesc = "start=\(start.hour ?? 0):\(start.minute ?? 0):\(start.second ?? 0) end=23:59:59"
-                let msg = "[\(ts)] OK usageBudget_\(group.id) \(minutes)m events=\(events.count) apps=\(sel.applicationTokens.count) sched=[\(schedDesc)] activities=\(center.activities.map(\.rawValue))"
-                defaults.set(msg, forKey: SharedKeys.lastStartMonitoringLog)
             } catch {
-                // Don't clear pending keys on failure — the extension or main app will retry
+                // Keep the pending handoff for recovery; new widget purchases register
+                // synchronously before charging or removing shields.
             }
         }
         #endif

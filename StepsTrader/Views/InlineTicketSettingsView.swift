@@ -64,7 +64,9 @@ struct TicketSettingsContentView: View {
                     .foregroundStyle(.secondary)
             }
             .accessibilityElement(children: .combine)
-            unlockButtonsSection
+            TimelineView(.periodic(from: .now, by: 15)) { _ in
+                unlockButtonsSection
+            }
 
             Divider()
                 .background(separator)
@@ -213,8 +215,7 @@ struct TicketSettingsContentView: View {
     @ViewBuilder
     private var unlockButtonsSection: some View {
         if isUsageBudgetActive(group.id) {
-            // Same accessor the Feeds surface uses: the wall-clock-floored one
-            // reports time already spent when the phone merely sat idle.
+            // Same wall-clock deadline and rounding as Feeds and widgets.
             let budget = unspentUsageBudget(group.id)
             HStack(spacing: 12) {
                 Image(systemName: "lock.open.fill")

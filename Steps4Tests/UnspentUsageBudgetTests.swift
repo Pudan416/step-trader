@@ -7,8 +7,8 @@ import XCTest
 /// says "locked" while the shield says "open" invites the user to buy a window
 /// they are already inside.
 ///
-/// The central rule under test is that the window is *spent*, not *elapsed* —
-/// an idle phone must not move the number.
+/// The hard deadline limits the displayed number even when no foreground
+/// usage occurred; a legacy counter may only shorten that remaining time.
 @MainActor
 final class UnspentUsageBudgetTests: XCTestCase {
 
@@ -45,19 +45,16 @@ final class UnspentUsageBudgetTests: XCTestCase {
         AppModel.unspentUsageBudgetMatchingShield(for: groupId, defaults: defaults)
     }
 
-    /// The regression this accessor exists for: 60 minutes bought, 45 of them
-    /// idled away without touching the app. The shield still has the apps open
-    /// on the full 60, so the UI must read 60 — not 15.
-    func testIdleTimeDoesNotSpendTheWindow() {
+    /// Idle time still approaches the hard deadline: only 15 minutes remain.
+    func testIdleTimeIsBoundedByThePurchaseDeadline() {
         writeWindow(initial: 60, stored: 60, minutesAgo: 45)
-        XCTAssertEqual(unspent(), 60)
+        XCTAssertEqual(unspent(), 15)
     }
 
-    /// Real usage is the only thing that moves it: the monitor decremented the
-    /// stored value to 20, so 20 is what shows.
+    /// A legacy usage counter cannot advertise more than the deadline permits.
     func testOnlySpentMinutesComeOff() {
         writeWindow(initial: 60, stored: 20, minutesAgo: 45)
-        XCTAssertEqual(unspent(), 20)
+        XCTAssertEqual(unspent(), 15)
     }
 
     /// Past the window's expiry the shield goes back up, so the UI must stop
@@ -84,7 +81,7 @@ final class UnspentUsageBudgetTests: XCTestCase {
         defaults.set(60, forKey: SharedKeys.usageBudgetInitialKey(groupId))
         defaults.set(started, forKey: SharedKeys.usageBudgetStartedKey(groupId))
 
-        XCTAssertEqual(unspent(), 60)
+        XCTAssertEqual(unspent(), 50)
 
         defaults.set(
             Date.now.addingTimeInterval(-120 * 60),
@@ -127,4 +124,47 @@ final class UnspentUsageBudgetTests: XCTestCase {
             )
         }
     }
+    func testWidgetCountdownUsesPersistedDeadlineInsteadOfRestartingOnRefresh() throws {
+        writeWindow(initial: 60, stored: 60, minutesAgo: 45)
+        let expiry = try XCTUnwrap(defaults.object(forKey: SharedKeys.usageBudgetExpiryKey(groupId)) as? Date)
+        let first = try XCTUnwrap(ShieldRebuildHelper.usageBudgetDisplayExpiry(
+            defaults: defaults, groupId: groupId, at: Date.now))
+        let later = try XCTUnwrap(ShieldRebuildHelper.usageBudgetDisplayExpiry(
+            defaults: defaults, groupId: groupId, at: Date.now.addingTimeInterval(5 * 60)))
+        XCTAssertEqual(first, expiry)
+        XCTAssertEqual(later, expiry)
+    }
+
+    func testLastPartialMinuteRemainsOpenUntilDeadline() {
+        let now = Date.now
+        defaults.set(10, forKey: SharedKeys.usageBudgetKey(groupId))
+        defaults.set(now.addingTimeInterval(0.5), forKey: SharedKeys.usageBudgetExpiryKey(groupId))
+        XCTAssertEqual(ShieldRebuildHelper.remainingUsageBudget(defaults: defaults, groupId: groupId, at: now), 1)
+        XCTAssertEqual(ShieldRebuildHelper.remainingUsageBudget(defaults: defaults, groupId: groupId, at: now.addingTimeInterval(1)), 0)
+    }
+
+    func testSpentUsageCanStillLimitLegacyWindowBeforeDeadline() {
+        let now = Date.now
+        defaults.set(3, forKey: SharedKeys.usageBudgetKey(groupId))
+        defaults.set(now.addingTimeInterval(20 * 60), forKey: SharedKeys.usageBudgetExpiryKey(groupId))
+        XCTAssertEqual(ShieldRebuildHelper.remainingUsageBudget(defaults: defaults, groupId: groupId, at: now), 3)
+    }
+
+    func testWidgetObservationsIncludeMinuteChangesAndExpiryWithoutReloading() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let expiry = now.addingTimeInterval(125)
+        let dates = ShieldRebuildHelper.budgetObservationDates(from: now,
+            through: now.addingTimeInterval(600), expiries: [expiry])
+        XCTAssertEqual(dates.map { $0.timeIntervalSince(now) }, [5, 65, 125])
+    }
+
+    func testWidgetObservationsDeduplicateAndStopAtRefreshHorizon() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let expiry = now.addingTimeInterval(3600)
+        let dates = ShieldRebuildHelper.budgetObservationDates(from: now,
+            through: now.addingTimeInterval(600), expiries: [expiry, expiry])
+        XCTAssertEqual(dates.count, 10)
+        XCTAssertEqual(dates.last, now.addingTimeInterval(600))
+    }
+
 }
