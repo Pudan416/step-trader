@@ -4,6 +4,22 @@ import XCTest
 
 @MainActor
 final class LeadPlayerTests: XCTestCase {
+    func testVerticalSweepUpdatesHeldVoiceFilterWithoutRetriggeringOrChangingNote() throws {
+        let harness = try makeHarness(gainDecibels: -6)
+        harness.player.begin(.init(normalizedX: 0.4, normalizedY: 1, speed: 0))
+        let closed = try XCTUnwrap(harness.pool.updateRequests.last?.cutoffHz)
+        let note = harness.pool.updateRequests.last?.midiNote
+        for _ in 0..<60 {
+            harness.player.update(.init(normalizedX: 0.4, normalizedY: 0, speed: 0))
+            XCTAssertEqual(harness.pool.updateRequests.last?.midiNote, note)
+        }
+        let open = try XCTUnwrap(harness.pool.updateRequests.last?.cutoffHz)
+        XCTAssertGreaterThan(open, closed * 2)
+        for _ in 0..<60 { harness.player.update(.init(normalizedX: 0.4, normalizedY: 1, speed: 0)) }
+        XCTAssertEqual(try XCTUnwrap(harness.pool.updateRequests.last?.cutoffHz), closed, accuracy: 0.01)
+        XCTAssertEqual(harness.pool.noteOnRequests.count, 1)
+    }
+
     func testBusTargetPreservesExactHardMuteSentinel() {
         XCTAssertEqual(LeadPlayer.busTargetDecibels(for: -60), -60, accuracy: 1e-12)
     }

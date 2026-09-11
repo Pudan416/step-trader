@@ -95,7 +95,8 @@ enum LeadPlanner {
                 portamentoMilliseconds: 165,
                 attackSeconds: 0.065,
                 releaseSeconds: 1.05,
-                cutoffMultiplierRange: 0.42...1.05,
+                // 320–6,400 Hz: a closed bottom and a softer open top.
+                cutoffMultiplierRange: 0.10...2.0,
                 pitchSmoothingMilliseconds: 62,
                 expressionSmoothingMilliseconds: 115,
                 maximumExpressionDepth: 0.18,
@@ -107,7 +108,8 @@ enum LeadPlanner {
                 portamentoMilliseconds: 72,
                 attackSeconds: 0.018,
                 releaseSeconds: 0.72,
-                cutoffMultiplierRange: 0.70...1.55,
+                // 400–12,000 Hz: brighter worlds retain an open top end.
+                cutoffMultiplierRange: 0.125...3.75,
                 pitchSmoothingMilliseconds: 34,
                 expressionSmoothingMilliseconds: 58,
                 maximumExpressionDepth: 0.31,
@@ -119,7 +121,7 @@ enum LeadPlanner {
                 portamentoMilliseconds: 110,
                 attackSeconds: 0.035,
                 releaseSeconds: 0.65,
-                cutoffMultiplierRange: 0.55...1.35,
+                cutoffMultiplierRange: 0.11...2.8,
                 pitchSmoothingMilliseconds: 45,
                 expressionSmoothingMilliseconds: 80,
                 maximumExpressionDepth: 0.25,

@@ -3,6 +3,19 @@ import XCTest
 @testable import Steps4
 
 final class LeadGestureMapperTests: XCTestCase {
+    func testVerticalFilterMidpointIsPerceptuallyHalfwayWithoutChangingPitch() {
+        let plan = makeLeadPlan()
+        var top = LeadGestureMapper(plan: plan)
+        var middle = LeadGestureMapper(plan: plan)
+        var bottom = LeadGestureMapper(plan: plan)
+        let a = top.map(.init(normalizedX: 0.4, normalizedY: 0, speed: 0), chordIndex: 0)
+        let b = middle.map(.init(normalizedX: 0.4, normalizedY: 0.5, speed: 0), chordIndex: 0)
+        let c = bottom.map(.init(normalizedX: 0.4, normalizedY: 1, speed: 0), chordIndex: 0)
+        XCTAssertEqual(b.cutoffMultiplier, sqrt(a.cutoffMultiplier * c.cutoffMultiplier), accuracy: 1e-9)
+        XCTAssertEqual(a.midiNote, b.midiNote)
+        XCTAssertEqual(b.midiNote, c.midiNote)
+    }
+
     func testMapperUsesLeadPlanBoundaryOwnershipForAllTwentyOneRegions() {
         let plan = makeLeadPlan()
         var mapper = LeadGestureMapper(plan: plan)

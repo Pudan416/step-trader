@@ -46,14 +46,17 @@ struct LeadGestureMapper: Sendable {
         } ?? plan.register.lowerBound
 
         let cutoffRange = plan.cutoffMultiplierRange
-        let cutoffTarget = cutoffRange.upperBound
-            - y * (cutoffRange.upperBound - cutoffRange.lowerBound)
-        let cutoff = smoothed(
-            target: cutoffTarget,
-            previous: previousCutoffMultiplier,
+        // Equal travel spans equal octaves. Y=0 is open; Y=1 is closed.
+        // Smooth in log-frequency space as well, avoiding a jump at the dark end.
+        let lowerLog = log(cutoffRange.lowerBound)
+        let upperLog = log(cutoffRange.upperBound)
+        let cutoffLog = smoothed(
+            target: upperLog - y * (upperLog - lowerLog),
+            previous: previousCutoffMultiplier.map { log($0) },
             coefficient: Self.cutoffSmoothing,
-            range: cutoffRange
+            range: lowerLog...upperLog
         )
+        let cutoff = min(max(exp(cutoffLog), cutoffRange.lowerBound), cutoffRange.upperBound)
         previousCutoffMultiplier = cutoff
 
         let speed = sample.speed.isFinite ? max(sample.speed, 0) : 0

@@ -2,6 +2,18 @@ import XCTest
 @testable import Steps4
 
 final class LeadPlannerTests: XCTestCase {
+    func testEveryWorldProvidesAnAudibleClosedToOpenLeadFilterSweep() {
+        for world in DayObjectsSoundWorld.allCases {
+            for mood in DayObjectsSoundMood.allCases {
+                let range = WorldArrangementFixture.plan(world, mood).lead.cutoffMultiplierRange
+                XCTAssertLessThanOrEqual(3_200 * range.lowerBound, 450)
+                XCTAssertGreaterThanOrEqual(3_200 * range.upperBound, 6_000)
+                XCTAssertLessThanOrEqual(3_200 * range.upperBound, 12_000)
+                XCTAssertGreaterThanOrEqual(range.upperBound / range.lowerBound, 16)
+            }
+        }
+    }
+
     func testNativeWorldLeadsChooseFourDistinctCuratedMoodSources() {
         for mood in DayObjectsSoundMood.allCases {
             let plans = DayObjectsSoundWorld.allCases.map { WorldArrangementFixture.plan($0, mood) }
@@ -158,7 +170,7 @@ final class LeadPlannerTests: XCTestCase {
         XCTAssertTrue(plan.cutoffMultiplierRange.lowerBound.isFinite)
         XCTAssertTrue(plan.cutoffMultiplierRange.upperBound.isFinite)
         XCTAssertGreaterThan(plan.cutoffMultiplierRange.lowerBound, 0)
-        XCTAssertLessThanOrEqual(plan.cutoffMultiplierRange.upperBound, 2)
+        XCTAssertLessThanOrEqual(plan.cutoffMultiplierRange.upperBound, 3.75)
         XCTAssertGreaterThan(plan.cutoffMultiplierRange.upperBound, plan.cutoffMultiplierRange.lowerBound)
         XCTAssertTrue(plan.pitchSmoothingMilliseconds.isFinite && plan.pitchSmoothingMilliseconds > 0)
         XCTAssertTrue(plan.expressionSmoothingMilliseconds.isFinite && plan.expressionSmoothingMilliseconds > 0)
