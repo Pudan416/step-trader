@@ -259,6 +259,7 @@ struct SettingsSheet: View {
                 }
             }
         }
+        .tint(theme.accentColor)
     }
 
     // MARK: - Account card

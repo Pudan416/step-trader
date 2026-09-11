@@ -279,14 +279,14 @@ struct SettingsAppearancePage: View {
                     Text(title).font(.geist(.subheadline).weight(.semibold))
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 4)
-                    if selected { Image(systemName: "checkmark.circle.fill").foregroundStyle(AppColors.brandAccent) }
+                    if selected { Image(systemName: "checkmark.circle.fill").foregroundStyle(AppAccentInk.primary, AppColors.brandAccent) }
                 }
             }
             .foregroundStyle(theme.adaptivePrimaryText)
             .padding(12)
             .frame(minWidth: 138, maxWidth: .infinity, alignment: .leading)
             .background(theme.adaptivePrimaryText.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(selected ? AppColors.brandAccent : theme.adaptiveDividerColor, lineWidth: selected ? 2 : 0.5))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(selected ? theme.accentColor : theme.adaptiveDividerColor, lineWidth: selected ? 2 : 0.5))
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
@@ -683,7 +683,7 @@ struct SettingsAppearancePage: View {
                         .font(.geist(.subheadline))
                     Text("Large radial-gradient orbs in seeded choreography")
                         .font(.geist(.caption))
-                        .foregroundStyle(theme.adaptiveSecondaryText)
+                        .foregroundStyle(theme.textSecondary)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")

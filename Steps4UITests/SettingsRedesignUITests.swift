@@ -34,6 +34,7 @@ final class SettingsRedesignUITests: XCTestCase {
         let app = launchSettings(extraArguments: ["ui-testing-me-static-poster"])
         capture(app, name: "Daily palette · Settings")
         openSettingsDestination("settings.destination.appearance", in: app)
+        Thread.sleep(forTimeInterval: 0.5)
         capture(app, name: "Daily palette · Appearance")
         app.navigationBars.buttons.element(boundBy: 0).tap()
         app.buttons["settings.close"].tap()
