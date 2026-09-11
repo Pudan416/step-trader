@@ -89,6 +89,14 @@ final class PaymentTests: XCTestCase {
         XCTAssertNotNil(WidgetUnlockRequest.consume(url, defaults: store), "Invalid links must not consume the actual widget action")
     }
 
+    func testWidgetPreparationDoesNotReloadOverLiveBalance() async {
+        let model = makeModel()
+        await model.prepareLocalPurchaseState()
+        model.stepsBalance = 12
+        await model.prepareLocalPurchaseState()
+        XCTAssertEqual(model.stepsBalance, 12, "Foreground startup must reuse the state already used by the widget action")
+    }
+
     // MARK: - pay()
 
     func testPay_debitsBaseBeforeBonus() {

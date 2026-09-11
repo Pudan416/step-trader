@@ -31,6 +31,7 @@ final class AppModel: ObservableObject {
     let subscriptionStore: SubscriptionStore
 
     private var cancellables = Set<AnyCancellable>()
+    private var localPurchaseStateTask: Task<Void, Never>?
     private var sleepRefetchTask: Task<Void, Never>?
     /// In-flight `recalculateDailyEnergy` Task spawned from the steps/sleep
     /// Combine sink (§3.5). Cancelled on next fire and on `deinit` so a stale
@@ -452,6 +453,28 @@ final class AppModel: ObservableObject {
     }
 
     
+    /// Shared by foreground startup and app-hosted widget actions. A cold widget
+    /// action needs local balances/groups, not a network or HealthKit refresh.
+    /// Reuse the same load so startup cannot overwrite an in-flight purchase.
+    func prepareLocalPurchaseState() async {
+        if let task = localPurchaseStateTask {
+            await task.value
+            return
+        }
+        let task = Task { @MainActor in
+            await self.userEconomyStore.loadAppStepsSpentToday()
+            await self.userEconomyStore.loadAppStepsSpentLifetime()
+            self.blockingStore.loadTicketGroups()
+            self.loadAppUnlockSettings()
+            self.loadDayPassGrants()
+            self.loadDailyEnergyState()
+            self.loadSavedRoutines()
+            self.loadSpentStepsBalance()
+        }
+        localPurchaseStateTask = task
+        await task.value
+    }
+
     func bootstrap(requestPermissions: Bool) async {
         AppLogger.app.debug("🚀 Bootstrapping AppModel...")
         isBootstrapping = true
@@ -460,20 +483,7 @@ final class AppModel: ObservableObject {
         let diagG = UserDefaults.stepsTrader()
         AppLogger.energy.debug("📊 BOOTSTRAP RAW UD: spentStepsToday=\(diagG.integer(forKey: SharedKeys.spentStepsToday)), baseEnergyToday=\(diagG.integer(forKey: SharedKeys.baseEnergyToday)), stepsBalance=\(diagG.integer(forKey: SharedKeys.stepsBalance)), anchor=\(String(describing: diagG.object(forKey: SharedKeys.dailyEnergyAnchor)))")
 
-        // 1. Load data from stores
-        await userEconomyStore.loadAppStepsSpentToday()
-        await userEconomyStore.loadAppStepsSpentLifetime()
-        blockingStore.loadTicketGroups()
-        loadAppUnlockSettings()
-        loadDayPassGrants()
-        
-        // 1.5 Restore daily energy state and spent balance so colors counts persist across restarts
-        loadDailyEnergyState()
-        AppLogger.energy.debug("📊 AFTER loadDailyEnergyState: base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
-
-        loadSavedRoutines()
-        loadSpentStepsBalance()
-        AppLogger.energy.debug("📊 AFTER loadSpentStepsBalance: base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
+        await prepareLocalPurchaseState()
 
         // 1.6 On a genuine fresh install / data loss, restore from Supabase.
         //

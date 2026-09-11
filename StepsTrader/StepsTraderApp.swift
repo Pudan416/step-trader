@@ -228,7 +228,7 @@ private struct StepsTraderProductionRoot: View {
             defaults.set(0, forKey: SharedKeys.dayEndHour)
             defaults.set(0, forKey: SharedKeys.dayEndMinute)
         }
-        _model = StateObject(wrappedValue: DIContainer.shared.makeAppModel())
+        _model = StateObject(wrappedValue: DIContainer.shared.applicationModel)
 
         // Register the MetricKit subscriber early so diagnostics aggregated since
         // the last run (crashes/hangs/exceptions) are delivered and reported.
@@ -685,11 +685,9 @@ private struct StepsTraderProductionRoot: View {
                 return
             }
             SharedKeys.recordWidgetInteraction("unlock completed group=\(group.id) minutes=\(window.minutes) balance=\(model.totalStepsBalance)", source: "app")
-            if let bundle = group.templateApp, UIApplication.shared.applicationState != .background {
-                AppLauncher.open(bundleId: bundle) { success in
-                    SharedKeys.recordWidgetInteraction("target open result=\(success) target=\(bundle)", source: "app")
-                }
-            }
+            // Purchasing time never launches the target. Its card remains the
+            // separate, explicit launch action (including cached URL widgets).
+
         }
     }
 

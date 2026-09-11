@@ -213,7 +213,7 @@ struct NowhereWidgetContent: View {
     private func durationButton(_ window: AccessWindow, group: UnlockEntry.GroupSnapshot, identity: AppGroupIdentity, compact: Bool, dense: Bool) -> some View {
         let cost = TicketGroup.cost(for: window)
         let canAfford = entry.colorsBalance >= cost
-        return Link(destination: WidgetUnlockRequest.url(groupId: group.id, windowRaw: window.rawValue, defaults: SharedKeys.appGroupDefaults())) {
+        return Button(intent: UnlockGroupWidgetIntent(groupId: group.id, window: window)) {
             VStack(spacing: 2) {
                 Text("\(window.minutes) min")
                     .font(.onest(size: compact ? 11 : 13))

@@ -604,6 +604,7 @@
 		A71300000000000000000012 /* DailyInterfacePalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71300000000000000000001 /* DailyInterfacePalette.swift */; };
 		A71300000000000000000013 /* DailyInterfacePalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71300000000000000000001 /* DailyInterfacePalette.swift */; };
 		A71300000000000000000021 /* DailyInterfaceColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71300000000000000000002 /* DailyInterfaceColors.swift */; };
+		FA0111111111111111111101 /* UnlockGroupWidgetIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0111111111111111111102 /* UnlockGroupWidgetIntent.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1261,6 +1262,7 @@
 		A7EDE3C1122147E0986F21D2 /* NowhereLaunchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowhereLaunchView.swift; sourceTree = "<group>"; };
 		A71300000000000000000001 /* DailyInterfacePalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DailyInterfacePalette.swift; path = Shared/DailyInterfacePalette.swift; sourceTree = SOURCE_ROOT; };
 		A71300000000000000000002 /* DailyInterfaceColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DailyInterfaceColors.swift; path = StepsTrader/Theme/DailyInterfaceColors.swift; sourceTree = SOURCE_ROOT; };
+		FA0111111111111111111102 /* UnlockGroupWidgetIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockWidget/UnlockGroupWidgetIntent.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -1824,6 +1826,7 @@
 				2089F0E92E71AE3400ABF5FA /* StepsTraderApp.swift */,
 				A7EDE3C1122147E0986F21D2 /* NowhereLaunchView.swift */,
 				200AC47A2F0C795D0018004E /* TargetResolver.swift */,
+				FA0111111111111111111102 /* UnlockGroupWidgetIntent.swift */,
 				20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */,
 				209424C62E85952D00904A0A /* AppModel.swift */,
 				209424CB2E85952D00904A0A /* AppModel+DailyEnergy.swift */,
@@ -2951,6 +2954,7 @@
 				C5D6E7F8A9B0C1D2E3F4A5B6 /* AppModel+AccessWindow.swift in Sources */,
 				20F5A0032FFF000100000003 /* AutomationUIModels.swift in Sources */,
 				200AC47B2F0C795D0018004E /* TargetResolver.swift in Sources */,
+				FA0111111111111111111101 /* UnlockGroupWidgetIntent.swift in Sources */,
 				20DE0E652F2B78970016EEAE /* AppLogger.swift in Sources */,
 				AC000001300400000000AC01 /* AppConstants.swift in Sources */,
 				40IN00022FFF050000000002 /* ExportCanvasWallpaperIntent.swift in Sources */,
@@ -3661,6 +3665,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader";
 				PRODUCT_MODULE_NAME = Steps4;
 				PRODUCT_NAME = Nowhere;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) NOWHERE_APP";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -3723,6 +3728,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader";
 				PRODUCT_MODULE_NAME = Steps4;
 				PRODUCT_NAME = Nowhere;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) NOWHERE_APP";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
