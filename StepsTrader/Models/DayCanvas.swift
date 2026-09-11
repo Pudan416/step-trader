@@ -109,10 +109,39 @@ struct DayCanvas: Codable {
         self.artworkRecipe = nil
     }
 
-    static func newDailyCanvas(dayKey: String) -> Self {
+    @discardableResult
+    mutating func freezeNativeBackgroundIfNeeded() -> Bool {
+        guard var recipe = artworkRecipe, recipe.isSupported,
+              recipe.backgroundStyle == nil else { return false }
+        recipe.backgroundStyle = recipe.resolvedBackgroundStyle(dayKey: dayKey)
+        artworkRecipe = recipe
+        return true
+    }
+
+    /// Explicit appearance edits update only the canvas selected by the caller.
+    /// Loading or rendering saved artwork never reapplies current preferences.
+    @discardableResult
+    mutating func applyNativeBackground(paletteCategories: Set<ModernPaletteCategory>) -> Bool {
+        guard var recipe = artworkRecipe, recipe.isSupported,
+              !recipe.locks.contains("artwork") else { return false }
+        let background = NativeAtlasRecipe.makeBackgroundStyle(
+            dayKey: dayKey, recipeSeed: UInt64(recipe.seedHex, radix: 16) ?? 0,
+            paletteCategories: paletteCategories
+        )
+        guard recipe.backgroundStyle != background else { return false }
+        recipe.backgroundStyle = background
+        artworkRecipe = recipe
+        lastModified = .now
+        return true
+    }
+
+    static func newDailyCanvas(
+        dayKey: String,
+        paletteCategories: Set<ModernPaletteCategory> = ModernPaletteSelection.all
+    ) -> Self {
         var canvas = Self(dayKey: dayKey)
         canvas.visualStyleRaw = CanvasVisualStyle.editorial.rawValue
-        canvas.artworkRecipe = .make(dayKey: dayKey)
+        canvas.artworkRecipe = .make(dayKey: dayKey, paletteCategories: paletteCategories)
         return canvas
     }
 }

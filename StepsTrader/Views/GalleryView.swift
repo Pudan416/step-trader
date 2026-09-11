@@ -1019,7 +1019,7 @@ struct GalleryView: View {
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: metricOverlay)
         .animation(.easeInOut(duration: 0.35), value: showQuickStartArea)
 
-        let observingCanvas = visualCanvas
+        let syncingCanvas = visualCanvas
         .onAppear {
 #if DEBUG || INTERNAL_BUILD
             _ = musicController.acceptLifecycleEvent(.viewAppeared)
@@ -1051,6 +1051,11 @@ struct GalleryView: View {
         }
         .onChange(of: preferredCanvasVisualStyleRaw) { _, rawValue in
             applyPreferredCanvasVisualStyle(rawValue)
+        }
+
+        let observingCanvas = syncingCanvas
+        .onChange(of: modernPaletteCategoriesRaw) { _, rawValue in
+            applyPreferredNativeBackground(rawValue)
         }
         .onChange(of: dayCanvas.elements.count) { refreshAddHint() }
         .onChange(of: dayCanvas.dayKey) {
@@ -1701,7 +1706,7 @@ struct GalleryView: View {
     // ═══════════════════════════════════════════════════════════
 
     private func makeNewCanvas(dayKey: String) -> DayCanvas {
-        var canvas = preferredCanvasVisualStyle == .editorial ? DayCanvas.newDailyCanvas(dayKey: dayKey) : DayCanvas(dayKey: dayKey)
+        var canvas = preferredCanvasVisualStyle == .editorial ? DayCanvas.newDailyCanvas(dayKey: dayKey, paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw)) : DayCanvas(dayKey: dayKey)
         canvas.visualStyleRaw = preferredCanvasVisualStyle.rawValue
         return canvas
     }
@@ -1730,6 +1735,13 @@ struct GalleryView: View {
             preferredCanvasVisualStyleRaw = style.rawValue
             return (canvas, true)
         }
+    }
+
+    private func applyPreferredNativeBackground(_ rawValue: String) {
+        guard canvasLoaded, dayCanvas.dayKey == todayKey,
+              dayCanvas.applyNativeBackground(paletteCategories: ModernPaletteSelection.decode(rawValue)) else { return }
+        localMutationCounter &+= 1
+        saveCanvasLocally()
     }
 
     private func applyPreferredCanvasVisualStyle(_ rawValue: String) {
@@ -2147,7 +2159,7 @@ struct GalleryView: View {
     /// One complete canvas replacement, persistence operation, and music plan.
     private func remixCanvas() {
         guard canvasLoaded, CanvasFullScreenRemixPresentation.isVisible(in: presentation) else { return }
-        guard let result = remixHistory.commitRemix(canvas: dayCanvas, persist: {
+        guard let result = remixHistory.commitRemix(canvas: dayCanvas, paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw), persist: {
             CanvasStorageService.shared.saveCanvas($0)
         }) else { return }
         withAnimation(.easeInOut(duration: 0.3)) {

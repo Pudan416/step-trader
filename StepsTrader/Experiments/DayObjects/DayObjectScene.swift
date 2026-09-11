@@ -137,7 +137,7 @@ struct DayObjectScene: Equatable {
             motionPlan: motionPlan,
             palette: palette,
             meshGradientStyle: input.nativeAtlasRecipe?.isSupported == true
-                ? .primaryCanvas(seed: UInt64(input.nativeAtlasRecipe!.seedHex, radix: 16) ?? rootSeed, palette: palette)
+                ? input.nativeAtlasRecipe!.resolvedBackgroundStyle(dayKey: input.dayKey)
                 : sceneRecipeV1?.backgroundStyle ?? legacyMeshGradientStyle,
             score: score,
             actors: actors,

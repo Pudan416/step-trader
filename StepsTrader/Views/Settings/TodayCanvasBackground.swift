@@ -46,7 +46,7 @@ struct TodayCanvasAppearance: Equatable {
     }
 
     func canvas(from saved: DayCanvas?) -> DayCanvas {
-        var canvas = saved.flatMap { $0.dayKey == dayKey ? $0 : nil } ?? DayCanvas.newDailyCanvas(dayKey: dayKey)
+        var canvas = saved.flatMap { $0.dayKey == dayKey ? $0 : nil } ?? DayCanvas.newDailyCanvas(dayKey: dayKey, paletteCategories: ModernPaletteSelection.decode(categories))
         canvas.stepsPoints = steps
         canvas.sleepPoints = sleep
         canvas.inkEarned = earned
@@ -104,17 +104,22 @@ struct TodayCanvasUnlockPalette: Equatable {
         let currentCanvas = canvas ?? appearance.canvas(from: nil)
         let colors: [DayObjectRGB]
         if currentCanvas.resolvedVisualStyle == .editorial {
-            let identity = currentCanvas.artworkRecipe?.isSupported == true
-                ? "primary-canvas"
-                : currentCanvas.remixSeed.map { "primary-canvas:remix:\($0)" } ?? "primary-canvas"
-            let seed = CanvasElement.makeSeed(
-                optionId: "dayObjects:\(identity)", dayKey: appearance.dayKey, index: 0
-            )
-            colors = DayObjectPaletteSet.backgroundPalette(
-                rootSeed: seed,
-                categories: ModernPaletteSelection.decode(appearance.categories),
-                dayKey: appearance.dayKey, identity: identity
-            ).hexes.map { DayObjectRGB(hex: $0) }
+            if let recipe = currentCanvas.artworkRecipe, recipe.isSupported {
+                // Feed pigment and chrome follow the same frozen numeric colors
+                // as the native renderer, including locked artwork and Undo.
+                colors = recipe.resolvedBackgroundStyle(dayKey: currentCanvas.dayKey).colors
+                    .map { DayObjectRGB(linearRGB: $0) }
+            } else {
+                let identity = currentCanvas.remixSeed.map { "primary-canvas:remix:\($0)" } ?? "primary-canvas"
+                let seed = CanvasElement.makeSeed(
+                    optionId: "dayObjects:\(identity)", dayKey: appearance.dayKey, index: 0
+                )
+                colors = DayObjectPaletteSet.backgroundPalette(
+                    rootSeed: seed,
+                    categories: ModernPaletteSelection.decode(appearance.categories),
+                    dayKey: appearance.dayKey, identity: identity
+                ).hexes.map { DayObjectRGB(hex: $0) }
+            }
         } else {
             let palette = EnergyGradientRenderer.palette(for: GradientPalette.normalized(
                 rawValue: currentCanvas.gradientPalette ?? appearance.palette

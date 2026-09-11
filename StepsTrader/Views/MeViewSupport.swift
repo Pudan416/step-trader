@@ -1010,7 +1010,7 @@ struct MeSelectedDayPoster: View {
         if isToday { return todayAppearance.canvas(from: loaded) }
         if let loaded { return loaded }
 
-        var canvas = isToday ? DayCanvas.newDailyCanvas(dayKey: dayKey) : DayCanvas(dayKey: dayKey)
+        var canvas = isToday ? DayCanvas.newDailyCanvas(dayKey: dayKey, paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw)) : DayCanvas(dayKey: dayKey)
         canvas.visualStyleRaw = isToday
             ? (CanvasVisualStyle(rawValue: preferredCanvasVisualStyleRaw) ?? .editorial).rawValue
             : CanvasVisualStyle.legacy.rawValue

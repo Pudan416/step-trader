@@ -1,7 +1,7 @@
 import Foundation
 import simd
 
-enum DayObjectMeshGradientArchetype: UInt32, CaseIterable, Equatable {
+enum DayObjectMeshGradientArchetype: UInt32, CaseIterable, Codable, Equatable {
     case drift
     case orbit
     case tide
@@ -12,7 +12,7 @@ enum DayObjectMeshGradientArchetype: UInt32, CaseIterable, Equatable {
 /// The daily background's moving mesh-gradient art direction. A day retains
 /// one curated topology and one direction; continuous values vary inside
 /// bounded ranges so seeds feel related without collapsing into one vortex.
-struct DayObjectMeshGradientStyle: Equatable {
+struct DayObjectMeshGradientStyle: Codable, Equatable {
     let colors: [SIMD3<Float>]
     let archetype: DayObjectMeshGradientArchetype
     let offset: SIMD2<Double>

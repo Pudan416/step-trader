@@ -30,6 +30,9 @@ struct NativeAtlasRecipe: Codable, Equatable {
     var glitchStrength: Float? = nil
     var locks: Set<String> = []
     var actors: [Actor]
+    /// Numeric colors and topology survive palette-catalog and preference changes.
+    /// Optional for recipes saved before backgrounds were frozen.
+    var backgroundStyle: DayObjectMeshGradientStyle? = nil
 
     var isSupported: Bool {
         schemaVersion == 1 && generatorVersion == "atlas-1" && catalogVersion == "2026-09-09"

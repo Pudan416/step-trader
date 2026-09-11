@@ -232,9 +232,10 @@ final class TodayCanvasBackgroundTests: XCTestCase {
         XCTAssertEqual(store.unlockPalette.colors, expected)
         saved.remixSeed = nil
         store.refresh(input, reload: true)
-        XCTAssertEqual(store.feedPalette, TodayCanvasUnlockPalette.make(appearance: input), "Undo must restore the feed pigment immediately")
+        let restoredPalette = TodayCanvasUnlockPalette.make(appearance: input, canvas: input.canvas(from: saved))
+        XCTAssertEqual(store.feedPalette, restoredPalette, "Undo must restore the feed pigment immediately")
         await fulfillment(of: [second], timeout: 2)
-        XCTAssertEqual(store.unlockPalette, TodayCanvasUnlockPalette.make(appearance: input))
+        XCTAssertEqual(store.unlockPalette, restoredPalette)
         withExtendedLifetime(subscription) { }
     }
 
@@ -296,6 +297,27 @@ final class TodayCanvasBackgroundTests: XCTestCase {
         XCTAssertNotEqual(ocean, TodayCanvasUnlockPalette.make(appearance: input))
     }
 
+    func testLockedNativePaletteAndChromeUseSavedBackgroundAfterPreferencesChange() throws {
+        var input = appearance()
+        input.categories = ModernPaletteSelection.encode([.pastel])
+        var saved = DayCanvas.newDailyCanvas(dayKey: input.dayKey, paletteCategories: [.pastel])
+        saved.artworkRecipe?.locks.insert("artwork")
+        let original = TodayCanvasUnlockPalette.make(appearance: input, canvas: saved)
+        let chrome = CanvasChromePalette.resolve(backgroundColors: original.colors)
+        input.categories = ModernPaletteSelection.encode([.neon])
+        let changed = TodayCanvasUnlockPalette.make(appearance: input, canvas: saved)
+        XCTAssertEqual(changed, original)
+        XCTAssertEqual(CanvasChromePalette.resolve(backgroundColors: changed.colors), chrome)
+        let background = try XCTUnwrap(saved.artworkRecipe?.backgroundStyle)
+        XCTAssertEqual(changed.colors.count, background.colors.count)
+        for linear in background.colors {
+            XCTAssertTrue(changed.colors.contains { $0.linearRGB == linear }, "Preserve the saved linear color rather than interpreting it as sRGB")
+        }
+        // Undo can also restore an unlocked background from different preferences.
+        saved.artworkRecipe?.locks.remove("artwork")
+        XCTAssertEqual(TodayCanvasUnlockPalette.make(appearance: input, canvas: saved), original)
+    }
+
     func testUnlockPaletteMatchesObjectsCanvasForEachDay() {
         for day in ["2026-09-07", "2026-09-08", "2026-09-09"] {
             let input = appearance(day: day)
@@ -305,7 +327,7 @@ final class TodayCanvasBackgroundTests: XCTestCase {
                 paletteCategories: ModernPaletteSelection.all
             ).sceneInput
             let scene = DayObjectScene.make(input: sceneInput)
-            let expected = scene.paletteSet.background.hexes.map { DayObjectRGB(hex: $0) }
+            let expected = scene.meshGradientStyle.colors.map { DayObjectRGB(linearRGB: $0) }
                 .sorted { $0.perceptualOKLab.x > $1.perceptualOKLab.x }
             XCTAssertEqual(TodayCanvasUnlockPalette.make(appearance: input).colors, expected)
         }

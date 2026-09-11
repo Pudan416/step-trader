@@ -31,7 +31,7 @@ struct DayObjectRGB: Equatable {
         )
     }
 
-    private init(linearRGB: SIMD3<Float>) {
+    init(linearRGB: SIMD3<Float>) {
         self.linearRGB = Self.clampedFinite(linearRGB)
         sRGB = SIMD3(
             Self.sRGBComponent(self.linearRGB.x),

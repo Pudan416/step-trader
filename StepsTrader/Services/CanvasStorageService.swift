@@ -47,6 +47,8 @@ final class CanvasStorageService {
 
     @discardableResult
     func saveCanvas(_ canvas: DayCanvas) -> Bool {
+        var canvas = canvas
+        canvas.freezeNativeBackgroundIfNeeded()
         let url = canvasFileURL(for: canvas.dayKey)
         do {
             let data = try JSONEncoder().encode(canvas)
@@ -62,17 +64,35 @@ final class CanvasStorageService {
     func loadCanvas(for dayKey: String) -> DayCanvas? {
         let url = canvasFileURL(for: dayKey)
         guard let data = try? Data(contentsOf: url),
-              let canvas = try? JSONDecoder().decode(DayCanvas.self, from: data) else {
+              var canvas = try? JSONDecoder().decode(DayCanvas.self, from: data) else {
             return nil
         }
+        if canvas.freezeNativeBackgroundIfNeeded() {
+            // Freeze the stable fallback once, without altering timestamps or
+            // creating recipes for Legacy/unknown-version artwork.
+            saveCanvas(canvas)
+        }
         return canvas
+    }
+
+    /// Called by explicit Appearance Apply even if Gallery has never appeared.
+    /// Only today's supplied key is touched; archived and locked recipes remain frozen.
+    func updateNativeBackground(for dayKey: String, paletteCategories: Set<ModernPaletteCategory>) {
+        guard var canvas = loadCanvas(for: dayKey),
+              canvas.applyNativeBackground(paletteCategories: paletteCategories) else { return }
+        saveCanvas(canvas)
     }
 
     func loadOrCreateCanvas(for dayKey: String) -> DayCanvas {
         if let existing = loadCanvas(for: dayKey) {
             return existing
         }
-        let canvas = DayCanvas.newDailyCanvas(dayKey: dayKey)
+        let canvas = DayCanvas.newDailyCanvas(
+            dayKey: dayKey,
+            paletteCategories: ModernPaletteSelection.decode(
+                UserDefaults.standard.string(forKey: SharedKeys.modernPaletteCategories) ?? ""
+            )
+        )
         saveCanvas(canvas)
         return canvas
     }

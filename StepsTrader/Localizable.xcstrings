@@ -1,6 +1,312 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Band shifts": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Band shifts"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сдвиги полос"
+          }
+        }
+      }
+    },
+    "Color separation": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color separation"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Расслоение цвета"
+          }
+        }
+      }
+    },
+    "Pixel fragments": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pixel fragments"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пиксельные фрагменты"
+          }
+        }
+      }
+    },
+    "Wave": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wave"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Волна"
+          }
+        }
+      }
+    },
+    "Repeated contours": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Repeated contours"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Повторные контуры"
+          }
+        }
+      }
+    },
+    "Transparent blending": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transparent blending"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прозрачное смешивание"
+          }
+        }
+      }
+    },
+    "Luminous seam": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luminous seam"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Светящийся шов"
+          }
+        }
+      }
+    },
+    "Overlay": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overlay"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Наложение"
+          }
+        }
+      }
+    },
+    "Use colors spent": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use colors spent"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сила по расходу красок"
+          }
+        }
+      }
+    },
+    "Digital trace": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digital trace"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цифровой след"
+          }
+        }
+      }
+    },
+    "Based on colors spent": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Based on colors spent"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По расходу красок"
+          }
+        }
+      }
+    },
+    "Strength: %lld / 100": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strength: %lld / 100"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сила: %lld / 100"
+          }
+        }
+      }
+    },
+    "Trace strength": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trace strength"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сила глитча"
+          }
+        }
+      }
+    },
+    "Intersections": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intersections"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пересечения"
+          }
+        }
+      }
+    },
+    "Intersection strength": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intersection strength"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сила пересечений"
+          }
+        }
+      }
+    },
+    "Lock effects": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lock effects"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрепить эффекты"
+          }
+        }
+      }
+    },
+    "Lock artwork": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lock artwork"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрепить картину"
+          }
+        }
+      }
+    },
     "Hold a widget → Edit Widget → choose up to three groups." : {
       "extractionState": "manual",
       "localizations": {

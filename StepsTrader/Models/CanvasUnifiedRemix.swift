@@ -41,6 +41,7 @@ enum CanvasUnifiedRemix {
     static func next(
         canvas: DayCanvas,
         allowedShapes: [CanvasShapeType] = CanvasShapeType.allowedByUser,
+        paletteCategories: Set<ModernPaletteCategory> = ModernPaletteSelection.all,
         at date: Date = .now
     ) -> CanvasUnifiedRemixResult {
         let seed = canvas.resolvedRemixSeed &+ 1
@@ -58,7 +59,7 @@ enum CanvasUnifiedRemix {
             ),
             remixSeed: seed, allowedShapes: allowedShapes, at: date
         )
-        next.artworkRecipe = canvas.artworkRecipe?.remixed(seedKey: String(seed))
+        next.artworkRecipe = canvas.artworkRecipe?.remixed(seedKey: String(seed), dayKey: canvas.dayKey, paletteCategories: paletteCategories)
             .reconciled(eventIDs: next.elements.map { $0.id.uuidString.lowercased() })
         var style = SeededRNG.derived(from: seed, domain: "canvas.background.style")
         var palette = SeededRNG.derived(from: seed, domain: "canvas.background.palette")
@@ -102,11 +103,12 @@ struct CanvasRemixHistory {
     mutating func commitRemix(
         canvas: DayCanvas,
         allowedShapes: [CanvasShapeType] = CanvasShapeType.allowedByUser,
+        paletteCategories: Set<ModernPaletteCategory> = ModernPaletteSelection.all,
         at date: Date = .now,
         persist: (DayCanvas) -> Bool
     ) -> CanvasUnifiedRemixResult? {
         var candidate = self
-        let result = candidate.remix(canvas: canvas, allowedShapes: allowedShapes, at: date)
+        let result = candidate.remix(canvas: canvas, allowedShapes: allowedShapes, paletteCategories: paletteCategories, at: date)
         guard persist(result.canvas) else { return nil }
         self = candidate
         return result
@@ -129,10 +131,11 @@ struct CanvasRemixHistory {
     mutating func remix(
         canvas: DayCanvas,
         allowedShapes: [CanvasShapeType] = CanvasShapeType.allowedByUser,
+        paletteCategories: Set<ModernPaletteCategory> = ModernPaletteSelection.all,
         at date: Date = .now
     ) -> CanvasUnifiedRemixResult {
         if snapshots.last?.dayKey != canvas.dayKey { snapshots.removeAll() }
-        let result = CanvasUnifiedRemix.next(canvas: canvas, allowedShapes: allowedShapes, at: date)
+        let result = CanvasUnifiedRemix.next(canvas: canvas, allowedShapes: allowedShapes, paletteCategories: paletteCategories, at: date)
         snapshots.append(result.previous)
         if snapshots.count > 10 { snapshots.removeFirst(snapshots.count - 10) }
         return result

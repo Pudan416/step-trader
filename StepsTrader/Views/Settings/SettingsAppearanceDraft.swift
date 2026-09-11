@@ -57,6 +57,10 @@ struct SettingsAppearanceDraft: Equatable {
     }
 
     func apply(to defaults: UserDefaults = .standard, shared: UserDefaults?, dayKey: String) {
+        let selectedCategories = ModernPaletteSelection.decode(categories)
+        let categoriesChanged = selectedCategories != ModernPaletteSelection.decode(
+            defaults.string(forKey: SharedKeys.modernPaletteCategories) ?? ""
+        )
         let values: [String: Any] = [
             "appTheme": interfaceTheme,
             SharedKeys.gradientStyle: style, SharedKeys.gradientPalette: palette,
@@ -70,6 +74,9 @@ struct SettingsAppearanceDraft: Equatable {
         for (key, value) in values {
             defaults.set(value, forKey: key)
             shared?.set(value, forKey: key)
+        }
+        if categoriesChanged {
+            CanvasStorageService.shared.updateNativeBackground(for: dayKey, paletteCategories: selectedCategories)
         }
         if automatic {
             defaults.set(dayKey, forKey: SharedKeys.dailyRandomThemeLastRolledKey)

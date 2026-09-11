@@ -12,6 +12,13 @@ struct CanvasEditingDock: View {
     var nativeRecipe: Binding<NativeAtlasRecipe?>? = nil
     var automaticTraceStrength: Float = 0
 
+    private let traceTitles: [LocalizedStringKey] = [
+        "Band shifts", "Color separation", "Pixel fragments", "Wave", "Repeated contours"
+    ]
+    private let intersectionTitles: [LocalizedStringKey] = [
+        "Transparent blending", "Luminous seam", "Overlay"
+    ]
+
     private var ink: Color { AppColors.Night.textPrimary }
 
     var body: some View {
@@ -41,28 +48,34 @@ struct CanvasEditingDock: View {
     private func nativeControls(_ binding: Binding<NativeAtlasRecipe?>) -> some View {
         VStack(spacing: 10) {
             Menu {
-                ForEach(Array(["Сдвиги полос", "Расслоение цвета", "Пиксельные фрагменты", "Волна", "Повторные контуры"].enumerated()), id: \.offset) { index, title in
+                ForEach(Array(traceTitles.enumerated()), id: \.offset) { index, title in
                     Button(title) { binding.wrappedValue?.glitchType = index }
                 }
-                Button("Сила по расходу красок") { binding.wrappedValue?.glitchStrength = nil }
-            } label: { Label("Цифровой след", systemImage: "waveform.path") }
-            Text(binding.wrappedValue?.glitchStrength == nil ? "По расходу красок" : "Сила: \(Int((binding.wrappedValue?.glitchStrength ?? 0) * 100)) / 100")
-                .font(.caption)
+                Button("Use colors spent") { binding.wrappedValue?.glitchStrength = nil }
+            } label: { Label("Digital trace", systemImage: "waveform.path") }
+            Group {
+                if let strength = binding.wrappedValue?.glitchStrength {
+                    Text("Strength: \(Int(strength * 100)) / 100")
+                } else {
+                    Text("Based on colors spent")
+                }
+            }
+            .font(.caption)
             Slider(value: Binding(get: { Double(binding.wrappedValue?.glitchStrength ?? automaticTraceStrength) * 100 }, set: { binding.wrappedValue?.glitchStrength = Float($0 / 100) }), in: 0...100) {
-                Text("Сила глитча")
+                Text("Trace strength")
             }
             Menu {
-                ForEach(Array(["Прозрачное смешивание", "Светящийся шов", "Наложение"].enumerated()), id: \.offset) { index, title in
+                ForEach(Array(intersectionTitles.enumerated()), id: \.offset) { index, title in
                     Button(title) { binding.wrappedValue?.intersectionType = index }
                 }
-            } label: { Label("Пересечения", systemImage: "square.on.square") }
+            } label: { Label("Intersections", systemImage: "square.on.square") }
             Slider(value: Binding(get: { Double(binding.wrappedValue?.intersectionStrength ?? 0) * 100 }, set: { binding.wrappedValue?.intersectionStrength = Float($0 / 100) }), in: 0...100) {
-                Text("Сила пересечений")
+                Text("Intersection strength")
             }
-            Toggle("Закрепить эффекты", isOn: Binding(get: { binding.wrappedValue?.locks.contains("effects") == true }, set: { value in
+            Toggle("Lock effects", isOn: Binding(get: { binding.wrappedValue?.locks.contains("effects") == true }, set: { value in
                 if value { binding.wrappedValue?.locks.insert("effects") } else { binding.wrappedValue?.locks.remove("effects") }
             }))
-            Toggle("Закрепить картину", isOn: Binding(get: { binding.wrappedValue?.locks.contains("artwork") == true }, set: { value in
+            Toggle("Lock artwork", isOn: Binding(get: { binding.wrappedValue?.locks.contains("artwork") == true }, set: { value in
                 if value { binding.wrappedValue?.locks.insert("artwork") } else { binding.wrappedValue?.locks.remove("artwork") }
             }))
         }

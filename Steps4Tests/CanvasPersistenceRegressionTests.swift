@@ -724,6 +724,126 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
     }
 }
 final class NativeAtlasRecipeTests: XCTestCase {
+    func testNewNativeCanvasCapturesChosenPalette() throws {
+        let pastel = DayCanvas.newDailyCanvas(dayKey: "2026-09-10", paletteCategories: [.pastel])
+        let neon = DayCanvas.newDailyCanvas(dayKey: "2026-09-10", paletteCategories: [.neon])
+        let pastelStyle = try XCTUnwrap(pastel.artworkRecipe?.backgroundStyle)
+        let neonStyle = try XCTUnwrap(neon.artworkRecipe?.backgroundStyle)
+        XCTAssertNotEqual(pastelStyle.colors, neonStyle.colors)
+        let decoded = try JSONDecoder().decode(DayCanvas.self, from: JSONEncoder().encode(pastel))
+        let input = EditorialCanvasInputFactory.make(
+            canvas: decoded,
+            metrics: .init(stepsProgress: 0.5, sleepProgress: 0.8, spentProgress: 0),
+            paletteCategories: [.neon]
+        )
+        XCTAssertEqual(DayObjectScene.make(input: input.sceneInput).meshGradientStyle, pastelStyle)
+    }
+
+    func testAppearanceApplyPersistsTodaysNativeBackgroundWithoutGallery() throws {
+        let suite = "NativeAppearanceApply.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let today = "appearance-today-\(UUID().uuidString)"
+        let archive = "appearance-archive-\(UUID().uuidString)"
+        let storage = CanvasStorageService.shared
+        defer {
+            defaults.removePersistentDomain(forName: suite)
+            storage.deleteCanvas(for: today)
+            storage.deleteCanvas(for: archive)
+        }
+        let original = DayCanvas.newDailyCanvas(dayKey: today, paletteCategories: [.pastel])
+        let archived = DayCanvas.newDailyCanvas(dayKey: archive, paletteCategories: [.pastel])
+        XCTAssertTrue(storage.saveCanvas(original))
+        XCTAssertTrue(storage.saveCanvas(archived))
+        var draft = SettingsAppearanceDraft.load(from: defaults)
+        draft.categories = ModernPaletteSelection.encode([.neon])
+        // This path runs with no Gallery view, and must update the saved recipe.
+        draft.apply(to: defaults, shared: nil, dayKey: today)
+        var updated = try XCTUnwrap(storage.loadCanvas(for: today))
+        let recipe = try XCTUnwrap(updated.artworkRecipe)
+        XCTAssertEqual(recipe.backgroundStyle, NativeAtlasRecipe.makeBackgroundStyle(
+            dayKey: today, recipeSeed: UInt64(recipe.seedHex, radix: 16) ?? 0, paletteCategories: [.neon]))
+        XCTAssertNotEqual(recipe.backgroundStyle, original.artworkRecipe?.backgroundStyle)
+        let unchangedArchive = try XCTUnwrap(storage.loadCanvas(for: archive))
+        XCTAssertEqual(unchangedArchive.artworkRecipe, archived.artworkRecipe)
+        XCTAssertEqual(unchangedArchive.lastModified, archived.lastModified)
+
+        updated.artworkRecipe?.locks.insert("artwork")
+        XCTAssertTrue(storage.saveCanvas(updated))
+        draft.categories = ModernPaletteSelection.encode([.winter])
+        draft.apply(to: defaults, shared: nil, dayKey: today)
+        let locked = try XCTUnwrap(storage.loadCanvas(for: today))
+        XCTAssertEqual(locked.artworkRecipe, updated.artworkRecipe)
+        XCTAssertEqual(locked.lastModified, updated.lastModified)
+    }
+
+    func testNativeBackgroundMigrationPreservesDefaultAppearanceAndTimestamps() throws {
+        var canvas = DayCanvas.newDailyCanvas(dayKey: "2026-09-10")
+        let style = try XCTUnwrap(canvas.artworkRecipe?.backgroundStyle)
+        let modified = canvas.lastModified
+        canvas.artworkRecipe?.backgroundStyle = nil
+        XCTAssertTrue(canvas.freezeNativeBackgroundIfNeeded())
+        XCTAssertEqual(canvas.artworkRecipe?.backgroundStyle, style)
+        XCTAssertEqual(canvas.lastModified, modified)
+        XCTAssertFalse(canvas.freezeNativeBackgroundIfNeeded())
+
+        canvas.artworkRecipe?.schemaVersion = 99
+        canvas.artworkRecipe?.backgroundStyle = nil
+        XCTAssertFalse(canvas.freezeNativeBackgroundIfNeeded())
+        XCTAssertNil(canvas.artworkRecipe?.backgroundStyle)
+        var legacy = DayCanvas(dayKey: canvas.dayKey)
+        XCTAssertFalse(legacy.freezeNativeBackgroundIfNeeded())
+        XCTAssertNil(legacy.artworkRecipe)
+    }
+
+    func testUnifiedNativeRemixAndUndoPreserveBackgroundOwnership() throws {
+        var canvas = DayCanvas.newDailyCanvas(dayKey: "2026-09-10", paletteCategories: [.pastel])
+        let original = try XCTUnwrap(canvas.artworkRecipe?.backgroundStyle)
+        var history = CanvasRemixHistory()
+        let remix = history.remix(canvas: canvas, paletteCategories: [.neon])
+        XCTAssertNotEqual(remix.canvas.artworkRecipe?.backgroundStyle?.colors, original.colors)
+        let restored = try XCTUnwrap(history.undo(into: remix.canvas))
+        XCTAssertEqual(restored.artworkRecipe?.backgroundStyle, original)
+
+        canvas.artworkRecipe?.locks.insert("artwork")
+        let locked = history.remix(canvas: canvas, paletteCategories: [.neon])
+        XCTAssertEqual(locked.canvas.artworkRecipe?.backgroundStyle, original)
+    }
+
+    func testArchivedNativeBackgroundIgnoresLaterPalettePreferences() throws {
+        let original = DayCanvas.newDailyCanvas(dayKey: "2026-09-10")
+        let decoded = try JSONDecoder().decode(DayCanvas.self, from: JSONEncoder().encode(original))
+        func style(_ categories: Set<ModernPaletteCategory>) -> DayObjectMeshGradientStyle {
+            let input = EditorialCanvasInputFactory.make(
+                canvas: decoded,
+                metrics: .init(stepsProgress: 0.5, sleepProgress: 0.8, spentProgress: 0),
+                paletteCategories: categories
+            )
+            return DayObjectScene.make(input: input.sceneInput).meshGradientStyle
+        }
+        XCTAssertEqual(style(ModernPaletteSelection.all), style([.neon]),
+                       "Changing today's preferences must not recolor an archived native canvas")
+    }
+
+    func testRecipeWithoutFrozenBackgroundDecodesAndUsesStableFallback() throws {
+        let original = DayCanvas.newDailyCanvas(dayKey: "2026-09-10")
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any])
+        var recipe = try XCTUnwrap(json["artworkRecipe"] as? [String: Any])
+        recipe.removeValue(forKey: "backgroundStyle")
+        json["artworkRecipe"] = recipe
+        let decoded = try JSONDecoder().decode(DayCanvas.self, from: JSONSerialization.data(withJSONObject: json))
+        func style(_ categories: Set<ModernPaletteCategory>) -> DayObjectMeshGradientStyle {
+            let input = EditorialCanvasInputFactory.make(
+                canvas: decoded,
+                metrics: .init(stepsProgress: 0.5, sleepProgress: 0.8, spentProgress: 0),
+                paletteCategories: categories
+            )
+            return DayObjectScene.make(input: input.sceneInput).meshGradientStyle
+        }
+        XCTAssertNotNil(decoded.artworkRecipe)
+        XCTAssertEqual(style(ModernPaletteSelection.all), style([.pastel]),
+                       "Old recipes have no saved palette, so their fallback must not follow current settings")
+    }
+
     func testInterfaceThemeHonorsDayNightAndSystemWithoutChangingCanvas() {
         XCTAssertTrue(AppTheme.normalized(rawValue: "daylight").isLight(in: .dark))
         XCTAssertFalse(AppTheme.normalized(rawValue: "night").isLight(in: .light))
