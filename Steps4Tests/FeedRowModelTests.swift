@@ -123,14 +123,11 @@ final class FeedRowModelTests: XCTestCase {
 
     // MARK: - Ticket shape
 
-    func testTicketShapeUsesAFullHeightRoundedCap() {
+    func testTicketShapeLeavesSpaceAroundContentWithModestCorners() {
         let bounds = CGRect(x: 0, y: 0, width: 320, height: 82)
         let path = FeedTicketShape().path(in: bounds)
 
-        XCTAssertFalse(
-            path.contains(CGPoint(x: 10, y: 10)),
-            "A full-height cap must cut farther into the corner than the old rounded rectangle"
-        )
+        XCTAssertTrue(path.contains(CGPoint(x: 10, y: 10)), "Card corners should leave breathing room around the header")
         XCTAssertTrue(path.contains(CGPoint(x: 4, y: 41)))
     }
 
@@ -257,20 +254,25 @@ final class FeedPigmentTests: XCTestCase {
             gradient: GradientStyle.radial.rawValue, palette: GradientPalette.warmSunset.rawValue,
             texture: CanvasTexture.grainSmall.rawValue, categories: "")
         store.refresh(appearance)
-        for (width, textSize, label) in [(390.0, DynamicTypeSize.large, "standard"),
+        for (width, textSize, label) in [(390.0, DynamicTypeSize.large, "locked"),
+                                        (390.0, .large, "standard"),
                                         (320.0, .xxxLarge, "narrow-large"),
                                         (320.0, .accessibility3, "accessibility") ] {
-            let content = VStack(spacing: 12) {
-                row("Instagram", state: .active(remainingMinutes: 10, fillFraction: 1), model: model, backdrop: store)
-                row("YouTube", state: .active(remainingMinutes: 22, fillFraction: 22.0 / 30), model: model, backdrop: store)
-                row("TikTok", state: .locked, model: model, backdrop: store)
+            let locked = label == "locked"
+            model.stepsBalance = locked ? 17 : 48
+            let chrome = locked ? CanvasChromePalette.resolve(backgroundColors: [DayObjectRGB(hex: "#78966B")]) : store.chromePalette
+            let content = VStack(spacing: 20) {
+                row("Instagram", state: locked ? .locked : .active(remainingMinutes: 10, fillFraction: 1), model: model, backdrop: store, expanded: false)
+                row("YouTube", state: locked ? .locked : .active(remainingMinutes: 22, fillFraction: 22.0 / 30), model: model, backdrop: store, expanded: locked)
+                row("TikTok", state: .locked, model: model, backdrop: store, expanded: !locked)
             }
             .padding(20)
             .frame(width: width)
-            .background(LinearGradient(colors: [Color(red: 0.55, green: 0.35, blue: 0.37), Color(red: 0.85, green: 0.55, blue: 0.45)],
+            .background(LinearGradient(colors: locked ? [Color(red: 0.85, green: 0.89, blue: 0.81)] : [Color(red: 0.55, green: 0.35, blue: 0.37), Color(red: 0.85, green: 0.55, blue: 0.45)],
                                        startPoint: .topLeading, endPoint: .bottomTrailing))
             .environment(\.dynamicTypeSize, textSize)
             .environment(\.appTheme, .night)
+            .environment(\.canvasChromePalette, chrome)
             .preferredColorScheme(.dark)
             let host = UIHostingController(rootView: content)
             host.safeAreaRegions = []
@@ -295,10 +297,10 @@ final class FeedPigmentTests: XCTestCase {
         }
     }
 
-    private func row(_ name: String, state: FeedRowAccessState, model: AppModel, backdrop: TodayCanvasBackdropStore) -> some View {
+    private func row(_ name: String, state: FeedRowAccessState, model: AppModel, backdrop: TodayCanvasBackdropStore, expanded: Bool) -> some View {
         FeedRowView(model: model,
                     group: TicketGroup(id: name, name: name, settings: .init(entryCostSteps: 10, dayPassCostSteps: 100)),
-                    accessState: state, canOpen: true, showsUnlockOptions: state == .locked,
+                    accessState: state, canOpen: true, showsUnlockOptions: expanded,
                     onTap: {}, onSettings: {}, onDelete: {}, onPurchased: {}, backdrop: backdrop)
     }
 

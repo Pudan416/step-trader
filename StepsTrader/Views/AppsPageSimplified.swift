@@ -45,6 +45,7 @@ enum TicketsPalette {
 struct AppsPageSimplified: View {
     @ObservedObject var model: AppModel
     @Environment(\.appTheme) private var theme
+    @Environment(\.canvasChromePalette) private var palette
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.tabBarHeight) private var tabBarHeight
     @Environment(\.scenePhase) private var scenePhase
@@ -64,7 +65,7 @@ struct AppsPageSimplified: View {
     /// common transition in the app — shows the current number immediately.
     @State private var unspentMinutes: [String: Int] = [:]
     /// Purchased size of each active window. Together with `unspentMinutes`
-    /// this determines how much yellow remains in the row.
+    /// this determines how much pigment remains in the row.
     @State private var initialMinutes: [String: Int] = [:]
 
     private var buttonTint: Color { theme.textPrimary }
@@ -97,12 +98,12 @@ struct AppsPageSimplified: View {
                         } label: {
                             Image(systemName: "plus")
                                 .font(.geist(size: 17, weight: .regular))
-                                .foregroundStyle(AppColors.Night.textPrimary)
+                                .foregroundStyle(palette.textColor)
                                 .frame(
                                     width: FeedCardLayout.addControlDiameter,
                                     height: FeedCardLayout.addControlDiameter
                                 )
-                                .smokedCanvasControl(in: Circle())
+                                .canvasChromeSurface(in: Circle())
                         }
                         #if DEBUG
                         .coachMarkAnchor(.unlockSuccess)
@@ -255,7 +256,7 @@ struct AppsPageSimplified: View {
         GeometryReader { viewport in
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 12) {
+                    LazyVStack(spacing: 20) {
                         ForEach(visibleGroups) { group in
                             let state = FeedRowModel.accessState(
                                 remainingMinutes: unspentMinutes[group.id] ?? 0,
@@ -346,7 +347,7 @@ struct AppsPageSimplified: View {
         VStack(spacing: 16) {
             Image(systemName: "rectangle.stack.badge.plus")
                 .font(.geist(size: 34, weight: .light))
-                .foregroundStyle(theme.accentColor)
+                .foregroundStyle(theme.isLightTheme ? palette.surfaceColor : palette.accentColor)
                 .frame(width: 72, height: 72)
                 .background(Circle().fill(Color.white.opacity(0.1)))
 
@@ -362,10 +363,10 @@ struct AppsPageSimplified: View {
             Button(action: attemptCreateGroup) {
                 Label(String(localized: "Add a feed"), systemImage: "plus")
                     .font(.geist(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color.black.opacity(0.82))
+                    .foregroundStyle(palette.onAccentColor)
                     .padding(.horizontal, 22)
                     .frame(height: 50)
-                    .background(Capsule().fill(AppColors.brandAccent))
+                    .background(Capsule().fill(palette.accentColor))
             }
             .buttonStyle(.plain)
         }

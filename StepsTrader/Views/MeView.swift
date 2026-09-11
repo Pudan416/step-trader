@@ -8,6 +8,7 @@ struct MeView: View {
     var onOpenSettings: () -> Void = {}
     @ObservedObject private var authService = AuthenticationService.shared
     @Environment(\.appTheme) private var theme
+    @Environment(\.canvasChromePalette) private var palette
     @Environment(\.renderingIsActive) private var renderingIsActive
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.tabBarHeight) private var tabBarHeight
@@ -268,7 +269,7 @@ struct MeView: View {
                     Text(trend)
                         .font(.geist(.subheadline).weight(.semibold))
                         .monospacedDigit()
-                        .foregroundStyle(theme.accentColor.opacity(0.9))
+                        .foregroundStyle((theme.isLightTheme ? palette.surfaceColor : palette.accentColor).opacity(0.9))
                     Text(String(localized: "vs last week", comment: "MeView – comparison period"))
                         .font(.geist(.caption2))
                         .foregroundStyle(theme.textSecondary)
@@ -307,7 +308,7 @@ struct MeView: View {
             } label: {
                 Text(userName)
                     .font(greetingFont.weight(.semibold))
-                    .foregroundStyle(theme.isLightTheme ? Color.black : AppColors.brandAccent)
+                    .foregroundStyle(theme.isLightTheme ? Color.black : palette.accentColor)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(String(localized: "Profile, \(userName). Double tap to edit.", comment: "MeView – profile pill VoiceOver label"))

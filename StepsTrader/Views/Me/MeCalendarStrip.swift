@@ -125,6 +125,7 @@ struct MeCalendarStrip: View {
     let onOpenArchive: () -> Void
 
     @Environment(\.appTheme) private var theme
+    @Environment(\.canvasChromePalette) private var palette
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.displayScale) private var displayScale
 
@@ -183,9 +184,12 @@ struct MeCalendarStrip: View {
                         .frame(width: tileWidth, height: tileHeight)
                         .clipShape(shape)
                         .overlay {
+                            if isSelected {
+                                shape.strokeBorder(palette.surfaceColor, lineWidth: border.lineWidth + 2)
+                            }
                             shape.strokeBorder(
                                 isSelected
-                                    ? AppColors.brandAccent.opacity(border.opacity)
+                                    ? palette.accentColor.opacity(border.opacity)
                                     : theme.textPrimary.opacity(border.opacity),
                                 lineWidth: border.lineWidth
                             )
@@ -232,7 +236,7 @@ struct MeCalendarStrip: View {
                     .font(.geist(.caption2).weight(.semibold))
             }
             .font(.geist(.subheadline).weight(.medium))
-            .foregroundStyle(theme.accentColor)
+            .foregroundStyle((theme.isLightTheme ? palette.surfaceColor : palette.accentColor))
             .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
@@ -263,6 +267,7 @@ struct DayHistoryTile: View {
     let onTap: () -> Void
 
     @Environment(\.appTheme) private var theme
+    @Environment(\.canvasChromePalette) private var palette
     @AppStorage(SharedKeys.modernPaletteCategories)
     private var modernPaletteCategoriesRaw = ""
 
@@ -329,7 +334,7 @@ struct DayHistoryTile: View {
             VStack(spacing: 4) {
                 Text(weekdayLabel)
                     .font(.geist(.caption2).weight(isSelected ? .bold : .medium))
-                    .foregroundStyle(isSelected ? AppColors.brandAccent : AppColors.Night.textPrimary)
+                    .foregroundStyle(isSelected ? palette.accentColor : AppColors.Night.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
 
@@ -338,7 +343,7 @@ struct DayHistoryTile: View {
                 Text(dayNumber)
                     .font(.unbounded(18, weight: .medium, relativeTo: .title3))
                     .fontDesign(nil)
-                    .foregroundStyle(isSelected ? AppColors.brandAccent : AppColors.Night.textPrimary)
+                    .foregroundStyle(isSelected ? palette.accentColor : AppColors.Night.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.62)
             }
@@ -412,6 +417,7 @@ struct MeFullCalendarView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
+    @Environment(\.canvasChromePalette) private var palette
 
     @State private var visibleMonth: Date
     @State private var selectedDayKey: String?
@@ -615,7 +621,7 @@ struct MeFullCalendarView: View {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(
                         isToday
-                            ? theme.accentColor.opacity(0.18)
+                            ? (theme.isLightTheme ? palette.surfaceColor : palette.accentColor).opacity(0.18)
                             : theme.textPrimary.opacity(isTracked ? 0.07 : 0.025)
                     )
 
@@ -625,13 +631,13 @@ struct MeFullCalendarView: View {
                     .monospacedDigit()
                     .foregroundStyle(
                         isToday
-                            ? theme.accentColor
+                            ? (theme.isLightTheme ? palette.surfaceColor : palette.accentColor)
                             : theme.textPrimary.opacity(isFuture ? 0.25 : 0.85)
                     )
 
                 if isTracked {
                     Circle()
-                        .fill(theme.accentColor.opacity(0.9))
+                        .fill((theme.isLightTheme ? palette.surfaceColor : palette.accentColor).opacity(0.9))
                         .frame(width: 4, height: 4)
                         .padding(.bottom, 6)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -641,7 +647,7 @@ struct MeFullCalendarView: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(
-                        isToday ? theme.accentColor.opacity(0.8) : .clear,
+                        isToday ? (theme.isLightTheme ? palette.surfaceColor : palette.accentColor).opacity(0.8) : .clear,
                         lineWidth: 1
                     )
             )

@@ -67,8 +67,8 @@ enum FeedInlineLayout {
 }
 
 enum FeedCardLayout {
-    static let collapsedHeight: CGFloat = 82
-    static let unlockOptionsHeight: CGFloat = 90
+    static let collapsedHeight: CGFloat = 108
+    static let unlockOptionsHeight: CGFloat = 104
     static let addControlDiameter: CGFloat = 44
     static let optionsControlDiameter: CGFloat = 44
 

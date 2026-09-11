@@ -262,8 +262,10 @@ final class Steps4UITestsLaunchTests: XCTestCase {
             "Archive should read as a lightweight action in the recent-days header, not as a second bar above the tab bar"
         )
 
+        attachScreenshot(named: "me-daily-accent")
         archive.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         XCTAssertTrue(app.staticTexts["Calendar"].waitForExistence(timeout: 3))
+        attachScreenshot(named: "archive-daily-accent")
     }
 
     func testTask7FixRoundOneDefaultScreenshots() throws {
