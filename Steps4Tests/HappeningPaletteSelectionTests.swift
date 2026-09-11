@@ -31,6 +31,24 @@ final class HappeningPaletteSelectionTests: XCTestCase {
         }
     }
 
+    func testExplicitReplacementKeepsTenSlotsAndCancellationRestoresOrder() {
+        let catalog = makeCatalog(counts: Array(repeating: 0, count: 12))
+        let selected = Array(catalog.prefix(10)).map(\.id)
+        var draft = HappeningPaletteSelectionDraft(selected: selected, catalog: catalog, protectedIDs: ["h0"])
+        XCTAssertTrue(draft.replace(id: "h4", with: "h10"))
+        XCTAssertEqual(draft.ids[4], "h10")
+        XCTAssertEqual(draft.ids.count, 10)
+        XCTAssertTrue(draft.canSave)
+        XCTAssertTrue(draft.hasChanges)
+        XCTAssertFalse(draft.replace(id: "h0", with: "h11"))
+        XCTAssertFalse(draft.replace(id: "h1", with: "h2"))
+        XCTAssertFalse(draft.replace(id: "h1", with: "missing"))
+        XCTAssertFalse(draft.replace(id: "missing", with: "h11"))
+        draft.cancel()
+        XCTAssertEqual(draft.ids, selected)
+        XCTAssertFalse(draft.hasChanges)
+    }
+
     func testFirstLoadSeedsBuiltInsInSourceOrder() {
         let store = HappeningPaletteSelectionStore(defaults: defaults)
 

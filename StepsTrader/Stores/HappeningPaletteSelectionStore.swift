@@ -30,6 +30,18 @@ struct HappeningPaletteSelectionDraft {
             && ids.allSatisfy(liveIDs.contains)
     }
 
+    var hasChanges: Bool { ids != originalIDs }
+
+    /// A replacement preserves slot order and count, and cannot evict a Canvas item.
+    @discardableResult
+    mutating func replace(id: String, with replacementID: String) -> Bool {
+        guard let index = ids.firstIndex(of: id),
+              !protectedIDs.contains(id), liveIDs.contains(replacementID),
+              !ids.contains(replacementID) else { return false }
+        ids[index] = replacementID
+        return true
+    }
+
     mutating func toggle(id: String) -> HappeningPaletteSelectionDraftToggleResult {
         guard liveIDs.contains(id) else { return .unavailable }
 

@@ -86,23 +86,35 @@ extension AppModel {
         title: String,
         at date: Date = .now,
         protectedIDs: Set<String> = [],
+        selection: [String]? = nil,
+        replacingID: String? = nil,
         syncCustomHappenings: @escaping ([Happening]) -> Void = { happenings in
             Task { await SupabaseSyncService.shared.syncCustomHappenings(happenings) }
         }
     ) throws -> Happening {
-        guard HappeningPaletteSelection.replacementIndex(
-            in: happeningPaletteSelectionStore.ids,
-            catalog: happeningStore.all,
-            excluding: protectedIDs
-        ) != nil else {
+        let selected = selection ?? happeningPaletteSelectionStore.ids
+        guard selected.count == HappeningPaletteSelection.slotCount,
+              Set(selected).count == HappeningPaletteSelection.slotCount,
+              selected.allSatisfy({ id in happeningStore.all.contains { $0.id == id } }) else {
+            throw HappeningPaletteSelectionError.requiresExactlyTen
+        }
+        // Validate before creating: a rejected edit must not leave an orphan catalog item.
+        let index: Int?
+        if let replacingID {
+            index = protectedIDs.contains(replacingID) ? nil : selected.firstIndex(of: replacingID)
+        } else {
+            index = HappeningPaletteSelection.replacementIndex(
+                in: selected, catalog: happeningStore.all, excluding: protectedIDs
+            )
+        }
+        guard let index,
+              protectedIDs.intersection(happeningPaletteSelectionStore.ids).isSubset(of: Set(selected)) else {
             throw HappeningPaletteSelectionError.noReplaceableSlot
         }
         let happening = createHappening(title: title, at: date)
-        try happeningPaletteSelectionStore.insertReplacingLeastUsed(
-            happening.id,
-            catalog: happeningStore.all,
-            excluding: protectedIDs
-        )
+        var replacement = selected
+        replacement[index] = happening.id
+        try happeningPaletteSelectionStore.save(replacement, catalog: happeningStore.all)
         objectWillChange.send()
         syncCustomHappenings(happeningStore.all)
         return happening

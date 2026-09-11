@@ -107,12 +107,11 @@ struct HappeningPaletteView: View {
     let instruction: HappeningPaletteInstruction?
     let onActivate: (Happening) -> Void
     let onCreate: (String) -> HappeningPaletteCreationOutcome
+    let onCreateReplacement: (String, String, [String]) -> HappeningPaletteCreationOutcome
     let onSaveSelection: ([String]) -> Bool
     let onPanelPresentationChange: (Bool) -> Void
     let onReroll: () -> Void
 
-    @Environment(\.topCardHeight) private var topCardHeight
-    @Environment(\.tabBarHeight) private var tabBarHeight
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(
@@ -128,6 +127,7 @@ struct HappeningPaletteView: View {
         instruction: HappeningPaletteInstruction?,
         onActivate: @escaping (Happening) -> Void,
         onCreate: @escaping (String) -> HappeningPaletteCreationOutcome,
+        onCreateReplacement: @escaping (String, String, [String]) -> HappeningPaletteCreationOutcome = { _, _, _ in .failed },
         onSaveSelection: @escaping ([String]) -> Bool = { _ in true },
         onPanelPresentationChange: @escaping (Bool) -> Void = { _ in },
         onReroll: @escaping () -> Void = {}
@@ -144,6 +144,7 @@ struct HappeningPaletteView: View {
         self.instruction = instruction
         self.onActivate = onActivate
         self.onCreate = onCreate
+        self.onCreateReplacement = onCreateReplacement
         self.onSaveSelection = onSaveSelection
         self.onPanelPresentationChange = onPanelPresentationChange
         self.onReroll = onReroll
@@ -151,17 +152,6 @@ struct HappeningPaletteView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let panelTopInset = proxy.safeAreaInsets.top
-                + HappeningPaletteChromeLayout.panelTopInset(
-                    topCardHeight: topCardHeight,
-                    hidesSurroundingChrome: true
-                )
-            let panelBottomInset = proxy.safeAreaInsets.bottom
-                + HappeningPaletteChromeLayout.panelBottomInset(
-                    tabBarHeight: tabBarHeight,
-                    hidesSurroundingChrome: true
-                )
-            let panelHeight = max(1, proxy.size.height - panelTopInset - panelBottomInset)
             ZStack(alignment: .topLeading) {
                 HappeningShapeField(
                     happenings: happenings,
@@ -185,24 +175,19 @@ struct HappeningPaletteView: View {
                         .accessibilityHidden(activePanel != nil)
                         .allowsHitTesting(false)
                 }
-
-                if let activePanel {
-                    ZStack {
-                        Color.black.opacity(0.24)
-                        Rectangle().fill(.ultraThinMaterial).opacity(0.34)
-                    }
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-                    .transition(.opacity)
-
-                    panel(for: activePanel)
-                        .frame(maxWidth: max(1, proxy.size.width - 40), maxHeight: panelHeight)
-                        .position(x: proxy.size.width / 2, y: panelTopInset + panelHeight / 2)
-                        .transition(.scale(scale: 0.96).combined(with: .opacity))
-                        .zIndex(1)
-                }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+        .sheet(isPresented: Binding(
+            get: { activePanel != nil },
+            set: { if !$0 { activePanel = nil } }
+        )) {
+            if let activePanel {
+                panel(for: activePanel)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+                    .presentationCornerRadius(32)
+            }
         }
         .task {
             guard ProcessInfo.processInfo.environment["TASK7_SHAKE_PALETTE"] == "1" else { return }
@@ -237,7 +222,11 @@ struct HappeningPaletteView: View {
                 catalog: catalog,
                 selected: selectedIDs,
                 protectedIDs: addedIDs,
-                onCreateNew: { activePanel = .creator },
+                onCreateNew: { title, replacementID, selection in
+                    let outcome = onCreateReplacement(title, replacementID, selection)
+                    if outcome.closesCreator { activePanel = nil }
+                    return outcome
+                },
                 onSave: { ids in
                     if onSaveSelection(ids) { activePanel = nil }
                 },

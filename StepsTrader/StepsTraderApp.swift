@@ -207,6 +207,12 @@ private struct StepsTraderProductionRoot: View {
                 for: AppModel.dayKey(for: Date.now)
             )
         }
+        if processArguments.contains("ui-testing-happening-editor"),
+           processArguments.contains("ui-testing-task7") {
+            let defaults = UserDefaults.stepsTrader()
+            defaults.removeObject(forKey: SharedKeys.happeningPaletteSelection)
+            defaults.removeObject(forKey: SharedKeys.happeningCatalog)
+        }
         if ProcessInfo.processInfo.arguments.contains("ui-testing-settings") {
             let appearance = UserDefaults.standard
             appearance.set(CanvasVisualStyle.legacy.rawValue, forKey: SharedKeys.canvasVisualStyle)

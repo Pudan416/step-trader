@@ -639,10 +639,90 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         attachScreenshot(named: "editorial-palette-accessibility5-fixed-rows")
     }
 
+    func testHappeningEditorReplacementCreationAndCancellation() throws {
+        let app = launchTask7App(resetEditor: true)
+        openPalette(in: app)
+        let walk = app.buttons["happening_choice_happening_walk"]
+        walk.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        walk.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertEqual(walk.value as? String, "On Canvas")
+        app.buttons["Choose happenings"].tap()
+        let rootWalk = app.buttons["happening_editor_row_happening_walk"]
+        XCTAssertTrue(rootWalk.waitForExistence(timeout: 5))
+        XCTAssertTrue(rootWalk.staticTexts["On Canvas"].exists)
+        XCTAssertFalse(app.buttons["Close"].isHittable)
+        attachScreenshot(named: "happening-editor-list")
+        rootWalk.tap()
+        XCTAssertTrue(app.alerts["Already on Canvas"].waitForExistence(timeout: 3))
+        app.alerts.buttons["OK"].tap()
+        app.buttons["happening_editor_row_happening_workout"].tap()
+        // No saved alternatives: naming opens directly, without an empty search screen.
+        let name = app.textFields["happening_editor_name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 3))
+        name.tap()
+        name.typeText("Tea break")
+        attachScreenshot(named: "happening-editor-create-keyboard")
+        // Tap the outer edge: the entire capsule must be an active target.
+        app.buttons["happening_editor_done"].coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertTrue(app.buttons["Tea break"].waitForExistence(timeout: 5))
+        XCTAssertEqual(walk.value as? String, "On Canvas")
+        XCTAssertFalse(app.buttons["Workout"].exists)
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_' ")).count, 10)
+
+        app.buttons["Choose happenings"].tap()
+        let tea = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_editor_row_' AND label CONTAINS 'Tea break'")).firstMatch
+        XCTAssertTrue(tea.waitForExistence(timeout: 5))
+        tea.tap()
+        let search = app.textFields["happening_editor_search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 3))
+        attachScreenshot(named: "happening-editor-replace")
+        search.tap()
+        search.typeText("zzzz")
+        XCTAssertTrue(app.staticTexts["No matches"].exists)
+        app.buttons["Clear search"].tap()
+        app.buttons["happening_replacement_happening_workout"].tap()
+        XCTAssertTrue(app.buttons["happening_editor_row_happening_workout"].waitForExistence(timeout: 3))
+        app.buttons["happening_editor_back"].tap()
+        XCTAssertTrue(app.buttons["Tea break"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Workout"].exists)
+
+        app.buttons["Choose happenings"].tap()
+        XCTAssertTrue(tea.waitForExistence(timeout: 5))
+        tea.tap()
+        app.buttons["happening_replacement_happening_workout"].tap()
+        app.buttons["happening_editor_done"].tap()
+        XCTAssertTrue(app.buttons["Workout"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Tea break"].exists)
+        XCTAssertEqual(walk.value as? String, "On Canvas")
+    }
+
+    func testHappeningEditorLargeTextKeepsActionsReachable() throws {
+        let app = launchTask7App(dynamicTypeSize: "accessibility5", increasedContrast: true, resetEditor: true)
+        openPalette(in: app)
+        app.buttons["Choose happenings"].tap()
+        let done = app.buttons["happening_editor_done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 5))
+        XCTAssertTrue(done.isHittable)
+        XCTAssertTrue(app.frame.contains(done.frame))
+        XCTAssertTrue(app.buttons["happening_editor_back"].isHittable)
+        attachScreenshot(named: "happening-editor-large-text")
+        app.buttons["happening_editor_row_happening_walk"].tap()
+        let name = app.textFields["happening_editor_name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 3))
+        name.tap()
+        name.typeText("Tea")
+        XCTAssertTrue(done.isHittable)
+        XCTAssertTrue(app.frame.contains(done.frame))
+        attachScreenshot(named: "happening-editor-large-text-keyboard")
+        done.tap()
+        XCTAssertTrue(app.buttons["Tea"].waitForExistence(timeout: 5))
+    }
+
     private func launchTask7App(
         dynamicTypeSize: String? = nil,
         increasedContrast: Bool = false,
-        shakeTrigger: Bool = false
+        shakeTrigger: Bool = false,
+        resetEditor: Bool = false
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
@@ -651,6 +731,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
             "-AppleLanguages", "(en)",
             "-AppleLocale", "en_US",
         ]
+        if resetEditor { app.launchArguments.append("ui-testing-happening-editor") }
         if let dynamicTypeSize {
             app.launchEnvironment["TASK7_DYNAMIC_TYPE_SIZE"] = dynamicTypeSize
             app.launchArguments += [

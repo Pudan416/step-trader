@@ -501,7 +501,10 @@ struct GalleryView: View {
                 addedIDs: paletteAddedIDs,
                 instruction: paletteInstruction,
                 onActivate: handlePaletteActivation,
-                onCreate: handlePaletteCreation,
+                onCreate: { handlePaletteCreation($0) },
+                onCreateReplacement: { title, replacementID, selection in
+                    handlePaletteCreation(title, replacingID: replacementID, selection: selection)
+                },
                 onSaveSelection: handlePaletteSelectionSave,
                 onPanelPresentationChange: onPalettePanelPresentationChange,
                 onReroll: {
@@ -669,14 +672,18 @@ struct GalleryView: View {
         paletteInteraction.cancel()
     }
 
-    private func handlePaletteCreation(_ title: String) -> HappeningPaletteCreationOutcome {
+    private func handlePaletteCreation(
+        _ title: String, replacingID: String? = nil, selection: [String]? = nil
+    ) -> HappeningPaletteCreationOutcome {
         guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return .invalidTitle
         }
         do {
             _ = try model.createPaletteHappening(
                 title: title,
-                protectedIDs: paletteAddedIDs
+                protectedIDs: paletteAddedIDs,
+                selection: selection,
+                replacingID: replacingID
             )
         } catch let error as HappeningPaletteSelectionError {
             if error == .noReplaceableSlot { return .noReplaceableSlot }
@@ -972,7 +979,7 @@ struct GalleryView: View {
             }
         }
         .overlay {
-            if showHappeningPalette, !presentation.isWideCanvas {
+            if showHappeningPalette, !presentation.isWideCanvas, happeningPalettePanel == nil {
                 VStack(spacing: 0) {
                     Spacer(minLength: 0)
                     bottomControlsBar

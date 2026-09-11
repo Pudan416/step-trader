@@ -1,6 +1,69 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Tap to replace" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tap to replace" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Нажмите, чтобы заменить" } }
+      }
+    },
+    "Replace" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Replace" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Заменить" } }
+      }
+    },
+    "New happening" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "New happening" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Новое событие" } }
+      }
+    },
+    "Search" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Search" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Поиск" } }
+      }
+    },
+    "Clear search" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Clear search" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Очистить поиск" } }
+      }
+    },
+    "Name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Name" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Название" } }
+      }
+    },
+    "Already on Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Already on Canvas" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Уже на холсте" } }
+      }
+    },
+    "No matches" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No matches" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Ничего не найдено" } }
+      }
+    },
+    "Replaces %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Replaces %@" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Вместо «%@»" } }
+      }
+    },
     "System" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -622,7 +685,11 @@
       "comment" : "Settings signed-in account card subtitle"
     },
     "Back" : {
-      "comment" : "SettingsComponents – back button label"
+      "comment" : "SettingsComponents – back button label",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Back" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Назад" } }
+      }
     },
     "Background" : {
       "comment" : "Appearance manual group heading\nWidget section header"
@@ -643,7 +710,11 @@
       "comment" : "Full calendar – title"
     },
     "Cancel" : {
-      "comment" : "AppSelection – dismiss button\nProfileEditor – dismiss button\nTemplatePicker – dismiss button"
+      "comment" : "AppSelection – dismiss button\nProfileEditor – dismiss button\nTemplatePicker – dismiss button",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancel" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Отмена" } }
+      }
     },
     "Cancel opening %@" : {
       "comment" : "Handoff – cancel button accessibility"
@@ -889,7 +960,11 @@
 
     },
     "Done" : {
-      "comment" : "AppSelection – done button\nCanvas editing – finish editing\nManualsPage – dismiss button\nTimeAccessPicker – dismiss button"
+      "comment" : "AppSelection – done button\nCanvas editing – finish editing\nManualsPage – dismiss button\nTimeAccessPicker – dismiss button",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Done" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Готово" } }
+      }
     },
     "Done editing" : {
       "comment" : "Canvas editing – Done VoiceOver label"
@@ -1110,7 +1185,11 @@
 
     },
     "Happenings" : {
-      "comment" : "Canvas data panel – happenings row\nDaily happenings metric\nPast-day breakdown row"
+      "comment" : "Canvas data panel – happenings row\nDaily happenings metric\nPast-day breakdown row",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Happenings" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "События" } }
+      }
     },
     "Happenings fill up to %lld of the day's %lld colors — the largest share, because they are the part of the day you choose. Each happening counts once per day." : {
       "comment" : "MetricOverlay – how happenings contribute",
@@ -1353,7 +1432,11 @@
       "comment" : "Notification permission status"
     },
     "OK" : {
-      "comment" : "Generic alert dismiss button\nProfileEditor – alert dismiss button"
+      "comment" : "Generic alert dismiss button\nProfileEditor – alert dismiss button",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "OK" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "ОК" } }
+      }
     },
     "On" : {
       "comment" : "Settings account sync status value"
