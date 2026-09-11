@@ -14,6 +14,25 @@ final class TodayCanvasBackgroundTests: XCTestCase {
         )
     }
 
+    func testChromeUpdatesImmediatelyWithPaletteAndUndoButIgnoresEnergyChanges() {
+        var input = appearance()
+        input.style = CanvasVisualStyle.legacy.rawValue
+        input.palette = GradientPalette.warmSunset.rawValue
+        let store = TodayCanvasBackdropStore(debounce: .zero, load: { _ in nil }, render: { _, _ in UIImage() })
+        store.refresh(input)
+        let original = store.chromePalette
+        input.spent += 5
+        input.steps += 2
+        store.refresh(input)
+        XCTAssertEqual(store.chromePalette, original, "Earning/spending must not recolor controls")
+        input.palette = GradientPalette.allCases.first { $0 != .warmSunset }!.rawValue
+        store.refresh(input)
+        XCTAssertNotEqual(store.chromePalette, original, "The saved palette must reach controls before snapshot rendering")
+        input.palette = GradientPalette.warmSunset.rawValue
+        store.refresh(input)
+        XCTAssertEqual(store.chromePalette, original, "Undo must restore the same colors")
+    }
+
     func testVisibleFrameKeepsCanvasViewportAndReleasesPausedRenderer() async throws {
         let store = TodayCanvasBackdropStore(debounce: .zero, load: { _ in nil }, render: { _, _ in UIImage() })
         store.refresh(appearance())

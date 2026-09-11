@@ -228,13 +228,23 @@ final class CanvasSimplificationUITests: XCTestCase {
 
     func testExpandedDataRowsStayCompact() {
         let app = launchCanvas()
+        let collapsed = XCTAttachment(screenshot: app.screenshot())
+        collapsed.name = "Canvas daily chrome — collapsed"
+        collapsed.lifetime = .keepAlways
+        add(collapsed)
         openDataDrawer(in: app)
 
         let stepsRow = app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH 'Steps,'")
         ).firstMatch
         XCTAssertTrue(stepsRow.waitForExistence(timeout: 3))
-        XCTAssertLessThanOrEqual(stepsRow.frame.height, 44)
+        // Labels and the separate progress line now occupy a two-line row.
+        XCTAssertGreaterThanOrEqual(stepsRow.frame.height, 44)
+        XCTAssertLessThanOrEqual(stepsRow.frame.height, 68)
+        let expanded = XCTAttachment(screenshot: app.screenshot())
+        expanded.name = "Canvas daily chrome — expanded"
+        expanded.lifetime = .keepAlways
+        add(expanded)
     }
 
     func testActivitySuggestionDoesNotMoveWhenDataPanelOpens() {

@@ -92,3 +92,36 @@ final class CanvasEnergyStatusTests: XCTestCase {
         XCTAssertEqual(status(balance: 12, earned: 30), status(balance: 12, earned: 30))
     }
 }
+
+final class CanvasChromePaletteTests: XCTestCase {
+    func testAllCatalogPalettesHaveReadableTextButtonsAndProgress() {
+        let inputs = ModernPaletteCatalog.all.map { $0.hexes.map(DayObjectRGB.init(hex:)) }
+            + [[], [DayObjectRGB(hex: "#000000")], [DayObjectRGB(hex: "#FFFFFF")],
+               [DayObjectRGB(hex: "#808080")], [DayObjectRGB(hex: "#FF00FF"), DayObjectRGB(hex: "#00FF00")]]
+        for colors in inputs {
+            let p = CanvasChromePalette.resolve(backgroundColors: colors)
+            for text in [p.textPrimary, p.textSecondary, p.accent] {
+                XCTAssertGreaterThanOrEqual(contrastRatio(text.linearRGB, p.surface.linearRGB), 4.5)
+            }
+            XCTAssertGreaterThanOrEqual(contrastRatio(p.onAccent.linearRGB, p.accent.linearRGB), 4.5)
+            XCTAssertGreaterThanOrEqual(contrastRatio(p.accent.linearRGB, p.track.linearRGB), 3)
+        }
+    }
+
+    func testDifferentBackgroundsProduceDifferentAccentsWithoutRandomness() {
+        let green = [DayObjectRGB(hex: "#78966B")]
+        let blue = [DayObjectRGB(hex: "#6987A5")]
+        let first = CanvasChromePalette.resolve(backgroundColors: green)
+        XCTAssertEqual(first, CanvasChromePalette.resolve(backgroundColors: green))
+        XCTAssertNotEqual(first.accent, CanvasChromePalette.resolve(backgroundColors: blue).accent)
+        XCTAssertNotEqual(first.surface, CanvasChromePalette.resolve(backgroundColors: blue).surface)
+    }
+
+    func testPaletteOrderingDoesNotChangeTheInterfaceAndGrayHasNeutralFallback() {
+        let colors = ["#332A49", "#AA91C3", "#E2CDF4"].map(DayObjectRGB.init(hex:))
+        XCTAssertEqual(CanvasChromePalette.resolve(backgroundColors: colors),
+                       CanvasChromePalette.resolve(backgroundColors: colors.reversed()))
+        XCTAssertEqual(CanvasChromePalette.resolve(backgroundColors: []).family, .neutral)
+        XCTAssertEqual(CanvasChromePalette.resolve(backgroundColors: [DayObjectRGB(hex: "#808080")]).family, .neutral)
+    }
+}

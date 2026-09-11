@@ -597,6 +597,7 @@
 		A71000000000000000000017 /* GateArtworkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000003 /* GateArtworkTests.swift */; };
 		A71100000000000000000002 /* GateArtworkImages in Resources */ = {isa = PBXBuildFile; fileRef = A71100000000000000000001 /* GateArtworkImages */; };
 		A71100000000000000000003 /* GateArtworkImages in Resources */ = {isa = PBXBuildFile; fileRef = A71100000000000000000001 /* GateArtworkImages */; };
+		A71200000000000000000002 /* CanvasChromePalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71200000000000000000001 /* CanvasChromePalette.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1249,6 +1250,7 @@
 		A71000000000000000000002 /* GateArtworkRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GateArtworkRenderer.swift; path = Shared/GateArtworkRenderer.swift; sourceTree = SOURCE_ROOT; };
 		A71000000000000000000003 /* GateArtworkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GateArtworkTests.swift; path = Steps4Tests/GateArtworkTests.swift; sourceTree = SOURCE_ROOT; };
 		A71100000000000000000001 /* GateArtworkImages */ = {isa = PBXFileReference; lastKnownFileType = folder; name = GateArtworkImages; path = Shared/GateArtworkImages; sourceTree = SOURCE_ROOT; };
+		A71200000000000000000001 /* CanvasChromePalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasChromePalette.swift; path = StepsTrader/Theme/CanvasChromePalette.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -1618,6 +1620,7 @@
 				C669447E94C63E9A8EB39A0B /* ShapeStyles.swift */,
 				46724AC5844969F96A85B5DA /* FamilyControlsCompat.swift */,
 				1D27465EA0680011F9D75A64 /* AppTheme.swift */,
+				A71200000000000000000001 /* CanvasChromePalette.swift */,
 				6C7F473D8EA05B52428ABD08 /* AppColors.swift */,
 				BE1146D29605946EC6B4301B /* ThemeModifiers.swift */,
 				45F540E48318D3A7CEF51B99 /* ThemeTextStyles.swift */,
@@ -2991,6 +2994,7 @@
 				5E9E43978D80841CEA8F84B8 /* ShapeStyles.swift in Sources */,
 				C131435BA6E0DC0B711B9400 /* FamilyControlsCompat.swift in Sources */,
 				C4C44E3683F8DD55B092F759 /* AppTheme.swift in Sources */,
+				A71200000000000000000002 /* CanvasChromePalette.swift in Sources */,
 				6B454ECDBA75497D1287A4E1 /* AppColors.swift in Sources */,
 				2CBA49F88060F2EC9F69839A /* ThemeModifiers.swift in Sources */,
 				F06C48AEA2B2827EC7CE55C4 /* ThemeTextStyles.swift in Sources */,

@@ -155,6 +155,10 @@ final class TodayCanvasBackdropStore: ObservableObject {
         }
     })
     @Published private(set) var unlockPalette = TodayCanvasUnlockPalette.make(appearance: .initial)
+    /// Canvas controls use saved pigment, with bounded tones and guaranteed contrast.
+    @Published private(set) var chromePalette = CanvasChromePalette.resolve(
+        backgroundColors: TodayCanvasUnlockPalette.make(appearance: .initial).colors
+    )
     /// Feeds uses the day's original pigment, before snapshot lighting and haze.
     /// Keep the sampled palette for existing backgrounds and resource surfaces.
     @Published private(set) var feedPalette = TodayCanvasUnlockPalette.make(appearance: .initial)
@@ -251,6 +255,8 @@ final class TodayCanvasBackdropStore: ObservableObject {
         let saved = sourceData.flatMap { try? JSONDecoder().decode(DayCanvas.self, from: $0) }
         let nextPalette = TodayCanvasUnlockPalette.make(appearance: appearance, canvas: appearance.canvas(from: saved))
         if feedPalette != nextPalette { feedPalette = nextPalette }
+        let nextChrome = CanvasChromePalette.resolve(backgroundColors: nextPalette.colors)
+        if chromePalette != nextChrome { chromePalette = nextChrome }
         if image == nil, unlockPalette != nextPalette { unlockPalette = nextPalette }
         requested = Request(appearance: appearance, sourceData: sourceData)
         guard requested != completed, worker == nil else { return }
@@ -335,6 +341,7 @@ struct TodayCanvasBackground: View {
 
 /// A single refresh owner at the tab host; backgrounds themselves only display an image.
 struct TodayCanvasBackdropHost: ViewModifier {
+    @ObservedObject private var backdrop = TodayCanvasBackdropStore.shared
     @ObservedObject var model: AppModel
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(SharedKeys.canvasVisualStyle) private var style = CanvasVisualStyle.editorial.rawValue
@@ -358,6 +365,7 @@ struct TodayCanvasBackdropHost: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .environment(\.canvasChromePalette, backdrop.chromePalette)
             .onChange(of: appearance, initial: true) { _, value in
                 guard scenePhase == .active else { return }
                 TodayCanvasBackdropStore.shared.refresh(value)

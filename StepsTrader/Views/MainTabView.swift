@@ -9,6 +9,7 @@ extension EnvironmentValues {
 }
 
 struct MainTabView: View {
+    @ObservedObject private var canvasBackdrop = TodayCanvasBackdropStore.shared
     @ObservedObject var model: AppModel
     // Persisted across process death within the same scene so users return to the
     // tab they last had open after a deep link or relaunch.
@@ -112,7 +113,7 @@ struct MainTabView: View {
         }
     }
 
-    private var tabTint: Color { AppColors.Night.textPrimary }
+    private var tabTint: Color { canvasBackdrop.chromePalette.textColor }
 
     private var isWideCanvas: Bool { canvasPresentation.isWideCanvas }
 
@@ -439,7 +440,7 @@ struct MainTabView: View {
         GlassEffectContainer(spacing: 8) {
             tabBarItems(animated: true)
                 .padding(6)
-                .smokedCanvasControl(in: Capsule(style: .continuous))
+                .canvasChromeSurface(in: Capsule(style: .continuous))
         }
         .padding(.bottom, 4)
     }
@@ -447,7 +448,7 @@ struct MainTabView: View {
     private var legacyTabBar: some View {
         tabBarItems(animated: false)
             .padding(6)
-            .smokedCanvasControl(in: Capsule(style: .continuous))
+            .canvasChromeSurface(in: Capsule(style: .continuous))
             .clipShape(Capsule(style: .continuous))
             .padding(.bottom, 4)
     }
@@ -475,12 +476,12 @@ struct MainTabView: View {
                                 .offset(x: 3, y: -2)
                         }
                     }
-                    .foregroundStyle(tabTint.opacity(isSelected ? 1.0 : 0.75))
+                    .foregroundStyle(isSelected ? tabTint : canvasBackdrop.chromePalette.secondaryColor)
                     .frame(width: isSelected ? 78 : 70, height: 48)
                     .background {
                         if isSelected {
                             Capsule(style: .continuous)
-                                .fill(tabTint.opacity(0.16))
+                                .fill(canvasBackdrop.chromePalette.trackColor)
                         }
                     }
                     .contentShape(Capsule(style: .continuous))

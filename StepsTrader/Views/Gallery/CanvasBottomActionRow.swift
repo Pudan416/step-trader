@@ -22,7 +22,8 @@ struct CanvasBottomActionRow: View {
     let onOpenHappeningList: () -> Void
     let onToggleHappeningPalette: () -> Void
 
-    private var ink: Color { AppColors.Night.textPrimary }
+    @Environment(\.canvasChromePalette) private var palette
+    private var ink: Color { palette.textColor }
 
     var body: some View {
         Group {
@@ -66,10 +67,9 @@ struct CanvasBottomActionRow: View {
         Button(action: onSound) {
             Image(systemName: soundAppearance.systemImage)
                 .font(.geist(size: 20, weight: .regular))
-                .foregroundStyle(AppColors.brandAccent)
+                .foregroundStyle(palette.accentColor)
                 .frame(width: 48, height: 48)
-                .smokedCanvasControl(in: Circle())
-                .overlay(Circle().strokeBorder(AppColors.brandAccent, lineWidth: 1))
+                .canvasChromeSurface(in: Circle())
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -89,7 +89,7 @@ struct CanvasBottomActionRow: View {
                 .font(.geist(size: 20, weight: .regular))
                 .foregroundStyle(ink)
                 .frame(width: 52, height: 52)
-                .smokedCanvasControl(in: Circle())
+                .canvasChromeSurface(in: Circle())
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -103,10 +103,10 @@ struct CanvasBottomActionRow: View {
         Button(action: onToggleHappeningPalette) {
             Image(systemName: "plus")
                 .font(.geist(size: 22, weight: .regular))
-                .foregroundStyle(AppAccentInk.primary)
+                .foregroundStyle(palette.onAccentColor)
                 .rotationEffect(.degrees(isHappeningPalettePresented ? 45 : 0))
                 .frame(width: 52, height: 52)
-                .background(AppColors.brandAccent, in: Circle())
+                .background(palette.accentColor, in: Circle())
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
