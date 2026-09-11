@@ -826,29 +826,13 @@ fragment float4 dayObjectsActorFragment(
         return float4(premultiplied, alpha);
     }
 
-    // A translucent smoke lens, with champagne only on the lit shoulder.
-    // The shared post pass supplies grain; no extra texture or blur pass is
-    // needed. Keep the centre clear and avoid an emissive, closed yellow rim.
-    const float3 smoke = dayObjectsPresentationLinearRGB(float3(78.0, 70.0, 79.0) / 255.0);
-    const float3 champagne = dayObjectsPresentationLinearRGB(float3(221.0, 207.0, 184.0) / 255.0);
-    const float3 pearl = dayObjectsPresentationLinearRGB(float3(249.0, 241.0, 225.0) / 255.0);
-    // Screen-space derivatives remove the eventual shape's rotation from
-    // the neutral lens lighting, so all ten share one upper-left light.
-    const float2 screenRadial = float2(
-        dot(bodyPoint, dfdx(bodyPoint)), dot(bodyPoint, dfdy(bodyPoint))
-    );
-    const float2 lensNormal = screenRadial / max(length(screenRadial), 1e-5);
-    const float lensLight = smoothstep(0.10, 0.95, dot(lensNormal, float2(-0.6, -0.8)));
-    const float shoulder = smoothstep(0.40, 0.90, sphereRadius);
-    const float edgeBand = smoothstep(0.86, 0.96, sphereRadius)
-        * (1.0 - smoothstep(0.975, 1.02, sphereRadius));
-    const float smokeAlpha = 0.12 + shoulder * 0.08;
-    const float tintAlpha = shoulder * (0.045 + lensLight * 0.08);
-    const float glintAlpha = edgeBand * lensLight * 0.25;
-    const float lensAlpha = smokeAlpha + tintAlpha + glintAlpha;
-    const float neutralAlpha = lensAlpha * baseBodyCoverage * actorOpacity;
-    const float3 neutralColor = (smoke * smokeAlpha + champagne * tintAlpha
-        + pearl * glintAlpha) / lensAlpha;
+    // Match the native picker: a light translucent surface, independent of
+    // the gradient and app theme, with enough luminance for black labels.
+    const float shoulder = smoothstep(0.65, 1.0, sphereRadius);
+    const float rim = smoothstep(0.965, 0.985, sphereRadius);
+    const float neutralAlpha = (0.52 + shoulder * 0.06 + rim * 0.08)
+        * baseBodyCoverage * actorOpacity;
+    const float3 neutralColor = float3(0.96);
     const float presentedAlpha = mix(neutralAlpha, alpha, paletteProgress);
     float3 presentedRGB = mix(neutralColor * neutralAlpha, premultiplied, paletteProgress);
     float3 straightRGB = presentedAlpha > 1e-6 ? presentedRGB / presentedAlpha : float3(0.0);

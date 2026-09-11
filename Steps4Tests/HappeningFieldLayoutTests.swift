@@ -339,7 +339,20 @@ final class HappeningFieldLayoutTests: XCTestCase {
         }
     }
 
-    func testWhitePaletteGlyphsHaveDarkLocalContrastInEveryState() throws {
+    func testPaletteInkFollowsTheBackgroundAndSelectedFill() throws {
+        let light = [SIMD3<Float>(0.5, 0.7, 0.3)]
+        let dark = [SIMD3<Float>(0.01, 0.02, 0.03)]
+        XCTAssertEqual(HappeningPaletteLabelInk.resolve(state: .available, background: light, material: nil), .dark)
+        XCTAssertEqual(HappeningPaletteLabelInk.resolve(state: .available, background: dark, material: nil), .dark)
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "legacy.soft-square" })
+        let contour = MetalShapeGenomeFrame.make(preset: preset, material: .contour, seed: 71).material
+        XCTAssertEqual(HappeningPaletteLabelInk.resolve(state: .additionPreview, background: light, material: contour), .dark)
+        XCTAssertEqual(HappeningPaletteLabelInk.resolve(state: .added, background: dark, material: contour), .light)
+        XCTAssertEqual(HappeningPaletteLabelInk.contrasting(with: [SIMD3(repeating: 0.08)]), .light)
+        XCTAssertEqual(HappeningPaletteLabelInk.contrasting(with: [SIMD3(repeating: 0.75)]), .dark)
+    }
+
+    func testPaletteGlyphsUseContrastingInkInEveryState() throws {
         let happening = HappeningDefaults.builtIns[0]
         let assignments = HappeningEditorialAssignmentResolver.assignments(
             happenings: [happening],
@@ -355,49 +368,49 @@ final class HappeningFieldLayoutTests: XCTestCase {
             sources: [.init(index: 0, center: CGPoint(x: 100, y: 100), radius: 60)],
             labelFrames: [], contourBounds: .zero, dockAnchor: .zero, completionBounds: nil
         )
-        for state in [
-            HappeningPaletteSlotVisualState.available, .additionPreview, .added, .removalPreview,
-        ] {
-            let added: Set<String> = state == .added || state == .removalPreview ? [happening.id] : []
-            var interaction = HappeningPaletteInteractionState()
-            if state == .additionPreview || state == .removalPreview {
-                _ = interaction.tap(id: happening.id, addedIDs: added)
-            }
-            let renderer = ImageRenderer(content:
-                HappeningShapeField(
-                    happenings: [happening], assignments: assignments, layout: layout,
-                    interaction: interaction, addedIDs: added, onActivate: { _ in }
-                )
-                .frame(width: 200, height: 200)
-                .background(Color.yellow)
-            )
-            renderer.scale = 3
-            let image = try XCTUnwrap(renderer.cgImage)
-            var pixels = [UInt8](repeating: 0, count: image.width * image.height * 4)
-            try pixels.withUnsafeMutableBytes { buffer in
-                let context = try XCTUnwrap(CGContext(
-                    data: buffer.baseAddress, width: image.width, height: image.height,
-                    bitsPerComponent: 8, bytesPerRow: image.width * 4,
-                    space: CGColorSpaceCreateDeviceRGB(),
-                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-                ))
-                context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
-            }
-            var whiteGlyphPixels = 0
-            var contrastEdgePixels = 0
-            // Crop to the title, excluding the status badge and other chrome.
-            for y in 240..<360 {
-                for x in 180..<420 {
-                    let offset = (y * image.width + x) * 4
-                    let rgb = (0..<3).map { Double(pixels[offset + $0]) / 255 }
-                    if rgb.allSatisfy({ $0 > 0.96 }) { whiteGlyphPixels += 1 }
-                    let linear = rgb.map { $0 <= 0.04045 ? $0 / 12.92 : pow(($0 + 0.055) / 1.055, 2.4) }
-                    let luminance = linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722
-                    if 1.05 / (luminance + 0.05) >= 4.5 { contrastEdgePixels += 1 }
+        for ink in [HappeningPaletteLabelInk.dark, .light] {
+            for state in [
+                HappeningPaletteSlotVisualState.available, .additionPreview, .added, .removalPreview,
+            ] {
+                let added: Set<String> = state == .added || state == .removalPreview ? [happening.id] : []
+                var interaction = HappeningPaletteInteractionState()
+                if state == .additionPreview || state == .removalPreview {
+                    _ = interaction.tap(id: happening.id, addedIDs: added)
                 }
+                let renderer = ImageRenderer(content:
+                    HappeningShapeField(
+                        happenings: [happening], assignments: assignments, layout: layout,
+                        interaction: interaction, addedIDs: added, onActivate: { _ in },
+                        labelInks: [happening.id: ink]
+                    )
+                    .frame(width: 200, height: 200)
+                    .background(ink == .dark ? Color.yellow : Color.black)
+                )
+                renderer.scale = 3
+                let image = try XCTUnwrap(renderer.cgImage)
+                var pixels = [UInt8](repeating: 0, count: image.width * image.height * 4)
+                try pixels.withUnsafeMutableBytes { buffer in
+                    let context = try XCTUnwrap(CGContext(
+                        data: buffer.baseAddress, width: image.width, height: image.height,
+                        bitsPerComponent: 8, bytesPerRow: image.width * 4,
+                        space: CGColorSpaceCreateDeviceRGB(),
+                        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                    ))
+                    context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+                }
+                var readableGlyphPixels = 0
+                // The title itself supplies contrast; no blurred outline is needed.
+                for y in 240..<360 {
+                    for x in 180..<420 {
+                        let offset = (y * image.width + x) * 4
+                        let rgb = (0..<3).map { Double(pixels[offset + $0]) / 255 }
+                        if ink == .dark ? rgb.allSatisfy({ $0 < 0.04 }) : rgb.allSatisfy({ $0 > 0.96 }) {
+                            readableGlyphPixels += 1
+                        }
+                    }
+                }
+                XCTAssertGreaterThan(readableGlyphPixels, 100, "Readable \(ink) glyphs required in \(state)")
             }
-            XCTAssertGreaterThan(whiteGlyphPixels, 100, "Keep white glyphs in \(state)")
-            XCTAssertGreaterThan(contrastEdgePixels, 100, "A local dark glyph edge is required in \(state)")
         }
     }
 

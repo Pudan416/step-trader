@@ -3077,14 +3077,16 @@ final class DayObjectRenderFrameTests: XCTestCase {
         let neutralOtherShape = try capture(0, shape: 0)
         let halfway = try capture(0.5)
         let production = try capture(1)
-        // Smoke stays translucent across the body, with a low-chroma edge.
-        XCTAssertLessThan(neutral[80, 80], 0.18)
+        // The light backing keeps black labels readable even over black.
+        XCTAssertGreaterThan(neutral[80, 80], 0.50)
+        XCTAssertLessThan(neutral[80, 80], 0.60)
+        let center = neutral.color(x: 80, y: 80)
+        let luminance = center.x * 0.2126 + center.y * 0.7152 + center.z * 0.0722
+        XCTAssertGreaterThan((luminance + 0.05) / 0.05, 7)
         XCTAssertGreaterThan(neutral[125, 80], neutral[80, 80])
-        XCTAssertLessThan(neutral[125, 80], 0.40)
+        XCTAssertLessThan(neutral[125, 80], 0.70)
         let edge = neutral.color(x: 125, y: 80) / neutral[125, 80]
         XCTAssertLessThan(edge.max() - edge.min(), 0.16)
-        // A partial upper-left reflection, never a closed luminous ring.
-        XCTAssertGreaterThan(neutral[46, 46], neutral[114, 114] + 0.08)
         XCTAssertLessThan(neutral.meanAbsoluteRGBDifference(from: neutralOtherShape), 0.0001)
         let rotated = try harness.render(actor: DayObjectGPUActor(
             position: .zero, direction: SIMD2(0, 1), halfSize: SIMD2(0.32, 0.32),

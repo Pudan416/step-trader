@@ -97,6 +97,7 @@ enum HappeningPaletteCreationOutcome: Equatable {
 struct HappeningPaletteView: View {
     let happenings: [Happening]
     let assignments: [String: HappeningEditorialAssignment]
+    let labelInks: [String: HappeningPaletteLabelInk]
     let catalog: [Happening]
     let selectedIDs: [String]
     @Binding var activePanel: HappeningPalettePanel?
@@ -117,6 +118,7 @@ struct HappeningPaletteView: View {
     init(
         happenings: [Happening],
         assignments: [String: HappeningEditorialAssignment] = [:],
+        labelInks: [String: HappeningPaletteLabelInk] = [:],
         catalog: [Happening]? = nil,
         selectedIDs: [String]? = nil,
         activePanel: Binding<HappeningPalettePanel?> = .constant(nil),
@@ -132,6 +134,7 @@ struct HappeningPaletteView: View {
     ) {
         self.happenings = happenings
         self.assignments = assignments
+        self.labelInks = labelInks
         self.catalog = catalog ?? happenings
         self.selectedIDs = selectedIDs ?? happenings.map(\.id)
         _activePanel = activePanel
@@ -166,7 +169,8 @@ struct HappeningPaletteView: View {
                     layout: layout,
                     interaction: interaction,
                     addedIDs: addedIDs,
-                    onActivate: onActivate
+                    onActivate: onActivate,
+                    labelInks: labelInks
                 )
                 .frame(width: proxy.size.width, height: proxy.size.height)
                 .accessibilityHidden(activePanel != nil)

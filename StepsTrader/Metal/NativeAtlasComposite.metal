@@ -3,6 +3,16 @@
 struct NativeAtlasPlacement { float4 pose; float4 canvas; float4 effects; float4 presentation; };
 static_assert(sizeof(NativeAtlasPlacement) == 64, "Native placement must match four Swift float4 values");
 
+static float4 nativeAtlasPickerCircle(float2 point, float coverage) {
+    const float radius = length(point);
+    const float shoulder = smoothstep(0.65, 1.0, radius);
+    const float rim = smoothstep(0.965, 0.985, radius);
+    const float alpha = coverage * (0.52 + shoulder * 0.06 + rim * 0.08);
+    // A light surface supports black ink even over a near-black gradient.
+    const float3 color = float3(0.96);
+    return float4(color * alpha, alpha);
+}
+
 fragment float4 nativeAtlasComposite(MetalShapeVertexOut in [[stage_in]],
     constant MetalShapeGenomeUniforms &g [[buffer(0)]],
     constant MetalShapeMaterialUniforms &m [[buffer(1)]],
@@ -13,23 +23,30 @@ fragment float4 nativeAtlasComposite(MetalShapeVertexOut in [[stage_in]],
     float2 local = (in.uv - placement.pose.xy) * resolution / min(resolution.x, resolution.y) / max(placement.pose.z, 0.001);
     const float c = cos(placement.pose.w), s = sin(placement.pose.w);
     local = float2(local.x * c + local.y * s, -local.x * s + local.y * c);
+    const float morph = saturate(placement.presentation.x);
+    const float4 background = previous.sample(linearSampler, in.uv);
+    if (morph == 0.0) {
+        // Available targets do not inherit the future figure's material or
+        // intersection mask. The figure is evaluated only after selection.
+        const float2 point = local * 2.72;
+        const float distance = length(point) - 1.0;
+        const float aa = max(fwidth(distance), 0.0025);
+        const float4 lens = nativeAtlasPickerCircle(point, smoothstep(aa, -aa, distance)) * placement.canvas.z;
+        return float4(lens.rgb + background.rgb * (1.0 - lens.a), background.a);
+    }
     MetalShapeVertexOut shapeIn = in; shapeIn.uv = local + 0.5;
     float4 shape = metalShapeGenomeShade(shapeIn, g, m);
-    const float morph = saturate(placement.presentation.x);
     if (morph < 1.0) {
-        // The first stage is always a solid circle. On the first tap the
-        // existing picker timeline reveals its actual silhouette and fill.
+        // A quiet translucent circle until the first tap. Keep the Canvas
+        // visible through its centre; a soft edge gives the touch target shape.
         const float2 point = local * 2.72;
         const float distance = mix(length(point) - 1.0, metalShapeDistance(point, g), morph);
         const float aa = max(fwidth(distance), 0.0025);
         const float filled = smoothstep(aa, -aa, distance);
         const float reveal = smoothstep(0.45, 1.0, morph);
-        const float alpha = mix(filled, shape.a, reveal);
-        const float3 targetColor = shape.a > 0.00001 ? shape.rgb / shape.a : m.color0.rgb;
-        shape = float4(mix(float3(0.14), targetColor, reveal) * alpha, alpha);
+        shape = mix(nativeAtlasPickerCircle(point, filled), shape, reveal);
     }
     float4 foreground = shape * placement.canvas.z;
-    const float4 background = previous.sample(linearSampler, in.uv);
     const float a = clamp(foreground.a, 0.0, 1.0);
     const float coverageDerivative = fwidth(a);
     float3 color = foreground.rgb / max(a, 0.00001);

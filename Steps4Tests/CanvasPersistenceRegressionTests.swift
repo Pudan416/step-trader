@@ -750,15 +750,39 @@ final class NativeAtlasRecipeTests: XCTestCase {
     }
 
     @MainActor
-    func testAvailablePickerIsNeutralButSelectionRevealsColor() async throws {
-        let available = try await pickerImage(presetID: "legacy.soft-square", state: .available)
-        let selected = try await pickerImage(presetID: "legacy.soft-square", state: .additionPreview)
-        func chroma(_ image: UIImage) throws -> Double {
-            let p = try pixels(image), i = (100 * 200 + 100) * 4
-            return (p[i..<i + 3].max() ?? 0) - (p[i..<i + 3].min() ?? 0)
+    func testLightCircleSupportsBlackInkOnLightAndDarkGradients() async throws {
+        for (name, colors) in [
+            ("light-gradient", [SIMD3<Float>(0.65, 0.82, 0.46), SIMD3(0.90, 0.95, 0.74), SIMD3(0.72, 0.86, 0.56)]),
+            ("dark-gradient", [SIMD3<Float>(0.005, 0.015, 0.025), SIMD3(0.025, 0.065, 0.035), SIMD3(0.01, 0.02, 0.055)])
+        ] {
+            let circle = try await pickerImage(presetID: "legacy.soft-square", state: .available, backgroundColors: colors)
+            let p = try pixels(circle)
+            var minimumContrast = Double.greatestFiniteMagnitude
+            for y in 80..<120 {
+                for x in 70..<130 {
+                    let i = (y * 200 + x) * 4
+                    let linear = p[i..<i + 3].map { $0 <= 0.04045 ? $0 / 12.92 : pow(($0 + 0.055) / 1.055, 2.4) }
+                    let luminance = linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722
+                    minimumContrast = min(minimumContrast, (luminance + 0.05) / 0.05)
+                }
+            }
+            XCTAssertGreaterThan(minimumContrast, 7, "Black text must remain readable over \(name)")
+            let label = Happening(id: "h0", title: "Called someone", isBuiltIn: false)
+            let input = DayObjectSceneInput(dayKey: "2026-09-10", identity: "native-picker-regression", eventIDs: [], motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true)
+            let assignments = HappeningEditorialAssignmentResolver.assignments(happenings: [label], baseInput: input, colorNonce: 7)
+            let screenshot = ImageRenderer(content: ZStack {
+                Image(uiImage: circle).resizable().frame(width: 200, height: 200)
+                HappeningShapeField(
+                    happenings: [label], assignments: assignments,
+                    layout: .init(sources: [.init(index: 0, center: CGPoint(x: 100, y: 100), radius: 60)], labelFrames: [], contourBounds: .zero, dockAnchor: .zero, completionBounds: nil),
+                    interaction: .init(), addedIDs: [], onActivate: { _ in }
+                )
+            }.frame(width: 200, height: 200))
+            screenshot.scale = 3
+            let image = try XCTUnwrap(screenshot.uiImage)
+            let attachment = XCTAttachment(image: image)
+            attachment.name = "light-circle-\(name)"; attachment.lifetime = .keepAlways; add(attachment)
         }
-        XCTAssertLessThan(try chroma(available), 0.04)
-        XCTAssertGreaterThan(try chroma(selected), 0.15)
     }
 
     func testNativeBackgroundKeepsDistinctPaletteColors() {
@@ -881,6 +905,15 @@ final class NativeAtlasRecipeTests: XCTestCase {
     }
 
     @MainActor
+    func testAvailableCircleDoesNotInheritItsFutureMaterial() async throws {
+        let reference = try await pickerImage(presetID: "legacy.soft-square", state: .available)
+        for material in MetalShapeMaterial.allCases {
+            let image = try await pickerImage(presetID: "legacy.soft-square", state: .available, material: material)
+            XCTAssertEqual(image.pngData(), reference.pngData(), "Available circle changed for \(material)")
+        }
+    }
+
+    @MainActor
     func testPreviouslySavedDenseFillRendersAsSimpleContour() async throws {
         let dense = try await pickerImage(presetID: "legacy.soft-square", state: .additionPreview, material: .proceduralContour)
         let outline = try await pickerImage(presetID: "legacy.soft-square", state: .additionPreview, material: .contour)
@@ -888,7 +921,7 @@ final class NativeAtlasRecipeTests: XCTestCase {
     }
 
     @MainActor
-    private func pickerImage(presetID: String, state: HappeningPaletteSlotVisualState, material: MetalShapeMaterial = .solid) async throws -> UIImage {
+    private func pickerImage(presetID: String, state: HappeningPaletteSlotVisualState, material: MetalShapeMaterial = .solid, includesSlot: Bool = true, backgroundColors: [SIMD3<Float>]? = nil) async throws -> UIImage {
         let base = DayObjectSceneInput(dayKey: "2026-09-10", identity: "native-picker-regression", eventIDs: [], motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true)
         let assignment = try XCTUnwrap(HappeningEditorialAssignmentResolver.assignments(happenings: [.init(id: "h0", title: "Test", isBuiltIn: true)], baseInput: base, colorNonce: 7)["h0"])
         let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == presetID })
@@ -898,9 +931,21 @@ final class NativeAtlasRecipeTests: XCTestCase {
         var recipe = NativeAtlasRecipe.make(dayKey: base.dayKey)
         recipe.actors = [.init(eventID: assignment.elementID.uuidString.lowercased(), presetID: presetID, materialID: material, seedHex: "47", geometry: generated.geometry, material: sharedMaterial, position: SIMD2(0.5, 0.5), size: 0.5, rotation: 0, slot: 0)]
         let input = DayObjectSceneInput(dayKey: base.dayKey, identity: base.identity, eventIDs: [], motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true, nativeAtlasRecipe: recipe)
-        let presentation = HappeningPaletteRenderPresentation(slots: [.init(happeningID: "h0", assignment: assignment, visualState: state, source: .init(index: 0, center: CGPoint(x: 100, y: 100), radius: 60))], viewportSize: CGSize(width: 200, height: 200), reduceMotion: true, isTransitionActive: false, backgroundRevision: 1)
+        let presentation = HappeningPaletteRenderPresentation(slots: includesSlot ? [.init(happeningID: "h0", assignment: assignment, visualState: state, source: .init(index: 0, center: CGPoint(x: 100, y: 100), radius: 60))] : [], viewportSize: CGSize(width: 200, height: 200), reduceMotion: true, isTransitionActive: false, backgroundRevision: 1)
         DayObjectsRenderer.prepareResources()
-        let renderer = try XCTUnwrap(DayObjectsRenderer.create(scene: .make(input: input), environment: .init(motionEnergy: 0.5, visualClarity: 1), presentationMode: .happeningPalette(presentation)))
+        var scene = DayObjectScene.make(input: input)
+        if let colors = backgroundColors {
+            let style = scene.meshGradientStyle
+            scene = DayObjectScene(
+                input: scene.input, rootSeed: scene.rootSeed, composition: scene.composition,
+                compositionPlan: scene.compositionPlan, paletteSet: scene.paletteSet,
+                choreographyConfiguration: scene.choreographyConfiguration, visualLanguage: scene.visualLanguage,
+                motionPlan: scene.motionPlan, palette: scene.palette,
+                meshGradientStyle: .init(colors: colors, archetype: style.archetype, offset: style.offset, distortion: style.distortion, swirl: style.swirl, speed: style.speed, scale: style.scale, phase: style.phase, motionDirection: style.motionDirection, preservesColorFields: true),
+                score: scene.score, actors: scene.actors, sceneRecipeV1: scene.sceneRecipeV1
+            )
+        }
+        let renderer = try XCTUnwrap(DayObjectsRenderer.create(scene: scene, environment: .init(motionEnergy: 0.5, visualClarity: 1), presentationMode: .happeningPalette(presentation)))
         let image: UIImage? = await withCheckedContinuation { continuation in
             renderer.renderOffscreen(size: CGSize(width: 200, height: 200), pointScale: 1, elapsedTime: 4) { texture, _ in
                 continuation.resume(returning: texture.flatMap { DayObjectsImageRenderer.makeImage(texture: $0, scale: 1) })

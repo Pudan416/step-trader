@@ -120,7 +120,6 @@ struct GalleryView: View {
     @State private var paletteTransitionActive = false
     @State private var paletteTransitionTask: Task<Void, Never>?
     @State private var paletteConfirmationTask: Task<Void, Never>?
-    @State private var canvasViewportOrigin: CGPoint = .zero
     @State private var canvasSafeInsets = EdgeInsets()
     @Environment(\.dynamicTypeSize) private var paletteDynamicTypeSize
     @State private var canvasViewportSize: CGSize = .zero
@@ -488,15 +487,16 @@ struct GalleryView: View {
     }
 
     @ViewBuilder
-    private var happeningPaletteOverlay: some View {
+    private func happeningPaletteOverlay(layout: HappeningFieldLayout.Layout) -> some View {
         if showHappeningPalette, !presentation.isWideCanvas {
             HappeningPaletteView(
                 happenings: paletteHappenings,
                 assignments: paletteEditorialAssignments,
+                labelInks: paletteLabelInks,
                 catalog: paletteCatalog,
                 selectedIDs: paletteSelectedIDs,
                 activePanel: $happeningPalettePanel,
-                layout: happeningPaletteLayout,
+                layout: layout,
                 interaction: paletteInteraction,
                 addedIDs: paletteAddedIDs,
                 instruction: paletteInstruction,
@@ -518,23 +518,44 @@ struct GalleryView: View {
         return Set(dayCanvas.elements.map(\.optionId))
     }
 
-    private var happeningPaletteLayout: HappeningFieldLayout.Layout {
+    private var paletteLabelInks: [String: HappeningPaletteLabelInk] {
+        let input = displayedEditorialRenderInput.sceneInput
+        let background = DayObjectScene.make(input: input).meshGradientStyle.colors
+        return Dictionary(uniqueKeysWithValues: paletteHappenings.map { happening in
+            let state = paletteInteraction.visualState(for: happening.id, addedIDs: paletteAddedIDs)
+            var material: MetalShapeMaterialUniforms?
+            if state != .available,
+               let assignment = paletteEditorialAssignments[happening.id],
+               let actor = input.nativeAtlasRecipe?.reconciled(
+                   eventIDs: [assignment.elementID.uuidString.lowercased()]
+               ).actors.first {
+                material = actor.material.primaryCanvasMaterial
+                if actor.materialID != .sunset {
+                    material = material?.withColorVariant(assignment.colorVariant)
+                }
+            }
+            return (happening.id, HappeningPaletteLabelInk.resolve(
+                state: state, background: background, material: material
+            ))
+        })
+    }
+
+    private func happeningPaletteLayout(in viewport: GeometryProxy) -> HappeningFieldLayout.Layout {
         HappeningFieldLayout.layout(
             count: min(10, paletteHappenings.count),
-            in: canvasViewportSize,
+            in: viewport.size,
             safeInsets: canvasSafeInsets,
             dynamicTypeSize: paletteDynamicTypeSize,
             contentTopInset: canvasSafeInsets.top
                 + HappeningPaletteChromeLayout.panelTopInset(
                     topCardHeight: topCardHeight, hidesSurroundingChrome: true
                 ) + 10,
-            dockCenterY: canvasAddButtonCenterY.map { $0 - canvasViewportOrigin.y }
+            dockCenterY: canvasAddButtonCenterY.map { $0 - viewport.frame(in: .global).minY }
         )
     }
 
-    private var paletteRenderMode: DayObjectsPresentationMode {
+    private func paletteRenderMode(layout: HappeningFieldLayout.Layout, viewportSize: CGSize) -> DayObjectsPresentationMode {
         guard showHappeningPalette else { return .canvas }
-        let layout = happeningPaletteLayout
         let slots = paletteHappenings.prefix(10).enumerated().compactMap { index, happening
             -> HappeningPaletteRenderSlot? in
             guard index < layout.sources.count,
@@ -548,7 +569,7 @@ struct GalleryView: View {
         }
         return .happeningPalette(HappeningPaletteRenderPresentation(
             slots: slots,
-            viewportSize: canvasViewportSize,
+            viewportSize: viewportSize,
             reduceMotion: reduceMotion,
             isTransitionActive: paletteTransitionActive,
             backgroundRevision: UInt64(max(0, localMutationCounter))
@@ -818,13 +839,14 @@ struct GalleryView: View {
     // Kept separate from screen lifecycle so viewport layout can be verified in isolation.
     var canvasLayers: some View {
         GeometryReader { viewport in
+            let paletteLayout = happeningPaletteLayout(in: viewport)
             ZStack {
                 DayCanvasArtworkView(
                     style: showHappeningPalette ? .editorial : dayCanvas.resolvedVisualStyle,
                     editorial: displayedEditorialRenderInput,
                     isAnimating: isCanvasSelected,
                     soundPulseBus: canvasSoundPulseBus,
-                    presentationMode: paletteRenderMode
+                    presentationMode: paletteRenderMode(layout: paletteLayout, viewportSize: viewport.size)
                 ) {
                     legacyCanvasLayers
                         .background {
@@ -873,6 +895,11 @@ struct GalleryView: View {
                 }
             }
             .frame(width: viewport.size.width, height: viewport.size.height)
+            // Labels and Metal share this exact viewport, including safe areas.
+            // An overlay outside canvasLayers inherits a different screen origin.
+            .overlay {
+                happeningPaletteOverlay(layout: paletteLayout)
+            }
         }
         .ignoresSafeArea()
         .environment(\.isTodayCanvasSource, !showHappeningPalette)
@@ -945,9 +972,6 @@ struct GalleryView: View {
             }
         }
         .overlay {
-            happeningPaletteOverlay
-        }
-        .overlay {
             if showHappeningPalette, !presentation.isWideCanvas {
                 VStack(spacing: 0) {
                     Spacer(minLength: 0)
@@ -977,9 +1001,6 @@ struct GalleryView: View {
                                 send(.enterFullScreen)
                             }
                         }
-                    }
-                    .onChange(of: geo.frame(in: .global).origin, initial: true) { _, origin in
-                        canvasViewportOrigin = origin
                     }
                     .onChange(of: geo.safeAreaInsets, initial: true) { _, insets in
                         canvasSafeInsets = insets
