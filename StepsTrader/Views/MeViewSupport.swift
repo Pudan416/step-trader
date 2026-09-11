@@ -896,7 +896,6 @@ struct MeSelectedDayPoster: View {
         ) {
             canvasLayer
         }
-        .shadow(color: .black.opacity(0.24), radius: 18, y: 10)
         .accessibilityIdentifier("me_selected_day_poster")
         .accessibilityValue(dayKey)
         .task(id: MePosterCanvasLoadID(
