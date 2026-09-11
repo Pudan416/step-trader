@@ -188,8 +188,8 @@ final class SettingsHomePresentationTests: XCTestCase {
     }
 
 #if DEBUG
-    func testInternalLabCatalogContainsOnlyDayObjects() {
-        XCTAssertEqual(ExperimentalLabRoute.allCases, [.dayObjects])
+    func testInternalLabCatalogContainsDayObjectsAndAtlasExport() {
+        XCTAssertEqual(ExperimentalLabRoute.allCases, [.dayObjects, .shapeGenomeExport])
     }
 #endif
 }

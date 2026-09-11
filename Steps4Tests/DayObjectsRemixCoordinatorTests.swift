@@ -11,6 +11,12 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
         var plan = productionCyclePlan(seed: 10_000)
         try runtime.prepare(plan: plan)
         try runtime.startAudio()
+        // A failed restart or readiness timeout must not leave a live graph
+        // running into the next test in the shared XCTest host process.
+        addTeardownBlock { @MainActor in
+            runtime.endLead()
+            await runtime.stopAudio()
+        }
         try runtime.startPreparedWorldForTesting()
         try runtime.fadeMaster(to: plan)
 
@@ -39,6 +45,7 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
             }
 
             if cycle.isMultiple(of: 20) {
+                print("[RemixStress] completed cycle \(cycle); restarting live engine")
                 await runtime.stopAudio()
                 try runtime.prepare(plan: plan)
                 try runtime.startAudio()
@@ -64,7 +71,33 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
                 tempoBPM: plan.rhythm.tempoBPM
             ))
         }
-        RunLoop.current.run(until: Date().addingTimeInterval(0.12))
+        print("[RemixStress] all 100 cycles complete; collecting final live meter samples")
+        // RunLoop.run is unavailable from async contexts: nesting the run loop
+        // inside this MainActor task can reenter XCTest/concurrency work. Yield
+        // cooperatively until the actual output contract is ready. startAudio
+        // resets the meter windows; their sample counts are bounded occupancy,
+        // not monotonic counters, so do not compare them to a prior snapshot.
+        let expectedMeters: Set<String> = [
+            "rhythm", "bass", "harmony", "happenings", "lead", "preLimiter", "finalOutput",
+        ]
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(5))
+        while true {
+            let metrics = runtime.playbackPairMetricsForTesting
+            let counts = metrics.meterTapCapturedScalarSampleCounts
+            let everyTapHasSamples = expectedMeters.allSatisfy { counts[$0, default: 0] > 0 }
+            let everyRoleIsAudible = DayObjectsRoleBus.allCases.allSatisfy {
+                metrics.roleBusMetrics.metrics(for: $0).peakDBFS > -120
+            }
+            if everyTapHasSamples && everyRoleIsAudible && metrics.masterMetrics.peakDBFS > -120 {
+                break
+            }
+            guard clock.now < deadline else {
+                throw DayObjectsAudioError("Timed out waiting for audible meter samples after 100 live remixes: \(counts)")
+            }
+            try await clock.sleep(for: .milliseconds(10))
+        }
+        print("[RemixStress] final meter collection complete")
 
         let restartedTopology = runtime.engineTopologyForTesting
         let restartedMeters = runtime.playbackPairMetricsForTesting
@@ -83,6 +116,7 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
 
         runtime.endLead()
         await runtime.stopAudio()
+        print("[RemixStress] stopped live engine")
     }
 
     func testCancelPendingRemixLeavesCurrentWorldRunningAndClearsOnlyQueuedPlan() throws {

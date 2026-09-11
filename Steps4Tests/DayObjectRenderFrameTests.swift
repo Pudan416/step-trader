@@ -3204,14 +3204,15 @@ final class DayObjectRenderFrameTests: XCTestCase {
             color0: SIMD4(1, 0.96, 0.82, 1),
             color1: SIMD4(0.03, 0.04, 0.06, 1),
             color2: SIMD4(0.03, 0.04, 0.06, 1),
-            radial0: SIMD4(-0.32, 0, 0.90, 0.10),
-            radial1: SIMD4(0.18, 0.12, 0.48, 0.24),
+            // Broad active fields match the current gradient material contract.
+            radial0: SIMD4(-0.9, 0, 1.2, 0.82),
+            radial1: SIMD4(0.9, 0, 1.2, 0.82),
             radial2: SIMD4(0.08, -0.18, 0.42, 0.24),
             field: SIMD4(0, 1, 0, 0),
             optical0: SIMD4(0, 0, 1, 1),
             optical1: SIMD4(0, 0, 0, 0),
-            light: SIMD4(0, 0, 0, 0),
-            metadata: SIMD4(DayObjectMaterialFamily.gradient.rawValue, 3, 3, 0),
+            light: SIMD4(0, 1, 1, 0),
+            metadata: SIMD4(DayObjectMaterialFamily.gradient.rawValue, 2, 2, 0),
             recipe0: SIMD4(0.38, 0.68, 0.04, 0.72)
         )
         let capture = try harness.render(
@@ -3245,7 +3246,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
             let structuralParameters: SIMD4<Float>
             switch material {
             case .outline:
-                structuralParameters = SIMD4(2, 0.045, 0.07, 0.025)
+                structuralParameters = SIMD4(2, 0.020, 0.07, 0.025)
             case .counterform:
                 structuralParameters = SIMD4(0.52, 0.04, 0.22, 0.86)
             default:
@@ -3293,7 +3294,10 @@ final class DayObjectRenderFrameTests: XCTestCase {
             try XCTUnwrap(captures[.gradient])[outside.x, outside.y]
         )
         XCTAssertLessThan(try XCTUnwrap(captures[.outline])[center.x, center.y], 0.08)
-        XCTAssertGreaterThan(try XCTUnwrap(captures[.outline])[rim.x, rim.y], 0.35)
+        // Thin contours can fall between pixel centers; inspect the rim band,
+        // while the separate center/peak-count checks reject a filled disc.
+        let outline = try XCTUnwrap(captures[.outline])
+        XCTAssertGreaterThan((118...132).map { outline[$0, rim.y] }.max() ?? 0, 0.35)
         XCTAssertLessThan(try XCTUnwrap(captures[.counterform])[center.x, center.y], 0.10)
         XCTAssertGreaterThan(try XCTUnwrap(captures[.counterform])[105, 80], 0.35)
         XCTAssertGreaterThan(
@@ -3524,7 +3528,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
             light: SIMD4(0.4, 1, 0.7, 0.4),
             metadata: SIMD4(DayObjectMaterialFamily.outline.rawValue, 3, 3, 0),
             recipe0: SIMD4(0.32, 0.68, 0.05, 0.72),
-            recipe1: SIMD4(2, 0.045, 0.07, 0.025)
+            recipe1: SIMD4(2, 0.020, 0.07, 0.025)
         )
 
         let capture = try harness.render(
@@ -3534,7 +3538,9 @@ final class DayObjectRenderFrameTests: XCTestCase {
         )
 
         XCTAssertLessThan(capture[80, 80], 0.08)
-        XCTAssertGreaterThan(capture[128, 80], 0.42)
+        // The contour width is now capped at 0.02 local units. A fixed x=128
+        // samples the gap between rings rather than their coverage peak.
+        XCTAssertGreaterThan((118...132).map { capture[$0, 80] }.max() ?? 0, 0.42)
         XCTAssertGreaterThanOrEqual(capture.horizontalAlphaPeakCount(y: 80), 4)
     }
 
@@ -3661,7 +3667,11 @@ final class DayObjectRenderFrameTests: XCTestCase {
             materialPhase: 0.38,
             localDepthSoftness: 0
         )
-        func appearance(centerOpacity: Float, localSoftness: Float) -> DayObjectGPUAppearance {
+        func appearance(
+            centerOpacity: Float,
+            localSoftness: Float,
+            material: DayObjectMaterialFamily = .gradient
+        ) -> DayObjectGPUAppearance {
             DayObjectGPUAppearance(
                 color0: SIMD4(0.95, 0.12, 0.25, 1),
                 color1: SIMD4(0.12, 0.80, 0.95, 1),
@@ -3672,7 +3682,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
                 optical1: SIMD4(0.25, 0, 0, localSoftness),
                 membrane: .zero,
                 light: SIMD4(0.9, 0, 0, 0),
-                metadata: SIMD4(DayObjectMaterialFamily.satin.rawValue, 3, 1, 0)
+                metadata: SIMD4(material.rawValue, 3, 1, 0)
             )
         }
 
@@ -3699,19 +3709,40 @@ final class DayObjectRenderFrameTests: XCTestCase {
             0.001
         )
 
+        // Directional light softness belongs to sphere materials. Gradient
+        // (the old satin alias) intentionally has no normal-light shading.
         let hardLight = try harness.render(
             actor: actor,
-            appearance: appearance(centerOpacity: 1, localSoftness: 0),
+            appearance: appearance(centerOpacity: 1, localSoftness: 0, material: .sphere),
             backgroundColor: .zero,
             lightSoftness: 0.05
         )
         let softLight = try harness.render(
             actor: actor,
-            appearance: appearance(centerOpacity: 1, localSoftness: 0),
+            appearance: appearance(centerOpacity: 1, localSoftness: 0, material: .sphere),
             backgroundColor: .zero,
             lightSoftness: 0.95
         )
         XCTAssertGreaterThan(hardLight.meanAbsoluteRGBDifference(from: softLight), 0.002)
+
+        let gradientHardLight = try harness.render(
+            actor: actor,
+            appearance: appearance(centerOpacity: 1, localSoftness: 0),
+            backgroundColor: .zero,
+            lightSoftness: 0.05
+        )
+        let gradientSoftLight = try harness.render(
+            actor: actor,
+            appearance: appearance(centerOpacity: 1, localSoftness: 0),
+            backgroundColor: .zero,
+            lightSoftness: 0.95
+        )
+        XCTAssertEqual(
+            gradientHardLight.meanAbsoluteRGBDifference(from: gradientSoftLight),
+            0,
+            accuracy: 0.000_001,
+            "Radial gradients must not acquire directional light sectors"
+        )
     }
 
     func testActorPipelineUsesPremultipliedAlphaAndExactShaderABI() throws {
@@ -3761,7 +3792,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
 
     func testActorShaderRendersOnlyCircleDerivedOrbFamilies() throws {
         let harness = try ActorRenderHarness(width: 192, height: 160)
-        var silhouetteAreas = [UInt32: Int]()
+        var silhouettes = [UInt32: ActorAlphaCapture]()
 
         for shape in UInt32(0)...UInt32(6) {
             let actor = DayObjectGPUActor(
@@ -3780,13 +3811,19 @@ final class DayObjectRenderFrameTests: XCTestCase {
             XCTAssertGreaterThan(alpha.nonzeroPixelCount, 2_500)
             XCTAssertLessThan(alpha[0, 0], 0.01)
             XCTAssertLessThan(alpha[harness.width - 1, harness.height - 1], 0.01)
-            silhouetteAreas[shape] = alpha.nonzeroPixelCount
+            silhouettes[shape] = alpha
         }
 
-        let circleArea = try XCTUnwrap(silhouetteAreas[0])
+        let circle = try XCTUnwrap(silhouettes[0])
         for shape in UInt32(4)...UInt32(6) {
+            let silhouette = try XCTUnwrap(silhouettes[shape])
+            // Equal-area shapes can still have very different outlines. Compare
+            // spatial occupancy instead of subtracting the total pixel counts.
+            let changedPixels = zip(silhouette.alpha, circle.alpha).filter {
+                ($0 > 0.5) != ($1 > 0.5)
+            }.count
             XCTAssertGreaterThan(
-                abs(try XCTUnwrap(silhouetteAreas[shape]) - circleArea),
+                changedPixels,
                 25,
                 "Every new carrier needs a visibly distinct continuous silhouette"
             )
@@ -5640,7 +5677,7 @@ private struct DayObjectsPerceptualSignature: CustomStringConvertible {
         compare("luminanceDeviation", luminanceDeviation, baseline.luminanceDeviation, tolerance: 0.02)
         compare("lowLuminance", lowLuminance, baseline.lowLuminance, tolerance: 0.03)
         compare("highLuminance", highLuminance, baseline.highLuminance, tolerance: 0.035)
-        compare("edgeEnergy", edgeEnergy, baseline.edgeEnergy, tolerance: 0.005)
+        compare("edgeEnergy", edgeEnergy, baseline.edgeEnergy, tolerance: 0.001)
         compare("colorfulness", colorfulness, baseline.colorfulness, tolerance: 0.025)
         if coarseLuminance.count != baseline.coarseLuminance.count {
             result.append("coarseLuminance.count=\(coarseLuminance.count) expected=\(baseline.coarseLuminance.count)")
@@ -5729,97 +5766,84 @@ private enum DayObjectsPerceptualBaselines {
 
     static var livingOrbApprovedFixtureNames: [String] { fixtures.map(\.name) }
 
+    // Captured from the current integrated shader/recipe contract on 2026-09-11.
+    // Both Xcode 26.3 local and 26.6 CI agree; PNGs are retained in xcresult.
+    // Earlier August values predated the thinner contours and palette updates.
     static let fixtures = [
         Fixture(
             name: "light-phone-portrait", dayKey: "2026-08-20",
             categories: [.pastel, .spring], width: 180, height: 390,
             signature: DayObjectsPerceptualSignature(
-                meanRGB: SIMD3(0.5216131443990941, 0.5083268732902331, 0.46488745990981406),
-                meanLuminance: 0.5080152088819162,
-                luminanceDeviation: 0.18433298845670198,
-                lowLuminance: 0.2133548095703125,
-                highLuminance: 0.76413291015625,
-                edgeEnergy: 0.00874509,
-                colorfulness: 0.1676380527528942,
-                coarseLuminance: [
-                    0.5988909262820523, 0.661405726028313, 0.6421512758851661, 0.7842015921474362,
-                    0.5276713167140346, 0.28973891828096826, 0.29148884796429486, 0.6084531704518907,
-                    0.55314608, 0.43610097700904804, 0.4312714915281111, 0.4134397941581536,
-                ],
-                actorInkFraction: 0.21316239316239316,
-                actorEnergy: 0.07134374383286239,
-                borderActorPeak: 0,
-                negativeSpaceActorPeak: 0,
-                exclusionActorPeak: 0
+                meanRGB: SIMD3(0.5105171764406383, 0.5094009486358729, 0.471459714449369),
+                meanLuminance: 0.5068989015589044,
+                luminanceDeviation: 0.17950090994760629,
+                lowLuminance: 0.23117824707031248,
+                highLuminance: 0.76450087890625,
+                edgeEnergy: 0.003555826685420472,
+                colorfulness: 0.15310442237093239,
+                coarseLuminance: [0.609605587990784, 0.6343811188276257, 0.5966449330574758, 0.7826207823308964, 0.528328713115985, 0.2945191979448371, 0.2782679372704664, 0.5717715716437963, 0.5250249382595489, 0.4247738713691915, 0.42355026188568334, 0.4132979050105179],
+                actorInkFraction: 0.21934472934472934,
+                actorEnergy: 0.07268563305446687,
+                borderActorPeak: 0.0,
+                negativeSpaceActorPeak: 0.0,
+                exclusionActorPeak: 0.0
             )
         ),
         Fixture(
             name: "light-tablet-landscape", dayKey: "2026-08-20",
             categories: [.pastel, .spring], width: 256, height: 192,
             signature: DayObjectsPerceptualSignature(
-                meanRGB: SIMD3(0.4805849641561508, 0.49844759861783433, 0.43986927811056376),
-                meanLuminance: 0.4904206477906547,
-                luminanceDeviation: 0.18568632001916627,
-                lowLuminance: 0.1543663818359375,
-                highLuminance: 0.71025185546875,
-                edgeEnergy: 0.00885143,
-                colorfulness: 0.1388903207068021,
-                coarseLuminance: [
-                    0.6079084845066081, 0.5795996627211593, 0.48337379782199813, 0.7536240112125883,
-                    0.5233667179696241, 0.24737492233701078, 0.24969754907153574, 0.5989425823688482,
-                    0.54373032, 0.4487894833415757, 0.48007507135868116, 0.4899360250473018,
-                ],
-                actorInkFraction: 0.25787353515625,
-                actorEnergy: 0.08959399715919657,
-                borderActorPeak: 0,
-                negativeSpaceActorPeak: 0,
-                exclusionActorPeak: 0
+                meanRGB: SIMD3(0.4658000282943249, 0.49695673150320846, 0.44451013455788296),
+                meanLuminance: 0.486546172101545,
+                luminanceDeviation: 0.1856642908144332,
+                lowLuminance: 0.1569367431640625,
+                highLuminance: 0.7095380859375,
+                edgeEnergy: 0.0038374748530617697,
+                colorfulness: 0.12048385975261529,
+                coarseLuminance: [0.5702522812962536, 0.5489251456171251, 0.4669257232502101, 0.7448143860816958, 0.5257746343553062, 0.24207177401036015, 0.2271007670670746, 0.6024043646335608, 0.5455589111149315, 0.41619883303046296, 0.45874395480453933, 0.4897832899570465],
+                actorInkFraction: 0.2641805013020833,
+                actorEnergy: 0.09357249134182953,
+                borderActorPeak: 0.0,
+                negativeSpaceActorPeak: 0.0,
+                exclusionActorPeak: 0.0
             )
         ),
         Fixture(
             name: "dark-phone-portrait", dayKey: "2026-08-21",
             categories: [.winter, .cold], width: 180, height: 390,
             signature: DayObjectsPerceptualSignature(
-                meanRGB: SIMD3(0.149248292058961, 0.2497039264559406, 0.3441325148014601),
-                meanLuminance: 0.23516480266169063,
-                luminanceDeviation: 0.1247877748516015,
-                lowLuminance: 0.12394271240234375,
-                highLuminance: 0.44290458984375,
-                edgeEnergy: 0.00848344,
-                colorfulness: 0.19176742032042934,
-                coarseLuminance: [
-                    0.11550917070124697, 0.11241372726362166, 0.15459069723954175, 0.1764330070206076,
-                    0.21528211157643792, 0.2542644688939802, 0.2949884835518075, 0.3422983737271308,
-                    0.32507004298961656, 0.25325545315630044, 0.2653575830933659, 0.3365707151797057,
-                ],
-                actorInkFraction: 0.5824216524216524,
-                actorEnergy: 0.06731245511159858,
-                borderActorPeak: 0.34130510253906243,
-                negativeSpaceActorPeak: 0,
-                exclusionActorPeak: 0
+                meanRGB: SIMD3(0.13243023081722421, 0.1775000482542902, 0.28612894433176417),
+                meanLuminance: 0.17576121136396383,
+                luminanceDeviation: 0.09192660329471572,
+                lowLuminance: 0.09234310913085937,
+                highLuminance: 0.32710566406249997,
+                edgeEnergy: 0.0027467955803108937,
+                colorfulness: 0.18012096155063378,
+                coarseLuminance: [0.11287413822689207, 0.09860286357181915, 0.11171312639181033, 0.17035548585549395, 0.19012563319696885, 0.24230802900056797, 0.19413421953667515, 0.18120499086715866, 0.26613346649430786, 0.17321785039292006, 0.13738381604629932, 0.23108091678665021],
+                actorInkFraction: 0.5894586894586895,
+                actorEnergy: 0.07368726947138744,
+                borderActorPeak: 0.20831971435546878,
+                negativeSpaceActorPeak: 0.0,
+                exclusionActorPeak: 0.0
             )
         ),
         Fixture(
             name: "dark-tablet-landscape", dayKey: "2026-08-21",
             categories: [.winter, .cold], width: 256, height: 192,
             signature: DayObjectsPerceptualSignature(
-                meanRGB: SIMD3(0.23023186810314655, 0.26610423624515533, 0.37073007225990295),
-                meanLuminance: 0.2530504365254201,
-                luminanceDeviation: 0.14061469637696775,
-                lowLuminance: 0.1492218994140625,
-                highLuminance: 0.47659609374999995,
-                edgeEnergy: 0.00859305,
-                colorfulness: 0.18007844996949038,
-                coarseLuminance: [
-                    0.14901381171047712, 0.1145066393300891, 0.18458954571932593, 0.2320200020879511,
-                    0.2023595576614143, 0.16844738334268342, 0.3551740106821063, 0.397382262337207,
-                    0.38276071653962107, 0.2025484221160403, 0.39541930219233035, 0.433304414996506,
-                ],
-                actorInkFraction: 0.7433878580729166,
-                actorEnergy: 0.11079850024282915,
-                borderActorPeak: 0.3440636962890625,
-                negativeSpaceActorPeak: 0,
-                exclusionActorPeak: 0
+                meanRGB: SIMD3(0.13347830468167862, 0.14979260135442019, 0.2801169343292713),
+                meanLuminance: 0.15573359872257914,
+                luminanceDeviation: 0.08189328995586118,
+                lowLuminance: 0.085829150390625,
+                highLuminance: 0.23211665039062496,
+                edgeEnergy: 0.0027354476875070598,
+                colorfulness: 0.17685512267053127,
+                coarseLuminance: [0.14833703198134898, 0.11449093053787925, 0.1084606456115842, 0.15033067197054684, 0.1553697140097619, 0.16455226742327236, 0.1482896757304668, 0.18179636600911656, 0.2957564740270372, 0.11188703547194602, 0.12222552356570947, 0.16730684833228593],
+                actorInkFraction: 0.7490234375,
+                actorEnergy: 0.08605622735967189,
+                borderActorPeak: 0.24611184082031246,
+                negativeSpaceActorPeak: 0.0,
+                exclusionActorPeak: 0.0
             )
         ),
     ]
@@ -5827,39 +5851,39 @@ private enum DayObjectsPerceptualBaselines {
     static let transitionSignatures = [
         DayObjectsTransitionPerceptualSignature(
             name: "insertion-before", renderedActorCount: 4,
-            affectedEnergy: 0, meanLuminance: 0.6241096255339696, edgeEnergy: 0.00744868
+            affectedEnergy: 0.0, meanLuminance: 0.6029466154180115, edgeEnergy: 0.0018754158990973643
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "insertion-during", renderedActorCount: 5,
-            affectedEnergy: 0, meanLuminance: 0.6250922700937283, edgeEnergy: 0.00741477
+            affectedEnergy: 0.0, meanLuminance: 0.6039267072427574, edgeEnergy: 0.0018742652153295384
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "insertion-after", renderedActorCount: 5,
-            affectedEnergy: 0.004467616574570431, meanLuminance: 0.6252551639748873, edgeEnergy: 0.00742865
+            affectedEnergy: 0.005044054849054094, meanLuminance: 0.6003762945637459, edgeEnergy: 0.0020291412931658856
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "removal-before", renderedActorCount: 5,
-            affectedEnergy: 0.0060925226411474446, meanLuminance: 0.6383002278712754, edgeEnergy: 0.00739795
+            affectedEnergy: 0.006492164290561348, meanLuminance: 0.6129603774330209, edgeEnergy: 0.002078692657777942
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "removal-during", renderedActorCount: 5,
-            affectedEnergy: 0.004592009344356808, meanLuminance: 0.6398319109388411, edgeEnergy: 0.00740709
+            affectedEnergy: 0.005172063374933795, meanLuminance: 0.6153641504925977, edgeEnergy: 0.002056225822495682
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "removal-after", renderedActorCount: 4,
-            affectedEnergy: 0, meanLuminance: 0.6430566316650813, edgeEnergy: 0.00739413
+            affectedEnergy: 0.0, meanLuminance: 0.6220932359819299, edgeEnergy: 0.0018957555054073835
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "capped-replacement-before", renderedActorCount: 10,
-            affectedEnergy: 0, meanLuminance: 0.602726264790578, edgeEnergy: 0.00763671
+            affectedEnergy: 0.0, meanLuminance: 0.5982973951618152, edgeEnergy: 0.0028167191474070927
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "capped-replacement-during", renderedActorCount: 10,
-            affectedEnergy: 0.0033697729584465878, meanLuminance: 0.6064854584263162, edgeEnergy: 0.00767771
+            affectedEnergy: 0.003343150888350878, meanLuminance: 0.6022156706342339, edgeEnergy: 0.0027824286434179352
         ),
         DayObjectsTransitionPerceptualSignature(
             name: "capped-replacement-after", renderedActorCount: 10,
-            affectedEnergy: 0.0022152655943257302, meanLuminance: 0.6085142534342713, edgeEnergy: 0.00764747
+            affectedEnergy: 0.0031557797911654513, meanLuminance: 0.6042853665127332, edgeEnergy: 0.0026661577495016493
         ),
     ]
 
@@ -5887,8 +5911,8 @@ private enum DayObjectsPerceptualBaselines {
             if abs(value.meanLuminance - expected.meanLuminance) > 0.025 {
                 result.append("\(expected.name).mean=\(value.meanLuminance) expected=\(expected.meanLuminance)±0.025")
             }
-            if abs(value.edgeEnergy - expected.edgeEnergy) > 0.005 {
-                result.append("\(expected.name).edge=\(value.edgeEnergy) expected=\(expected.edgeEnergy)±0.005")
+            if abs(value.edgeEnergy - expected.edgeEnergy) > 0.001 {
+                result.append("\(expected.name).edge=\(value.edgeEnergy) expected=\(expected.edgeEnergy)±0.001")
             }
         }
         return result
