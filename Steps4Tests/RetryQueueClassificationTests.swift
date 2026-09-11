@@ -135,6 +135,11 @@ final class RetryQueueClassificationTests: XCTestCase {
             optionEntryDeleteID: nil
         )
 
+        XCTAssertEqual(request.optionEntryMutations?.first?.ownerUserID, "user")
+        if case .upsert(let restored) = request.optionEntryMutations?.first?.operation {
+            XCTAssertEqual(restored.dayKey, "2026-09-07")
+            XCTAssertEqual(restored.optionId, "happening_walk")
+        } else { XCTFail("Legacy POST must remain an upsert after rollover") }
         XCTAssertTrue(request.isOptionEntryMutation)
         XCTAssertEqual(request.resolvedOptionEntryMutationIDs, [id.lowercased()])
         XCTAssertEqual(
@@ -205,11 +210,11 @@ final class RetryQueueClassificationTests: XCTestCase {
             assetVariant: 2
         )
 
-        let remove = store.mark(id: uppercase)
+        let remove = store.mark(.delete(id: uppercase))
         XCTAssertEqual(store.operation(for: remove, desiredEntries: []), .delete(id: uppercase))
-        let readd = store.mark(id: lowercase)
+        let readd = store.mark(.upsert(entry))
         XCTAssertEqual(store.operation(for: readd, desiredEntries: [entry]), .upsert(entry))
-        let finalRemove = store.mark(id: uppercase)
+        let finalRemove = store.mark(.delete(id: uppercase))
         XCTAssertEqual(store.operation(for: finalRemove, desiredEntries: []), .delete(id: uppercase))
 
         XCTAssertFalse(store.finishAttempt(remove, operation: .delete(id: uppercase), succeeded: true, latestDesiredEntries: []))
@@ -233,14 +238,123 @@ final class RetryQueueClassificationTests: XCTestCase {
             assetVariant: nil
         )
 
-        let readd = store.mark(id: id)
+        let readd = store.mark(.upsert(entry))
         let failedUpsert = OptionEntryIntentOperation.upsert(entry)
         XCTAssertFalse(store.finishAttempt(readd, operation: failedUpsert, succeeded: false, latestDesiredEntries: [entry]))
         XCTAssertEqual(store.operation(for: readd, desiredEntries: [entry]), failedUpsert)
 
-        let finalRemove = store.mark(id: id.lowercased())
+        let finalRemove = store.mark(.delete(id: id.lowercased()))
         XCTAssertEqual(store.operation(for: finalRemove, desiredEntries: []), .delete(id: id.lowercased()))
         XCTAssertNotNil(store.pending(canonicalID: finalRemove.canonicalID))
+    }
+
+    func testPendingUpsertSurvivesRolloverAndStoreReload() throws {
+        let (defaults, suite) = isolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = OptionEntryIntentPersistence(defaults: defaults, key: "entry-intents")
+        let entry = OptionEntry(id: UUID().uuidString, dayKey: "2026-09-11", optionId: "walk",
+            colorHex: "#A1B2C3", timestamp: .now, assetVariant: 2)
+        let saved = store.mark(.upsert(entry), ownerUserID: "owner-a")
+        let reloaded = try XCTUnwrap(OptionEntryIntentPersistence(defaults: defaults, key: "entry-intents")
+            .pending(canonicalID: saved.canonicalID))
+        XCTAssertEqual(reloaded.ownerUserID, "owner-a")
+        XCTAssertEqual(store.operation(for: reloaded, desiredEntries: []), .upsert(entry))
+        XCTAssertTrue(store.finishAttempt(reloaded, operation: .upsert(entry), succeeded: true, latestDesiredEntries: []))
+    }
+
+    func testLegacyIdentityOnlyMarkerCannotDeleteMissingHistoricalEntry() throws {
+        let (defaults, suite) = isolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let id = UUID().uuidString
+        let data = try JSONSerialization.data(withJSONObject: [id: ["canonicalID": id, "requestedID": id, "version": 1]])
+        defaults.set(data, forKey: "entry-intents")
+        let store = OptionEntryIntentPersistence(defaults: defaults, key: "entry-intents")
+        let legacy = try XCTUnwrap(store.pending(canonicalID: id))
+        XCTAssertNil(store.operation(for: legacy, desiredEntries: []))
+    }
+
+    func testRawHistoricalPostUpgradesCoexistingIdentityOnlyMarker() throws {
+        let (defaults, suite) = isolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let id = UUID().uuidString
+        defaults.set(try JSONSerialization.data(withJSONObject: [id: ["canonicalID": id, "requestedID": id, "version": 1]]), forKey: "intents")
+        let store = OptionEntryIntentPersistence(defaults: defaults, key: "intents")
+        let row: [String: Any] = ["id": id, "user_id": "owner-a", "day_key": "2026-09-11",
+            "option_id": "walk", "color_hex": "#FFFFFF", "created_at": "2026-09-11T08:00:00Z"]
+        let request = SupabasePendingSyncRequest(urlString: "https://example.supabase.co/rest/v1/user_happening_additions",
+            method: "POST", body: try JSONSerialization.data(withJSONObject: [row]), preferHeader: nil,
+            createdAt: .now, optionEntryDeleteID: nil)
+        XCTAssertEqual(store.migrateLegacyRequests([request]), [request.queueID])
+        let upgraded = try XCTUnwrap(store.pending(canonicalID: id))
+        XCTAssertEqual(upgraded.ownerUserID, "owner-a")
+        guard case .upsert(let entry) = store.operation(for: upgraded, desiredEntries: []) else {
+            return XCTFail("Historical payload was discarded behind identity-only marker")
+        }
+        XCTAssertEqual(entry.dayKey, "2026-09-11")
+        XCTAssertEqual(entry.optionId, "walk")
+        // A newer explicit removal must still supersede a stale raw upsert.
+        let deletion = store.mark(.delete(id: id), ownerUserID: "owner-a")
+        _ = store.migrateLegacyRequests([request])
+        XCTAssertEqual(store.pending(canonicalID: id), deletion)
+    }
+
+    func testStaleBatchSnapshotAfterRolloverCannotSupersedeLaterDeletion() {
+        let (defaults, suite) = isolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = OptionEntryIntentPersistence(defaults: defaults, key: "intents")
+        let entry = OptionEntry(id: UUID().uuidString, dayKey: "2026-09-11", optionId: "walk",
+            colorHex: "#FFFFFF", timestamp: .now, assetVariant: nil)
+        _ = store.recordUpsert(entry, desiredEntries: [entry], currentDayKey: "2026-09-11", ownerUserID: "owner")
+        let deletion = store.mark(.delete(id: entry.id), ownerUserID: "owner")
+        let replay = store.recordUpsert(entry, desiredEntries: [], currentDayKey: "2026-09-12", ownerUserID: "owner")
+        XCTAssertEqual(replay, deletion)
+        // A real re-add, present in local state, can still supersede removal.
+        let readded = store.recordUpsert(entry, desiredEntries: [entry], currentDayKey: "2026-09-12", ownerUserID: "owner")
+        XCTAssertEqual(readded.savedOperation, .upsert(entry))
+    }
+
+    func testPendingIntentCannotBeReassignedToAnotherAccountOrSignedOutSession() {
+        let (defaults, suite) = isolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = OptionEntryIntentPersistence(defaults: defaults, key: "intents")
+        let entry = OptionEntry(id: UUID().uuidString, dayKey: "2026-09-11", optionId: "walk",
+            colorHex: "#FFFFFF", timestamp: .now, assetVariant: nil)
+        let original = store.mark(.upsert(entry), ownerUserID: "owner-a")
+        let otherAccount = store.recordUpsert(entry, desiredEntries: [entry], currentDayKey: entry.dayKey, ownerUserID: "owner-b")
+        XCTAssertEqual(otherAccount, original)
+        XCTAssertEqual(store.mark(.delete(id: entry.id), ownerUserID: "owner-b"), original)
+        XCTAssertEqual(store.mark(.delete(id: entry.id), ownerUserID: nil), original)
+        XCTAssertEqual(store.pending(canonicalID: original.canonicalID), original)
+        // The original account can still edit its own pending entry.
+        let removal = store.mark(.delete(id: entry.id), ownerUserID: "owner-a")
+        XCTAssertEqual(removal.savedOperation, .delete(id: entry.id))
+        XCTAssertGreaterThan(removal.version, original.version)
+    }
+
+    func testMigratedRawOwnerSurvivesNextAccountsFullSyncRegistration() throws {
+        let (defaults, suite) = isolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = OptionEntryIntentPersistence(defaults: defaults, key: "intents")
+        let entry = OptionEntry(id: UUID().uuidString, dayKey: "2026-09-11", optionId: "walk",
+            colorHex: "#FFFFFF", timestamp: Date(timeIntervalSince1970: 1_789_113_600), assetVariant: nil)
+        let row: [String: Any] = ["id": entry.id, "user_id": "owner-a", "day_key": entry.dayKey,
+            "option_id": entry.optionId, "color_hex": entry.colorHex, "created_at": "2026-09-11T08:00:00Z"]
+        let request = SupabasePendingSyncRequest(urlString: "https://example.supabase.co/rest/v1/user_happening_additions",
+            method: "POST", body: try JSONSerialization.data(withJSONObject: [row]), preferHeader: nil,
+            createdAt: .now, optionEntryDeleteID: nil)
+        _ = store.migrateLegacyRequests([request])
+        let migrated = try XCTUnwrap(store.pending(canonicalID: entry.id))
+        let nextLogin = store.recordUpsert(entry, desiredEntries: [entry], currentDayKey: entry.dayKey, ownerUserID: "owner-b")
+        XCTAssertEqual(nextLogin, migrated)
+        XCTAssertEqual(nextLogin.ownerUserID, "owner-a")
+        XCTAssertEqual(store.pending(canonicalID: entry.id), migrated)
+    }
+
+    func testDelayedUpsertPreservesYesterdayButRespectsTodaysRemoval() {
+        let entry = OptionEntry(id: UUID().uuidString, dayKey: "2026-09-11", optionId: "walk",
+            colorHex: "#A1B2C3", timestamp: .now, assetVariant: nil)
+        XCTAssertEqual(OptionEntryIntentOperation.upsertIntent(entry, desiredEntries: [], currentDayKey: "2026-09-12"), .upsert(entry))
+        XCTAssertEqual(OptionEntryIntentOperation.upsertIntent(entry, desiredEntries: [], currentDayKey: "2026-09-11"), .delete(id: entry.id))
     }
 
     func testAttemptCoordinatorDoesNotAcknowledgeFinalIntentWhileOlderRequestsAreInFlight() async {

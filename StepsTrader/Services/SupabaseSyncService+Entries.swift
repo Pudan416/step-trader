@@ -36,15 +36,32 @@ enum OptionEntryRetrySupersession {
     }
 }
 
-enum OptionEntryIntentOperation: Equatable {
+enum OptionEntryIntentOperation: Codable, Equatable {
     case upsert(OptionEntry)
     case delete(id: String)
+
+    var id: String {
+        switch self { case .upsert(let entry): return entry.id; case .delete(let id): return id }
+    }
+
+    /// Capture current-day edits before an asynchronous callback can reorder them.
+    /// After rollover, absence from today's list says nothing about yesterday.
+    static func upsertIntent(_ entry: OptionEntry, desiredEntries: [OptionEntry], currentDayKey: String) -> Self {
+        if let latest = desiredEntries.first(where: {
+            OptionEntryCanonicalIdentity.key(for: $0.id) == OptionEntryCanonicalIdentity.key(for: entry.id)
+        }) { return .upsert(latest) }
+        return entry.dayKey == currentDayKey ? .delete(id: entry.id) : .upsert(entry)
+    }
 }
 
 struct PendingOptionEntryIntent: Codable, Equatable {
     let canonicalID: String
     let requestedID: String
     let version: UInt64
+    // Optional only for decoding the old identity-only queue. Missing operation
+    // must never be interpreted as deletion after a day rollover.
+    let savedOperation: OptionEntryIntentOperation?
+    let ownerUserID: String?
 }
 
 struct OptionEntryIntentPersistence {
@@ -63,30 +80,52 @@ struct OptionEntryIntentPersistence {
     }
 
     @discardableResult
-    func mark(id: String) -> PendingOptionEntryIntent {
+    func mark(_ operation: OptionEntryIntentOperation, ownerUserID: String? = nil) -> PendingOptionEntryIntent {
+        let id = operation.id
         var intents = load()
         let canonicalID = OptionEntryCanonicalIdentity.key(for: id)
+        if let existing = intents[canonicalID], let existingOwner = existing.ownerUserID,
+           existingOwner != ownerUserID {
+            // Local day data survives sign-out. A new account must not adopt or
+            // remove a previous account's still-pending operation.
+            return existing
+        }
         let version = (intents[canonicalID]?.version ?? 0) &+ 1
         let intent = PendingOptionEntryIntent(
             canonicalID: canonicalID,
             requestedID: id,
-            version: version
+            version: version,
+            savedOperation: operation,
+            ownerUserID: ownerUserID
         )
         intents[canonicalID] = intent
         save(intents)
         return intent
     }
 
+    func recordUpsert(_ entry: OptionEntry, desiredEntries: [OptionEntry], currentDayKey: String, ownerUserID: String?) -> PendingOptionEntryIntent {
+        let canonicalID = OptionEntryCanonicalIdentity.key(for: entry.id)
+        let isStillPresent = desiredEntries.contains { OptionEntryCanonicalIdentity.key(for: $0.id) == canonicalID }
+        if !isStillPresent, let existing = pending(canonicalID: canonicalID),
+           existing.ownerUserID == ownerUserID, case .delete = existing.savedOperation {
+            // A stale full-sync snapshot must not resurrect a later removal,
+            // including after midnight while an earlier batch request was in flight.
+            return existing
+        }
+        return mark(.upsertIntent(entry, desiredEntries: desiredEntries, currentDayKey: currentDayKey), ownerUserID: ownerUserID)
+    }
+
     func operation(
         for intent: PendingOptionEntryIntent,
         desiredEntries: [OptionEntry]
-    ) -> OptionEntryIntentOperation {
+    ) -> OptionEntryIntentOperation? {
+        if let saved = intent.savedOperation { return saved }
         if let desired = desiredEntries.first(where: {
             OptionEntryCanonicalIdentity.key(for: $0.id) == intent.canonicalID
         }) {
             return .upsert(desired)
         }
-        return .delete(id: intent.requestedID)
+        return nil // Ambiguous legacy marker: do not delete historical data.
     }
 
     /// A network response acknowledges an intent only when it succeeded and
@@ -107,6 +146,21 @@ struct OptionEntryIntentPersistence {
         intents.removeValue(forKey: intent.canonicalID)
         save(intents)
         return true
+    }
+
+    /// Upgrade old raw requests without discarding the only recoverable payload.
+    /// An identity-only marker is not a newer durable operation.
+    func migrateLegacyRequests(_ requests: [SupabasePendingSyncRequest]) -> Set<String> {
+        let durableIDs = Set(load().filter { $0.value.savedOperation != nil }.map(\.key))
+        var migratedIDs = Set<String>()
+        for request in requests {
+            guard let mutations = request.optionEntryMutations else { continue }
+            for mutation in mutations where !durableIDs.contains(OptionEntryCanonicalIdentity.key(for: mutation.operation.id)) {
+                mark(mutation.operation, ownerUserID: mutation.ownerUserID)
+            }
+            migratedIDs.insert(request.queueID)
+        }
+        return migratedIDs
     }
 
     private func save(_ intents: [String: PendingOptionEntryIntent]) {
@@ -162,10 +216,12 @@ actor OptionEntryIntentAttemptCoordinator {
 // MARK: - Option Entry Sync
 extension SupabaseSyncService {
     
-    func syncOptionEntries(_ entries: [OptionEntry]) {
+    func syncOptionEntries(_ entries: [OptionEntry]) async {
+        let owner = await optionEntryOwnerID()
+        migrateLegacyOptionEntryIntents()
         let payload = entries.sorted(by: { $0.timestamp < $1.timestamp })
         let canonicalIDs = payload.map {
-            optionEntryIntentStore.mark(id: $0.id).canonicalID
+            recordOptionEntryUpsert($0, ownerUserID: owner).canonicalID
         }
         
         entriesSyncTask?.cancel()
@@ -178,8 +234,9 @@ extension SupabaseSyncService {
         }
     }
 
-    private func sendOptionEntryUpsert(_ entry: OptionEntry) async -> Bool {
-        guard let auth = await authenticatedContext() else { return false }
+    private func sendOptionEntryUpsert(_ entry: OptionEntry, ownerUserID: String?) async -> Bool {
+        guard let auth = await authenticatedContext(),
+              ownerUserID == nil || ownerUserID == auth.userId else { return false }
         let token = auth.token
         let userId = auth.userId
         
@@ -220,28 +277,40 @@ extension SupabaseSyncService {
     }
 
     func performEntriesSyncForFullSync(_ entries: [OptionEntry]) async {
-        for entry in entries {
-            let intent = optionEntryIntentStore.mark(id: entry.id)
-            await reconcileOptionEntryIntent(canonicalID: intent.canonicalID)
+        let owner = await optionEntryOwnerID()
+        migrateLegacyOptionEntryIntents()
+        let identities = entries.map { recordOptionEntryUpsert($0, ownerUserID: owner).canonicalID }
+        for identity in identities {
+            await reconcileOptionEntryIntent(canonicalID: identity)
         }
     }
 
     /// Syncs one client-identified addition. Upserting by `id` makes retries
     /// idempotent while still allowing the same happening multiple times.
     func syncOptionEntry(_ entry: OptionEntry) async {
-        let intent = optionEntryIntentStore.mark(id: entry.id)
+        let owner = await optionEntryOwnerID()
+        migrateLegacyOptionEntryIntents()
+        let intent = recordOptionEntryUpsert(entry, ownerUserID: owner)
         supersedeQueuedOptionEntryDelete(id: entry.id)
         await reconcileOptionEntryIntent(canonicalID: intent.canonicalID)
     }
 
     func deleteOptionEntry(id: String) async {
-        let intent = optionEntryIntentStore.mark(id: id)
+        let owner = await optionEntryOwnerID()
+        migrateLegacyOptionEntryIntents()
+        let desired = OptionEntryRetrySupersession.recoveryEntry(
+            afterReplayingDeleteID: id,
+            latestDesiredEntries: OptionEntryRetrySupersession.persistedDesiredEntries()
+        )
+        let operation: OptionEntryIntentOperation = desired.map { .upsert($0) } ?? .delete(id: id)
+        let intent = optionEntryIntentStore.mark(operation, ownerUserID: owner)
         supersedeQueuedOptionEntryDelete(id: id)
         await reconcileOptionEntryIntent(canonicalID: intent.canonicalID)
     }
 
-    private func sendOptionEntryDelete(id: String) async -> Bool {
-        guard let auth = await authenticatedContext() else { return false }
+    private func sendOptionEntryDelete(id: String, ownerUserID: String?) async -> Bool {
+        guard let auth = await authenticatedContext(),
+              ownerUserID == nil || ownerUserID == auth.userId else { return false }
         do {
             let cfg = try SupabaseConfig.load()
             let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/user_happening_additions")
@@ -275,18 +344,28 @@ extension SupabaseSyncService {
         }
     }
 
-    /// Re-evaluates persisted `todayAdditions` before every request and again
-    /// after every response. The durable versioned marker is not cleared while
-    /// another request for this identity is in flight, so a late stale response
-    /// is always followed by the latest desired upsert or delete.
+    private func optionEntryOwnerID() async -> String? {
+        await AuthenticationService.shared.waitForInitialization()
+        return await AuthenticationService.shared.currentUser?.id
+    }
+
+    private func recordOptionEntryUpsert(_ entry: OptionEntry, ownerUserID: String?) -> PendingOptionEntryIntent {
+        let dayKey = AppModel.dayKey(for: .now)
+        return optionEntryIntentStore.recordUpsert(entry,
+            desiredEntries: OptionEntryRetrySupersession.persistedDesiredEntries(),
+            currentDayKey: dayKey, ownerUserID: ownerUserID)
+    }
+
+    /// Replay a durable operation/payload, independent of the current day list.
+    /// Versions and the attempt coordinator still settle stale in-flight requests.
     private func reconcileOptionEntryIntent(canonicalID: String) async {
         for _ in 0..<8 {
             guard let intent = optionEntryIntentStore.pending(canonicalID: canonicalID) else { return }
             let desiredEntries = OptionEntryRetrySupersession.persistedDesiredEntries()
-            let operation = optionEntryIntentStore.operation(
+            guard let operation = optionEntryIntentStore.operation(
                 for: intent,
                 desiredEntries: desiredEntries
-            )
+            ) else { return }
             let token = await optionEntryAttemptCoordinator.begin(
                 canonicalID: canonicalID,
                 version: intent.version
@@ -294,9 +373,9 @@ extension SupabaseSyncService {
             let succeeded: Bool
             switch operation {
             case let .upsert(entry):
-                succeeded = await sendOptionEntryUpsert(entry)
+                succeeded = await sendOptionEntryUpsert(entry, ownerUserID: intent.ownerUserID)
             case let .delete(id):
-                succeeded = await sendOptionEntryDelete(id: id)
+                succeeded = await sendOptionEntryDelete(id: id, ownerUserID: intent.ownerUserID)
             }
 
             let latestIntent = optionEntryIntentStore.pending(canonicalID: canonicalID)

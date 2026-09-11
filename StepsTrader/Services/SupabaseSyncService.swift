@@ -86,6 +86,37 @@ struct SupabasePendingSyncRequest: Codable, Equatable {
         return rows.compactMap { $0["id"] as? String }
     }
 
+    struct OptionMutation {
+        let operation: OptionEntryIntentOperation
+        let ownerUserID: String
+    }
+
+    var optionEntryMutations: [OptionMutation]? {
+        guard isOptionEntryMutation else { return nil }
+        if let id = resolvedOptionEntryDeleteID,
+           let components = URLComponents(string: urlString),
+           let value = components.queryItems?.first(where: { $0.name == "user_id" })?.value,
+           value.hasPrefix("eq.") {
+            return [OptionMutation(operation: .delete(id: id), ownerUserID: String(value.dropFirst(3)))]
+        }
+        guard method == "POST", let body,
+              let rows = try? JSONSerialization.jsonObject(with: body) as? [[String: Any]] else { return nil }
+        var mutations: [OptionMutation] = []
+        let formatter = ISO8601DateFormatter()
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        for row in rows {
+            guard let id = row["id"] as? String, let owner = row["user_id"] as? String,
+                  let dayKey = row["day_key"] as? String, let optionID = row["option_id"] as? String,
+                  let color = row["color_hex"] as? String, let rawDate = row["created_at"] as? String,
+                  let date = fractional.date(from: rawDate) ?? formatter.date(from: rawDate) else { return nil }
+            let entry = OptionEntry(id: id, dayKey: dayKey, optionId: optionID, colorHex: color,
+                timestamp: date, assetVariant: row["asset_variant"] as? Int)
+            mutations.append(OptionMutation(operation: .upsert(entry), ownerUserID: owner))
+        }
+        return mutations
+    }
+
     /// Old queue records had no durable identifier. This deterministic value
     /// lets a successful replay acknowledge that exact legacy record without
     /// clearing requests enqueued while the network call was suspended.
@@ -358,21 +389,24 @@ actor SupabaseSyncService {
         retryQueueStore.save(queue)
     }
     
-    /// Drain the offline retry queue. Call on app launch or when connectivity is restored.
-    func drainRetryQueue() async {
+    /// Establish original account ownership before any new intent registration.
+    /// This is synchronous on the service actor so login/full sync cannot race
+    /// ahead of migration and claim a previous account's queued entry.
+    func migrateLegacyOptionEntryIntents() {
         let initialQueue = loadRetryQueue()
         let expiredQueueIDs = Set(initialQueue.filter(\.isExpired).map(\.queueID))
         let legacyOptionMutations = initialQueue.filter {
             !$0.isExpired && $0.isOptionEntryMutation
         }
-        for entry in legacyOptionMutations {
-            for id in entry.resolvedOptionEntryMutationIDs {
-                optionEntryIntentStore.mark(id: id)
-            }
-        }
-        retryQueueStore.removeAcknowledged(
-            queueIDs: expiredQueueIDs.union(legacyOptionMutations.map(\.queueID))
-        )
+        // Preserve original operation, payload and account during migration.
+        // Previously only IDs survived and yesterday's POST became today's DELETE.
+        let migratedIDs = optionEntryIntentStore.migrateLegacyRequests(legacyOptionMutations)
+        retryQueueStore.removeAcknowledged(queueIDs: expiredQueueIDs.union(migratedIDs))
+    }
+
+    /// Drain the offline retry queue. Call on app launch or when connectivity is restored.
+    func drainRetryQueue() async {
+        migrateLegacyOptionEntryIntents()
         await drainPendingOptionEntryIntents()
         await AuthenticationService.shared.waitForInitialization()
         guard let freshToken = await AuthenticationService.shared.accessToken else {
