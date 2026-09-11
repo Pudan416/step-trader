@@ -2046,6 +2046,39 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(runtime.totalLeadReleaseCountForTesting, 1)
     }
 
+    func testMobilePreparationAllowsMainActorWorkBeforeItCompletes() async throws {
+        let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        var mainWorkDidRun = false
+        let mainWork = Task { @MainActor in mainWorkDidRun = true }
+        try await runtime.prepareForPlayback(plan: makePlaybackEnginePlan(seed: 31))
+        XCTAssertTrue(mainWorkDidRun, "Cold music preparation must release the main actor")
+        await mainWork.value
+        XCTAssertEqual(runtime.preparedRhythmBackendCount, 1)
+        XCTAssertEqual(runtime.allocatedPianoVoiceCountForTesting, 0)
+        runtime.releaseLayers()
+        await runtime.stopAudio()
+    }
+
+    func testStopDuringResourcePreparationPreventsAudioStart() async throws {
+        let log = PlaybackEngineCallLog()
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        runtime.suspendFullPreparation = true
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: RecordingDayObjectsAudioSession(log: log), runtime: runtime)
+        let plan = DeterministicMusicDirector.makePlan(input: .init(countedSteps: 6000, stepGoal: 10000,
+            countedSleepHours: 7, sleepGoalHours: 8, happeningIDs: [], spentColors: 20), remixSeed: 31)
+        let start = Task { try await engine.start(plan: plan) }
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertTrue(runtime.isFullPreparationSuspended, "Playback must await resource preparation")
+        XCTAssertEqual(runtime.audioStartCount, 0)
+        let stop = Task { await engine.stop() }
+        for _ in 0..<20 { await Task.yield() }
+        runtime.resumeFullPreparation()
+        _ = try? await start.value
+        await stop.value
+        XCTAssertEqual(runtime.audioStartCount, 0, "A cancelled prepare must not start audio")
+        XCTAssertEqual(engine.state, .off)
+    }
+
     func testStartUsesTheApprovedSessionBankTransportAndFadeOrder() async throws {
         let log = PlaybackEngineCallLog()
         let session = RecordingDayObjectsAudioSession(log: log)
@@ -2581,6 +2614,23 @@ private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntim
     private var transportStartWaiters: [CheckedContinuation<Void, Never>] = []
     private var samplePreparationContinuation: CheckedContinuation<Void, Never>?
     private var samplePreparationWaiters: [CheckedContinuation<Void, Never>] = []
+    var suspendFullPreparation = false
+    private var fullPreparationContinuation: CheckedContinuation<Void, Never>?
+    var isFullPreparationSuspended: Bool { fullPreparationContinuation != nil }
+
+    func prepareForPlayback(plan: DayMusicPlan) async throws {
+        if suspendFullPreparation {
+            await withCheckedContinuation { fullPreparationContinuation = $0 }
+        }
+        try Task.checkCancellation()
+        try prepare(plan: plan)
+    }
+
+    func resumeFullPreparation() {
+        fullPreparationContinuation?.resume()
+        fullPreparationContinuation = nil
+    }
+
     private(set) var prepareAttempts = 0
     private(set) var samplePreparationAttempts = 0
     private(set) var samplePreparationWasCancelled = false

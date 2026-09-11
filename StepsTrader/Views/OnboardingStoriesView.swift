@@ -744,13 +744,13 @@ struct OnboardingStoriesView: View {
 
     // MARK: - Color Cap (interactive ring)
 
-    private static let colorCategories: [(icon: String, label: String, color: Color)] = [
-        ("figure.walk", "steps", Color(red: 1.0, green: 0.83, blue: 0.41)),
+    private static var colorCategories: [(icon: String, label: String, color: Color)] { [
+        ("figure.walk", "steps", AppColors.brandAccent),
         ("bed.double", "sleep", Color(red: 0.35, green: 0.45, blue: 0.75)),
         ("figure.run", "body", Color(red: 0.3, green: 0.8, blue: 0.5)),
         ("brain.head.profile", "mind", Color(red: 0.4, green: 0.6, blue: 1.0)),
         ("heart", "heart", Color(red: 1.0, green: 0.45, blue: 0.55)),
-    ]
+    ] }
     
     @ViewBuilder
     private func colorCapSlide(slide: OnboardingSlide) -> some View {

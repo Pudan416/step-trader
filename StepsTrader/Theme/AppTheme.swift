@@ -24,7 +24,7 @@ enum AppTheme: String, CaseIterable {
         self == .daylight || (self == .system && scheme == .light)
     }
 
-    var accentColor: Color { isLightTheme ? Color(red: 0.43, green: 0.29, blue: 0.07) : AppColors.brandAccent }
+    var accentColor: Color { isLightTheme ? AppColors.accentInk : AppColors.brandAccent }
 
     var backgroundColor: Color { isLightTheme ? Color(red: 0.96, green: 0.95, blue: 0.92) : AppColors.Night.background }
     var backgroundSecondary: Color { isLightTheme ? Color(white: 0.90) : AppColors.Night.backgroundSecondary }

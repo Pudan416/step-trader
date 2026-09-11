@@ -18,6 +18,7 @@ private struct ThemedModifier: ViewModifier {
             .environment(\.appTheme, theme.isLight(in: colorScheme) ? .daylight : .night)
             .environment(\.resolvedAppTheme, theme.isLight(in: colorScheme) ? .daylight : .night)
             .preferredColorScheme(theme.colorScheme)
+            .tint(theme.isLight(in: colorScheme) ? AppColors.accentInk : AppColors.brandAccent)
     }
 }
 

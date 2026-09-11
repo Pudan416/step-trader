@@ -4,8 +4,11 @@ import AppIntents
 
 private enum WidgetStyle {
     // Shared with the app's smoked Canvas surfaces and duration controls.
-    static let accent = Color(red: 1, green: 211.0 / 255, blue: 105.0 / 255)
-    static let background = Color(red: 34.0 / 255, green: 40.0 / 255, blue: 49.0 / 255)
+    static var palette: DailyInterfacePalette {
+        .load(from: UserDefaults(suiteName: SharedKeys.appGroupId) ?? .standard)
+    }
+    static var accent: Color { palette.accent.color }
+    static var background: Color { palette.ink.color }
 }
 
 struct UnlockWidgetEntryView: View {

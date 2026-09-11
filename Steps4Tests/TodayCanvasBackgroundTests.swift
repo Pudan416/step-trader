@@ -1,10 +1,58 @@
 import XCTest
 import Combine
 import MetalKit
+import Observation
 @testable import Steps4
 
 @MainActor
 final class TodayCanvasBackgroundTests: XCTestCase {
+    func testDailyAccentHandoffAndObservationUpdateTogetherWithoutDuplicateWidgetReloads() throws {
+        let suite = "daily-accent-test-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let colors = DailyInterfaceColors(defaults: defaults)
+        let sage = CanvasChromePalette.resolve(backgroundColors: [DayObjectRGB(hex: "78966B")])
+        var reloads = 0
+        var observedChange = false
+        withObservationTracking {
+            _ = colors.palette.accent.color
+        } onChange: {
+            observedChange = true
+        }
+        colors.update(sage, dayKey: "2026-09-11", reloadWidgets: { reloads += 1 })
+        XCTAssertTrue(observedChange, "Computed legacy accent access must remain observable")
+        XCTAssertEqual(DailyInterfacePalette.load(from: defaults), colors.palette)
+        XCTAssertEqual(reloads, 1)
+        colors.update(sage, dayKey: "2026-09-11", reloadWidgets: { reloads += 1 })
+        XCTAssertEqual(reloads, 1, "Energy updates must not reload every widget")
+        let blue = CanvasChromePalette.resolve(backgroundColors: [DayObjectRGB(hex: "6987A5")])
+        colors.update(blue, dayKey: "2026-09-11", reloadWidgets: { reloads += 1 })
+        XCTAssertEqual(DailyInterfacePalette.load(from: defaults), colors.palette)
+        XCTAssertEqual(reloads, 2)
+        colors.update(blue, dayKey: "2026-09-12", reloadWidgets: { reloads += 1 })
+        XCTAssertEqual(DailyInterfacePalette.load(from: defaults).dayKey, "2026-09-12")
+        XCTAssertEqual(reloads, 3)
+    }
+
+    func testUnreadableSharedColorRecordHasNeutralFallback() throws {
+        let suite = "daily-accent-corrupt-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(Data("bad JSON".utf8), forKey: DailyInterfacePalette.storageKey)
+        XCTAssertEqual(DailyInterfacePalette.load(from: defaults), .fallback)
+        let invalid = DailyInterfacePalette(dayKey: "today", accent: .init(red: 2, green: 0, blue: 0), ink: .init(red: 0, green: 0, blue: 0))
+        defaults.set(try JSONEncoder().encode(invalid), forKey: DailyInterfacePalette.storageKey)
+        XCTAssertEqual(DailyInterfacePalette.load(from: defaults), .fallback)
+    }
+
+    func testDailyAccentPublishesBeforeSlowBackdropRender() {
+        var published: CanvasChromePalette?
+        let store = TodayCanvasBackdropStore(load: { _ in nil }, render: { _, _ in nil }, onChromeChange: { chrome, _ in published = chrome })
+        store.refresh(appearance())
+        XCTAssertEqual(published, store.chromePalette)
+        XCTAssertNil(store.image)
+    }
+
     private func appearance(day: String = "2026-09-07") -> TodayCanvasAppearance {
         TodayCanvasAppearance(
             dayKey: day, steps: 15, sleep: 12, earned: 100, spent: 25,

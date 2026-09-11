@@ -7,7 +7,7 @@ import FamilyControls
 #endif
 
 fileprivate enum PayGatePalette {
-    static let accent = AppColors.brandAccent
+    static var accent: Color { AppColors.brandAccent }
     static let textPrimary = Color.white
     static let textSecondary = Color.white.opacity(0.55)
     static let textMuted = Color.white.opacity(0.3)

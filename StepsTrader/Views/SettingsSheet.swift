@@ -309,6 +309,7 @@ struct SettingsSheet: View {
 /// 44-point target. SwiftUI's text toolbar item normalizes label sizing to a
 /// smaller accessibility frame, so the minimum belongs to the hosted control.
 private struct SettingsCloseToolbarButton: UIViewRepresentable {
+    @Environment(\.canvasChromePalette) private var palette
     @Environment(\.appTheme) private var theme
     let title: String
     let action: () -> Void
@@ -331,7 +332,7 @@ private struct SettingsCloseToolbarButton: UIViewRepresentable {
 
     func updateUIView(_ button: UIButton, context: Context) {
         button.setTitle(title, for: .normal)
-        button.tintColor = UIColor(theme.accentColor)
+        button.tintColor = UIColor(theme.isLightTheme ? palette.surfaceColor : palette.accentColor)
         context.coordinator.action = action
     }
 

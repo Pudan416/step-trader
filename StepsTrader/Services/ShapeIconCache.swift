@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Pre-renders shape type icons showing 3 elements (body, mind, heart)
-/// composed together in brand yellow. Cached after first render.
+/// composed together in the daily accent. Cached until that accent changes.
 @MainActor
 final class ShapeIconCache {
 
@@ -15,8 +15,8 @@ final class ShapeIconCache {
         let scale: CGFloat
     }
 
-    // Brand accent: #FFD369
-    private let brandYellow = UIColor(red: 0xFF / 255, green: 0xD3 / 255, blue: 0x69 / 255, alpha: 1.0)
+    private var cachedAccent: DailyInterfacePalette.RGB?
+    private var dailyAccent: UIColor { DailyInterfaceColors.shared.palette.accent.uiColor }
 
     // 3 element placements (normalized to icon rect): body, mind, heart
     private let placements: [(cx: CGFloat, cy: CGFloat, sizeFactor: CGFloat)] = [
@@ -28,6 +28,11 @@ final class ShapeIconCache {
     private let seeds: [UInt64] = [31337, 7919, 6271]
 
     func icon(for shape: CanvasShapeType, size: CGFloat = 68, scale: CGFloat? = nil) -> UIImage {
+        let accent = DailyInterfaceColors.shared.palette.accent
+        if cachedAccent != accent {
+            cache.removeAll(keepingCapacity: true)
+            cachedAccent = accent
+        }
         let resolvedScale = scale ?? UIScreen.main.scale
         let key = CacheKey(shape: shape, size: size, scale: resolvedScale)
         if let cached = cache[key] { return cached }
@@ -95,9 +100,9 @@ final class ShapeIconCache {
 
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let colors = [
-            brandYellow.withAlphaComponent(alpha).cgColor,
-            brandYellow.withAlphaComponent(alpha * 0.35).cgColor,
-            brandYellow.withAlphaComponent(0).cgColor,
+            dailyAccent.withAlphaComponent(alpha).cgColor,
+            dailyAccent.withAlphaComponent(alpha * 0.35).cgColor,
+            dailyAccent.withAlphaComponent(0).cgColor,
         ] as CFArray
         let locations: [CGFloat] = [0, 0.5, 1.0]
 
@@ -118,13 +123,13 @@ final class ShapeIconCache {
 
         ctx.saveGState()
         ctx.addPath(path)
-        ctx.setFillColor(brandYellow.withAlphaComponent(alpha * 0.3).cgColor)
+        ctx.setFillColor(dailyAccent.withAlphaComponent(alpha * 0.3).cgColor)
         ctx.fillPath()
         ctx.restoreGState()
 
         ctx.saveGState()
         ctx.addPath(path)
-        ctx.setStrokeColor(brandYellow.withAlphaComponent(alpha).cgColor)
+        ctx.setStrokeColor(dailyAccent.withAlphaComponent(alpha).cgColor)
         ctx.setLineWidth(max(1.0, rect.width * 0.02))
         ctx.setLineCap(.round)
         ctx.setLineJoin(.round)
@@ -147,7 +152,7 @@ final class ShapeIconCache {
         for ray in rays {
             ctx.saveGState()
             ctx.addPath(ray.path.cgPath)
-            ctx.setFillColor(brandYellow.withAlphaComponent(alpha * 0.7).cgColor)
+            ctx.setFillColor(dailyAccent.withAlphaComponent(alpha * 0.7).cgColor)
             ctx.fillPath()
             ctx.restoreGState()
         }
@@ -166,9 +171,9 @@ final class ShapeIconCache {
 
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let colors = [
-            brandYellow.withAlphaComponent(alpha * 0.8).cgColor,
-            brandYellow.withAlphaComponent(alpha * 0.3).cgColor,
-            brandYellow.withAlphaComponent(0).cgColor,
+            dailyAccent.withAlphaComponent(alpha * 0.8).cgColor,
+            dailyAccent.withAlphaComponent(alpha * 0.3).cgColor,
+            dailyAccent.withAlphaComponent(0).cgColor,
         ] as CFArray
         let locations: [CGFloat] = [0, 0.5, 1.0]
 
@@ -182,7 +187,7 @@ final class ShapeIconCache {
 
         ctx.saveGState()
         ctx.addPath(path.cgPath)
-        ctx.setStrokeColor(brandYellow.withAlphaComponent(alpha * 0.5).cgColor)
+        ctx.setStrokeColor(dailyAccent.withAlphaComponent(alpha * 0.5).cgColor)
         ctx.setLineWidth(1.0)
         ctx.setLineCap(.round)
         ctx.setLineJoin(.round)
@@ -199,7 +204,7 @@ final class ShapeIconCache {
 
         ctx.saveGState()
         ctx.addPath(path.cgPath)
-        ctx.setFillColor(brandYellow.withAlphaComponent(alpha).cgColor)
+        ctx.setFillColor(dailyAccent.withAlphaComponent(alpha).cgColor)
         ctx.fillPath()
         ctx.restoreGState()
     }

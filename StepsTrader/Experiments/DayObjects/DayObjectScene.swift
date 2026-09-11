@@ -2,6 +2,7 @@ import Foundation
 
 struct DayObjectScene: Equatable {
     static let maxActors = 10
+    private static let cache = DayObjectSceneCache()
 
     let input: DayObjectSceneInput
     let rootSeed: UInt64
@@ -24,6 +25,8 @@ struct DayObjectScene: Equatable {
             actors.count <= Self.maxActors,
             "Day Objects transition admission exceeded the ten-actor render capacity"
         )
+        // Animation advances every frame; immutable materials only change with actors.
+        guard actors != self.actors else { return self }
         return DayObjectScene(
             input: input,
             rootSeed: rootSeed,
@@ -43,6 +46,10 @@ struct DayObjectScene: Equatable {
 
     static func make(input rawInput: DayObjectSceneInput) -> DayObjectScene {
         let input = normalized(rawInput)
+        return cache.scene(for: input) { build(input: input) }
+    }
+
+    private static func build(input: DayObjectSceneInput) -> DayObjectScene {
         let rootSeed = CanvasElement.makeSeed(
             optionId: "dayObjects:\(input.identity)",
             dayKey: input.dayKey,
@@ -223,5 +230,39 @@ struct DayObjectScene: Equatable {
             depthBand: depthBand,
             zIndex: Double(depthBand) + value(0...0.999, domain: "zIndex")
         )
+    }
+}
+
+/// Shares immutable scene data across SwiftUI reconstruction and snapshot jobs.
+/// The full normalized input is the key, including remix and material parameters.
+private final class DayObjectSceneCache: @unchecked Sendable {
+    private let lock = NSLock()
+    private var scenes: [DayObjectScene] = []
+    private let capacity = 16
+
+    func scene(for input: DayObjectSceneInput, build: () -> DayObjectScene) -> DayObjectScene {
+        lock.lock()
+        if let cached = take(input) {
+            lock.unlock()
+            return cached
+        }
+        lock.unlock()
+
+        // Never hold the cache lock while generating a scene: a background export
+        // must not block a main-thread lookup of an already prepared canvas.
+        let built = build()
+        lock.lock()
+        defer { lock.unlock() }
+        if let cached = take(input) { return cached }
+        scenes.append(built)
+        if scenes.count > capacity { scenes.removeFirst() }
+        return built
+    }
+
+    private func take(_ input: DayObjectSceneInput) -> DayObjectScene? {
+        guard let index = scenes.firstIndex(where: { $0.input == input }) else { return nil }
+        let scene = scenes.remove(at: index)
+        scenes.append(scene)
+        return scene
     }
 }

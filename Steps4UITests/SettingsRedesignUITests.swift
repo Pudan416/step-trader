@@ -28,6 +28,35 @@ final class SettingsRedesignUITests: XCTestCase {
         add(attachment)
     }
 
+    func testCombinedDailyAccentScreensAndRotation() {
+        XCUIDevice.shared.orientation = .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launchSettings(extraArguments: ["ui-testing-me-static-poster"])
+        capture(app, name: "Daily palette · Settings")
+        openSettingsDestination("settings.destination.appearance", in: app)
+        capture(app, name: "Daily palette · Appearance")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["settings.close"].tap()
+        app.buttons["tab_feeds"].tap()
+        capture(app, name: "Daily palette · Feeds")
+        app.buttons["tab_me"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["me_poster_carousel"].waitForExistence(timeout: 5))
+        capture(app, name: "Daily palette · Me")
+        app.buttons["tab_canvas"].tap()
+        app.buttons["canvas_sound_button"].tap()
+        let close = app.buttons["canvas_close_fullscreen_button"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        capture(app, name: "Daily palette · Play full screen")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let rotated = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in app.frame.width > app.frame.height }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [rotated], timeout: 8), .completed)
+        capture(app, name: "Combined Canvas · Landscape")
+        XCUIDevice.shared.orientation = .portrait
+        XCTAssertTrue(close.waitForExistence(timeout: 8))
+        close.tap()
+        XCTAssertTrue(app.buttons["canvas_add_button"].waitForExistence(timeout: 5))
+    }
+
     func testAppearanceApplyPersistsAndExactGoalEntryWorks() {
         let app = launchSettings()
         openSettingsDestination("settings.destination.appearance", in: app)

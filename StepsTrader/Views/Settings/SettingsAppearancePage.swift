@@ -522,7 +522,7 @@ struct SettingsAppearancePage: View {
                                     if isSelected {
                                         Image(systemName: "checkmark.circle.fill")
                                             .font(.geist(size: 15, weight: .bold))
-                                            .foregroundStyle(.white, AppColors.brandAccent)
+                                            .foregroundStyle(AppAccentInk.primary, AppColors.brandAccent)
                                             .padding(6)
                                     }
                                 }
@@ -651,12 +651,12 @@ struct SettingsAppearancePage: View {
         .frame(minHeight: 44)
         .background(
             Capsule()
-                .fill(isSelected ? AppColors.brandAccent.opacity(0.12) : theme.adaptivePrimaryText.opacity(0.05))
+                .fill(isSelected ? theme.accentColor.opacity(0.12) : theme.adaptivePrimaryText.opacity(0.05))
         )
         .overlay {
             Capsule()
                 .strokeBorder(
-                    isSelected ? AppColors.brandAccent : theme.adaptivePrimaryText.opacity(0.08),
+                    isSelected ? theme.accentColor : theme.adaptivePrimaryText.opacity(0.08),
                     lineWidth: isSelected ? 1.5 : 0.5
                 )
         }
@@ -750,7 +750,7 @@ struct SettingsAppearancePage: View {
                         if isSelected {
                             Image(systemName: "checkmark.circle.fill")
                                 .font(.geist(size: 14, weight: .bold))
-                                .foregroundStyle(SettingsCardAppearance.primaryText, AppColors.brandAccent)
+                                .foregroundStyle(AppAccentInk.primary, AppColors.brandAccent)
                                 .offset(x: 5, y: -5)
                         }
                     }
@@ -842,7 +842,7 @@ struct SettingsAppearancePage: View {
             if isSelected {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.geist(size: 14, weight: .bold))
-                    .foregroundStyle(SettingsCardAppearance.primaryText, AppColors.brandAccent)
+                    .foregroundStyle(AppAccentInk.primary, AppColors.brandAccent)
                     .offset(x: 4, y: -4)
             }
         }
@@ -850,7 +850,7 @@ struct SettingsAppearancePage: View {
 
     @ViewBuilder
     private func shapeTypePreview(shape: CanvasShapeType) -> some View {
-        let brandYellow = AppColors.brandAccent
+        let dailyAccent = AppColors.brandAccent
         let previewSeed: UInt64 = 42_091
 
         switch shape {
@@ -858,7 +858,7 @@ struct SettingsAppearancePage: View {
             Circle()
                 .fill(
                     RadialGradient(
-                        colors: [brandYellow, brandYellow.opacity(0.3)],
+                        colors: [dailyAccent, dailyAccent.opacity(0.3)],
                         center: .center,
                         startRadius: 0,
                         endRadius: 17
@@ -867,22 +867,22 @@ struct SettingsAppearancePage: View {
         case .snowflake:
             RectMorphPreview(
                 seed: previewSeed,
-                color: brandYellow
+                color: dailyAccent
             )
         case .rays:
             SpotlightPreview(
                 seed: previewSeed,
-                overrideColor: brandYellow
+                overrideColor: dailyAccent
             )
         case .organicBlob:
             OrganicBlobPreview(
                 seed: previewSeed,
-                colors: [brandYellow, brandYellow.opacity(0.5)]
+                colors: [dailyAccent, dailyAccent.opacity(0.5)]
             )
         case .blob:
             BodyBlobPreview(
                 seed: previewSeed,
-                colors: [brandYellow, brandYellow.opacity(0.5)]
+                colors: [dailyAccent, dailyAccent.opacity(0.5)]
             )
         }
     }
@@ -954,7 +954,7 @@ struct SettingsAppearancePage: View {
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.geist(size: 15, weight: .bold))
-                            .foregroundStyle(SettingsCardAppearance.primaryText, AppColors.brandAccent)
+                            .foregroundStyle(AppAccentInk.primary, AppColors.brandAccent)
                             .offset(x: 5, y: -5)
                     }
                 }

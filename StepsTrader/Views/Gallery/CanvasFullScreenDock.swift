@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Three viewing actions. Closing is independent of the audio engine state.
 struct CanvasFullScreenDock<Share: View>: View {
+    @Environment(\.canvasChromePalette) private var palette
     let onClose: () -> Void
     let onRemix: () -> Void
     @ViewBuilder let share: () -> Share
@@ -11,9 +12,9 @@ struct CanvasFullScreenDock<Share: View>: View {
             Button(action: onClose) {
                 Image(systemName: "xmark")
                     .font(.geist(size: 20, weight: .regular))
-                    .foregroundStyle(AppColors.Night.textPrimary)
+                    .foregroundStyle(palette.textColor)
                     .frame(width: 56, height: 56)
-                    .smokedCanvasControl(in: Circle())
+                    .canvasChromeSurface(in: Circle())
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
@@ -29,7 +30,7 @@ struct CanvasFullScreenDock<Share: View>: View {
                 Button(action: onRemix) {
                     Label(String(localized: "Remix"), systemImage: "shuffle")
                         .font(.geist(size: 15, weight: .semibold))
-                        .foregroundStyle(AppColors.brandAccent)
+                        .foregroundStyle(palette.accentColor)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                         .padding(.horizontal, 14)
@@ -40,7 +41,7 @@ struct CanvasFullScreenDock<Share: View>: View {
                 .accessibilityIdentifier("canvas_remix_button")
             }
             .padding(.horizontal, 4)
-            .smokedCanvasControl(in: Capsule())
+            .canvasChromeSurface(in: Capsule())
         }
         .frame(maxWidth: 360)
     }

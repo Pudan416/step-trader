@@ -153,6 +153,8 @@ final class TodayCanvasBackdropStore: ObservableObject {
         Task { @MainActor in
             _ = await MePosterSnapshotCache.shared.image(for: canvas, categories: categories)
         }
+    }, onChromeChange: { chrome, dayKey in
+        DailyInterfaceColors.shared.update(chrome, dayKey: dayKey)
     })
     @Published private(set) var unlockPalette = TodayCanvasUnlockPalette.make(appearance: .initial)
     /// Canvas controls use saved pigment, with bounded tones and guaranteed contrast.
@@ -213,6 +215,7 @@ final class TodayCanvasBackdropStore: ObservableObject {
     private let load: (String) -> DayCanvas?
     private let render: (DayCanvas, Set<ModernPaletteCategory>) async -> UIImage?
     private let debounce: Duration
+    private let onChromeChange: (CanvasChromePalette, String) -> Void
     private let onRenderedCanvas: (DayCanvas, Set<ModernPaletteCategory>) -> Void
 
     init(
@@ -224,8 +227,10 @@ final class TodayCanvasBackdropStore: ObservableObject {
                 paletteCategories: categories
             )
         },
-        onRenderedCanvas: @escaping (DayCanvas, Set<ModernPaletteCategory>) -> Void = { _, _ in }
+        onRenderedCanvas: @escaping (DayCanvas, Set<ModernPaletteCategory>) -> Void = { _, _ in },
+        onChromeChange: @escaping (CanvasChromePalette, String) -> Void = { _, _ in }
     ) {
+        self.onChromeChange = onChromeChange
         self.onRenderedCanvas = onRenderedCanvas
         self.debounce = debounce
         self.load = load
@@ -257,6 +262,7 @@ final class TodayCanvasBackdropStore: ObservableObject {
         if feedPalette != nextPalette { feedPalette = nextPalette }
         let nextChrome = CanvasChromePalette.resolve(backgroundColors: nextPalette.colors)
         if chromePalette != nextChrome { chromePalette = nextChrome }
+        onChromeChange(nextChrome, appearance.dayKey)
         if image == nil, unlockPalette != nextPalette { unlockPalette = nextPalette }
         requested = Request(appearance: appearance, sourceData: sourceData)
         guard requested != completed, worker == nil else { return }
@@ -339,7 +345,7 @@ struct TodayCanvasBackground: View {
     }
 }
 
-/// A single refresh owner at the tab host; backgrounds themselves only display an image.
+/// A single refresh owner at the window root (including direct PayGate launches); backgrounds themselves only display an image.
 struct TodayCanvasBackdropHost: ViewModifier {
     @ObservedObject private var backdrop = TodayCanvasBackdropStore.shared
     @ObservedObject var model: AppModel

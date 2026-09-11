@@ -326,6 +326,104 @@ final class SmudgePreparationTests: XCTestCase {
         XCTAssertNil(SmudgeOverlayView.Coordinator().renderer)
     }
 
+    func testGallerySmudgeCoversViewportAfterRotation() async throws {
+        let model = AppModel(
+            healthKitService: MockHealthKitService(),
+            familyControlsService: MockFamilyControlsService(),
+            notificationService: MockNotificationService(),
+            budgetEngine: MockBudgetEngine(),
+            subscriptionStore: SubscriptionStore()
+        )
+        let gallery = GalleryView(
+            model: model, metricOverlay: .constant(nil),
+            presentation: .constant(.canvas), externalDataPanelPullDistance: 0,
+            paletteRoute: .constant(CanvasPaletteRouteState()), isCanvasSelected: true
+        )
+        let defaults = UserDefaults.stepsTrader()
+        let previousStyle = defaults.object(forKey: SharedKeys.canvasOverlayStyle)
+        defaults.set(CanvasOverlayStyle.smudge.rawValue, forKey: SharedKeys.canvasOverlayStyle)
+        defer {
+            if let previousStyle { defaults.set(previousStyle, forKey: SharedKeys.canvasOverlayStyle) }
+            else { defaults.removeObject(forKey: SharedKeys.canvasOverlayStyle) }
+        }
+        let host = UIHostingController(rootView: gallery.canvasLayers
+            .environment(\.scenePhase, .active))
+        // Exercise the actual Gallery surface without its persistence/bootstrap tasks.
+        // A child controller lets the test change viewport size independently of
+        // the phone's physical orientation while still mounting SwiftUI in a window.
+        let container = UIViewController()
+        let window = UIWindow(frame: UIScreen.main.bounds)
+        window.rootViewController = container
+        container.addChild(host)
+        container.view.addSubview(host.view)
+        host.didMove(toParent: container)
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        func find(_ view: UIView) -> SmudgeMTKView? {
+            if let match = view as? SmudgeMTKView { return match }
+            return view.subviews.compactMap { find($0) }.first
+        }
+        for size in [CGSize(width: 320, height: 640), CGSize(width: 640, height: 320), CGSize(width: 320, height: 640)] {
+            host.view.frame = CGRect(origin: .zero, size: size)
+            host.view.setNeedsLayout()
+            host.view.layoutIfNeeded()
+            try await Task.sleep(for: .milliseconds(100))
+            let smudge = try XCTUnwrap(find(host.view))
+            XCTAssertEqual(smudge.bounds.width, size.width, accuracy: 1)
+            XCTAssertEqual(smudge.bounds.height, size.height, accuracy: 1)
+            let farCorner = smudge.convert(CGPoint(x: size.width - 2, y: size.height - 2), from: host.view)
+            XCTAssertTrue(smudge.point(inside: farCorner, with: nil), "Landscape edge must accept smudge/music gestures")
+        }
+    }
+
+    func testResizeRefreshesSmudgeTextureAndSoundGestureCoordinates() async throws {
+        var samples: [CanvasTouchGestureSample] = []
+        var endedGestures = 0
+        let overlay = SmudgeOverlayView(
+            elements: [], sleepPoints: 10, stepsPoints: 12, sleepColor: .blue,
+            stepsColor: .orange, decayNorm: 0, backgroundColor: .black,
+            isRenderingAllowed: true,
+            onGestureBegan: { samples.append($0) },
+            onGestureEnded: { endedGestures += 1 }
+        )
+        let host = UIHostingController(rootView: overlay)
+        let container = UIViewController()
+        let window = UIWindow(frame: UIScreen.main.bounds)
+        window.rootViewController = container
+        container.addChild(host)
+        container.view.addSubview(host.view)
+        host.didMove(toParent: container)
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        func find(_ view: UIView) -> SmudgeMTKView? {
+            if let match = view as? SmudgeMTKView { return match }
+            return view.subviews.compactMap { find($0) }.first
+        }
+        let touch = NSObject()
+        for (index, size) in [CGSize(width: 160, height: 320), CGSize(width: 320, height: 160)].enumerated() {
+            host.view.frame = CGRect(origin: .zero, size: size)
+            host.view.setNeedsLayout()
+            host.view.layoutIfNeeded()
+            let view = try XCTUnwrap(find(host.view))
+            for _ in 0..<200 {
+                if let renderer = view.delegate as? MetalSmudgeRenderer, !renderer.needsSnapshot { break }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            let renderer = try XCTUnwrap(view.delegate as? MetalSmudgeRenderer)
+            XCTAssertFalse(renderer.needsSnapshot)
+            let base = try XCTUnwrap(Mirror(reflecting: renderer).children.first { $0.label == "baseTexture" }?.value as? MTLTexture)
+            XCTAssertEqual(base.width, Int(view.drawableSize.width))
+            XCTAssertEqual(base.height, Int(view.drawableSize.height))
+            XCTAssertEqual(endedGestures, index, "Rotation ends the previous sound gesture before accepting a new one")
+            view.onTouchBegan?(ObjectIdentifier(touch), CGPoint(x: view.bounds.width * 0.98, y: view.bounds.height * 0.5), CACurrentMediaTime())
+            let sample = try XCTUnwrap(samples.last)
+            XCTAssertEqual(samples.count, index + 1)
+            XCTAssertEqual(sample.normalizedX, 0.98, accuracy: 0.001)
+            XCTAssertEqual(sample.normalizedY, 0.5, accuracy: 0.001)
+            XCTAssertTrue(renderer.isDistorted, "The new landscape edge must produce an effect")
+        }
+    }
+
     func testVisibleSmudgePreparesTextureBeforeTouch() async throws {
         let overlay = SmudgeOverlayView(
             elements: [], sleepPoints: 10, stepsPoints: 12, sleepColor: .blue,
@@ -432,5 +530,61 @@ final class SmudgeRegionSequenceTests: XCTestCase {
         XCTAssertEqual(bytes(readback), bytes(references[index]))
         XCTAssertEqual(bytes(ageReadback), bytes(ages[index]))
         XCTAssertNotEqual(bytes(readback), bytes(base))
+    }
+}
+
+@MainActor
+final class CanvasIdleTimerTests: XCTestCase {
+    private func content(fullScreen: Bool = true, selected: Bool = true, playing: Bool = true, phase: ScenePhase = .active) -> some View {
+        Color.black
+            .modifier(CanvasIdleTimerModifier(isFullScreen: fullScreen, isCanvasSelected: selected, isMusicPlaying: playing))
+            .environment(\.scenePhase, phase)
+    }
+
+    func testOnlyVisibleActiveFullScreenMusicDisablesIdleTimer() async throws {
+        let original = UIApplication.shared.isIdleTimerDisabled
+        UIApplication.shared.isIdleTimerDisabled = false
+        defer { UIApplication.shared.isIdleTimerDisabled = original }
+        let host = UIHostingController(rootView: AnyView(content()))
+        let window = UIWindow(frame: UIScreen.main.bounds)
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertTrue(UIApplication.shared.isIdleTimerDisabled)
+
+        // Each exit condition independently releases the idle timer.
+        for (fullScreen, selected, playing, phase) in [
+            (false, true, true, ScenePhase.active),
+            (true, false, true, .active),
+            (true, true, false, .active),
+            (true, true, true, .inactive),
+            (true, true, true, .background)
+        ] {
+            host.rootView = AnyView(content(fullScreen: fullScreen, selected: selected, playing: playing, phase: phase))
+            try await Task.sleep(for: .milliseconds(30))
+            XCTAssertFalse(UIApplication.shared.isIdleTimerDisabled)
+            host.rootView = AnyView(content())
+            try await Task.sleep(for: .milliseconds(30))
+            XCTAssertTrue(UIApplication.shared.isIdleTimerDisabled)
+        }
+        host.rootView = AnyView(EmptyView())
+        try await Task.sleep(for: .milliseconds(30))
+        XCTAssertFalse(UIApplication.shared.isIdleTimerDisabled, "Removing the view must release its request even before audio finishes stopping")
+    }
+
+    func testReleasesOnlyItsOwnIdleTimerChange() async throws {
+        let original = UIApplication.shared.isIdleTimerDisabled
+        UIApplication.shared.isIdleTimerDisabled = true
+        defer { UIApplication.shared.isIdleTimerDisabled = original }
+        let host = UIHostingController(rootView: AnyView(content()))
+        let window = UIWindow(frame: UIScreen.main.bounds)
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        try await Task.sleep(for: .milliseconds(50))
+        host.rootView = AnyView(content(playing: false))
+        try await Task.sleep(for: .milliseconds(30))
+        XCTAssertTrue(UIApplication.shared.isIdleTimerDisabled, "Preserve an idle-timer setting that predates this view's request")
     }
 }

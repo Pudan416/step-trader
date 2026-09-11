@@ -1,4 +1,7 @@
 import SwiftUI
+#if DEBUG || INTERNAL_BUILD
+import AVFAudio
+#endif
 
 enum CanvasSpawnOriginMapper {
     static func normalizedPosition(
@@ -164,7 +167,7 @@ struct GalleryView: View {
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 #if DEBUG || INTERNAL_BUILD
-    @StateObject private var musicController = DayObjectsMusicLabController()
+    @StateObject private var musicController = DayObjectsMusicLabController(allowsBackgroundPlayback: true)
 #endif
     private let usesTask7UITestFixture = ProcessInfo.processInfo.arguments.contains("ui-testing-task7")
     private let isUnitTestHost = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
@@ -812,7 +815,8 @@ struct GalleryView: View {
         }
     }
 
-    private var canvasLayers: some View {
+    // Kept separate from screen lifecycle so viewport layout can be verified in isolation.
+    var canvasLayers: some View {
         GeometryReader { viewport in
             ZStack {
                 DayCanvasArtworkView(
@@ -862,10 +866,9 @@ struct GalleryView: View {
                         onGestureUpdated: handleCanvasLeadUpdated,
                         onGestureEnded: handleCanvasLeadEnded
                     )
-                    .frame(
-                        width: GenerativeCanvasView.canonicalPortraitSize.width,
-                        height: GenerativeCanvasView.canonicalPortraitSize.height
-                    )
+                    // Touch coordinates and Metal textures must follow the live
+                    // viewport, including landscape while music is playing.
+                    .frame(width: viewport.size.width, height: viewport.size.height)
                     .ignoresSafeArea()
                 }
             }
@@ -1173,6 +1176,25 @@ struct GalleryView: View {
         }
 
         return observingCanvas
+        .modifier(CanvasIdleTimerModifier(
+            isFullScreen: presentation == .fullScreen,
+            isCanvasSelected: isCanvasSelected,
+            isMusicPlaying: canvasSoundAppearance == .playing
+        ))
+#if DEBUG || INTERNAL_BUILD
+        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)
+            .receive(on: DispatchQueue.main)) { notification in
+            guard let raw = (notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.uintValue,
+                  AVAudioSession.InterruptionType(rawValue: raw) == .began else { return }
+            Task { await musicController.interruptionBegan() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification)
+            .receive(on: DispatchQueue.main)) { notification in
+            guard let raw = (notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? NSNumber)?.uintValue,
+                  AVAudioSession.RouteChangeReason(rawValue: raw) == .oldDeviceUnavailable else { return }
+            Task { await musicController.turnSoundOff() }
+        }
+#endif
         .sheet(isPresented: $toolbar.showShareSheet, onDismiss: { toolbar.shareImage = nil }) {
             if let image = toolbar.shareImage {
                 CanvasShareSheet(items: [image])

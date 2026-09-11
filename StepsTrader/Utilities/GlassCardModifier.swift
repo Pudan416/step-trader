@@ -303,5 +303,5 @@ extension View {
 /// Single source of truth for foreground ink that sits on
 /// `AppColors.brandAccent` capsules and CTAs.
 enum AppAccentInk {
-    static var primary: Color { Color(red: 0.08, green: 0.08, blue: 0.08) }
+    static var primary: Color { AppColors.accentInk }
 }

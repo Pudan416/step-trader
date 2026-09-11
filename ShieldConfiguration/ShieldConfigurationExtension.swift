@@ -44,16 +44,12 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         return application.localizedDisplayName ?? NSLocalizedString("App", comment: "Fallback name for unknown app")
     }
     
-    // MARK: - Brand Colors
-    // Matches AppColors.brandAccent (#FFD369); extension target can't import ColorConstants.
-    private var brandYellow: UIColor {
-        UIColor(red: 0xFF/255.0, green: 0xD3/255.0, blue: 0x69/255.0, alpha: 1.0)
+    private var dailyPalette: DailyInterfacePalette {
+        DailyInterfacePalette.load(from: sharedDefaults())
     }
-    
-    private var darkBackground: UIColor {
-        UIColor(red: 0.05, green: 0.05, blue: 0.12, alpha: 0.95)
-    }
-    
+
+    private var darkBackground: UIColor { dailyPalette.ink.uiColor }
+
     /// Whether a push was sent recently (within 30 seconds).
     /// ShieldAction writes `shieldPushSentAt`; `.defer` re-queries this configuration.
     private func wasPushRecentlySent() -> Bool {
@@ -81,8 +77,8 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
             icon: appIcon,
             title: ShieldConfiguration.Label(text: title, color: .white),
             subtitle: ShieldConfiguration.Label(text: subtitle, color: UIColor.white.withAlphaComponent(0.85)),
-            primaryButtonLabel: ShieldConfiguration.Label(text: primaryButtonText, color: .black),
-            primaryButtonBackgroundColor: brandYellow,
+            primaryButtonLabel: ShieldConfiguration.Label(text: primaryButtonText, color: dailyPalette.ink.uiColor),
+            primaryButtonBackgroundColor: dailyPalette.accent.uiColor,
             secondaryButtonLabel: secondaryButtonText.map { ShieldConfiguration.Label(text: $0, color: UIColor.white.withAlphaComponent(0.6)) }
         )
     }

@@ -30,6 +30,7 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
     private let happeningPoolFactory: HappeningPoolFactory
     private let graphFactory: GraphFactory
     private let engine: DayObjectsInstrumentBankEngine
+    private var backgroundMusicBuilder: DayObjectsMusicResourceBuilder?
     private let inactiveDrums = DayObjectsInactiveDrumBank()
     private let inactivePiano = DayObjectsInactivePianoPool()
     private let inactiveHappenings = DayObjectsInactiveHappeningSamplePool()
@@ -165,6 +166,10 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
             engine: engine
         )
         soundWorldCatalogError = resources.catalogError
+        backgroundMusicBuilder = DayObjectsMusicResourceBuilder { configuration in
+            try Self.buildDetachedMusicResources(configuration, bundle: bundle, resources: resources,
+                                                voiceProfile: tonalVoiceProfile, clock: audioHostTimeProvider)
+        }
     }
 
     static func makePlaybackPair(
@@ -225,6 +230,23 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         )
     }
 
+    /// Only unattached resources leave the main actor. Graph ownership and commit
+    /// stay serialized with start/stop, which await this preparation before teardown.
+    func prepareForPlayback(
+        configuration: DayObjectsInstrumentBankConfiguration,
+        happeningRecipeIDs: Set<HappeningSoundRecipeID>
+    ) async throws {
+        if prepared?.configuration != nil || backgroundMusicBuilder == nil {
+            try prepare(configuration: configuration, happeningRecipeIDs: happeningRecipeIDs)
+            return
+        }
+        try validate(configuration)
+        let resources = try await backgroundMusicBuilder!.build(configuration)
+        try Task.checkCancellation()
+        try prepareFullMusic(configuration, initialHappeningRecipeIDs: happeningRecipeIDs,
+                             detachedResources: resources)
+    }
+
     func prepare(level: PreparationLevel) throws {
         switch level {
         case let .sampleOnly(recipeIDs):
@@ -274,7 +296,8 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
 
     private func prepareFullMusic(
         _ configuration: DayObjectsInstrumentBankConfiguration,
-        initialHappeningRecipeIDs: Set<HappeningSoundRecipeID>
+        initialHappeningRecipeIDs: Set<HappeningSoundRecipeID>,
+        detachedResources: DayObjectsDetachedMusicResources? = nil
     ) throws {
         if let prepared, let existingConfiguration = prepared.configuration {
             guard existingConfiguration == configuration else {
@@ -291,28 +314,34 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         let previousPrepared = prepared
         do {
             try builtHappenings.prepare(recipeIDs: initialHappeningRecipeIDs)
-            let instruments: [DayObjectsInstrumentID: NormalizedSynthVoice]
-            do { instruments = try tonalInstrumentLoader() }
-            catch { throw DayObjectsInstrumentBankError.preparationFailed(.tonalInstruments) }
+            if let detachedResources {
+                builtTonalPools = detachedResources.tonalPools
+                builtDrums = detachedResources.drums
+                builtPiano = detachedResources.piano
+            } else {
+                let instruments: [DayObjectsInstrumentID: NormalizedSynthVoice]
+                do { instruments = try tonalInstrumentLoader() }
+                catch { throw DayObjectsInstrumentBankError.preparationFailed(.tonalInstruments) }
 
-            for specification in configuration.tonalPools {
-                let rawPool: DayObjectsTonalVoicePoolProtocol
-                do { rawPool = try tonalPoolFactory(specification, instruments) }
-                catch { throw DayObjectsInstrumentBankError.preparationFailed(.tonalPools) }
-                builtTonalPools.append(DayObjectsCategoryValidatedTonalPool(
-                    pool: rawPool,
-                    descriptors: descriptorByID,
-                    preparedInstruments: instruments
-                ))
+                for specification in configuration.tonalPools {
+                    let rawPool: DayObjectsTonalVoicePoolProtocol
+                    do { rawPool = try tonalPoolFactory(specification, instruments) }
+                    catch { throw DayObjectsInstrumentBankError.preparationFailed(.tonalPools) }
+                    builtTonalPools.append(DayObjectsCategoryValidatedTonalPool(
+                        pool: rawPool,
+                        descriptors: descriptorByID,
+                        preparedInstruments: instruments
+                    ))
+                }
+
+                do { builtDrums = try drumBankFactory(configuration.drumOverlapCounts) }
+                catch { throw DayObjectsInstrumentBankError.preparationFailed(.drums) }
+                do {
+                    builtPiano = configuration.pianoVoiceCount == 0
+                        ? inactivePiano
+                        : try pianoPoolFactory(configuration.pianoVoiceCount)
+                } catch { throw DayObjectsInstrumentBankError.preparationFailed(.piano) }
             }
-
-            do { builtDrums = try drumBankFactory(configuration.drumOverlapCounts) }
-            catch { throw DayObjectsInstrumentBankError.preparationFailed(.drums) }
-            do {
-                builtPiano = configuration.pianoVoiceCount == 0
-                    ? inactivePiano
-                    : try pianoPoolFactory(configuration.pianoVoiceCount)
-            } catch { throw DayObjectsInstrumentBankError.preparationFailed(.piano) }
             guard let builtDrums, let builtPiano else { throw DayObjectsInstrumentBankError.preparationFailed(.graph) }
 
             let graph: DayObjectsInstrumentBankGraph
@@ -593,7 +622,49 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         var isAttached: Bool = true
     }
 
-    private static func drumRecipes(_ requested: [DayObjectsDrumVoice: Int]) -> [DayObjectsDrumVoice: DayObjectsDrumRecipe] {
+    nonisolated private static func buildDetachedMusicResources(
+        _ configuration: DayObjectsInstrumentBankConfiguration,
+        bundle: Bundle,
+        resources: DayObjectsSoundWorldResources,
+        voiceProfile: DayObjectsTonalVoiceProfile,
+        clock: @escaping () -> TimeInterval
+    ) throws -> DayObjectsDetachedMusicResources {
+        let instruments: [DayObjectsInstrumentID: NormalizedSynthVoice]
+        do { instruments = try resources.tonalInstruments() }
+        catch { throw DayObjectsInstrumentBankError.preparationFailed(.tonalInstruments) }
+        let descriptors = Dictionary(uniqueKeysWithValues: resources.descriptors.map { ($0.id, $0) })
+        let pools: [DayObjectsTonalVoicePoolProtocol] = configuration.tonalPools.map { specification in
+            DayObjectsCategoryValidatedTonalPool(
+                pool: DayObjectsAudioKitTonalPoolAdapter(DayObjectsAudioKitTonalPool(
+                    specification: specification, instruments: instruments,
+                    voiceProfile: voiceProfile, hostTimeProvider: clock)),
+                descriptors: descriptors, preparedInstruments: instruments
+            )
+        }
+        let drums = DayObjectsAudioKitDrumBankAdapter(.init(resourceResolver: { sample in
+            let filename = sample.rawValue as NSString
+            return bundle.url(forResource: filename.deletingPathExtension,
+                              withExtension: filename.pathExtension, subdirectory: "Drums")
+        }, recipes: drumRecipes(configuration.drumOverlapCounts), hostTimeProvider: clock))
+        let piano: DayObjectsPianoPoolProtocol
+        if configuration.pianoVoiceCount == 0 {
+            piano = DayObjectsInactivePianoPool()
+        } else {
+            do {
+                let samples = try FeltPianoManifest.load(from: bundle)
+                piano = DayObjectsAudioKitPianoPoolAdapter(DayObjectsAudioKitFeltPiano(
+                    samples: samples, recipe: pianoRecipe(voiceCount: configuration.pianoVoiceCount),
+                    resourceResolver: { sample in
+                        let filename = sample.filename as NSString
+                        return bundle.url(forResource: filename.deletingPathExtension,
+                                          withExtension: filename.pathExtension, subdirectory: "FeltPiano")
+                    }))
+            } catch { throw DayObjectsInstrumentBankError.preparationFailed(.piano) }
+        }
+        return .init(tonalPools: pools, drums: drums, piano: piano)
+    }
+
+    nonisolated private static func drumRecipes(_ requested: [DayObjectsDrumVoice: Int]) -> [DayObjectsDrumVoice: DayObjectsDrumRecipe] {
         Dictionary(uniqueKeysWithValues: DayObjectsDrumVoice.allCases.map { voice in
             let base = DayObjectsDrumRecipe.recipe(for: voice)
             let overlap = requested[voice] ?? base.overlapCount
@@ -601,9 +672,38 @@ final class DayObjectsInstrumentBank: DayObjectsInstrumentBankProtocol {
         })
     }
 
-    private static func pianoRecipe(voiceCount: Int) -> DayObjectsFeltPianoRecipe {
+    nonisolated private static func pianoRecipe(voiceCount: Int) -> DayObjectsFeltPianoRecipe {
         let base = DayObjectsFeltPianoRecipe.default
         return .init(attackSeconds: base.attackSeconds, releaseSeconds: base.releaseSeconds, lowPassCutoffHz: base.lowPassCutoffHz, mechanicalOnsetHighPassHz: base.mechanicalOnsetHighPassHz, mechanicalNoiseGain: base.mechanicalNoiseGain, noteTrimDB: base.noteTrimDB, roomSend: base.roomSend, reverbSend: base.reverbSend, maximumPolyphony: voiceCount)
     }
 }
+
+/// Exclusive handoff: these nodes are constructed without an engine on the
+/// resource queue, then used only by the receiving main-actor bank after await.
+private struct DayObjectsDetachedMusicResources: @unchecked Sendable {
+    let tonalPools: [DayObjectsTonalVoicePoolProtocol]
+    let drums: DayObjectsDrumBankProtocol
+    let piano: DayObjectsPianoPoolProtocol
+}
+
+/// The production builder captures immutable resource descriptions, never a bank
+/// or its mutable playback state. One queue also bounds concurrent node creation.
+private final class DayObjectsMusicResourceBuilder: @unchecked Sendable {
+    private static let queue = DispatchQueue(label: "Nowhere.music.resources", qos: .userInitiated)
+    private let make: (DayObjectsInstrumentBankConfiguration) throws -> DayObjectsDetachedMusicResources
+
+    init(make: @escaping (DayObjectsInstrumentBankConfiguration) throws -> DayObjectsDetachedMusicResources) {
+        self.make = make
+    }
+
+    func build(_ configuration: DayObjectsInstrumentBankConfiguration) async throws -> DayObjectsDetachedMusicResources {
+        try Task.checkCancellation()
+        return try await withCheckedThrowingContinuation { continuation in
+            Self.queue.async { [self] in
+                continuation.resume(with: Result { try autoreleasepool { try make(configuration) } })
+            }
+        }
+    }
+}
+
 #endif

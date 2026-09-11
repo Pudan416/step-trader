@@ -5,6 +5,63 @@ import SwiftUI
 
 @MainActor
 final class DayObjectsMusicLabControllerTests: XCTestCase {
+    func testCanvasMusicContinuesThroughBackgroundWithoutRestartAndReleasesLead() async {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback, allowsBackgroundPlayback: true)
+        await controller.toggleSound()
+        controller.beginLead(.init(normalizedX: 0.5, normalizedY: 0.5, speed: 0.2), isGridVisible: false, isVoiceOverRunning: false)
+        await controller.sceneActivityChanged(isActive: false)
+        await controller.sceneActivityChanged(isActive: false)
+        XCTAssertEqual(controller.soundState, .on)
+        XCTAssertEqual(playback.stopCount, 0)
+        XCTAssertEqual(playback.endLeadCount, 1, "The finger's held note must not survive screen lock")
+        await controller.sceneActivityChanged(isActive: true)
+        XCTAssertEqual(playback.startPlans.count, 1, "Returning must keep the existing composition playing")
+        await controller.turnSoundOff()
+        XCTAssertEqual(controller.soundState, .off)
+        XCTAssertEqual(playback.stopCount, 1)
+    }
+
+    func testBackgroundMusicStillStopsForInterruptionAndViewRemoval() async {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback, allowsBackgroundPlayback: true)
+        await controller.toggleSound()
+        await controller.sceneActivityChanged(isActive: false)
+        await controller.interruptionBegan()
+        XCTAssertEqual(controller.soundState, .off)
+        await controller.interruptionEnded()
+        await controller.sceneActivityChanged(isActive: true)
+        XCTAssertEqual(playback.startPlans.count, 1, "Interruption end must not start unsolicited playback")
+        await controller.toggleSound()
+        await controller.viewDidDisappear()
+        XCTAssertEqual(controller.soundState, .off)
+        XCTAssertEqual(playback.stopCount, 2)
+    }
+
+    func testApplicationDeclaresBackgroundAudio() {
+        XCTAssertTrue((Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String] ?? []).contains("audio"))
+    }
+
+    func testSilentCanvasLifecycleDoesNotConstructPlaybackUntilSoundStarts() async {
+        var constructions = 0
+        func makePlayback() -> RecordingLabPlayback {
+            constructions += 1
+            return RecordingLabPlayback()
+        }
+        let controller = DayObjectsMusicLabController(playbackFactory: makePlayback)
+        controller.viewDidAppear()
+        controller.setSteps(4500)
+        await controller.viewDidDisappear()
+        XCTAssertEqual(constructions, 0, "A silent canvas must not allocate the audio graph")
+        controller.viewDidAppear()
+        await controller.toggleSound()
+        XCTAssertEqual(constructions, 1)
+        await controller.turnSoundOff()
+        await controller.toggleSound()
+        XCTAssertEqual(constructions, 1, "Subsequent starts must retain the prepared runtime")
+        await controller.turnSoundOff()
+    }
+
     func testControllerSeed38To39KeepsCurrentMasterAndWetUntilTheBarBoundary() async throws {
         let playback = RecordingLabPlayback()
         let controller = DayObjectsMusicLabController(state: .init(steps: 7_500, sleepHours: 6.5,

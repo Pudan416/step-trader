@@ -48,6 +48,7 @@ protocol DayObjectsPlaybackRuntimeProtocol: AnyObject {
     var diagnosticMeterSnapshot: DayObjectsDiagnosticMeterSnapshot { get }
 
     func prepare(plan: DayMusicPlan) throws
+    func prepareForPlayback(plan: DayMusicPlan) async throws
     func startAudio() throws
     func startTransport(plan: DayMusicPlan) async throws
     func fadeMaster(to plan: DayMusicPlan) throws
@@ -80,6 +81,7 @@ protocol DayObjectsPlaybackRuntimeProtocol: AnyObject {
 }
 
 extension DayObjectsPlaybackRuntimeProtocol {
+    func prepareForPlayback(plan: DayMusicPlan) async throws { try prepare(plan: plan) }
     var diagnosticMeterSnapshot: DayObjectsDiagnosticMeterSnapshot { .silent }
     func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan) {}
     func releaseDiagnosticAudition(plan: DayMusicPlan) {}
@@ -215,7 +217,8 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
                 try audioSession.activate()
             }
             runtimeMayOwnResources = true
-            try runtime.prepare(plan: plan)
+            try await runtime.prepareForPlayback(plan: plan)
+            try checkLifecycleOperation(generation)
             if hasAuditionVoices {
                 // The bank's successful full-preparation commit owns clearing
                 // sample-only voices. A failed prepare leaves this truth intact.
@@ -1953,6 +1956,15 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
                 audioHostTimeProvider: diagnosticHostTimeProvider
             ))
         )
+    }
+
+    func prepareForPlayback(plan: DayMusicPlan) async throws {
+        if let bank = world.bank.instrumentBank as? DayObjectsInstrumentBank {
+            try await bank.prepareForPlayback(configuration: PlaybackWorldBankConfiguration.mobilePlaybackWorld,
+                                              happeningRecipeIDs: Set(plan.happenings.map(\.recipeID)))
+        }
+        try Task.checkCancellation()
+        try prepare(plan: plan)
     }
 
     func prepare(plan: DayMusicPlan) throws {

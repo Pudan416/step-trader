@@ -330,6 +330,8 @@ private struct StepsTraderProductionRoot: View {
             #endif
         }
         .font(AppFonts.body)
+        .modifier(NowhereLaunchPresentation())
+        .modifier(TodayCanvasBackdropHost(model: model))
     }
 
     @ViewBuilder
@@ -416,7 +418,6 @@ private struct StepsTraderProductionRoot: View {
                 FeatureTipSheet(tip: tip)
             }
             .themed(currentTheme)
-            .tint(currentTheme.accentColor)
             .grayscale(0)
             .environment(coachMarkManager)
             .modifier(
@@ -585,7 +586,6 @@ private struct StepsTraderProductionRoot: View {
             .onOpenURL { url in
                 handleWidgetOpenApp(url)
             }
-            .tint(currentTheme.accentColor)
             .background(currentTheme.backgroundColor)
             .preferredColorScheme(currentTheme.colorScheme)
             } // GlassShimmerProvider

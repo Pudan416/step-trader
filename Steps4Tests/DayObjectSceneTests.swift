@@ -1353,3 +1353,67 @@ extension DayObjectSilhouetteVarietyTests {
         XCTAssertTrue(Set([1, 2, 3, 4]).isSubset(of: patterns))
     }
 }
+
+final class DayObjectSceneReuseTests: XCTestCase {
+    private func input(identity: String, events: [String] = ["walk", "coffee"], variant: Int = 0) -> DayObjectSceneInput {
+        .init(dayKey: "2026-09-09", identity: identity, eventIDs: events,
+              motionEnergy: 0.6, visualClarity: 0.7, canvasCoverage: .fullCanvas,
+              usesEditorialField: true,
+              editorialLabConfiguration: .init(materialMode: .generativeDNA, placement: .depthField),
+              actorColorVariants: ["walk": variant])
+    }
+
+    func testRepeatedSceneRequestsReuseImmutableActorStorage() {
+        let request = input(identity: UUID().uuidString)
+        let first = DayObjectScene.make(input: request)
+        let second = DayObjectScene.make(input: request)
+        // Sharing the retained COW buffer proves another actor array was not generated.
+        first.actors.withUnsafeBufferPointer { original in
+            second.actors.withUnsafeBufferPointer { reused in
+                XCTAssertEqual(original.baseAddress, reused.baseAddress,
+                               "Identical scene requests must reuse the built scene")
+            }
+        }
+    }
+
+    func testUnchangedTimelineReusesMaterialStorageAcrossFrames() throws {
+        let scene = DayObjectScene.make(input: input(identity: UUID().uuidString))
+        let recipe = try XCTUnwrap(scene.sceneRecipeV1)
+        var timeline = DayObjectInsertionTimeline(scene: scene)
+        for time in [0.0, 0.1, 10.0] {
+            let frame = timeline.renderState(activeScene: scene, elapsed: time)
+            let frameRecipe = try XCTUnwrap(frame.scene.sceneRecipeV1)
+            recipe.actors.withUnsafeBufferPointer { original in
+                frameRecipe.actors.withUnsafeBufferPointer { reused in
+                    XCTAssertEqual(original.baseAddress, reused.baseAddress,
+                                   "Animation time must not regenerate immutable materials")
+                }
+            }
+        }
+    }
+
+    func testVisualChangeInvalidatesSceneAndKeepsOtherCachedSceneIntact() throws {
+        let identity = UUID().uuidString
+        let originalInput = input(identity: identity)
+        let original = DayObjectScene.make(input: originalInput)
+        let changedInput = input(identity: identity, events: ["walk", "read"], variant: 1)
+        let changed = DayObjectScene.make(input: changedInput)
+        XCTAssertEqual(changed.input, changedInput)
+        XCTAssertEqual(changed.actors.map(\.eventID), ["walk", "read"])
+        XCTAssertNotEqual(changed.sceneRecipeV1, original.sceneRecipeV1)
+        XCTAssertEqual(DayObjectScene.make(input: originalInput), original)
+    }
+
+    func testTimelineAcceptsNewMaterialForSameActorIDs() throws {
+        let identity = UUID().uuidString
+        let original = DayObjectScene.make(input: input(identity: identity))
+        let changed = DayObjectScene.make(input: input(identity: identity, variant: 1))
+        var timeline = DayObjectInsertionTimeline(scene: original)
+        timeline.update(scene: changed, elapsed: 2)
+        let frame = timeline.renderState(activeScene: changed, elapsed: 2.1)
+        XCTAssertEqual(frame.scene.sceneRecipeV1, changed.sceneRecipeV1)
+        XCTAssertNotEqual(frame.scene.sceneRecipeV1, original.sceneRecipeV1)
+        XCTAssertTrue(frame.actorInsertions.isEmpty)
+        XCTAssertTrue(frame.actorRemovals.isEmpty)
+    }
+}

@@ -21,8 +21,8 @@ private struct FeedUnlockOptionsBottomPreferenceKey: PreferenceKey {
 
 /// Single accent for primary actions (Create Ticket, unlock). Rest uses system colors.
 enum TicketsPalette {
-    // Accent yellow: #FFD369
-    static let accent = AppColors.brandAccent
+    // Daily accent shared with Canvas and PayGate.
+    static var accent: Color { AppColors.brandAccent }
 
     // Theme accents (used on the flipped side for controls).
     static let themes: [Color] = [

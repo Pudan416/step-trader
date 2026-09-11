@@ -10,7 +10,7 @@ enum HappeningPadAuditionStatus: Equatable, Sendable {
     case exporting
 }
 
-enum DayObjectsLabLifecycleEvent: Sendable {
+enum DayObjectsLabLifecycleEvent: Equatable, Sendable {
     case viewAppeared
     case viewDisappeared
     case sceneActive
@@ -31,6 +31,7 @@ enum DayObjectsLabLifecycleEvent: Sendable {
 struct DayObjectsLabLifecycleIntent: Sendable {
     fileprivate let generation: UInt64
     fileprivate let event: DayObjectsLabLifecycleEvent
+    fileprivate let requiresAudioStop: Bool
 }
 
 struct DayObjectsSoundButtonIntent: Sendable {
@@ -74,7 +75,19 @@ final class DayObjectsMusicLabController: ObservableObject {
     )
     let soundPulseBus = DayObjectsSoundPulseBus()
 
-    private let playback: any DayObjectsMusicPlaybackProtocol
+    private let playbackFactory: () -> any DayObjectsMusicPlaybackProtocol
+    private var resolvedPlayback: (any DayObjectsMusicPlaybackProtocol)?
+    private var playback: any DayObjectsMusicPlaybackProtocol {
+        if let resolvedPlayback { return resolvedPlayback }
+        let instance = playbackFactory()
+        let pulseBus = soundPulseBus
+        instance.setHappeningAttackHandler { [weak pulseBus] eventID in
+            pulseBus?.emit(eventID: eventID)
+        }
+        resolvedPlayback = instance
+        return instance
+    }
+    private let allowsBackgroundPlayback: Bool
     private let soundWorldResources: DayObjectsSoundWorldResources
     var soundWorldCatalogDiagnostic: String? {
         soundWorldResources.catalogError.map { "Sound worlds unavailable; using legacy instruments. \($0)" }
@@ -112,9 +125,12 @@ final class DayObjectsMusicLabController: ObservableObject {
     init(
         state: DayObjectsLabMusicState = DayObjectsLabMusicState(),
         playback: (any DayObjectsMusicPlaybackProtocol)? = nil,
+        playbackFactory: (() -> any DayObjectsMusicPlaybackProtocol)? = nil,
         soundWorldResources: DayObjectsSoundWorldResources = .bundled,
-        auditionExport: AuditionExport? = nil
+        auditionExport: AuditionExport? = nil,
+        allowsBackgroundPlayback: Bool = false
     ) {
+        self.allowsBackgroundPlayback = allowsBackgroundPlayback
         self.soundWorldResources = soundWorldResources
         self.auditionExport = auditionExport ?? { input, seed, directory, progress in
             _ = try await DayObjectsAuditionPackExporter(progress: progress)
@@ -129,17 +145,17 @@ final class DayObjectsMusicLabController: ObservableObject {
         let initialHappeningIDs = Self.happeningIDs(count: sanitized.happeningCount)
         configuredHappeningIDs = initialHappeningIDs
         currentPlan = Self.makePlan(for: sanitized, happeningIDs: initialHappeningIDs, resources: soundWorldResources)
-        if let playback {
-            self.playback = playback
-        } else {
-            let runtime = DayObjectsMobilePlaybackRuntime(soundWorldResources: soundWorldResources)
-            self.playback = DayObjectsMusicPlaybackEngine(
+        self.playbackFactory = playbackFactory ?? {
+            DayObjectsMusicPlaybackEngine(
                 audioSession: DayObjectsSystemAudioSession(),
-                runtime: runtime
+                runtime: DayObjectsMobilePlaybackRuntime(soundWorldResources: soundWorldResources)
             )
         }
+        // An explicitly supplied runtime already exists and may own audio.
+        // Preserve its lifecycle and pulse wiring; only default construction is deferred.
+        resolvedPlayback = playback
         let pulseBus = soundPulseBus
-        self.playback.setHappeningAttackHandler { [weak pulseBus] eventID in
+        playback?.setHappeningAttackHandler { [weak pulseBus] eventID in
             pulseBus?.emit(eventID: eventID)
         }
     }
@@ -508,11 +524,14 @@ final class DayObjectsMusicLabController: ObservableObject {
         lifecycleEventGeneration &+= 1
         let intent = DayObjectsLabLifecycleIntent(
             generation: lifecycleEventGeneration,
-            event: event
+            event: event,
+            requiresAudioStop: event.requiresAudioStop && !(allowsBackgroundPlayback
+                && event == .sceneInactive && soundState == .on)
         )
         if !event.isActive {
-            // Leaving the whole lab, backgrounding, or an interruption cancels
-            // owned work; merely collapsing diagnostics never reaches here.
+            // Release touch/diagnostic work even when the composition continues
+            // with the screen locked. A held finger must not leave a stuck note.
+            endLead()
             auditionExportTask?.cancel()
             acceptedSoundButtonIntent = nil
             disableDiagnostics()
@@ -523,7 +542,7 @@ final class DayObjectsMusicLabController: ObservableObject {
 
     func completeLifecycleEvent(_ intent: DayObjectsLabLifecycleIntent) async {
         guard intent.generation == lifecycleEventGeneration,
-              intent.event.requiresAudioStop else { return }
+              intent.requiresAudioStop else { return }
         if let auditionExportTask { await auditionExportTask.value }
         await stop(includingSampleOnly: true)
     }
@@ -646,6 +665,7 @@ final class DayObjectsMusicLabController: ObservableObject {
             await stopTask.value
             return
         }
+        guard resolvedPlayback != nil else { return }
         guard soundState != .off || includingSampleOnly else { return }
         lifecycleGeneration &+= 1
         soundState = .off
