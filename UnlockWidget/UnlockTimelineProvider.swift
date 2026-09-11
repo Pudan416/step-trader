@@ -150,7 +150,7 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
 
     func snapshot(for configuration: SelectGroupIntent, in context: Context) async -> UnlockEntry {
         buildEntry(at: Date(), selectedGroupIds: configuration.selectedIds)
-            .withWallpaper(size: context.displaySize, position: configuration.wallpaperPosition.position)
+            .withWallpaper(size: context.displaySize, mode: configuration.background, position: configuration.wallpaperPosition.position)
     }
 
     func timeline(for configuration: SelectGroupIntent, in context: Context) async -> Timeline<UnlockEntry> {
@@ -178,7 +178,7 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
             refreshPolicy = resetDate.addingTimeInterval(60)
         }
 
-        let wallpaper = WidgetWallpaperFile.currentBackground(size: context.displaySize,
+        let wallpaper = WidgetWallpaperFile.currentBackground(size: context.displaySize, mode: configuration.background,
                                                              position: configuration.wallpaperPosition.position)
         return Timeline(entries: entries.map { $0.withWallpaper(wallpaper) }, policy: .after(refreshPolicy))
     }
@@ -400,7 +400,7 @@ struct StatusTimelineProvider: AppIntentTimelineProvider {
 
     func snapshot(for configuration: StatusWidgetIntent, in context: Context) async -> UnlockEntry {
         buildStatusEntry(at: Date())
-            .withWallpaper(size: context.displaySize, position: configuration.wallpaperPosition.position)
+            .withWallpaper(size: context.displaySize, mode: configuration.background, position: configuration.wallpaperPosition.position)
     }
 
     func timeline(for configuration: StatusWidgetIntent, in context: Context) async -> Timeline<UnlockEntry> {
@@ -427,7 +427,7 @@ struct StatusTimelineProvider: AppIntentTimelineProvider {
             refreshPolicy = resetDate.addingTimeInterval(60)
         }
 
-        let wallpaper = WidgetWallpaperFile.currentBackground(size: context.displaySize,
+        let wallpaper = WidgetWallpaperFile.currentBackground(size: context.displaySize, mode: configuration.background,
                                                              position: configuration.wallpaperPosition.position)
         return Timeline(entries: entries.map { $0.withWallpaper(wallpaper) }, policy: .after(refreshPolicy))
     }
@@ -564,7 +564,7 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
 
     func snapshot(for configuration: SelectSingleGroupIntent, in context: Context) async -> UnlockEntry {
         buildEntry(at: Date(), selectedGroupId: configuration.selectedId)
-            .withWallpaper(size: context.displaySize, position: configuration.wallpaperPosition.position)
+            .withWallpaper(size: context.displaySize, mode: configuration.background, position: configuration.wallpaperPosition.position)
     }
 
     func timeline(for configuration: SelectSingleGroupIntent, in context: Context) async -> Timeline<UnlockEntry> {
@@ -587,7 +587,7 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
             refreshPolicy = resetDate.addingTimeInterval(60)
         }
 
-        let wallpaper = WidgetWallpaperFile.currentBackground(size: context.displaySize,
+        let wallpaper = WidgetWallpaperFile.currentBackground(size: context.displaySize, mode: configuration.background,
                                                              position: configuration.wallpaperPosition.position)
         return Timeline(entries: entries.map { $0.withWallpaper(wallpaper) }, policy: .after(refreshPolicy))
     }
@@ -773,15 +773,15 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
 
 
 private extension WidgetWallpaperFile {
-    static func currentBackground(size: CGSize, position: WidgetWallpaperPosition?) -> UIImage? {
+    static func currentBackground(size: CGSize, mode: WidgetBackgroundOption, position: WidgetWallpaperPosition?) -> UIImage? {
         guard let defaults = UserDefaults(suiteName: SharedKeys.appGroupId), let directory else { return nil }
-        return background(widgetSize: size, position: position, defaults: defaults, directory: directory)
+        return background(widgetSize: size, mode: mode, position: position, defaults: defaults, directory: directory)
     }
 }
 
 private extension UnlockEntry {
-    func withWallpaper(size: CGSize, position: WidgetWallpaperPosition?) -> Self {
-        withWallpaper(WidgetWallpaperFile.currentBackground(size: size, position: position))
+    func withWallpaper(size: CGSize, mode: WidgetBackgroundOption, position: WidgetWallpaperPosition?) -> Self {
+        withWallpaper(WidgetWallpaperFile.currentBackground(size: size, mode: mode, position: position))
     }
     func withWallpaper(_ image: UIImage?) -> Self {
         var copy = self

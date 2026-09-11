@@ -43,7 +43,8 @@ struct NowhereWidgetContent: View {
     private var accent: Color { isAccented ? .primary : WidgetStyle.accent }
     private var groups: [UnlockEntry.GroupSnapshot] {
         var seen = Set<String>()
-        return entry.selectedGroupIds.compactMap { id in
+        let selected = kind == .groups ? WidgetGroupSelection.largeIDs(entry.selectedGroupIds) : entry.selectedGroupIds
+        return selected.compactMap { id in
             guard seen.insert(id).inserted else { return nil }
             return entry.groups.first { $0.id == id }
         }
@@ -82,8 +83,8 @@ struct NowhereWidgetContent: View {
                     emptyState
                 } else {
                     VStack(spacing: 6) {
-                        ForEach(groups.prefix(4)) { group in
-                            groupCard(group, compact: groups.count >= 4, dense: dense)
+                        ForEach(groups) { group in
+                            groupCard(group, compact: false, dense: dense)
                         }
                     }
                 }
@@ -196,8 +197,8 @@ struct NowhereWidgetContent: View {
             }
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, compact ? (dense ? 4 : 7) : 10)
-        .frame(maxWidth: .infinity, maxHeight: kind == .combo ? .infinity : nil, alignment: .center)
+        .padding(.vertical, compact ? (dense ? 4 : 7) : (dense ? 7 : 10))
+        .frame(maxWidth: .infinity, maxHeight: kind == .status ? nil : .infinity, alignment: .center)
         .background {
             RoundedRectangle(cornerRadius: compact ? 20 : 24, style: .continuous)
                 .fill(isAccented ? Color.primary.opacity(0.1) : Color.white.opacity(reduceTransparency ? 0.18 : 0.10))

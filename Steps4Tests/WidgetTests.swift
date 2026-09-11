@@ -29,6 +29,57 @@ final class WidgetTests: XCTestCase {
         XCTAssertEqual(identity.detail, "1 app")
     }
 
+    func testLargeWidgetKeepsOnlyThreeUniqueGroupsInSelectionOrder() {
+        XCTAssertEqual(WidgetGroupSelection.largeIDs(["a", "b", "c", "d"]), ["a", "b", "c"])
+        XCTAssertEqual(WidgetGroupSelection.largeIDs(["a", "a", "b", "c"]), ["a", "b", "c"])
+        XCTAssertEqual(WidgetGroupSelection.largeIDs(["c", "a"]), ["c", "a"])
+        XCTAssertEqual(WidgetGroupSelection.largeIDs([]), [])
+    }
+
+    @MainActor
+    func testWidgetBackgroundChoicesAreIndependentOfEachOtherAndAppDefaults() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let suite = "widget-instance-tests-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+            defaults.removePersistentDomain(forName: suite)
+        }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 800), format: format).image { context in
+            UIColor.red.setFill(); context.fill(CGRect(x: 0, y: 0, width: 400, height: 400))
+            UIColor.blue.setFill(); context.fill(CGRect(x: 0, y: 400, width: 400, height: 400))
+        }
+        try WidgetWallpaperFile.write(.init(imageData: XCTUnwrap(image.pngData()), screenSize: image.size), to: directory)
+        let size = CGSize(width: 340, height: 160)
+        defaults.set("basic", forKey: SharedKeys.widgetBackgroundMode)
+        let top = try XCTUnwrap(WidgetWallpaperFile.background(widgetSize: size, mode: .aligned, position: .top, defaults: defaults, directory: directory))
+        let bottom = try XCTUnwrap(WidgetWallpaperFile.background(widgetSize: size, mode: .aligned, position: .bottom, defaults: defaults, directory: directory))
+        XCTAssertEqual(try centerRGB(top), [255, 0, 0])
+        XCTAssertEqual(try centerRGB(bottom), [0, 0, 255])
+        XCTAssertNotNil(WidgetWallpaperFile.background(widgetSize: size, mode: .wallpaper, defaults: defaults, directory: directory))
+        XCTAssertNil(WidgetWallpaperFile.background(widgetSize: size, mode: .appDefault, defaults: defaults, directory: directory))
+        XCTAssertEqual(defaults.string(forKey: SharedKeys.widgetBackgroundMode), "basic", "Rendering one instance must never change shared defaults")
+
+        defaults.set("wallpaper", forKey: SharedKeys.widgetBackgroundMode)
+        XCTAssertNil(WidgetWallpaperFile.background(widgetSize: size, mode: .basic, defaults: defaults, directory: directory))
+        XCTAssertNotNil(WidgetWallpaperFile.background(widgetSize: size, defaults: defaults, directory: directory), "Existing widgets retain the app default")
+        XCTAssertEqual(try centerRGB(XCTUnwrap(WidgetWallpaperFile.background(widgetSize: size, mode: .aligned, position: .top, defaults: defaults, directory: directory))), [255, 0, 0])
+        XCTAssertEqual(defaults.string(forKey: SharedKeys.widgetBackgroundMode), "wallpaper")
+    }
+
+    func testInvalidBackgroundDefaultsFallBackToNoPicture() throws {
+        let suite = "widget-mode-tests-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        for raw in ["removed-mode", "appDefault", "clear"] {
+            defaults.set(raw, forKey: SharedKeys.widgetBackgroundMode)
+            XCTAssertEqual(WidgetBackgroundOption.appDefault.resolved(defaults: defaults), .basic)
+            XCTAssertEqual(WidgetBackgroundOption.aligned.resolved(defaults: defaults), .aligned)
+        }
+    }
+
     // Coordinates deliberately use a simple 400 × 800 screen at 3× scale.
     // These catch using a scaled whole wallpaper instead of a positioned crop.
     func testWallpaperCropPreservesScreenScaleAndPosition() throws {

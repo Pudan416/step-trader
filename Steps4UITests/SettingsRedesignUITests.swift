@@ -773,6 +773,8 @@ final class SettingsRedesignUITests: XCTestCase {
         XCTAssertTrue(app.buttons["settings.widgets.install"].exists)
         XCTAssertFalse(app.otherElements["settings.wallpaper.controls"].exists)
         XCTAssertTrue(app.otherElements["settings.widgets.controls"].exists)
+        XCTAssertTrue(app.staticTexts["settings.widgets.perWidgetHint"].exists)
+        XCTAssertTrue(app.staticTexts["Default background"].exists)
         capture(app, name: "Simplified widget setup")
         let transparent = app.buttons["settings.widgets.background.clear"]
         revealWallpaperControl(transparent, in: app)

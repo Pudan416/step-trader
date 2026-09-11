@@ -40,6 +40,29 @@ enum WidgetDataFile {
 }
 
 
+// MARK: - Per-widget configuration
+
+/// Explicit choices never consult the app's background default. The inherited
+/// case preserves the appearance of widgets configured before this option existed.
+enum WidgetBackgroundOption: String, CaseIterable, Codable {
+    case appDefault, basic, wallpaper, aligned
+
+    func resolved(defaults: UserDefaults) -> Self {
+        guard self == .appDefault else { return self }
+        let saved = Self(rawValue: defaults.string(forKey: SharedKeys.widgetBackgroundMode) ?? "basic")
+        return saved == .wallpaper || saved == .aligned ? saved! : .basic
+    }
+}
+
+enum WidgetGroupSelection {
+    static let largeLimit = 3
+
+    static func largeIDs(_ ids: [String]) -> [String] {
+        var seen = Set<String>()
+        return Array(ids.filter { seen.insert($0).inserted }.prefix(largeLimit))
+    }
+}
+
 // MARK: - Shared wallpaper geometry
 
 enum WidgetWallpaperPosition: String, CaseIterable, Codable {
@@ -101,21 +124,22 @@ enum WidgetWallpaperFile {
         return try? PropertyListDecoder().decode(WidgetWallpaperSnapshot.self, from: data)
     }
 
-    static func background(widgetSize: CGSize, position: WidgetWallpaperPosition? = nil,
+    static func background(widgetSize: CGSize, mode: WidgetBackgroundOption = .appDefault,
+                           position: WidgetWallpaperPosition? = nil,
                            defaults: UserDefaults, directory: URL) -> UIImage? {
-        let mode = defaults.string(forKey: SharedKeys.widgetBackgroundMode) ?? "basic"
-        guard mode == "wallpaper" || mode == "aligned" else { return nil }
+        let mode = mode.resolved(defaults: defaults)
+        guard mode == .wallpaper || mode == .aligned else { return nil }
         let snapshot = read(from: directory)
-        let data = snapshot?.imageData ?? (mode == "wallpaper"
+        let data = snapshot?.imageData ?? (mode == .wallpaper
             ? try? Data(contentsOf: directory.appendingPathComponent("wallpaper_bg.jpg")) : nil)
         guard let data, let source = CGImageSourceCreateWithData(data as CFData, nil),
               let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
                 kCGImageSourceCreateThumbnailFromImageAlways: true,
                 kCGImageSourceCreateThumbnailWithTransform: true,
-                kCGImageSourceThumbnailMaxPixelSize: mode == "aligned" ? 2048 : 1024,
+                kCGImageSourceThumbnailMaxPixelSize: mode == .aligned ? 2048 : 1024,
                 kCGImageSourceShouldCacheImmediately: true
               ] as CFDictionary) else { return nil }
-        if mode == "aligned" {
+        if mode == .aligned {
             // These presets describe full-width iPhone widgets. Other hosts
             // must not display an unrelated crop as if it were aligned.
             guard let snapshot, snapshot.screenSize.height > snapshot.screenSize.width,

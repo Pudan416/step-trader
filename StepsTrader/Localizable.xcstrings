@@ -1,6 +1,57 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Hold a widget → Edit Widget → choose up to three groups." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold a widget → Edit Widget → choose up to three groups."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удерживайте виджет → Изменить виджет → выберите до трёх групп."
+          }
+        }
+      }
+    },
+    "For one widget: hold it → Edit Widget → Background." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For one widget: hold it → Edit Widget → Background."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для одного виджета: удерживайте его → Изменить виджет → Фон."
+          }
+        }
+      }
+    },
+    "Default background" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default background"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фон по умолчанию"
+          }
+        }
+      }
+    },
     "Tap to replace" : {
       "extractionState" : "manual",
       "localizations" : {

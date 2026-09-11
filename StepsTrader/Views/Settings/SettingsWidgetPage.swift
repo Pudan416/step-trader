@@ -84,10 +84,16 @@ struct SettingsWidgetControls: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
+            Text(String(localized: "For one widget: hold it → Edit Widget → Background."))
+                .font(.geist(.caption))
+                .foregroundStyle(.white.opacity(0.8))
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("settings.widgets.perWidgetHint")
+
             representativePreview
 
             HStack {
-                Text(String(localized: "Background"))
+                Text(String(localized: "Default background"))
                     .font(.geist(.subheadline).weight(.semibold))
                 Spacer()
                 Button { showingHelp = true } label: {
@@ -136,7 +142,8 @@ struct SettingsWidgetControls: View {
             NavigationStack {
                 List {
                     setupStep(title: String(localized: "Add a widget"), text: String(localized: "Home Screen → Edit → Add Widget → Nowhere"))
-                    setupStep(title: String(localized: "App groups"), text: String(localized: "Hold a widget → Edit Widget → choose groups."))
+                    setupStep(title: String(localized: "Background"), text: String(localized: "For one widget: hold it → Edit Widget → Background."))
+                    setupStep(title: String(localized: "App groups"), text: String(localized: "Hold a widget → Edit Widget → choose up to three groups."))
                     setupStep(title: String(localized: "Clear"), text: String(localized: "Home Screen → Edit → Customize → Clear"))
                     setupStep(title: String(localized: "Match wallpaper"), text: String(localized: "Use the same Canvas export as your wallpaper. Update Position after moving a widget."))
                 }
