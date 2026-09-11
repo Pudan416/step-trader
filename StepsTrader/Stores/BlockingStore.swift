@@ -252,8 +252,12 @@ final class BlockingStore: ObservableObject {
             var diagLines: [String] = []
             
             for group in ticketGroups {
-                let budgetKey = SharedKeys.usageBudgetKey(group.id)
-                if defaults.integer(forKey: budgetKey) > 0 {
+                // Must ask exactly what ShieldRebuildHelper.rebuild() asks. This used to
+                // skip on a positive balance alone, ignoring the expiry — and since the
+                // purchase path runs rebuild() first and then queues this ~50ms later,
+                // the weaker verdict landed last and kept a group unshielded past the
+                // end of its window.
+                if ShieldRebuildHelper.isUsageBudgetWallClockActive(defaults: defaults, groupId: group.id) {
                     diagLines.append("SKIP \(group.name): usageBudget active")
                     AppLogger.shield.debug("⏭️ Skipping group \(group.name) - usage budget active")
                     continue

@@ -58,8 +58,40 @@ extension AppModel {
     }
     
     // MARK: - PayGate Payment Handling
+    /// How long a shield-tap unlock request stays actionable.
+    ///
+    /// Long enough to survive a push the user notices a few minutes late, short enough
+    /// that abandoning the tap does not ambush them the next time they open the app.
+    static let payGateRequestMaxAge: TimeInterval = 15 * 60
+
+    /// `payGateRequestedAt` has been written by both ShieldAction and NotificationDelegate
+    /// since the flag was introduced, and read by nobody — so a tap the user walked away
+    /// from still opened the PayGate days later, on top of whatever they had actually
+    /// opened the app to do.
+    ///
+    /// A missing timestamp counts as fresh, so flags written before this rule existed
+    /// still work once. A timestamp in the future counts as fresh too: that means the
+    /// clock moved backwards, not that the request is stale.
+    static func isPayGateRequestFresh(requestedAt: Date?, now: Date = Date()) -> Bool {
+        guard let requestedAt else { return true }
+        return now.timeIntervalSince(requestedAt) <= payGateRequestMaxAge
+    }
+
     @MainActor
     func handlePayGatePaymentForGroup(groupId: String, window: AccessWindow, costOverride: Int?) async {
+        // Checked before anything else, including whether the group exists: without
+        // Screen Time access every ManagedSettingsStore write below is inert, so the
+        // purchase cannot succeed no matter what else is true. The cached flag only
+        // refreshes on foreground and revocation arrives without notice, so re-read it
+        // rather than trusting it.
+        familyControlsService.refreshAuthorizationStatus()
+        guard familyControlsService.isAuthorized else {
+            AppLogger.shield.error("❌ PayGate: Screen Time access missing — refusing before charging")
+            payGateError = UsageBudgetMonitoringError.notAuthorized.userFacingMessage
+            dismissPayGate(reason: .programmatic)
+            return
+        }
+
         guard let group = ticketGroups.first(where: { $0.id == groupId }) else {
             AppLogger.shield.debug("⚠️ PayGate: Group \(groupId) not found for payment")
             return
@@ -96,8 +128,15 @@ extension AppModel {
 
         let dayEndH = defaults.object(forKey: SharedKeys.dayEndHour) as? Int ?? 0
         let dayEndM = defaults.object(forKey: SharedKeys.dayEndMinute) as? Int ?? 0
-        let endOfDay = DayBoundary.nextBoundary(after: Date.now, dayEndHour: dayEndH, dayEndMinute: dayEndM)
-        defaults.set(endOfDay, forKey: SharedKeys.usageBudgetExpiryKey(groupId))
+        // The window expires `totalMinutes` from now, not at the end of the day. Anchored
+        // to the same instant as `startedKey` above, so this agrees with
+        // `remainingUsageBudget`'s `initial - elapsedSince(started)`.
+        let expiry = DayBoundary.purchaseExpiry(
+            minutes: totalMinutes,
+            dayEndHour: dayEndH,
+            dayEndMinute: dayEndM
+        )
+        defaults.set(expiry, forKey: SharedKeys.usageBudgetExpiryKey(groupId))
 
         if let failure = startUsageBudgetMonitoring(groupId: groupId, minutes: totalMinutes) {
             // DeviceActivity wouldn't start — refund the colors, clear the keys, and

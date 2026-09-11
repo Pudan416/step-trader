@@ -93,7 +93,16 @@ struct FeedsSurfaceView: View {
         // GeometryReader inside the aspect-ratio frame below, not around it:
         // it reports the size the page actually granted, which the background
         // canvas and the ring need in points.
-        return VStack(spacing: 0) {
+        return VStack(spacing: 12) {
+            if let group {
+                VStack(spacing: 4) {
+                    Text(group.displayIdentity.title).font(.onest(20, weight: .medium))
+                    Text(group.displayIdentity.detail).font(.onest(.caption)).opacity(0.8)
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 60)
+                .multilineTextAlignment(.center)
+            }
             switch state {
             case .idle:
                 // Nothing selected: the page is the blurred canvas alone.
@@ -257,7 +266,7 @@ struct FeedsSurfaceView: View {
     private func openButton(for group: TicketGroup) -> some View {
         let bundleId = group.templateApp
         let canOpen = bundleId.map { TargetResolver.canOpen(bundleId: $0) } ?? false
-        let name = group.templateApp.map { TargetResolver.displayName(for: $0) } ?? group.name
+        let name = group.displayIdentity.title
 
         return Button {
             guard let bundleId else { return }

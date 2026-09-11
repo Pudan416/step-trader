@@ -29,7 +29,7 @@ enum AppTheme: String, CaseIterable {
     var backgroundColor: Color { isLightTheme ? Color(red: 0.96, green: 0.95, blue: 0.92) : AppColors.Night.background }
     var backgroundSecondary: Color { isLightTheme ? Color(white: 0.90) : AppColors.Night.backgroundSecondary }
     var textPrimary: Color { isLightTheme ? AppColors.graphite : AppColors.Night.textPrimary }
-    var textSecondary: Color { isLightTheme ? Color(white: 0.28) : Color(white: 0.82) }
+    var textSecondary: Color { isLightTheme ? Color(white: 0.20) : Color(white: 0.82) }
     var stroke: Color { textPrimary }
     var strokeOpacity: Double { 0.15 }
     var bodyColor: Color { AppColors.Night.body }

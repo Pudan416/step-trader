@@ -1,5 +1,8 @@
 import AppIntents
 import WidgetKit
+#if canImport(FamilyControls)
+import FamilyControls
+#endif
 
 // MARK: - Manual Refresh Intent
 
@@ -38,6 +41,16 @@ struct UnlockGroupWidgetIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult {
+        // Same rule as the in-app purchase path, and it matters more here: a widget
+        // button cannot present an error, so a charge for an unlock that can never
+        // happen would be entirely silent. Refuse before touching the balance.
+        #if canImport(FamilyControls)
+        guard AuthorizationCenter.shared.authorizationStatus == .approved else {
+            WidgetKind.reloadAllKinds()
+            return .result()
+        }
+        #endif
+
         let window = AccessWindow(rawValue: windowRaw) ?? .minutes10
         let cost = Self.cost(for: window)
         let minutes = window.minutes
@@ -93,8 +106,14 @@ struct UnlockGroupWidgetIntent: AppIntent {
         g.set(totalMinutes, forKey: SharedKeys.usageBudgetInitialKey(groupId))
         g.set(Date(), forKey: SharedKeys.usageBudgetStartedKey(groupId))
 
-        let endOfDay = DayBoundary.nextBoundary(after: Date(), dayEndHour: dayEndHour, dayEndMinute: dayEndMinute)
-        g.set(endOfDay, forKey: SharedKeys.usageBudgetExpiryKey(groupId))
+        // Same deadline rule as the in-app purchase path — see
+        // DayBoundary.purchaseExpiry.
+        let expiry = DayBoundary.purchaseExpiry(
+            minutes: totalMinutes,
+            dayEndHour: dayEndHour,
+            dayEndMinute: dayEndMinute
+        )
+        g.set(expiry, forKey: SharedKeys.usageBudgetExpiryKey(groupId))
 
         g.set(true, forKey: SharedKeys.pendingBudgetMonitoringPrefix + groupId)
         g.set(totalMinutes, forKey: SharedKeys.pendingBudgetMinutesPrefix + groupId)

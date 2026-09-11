@@ -129,6 +129,37 @@ struct TodayCanvasUnlockPalette: Equatable {
     }
 }
 
+/// Quiet interface colors derived once from the day's pigment. Canvas artwork
+/// and the launch/unlock gradients retain their original palette.
+struct TodayCanvasInterfacePalette: Equatable {
+    let background: [DayObjectRGB]
+    let surface: [DayObjectRGB]
+
+    init(palette: TodayCanvasUnlockPalette) {
+        let source = palette.colors.isEmpty
+            ? [DayObjectRGB(hex: "779C96"), DayObjectRGB(hex: "B38D89")]
+            : palette.colors
+        // Neutral mixing reduces chroma before fixing perceptual lightness;
+        // both very pale and very dark daily palettes remain comfortable.
+        let muted = source.map { color in
+            let gray = SIMD3<Float>(repeating: 0.5)
+            return DayObjectRGB(sRGB: gray + (color.sRGB - gray) * 0.36)
+        }
+        let readingInk = DayObjectRGB(hex: "333333").linearRGB
+        background = muted.map {
+            $0.shiftingPerceptualLightness(by: 0.69 - $0.perceptualOKLab.x)
+                .lightened(toMinimumContrast: 4.8, against: readingInk)
+        }
+        surface = muted.map { $0.shiftingPerceptualLightness(by: 0.47 - $0.perceptualOKLab.x) }
+    }
+
+    static func gradient(_ colors: [DayObjectRGB]) -> LinearGradient {
+        LinearGradient(colors: colors.map {
+            Color(.sRGB, red: Double($0.sRGB.x), green: Double($0.sRGB.y), blue: Double($0.sRGB.z))
+        }, startPoint: .leading, endPoint: .trailing)
+    }
+}
+
 struct TodayCanvasUnlockFill: View {
     var darkToLight = false
     @ObservedObject private var backdrop = TodayCanvasBackdropStore.shared
@@ -163,7 +194,12 @@ final class TodayCanvasBackdropStore: ObservableObject {
     )
     /// Feeds uses the day's original pigment, before snapshot lighting and haze.
     /// Keep the sampled palette for existing backgrounds and resource surfaces.
-    @Published private(set) var feedPalette = TodayCanvasUnlockPalette.make(appearance: .initial)
+    @Published private(set) var feedPalette = TodayCanvasUnlockPalette.make(appearance: .initial) {
+        didSet { interfacePalette = TodayCanvasInterfacePalette(palette: feedPalette) }
+    }
+    @Published private(set) var interfacePalette = TodayCanvasInterfacePalette(
+        palette: TodayCanvasUnlockPalette.make(appearance: .initial)
+    )
     @Published private(set) var image: UIImage?
     @Published private(set) var dayKey: String?
     struct VisibleFrame {
@@ -308,33 +344,35 @@ struct TodayCanvasBackground: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                theme.backgroundColor
-                LinearGradient(
-                    colors: backdrop.unlockPalette.colors.map {
-                        Color(.sRGB, red: Double($0.sRGB.x), green: Double($0.sRGB.y), blue: Double($0.sRGB.z))
-                    },
-                    startPoint: .topLeading, endPoint: .bottomTrailing
-                )
-                if matchesCanvas, let frame = backdrop.visibleFrame {
-                    Image(uiImage: frame.image)
-                        .resizable()
-                        .frame(width: frame.windowRect.width, height: frame.windowRect.height)
-                        .position(
-                            x: frame.windowRect.midX - geometry.frame(in: .global).minX,
-                            y: frame.windowRect.midY - geometry.frame(in: .global).minY
-                        )
-                        .blur(radius: 28, opaque: true)
-                } else if let image = backdrop.image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                        .clipped()
-                        .blur(radius: 28, opaque: true)
+                if theme.isLightTheme {
+                    TodayCanvasInterfacePalette.gradient(backdrop.interfacePalette.background)
+                } else {
+                    theme.backgroundColor
+                    LinearGradient(
+                        colors: backdrop.unlockPalette.colors.map {
+                            Color(.sRGB, red: Double($0.sRGB.x), green: Double($0.sRGB.y), blue: Double($0.sRGB.z))
+                        },
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    )
+                    if matchesCanvas, let frame = backdrop.visibleFrame {
+                        Image(uiImage: frame.image)
+                            .resizable()
+                            .frame(width: frame.windowRect.width, height: frame.windowRect.height)
+                            .position(
+                                x: frame.windowRect.midX - geometry.frame(in: .global).minX,
+                                y: frame.windowRect.midY - geometry.frame(in: .global).minY
+                            )
+                            .blur(radius: 28, opaque: true)
+                    } else if let image = backdrop.image {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: geometry.size.width, height: geometry.size.height)
+                            .clipped()
+                            .blur(radius: 28, opaque: true)
+                    }
+                    theme.backgroundColor.opacity(reduceTransparency ? 1 : 0.78)
                 }
-                // Fixed theme veil, not per-frame contrast detection. Both
-                // reading tabs share the same artwork and frost treatment.
-                theme.backgroundColor.opacity(reduceTransparency ? 1 : (theme.isLightTheme ? 0.76 : 0.78))
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .clipped()

@@ -17,6 +17,46 @@ final class PaymentTests: XCTestCase {
         super.tearDown()
     }
 
+    // MARK: - PayGate request freshness
+
+    /// `payGateRequestedAt` was written by two callers and read by none, so a shield tap
+    /// the user walked away from still opened the PayGate whenever they next launched
+    /// the app — hours or days later, on top of whatever they came in to do.
+    func testPayGateRequest_recentTapIsStillActionable() {
+        let now = Date()
+        XCTAssertTrue(
+            AppModel.isPayGateRequestFresh(requestedAt: now.addingTimeInterval(-60), now: now)
+        )
+    }
+
+    func testPayGateRequest_abandonedTapExpires() {
+        let now = Date()
+        let stale = now.addingTimeInterval(-(AppModel.payGateRequestMaxAge + 60))
+        XCTAssertFalse(AppModel.isPayGateRequestFresh(requestedAt: stale, now: now))
+    }
+
+    /// The boundary is inclusive — a request exactly at the limit still counts.
+    func testPayGateRequest_boundaryIsInclusive() {
+        let now = Date()
+        let edge = now.addingTimeInterval(-AppModel.payGateRequestMaxAge)
+        XCTAssertTrue(AppModel.isPayGateRequestFresh(requestedAt: edge, now: now))
+    }
+
+    /// Flags written before this rule existed carry no timestamp; they should still work
+    /// once rather than being silently swallowed on upgrade.
+    func testPayGateRequest_missingTimestampIsTreatedAsFresh() {
+        XCTAssertTrue(AppModel.isPayGateRequestFresh(requestedAt: nil, now: Date()))
+    }
+
+    /// A timestamp in the future means the clock moved backwards, not that the request
+    /// is old — refusing it would strand a user who had just tapped the shield.
+    func testPayGateRequest_futureTimestampIsNotTreatedAsStale() {
+        let now = Date()
+        XCTAssertTrue(
+            AppModel.isPayGateRequestFresh(requestedAt: now.addingTimeInterval(3600), now: now)
+        )
+    }
+
     // MARK: - pay()
 
     func testPay_debitsBaseBeforeBonus() {
@@ -210,6 +250,48 @@ final class PaymentTests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    // MARK: - Screen Time access
+
+    /// Access can be revoked in Screen Time at any moment, and every
+    /// `ManagedSettingsStore` write is inert while it is — so the purchase has to be
+    /// refused before any colors move, not discovered afterwards. The group id below is
+    /// deliberately one that does not exist: if the access check ever slips behind the
+    /// group lookup, this stops setting `payGateError` and the test fails.
+    func testGroupUnlock_withoutScreenTimeAccess_chargesNothingAndSaysSo() async {
+        let model = makeModel()
+        (model.familyControlsService as? MockFamilyControlsService)?.isAuthorized = false
+        model.baseEnergyToday = 500
+        model.spentStepsToday = 0
+        model.stepsBalance = 500
+        model.bonusSteps = 0
+
+        await model.handlePayGatePaymentForGroup(
+            groupId: "no-such-group", window: .minutes10, costOverride: 50
+        )
+
+        XCTAssertEqual(model.stepsBalance, 500, "colors must not move while unauthorized")
+        XCTAssertEqual(model.spentStepsToday, 0)
+        XCTAssertEqual(model.bonusSteps, 0)
+        XCTAssertNotNil(model.payGateError, "the refusal has to be visible, not silent")
+    }
+
+    /// The discriminating half of the pair: with access granted, a missing group is a
+    /// different failure and must not borrow the Screen Time message.
+    func testGroupUnlock_withAccessButMissingGroup_reportsNoAccessError() async {
+        let model = makeModel()
+        (model.familyControlsService as? MockFamilyControlsService)?.isAuthorized = true
+        model.baseEnergyToday = 500
+        model.spentStepsToday = 0
+        model.stepsBalance = 500
+
+        await model.handlePayGatePaymentForGroup(
+            groupId: "no-such-group", window: .minutes10, costOverride: 50
+        )
+
+        XCTAssertEqual(model.stepsBalance, 500)
+        XCTAssertNil(model.payGateError)
+    }
 
     private func makeModel() -> AppModel {
         let store = SubscriptionStore()

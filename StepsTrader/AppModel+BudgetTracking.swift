@@ -96,13 +96,19 @@ extension AppModel {
         g.set(newDayStart, forKey: SharedKeys.stepsBalanceAnchor)
         lastDayKey = Self.dayKey(for: now)
 
-        let newExpiry = DayBoundary.nextBoundary(
+        // Clamp, never extend. A purchased window now carries its own wall-clock
+        // deadline, so re-stamping every active budget to the new day's boundary would
+        // hand back time nobody bought. Pull an expiry in only when it would otherwise
+        // outlive the new boundary.
+        let newDayEnd = DayBoundary.nextBoundary(
             after: now,
             dayEndHour: dayEndHour,
             dayEndMinute: dayEndMinute
         )
         for group in ticketGroups where g.integer(forKey: SharedKeys.usageBudgetKey(group.id)) > 0 {
-            g.set(newExpiry, forKey: SharedKeys.usageBudgetExpiryKey(group.id))
+            let expiryKey = SharedKeys.usageBudgetExpiryKey(group.id)
+            let existing = g.object(forKey: expiryKey) as? Date
+            g.set(min(existing ?? newDayEnd, newDayEnd), forKey: expiryKey)
         }
 
         // Recompute balance + widgets from the preserved state. spentStepsToday,

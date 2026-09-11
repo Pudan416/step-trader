@@ -6,6 +6,30 @@ import Observation
 
 @MainActor
 final class TodayCanvasBackgroundTests: XCTestCase {
+    func testInterfacePaletteBoundsBrightnessAndPreservesReadableSurfaces() {
+        let extremes = ["FFFFFF", "000000", "FF0000", "00FF00", "0000FF", "FFFF00", "00FFFF", "FF00FF", "779C96", "B38D89"]
+        let palette = TodayCanvasInterfacePalette(palette: .init(colors: extremes.map(DayObjectRGB.init(hex:))))
+        let ink = DayObjectRGB(hex: "303235")
+        let secondary = DayObjectRGB(hex: "333333")
+        let white = DayObjectRGB(hex: "F2F2F2")
+        for color in palette.background {
+            XCTAssertTrue((0.67...0.73).contains(color.perceptualOKLab.x))
+            XCTAssertGreaterThanOrEqual(contrastRatio(color.linearRGB, ink.linearRGB), 4.5)
+            XCTAssertGreaterThanOrEqual(contrastRatio(color.linearRGB, secondary.linearRGB), 4.5)
+        }
+        for color in palette.surface {
+            XCTAssertGreaterThanOrEqual(contrastRatio(color.linearRGB, white.linearRGB), 4.5)
+        }
+        XCTAssertNotEqual(palette.background[8], palette.background[9], "Keep the day's different hues")
+    }
+
+    func testInterfacePaletteHasComfortableFallbackBeforeFirstCanvas() {
+        let palette = TodayCanvasInterfacePalette(palette: .init(colors: []))
+        XCTAssertEqual(palette.background.count, 2)
+        XCTAssertEqual(palette.surface.count, 2)
+        XCTAssertTrue(palette.background.allSatisfy { (0.67...0.73).contains($0.perceptualOKLab.x) })
+    }
+
     func testDailyAccentHandoffAndObservationUpdateTogetherWithoutDuplicateWidgetReloads() throws {
         let suite = "daily-accent-test-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
