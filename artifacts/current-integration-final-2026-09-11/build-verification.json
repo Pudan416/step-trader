@@ -1,0 +1,20 @@
+{
+  "builtRevision": "b711156b39a8b5ba5572b127fe8e2aed97d2901e",
+  "app": "/private/tmp/nowhere-combined-device-dd/Build/Products/Debug-iphoneos/Nowhere.app",
+  "extensions": [
+    "DeviceActivityMonitor.appex",
+    "ShieldAction.appex",
+    "ShieldConfiguration.appex",
+    "UnlockWidgetExtension.appex"
+  ],
+  "strictSignatures": "passed",
+  "gateImageCount": 21,
+  "gateImagesIdentical": true,
+  "backgroundAudio": true,
+  "launchBackground": true,
+  "installOutcome": "success",
+  "launchOutcome": "success",
+  "deviceName": "iPhone Costa",
+  "localDate": "2026-09-11",
+  "distinctPassingTests": 190
+}
