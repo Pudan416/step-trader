@@ -172,45 +172,48 @@ struct NowhereWidgetContent: View {
 
     private func groupCard(_ group: UnlockEntry.GroupSnapshot, compact: Bool, dense: Bool = false) -> some View {
         let identity = identity(for: group)
-        return VStack(alignment: .leading, spacing: compact ? (dense ? 2 : 4) : 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(identity.title)
-                    .font(.onest(size: compact ? 13 : 15, weight: .medium))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .layoutPriority(1)
-                Spacer(minLength: 0)
-                Text(identity.detail)
-                    .font(.onest(size: 10))
-                    .opacity(0.75)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            if group.isUnlocked {
-                activeGroup(group, identity: identity, compact: compact, dense: dense)
-            } else {
-                HStack(spacing: 6) {
-                    ForEach(group.enabledIntervals.sorted { $0.minutes < $1.minutes }, id: \.self) { window in
-                        durationButton(window, group: group, identity: identity, compact: compact, dense: dense)
+        return activeGroupLink(group) {
+            VStack(alignment: .leading, spacing: compact ? (dense ? 2 : 4) : 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(identity.title)
+                        .font(.onest(size: compact ? 13 : 15, weight: .medium))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .layoutPriority(1)
+                    Spacer(minLength: 0)
+                    Text(identity.detail)
+                        .font(.onest(size: 10))
+                        .opacity(0.75)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                if group.isUnlocked {
+                    activeGroup(group, identity: identity, compact: compact, dense: dense)
+                } else {
+                    HStack(spacing: 6) {
+                        ForEach(group.enabledIntervals.sorted { $0.minutes < $1.minutes }, id: \.self) { window in
+                            durationButton(window, group: group, identity: identity, compact: compact, dense: dense)
+                        }
                     }
                 }
             }
+            .padding(.horizontal, 10)
+            .padding(.vertical, compact ? (dense ? 4 : 7) : (dense ? 7 : 10))
+            .frame(maxWidth: .infinity, maxHeight: kind == .status ? nil : .infinity, alignment: .center)
+            .background {
+                RoundedRectangle(cornerRadius: compact ? 20 : 24, style: .continuous)
+                    .fill(isAccented ? Color.primary.opacity(0.1) : Color.white.opacity(reduceTransparency ? 0.18 : 0.10))
+            }
+            .accessibilityElement(children: .contain)
+            .contentShape(Rectangle())
+            .accessibilityLabel("\(identity.title), \(identity.detail)")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, compact ? (dense ? 4 : 7) : (dense ? 7 : 10))
-        .frame(maxWidth: .infinity, maxHeight: kind == .status ? nil : .infinity, alignment: .center)
-        .background {
-            RoundedRectangle(cornerRadius: compact ? 20 : 24, style: .continuous)
-                .fill(isAccented ? Color.primary.opacity(0.1) : Color.white.opacity(reduceTransparency ? 0.18 : 0.10))
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(identity.title), \(identity.detail)")
     }
 
     private func durationButton(_ window: AccessWindow, group: UnlockEntry.GroupSnapshot, identity: AppGroupIdentity, compact: Bool, dense: Bool) -> some View {
         let cost = TicketGroup.cost(for: window)
         let canAfford = entry.colorsBalance >= cost
-        return Button(intent: UnlockGroupWidgetIntent(groupId: group.id, window: window)) {
+        return Link(destination: WidgetUnlockRequest.url(groupId: group.id, windowRaw: window.rawValue, defaults: SharedKeys.appGroupDefaults())) {
             VStack(spacing: 2) {
                 Text("\(window.minutes) min")
                     .font(.onest(size: compact ? 11 : 13))
@@ -234,8 +237,7 @@ struct NowhereWidgetContent: View {
     }
 
     private func activeGroup(_ group: UnlockEntry.GroupSnapshot, identity: AppGroupIdentity, compact: Bool, dense: Bool) -> some View {
-        return activeGroupLink(group) {
-            HStack(spacing: 6) {
+        return HStack(spacing: 6) {
                 Image(systemName: "lock.open").font(.onest(size: 11))
                 Text("\(group.budgetMinutes) min left")
                     .font(.onest(size: compact ? 12 : 14)).monospacedDigit()
@@ -253,13 +255,12 @@ struct NowhereWidgetContent: View {
                         .frame(width: geometry.size.width * min(1, Double(group.budgetMinutes) / Double(max(1, group.budgetInitial, group.budgetMinutes))))
                 }
             }
-        }
         .accessibilityLabel("\(identity.title), \(group.budgetMinutes) minutes left")
     }
 
     @ViewBuilder
     private func activeGroupLink<Content: View>(_ group: UnlockEntry.GroupSnapshot, @ViewBuilder content: () -> Content) -> some View {
-        if let bundle = group.templateApp,
+        if group.isUnlocked, let bundle = group.templateApp,
            let url = URL(string: "steps-trader://openapp?bundleId=\(bundle)") {
             Link(destination: url, label: content)
         } else {

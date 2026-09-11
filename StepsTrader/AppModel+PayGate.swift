@@ -78,7 +78,8 @@ extension AppModel {
     }
 
     @MainActor
-    func handlePayGatePaymentForGroup(groupId: String, window: AccessWindow, costOverride: Int?) async {
+    @discardableResult
+    func handlePayGatePaymentForGroup(groupId: String, window: AccessWindow, costOverride: Int?) async -> Bool {
         // Checked before anything else, including whether the group exists: without
         // Screen Time access every ManagedSettingsStore write below is inert, so the
         // purchase cannot succeed no matter what else is true. The cached flag only
@@ -89,12 +90,12 @@ extension AppModel {
             AppLogger.shield.error("❌ PayGate: Screen Time access missing — refusing before charging")
             payGateError = UsageBudgetMonitoringError.notAuthorized.userFacingMessage
             dismissPayGate(reason: .programmatic)
-            return
+            return false
         }
 
         guard let group = ticketGroups.first(where: { $0.id == groupId }) else {
             AppLogger.shield.debug("⚠️ PayGate: Group \(groupId) not found for payment")
-            return
+            return false
         }
         
         let cost = costOverride ?? group.cost(for: window)
@@ -104,7 +105,7 @@ extension AppModel {
         
         guard pay(cost: cost) else {
             AppLogger.shield.debug("❌ Payment failed - not enough colors")
-            return
+            return false
         }
         
         AppLogger.shield.debug("✅ Payment successful! New balance: \(self.totalStepsBalance)")
@@ -157,7 +158,7 @@ extension AppModel {
             if existingBudget > 0 { startUsageBudgetMonitoring(groupId: groupId, minutes: existingBudget) }
             payGateError = failure.userFacingMessage
             dismissPayGate(reason: .programmatic)
-            return
+            return false
         }
         
         // NOTE: addSpentSteps records full `cost` (base + bonus) in per-app/per-day
@@ -179,6 +180,7 @@ extension AppModel {
         ShieldRebuildHelper.rebuild()
         rebuildFamilyControlsShield()
         dismissPayGate(reason: .programmatic)
+        return true
     }
 
     /// Returns nil only after the deadline monitor has been registered.

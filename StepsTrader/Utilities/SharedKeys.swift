@@ -266,3 +266,62 @@ enum SharedKeys {
     static func pendingSpendWindowKey(_ groupId: String) -> String { "pendingSpendWindow_\(groupId)" }
     static func pendingSpendMinutesKey(_ groupId: String) -> String { "pendingSpendMinutes_\(groupId)" }
 }
+
+/// A widget-issued, single-use purchase link. An arbitrary incoming URL must not
+/// be able to spend colors: the capability is stored only in the shared container
+/// and bound to the exact group and duration rendered by the widget.
+struct WidgetUnlockRequest {
+    let groupId: String
+    let windowRaw: String
+    private static let lock = NSLock()
+
+    private static func key(_ groupId: String, _ windowRaw: String) -> String {
+        "widgetUnlockCapability_v1_\(groupId)_\(windowRaw)"
+    }
+
+    static func url(groupId: String, windowRaw: String, defaults: UserDefaults) -> URL {
+        lock.lock()
+        defer { lock.unlock() }
+        let storageKey = key(groupId, windowRaw)
+        let token: String
+        if let existing = defaults.string(forKey: storageKey) {
+            // Never rewrite an existing capability: the app may have consumed it
+            // after this process read it. Rewriting would resurrect a used URL.
+            token = existing
+        } else {
+            token = UUID().uuidString
+            defaults.set(token, forKey: storageKey)
+            defaults.synchronize()
+        }
+        var components = URLComponents()
+        components.scheme = "steps-trader"
+        components.host = "unlock"
+        components.queryItems = [
+            URLQueryItem(name: "groupId", value: groupId),
+            URLQueryItem(name: "window", value: windowRaw),
+            URLQueryItem(name: "token", value: token)
+        ]
+        return components.url!
+    }
+
+    /// Called on the main app's actor before awaiting authorization or purchase.
+    static func consume(_ url: URL, defaults: UserDefaults) -> Self? {
+        guard url.scheme == "steps-trader", url.host == "unlock",
+              url.path.isEmpty, url.user == nil, url.password == nil, url.port == nil,
+              url.fragment == nil,
+              let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
+              items.count == 3, Set(items.map(\.name)) == ["groupId", "window", "token"],
+              let group = items.first(where: { $0.name == "groupId" })?.value, !group.isEmpty,
+              let window = items.first(where: { $0.name == "window" })?.value, !window.isEmpty,
+              let token = items.first(where: { $0.name == "token" })?.value, !token.isEmpty
+        else { return nil }
+        lock.lock()
+        defer { lock.unlock() }
+        let storageKey = key(group, window)
+        guard defaults.string(forKey: storageKey) == token else { return nil }
+        // Once seeded, only the app rotates the capability; the extension is a reader.
+        defaults.set(UUID().uuidString, forKey: storageKey)
+        defaults.synchronize()
+        return Self(groupId: group, windowRaw: window)
+    }
+}

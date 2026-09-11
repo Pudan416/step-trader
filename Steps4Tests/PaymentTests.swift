@@ -57,6 +57,38 @@ final class PaymentTests: XCTestCase {
         )
     }
 
+    func testWidgetUnlockURLCanBeConsumedOnlyOnce() throws {
+        let suite = "WidgetUnlockTests.\(UUID().uuidString)"
+        let store = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { store.removePersistentDomain(forName: suite) }
+        let url = WidgetUnlockRequest.url(groupId: "group-a", windowRaw: "minutes10", defaults: store)
+        let request = try XCTUnwrap(WidgetUnlockRequest.consume(url, defaults: store))
+        XCTAssertEqual(request.groupId, "group-a")
+        XCTAssertEqual(request.windowRaw, "minutes10")
+        XCTAssertNil(WidgetUnlockRequest.consume(url, defaults: store), "Repeated delivery must not charge twice")
+        let refreshedURL = WidgetUnlockRequest.url(groupId: "group-a", windowRaw: "minutes10", defaults: store)
+        XCTAssertNotEqual(url, refreshedURL)
+        XCTAssertNotNil(WidgetUnlockRequest.consume(refreshedURL, defaults: store), "A refreshed widget permits a new intentional purchase")
+        XCTAssertNil(WidgetUnlockRequest.consume(url, defaults: store))
+    }
+
+    func testWidgetUnlockURLRejectsForgedOrChangedPurchase() throws {
+        let suite = "WidgetUnlockTests.\(UUID().uuidString)"
+        let store = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { store.removePersistentDomain(forName: suite) }
+        let url = WidgetUnlockRequest.url(groupId: "group-a", windowRaw: "minutes10", defaults: store)
+        for changed in [
+            url.absoluteString.replacingOccurrences(of: "minutes10", with: "hour1"),
+            url.absoluteString.replacingOccurrences(of: "group-a", with: "group-b"),
+            url.absoluteString.replacingOccurrences(of: "steps-trader:", with: "https:"),
+            url.absoluteString + "&window=hour1",
+            "steps-trader://unlock?groupId=group-a&window=minutes10&token=forged"
+        ] {
+            XCTAssertNil(WidgetUnlockRequest.consume(try XCTUnwrap(URL(string: changed)), defaults: store))
+        }
+        XCTAssertNotNil(WidgetUnlockRequest.consume(url, defaults: store), "Invalid links must not consume the actual widget action")
+    }
+
     // MARK: - pay()
 
     func testPay_debitsBaseBeforeBonus() {
@@ -266,9 +298,10 @@ final class PaymentTests: XCTestCase {
         model.stepsBalance = 500
         model.bonusSteps = 0
 
-        await model.handlePayGatePaymentForGroup(
+        let unlocked = await model.handlePayGatePaymentForGroup(
             groupId: "no-such-group", window: .minutes10, costOverride: 50
         )
+        XCTAssertFalse(unlocked, "A failed purchase must not launch the target app")
 
         XCTAssertEqual(model.stepsBalance, 500, "colors must not move while unauthorized")
         XCTAssertEqual(model.spentStepsToday, 0)
@@ -285,9 +318,10 @@ final class PaymentTests: XCTestCase {
         model.spentStepsToday = 0
         model.stepsBalance = 500
 
-        await model.handlePayGatePaymentForGroup(
+        let unlocked = await model.handlePayGatePaymentForGroup(
             groupId: "no-such-group", window: .minutes10, costOverride: 50
         )
+        XCTAssertFalse(unlocked, "A failed purchase must not launch the target app")
 
         XCTAssertEqual(model.stepsBalance, 500)
         XCTAssertNil(model.payGateError)

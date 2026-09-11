@@ -3,6 +3,7 @@ import StoreKit
 import Combine
 import UserNotifications
 import BackgroundTasks
+import WidgetKit
 
 struct Task7UITestAccessibilityConfiguration: Equatable {
     let dynamicTypeSize: DynamicTypeSize?
@@ -140,6 +141,8 @@ private struct StepsTraderProductionRoot: View {
     /// Currently presented feature tip (wallpaper / widgets nudge), or `nil`.
     /// Driven by `presentFeatureTipIfNeeded()` on scenePhase `.active`.
     @State private var activeFeatureTip: FeatureTip?
+    @State private var pendingWidgetUnlock: (request: WidgetUnlockRequest, receivedAt: Date)?
+    @State private var isProcessingWidgetUnlock = false
 
     /// At most one feature tip per process lifetime — repeated
     /// background→foreground cycles must not stack tips in one session.
@@ -338,6 +341,13 @@ private struct StepsTraderProductionRoot: View {
         .font(AppFonts.body)
         .modifier(NowhereLaunchPresentation())
         .modifier(TodayCanvasBackdropHost(model: model))
+        .onOpenURL { handleWidgetOpenApp($0) }
+        .onChange(of: model.didCompleteBootstrap) { _, ready in
+            if ready { processPendingWidgetUnlock() }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { processPendingWidgetUnlock() }
+        }
     }
 
     @ViewBuilder
@@ -589,9 +599,6 @@ private struct StepsTraderProductionRoot: View {
                     }
                 }
             }
-            .onOpenURL { url in
-                handleWidgetOpenApp(url)
-            }
             .background(currentTheme.backgroundColor)
             .preferredColorScheme(currentTheme.colorScheme)
             } // GlassShimmerProvider
@@ -599,12 +606,22 @@ private struct StepsTraderProductionRoot: View {
 
     private func handleWidgetOpenApp(_ url: URL) {
         SharedKeys.recordWidgetInteraction("URL received scheme=\(url.scheme ?? "nil") host=\(url.host ?? "nil") state=\(UIApplication.shared.applicationState.rawValue)", source: "app")
+        if url.scheme == "steps-trader", url.host == "unlock" {
+            guard !isProcessingWidgetUnlock, pendingWidgetUnlock == nil,
+                  let request = WidgetUnlockRequest.consume(url, defaults: SharedKeys.appGroupDefaults()) else {
+                SharedKeys.recordWidgetInteraction("unlock URL rejected or already processing", source: "app")
+                return
+            }
+            pendingWidgetUnlock = (request, Date())
+            processPendingWidgetUnlock()
+            return
+        }
         // §5.7: validate `bundleId` against a strict reverse-DNS pattern before
         // looking it up. Caps the input shape to what real bundle IDs look like
         // (`com.example.app`, optionally with dots and hyphens) so unexpected
         // strings can't reach logs or any future telemetry through this path.
         let bundleIdPattern = #"^[a-zA-Z0-9](?:[a-zA-Z0-9\-]*\.)*[a-zA-Z0-9][a-zA-Z0-9\-]*$"#
-        guard url.host == "openapp",
+        guard url.scheme == "steps-trader", url.host == "openapp",
               let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let bundleId = components.queryItems?.first(where: { $0.name == "bundleId" })?.value,
               bundleId.range(of: bundleIdPattern, options: .regularExpression) != nil,
@@ -618,6 +635,60 @@ private struct StepsTraderProductionRoot: View {
             SharedKeys.recordWidgetInteraction("opening registered target=\(bundleId) state=\(UIApplication.shared.applicationState.rawValue)", source: "app")
             AppLauncher.open(bundleId: bundleId) { success in
                 SharedKeys.recordWidgetInteraction("target open result=\(success) target=\(bundleId) state=\(UIApplication.shared.applicationState.rawValue)", source: "app")
+            }
+        }
+    }
+
+    private func processPendingWidgetUnlock() {
+        guard model.didCompleteBootstrap, scenePhase == .active,
+              !isProcessingWidgetUnlock, let pending = pendingWidgetUnlock else { return }
+        pendingWidgetUnlock = nil
+        guard Date().timeIntervalSince(pending.receivedAt) < 120 else {
+            SharedKeys.recordWidgetInteraction("unlock request expired during startup", source: "app")
+            WidgetCenter.shared.reloadAllTimelines()
+            return
+        }
+        isProcessingWidgetUnlock = true
+        Task { @MainActor in
+            defer {
+                isProcessingWidgetUnlock = false
+                model.writeWidgetSnapshot()
+                WidgetCenter.shared.reloadAllTimelines()
+            }
+            let request = pending.request
+            guard let window = AccessWindow(rawValue: request.windowRaw),
+                  let group = model.ticketGroups.first(where: { $0.id == request.groupId }),
+                  group.settings.familyControlsModeEnabled,
+                  group.enabledIntervals.contains(window) else {
+                SharedKeys.recordWidgetInteraction("unlock rejected: group or interval no longer active", source: "app")
+                return
+            }
+            model.checkDayBoundary()
+            // AuthorizationCenter starts as notDetermined in each process. Refresh
+            // it through the supported request API in the foreground main app.
+            do {
+                try await model.familyControlsService.requestAuthorization()
+            } catch {
+                model.payGateError = UsageBudgetMonitoringError.notAuthorized.userFacingMessage
+                SharedKeys.recordWidgetInteraction("unlock authorization failed", source: "app")
+                return
+            }
+            model.checkDayBoundary()
+            guard model.totalStepsBalance >= group.cost(for: window) else {
+                model.payGateError = String(localized: "Not enough colors")
+                SharedKeys.recordWidgetInteraction("unlock refused: insufficient current balance", source: "app")
+                return
+            }
+            SharedKeys.recordWidgetInteraction("unlock in app group=\(group.id) authorized=\(model.familyControlsService.isAuthorized)", source: "app")
+            guard await model.handlePayGatePaymentForGroup(groupId: group.id, window: window, costOverride: nil) else {
+                SharedKeys.recordWidgetInteraction("unlock purchase failed group=\(group.id)", source: "app")
+                return
+            }
+            SharedKeys.recordWidgetInteraction("unlock completed group=\(group.id) minutes=\(window.minutes) balance=\(model.totalStepsBalance)", source: "app")
+            if let bundle = group.templateApp, UIApplication.shared.applicationState != .background {
+                AppLauncher.open(bundleId: bundle) { success in
+                    SharedKeys.recordWidgetInteraction("target open result=\(success) target=\(bundle)", source: "app")
+                }
             }
         }
     }
