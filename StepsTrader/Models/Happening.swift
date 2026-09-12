@@ -20,10 +20,6 @@ struct Happening: Identifiable, Codable, Equatable {
     var useCount: Int
     var lastUsedAt: Date?
 
-    private enum CodingKeys: String, CodingKey {
-        case id, title, isBuiltIn, useCount, lastUsedAt
-    }
-
     static func limitedTitle(_ title: String) -> String {
         String(title.prefix(titleCharacterLimit))
     }
@@ -36,32 +32,18 @@ struct Happening: Identifiable, Codable, Equatable {
         lastUsedAt: Date? = nil
     ) {
         self.id = id
-        self.title = Self.limitedTitle(title)
+        self.title = title
         self.isBuiltIn = isBuiltIn
         self.useCount = useCount
         self.lastUsedAt = lastUsedAt
     }
 
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
-        title = Self.limitedTitle(
-            try container.decode(String.self, forKey: .title)
-        )
-        isBuiltIn = try container.decode(Bool.self, forKey: .isBuiltIn)
-        useCount = try container.decodeIfPresent(Int.self, forKey: .useCount) ?? 0
-        lastUsedAt = try container.decodeIfPresent(Date.self, forKey: .lastUsedAt)
-    }
-
     /// Built-ins resolve through the string catalog; user happenings return
     /// their own title, which is already in whatever language they typed.
     func localizedTitle() -> String {
-        Self.limitedTitle(
-            isBuiltIn
-                ? Bundle.main.localizedString(
-                    forKey: "option.title.\(id)", value: title, table: nil
-                )
-                : title
+        guard isBuiltIn else { return title }
+        return Bundle.main.localizedString(
+            forKey: "option.title.\(id)", value: title, table: nil
         )
     }
 

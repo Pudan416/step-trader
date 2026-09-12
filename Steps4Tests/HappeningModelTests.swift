@@ -132,36 +132,4 @@ final class HappeningModelTests: XCTestCase {
             )
         }
     }
-
-    /// A title can enter through creation, restoration, or a localization.
-    /// The model boundary must keep every route inside the 15-character field
-    /// budget so ten visible words never turn into a wall of copy.
-    func testEveryBuiltInLocalizedTitleFitsTheFieldBudget() {
-        for happening in HappeningDefaults.builtIns {
-            XCTAssertLessThanOrEqual(
-                happening.localizedTitle().count,
-                15,
-                "\(happening.id) exceeds the 15-character field budget"
-            )
-        }
-    }
-
-    func testLongTitlesAreLimitedAtTheModelBoundary() {
-        let happening = Happening(
-            id: "user_long",
-            title: "Coffee with a dear friend",
-            isBuiltIn: false
-        )
-
-        XCTAssertEqual(happening.title, "Coffee with a d")
-        XCTAssertEqual(happening.localizedTitle(), "Coffee with a d")
-    }
-
-    func testRestoredLongTitlesAreLimitedWhenDisplayed() throws {
-        let data = Data(#"{"id":"legacy","title":"12345678901234567890","isBuiltIn":false,"useCount":0}"#.utf8)
-        let happening = try JSONDecoder().decode(Happening.self, from: data)
-
-        XCTAssertEqual(happening.title, "123456789012345")
-        XCTAssertEqual(happening.localizedTitle(), "123456789012345")
-    }
 }
