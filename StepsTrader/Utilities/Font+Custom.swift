@@ -15,7 +15,7 @@ enum AppTypography {
 
     static func displayPostScriptName(for weight: Font.Weight) -> String {
         [.semibold, .bold, .heavy, .black].contains(weight)
-            ? "NowhereDisplay05-Bold" : "NowhereDisplay05-Regular"
+            ? "NowhereDisplay08-Bold" : "NowhereDisplay08-Regular"
     }
 
     static func pointSize(for style: Font.TextStyle) -> CGFloat {

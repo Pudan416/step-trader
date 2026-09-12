@@ -1,7 +1,7 @@
 # Nowhere typography
 
 - **Onest**: primary interface and poster metadata, weights 100–900.
-- **Nowhere Display 02**: original display font, Regular (400) and Bold (700), from the approved 0.2 specimens.
+- **Nowhere Display 08**: original display font, Regular (400) and Bold (700), from the approved 0.8 specimens.
 
 Both font families are bundled offline. Copyright notices and SIL OFL 1.1 texts are included in the app and readable in Settings → About → Font licenses.
 
@@ -13,7 +13,7 @@ Source SHA-256: `966c5c29b4755da84b6854d5c21dd4eaa2420225d0e9874de602de176d4a9f3
 
 The nine static Onest files were instantiated from this source with fontTools.varLib.instancer at wght=100, 200, …, 900, using updateFontNames=True. Outlines and other font features were preserved. Their PostScript names are Onest-Thin through Onest-Black.
 
-Nowhere Display files were copied from `artifacts/nowhere-display-v05/fonts/`. PostScript names: NowhereDisplay05-Regular and NowhereDisplay05-Bold. This prototype covers basic Latin, Russian Cyrillic, digits, and selected punctuation; iOS supplies fallback for other characters.
+Nowhere Display files were copied from `artifacts/nowhere-display-v08/fonts/`. PostScript names: NowhereDisplay08-Regular and NowhereDisplay08-Bold. This prototype covers basic Latin, Russian Cyrillic, digits, and selected punctuation; iOS supplies fallback for other characters.
 
 ## App mapping
 
