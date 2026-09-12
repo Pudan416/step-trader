@@ -724,6 +724,30 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
     }
 }
 final class NativeAtlasRecipeTests: XCTestCase {
+    func testCanvasGenerationAndRestorationNeverChooseSunset() {
+        let ids = (0..<10).map { "event-\($0)" }
+        for day in 0..<200 {
+            let recipe = NativeAtlasRecipe.make(dayKey: "no-sunset-\(day)")
+            for adding in [Set<String>(), Set(ids)] {
+                let result = recipe.reconciled(eventIDs: ids, addingEventIDs: adding)
+                XCTAssertFalse(result.actors.contains { $0.materialID == .sunset }, "Sunset returned on day \(day)")
+            }
+        }
+    }
+
+    @MainActor
+    func testSavedSunsetRendersAsRadialGradientOnCanvasAndPicker() async throws {
+        for canvasMode in [false, true] {
+            let sunset = try await pickerImage(presetID: "legacy.circle", state: .added, material: .sunset, canvasMode: canvasMode)
+            let gradient = try await pickerImage(presetID: "legacy.circle", state: .added, material: .radialTwo, canvasMode: canvasMode)
+            XCTAssertEqual(sunset.pngData(), gradient.pngData(), "Saved sunset must render as a radial gradient; canvas=\(canvasMode)")
+            let attachment = XCTAttachment(image: sunset)
+            attachment.name = canvasMode ? "saved-sunset-canvas" : "saved-sunset-picker"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+    }
+
     /// Exercise the actual menu UUID -> append -> frozen atlas path across days.
     @MainActor
     func testSequentialHappeningsUseDistinctNativeSilhouettesAcrossDays() async throws {
@@ -1162,7 +1186,7 @@ final class NativeAtlasRecipeTests: XCTestCase {
     }
 
     @MainActor
-    private func pickerImage(presetID: String, state: HappeningPaletteSlotVisualState, material: MetalShapeMaterial = .solid, includesSlot: Bool = true, backgroundColors: [SIMD3<Float>]? = nil) async throws -> UIImage {
+    private func pickerImage(presetID: String, state: HappeningPaletteSlotVisualState, material: MetalShapeMaterial = .solid, includesSlot: Bool = true, backgroundColors: [SIMD3<Float>]? = nil, canvasMode: Bool = false) async throws -> UIImage {
         let base = DayObjectSceneInput(dayKey: "2026-09-10", identity: "native-picker-regression", eventIDs: [], motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true)
         let assignment = try XCTUnwrap(HappeningEditorialAssignmentResolver.assignments(happenings: [.init(id: "h0", title: "Test", isBuiltIn: true)], baseInput: base, colorNonce: 7)["h0"])
         let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == presetID })
@@ -1171,7 +1195,7 @@ final class NativeAtlasRecipeTests: XCTestCase {
         let sharedMaterial = MetalShapeGenomeFrame.make(preset: referencePreset, material: material, seed: 71).material
         var recipe = NativeAtlasRecipe.make(dayKey: base.dayKey)
         recipe.actors = [.init(eventID: assignment.elementID.uuidString.lowercased(), presetID: presetID, materialID: material, seedHex: "47", geometry: generated.geometry, material: sharedMaterial, position: SIMD2(0.5, 0.5), size: 0.5, rotation: 0, slot: 0)]
-        let input = DayObjectSceneInput(dayKey: base.dayKey, identity: base.identity, eventIDs: [], motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true, nativeAtlasRecipe: recipe)
+        let input = DayObjectSceneInput(dayKey: base.dayKey, identity: base.identity, eventIDs: canvasMode ? recipe.actors.map(\.eventID) : [], motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true, nativeAtlasRecipe: recipe)
         let presentation = HappeningPaletteRenderPresentation(slots: includesSlot ? [.init(happeningID: "h0", assignment: assignment, visualState: state, source: .init(index: 0, center: CGPoint(x: 100, y: 100), radius: 60))] : [], viewportSize: CGSize(width: 200, height: 200), reduceMotion: true, isTransitionActive: false, backgroundRevision: 1)
         DayObjectsRenderer.prepareResources()
         var scene = DayObjectScene.make(input: input)
@@ -1186,7 +1210,7 @@ final class NativeAtlasRecipeTests: XCTestCase {
                 score: scene.score, actors: scene.actors, sceneRecipeV1: scene.sceneRecipeV1
             )
         }
-        let renderer = try XCTUnwrap(DayObjectsRenderer.create(scene: scene, environment: .init(motionEnergy: 0.5, visualClarity: 1), presentationMode: .happeningPalette(presentation)))
+        let renderer = try XCTUnwrap(DayObjectsRenderer.create(scene: scene, environment: .init(motionEnergy: 0.5, visualClarity: 1), presentationMode: canvasMode ? .canvas : .happeningPalette(presentation)))
         let image: UIImage? = await withCheckedContinuation { continuation in
             renderer.renderOffscreen(size: CGSize(width: 200, height: 200), pointScale: 1, elapsedTime: 4) { texture, _ in
                 continuation.resume(returning: texture.flatMap { DayObjectsImageRenderer.makeImage(texture: $0, scale: 1) })

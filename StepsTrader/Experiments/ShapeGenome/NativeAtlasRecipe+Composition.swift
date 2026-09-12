@@ -36,7 +36,10 @@ extension NativeAtlasRecipe {
             let needsBlurAccent = addingEventIDs.contains(id) && assigned.count >= 2
                 && !assigned.contains { $0.materialID == .directionalBlur }
                 && allowed.contains(.directionalBlur)
-            let material: MetalShapeMaterial = needsBlurAccent ? .directionalBlur : rolledMaterial
+            // Keep the existing random draw so other materials stay stable.
+            // Sunset is retired from Canvas, including missing historical slots.
+            let material: MetalShapeMaterial = needsBlurAccent ? .directionalBlur
+                : rolledMaterial == .sunset ? .radialTwo : rolledMaterial
             let frame = MetalShapeGenomeFrame.make(preset: preset, material: material, seed: seed)
             // Progressive slot order spreads a sparse day across the same stable path.
             let slots: [Float] = [0.5, 0.05, 0.95, 0.25, 0.75, 0.15, 0.85, 0.35, 0.65, 0.45]

@@ -88,16 +88,17 @@ final class NativeAtlasMetalRenderer {
             encoder.setRenderPipelineState(composite)
             encoder.setFragmentTexture(targets[source], index: 0)
             var geometry = spec.geometry, material = spec.material.primaryCanvasMaterial
-            if let variant = colorVariants[actor.eventID], spec.materialID != .sunset {
+            if let variant = colorVariants[actor.eventID] {
                 material = material.withColorVariant(variant)
             }
-            let eligible: Set<MetalShapeMaterial> = [.solid, .sideLight, .radialTwo, .radialThree, .proceduralLight, .proceduralFlow]
+            // Use the effective shader after remapping retired saved fills.
+            let eligible: Set<UInt32> = [0, 1, 4, 5, 6, 7]
             let aspect = Float(w) / Float(h), pose = actor.gpuActor
             let center = SIMD2(0.5 + pose.position.x / max(aspect, 1), 0.5 - pose.position.y / max(1 / aspect, 1))
             let saturation = pose.presentationSaturation
             let placement: [SIMD4<Float>] = [
                 SIMD4(center.x, center.y, pose.halfSize.x * 2.72, spec.rotation),
-                SIMD4(Float(w), Float(h), pose.opacity, eligible.contains(spec.materialID) ? 1 : 0),
+                SIMD4(Float(w), Float(h), pose.opacity, eligible.contains(material.materialIndex) ? 1 : 0),
                 SIMD4(Float(recipe.intersectionType), recipe.intersectionStrength, saturation, pose.removalEmphasis),
                 SIMD4(pose.paletteMorph, isPalette ? 1 : 0, 0, 0)
             ]
