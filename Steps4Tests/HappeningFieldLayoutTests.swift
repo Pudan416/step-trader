@@ -118,6 +118,49 @@ final class CanvasOverlayIntegrationRegressionTests: XCTestCase {
         XCTAssertEqual(model.todayAdditions.map(\.optionId), [element.optionId])
     }
 
+    func testAllTenDifferentPaletteHappeningsCanBeAddedToTheCanvas() throws {
+        let date = Date.now
+        let dayKey = AppModel.dayKey(for: date)
+        let model = makeModel()
+        let happenings = model.availablePaletteHappenings(on: date)
+        let figures = model.paletteFigures(on: date)
+        var canvas = DayCanvas(dayKey: dayKey)
+
+        XCTAssertEqual(happenings.count, 10)
+
+        for happening in happenings {
+            let element = CanvasElement.spawn(
+                optionId: happening.id,
+                label: happening.localizedTitle(),
+                existingElements: canvas.elements,
+                dayKey: dayKey,
+                composition: DayComposition.forDay(
+                    dayKey: dayKey,
+                    happeningCount: canvas.elements.count
+                ),
+                figure: try XCTUnwrap(figures[happening.id])
+            )
+            let result = try XCTUnwrap(
+                CanvasHappeningSpawnTransaction.commit(
+                    canvasLoaded: true,
+                    canvas: canvas,
+                    model: model,
+                    element: element,
+                    recordUse: true,
+                    at: date,
+                    persist: { _ in true }
+                )
+            )
+            canvas = result.canvas
+        }
+
+        XCTAssertEqual(canvas.elements.count, 10)
+        XCTAssertEqual(Set(canvas.elements.map(\.optionId)).count, 10)
+        XCTAssertEqual(model.todayAdditions.count, 10)
+        XCTAssertEqual(model.happeningPointsToday, 60)
+        XCTAssertTrue(model.availablePaletteHappenings(on: date).isEmpty)
+    }
+
     func testSpawnRejectsCapturedDayBoundaryMismatchWithoutPersistingEitherRecord() {
         let model = makeModel()
         let beforeBoundary = Date(timeIntervalSince1970: 1_786_176_000)
@@ -187,8 +230,8 @@ final class CanvasOverlayIntegrationRegressionTests: XCTestCase {
         )
     }
 
-    func testPaletteOnlyBlocksTabsOnCanvasAndLeavingRequestsClosure() {
-        XCTAssertTrue(
+    func testPaletteKeepsTabsInteractiveAndLeavingRequestsClosure() {
+        XCTAssertFalse(
             CanvasPaletteRouteState.blocksTabBar(
                 isCanvasSelected: true,
                 isPaletteVisible: true
@@ -293,17 +336,15 @@ final class HappeningFieldLayoutTests: XCTestCase {
         }
     }
 
-    /// Pinned means low and stable, not floating mid-screen.
-    func testDockAnchorSitsBelowTheMiddleAndClearOfBottomChrome() {
+    /// The palette replaces the tab bar, so its controls occupy that same line.
+    func testDockAnchorUsesTheFormerTabBarLine() {
         let anchor = HappeningFieldLayout.layout(
             count: 3, in: size, safeInsets: safeInsets
         ).dockAnchor
         XCTAssertEqual(anchor.x, dockSafeBounds.midX, accuracy: 0.01)
         XCTAssertGreaterThan(anchor.y, dockSafeBounds.midY)
-        XCTAssertLessThanOrEqual(
-            anchor.y, dockSafeBounds.maxY - 120,
-            "must stay clear of the canvas controls and tab bar underneath"
-        )
+        XCTAssertEqual(anchor.y, dockSafeBounds.maxY - 36, accuracy: 0.01)
+        XCTAssertLessThanOrEqual(anchor.y + 36, dockSafeBounds.maxY)
     }
 
     /// Nothing may slide under the pinned dock.
@@ -341,22 +382,119 @@ final class HappeningFieldLayoutTests: XCTestCase {
                 XCTAssertGreaterThanOrEqual(frame.height, 44, "count \(count)")
             }
 
-            for (index, frame) in layout.labelFrames.enumerated() {
-                for other in layout.labelFrames.dropFirst(index + 1) {
-                    XCTAssertFalse(frame.intersects(other), "count \(count), frame \(index)")
+            for (index, source) in layout.sources.enumerated() {
+                for other in layout.sources.dropFirst(index + 1) {
+                    let centerDistance = hypot(
+                        source.center.x - other.center.x,
+                        source.center.y - other.center.y
+                    )
+                    XCTAssertGreaterThanOrEqual(
+                        centerDistance,
+                        source.radius + other.radius,
+                        "count \(count), circle \(index)"
+                    )
                 }
             }
         }
     }
 
-    func testTenItemPhoneLayoutReservesReadableThreeLineLabelZones() {
+    func testTenItemPhoneLayoutReservesReadableTwoLineCircleLabelsBelowEnergyBar() {
         let layout = HappeningFieldLayout.layout(
-            count: 10, in: size, safeInsets: safeInsets
+            count: 10,
+            in: size,
+            safeInsets: safeInsets,
+            contentTopInset: 228
         )
 
-        for frame in layout.labelFrames {
-            XCTAssertGreaterThanOrEqual(frame.width, 88)
-            XCTAssertGreaterThanOrEqual(frame.height, 64)
+        XCTAssertEqual(layout.sources.count, 10)
+        for (source, frame) in zip(layout.sources, layout.labelFrames) {
+            XCTAssertGreaterThanOrEqual(source.radius, 34)
+            XCTAssertEqual(frame.width, source.radius * 2, accuracy: 0.01)
+            XCTAssertEqual(frame.height, source.radius * 2, accuracy: 0.01)
+            XCTAssertGreaterThanOrEqual(frame.minY, 228)
+            XCTAssertLessThanOrEqual(frame.maxY, layout.dockAnchor.y - 52)
+        }
+    }
+
+    func testTenCircleConstellationDoesNotOverlapOrClip() {
+        let layout = HappeningFieldLayout.layout(
+            count: 10,
+            in: size,
+            safeInsets: safeInsets,
+            contentTopInset: 228
+        )
+        let safeBounds = CGRect(
+            x: safeInsets.leading + 16,
+            y: 228,
+            width: size.width - safeInsets.leading - safeInsets.trailing - 32,
+            height: layout.dockAnchor.y - 52 - 228
+        )
+
+        for (index, frame) in layout.labelFrames.enumerated() {
+            XCTAssertTrue(safeBounds.contains(frame), "circle \(index) clips outside its field")
+            let source = layout.sources[index]
+            for other in layout.sources.dropFirst(index + 1) {
+                XCTAssertGreaterThanOrEqual(
+                    hypot(
+                        source.center.x - other.center.x,
+                        source.center.y - other.center.y
+                    ),
+                    source.radius + other.radius,
+                    "circle \(index) overlaps another circle"
+                )
+            }
+        }
+    }
+
+    func testTenItemPhoneLayoutUsesThreeTwoThreeTwoHorizontalRows() {
+        let layout = HappeningFieldLayout.layout(
+            count: 10,
+            in: size,
+            safeInsets: safeInsets,
+            contentTopInset: 145,
+            dockCenterY: 780
+        )
+        let rows = Dictionary(grouping: layout.sources) {
+            Int(($0.center.y * 10).rounded())
+        }
+        let orderedRows = rows.keys.sorted().compactMap { rows[$0] }
+        let radii = layout.sources.map(\.radius)
+
+        XCTAssertEqual(orderedRows.map(\.count), [3, 2, 3, 2])
+        XCTAssertGreaterThanOrEqual(radii.min() ?? 0, 60)
+        XCTAssertEqual(radii.min(), radii.max())
+        XCTAssertEqual(orderedRows[0].map(\.center.x).min(), orderedRows[2].map(\.center.x).min())
+        XCTAssertEqual(orderedRows[1].map(\.center.x).min(), orderedRows[3].map(\.center.x).min())
+    }
+
+    func testTenItemPhoneLayoutUsesNearTouchingCirclesWithoutOverlap() {
+        let layout = HappeningFieldLayout.layout(
+            count: 10,
+            in: size,
+            safeInsets: safeInsets,
+            contentTopInset: 145,
+            dockCenterY: 780
+        )
+
+        XCTAssertGreaterThanOrEqual(layout.sources.map(\.radius).min() ?? 0, 58)
+
+        for source in layout.sources {
+            let nearestEdgeGap = layout.sources
+                .filter { $0.index != source.index }
+                .map { neighbour in
+                    hypot(
+                        source.center.x - neighbour.center.x,
+                        source.center.y - neighbour.center.y
+                    ) - source.radius - neighbour.radius
+                }
+                .min() ?? .greatestFiniteMagnitude
+
+            XCTAssertGreaterThanOrEqual(nearestEdgeGap, -0.01, "circle \(source.index) overlaps")
+            XCTAssertLessThanOrEqual(
+                nearestEdgeGap,
+                0.5,
+                "circle \(source.index) must touch the packed cluster"
+            )
         }
     }
 
@@ -405,7 +543,7 @@ final class HappeningFieldLayoutTests: XCTestCase {
         }
     }
 
-    func testExpandedTenItemMetaballIsOneClosedContourInsideSafeBounds() {
+    func testExpandedTenItemLayoutKeepsEveryCircleSafe() {
         let safeBounds = CGRect(
             x: safeInsets.leading,
             y: safeInsets.top,
@@ -424,35 +562,11 @@ final class HappeningFieldLayoutTests: XCTestCase {
                 safeInsets: safeInsets,
                 dynamicTypeSize: typeSize
             )
-            let contour = ProceduralShapeGenerator.metaballPath(
-                blobs: layout.sources.map {
-                    ProceduralShapeGenerator.BlobSource(
-                        center: $0.center,
-                        radius: $0.radius
-                    )
-                },
-                in: CGRect(origin: .zero, size: size),
-                gridResolution: 58
-            )
-            var moveCount = 0
-            var closeCount = 0
-            contour.cgPath.applyWithBlock { element in
-                switch element.pointee.type {
-                case .moveToPoint:
-                    moveCount += 1
-                case .closeSubpath:
-                    closeCount += 1
-                default:
-                    break
-                }
+            XCTAssertEqual(layout.contourBounds.midX, safeBounds.midX, accuracy: 0.01)
+            XCTAssertLessThan(layout.contourBounds.maxY, layout.dockAnchor.y)
+            for frame in layout.labelFrames {
+                XCTAssertTrue(safeBounds.contains(frame), "\(typeSize) label must remain tappable")
             }
-
-            XCTAssertEqual(moveCount, 1, "\(typeSize) must generate one contour component")
-            XCTAssertEqual(closeCount, 1, "\(typeSize) must close exactly one component")
-            XCTAssertTrue(
-                safeBounds.insetBy(dx: 2, dy: 2).contains(contour.boundingRect),
-                "\(typeSize) contour \(contour.boundingRect) must not be clipped into a boundary chord"
-            )
         }
     }
 
@@ -466,6 +580,26 @@ final class HappeningFieldLayoutTests: XCTestCase {
         XCTAssertEqual(eight.sources.map(\.index), Array(0..<8))
         XCTAssertTrue(nine.contourBounds.width < size.width)
         XCTAssertTrue(eight.contourBounds.width < size.width)
+    }
+
+    func testNineItemReflowUsesThreeCenteredRowsOfThreeEqualCircles() {
+        let layout = HappeningFieldLayout.layout(
+            count: 9,
+            in: size,
+            safeInsets: safeInsets,
+            contentTopInset: 228
+        )
+        let distinctRadii = Set(layout.sources.map { Int(($0.radius * 10).rounded()) })
+        let rows = Dictionary(grouping: layout.sources) {
+            Int(($0.center.y * 10).rounded())
+        }
+        let orderedRows = rows.keys.sorted().compactMap { rows[$0] }
+
+        XCTAssertEqual(distinctRadii.count, 1)
+        XCTAssertEqual(orderedRows.map(\.count), [3, 3, 3])
+        XCTAssertTrue(orderedRows.allSatisfy { row in
+            abs((row.map(\.center.x).min() ?? 0) + (row.map(\.center.x).max() ?? 0) - size.width) < 0.01
+        })
     }
 
     func testEmptyFieldKeepsAResidualCompletionIslandAttachedToTheDock() {
@@ -486,11 +620,7 @@ final class HappeningFieldLayoutTests: XCTestCase {
         XCTAssertLessThanOrEqual(layout.dockAnchor.y - completionBounds.maxY, 32)
         XCTAssertTrue(safeBounds.contains(layout.dockAnchor))
         XCTAssertGreaterThan(layout.dockAnchor.y, safeBounds.midY)
-        XCTAssertLessThanOrEqual(
-            layout.dockAnchor.y,
-            safeBounds.maxY - 120,
-            "the empty-state controls must stay clear of persistent bottom chrome"
-        )
+        XCTAssertEqual(layout.dockAnchor.y, safeBounds.maxY - 36, accuracy: 0.01)
     }
 
     func testCompletionIslandHasAnUnbrokenHorizontalNeckBetweenItsLobes() {
@@ -517,175 +647,71 @@ final class HappeningFieldLayoutTests: XCTestCase {
 
 final class HappeningFieldTransitionStateTests: XCTestCase {
 
-    func testBeginRemovalLocksTheSelectedIDAndStartsPressing() {
+    func testFirstTapPreviewsWithoutCommitting() {
         var state = HappeningFieldTransitionState()
 
-        XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
-        XCTAssertEqual(state.phase, .pressing)
+        XCTAssertEqual(state.handleTap(id: "happening_walk"), .preview)
+        XCTAssertEqual(state.phase, .previewing)
         XCTAssertEqual(state.selectedID, "happening_walk")
     }
 
-    func testBusyTransitionIgnoresDuplicateButQueuesAnotherZone() {
+    func testSecondTapOnSameCircleCommits() {
         var state = HappeningFieldTransitionState()
-        XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
-
-        XCTAssertFalse(state.beginRemoval(id: "happening_walk"))
-        XCTAssertTrue(state.beginRemoval(id: "happening_read"))
-        XCTAssertEqual(state.phase, .pressing)
+        XCTAssertEqual(state.handleTap(id: "happening_walk"), .preview)
+        XCTAssertEqual(state.handleTap(id: "happening_walk"), .commit)
+        XCTAssertEqual(state.phase, .committing)
         XCTAssertEqual(state.selectedID, "happening_walk")
-        XCTAssertEqual(state.queuedIDs, ["happening_read"])
-        XCTAssertTrue(state.isLocked(id: "happening_walk"))
-        XCTAssertTrue(state.isLocked(id: "happening_read"))
-        XCTAssertFalse(state.isLocked(id: "happening_coffee"))
     }
 
-    func testRapidSecondTapRunsAfterFirstReflowWithoutClosingPalette() {
+    func testTappingAnotherCircleSwitchesPreviewWithoutCommittingEither() {
         var state = HappeningFieldTransitionState()
-        XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
-        XCTAssertTrue(state.beginRemoval(id: "happening_read"))
-        XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .sinking))
-        XCTAssertTrue(state.resolveBreakthrough(id: "happening_walk", accepted: true))
-        XCTAssertTrue(state.finishRemoval(id: "happening_walk"))
-
-        XCTAssertEqual(state.beginNextQueuedRemoval(), "happening_read")
-        XCTAssertEqual(state.phase, .pressing)
-        XCTAssertEqual(state.selectedID, "happening_read")
-        XCTAssertTrue(state.queuedIDs.isEmpty)
-    }
-
-    func testRejectedFirstTapStillAdvancesAQueuedValidZone() {
-        var state = HappeningFieldTransitionState()
-        XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
-        XCTAssertTrue(state.beginRemoval(id: "happening_read"))
-        XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .sinking))
-
-        XCTAssertFalse(state.resolveBreakthrough(id: "happening_walk", accepted: false))
-        XCTAssertEqual(state.beginNextQueuedRemoval(), "happening_read")
-        XCTAssertEqual(state.phase, .pressing)
+        XCTAssertEqual(state.handleTap(id: "happening_walk"), .preview)
+        XCTAssertEqual(
+            state.handleTap(id: "happening_read"),
+            .switchPreview(previousID: "happening_walk")
+        )
+        XCTAssertEqual(state.phase, .previewing)
         XCTAssertEqual(state.selectedID, "happening_read")
     }
 
-    func testQueuedRemovalResolvesMovedZoneFromCurrentNineItemLayout() throws {
-        let size = CGSize(width: 402, height: 874)
-        let safeInsets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
-        let initial = Array(HappeningDefaults.builtIns.prefix(10))
-        let queued = initial[9]
-        var presentation = HappeningFieldPresentationState(happenings: initial)
-        let tenItemLayout = presentation.layout(in: size, safeInsets: safeInsets)
-        let staleSource = tenItemLayout.sources[9]
-
-        XCTAssertTrue(presentation.remove(id: initial[0].id))
-        let nineItemLayout = presentation.layout(in: size, safeInsets: safeInsets)
-        let currentIndex = try XCTUnwrap(
-            presentation.presentedHappenings.firstIndex { $0.id == queued.id }
-        )
-        let resolved = try XCTUnwrap(
-            HappeningFieldRemovalResolver.resolve(
-                id: queued.id,
-                presentation: presentation,
-                size: size,
-                safeInsets: safeInsets,
-                dynamicTypeSize: .large
-            )
-        )
-
-        XCTAssertEqual(resolved.happening.id, queued.id)
-        XCTAssertEqual(resolved.source, nineItemLayout.sources[currentIndex])
-        XCTAssertEqual(resolved.transitionSources, nineItemLayout.sources)
-        XCTAssertGreaterThan(
-            hypot(
-                resolved.source.center.x - staleSource.center.x,
-                resolved.source.center.y - staleSource.center.y
-            ),
-            80,
-            "the fixture must prove the queued zone moved substantially during 10→9 reflow"
-        )
-        XCTAssertNotEqual(resolved.source, staleSource)
+    func testRejectedCommitRestoresTheSamePreview() {
+        var state = HappeningFieldTransitionState()
+        XCTAssertEqual(state.handleTap(id: "happening_walk"), .preview)
+        XCTAssertEqual(state.handleTap(id: "happening_walk"), .commit)
+        XCTAssertFalse(state.resolveCommit(id: "happening_walk", accepted: false))
+        XCTAssertEqual(state.phase, .previewing)
+        XCTAssertEqual(state.selectedID, "happening_walk")
     }
 
-    func testFinishRemovalUnlocksOnlyAfterReflowAndAllowsAnotherID() {
+    func testAcceptedCommitReflowsThenReturnsToIdle() {
         var state = HappeningFieldTransitionState()
-        XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
-        XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .sinking))
-        XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .reflowing))
-
-        XCTAssertFalse(state.finishRemoval(id: "happening_read"))
-        XCTAssertTrue(state.finishRemoval(id: "happening_walk"))
+        XCTAssertEqual(state.handleTap(id: "happening_walk"), .preview)
+        XCTAssertEqual(state.handleTap(id: "happening_walk"), .commit)
+        XCTAssertTrue(state.resolveCommit(id: "happening_walk", accepted: true))
+        XCTAssertEqual(state.phase, .reflowing)
+        XCTAssertTrue(state.finishCommit(id: "happening_walk"))
         XCTAssertEqual(state.phase, .idle)
         XCTAssertNil(state.selectedID)
-        XCTAssertTrue(state.beginRemoval(id: "happening_read"))
     }
 
-    func testCancelRemovalRollsBackEveryBusyPhaseAndUnlocksControls() {
-        for terminalPhase in [RemovalPhase.pressing, .sinking, .reflowing] {
+    func testCommitAndReflowIgnoreExtraTaps() {
+        for terminalPhase in [HappeningFieldPhase.committing, .reflowing] {
             var state = HappeningFieldTransitionState()
-            XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
-            if terminalPhase == .sinking || terminalPhase == .reflowing {
-                XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .sinking))
-            }
+            XCTAssertEqual(state.handleTap(id: "happening_walk"), .preview)
+            XCTAssertEqual(state.handleTap(id: "happening_walk"), .commit)
             if terminalPhase == .reflowing {
-                XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .reflowing))
+                XCTAssertTrue(state.resolveCommit(id: "happening_walk", accepted: true))
             }
-
-            state.cancelRemoval()
-
-            XCTAssertEqual(state.phase, .idle, "cancel from \(terminalPhase)")
-            XCTAssertNil(state.selectedID, "cancel from \(terminalPhase)")
-            XCTAssertTrue(
-                state.beginRemoval(id: "happening_read"),
-                "controls should unlock after cancelling \(terminalPhase)"
-            )
+            XCTAssertEqual(state.handleTap(id: "happening_read"), .ignored)
         }
     }
 
-    func testRejectedBreakthroughRestoresTheZoneAndUnlocksAnotherID() {
+    func testCancelRestoresIdleState() {
         var state = HappeningFieldTransitionState()
-        XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
-        XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .sinking))
-
-        XCTAssertFalse(
-            state.resolveBreakthrough(id: "happening_walk", accepted: false)
-        )
-
+        XCTAssertEqual(state.handleTap(id: "happening_walk"), .preview)
+        state.cancelSelection()
         XCTAssertEqual(state.phase, .idle)
         XCTAssertNil(state.selectedID)
-        XCTAssertTrue(state.beginRemoval(id: "happening_read"))
-    }
-
-    func testAcceptedBreakthroughAdvancesToReflow() {
-        var state = HappeningFieldTransitionState()
-        XCTAssertTrue(state.beginRemoval(id: "happening_walk"))
-        XCTAssertTrue(state.advanceRemoval(id: "happening_walk", to: .sinking))
-
-        XCTAssertTrue(
-            state.resolveBreakthrough(id: "happening_walk", accepted: true)
-        )
-
-        XCTAssertEqual(state.phase, .reflowing)
-        XCTAssertEqual(state.selectedID, "happening_walk")
-    }
-
-    func testTransitionHitRegionCoversOldNewAndInterpolatedVisibleContours() {
-        let bounds = CGRect(x: 0, y: 0, width: 260, height: 180)
-        let old = [
-            HappeningFieldLayout.Source(index: 0, center: CGPoint(x: 50, y: 90), radius: 38),
-            HappeningFieldLayout.Source(index: 1, center: CGPoint(x: 90, y: 90), radius: 38),
-        ]
-        let new = [
-            HappeningFieldLayout.Source(index: 0, center: CGPoint(x: 170, y: 90), radius: 38),
-            HappeningFieldLayout.Source(index: 1, center: CGPoint(x: 210, y: 90), radius: 38),
-        ]
-
-        let hitRegion = HappeningFieldContourHitRegion.path(
-            currentSources: new,
-            transitionSources: old,
-            in: bounds
-        )
-
-        XCTAssertTrue(hitRegion.contains(CGPoint(x: 70, y: 90)), "old contour")
-        XCTAssertTrue(hitRegion.contains(CGPoint(x: 130, y: 90)), "interpolated contour")
-        XCTAssertTrue(hitRegion.contains(CGPoint(x: 190, y: 90)), "new contour")
-        XCTAssertFalse(hitRegion.contains(CGPoint(x: 130, y: 10)))
     }
 }
 
@@ -714,7 +740,7 @@ final class HappeningFieldPresentationStateTests: XCTestCase {
         )
     }
 
-    func testSharedPresentationCountLeavesDockFixedThroughTenNineEight() {
+    func testSharedPresentationCountReflowsCirclesWhileDockStaysFixedThroughTenNineEight() {
         var state = HappeningFieldPresentationState(
             happenings: Array(HappeningDefaults.builtIns.prefix(10))
         )
@@ -730,11 +756,17 @@ final class HappeningFieldPresentationStateTests: XCTestCase {
         let eight = state.layout(in: size, safeInsets: safeInsets)
         XCTAssertEqual(state.presentedCount, 8)
 
-        // Inverted deliberately: the dock is anchored to a full field, so
-        // consuming happenings must NOT move it. It used to ride up the screen
-        // with the shrinking cluster.
+        XCTAssertEqual(ten.sources.count, 10)
+        XCTAssertEqual(nine.sources.count, 9)
+        XCTAssertEqual(eight.sources.count, 8)
+        XCTAssertNotEqual(ten.sources.map(\.center), nine.sources.map(\.center))
+        XCTAssertNotEqual(nine.sources.map(\.center), eight.sources.map(\.center))
+
+        // The constellation reflows, but controls stay in the former tab-bar
+        // position so repeated additions never move the user's target.
         XCTAssertEqual(ten.dockAnchor, nine.dockAnchor)
         XCTAssertEqual(nine.dockAnchor, eight.dockAnchor)
+        XCTAssertEqual(ten.dockAnchor.y, 804, accuracy: 0.01)
     }
 
 }
@@ -742,6 +774,23 @@ final class HappeningFieldPresentationStateTests: XCTestCase {
 /// Label contrast is unrelated to the replaced blob geometry, so it remains
 /// covered here after the legacy layout test file is retired.
 final class HappeningPaletteLabelContrastTests: XCTestCase {
+    func testDarkCirclePairsReceiveMoreMaterialLiftThanLightPairs() {
+        let dark = HappeningFieldLabelTreatment(
+            primaryHex: "#303A8F",
+            accentHex: "#415FA5"
+        )
+        let light = HappeningFieldLabelTreatment(
+            primaryHex: "#E4A6A0",
+            accentHex: "#C7D8CA"
+        )
+
+        XCTAssertGreaterThan(dark.circleLiftOpacity, light.circleLiftOpacity)
+        XCTAssertGreaterThanOrEqual(dark.circleLiftOpacity, 0.16)
+        XCTAssertGreaterThanOrEqual(dark.liftedCircleContrastRatio, 4.5)
+        XCTAssertGreaterThanOrEqual(light.liftedCircleContrastRatio, 4.5)
+        XCTAssertEqual(light.circleLiftOpacity, 0.08, accuracy: 0.001)
+    }
+
 
     func testLuminanceEndpoints() {
         XCTAssertEqual(HappeningFieldLabelTreatment.relativeLuminance(ofHex: "#000000"), 0, accuracy: 0.001)
@@ -768,6 +817,20 @@ final class HappeningPaletteLabelContrastTests: XCTestCase {
         XCTAssertEqual(treatment.backingLuminance, 0.237553298, accuracy: 0.000_000_1)
     }
 
+    func testEveryHappeningUsesOneDarkTextTreatmentAcrossBrightAndDarkSources() {
+        let bright = HappeningFieldLabelTreatment(
+            primaryHex: "#FFF2A6",
+            accentHex: "#F2C94C"
+        )
+        let dark = HappeningFieldLabelTreatment(
+            primaryHex: "#17395C",
+            accentHex: "#33285E"
+        )
+
+        XCTAssertEqual(bright.foreground, .black)
+        XCTAssertEqual(dark.foreground, .black)
+    }
+
     func testTextBoundsUseMostOfTheFieldZoneWithoutRecreatingAButtonLens() {
         let size = CGSize(width: 402, height: 874)
         let safeInsets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
@@ -788,6 +851,50 @@ final class HappeningPaletteLabelContrastTests: XCTestCase {
         }
     }
 
+    func testStandardTypographyWrapsMultiwordTitlesWithoutShrinkingTheSharedPointSize() {
+        XCTAssertEqual(HappeningFieldLabelTypography.maximumLines(for: .large), 2)
+        XCTAssertEqual(HappeningFieldLabelTypography.maximumLines(for: .xxxLarge), 2)
+        XCTAssertEqual(HappeningFieldLabelTypography.minimumScaleFactor(for: .large), 1)
+        XCTAssertEqual(
+            HappeningFieldLabelTypography.maximumLines(for: .accessibility1),
+            4
+        )
+
+        let layout = HappeningFieldLayout.layout(
+            count: 10,
+            in: CGSize(width: 402, height: 874),
+            safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
+        )
+        let baseFont = UIFont.systemFont(
+            ofSize: HappeningFieldLabelTypography.pointSize,
+            weight: .semibold
+        )
+        let font = UIFont(
+            descriptor: baseFont.fontDescriptor.withDesign(.rounded)
+                ?? baseFont.fontDescriptor,
+            size: HappeningFieldLabelTypography.pointSize
+        )
+        let minimumScale = HappeningFieldLabelTypography.minimumScaleFactor(for: .large)
+
+        for (happening, frame) in zip(HappeningDefaults.builtIns, layout.labelFrames) {
+            let availableWidth = HappeningFieldLabelTreatment.inscribedTextSize(
+                in: frame.size
+            ).width
+            let words = happening.localizedTitle().split(separator: " ")
+            XCTAssertLessThanOrEqual(words.count, 2)
+            for word in words {
+                let measuredWidth = (String(word) as NSString).size(
+                    withAttributes: [.font: font]
+                ).width
+                XCTAssertLessThanOrEqual(
+                    ceil(measuredWidth * minimumScale),
+                    availableWidth,
+                    "\(word) must fit its own line without an ellipsis"
+                )
+            }
+        }
+    }
+
     func testAccessibilityTypographyExpandsGeometryAndFitsEveryPrimaryLabel() {
         let standardLayout = HappeningFieldLayout.layout(
             count: 10,
@@ -803,14 +910,14 @@ final class HappeningPaletteLabelContrastTests: XCTestCase {
         )
 
         let baseFont = UIFont.systemFont(
-            ofSize: 14,
+            ofSize: HappeningFieldLabelTypography.pointSize,
             weight: .semibold
         )
         let roundedDescriptor = baseFont.fontDescriptor.withDesign(.rounded)
             ?? baseFont.fontDescriptor
         let roundedBaseFont = UIFont(
             descriptor: roundedDescriptor,
-            size: 14
+            size: HappeningFieldLabelTypography.pointSize
         )
         let font = UIFontMetrics(forTextStyle: .footnote).scaledFont(
             for: roundedBaseFont,
@@ -819,7 +926,7 @@ final class HappeningPaletteLabelContrastTests: XCTestCase {
             )
         )
 
-        XCTAssertGreaterThan(font.pointSize, 14)
+        XCTAssertGreaterThan(font.pointSize, HappeningFieldLabelTypography.pointSize)
         XCTAssertGreaterThan(
             accessibilityLayout.labelFrames[0].width,
             standardLayout.labelFrames[0].width
@@ -837,7 +944,8 @@ final class HappeningPaletteLabelContrastTests: XCTestCase {
 
         for (happening, frame) in zip(HappeningDefaults.builtIns, accessibilityLayout.labelFrames) {
             let textSize = HappeningFieldLabelTreatment.inscribedTextSize(in: frame.size)
-            let measured = (happening.localizedTitle() as NSString).boundingRect(
+            let wrappedTitle = happening.localizedTitle().replacingOccurrences(of: " ", with: "\n")
+            let measured = (wrappedTitle as NSString).boundingRect(
                 with: CGSize(width: textSize.width, height: .greatestFiniteMagnitude),
                 options: [.usesLineFragmentOrigin, .usesFontLeading],
                 attributes: [.font: font],
@@ -890,7 +998,7 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(HappeningPanelTextFieldAppearance.strokeOpacity, 0.18)
     }
 
-    func testOpenPanelHidesChromeAndUsesCompactInsetsAtStandardType() {
+    func testOpenPaletteHidesTheTabBarAtStandardType() {
         XCTAssertTrue(
             HappeningPaletteChromeLayout.hidesSurroundingChrome(
                 isPalettePresented: true
@@ -901,18 +1009,18 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
                 topCardHeight: 176,
                 hidesSurroundingChrome: true
             ),
-            20
+            188
         )
         XCTAssertEqual(
             HappeningPaletteChromeLayout.panelBottomInset(
                 tabBarHeight: 82,
                 hidesSurroundingChrome: true
             ),
-            20
+            94
         )
     }
 
-    func testAccessibilityTypeHidesSurroundingChromeAndUsesCompactInsets() {
+    func testAccessibilityTypeAlsoHidesTheTabBar() {
         XCTAssertTrue(
             HappeningPaletteChromeLayout.hidesSurroundingChrome(
                 isPalettePresented: true
@@ -923,18 +1031,18 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
                 topCardHeight: 220,
                 hidesSurroundingChrome: true
             ),
-            20
+            232
         )
         XCTAssertEqual(
             HappeningPaletteChromeLayout.panelBottomInset(
                 tabBarHeight: 150,
                 hidesSurroundingChrome: true
             ),
-            20
+            162
         )
     }
 
-    func testEveryExpandedTypeHidesChromeAndKeepsDockInsideSafeBounds() {
+    func testEveryExpandedTypeKeepsDockInsideSafeBoundsWhileTabBarIsHidden() {
         let size = CGSize(width: 402, height: 874)
         let safeInsets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
         let safeBounds = CGRect(x: 0, y: 59, width: 402, height: 781)
@@ -949,7 +1057,7 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
                 HappeningPaletteChromeLayout.hidesSurroundingChrome(
                     isPalettePresented: true
                 ),
-                "\(typeSize) uses expanded field geometry and must hide surrounding chrome"
+                "\(typeSize) must hide the tab bar while the palette is open"
             )
 
             let layout = HappeningFieldLayout.layout(
@@ -963,7 +1071,7 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
         }
     }
 
-    func testPresentedPaletteHidesStandardChromeBeforeAChildPanelOpens() {
+    func testPresentedPaletteHidesTabBarBeforeAChildPanelOpens() {
         XCTAssertTrue(
             HappeningPaletteChromeLayout.hidesSurroundingChrome(
                 isPalettePresented: true
@@ -979,8 +1087,8 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
         )
     }
 
-    func testCanvasControlsYieldToPresentedPalette() {
-        XCTAssertFalse(
+    func testCanvasControlsRemainAvailableForPaletteListAndCloseActions() {
+        XCTAssertTrue(
             HappeningPaletteChromeLayout.showsCanvasControls(
                 isPalettePresented: true
             )

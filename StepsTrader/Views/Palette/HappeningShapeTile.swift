@@ -76,7 +76,10 @@ struct HappeningShapeTile: View {
             optionId: optionId,
             label: label,
             hexColor: colorHex,
-            hexColor2: nil,
+            hexColor2: CanvasColorPalette.happeningGradientSecondColor(
+                seed: seed,
+                primary: colorHex
+            ),
             size: previewSize(for: shapeType, seed: seed),
             basePosition: CGPoint(x: 0.5, y: 0.5),
             // A preview is a still frame: every animated term is zeroed so the
@@ -109,12 +112,13 @@ struct HappeningShapeTile: View {
 
     private func draw(into context: inout GraphicsContext, size: CGSize) {
         let color = Color(hex: element.hexColor)
+        let color2 = element.hexColor2.map(Color.init(hex:))
         switch element.frozenShapeType ?? .circle {
         case .circle, .blob, .spirograph:
             CircleShapeRenderer.draw(
                 element, context: &context, size: size, t: 0, decay: 0,
                 blendMode: .normal, ampScale: 0, interaction: nil,
-                decayedColor: color, decayedColor2: nil,
+                decayedColor: color, decayedColor2: color2,
                 spec: Self.previewTextureSpec,
                 cache: renderCache
             )
@@ -122,14 +126,14 @@ struct HappeningShapeTile: View {
             SnowflakeShapeRenderer.draw(
                 element, context: &context, size: size, t: 0, decay: 0,
                 blendMode: .normal, ampScale: 0, renderCache: renderCache,
-                decayedColor: color, decayedColor2: nil,
+                decayedColor: color, decayedColor2: color2,
                 spec: Self.previewTextureSpec
             )
         case .organicBlob:
             OrganicBlobShapeRenderer.draw(
                 element, context: &context, size: size, t: 0, decay: 0,
                 blendMode: .normal, ampScale: 0, interaction: nil,
-                decayedColor: color, decayedColor2: nil,
+                decayedColor: color, decayedColor2: color2,
                 spec: Self.previewTextureSpec,
                 cache: renderCache
             )

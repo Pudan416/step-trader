@@ -49,7 +49,7 @@ export function registerGenerateShaderTool(
           name: 'generate_shader',
           title: 'Generate shader artwork',
           description:
-            'Generate and visibly display a new Shader Roulette artwork, optionally using a reproducible unsigned 32-bit seed.',
+            'Generate and visibly display a new Shader Roulette artwork in the selected collection (all, new sculptures, or classics), optionally using a reproducible unsigned 32-bit seed. Generates edition 3 artwork.',
           inputSchema: {
             type: 'object',
             properties: {

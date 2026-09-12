@@ -1,5 +1,7 @@
 import { mulberry32, range } from '../generative/random.ts';
 import type { VisualGenome } from '../generative/types.ts';
+import { drawFlatCanvas } from './flat-canvas.ts';
+import { drawSculptureCanvas } from './sculpture-canvas.ts';
 
 function radialPath(
   context: CanvasRenderingContext2D,
@@ -35,6 +37,14 @@ export function drawFallback(
   height: number,
   time: number,
 ): void {
+  if (genome.sculpture) {
+    drawSculptureCanvas(context, genome, width, height, time);
+    return;
+  }
+  if (genome.flat) {
+    drawFlatCanvas(context, genome, width, height, time);
+    return;
+  }
   const centerX = width / 2;
   const centerY = height / 2;
   const radius = Math.min(width, height) * 0.38 * genome.params.scale;

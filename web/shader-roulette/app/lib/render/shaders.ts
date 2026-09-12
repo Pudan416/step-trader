@@ -60,6 +60,7 @@ uniform vec4 u_motion;
 uniform float u_seed;
 uniform float u_camera;
 uniform int u_satellites;
+uniform float u_frameFit;
 
 #define PI 3.14159265359
 #define TAU 6.28318530718
@@ -228,6 +229,7 @@ vec3 renderGraphic(vec2 p, out float alpha) {
 void main() {
   vec2 uv=v_uv;
   vec2 p=(uv*2.0-1.0); p.x*=u_resolution.x/max(u_resolution.y,1.0);
+  if(u_frameFit>.5)p=(uv*2.0-1.0)*u_resolution/min(u_resolution.x,u_resolution.y)*1.45;
   float radial=length(p);
   vec3 bg=mix(u_palette0,mix(u_palette1,u_palette0,.72),smoothstep(.0,1.35,radial));
   bg+=u_palette3*exp(-3.4*length(p-vec2(-.72,.58)))*.08;
@@ -238,6 +240,10 @@ void main() {
     if(u_dimension==2) { float ga; vec3 graphic=renderGraphic(p*1.08,ga); art=mix(art,graphic,ga*.42); alpha=max(alpha,ga*.42); }
   }
   vec3 color=mix(bg,art,alpha);
+  if(u_frameFit>.5){
+    float frameMask=1.0-smoothstep(1.05,1.3,length(p));
+    color=mix(vec3(.00273,.00304,.00368),art,alpha*frameMask);
+  }
   color+=u_palette3*glow*u_params1.w*3.2;
   color*=1.0-.14*smoothstep(.45,1.55,radial);
   float grain=(hash21(gl_FragCoord.xy+u_seed)-.5)*.025;

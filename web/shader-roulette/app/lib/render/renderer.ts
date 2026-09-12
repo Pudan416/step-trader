@@ -27,7 +27,6 @@ export function pixelSize(
 class CanvasSceneRenderer implements SceneRenderer {
   readonly kind = 'canvas2d' as const;
   private genome: VisualGenome | null = null;
-  private paused = false;
   private canvas: HTMLCanvasElement;
   private context: CanvasRenderingContext2D;
 
@@ -40,9 +39,7 @@ class CanvasSceneRenderer implements SceneRenderer {
     this.genome = genome;
   }
 
-  setPaused(paused: boolean): void {
-    this.paused = paused;
-  }
+  setPaused(_paused: boolean): void {}
 
   resize(width: number, height: number): void {
     if (this.canvas.width !== width) this.canvas.width = width;
@@ -56,7 +53,7 @@ class CanvasSceneRenderer implements SceneRenderer {
       this.genome,
       this.canvas.width,
       this.canvas.height,
-      this.paused ? 0 : time,
+      time,
     );
   }
 
@@ -67,7 +64,7 @@ class CanvasSceneRenderer implements SceneRenderer {
     output.height = 2048;
     const context = output.getContext('2d');
     if (!context) throw new Error('Экспорт недоступен в этом браузере');
-    drawFallback(context, this.genome, 2048, 2048, this.paused ? 0 : time);
+    drawFallback(context, this.genome, 2048, 2048, time);
     const blob = await new Promise<Blob | null>((resolve) =>
       output.toBlob(resolve, 'image/png'),
     );

@@ -71,11 +71,10 @@ function CanvasLayer({
       return;
     }
     renderer.setGenome(genome);
-    const startedAt = performance.now();
-    let frozenAt = 0;
+    let previousFrame = performance.now();
+    let elapsed = 0;
     let frame = 0;
-    const getTime = () =>
-      pausedRef.current ? frozenAt : (performance.now() - startedAt) / 1000;
+    const getTime = () => elapsed;
     const resize = () => {
       const bounds = canvas.getBoundingClientRect();
       const size = pixelSize(
@@ -89,8 +88,10 @@ function CanvasLayer({
     observer.observe(canvas);
     resize();
     const loop = () => {
+      const now = performance.now();
+      if (!pausedRef.current) elapsed += (now - previousFrame) / 1000;
+      previousFrame = now;
       const nextTime = getTime();
-      if (!pausedRef.current) frozenAt = nextTime;
       renderer.setPaused(pausedRef.current);
       renderer.renderFrame(nextTime);
       frame = requestAnimationFrame(loop);
@@ -127,6 +128,7 @@ export const ShaderStage = forwardRef<ShaderStageHandle, ShaderStageProps>(
     useEffect(() => {
       const frame = window.requestAnimationFrame(() =>
         setLayers((current) =>
+          current.at(-1)?.identity === genome.identity &&
           current.at(-1)?.seed === genome.seed
             ? current
             : reducedMotion
@@ -166,7 +168,7 @@ export const ShaderStage = forwardRef<ShaderStageHandle, ShaderStageProps>(
           const active = index === layers.length - 1;
           return (
             <CanvasLayer
-              key={`${layer.seed}-${index}`}
+              key={`${layer.identity ?? layer.seed}-${index}`}
               genome={layer}
               paused={paused}
               active={active}

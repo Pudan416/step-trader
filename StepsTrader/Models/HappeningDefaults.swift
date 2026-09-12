@@ -13,10 +13,10 @@ enum HappeningDefaults {
     // day = steps(20) + sleep(20) + happenings(60) = 100
     //
     // The 100 ceiling is deliberately unchanged — onboarding has a slide built
-    // on it. Additions past the sixth still land on the canvas and still
+    // on it. Additions past the tenth still land on the canvas and still
     // increment `useCount`; they just stop earning.
 
-    static let pointsPerAddition: Int = 10
+    static let pointsPerAddition: Int = 6
     static let happeningsMaxPoints: Int = 60
 
     // MARK: - Built-ins
@@ -28,13 +28,13 @@ enum HappeningDefaults {
         Happening(id: "happening_walk",           title: "Walk",                   isBuiltIn: true),
         Happening(id: "happening_workout",        title: "Workout",                isBuiltIn: true),
         Happening(id: "happening_slept_well",     title: "Slept well",             isBuiltIn: true),
-        Happening(id: "happening_called_someone", title: "Called someone I love",  isBuiltIn: true),
-        Happening(id: "happening_drinks",         title: "Drinks with friends",    isBuiltIn: true),
+        Happening(id: "happening_called_someone", title: "Called someone",         isBuiltIn: true),
+        Happening(id: "happening_drinks",         title: "Drinks together",        isBuiltIn: true),
         Happening(id: "happening_read",           title: "Read",                   isBuiltIn: true),
         Happening(id: "happening_laughed",        title: "Laughed",                isBuiltIn: true),
         Happening(id: "happening_made_something", title: "Made something",         isBuiltIn: true),
         Happening(id: "happening_outside",        title: "Time outside",           isBuiltIn: true),
-        Happening(id: "happening_did_nothing",    title: "Did nothing on purpose", isBuiltIn: true)
+        Happening(id: "happening_did_nothing",    title: "Did nothing",            isBuiltIn: true)
     ]
 
     static let builtInIds: Set<String> = Set(builtIns.map(\.id))

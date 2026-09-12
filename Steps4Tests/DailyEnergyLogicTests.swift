@@ -8,7 +8,7 @@ import XCTest
 /// Scoring model (3 entities, 100 max):
 ///   steps      = 20 × min(made_steps, target_steps) / target_steps
 ///   sleep      = 20 × min(today_sleep, target_sleep) / target_sleep
-///   happenings = min(additions × 10, 60)
+///   happenings = min(additions × 6, 60)
 final class DailyEnergyLogicTests: XCTestCase {
 
     // MARK: - EnergyDefaults constants
@@ -25,7 +25,7 @@ final class DailyEnergyLogicTests: XCTestCase {
     }
 
     func testHappeningEconomyConstants() {
-        XCTAssertEqual(HappeningDefaults.pointsPerAddition, 10)
+        XCTAssertEqual(HappeningDefaults.pointsPerAddition, 6)
         XCTAssertEqual(HappeningDefaults.happeningsMaxPoints, 60)
     }
 
@@ -55,9 +55,10 @@ final class DailyEnergyLogicTests: XCTestCase {
     /// The economy counts additions, so this is the whole happening formula.
     func testHappeningPointsFormula() {
         XCTAssertEqual(HappeningEconomy.points(forAdditionCount: 0), 0)
-        XCTAssertEqual(HappeningEconomy.points(forAdditionCount: 1), 10)
-        XCTAssertEqual(HappeningEconomy.points(forAdditionCount: 6), 60)
-        XCTAssertEqual(HappeningEconomy.points(forAdditionCount: 7), 60, "Capped at six additions")
+        XCTAssertEqual(HappeningEconomy.points(forAdditionCount: 1), 6)
+        XCTAssertEqual(HappeningEconomy.points(forAdditionCount: 9), 54)
+        XCTAssertEqual(HappeningEconomy.points(forAdditionCount: 10), 60)
+        XCTAssertEqual(HappeningEconomy.points(forAdditionCount: 11), 60, "Capped at ten additions")
         XCTAssertEqual(HappeningEconomy.points(forAdditionCount: 1_000), 60)
         XCTAssertEqual(HappeningEconomy.points(forAdditionCount: -3), 0, "Negative clamped to 0")
     }
@@ -91,7 +92,7 @@ final class DailyEnergyLogicTests: XCTestCase {
     func testHalfEffortDay() {
         let steps = pointsFromSteps(steps: 5_000, target: 10_000, maxPoints: 20)  // 10
         let sleep = pointsFromSleep(hours: 4, target: 8, maxPoints: 20)            // 10
-        let happenings = HappeningEconomy.points(forAdditionCount: 3)              // 30
+        let happenings = HappeningEconomy.points(forAdditionCount: 5)              // 30
         XCTAssertEqual(steps + sleep + happenings, 50)
     }
 

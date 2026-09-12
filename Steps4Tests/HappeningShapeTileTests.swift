@@ -19,6 +19,8 @@ final class HappeningShapeTileTests: XCTestCase {
 
         XCTAssertEqual(element.frozenShapeType, .snowflake)
         XCTAssertEqual(element.hexColor, "#EF9F27")
+        XCTAssertNotNil(element.hexColor2)
+        XCTAssertNotEqual(element.hexColor2, element.hexColor)
         XCTAssertEqual(element.shapeSeed, 42)
         XCTAssertEqual(element.optionId, "happening_walk")
     }

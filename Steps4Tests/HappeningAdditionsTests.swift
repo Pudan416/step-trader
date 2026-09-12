@@ -89,10 +89,11 @@ final class HappeningAdditionsTests: XCTestCase {
 
     func testRepeatAdditionsCountSeparatelyTowardEconomy() {
         XCTAssertEqual(HappeningEconomy.points(forAdditionCount: 0), 0)
-        XCTAssertEqual(HappeningEconomy.points(forAdditionCount: 1), 10)
-        XCTAssertEqual(HappeningEconomy.points(forAdditionCount: 2), 20)
-        XCTAssertEqual(HappeningEconomy.points(forAdditionCount: 6), 60)
-        XCTAssertEqual(HappeningEconomy.points(forAdditionCount: 7), 60)
+        XCTAssertEqual(HappeningEconomy.points(forAdditionCount: 1), 6)
+        XCTAssertEqual(HappeningEconomy.points(forAdditionCount: 2), 12)
+        XCTAssertEqual(HappeningEconomy.points(forAdditionCount: 9), 54)
+        XCTAssertEqual(HappeningEconomy.points(forAdditionCount: 10), 60)
+        XCTAssertEqual(HappeningEconomy.points(forAdditionCount: 11), 60)
     }
 
     func testEntryRoundTripsWithoutCategory() throws {
@@ -129,7 +130,7 @@ final class HappeningAdditionsTests: XCTestCase {
         XCTAssertNil(second)
         XCTAssertEqual(model.todayAdditions.map(\.optionId), ["happening_walk"])
         XCTAssertEqual(model.happeningStore.happening(id: "happening_walk")?.useCount, 1)
-        XCTAssertEqual(model.happeningPointsToday, 10)
+        XCTAssertEqual(model.happeningPointsToday, 6)
 
         XCTAssertNotNil(model.addHappening(id: "happening_read", colorHex: "#DDEEFF", at: date))
         XCTAssertEqual(model.todayAdditions.map(\.optionId), ["happening_walk", "happening_read"])

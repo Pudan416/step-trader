@@ -1,75 +1,67 @@
 import SwiftUI
 import UIKit
 
-enum RemovalPhase: Equatable {
+enum HappeningFieldPhase: Equatable {
     case idle
-    case pressing
-    case sinking
+    case previewing
+    case committing
     case reflowing
 }
 
+enum HappeningFieldTapDecision: Equatable {
+    case preview
+    case switchPreview(previousID: String)
+    case commit
+    case ignored
+}
+
 struct HappeningFieldTransitionState: Equatable {
-    private(set) var phase: RemovalPhase = .idle
+    private(set) var phase: HappeningFieldPhase = .idle
     private(set) var selectedID: String?
-    private(set) var queuedIDs: [String] = []
 
-    mutating func beginRemoval(id: String) -> Bool {
-        guard selectedID != id, !queuedIDs.contains(id) else { return false }
-        guard phase == .idle else {
-            queuedIDs.append(id)
-            return true
-        }
-        selectedID = id
-        phase = .pressing
-        return true
-    }
-
-    func isLocked(id: String) -> Bool {
-        selectedID == id || queuedIDs.contains(id)
-    }
-
-    mutating func beginNextQueuedRemoval() -> String? {
-        guard phase == .idle, !queuedIDs.isEmpty else { return nil }
-        let id = queuedIDs.removeFirst()
-        selectedID = id
-        phase = .pressing
-        return id
-    }
-
-    mutating func advanceRemoval(id: String, to nextPhase: RemovalPhase) -> Bool {
-        guard selectedID == id else { return false }
-
-        switch (phase, nextPhase) {
-        case (.pressing, .sinking), (.sinking, .reflowing):
-            phase = nextPhase
-            return true
-        default:
-            return false
+    mutating func handleTap(id: String) -> HappeningFieldTapDecision {
+        switch phase {
+        case .idle:
+            selectedID = id
+            phase = .previewing
+            return .preview
+        case .previewing:
+            if selectedID == id {
+                phase = .committing
+                return .commit
+            }
+            let previousID = selectedID
+            selectedID = id
+            return previousID.map(HappeningFieldTapDecision.switchPreview(previousID:)) ?? .preview
+        case .committing, .reflowing:
+            return .ignored
         }
     }
 
-    mutating func finishRemoval(id: String) -> Bool {
-        guard phase == .reflowing, selectedID == id else { return false }
-        phase = .idle
-        selectedID = nil
-        return true
+    var isInteractionLocked: Bool {
+        phase == .committing || phase == .reflowing
     }
 
-    mutating func resolveBreakthrough(id: String, accepted: Bool) -> Bool {
-        guard phase == .sinking, selectedID == id else { return false }
+    mutating func resolveCommit(id: String, accepted: Bool) -> Bool {
+        guard phase == .committing, selectedID == id else { return false }
         guard accepted else {
-            phase = .idle
-            selectedID = nil
+            phase = .previewing
             return false
         }
         phase = .reflowing
         return true
     }
 
-    mutating func cancelRemoval() {
+    mutating func finishCommit(id: String) -> Bool {
+        guard phase == .reflowing, selectedID == id else { return false }
         phase = .idle
         selectedID = nil
-        queuedIDs.removeAll()
+        return true
+    }
+
+    mutating func cancelSelection() {
+        phase = .idle
+        selectedID = nil
     }
 }
 
@@ -96,13 +88,17 @@ struct HappeningFieldPresentationState: Equatable {
     func layout(
         in size: CGSize,
         safeInsets: EdgeInsets,
-        dynamicTypeSize: DynamicTypeSize = .large
+        dynamicTypeSize: DynamicTypeSize = .large,
+        contentTopInset: CGFloat? = nil,
+        dockCenterY: CGFloat? = nil
     ) -> HappeningFieldLayout.Layout {
         HappeningFieldLayout.layout(
             count: presentedCount,
             in: size,
             safeInsets: safeInsets,
-            dynamicTypeSize: dynamicTypeSize
+            dynamicTypeSize: dynamicTypeSize,
+            contentTopInset: contentTopInset,
+            dockCenterY: dockCenterY
         )
     }
 
@@ -183,9 +179,9 @@ struct HappeningFieldLabelTreatment: Equatable {
             blue: Self.fieldZoneOpacity * blue + (1 - Self.fieldZoneOpacity) * primary.blue
         )
 
-        let blackContrast = (fieldZoneLuminance + 0.05) / 0.05
-        let whiteContrast = 1.05 / (fieldZoneLuminance + 0.05)
-        foreground = blackContrast >= whiteContrast ? .black : .white
+        // Every circle is deliberately lifted into a bright, milky color zone,
+        // so one dark ink treatment stays coherent across the whole field.
+        foreground = .black
     }
 
     var backingColor: Color {
@@ -195,6 +191,21 @@ struct HappeningFieldLabelTreatment: Equatable {
     var fieldZoneColor: Color { backingColor }
 
     var fieldZoneOpacity: Double { Self.fieldZoneOpacity }
+
+    /// Keeps the shared dark ink readable without washing out every circle.
+    /// Only low-luminance color pairs receive the minimum milky lift needed
+    /// to reach 4.5:1 against the actual 90%-opaque ink used by the labels.
+    var circleLiftOpacity: Double {
+        var lift = 0.08
+        while lift < 0.60, contrastRatio(afterWhiteLift: lift) < 4.5 {
+            lift += 0.01
+        }
+        return min(lift, 0.60)
+    }
+
+    var liftedCircleContrastRatio: Double {
+        contrastRatio(afterWhiteLift: circleLiftOpacity)
+    }
 
     /// The radial zone uses the same local two-color mix as the field source.
     /// Its soft edge is translucent; this center value models the pixels under
@@ -210,7 +221,10 @@ struct HappeningFieldLabelTreatment: Equatable {
     }
 
     static func inscribedTextSize(in labelSize: CGSize) -> CGSize {
-        CGSize(width: labelSize.width * 0.86, height: labelSize.height * 0.80)
+        // Words are allowed to breathe beyond their independent tap frames.
+        // This keeps the longest 15-character title intact without enlarging
+        // or overlapping the actual hit regions used by the dense layout.
+        CGSize(width: labelSize.width * 0.88, height: labelSize.height * 0.82)
     }
 
     static func relativeLuminance(ofHex hex: String) -> Double {
@@ -239,22 +253,46 @@ struct HappeningFieldLabelTreatment: Equatable {
         }
         return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
     }
+
+    private func contrastRatio(afterWhiteLift lift: Double) -> Double {
+        let backgroundRed = red * (1 - lift) + lift
+        let backgroundGreen = green * (1 - lift) + lift
+        let backgroundBlue = blue * (1 - lift) + lift
+        let backgroundLuminance = Self.relativeLuminance(
+            red: backgroundRed,
+            green: backgroundGreen,
+            blue: backgroundBlue
+        )
+
+        let inkOpacity = 0.90
+        let inkRed = 16.0 / 255.0
+        let inkGreen = 45.0 / 255.0
+        let inkBlue = 44.0 / 255.0
+        let textLuminance = Self.relativeLuminance(
+            red: inkRed * inkOpacity + backgroundRed * (1 - inkOpacity),
+            green: inkGreen * inkOpacity + backgroundGreen * (1 - inkOpacity),
+            blue: inkBlue * inkOpacity + backgroundBlue * (1 - inkOpacity)
+        )
+        return (max(backgroundLuminance, textLuminance) + 0.05)
+            / (min(backgroundLuminance, textLuminance) + 0.05)
+    }
 }
 
 enum HappeningFieldLabelTypography {
-    static let pointSize: CGFloat = 14
+    static let pointSize: CGFloat = 13
 
     static func maximumLines(for dynamicTypeSize: DynamicTypeSize) -> Int {
-        dynamicTypeSize > .large ? 4 : 3
+        dynamicTypeSize.isAccessibilitySize ? 4 : 2
     }
 
-    static func minimumScaleFactor(for dynamicTypeSize: DynamicTypeSize) -> CGFloat {
-        dynamicTypeSize > .large ? 1 : 0.84
+    static func minimumScaleFactor(for _: DynamicTypeSize) -> CGFloat {
+        1
     }
 
     static func scaledUIFont(for dynamicTypeSize: DynamicTypeSize) -> UIFont {
         AppTypography.scaledUIFont(
             size: pointSize,
+            weight: .semibold,
             relativeTo: .footnote,
             compatibleWith: UITraitCollection(
                 preferredContentSizeCategory: contentSizeCategory(for: dynamicTypeSize)

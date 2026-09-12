@@ -13,6 +13,7 @@ type Props = {
   exporting: boolean;
   seedLabel: string;
   onReroll(): void;
+  onVary?(): void;
   onTogglePaused(): void;
   onCopy(): void;
   onDownload(): void;
@@ -54,6 +55,7 @@ export function ControlDock({
   exporting,
   seedLabel,
   onReroll,
+  onVary,
   onTogglePaused,
   onCopy,
   onDownload,
@@ -64,6 +66,7 @@ export function ControlDock({
         <button className="again-button" type="button" onClick={onReroll}>
           ЕЩЁ <span aria-hidden="true">↗</span>
         </button>
+        {onVary ? <button className="vary-button" type="button" onClick={onVary}>ПОХОЖЕЕ</button> : null}
         <span className="dock-divider" aria-hidden="true" />
         <button
           className="seed-button"

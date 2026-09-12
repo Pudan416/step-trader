@@ -28,6 +28,7 @@ enum HappeningPanelAccessibilityOrder {
 /// sends the complete draft back to the owner for persistence.
 struct HappeningChooserView: View {
     let catalog: [Happening]
+    let onCreateNew: () -> Void
     let onSave: ([String]) -> Void
     let onCancel: () -> Void
 
@@ -37,10 +38,12 @@ struct HappeningChooserView: View {
     init(
         catalog: [Happening],
         selected: [String],
+        onCreateNew: @escaping () -> Void,
         onSave: @escaping ([String]) -> Void,
         onCancel: @escaping () -> Void
     ) {
         self.catalog = catalog
+        self.onCreateNew = onCreateNew
         self.onSave = onSave
         self.onCancel = onCancel
         _draft = State(initialValue: HappeningPaletteSelectionDraft(selected: selected, catalog: catalog))
@@ -104,6 +107,19 @@ struct HappeningChooserView: View {
 
             ScrollView {
                 LazyVStack(spacing: 2) {
+                    Button(action: onCreateNew) {
+                        Label("Add new happening", systemImage: "plus")
+                            .font(.geist(.body).weight(.semibold))
+                            .foregroundStyle(AppColors.brandAccent)
+                            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("happening_list_create_button")
+
+                    Divider()
+                        .padding(.bottom, 4)
+
                     ForEach(filteredCatalog) { happening in
                         chooserRow(for: happening)
                     }
@@ -231,6 +247,7 @@ struct HappeningChooserView: View {
             Happening(id: "legacy_yoga", title: "Yoga", isBuiltIn: false)
         ],
         selected: HappeningDefaults.builtIns.map(\.id),
+        onCreateNew: {},
         onSave: { _ in },
         onCancel: {}
     )

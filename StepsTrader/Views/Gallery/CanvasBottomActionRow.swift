@@ -16,10 +16,14 @@ struct CanvasBottomActionRow: View {
     /// removed from the tree entirely, not merely covered — a panel the user
     /// can't see through must not leave a live hit region under it.
     let isDataPanelOpen: Bool
+    let isHappeningPalettePresented: Bool
+    let morphNamespace: Namespace.ID
     let onFullScreen: () -> Void
-    let onAdd: () -> Void
+    let onOpenHappeningList: () -> Void
+    let onToggleHappeningPalette: () -> Void
 
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var ink: Color { AppColors.Night.textPrimary }
 
@@ -46,7 +50,11 @@ struct CanvasBottomActionRow: View {
     private var content: some View {
         HStack(alignment: .center, spacing: 0) {
             if !isDataPanelOpen {
-                fullScreenControl
+                if isHappeningPalettePresented {
+                    happeningListControl
+                } else {
+                    fullScreenControl
+                }
             }
             Spacer(minLength: 8)
             if !isDataPanelOpen {
@@ -58,6 +66,22 @@ struct CanvasBottomActionRow: View {
         // pull Resting down underneath the floating tab bar.
         .frame(height: 52)
         .environment(\.layoutDirection, .leftToRight)
+    }
+
+    private var happeningListControl: some View {
+        Button(action: onOpenHappeningList) {
+            Image(systemName: "list.bullet")
+                .font(.geist(size: 20, weight: .regular))
+                .foregroundStyle(ink)
+                .frame(width: 48, height: 48)
+                .liquidGlassControl(in: Circle(), style: .lens)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            String(localized: "Choose happenings", comment: "Canvas palette list button")
+        )
+        .accessibilityIdentifier("canvas_palette_list_button")
     }
 
     // MARK: - Left: full screen
@@ -87,18 +111,34 @@ struct CanvasBottomActionRow: View {
     // MARK: - Right: add
 
     private var addControl: some View {
-        Button(action: onAdd) {
+        Button(action: onToggleHappeningPalette) {
             Image(systemName: "plus")
                 .font(.geist(size: 22, weight: .regular))
                 .foregroundStyle(AppAccentInk.primary)
+                .rotationEffect(.degrees(isHappeningPalettePresented ? 45 : 0))
                 .frame(width: 52, height: 52)
-                .background(AppColors.brandAccent, in: Circle())
+                .background(AppColors.brandAccent.opacity(0.32), in: Circle())
+                .liquidGlassControl(
+                    in: Circle(),
+                    style: .lensTinted,
+                    tint: .fixed(AppColors.brandAccent)
+                )
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(String(localized: "Add happening", comment: "Canvas add button"))
-        .accessibilityIdentifier("canvas_add_button")
+        .accessibilityLabel(
+            isHappeningPalettePresented
+                ? String(localized: "Close", comment: "Canvas palette close button")
+                : String(localized: "Add happening", comment: "Canvas add button")
+        )
+        .accessibilityIdentifier(
+            isHappeningPalettePresented ? "canvas_palette_close_button" : "canvas_add_button"
+        )
         .coachMarkAnchor(.tapPlusButton)
+        .animation(
+            reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.78),
+            value: isHappeningPalettePresented
+        )
         // The palette docks on this button's line rather than re-deriving it
         // from tab-bar height and paddings.
         .background(

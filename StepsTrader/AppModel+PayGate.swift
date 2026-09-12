@@ -40,7 +40,8 @@ extension AppModel {
         g.set(Date.now, forKey: SharedKeys.lastGroupPayGateOpen(groupId))
 
         // Create session
-        let session = PayGateSession(id: groupId, groupId: groupId, startedAt: Date.now)
+        let artwork = GateArtworkStore(defaults: g).takeHandoff(for: groupId) ?? .random()
+        let session = PayGateSession(id: groupId, groupId: groupId, startedAt: Date.now, artwork: artwork)
         payGateSessions[groupId] = session
         currentPayGateSessionId = groupId
         

@@ -4,25 +4,70 @@ import XCTest
 @testable import Steps4
 
 final class AppTypographyTests: XCTestCase {
-    func testRequiredGeistMediumInterfaceFontIsRegisteredInTheApplicationBundle() {
+    func testFontLicensesAreIncludedInTheApplicationBundle() throws {
+        for name in ["Onest-OFL", "NowhereDisplay-OFL"] {
+            let url = try XCTUnwrap(Bundle.main.url(forResource: name, withExtension: "txt"))
+            let text = try String(contentsOf: url, encoding: .utf8)
+            XCTAssertTrue(text.contains("SIL OPEN FONT LICENSE"))
+            XCTAssertTrue(text.contains("Copyright"))
+        }
+    }
+
+    func testInterfaceFontScalesWithAccessibilityTextSize() {
+        let standard = AppTypography.scaledUIFont(
+            size: 17,
+            compatibleWith: UITraitCollection(preferredContentSizeCategory: .large)
+        )
+        let accessible = AppTypography.scaledUIFont(
+            size: 17,
+            compatibleWith: UITraitCollection(preferredContentSizeCategory: .accessibilityExtraExtraExtraLarge)
+        )
+        XCTAssertEqual(standard.fontName, "Onest-Regular")
+        XCTAssertEqual(accessible.fontName, "Onest-Regular")
+        XCTAssertGreaterThan(accessible.pointSize, standard.pointSize)
+    }
+
+    @MainActor
+    func testInterfaceWeightsRenderTheirActualOnestFaces() throws {
+        for (weight, name): (Font.Weight, String) in [
+            (.regular, "Onest-Regular"), (.semibold, "Onest-SemiBold"), (.bold, "Onest-Bold")
+        ] {
+            let actual = try renderedImage(Text("Now here · Сейчас 0123").font(.geist(size: 20, weight: weight)))
+            let expected = try renderedImage(Text("Now here · Сейчас 0123").font(.custom(name, fixedSize: 20)))
+            let actualImage = try XCTUnwrap(actual.cgImage)
+            let expectedImage = try XCTUnwrap(expected.cgImage)
+            XCTAssertEqual(actualImage.width, expectedImage.width)
+            XCTAssertEqual(actualImage.height, expectedImage.height)
+            XCTAssertEqual(try rgbaPixels(in: actualImage), try rgbaPixels(in: expectedImage))
+        }
+    }
+
+    func testAllOnestWeightsAreRegisteredWithDistinctFaces() {
+        let styles = ["Thin", "ExtraLight", "Light", "Regular", "Medium", "SemiBold", "Bold", "ExtraBold", "Black"]
+        for style in styles {
+            XCTAssertEqual(UIFont(name: "Onest-\(style)", size: 17)?.fontName, "Onest-\(style)")
+        }
+    }
+
+    func testRequiredOnestRegularInterfaceFontIsRegisteredInTheApplicationBundle() {
         XCTAssertNotNil(
-            UIFont(name: "Geist-Medium", size: 17),
-            "Geist Medium must be bundled and registered before the app can use it as its interface font."
+            UIFont(name: "Onest-Regular", size: 17),
+            "Onest Regular must be bundled and registered before the app can use it as its interface font."
         )
     }
 
-    func testRequiredGeistMonoMediumPosterFontIsRegisteredInTheApplicationBundle() {
+    func testRequiredOnestMediumPosterFontIsRegisteredInTheApplicationBundle() {
         XCTAssertNotNil(
-            UIFont(name: "GeistMono-Medium", size: 12),
-            "Geist Mono Medium must stay bundled for metadata on the Me poster."
+            UIFont(name: "Onest-Medium", size: 12),
+            "Onest Medium must stay bundled for metadata on the Me poster."
         )
     }
 
     @MainActor
-    func testAppBodyTokenRendersTheExactGeistMediumFace() throws {
+    func testAppBodyTokenRendersTheExactOnestRegularFace() throws {
         XCTAssertNotNil(
-            UIFont(name: "Geist-Medium", size: 17),
-            "The exact static Geist Medium face must be available to SwiftUI."
+            UIFont(name: "Onest-Regular", size: 17),
+            "The exact static Onest Regular face must be available to SwiftUI."
         )
 
         let actual = try renderedImage(
@@ -31,7 +76,7 @@ final class AppTypographyTests: XCTestCase {
         )
         let expected = try renderedImage(
             Text("Interface 0123")
-                .font(.custom("Geist-Medium", size: 17, relativeTo: .body))
+                .font(.custom("Onest-Regular", size: 17, relativeTo: .body))
         )
 
         let actualImage = try XCTUnwrap(actual.cgImage)
@@ -40,19 +85,19 @@ final class AppTypographyTests: XCTestCase {
         XCTAssertEqual(actualImage.height, expectedImage.height)
         XCTAssertTrue(
             try rgbaPixels(in: actualImage) == rgbaPixels(in: expectedImage),
-            "The app body token must render the exact Geist Medium face."
+            "The app body token must render the exact Onest Regular face."
         )
     }
 
     @MainActor
-    func testPosterMetadataFontRendersTheExactGeistMonoMediumFace() throws {
+    func testPosterMetadataFontRendersTheExactOnestMediumFace() throws {
         let actual = try renderedImage(
             Text("12,345 steps / 7.5 h. sleep")
                 .font(.geistMono(size: 12, weight: .medium))
         )
         let expected = try renderedImage(
             Text("12,345 steps / 7.5 h. sleep")
-                .font(.custom("GeistMono-Medium", fixedSize: 12))
+                .font(.custom("Onest-Medium", fixedSize: 12))
         )
 
         let actualImage = try XCTUnwrap(actual.cgImage)
@@ -61,26 +106,26 @@ final class AppTypographyTests: XCTestCase {
         XCTAssertEqual(actualImage.height, expectedImage.height)
         XCTAssertTrue(
             try rgbaPixels(in: actualImage) == rgbaPixels(in: expectedImage),
-            "Me poster metadata must keep rendering the exact Geist Mono Medium face."
+            "Me poster metadata must keep rendering the exact Onest Medium face."
         )
     }
 
-    func testRequiredUnboundedInstancesAreRegisteredInTheApplicationBundle() {
+    func testRequiredNowhereDisplayFacesAreRegisteredInTheApplicationBundle() {
         XCTAssertNotNil(
-            UIFont(name: "Unbounded-Regular", size: 24),
-            "The regular Unbounded instance must be bundled and registered by the app target."
+            UIFont(name: "NowhereDisplay04-Regular", size: 24),
+            "The regular Nowhere Display face must be bundled and registered by the app target."
         )
         XCTAssertNotNil(
-            UIFont(name: "Unbounded-Black", size: 24),
-            "The exact static Unbounded Black face used by posters must be registered by the app target."
+            UIFont(name: "NowhereDisplay04-Bold", size: 24),
+            "The exact static Nowhere Display Bold face used by posters must be registered by the app target."
         )
     }
 
     @MainActor
-    func testAppBlackBrandFontRendersTheStaticUnboundedBlackFace() throws {
+    func testAppBlackBrandFontRendersTheStaticNowhereDisplayBoldFace() throws {
         XCTAssertNotNil(
-            UIFont(name: "Unbounded-Black", size: 80),
-            "The static Unbounded Black face must be available before SwiftUI can render it."
+            UIFont(name: "NowhereDisplay04-Bold", size: 80),
+            "The static Nowhere Display Bold face must be available before SwiftUI can render it."
         )
 
         let actual = try renderedImage(
@@ -89,7 +134,7 @@ final class AppTypographyTests: XCTestCase {
         )
         let expected = try renderedImage(
             Text("0")
-                .font(.custom("Unbounded-Black", fixedSize: 80))
+                .font(.custom("NowhereDisplay04-Bold", fixedSize: 80))
         )
 
         let actualImage = try XCTUnwrap(actual.cgImage)
@@ -98,12 +143,12 @@ final class AppTypographyTests: XCTestCase {
         XCTAssertEqual(actualImage.height, expectedImage.height)
         XCTAssertTrue(
             try rgbaPixels(in: actualImage) == rgbaPixels(in: expectedImage),
-            "The app's .black brand font must render the exact static Unbounded Black face."
+            "The app's .black brand font must render the exact static Nowhere Display Bold face."
         )
     }
 
     @MainActor
-    func testGalleryPosterDateMatchesFigmaUnboundedBlackSpec() throws {
+    func testGalleryPosterDateMatchesFigmaNowhereDisplayBoldSpec() throws {
         let date = try XCTUnwrap(
             Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 8, day: 22))
         )
@@ -127,7 +172,7 @@ final class AppTypographyTests: XCTestCase {
 
         let referenceImage = try renderedImage(
             Text("22/08/26")
-                .font(.custom("Unbounded-Black", fixedSize: 40))
+                .font(.custom("NowhereDisplay04-Bold", fixedSize: 40))
         )
         let expectedBounds = try darkPixelBounds(in: try XCTUnwrap(referenceImage.cgImage))
 
@@ -136,7 +181,7 @@ final class AppTypographyTests: XCTestCase {
     }
 
     @MainActor
-    func testMuseumPosterDateRendersTheBlackUnboundedInstance() throws {
+    func testMuseumPosterDateRendersTheBoldNowhereDisplayFace() throws {
         let date = try XCTUnwrap(
             Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 8, day: 22))
         )
@@ -153,7 +198,7 @@ final class AppTypographyTests: XCTestCase {
 
         let blackReference = try renderedImage(
             Text("22/08/26")
-                .font(.custom("Unbounded-Black", fixedSize: 48))
+                .font(.custom("NowhereDisplay04-Bold", fixedSize: 48))
         )
         let expectedInk = try darkPixelCount(in: try XCTUnwrap(blackReference.cgImage))
 

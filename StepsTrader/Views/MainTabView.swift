@@ -240,6 +240,7 @@ struct MainTabView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.35), value: isWideCanvas)
+            .animation(.easeInOut(duration: 0.28), value: hidesSurroundingChromeForPalette)
             .overlay {
                 if selection == Tab.feeds.rawValue {
                     TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
@@ -268,14 +269,16 @@ struct MainTabView: View {
         .overlay(alignment: .top) {
             // Me is where you look back, not where you check your balance — the
             // pill is drawn on canvas and feeds only.
-            if !isWideCanvas, !hidesSurroundingChromeForPalette, selection != Tab.me.rawValue {
+            if !isWideCanvas, selection != Tab.me.rawValue {
                 CanvasEnergyStatusPill(
                     status: CanvasEnergyStatus(
                         stepsBalance: model.userEconomyStore.stepsBalance,
                         baseEnergyToday: model.healthStore.baseEnergyToday,
                         maximum: EnergyDefaults.maxBaseEnergy
                     ),
-                    canPullDataPanel: selection == Tab.canvas.rawValue && canvasPresentation == .canvas,
+                    canPullDataPanel: selection == Tab.canvas.rawValue
+                        && canvasPresentation == .canvas
+                        && !isHappeningPaletteVisible,
                     onPullChanged: { distance in
                         var transaction = Transaction()
                         transaction.animation = nil

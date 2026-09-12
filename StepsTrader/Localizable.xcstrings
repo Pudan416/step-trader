@@ -1930,7 +1930,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Called someone I love"
+            "value" : "Called someone"
           }
         }
       }
@@ -1941,7 +1941,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Did nothing on purpose"
+            "value" : "Did nothing"
           }
         }
       }
@@ -1952,7 +1952,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Drinks with friends"
+            "value" : "Drinks together"
           }
         }
       }

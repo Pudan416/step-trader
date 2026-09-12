@@ -1,4 +1,6 @@
 import type { VisualGenome } from '../generative/types.ts';
+import { FLAT_FRAGMENT_SHADER, FLAT_IDS } from './flat-shaders.ts';
+import { SCULPTURE_FRAGMENT_SHADER } from './sculpture-shader.ts';
 import {
   DIMENSION_IDS,
   FRAGMENT_SHADER_SOURCE,
@@ -24,9 +26,20 @@ function compile(
   return shader;
 }
 
-function link(gl: WebGL2RenderingContext): WebGLProgram {
+function link(
+  gl: WebGL2RenderingContext,
+  kind: 'classic' | 'flat' | 'sculpture' = 'classic',
+): WebGLProgram {
   const vertex = compile(gl, gl.VERTEX_SHADER, VERTEX_SHADER_SOURCE);
-  const fragment = compile(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER_SOURCE);
+  const fragment = compile(
+    gl,
+    gl.FRAGMENT_SHADER,
+    kind === 'sculpture'
+      ? SCULPTURE_FRAGMENT_SHADER
+      : kind === 'flat'
+        ? FLAT_FRAGMENT_SHADER
+        : FRAGMENT_SHADER_SOURCE,
+  );
   const program = gl.createProgram();
   if (!program) throw new Error('Не удалось создать графическую программу');
   gl.attachShader(program, vertex);
@@ -56,7 +69,6 @@ export class WebGLSceneRenderer {
   private program: WebGLProgram | null = null;
   private vao: WebGLVertexArrayObject | null = null;
   private genome: VisualGenome | null = null;
-  private paused = false;
   private lost = false;
   private disposed = false;
   private canvas: HTMLCanvasElement;
@@ -78,7 +90,16 @@ export class WebGLSceneRenderer {
   }
 
   private rebuild(): void {
-    this.program = link(this.gl);
+    if (this.program) this.gl.deleteProgram(this.program);
+    if (this.vao) this.gl.deleteVertexArray(this.vao);
+    this.program = link(
+      this.gl,
+      this.genome?.sculpture
+        ? 'sculpture'
+        : this.genome?.flat
+          ? 'flat'
+          : 'classic',
+    );
     this.vao = this.gl.createVertexArray();
     this.gl.bindVertexArray(this.vao);
     this.gl.useProgram(this.program);
@@ -110,7 +131,14 @@ export class WebGLSceneRenderer {
   private uploadGenome(genome: VisualGenome): void {
     const gl = this.gl;
     gl.useProgram(this.program);
-    gl.uniform1i(this.uniform('u_geometry'), GEOMETRY_IDS[genome.geometry]);
+    gl.uniform1i(
+      this.uniform('u_geometry'),
+      genome.sculpture
+        ? genome.sculpture.model
+        : genome.flat
+          ? FLAT_IDS[genome.flat.family]
+          : GEOMETRY_IDS[genome.geometry],
+    );
     gl.uniform1i(this.uniform('u_material'), MATERIAL_IDS[genome.material]);
     gl.uniform1i(this.uniform('u_dimension'), DIMENSION_IDS[genome.dimension]);
     gl.uniform3fv(this.uniform('u_palette0'), color(genome.palette.background));
@@ -141,16 +169,35 @@ export class WebGLSceneRenderer {
     gl.uniform1f(this.uniform('u_seed'), genome.seed % 65521);
     gl.uniform1f(this.uniform('u_camera'), genome.params.cameraZ);
     gl.uniform1i(this.uniform('u_satellites'), genome.params.satelliteCount);
+    gl.uniform1f(
+      this.uniform('u_frameFit'),
+      genome.identity?.startsWith('3-') ? 1 : 0,
+    );
+    if (genome.sculpture) {
+      const s = genome.sculpture;
+      gl.uniform4fv(this.uniform('u_points[0]'), new Float32Array(s.points));
+      gl.uniform4f(
+        this.uniform('u_surface'),
+        s.section,
+        s.folds,
+        s.twist,
+        s.relief,
+      );
+      gl.uniform1f(this.uniform('u_etching'), s.etching);
+    }
   }
 
   setGenome(genome: VisualGenome): void {
+    const changedEdition =
+      !!this.genome?.flat !== !!genome.flat ||
+      !!this.genome?.sculpture !== !!genome.sculpture;
     this.genome = genome;
+    if (changedEdition && !this.lost) this.rebuild();
     if (!this.lost) this.uploadGenome(genome);
   }
 
-  setPaused(paused: boolean): void {
-    this.paused = paused;
-  }
+  // The stage owns elapsed time and passes the frozen frame while paused.
+  setPaused(_paused: boolean): void {}
 
   resize(width: number, height: number): void {
     if (this.canvas.width !== width) this.canvas.width = width;
@@ -167,7 +214,7 @@ export class WebGLSceneRenderer {
       this.canvas.width,
       this.canvas.height,
     );
-    this.gl.uniform1f(this.uniform('u_time'), this.paused ? 0 : time);
+    this.gl.uniform1f(this.uniform('u_time'), time);
     this.gl.drawArrays(this.gl.TRIANGLES, 0, 3);
   }
 

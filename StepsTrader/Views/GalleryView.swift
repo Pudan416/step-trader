@@ -72,6 +72,8 @@ struct GalleryView: View {
     var onPalettePresentationChange: (Bool) -> Void = { _ in }
     var onPalettePanelPresentationChange: (Bool) -> Void = { _ in }
     @State private var showHappeningPalette = false
+    @State private var happeningPalettePanel: HappeningPalettePanel?
+    @Namespace private var happeningGlassNamespace
     @State private var paletteHappenings: [Happening] = []
     @State private var paletteCatalog: [Happening] = []
     @State private var paletteSelectedIDs: [String] = []
@@ -191,7 +193,10 @@ struct GalleryView: View {
     private var addHintQualifies: Bool { dayCanvas.elements.count < 2 }
 
     private var renderedCanvasElements: [CanvasElement] {
-        spawnPresentation.renderedElements(from: dayCanvas.elements)
+        // The palette temporarily turns the canvas into the selection field.
+        // Newly committed figures stay out of sight until the user closes it.
+        guard !showHappeningPalette else { return [] }
+        return spawnPresentation.renderedElements(from: dayCanvas.elements)
     }
 
     private func refreshHappeningPalette() {
@@ -202,9 +207,10 @@ struct GalleryView: View {
 
     private func openHappeningPalette() {
         metricOverlay = nil
+        happeningPalettePanel = nil
         send(.openHappeningPalette)
         refreshHappeningPalette()
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(reduceMotion ? nil : .spring(response: 0.52, dampingFraction: 0.88)) {
             showHappeningPalette = true
         }
     }
@@ -237,7 +243,8 @@ struct GalleryView: View {
     }
 
     private func closeHappeningPalette() {
-        withAnimation(.easeInOut(duration: 0.18)) {
+        happeningPalettePanel = nil
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.28)) {
             showHappeningPalette = false
         }
     }
@@ -260,29 +267,28 @@ struct GalleryView: View {
                 figures: model.paletteFigures(),
                 catalog: paletteCatalog,
                 selectedIDs: paletteSelectedIDs,
+                activePanel: $happeningPalettePanel,
                 onPick: handlePalettePick,
                 onCreate: handlePaletteCreation,
                 onSaveSelection: handlePaletteSelectionSave,
                 onPanelPresentationChange: onPalettePanelPresentationChange,
                 onDismiss: closeHappeningPalette,
-                onReroll: { model.rerollPaletteFigures() },
                 dayKey: todayKey,
+                morphNamespace: happeningGlassNamespace,
                 dockCenterY: canvasAddButtonCenterY
             )
             .transition(.opacity)
         }
     }
 
-    private func handlePalettePick(_ happening: Happening, origin: CGPoint) -> Bool {
-        // The tile already showed this figure. Spawning anything else would
-        // make the palette a lie, so a missing figure refuses the pick rather
-        // than falling back to a random colour and shape.
+    private func handlePalettePick(_ happening: Happening, origin _: CGPoint) -> Bool {
+        // The second tap commits the exact assignment previewed in the circle.
         guard let figure = model.paletteFigures()[happening.id] else { return false }
         return addAndSpawnHappening(
             optionId: happening.id,
             figure: figure,
             recordUse: true,
-            origin: origin
+            origin: nil
         )
     }
 
@@ -472,12 +478,19 @@ struct GalleryView: View {
         // Controls in overlays — completely decoupled from the canvas/texture
         // ZStack so texture changes never trigger a controls re-layout.
         .overlay {
+            if happeningPalettePanel == nil {
+                happeningPaletteOverlay
+            }
+        }
+        .overlay {
             if !presentation.isWideCanvas,
                HappeningPaletteChromeLayout.showsCanvasControls(
                    isPalettePresented: showHappeningPalette
                ) {
                 canvasControls
                     .padding(.horizontal, controlsGuardRail)
+                    .allowsHitTesting(happeningPalettePanel == nil)
+                    .accessibilityHidden(happeningPalettePanel != nil)
             }
         }
         .overlay {
@@ -515,7 +528,9 @@ struct GalleryView: View {
                 .transaction { $0.animation = nil }
         }
         .overlay {
-            happeningPaletteOverlay
+            if happeningPalettePanel != nil {
+                happeningPaletteOverlay
+            }
         }
         .energyGradientBackground(model: model, showGrain: false)
         .toolbar(.hidden, for: .navigationBar)
@@ -755,7 +770,7 @@ struct GalleryView: View {
 
     private var canvasControls: some View {
         ZStack {
-            if showQuickStartArea && !presentation.isWideCanvas {
+            if !showHappeningPalette, showQuickStartArea && !presentation.isWideCanvas {
                 emptyStateView
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
@@ -777,7 +792,9 @@ struct GalleryView: View {
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
 
-                if !model.pendingActivitySuggestions.isEmpty && !presentation.isWideCanvas {
+                if !showHappeningPalette,
+                   !model.pendingActivitySuggestions.isEmpty,
+                   !presentation.isWideCanvas {
                     ActivitySuggestionBanner(
                         suggestions: model.pendingActivitySuggestions,
                         onAccept: { suggestion in
@@ -801,7 +818,7 @@ struct GalleryView: View {
                     )
                     .padding(.bottom, 14)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else if showAddHint {
+                } else if !showHappeningPalette, showAddHint {
                     addActivityHint
                         .padding(.bottom, 14)
                         .transition(
@@ -893,7 +910,7 @@ struct GalleryView: View {
         // whenever the happening palette is presented, not just when the
         // canvas goes wide.
         if presentation.showsBottomActionRow,
-           HappeningPaletteChromeLayout.showsCanvasControls(isPalettePresented: showHappeningPalette) {
+           !showHappeningPalette {
             VStack(spacing: 0) {
                 CanvasDataPanel(
                     isExpanded: presentation.showsDataPanel,
@@ -937,13 +954,24 @@ struct GalleryView: View {
     private var bottomControlsBar: some View {
         CanvasBottomActionRow(
             isDataPanelOpen: presentation.showsDataPanel,
+            isHappeningPalettePresented: showHappeningPalette,
+            morphNamespace: happeningGlassNamespace,
             onFullScreen: {
                 send(.enterFullScreen)
                 lightHapticTick &+= 1
             },
-            onAdd: {
-                CoachMarkManager.postAction(for: .tapPlusButton)
-                openHappeningPalette()
+            onOpenHappeningList: {
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) {
+                    happeningPalettePanel = .chooser
+                }
+            },
+            onToggleHappeningPalette: {
+                if showHappeningPalette {
+                    closeHappeningPalette()
+                } else {
+                    CoachMarkManager.postAction(for: .tapPlusButton)
+                    openHappeningPalette()
+                }
             }
         )
     }

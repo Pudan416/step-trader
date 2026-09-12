@@ -156,17 +156,31 @@ final class Steps4UITestsLaunchTests: XCTestCase {
 
         attachScreenshot(named: "task7-fix-r1-open-10")
 
-        app.buttons["Choose happenings"].tap()
+        let firstHappening = app.buttons["Made something"]
+        let energyPill = app.otherElements["canvas_energy_pill"]
+        XCTAssertTrue(energyPill.exists)
+        let energyFrameBeforePreview = energyPill.frame
+        firstHappening.tap()
+        XCTAssertTrue(firstHappening.exists, "The first tap must keep the happening as a preview")
+        XCTAssertEqual(firstHappening.value as? String, "Preview. Tap again to add")
+        Thread.sleep(forTimeInterval: 0.6)
+        XCTAssertEqual(energyPill.frame, energyFrameBeforePreview)
+        attachScreenshot(named: "task7-circle-preview")
+        firstHappening.tap()
+        XCTAssertTrue(firstHappening.waitForNonExistence(timeout: 3))
+        Thread.sleep(forTimeInterval: 0.6)
+        let paletteClose = app.buttons["canvas_palette_close_button"]
+        XCTAssertTrue(paletteClose.exists)
+        attachScreenshot(named: "task7-fix-r1-open-9")
+
+        app.buttons["canvas_palette_list_button"].tap()
         XCTAssertTrue(app.staticTexts["Choose happenings"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.textFields["Search happenings"].exists)
-        XCTAssertTrue(app.buttons["Cancel"].isHittable)
-        XCTAssertTrue(app.buttons["Done"].isHittable)
+        XCTAssertTrue(app.buttons["Add new happening"].exists)
         XCTAssertFalse(app.buttons["tab_canvas"].exists)
         attachScreenshot(named: "task7-fix-r1-chooser")
 
-        app.buttons["Cancel"].tap()
-        XCTAssertTrue(app.buttons["Add a happening"].waitForExistence(timeout: 3))
-        app.buttons["Add a happening"].tap()
+        app.buttons["Add new happening"].tap()
 
         let creatorField = app.textFields["What happened?"]
         let addAction = app.buttons["Add to palette"]
@@ -191,21 +205,21 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         let app = launchTask7App()
         openPalette(in: app)
 
-        // Picking closes the palette, so each happening needs it opened again.
-        // That is the behaviour, not a workaround: one tap logs one thing and
-        // hands the canvas back.
+        // The word field stays open while its available vocabulary shrinks.
         for title in task7BuiltInTitles {
             let label = app.buttons[title]
             XCTAssertTrue(label.waitForExistence(timeout: 3), "Missing palette label: \(title)")
             label.tap()
+            XCTAssertTrue(label.exists, "First tap should preview \(title)")
+            label.tap()
             XCTAssertTrue(label.waitForNonExistence(timeout: 3), "Label did not leave field: \(title)")
-            openPalette(in: app)
+            XCTAssertTrue(app.buttons["canvas_palette_close_button"].isHittable, "Palette closed after picking \(title)")
         }
 
         XCTAssertTrue(app.staticTexts["All added for today"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.buttons["Choose happenings"].isHittable)
-        XCTAssertTrue(app.buttons["Close"].isHittable)
-        XCTAssertTrue(app.buttons["Add a happening"].isHittable)
+        XCTAssertTrue(app.buttons["canvas_palette_list_button"].isHittable)
+        XCTAssertTrue(app.buttons["canvas_palette_close_button"].isHittable)
+        XCTAssertTrue(app.buttons["tab_canvas"].isHittable)
         attachScreenshot(named: "task7-fix-r1-all-used")
     }
 
@@ -213,21 +227,20 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         let app = launchTask7App()
         openPalette(in: app)
 
-        // Picking closes the palette, so each happening needs it opened again.
-        // That is the behaviour, not a workaround: one tap logs one thing and
-        // hands the canvas back.
+        // The word field stays open while its available vocabulary shrinks.
         for title in task7BuiltInTitles {
             let label = app.buttons[title]
             XCTAssertTrue(label.waitForExistence(timeout: 3), "Missing palette label: \(title)")
             label.tap()
+            XCTAssertTrue(label.exists, "First tap should preview \(title)")
+            label.tap()
             XCTAssertTrue(label.waitForNonExistence(timeout: 3), "Label did not leave field: \(title)")
-            openPalette(in: app)
+            XCTAssertTrue(app.buttons["canvas_palette_close_button"].isHittable, "Palette closed after picking \(title)")
         }
 
         XCTAssertTrue(app.staticTexts["All added for today"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.buttons["Choose happenings"].isHittable)
-        XCTAssertTrue(app.buttons["Close"].isHittable)
-        XCTAssertTrue(app.buttons["Add a happening"].isHittable)
+        XCTAssertTrue(app.buttons["canvas_palette_list_button"].isHittable)
+        XCTAssertTrue(app.buttons["canvas_palette_close_button"].isHittable)
         attachScreenshot(named: "task7-fix-r2-all-used")
     }
 
@@ -240,12 +253,14 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         }
         attachScreenshot(named: "task7-fix-r1-dynamic-type-open-10")
 
-        app.buttons["Choose happenings"].tap()
+        app.buttons["canvas_palette_list_button"].tap()
         XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["Done"].isHittable)
         app.buttons["Cancel"].tap()
 
-        app.buttons["Add a happening"].tap()
+        app.buttons["canvas_palette_list_button"].tap()
+        XCTAssertTrue(app.buttons["Add new happening"].waitForExistence(timeout: 3))
+        app.buttons["Add new happening"].tap()
         XCTAssertTrue(app.textFields["What happened?"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["Cancel"].isHittable)
         XCTAssertTrue(app.buttons["Add to palette"].exists)
@@ -259,15 +274,14 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         XCTAssertEqual(configuration.value as? String, "accessibility1,standard-contrast")
         openPalette(in: app)
 
-        XCTAssertFalse(app.buttons["tab_canvas"].exists)
+        XCTAssertTrue(app.buttons["tab_canvas"].exists)
         for title in task7BuiltInTitles {
             XCTAssertTrue(app.buttons[title].exists, "Missing full accessibility label: \(title)")
         }
-        XCTAssertTrue(app.buttons["Choose happenings"].isHittable)
-        XCTAssertTrue(app.buttons["Close"].isHittable)
-        XCTAssertTrue(app.buttons["Add a happening"].isHittable)
+        XCTAssertTrue(app.buttons["canvas_palette_list_button"].isHittable)
+        XCTAssertTrue(app.buttons["canvas_palette_close_button"].isHittable)
 
-        app.buttons["Choose happenings"].tap()
+        app.buttons["canvas_palette_list_button"].tap()
         XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["Done"].isHittable)
         app.buttons["Cancel"].tap()
@@ -285,7 +299,9 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         XCTAssertTrue(configuration.waitForExistence(timeout: 8))
         XCTAssertEqual(configuration.value as? String, "accessibility1,increased-contrast")
         openPalette(in: app)
-        app.buttons["Add a happening"].tap()
+        app.buttons["canvas_palette_list_button"].tap()
+        XCTAssertTrue(app.buttons["Add new happening"].waitForExistence(timeout: 3))
+        app.buttons["Add new happening"].tap()
 
         let creatorField = app.textFields["What happened?"]
         let addAction = app.buttons["Add to palette"]
@@ -297,7 +313,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         XCTAssertTrue(addAction.exists)
         XCTAssertFalse(addAction.isEnabled)
         XCTAssertLessThanOrEqual(addAction.frame.maxY, keyboard.frame.minY + 1)
-        XCTAssertFalse(app.buttons["tab_canvas"].exists)
+        XCTAssertTrue(app.buttons["tab_canvas"].exists)
         attachScreenshot(named: "task7-fix-r3-creator-keyboard-accessibility-increased-contrast")
 
         let creatorScroll = app.scrollViews["happening_creator_scroll"]
@@ -322,13 +338,12 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         XCTAssertEqual(configuration.value as? String, "accessibility1,standard-contrast")
         openPalette(in: app)
 
-        XCTAssertFalse(app.buttons["tab_canvas"].exists)
+        XCTAssertTrue(app.buttons["tab_canvas"].exists)
         for title in task7BuiltInTitles {
             XCTAssertTrue(app.buttons[title].exists, "Missing full accessibility label: \(title)")
         }
-        XCTAssertTrue(app.buttons["Choose happenings"].isHittable)
-        XCTAssertTrue(app.buttons["Close"].isHittable)
-        XCTAssertTrue(app.buttons["Add a happening"].isHittable)
+        XCTAssertTrue(app.buttons["canvas_palette_list_button"].isHittable)
+        XCTAssertTrue(app.buttons["canvas_palette_close_button"].isHittable)
         attachScreenshot(named: "task7-fix-r4-dynamic-type-open-10")
     }
 
@@ -342,7 +357,9 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         XCTAssertTrue(configuration.waitForExistence(timeout: 8))
         XCTAssertEqual(configuration.value as? String, "accessibility1,increased-contrast")
         openPalette(in: app)
-        app.buttons["Add a happening"].tap()
+        app.buttons["canvas_palette_list_button"].tap()
+        XCTAssertTrue(app.buttons["Add new happening"].waitForExistence(timeout: 3))
+        app.buttons["Add new happening"].tap()
 
         let creatorField = app.textFields["What happened?"]
         let cancelAction = app.buttons["Cancel"]
@@ -363,7 +380,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
             "the primary action needs visible breathing room inside the creator card"
         )
         XCTAssertLessThanOrEqual(addAction.frame.maxY, keyboard.frame.minY + 1)
-        XCTAssertFalse(app.buttons["tab_canvas"].exists)
+        XCTAssertTrue(app.buttons["tab_canvas"].exists)
         attachScreenshot(named: "task7-fix-r4-creator-keyboard-accessibility-increased-contrast")
     }
 
@@ -372,28 +389,25 @@ final class Steps4UITestsLaunchTests: XCTestCase {
             "Walk",
             "Workout",
             "Slept well",
-            "Called someone I love",
-            "Drinks with friends",
+            "Called someone",
+            "Drinks together",
             "Read",
             "Laughed",
             "Made something",
             "Time outside",
-            "Did nothing on purpose",
+            "Did nothing",
         ]
     }
 
-    /// Shake changes the figures without disturbing anything around them.
-    ///
-    /// What a UI test can see is structure, not silhouettes: the ten tiles
-    /// survive, the dock still has exactly its three buttons, and the hint is
-    /// on screen. That the figures actually changed is a thing for eyes.
-    func testShakeKeepsTheFieldAndTheDockIntact() throws {
+    /// Shape assignments now appear only after a deliberate first tap, so the
+    /// old shake gesture has no affordance and must not disturb the field.
+    func testLegacyShakeFixtureLeavesTheWordFieldIntact() throws {
         let app = launchTask7App(shakeTrigger: true)
         openPalette(in: app)
 
-        XCTAssertTrue(app.staticTexts["Shake to change the shapes"].exists)
+        XCTAssertFalse(app.staticTexts["Shake to change the shapes"].exists)
         for title in task7BuiltInTitles {
-            XCTAssertTrue(app.buttons[title].exists, "Missing tile before shake: \(title)")
+            XCTAssertTrue(app.buttons[title].exists, "Missing word before shake: \(title)")
         }
 
         // The fixture shakes the palette 1.2s after it appears — nothing to
@@ -401,16 +415,15 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         // backdrop and closes the palette instead.
         Thread.sleep(forTimeInterval: 3)
 
-        // Dock first: if the palette closed instead of re-rolling, the tiles
-        // being gone says nothing about the shake.
-        XCTAssertTrue(app.buttons["Choose happenings"].isHittable, "Palette closed")
-        XCTAssertTrue(app.buttons["Close"].isHittable)
-        XCTAssertTrue(app.buttons["Add a happening"].isHittable)
-        XCTAssertTrue(app.staticTexts["Shake to change the shapes"].exists, "Hint gone")
+        // Dock first: if the palette closed, the words being gone says nothing
+        // about whether the obsolete fixture was safely ignored.
+        XCTAssertTrue(app.buttons["canvas_palette_list_button"].isHittable, "Palette closed")
+        XCTAssertTrue(app.buttons["canvas_palette_close_button"].isHittable)
+        XCTAssertFalse(app.staticTexts["Shake to change the shapes"].exists)
         for title in task7BuiltInTitles {
-            XCTAssertTrue(app.buttons[title].exists, "Tile lost on shake: \(title)")
+            XCTAssertTrue(app.buttons[title].exists, "Word lost on shake: \(title)")
         }
-        attachScreenshot(named: "palette-shapes-after-shake")
+        attachScreenshot(named: "palette-words-after-shake")
     }
 
     private func launchTask7App(
@@ -422,6 +435,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         app.launchArguments = [
             "ui-testing",
             "ui-testing-task7",
+            "-uiLab", "none",
             "-AppleLanguages", "(en)",
             "-AppleLocale", "en_US",
         ]
@@ -430,6 +444,14 @@ final class Steps4UITestsLaunchTests: XCTestCase {
             app.launchArguments += [
                 "-UIPreferredContentSizeCategoryName",
                 "UICTContentSizeCategoryAccessibilityM",
+            ]
+        } else {
+            // Simulator accessibility preferences persist between tests. Pin
+            // the default fixture so its screenshots do not accidentally use
+            // the previous accessibility run's expanded two-column layout.
+            app.launchArguments += [
+                "-UIPreferredContentSizeCategoryName",
+                "UICTContentSizeCategoryL",
             ]
         }
         if shakeTrigger {
@@ -450,9 +472,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         let addHappening = app.buttons["Add happening"]
         XCTAssertTrue(addHappening.waitForExistence(timeout: 8))
         addHappening.tap()
-        // The dock, not a happening: once one has been picked it never comes
-        // back, and the palette is just as open without it.
-        XCTAssertTrue(app.buttons["Close"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["canvas_palette_close_button"].waitForExistence(timeout: 5))
     }
 
     private func attachScreenshot(named name: String) {

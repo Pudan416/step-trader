@@ -7,14 +7,35 @@ import {
   type ShaderStageHandle,
 } from '@/app/components/shader-stage';
 import { generateGenome } from '@/app/lib/generative/genome';
-import { newRandomSeed, readSeed, seedHref } from '@/app/lib/seed-url';
+import {
+  generateArtwork,
+  FAMILY_LABELS,
+} from '@/app/lib/generative/flat-genome';
+import {
+  newRandomSeed,
+  readRecipe,
+  recipeHref,
+  type Recipe,
+} from '@/app/lib/seed-url';
 import { titleForGenome } from '@/app/lib/title';
 import { registerGenerateShaderTool } from '@/app/lib/webmcp';
+import {
+  generateCollection,
+  finishLabel,
+} from '@/app/lib/generative/sculpture';
+import type { Collection } from '@/app/lib/generative/types';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 const INITIAL_SEED = 0x8f31c7a2;
 
 export default function Home() {
-  const [seed, setSeed] = useState(INITIAL_SEED);
+  const [recipe, setRecipe] = useState<Recipe>({
+    seed: INITIAL_SEED,
+    version: 3,
+    variation: 0,
+    collection: 'all',
+  });
+  const { seed } = recipe;
   const [paused, setPaused] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [mode, setMode] = useState<'webgl2' | 'canvas2d'>('webgl2');
@@ -22,9 +43,24 @@ export default function Home() {
   const [exporting, setExporting] = useState(false);
   const stageRef = useRef<ShaderStageHandle>(null);
   const messageTimer = useRef<number | null>(null);
-  const genome = useMemo(() => generateGenome(seed), [seed]);
-  const title = useMemo(() => titleForGenome(genome), [genome]);
-  const description = `${title}: ${genome.dimension} ${genome.geometry}, ${genome.material} material`;
+  const genome = useMemo(() => {
+    const g =
+      recipe.version === 3
+        ? generateCollection(seed, recipe.variation, recipe.collection)
+        : recipe.version === 2
+          ? generateArtwork(seed, recipe.variation)
+          : generateGenome(seed);
+    return {
+      ...g,
+      identity: `${recipe.version}-${seed}-${recipe.variation}-${recipe.collection ?? ''}`,
+    };
+  }, [seed, recipe]);
+  const title = useMemo(
+    () =>
+      genome.flat || genome.sculpture ? genome.title : titleForGenome(genome),
+    [genome],
+  );
+  const description = `${title}: ${genome.sculpture ? 'скульптурная форма' : genome.geometry}, ${finishLabel(genome)}, вариация ${recipe.variation + 1}`;
 
   const announce = useCallback((value: string) => {
     setMessage(value);
@@ -32,19 +68,46 @@ export default function Home() {
     messageTimer.current = window.setTimeout(() => setMessage(''), 2200);
   }, []);
 
-  const applySeed = useCallback((nextSeed: number) => {
-    setSeed(nextSeed >>> 0);
+  const applyRecipe = useCallback((next: Recipe) => {
+    setRecipe(next);
     window.history.replaceState(
       null,
       '',
-      seedHref(nextSeed, new URL(window.location.href)),
+      recipeHref(next, new URL(window.location.href)),
     );
   }, []);
 
   const reroll = useCallback(() => {
-    applySeed(newRandomSeed());
+    let nextSeed = newRandomSeed();
+    for (let i = 0; i < 16; i++) {
+      const next = generateCollection(nextSeed, 0, recipe.collection);
+      if (
+        next.sculpture?.model !== genome.sculpture?.model ||
+        next.geometry !== genome.geometry ||
+        next.material !== genome.material
+      )
+        break;
+      nextSeed = newRandomSeed();
+    }
+    applyRecipe({
+      seed: nextSeed,
+      version: 3,
+      variation: 0,
+      collection: recipe.collection ?? 'all',
+    });
     announce('Новая форма');
-  }, [announce, applySeed]);
+  }, [announce, applyRecipe, genome, recipe.collection]);
+
+  const vary = useCallback(() => {
+    applyRecipe({
+      ...recipe,
+      seed,
+      version: recipe.version === 1 ? 3 : recipe.version,
+      collection: recipe.version === 1 ? 'classic' : recipe.collection,
+      variation: (recipe.variation + 1) % 1000000,
+    });
+    announce('Новая вариация');
+  }, [announce, applyRecipe, recipe, seed]);
 
   const handleStageError = useCallback(
     (error: string) => {
@@ -55,9 +118,15 @@ export default function Home() {
   );
 
   useEffect(() => {
-    const urlSeed = readSeed(window.location.search);
-    if (urlSeed !== null) setSeed(urlSeed);
-    else applySeed(INITIAL_SEED);
+    const urlRecipe = readRecipe(window.location.search);
+    if (urlRecipe !== null) setRecipe(urlRecipe);
+    else
+      applyRecipe({
+        seed: INITIAL_SEED,
+        version: 3,
+        variation: 0,
+        collection: 'all',
+      });
     const query = window.matchMedia('(prefers-reduced-motion: reduce)');
     const update = () => {
       setReducedMotion(query.matches);
@@ -66,7 +135,7 @@ export default function Home() {
     update();
     query.addEventListener('change', update);
     return () => query.removeEventListener('change', update);
-  }, [applySeed]);
+  }, [applyRecipe]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -87,15 +156,25 @@ export default function Home() {
     () =>
       registerGenerateShaderTool(({ seed: requestedSeed }) => {
         const nextSeed = requestedSeed ?? newRandomSeed();
-        applySeed(nextSeed);
-        const nextGenome = generateGenome(nextSeed);
-        return { seed: nextSeed, title: titleForGenome(nextGenome) };
+        applyRecipe({
+          seed: nextSeed,
+          version: 3,
+          variation: 0,
+          collection: recipe.collection ?? 'all',
+        });
+        const nextGenome = generateCollection(nextSeed, 0, recipe.collection);
+        return {
+          seed: nextSeed,
+          title: nextGenome.sculpture
+            ? nextGenome.title
+            : titleForGenome(nextGenome),
+        };
       }),
-    [applySeed],
+    [applyRecipe, recipe.collection],
   );
 
   const copyLink = async () => {
-    const link = seedHref(seed, new URL(window.location.href));
+    const link = recipeHref(recipe, new URL(window.location.href));
     try {
       await navigator.clipboard.writeText(link);
     } catch {
@@ -119,7 +198,7 @@ export default function Home() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `shader-roulette-${seed.toString(16).toUpperCase().padStart(8, '0')}.png`;
+      anchor.download = `shader-roulette-${seed.toString(16).toUpperCase().padStart(8, '0')}-v${recipe.version}-${recipe.variation}.png`;
       anchor.click();
       URL.revokeObjectURL(url);
       announce('PNG готов');
@@ -133,7 +212,9 @@ export default function Home() {
   };
 
   return (
-    <main className="roulette-shell">
+    <main
+      className={`roulette-shell ${genome.flat ? 'flat-edition' : ''} ${recipe.version === 3 ? 'sculpture-edition' : ''}`}
+    >
       <ShaderStage
         ref={stageRef}
         genome={genome}
@@ -146,11 +227,46 @@ export default function Home() {
       />
       <header className="site-header">
         <p className="wordmark">SHADER ROULETTE</p>
-        <p className="counter">∞ / {genome.geometry.toUpperCase()}</p>
+        <p className="counter">
+          {recipe.version === 3
+            ? `${genome.sculpture ? 'STUDY' : 'CLASSIC'} / ${String(recipe.variation + 1).padStart(2, '0')}`
+            : genome.flat
+              ? `${FAMILY_LABELS[genome.flat.family]} / ${String(recipe.variation + 1).padStart(2, '0')}`
+              : `∞ / ${genome.geometry.toUpperCase()}`}
+        </p>
       </header>
+      <ToggleGroup
+        className="collection-switch"
+        aria-label="Коллекция форм"
+        value={[
+          recipe.version === 3
+            ? (recipe.collection ?? 'all')
+            : recipe.version === 1
+              ? 'classic'
+              : 'archive',
+        ]}
+        onValueChange={(values) => {
+          const collection = values[0] as Collection | undefined;
+          if (collection)
+            applyRecipe({
+              seed: newRandomSeed(),
+              version: 3,
+              variation: 0,
+              collection,
+            });
+        }}
+      >
+        <ToggleGroupItem value="all">Все</ToggleGroupItem>
+        <ToggleGroupItem value="new">Новые</ToggleGroupItem>
+        <ToggleGroupItem value="classic">Классика</ToggleGroupItem>
+      </ToggleGroup>
       <section className="identity" aria-live="polite">
         <p className="eyebrow">
-          {genome.dimension} · {genome.material}
+          {genome.sculpture
+            ? `${finishLabel(genome)} · ${genome.sculpture.etching > 0.1 ? 'Гравировка' : 'Поверхность'}`
+            : genome.flat
+              ? `Архив плоских форм · ${genome.material === 'contour' ? 'Контур' : genome.material === 'film' ? 'Перелив' : genome.material === 'matte' ? 'Мягкий цвет' : 'Заливка'}`
+              : `${genome.dimension} · ${genome.material}`}
         </p>
         <h1>{title}</h1>
       </section>
@@ -162,6 +278,7 @@ export default function Home() {
         exporting={exporting}
         seedLabel={`#${seed.toString(16).toUpperCase().slice(-4).padStart(4, '0')}`}
         onReroll={reroll}
+        onVary={vary}
         onTogglePaused={() => setPaused((value) => !value)}
         onCopy={copyLink}
         onDownload={download}

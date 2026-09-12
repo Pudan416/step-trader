@@ -102,7 +102,7 @@ struct CanvasPaletteRouteState: Equatable {
         isCanvasSelected: Bool,
         isPaletteVisible: Bool
     ) -> Bool {
-        isCanvasSelected && isPaletteVisible
+        false
     }
 
     static func shouldClosePalette(

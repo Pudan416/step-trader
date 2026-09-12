@@ -138,6 +138,18 @@ struct SettingsAboutPage: View {
                         .buttonStyle(MattePressStyle())
                     }
                     .padding(.horizontal, 16)
+
+                    NavigationLink {
+                        FontLicensesPage(model: model)
+                    } label: {
+                        SettingsLinkRow(
+                            icon: "textformat",
+                            title: String(localized: "Font licenses"),
+                            detail: "Onest · Nowhere Display"
+                        )
+                    }
+                    .buttonStyle(MattePressStyle())
+                    .padding(.horizontal, 16)
                 }
                 .padding(.bottom, 80)
             }
@@ -148,6 +160,53 @@ struct SettingsAboutPage: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .detailSwipeBack()
+    }
+}
+
+private struct FontLicensesPage: View {
+    @ObservedObject var model: AppModel
+    @Environment(\.topCardHeight) private var topCardHeight
+    @Environment(\.appTheme) private var theme
+
+    private let fonts = [
+        (name: "Onest", resource: "Onest-OFL"),
+        (name: "Nowhere Display", resource: "NowhereDisplay-OFL"),
+    ]
+
+    var body: some View {
+        ZStack {
+            SettingsGradientBG(model: model)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 28) {
+                    DetailHeader(title: String(localized: "Font licenses"))
+                    ForEach(fonts, id: \.resource) { font in
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(font.name)
+                                .font(.onest(.headline))
+                            Text(license(named: font.resource))
+                                .font(.onest(.footnote))
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+                .foregroundStyle(theme.adaptivePrimaryText)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 80)
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            Color.clear.frame(height: topCardHeight)
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .detailSwipeBack()
+    }
+
+    private func license(named name: String) -> String {
+        guard let url = Bundle.main.url(forResource: name, withExtension: "txt"),
+              let text = try? String(contentsOf: url, encoding: .utf8) else {
+            return String(localized: "License unavailable")
+        }
+        return text
     }
 }
 

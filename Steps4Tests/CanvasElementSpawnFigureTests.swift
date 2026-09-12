@@ -28,6 +28,16 @@ final class CanvasElementSpawnFigureTests: XCTestCase {
 
         XCTAssertEqual(element.frozenShapeType, .snowflake)
         XCTAssertEqual(element.hexColor, "#EF9F27")
+        let preview = HappeningShapeTile.previewElement(
+            optionId: "happening_walk",
+            label: "Walk",
+            shapeType: .snowflake,
+            colorHex: "#EF9F27",
+            seed: 99,
+            rotation: 1.25
+        )
+        XCTAssertNotNil(element.hexColor2)
+        XCTAssertEqual(element.hexColor2, preview.hexColor2)
         XCTAssertEqual(element.shapeSeed, 99)
         XCTAssertEqual(element.userRotation, 1.25, accuracy: 0.0001)
     }

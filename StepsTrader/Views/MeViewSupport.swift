@@ -350,8 +350,8 @@ enum MePosterRailLayout {
 
 enum MePosterHappeningsLayout {
     private static func font(size: CGFloat) -> UIFont {
-        UIFont(name: "GeistMono-Medium", size: size)
-            ?? UIFont.monospacedSystemFont(ofSize: size, weight: .medium)
+        UIFont(name: AppTypography.interfacePostScriptName(for: .regular), size: size)
+            ?? UIFont.systemFont(ofSize: size, weight: .regular)
     }
 
     static func lineCount(

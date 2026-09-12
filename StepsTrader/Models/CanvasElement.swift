@@ -352,14 +352,21 @@ struct CanvasElement: Identifiable, Codable {
         // colour from the day's composition rather than all 29 swatches.
         let color = figure?.colorHex ?? composition.color(forRank: rank)
 
-        // ~60% two-colour, ~40% single-colour — restores the variety the old
-        // `randomSecondColor` (~50% nil) gave, deterministically. Every
-        // element getting a gradient made the canvas busier than intended;
-        // `hexColor2`'s own doc comment still says "Nil = solid single color".
-        var secondColourRng = SeededRNG.derived(from: seed, domain: "secondColour")
-        let hexColor2 = secondColourRng.nextDouble() < 0.6
-            ? composition.color(forRank: rank + 1)
-            : nil
+        // A palette figure keeps the exact two-colour material shown in its
+        // source circle. Other entry points retain the canvas's quieter 60/40
+        // gradient-to-solid mix.
+        let hexColor2: String?
+        if figure != nil {
+            hexColor2 = CanvasColorPalette.happeningGradientSecondColor(
+                seed: seed,
+                primary: color
+            )
+        } else {
+            var secondColourRng = SeededRNG.derived(from: seed, domain: "secondColour")
+            hexColor2 = secondColourRng.nextDouble() < 0.6
+                ? composition.color(forRank: rank + 1)
+                : nil
+        }
 
         var motionRng = SeededRNG.derived(from: seed, domain: "motion")
         let opacityRange = composition.opacityRange(forRank: rank)

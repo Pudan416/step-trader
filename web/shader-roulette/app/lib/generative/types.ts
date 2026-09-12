@@ -33,6 +33,9 @@ export type RareMutation =
   | 'flatland';
 
 export type VisualGenome = {
+  sculpture?: Sculpture;
+  identity?: string;
+  flat?: { family: FlatFamily; variation: number };
   seed: number;
   dimension: DimensionMode;
   geometry: GeometryFamily;
@@ -56,4 +59,25 @@ export type VisualGenome = {
   motion: { tempo: number; breathe: number; orbit: number; phase: number };
   rareMutation: [] | [RareMutation];
   title: string;
+};
+
+export type FlatFamily =
+  | 'rosette'
+  | 'spark'
+  | 'organism'
+  | 'loop'
+  | 'crescent'
+  | 'emblem'
+  | 'fan'
+  | 'ribbon';
+
+export type Collection = 'all' | 'new' | 'classic';
+export type Sculpture = {
+  model: number;
+  points: number[];
+  section: number;
+  folds: number;
+  twist: number;
+  relief: number;
+  etching: number;
 };

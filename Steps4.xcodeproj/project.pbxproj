@@ -7,14 +7,21 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A70FE0020000000000000001 /* Onest-Black.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000001 /* Onest-Black.ttf */; };
+		A70FE0020000000000000002 /* Onest-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000002 /* Onest-Bold.ttf */; };
+		A70FE0020000000000000003 /* Onest-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000003 /* Onest-ExtraBold.ttf */; };
+		A70FE0020000000000000004 /* Onest-ExtraLight.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000004 /* Onest-ExtraLight.ttf */; };
+		A70FE0020000000000000005 /* Onest-Light.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000005 /* Onest-Light.ttf */; };
+		A70FE0020000000000000006 /* Onest-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000006 /* Onest-Medium.ttf */; };
+		A70FE0020000000000000007 /* Onest-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000007 /* Onest-Regular.ttf */; };
+		A70FE0020000000000000008 /* Onest-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000008 /* Onest-SemiBold.ttf */; };
+		A70FE0020000000000000009 /* Onest-Thin.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000009 /* Onest-Thin.ttf */; };
+		A70FE002000000000000000A /* NowhereDisplay04-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE001000000000000000A /* NowhereDisplay04-Regular.ttf */; };
+		A70FE002000000000000000B /* NowhereDisplay04-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE001000000000000000B /* NowhereDisplay04-Bold.ttf */; };
+		A70FE002000000000000000C /* Onest-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = A70FE001000000000000000C /* Onest-OFL.txt */; };
+		A70FE002000000000000000D /* NowhereDisplay-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = A70FE001000000000000000D /* NowhereDisplay-OFL.txt */; };
 		D0B100000000000000000002 /* DayObjectSceneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000001 /* DayObjectSceneTests.swift */; };
 		91F0A0023100000000000002 /* AppTypographyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91F0A0013100000000000001 /* AppTypographyTests.swift */; };
-		91F0A0043100000000000004 /* Unbounded[wght].ttf in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A0033100000000000003 /* Unbounded[wght].ttf */; };
-		91F0A0063100000000000006 /* Unbounded-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A0053100000000000005 /* Unbounded-OFL.txt */; };
-		91F0A0083100000000000008 /* Unbounded-Black.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A0073100000000000007 /* Unbounded-Black.ttf */; };
-		91F0A00A310000000000000A /* GeistMono-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A0093100000000000009 /* GeistMono-Medium.ttf */; };
-		91F0A00C310000000000000C /* GeistMono-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A00B310000000000000B /* GeistMono-OFL.txt */; };
-		91F0A00E310000000000000E /* Geist-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 91F0A00D310000000000000D /* Geist-Medium.ttf */; };
 		A16C90010000000000000001 /* ExperimentalFeatures.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000001 /* ExperimentalFeatures.swift */; };
 		A16C90010000000000000002 /* RichFigureModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000002 /* RichFigureModels.swift */; };
 		A16C90010000000000000003 /* RichFigureAssignment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C80010000000000000003 /* RichFigureAssignment.swift */; };
@@ -366,6 +373,13 @@
 		CA51B0210000000000000021 /* CanvasSimplificationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0210000000000000021 /* CanvasSimplificationUITests.swift */; };
 		WK000001AAAA000100000001 /* AppModel+WorkoutSuggestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = WK000001AAAA000100000002 /* AppModel+WorkoutSuggestions.swift */; };
 		WK000002AAAA000200000001 /* WorkoutSuggestionBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WK000002AAAA000200000002 /* WorkoutSuggestionBanner.swift */; };
+		A71000000000000000000011 /* GateArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000001 /* GateArtwork.swift */; };
+		A71000000000000000000012 /* GateArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000001 /* GateArtwork.swift */; };
+		A71000000000000000000013 /* GateArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000001 /* GateArtwork.swift */; };
+		A71000000000000000000014 /* GateArtworkRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000002 /* GateArtworkRenderer.swift */; };
+		A71000000000000000000015 /* GateArtworkRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000002 /* GateArtworkRenderer.swift */; };
+		A71000000000000000000016 /* GradientPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 008E480BBB86AEC405B9C2EE /* GradientPalette.swift */; };
+		A71000000000000000000017 /* GateArtworkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000003 /* GateArtworkTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -431,14 +445,21 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A70FE0010000000000000001 /* Onest-Black.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-Black.ttf"; sourceTree = "<group>"; };
+		A70FE0010000000000000002 /* Onest-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-Bold.ttf"; sourceTree = "<group>"; };
+		A70FE0010000000000000003 /* Onest-ExtraBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-ExtraBold.ttf"; sourceTree = "<group>"; };
+		A70FE0010000000000000004 /* Onest-ExtraLight.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-ExtraLight.ttf"; sourceTree = "<group>"; };
+		A70FE0010000000000000005 /* Onest-Light.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-Light.ttf"; sourceTree = "<group>"; };
+		A70FE0010000000000000006 /* Onest-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-Medium.ttf"; sourceTree = "<group>"; };
+		A70FE0010000000000000007 /* Onest-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-Regular.ttf"; sourceTree = "<group>"; };
+		A70FE0010000000000000008 /* Onest-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-SemiBold.ttf"; sourceTree = "<group>"; };
+		A70FE0010000000000000009 /* Onest-Thin.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-Thin.ttf"; sourceTree = "<group>"; };
+		A70FE001000000000000000A /* NowhereDisplay04-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "NowhereDisplay04-Regular.ttf"; sourceTree = "<group>"; };
+		A70FE001000000000000000B /* NowhereDisplay04-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "NowhereDisplay04-Bold.ttf"; sourceTree = "<group>"; };
+		A70FE001000000000000000C /* Onest-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Onest-OFL.txt"; sourceTree = "<group>"; };
+		A70FE001000000000000000D /* NowhereDisplay-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "NowhereDisplay-OFL.txt"; sourceTree = "<group>"; };
 		D0B100000000000000000001 /* DayObjectSceneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectSceneTests.swift; sourceTree = "<group>"; };
 		91F0A0013100000000000001 /* AppTypographyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppTypographyTests.swift; path = Steps4Tests/AppTypographyTests.swift; sourceTree = SOURCE_ROOT; };
-		91F0A0033100000000000003 /* Unbounded[wght].ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Unbounded[wght].ttf"; sourceTree = "<group>"; };
-		91F0A0053100000000000005 /* Unbounded-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Unbounded-OFL.txt"; sourceTree = "<group>"; };
-		91F0A0073100000000000007 /* Unbounded-Black.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Unbounded-Black.ttf"; sourceTree = "<group>"; };
-		91F0A0093100000000000009 /* GeistMono-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "GeistMono-Medium.ttf"; sourceTree = "<group>"; };
-		91F0A00B310000000000000B /* GeistMono-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "GeistMono-OFL.txt"; sourceTree = "<group>"; };
-		91F0A00D310000000000000D /* Geist-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Geist-Medium.ttf"; sourceTree = "<group>"; };
 		A16C80010000000000000001 /* ExperimentalFeatures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExperimentalFeatures.swift; sourceTree = "<group>"; };
 		A16C80010000000000000002 /* RichFigureModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFigureModels.swift; sourceTree = "<group>"; };
 		A16C80010000000000000003 /* RichFigureAssignment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichFigureAssignment.swift; sourceTree = "<group>"; };
@@ -786,6 +807,9 @@
 		CA51F0210000000000000021 /* CanvasSimplificationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasSimplificationUITests.swift; sourceTree = "<group>"; };
 		WK000001AAAA000100000002 /* AppModel+WorkoutSuggestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+WorkoutSuggestions.swift"; sourceTree = "<group>"; };
 		WK000002AAAA000200000002 /* WorkoutSuggestionBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSuggestionBanner.swift; sourceTree = "<group>"; };
+		A71000000000000000000001 /* GateArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GateArtwork.swift; path = Shared/GateArtwork.swift; sourceTree = SOURCE_ROOT; };
+		A71000000000000000000002 /* GateArtworkRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GateArtworkRenderer.swift; path = Shared/GateArtworkRenderer.swift; sourceTree = SOURCE_ROOT; };
+		A71000000000000000000003 /* GateArtworkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GateArtworkTests.swift; path = Steps4Tests/GateArtworkTests.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -1258,6 +1282,8 @@
 			isa = PBXGroup;
 			children = (
 				20DB000A2F85000000000001 /* DayBoundary.swift */,
+				A71000000000000000000001 /* GateArtwork.swift */,
+				A71000000000000000000002 /* GateArtworkRenderer.swift */,
 				20AA247F2F70BD6F002F2F2C /* ShieldRebuildHelper.swift */,
 			);
 			path = Shared;
@@ -1323,12 +1349,19 @@
 		20F0NT032FFF040000000003 /* Fonts */ = {
 			isa = PBXGroup;
 			children = (
-				91F0A00D310000000000000D /* Geist-Medium.ttf */,
-				91F0A0093100000000000009 /* GeistMono-Medium.ttf */,
-				91F0A00B310000000000000B /* GeistMono-OFL.txt */,
-				91F0A0033100000000000003 /* Unbounded[wght].ttf */,
-				91F0A0073100000000000007 /* Unbounded-Black.ttf */,
-				91F0A0053100000000000005 /* Unbounded-OFL.txt */,
+				A70FE0010000000000000001 /* Onest-Black.ttf */,
+				A70FE0010000000000000002 /* Onest-Bold.ttf */,
+				A70FE0010000000000000003 /* Onest-ExtraBold.ttf */,
+				A70FE0010000000000000004 /* Onest-ExtraLight.ttf */,
+				A70FE0010000000000000005 /* Onest-Light.ttf */,
+				A70FE0010000000000000006 /* Onest-Medium.ttf */,
+				A70FE0010000000000000007 /* Onest-Regular.ttf */,
+				A70FE0010000000000000008 /* Onest-SemiBold.ttf */,
+				A70FE0010000000000000009 /* Onest-Thin.ttf */,
+				A70FE001000000000000000A /* NowhereDisplay04-Regular.ttf */,
+				A70FE001000000000000000B /* NowhereDisplay04-Bold.ttf */,
+				A70FE001000000000000000C /* Onest-OFL.txt */,
+				A70FE001000000000000000D /* NowhereDisplay-OFL.txt */,
 			);
 			path = Fonts;
 			sourceTree = "<group>";
@@ -1433,6 +1466,7 @@
 				CM7A00CM7A00CM7A00F003 /* CoachMarkTourTests.swift */,
 				T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */,
 				201816132F33C8CC0006B350 /* DayBoundaryTests.swift */,
+				A71000000000000000000003 /* GateArtworkTests.swift */,
 				20095A8A2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift */,
 				AA000003AAAA000300000002 /* HealthKitTests.swift */,
 				20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */,
@@ -1748,12 +1782,19 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				91F0A00E310000000000000E /* Geist-Medium.ttf in Resources */,
-				91F0A00A310000000000000A /* GeistMono-Medium.ttf in Resources */,
-				91F0A00C310000000000000C /* GeistMono-OFL.txt in Resources */,
-				91F0A0043100000000000004 /* Unbounded[wght].ttf in Resources */,
-				91F0A0083100000000000008 /* Unbounded-Black.ttf in Resources */,
-				91F0A0063100000000000006 /* Unbounded-OFL.txt in Resources */,
+				A70FE0020000000000000001 /* Onest-Black.ttf in Resources */,
+				A70FE0020000000000000002 /* Onest-Bold.ttf in Resources */,
+				A70FE0020000000000000003 /* Onest-ExtraBold.ttf in Resources */,
+				A70FE0020000000000000004 /* Onest-ExtraLight.ttf in Resources */,
+				A70FE0020000000000000005 /* Onest-Light.ttf in Resources */,
+				A70FE0020000000000000006 /* Onest-Medium.ttf in Resources */,
+				A70FE0020000000000000007 /* Onest-Regular.ttf in Resources */,
+				A70FE0020000000000000008 /* Onest-SemiBold.ttf in Resources */,
+				A70FE0020000000000000009 /* Onest-Thin.ttf in Resources */,
+				A70FE002000000000000000A /* NowhereDisplay04-Regular.ttf in Resources */,
+				A70FE002000000000000000B /* NowhereDisplay04-Bold.ttf in Resources */,
+				A70FE002000000000000000C /* Onest-OFL.txt in Resources */,
+				A70FE002000000000000000D /* NowhereDisplay-OFL.txt in Resources */,
 				2089F0BF2E71A18F00ABF5FA /* Preview Assets.xcassets in Resources */,
 				20E3AE142F3F6C1C007CF1EC /* Assets.xcassets in Resources */,
 				20F6C0022F3E100100000002 /* Localizable.xcstrings in Resources */,
@@ -1798,6 +1839,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				20B0A3592E8C65E700D5EBE4 /* SharedKeys.swift in Sources */,
+				A71000000000000000000012 /* GateArtwork.swift in Sources */,
+				A71000000000000000000015 /* GateArtworkRenderer.swift in Sources */,
+				A71000000000000000000016 /* GradientPalette.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1806,6 +1850,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				20B0A35A2E8C65E700D5EBE4 /* SharedKeys.swift in Sources */,
+				A71000000000000000000013 /* GateArtwork.swift in Sources */,
 				20DB000F2F85000000000006 /* ShieldRebuildHelper.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1889,6 +1934,8 @@
 				2061EBA32F269D19009FEC24 /* AppSelectionComponents.swift in Sources */,
 				20B0A3542E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift in Sources */,
 				20B0A3562E8C65E700D5EBE4 /* SharedKeys.swift in Sources */,
+				A71000000000000000000011 /* GateArtwork.swift in Sources */,
+				A71000000000000000000014 /* GateArtworkRenderer.swift in Sources */,
 				2089F0EE2E71AE3400ABF5FA /* HealthKitService.swift in Sources */,
 				30A1D1B12F3C000100000003 /* DayEndSettingsView.swift in Sources */,
 				30A1D1B32F3C000100000005 /* NotificationSettingsView.swift in Sources */,
@@ -2089,6 +2136,7 @@
 				A16C9001000000000000000A /* RichFigureGeometryTests.swift in Sources */,
 				AA000001AA000001AA000002 /* SharedMocks.swift in Sources */,
 				201816142F33C8CC0006B350 /* DayBoundaryTests.swift in Sources */,
+				A71000000000000000000017 /* GateArtworkTests.swift in Sources */,
 				T1E5T5B22E71A18F00ABF5FA /* BudgetEngineTests.swift in Sources */,
 				PREF5702570057005700B002 /* PreferencesStoreTests.swift in Sources */,
 				CM7A00CM7A00CM7A00B003 /* CoachMarkTourTests.swift in Sources */,

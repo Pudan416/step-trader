@@ -1,0 +1,816 @@
+<div id="random-gradient-circle-toolkit">
+  <div class="rgc-stage">
+    <svg id="rgc-svg" viewBox="0 0 640 640" role="img" aria-labelledby="rgc-title rgc-description">
+      <title id="rgc-title">Случайный градиентный круг</title>
+      <desc id="rgc-description">Мягкая многоцветная композиция внутри круглой формы</desc>
+      <defs id="rgc-defs"></defs>
+      <g id="rgc-artwork"></g>
+    </svg>
+  </div>
+
+  <div class="viz-controls rgc-controls" aria-label="Управление генератором">
+    <button id="rgc-generate" class="btn btn-primary" type="button">
+      <i data-lucide="sparkles" aria-hidden="true"></i>
+      Сгенерировать
+    </button>
+    <button id="rgc-recolor" class="btn" type="button">
+      <i data-lucide="palette" aria-hidden="true"></i>
+      Перекрасить
+    </button>
+    <button id="rgc-export" class="btn" type="button">
+      <i data-lucide="download" aria-hidden="true"></i>
+      Экспорт JSON
+    </button>
+  </div>
+
+  <p id="rgc-status" class="sr-only" aria-live="polite"></p>
+</div>
+
+<style>
+  #random-gradient-circle-toolkit {
+    width: 100%;
+    display: grid;
+    justify-items: center;
+    gap: calc(var(--font-size-base) * 1.1);
+  }
+
+  #random-gradient-circle-toolkit .rgc-stage {
+    width: min(100%, 31rem);
+    aspect-ratio: 1;
+  }
+
+  #random-gradient-circle-toolkit #rgc-svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+
+  #random-gradient-circle-toolkit .rgc-controls {
+    justify-content: center;
+  }
+
+  @media (max-width: 420px) {
+    #random-gradient-circle-toolkit .rgc-stage {
+      width: min(100%, 20rem);
+    }
+  }
+</style>
+
+<script>
+  (() => {
+    const root = document.getElementById("random-gradient-circle-toolkit");
+    const svg = root.querySelector("#rgc-svg");
+    const defs = root.querySelector("#rgc-defs");
+    const artwork = root.querySelector("#rgc-artwork");
+    const generateButton = root.querySelector("#rgc-generate");
+    const recolorButton = root.querySelector("#rgc-recolor");
+    const exportButton = root.querySelector("#rgc-export");
+    const status = root.querySelector("#rgc-status");
+    const svgNS = "http://www.w3.org/2000/svg";
+    let currentSettings;
+    let previousSeed = null;
+    let previousColorSeed = null;
+
+    /* rgc-core:start */
+    function mulberry32(seed) {
+      return function random() {
+        let t = seed += 0x6D2B79F5;
+        t = Math.imul(t ^ t >>> 15, t | 1);
+        t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+      };
+    }
+
+    function between(random, min, max) {
+      return min + (max - min) * random();
+    }
+
+    function integer(random, min, max) {
+      return Math.floor(between(random, min, max + 1));
+    }
+
+    function round(value, precision = 3) {
+      const power = 10 ** precision;
+      return Math.round(value * power) / power;
+    }
+
+    function hslToHex(hue, saturation, lightness) {
+      const s = saturation / 100;
+      const l = lightness / 100;
+      const chroma = (1 - Math.abs(2 * l - 1)) * s;
+      const segment = ((hue % 360) + 360) % 360 / 60;
+      const x = chroma * (1 - Math.abs(segment % 2 - 1));
+      const m = l - chroma / 2;
+      const channels = segment < 1 ? [chroma, x, 0]
+        : segment < 2 ? [x, chroma, 0]
+          : segment < 3 ? [0, chroma, x]
+            : segment < 4 ? [0, x, chroma]
+              : segment < 5 ? [x, 0, chroma]
+                : [chroma, 0, x];
+      return `#${channels.map(channel => Math.round((channel + m) * 255).toString(16).padStart(2, "0")).join("")}`;
+    }
+
+    const STYLE_RECIPES = [
+      "gradient", "gradient", "solid", "sphere", "glass",
+      "mist", "halo", "luminous", "outline", "counterform"
+    ];
+
+    function paletteSizeForStyle(style, random) {
+      if (style === "solid") return 1;
+      if (style === "glass") return integer(random, 2, 3);
+      if (style === "sphere") return integer(random, 3, 5);
+      if (style === "outline") return integer(random, 3, 5);
+      if (style === "counterform") return integer(random, 3, 5);
+      if (style === "halo") return integer(random, 3, 5);
+      if (style === "mist") return integer(random, 3, 5);
+      return integer(random, 4, 6);
+    }
+
+    function makePalette(random, count, style) {
+      const baseHue = between(random, 0, 360);
+      const hueOffsets = [0, 38, 112, 176, 238, 304];
+      return Array.from({ length: count }, (_, index) => {
+        const hue = baseHue + hueOffsets[index] + between(random, -22, 22);
+        const saturation = style === "glass"
+          ? between(random, 48, 82)
+          : between(random, index === count - 1 ? 55 : 74, index === count - 1 ? 84 : 100);
+        const lightness = style === "glass"
+          ? between(random, 62, 84)
+          : between(random, index === count - 1 ? 66 : 43, index === count - 1 ? 84 : 68);
+        return hslToHex(hue, saturation, lightness);
+      });
+    }
+
+    function makeStops(random, paletteLength, layerIndex, type, style) {
+      if (style === "solid") {
+        return [
+          { offset: 0, colorIndex: 0, opacity: 1 },
+          { offset: 1, colorIndex: 0, opacity: 1 }
+        ];
+      }
+      const count = type === "radial" ? integer(random, 3, 4) : integer(random, 2, 4);
+      return Array.from({ length: count }, (_, index) => {
+        const position = count === 1 ? 0 : index / (count - 1);
+        const offsetJitter = index === 0 || index === count - 1 ? 0 : between(random, -0.13, 0.13);
+        const isOuterRadialStop = type === "radial" && index === count - 1 && (layerIndex > 0 || style === "halo");
+        const opacityRange = style === "glass" ? [0.16, 0.58]
+          : style === "mist" ? [0.28, 0.82]
+            : style === "halo" ? [0.45, 0.94]
+              : [0.72, 1];
+        return {
+          offset: round(Math.max(0, Math.min(1, position + offsetJitter))),
+          colorIndex: style === "halo"
+            ? (layerIndex + index) % paletteLength
+            : integer(random, 0, paletteLength - 1),
+          opacity: isOuterRadialStop
+            ? round(between(random, 0, style === "glass" || style === "mist" ? 0.08 : 0.22))
+            : round(between(random, opacityRange[0], opacityRange[1]))
+        };
+      });
+    }
+
+    function layerCountForStyle(style, random) {
+      if (style === "solid") return 1;
+      if (style === "glass") return integer(random, 4, 6);
+      if (style === "halo") return integer(random, 3, 5);
+      if (style === "mist") return integer(random, 4, 7);
+      return integer(random, 4, 7);
+    }
+
+    function makeLayers(random, paletteLength, style) {
+      const count = layerCountForStyle(style, random);
+      const blendModes = ["screen", "overlay", "soft-light", "hard-light", "multiply"];
+      return Array.from({ length: count }, (_, index) => {
+        const type = style === "solid"
+          ? "linear"
+          : style === "halo"
+            ? "radial"
+            : index === 0
+              ? "linear"
+              : (random() < 0.78 ? "radial" : "linear");
+        const centered = style === "halo" || (index > 0 && random() < 0.28);
+        const opacity = style === "solid" ? 1
+          : style === "glass" ? between(random, index === 0 ? 0.28 : 0.16, index === 0 ? 0.52 : 0.48)
+            : style === "outline" ? between(random, 0.58, 0.96)
+            : style === "mist" ? between(random, 0.3, 0.78)
+              : between(random, index === 0 ? 0.82 : 0.52, index === 0 ? 1 : 0.94);
+        const blur = style === "solid" ? 0
+          : style === "glass" ? between(random, 0, 12)
+            : style === "sphere" ? between(random, 0, 10)
+              : style === "outline" ? between(random, 0, 7)
+            : style === "mist" ? between(random, 14, 36)
+              : style === "halo" ? between(random, 8, 28)
+                : style === "luminous" ? between(random, 5, 24)
+                  : between(random, 0, 9);
+        return {
+          type,
+          cx: round(centered ? between(random, 0.42, 0.58) : between(random, 0.12, 0.88)),
+          cy: round(centered ? between(random, 0.42, 0.58) : between(random, 0.12, 0.88)),
+          radius: round(between(random, index === 0 ? 0.8 : 0.24, index === 0 ? 1.15 : 0.82)),
+          angle: round(between(random, 0, 360), 1),
+          opacity: round(opacity),
+          blur: round(blur, 1),
+          blendMode: style === "solid" || index === 0
+            ? "normal"
+            : blendModes[integer(random, 0, blendModes.length - 1)],
+          stops: makeStops(random, paletteLength, index, type, style)
+        };
+      });
+    }
+
+    function makeShape() {
+      return {
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
+      };
+    }
+
+    function makeEffects(random, style) {
+      const transparencyRanges = {
+        solid: [1, 1],
+        gradient: [0.86, 1],
+        glass: [0.28, 0.58],
+        mist: [0.38, 0.74],
+        halo: [0.46, 0.84],
+        luminous: [0.58, 0.92],
+        sphere: [0.82, 1],
+        outline: [0.72, 1],
+        counterform: [0.74, 1]
+      };
+      const transparencyRange = transparencyRanges[style];
+      return {
+        blur: round(between(random, style === "solid" ? 0 : 3, style === "solid" ? 0 : 18), 1),
+        frequency: round(between(random, 0.006, 0.024), 4),
+        octaves: integer(random, 1, 3),
+        displacement: round(between(random, style === "solid" ? 0 : 4, style === "solid" ? 0 : 26), 1),
+        transparency: round(between(random, transparencyRange[0], transparencyRange[1])),
+        edgeSoftness: round(style === "solid" || style === "gradient" || style === "glass"
+          ? between(random, 0, 0.08)
+          : between(random, 0.16, 0.42))
+      };
+    }
+
+    function makeCounterform(random, style) {
+      const enabled = style === "counterform";
+      return {
+        mode: enabled ? "central-corona" : "none",
+        operation: enabled ? "subtract-alpha" : "none",
+        x: 0.5,
+        y: 0.5,
+        radius: round(between(random, 0.44, 0.62)),
+        softness: round(between(random, 0.01, 0.08)),
+        strength: enabled ? 1 : 0,
+        light: {
+          rimWidth: round(between(random, 0.025, 0.1)),
+          spread: round(between(random, 0.14, 0.34)),
+          blur: round(between(random, 14, 44), 1),
+          intensity: round(between(random, 0.58, 0.98)),
+          angle: round(between(random, 0, 360), 1)
+        }
+      };
+    }
+
+    function makeTexture(random, style) {
+      const compatible = {
+        gradient: ["none", "grain", "clouds", "chromatic"],
+        solid: ["none", "grain"],
+        sphere: ["none", "grain", "frost", "chromatic"],
+        glass: ["frost", "grain", "none"],
+        mist: ["grain", "clouds", "none"],
+        halo: ["grain", "clouds", "chromatic"],
+        luminous: ["grain", "clouds", "chromatic"],
+        outline: ["grain", "chromatic", "none"],
+        counterform: ["grain", "clouds", "chromatic", "none"]
+      };
+      const options = compatible[style];
+      const type = options[integer(random, 0, options.length - 1)];
+      return {
+        type,
+        amount: type === "none" ? 0 : round(between(random, 0.08, 0.48)),
+        scale: round(between(random, 0.004, 0.09), 4),
+        chromaticShift: type === "chromatic" ? round(between(random, 4, 16), 1) : 0
+      };
+    }
+
+    function makeOutline(random, style) {
+      return {
+        count: style === "outline" ? integer(random, 1, 3) : 0,
+        width: round(between(random, 4, 22), 1),
+        spacing: round(between(random, 0.02, 0.09)),
+        wobble: round(between(random, 0.01, 0.08)),
+        opacity: round(between(random, 0.6, 1))
+      };
+    }
+
+    function createSettings(seed, colorSeed = seed) {
+      const normalizedSeed = seed >>> 0;
+      const normalizedColorSeed = colorSeed >>> 0;
+      const shapeRandom = mulberry32(normalizedSeed);
+      const colorRandom = mulberry32(normalizedColorSeed);
+      const style = STYLE_RECIPES[integer(shapeRandom, 0, STYLE_RECIPES.length - 1)];
+      const paletteSize = paletteSizeForStyle(style, shapeRandom);
+      return {
+        version: 5,
+        seed: normalizedSeed,
+        colorSeed: normalizedColorSeed,
+        size: 640,
+        style,
+        shape: makeShape(),
+        palette: makePalette(colorRandom, paletteSize, style),
+        layers: makeLayers(shapeRandom, paletteSize, style),
+        effects: makeEffects(shapeRandom, style),
+        counterform: makeCounterform(shapeRandom, style),
+        texture: makeTexture(shapeRandom, style),
+        outline: makeOutline(shapeRandom, style)
+      };
+    }
+    /* rgc-core:end */
+
+    function svgElement(name, attributes = {}) {
+      const element = document.createElementNS(svgNS, name);
+      Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, String(value)));
+      return element;
+    }
+
+    function gradientCoordinates(angle, size) {
+      const radians = (angle - 90) * Math.PI / 180;
+      const dx = Math.cos(radians) * size / 2;
+      const dy = Math.sin(radians) * size / 2;
+      return {
+        x1: size / 2 - dx,
+        y1: size / 2 - dy,
+        x2: size / 2 + dx,
+        y2: size / 2 + dy
+      };
+    }
+
+    function renderCircle(settings) {
+      defs.replaceChildren();
+      artwork.replaceChildren();
+
+      const size = settings.size;
+      const center = size / 2;
+      const radius = size * 0.43;
+      const radiusX = radius;
+      const radiusY = radius;
+
+      const clipPath = svgElement("clipPath", { id: "rgc-circle-clip" });
+      clipPath.append(svgElement("circle", {
+        cx: center,
+        cy: center,
+        r: radius
+      }));
+      defs.append(clipPath);
+
+      const edgeGradient = svgElement("radialGradient", { id: "rgc-edge-mask-gradient" });
+      const edgeStart = Math.max(0.5, 1 - settings.effects.edgeSoftness);
+      edgeGradient.append(svgElement("stop", { offset: "0%", "stop-color": "white" }));
+      edgeGradient.append(svgElement("stop", { offset: `${edgeStart * 100}%`, "stop-color": "white" }));
+      edgeGradient.append(svgElement("stop", { offset: "100%", "stop-color": "black" }));
+      defs.append(edgeGradient);
+
+      const edgeMask = svgElement("mask", { id: "rgc-soft-edge-mask" });
+      edgeMask.append(svgElement("circle", {
+        cx: center,
+        cy: center,
+        r: radius,
+        fill: "url(#rgc-edge-mask-gradient)"
+      }));
+      defs.append(edgeMask);
+
+      const counterform = settings.counterform;
+      const counterformX = counterform.x * size;
+      const counterformY = counterform.y * size;
+      const counterformRadius = radius * counterform.radius * 1.3;
+      const counterformMask = svgElement("mask", {
+        id: "rgc-counterform-mask",
+        x: 0,
+        y: 0,
+        width: size,
+        height: size,
+        maskUnits: "userSpaceOnUse",
+        "mask-type": "luminance"
+      });
+      counterformMask.append(svgElement("rect", {
+        x: 0,
+        y: 0,
+        width: size,
+        height: size,
+        fill: "white"
+      }));
+
+      if (counterform.mode !== "none") {
+        const remainingLuminance = Math.round(255 * (1 - counterform.strength));
+        const counterformGradient = svgElement("radialGradient", { id: "rgc-counterform-gradient" });
+        const counterformCore = `rgb(${remainingLuminance} ${remainingLuminance} ${remainingLuminance})`;
+        const solidUntil = Math.max(0, 1 - counterform.softness);
+        counterformGradient.append(svgElement("stop", { offset: "0%", "stop-color": counterformCore }));
+        counterformGradient.append(svgElement("stop", {
+          offset: `${solidUntil * 100}%`,
+          "stop-color": counterformCore
+        }));
+        counterformGradient.append(svgElement("stop", { offset: "100%", "stop-color": "white" }));
+        defs.append(counterformGradient);
+        counterformMask.append(svgElement("circle", {
+          cx: counterformX,
+          cy: counterformY,
+          r: counterformRadius,
+          fill: "url(#rgc-counterform-gradient)"
+        }));
+      }
+      defs.append(counterformMask);
+
+      settings.layers.forEach((layer, index) => {
+        const gradientId = `rgc-gradient-${index}`;
+        const gradient = layer.type === "radial"
+          ? svgElement("radialGradient", {
+            id: gradientId,
+            gradientUnits: "userSpaceOnUse",
+            cx: layer.cx * size,
+            cy: layer.cy * size,
+            r: layer.radius * size
+          })
+          : svgElement("linearGradient", {
+            id: gradientId,
+            gradientUnits: "userSpaceOnUse",
+            ...gradientCoordinates(layer.angle, size)
+          });
+
+        layer.stops.forEach(stop => {
+          gradient.append(svgElement("stop", {
+            offset: `${stop.offset * 100}%`,
+            "stop-color": settings.palette[stop.colorIndex],
+            "stop-opacity": stop.opacity
+          }));
+        });
+        defs.append(gradient);
+      });
+
+      const coronaGradient = svgElement("linearGradient", {
+        id: "rgc-corona-gradient",
+        gradientUnits: "userSpaceOnUse",
+        ...gradientCoordinates(counterform.light.angle, size)
+      });
+      settings.palette.forEach((color, index) => {
+        coronaGradient.append(svgElement("stop", {
+          offset: `${index / Math.max(1, settings.palette.length - 1) * 100}%`,
+          "stop-color": color
+        }));
+      });
+      defs.append(coronaGradient);
+
+      const filter = svgElement("filter", {
+        id: "rgc-fluid-filter",
+        x: "-35%",
+        y: "-35%",
+        width: "170%",
+        height: "170%",
+        "color-interpolation-filters": "sRGB"
+      });
+      filter.append(svgElement("feTurbulence", {
+        type: "fractalNoise",
+        baseFrequency: settings.effects.frequency,
+        numOctaves: settings.effects.octaves,
+        seed: settings.seed % 997,
+        result: "noise"
+      }));
+      filter.append(svgElement("feDisplacementMap", {
+        in: "SourceGraphic",
+        in2: "noise",
+        scale: settings.effects.displacement,
+        xChannelSelector: "R",
+        yChannelSelector: "B",
+        result: "displaced"
+      }));
+      filter.append(svgElement("feGaussianBlur", {
+        in: "displaced",
+        stdDeviation: settings.effects.blur / 5,
+        result: "softened"
+      }));
+      if (!["mist", "halo", "luminous"].includes(settings.style)) {
+        filter.append(svgElement("feComposite", {
+          in: "softened",
+          in2: "SourceGraphic",
+          operator: "over",
+          result: "baseResult"
+        }));
+      } else {
+        filter.append(svgElement("feComposite", {
+          in: "softened",
+          in2: "softened",
+          operator: "over",
+          result: "baseResult"
+        }));
+      }
+
+      if (settings.texture.type !== "none") {
+        const textureOctaves = settings.texture.type === "clouds" ? 2 : 4;
+        filter.append(svgElement("feTurbulence", {
+          type: settings.texture.type === "clouds" ? "fractalNoise" : "turbulence",
+          baseFrequency: settings.texture.scale,
+          numOctaves: textureOctaves,
+          seed: (settings.seed + 173) % 997,
+          result: "textureNoise"
+        }));
+        filter.append(svgElement("feColorMatrix", {
+          in: "textureNoise",
+          type: "matrix",
+          values: `1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 ${settings.texture.amount} 0`,
+          result: "textureAlpha"
+        }));
+        filter.append(svgElement("feComposite", {
+          in: "textureAlpha",
+          in2: "SourceAlpha",
+          operator: "in",
+          result: "textureClipped"
+        }));
+        filter.append(svgElement("feBlend", {
+          in: "baseResult",
+          in2: "textureClipped",
+          mode: settings.texture.type === "frost" ? "screen" : "soft-light"
+        }));
+      }
+      defs.append(filter);
+
+      const coronaGlowFilter = svgElement("filter", {
+        id: "rgc-corona-glow-filter",
+        x: "-80%",
+        y: "-80%",
+        width: "260%",
+        height: "260%",
+        "color-interpolation-filters": "sRGB"
+      });
+      coronaGlowFilter.append(svgElement("feGaussianBlur", {
+        stdDeviation: counterform.light.blur
+      }));
+      defs.append(coronaGlowFilter);
+
+      if (["halo", "luminous"].includes(settings.style)) {
+        const auraFilter = svgElement("filter", {
+          id: "rgc-aura-blur",
+          x: "-80%",
+          y: "-80%",
+          width: "260%",
+          height: "260%"
+        });
+        auraFilter.append(svgElement("feGaussianBlur", {
+          stdDeviation: settings.style === "halo" ? 42 : 28
+        }));
+        defs.append(auraFilter);
+        artwork.append(svgElement("circle", {
+          cx: center,
+          cy: center,
+          r: radius * (settings.style === "halo" ? 0.98 : 0.92),
+          fill: settings.palette[0],
+          opacity: settings.style === "halo" ? 0.42 : 0.3,
+          filter: "url(#rgc-aura-blur)"
+        }));
+      }
+
+      const softEdge = ["mist", "halo", "luminous", "counterform"].includes(settings.style);
+      const clippedGroup = svgElement("g", softEdge
+        ? { mask: "url(#rgc-soft-edge-mask)" }
+        : { "clip-path": "url(#rgc-circle-clip)" });
+      const counterformGroup = svgElement("g", counterform.mode === "none"
+        ? {}
+        : { mask: "url(#rgc-counterform-mask)" });
+      const filteredGroup = svgElement("g", {
+        filter: "url(#rgc-fluid-filter)",
+        opacity: settings.effects.transparency
+      });
+
+      settings.layers.forEach((layer, index) => {
+        let layerFilter = null;
+        if (layer.blur > 0.2) {
+          const layerFilterId = `rgc-layer-blur-${index}`;
+          layerFilter = svgElement("filter", {
+            id: layerFilterId,
+            x: "-25%",
+            y: "-25%",
+            width: "150%",
+            height: "150%"
+          });
+          layerFilter.append(svgElement("feGaussianBlur", { stdDeviation: layer.blur }));
+          defs.append(layerFilter);
+        }
+        const field = svgElement("rect", {
+          x: 0,
+          y: 0,
+          width: size,
+          height: size,
+          fill: `url(#rgc-gradient-${index})`,
+          opacity: layer.opacity,
+          style: `mix-blend-mode:${layer.blendMode}`
+        });
+        if (layerFilter) field.setAttribute("filter", `url(#rgc-layer-blur-${index})`);
+        filteredGroup.append(field);
+      });
+
+      if (settings.style === "outline") {
+        const outlineGroup = svgElement("g", {
+          id: "rgc-outline-group",
+          filter: "url(#rgc-fluid-filter)",
+          opacity: settings.effects.transparency
+        });
+        for (let index = 0; index < settings.outline.count; index += 1) {
+          const outlineRadius = radius * (0.98 - index * settings.outline.spacing);
+          const angle = (settings.seed % 360 + index * 137.5) * Math.PI / 180;
+          const shift = radius * settings.outline.wobble * (index / Math.max(1, settings.outline.count - 1));
+          outlineGroup.append(svgElement("circle", {
+            cx: center + Math.cos(angle) * shift,
+            cy: center + Math.sin(angle) * shift,
+            r: outlineRadius,
+            fill: "none",
+            stroke: `url(#rgc-gradient-${index % settings.layers.length})`,
+            "stroke-width": settings.outline.width,
+            "stroke-opacity": settings.outline.opacity * (1 - index * 0.12)
+          }));
+        }
+        if (settings.texture.type === "chromatic") {
+          outlineGroup.append(svgElement("circle", {
+            cx: center + settings.texture.chromaticShift,
+            cy: center,
+            r: radius * 0.96,
+            fill: "none",
+            stroke: settings.palette[1],
+            "stroke-width": settings.outline.width * 0.45,
+            "stroke-opacity": 0.42,
+            style: "mix-blend-mode:screen"
+          }));
+        }
+        counterformGroup.append(outlineGroup);
+      } else {
+        counterformGroup.append(filteredGroup);
+      }
+
+      if (counterform.mode === "central-corona") {
+        const coronaGroup = svgElement("g", { id: "rgc-corona-group" });
+        const glowWidth = radius * counterform.light.spread;
+        const glowRadius = counterformRadius + glowWidth * 0.5;
+        const rimWidth = radius * counterform.light.rimWidth;
+        const rimRadius = counterformRadius + rimWidth * 0.5;
+
+        coronaGroup.append(svgElement("circle", {
+          cx: counterformX,
+          cy: counterformY,
+          r: glowRadius,
+          fill: "none",
+          stroke: "url(#rgc-corona-gradient)",
+          "stroke-width": glowWidth,
+          "stroke-opacity": counterform.light.intensity * 0.72,
+          filter: "url(#rgc-corona-glow-filter)",
+          style: "mix-blend-mode:screen"
+        }));
+        coronaGroup.append(svgElement("circle", {
+          cx: counterformX,
+          cy: counterformY,
+          r: rimRadius,
+          fill: "none",
+          stroke: "url(#rgc-corona-gradient)",
+          "stroke-width": rimWidth,
+          "stroke-opacity": counterform.light.intensity,
+          style: "mix-blend-mode:screen"
+        }));
+        counterformGroup.append(coronaGroup);
+      }
+
+      if (settings.style === "glass") {
+        const highlightFilter = svgElement("filter", {
+          id: "rgc-glass-highlight-blur",
+          x: "-60%",
+          y: "-60%",
+          width: "220%",
+          height: "220%"
+        });
+        highlightFilter.append(svgElement("feGaussianBlur", { stdDeviation: 18 }));
+        defs.append(highlightFilter);
+
+        counterformGroup.append(svgElement("circle", {
+          cx: center,
+          cy: center,
+          r: radius - 7,
+          fill: "none",
+          stroke: settings.palette[settings.palette.length - 1],
+          "stroke-width": 10,
+          "stroke-opacity": 0.52
+        }));
+        counterformGroup.append(svgElement("ellipse", {
+          cx: center - radiusX * 0.24,
+          cy: center - radiusY * 0.28,
+          rx: radiusX * 0.3,
+          ry: radiusY * 0.13,
+          fill: settings.palette[settings.palette.length - 1],
+          opacity: 0.42,
+          filter: "url(#rgc-glass-highlight-blur)"
+        }));
+      }
+
+      if (settings.style === "sphere") {
+        const sphereHighlightFilter = svgElement("filter", {
+          id: "rgc-sphere-highlight-blur",
+          x: "-80%",
+          y: "-80%",
+          width: "260%",
+          height: "260%"
+        });
+        sphereHighlightFilter.append(svgElement("feGaussianBlur", { stdDeviation: 24 }));
+        defs.append(sphereHighlightFilter);
+        counterformGroup.append(svgElement("circle", {
+          cx: center,
+          cy: center,
+          r: radius - 5,
+          fill: "none",
+          stroke: settings.palette[settings.palette.length - 1],
+          "stroke-width": 12,
+          "stroke-opacity": 0.34
+        }));
+        counterformGroup.append(svgElement("ellipse", {
+          cx: center - radius * 0.23,
+          cy: center - radius * 0.27,
+          rx: radius * 0.31,
+          ry: radius * 0.16,
+          fill: settings.palette[settings.palette.length - 1],
+          opacity: 0.52,
+          filter: "url(#rgc-sphere-highlight-blur)"
+        }));
+      }
+
+      if (settings.texture.type === "chromatic" && settings.style !== "outline") {
+        counterformGroup.append(svgElement("circle", {
+          cx: center - settings.texture.chromaticShift / 2,
+          cy: center,
+          r: radius - 5,
+          fill: "none",
+          stroke: settings.palette[0],
+          "stroke-width": Math.max(4, settings.texture.chromaticShift),
+          "stroke-opacity": 0.32,
+          style: "mix-blend-mode:screen"
+        }));
+        counterformGroup.append(svgElement("circle", {
+          cx: center + settings.texture.chromaticShift / 2,
+          cy: center,
+          r: radius - 5,
+          fill: "none",
+          stroke: settings.palette[Math.min(1, settings.palette.length - 1)],
+          "stroke-width": Math.max(4, settings.texture.chromaticShift),
+          "stroke-opacity": 0.28,
+          style: "mix-blend-mode:screen"
+        }));
+      }
+
+      clippedGroup.append(counterformGroup);
+
+      artwork.append(clippedGroup);
+      svg.setAttribute("aria-label", `Случайный круг в стиле ${settings.style}, вариант ${settings.seed}`);
+    }
+
+    function newSeed() {
+      const values = new Uint32Array(1);
+      crypto.getRandomValues(values);
+      let seed = values[0] >>> 0;
+      if (seed === previousSeed) seed = (seed + 1) >>> 0;
+      previousSeed = seed;
+      return seed;
+    }
+
+    function newColorSeed() {
+      const values = new Uint32Array(1);
+      crypto.getRandomValues(values);
+      let colorSeed = values[0] >>> 0;
+      if (colorSeed === previousColorSeed) colorSeed = (colorSeed + 1) >>> 0;
+      previousColorSeed = colorSeed;
+      return colorSeed;
+    }
+
+    function generate() {
+      currentSettings = createSettings(newSeed(), newColorSeed());
+      renderCircle(currentSettings);
+      status.textContent = `Создан новый круг, seed ${currentSettings.seed}`;
+    }
+
+    function recolor() {
+      currentSettings = createSettings(currentSettings.seed, newColorSeed());
+      renderCircle(currentSettings);
+      status.textContent = `Вариант ${currentSettings.seed} перекрашен`;
+    }
+
+    function exportSettings() {
+      const json = JSON.stringify(currentSettings, null, 2);
+      const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `gradient-circle-${currentSettings.seed}.json`;
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+      status.textContent = `Настройки варианта ${currentSettings.seed} экспортированы`;
+    }
+
+    generateButton.addEventListener("click", generate);
+    recolorButton.addEventListener("click", recolor);
+    exportButton.addEventListener("click", exportSettings);
+    generate();
+  })();
+</script>

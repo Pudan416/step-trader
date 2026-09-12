@@ -20,6 +20,7 @@ struct PayGateView: View {
     @State private var showTransitionCircle: Bool = false
     @State private var transitionScale: CGFloat = 0.01
     @State private var appeared = false
+    @State private var artworkImage: UIImage?
     @ScaledMetric(relativeTo: .body) private var compactThreshold: CGFloat = 700
 
     private var activeSession: PayGateSession? {
@@ -72,7 +73,7 @@ struct PayGateView: View {
                     Spacer()
 
                     if let group = activeGroup {
-                        centerSection(group: group)
+                        centerSection(group: group, isCompact: isCompact)
                     }
 
                     Spacer()
@@ -86,9 +87,15 @@ struct PayGateView: View {
         }
         .overlay(transitionOverlay)
         .onAppear {
+            if let artwork = activeSession?.artwork {
+                artworkImage = GateArtworkRenderer.image(artwork, pointSize: 196)
+            }
             withAnimation(.easeOut(duration: 0.5).delay(0.1)) {
                 appeared = true
             }
+        }
+        .onChange(of: activeSession?.artwork) { _, artwork in
+            artworkImage = artwork.flatMap { GateArtworkRenderer.image($0, pointSize: 196) }
         }
         .onDisappear {
             guard !hasDismissed else { return }
@@ -134,12 +141,13 @@ struct PayGateView: View {
         }
     }
 
-    // MARK: - Center (icon + title)
+    // MARK: - Center (object + title)
 
     @ViewBuilder
-    private func centerSection(group: TicketGroup) -> some View {
+    private func centerSection(group: TicketGroup, isCompact: Bool) -> some View {
         VStack(spacing: 20) {
-            appIconArea(group: group)
+            artworkArea
+                .frame(width: isCompact ? 144 : 196, height: isCompact ? 144 : 196)
                 .opacity(appeared ? 1 : 0)
                 .scaleEffect(appeared ? 1 : 0.85)
 
@@ -160,43 +168,19 @@ struct PayGateView: View {
     }
 
     @ViewBuilder
-    private func appIconArea(group: TicketGroup) -> some View {
-        #if canImport(FamilyControls)
-        let appTokens = Array(group.selection.applicationTokens.prefix(3))
-        let iconSize: CGFloat = 72
-
-        ZStack {
-            if let templateApp = group.templateApp,
-               let imageName = TargetResolver.imageName(for: templateApp),
-               let uiImage = UIImage(named: imageName) ?? UIImage(named: imageName.lowercased()) ?? UIImage(named: imageName.capitalized) {
-                Image(uiImage: uiImage)
+    private var artworkArea: some View {
+        Group {
+            if let artworkImage {
+                Image(uiImage: artworkImage)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: iconSize, height: iconSize)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: 6)
-            } else if appTokens.isEmpty {
-                Image(systemName: "lock.fill")
-                    .font(.geist(size: 32, weight: .regular))
-                    .foregroundStyle(PayGatePalette.accent)
             } else {
-                ForEach(Array(appTokens.enumerated()), id: \.offset) { index, token in
-                    let size = iconSize - CGFloat(index * 8)
-                    AppIconView(token: token)
-                        .frame(width: size, height: size)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .shadow(color: .black.opacity(0.4), radius: 8, x: 0, y: 4)
-                        .offset(x: CGFloat(index - 1) * 18, y: CGFloat(index) * 4)
-                        .zIndex(Double(3 - index))
-                }
+                Image(systemName: "sparkle")
+                    .font(.system(size: 64))
+                    .foregroundStyle(PayGatePalette.accent)
             }
         }
-        .frame(height: 100)
-        #else
-        Image(systemName: "lock.fill")
-            .font(.geist(size: 36, weight: .regular))
-            .foregroundStyle(PayGatePalette.accent)
-        #endif
+        .accessibilityHidden(true)
     }
 
     // MARK: - Bottom (balance + options + dismiss)

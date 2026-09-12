@@ -13,6 +13,7 @@ final class CanvasSimplificationUITests: XCTestCase {
         app.launchArguments = [
             "ui-testing",
             "ui-testing-task7",
+            "-uiLab", "none",
             "-AppleLanguages", "(en)",
             "-AppleLocale", "en_US",
         ] + additionalArguments
@@ -94,6 +95,28 @@ final class CanvasSimplificationUITests: XCTestCase {
         app.buttons["tab_me"].tap()
         XCTAssertFalse(app.buttons["canvas_fullscreen_button"].exists)
         XCTAssertFalse(app.buttons["canvas_add_button"].exists)
+    }
+
+    func testHappeningPaletteHidesTabsAndRepurposesCornerControls() {
+        let app = launchCanvas()
+        app.buttons["canvas_add_button"].tap()
+
+        XCTAssertTrue(app.buttons["canvas_palette_list_button"].waitForExistence(timeout: 3))
+        let close = app.buttons["canvas_palette_close_button"]
+        XCTAssertTrue(close.exists)
+        XCTAssertFalse(app.buttons["tab_canvas"].exists)
+        XCTAssertFalse(app.buttons["tab_feeds"].exists)
+        XCTAssertFalse(app.buttons["tab_me"].exists)
+        XCTAssertFalse(app.buttons["canvas_fullscreen_button"].exists)
+        XCTAssertFalse(app.buttons["canvas_add_button"].exists)
+
+        close.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(close.waitForNonExistence(timeout: 3))
+
+        app.buttons["canvas_add_button"].tap()
+        XCTAssertTrue(app.buttons["canvas_palette_close_button"].waitForExistence(timeout: 3))
+        app.buttons["canvas_palette_close_button"].tap()
+        XCTAssertTrue(app.buttons["canvas_palette_close_button"].waitForNonExistence(timeout: 3))
     }
 
     func testActivitySuggestionAppearsDirectlyAboveTheBottomMenu() {
@@ -246,17 +269,23 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertTrue(app.buttons["canvas_add_button"].waitForExistence(timeout: 3))
     }
 
-    func testAddReplacesTheTabBarWithTheHappeningDock() {
+    func testAddHidesTheTabBarAndKeepsCornerControlsOnTheirOriginalLine() {
         let app = launchCanvas()
         let tabBar = app.descendants(matching: .any)["canvas_tab_bar"]
+        let canvasAdd = app.buttons["canvas_add_button"]
 
         XCTAssertTrue(tabBar.exists)
+        let formerTabBarLine = canvasAdd.frame.midY
 
-        app.buttons["canvas_add_button"].tap()
+        canvasAdd.tap()
 
-        XCTAssertTrue(app.buttons["Close"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Choose happenings"].exists)
-        XCTAssertTrue(app.buttons["Add a happening"].exists)
+        let close = app.buttons["canvas_palette_close_button"]
+        let choose = app.buttons["canvas_palette_list_button"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        XCTAssertTrue(choose.exists)
+        XCTAssertEqual(close.frame.midY, formerTabBarLine, accuracy: 2)
+        XCTAssertEqual(choose.frame.midY, formerTabBarLine, accuracy: 2)
+        XCTAssertTrue(energyPill(in: app).isHittable)
         XCTAssertTrue(tabBar.waitForNonExistence(timeout: 3))
     }
 
