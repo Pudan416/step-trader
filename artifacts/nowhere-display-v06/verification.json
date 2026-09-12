@@ -1,0 +1,50 @@
+{
+  "Regular": {
+    "sha256": "af469cb9131960d08067d5fe8979926c82eee34d6a92cba679085980a4b3f99c",
+    "encoded_characters": 163,
+    "glyphs": 173,
+    "changed": [
+      "/",
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9"
+    ],
+    "shaped_pairs_checked": 29041,
+    "minimum_checked_near_gap": 25.81,
+    "valid_contours": true,
+    "unchanged_glyphs_preserved": true,
+    "woff2_outlines_identical": true,
+    "curved_outline_checks": true
+  },
+  "Bold": {
+    "sha256": "3f20cb9e50a2cb37bb0da9e208a666daa1a6ba51de369267402571a7b542d735",
+    "encoded_characters": 163,
+    "glyphs": 173,
+    "changed": [
+      "/",
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9"
+    ],
+    "shaped_pairs_checked": 29041,
+    "minimum_checked_near_gap": 30.0,
+    "valid_contours": true,
+    "unchanged_glyphs_preserved": true,
+    "woff2_outlines_identical": true,
+    "curved_outline_checks": true
+  }
+}
