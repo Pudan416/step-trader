@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import AudioKit
 import AudioKitEX
 import AVFoundation
@@ -896,4 +895,3 @@ final class DayObjectsInactiveHappeningSamplePool: DayObjectsHappeningSamplePool
     func stop(_ handle: HappeningPlaybackHandle) {}
     func releaseAll() {}
 }
-#endif

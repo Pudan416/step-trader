@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 struct DayObjectsWorldGroupCalibration: Equatable, Sendable {
     static let makeupBounds = 0.0 ... 10.5
     static let reverbScaleBounds = 0.20 ... 1.0
@@ -30,4 +29,3 @@ struct LayerMixPlan: Equatable, Sendable {
         return harmonyTargetDecibels - boundedDucking
     }
 }
-#endif

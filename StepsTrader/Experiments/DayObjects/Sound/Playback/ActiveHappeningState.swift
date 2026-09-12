@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 struct HappeningScheduledOccurrence: Equatable, Sendable {
     let sequenceIndex: Int
     let motifStepIndex: Int
@@ -33,4 +32,3 @@ struct ActiveHappeningState {
     var birthNextRetryPosition: MusicalPosition
     var birthRetryDeadline: MusicalPosition
 }
-#endif

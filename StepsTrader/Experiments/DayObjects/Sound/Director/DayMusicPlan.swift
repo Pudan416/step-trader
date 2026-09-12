@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 struct DayMusicPlan: Equatable, Sendable {
     let seed: UInt64
     let soundWorld: DayObjectsSoundWorld
@@ -64,4 +63,3 @@ struct DayMusicPlan: Equatable, Sendable {
         return guestInstrumentIDs.contains(id)
     }
 }
-#endif

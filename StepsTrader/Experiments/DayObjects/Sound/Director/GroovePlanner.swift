@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 enum GroovePlanner {
     static func makePlan(remixSeed: UInt64) -> GroovePlan {
         var modeRandom = StableMusicRandom(seed: remixSeed, domain: .grooveMode)
@@ -80,4 +79,3 @@ enum GroovePlanner {
         }
     }
 }
-#endif

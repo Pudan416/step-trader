@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 import Darwin
 
@@ -313,4 +312,3 @@ final class DayObjectsBusMeter: @unchecked Sendable {
         return max(20 * log10(amplitude), silenceFloorDBFS)
     }
 }
-#endif

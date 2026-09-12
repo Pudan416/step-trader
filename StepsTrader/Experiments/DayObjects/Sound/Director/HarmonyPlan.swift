@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 enum HarmonyRole: CaseIterable, Equatable, Sendable {
     case drone
     case primaryPad
@@ -62,4 +61,3 @@ struct HarmonyPlan: Equatable, Sendable {
         roles.first { $0.role == role }
     }
 }
-#endif

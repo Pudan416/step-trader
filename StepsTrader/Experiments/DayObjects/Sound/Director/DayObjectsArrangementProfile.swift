@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 struct DayObjectsArrangementProfile: Equatable, Sendable {
     let world: DayObjectsSoundWorld
     let mood: DayObjectsSoundMood
@@ -71,4 +70,3 @@ struct DayObjectsArrangementProfile: Equatable, Sendable {
         )
     }
 }
-#endif

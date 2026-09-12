@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import AudioKit
 import AudioKitEX
 import AudioToolbox
@@ -468,4 +467,3 @@ final class DayObjectsAudioKitInstrumentBankGraph: DayObjectsInstrumentBankGraph
         return automation
     }
 }
-#endif

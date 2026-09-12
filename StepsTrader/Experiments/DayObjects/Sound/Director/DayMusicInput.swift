@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 struct DayMusicInput: Equatable, Sendable {
@@ -70,4 +69,3 @@ extension DayMusicInput {
         )
     }
 }
-#endif

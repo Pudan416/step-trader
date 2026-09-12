@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import AVFAudio
 import Foundation
 
@@ -825,4 +824,3 @@ private struct DayObjectsOfflineDiagnosticAccumulator {
         )
     }
 }
-#endif

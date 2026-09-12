@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 enum LeadPitchPreference: Equatable, Sendable {
     case chordTone
     case modeTone
@@ -47,4 +46,3 @@ struct LeadPlan: Equatable, Sendable {
         }
     }
 }
-#endif

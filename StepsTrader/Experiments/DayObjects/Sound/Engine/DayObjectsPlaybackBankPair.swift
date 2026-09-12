@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import AudioKit
 import AudioKitEX
 import AudioToolbox
@@ -388,4 +387,3 @@ final class DayObjectsSharedInstrumentBankEngine {
         }
     }
 }
-#endif

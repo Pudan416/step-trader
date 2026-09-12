@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 @MainActor
@@ -365,4 +364,3 @@ final class BassPlayer {
         min(max(value.isFinite ? value : 0, 0), 1)
     }
 }
-#endif

@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 protocol DayObjectsTransportClock: Sendable {
@@ -136,4 +135,3 @@ private extension NSLock {
         return try operation()
     }
 }
-#endif

@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 enum DayMusicPlanDiffer {
     static func change(from oldPlan: DayMusicPlan, to newPlan: DayMusicPlan) -> DayMusicPlanChange {
         let oldHappenings = stableUniqueHappenings(oldPlan.happenings)
@@ -460,4 +459,3 @@ private struct StructuralGlitchRoleSignature: Equatable {
         isGlitchEligible = plan.isGlitchEligible
     }
 }
-#endif

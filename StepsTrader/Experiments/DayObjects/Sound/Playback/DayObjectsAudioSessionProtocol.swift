@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import AVFAudio
 
 @MainActor
@@ -28,4 +27,3 @@ final class DayObjectsSystemAudioSession: DayObjectsAudioSessionProtocol {
         try session.setActive(false, options: options)
     }
 }
-#endif

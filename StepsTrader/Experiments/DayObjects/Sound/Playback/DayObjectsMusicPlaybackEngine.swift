@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import AVFAudio
 import Foundation
 
@@ -2210,4 +2209,3 @@ private extension HarmonyPlan {
         )
     }
 }
-#endif

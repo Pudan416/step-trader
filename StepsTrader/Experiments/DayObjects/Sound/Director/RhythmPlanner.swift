@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 enum RhythmPlanner {
     private struct VoiceTemplate {
         let role: RhythmRole
@@ -221,4 +220,3 @@ private extension RhythmFamily {
         }
     }
 }
-#endif

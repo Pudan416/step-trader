@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 enum GlitchRole: CaseIterable, Equatable, Sendable {
     case pad
     case happening
@@ -356,4 +355,3 @@ private extension GlitchRole {
         }
     }
 }
-#endif

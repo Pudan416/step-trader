@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 enum TonalWorldPlanner {
     private static let allowedCenterPitchClasses = [0, 2, 4, 5, 7, 9]
     private static let allowedCycleBars = [8, 12, 16]
@@ -217,4 +216,3 @@ enum TonalWorldPlanner {
         ((value % 12) + 12) % 12
     }
 }
-#endif

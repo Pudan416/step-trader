@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 enum PlaybackWorldBankConfiguration {
@@ -211,4 +210,3 @@ final class PlaybackWorldBank: BassDuckBackend {
         instrumentBank.applyMix(state)
     }
 }
-#endif

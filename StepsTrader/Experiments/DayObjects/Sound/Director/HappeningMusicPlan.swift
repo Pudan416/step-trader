@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 enum HappeningSoundFamily: CaseIterable, Equatable, Hashable, Sendable {
     case pluck
     case mallet
@@ -124,4 +123,3 @@ struct HappeningScheduleAllocation: Equatable, Sendable {
     let events: [HappeningScheduleEvent]
     let nextCursors: [HappeningScheduleCursor]
 }
-#endif

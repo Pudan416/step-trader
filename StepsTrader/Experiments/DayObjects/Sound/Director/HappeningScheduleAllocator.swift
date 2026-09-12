@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 enum HappeningScheduleAllocator {
     private static let maximumCycleCount = 16
     private static let maximumBeatsPerBar = 16
@@ -406,4 +405,3 @@ enum HappeningScheduleAllocator {
         return remainder >= 0 ? remainder : remainder + period
     }
 }
-#endif

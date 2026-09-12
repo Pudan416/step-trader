@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 struct BassDuckCommand: Equatable, Sendable {
@@ -80,4 +79,3 @@ final class BassDucker {
         min(max(value.isFinite ? value : range.lowerBound, range.lowerBound), range.upperBound)
     }
 }
-#endif

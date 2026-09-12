@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 enum HarmonyPlanner {
     private struct RoleTemplate {
         let role: HarmonyRole
@@ -366,4 +365,3 @@ private extension HarmonyRole {
         }
     }
 }
-#endif

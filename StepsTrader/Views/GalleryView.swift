@@ -1,7 +1,5 @@
 import SwiftUI
-#if DEBUG || INTERNAL_BUILD
 import AVFAudio
-#endif
 
 enum CanvasSpawnOriginMapper {
     static func normalizedPosition(
@@ -165,9 +163,7 @@ struct GalleryView: View {
     @State private var suggestionBannerHeight: CGFloat = 0
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-#if DEBUG || INTERNAL_BUILD
     @StateObject private var musicController = DayObjectsMusicLabController(allowsBackgroundPlayback: true)
-#endif
     private let usesTask7UITestFixture = ProcessInfo.processInfo.arguments.contains("ui-testing-task7")
     private let isUnitTestHost = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
@@ -271,24 +267,16 @@ struct GalleryView: View {
     }
 
     private var canvasSoundPulseBus: DayObjectsSoundPulseBus? {
-#if DEBUG || INTERNAL_BUILD
         musicController.soundPulseBus
-#else
-        nil
-#endif
     }
 
     private var canvasSoundAppearance: CanvasSoundButtonAppearance {
-#if DEBUG || INTERNAL_BUILD
         switch musicController.soundState {
         case .off: .readyToPlay
         case .starting: .starting
         case .on: .playing
         case .error: .retry
         }
-#else
-        .readyToPlay
-#endif
     }
 
     private var canvasChromeScrim: some View {
@@ -317,22 +305,17 @@ struct GalleryView: View {
     private func handleCanvasSoundControl() {
         switch CanvasSoundExpansionAction.forPresentation(presentation) {
         case .turnSoundOnAndEnterFullScreen:
-#if DEBUG || INTERNAL_BUILD
             startCanvasSoundIfNeeded()
-#endif
             send(.enterFullScreen)
             lightHapticTick &+= 1
 
         case .turnSoundOffAndExitFullScreen:
             send(.exitFullScreen)
             lightHapticTick &+= 1
-#if DEBUG || INTERNAL_BUILD
             Task { await musicController.turnSoundOff() }
-#endif
         }
     }
 
-#if DEBUG || INTERNAL_BUILD
     private func startCanvasSoundIfNeeded() {
         syncCanvasMusicInput()
         guard musicController.soundState != .on,
@@ -366,7 +349,6 @@ struct GalleryView: View {
         )
         musicController.applyRemix(seed: dayCanvas.resolvedRemixSeed, selection: dayCanvas.resolvedMusicSelection)
     }
-#endif
 
     private struct CanvasSyncState: Equatable {
         let sleepPoints: Int
@@ -1021,10 +1003,8 @@ struct GalleryView: View {
 
         let syncingCanvas = visualCanvas
         .onAppear {
-#if DEBUG || INTERNAL_BUILD
             _ = musicController.acceptLifecycleEvent(.viewAppeared)
             syncCanvasMusicInput()
-#endif
             model.checkDayBoundary()
             refreshHappeningPalette()
             loadCanvas()
@@ -1045,9 +1025,7 @@ struct GalleryView: View {
             if showHappeningPalette {
                 refreshHappeningPalette()
             }
-#if DEBUG || INTERNAL_BUILD
             syncCanvasMusicInput()
-#endif
         }
         .onChange(of: preferredCanvasVisualStyleRaw) { _, rawValue in
             applyPreferredCanvasVisualStyle(rawValue)
@@ -1064,9 +1042,7 @@ struct GalleryView: View {
             remixFeedback = nil
         }
         .onChange(of: dayCanvas.lastModified) {
-#if DEBUG || INTERNAL_BUILD
             syncCanvasMusicInput()
-#endif
         }
         .onChange(of: showHappeningPalette) { _, isPresented in
             refreshAddHint()
@@ -1086,9 +1062,7 @@ struct GalleryView: View {
             }
             if !selected {
                 send(.leftCanvasTab)
-#if DEBUG || INTERNAL_BUILD
                 Task { await musicController.turnSoundOff() }
-#endif
             }
         }
         .onChange(of: todayKey) { _, newKey in
@@ -1146,12 +1120,10 @@ struct GalleryView: View {
             consumePaletteOpenRequestIfReady()
         }
         .onChange(of: scenePhase) {
-#if DEBUG || INTERNAL_BUILD
             let lifecycleIntent = musicController.acceptLifecycleEvent(
                 scenePhase == .active ? .sceneActive : .sceneInactive
             )
             Task { await musicController.completeLifecycleEvent(lifecycleIntent) }
-#endif
             if scenePhase == .background {
                 if editState.isDraggingElement { handleEditDragEnd() }
                 editState.activeElementId = nil
@@ -1214,7 +1186,6 @@ struct GalleryView: View {
             isCanvasSelected: isCanvasSelected,
             isMusicPlaying: canvasSoundAppearance == .playing
         ))
-#if DEBUG || INTERNAL_BUILD
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)
             .receive(on: DispatchQueue.main)) { notification in
             guard let raw = (notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.uintValue,
@@ -1227,7 +1198,6 @@ struct GalleryView: View {
                   AVAudioSession.RouteChangeReason(rawValue: raw) == .oldDeviceUnavailable else { return }
             Task { await musicController.turnSoundOff() }
         }
-#endif
         .sheet(isPresented: $toolbar.showShareSheet, onDismiss: { toolbar.shareImage = nil }) {
             if let image = toolbar.shareImage {
                 CanvasShareSheet(items: [image])
@@ -1255,10 +1225,8 @@ struct GalleryView: View {
             AppDelegate.allowCanvasRotation(false)
             if presentation.isEditing && dayCanvas.artworkRecipe != nil { saveCanvasLocally() }
             cancelPaletteInteraction()
-#if DEBUG || INTERNAL_BUILD
             let intent = musicController.acceptLifecycleEvent(.viewDisappeared)
             Task { await musicController.completeLifecycleEvent(intent) }
-#endif
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.35), value: presentation)
         .onPreferenceChange(CanvasAddButtonCenterKey.self) { value in
@@ -1500,7 +1468,6 @@ struct GalleryView: View {
     }
 
     private func handleCanvasLeadBegan(_ sample: CanvasTouchGestureSample) {
-#if DEBUG || INTERNAL_BUILD
         musicController.beginLead(
             LeadGestureSample(
                 normalizedX: sample.normalizedX,
@@ -1510,11 +1477,9 @@ struct GalleryView: View {
             isGridVisible: false,
             isVoiceOverRunning: UIAccessibility.isVoiceOverRunning
         )
-#endif
     }
 
     private func handleCanvasLeadUpdated(_ sample: CanvasTouchGestureSample) {
-#if DEBUG || INTERNAL_BUILD
         musicController.updateLead(
             LeadGestureSample(
                 normalizedX: sample.normalizedX,
@@ -1522,13 +1487,10 @@ struct GalleryView: View {
                 speed: sample.speed
             )
         )
-#endif
     }
 
     private func handleCanvasLeadEnded() {
-#if DEBUG || INTERNAL_BUILD
         musicController.endLead()
-#endif
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -2169,7 +2131,6 @@ struct GalleryView: View {
         }
         localMutationCounter &+= 1
         publishCanvasPersistence(result.canvas)
-#if DEBUG || INTERNAL_BUILD
         musicController.applyRemix(seed: result.seed, selection: result.musicSelection)
         remixFeedbackTask?.cancel()
         remixFeedback = "\(result.musicSelection.world.displayName) · \(result.musicSelection.mood.rawValue.capitalized)"
@@ -2178,7 +2139,6 @@ struct GalleryView: View {
             guard !Task.isCancelled else { return }
             withAnimation(.easeOut(duration: 0.2)) { remixFeedback = nil }
         }
-#endif
         mediumHapticTick &+= 1
         Task {
             await SupabaseSyncService.shared.trackAnalyticsEvent(name: "canvas_remixed")
@@ -2193,9 +2153,7 @@ struct GalleryView: View {
         withAnimation(.easeInOut(duration: 0.3)) { dayCanvas = restored }
         localMutationCounter &+= 1
         publishCanvasPersistence(restored)
-#if DEBUG || INTERNAL_BUILD
         musicController.applyRemix(seed: restored.resolvedRemixSeed, selection: restored.resolvedMusicSelection)
-#endif
         remixFeedbackTask?.cancel()
         remixFeedback = nil
         lightHapticTick &+= 1
@@ -2208,7 +2166,6 @@ struct GalleryView: View {
     private var wideCanvasOverlay: some View {
         VStack {
             Spacer()
-#if DEBUG || INTERNAL_BUILD
             if let remixFeedback {
                 Text(remixFeedback)
                 .font(.geist(.caption))
@@ -2218,14 +2175,11 @@ struct GalleryView: View {
                 .background(.ultraThinMaterial, in: Capsule())
                 .padding(.bottom, 10)
             }
-#endif
             CanvasFullScreenDock(
                 onClose: {
                     send(.exitFullScreen)
                     lightHapticTick &+= 1
-#if DEBUG || INTERNAL_BUILD
                     Task { await musicController.turnSoundOff() }
-#endif
                 },
                 onRemix: remixCanvas,
                 share: { shareButton }

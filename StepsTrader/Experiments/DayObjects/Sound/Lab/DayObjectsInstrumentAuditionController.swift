@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import AVFAudio
 import Combine
 import Foundation
@@ -438,4 +437,3 @@ private extension DayObjectsInstrumentDescriptor {
         return UInt8(lowerBound)...UInt8(upperBound)
     }
 }
-#endif

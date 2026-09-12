@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 struct LeadGestureMapping: Equatable, Sendable {
@@ -109,4 +108,3 @@ struct LeadGestureMapper: Sendable {
         return min(max(chordIndex, 0), count - 1)
     }
 }
-#endif

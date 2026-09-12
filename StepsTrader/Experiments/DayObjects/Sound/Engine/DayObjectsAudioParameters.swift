@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 enum DayObjectsAudioParameters {
@@ -253,4 +252,3 @@ struct DayObjectsVoiceUpdate: Equatable, Sendable {
         self.saturationRampSeconds = saturationRampSeconds
     }
 }
-#endif

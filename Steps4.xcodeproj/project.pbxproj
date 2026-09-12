@@ -3694,13 +3694,6 @@
 				DEVELOPMENT_ASSET_PATHS = "\"Steps4/Preview Content\" \"StepsTrader/Preview Content\"";
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				ENABLE_PREVIEWS = YES;
-				EXCLUDED_SOURCE_FILE_NAMES = (
-					SynthOnePresets,
-					SoundWorlds,
-					Drums,
-					FeltPiano,
-					"audio-assets-manifest.json",
-				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Steps4/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Nowhere;

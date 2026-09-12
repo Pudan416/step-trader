@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 struct MusicalPosition: Equatable, Comparable, Sendable {
     static let subdivisionsPerBeat: Int64 = 4
     static let beatsPerBar: Int64 = 4
@@ -34,4 +33,3 @@ struct MusicalPosition: Equatable, Comparable, Sendable {
         lhs.absoluteSubdivision < rhs.absoluteSubdivision
     }
 }
-#endif

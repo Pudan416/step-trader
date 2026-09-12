@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 enum DayObjectsSoundWorldCatalogError: Error, Equatable {
@@ -225,4 +224,3 @@ struct DayObjectsSoundWorldCatalog: Sendable {
         .electricDream: ["electric.soft-machine", "electric.neon-drum", "electric.circuit-dust"]
     ]
 }
-#endif

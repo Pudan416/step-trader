@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 struct DayObjectsRoleBusSpatialParameters: Equatable, Sendable {
@@ -340,5 +339,3 @@ final class DayObjectsMixController {
         return min(max(value, 0), 2)
     }
 }
-
-#endif

@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 enum LayerMixPlanner {
@@ -35,4 +34,3 @@ enum LayerMixPlanner {
         )
     }
 }
-#endif

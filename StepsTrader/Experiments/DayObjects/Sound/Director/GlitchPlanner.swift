@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 enum GlitchPlanner {
     static func makePlan(
         input: NormalizedDayMusicInput,
@@ -26,4 +25,3 @@ enum GlitchPlanner {
         return min(max(value, 0), 1)
     }
 }
-#endif

@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 enum LeadPlanner {
     private static let approvedLeadIDs = Set([
         "lead.verbacious",
@@ -162,4 +161,3 @@ enum LeadPlanner {
         ((value % 12) + 12) % 12
     }
 }
-#endif

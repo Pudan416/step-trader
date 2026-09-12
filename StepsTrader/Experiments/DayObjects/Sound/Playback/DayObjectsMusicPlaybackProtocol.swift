@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 enum DayObjectsAudioErrorClassification: String, Equatable, Sendable {
@@ -124,4 +123,3 @@ extension DayObjectsMusicPlaybackProtocol {
     func auditionKickBassSidechain(preferredBassID: DayObjectsInstrumentID?) -> DayObjectsSidechainAuditionResult? { nil }
     func setHappeningAttackHandler(_ handler: ((String) -> Void)?) {}
 }
-#endif

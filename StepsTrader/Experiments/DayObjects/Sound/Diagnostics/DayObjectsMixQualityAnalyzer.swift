@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Accelerate
 import AVFAudio
 import Foundation
@@ -870,4 +869,3 @@ private struct OnePoleHighPass {
         return output
     }
 }
-#endif

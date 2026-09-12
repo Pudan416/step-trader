@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 enum DayObjectsInstrumentManifestError: Error, Equatable {
@@ -161,4 +160,3 @@ enum DayObjectsInstrumentManifest {
         )
     }
 }
-#endif

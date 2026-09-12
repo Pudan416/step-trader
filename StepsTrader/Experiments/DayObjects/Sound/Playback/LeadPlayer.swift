@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 struct LeadPlayerMetrics: Equatable, Sendable {
@@ -359,4 +358,3 @@ final class LeadPlayer {
         value.isFinite ? value : fallback
     }
 }
-#endif

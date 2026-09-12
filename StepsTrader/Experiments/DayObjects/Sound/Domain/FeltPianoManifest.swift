@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 struct FeltPianoSample: Equatable, Hashable, Sendable {
@@ -91,4 +90,3 @@ enum FeltPianoManifest {
     }
     private struct SourceFile: Decodable { let sha256: String }
 }
-#endif

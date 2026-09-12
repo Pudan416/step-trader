@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Accelerate
 import AVFAudio
 import Foundation
@@ -366,5 +365,3 @@ private struct Biquad {
         return output
     }
 }
-
-#endif

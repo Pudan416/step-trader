@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 struct DayObjectsLabMusicState: Equatable, Sendable {
     var steps: Double
     var stepGoal: Double
@@ -35,4 +34,3 @@ struct DayObjectsLabMusicState: Equatable, Sendable {
         self.guestWorld = guestWorld
     }
 }
-#endif

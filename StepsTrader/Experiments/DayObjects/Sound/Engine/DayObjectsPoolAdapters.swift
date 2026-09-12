@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import AudioKit
 import AudioKitEX
 import AudioToolbox
@@ -114,4 +113,3 @@ final class DayObjectsAudioKitPianoPoolAdapter: DayObjectsPianoPoolProtocol {
     func noteOff(_ token: DayObjectsFeltPianoToken) { _ = adapter.piano.noteOff(token) }
     func releaseAll() { adapter.piano.stop() }
 }
-#endif

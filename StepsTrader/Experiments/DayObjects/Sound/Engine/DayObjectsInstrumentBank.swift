@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import AudioKit
 import AudioKitEX
 import AudioToolbox
@@ -705,5 +704,3 @@ private final class DayObjectsMusicResourceBuilder: @unchecked Sendable {
         }
     }
 }
-
-#endif

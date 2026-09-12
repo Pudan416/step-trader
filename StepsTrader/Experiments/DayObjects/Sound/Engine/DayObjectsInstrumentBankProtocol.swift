@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import AVFAudio
 import Foundation
 
@@ -650,4 +649,3 @@ extension DayObjectsInstrumentBankProtocol {
     }
     var offlineLimiterInputPeakDBFS: Double { -120 }
 }
-#endif

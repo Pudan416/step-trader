@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 struct SynthOnePresetRecord: Decodable, Equatable, Sendable {
@@ -506,4 +505,3 @@ enum SynthOnePresetAdapter {
         return !value.isFinite || value != 0
     }
 }
-#endif

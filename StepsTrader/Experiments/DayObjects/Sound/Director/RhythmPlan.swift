@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 enum RhythmRole: CaseIterable, Equatable, Sendable {
     case lowPulse
     case halfTimeKick
@@ -300,4 +299,3 @@ private extension RhythmRole {
         }
     }
 }
-#endif

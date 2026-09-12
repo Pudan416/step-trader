@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 struct ResolvedHappeningSound: Equatable, Sendable {
     let recipeID: HappeningSoundRecipeID
     let resourceName: String
@@ -7,4 +6,3 @@ struct ResolvedHappeningSound: Equatable, Sendable {
     let playbackRate: Double
     let resonantFilterHz: Double?
 }
-#endif

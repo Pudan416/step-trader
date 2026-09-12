@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 struct NormalizedDayMusicInput: Equatable, Sendable {
     let stepsProgress: Double
     let sleepProgress: Double
@@ -8,4 +7,3 @@ struct NormalizedDayMusicInput: Equatable, Sendable {
     let visualClarity: Double
     let diagnostics: [DayMusicDiagnostic]
 }
-#endif

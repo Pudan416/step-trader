@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import CryptoKit
 import Foundation
 
@@ -179,4 +178,3 @@ extension NormalizedSynthVoice {
         return SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
     }
 }
-#endif

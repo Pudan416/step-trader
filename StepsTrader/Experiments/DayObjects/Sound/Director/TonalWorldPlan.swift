@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 enum DayMusicMode: CaseIterable, Equatable, Sendable {
     case dorian
     case aeolian
@@ -57,4 +56,3 @@ struct ChordPlan: Equatable, Sendable {
     let voicedMIDINotes: [UInt8]
     let durationBars: Int
 }
-#endif

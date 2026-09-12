@@ -86,6 +86,24 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
+  ios-release-audio:
+    name: iOS Release audio
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create placeholder secrets
+        run: cp Config/Secrets.xcconfig.template Config/Secrets.xcconfig
+      - name: Build production configuration and verify Canvas audio
+        run: |
+          xcodebuild build \
+            -project Steps4.xcodeproj -scheme Steps4 -configuration Release \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/ReleaseAudio" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+          python3 Scripts/check_canvas_audio_bundle.py \
+            "$RUNNER_TEMP/ReleaseAudio/Build/Products/Release-iphonesimulator/Nowhere.app"
+
   edge-functions:
     name: Edge Functions unit tests
     runs-on: ubuntu-latest

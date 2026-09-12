@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 enum BassPlanner {
     private static let register: ClosedRange<UInt8> = 24...40
     private static let subdivisionsPerBar: Int64 = 16
@@ -402,4 +401,3 @@ enum BassPlanner {
         ((value % 12) + 12) % 12
     }
 }
-#endif

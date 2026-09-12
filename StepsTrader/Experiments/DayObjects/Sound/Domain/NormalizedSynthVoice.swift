@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 struct NormalizedSynthVoice: Equatable, Sendable {
@@ -121,4 +120,3 @@ struct NormalizedSynthVoice: Equatable, Sendable {
     let referenceMIDI: UInt8
     let auditionChord: [UInt8]
 }
-#endif

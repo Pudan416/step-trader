@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 struct DayObjectsTonalPoolSpecification: Equatable, Sendable {
@@ -320,4 +319,3 @@ final class DayObjectsTonalVoicePool {
         }
     }
 }
-#endif

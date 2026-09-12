@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 struct DayObjectsRemixRuntimeMetrics: Equatable, Sendable {
@@ -506,4 +505,3 @@ final class DayObjectsRemixCoordinator {
     private var activeBank: PlaybackWorldBank { activeSlot == .a ? bankA : bankB }
     private var inactiveBank: PlaybackWorldBank { activeSlot == .a ? bankB : bankA }
 }
-#endif

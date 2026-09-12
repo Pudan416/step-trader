@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 enum HappeningPitchResolver {
@@ -199,4 +198,3 @@ enum HappeningPitchResolver {
             }
     }
 }
-#endif

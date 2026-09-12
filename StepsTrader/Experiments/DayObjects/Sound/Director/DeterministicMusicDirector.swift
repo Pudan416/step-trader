@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 enum DeterministicMusicDirector {
@@ -164,4 +163,3 @@ enum DeterministicMusicDirector {
         )
     }
 }
-#endif

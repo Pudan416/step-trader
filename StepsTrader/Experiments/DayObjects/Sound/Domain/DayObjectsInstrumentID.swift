@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 struct DayObjectsInstrumentID: RawRepresentable, Hashable, Codable, Sendable {
@@ -25,4 +24,3 @@ struct DayObjectsInstrumentDescriptor: Equatable, Codable, Sendable {
     let auditionChord: [UInt8]
     let outputTrimDB: Double
 }
-#endif

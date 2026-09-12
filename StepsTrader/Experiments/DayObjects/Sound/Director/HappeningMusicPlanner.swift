@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 enum HappeningMusicPlanner {
     static func makePlans(
         input: NormalizedDayMusicInput,
@@ -216,4 +215,3 @@ enum HappeningMusicPlanner {
     }
 
 }
-#endif

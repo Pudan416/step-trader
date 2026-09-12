@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 struct HappeningAttackRecord: Equatable, Sendable {
@@ -600,4 +599,3 @@ final class HappeningScheduler {
         return result
     }
 }
-#endif

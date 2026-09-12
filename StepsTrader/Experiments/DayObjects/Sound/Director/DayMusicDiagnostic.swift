@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 enum DayMusicDiagnostic: Equatable, Sendable {
     case invalidCountedSteps
     case invalidStepGoal
@@ -7,4 +6,3 @@ enum DayMusicDiagnostic: Equatable, Sendable {
     case emptyHappeningID
     case happeningIDLimitReached
 }
-#endif

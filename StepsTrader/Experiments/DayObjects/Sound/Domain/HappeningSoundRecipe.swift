@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 struct HappeningSoundRecipeID: RawRepresentable, Codable, Hashable, Sendable {
@@ -117,4 +116,3 @@ struct HappeningSoundRecipe: Equatable, Codable, Sendable {
         self.filterEndHz = filterEndHz
     }
 }
-#endif

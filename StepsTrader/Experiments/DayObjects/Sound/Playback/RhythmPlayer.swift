@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 struct RhythmPlaybackHit: Equatable, Sendable {
@@ -164,4 +163,3 @@ final class RhythmPlayer {
         return pow(10, min(max(decibels, -60), 0) / 20)
     }
 }
-#endif

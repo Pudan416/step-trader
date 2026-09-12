@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 enum DayObjectsTransportLifecycle: Equatable, Sendable {
@@ -304,4 +303,3 @@ actor DayObjectsTransport {
         waiters.forEach { $0.resume() }
     }
 }
-#endif

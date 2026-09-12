@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 enum GrooveMode: CaseIterable, Equatable, Sendable {
     case percussion
     case bassPulse
@@ -21,4 +20,3 @@ struct GroovePlan: Equatable, Sendable {
         thinningSeed: 0
     )
 }
-#endif

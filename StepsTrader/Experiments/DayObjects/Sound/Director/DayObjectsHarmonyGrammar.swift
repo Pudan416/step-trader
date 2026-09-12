@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 struct DayObjectsHarmonyGrammar: Equatable, Sendable {
     let allowedModes: [DayMusicMode]
     /// Semitone offsets from the tonal center, ordered by mood preference.
@@ -59,4 +58,3 @@ struct DayObjectsHarmonyGrammar: Equatable, Sendable {
         )
     }
 }
-#endif

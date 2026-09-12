@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 func smoothActivation(_ value: Double, start: Double, end: Double) -> Double {
     guard value.isFinite, start.isFinite, end.isFinite, end > start else {
         return 0
@@ -9,4 +8,3 @@ func smoothActivation(_ value: Double, start: Double, end: Double) -> Double {
     let progress = (value - start) / (end - start)
     return progress * progress * (3 - (2 * progress))
 }
-#endif

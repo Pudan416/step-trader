@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 enum AmbientVoiceLeading {
     static let ambientRegister: ClosedRange<UInt8> = 48...72
     static let ambientVoiceCount = 3
@@ -158,4 +157,3 @@ enum AmbientVoiceLeading {
         }
     }
 }
-#endif

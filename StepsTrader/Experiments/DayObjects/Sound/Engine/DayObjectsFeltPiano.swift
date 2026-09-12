@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import AudioKit
 import AudioKitEX
 import AudioToolbox
@@ -510,4 +509,3 @@ private final class DayObjectsAudioKitFeltPianoBackend: DayObjectsFeltPianoBacke
         hardStoppedVoiceCount += 1
     }
 }
-#endif

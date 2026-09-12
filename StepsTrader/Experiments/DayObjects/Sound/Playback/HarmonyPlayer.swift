@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 struct HarmonyPlayerMetrics: Equatable, Sendable {
@@ -630,4 +629,3 @@ final class HarmonyPlayer {
         return min(max(value, 0), 1)
     }
 }
-#endif

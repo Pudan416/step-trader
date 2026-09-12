@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Combine
 import Foundation
 
@@ -573,6 +572,7 @@ final class DayObjectsMusicLabController: ObservableObject {
         await completeLifecycleEvent(intent)
     }
 
+#if DEBUG || INTERNAL_BUILD
     func sceneInput(
         dayKey: String,
         motionEnergyOverride: Double? = nil,
@@ -609,6 +609,8 @@ final class DayObjectsMusicLabController: ObservableObject {
             editorialLabConfiguration: editorialLabConfiguration
         )
     }
+
+#endif
 
     private func updateState(
         happeningIDs: [String]? = nil,
@@ -821,4 +823,3 @@ struct DayObjectsMasterMeterRow: Equatable, Sendable {
         )
     }
 }
-#endif

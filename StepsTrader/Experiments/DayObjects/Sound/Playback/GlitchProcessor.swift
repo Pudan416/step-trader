@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 struct DayObjectsGlitchCommand: Equatable, Sendable {
@@ -254,4 +253,3 @@ extension DayObjectsGlitchCommand {
         )
     }
 }
-#endif

@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import AudioKit
 import AudioKitEX
 import AudioToolbox
@@ -1285,4 +1284,3 @@ final class DayObjectsMobileTonalVoice: DayObjectsAudioKitVoice {
         [oscillator1, oscillator2, subOscillator, noise, sourceMixer, lowPass, amplitudeEnvelope, output]
     }
 }
-#endif

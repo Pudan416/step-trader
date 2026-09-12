@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 enum DayObjectsTransportEventKind: Equatable, Sendable {
@@ -31,4 +30,3 @@ struct DayObjectsTransportEvent: Equatable, Sendable {
             ?? hostTimeSeconds + fixtureInterval
     }
 }
-#endif

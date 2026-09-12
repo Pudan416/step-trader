@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 enum BassArticulation: Hashable, Sendable {
     case pulse
     case arpeggio
@@ -39,4 +38,3 @@ struct BassPlan: Equatable, Sendable {
         events.filter { $0.activationThreshold <= stepsProgress }
     }
 }
-#endif

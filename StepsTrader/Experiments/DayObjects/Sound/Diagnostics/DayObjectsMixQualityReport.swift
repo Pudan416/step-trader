@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 enum DayObjectsMixRole: String, Codable, CaseIterable, Sendable {
@@ -73,4 +72,3 @@ extension Double {
         min(max(isFinite ? self : range.lowerBound, range.lowerBound), range.upperBound)
     }
 }
-#endif

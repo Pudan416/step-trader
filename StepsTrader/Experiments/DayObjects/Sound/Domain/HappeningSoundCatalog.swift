@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import Foundation
 
 enum HappeningSoundCatalog {
@@ -335,4 +334,3 @@ enum HappeningSoundCatalog {
         String(format: "%02d", rawID)
     }
 }
-#endif
