@@ -25,13 +25,13 @@ Custom creation explicitly permits equal titles with separate user IDs. Differen
 
 The user approved broader actions in this task:
 
-| Previously shipped English | New English | Russian |
-| --- | --- | --- |
-| Called someone | Connected | Пообщался |
-| Drinks together | Time together | Время вместе |
-| Did nothing | Rested | Отдохнул |
+| Previously shipped English | New English |
+| --- | --- |
+| Called someone | Connected |
+| Drinks together | Time together |
+| Did nothing | Rested |
 
-Added Russian translations for all ten built-ins; previously their entries contained English only. English fallback titles match the string catalog. Both languages have unique, nonempty built-in titles within the existing 15-character field budget.
+The catalog remains English-only, as requested by the user. The unsolicited Russian translations initially included in `925ee1db` were removed in a follow-up. English fallback titles match the string catalog; built-in titles are unique, nonempty and fit the existing 15-character field budget.
 
 `HappeningPaletteSelection.alternatives` collapses only the three known walking IDs in the chooser. It prefers the current built-in when available, retains an imported representative if it is not, and excludes equivalents already selected. Searching an imported title still finds the representative. `HappeningChooserView` uses that same function for search and availability.
 

@@ -2633,12 +2633,6 @@
             "state" : "translated",
             "value" : "Connected"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Пообщался"
-          }
         }
       }
     },
@@ -2649,12 +2643,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rested"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Отдохнул"
           }
         }
       }
@@ -2667,12 +2655,6 @@
             "state" : "translated",
             "value" : "Time together"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Время вместе"
-          }
         }
       }
     },
@@ -2683,12 +2665,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Laughed"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Посмеялся"
           }
         }
       }
@@ -2701,12 +2677,6 @@
             "state" : "translated",
             "value" : "Made something"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Что-то создал"
-          }
         }
       }
     },
@@ -2717,12 +2687,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Time outside"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "На улице"
           }
         }
       }
@@ -2735,12 +2699,6 @@
             "state" : "translated",
             "value" : "Read"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Почитал"
-          }
         }
       }
     },
@@ -2751,12 +2709,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Slept well"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Хорошо поспал"
           }
         }
       }
@@ -2769,12 +2721,6 @@
             "state" : "translated",
             "value" : "Walk"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Прогулка"
-          }
         }
       }
     },
@@ -2785,12 +2731,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Workout"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Тренировка"
           }
         }
       }
