@@ -17,12 +17,15 @@ struct MetalShapeMaterialUniforms: Codable, Equatable, Sendable {
     var materialIndex: UInt32 { metadata.x }
     var direction: SIMD2<Float> { SIMD2(params1.x, params1.y) }
 
-    /// Keep old saved parameters readable, but never draw the dense nested
-    /// contour fill on the primary canvas or its picker.
+    /// Replace retired Canvas fills at render time, keeping saved parameters
+    /// readable and retaining the figure's frozen colors and geometry.
     var primaryCanvasMaterial: Self {
-        guard materialIndex == 8 else { return self }
         var safeMetadata = metadata
-        safeMetadata.x = 2
+        switch materialIndex {
+        case 8: safeMetadata.x = 2 // Dense nested contour -> simple outline.
+        case 10: safeMetadata.x = 4 // Sunset -> two-color radial gradient.
+        default: return self
+        }
         return Self(color0: color0, color1: color1, color2: color2, params0: params0, params1: params1, params2: params2, params3: params3, metadata: safeMetadata)
     }
 

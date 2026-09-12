@@ -514,10 +514,7 @@ struct GalleryView: View {
                let actor = assignment.nativeActor ?? input.nativeAtlasRecipe?.prospectiveActor(
                    eventID: assignment.elementID.uuidString.lowercased()
                ) {
-                material = actor.material.primaryCanvasMaterial
-                if actor.materialID != .sunset {
-                    material = material?.withColorVariant(assignment.colorVariant)
-                }
+                material = actor.material.primaryCanvasMaterial.withColorVariant(assignment.colorVariant)
             }
             return (happening.id, HappeningPaletteLabelInk.resolve(
                 state: state, background: background, material: material
