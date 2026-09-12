@@ -112,11 +112,11 @@ final class AppTypographyTests: XCTestCase {
 
     func testRequiredNowhereDisplayFacesAreRegisteredInTheApplicationBundle() {
         XCTAssertNotNil(
-            UIFont(name: "NowhereDisplay04-Regular", size: 24),
+            UIFont(name: "NowhereDisplay05-Regular", size: 24),
             "The regular Nowhere Display face must be bundled and registered by the app target."
         )
         XCTAssertNotNil(
-            UIFont(name: "NowhereDisplay04-Bold", size: 24),
+            UIFont(name: "NowhereDisplay05-Bold", size: 24),
             "The exact static Nowhere Display Bold face used by posters must be registered by the app target."
         )
     }
@@ -124,7 +124,7 @@ final class AppTypographyTests: XCTestCase {
     @MainActor
     func testAppBlackBrandFontRendersTheStaticNowhereDisplayBoldFace() throws {
         XCTAssertNotNil(
-            UIFont(name: "NowhereDisplay04-Bold", size: 80),
+            UIFont(name: "NowhereDisplay05-Bold", size: 80),
             "The static Nowhere Display Bold face must be available before SwiftUI can render it."
         )
 
@@ -134,7 +134,7 @@ final class AppTypographyTests: XCTestCase {
         )
         let expected = try renderedImage(
             Text("0")
-                .font(.custom("NowhereDisplay04-Bold", fixedSize: 80))
+                .font(.custom("NowhereDisplay05-Bold", fixedSize: 80))
         )
 
         let actualImage = try XCTUnwrap(actual.cgImage)
@@ -172,7 +172,7 @@ final class AppTypographyTests: XCTestCase {
 
         let referenceImage = try renderedImage(
             Text("22/08/26")
-                .font(.custom("NowhereDisplay04-Bold", fixedSize: 40))
+                .font(.custom("NowhereDisplay05-Bold", fixedSize: 40))
         )
         let expectedBounds = try darkPixelBounds(in: try XCTUnwrap(referenceImage.cgImage))
 
@@ -198,7 +198,7 @@ final class AppTypographyTests: XCTestCase {
 
         let blackReference = try renderedImage(
             Text("22/08/26")
-                .font(.custom("NowhereDisplay04-Bold", fixedSize: 48))
+                .font(.custom("NowhereDisplay05-Bold", fixedSize: 48))
         )
         let expectedInk = try darkPixelCount(in: try XCTUnwrap(blackReference.cgImage))
 
