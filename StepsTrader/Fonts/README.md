@@ -13,7 +13,7 @@ Source SHA-256: `966c5c29b4755da84b6854d5c21dd4eaa2420225d0e9874de602de176d4a9f3
 
 The nine static Onest files were instantiated from this source with fontTools.varLib.instancer at wght=100, 200, …, 900, using updateFontNames=True. Outlines and other font features were preserved. Their PostScript names are Onest-Thin through Onest-Black.
 
-Nowhere Display files were copied from `artifacts/nowhere-display-v02-bold/fonts/`. PostScript names: NowhereDisplay02-Regular and NowhereDisplay02-Bold. This prototype covers basic Latin, Russian Cyrillic, digits, and selected punctuation; iOS supplies fallback for other characters.
+Nowhere Display files were copied from `artifacts/nowhere-display-v04/fonts/`. PostScript names: NowhereDisplay04-Regular and NowhereDisplay04-Bold. This prototype covers basic Latin, Russian Cyrillic, digits, and selected punctuation; iOS supplies fallback for other characters.
 
 ## App mapping
 

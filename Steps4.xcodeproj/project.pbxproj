@@ -20,8 +20,8 @@
 		A70FE0020000000000000007 /* Onest-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000007 /* Onest-Regular.ttf */; };
 		A70FE0020000000000000008 /* Onest-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000008 /* Onest-SemiBold.ttf */; };
 		A70FE0020000000000000009 /* Onest-Thin.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000009 /* Onest-Thin.ttf */; };
-		A70FE002000000000000000A /* NowhereDisplay02-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE001000000000000000A /* NowhereDisplay02-Regular.ttf */; };
-		A70FE002000000000000000B /* NowhereDisplay02-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE001000000000000000B /* NowhereDisplay02-Bold.ttf */; };
+		A70FE002000000000000000A /* NowhereDisplay04-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE001000000000000000A /* NowhereDisplay04-Regular.ttf */; };
+		A70FE002000000000000000B /* NowhereDisplay04-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE001000000000000000B /* NowhereDisplay04-Bold.ttf */; };
 		A70FE002000000000000000C /* Onest-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = A70FE001000000000000000C /* Onest-OFL.txt */; };
 		A70FE002000000000000000D /* NowhereDisplay-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = A70FE001000000000000000D /* NowhereDisplay-OFL.txt */; };
 		D30700000000000000000004 /* DayObjectsAuditionPackExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30700000000000000000003 /* DayObjectsAuditionPackExporter.swift */; };
@@ -680,8 +680,8 @@
 		A70FE0010000000000000007 /* Onest-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-Regular.ttf"; sourceTree = "<group>"; };
 		A70FE0010000000000000008 /* Onest-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-SemiBold.ttf"; sourceTree = "<group>"; };
 		A70FE0010000000000000009 /* Onest-Thin.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-Thin.ttf"; sourceTree = "<group>"; };
-		A70FE001000000000000000A /* NowhereDisplay02-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "NowhereDisplay02-Regular.ttf"; sourceTree = "<group>"; };
-		A70FE001000000000000000B /* NowhereDisplay02-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "NowhereDisplay02-Bold.ttf"; sourceTree = "<group>"; };
+		A70FE001000000000000000A /* NowhereDisplay04-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "NowhereDisplay04-Regular.ttf"; sourceTree = "<group>"; };
+		A70FE001000000000000000B /* NowhereDisplay04-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "NowhereDisplay04-Bold.ttf"; sourceTree = "<group>"; };
 		A70FE001000000000000000C /* Onest-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Onest-OFL.txt"; sourceTree = "<group>"; };
 		A70FE001000000000000000D /* NowhereDisplay-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "NowhereDisplay-OFL.txt"; sourceTree = "<group>"; };
 		D30700000000000000000003 /* DayObjectsAuditionPackExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsAuditionPackExporter.swift; sourceTree = "<group>"; };
@@ -2003,8 +2003,8 @@
 				A70FE0010000000000000007 /* Onest-Regular.ttf */,
 				A70FE0010000000000000008 /* Onest-SemiBold.ttf */,
 				A70FE0010000000000000009 /* Onest-Thin.ttf */,
-				A70FE001000000000000000A /* NowhereDisplay02-Regular.ttf */,
-				A70FE001000000000000000B /* NowhereDisplay02-Bold.ttf */,
+				A70FE001000000000000000A /* NowhereDisplay04-Regular.ttf */,
+				A70FE001000000000000000B /* NowhereDisplay04-Bold.ttf */,
 				A70FE001000000000000000C /* Onest-OFL.txt */,
 				A70FE001000000000000000D /* NowhereDisplay-OFL.txt */,
 			);
@@ -2569,8 +2569,8 @@
 				A70FE0020000000000000007 /* Onest-Regular.ttf in Resources */,
 				A70FE0020000000000000008 /* Onest-SemiBold.ttf in Resources */,
 				A70FE0020000000000000009 /* Onest-Thin.ttf in Resources */,
-				A70FE002000000000000000A /* NowhereDisplay02-Regular.ttf in Resources */,
-				A70FE002000000000000000B /* NowhereDisplay02-Bold.ttf in Resources */,
+				A70FE002000000000000000A /* NowhereDisplay04-Regular.ttf in Resources */,
+				A70FE002000000000000000B /* NowhereDisplay04-Bold.ttf in Resources */,
 				A70FE002000000000000000C /* Onest-OFL.txt in Resources */,
 				A70FE002000000000000000D /* NowhereDisplay-OFL.txt in Resources */,
 				D0A0D1000000000000000004 /* AudioKitSynthOne-MIT.txt in Resources */,
