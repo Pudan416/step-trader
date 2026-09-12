@@ -4,7 +4,11 @@ struct DayCanvas: Codable {
     var dayKey: String                          // "2026-02-12"
     var elements: [CanvasElement] {             // spawned from activities
         didSet {
-            artworkRecipe = artworkRecipe?.reconciled(eventIDs: elements.map { $0.id.uuidString.lowercased() })
+            let previousIDs = Set(oldValue.map { $0.id.uuidString.lowercased() })
+            let eventIDs = elements.map { $0.id.uuidString.lowercased() }
+            artworkRecipe = artworkRecipe?.reconciled(
+                eventIDs: eventIDs, addingEventIDs: Set(eventIDs).subtracting(previousIDs)
+            )
         }
     }
     var sleepPoints: Int

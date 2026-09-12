@@ -41,7 +41,7 @@ struct HappeningPaletteRenderControls: Equatable {
         case .additionPreview:
             Self(paletteMorph: 1, saturation: 1, removalEmphasis: 0, scale: 1.06, opacity: 1, depth: 0.90)
         case .added:
-            Self(paletteMorph: 1, saturation: 0.08, removalEmphasis: 0, scale: 0.98, opacity: 0.82, depth: 0.45)
+            Self(paletteMorph: 1, saturation: 1, removalEmphasis: 0, scale: 1, opacity: 1, depth: 0.45)
         case .removalPreview:
             Self(paletteMorph: 1, saturation: 0.08, removalEmphasis: 1, scale: 1.04, opacity: 0.88, depth: 0.90)
         }

@@ -26,7 +26,7 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
         XCTAssertEqual(preview.gpuActor.silhouetteVariant, assignment.silhouette.variant)
         XCTAssertEqual(preview.halfSize.y / preview.halfSize.x, assignment.silhouette.aspect, accuracy: 0.0001)
         XCTAssertEqual(preview.gpuAppearance, assignment.material.gpuAppearance)
-        XCTAssertEqual(added.gpuActor.presentationSaturation, 0.08, accuracy: 0.001)
+        XCTAssertEqual(added.gpuActor.presentationSaturation, 1, accuracy: 0.001)
         XCTAssertEqual(removal.gpuActor.removalEmphasis, 1)
         XCTAssertEqual(frame.postProcess.grainIntensity, 0.05)
         XCTAssertEqual(frame.postProcess.blurRadius, 0)

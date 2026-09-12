@@ -529,9 +529,9 @@ struct GalleryView: View {
             var material: MetalShapeMaterialUniforms?
             if state != .available,
                let assignment = paletteEditorialAssignments[happening.id],
-               let actor = input.nativeAtlasRecipe?.reconciled(
-                   eventIDs: [assignment.elementID.uuidString.lowercased()]
-               ).actors.first {
+               let actor = assignment.nativeActor ?? input.nativeAtlasRecipe?.prospectiveActor(
+                   eventID: assignment.elementID.uuidString.lowercased()
+               ) {
                 material = actor.material.primaryCanvasMaterial
                 if actor.materialID != .sunset {
                     material = material?.withColorVariant(assignment.colorVariant)

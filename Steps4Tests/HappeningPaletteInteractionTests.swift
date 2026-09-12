@@ -9,6 +9,30 @@ final class HappeningPaletteInteractionTests: XCTestCase {
         XCTAssertEqual(state.tap(id: "walk", addedIDs: []), .perform(.add("walk")))
     }
 
+    func testRapidTapsCannotSubmitPendingAdditionTwice() {
+        var state = HappeningPaletteInteractionState()
+        _ = state.tap(id: "walk", addedIDs: [])
+        XCTAssertEqual(state.tap(id: "walk", addedIDs: []), .perform(.add("walk")))
+        XCTAssertEqual(state.tap(id: "walk", addedIDs: []), .ignored)
+        XCTAssertEqual(state.tap(id: "read", addedIDs: []), .ignored)
+        state.resolve(.add("walk"), succeeded: true)
+        XCTAssertEqual(state.visualState(for: "walk", addedIDs: ["walk"]), .added)
+        // A fresh tap can only arm the existing removal action, never add again.
+        XCTAssertEqual(state.tap(id: "walk", addedIDs: ["walk"]), .armed(.remove("walk")))
+    }
+
+    func testReopeningRestoresAddedIDsButCancelsUnconfirmedSelection() {
+        var state = HappeningPaletteInteractionState()
+        _ = state.tap(id: "read", addedIDs: ["walk"])
+        state.cancel()
+        XCTAssertEqual(state.visualState(for: "walk", addedIDs: ["walk"]), .added)
+        XCTAssertEqual(state.visualState(for: "read", addedIDs: ["walk"]), .available)
+        XCTAssertEqual(state.tap(id: "read", addedIDs: ["walk"]), .armed(.add("read")))
+        state.cancel()
+        // The new custom day supplies an empty set from its own Canvas.
+        XCTAssertEqual(state.visualState(for: "walk", addedIDs: []), .available)
+    }
+
     func testAddedNeedsTwoActivationsToRemove() {
         var state = HappeningPaletteInteractionState()
         let added: Set<String> = ["walk"]

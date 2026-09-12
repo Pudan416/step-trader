@@ -2,12 +2,13 @@ import Foundation
 
 /// Stable event slots and placement. Keep RNG consumption order compatible with atlas-1.
 extension NativeAtlasRecipe {
-    func reconciled(eventIDs: [String]) -> Self {
+    func reconciled(eventIDs: [String], addingEventIDs: Set<String> = []) -> Self {
         guard isSupported, let rootSeed = UInt64(seedHex, radix: 16) else { return self }
         var result = self, seen = Set<String>()
         let ids = Array(eventIDs.filter { seen.insert($0).inserted }.prefix(10))
         let retained = Dictionary(actors.map { ($0.eventID, $0) }, uniquingKeysWith: { first, _ in first })
         var usedSlots = Set(actors.filter { ids.contains($0.eventID) }.map(\.slot))
+        var assigned = actors.filter { ids.contains($0.eventID) }
         result.actors = ids.enumerated().map { index, id in
             if let existing = retained[id] { return existing }
             let slot = (0..<10).first { !usedSlots.contains($0) } ?? index
@@ -18,7 +19,12 @@ extension NativeAtlasRecipe {
             // A scene may contain one family, two families, or the whole catalog.
             let mode = rootSeed % 3
             let familyIndex = Int(rootSeed % UInt64(catalog.count))
-            let pool = mode == 0 ? [catalog[familyIndex]] : mode == 1 ? [catalog[familyIndex], catalog[(familyIndex + 3) % catalog.count]] : catalog
+            let legacyPool = mode == 0 ? [catalog[familyIndex]] : mode == 1 ? [catalog[familyIndex], catalog[(familyIndex + 3) % catalog.count]] : catalog
+            // Only explicit additions use the new policy. Ordinary restoration
+            // (including incomplete historical recipes) keeps atlas-1 exactly.
+            let pool = addingEventIDs.contains(id)
+                ? Self.diversePresets(among: catalog, retained: assigned)
+                : legacyPool
             let preset = pool[rng.nextInt(in: 0...(pool.count - 1))]
             let allowed = MetalShapeMaterial.allCases.filter {
                 $0 != .proceduralContour && preset.compatibility.allowed.contains($0)
@@ -48,8 +54,40 @@ extension NativeAtlasRecipe {
             case 5: size *= index.isMultiple(of: 2) ? 1.4 : 0.65
             default: break
             }
-            return Actor(eventID: id, presetID: preset.id, materialID: material, seedHex: String(seed, radix: 16), geometry: frame.geometry, material: frame.material, position: p, size: size, rotation: material == .sunset ? 0 : Float(rng.nextDouble(in: 0...(2 * .pi))), slot: slot)
+            let actor = Actor(eventID: id, presetID: preset.id, materialID: material, seedHex: String(seed, radix: 16), geometry: frame.geometry, material: frame.material, position: p, size: size, rotation: material == .sunset ? 0 : Float(rng.nextDouble(in: 0...(2 * .pi))), slot: slot)
+            assigned.append(actor)
+            return actor
         }
         return result
     }
+
+    /// Resolve the same candidate that appending this event will freeze. Keep
+    /// the other actors present while choosing; a one-event recipe loses the
+    /// context needed to avoid repeating their silhouettes.
+    func prospectiveActor(eventID: String) -> Actor? {
+        reconciled(eventIDs: actors.map(\.eventID) + [eventID], addingEventIDs: [eventID])
+            .actors.first { $0.eventID == eventID }
+    }
+
+    private static func diversePresets(among catalog: [MetalShapePreset], retained: [Actor]) -> [MetalShapePreset] {
+        // Exhaust distinct silhouettes before repeating a preset. Among ties,
+        // alternate rounded, radial and angular outlines, so even a sparse day
+        // is not just several parameter variations of a square.
+        func family(_ id: String) -> Int {
+            switch id {
+            case "genome.soft-drift", "legacy.circle": 0
+            case "genome.snowflake", "genome.windflower", "genome.soft-clover": 1
+            default: 2
+            }
+        }
+        func score(_ preset: MetalShapePreset) -> Int {
+            retained.reduce(0) { total, actor in
+                total + (actor.presetID == preset.id ? 100 : 0)
+                    + (family(actor.presetID) == family(preset.id) ? 1 : 0)
+            }
+        }
+        let minimum = catalog.map(score).min()
+        return catalog.filter { score($0) == minimum }
+    }
+
 }

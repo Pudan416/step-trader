@@ -24,6 +24,8 @@ struct HappeningEditorialAssignment: Equatable {
     let material: DayObjectEditorialMaterialV1
     let colorVariant: Int
     var silhouette: DayObjectSilhouette = .legacy
+    /// Exact frozen/prospective Native Atlas parameters used by the live renderer.
+    var nativeActor: NativeAtlasRecipe.Actor? = nil
 }
 
 /// Every value that influences the exact Editorial actor shown for a happening
@@ -80,7 +82,8 @@ enum HappeningEditorialAssignmentResolver {
     static func snapshot(
         request: HappeningEditorialAssignmentRequest
     ) -> HappeningEditorialAssignmentSnapshot {
-        let direction = request.baseInput.editorialLabConfiguration?.materialMode == .generativeDNA
+        let direction = request.baseInput.nativeAtlasRecipe?.isSupported != true
+            && request.baseInput.editorialLabConfiguration?.materialMode == .generativeDNA
             ? DayObjectArtDirectionScheduler.make(dayKey: request.baseInput.dayKey, identity: request.baseInput.identity)
             : nil
         let assignments: [String: HappeningEditorialAssignment] = request.happenings.reduce(into: [:]) { result, happening in
@@ -111,7 +114,8 @@ enum HappeningEditorialAssignmentResolver {
                 shape: actor.shape,
                 material: actor.material,
                 colorVariant: colorVariant,
-                silhouette: actor.silhouette
+                silhouette: actor.silhouette,
+                nativeActor: request.baseInput.nativeAtlasRecipe?.prospectiveActor(eventID: eventID)
             )
         }
         return HappeningEditorialAssignmentSnapshot(

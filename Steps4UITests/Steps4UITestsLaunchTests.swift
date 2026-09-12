@@ -531,6 +531,51 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         attachScreenshot(named: "palette-shapes-after-shake")
     }
 
+    func testHappeningMenuStatesAndReopening() throws {
+        let app = launchTask7App()
+        openPalette(in: app)
+        let walk = app.buttons["happening_choice_happening_walk"]
+        let workout = app.buttons["happening_choice_happening_workout"]
+        XCTAssertEqual(walk.value as? String, "Available")
+        attachScreenshot(named: "menu-1-available")
+        walk.tap()
+        XCTAssertEqual(walk.value as? String, "Previewing addition to Canvas")
+        workout.tap()
+        XCTAssertEqual(walk.value as? String, "Available")
+        XCTAssertEqual(workout.value as? String, "Previewing addition to Canvas")
+        walk.tap()
+        Thread.sleep(forTimeInterval: 0.5)
+        attachScreenshot(named: "menu-2-preview")
+        walk.tap()
+        XCTAssertEqual(walk.value as? String, "On Canvas")
+        for id in ["workout", "slept_well"] {
+            let item = app.buttons["happening_choice_happening_\(id)"]
+            item.tap(); item.tap()
+            XCTAssertEqual(item.value as? String, "On Canvas")
+        }
+        Thread.sleep(forTimeInterval: 0.5)
+        attachScreenshot(named: "menu-3-added-color")
+        app.buttons["Close"].tap()
+        openPalette(in: app)
+        XCTAssertEqual(walk.value as? String, "On Canvas")
+        XCTAssertEqual(workout.value as? String, "On Canvas")
+        walk.tap()
+        XCTAssertEqual(walk.value as? String, "Previewing removal from Canvas")
+        XCTAssertTrue(walk.staticTexts["Delete"].exists)
+        Thread.sleep(forTimeInterval: 0.5)
+        attachScreenshot(named: "menu-4-removal-preview")
+        app.buttons["Close"].tap()
+        openPalette(in: app)
+        XCTAssertEqual(walk.value as? String, "On Canvas")
+        // Leave no additions for a subsequent hosted unit-test launch to recover.
+        for id in ["walk", "workout", "slept_well"] {
+            let item = app.buttons["happening_choice_happening_\(id)"]
+            item.tap(); item.tap()
+            XCTAssertEqual(item.value as? String, "Available")
+        }
+        app.buttons["Close"].tap()
+    }
+
     func testHappeningPaletteToggleFlow() throws {
         let app = launchTask7App()
         openPalette(in: app)

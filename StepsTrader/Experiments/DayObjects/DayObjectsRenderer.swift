@@ -1440,7 +1440,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                 let original = recipe
                 recipe.actors = presentation.slots.compactMap { slot in
                     let id = slot.assignment.elementID.uuidString.lowercased()
-                    guard let spec = original.reconciled(eventIDs: [id]).actors.first else { return nil }
+                    guard let spec = slot.assignment.nativeActor ?? original.prospectiveActor(eventID: id) else { return nil }
                     variants[slot.happeningID] = slot.assignment.colorVariant
                     return NativeAtlasRecipe.Actor(eventID: slot.happeningID, presetID: spec.presetID, materialID: spec.materialID, seedHex: spec.seedHex, geometry: spec.geometry, material: spec.material, position: spec.position, size: spec.size, rotation: spec.rotation, slot: spec.slot)
                 }

@@ -724,6 +724,120 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
     }
 }
 final class NativeAtlasRecipeTests: XCTestCase {
+    /// Exercise the actual menu UUID -> append -> frozen atlas path across days.
+    @MainActor
+    func testSequentialHappeningsUseDistinctNativeSilhouettesAcrossDays() async throws {
+        let happenings = ["walk", "workout", "slept_well", "called_someone", "drinks",
+                          "read", "laughed", "made_something", "outside", "did_nothing"].map {
+            Happening(id: "happening_\($0)", title: $0, isBuiltIn: true)
+        }
+        var report = [String]()
+        var counts = [Int]()
+        for day in 10...12 {
+            var canvas = DayCanvas.newDailyCanvas(dayKey: "2026-09-\(day)")
+            for happening in happenings {
+                let input = EditorialCanvasInputFactory.make(canvas: canvas,
+                    metrics: .init(stepsProgress: 0.5, sleepProgress: 1, spentProgress: 0),
+                    paletteCategories: ModernPaletteSelection.all).sceneInput
+                let request = HappeningEditorialAssignmentRequest(happenings: happenings,
+                    baseInput: input, committedElements: canvas.elements, colorNonce: 7)
+                let assignment = try XCTUnwrap(HappeningEditorialAssignmentResolver.snapshot(request: request).assignments[happening.id])
+                let retained = canvas.artworkRecipe?.actors ?? []
+                var element = CanvasElement.spawn(id: assignment.elementID, optionId: happening.id,
+                    label: happening.title, existingElements: canvas.elements, dayKey: canvas.dayKey,
+                    composition: .forDay(dayKey: canvas.dayKey, happeningCount: canvas.elements.count))
+                element.editorialColorVariant = assignment.colorVariant
+                canvas.elements.append(element)
+                XCTAssertEqual(try XCTUnwrap(assignment.nativeActor), canvas.artworkRecipe?.actors.last,
+                    "The Native Atlas figure promised by the menu must be committed exactly")
+                XCTAssertEqual(Array(canvas.artworkRecipe!.actors.prefix(retained.count)), retained)
+                let restored = try JSONDecoder().decode(DayCanvas.self, from: JSONEncoder().encode(canvas))
+                XCTAssertEqual(restored.artworkRecipe, canvas.artworkRecipe)
+            }
+            let actors = try XCTUnwrap(canvas.artworkRecipe?.actors)
+            counts.append(Set(actors.prefix(9).map(\.presetID)).count)
+            report.append("\(canvas.dayKey): " + actors.map(\.presetID).joined(separator: ", "))
+            try await attachNativeSilhouettes(canvas: canvas, happenings: happenings)
+        }
+        let attachment = XCTAttachment(string: report.joined(separator: "\n"))
+        attachment.name = "native-distribution"; attachment.lifetime = .keepAlways; add(attachment)
+        XCTAssertEqual(counts, [9, 9, 9], report.joined(separator: "\n"))
+    }
+
+    @MainActor
+    private func attachNativeSilhouettes(canvas: DayCanvas, happenings: [Happening]) async throws {
+        let input = EditorialCanvasInputFactory.make(canvas: canvas,
+            metrics: .init(stepsProgress: 0.5, sleepProgress: 1, spentProgress: 0),
+            paletteCategories: ModernPaletteSelection.all).sceneInput
+        let assignments = HappeningEditorialAssignmentResolver.snapshot(request: .init(
+            happenings: happenings, baseInput: input, committedElements: canvas.elements, colorNonce: 7)).assignments
+        let slots = try happenings.enumerated().map { index, happening in
+            HappeningPaletteRenderSlot(happeningID: happening.id,
+                assignment: try XCTUnwrap(assignments[happening.id]), visualState: .additionPreview,
+                source: .init(index: index, center: CGPoint(x: 50 + 100 * index, y: 90), radius: 32))
+        }
+        let size = CGSize(width: 1000, height: 180)
+        DayObjectsRenderer.prepareResources()
+        let renderer = try XCTUnwrap(DayObjectsRenderer.create(scene: .make(input: input),
+            environment: .init(motionEnergy: 0.5, visualClarity: 1),
+            presentationMode: .happeningPalette(.init(slots: slots, viewportSize: size,
+                reduceMotion: true, isTransitionActive: false, backgroundRevision: 1))))
+        let image: UIImage? = await withCheckedContinuation { continuation in
+            renderer.renderOffscreen(size: size, pointScale: 1, elapsedTime: 4) { texture, _ in
+                continuation.resume(returning: texture.flatMap { DayObjectsImageRenderer.makeImage(texture: $0, scale: 1) })
+            }
+        }
+        let attachment = XCTAttachment(image: try XCTUnwrap(image))
+        attachment.name = "native-silhouettes-\(canvas.dayKey)"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+
+    func testHistoricalNativeRecipeKeepsFrozenActorsThroughRestoreAndNewAdditions() throws {
+        var canvas = DayCanvas.newDailyCanvas(dayKey: "2026-09-10")
+        canvas.elements = (0..<3).map { index in
+            CanvasElement.spawn(optionId: "old-\(index)", label: "Old", existingElements: [],
+                dayKey: canvas.dayKey, composition: .forDay(dayKey: canvas.dayKey, happeningCount: 0))
+        }
+        // The default reconciliation deliberately reproduces pre-fix atlas-1.
+        canvas.artworkRecipe = NativeAtlasRecipe.make(dayKey: canvas.dayKey)
+            .reconciled(eventIDs: canvas.elements.map { $0.id.uuidString.lowercased() })
+        let historical = try XCTUnwrap(canvas.artworkRecipe)
+        var restored = try JSONDecoder().decode(DayCanvas.self, from: JSONEncoder().encode(canvas))
+        let sameElements = restored.elements
+        restored.elements = sameElements
+        XCTAssertEqual(restored.artworkRecipe, historical)
+        restored.elements.append(CanvasElement.spawn(optionId: "new", label: "New",
+            existingElements: restored.elements, dayKey: restored.dayKey,
+            composition: .forDay(dayKey: restored.dayKey, happeningCount: 3)))
+        XCTAssertEqual(Array(restored.artworkRecipe!.actors.prefix(3)), historical.actors)
+        XCTAssertNotEqual(restored.artworkRecipe!.actors.last?.presetID, "legacy.soft-square")
+        restored.elements.removeLast()
+        XCTAssertEqual(restored.artworkRecipe, historical)
+    }
+
+    func testNativePreviewAndCommittedPigmentSurviveNonceAndCatalogChanges() throws {
+        var canvas = DayCanvas.newDailyCanvas(dayKey: "2026-09-12")
+        let happening = Happening(id: "custom-stable-id", title: "My action", isBuiltIn: false)
+        func assignment(_ canvas: DayCanvas, nonce: UInt64, title: String) throws -> HappeningEditorialAssignment {
+            let input = EditorialCanvasInputFactory.make(canvas: canvas,
+                metrics: .init(stepsProgress: 0.5, sleepProgress: 1, spentProgress: 0),
+                paletteCategories: ModernPaletteSelection.all).sceneInput
+            return try XCTUnwrap(HappeningEditorialAssignmentResolver.snapshot(request: .init(
+                happenings: [.init(id: happening.id, title: title, isBuiltIn: false)],
+                baseInput: input, committedElements: canvas.elements, colorNonce: nonce)).assignments[happening.id])
+        }
+        let preview = try assignment(canvas, nonce: 7, title: happening.title)
+        let rerolled = try assignment(canvas, nonce: 8, title: "Renamed")
+        XCTAssertEqual(preview.nativeActor, rerolled.nativeActor)
+        XCTAssertNotEqual(preview.colorVariant, rerolled.colorVariant)
+        var element = CanvasElement.spawn(id: preview.elementID, optionId: happening.id, label: happening.title,
+            existingElements: [], dayKey: canvas.dayKey, composition: .forDay(dayKey: canvas.dayKey, happeningCount: 0))
+        element.editorialColorVariant = preview.colorVariant
+        canvas.elements.append(element)
+        let restored = try JSONDecoder().decode(DayCanvas.self, from: JSONEncoder().encode(canvas))
+        let committed = try assignment(restored, nonce: 42, title: "Renamed again")
+        XCTAssertEqual(preview, committed)
+    }
+
     func testNewNativeCanvasCapturesChosenPalette() throws {
         let pastel = DayCanvas.newDailyCanvas(dayKey: "2026-09-10", paletteCategories: [.pastel])
         let neon = DayCanvas.newDailyCanvas(dayKey: "2026-09-10", paletteCategories: [.neon])
@@ -1009,7 +1123,7 @@ final class NativeAtlasRecipeTests: XCTestCase {
     }
 
     @MainActor
-    func testNativePickerStartsAsCirclesThenRevealsAndDesaturatesShape() async throws {
+    func testNativePickerStartsAsCirclesThenKeepsAddedPigment() async throws {
         let square = try await pickerImage(presetID: "legacy.soft-square", state: .available)
         let flower = try await pickerImage(presetID: "genome.windflower", state: .available)
         XCTAssertEqual(square.pngData(), flower.pngData(), "Before selection, every item is a circle, not its final silhouette")
@@ -1018,7 +1132,7 @@ final class NativeAtlasRecipeTests: XCTestCase {
         let added = try await pickerImage(presetID: "legacy.soft-square", state: .added)
         // Sample the center of the opaque figure, independently of the background.
         let p = try pixels(added), index = (100 * 200 + 100) * 4
-        XCTAssertLessThan((p[index..<index + 3].max() ?? 1) - (p[index..<index + 3].min() ?? 0), 0.04)
+        XCTAssertGreaterThan((p[index..<index + 3].max() ?? 1) - (p[index..<index + 3].min() ?? 0), 0.15)
         for (name, image) in [("picker-1-circle", square), ("picker-2-selected", selected), ("picker-3-added", added)] {
             let attachment = XCTAttachment(image: image); attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
         }
@@ -1074,7 +1188,7 @@ final class NativeAtlasRecipeTests: XCTestCase {
         return try XCTUnwrap(image)
     }
     @MainActor
-    func testNativePaletteUsesAtlasInsteadOfObsoleteAssignedSilhouette() async throws {
+    func testNativePaletteUsesFrozenAssignmentInsteadOfRechoosingFromScene() async throws {
         let input = DayObjectSceneInput(dayKey: "2026-09-10", identity: "native-palette", eventIDs: [], motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true, nativeAtlasRecipe: .make(dayKey: "2026-09-10"))
         let assignment = try XCTUnwrap(HappeningEditorialAssignmentResolver.assignments(happenings: [.init(id: "h0", title: "Test", isBuiltIn: true)], baseInput: input, colorNonce: 7)["h0"])
         DayObjectsRenderer.prepareResources()
@@ -1094,7 +1208,7 @@ final class NativeAtlasRecipeTests: XCTestCase {
         let sphere = try await render("2026-09-10")
         let lens = try await render("2026-09-11")
         XCTAssertNotNil(sphere)
-        XCTAssertNotEqual(sphere, lens)
+        XCTAssertEqual(sphere, lens, "A resolved palette assignment must not be silently replaced by another atlas actor")
     }
 
     func testArtworkLockRetainsBackgroundAndFutureGenerationSeed() {

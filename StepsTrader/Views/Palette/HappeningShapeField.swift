@@ -64,7 +64,8 @@ struct HappeningShapeField: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(width: 24, height: 24)
-                    .liquidGlassControl(in: Circle())
+                    .background(.black.opacity(0.88), in: Circle())
+                    .overlay(Circle().strokeBorder(.white.opacity(0.9), lineWidth: 1))
                     .accessibilityHidden(true)
                     .accessibilityIdentifier("happening_status_added_\(happening.id)")
                     .allowsHitTesting(false)
@@ -119,7 +120,7 @@ enum HappeningPaletteLabelInk: Equatable {
         case 1, 4: colors = [material.color0, material.color1]
         default: colors = [material.color0, material.color1, material.color2]
         }
-        let opacity: Float = state == .added ? 0.82 : state == .removalPreview ? 0.88 : 1
+        let opacity: Float = state == .removalPreview ? 0.88 : 1
         let backing = background.isEmpty ? [SIMD3<Float>(repeating: 0.5)] : background
         return contrasting(with: colors.flatMap { color in
             backing.map { bg in
