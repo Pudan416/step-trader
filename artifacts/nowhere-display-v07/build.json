@@ -1,0 +1,22 @@
+[
+  {
+    "style": "Regular",
+    "changed_characters": [
+      "б"
+    ],
+    "safety_pair_adjustments": 0,
+    "glyphs": 173,
+    "characters": 163,
+    "tabular_advance": 714
+  },
+  {
+    "style": "Bold",
+    "changed_characters": [
+      "б"
+    ],
+    "safety_pair_adjustments": 0,
+    "glyphs": 173,
+    "characters": 163,
+    "tabular_advance": 738
+  }
+]
