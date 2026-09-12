@@ -14,6 +14,16 @@ struct DayObjectNormalizedRect: Equatable {
         maxY: 1
     )
 
+    static let empty = DayObjectNormalizedRect(minX: 0, minY: 0, maxX: 0, maxY: 0)
+
+    /// The unobscured canvas area reserved for opt-in Lead audition gestures.
+    static let dayObjectsLeadAudition = DayObjectNormalizedRect(
+        minX: 0,
+        minY: 0,
+        maxX: 1,
+        maxY: 0.57
+    )
+
     init(minX: Double, minY: Double, maxX: Double, maxY: Double) {
         let finiteMinX = minX.isFinite ? minX : 0
         let finiteMinY = minY.isFinite ? minY : 0
@@ -34,7 +44,8 @@ struct DayObjectNormalizedRect: Equatable {
     }
 
     func contains(_ point: SIMD2<Double>) -> Bool {
-        point.x >= minX && point.x <= maxX
+        area > 0
+            && point.x >= minX && point.x <= maxX
             && point.y >= minY && point.y <= maxY
     }
 
@@ -44,14 +55,51 @@ struct DayObjectNormalizedRect: Equatable {
     }
 }
 
+enum DayObjectCanvasCoverage: Equatable {
+    case fullCanvas
+    case excluding(DayObjectNormalizedRect)
+
+    var exclusionRegion: DayObjectNormalizedRect {
+        switch self {
+        case .fullCanvas: .empty
+        case .excluding(let region): region
+        }
+    }
+}
+
+/// Finite, viewport-normalized coordinates shared by the visual canvas and
+/// optional manual audition surface.
+struct DayObjectNormalizedPoint: Equatable {
+    let x: Double
+    let y: Double
+
+    init(x: Double, y: Double) {
+        self.x = Self.clamped(x)
+        self.y = Self.clamped(y)
+    }
+
+    private static func clamped(_ value: Double) -> Double {
+        guard value.isFinite else { return 0 }
+        return min(max(value, 0), 1)
+    }
+}
+
 struct DayObjectSceneInput: Equatable {
     let dayKey: String
     let identity: String
     let eventIDs: [String]
     let motionEnergy: Double
     let visualClarity: Double
-    let reduceMotion: Bool
+    let canvasCoverage: DayObjectCanvasCoverage
     let uiExclusionRegion: DayObjectNormalizedRect
+    let paletteCategories: Set<ModernPaletteCategory>
+    let usesEditorialField: Bool
+    let editorialBackground: DayObjectEditorialBackground
+    let lowSleep: Bool
+    let editorialPreview: DayObjectEditorialPreviewSpec?
+    let editorialLabConfiguration: DayObjectEditorialLabConfiguration?
+    let actorColorVariants: [String: Int]
+    let nativeAtlasRecipe: NativeAtlasRecipe?
 
     init(
         dayKey: String,
@@ -59,18 +107,64 @@ struct DayObjectSceneInput: Equatable {
         eventIDs: [String],
         motionEnergy: Double,
         visualClarity: Double,
-        reduceMotion: Bool,
-        uiExclusionRegion: DayObjectNormalizedRect = .dayObjectsLabControls
+        uiExclusionRegion: DayObjectNormalizedRect = .dayObjectsLabControls,
+        canvasCoverage: DayObjectCanvasCoverage? = nil,
+        paletteCategories: Set<ModernPaletteCategory> = [],
+        usesEditorialField: Bool = false,
+        editorialBackground: DayObjectEditorialBackground = .dark,
+        lowSleep: Bool = false,
+        editorialPreview: DayObjectEditorialPreviewSpec? = nil,
+        editorialLabConfiguration: DayObjectEditorialLabConfiguration? = nil,
+        actorColorVariants: [String: Int] = [:],
+        nativeAtlasRecipe: NativeAtlasRecipe? = nil
     ) {
         self.dayKey = dayKey
         self.identity = identity
         self.eventIDs = eventIDs
         self.motionEnergy = motionEnergy
         self.visualClarity = visualClarity
-        self.reduceMotion = reduceMotion
-        self.uiExclusionRegion = uiExclusionRegion
+        let resolvedCoverage = canvasCoverage ?? .excluding(uiExclusionRegion)
+        self.canvasCoverage = resolvedCoverage
+        self.uiExclusionRegion = resolvedCoverage.exclusionRegion
+        self.paletteCategories = paletteCategories
+        self.usesEditorialField = usesEditorialField
+        self.editorialBackground = editorialBackground
+        self.lowSleep = lowSleep
+        self.editorialPreview = editorialPreview
+        self.editorialLabConfiguration = editorialLabConfiguration
+        self.actorColorVariants = actorColorVariants
+        self.nativeAtlasRecipe = nativeAtlasRecipe
     }
 }
+
+#if DEBUG || INTERNAL_BUILD
+extension DayObjectSceneInput {
+    /// Keeps lab day-to-visual mapping at the renderer's existing input boundary.
+    static func labPreview(
+        dayKey: String,
+        eventIDs: [String],
+        stepsProgress: Double,
+        sleepProgress: Double,
+        uiExclusionRegion: DayObjectNormalizedRect = .dayObjectsLabControls
+    ) -> DayObjectSceneInput {
+        let steps = clampedProgress(stepsProgress)
+        let sleep = clampedProgress(sleepProgress)
+        return DayObjectSceneInput(
+            dayKey: dayKey,
+            identity: "day-objects-lab",
+            eventIDs: eventIDs,
+            motionEnergy: 0.25 + 0.75 * steps,
+            visualClarity: 0.35 + 0.55 * sleep,
+            uiExclusionRegion: uiExclusionRegion
+        )
+    }
+
+    private static func clampedProgress(_ value: Double) -> Double {
+        guard value.isFinite else { return 0 }
+        return min(max(value, 0), 1)
+    }
+}
+#endif
 
 struct DayObjectActorID: Hashable, Comparable {
     let eventID: String
@@ -95,6 +189,11 @@ enum DayObjectActorRole: String, CaseIterable, Equatable {
 struct DayObjectActor: Equatable {
     let id: DayObjectActorID
     let seed: UInt64
+    let choreographyConfiguration: DayObjectChoreographyConfiguration
+    let choreographySlot: DayObjectChoreographySlot
+    let appearance: DayObjectAppearance
+    let route: DayObjectRoute
+    let depthSchedule: DayObjectDepthSchedule
     let role: DayObjectActorRole
     let shape: DayObjectShape
     let elongation: DayObjectElongation
@@ -102,7 +201,6 @@ struct DayObjectActor: Equatable {
     let fill: DayObjectFill
     let trajectory: DayObjectTrajectory
     let spin: DayObjectSpin
-    let speedRatio: Double
     let phaseOffset: Double
     let depthBand: Int
     let zIndex: Double
@@ -127,7 +225,7 @@ struct DayObjectDigitalImpact: Equatable {
     var scarStrength: Double { damage }
 
     var signalCorruption: Double {
-        pow(damage, 1.6)
+        pow(damage, 1.15)
     }
 
     var ambientMotion: Double {

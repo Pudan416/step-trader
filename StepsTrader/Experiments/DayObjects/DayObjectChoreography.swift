@@ -1,15 +1,6 @@
 import Foundation
 import simd
 
-enum DayObjectChapter: Int, CaseIterable, Equatable, Hashable {
-    case orbit
-    case spiral
-    case crossing
-    case stack
-    case bloom
-    case drift
-}
-
 enum DayObjectActorGeometry {
     static let softBlobRadialReach = 1.06
     static let mergeReachFactor = 0.18
@@ -18,19 +9,7 @@ enum DayObjectActorGeometry {
     static let trailSigmaSupport = 3.2
 
     static func aspectRatio(for actor: DayObjectActor) -> Double {
-        let range = actor.elongation.aspectRange
-        return range.lowerBound
-            + (range.upperBound - range.lowerBound)
-                * stableUnit(actor.seed, salt: 0x9E37_79B9_7F4A_7C15)
-    }
-
-    private static func stableUnit(_ seed: UInt64, salt: UInt64) -> Double {
-        var value = seed ^ salt
-        value &+= 0x9E37_79B9_7F4A_7C15
-        value = (value ^ (value >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        value = (value ^ (value >> 27)) &* 0x94D0_49BB_1331_11EB
-        value ^= value >> 31
-        return Double(value >> 11) / Double(UInt64(1) << 53)
+        min(max(actor.appearance.elongation, 0.95), 1.05)
     }
 }
 
@@ -51,9 +30,10 @@ struct DayObjectGeometryFootprint: Equatable {
             halfSize.x.isFinite ? max(halfSize.x, 0) : 0,
             halfSize.y.isFinite ? max(halfSize.y, 0) : 0
         )
-        let bodyMultiplier = shape == .softBlob
-            ? DayObjectActorGeometry.softBlobRadialReach
-            : 1
+        let bodyMultiplier: Double = switch shape {
+        case .softBlob, .softStar: DayObjectActorGeometry.softBlobRadialReach
+        default: 1
+        }
         let mergeReach = safeHalfSize.x * DayObjectActorGeometry.mergeReachFactor
         let forwardReach = safeHalfSize.x * bodyMultiplier + mergeReach
         let backwardReach = max(
@@ -95,7 +75,11 @@ struct DayObjectPose: Equatable {
     let rotation: Double
     let scale: Double
     let opacity: Double
+    let depth: Double
     let depthBand: Int
+    let localDepthSoftness: Double
+    let materialPhase: Double
+    let intentionalCropFraction: Double
     let bodyRadius: Double
     let trailReach: Double
     let footprintHalfExtents: SIMD2<Double>
@@ -105,35 +89,17 @@ struct DayObjectPose: Equatable {
 }
 
 struct DayObjectChoreographyScore: Equatable {
-    private static let transitionFraction = 0.12
-    private static let twoPi = 2 * Double.pi
-
-    let chapters: [DayObjectChapter]
+    let configuration: DayObjectChoreographyConfiguration
     let duration: Double
 
-    var boundaryTimes: [Double] {
-        guard chapters.count > 1 else { return [] }
-        let chapterDuration = duration / Double(chapters.count)
-        return (1..<chapters.count).map { Double($0) * chapterDuration }
-    }
+    var preset: DayObjectChoreographyPreset { configuration.preset }
 
-    static func make(seed: UInt64) -> DayObjectChoreographyScore {
-        var rng = SeededRNG.derived(from: seed, domain: "choreographyScore")
-        let chapterCount = rng.nextInt(in: 3...5)
-        var vocabulary = DayObjectChapter.allCases
-
-        // An explicit Fisher-Yates shuffle keeps the daily order independent
-        // of standard-library collection implementation details.
-        if vocabulary.count > 1 {
-            for index in stride(from: vocabulary.count - 1, through: 1, by: -1) {
-                let other = rng.nextInt(in: 0...index)
-                vocabulary.swapAt(index, other)
-            }
-        }
-
-        return DayObjectChoreographyScore(
-            chapters: Array(vocabulary.prefix(chapterCount)),
-            duration: Double(rng.nextInt(in: 36...72))
+    static func make(
+        configuration: DayObjectChoreographyConfiguration
+    ) -> DayObjectChoreographyScore {
+        DayObjectChoreographyScore(
+            configuration: configuration,
+            duration: configuration.loopDuration
         )
     }
 
@@ -143,55 +109,55 @@ struct DayObjectChoreographyScore: Equatable {
         canvasAspect rawAspect: Double,
         compositionPlan: DayObjectCompositionPlan? = nil
     ) -> DayObjectPose {
-        let time = normalizedTime(rawTime)
-        let sample = interpolatedSample(for: actor, at: time)
-        let rawTangent = timeTangent(for: actor, at: time)
-        let trailReach = 0.014 + 0.008 * actor.speedRatio
+        let time = rawTime.isFinite ? rawTime : 0
         let aspect = rawAspect.isFinite && rawAspect > 0 ? rawAspect : 1
-        let renderScale = compositionPlan?.uiExclusionRegion == .dayObjectsLabControls
-            || compositionPlan == nil
-            ? sample.scale
-            : min(sample.scale, DayObjectSizeBand.satellite.diameterRange.upperBound)
-        let halfSize = SIMD2<Double>(
-            renderScale * 0.5,
-            renderScale * 0.5 * DayObjectActorGeometry.aspectRatio(for: actor)
+        let depth = depthValue(for: actor, at: time)
+        let scale = evaluatedDiameter(
+            for: actor,
+            at: time,
+            depth: depth,
+            compositionPlan: compositionPlan
         )
-        var footprint = DayObjectGeometryFootprint.make(
+        let trailReach = 0.008
+        let position = resolvedPosition(
+            for: actor,
+            at: time,
+            canvasAspect: aspect,
+            compositionPlan: compositionPlan
+        )
+        let tangent = resolvedTangent(
+            for: actor,
+            at: time,
+            canvasAspect: aspect,
+            compositionPlan: compositionPlan
+        )
+        let halfSize = SIMD2<Double>(
+            scale * 0.5,
+            scale * 0.5 * DayObjectActorGeometry.aspectRatio(for: actor)
+        )
+        let footprint = DayObjectGeometryFootprint.make(
             halfSize: halfSize,
-            direction: rawTangent,
-            shape: actor.shape,
+            direction: tangent,
+            shape: actor.appearance.shape,
             trailLength: trailReach,
             shortSidePixels: 128
         )
-        var position = sample.position
-        var tangent = rawTangent
-        if let compositionPlan {
-            position = constrainedPlannedPosition(
-                for: actor,
-                at: time,
-                canvasAspect: aspect,
-                plan: compositionPlan
-            )
-            tangent = plannedTimeTangent(
-                for: actor,
-                at: time,
-                canvasAspect: aspect,
-                plan: compositionPlan
-            )
-            footprint = DayObjectGeometryFootprint.make(
-                halfSize: halfSize,
-                direction: tangent,
-                shape: actor.shape,
-                trailLength: trailReach,
-                shortSidePixels: 128
-            )
-        }
         let bodyRadius = max(footprint.forwardReach, footprint.lateralReach)
-        let halfExtents = aspect >= 1
+        let halfCanvas = aspect >= 1
             ? SIMD2<Double>(aspect * 0.5, 0.5)
             : SIMD2<Double>(0.5, 0.5 / aspect)
-        let inside = abs(position.x) + footprint.axisAlignedHalfExtents.x <= halfExtents.x + 0.000_000_1
-            && abs(position.y) + footprint.axisAlignedHalfExtents.y <= halfExtents.y + 0.000_000_1
+        let inside = abs(position.x) + footprint.axisAlignedHalfExtents.x
+                <= halfCanvas.x + 0.000_000_1
+            && abs(position.y) + footprint.axisAlignedHalfExtents.y
+                <= halfCanvas.y + 0.000_000_1
+        let overflow = SIMD2(
+            max(abs(position.x) + footprint.axisAlignedHalfExtents.x - halfCanvas.x, 0),
+            max(abs(position.y) + footprint.axisAlignedHalfExtents.y - halfCanvas.y, 0)
+        )
+        let cropFraction = max(
+            overflow.x / max(footprint.axisAlignedHalfExtents.x * 2, 0.000_001),
+            overflow.y / max(footprint.axisAlignedHalfExtents.y * 2, 0.000_001)
+        )
         let intersectsUI = compositionPlan?.intersectsUIExclusion(
             position: position,
             footprintHalfExtents: footprint.axisAlignedHalfExtents,
@@ -202,14 +168,25 @@ struct DayObjectChoreographyScore: Equatable {
             footprintHalfExtents: footprint.axisAlignedHalfExtents,
             canvasAspect: aspect
         ) ?? false
+        let rotation: Double
+        switch actor.appearance.shape {
+        case .ellipse, .lens:
+            rotation = atan2(tangent.y, tangent.x)
+        case .sphere, .softBlob, .softStar, .roundedPolygon, .roundedSquare:
+            rotation = 0
+        }
 
         return DayObjectPose(
             position: position,
             tangent: tangent,
-            rotation: rotation(for: actor, tangent: tangent, at: time),
-            scale: renderScale,
-            opacity: sample.opacity,
-            depthBand: sample.depthBand,
+            rotation: rotation,
+            scale: scale,
+            opacity: opacity(for: actor, depth: depth),
+            depth: depth,
+            depthBand: min(max(Int(depth * 4), 0), 3),
+            localDepthSoftness: cameraSoftness(for: depth),
+            materialPhase: normalizedPhase(actor.appearance.radialPhase + time / 150),
+            intentionalCropFraction: min(max(cropFraction, 0), 1),
             bodyRadius: bodyRadius,
             trailReach: trailReach,
             footprintHalfExtents: footprint.axisAlignedHalfExtents,
@@ -219,259 +196,165 @@ struct DayObjectChoreographyScore: Equatable {
         )
     }
 
-    private func constrainedPlannedPosition(
+    func travelDirection(for actor: DayObjectActor) -> Double {
+        actor.route.direction
+    }
+
+    private func rawRoutePosition(
+        for actor: DayObjectActor,
+        at time: Double,
+        canvasAspect: Double
+    ) -> SIMD2<Double> {
+        let span = canvasAspect >= 1
+            ? SIMD2<Double>(canvasAspect, 1)
+            : SIMD2<Double>(1, 1 / canvasAspect)
+        return actor.route.position(at: time) * span
+    }
+
+    private func resolvedPosition(
         for actor: DayObjectActor,
         at time: Double,
         canvasAspect: Double,
-        plan: DayObjectCompositionPlan
+        compositionPlan: DayObjectCompositionPlan?
     ) -> SIMD2<Double> {
-        let sample = interpolatedSample(for: actor, at: normalizedTime(time))
-        let planningDiameter = plan.uiExclusionRegion == .dayObjectsLabControls
-            ? 0.34
-            : min(
-                baseLength(for: actor),
-                DayObjectSizeBand.satellite.diameterRange.upperBound
-            )
-        let majorHalfSize = planningDiameter * 1.04 * 0.5
-        let bodyMultiplier = actor.shape == .softBlob
-            ? DayObjectActorGeometry.softBlobRadialReach
-            : 1
-        let mergePlanningMargin = plan.uiExclusionRegion == .dayObjectsLabControls
-            ? 0.025
-            : majorHalfSize * DayObjectActorGeometry.mergeReachFactor + 0.015
-        let orientationIndependentReach = majorHalfSize * bodyMultiplier
-            + 0.014 + 0.008 * actor.speedRatio
-            + mergePlanningMargin
-            + 2.0 / 128.0
-        return plan.stableRoutePosition(
-            for: actor.role,
-            actorSeed: actor.seed,
-            rawPosition: sample.position,
-            footprintReach: orientationIndependentReach,
+        let routed = rawRoutePosition(for: actor, at: time, canvasAspect: canvasAspect)
+        guard let compositionPlan else { return routed }
+        if compositionPlan.usesFullCanvas {
+            guard ![.depthField, .eclipseStack].contains(configuration.preset) else {
+                return routed
+            }
+            let insetScale = configuration.preset == .radialBloom ? 0.80 : 0.88
+            return routed * insetScale
+        }
+
+        return compositionPlan.safeChoreographyPosition(
+            routed,
+            formationReach: 0.14,
             canvasAspect: canvasAspect
         )
     }
 
-    private func plannedTimeTangent(
+    private func resolvedTangent(
         for actor: DayObjectActor,
         at time: Double,
         canvasAspect: Double,
-        plan: DayObjectCompositionPlan
+        compositionPlan: DayObjectCompositionPlan?
     ) -> SIMD2<Double> {
-        let epsilon = min(0.0001, duration / Double(max(chapters.count, 1)) * 0.00001)
-        let travel = constrainedPlannedPosition(
+        let epsilon = 0.001
+        let travel = resolvedPosition(
             for: actor,
             at: time + epsilon,
             canvasAspect: canvasAspect,
-            plan: plan
-        ) - constrainedPlannedPosition(
+            compositionPlan: compositionPlan
+        ) - resolvedPosition(
             for: actor,
             at: time - epsilon,
             canvasAspect: canvasAspect,
-            plan: plan
+            compositionPlan: compositionPlan
         )
         let length = simd_length(travel)
-        if length > 1e-12 {
-            return travel / length
-        }
-        // A conservative exclusion route can intentionally collapse motion
-        // to zero when no safe deformation radius remains. Keep orientation
-        // deterministic there instead of inheriting a meaningless cusp from
-        // the hidden raw path.
-        return SIMD2(cos(actor.phaseOffset), sin(actor.phaseOffset))
+        return length > 1e-12 ? travel / length : SIMD2(actor.route.direction, 0)
     }
 
-    private func normalizedTime(_ rawTime: Double) -> Double {
-        guard rawTime.isFinite, duration > 0 else { return 0 }
-        let remainder = rawTime.truncatingRemainder(dividingBy: duration)
-        return remainder >= 0 ? remainder : remainder + duration
+    private func depthValue(for actor: DayObjectActor, at time: Double) -> Double {
+        let schedule = actor.depthSchedule
+        let phase = 2 * Double.pi * (time / schedule.period + schedule.phase)
+        return min(max(schedule.baseDepth + schedule.amplitude * cos(phase), 0), 1)
     }
 
-    private func interpolatedSample(for actor: DayObjectActor, at time: Double) -> ChapterSample {
-        guard !chapters.isEmpty else {
-            return ChapterSample(
-                position: .zero,
-                scale: baseLength(for: actor),
-                opacity: 1,
-                depthBand: actor.depthBand
-            )
-        }
+    private func cameraSoftness(for depth: Double) -> Double {
+        let focusDepth = 0.55
+        let farDistance = max((focusDepth - depth) / focusDepth, 0)
+        let nearDistance = max((depth - focusDepth) / (1 - focusDepth), 0)
+        return 0.018
+            + 0.30 * pow(farDistance, 1.35)
+            + 0.62 * pow(nearDistance, 1.35)
+    }
 
-        let chapterDuration = duration / Double(chapters.count)
-        let chapterPosition = time / chapterDuration
-        let index = min(Int(chapterPosition), chapters.count - 1)
-        let localProgress = chapterPosition - Double(index)
-        let current = chapterSample(
-            chapters[index],
-            chapterIndex: index,
-            actor: actor,
-            localProgress: localProgress
+    private func normalizedPhase(_ value: Double) -> Double {
+        let remainder = value.truncatingRemainder(dividingBy: 1)
+        return remainder >= 0 ? remainder : remainder + 1
+    }
+
+    private func presetDiameter(
+        for actor: DayObjectActor,
+        compositionPlan: DayObjectCompositionPlan?
+    ) -> Double {
+        _ = compositionPlan
+        return configuration.baseDiameter * actor.choreographySlot.sizeMultiplier
+    }
+
+    private func evaluatedDiameter(
+        for actor: DayObjectActor,
+        at time: Double,
+        depth: Double? = nil,
+        compositionPlan: DayObjectCompositionPlan?
+    ) -> Double {
+        let evaluatedDepth = depth ?? depthValue(for: actor, at: time)
+        let breathingPhase = 2 * Double.pi * (
+            time / configuration.loopDuration + actor.choreographySlot.phase
         )
-        let transitionStart = 1 - Self.transitionFraction
-        guard localProgress >= transitionStart else { return current }
-
-        let nextIndex = (index + 1) % chapters.count
-        let next = chapterSample(
-            chapters[nextIndex],
-            chapterIndex: nextIndex,
-            actor: actor,
-            localProgress: localProgress - 1
-        )
-        let linearBlend = (localProgress - transitionStart) / Self.transitionFraction
-        let blend = quinticSmoothstep(linearBlend)
-        return ChapterSample(
-            position: current.position + (next.position - current.position) * blend,
-            scale: current.scale + (next.scale - current.scale) * blend,
-            opacity: current.opacity + (next.opacity - current.opacity) * blend,
-            depthBand: blend < 0.5 ? current.depthBand : next.depthBand
-        )
-    }
-
-    private func timeTangent(for actor: DayObjectActor, at time: Double) -> SIMD2<Double> {
-        let epsilon = min(0.0001, duration / Double(max(chapters.count, 1)) * 0.00001)
-        var travel = interpolatedSample(
-            for: actor,
-            at: normalizedTime(time + epsilon)
-        ).position - interpolatedSample(
-            for: actor,
-            at: normalizedTime(time - epsilon)
-        ).position
-
-        if simd_length_squared(travel) < 1e-16 {
-            travel = interpolatedSample(
-                for: actor,
-                at: normalizedTime(time + epsilon * 8)
-            ).position - interpolatedSample(
-                for: actor,
-                at: normalizedTime(time - epsilon * 8)
-            ).position
-        }
-        let length = simd_length(travel)
-        return length > 1e-12 ? travel / length : SIMD2<Double>(1, 0)
-    }
-
-    private func rotation(for actor: DayObjectActor, tangent: SIMD2<Double>, at time: Double) -> Double {
-        let heading = atan2(tangent.y, tangent.x)
-        let direction = travelDirection(for: actor)
-        let masterTurns = time / duration
-        switch actor.spin {
-        case .follow:
-            return heading
-        case .slowRoll:
-            return heading + direction * Self.twoPi * masterTurns
-        case .tumble:
-            return heading + direction * Self.twoPi * masterTurns * 2
-        }
-    }
-
-    private func chapterSample(
-        _ chapter: DayObjectChapter,
-        chapterIndex: Int,
-        actor: DayObjectActor,
-        localProgress: Double
-    ) -> ChapterSample {
-        let direction = travelDirection(for: actor)
-        let actorAngle = Self.twoPi * localProgress * actor.speedRatio * direction + actor.phaseOffset
-        let lane = -0.16 + 0.32 * stableUnit(actor.seed, salt: 0xA24B_AED4_963E_E407)
-        let roleWeight: Double
-        switch actor.role {
-        case .focal: roleWeight = 1
-        case .support: roleWeight = 0.86
-        case .bridge: roleWeight = 0.78
-        case .satellite: roleWeight = 0.94
-        case .accent: roleWeight = 0.68
-        }
-
-        let position: SIMD2<Double>
-        switch chapter {
-        case .orbit:
-            let radius = (0.14 + 0.07 * stableUnit(actor.seed, salt: 0x9E37_79B9_7F4A_7C15)) * roleWeight
-            position = SIMD2<Double>(radius * cos(actorAngle), radius * 0.78 * sin(actorAngle))
-        case .spiral:
-            let breath = 0.5 + 0.5 * sin(Self.twoPi * localProgress + actor.phaseOffset * 0.31)
-            let radius = (0.065 + 0.135 * breath) * (0.82 + 0.18 * roleWeight)
-            position = SIMD2<Double>(radius * cos(actorAngle), radius * sin(actorAngle))
-        case .crossing:
-            position = SIMD2<Double>(
-                0.22 * sin(actorAngle),
-                lane * 0.72 + 0.045 * cos(actorAngle)
+        let diameter = presetDiameter(for: actor, compositionPlan: compositionPlan)
+            * diameterModulation(
+                preset: configuration.preset,
+                depth: evaluatedDepth,
+                breathingWave: sin(breathingPhase)
             )
-        case .stack:
-            position = SIMD2<Double>(
-                lane + 0.06 * cos(actorAngle),
-                0.205 * sin(actorAngle)
-            )
-        case .bloom:
-            let radius = 0.11 + 0.055 * roleWeight
-            position = SIMD2<Double>(
-                radius * cos(actorAngle),
-                radius * 0.82 * sin(actorAngle)
-            )
-        case .drift:
-            position = SIMD2<Double>(
-                0.215 * sin(actorAngle),
-                0.17 * cos(actorAngle)
-            )
+        guard compositionPlan?.usesFullCanvas == true else {
+            return min(diameter, 0.112)
         }
-
-        let opacityBase: Double
-        switch actor.role {
-        case .focal: opacityBase = 1
-        case .support: opacityBase = 0.92
-        case .bridge: opacityBase = 0.86
-        case .satellite: opacityBase = 0.78
-        case .accent: opacityBase = 0.9
+        guard configuration.sizeProfile == .spatial else {
+            return diameter
         }
-        let visibility = actor.role == .accent
-            ? 0.08 + 0.92 * (0.5 + 0.5 * cos(actorAngle * 0.5 + Double(chapterIndex)))
-            : 1
-        let depthShift: Int
-        switch chapter {
-        case .orbit, .stack: depthShift = 0
-        case .spiral, .drift: depthShift = 1
-        case .crossing: depthShift = chapterIndex.isMultiple(of: 2) ? 2 : 3
-        case .bloom: depthShift = 3
-        }
-
-        return ChapterSample(
-            position: position,
-            scale: baseLength(for: actor),
-            opacity: opacityBase * visibility,
-            depthBand: (actor.depthBand + depthShift) % 4
-        )
+        return min(max(diameter, 0.12), 0.74)
     }
 
-    private func baseLength(for actor: DayObjectActor) -> Double {
-        let range = actor.sizeBand.diameterRange
-        return range.lowerBound
-            + (range.upperBound - range.lowerBound)
-                * stableUnit(actor.seed, salt: 0xA409_3822_299F_31D0)
+    private func diameterModulation(
+        preset: DayObjectChoreographyPreset,
+        depth: Double,
+        breathingWave: Double
+    ) -> Double {
+        let depthScale: Double
+        switch preset {
+        case .depthField:
+            depthScale = 0.52 + 1.08 * depth
+        case .eclipseStack:
+            depthScale = 0.75 + 0.50 * depth
+        default:
+            depthScale = 1
+        }
+        let breathingAmplitude: Double
+        switch preset {
+        case .breathingGrid:
+            breathingAmplitude = 0.018
+        case .depthField:
+            breathingAmplitude = 0.016
+        default:
+            breathingAmplitude = 0.008
+        }
+        return depthScale * (1 + breathingAmplitude * breathingWave)
     }
 
-    func travelDirection(for actor: DayObjectActor) -> Double {
-        mixed(actor.seed ^ 0xD1B5_4A32_D192_ED03).isMultiple(of: 2) ? 1 : -1
+    private func opacity(for actor: DayObjectActor, depth: Double) -> Double {
+        switch actor.choreographyConfiguration.depthProfile {
+        case .flat:
+            return 0.86 + 0.14 * stableUnit(
+                actor.seed,
+                salt: 0x1319_8A2E_0370_7344
+            )
+        case .layered, .migrating:
+            return max(0.58 + 0.42 * depth, 0.72)
+        }
     }
 
     private func stableUnit(_ seed: UInt64, salt: UInt64) -> Double {
-        Double(mixed(seed ^ salt) >> 11) / Double(UInt64(1) << 53)
+        Double(Self.mixed(seed ^ salt) >> 11) / Double(UInt64(1) << 53)
     }
 
-    private func mixed(_ input: UInt64) -> UInt64 {
+    private static func mixed(_ input: UInt64) -> UInt64 {
         var value = input &+ 0x9E37_79B9_7F4A_7C15
         value = (value ^ (value >> 30)) &* 0xBF58_476D_1CE4_E5B9
         value = (value ^ (value >> 27)) &* 0x94D0_49BB_1331_11EB
         return value ^ (value >> 31)
     }
-
-    private func quinticSmoothstep(_ rawValue: Double) -> Double {
-        let value = min(max(rawValue, 0), 1)
-        return value * value * value * (value * (value * 6 - 15) + 10)
-    }
-}
-
-private struct ChapterSample {
-    let position: SIMD2<Double>
-    let scale: Double
-    let opacity: Double
-    let depthBand: Int
 }

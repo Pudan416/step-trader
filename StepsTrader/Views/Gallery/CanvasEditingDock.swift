@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Editing chrome: Done in the top-left, Remix at the bottom, and a one-time
+/// Editing chrome: Done in the top-left and a one-time
 /// line telling the user the only gesture there is.
 ///
 /// There is no Select / Draw / Text / Elements toolbar. The canvas is not a
@@ -9,7 +9,15 @@ import SwiftUI
 struct CanvasEditingDock: View {
     let showsDragHint: Bool
     let onDone: () -> Void
-    let onRemix: () -> Void
+    var nativeRecipe: Binding<NativeAtlasRecipe?>? = nil
+    var automaticTraceStrength: Float = 0
+
+    private let traceTitles: [LocalizedStringKey] = [
+        "Band shifts", "Color separation", "Pixel fragments", "Wave", "Repeated contours"
+    ]
+    private let intersectionTitles: [LocalizedStringKey] = [
+        "Transparent blending", "Luminous seam", "Overlay"
+    ]
 
     private var ink: Color { AppColors.Night.textPrimary }
 
@@ -30,9 +38,49 @@ struct CanvasEditingDock: View {
 
             VStack {
                 Spacer(minLength: 0)
-                remixControl
+                if let binding = nativeRecipe, binding.wrappedValue?.isSupported == true {
+                    nativeControls(binding)
+                }
             }
         }
+    }
+
+    private func nativeControls(_ binding: Binding<NativeAtlasRecipe?>) -> some View {
+        VStack(spacing: 10) {
+            Menu {
+                ForEach(Array(traceTitles.enumerated()), id: \.offset) { index, title in
+                    Button(title) { binding.wrappedValue?.glitchType = index }
+                }
+                Button("Use colors spent") { binding.wrappedValue?.glitchStrength = nil }
+            } label: { Label("Digital trace", systemImage: "waveform.path") }
+            Group {
+                if let strength = binding.wrappedValue?.glitchStrength {
+                    Text("Strength: \(Int(strength * 100)) / 100")
+                } else {
+                    Text("Based on colors spent")
+                }
+            }
+            .font(.caption)
+            Slider(value: Binding(get: { Double(binding.wrappedValue?.glitchStrength ?? automaticTraceStrength) * 100 }, set: { binding.wrappedValue?.glitchStrength = Float($0 / 100) }), in: 0...100) {
+                Text("Trace strength")
+            }
+            Menu {
+                ForEach(Array(intersectionTitles.enumerated()), id: \.offset) { index, title in
+                    Button(title) { binding.wrappedValue?.intersectionType = index }
+                }
+            } label: { Label("Intersections", systemImage: "square.on.square") }
+            Slider(value: Binding(get: { Double(binding.wrappedValue?.intersectionStrength ?? 0) * 100 }, set: { binding.wrappedValue?.intersectionStrength = Float($0 / 100) }), in: 0...100) {
+                Text("Intersection strength")
+            }
+            Toggle("Lock effects", isOn: Binding(get: { binding.wrappedValue?.locks.contains("effects") == true }, set: { value in
+                if value { binding.wrappedValue?.locks.insert("effects") } else { binding.wrappedValue?.locks.remove("effects") }
+            }))
+            Toggle("Lock artwork", isOn: Binding(get: { binding.wrappedValue?.locks.contains("artwork") == true }, set: { value in
+                if value { binding.wrappedValue?.locks.insert("artwork") } else { binding.wrappedValue?.locks.remove("artwork") }
+            }))
+        }
+        .font(.system(size: 15)).padding(16)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
     }
 
     private var doneControl: some View {
@@ -48,20 +96,6 @@ struct CanvasEditingDock: View {
         .buttonStyle(.plain)
         .accessibilityLabel(String(localized: "Done editing", comment: "Canvas editing – Done VoiceOver label"))
         .accessibilityIdentifier("canvas_done_button")
-    }
-
-    private var remixControl: some View {
-        Button(action: onRemix) {
-            Text(String(localized: "Remix", comment: "Canvas editing – restyle every element"))
-                .font(.geist(size: 16, weight: .semibold))
-                .foregroundStyle(AppAccentInk.primary)
-                .padding(.horizontal, 28)
-                .frame(minHeight: 56)
-                .background(AppColors.brandAccent, in: Capsule(style: .continuous))
-                .contentShape(Capsule(style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("canvas_remix_button")
     }
 
     private var dragHint: some View {

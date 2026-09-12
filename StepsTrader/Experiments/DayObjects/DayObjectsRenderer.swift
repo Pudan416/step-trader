@@ -43,6 +43,8 @@ struct DayObjectsMeshGradientUniforms: Equatable {
         while colors.count < 3 {
             colors.append(fallback)
         }
+        // Alpha is unused by the opaque background; retain the 128-byte ABI.
+        if style.preservesColorFields { colors[0].w = 2 }
         color0 = colors[0]
         color1 = colors[1]
         color2 = colors[2]
@@ -91,18 +93,16 @@ struct DayObjectsActorUniforms: Equatable {
     let resolution: SIMD2<Float>       // bytes 0...7
     let energyNormalization: Float     // bytes 8...11
     let shortSidePixels: Float         // bytes 12...15
-    let radialColor0: SIMD4<Float>      // bytes 16...31
-    let radialColor1: SIMD4<Float>      // bytes 32...47
-    let radialColor2: SIMD4<Float>      // bytes 48...63
-    let radialParameters0: SIMD4<Float> // bytes 64...79
-    let radialParameters1: SIMD4<Float> // bytes 80...95
-    let radialParameters2: SIMD4<Float> // bytes 96...111
-    let radialParameters3: SIMD4<Float> // bytes 112...127
+    let lightDirection: SIMD2<Float>    // bytes 16...23
+    let lightSoftness: Float            // bytes 24...27
+    let globalTime: Float               // bytes 28...31
 
     init(
         resolution rawResolution: SIMD2<Float>,
         visibleActorCount: Int,
-        radialFillStyle: DayObjectRadialFillStyle = .fallback
+        lightDirection rawLightDirection: SIMD2<Float> = SIMD2(1, 0),
+        lightSoftness rawLightSoftness: Float = 0.6,
+        globalTime rawGlobalTime: Float = 0
     ) {
         let resolution = SIMD2(
             Self.positiveFinite(rawResolution.x),
@@ -113,48 +113,16 @@ struct DayObjectsActorUniforms: Equatable {
         energyNormalization = visibleActorCount > 0
             ? 1 / sqrt(Float(visibleActorCount))
             : 0
-
-        var colors = radialFillStyle.colors.prefix(3).map(Self.packedColor)
-        let fallback = colors.last ?? SIMD4<Float>(1, 1, 1, 1)
-        while colors.count < 3 {
-            colors.append(fallback)
-        }
-        radialColor0 = colors[0]
-        radialColor1 = colors[1]
-        radialColor2 = colors[2]
-        radialParameters0 = SIMD4(
-            Self.finite(Float(radialFillStyle.radius), fallback: 0.9),
-            Self.finite(Float(radialFillStyle.focalDistance)),
-            Self.finite(Float(radialFillStyle.focalAngle)),
-            Self.finite(Float(radialFillStyle.falloff))
+        let finiteDirection = SIMD2(
+            rawLightDirection.x.isFinite ? rawLightDirection.x : 1,
+            rawLightDirection.y.isFinite ? rawLightDirection.y : 0
         )
-        radialParameters1 = SIMD4(
-            Self.finite(Float(radialFillStyle.mixing), fallback: 0.6),
-            Self.finite(Float(radialFillStyle.distortion)),
-            Self.finite(Float(radialFillStyle.distortionShift)),
-            Float(min(max(radialFillStyle.distortionFrequency, 2), 12))
-        )
-        radialParameters2 = SIMD4(
-            Self.finite(Float(radialFillStyle.rotation)),
-            Self.finite(Float(radialFillStyle.offset.x)),
-            Self.finite(Float(radialFillStyle.offset.y)),
-            Float(min(max(radialFillStyle.colors.count, 1), 3))
-        )
-        radialParameters3 = SIMD4(
-            Float(radialFillStyle.preset.rawValue),
-            Self.finite(Float(radialFillStyle.banding)),
-            Float(DayObjectActorGeometry.mergeReachFactor),
-            Float(DayObjectActorGeometry.mergeAlpha)
-        )
-    }
-
-    private static func packedColor(_ color: SIMD3<Float>) -> SIMD4<Float> {
-        SIMD4(
-            color.x.isFinite ? min(max(color.x, 0), 1) : 0,
-            color.y.isFinite ? min(max(color.y, 0), 1) : 0,
-            color.z.isFinite ? min(max(color.z, 0), 1) : 0,
-            1
-        )
+        let directionLength = simd_length(finiteDirection)
+        lightDirection = directionLength > 0.000_001
+            ? finiteDirection / directionLength
+            : SIMD2(1, 0)
+        lightSoftness = min(max(Self.finite(rawLightSoftness, fallback: 0.6), 0), 1)
+        globalTime = max(Self.finite(rawGlobalTime), 0)
     }
 
     private static func positiveFinite(_ value: Float) -> Float {
@@ -282,9 +250,33 @@ struct DayObjectsGlitchBandUniform: Equatable {
 struct DayObjectsGlitchUniforms: Equatable {
     static let metalAlignment = 16
     static let metalStride = 48
-    static let maximumDisplacementPixels: Float = 42
-    static let maximumColorShiftPixels: Float = 14
-    static let maximumScanLineStrength: Float = 0.35
+    static let maximumDisplacementPixels: Float = 52
+    static let maximumColorShiftPixels: Float = 20
+    static let maximumScanLineStrength: Float = 0.42
+
+    /// Keep the persistent echo on a day-seeded visible figure, including still exports.
+    static func echoActorIndex(
+        actors: [DayObjectGPUActor], resolution: SIMD2<Float>,
+        elapsedTime _: TimeInterval, seed: UInt64
+    ) -> Int? {
+        let span = resolution / max(min(resolution.x, resolution.y), 1)
+        // Ignore tiny/sliver candidates when larger visible figures exist.
+        // Bounding-box intersection also accounts for clipping at canvas edges.
+        let visibleAreas = actors.map { actor -> Float in
+            guard actor.opacity > 0.1 else { return 0 }
+            let radius = max(actor.halfSize.x, actor.halfSize.y)
+            let low = simd_max(actor.position - SIMD2(repeating: radius), -span * 0.5)
+            let high = simd_min(actor.position + SIMD2(repeating: radius), span * 0.5)
+            let extent = simd_max(high - low, .zero)
+            return extent.x * extent.y * actor.opacity
+        }
+        guard let largest = visibleAreas.max(), largest > 0 else { return nil }
+        let visible = actors.indices.filter { visibleAreas[$0] >= largest * 0.40 }
+        // Changing the clock must not teleport a permanent outline to another figure.
+        var choice = seed &* 0x7FEB352D
+        choice ^= choice >> 16
+        return visible[Int(choice % UInt64(visible.count))]
+    }
 
     let levels: SIMD4<Float>
     let rendering: SIMD4<Float>
@@ -293,7 +285,6 @@ struct DayObjectsGlitchUniforms: Equatable {
     init(
         impact: DayObjectDigitalImpact,
         elapsedTime: TimeInterval,
-        reduceMotion: Bool,
         seed: UInt64
     ) {
         levels = SIMD4(
@@ -304,7 +295,7 @@ struct DayObjectsGlitchUniforms: Equatable {
         )
         let elapsed = elapsedTime.isFinite ? max(elapsedTime, 0) : 0
         rendering = SIMD4(
-            reduceMotion ? 0 : Float(elapsed),
+            Float(elapsed),
             Self.maximumDisplacementPixels,
             Self.maximumColorShiftPixels,
             Self.maximumScanLineStrength
@@ -313,7 +304,7 @@ struct DayObjectsGlitchUniforms: Equatable {
         metadata = SIMD4(
             UInt32(truncatingIfNeeded: foldedSeed),
             UInt32(DayObjectGlitchLayout.bandCount),
-            reduceMotion ? 1 : 0,
+            0,
             0
         )
     }
@@ -322,33 +313,45 @@ struct DayObjectsGlitchUniforms: Equatable {
 /// A depth-sorted frame snapshot ready for a single instanced actor draw.
 struct DayObjectsActorUpload: Equatable {
     let actors: [DayObjectGPUActor]
+    let appearances: [DayObjectGPUAppearance]
     let uniforms: DayObjectsActorUniforms
 
     init(
         actors renderActors: [DayObjectRenderActor],
         resolution: SIMD2<Float>,
-        radialFillStyle: DayObjectRadialFillStyle = .fallback
+        lightDirection: SIMD2<Float> = SIMD2(1, 0),
+        lightSoftness: Float = 0.6,
+        globalTime: Float = 0
     ) {
         let boundedActors = Array(renderActors.prefix(DayObjectScene.maxActors))
         self.init(
             gpuActors: boundedActors.map(\.gpuActor),
+            gpuAppearances: boundedActors.map(\.gpuAppearance),
             visibleActorCount: boundedActors.filter { $0.opacity > 0 }.count,
             resolution: resolution,
-            radialFillStyle: radialFillStyle
+            lightDirection: lightDirection,
+            lightSoftness: lightSoftness,
+            globalTime: globalTime
         )
     }
 
     private init(
         gpuActors: [DayObjectGPUActor],
+        gpuAppearances: [DayObjectGPUAppearance],
         visibleActorCount: Int,
         resolution: SIMD2<Float>,
-        radialFillStyle: DayObjectRadialFillStyle
+        lightDirection: SIMD2<Float>,
+        lightSoftness: Float,
+        globalTime: Float
     ) {
         actors = Array(gpuActors.prefix(DayObjectScene.maxActors))
+        appearances = Array(gpuAppearances.prefix(actors.count))
         uniforms = DayObjectsActorUniforms(
             resolution: resolution,
             visibleActorCount: min(max(visibleActorCount, 0), actors.count),
-            radialFillStyle: radialFillStyle
+            lightDirection: lightDirection,
+            lightSoftness: lightSoftness,
+            globalTime: globalTime
         )
     }
 }
@@ -516,14 +519,23 @@ final class DayObjectsInFlightScheduler {
 final class DayObjectsActorBufferRing {
     struct Lease {
         let slot: Int
-        let buffer: MTLBuffer
+        let poseBuffer: MTLBuffer
+        let appearanceBuffer: MTLBuffer
+
+        var buffer: MTLBuffer { poseBuffer }
+    }
+
+    private struct SlotBuffers {
+        let pose: MTLBuffer
+        let appearance: MTLBuffer
     }
 
     let slotCount: Int
     let bufferLength: Int
+    let appearanceBufferLength: Int
 
     private let scheduler: DayObjectsInFlightScheduler
-    private let buffers: [MTLBuffer]
+    private let buffers: [SlotBuffers]
 
     init?(
         device: MTLDevice,
@@ -534,23 +546,32 @@ final class DayObjectsActorBufferRing {
         slotCount = scheduler.slotCount
         let capacity = min(max(actorCapacity, 1), DayObjectScene.maxActors)
         bufferLength = DayObjectGPUActor.metalStride * capacity
+        appearanceBufferLength = DayObjectGPUAppearance.metalStride * capacity
 
-        var allocated = [MTLBuffer]()
+        var allocated = [SlotBuffers]()
         allocated.reserveCapacity(slotCount)
         for slot in 0..<slotCount {
-            guard let buffer = device.makeBuffer(
+            guard let pose = device.makeBuffer(
                 length: bufferLength,
                 options: .storageModeShared
+            ), let appearance = device.makeBuffer(
+                length: appearanceBufferLength,
+                options: .storageModeShared
             ) else { return nil }
-            buffer.label = "Day Objects actors in-flight \(slot) (capacity \(capacity))"
-            allocated.append(buffer)
+            pose.label = "Day Objects poses in-flight \(slot) (capacity \(capacity))"
+            appearance.label = "Day Objects appearances in-flight \(slot) (capacity \(capacity))"
+            allocated.append(SlotBuffers(pose: pose, appearance: appearance))
         }
         buffers = allocated
     }
 
     func acquire() -> Lease? {
         guard let slot = scheduler.acquire() else { return nil }
-        return Lease(slot: slot, buffer: buffers[slot])
+        return Lease(
+            slot: slot,
+            poseBuffer: buffers[slot].pose,
+            appearanceBuffer: buffers[slot].appearance
+        )
     }
 
     func abandon(_ lease: Lease) {
@@ -560,6 +581,144 @@ final class DayObjectsActorBufferRing {
     func submit(_ lease: Lease, on commandBuffer: MTLCommandBuffer) {
         commandBuffer.addCompletedHandler { [scheduler] _ in
             scheduler.complete(lease.slot)
+        }
+    }
+}
+
+struct DayObjectsRendererPerformanceSnapshot {
+    let attemptedFrames: Int
+    let submittedFrames: Int
+    let completedFrames: Int
+    let pendingFrames: Int
+    let maximumInFlightFrames: Int
+    let actorBacklogDrops: Int
+    let resourceDrops: Int
+    let allocationFailures: Int
+    let renderTargetBytes: Int
+    let blurTargetBytes: Int
+    let gpuDurations: [TimeInterval]
+
+    var meanGPUDuration: TimeInterval {
+        gpuDurations.reduce(0, +) / Double(max(gpuDurations.count, 1))
+    }
+
+    func gpuDurationPercentile(_ fraction: Double) -> TimeInterval {
+        guard !gpuDurations.isEmpty else { return .infinity }
+        let sorted = gpuDurations.sorted()
+        let bounded = min(max(fraction, 0), 1)
+        let index = min(
+            Int((bounded * Double(sorted.count - 1)).rounded()),
+            sorted.count - 1
+        )
+        return sorted[index]
+    }
+}
+
+final class DayObjectsRendererPerformanceProbe {
+    private struct State {
+        var attemptedFrames = 0
+        var submittedFrames = 0
+        var completedFrames = 0
+        var pendingFrames = 0
+        var maximumInFlightFrames = 0
+        var actorBacklogDrops = 0
+        var resourceDrops = 0
+        var allocationFailures = 0
+        var renderTargetBytes = 0
+        var blurTargetBytes = 0
+        var gpuDurations = [TimeInterval]()
+    }
+
+    private let lock = NSLock()
+    private var state = State()
+
+    var snapshot: DayObjectsRendererPerformanceSnapshot {
+        lock.lock()
+        defer { lock.unlock() }
+        return DayObjectsRendererPerformanceSnapshot(
+            attemptedFrames: state.attemptedFrames,
+            submittedFrames: state.submittedFrames,
+            completedFrames: state.completedFrames,
+            pendingFrames: state.pendingFrames,
+            maximumInFlightFrames: state.maximumInFlightFrames,
+            actorBacklogDrops: state.actorBacklogDrops,
+            resourceDrops: state.resourceDrops,
+            allocationFailures: state.allocationFailures,
+            renderTargetBytes: state.renderTargetBytes,
+            blurTargetBytes: state.blurTargetBytes,
+            gpuDurations: state.gpuDurations
+        )
+    }
+
+    func resetMeasurementsPreservingAllocationState() {
+        lock.lock()
+        let renderTargetBytes = state.renderTargetBytes
+        let blurTargetBytes = state.blurTargetBytes
+        state = State()
+        state.renderTargetBytes = renderTargetBytes
+        state.blurTargetBytes = blurTargetBytes
+        lock.unlock()
+    }
+
+    fileprivate func recordAttempt() {
+        lock.lock()
+        state.attemptedFrames += 1
+        lock.unlock()
+    }
+
+    fileprivate func recordActorBacklogDrop() {
+        lock.lock()
+        state.actorBacklogDrops += 1
+        lock.unlock()
+    }
+
+    fileprivate func recordResourceDrop() {
+        lock.lock()
+        state.resourceDrops += 1
+        lock.unlock()
+    }
+
+    fileprivate func recordAllocationFailure() {
+        lock.lock()
+        state.allocationFailures += 1
+        state.renderTargetBytes = 0
+        state.blurTargetBytes = 0
+        lock.unlock()
+    }
+
+    fileprivate func recordAllocation(plan: DayObjectsRenderTargetPlan) {
+        let bytesPerPixel = 8
+        let backgroundBytes = plan.background.pixelCount * bytesPerPixel
+        let sceneBytes = plan.scene.pixelCount * bytesPerPixel
+        let blurBytes = plan.blurPingPong.reduce(0) {
+            $0 + $1.pixelCount * bytesPerPixel
+        }
+        lock.lock()
+        state.renderTargetBytes = backgroundBytes + sceneBytes + blurBytes
+        state.blurTargetBytes = blurBytes
+        lock.unlock()
+    }
+
+    fileprivate func recordSubmission(_ commandBuffer: MTLCommandBuffer) {
+        lock.lock()
+        state.submittedFrames += 1
+        state.pendingFrames += 1
+        state.maximumInFlightFrames = max(
+            state.maximumInFlightFrames,
+            state.pendingFrames
+        )
+        lock.unlock()
+
+        commandBuffer.addCompletedHandler { [weak self] completed in
+            guard let self else { return }
+            let duration = completed.gpuEndTime - completed.gpuStartTime
+            self.lock.lock()
+            self.state.completedFrames += 1
+            self.state.pendingFrames = max(self.state.pendingFrames - 1, 0)
+            if duration.isFinite, duration > 0 {
+                self.state.gpuDurations.append(duration)
+            }
+            self.lock.unlock()
         }
     }
 }
@@ -790,6 +949,30 @@ struct DayObjectInsertionTimeline: Equatable {
     }
 }
 
+struct DayObjectsBackgroundRenderPolicy {
+    private var renderedRevision: UInt64?
+    private var renderedTargetPlan: DayObjectsRenderTargetPlan?
+
+    func shouldRender(mode: DayObjectsPresentationMode, targetPlan: DayObjectsRenderTargetPlan) -> Bool {
+        guard case let .happeningPalette(presentation) = mode else { return true }
+        return renderedRevision != presentation.backgroundRevision || renderedTargetPlan != targetPlan
+    }
+
+    mutating func didRender(mode: DayObjectsPresentationMode, targetPlan: DayObjectsRenderTargetPlan) {
+        guard case let .happeningPalette(presentation) = mode else {
+            invalidate()
+            return
+        }
+        renderedRevision = presentation.backgroundRevision
+        renderedTargetPlan = targetPlan
+    }
+
+    mutating func invalidate() {
+        renderedRevision = nil
+        renderedTargetPlan = nil
+    }
+}
+
 final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     static let actorCapacity = DayObjectScene.maxActors
     static let colorPixelFormat: MTLPixelFormat = .bgra8Unorm_srgb
@@ -821,12 +1004,21 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     private var scene: DayObjectScene
     private var environment: DayObjectEnvironment
     private var digitalImpact: DayObjectDigitalImpact
+    private lazy var nativeAtlasRenderer = NativeAtlasMetalRenderer(device: device)
+    private var soundPulseBus: DayObjectsSoundPulseBus?
+    private var soundPulseTimeline = DayObjectsSoundPulseTimeline()
     private var glitchBandSeed: UInt64
     private var glitchBandUniforms: [DayObjectsGlitchBandUniform]
     private var insertionTimeline: DayObjectInsertionTimeline
+    private var presentationMode: DayObjectsPresentationMode
+    private var paletteTimeline = HappeningPaletteTransitionTimeline()
+    private var backgroundRenderPolicy = DayObjectsBackgroundRenderPolicy()
+    private var isAnimationAllowed = true
     private var attemptedTargetPlan: DayObjectsRenderTargetPlan?
     private var renderTargets: RenderTargets?
+    private var performanceProbe: DayObjectsRendererPerformanceProbe?
     private(set) var currentFrame: DayObjectRenderFrame?
+    private(set) var lastDisplayedTime: TimeInterval = 0
 
     private struct RenderTargets {
         let background: MTLTexture
@@ -854,7 +1046,9 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         clock: DayObjectsClock,
         scene: DayObjectScene,
         environment: DayObjectEnvironment,
-        digitalImpact: DayObjectDigitalImpact
+        digitalImpact: DayObjectDigitalImpact,
+        soundPulseBus: DayObjectsSoundPulseBus?,
+        presentationMode: DayObjectsPresentationMode
     ) {
         self.device = device
         self.commandQueue = commandQueue
@@ -871,6 +1065,12 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         self.scene = scene
         self.environment = environment
         self.digitalImpact = digitalImpact
+        self.soundPulseBus = soundPulseBus
+        self.presentationMode = presentationMode
+        if case let .happeningPalette(presentation) = presentationMode {
+            paletteTimeline.update(to: presentation, elapsed: clock.elapsedTime)
+        }
+        soundPulseTimeline = DayObjectsSoundPulseTimeline(startingAfter: soundPulseBus)
         glitchBandSeed = scene.rootSeed
         glitchBandUniforms = DayObjectGlitchLayout.make(seed: scene.rootSeed).bands.map(
             DayObjectsGlitchBandUniform.init
@@ -879,14 +1079,26 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         super.init()
     }
 
-    static func create(
-        scene: DayObjectScene,
-        environment: DayObjectEnvironment,
-        digitalImpact: DayObjectDigitalImpact = .none,
-        clock: DayObjectsClock = DayObjectsClock()
-    ) -> DayObjectsRenderer? {
+    private struct SharedResources {
+        let device: MTLDevice
+        let meshGradientPipeline: MTLRenderPipelineState
+        let sceneUpscalePipeline: MTLRenderPipelineState
+        let actorPipeline: MTLRenderPipelineState
+        let horizontalBlurPipeline: MTLRenderPipelineState
+        let verticalBlurPipeline: MTLRenderPipelineState
+        let displayPipeline: MTLRenderPipelineState
+        let linearSampler: MTLSamplerState
+        let quadBuffer: MTLBuffer
+    }
+
+    // Swift initializes static let exactly once, including concurrent exports.
+    // Mutable frame buffers, command queues and clocks remain per renderer.
+    private static let sharedResources: SharedResources? = makeSharedResources()
+
+    static func prepareResources() { _ = sharedResources }
+
+    private static func makeSharedResources() -> SharedResources? {
         guard let device = MTLCreateSystemDefaultDevice(),
-              let commandQueue = device.makeCommandQueue(),
               let library = device.makeDefaultLibrary(),
               let fullscreenVertex = library.makeFunction(name: "dayObjectsFullscreenVertex"),
               let meshGradientFragment = library.makeFunction(name: "dayObjectsMeshGradientFragment"),
@@ -969,21 +1181,9 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             guard let baseAddress = bytes.baseAddress else { return nil }
             return device.makeBuffer(bytes: baseAddress, length: bytes.count, options: .storageModeShared)
         }
-        guard let quadBuffer,
-              let actorBufferRing = DayObjectsActorBufferRing(
-                  device: device,
-                  slotCount: 3,
-                  actorCapacity: actorCapacity
-              )
-        else {
-            AppLogger.ui.error("[DAY_OBJECTS] Buffer allocation failed; using static fallback")
-            return nil
-        }
+        guard let quadBuffer else { return nil }
         quadBuffer.label = "Day Objects immutable quad"
-
-        return DayObjectsRenderer(
-            device: device,
-            commandQueue: commandQueue,
+        return SharedResources(device: device,
             meshGradientPipeline: meshGradientPipeline,
             sceneUpscalePipeline: sceneUpscalePipeline,
             actorPipeline: actorPipeline,
@@ -991,21 +1191,59 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             verticalBlurPipeline: verticalBlurPipeline,
             displayPipeline: displayPipeline,
             linearSampler: linearSampler,
-            quadBuffer: quadBuffer,
+            quadBuffer: quadBuffer)
+    }
+
+    static func create(
+        scene: DayObjectScene,
+        environment: DayObjectEnvironment,
+        digitalImpact: DayObjectDigitalImpact = .none,
+        soundPulseBus: DayObjectsSoundPulseBus? = nil,
+        presentationMode: DayObjectsPresentationMode = .canvas,
+        clock: DayObjectsClock = DayObjectsClock()
+    ) -> DayObjectsRenderer? {
+        guard let resources = sharedResources,
+              let commandQueue = resources.device.makeCommandQueue(),
+              let actorBufferRing = DayObjectsActorBufferRing(
+                  device: resources.device, slotCount: 3, actorCapacity: actorCapacity
+              ) else { return nil }
+        return DayObjectsRenderer(
+            device: resources.device,
+            commandQueue: commandQueue,
+            meshGradientPipeline: resources.meshGradientPipeline,
+            sceneUpscalePipeline: resources.sceneUpscalePipeline,
+            actorPipeline: resources.actorPipeline,
+            horizontalBlurPipeline: resources.horizontalBlurPipeline,
+            verticalBlurPipeline: resources.verticalBlurPipeline,
+            displayPipeline: resources.displayPipeline,
+            linearSampler: resources.linearSampler,
+            quadBuffer: resources.quadBuffer,
             actorBufferRing: actorBufferRing,
             clock: clock,
             scene: scene,
             environment: environment,
-            digitalImpact: digitalImpact
+            digitalImpact: digitalImpact,
+            soundPulseBus: soundPulseBus,
+            presentationMode: presentationMode
         )
     }
 
     func update(
         scene: DayObjectScene,
         environment: DayObjectEnvironment,
-        digitalImpact: DayObjectDigitalImpact = .none
+        digitalImpact: DayObjectDigitalImpact = .none,
+        soundPulseBus: DayObjectsSoundPulseBus? = nil,
+        presentationMode: DayObjectsPresentationMode = .canvas
     ) {
         insertionTimeline.update(scene: scene, elapsed: clock.elapsedTime)
+        self.presentationMode = presentationMode
+        switch presentationMode {
+        case .canvas:
+            backgroundRenderPolicy.invalidate()
+            paletteTimeline = HappeningPaletteTransitionTimeline()
+        case let .happeningPalette(presentation):
+            paletteTimeline.update(to: presentation, elapsed: clock.elapsedTime)
+        }
         if scene.rootSeed != glitchBandSeed {
             glitchBandSeed = scene.rootSeed
             glitchBandUniforms = DayObjectGlitchLayout.make(seed: scene.rootSeed).bands.map(
@@ -1015,10 +1253,43 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         self.scene = scene
         self.environment = environment
         self.digitalImpact = digitalImpact
+        if self.soundPulseBus !== soundPulseBus {
+            self.soundPulseBus = soundPulseBus
+            soundPulseTimeline = DayObjectsSoundPulseTimeline(startingAfter: soundPulseBus)
+        }
     }
 
     func setAnimating(_ isAnimating: Bool) {
+        isAnimationAllowed = isAnimating
         clock.setPaused(!isAnimating)
+    }
+
+    func configureAnimation(
+        _ view: MTKView,
+        elapsedTime: TimeInterval? = nil,
+        requestsStaticFrame: Bool = true
+    ) {
+        let prefersSixtyFPS = presentationMode.prefersSixtyFPS
+            || paletteTimeline.hasActiveTransitions(at: elapsedTime ?? clock.elapsedTime)
+        let runsContinuously = isAnimationAllowed && (presentationMode == .canvas || prefersSixtyFPS)
+        DayObjectsMetalView.configureAnimationFrameRate(view, prefersSixtyFPS: prefersSixtyFPS)
+        clock.setPaused(!runsContinuously)
+        if view.enableSetNeedsDisplay != !runsContinuously {
+            view.enableSetNeedsDisplay = !runsContinuously
+        }
+        if view.isPaused != !runsContinuously {
+            view.isPaused = !runsContinuously
+        }
+        if !runsContinuously && requestsStaticFrame {
+            view.setNeedsDisplay()
+        }
+    }
+
+    func installPerformanceProbe(_ probe: DayObjectsRendererPerformanceProbe) {
+        performanceProbe = probe
+        if let attemptedTargetPlan, renderTargets != nil {
+            probe.recordAllocation(plan: attemptedTargetPlan)
+        }
     }
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -1035,61 +1306,193 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     }
 
     func draw(in view: MTKView) {
-        resizeRenderTargets(to: view.drawableSize)
-
-        let height = max(view.drawableSize.height, 1)
+        performanceProbe?.recordAttempt()
         let elapsedTime = clock.elapsedTime
-        let transitionState = insertionTimeline.renderState(
-            activeScene: scene,
-            elapsed: elapsedTime
-        )
-        let renderScene = transitionState.scene
-        let frame = DayObjectRenderFrame.make(
-            scene: renderScene,
-            environment: environment,
-            elapsed: elapsedTime,
-            insertions: transitionState.insertions,
-            removals: transitionState.removals,
-            actorInsertions: transitionState.actorInsertions,
-            actorRemovals: transitionState.actorRemovals,
-            canvasAspect: view.drawableSize.width / height
-        )
-        currentFrame = frame
-
         guard let drawable = view.currentDrawable,
               let renderPass = view.currentRenderPassDescriptor,
-              let renderTargets,
-              let commandBuffer = commandQueue.makeCommandBuffer()
-        else { return }
-
-        let backgroundPass = MTLRenderPassDescriptor()
-        backgroundPass.colorAttachments[0].texture = renderTargets.background
-        backgroundPass.colorAttachments[0].loadAction = .clear
-        backgroundPass.colorAttachments[0].storeAction = .store
-        backgroundPass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1)
-
-        var uniforms = DayObjectsMeshGradientUniforms(
-            scene: renderScene,
-            resolution: SIMD2(
-                Float(renderTargets.background.width),
-                Float(renderTargets.background.height)
-            ),
-            elapsedTime: elapsedTime
-        )
-        guard let backgroundEncoder = commandBuffer.makeRenderCommandEncoder(
-            descriptor: backgroundPass
-        ) else {
+              let commandBuffer = encodeFrame(
+                  outputTexture: drawable.texture,
+                  outputPass: renderPass,
+                  drawableSize: view.drawableSize,
+                  pointToPixelScale: Float(view.contentScaleFactor),
+                  elapsedTime: elapsedTime,
+                  present: drawable
+              )
+        else {
+            performanceProbe?.recordResourceDrop()
             return
         }
-        backgroundEncoder.label = "Day Objects half-resolution Mesh Gradient pass"
-        backgroundEncoder.setRenderPipelineState(meshGradientPipeline)
-        backgroundEncoder.setFragmentBytes(
-            &uniforms,
-            length: MemoryLayout<DayObjectsMeshGradientUniforms>.stride,
-            index: 0
+        lastDisplayedTime = elapsedTime
+        commandBuffer.commit()
+        configureAnimation(view, elapsedTime: elapsedTime, requestsStaticFrame: false)
+    }
+
+    func renderOffscreen(
+        size: CGSize,
+        pointScale: CGFloat,
+        elapsedTime: TimeInterval,
+        completion: @escaping (MTLTexture?, DayObjectRenderFrame?) -> Void
+    ) {
+        guard size.width.isFinite,
+              size.height.isFinite,
+              pointScale.isFinite,
+              size.width > 0,
+              size.height > 0,
+              pointScale > 0
+        else {
+            completion(nil, nil)
+            return
+        }
+
+        let pixelSize = CGSize(
+            width: (size.width * pointScale).rounded(.toNearestOrAwayFromZero),
+            height: (size.height * pointScale).rounded(.toNearestOrAwayFromZero)
         )
-        backgroundEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
-        backgroundEncoder.endEncoding()
+        guard let width = Self.pixelDimension(pixelSize.width),
+              let height = Self.pixelDimension(pixelSize.height),
+              width <= 4_096,
+              height <= 4_096
+        else {
+            completion(nil, nil)
+            return
+        }
+
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: Self.colorPixelFormat,
+            width: width,
+            height: height,
+            mipmapped: false
+        )
+        descriptor.storageMode = .shared
+        descriptor.usage = [.renderTarget, .shaderRead]
+        guard let outputTexture = device.makeTexture(descriptor: descriptor) else {
+            completion(nil, nil)
+            return
+        }
+        outputTexture.label = "Day Objects offscreen display target"
+
+        let outputPass = MTLRenderPassDescriptor()
+        outputPass.colorAttachments[0].texture = outputTexture
+        guard let commandBuffer = encodeFrame(
+            outputTexture: outputTexture,
+            outputPass: outputPass,
+            drawableSize: pixelSize,
+            pointToPixelScale: Float(pointScale),
+            elapsedTime: elapsedTime,
+            present: nil
+        ) else {
+            completion(nil, nil)
+            return
+        }
+        let renderedFrame = currentFrame
+        commandBuffer.addCompletedHandler { completed in
+            guard completed.status == .completed else {
+                completion(nil, renderedFrame)
+                return
+            }
+            completion(outputTexture, renderedFrame)
+        }
+        commandBuffer.commit()
+    }
+
+    private func encodeFrame(
+        outputTexture: MTLTexture,
+        outputPass: MTLRenderPassDescriptor,
+        drawableSize: CGSize,
+        pointToPixelScale: Float,
+        elapsedTime: TimeInterval,
+        present drawable: MTLDrawable?
+    ) -> MTLCommandBuffer? {
+        let height = max(drawableSize.height, 1)
+        soundPulseTimeline.consume(soundPulseBus, at: elapsedTime)
+        let renderImpact: DayObjectDigitalImpact
+        let renderScene: DayObjectScene
+        let frame: DayObjectRenderFrame
+        switch presentationMode {
+        case .canvas:
+            renderImpact = digitalImpact
+            let transitionState = insertionTimeline.renderState(activeScene: scene, elapsed: elapsedTime)
+            renderScene = transitionState.scene
+            frame = DayObjectRenderFrame.make(
+                scene: renderScene, environment: environment, elapsed: elapsedTime,
+                insertions: transitionState.insertions, removals: transitionState.removals,
+                actorInsertions: transitionState.actorInsertions, actorRemovals: transitionState.actorRemovals,
+                canvasAspect: drawableSize.width / height, soundPulseTimestamps: soundPulseTimeline.timestamps
+            )
+        case let .happeningPalette(presentation):
+            // The chooser is interface content, not the spent-energy artwork.
+            renderImpact = .none
+            renderScene = scene
+            paletteTimeline.update(to: presentation, elapsed: elapsedTime)
+            frame = HappeningPaletteRenderFrame.make(
+                presentation: presentation, scene: scene, elapsed: elapsedTime,
+                timeline: paletteTimeline
+            )
+        }
+        currentFrame = frame
+
+        if var recipe = renderScene.input.nativeAtlasRecipe, recipe.isSupported {
+            guard let renderer = nativeAtlasRenderer, let buffer = commandQueue.makeCommandBuffer() else { return nil }
+            var isPalette = false
+            var variants = renderScene.input.actorColorVariants
+            if case let .happeningPalette(presentation) = presentationMode {
+                isPalette = true
+                let original = recipe
+                recipe.actors = presentation.slots.compactMap { slot in
+                    let id = slot.assignment.elementID.uuidString.lowercased()
+                    guard let spec = slot.assignment.nativeActor ?? original.prospectiveActor(eventID: id) else { return nil }
+                    variants[slot.happeningID] = slot.assignment.colorVariant
+                    return NativeAtlasRecipe.Actor(eventID: slot.happeningID, presetID: spec.presetID, materialID: spec.materialID, seedHex: spec.seedHex, geometry: spec.geometry, material: spec.material, position: spec.position, size: spec.size, rotation: spec.rotation, slot: spec.slot)
+                }
+                recipe.intersectionStrength = 0
+            }
+            let nativeFrame = renderer.adapt(frame, recipe: recipe, aspect: Float(drawableSize.width / max(drawableSize.height, 1)), elapsed: elapsedTime, soundPulses: soundPulseTimeline.timestamps, isPalette: isPalette)
+            currentFrame = nativeFrame
+            guard renderer.encode(commandBuffer: buffer, output: outputTexture, recipe: recipe, frame: nativeFrame, damage: isPalette ? 0 : (recipe.glitchStrength ?? Float(renderImpact.damage)), scene: renderScene, elapsed: elapsedTime, pointToPixelScale: pointToPixelScale, isPalette: isPalette, colorVariants: variants) else { return nil }
+            if let drawable { buffer.present(drawable) }
+            performanceProbe?.recordSubmission(buffer)
+            return buffer
+        }
+
+        resizeRenderTargets(to: drawableSize)
+        guard let renderTargets,
+              let attemptedTargetPlan,
+              let commandBuffer = commandQueue.makeCommandBuffer()
+        else { return nil }
+
+        let rendersBackground = backgroundRenderPolicy.shouldRender(
+            mode: presentationMode, targetPlan: attemptedTargetPlan
+        )
+        if rendersBackground {
+            let backgroundPass = MTLRenderPassDescriptor()
+            backgroundPass.colorAttachments[0].texture = renderTargets.background
+            backgroundPass.colorAttachments[0].loadAction = .clear
+            backgroundPass.colorAttachments[0].storeAction = .store
+            backgroundPass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1)
+
+            var uniforms = DayObjectsMeshGradientUniforms(
+                scene: renderScene,
+                resolution: SIMD2(
+                    Float(renderTargets.background.width),
+                    Float(renderTargets.background.height)
+                ),
+                elapsedTime: elapsedTime
+            )
+            guard let backgroundEncoder = commandBuffer.makeRenderCommandEncoder(
+                descriptor: backgroundPass
+            ) else {
+                return nil
+            }
+            backgroundEncoder.label = "Day Objects half-resolution Mesh Gradient pass"
+            backgroundEncoder.setRenderPipelineState(meshGradientPipeline)
+            backgroundEncoder.setFragmentBytes(
+                &uniforms,
+                length: MemoryLayout<DayObjectsMeshGradientUniforms>.stride,
+                index: 0
+            )
+            backgroundEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+            backgroundEncoder.endEncoding()
+        }
 
         let actorUpload = DayObjectsActorUpload(
             actors: frame.actors,
@@ -1097,16 +1500,28 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                 Float(renderTargets.scene.width),
                 Float(renderTargets.scene.height)
             ),
-            radialFillStyle: renderScene.radialFillStyle
+            lightDirection: SIMD2(
+                Float(renderScene.visualLanguage.lightDirection.x),
+                Float(renderScene.visualLanguage.lightDirection.y)
+            ),
+            lightSoftness: Float(renderScene.visualLanguage.lightSoftness),
+            globalTime: Float(frame.choreographyTime)
         )
-        guard let actorBufferLease = actorBufferRing.acquire() else { return }
+        guard let actorBufferLease = actorBufferRing.acquire() else {
+            performanceProbe?.recordActorBacklogDrop()
+            return nil
+        }
         var submittedActorBuffer = false
         defer {
             if !submittedActorBuffer {
                 actorBufferRing.abandon(actorBufferLease)
             }
         }
-        uploadActors(actorUpload.actors, to: actorBufferLease.buffer)
+        uploadActors(actorUpload.actors, to: actorBufferLease.poseBuffer)
+        uploadAppearances(
+            actorUpload.appearances,
+            to: actorBufferLease.appearanceBuffer
+        )
 
         let scenePass = MTLRenderPassDescriptor()
         scenePass.colorAttachments[0].texture = renderTargets.scene
@@ -1114,7 +1529,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         scenePass.colorAttachments[0].storeAction = .store
         scenePass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1)
         guard let sceneEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: scenePass) else {
-            return
+            return nil
         }
         sceneEncoder.label = "Day Objects full-resolution scene composite"
         sceneEncoder.setRenderPipelineState(sceneUpscalePipeline)
@@ -1126,16 +1541,24 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             var actorUniforms = actorUpload.uniforms
             sceneEncoder.setRenderPipelineState(actorPipeline)
             sceneEncoder.setVertexBuffer(quadBuffer, offset: 0, index: 0)
-            sceneEncoder.setVertexBuffer(actorBufferLease.buffer, offset: 0, index: 1)
+            sceneEncoder.setVertexBuffer(actorBufferLease.poseBuffer, offset: 0, index: 1)
+            sceneEncoder.setVertexBuffer(actorBufferLease.appearanceBuffer, offset: 0, index: 2)
+            sceneEncoder.setFragmentTexture(renderTargets.background, index: 0)
+            sceneEncoder.setFragmentSamplerState(linearSampler, index: 0)
             sceneEncoder.setVertexBytes(
                 &actorUniforms,
                 length: MemoryLayout<DayObjectsActorUniforms>.stride,
+                index: 3
+            )
+            sceneEncoder.setFragmentBuffer(
+                actorBufferLease.appearanceBuffer,
+                offset: 0,
                 index: 2
             )
             sceneEncoder.setFragmentBytes(
                 &actorUniforms,
                 length: MemoryLayout<DayObjectsActorUniforms>.stride,
-                index: 2
+                index: 3
             )
             sceneEncoder.drawPrimitives(
                 type: .triangleStrip,
@@ -1153,7 +1576,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                 Float(renderTargets.scene.width),
                 Float(renderTargets.scene.height)
             ),
-            pointToPixelScale: Float(view.contentScaleFactor)
+            pointToPixelScale: pointToPixelScale
         )
         var postSource = renderTargets.scene
         if postUniforms.blurRadiusPixels >= 0.01 {
@@ -1171,20 +1594,73 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                 pipeline: verticalBlurPipeline,
                 uniforms: &postUniforms,
                 label: "Day Objects vertical focus blur"
-            ) else { return }
+            ) else { return nil }
             postSource = renderTargets.blurPingPong[1]
         }
 
-        renderPass.colorAttachments[0].loadAction = .clear
-        renderPass.colorAttachments[0].storeAction = .store
-        renderPass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0)
-        guard let presentEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPass) else {
-            return
+        // The first blur target is no longer read after the vertical pass.
+        // Reuse it for one sharp, transparent actor; the soft scene remains in
+        // blur B (or scene when blur is disabled). No additional texture memory.
+        var echoDirection = SIMD2<Float>(1, 0)
+        let echoPass = MTLRenderPassDescriptor()
+        echoPass.colorAttachments[0].texture = renderTargets.blurPingPong[0]
+        echoPass.colorAttachments[0].loadAction = .clear
+        echoPass.colorAttachments[0].storeAction = .store
+        echoPass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0)
+        guard let echoEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: echoPass) else { return nil }
+        echoEncoder.label = "Day Objects isolated digital echo"
+        if renderImpact.damage > 0, let echoIndex = DayObjectsGlitchUniforms.echoActorIndex(
+            actors: actorUpload.actors, resolution: postUniforms.resolution,
+            elapsedTime: elapsedTime, seed: renderScene.rootSeed
+        ) {
+            let position = actorUpload.actors[echoIndex].position
+            let inward = SIMD2(-position.x, position.y)
+            if simd_length(inward) > 0.001 { echoDirection = simd_normalize(inward) }
+            var actorUniforms = actorUpload.uniforms
+            echoEncoder.setRenderPipelineState(actorPipeline)
+            echoEncoder.setVertexBuffer(quadBuffer, offset: 0, index: 0)
+            echoEncoder.setVertexBuffer(actorBufferLease.poseBuffer, offset: 0, index: 1)
+            echoEncoder.setVertexBuffer(actorBufferLease.appearanceBuffer, offset: 0, index: 2)
+            echoEncoder.setFragmentTexture(renderTargets.background, index: 0)
+            echoEncoder.setFragmentSamplerState(linearSampler, index: 0)
+            echoEncoder.setVertexBytes(
+                &actorUniforms,
+                length: MemoryLayout<DayObjectsActorUniforms>.stride,
+                index: 3
+            )
+            echoEncoder.setFragmentBuffer(
+                actorBufferLease.appearanceBuffer,
+                offset: 0,
+                index: 2
+            )
+            echoEncoder.setFragmentBytes(
+                &actorUniforms,
+                length: MemoryLayout<DayObjectsActorUniforms>.stride,
+                index: 3
+            )
+            echoEncoder.drawPrimitives(
+                type: .triangleStrip,
+                vertexStart: 0,
+                vertexCount: 4,
+                instanceCount: 1,
+                baseInstance: echoIndex
+            )
+        }
+        echoEncoder.endEncoding()
+
+        outputPass.colorAttachments[0].texture = outputTexture
+        outputPass.colorAttachments[0].loadAction = .clear
+        outputPass.colorAttachments[0].storeAction = .store
+        outputPass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0)
+        guard let presentEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: outputPass) else {
+            return nil
         }
 
         presentEncoder.label = "Day Objects sharp grain and display pass"
         presentEncoder.setRenderPipelineState(displayPipeline)
         presentEncoder.setFragmentTexture(postSource, index: 0)
+        presentEncoder.setFragmentTexture(renderTargets.blurPingPong[0], index: 1)
+        presentEncoder.setFragmentBytes(&echoDirection, length: MemoryLayout<SIMD2<Float>>.stride, index: 3)
         presentEncoder.setFragmentSamplerState(linearSampler, index: 0)
         presentEncoder.setFragmentBytes(
             &postUniforms,
@@ -1192,9 +1668,8 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             index: 0
         )
         var glitchUniforms = DayObjectsGlitchUniforms(
-            impact: digitalImpact,
+            impact: renderImpact,
             elapsedTime: elapsedTime,
-            reduceMotion: environment.reduceMotion,
             seed: renderScene.rootSeed
         )
         presentEncoder.setFragmentBytes(
@@ -1213,10 +1688,17 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         presentEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         presentEncoder.endEncoding()
 
-        commandBuffer.present(drawable)
+        if let drawable {
+            commandBuffer.present(drawable)
+        }
         actorBufferRing.submit(actorBufferLease, on: commandBuffer)
-        commandBuffer.commit()
+        performanceProbe?.recordSubmission(commandBuffer)
         submittedActorBuffer = true
+        // Only cache an encoded background once every pass succeeded and the caller can submit it.
+        if rendersBackground {
+            backgroundRenderPolicy.didRender(mode: presentationMode, targetPlan: attemptedTargetPlan)
+        }
+        return commandBuffer
     }
 
     private func encodePostPass(
@@ -1256,12 +1738,32 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         }
     }
 
+    private func uploadAppearances(
+        _ appearances: [DayObjectGPUAppearance],
+        to appearanceBuffer: MTLBuffer
+    ) {
+        appearances.withUnsafeBytes { bytes in
+            guard let baseAddress = bytes.baseAddress, !bytes.isEmpty else { return }
+            appearanceBuffer.contents().copyMemory(
+                from: baseAddress,
+                byteCount: bytes.count
+            )
+        }
+    }
+
     private func resizeRenderTargets(to drawableSize: CGSize) {
+        if scene.input.nativeAtlasRecipe?.isSupported == true {
+            renderTargets = nil
+            attemptedTargetPlan = nil
+            return
+        }
         guard let width = Self.pixelDimension(drawableSize.width),
               let height = Self.pixelDimension(drawableSize.height)
         else {
             attemptedTargetPlan = nil
             renderTargets = nil
+            backgroundRenderPolicy.invalidate()
+            performanceProbe?.recordResourceDrop()
             return
         }
 
@@ -1269,6 +1771,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         guard plan != attemptedTargetPlan else { return }
         attemptedTargetPlan = plan
         renderTargets = nil
+        backgroundRenderPolicy.invalidate()
 
         guard let background = makeTexture(
                   for: plan.background,
@@ -1279,6 +1782,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
               let blurA = makeTexture(for: plan.blurPingPong[0], label: "Day Objects blur A"),
               let blurB = makeTexture(for: plan.blurPingPong[1], label: "Day Objects blur B")
         else {
+            performanceProbe?.recordAllocationFailure()
             AppLogger.ui.error("[DAY_OBJECTS] Render-target allocation failed; using static fallback")
             return
         }
@@ -1288,6 +1792,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             scene: scene,
             blurPingPong: [blurA, blurB]
         )
+        performanceProbe?.recordAllocation(plan: plan)
     }
 
     private func makeTexture(

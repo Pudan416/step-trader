@@ -107,7 +107,7 @@ struct FeedTileView: View {
     #endif
 
     private var accessibilityLabel: String {
-        let name = group.templateApp.map { TargetResolver.displayName(for: $0) } ?? group.name
+        let name = group.displayIdentity.title
         return isUnlocked
             ? String(localized: "\(name), unlocked, \(remainingMinutes) minutes left", comment: "Feeds tile – VoiceOver, window open")
             : String(localized: "\(name), locked", comment: "Feeds tile – VoiceOver, window closed")
@@ -121,14 +121,12 @@ struct FeedAddTileView: View {
     var body: some View {
         Button(action: onTap) {
             ZStack {
-                Circle()
-                    .fill(Color.white.opacity(0.13))
-                    .overlay(Circle().strokeBorder(.white.opacity(0.14), lineWidth: 0.5))
                 Image(systemName: "plus")
                     .font(.geist(size: 28, weight: .light))
                     .foregroundStyle(AppColors.Night.textPrimary)
             }
             .frame(width: FeedTileView.diameter, height: FeedTileView.diameter)
+            .smokedCanvasControl(in: Circle())
             .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -153,71 +151,126 @@ struct FeedPlaceholderTileView: View {
 
 // MARK: - Row timer design
 
-/// An asymmetric ticket with a concave trailing edge for the management menu.
-/// The shape is deliberately more expressive than a rounded rectangle, while
-/// remaining stable when a progress fill is clipped through it.
+/// Dark pigment under the labels, the unmodified bright color at the free edge.
+/// Multiplying RGB keeps its hue/saturation, unlike mixing in gray or white glass.
+enum FeedPigment {
+    struct Stop {
+        let color: DayObjectRGB
+        let location: Double
+    }
+
+    static let textEdge = 0.64
+
+    static func stops(for palette: TodayCanvasUnlockPalette, textEdge: Double = FeedPigment.textEdge) -> [Stop] {
+        let colors = palette.colors.sorted { $0.perceptualOKLab.x < $1.perceptualOKLab.x }
+        guard let bright = colors.last else {
+            return [Stop(color: DayObjectRGB(hex: "#332F3B"), location: 0)]
+        }
+        let readingColors = colors.count > 2 ? Array(colors.dropLast()) : colors
+        var result = readingColors.enumerated().map { index, color in
+            Stop(color: readable(color), location: Double(index) / Double(max(1, readingColors.count - 1)) * textEdge)
+        }
+        if readingColors.count == 1 {
+            result.append(Stop(color: readable(bright), location: textEdge))
+        }
+        result.append(Stop(color: bright, location: 1))
+        return result
+    }
+
+    static func menuUsesDarkInk(palette: TodayCanvasUnlockPalette, fraction: Double, position: Double,
+                               textEdge: Double = FeedPigment.textEdge) -> Bool {
+        guard position < fraction else { return false }
+        let stops = stops(for: palette, textEdge: textEdge)
+        var color = stops[0].color
+        for (left, right) in zip(stops, stops.dropFirst()) where position >= left.location {
+            let progress = Float(min(max((position - left.location) / (right.location - left.location), 0), 1))
+            color = DayObjectRGB(sRGB: left.color.sRGB + (right.color.sRGB - left.color.sRGB) * progress)
+        }
+        return relativeLuminance(color.linearRGB) > 0.18
+    }
+
+    private static func readable(_ color: DayObjectRGB) -> DayObjectRGB {
+        let white = SIMD3<Float>(repeating: 1)
+        guard contrastRatio(color.linearRGB, white) < 5.5 else { return color }
+        var lower: Float = 0
+        var upper: Float = 1
+        for _ in 0..<16 {
+            let middle = (lower + upper) / 2
+            if contrastRatio(color.darkened(by: middle).linearRGB, white) >= 5.5 {
+                lower = middle
+            } else {
+                upper = middle
+            }
+        }
+        return color.darkened(by: lower)
+    }
+}
+
+struct FeedProgressFill: View {
+    let palette: TodayCanvasUnlockPalette
+    let fraction: Double
+    var textEdge = FeedPigment.textEdge
+
+    var body: some View {
+        GeometryReader { geometry in
+            LinearGradient(
+                stops: FeedPigment.stops(for: palette, textEdge: textEdge).map { stop in
+                    .init(color: Color(.sRGB, red: Double(stop.color.sRGB.x),
+                                       green: Double(stop.color.sRGB.y), blue: Double(stop.color.sRGB.z)),
+                          location: stop.location)
+                },
+                startPoint: .leading, endPoint: .trailing
+            )
+            .mask(alignment: .leading) {
+                Rectangle().frame(width: geometry.size.width * min(max(fraction, 0), 1))
+            }
+        }
+        .animation(nil, value: fraction)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// A gently rounded card leaves room around the title and inline choices.
 struct FeedTicketShape: Shape {
     func path(in rect: CGRect) -> Path {
         guard rect.width > 0, rect.height > 0 else { return Path() }
-
-        let leadingRadius = min(28, rect.height / 2)
-        let trailingRadius = min(18, rect.height / 2)
-        let notchHalfHeight = min(26, rect.height * 0.32)
-        let notchDepth = min(42, rect.width * 0.18)
-        let notchTop = rect.midY - notchHalfHeight
-        let notchBottom = rect.midY + notchHalfHeight
-
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX + leadingRadius, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX - trailingRadius, y: rect.minY))
-        path.addQuadCurve(
-            to: CGPoint(x: rect.maxX, y: rect.minY + trailingRadius),
-            control: CGPoint(x: rect.maxX, y: rect.minY)
-        )
-        path.addLine(to: CGPoint(x: rect.maxX, y: notchTop))
-        path.addCurve(
-            to: CGPoint(x: rect.maxX - notchDepth, y: rect.midY),
-            control1: CGPoint(x: rect.maxX, y: notchTop + notchHalfHeight * 0.55),
-            control2: CGPoint(x: rect.maxX - notchDepth, y: rect.midY - notchHalfHeight * 0.55)
-        )
-        path.addCurve(
-            to: CGPoint(x: rect.maxX, y: notchBottom),
-            control1: CGPoint(x: rect.maxX - notchDepth, y: rect.midY + notchHalfHeight * 0.55),
-            control2: CGPoint(x: rect.maxX, y: notchBottom - notchHalfHeight * 0.55)
-        )
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - trailingRadius))
-        path.addQuadCurve(
-            to: CGPoint(x: rect.maxX - trailingRadius, y: rect.maxY),
-            control: CGPoint(x: rect.maxX, y: rect.maxY)
-        )
-        path.addLine(to: CGPoint(x: rect.minX + leadingRadius, y: rect.maxY))
-        path.addQuadCurve(
-            to: CGPoint(x: rect.minX, y: rect.maxY - leadingRadius),
-            control: CGPoint(x: rect.minX, y: rect.maxY)
-        )
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + leadingRadius))
-        path.addQuadCurve(
-            to: CGPoint(x: rect.minX + leadingRadius, y: rect.minY),
-            control: CGPoint(x: rect.minX, y: rect.minY)
-        )
-        path.closeSubpath()
-        return path
+        let cornerRadius = min(rect.height / 2, 24)
+        return RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .path(in: rect)
     }
 }
 
 /// One feed ticket carries both the action and the timer. A locked ticket opens
 /// the duration picker; an active one opens its app. No social-network artwork
 /// is repeated here — the app name is the identifier, and the shared canvas
-/// gradient expresses the one thing unique to this screen: remaining access.
+/// gradient expresses remaining access while locked cards disclose choices inline.
 struct FeedRowView: View {
+    @ObservedObject var model: AppModel
     let group: TicketGroup
     let accessState: FeedRowAccessState
     let canOpen: Bool
+    let showsUnlockOptions: Bool
     let onTap: () -> Void
     let onSettings: () -> Void
     let onDelete: () -> Void
+    let onPurchased: () -> Void
+    @ObservedObject var backdrop: TodayCanvasBackdropStore = .shared
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.canvasChromePalette) private var palette
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @ScaledMetric(relativeTo: .body) private var headerHeight = FeedCardLayout.collapsedHeight
+    @ScaledMetric(relativeTo: .body) private var choiceHeight: CGFloat = 78
 
-    private let rowHeight: CGFloat = 82
+    private var textEdge: Double {
+        dynamicTypeSize.isAccessibilitySize || remainingMinutes == nil ? 0.80 : FeedPigment.textEdge
+    }
+
+    private var optionsHeight: CGFloat {
+        dynamicTypeSize.isAccessibilitySize
+            ? choiceHeight * CGFloat(group.enabledIntervals.count) + CGFloat(max(0, group.enabledIntervals.count - 1)) * 12 + 26
+            : choiceHeight + 26
+    }
 
     private var fillFraction: Double {
         if case .active(_, let fraction) = accessState { return fraction }
@@ -230,99 +283,97 @@ struct FeedRowView: View {
     }
 
     private var displayName: String {
-        group.templateApp.map { TargetResolver.displayName(for: $0) }
-            ?? (group.name.isEmpty ? String(localized: "Feed") : group.name)
+        group.displayIdentity.title
     }
 
     var body: some View {
         rowGeometry
-            .frame(height: rowHeight)
-            .accessibilityElement(children: .ignore)
-            .accessibilityAddTraits(.isButton)
-            .accessibilityLabel(accessibilityLabel)
-            .accessibilityHint(accessibilityHint)
-            .accessibilityAction(.default, onTap)
-            .accessibilityAction(named: String(localized: "Settings"), onSettings)
-            .accessibilityAction(named: String(localized: "Delete"), onDelete)
+            .frame(height: headerHeight + (showsUnlockOptions ? optionsHeight : 0))
     }
 
     private var rowGeometry: some View {
         GeometryReader { geometry in
-            rowSurface(fillWidth: geometry.size.width * CGFloat(fillFraction))
+            rowSurface(width: geometry.size.width)
         }
     }
 
-    private func rowSurface(fillWidth: CGFloat) -> some View {
-        ZStack(alignment: .trailing) {
-            ticketBody(fillWidth: fillWidth)
-            optionsMenu
-                .offset(x: 1)
+    private func rowSurface(width: CGFloat) -> some View {
+        ZStack(alignment: .topTrailing) {
+            ticketBody(width: width)
+            optionsMenu(width: width)
+                .padding(.trailing, 12)
+                .padding(
+                    .top,
+                    (headerHeight - FeedCardLayout.optionsControlDiameter) / 2
+                )
         }
-        // Usage is metered in whole-minute observations. Let the row step
-        // with that source of truth instead of inventing a smooth timer.
-        .animation(nil, value: fillFraction)
     }
 
-    private func ticketBody(fillWidth: CGFloat) -> some View {
+    private func ticketBody(width: CGFloat) -> some View {
         ZStack(alignment: .leading) {
             Rectangle()
-                .fill(.ultraThinMaterial)
-                .overlay(Color.black.opacity(0.16))
+                .fill(palette.surfaceColor)
 
-            ResourceGradientFill()
-                .frame(width: max(0, fillWidth))
-                .frame(maxHeight: .infinity)
+            FeedProgressFill(palette: backdrop.feedPalette, fraction: fillFraction, textEdge: textEdge)
 
-            // A permanent scrim keeps one text colour readable at every fill
-            // fraction. No word changes colour when the timer crosses it.
-            LinearGradient(
-                stops: [
-                    .init(color: .black.opacity(0.30), location: 0),
-                    .init(color: .black.opacity(0.12), location: 0.58),
-                    .init(color: .clear, location: 0.84),
-                ],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .allowsHitTesting(false)
+            VStack(spacing: 0) {
+                Button(action: onTap) {
+                    rowContent(width: width)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .frame(height: headerHeight)
+                .accessibilityIdentifier("feed.\(group.id).access")
+                .accessibilityLabel(accessibilityLabel)
+                .accessibilityHint(accessibilityHint)
+                .accessibilityAction(named: String(localized: "Settings"), onSettings)
+                .accessibilityAction(named: String(localized: "Delete"), onDelete)
 
-            Button(action: onTap) {
-                rowContent
-                    .contentShape(FeedTicketShape())
+                if showsUnlockOptions {
+                    FeedInlineDurationOptions(
+                        model: model,
+                        group: group,
+                        onPurchased: onPurchased
+                    )
+                    .frame(height: optionsHeight)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
             }
-            .buttonStyle(.plain)
         }
         .clipShape(FeedTicketShape())
-        .overlay {
-            FeedTicketShape()
-                .stroke(Color.white.opacity(0.16), lineWidth: 0.75)
-                .allowsHitTesting(false)
-        }
     }
 
-    private var rowContent: some View {
+    private func rowContent(width: CGFloat) -> some View {
         HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(displayName)
-                    .font(.geist(size: 19, weight: .semibold, design: .rounded))
+                    .font(.geist(20, weight: .medium, relativeTo: .body))
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+
+                Text(group.displayIdentity.detail)
+                    .font(.onest(12, relativeTo: .caption))
                     .lineLimit(1)
+                    .opacity(0.8)
 
                 HStack(spacing: 6) {
-                    Image(systemName: remainingMinutes == nil ? "lock.fill" : "clock.fill")
-                        .font(.geist(size: 12, weight: .semibold))
+                    if remainingMinutes == nil && !showsUnlockOptions {
+                        Image(systemName: "lock.fill")
+                            .font(.geist(12, relativeTo: .caption))
+                    }
                     Text(statusText)
-                        .font(.geist(size: 14, weight: .medium, design: .rounded))
+                        .font(.geist(14, relativeTo: .body))
                         .monospacedDigit()
-                        .lineLimit(1)
+                        .lineLimit(2)
                 }
-                .opacity(0.82)
+                .padding(.top, 4)
             }
+            .frame(width: max(0, width * textEdge - 22), alignment: .leading)
 
             Spacer(minLength: 0)
         }
         .foregroundStyle(.white)
         .padding(.leading, 22)
-        .padding(.trailing, 68)
+        .padding(.trailing, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
@@ -333,7 +384,7 @@ struct FeedRowView: View {
         return String(localized: "\(remainingMinutes) min left", comment: "Active feed row status")
     }
 
-    private var optionsMenu: some View {
+    private func optionsMenu(width: CGFloat) -> some View {
         Menu {
             Button(action: onSettings) {
                 Label(String(localized: "Settings"), systemImage: "gearshape")
@@ -342,16 +393,25 @@ struct FeedRowView: View {
                 Label(String(localized: "Delete"), systemImage: "trash")
             }
         } label: {
-            Image(systemName: "ellipsis")
-                .font(.geist(size: 15, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 44, height: 44)
-                .background(Circle().fill(.ultraThinMaterial))
-                .overlay(Circle().stroke(Color.white.opacity(0.18), lineWidth: 0.75))
-                .shadow(color: .black.opacity(0.16), radius: 10, y: 3)
-                .contentShape(Circle())
+            HStack(spacing: 4) {
+                ForEach(0..<3, id: \.self) { index in
+                    let position = (width - 12 - FeedCardLayout.optionsControlDiameter / 2 + CGFloat(index - 1) * 8) / max(1, width)
+                    let darkInk = FeedPigment.menuUsesDarkInk(palette: backdrop.feedPalette,
+                        fraction: fillFraction, position: position, textEdge: textEdge)
+                    Circle()
+                        .fill(darkInk ? Color.black.opacity(0.85) : Color.white)
+                        .overlay(Circle().stroke(darkInk ? Color.white.opacity(0.5) : Color.black.opacity(0.5), lineWidth: 0.5))
+                        .frame(width: 4, height: 4)
+                }
+            }
+            .frame(
+                width: FeedCardLayout.optionsControlDiameter,
+                height: FeedCardLayout.optionsControlDiameter
+            )
+            .contentShape(Circle())
         }
-        .accessibilityLabel(String(localized: "Feed options"))
+        .accessibilityLabel(String(localized: "Options for \(group.displayIdentity.title)"))
+        .accessibilityIdentifier("feed.\(group.id).options")
     }
 
     private var accessibilityLabel: String {
@@ -371,53 +431,34 @@ struct FeedRowView: View {
     }
 }
 
-/// Compact purchase sheet used only for a locked row. It disappears after a
-/// successful purchase; the row then becomes the persistent timer and action.
-struct FeedDurationSheet: View {
+/// Horizontal unlock choices living inside the expanded feed surface.
+struct FeedInlineDurationOptions: View {
     @ObservedObject var model: AppModel
     let group: TicketGroup
     let onPurchased: () -> Void
 
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.appTheme) private var theme
-    @State private var isPurchasing = false
+    @State private var purchasingWindow: AccessWindow?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.canvasChromePalette) private var palette
+    @ScaledMetric(relativeTo: .body) private var choiceHeight: CGFloat = 78
 
-    private var displayName: String {
-        group.templateApp.map { TargetResolver.displayName(for: $0) }
-            ?? (group.name.isEmpty ? String(localized: "Feed") : group.name)
+    private var windows: [AccessWindow] {
+        AccessWindow.allCases.filter(group.enabledIntervals.contains)
     }
 
     var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(displayName)
-                        .font(.geist(size: 28, weight: .bold, design: .rounded))
-                    Text(String(localized: "Choose how long to unlock"))
-                        .font(.geist(size: 15, weight: .medium, design: .rounded))
-                        .foregroundStyle(.secondary)
-                }
-
-                VStack(spacing: 10) {
-                    ForEach(AccessWindow.allCases.filter(group.enabledIntervals.contains), id: \.self) { window in
-                        durationButton(window)
-                    }
-                }
-
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 12)
-            .background(theme.backgroundColor.ignoresSafeArea())
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "Cancel")) { dismiss() }
-                }
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 12)) : AnyLayout(HStackLayout(spacing: 10))
+        return layout {
+            ForEach(windows, id: \.self) { window in
+                durationButton(window)
             }
         }
-        .presentationDetents([.medium])
-        .presentationDragIndicator(.visible)
-        .interactiveDismissDisabled(isPurchasing)
+        .padding(.horizontal, 20)
+        .padding(.top, 4)
+        .padding(.bottom, 22)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(String(localized: "Unlock \(group.displayIdentity.title)"))
     }
 
     private func durationButton(_ window: AccessWindow) -> some View {
@@ -427,58 +468,62 @@ struct FeedDurationSheet: View {
         return Button {
             purchase(window: window, cost: cost)
         } label: {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(window.displayName)
-                        .font(.geist(size: 18, weight: .semibold, design: .rounded))
-                    if !canAfford {
-                        Text(String(localized: "Not enough colors"))
-                            .font(.geist(size: 12, weight: .medium, design: .rounded))
-                            .opacity(0.65)
+            VStack(spacing: 7) {
+                Text(String(localized: "\(window.minutes) min", comment: "Compact feed duration in minutes"))
+                    .font(.geist(16, relativeTo: .body))
+                    .lineLimit(1)
+
+                Group {
+                    if purchasingWindow == window {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .tint(palette.onAccentColor)
+                    } else {
+                        HStack(spacing: 5) {
+                            Image(systemName: "drop.fill")
+                                .font(.geist(12, relativeTo: .caption))
+                            Text(FeedCardLayout.priceLabel(cost: cost))
+                                .font(.geist(16, relativeTo: .body))
+                                .monospacedDigit()
+                        }
                     }
                 }
-
-                Spacer()
-
-                HStack(spacing: 6) {
-                    Image(systemName: "drop.fill")
-                    Text("\(cost)")
-                        .monospacedDigit()
-                }
-                .font(.geist(size: 16, weight: .bold, design: .rounded))
+                .foregroundStyle(canAfford ? palette.onAccentColor : palette.secondaryColor)
             }
-            .foregroundStyle(canAfford ? Color.black.opacity(0.82) : Color.primary)
-            .padding(.horizontal, 18)
             .frame(maxWidth: .infinity)
-            .frame(height: 64)
-            .background {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(canAfford ? AppColors.brandAccent : Color.primary.opacity(0.08))
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(canAfford ? 0.05 : 0.1), lineWidth: 0.75)
-            }
+            .frame(height: choiceHeight)
+            .foregroundStyle(canAfford ? palette.onAccentColor : palette.secondaryColor)
+            .background(canAfford ? palette.accentColor : palette.trackColor,
+                        in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
-        .disabled(!canAfford || isPurchasing)
-        .opacity((!canAfford || isPurchasing) ? 0.55 : 1)
+        .disabled(!canAfford || purchasingWindow != nil)
+
+        .accessibilityLabel(
+            String(localized: "Unlock \(group.displayIdentity.title) for \(window.minutes) minutes, \(cost) colors")
+        )
+        .accessibilityIdentifier("feed.\(group.id).duration.\(window.minutes)")
+        .accessibilityHint(
+            canAfford
+                ? String(localized: "Double tap to unlock")
+                : String(localized: "Not enough colors")
+        )
     }
 
     private func purchase(window: AccessWindow, cost: Int) {
-        guard !isPurchasing else { return }
-        isPurchasing = true
+        guard purchasingWindow == nil else { return }
+        purchasingWindow = window
         Task { @MainActor in
             await model.handlePayGatePaymentForGroup(
                 groupId: group.id,
                 window: window,
                 costOverride: cost
             )
-            isPurchasing = false
+            purchasingWindow = nil
 
             guard model.unspentUsageBudgetMatchingShield(for: group.id) > 0 else { return }
             onPurchased()
-            dismiss()
         }
     }
 }

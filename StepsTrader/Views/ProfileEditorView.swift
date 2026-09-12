@@ -2,24 +2,14 @@ import SwiftUI
 
 struct ProfileEditorView: View {
     @ObservedObject var authService: AuthenticationService
-    @ObservedObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
     @State private var nickname: String = ""
     @State private var avatarImage: UIImage?
     @State private var showImagePicker: Bool = false
     @State private var isSaving: Bool = false
     @State private var saveError: String?
     @State private var imagePickerError: String?
-    @State private var showDeleteConfirmation: Bool = false
-    @State private var isDeleting: Bool = false
-
-    @AppStorage(SharedKeys.userStepsTarget, store: UserDefaults.stepsTrader()) private var stepsTarget: Double = EnergyDefaults.stepsTarget
-    @AppStorage(SharedKeys.userSleepTarget, store: UserDefaults.stepsTrader()) private var sleepTarget: Double = EnergyDefaults.sleepTargetHours
-    @AppStorage(SharedKeys.dayEndHour, store: UserDefaults.stepsTrader()) private var dayEndHourSetting: Int = 0
-    @AppStorage(SharedKeys.dayEndMinute, store: UserDefaults.stepsTrader()) private var dayEndMinuteSetting: Int = 0
-
-    private var allowedBedtimeMinutes: [Int] { DayEndOptions.allowedMinutes }
-    @State private var bedtimeMinutes: Int = 23 * 60
     
     var body: some View {
         NavigationStack {
@@ -100,7 +90,8 @@ struct ProfileEditorView: View {
                 } header: {
                     Text(String(localized: "Nickname", comment: "ProfileEditor – nickname field"))
                 } footer: {
-                    Text(String(localized: "This name will be displayed instead of my real name", comment: "ProfileEditor – nickname hint"))
+                    Text(String(localized: "Shown on your profile.", comment: "ProfileEditor – nickname hint"))
+                        .foregroundStyle(theme.textSecondary)
                 }
                 
                 // Email (read-only)
@@ -112,93 +103,28 @@ struct ProfileEditorView: View {
                                 .frame(width: 24)
                             Text(email)
                                 .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     } header: {
                         Text(String(localized: "Email", comment: "ProfileEditor – email label"))
                     } footer: {
-                        Text(String(localized: "Email is managed by Apple ID", comment: "ProfileEditor – email hint"))
+                        Text(String(localized: "Managed by Apple ID.", comment: "ProfileEditor – email hint"))
+                            .foregroundStyle(theme.textSecondary)
                     }
                 }
                 
-                // MARK: - Daily Goals
-
-                Section {
-                    StepGoalDrumPicker(value: $stepsTarget)
-                        .onChange(of: stepsTarget) { _, _ in
-                            model.recalculateDailyEnergy()
-                        }
-                } header: {
-                    Label(String(localized: "Daily Steps Goal"), systemImage: "figure.walk")
-                }
-
-                Section {
-                    SleepDurationStepper(hours: $sleepTarget)
-                        .onChange(of: sleepTarget) { _, _ in
-                            model.recalculateDailyEnergy()
-                        }
-                } header: {
-                    Label(String(localized: "Sleep Goal"), systemImage: "bed.double.fill")
-                }
-
-                Section {
-                    DayResetTimePicker(
-                        selectedMinutes: $bedtimeMinutes,
-                        allowedMinutes: allowedBedtimeMinutes
-                    )
-                    .onChange(of: bedtimeMinutes) { _, newValue in
-                        let hour = (newValue / 60) % 24
-                        let minute = newValue % 60
-                        // model.updateDayEnd is the single (debounced) writer of the
-                        // persisted boundary; writing dayEndHour/MinuteSetting here
-                        // too would race the re-anchor → false day rollover.
-                        model.updateDayEnd(hour: hour, minute: minute)
-                    }
-                } header: {
-                    Label(String(localized: "Day Resets At"), systemImage: "clock.arrow.circlepath")
-                } footer: {
-                    Text(String(localized: "Your canvas and colors reset at this time each day."))
-                }
-
-                Section {
-                    Button {
-                        authService.signOut()
-                        dismiss()
-                    } label: {
-                        HStack {
-                            Spacer()
-                            Text(String(localized: "Sign Out", comment: "ProfileEditor – sign out button"))
-                            Spacer()
-                        }
-                    }
-                    .disabled(isDeleting || isSaving)
-                }
-
-                Section {
-                    Button(role: .destructive) {
-                        showDeleteConfirmation = true
-                    } label: {
-                        HStack {
-                            Spacer()
-                            if isDeleting {
-                                ProgressView()
-                            } else {
-                                Text(String(localized: "Delete Account", comment: "ProfileEditor – delete account button"))
-                            }
-                            Spacer()
-                        }
-                    }
-                    .disabled(isDeleting || isSaving)
-                } footer: {
-                    Text(String(localized: "Permanently deletes your account, profile, and all associated data. This cannot be undone.", comment: "ProfileEditor – delete warning text"))
-                }
             }
+            .scrollContentBackground(.hidden)
+            .todayCanvasBackground(detail: true)
             .navigationTitle(String(localized: "Edit Profile", comment: "ProfileEditor – navigation title"))
             .navigationBarTitleDisplayMode(.inline)
+            .tint(theme.accentColor)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(String(localized: "Cancel", comment: "ProfileEditor – dismiss button")) {
                         dismiss()
                     }
+                    .foregroundStyle(theme.accentColor)
                     .disabled(isSaving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
@@ -211,13 +137,11 @@ struct ProfileEditorView: View {
                             }
                         }
                         .fontWeight(.semibold)
+                        .foregroundStyle(theme.accentColor)
                     }
                 }
             }
-            .onAppear {
-                loadCurrentProfile()
-                syncBedtimeFromStorage()
-            }
+            .onAppear { loadCurrentProfile() }
             .alert(String(localized: "Error", comment: "ProfileEditor – error alert title"), isPresented: .init(
                 get: { saveError != nil },
                 set: { if !$0 { saveError = nil } }
@@ -236,18 +160,6 @@ struct ProfileEditorView: View {
             }
             .sheet(isPresented: $showImagePicker) {
                 ImagePicker(image: $avatarImage, sourceType: .photoLibrary)
-            }
-            .confirmationDialog(
-                String(localized: "Delete Account", comment: "ProfileEditor – delete confirmation title"),
-                isPresented: $showDeleteConfirmation,
-                titleVisibility: .visible
-            ) {
-                Button(String(localized: "Delete Account", comment: "ProfileEditor – delete confirmation title"), role: .destructive) {
-                    Task { await performAccountDeletion() }
-                }
-                Button(String(localized: "Cancel", comment: "ProfileEditor – dismiss button"), role: .cancel) {}
-            } message: {
-                Text(String(localized: "This will permanently delete your account, profile, and all data. This action cannot be undone.", comment: "ProfileEditor – delete confirmation message"))
             }
         }
     }
@@ -279,42 +191,15 @@ struct ProfileEditorView: View {
             )
             dismiss()
         } catch {
-            saveError = error.localizedDescription
+            AppLogger.auth.error("Profile save failed: \(error.localizedDescription)")
+            saveError = SettingsAccountFailurePresentation.message(for: .profileSaving)
         }
         
         isSaving = false
     }
     
-    private func syncBedtimeFromStorage() {
-        let current = dayEndHourSetting * 60 + dayEndMinuteSetting
-        if allowedBedtimeMinutes.contains(current) {
-            bedtimeMinutes = current
-            return
-        }
-        let snapped = DayEndOptions.nearestAllowed(to: current)
-        bedtimeMinutes = snapped
-        let h = (snapped / 60) % 24
-        let m = snapped % 60
-        // model.updateDayEnd persists the snapped boundary itself (single writer).
-        model.updateDayEnd(hour: h, minute: m)
-    }
-
-    @MainActor
-    private func performAccountDeletion() async {
-        isDeleting = true
-        do {
-            try await authService.deleteAccount()
-            dismiss()
-        } catch {
-            saveError = error.localizedDescription
-            isDeleting = false
-        }
-    }
 }
 
 #Preview {
-    ProfileEditorView(
-        authService: AuthenticationService.shared,
-        model: DIContainer.shared.makeAppModel()
-    )
+    ProfileEditorView(authService: AuthenticationService.shared)
 }

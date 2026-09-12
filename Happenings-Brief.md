@@ -100,8 +100,8 @@ on every open and they must not require a scan of history.
 31 built-ins today (body 11, mind 10, heart 10) become 10. Proposed, confirm
 before writing strings:
 
-Walk · Workout · Slept well · Called someone · Drinks together ·
-Read · Laughed · Made something · Time outside · Did nothing
+Walk · Workout · Slept well · Called someone I love · Drinks with friends ·
+Read · Laughed · Made something · Time outside · Did nothing on purpose
 
 Copy goes in `Localizable.xcstrings` under `option.title.<id>`, matching the
 existing convention. Any option id that exists in a user's history but is no

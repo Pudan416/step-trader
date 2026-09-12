@@ -1,7 +1,6 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.90.1";
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", {
       headers: {
@@ -9,6 +8,13 @@ serve(async (req) => {
         "Access-Control-Allow-Headers":
           "authorization, x-client-info, apikey, content-type",
       },
+    });
+  }
+
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { "Content-Type": "application/json", "Allow": "POST, OPTIONS" },
     });
   }
 

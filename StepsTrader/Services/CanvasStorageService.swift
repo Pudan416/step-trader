@@ -47,10 +47,13 @@ final class CanvasStorageService {
 
     @discardableResult
     func saveCanvas(_ canvas: DayCanvas) -> Bool {
+        var canvas = canvas
+        canvas.freezeNativeBackgroundIfNeeded()
         let url = canvasFileURL(for: canvas.dayKey)
         do {
             let data = try JSONEncoder().encode(canvas)
             try data.write(to: url, options: .atomic)
+            NotificationCenter.default.post(name: .todayCanvasStorageDidChange, object: canvas.dayKey)
             return true
         } catch {
             Self.log.error("Failed to save canvas for \(canvas.dayKey): \(error.localizedDescription)")
@@ -61,17 +64,35 @@ final class CanvasStorageService {
     func loadCanvas(for dayKey: String) -> DayCanvas? {
         let url = canvasFileURL(for: dayKey)
         guard let data = try? Data(contentsOf: url),
-              let canvas = try? JSONDecoder().decode(DayCanvas.self, from: data) else {
+              var canvas = try? JSONDecoder().decode(DayCanvas.self, from: data) else {
             return nil
         }
+        if canvas.freezeNativeBackgroundIfNeeded() {
+            // Freeze the stable fallback once, without altering timestamps or
+            // creating recipes for Legacy/unknown-version artwork.
+            saveCanvas(canvas)
+        }
         return canvas
+    }
+
+    /// Called by explicit Appearance Apply even if Gallery has never appeared.
+    /// Only today's supplied key is touched; archived and locked recipes remain frozen.
+    func updateNativeBackground(for dayKey: String, paletteCategories: Set<ModernPaletteCategory>) {
+        guard var canvas = loadCanvas(for: dayKey),
+              canvas.applyNativeBackground(paletteCategories: paletteCategories) else { return }
+        saveCanvas(canvas)
     }
 
     func loadOrCreateCanvas(for dayKey: String) -> DayCanvas {
         if let existing = loadCanvas(for: dayKey) {
             return existing
         }
-        let canvas = DayCanvas(dayKey: dayKey)
+        let canvas = DayCanvas.newDailyCanvas(
+            dayKey: dayKey,
+            paletteCategories: ModernPaletteSelection.decode(
+                UserDefaults.standard.string(forKey: SharedKeys.modernPaletteCategories) ?? ""
+            )
+        )
         saveCanvas(canvas)
         return canvas
     }
@@ -79,6 +100,7 @@ final class CanvasStorageService {
     func deleteCanvas(for dayKey: String) {
         let url = canvasFileURL(for: dayKey)
         try? fileManager.removeItem(at: url)
+        NotificationCenter.default.post(name: .todayCanvasStorageDidChange, object: dayKey)
     }
 
     /// Moves the current session to a key produced by a day-end preference
@@ -106,58 +128,50 @@ final class CanvasStorageService {
     // MARK: - Snapshot
 
     @MainActor
-    func saveSnapshot(for dayKey: String, elements: [CanvasElement], sleepPoints: Int, stepsPoints: Int, sleepColor: Color, stepsColor: Color, decayNorm: Double, backgroundColor: Color = AppColors.Night.background) {
-        let view = GenerativeCanvasView(
-            elements: elements,
-            dayKey: dayKey,
-            sleepPoints: sleepPoints,
-            stepsPoints: stepsPoints,
-            sleepColor: sleepColor,
-            stepsColor: stepsColor,
-            decayNorm: decayNorm,
-            backgroundColor: backgroundColor,
-            fixedTime: Date.now,
-            isOffscreenRender: true
-        )
-        .frame(width: 390, height: 500)
-
-        let renderer = ImageRenderer(content: view)
-        renderer.scale = 3.0
-        if let image = renderer.uiImage,
+    func saveSnapshot(
+        for canvas: DayCanvas,
+        paletteCategories: Set<ModernPaletteCategory> = ModernPaletteSelection.all
+    ) async {
+        if let image = await renderedSnapshot(
+            canvas: canvas,
+            size: CGSize(width: 390, height: 500),
+            scale: 3,
+            paletteCategories: paletteCategories
+        ),
            let data = image.pngData() {
-            let url = snapshotURL(for: dayKey)
+            let url = snapshotURL(for: canvas.dayKey)
             do {
                 try data.write(to: url, options: .atomic)
             } catch {
-                Self.log.error("Failed to save snapshot for \(dayKey): \(error.localizedDescription)")
+                Self.log.error("Failed to save snapshot for \(canvas.dayKey): \(error.localizedDescription)")
             }
         }
+    }
+
+    @MainActor
+    private static let widgetSnapshotQueue = CanvasWidgetSnapshotQueue { canvas, categories in
+        await CanvasStorageService.shared.saveWidgetSnapshot(for: canvas, paletteCategories: categories)
+    }
+
+    @MainActor
+    func scheduleWidgetSnapshot(for canvas: DayCanvas, paletteCategories: Set<ModernPaletteCategory>) {
+        Self.widgetSnapshotQueue.submit(canvas, categories: paletteCategories)
     }
 
     /// Saves a smaller canvas snapshot to the shared App Group container
     /// so the widget extension can display today's canvas preview.
     /// Renders on main actor, then writes JPEG to disk in the background.
     @MainActor
-    func saveWidgetSnapshot(for dayKey: String, elements: [CanvasElement], sleepPoints: Int, stepsPoints: Int, sleepColor: Color, stepsColor: Color, decayNorm: Double, backgroundColor: Color = AppColors.Night.background) {
-        let view = GenerativeCanvasView(
-            elements: elements,
-            dayKey: dayKey,
-            sleepPoints: sleepPoints,
-            stepsPoints: stepsPoints,
-            sleepColor: sleepColor,
-            stepsColor: stepsColor,
-            decayNorm: decayNorm,
-            backgroundColor: backgroundColor,
-            showLabelsOnCanvas: false,
-            showsOutlinedLabels: false,
-            fixedTime: Date.now,
-            isOffscreenRender: true
-        )
-        .frame(width: 200, height: 200)
-
-        let renderer = ImageRenderer(content: view)
-        renderer.scale = 2.0
-        guard let rendered = renderer.uiImage else { return }
+    func saveWidgetSnapshot(
+        for canvas: DayCanvas,
+        paletteCategories: Set<ModernPaletteCategory> = ModernPaletteSelection.all
+    ) async {
+        guard let rendered = await renderedSnapshot(
+            canvas: canvas,
+            size: CGSize(width: 200, height: 200),
+            scale: 2,
+            paletteCategories: paletteCategories
+        ) else { return }
         let opaqueRenderer = UIGraphicsImageRenderer(size: rendered.size, format: {
             let fmt = UIGraphicsImageRendererFormat()
             fmt.scale = rendered.scale
@@ -169,7 +183,7 @@ final class CanvasStorageService {
         }
 
         let fm = self.fileManager
-        Task.detached(priority: .utility) {
+        await Task.detached(priority: .utility) {
             guard let containerURL = fm.containerURL(
                 forSecurityApplicationGroupIdentifier: SharedKeys.appGroupId
             ) else { return }
@@ -186,7 +200,71 @@ final class CanvasStorageService {
             } catch {
                 Self.log.error("Failed to save widget snapshot: \(error.localizedDescription)")
             }
+        }.value
+    }
+
+    @MainActor
+    func renderedSnapshot(
+        canvas: DayCanvas,
+        size: CGSize,
+        scale: CGFloat,
+        paletteCategories: Set<ModernPaletteCategory>
+    ) async -> UIImage? {
+        if CanvasExportRoute(canvas: canvas) == .editorialMetal {
+            return await DayObjectsImageRenderer.image(
+                input: EditorialCanvasInputFactory.make(
+                    canvas: canvas,
+                    metrics: EditorialCanvasMetrics(
+                        stepsProgress: Double(canvas.stepsPoints) / 20,
+                        sleepProgress: Double(canvas.sleepPoints) / 20,
+                        spentProgress: canvas.decayNorm
+                    ),
+                    paletteCategories: paletteCategories
+                ),
+                size: size,
+                scale: scale,
+                elapsedTime: 4
+            )
         }
+
+        let view = ZStack {
+            EnergyGradientBackground(
+                stepsPoints: canvas.stepsPoints,
+                sleepPoints: canvas.sleepPoints,
+                hasStepsData: canvas.resolvedHasStepsData,
+                hasSleepData: canvas.resolvedHasSleepData,
+                showGrain: true,
+                gradientStyleOverride: canvas.gradientStyle,
+                gradientPaletteOverride: canvas.gradientPalette,
+                textureOverride: canvas.textureRaw,
+                fixedTime: canvas.lastModified
+            )
+
+            GenerativeCanvasView(
+                elements: canvas.elements,
+                dayKey: canvas.dayKey,
+                remixSeed: canvas.remixSeed,
+                sleepPoints: canvas.sleepPoints,
+                stepsPoints: canvas.stepsPoints,
+                sleepColor: Color(hex: canvas.sleepColorHex),
+                stepsColor: Color(hex: canvas.stepsColorHex),
+                decayNorm: canvas.decayNorm,
+                backgroundColor: .clear,
+                showLabelsOnCanvas: false,
+                showsOutlinedLabels: false,
+                showsBackgroundGradient: false,
+                hasStepsData: canvas.resolvedHasStepsData,
+                hasSleepData: canvas.resolvedHasSleepData,
+                fixedTime: canvas.lastModified,
+                isOffscreenRender: true
+            )
+        }
+        .frame(width: size.width, height: size.height)
+
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = scale
+        renderer.proposedSize = .init(size)
+        return renderer.uiImage
     }
 
     func loadSnapshotImage(for dayKey: String) -> UIImage? {
@@ -224,5 +302,35 @@ final class CanvasStorageService {
 
     private func snapshotURL(for dayKey: String) -> URL {
         snapshotDirectory.appending(path: "canvas_\(dayKey).png")
+    }
+}
+
+/// Coordinates optional widget exports separately from the visible canvas.
+@MainActor
+final class CanvasWidgetSnapshotQueue {
+    typealias Export = (DayCanvas, Set<ModernPaletteCategory>) async -> Void
+    private let export: Export
+    private let debounce: Duration
+    private var pending: (DayCanvas, Set<ModernPaletteCategory>)?
+    private var worker: Task<Void, Never>?
+
+    init(debounce: Duration = .milliseconds(300), export: @escaping Export) {
+        self.debounce = debounce
+        self.export = export
+    }
+
+    func submit(_ canvas: DayCanvas, categories: Set<ModernPaletteCategory>) {
+        pending = (canvas, categories)
+        guard worker == nil else { return }
+        worker = Task { @MainActor [weak self] in
+            guard let self else { return }
+            while self.pending != nil {
+                try? await Task.sleep(for: self.debounce)
+                guard let request = self.pending else { break }
+                self.pending = nil
+                await self.export(request.0, request.1)
+            }
+            self.worker = nil
+        }
     }
 }

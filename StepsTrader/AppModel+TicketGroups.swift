@@ -56,6 +56,7 @@ extension AppModel {
 
     func updateTicketGroup(_ group: TicketGroup) {
         blockingStore.updateTicketGroup(group)
+        ensureUsageBudgetMonitoringForActiveGroups()
         invalidateBundleIdCache()
         scheduleTicketGroupsSupabaseSync()
     }
@@ -68,6 +69,7 @@ extension AppModel {
 
     func addAppsToGroup(_ groupId: String, selection: FamilyActivitySelection) {
         blockingStore.addAppsToGroup(groupId, selection: selection)
+        ensureUsageBudgetMonitoringForActiveGroups()
         invalidateBundleIdCache()
         scheduleTicketGroupsSupabaseSync()
     }

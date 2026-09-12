@@ -14,16 +14,33 @@ pixel-perfect targets.
   `SceneRecipe` phenotypes.
 - Core rules:
   - one generated day selects one primary visual family;
+  - that family resolves into one daily art direction with a primary geometry
+    region, a primary material, and at most one compatible supporting geometry
+    and accent material;
   - geometry, material, edge, interaction, palette, depth, composition, and
     motion are separate DNA layers with explicit compatibility;
   - variation comes from correlated parameters rather than finished shape
     presets or unrestricted effect mixing;
   - happening identities remain stable when other happenings are added or
     removed;
+  - a deterministic fourteen-day novelty schedule prevents adjacent days from
+    repeating the same high-level visual fingerprint;
   - visible point clouds are excluded, while invisible control samples remain
     valid implementation details.
 - Detailed reference files define family-specific ranges and negative
   signatures. The system contract defines the shared generation architecture.
+
+### 02 — Shape and Material Capability Specimen V1
+
+- Files:
+  - `system/02-shape-material-specimen-v1.png`
+  - `system/02-shape-material-specimen-v1.md`
+- Status: approved in conversation on 2026-09-05 as a visual direction.
+- Role: demonstrates that circle-derived carriers and material mechanisms are
+  independent procedural axes.
+- Important: this is a comparison atlas, not a valid single-day composition.
+  Generated days still use one primary art direction with tightly bounded
+  related mutations.
 
 ## Composition
 
@@ -215,6 +232,34 @@ pixel-perfect targets.
   - every harmonic outcome or every linework family in one generated day.
 - Use the companion Markdown file as the detailed family profile and apply the
   shared architecture from `system/01-generative-dna.md`.
+
+### 08 — Harmonic Weave Construction
+
+> **Rejected for Day Objects (2026-09-05).** Archive only. Do not include this
+> construction family in generation or rendering.
+
+- Files:
+  - `composition/08-harmonic-weave-construction-reference.jpg`
+  - `composition/08-harmonic-weave-construction-reference.md`
+- Source: user-provided image.
+- Role: a supporting construction reference for Harmonic Loop Fields, not a
+  separate catalog of finished ornaments.
+- Preserve:
+  - circle-derived envelopes traversed by repeated continuous paths;
+  - circular, annular, soft-star, rounded-polygon, and rounded-square outcomes
+    emerging from shared parameters;
+  - phase-related passes, variable apertures, and optical density created by
+    line accumulation;
+  - one coherent line and frequency dialect per generated day;
+  - the existing Editorial Field composition, depth, cropping, and negative
+    space.
+- Do not copy literally:
+  - the white-on-blue palette or catalog-like packing;
+  - centered targets, flowers, gears, atoms, badges, or fixed spirograph
+    presets;
+  - unstable high-frequency lines or rapidly rotating ornaments.
+- Use the companion Markdown file as the detailed procedural and compatibility
+  contract.
 
 ## Materials
 

@@ -20,7 +20,12 @@ consume the same frozen scene phenotype.
 ## Decision summary
 
 - One generated day selects one primary visual family.
+- The family is resolved into one scene-level art direction before any actor is
+  generated. Actors never choose unrelated styles independently.
 - Variety comes from mutations inside that family.
+- One day uses one primary geometry region and one primary material mechanism,
+  with at most one compatible supporting geometry region and one compatible
+  accent material.
 - Geometry and material are separate DNA layers with explicit compatibility.
 - Composition is generated from roles and relationships before coordinates.
 - A happening owns one stable actor identity.
@@ -32,6 +37,8 @@ consume the same frozen scene phenotype.
 - Visible point clouds are outside the approved shape vocabulary.
 - Invisible mathematical control samples may be used to construct smooth
   contours, fibers, or fields, but they must not appear as standalone dots.
+- A deterministic novelty schedule prevents neighboring days from repeatedly
+  selecting the same high-level art direction while preserving reproducibility.
 
 ## Why a shared DNA system is necessary
 
@@ -155,6 +162,108 @@ one generated day:
 The scene genome is the main source of family resemblance. Actors in one scene
 should appear to belong to the same artwork even when their individual forms
 differ strongly.
+
+### Daily art direction
+
+Before actor generation, the scene genome is frozen into a single daily art
+direction. This is the coherence envelope for the complete picture, not a
+finished preset and not a list of independent effects.
+
+The art direction records:
+
+- one primary family profile;
+- one composition behavior;
+- one primary geometry region;
+- zero or one closely related supporting geometry region;
+- one primary material mechanism;
+- zero or one family-approved accent material;
+- palette roles and palette temperature;
+- one edge character;
+- one depth and focus policy;
+- one motion character;
+- one scene-wide grain character.
+
+These choices are correlated. A complex geometry region receives a simpler
+material and quieter motion. Fine linework receives enough contrast and focus
+to survive at target size. Highly transparent materials receive palette roles
+that remain visible on the selected background.
+
+The generator must never sample the complete catalog once per actor. A scene of
+ten happenings is one artwork containing ten relatives, not a specimen sheet
+containing ten unrelated techniques.
+
+### Within-day coherence proportions
+
+The initial policy for scenes with enough actors is:
+
+- roughly `70...90%` of actors use the primary geometry region;
+- roughly `10...30%` may use the supporting geometry region;
+- roughly `75...100%` use the primary material mechanism;
+- no more than `25%` may use the compatible accent material;
+- zero, one, or two actors may consume the rare-mutation budget;
+- all actors share palette, grain, edge, depth, and motion logic from the same
+  scene genome.
+
+These are deterministic weighted ranges rather than quotas. Sparse scenes still
+follow the same priority: at one happening the actor expresses the primary art
+direction; at two or three happenings, an accent appears only when it improves
+the relationship and remains clearly related.
+
+### Art-direction fingerprint
+
+Every generated day exposes a compact fingerprint for scheduling, debugging,
+and diversity checks:
+
+```text
+family
+composition behavior
+primary geometry region
+supporting geometry region, if any
+primary material
+accent material, if any
+palette mood
+depth policy
+edge character
+motion character
+```
+
+The fingerprint describes high-level decisions only. Two days may share a
+family while producing different contours, positions, colors, and actors, but a
+repeated fingerprint indicates that the generator is relying on small parameter
+noise rather than meaningful daily variation.
+
+### Deterministic novelty schedule
+
+Daily variety is scheduled above actor-level randomness. The initial scheduler
+uses deterministic fourteen-day epochs:
+
+1. Derive an epoch seed from the stable Day Objects root seed and the calendar
+   epoch identifier.
+2. Build a weighted shuffle bag of eligible family and composition pairings.
+3. Expand each pairing into compatible geometry, material, palette, depth,
+   edge, and motion candidates.
+4. Resolve the epoch sequentially from its first day, rejecting candidates that
+   are too similar to the already resolved recent fingerprints.
+5. Include the final fingerprints of the preceding epoch when resolving the
+   boundary, so a new epoch does not visibly restart the sequence.
+6. Select the entry for the requested date. No mutable viewing history is
+   required, and direct generation of an old date remains reproducible.
+
+The initial novelty constraints are:
+
+- the same primary family does not appear on adjacent days when another
+  compatible family is available;
+- the same combination of composition behavior, primary geometry, and primary
+  material does not repeat inside a rolling seven-day window;
+- at least two major fingerprint axes change from the previous day;
+- palette changes alone do not count as sufficient novelty;
+- a rare family may not be promoted merely to satisfy the schedule if its
+  target-size or compatibility requirements cannot be met.
+
+The schedule controls visual recurrence, not health semantics. Steps, sleep,
+happenings, and other daily inputs modulate the selected scene's density,
+clarity, tempo, and actor count without silently changing its primary visual
+family during the day.
 
 ### Level 4 — Actor genome
 
@@ -796,15 +905,18 @@ Invalid combinations are not repaired by adding effects. The generator should:
 
 ## Generation pipeline
 
-### Step 1 — Select the family
+### Step 1 — Schedule the daily art direction
 
-Select one primary family through deterministic scheduling or the day seed.
-Do not independently select a family for every actor.
+Resolve the date's deterministic novelty epoch and select one primary family.
+Freeze its composition, geometry, material, palette, edge, depth, grain, and
+motion fingerprint. Do not independently select a family or full material
+catalog entry for every actor.
 
 ### Step 2 — Build the scene genome
 
-Choose composition behavior, palette roles, depth direction, interaction
-budget, and motion character from the family profile.
+Choose exact composition gesture, palette roles, depth direction, interaction
+budget, supporting geometry region, optional accent material, and mutation
+budget inside the frozen art direction.
 
 ### Step 3 — Assign actor roles
 
@@ -1118,6 +1230,23 @@ Reject a phenotype when it contains:
 - [ ] Actor differences are mutations of that family.
 - [ ] No scene displays the complete material catalog.
 - [ ] Rare actors remain compatible with common actors.
+- [ ] A ten-happening scene still reads as one artwork rather than ten style
+      demonstrations.
+- [ ] Supporting geometry remains a minority and is visibly derived from the
+      primary geometry region.
+- [ ] Accent material remains at or below the scene's approved budget.
+
+### Across-day variety
+
+- [ ] Adjacent days do not select the same primary family when another eligible
+      family is available.
+- [ ] Composition, primary geometry, and primary material do not repeat as one
+      combination inside the rolling seven-day window.
+- [ ] At least two major fingerprint axes change between adjacent days.
+- [ ] Changing only the palette cannot satisfy the novelty test.
+- [ ] Generating dates in a different order produces the same fingerprints.
+- [ ] The boundary between two fourteen-day epochs does not restart with a
+      duplicate of the preceding art direction.
 
 ### Geometry and material independence
 

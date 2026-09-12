@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Deterministic constellation for the remaining happenings.
+/// Deterministic constellation for the configured happening slots.
 ///
 /// The palette has no containing blob. Each source is a real, independent
 /// circle placed between the persistent energy bar and the bottom dock.
@@ -14,7 +14,6 @@ enum HappeningFieldLayout {
     struct Layout: Equatable {
         let sources: [Source]
         let labelFrames: [CGRect]
-        /// Union of the visible circles, useful for completion and debug layout.
         let contourBounds: CGRect
         let dockAnchor: CGPoint
         let completionBounds: CGRect?
@@ -22,28 +21,19 @@ enum HappeningFieldLayout {
 
     private static let edgeClearance: CGFloat = 17
     private static let dockHitRadius: CGFloat = 36
-    private static let dockContentGap: CGFloat = 52
+    private static let dockContentGap: CGFloat = 120
     private static let completionDockGap: CGFloat = 24
     private static let contactGap: CGFloat = 0.1
     private static let targetRadius: CGFloat = 64
 
-    /// Symmetric close-packed rows for every possible remaining count. The
-    /// full palette uses the approved 3·2·3·2 rhythm; smaller counts
-    /// re-form into their own balanced lattice instead of leaving a hole.
+    /// Symmetric close-packed rows for every configured count. The
+    /// full palette uses the approved 3·2·3·2 rhythm.
     private static let rowPatterns: [[Int]] = [
-        [],
-        [1],
-        [2],
-        [3],
-        [2, 2],
-        [3, 2],
-        [3, 3],
-        [2, 3, 2],
-        [3, 2, 3],
-        [3, 3, 3],
-        [3, 2, 3, 2],
+        [], [1], [2], [3], [2, 2], [3, 2], [3, 3], [2, 3, 2],
+        [3, 2, 3], [3, 3, 3], [3, 2, 3, 2],
     ]
 
+    /// Creator-panel actions may stack at larger text sizes; slot geometry stays fixed.
     static func usesExpandedLayout(for dynamicTypeSize: DynamicTypeSize) -> Bool {
         dynamicTypeSize > .large
     }
@@ -101,15 +91,6 @@ enum HappeningFieldLayout {
             )
         }
 
-        if usesExpandedLayout(for: dynamicTypeSize) {
-            return expandedLayout(
-                itemCount: itemCount,
-                safeBounds: safeBounds,
-                contentTop: contentTop,
-                contentBottom: contentBottom,
-                dockAnchor: dockAnchor
-            )
-        }
         return standardLayout(
             itemCount: itemCount,
             safeBounds: safeBounds,
@@ -140,10 +121,7 @@ enum HappeningFieldLayout {
         let heightRadius = (
             fieldHeight - factorSum * contactGap
         ) / (2 + 2 * factorSum)
-        let radius = min(
-            targetRadius,
-            max(32, min(widthRadius, heightRadius))
-        )
+        let radius = min(targetRadius, max(32, min(widthRadius, heightRadius)))
         let centerStep = radius * 2 + contactGap
         let rowSteps = rowFactors.map { $0 * centerStep }
         let clusterHeight = radius * 2 + rowSteps.reduce(0, +)
@@ -173,40 +151,6 @@ enum HappeningFieldLayout {
             }
         }
 
-        return makeLayout(sources: sources, dockAnchor: dockAnchor)
-    }
-
-    private static func expandedLayout(
-        itemCount: Int,
-        safeBounds: CGRect,
-        contentTop: CGFloat,
-        contentBottom: CGFloat,
-        dockAnchor: CGPoint
-    ) -> Layout {
-        let rows = Int(ceil(Double(itemCount) / 2))
-        let availableHeight = max(44, contentBottom - contentTop)
-        let radius = min(
-            54,
-            max(22, min((safeBounds.width - 76) / 4, (availableHeight / CGFloat(rows) - 8) / 2))
-        )
-        let firstY = contentTop + radius
-        let lastY = contentBottom - radius
-        let step = rows > 1 ? (lastY - firstY) / CGFloat(rows - 1) : 0
-        let columnOffset = min(92, safeBounds.width * 0.23)
-        let sources = (0..<itemCount).map { index in
-            let row = index / 2
-            let unpaired = !itemCount.isMultiple(of: 2) && index == itemCount - 1
-            return Source(
-                index: index,
-                center: CGPoint(
-                    x: unpaired
-                        ? safeBounds.midX
-                        : safeBounds.midX + (index.isMultiple(of: 2) ? -columnOffset : columnOffset),
-                    y: firstY + CGFloat(row) * step
-                ),
-                radius: radius
-            )
-        }
         return makeLayout(sources: sources, dockAnchor: dockAnchor)
     }
 

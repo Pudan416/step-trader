@@ -7,6 +7,234 @@ struct CanvasHappeningSpawnResult {
     let entry: OptionEntry
 }
 
+struct CanvasHappeningRemovalResult {
+    let canvas: DayCanvas
+    let removedElement: CanvasElement
+}
+
+struct CanvasHappeningReconciliation: Equatable {
+    let entriesToAdd: [OptionEntry]
+    let entryIDsToRemove: [String]
+    let duplicateElementIDsToRemove: [UUID]
+
+    init(
+        entriesToAdd: [OptionEntry],
+        entryIDsToRemove: [String],
+        duplicateElementIDsToRemove: [UUID] = []
+    ) {
+        self.entriesToAdd = entriesToAdd
+        self.entryIDsToRemove = entryIDsToRemove
+        self.duplicateElementIDsToRemove = duplicateElementIDsToRemove
+    }
+}
+
+@MainActor
+enum CanvasRemoteHydrationCoordinator {
+    @discardableResult
+    static func apply(
+        _ result: DayCanvasFetchResult,
+        onFound: (DayCanvas) -> Void,
+        onConfirmedAbsent: () -> Void
+    ) -> Bool {
+        switch result {
+        case let .found(canvas):
+            onFound(canvas)
+            return true
+        case .confirmedAbsent:
+            onConfirmedAbsent()
+            return true
+        case .failed:
+            return false
+        }
+    }
+}
+
+enum CanvasHappeningReconciliationPolicy {
+    static func reconcileIfReady(
+        canvasLoaded: Bool,
+        appModelIsBootstrapping: Bool,
+        canvas: DayCanvas,
+        entries: [OptionEntry],
+        dayKey: String,
+        now: Date
+    ) -> CanvasHappeningReconciliation? {
+        guard canvasLoaded, !appModelIsBootstrapping else { return nil }
+        return CanvasHappeningReconciler.reconcile(
+            canvas: canvas,
+            entries: entries,
+            dayKey: dayKey,
+            now: now
+        )
+    }
+}
+
+/// Repairs the denormalized daily-entry projection after a Canvas load.
+/// Canvas elements are authoritative; existing entry identities survive when
+/// either their stable UUID or, for legacy data, their happening id matches.
+enum CanvasHappeningReconciler {
+    static func reconcile(
+        canvas: DayCanvas,
+        entries: [OptionEntry],
+        dayKey: String,
+        now: Date
+    ) -> CanvasHappeningReconciliation {
+        guard canvas.dayKey == dayKey else {
+            return CanvasHappeningReconciliation(entriesToAdd: [], entryIDsToRemove: [])
+        }
+
+        var seenOptionIDs = Set<String>()
+        var canonicalElementIndices = [Int]()
+        var duplicateElementIDs = [UUID]()
+        for index in canvas.elements.indices {
+            let element = canvas.elements[index]
+            if seenOptionIDs.insert(element.optionId).inserted {
+                canonicalElementIndices.append(index)
+            } else {
+                duplicateElementIDs.append(element.id)
+            }
+        }
+
+        let currentEntries = entries.filter { $0.dayKey == dayKey }
+        var unmatchedEntryIndices = Set(currentEntries.indices)
+        var unmatchedElementIndices = Set(canonicalElementIndices)
+        var conflictingEntryIndices = Set<Int>()
+        var conflictingElementIndices = Set<Int>()
+
+        // Prefer the durable element/entry identity. Requiring the happening
+        // id to agree lets Canvas repair a corrupt entry instead of preserving
+        // stale domain metadata merely because its UUID happens to match.
+        for elementIndex in canonicalElementIndices {
+            let element = canvas.elements[elementIndex]
+            guard let entryIndex = currentEntries.indices.first(where: {
+                unmatchedEntryIndices.contains($0)
+                    && UUID(uuidString: currentEntries[$0].id) == element.id
+            }) else { continue }
+            guard currentEntries[entryIndex].optionId == element.optionId else {
+                // Reserve both sides of a conflicting stable identity. Neither
+                // may be rescued by the legacy option-only fallback: Canvas
+                // must replace the stale entry with its canonical metadata.
+                conflictingEntryIndices.insert(entryIndex)
+                conflictingElementIndices.insert(elementIndex)
+                continue
+            }
+            unmatchedEntryIndices.remove(entryIndex)
+            unmatchedElementIndices.remove(elementIndex)
+        }
+
+        // Older entries did not necessarily share the Canvas UUID. Keep their
+        // existing ids by pairing each remaining occurrence by happening id.
+        for elementIndex in unmatchedElementIndices.sorted() {
+            guard !conflictingElementIndices.contains(elementIndex) else { continue }
+            let element = canvas.elements[elementIndex]
+            guard let entryIndex = currentEntries.indices.first(where: {
+                unmatchedEntryIndices.contains($0)
+                    && !conflictingEntryIndices.contains($0)
+                    && currentEntries[$0].optionId == element.optionId
+            }) else { continue }
+            unmatchedEntryIndices.remove(entryIndex)
+            unmatchedElementIndices.remove(elementIndex)
+        }
+
+        let additions = unmatchedElementIndices.sorted().map { index in
+            let element = canvas.elements[index]
+            return OptionEntry(
+                id: element.id.uuidString,
+                dayKey: dayKey,
+                optionId: element.optionId,
+                colorHex: element.hexColor,
+                timestamp: now,
+                assetVariant: element.assetVariant
+            )
+        }
+        let removals = unmatchedEntryIndices.sorted().map { currentEntries[$0].id }
+        return CanvasHappeningReconciliation(
+            entriesToAdd: additions,
+            entryIDsToRemove: removals,
+            duplicateElementIDsToRemove: duplicateElementIDs
+        )
+    }
+}
+
+@MainActor
+enum CanvasHappeningReconciliationTransaction {
+    static func commit(
+        _ reconciliation: CanvasHappeningReconciliation,
+        model: AppModel
+    ) {
+        commit(
+            reconciliation,
+            model: model,
+            syncOperations: enqueueCloudSync
+        )
+    }
+
+    static func commit(
+        _ reconciliation: CanvasHappeningReconciliation,
+        model: AppModel,
+        syncOperations: ([CanvasHappeningReconciliationSyncOperation]) -> Void
+    ) {
+        // Removal first allows a malformed same-identity entry to be replaced
+        // from Canvas without being rejected as a duplicate for the day.
+        for entryID in reconciliation.entryIDsToRemove {
+            model.removeAddition(entryId: entryID, syncToCloud: false)
+        }
+        var committedEntries = [OptionEntry]()
+        for entry in reconciliation.entriesToAdd {
+            guard let committed = model.addHappening(
+                id: entry.optionId,
+                colorHex: entry.colorHex,
+                assetVariant: entry.assetVariant,
+                at: entry.timestamp,
+                recordUse: false,
+                entryId: entry.id,
+                syncToCloud: false
+            ) else { continue }
+            committedEntries.append(committed)
+        }
+
+        let committedEntryIDs = Set(committedEntries.map(\.id))
+        let operations = reconciliation.entryIDsToRemove.filter {
+            !committedEntryIDs.contains($0)
+        }.map {
+            CanvasHappeningReconciliationSyncOperation.delete(entryID: $0)
+        } + committedEntries.map(CanvasHappeningReconciliationSyncOperation.upsert)
+        if !operations.isEmpty {
+            syncOperations(operations)
+        }
+    }
+
+    private static func enqueueCloudSync(
+        _ operations: [CanvasHappeningReconciliationSyncOperation]
+    ) {
+        Task {
+            for operation in operations {
+                switch operation {
+                case let .delete(entryID):
+                    await SupabaseSyncService.shared.deleteOptionEntry(id: entryID)
+                case let .upsert(entry):
+                    await SupabaseSyncService.shared.syncOptionEntry(entry)
+                }
+            }
+        }
+    }
+}
+
+enum CanvasHappeningReconciliationSyncOperation: Equatable {
+    case delete(entryID: String)
+    case upsert(OptionEntry)
+}
+
+/// Persists the canonical post-removal canvas, including a valid empty canvas.
+/// The Bool result must decide whether the matching domain entry is removed.
+enum CanvasHappeningRemovalPersistence {
+    static func persist(
+        _ canvas: DayCanvas,
+        save: (DayCanvas) -> Bool
+    ) -> Bool {
+        save(canvas)
+    }
+}
+
 /// Persists the canonical canvas before committing the matching day entry.
 /// A failed or not-yet-loaded canvas therefore cannot consume a palette zone.
 @MainActor
@@ -35,6 +263,7 @@ enum CanvasHappeningSpawnTransaction {
         guard let entry = model.addHappening(
             id: element.optionId,
             colorHex: element.hexColor,
+            assetVariant: element.assetVariant,
             at: date,
             recordUse: recordUse,
             entryId: element.id.uuidString
@@ -47,6 +276,64 @@ enum CanvasHappeningSpawnTransaction {
         }
 
         return CanvasHappeningSpawnResult(canvas: canonical, entry: entry)
+    }
+}
+
+@MainActor
+enum CanvasHappeningRemovalTransaction {
+    static func commit(
+        canvasLoaded: Bool,
+        canvas: DayCanvas,
+        model: AppModel,
+        happeningID: String,
+        at date: Date,
+        persist: (DayCanvas) -> Bool
+    ) -> CanvasHappeningRemovalResult? {
+        let capturedDayKey = AppModel.dayKey(for: date)
+        guard canvasLoaded,
+              canvas.dayKey == capturedDayKey,
+              let index = canvas.elements.firstIndex(where: { $0.optionId == happeningID })
+        else { return nil }
+        let element = canvas.elements[index]
+        let entryID = CanvasHappeningEntryResolver.entryID(
+            for: element,
+            entries: model.todayAdditions,
+            dayKey: capturedDayKey
+        )
+        var canonical = canvas
+        let removed = canonical.elements.remove(at: index)
+        canonical.lastModified = date
+        guard persist(canonical) else { return nil }
+        if let entryID {
+            model.removeAddition(entryId: entryID)
+        }
+        return CanvasHappeningRemovalResult(canvas: canonical, removedElement: removed)
+    }
+}
+
+enum CanvasHappeningEntryResolver {
+    static func entryID(
+        for element: CanvasElement,
+        entries: [OptionEntry],
+        dayKey: String
+    ) -> String? {
+        let currentDayEntries = entries.filter { $0.dayKey == dayKey }
+        if let stable = currentDayEntries.first(where: {
+            UUID(uuidString: $0.id) == element.id
+        }) {
+            return stable.id
+        }
+        return currentDayEntries.first(where: { $0.optionId == element.optionId })?.id
+    }
+}
+
+struct CanvasPalettePresentationState: Equatable {
+    var isPresented: Bool
+    var activePanel: HappeningPalettePanel?
+
+    mutating func closeForDayRollover() {
+        isPresented = false
+        activePanel = nil
     }
 }
 
@@ -102,7 +389,7 @@ struct CanvasPaletteRouteState: Equatable {
         isCanvasSelected: Bool,
         isPaletteVisible: Bool
     ) -> Bool {
-        false
+        isCanvasSelected && isPaletteVisible
     }
 
     static func shouldClosePalette(

@@ -439,4 +439,3 @@ git commit -m "feat: complete shader roulette site"
 - [ ] **Step 9: Save, deploy, and verify a private Sites version**
 
 Use the existing `project_id` from `.openai/hosting.json`, or register the Site once if it is absent. Invoke the sites-hosting workflow, save one version from the successful static build, deploy it privately, and verify terminal deployment success before returning its URL. Stop the retained development session after publishing completes.
-

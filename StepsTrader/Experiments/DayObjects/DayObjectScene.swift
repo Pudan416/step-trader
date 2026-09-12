@@ -1,40 +1,55 @@
 import Foundation
 
 struct DayObjectScene: Equatable {
-    static let maxActors = 40
+    static let maxActors = 10
+    private static let cache = DayObjectSceneCache()
 
     let input: DayObjectSceneInput
     let rootSeed: UInt64
     let composition: DayObjectComposition
     let compositionPlan: DayObjectCompositionPlan
+    let paletteSet: DayObjectPaletteSet
+    let choreographyConfiguration: DayObjectChoreographyConfiguration
+    let visualLanguage: DayObjectVisualLanguage
+    let motionPlan: DayObjectMotionPlan
     let palette: DayObjectPalette
-    let radialFillStyle: DayObjectRadialFillStyle
     let meshGradientStyle: DayObjectMeshGradientStyle
     let score: DayObjectChoreographyScore
     let actors: [DayObjectActor]
+    let sceneRecipeV1: DayObjectSceneRecipeV1?
 
     var actorIDs: [DayObjectActorID] { actors.map(\.id) }
 
     func replacingActors(_ actors: [DayObjectActor]) -> DayObjectScene {
         precondition(
             actors.count <= Self.maxActors,
-            "Day Objects transition admission exceeded the 40-actor render capacity"
+            "Day Objects transition admission exceeded the ten-actor render capacity"
         )
+        // Animation advances every frame; immutable materials only change with actors.
+        guard actors != self.actors else { return self }
         return DayObjectScene(
             input: input,
             rootSeed: rootSeed,
             composition: composition,
             compositionPlan: compositionPlan,
+            paletteSet: paletteSet,
+            choreographyConfiguration: choreographyConfiguration,
+            visualLanguage: visualLanguage,
+            motionPlan: motionPlan,
             palette: palette,
-            radialFillStyle: radialFillStyle,
             meshGradientStyle: meshGradientStyle,
             score: score,
-            actors: actors
+            actors: actors,
+            sceneRecipeV1: sceneRecipeV1?.replacingActors(actors)
         )
     }
 
     static func make(input rawInput: DayObjectSceneInput) -> DayObjectScene {
         let input = normalized(rawInput)
+        return cache.scene(for: input) { build(input: input) }
+    }
+
+    private static func build(input: DayObjectSceneInput) -> DayObjectScene {
         let rootSeed = CanvasElement.makeSeed(
             optionId: "dayObjects:\(input.identity)",
             dayKey: input.dayKey,
@@ -46,41 +61,87 @@ struct DayObjectScene: Equatable {
         )
         let compositionPlan = DayObjectCompositionPlan.make(
             seed: rootSeed,
-            uiExclusionRegion: input.uiExclusionRegion
+            uiExclusionRegion: input.uiExclusionRegion,
+            canvasCoverage: input.canvasCoverage
         )
-        let palette = DayObjectPalette.make(seed: rootSeed)
-        let radialFillStyle = DayObjectRadialFillStyle.make(
-            seed: rootSeed,
-            palette: palette,
-            colorCount: composition.fill.colorCount
+        let paletteSet = DayObjectPaletteSet.make(
+            rootSeed: rootSeed,
+            categories: input.paletteCategories,
+            dayKey: input.dayKey,
+            identity: input.identity
         )
-        let meshGradientStyle = DayObjectMeshGradientStyle.make(seed: rootSeed, palette: palette)
-        let score = DayObjectChoreographyScore.make(seed: rootSeed)
-
-        var actorIDs = Set<DayObjectActorID>()
+        let choreography = DayObjectChoreographyConfiguration.make(seed: rootSeed)
+        let visualLanguage = DayObjectVisualLanguage.make(
+            rootSeed: rootSeed,
+            paletteSet: paletteSet,
+            choreography: choreography
+        )
+        let eventIDs = Array(chronologicalUniqueEventIDs(from: input.eventIDs).prefix(maxActors))
+        let motionPlan = DayObjectMotionPlan.make(
+            configuration: choreography,
+            rootSeed: rootSeed,
+            eventIDs: eventIDs
+        )
+        let palette = DayObjectPalette.make(modernPalette: paletteSet.background)
+        let legacyMeshGradientStyle = DayObjectMeshGradientStyle.make(seed: rootSeed, palette: palette)
+        let score = DayObjectChoreographyScore.make(configuration: choreography)
+        let appearances = visualLanguage.appearances(
+            eventIDs: eventIDs,
+            rootSeed: rootSeed
+        )
         var actors = [DayObjectActor]()
         actors.reserveCapacity(maxActors)
 
-        for eventID in chronologicalUniqueEventIDs(from: input.eventIDs) {
-            for memberIndex in 0..<composition.flockSize where actors.count < maxActors {
-                let id = DayObjectActorID(eventID: eventID, memberIndex: memberIndex)
-                guard actorIDs.insert(id).inserted else { continue }
-                actors.append(makeActor(id: id, input: input, composition: composition))
-            }
-
-            guard actors.count < maxActors else { break }
+        for eventID in eventIDs {
+            guard let appearance = appearances[eventID],
+                  let route = motionPlan.routes[eventID],
+                  let depthSchedule = motionPlan.depths[eventID] else { continue }
+            let id = DayObjectActorID(eventID: eventID, memberIndex: 0)
+            actors.append(makeActor(
+                id: id,
+                input: input,
+                composition: composition,
+                choreographyConfiguration: choreography,
+                choreographySlot: choreography.slot(
+                    eventID: eventID,
+                    rootSeed: rootSeed
+                ),
+                appearance: appearance,
+                route: route,
+                depthSchedule: depthSchedule
+            ))
         }
 
+        let sceneRecipeV1 = input.usesEditorialField
+            ? DayObjectSceneRecipeV1.make(
+                rootSeed: rootSeed,
+                dayKey: input.dayKey,
+                identity: input.identity,
+                actors: actors,
+                background: input.editorialBackground,
+                lowSleep: input.lowSleep,
+                paletteSet: paletteSet,
+                preview: input.editorialPreview,
+                editorialLabConfiguration: input.editorialLabConfiguration,
+                actorColorVariants: input.actorColorVariants
+            )
+            : nil
         return DayObjectScene(
             input: input,
             rootSeed: rootSeed,
             composition: composition,
             compositionPlan: compositionPlan,
+            paletteSet: paletteSet,
+            choreographyConfiguration: choreography,
+            visualLanguage: visualLanguage,
+            motionPlan: motionPlan,
             palette: palette,
-            radialFillStyle: radialFillStyle,
-            meshGradientStyle: meshGradientStyle,
+            meshGradientStyle: input.nativeAtlasRecipe?.isSupported == true
+                ? input.nativeAtlasRecipe!.resolvedBackgroundStyle(dayKey: input.dayKey)
+                : sceneRecipeV1?.backgroundStyle ?? legacyMeshGradientStyle,
             score: score,
-            actors: actors
+            actors: actors,
+            sceneRecipeV1: sceneRecipeV1
         )
     }
 
@@ -91,8 +152,16 @@ struct DayObjectScene: Equatable {
             eventIDs: input.eventIDs,
             motionEnergy: normalizedUnitValue(input.motionEnergy),
             visualClarity: normalizedUnitValue(input.visualClarity),
-            reduceMotion: input.reduceMotion,
-            uiExclusionRegion: input.uiExclusionRegion
+            uiExclusionRegion: input.uiExclusionRegion,
+            canvasCoverage: input.canvasCoverage,
+            paletteCategories: input.paletteCategories,
+            usesEditorialField: input.usesEditorialField,
+            editorialBackground: input.editorialBackground,
+            lowSleep: input.lowSleep,
+            editorialPreview: input.editorialPreview,
+            editorialLabConfiguration: input.editorialLabConfiguration,
+            actorColorVariants: input.actorColorVariants,
+            nativeAtlasRecipe: input.nativeAtlasRecipe
         )
     }
 
@@ -109,7 +178,12 @@ struct DayObjectScene: Equatable {
     private static func makeActor(
         id: DayObjectActorID,
         input: DayObjectSceneInput,
-        composition: DayObjectComposition
+        composition: DayObjectComposition,
+        choreographyConfiguration: DayObjectChoreographyConfiguration,
+        choreographySlot: DayObjectChoreographySlot,
+        appearance: DayObjectAppearance,
+        route: DayObjectRoute,
+        depthSchedule: DayObjectDepthSchedule
     ) -> DayObjectActor {
         let actorIdentity = "\(input.identity.utf8.count):\(input.identity):\(id.eventID.utf8.count):\(id.eventID)"
         let seed = CanvasElement.makeSeed(
@@ -129,21 +203,66 @@ struct DayObjectScene: Equatable {
 
         let role = pick(DayObjectActorRole.allCases, domain: "role")
         let depthBand = pick([0, 1, 2, 3], domain: "depth")
+        let sizeOrdinal: Int = {
+            let digits = id.eventID.reversed().prefix { $0.isNumber }.reversed()
+            if !digits.isEmpty, let ordinal = Int(String(digits)) { return ordinal % 10 }
+            var rng = SeededRNG.derived(from: seed, domain: "sizeBand")
+            return rng.nextInt(in: 0...9)
+        }()
+        let sizeBand = composition.sizeComposition.band(for: sizeOrdinal)
 
         return DayObjectActor(
             id: id,
             seed: seed,
+            choreographyConfiguration: choreographyConfiguration,
+            choreographySlot: choreographySlot,
+            appearance: appearance,
+            route: route,
+            depthSchedule: depthSchedule,
             role: role,
-            shape: composition.shape,
-            elongation: composition.elongation,
-            sizeBand: pick(DayObjectSizeBand.allCases, domain: "sizeBand"),
+            shape: appearance.shape,
+            elongation: .round,
+            sizeBand: sizeBand,
             fill: composition.fill,
             trajectory: composition.trajectory,
             spin: composition.spin,
-            speedRatio: pick([0.5, 0.75, 1, 1.5, 2], domain: "speed"),
             phaseOffset: value(0...(2 * .pi), domain: "phase"),
             depthBand: depthBand,
             zIndex: Double(depthBand) + value(0...0.999, domain: "zIndex")
         )
+    }
+}
+
+/// Shares immutable scene data across SwiftUI reconstruction and snapshot jobs.
+/// The full normalized input is the key, including remix and material parameters.
+private final class DayObjectSceneCache: @unchecked Sendable {
+    private let lock = NSLock()
+    private var scenes: [DayObjectScene] = []
+    private let capacity = 16
+
+    func scene(for input: DayObjectSceneInput, build: () -> DayObjectScene) -> DayObjectScene {
+        lock.lock()
+        if let cached = take(input) {
+            lock.unlock()
+            return cached
+        }
+        lock.unlock()
+
+        // Never hold the cache lock while generating a scene: a background export
+        // must not block a main-thread lookup of an already prepared canvas.
+        let built = build()
+        lock.lock()
+        defer { lock.unlock() }
+        if let cached = take(input) { return cached }
+        scenes.append(built)
+        if scenes.count > capacity { scenes.removeFirst() }
+        return built
+    }
+
+    private func take(_ input: DayObjectSceneInput) -> DayObjectScene? {
+        guard let index = scenes.firstIndex(where: { $0.input == input }) else { return nil }
+        let scene = scenes.remove(at: index)
+        scenes.append(scene)
+        return scene
     }
 }

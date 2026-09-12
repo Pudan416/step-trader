@@ -129,13 +129,9 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         
         if activityRaw.hasPrefix("usageBudget_") {
             let groupId = String(activityRaw.dropFirst("usageBudget_".count))
-            // intervalDidEnd fires for two reasons:
-            // 1. Race: stopMonitoring() before startMonitoring() in the main app — we must not
-            //    stopMonitoring here (still true). A rebuild only reapplies ManagedSettings.
-            // 2. Daily schedule boundary (23:59:59 local): repeating schedule keeps the monitor,
-            //    but prefs + ManagedSettings can be stale until the main app foregrounds OR we
-            //    refresh here. clearAllUsageBudgets in the main app does not run if the app
-            //    never wakes at the custom day boundary, so the extension must resync shields.
+            // The schedule ends at this purchase's deadline. A replaced schedule can
+            // also deliver an old end callback, so re-read current persisted expiry
+            // rather than blindly clearing a window the user just extended.
             MonitorLogger.info("usageBudget interval ended for \(groupId) — resync shields from prefs")
             appendMonitorLog("usageBudget intervalEnd: resync \(groupId)")
             checkAndClearExpiredBudgets()
@@ -151,6 +147,20 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         MonitorLogger.info("eventDidReachThreshold: \(event.rawValue) for activity \(activity.rawValue)")
         appendMonitorLog("eventDidReachThreshold: \(event.rawValue) for activity \(activity.rawValue)")
         
+        if activity.rawValue.hasPrefix("usageBudget_"), event.rawValue.hasPrefix("usageV2_") {
+            let groupId = String(activity.rawValue.dropFirst("usageBudget_".count))
+            do {
+                if try ShieldRebuildHelper.recordUsageThreshold(defaults: SharedKeys.appGroupDefaults(), groupId: groupId, event: event.rawValue) {
+                    rebuildBlockFromExtension()
+                    reloadWidgets()
+                }
+            } catch {
+                MonitorLogger.error("Usage monitoring continuation failed: \(error.localizedDescription)")
+                rebuildBlockFromExtension()
+                reloadWidgets()
+            }
+            return
+        }
         handleMinuteEvent(event)
     }
     
@@ -179,17 +189,8 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         var firstAppResolved = false
 
         for group in groups where group.active {
-            let budgetKey = SharedKeys.usageBudgetKey(group.id)
-            if defaults.integer(forKey: budgetKey) > 0 {
-                if ShieldRebuildHelper.isUsageBudgetWallClockActive(defaults: defaults, groupId: group.id) {
-                    MonitorLogger.info("Skipping group \(group.name) - usage budget active (wall clock valid)")
-                    continue
-                }
-                MonitorLogger.info("Budget expired for group \(group.name) — clearing stale keys")
-                defaults.removeObject(forKey: budgetKey)
-                defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(group.id))
-                defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(group.id))
-                defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(group.id))
+            if ShieldRebuildHelper.isUsageBudgetActive(defaults: defaults, groupId: group.id) {
+                continue
             }
             guard let selectionData = group.selectionData else {
                 MonitorLogger.warning("Group \(group.name) has no selectionData")
@@ -308,163 +309,20 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     private func setupBlockForMinuteMode() {}
     #endif
 
-    #if canImport(FamilyControls)
-    /// Start DeviceActivity monitoring for any widget-initiated budgets that the main app
-    /// hasn't picked up yet. The widget extension can't call startMonitoring() itself, so
-    /// it writes pending keys. This extension picks them up on the next minuteMode event.
     private func startPendingWidgetBudgets() {
-        let defaults = SharedKeys.appGroupDefaults()
-        let groups = ShieldRebuildHelper.loadGroups(defaults: defaults)
-        let center = DeviceActivityCenter()
-
-        for group in groups where group.active {
-            let pendingKey = SharedKeys.pendingBudgetMonitoringPrefix + group.id
-            let minutesKey = SharedKeys.pendingBudgetMinutesPrefix + group.id
-            guard defaults.bool(forKey: pendingKey) else { continue }
-
-            let minutes = defaults.integer(forKey: minutesKey)
-            guard minutes > 0 else {
-                defaults.removeObject(forKey: pendingKey)
-                defaults.removeObject(forKey: minutesKey)
-                continue
-            }
-
-            let budgetInPrefs = defaults.integer(forKey: SharedKeys.usageBudgetKey(group.id))
-            guard budgetInPrefs > 0 else {
-                MonitorLogger.info("Dropping stale widget pending for \(group.name) — no budget in prefs")
-                defaults.removeObject(forKey: pendingKey)
-                defaults.removeObject(forKey: minutesKey)
-                continue
-            }
-
-            guard let selectionData = group.selectionData,
-                  let sel = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData)
-            else {
-                MonitorLogger.warning("Cannot start pending budget for \(group.name) — no selection data")
-                continue
-            }
-
-            let activityName = DeviceActivityName("usageBudget_\(group.id)")
-            if center.activities.contains(activityName) {
-                MonitorLogger.info("Pending budget for \(group.name) already has active monitor — clearing pending keys")
-                defaults.removeObject(forKey: pendingKey)
-                defaults.removeObject(forKey: minutesKey)
-                continue
-            }
-
-            var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]
-            for m in 1..<minutes {
-                events[DeviceActivityEvent.Name("usageBudgetTick_\(group.id)_\(m)")] = DeviceActivityEvent(
-                    applications: sel.applicationTokens,
-                    categories: sel.categoryTokens,
-                    threshold: DateComponents(minute: m)
-                )
-            }
-
-            let widgetMilestones: [Double] = [0.25, 0.50, 0.75, 0.90]
-            var seenWidgetMinutes = Set<Int>()
-            for frac in widgetMilestones {
-                let m = Int(Double(minutes) * frac)
-                guard m >= 1, m < minutes, !seenWidgetMinutes.contains(m) else { continue }
-                seenWidgetMinutes.insert(m)
-                events[DeviceActivityEvent.Name("usageBudgetWidgetTick_\(group.id)_\(m)")] = DeviceActivityEvent(
-                    applications: sel.applicationTokens,
-                    categories: sel.categoryTokens,
-                    threshold: DateComponents(minute: m)
-                )
-            }
-
-            events[DeviceActivityEvent.Name("usageBudgetDone_\(group.id)")] = DeviceActivityEvent(
-                applications: sel.applicationTokens,
-                categories: sel.categoryTokens,
-                threshold: DateComponents(minute: minutes)
-            )
-
-            // Anchored at now, not midnight — see ShieldRebuildHelper.usageBudgetSchedule.
-            guard let schedule = ShieldRebuildHelper.usageBudgetSchedule() else {
-                let expiry = ShieldRebuildHelper.wallClockFallbackExpiry(
-                    defaults: defaults,
-                    groupId: group.id,
-                    minutes: minutes
-                )
-                defaults.set(expiry, forKey: SharedKeys.usageBudgetExpiryKey(group.id))
-                defaults.removeObject(forKey: pendingKey)
-                defaults.removeObject(forKey: minutesKey)
-                MonitorLogger.info("Late-evening pending budget for \(group.name) — wall-clock fallback")
-                appendMonitorLog("pendingBudgetWallClock \(group.id): \(minutes)m")
-                continue
-            }
-
-            do {
-                try center.startMonitoring(activityName, during: schedule, events: events)
-                MonitorLogger.info("Started pending widget budget for \(group.name): \(minutes)m, \(events.count) events")
-                appendMonitorLog("pendingBudgetStarted \(group.id): \(minutes)m")
-                defaults.removeObject(forKey: pendingKey)
-                defaults.removeObject(forKey: minutesKey)
-            } catch {
-                MonitorLogger.error("Failed to start pending widget budget for \(group.name): \(error.localizedDescription)")
-            }
-        }
+        ShieldRebuildHelper.startPendingWidgetBudgets()
     }
-    #else
-    private func startPendingWidgetBudgets() {}
-    #endif
 
     private func handleMinuteEvent(_ event: DeviceActivityEvent.Name) {
         let raw = event.rawValue
-
         if raw.hasPrefix("ticketGroup_") {
             startPendingWidgetBudgets()
+        }
+        // Old installations can still deliver their usage callbacks after a schedule
+        // replacement. They may reconcile expiry, but must not decrement or exhaust
+        // a newer usage purchase (including a stale usageBudgetDone callback).
+        if raw.hasPrefix("ticketGroup_") || raw.hasPrefix("usageBudget") {
             checkAndClearExpiredBudgets()
-            return
-        }
-
-        if raw.hasPrefix("usageBudgetWidgetTick_") {
-            let parts = raw.dropFirst("usageBudgetWidgetTick_".count)
-            if let lastUnderscore = parts.lastIndex(of: "_") {
-                let groupId = String(parts[parts.startIndex..<lastUnderscore])
-                let minuteReached = Int(parts[parts.index(after: lastUnderscore)...]) ?? 0
-                let defaults = SharedKeys.appGroupDefaults()
-                let initialBudget = defaults.integer(forKey: SharedKeys.usageBudgetInitialKey(groupId))
-                let remaining = max(0, initialBudget - minuteReached)
-                defaults.set(remaining, forKey: SharedKeys.usageBudgetKey(groupId))
-                defaults.synchronize()
-                MonitorLogger.info("Widget milestone for \(groupId): minute \(minuteReached), remaining \(remaining)m")
-                appendMonitorLog("usageBudgetWidgetTick \(groupId): \(remaining)m left")
-                reloadWidgets()
-            }
-            return
-        }
-
-        if raw.hasPrefix("usageBudgetTick_") {
-            let parts = raw.dropFirst("usageBudgetTick_".count)
-            if let lastUnderscore = parts.lastIndex(of: "_") {
-                let groupId = String(parts[parts.startIndex..<lastUnderscore])
-                let minuteReached = Int(parts[parts.index(after: lastUnderscore)...]) ?? 0
-                let defaults = SharedKeys.appGroupDefaults()
-                let initialBudget = defaults.integer(forKey: SharedKeys.usageBudgetInitialKey(groupId))
-                let remaining = max(0, initialBudget - minuteReached)
-                defaults.set(remaining, forKey: SharedKeys.usageBudgetKey(groupId))
-                defaults.synchronize()
-                MonitorLogger.info("Usage tick for \(groupId): minute \(minuteReached), remaining \(remaining)m")
-                appendMonitorLog("usageBudgetTick \(groupId): \(remaining)m left")
-            }
-            return
-        }
-
-        if raw.hasPrefix("usageBudgetDone_") {
-            let groupId = String(raw.dropFirst("usageBudgetDone_".count))
-            let defaults = SharedKeys.appGroupDefaults()
-            defaults.removeObject(forKey: SharedKeys.usageBudgetKey(groupId))
-            defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(groupId))
-            defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(groupId))
-            defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(groupId))
-            defaults.synchronize()
-            MonitorLogger.info("Usage budget exhausted for group \(groupId) — re-shielding")
-            appendMonitorLog("usageBudget exhausted: \(groupId)")
-            rebuildBlockFromExtension()
-            DeviceActivityCenter().stopMonitoring([DeviceActivityName("usageBudget_\(groupId)")])
-            reloadWidgets()
         }
     }
 
@@ -473,20 +331,26 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         let groups = ShieldRebuildHelper.loadGroups(defaults: defaults)
         var didClear = false
 
-        for group in groups where group.active {
-            let budgetKey = SharedKeys.usageBudgetKey(group.id)
-            guard defaults.integer(forKey: budgetKey) > 0 else { continue }
-
-            if !ShieldRebuildHelper.isUsageBudgetWallClockActive(defaults: defaults, groupId: group.id) {
-                defaults.removeObject(forKey: budgetKey)
-                defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(group.id))
-                defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(group.id))
-                defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(group.id))
-                DeviceActivityCenter().stopMonitoring([DeviceActivityName("usageBudget_\(group.id)")])
-                MonitorLogger.info("Budget wall-clock expired for \(group.name) — re-shielding")
-                appendMonitorLog("budget wallclock expired: \(group.id)")
-                didClear = true
+        do {
+            try ShieldRebuildHelper.withUsageBudgetLock {
+                defaults.synchronize()
+                defer { defaults.synchronize() }
+                for group in groups where group.active {
+                    let key = SharedKeys.usageBudgetKey(group.id)
+                    guard defaults.integer(forKey: key) > 0,
+                          ShieldRebuildHelper.remainingUsageBudget(defaults: defaults, groupId: group.id) == 0 else { continue }
+                    defaults.removeObject(forKey: key)
+                    defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(group.id))
+                    defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(group.id))
+                    defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(group.id))
+                    defaults.removeObject(forKey: UsageBudgetSession.key(group.id))
+                    DeviceActivityCenter().stopMonitoring([DeviceActivityName("usageBudget_\(group.id)")])
+                    appendMonitorLog("budget day ended: \(group.id)")
+                    didClear = true
+                }
             }
+        } catch {
+            MonitorLogger.error("Budget cleanup failed: \(error.localizedDescription)")
         }
 
         if didClear {

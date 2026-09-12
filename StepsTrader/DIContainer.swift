@@ -5,6 +5,10 @@ final class DIContainer {
     static let shared = DIContainer()
     
     private init() {}
+
+    /// Foreground views and background App Intents must share one economy model.
+    @MainActor lazy var applicationModel: AppModel = makeAppModel()
+
     
     func makeHealthKitService() -> any HealthKitServiceProtocol {
         HealthKitService()

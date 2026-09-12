@@ -8,6 +8,8 @@ struct MeView: View {
     var onOpenSettings: () -> Void = {}
     @ObservedObject private var authService = AuthenticationService.shared
     @Environment(\.appTheme) private var theme
+    @Environment(\.canvasChromePalette) private var palette
+    @Environment(\.renderingIsActive) private var renderingIsActive
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.tabBarHeight) private var tabBarHeight
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -26,9 +28,10 @@ struct MeView: View {
     @State private var cachedTxNames: [String: String] = [:]
     @State private var unlockRecords: [MePosterUnlockRecord] = []
     @State private var selectedPosterCanShare = false
+    @State private var posterShareAvailability: [String: Bool] = [:]
     @State private var shareRequestID = 0
-    @State private var posterPagingDirection: MePosterPaging.Direction = .newer
-    @GestureState private var posterDragTranslation: CGFloat = 0
+    @State private var shareRequestedDayKey: String?
+    @State private var posterCarouselWidth: CGFloat = 350
     @State private var loadTask: Task<Void, Never>?
     @State private var serverFetchTask: Task<Void, Never>?
 
@@ -45,18 +48,10 @@ struct MeView: View {
     var body: some View {
         NavigationStack {
             mainScrollContent
-                .energyGradientBackground(model: model, showGrain: false)
+        .todayCanvasBackground(matchesCanvas: true)
                 // No inset for the energy card: it is not drawn on Me, and
                 // `\.topCardHeight` still reports the height it has on the other
                 // tabs — reserving it here would leave an empty band.
-                // Grain texture overlay — above content so it picks up rays beneath.
-                .overlay {
-                    if !reduceTransparency {
-                        TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
-                            .allowsHitTesting(false)
-                            .ignoresSafeArea()
-                    }
-                }
                 .toolbar(.hidden, for: .navigationBar)
                 .modifier(meLifecycle)
                 .modifier(meSheets)
@@ -97,7 +92,9 @@ struct MeView: View {
             showProfileEditor: $showProfileEditor,
             showFullCalendar: $showFullCalendar,
             selectedDayKey: $selectedDayKey,
-            pastDays: pastDays
+            pastDays: pastDays,
+            recentHealthByDay: recentHealthByDay,
+            unlockRecords: unlockRecords
         )
     }
 
@@ -114,27 +111,7 @@ struct MeView: View {
             greetingRow
                 .padding(.top, useTightMeLayout ? 14 : 22)
 
-            ZStack {
-                MeSelectedDayPoster(
-                    model: model,
-                    dayKey: selectedPosterDayKey,
-                    snapshot: pastDays[selectedPosterDayKey],
-                    health: recentHealthByDay[selectedPosterDayKey],
-                    unlockRecords: unlockRecords,
-                    shareRequestID: shareRequestID,
-                    onShareAvailabilityChange: { selectedPosterCanShare = $0 }
-                )
-                .id(selectedPosterDayKey)
-                .offset(x: posterDragTranslation)
-                .transition(posterPagingTransition)
-            }
-            .clipped()
-            // Keep the seven-day gallery rail clear of the floating tab bar on
-            // shorter iPhones. Because this is an inset rather than a fixed
-            // width, the poster still grows naturally on Pro Max layouts.
-            .padding(.horizontal, 21)
-            .contentShape(Rectangle())
-            .simultaneousGesture(posterPagingGesture)
+            posterCarousel
 
             calendarSection
         }
@@ -154,82 +131,67 @@ struct MeView: View {
         )
     }
 
-    private var posterPagingGesture: some Gesture {
-        DragGesture(minimumDistance: 20)
-            .updating($posterDragTranslation) { value, translation, _ in
-                let horizontal = value.translation.width
-                let vertical = value.translation.height
-                guard abs(horizontal) > abs(vertical) else { return }
-                translation = MePosterPagingMotion.permittedDragTranslation(
-                    horizontal,
-                    from: selectedPosterDayKey,
-                    dayKeys: posterDayKeys,
-                    reduceMotion: reduceMotion
-                )
-            }
-            .onEnded { value in
-                let horizontal = value.predictedEndTranslation.width
-                let vertical = value.predictedEndTranslation.height
-                guard abs(horizontal) > abs(vertical), abs(horizontal) >= 44 else { return }
-
-                let direction: MePosterPaging.Direction = horizontal < 0 ? .newer : .older
-                guard let destination = MePosterPaging.destination(
-                    from: selectedPosterDayKey,
-                    direction: direction,
-                    dayKeys: posterDayKeys
-                ) else { return }
-                selectPosterDay(destination, direction: direction)
-            }
-    }
-
     private var posterDayKeys: [String] {
         cachedDayKeys.isEmpty ? Self.computeDayKeys() : cachedDayKeys
     }
 
-    private var posterPagingTransition: AnyTransition {
-        let spec = MePosterPagingMotion.transition(
-            for: posterPagingDirection,
-            reduceMotion: reduceMotion
+    private var posterCarousel: some View {
+        let sizing = MePosterCarouselLayout.sizing(
+            viewportWidth: posterCarouselWidth
         )
-        guard let insertion = spec.insertionEdge,
-              let removal = spec.removalEdge
-        else { return .opacity }
 
-        return .asymmetric(
-            insertion: .move(edge: swiftUIEdge(insertion)),
-            removal: .move(edge: swiftUIEdge(removal))
-        )
-    }
-
-    private func swiftUIEdge(_ edge: MePosterPagingMotion.HorizontalEdge) -> Edge {
-        switch edge {
-        case .leading: .leading
-        case .trailing: .trailing
+        return TabView(selection: $selectedPosterDayKey) {
+            ForEach(posterDayKeys, id: \.self) { key in
+                MeSelectedDayPoster(
+                    model: model,
+                    dayKey: key,
+                    snapshot: pastDays[key],
+                    health: recentHealthByDay[key],
+                    unlockRecords: unlockRecords,
+                    shareRequestID: shareRequestID,
+                    handlesShareRequest: shareRequestedDayKey == key,
+                    onShareAvailabilityChange: { available in
+                        posterShareAvailability[key] = available
+                        if selectedPosterDayKey == key {
+                            selectedPosterCanShare = available
+                        }
+                    }
+                )
+                .frame(
+                    width: sizing.posterWidth,
+                    height: sizing.posterHeight
+                )
+                .frame(
+                    width: sizing.pageWidth,
+                    height: sizing.posterHeight
+                )
+                .clipped()
+                .environment(\.renderingIsActive, renderingIsActive && selectedPosterDayKey == key)
+                .tag(key)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .frame(height: sizing.posterHeight)
+        .clipped()
+        .accessibilityIdentifier("me_poster_carousel")
+        .accessibilityValue(selectedPosterDayKey)
+        .onChange(of: selectedPosterDayKey) { _, key in
+            selectedPosterCanShare = posterShareAvailability[key] ?? false
+        }
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.width
+        } action: { width in
+            guard width > 0 else { return }
+            posterCarouselWidth = width
         }
     }
 
-    private func selectPosterDay(
-        _ key: String,
-        direction explicitDirection: MePosterPaging.Direction? = nil
-    ) {
+    private func selectPosterDay(_ key: String) {
         guard key != selectedPosterDayKey else { return }
-        let direction = explicitDirection ?? inferredPagingDirection(to: key)
-        let motion = MePosterPagingMotion.transition(
-            for: direction,
-            reduceMotion: reduceMotion
-        )
-        posterPagingDirection = direction
-        selectedPosterCanShare = false
-        withAnimation(.easeInOut(duration: motion.duration)) {
+        selectedPosterCanShare = posterShareAvailability[key] ?? false
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.32)) {
             selectedPosterDayKey = key
         }
-    }
-
-    private func inferredPagingDirection(to destination: String) -> MePosterPaging.Direction {
-        guard let currentIndex = posterDayKeys.firstIndex(of: selectedPosterDayKey),
-              let destinationIndex = posterDayKeys.firstIndex(of: destination)
-        else { return destination > selectedPosterDayKey ? .newer : .older }
-        return destinationIndex > currentIndex ? .newer : .older
     }
 
 
@@ -298,7 +260,7 @@ struct MeView: View {
                     .lineLimit(1)
                 Text(label)
                     .font(.geist(.caption))
-                    .foregroundStyle(theme.textSecondary.opacity(0.6))
+                    .foregroundStyle(theme.textSecondary)
             }
 
             if let trend {
@@ -307,10 +269,10 @@ struct MeView: View {
                     Text(trend)
                         .font(.geist(.subheadline).weight(.semibold))
                         .monospacedDigit()
-                        .foregroundStyle(theme.accentColor.opacity(0.9))
+                        .foregroundStyle((theme.isLightTheme ? palette.surfaceColor : palette.accentColor).opacity(0.9))
                     Text(String(localized: "vs last week", comment: "MeView – comparison period"))
                         .font(.geist(.caption2))
-                        .foregroundStyle(theme.textSecondary.opacity(0.5))
+                        .foregroundStyle(theme.textSecondary)
                 }
             }
         }
@@ -339,21 +301,24 @@ struct MeView: View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(greetingString + ",")
                 .font(greetingFont)
-                .foregroundStyle(theme.textPrimary.opacity(0.55))
+                    .foregroundStyle(theme.textSecondary)
             Button {
                 if authService.hasAppleAccount { showProfileEditor = true }
                 else { showLogin = true }
             } label: {
                 Text(userName)
                     .font(greetingFont.weight(.semibold))
-                    .foregroundStyle(theme.textPrimary)
+                    .foregroundStyle(theme.isLightTheme ? Color.black : palette.accentColor)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(String(localized: "Profile, \(userName). Double tap to edit.", comment: "MeView – profile pill VoiceOver label"))
 
             Spacer(minLength: 12)
 
-            Button { shareRequestID &+= 1 } label: {
+            Button {
+                shareRequestedDayKey = selectedPosterDayKey
+                shareRequestID &+= 1
+            } label: {
                 Image(systemName: "square.and.arrow.up")
                     .font(.geist(size: 17, weight: .regular))
                     .foregroundStyle(theme.textPrimary.opacity(0.7))
@@ -396,7 +361,7 @@ struct MeView: View {
     private func sectionHeader(_ title: String) -> some View {
         Text(title)
             .font(.geist(size: useTightMeLayout ? 11 : 12, weight: .medium))
-            .foregroundStyle(theme.textSecondary.opacity(0.55))
+            .foregroundStyle(theme.textSecondary)
             .tracking(0.6)
     }
 

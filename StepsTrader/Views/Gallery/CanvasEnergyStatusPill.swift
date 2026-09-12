@@ -14,6 +14,7 @@ struct CanvasEnergyStatusPill: View {
     var onPullChanged: (CGFloat) -> Void = { _ in }
     var onPullEnded: (_ distance: CGFloat, _ velocity: CGFloat) -> Void = { _, _ in }
 
+    @Environment(\.canvasChromePalette) private var palette
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let minWidth: CGFloat = 176
@@ -21,7 +22,7 @@ struct CanvasEnergyStatusPill: View {
     private static let minHeight: CGFloat = 58
     private static let progressHeight: CGFloat = 6
 
-    private var textPrimary: Color { AppColors.Night.textPrimary }
+    private var textPrimary: Color { palette.textColor }
 
     var body: some View {
         VStack(spacing: 7) {
@@ -31,7 +32,7 @@ struct CanvasEnergyStatusPill: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .frame(minWidth: Self.minWidth, maxWidth: Self.maxWidth, minHeight: Self.minHeight)
-        .glassCard(cornerRadius: 16, style: .lens)
+        .canvasChromeSurface(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             String(localized: "Daily energy", comment: "Canvas status pill – VoiceOver label")
@@ -62,12 +63,12 @@ struct CanvasEnergyStatusPill: View {
             Text("\(status.remaining)")
                 .font(.geist(size: 20, weight: .semibold))
                 .monospacedDigit()
-                .foregroundStyle(AppColors.brandAccent)
+                .foregroundStyle(palette.accentColor)
 
             // Not localizable copy — a separator between two numbers.
             Text(verbatim: "/")
                 .font(.geist(size: 17, weight: .medium))
-                .foregroundStyle(textPrimary.opacity(0.65))
+                .foregroundStyle(palette.secondaryColor)
 
             Text("\(status.earned)")
                 .font(.geist(size: 17, weight: .semibold))
@@ -81,11 +82,10 @@ struct CanvasEnergyStatusPill: View {
             Text("\(status.maximum)")
                 .font(.geist(size: 13, weight: .medium))
                 .monospacedDigit()
-                .foregroundStyle(textPrimary.opacity(0.45))
+                .foregroundStyle(palette.secondaryColor)
         }
         .lineLimit(1)
         .minimumScaleFactor(0.8)
-        .contrastingOnGlass()
     }
 
     private var progressBar: some View {
@@ -93,17 +93,17 @@ struct CanvasEnergyStatusPill: View {
             let width = proxy.size.width
             ZStack(alignment: .leading) {
                 Capsule(style: .continuous)
-                    .fill(textPrimary.opacity(0.20))
+                    .fill(palette.trackColor)
 
                 // Everything earned today, as a quiet band: it shows how far
                 // the day got, which spending no longer erases.
                 Capsule(style: .continuous)
-                    .fill(AppColors.brandAccent.opacity(0.35))
+                    .fill(palette.earnedColor)
                     .frame(width: max(0, width * status.earnedProgress))
 
                 // What is actually left to spend.
                 Capsule(style: .continuous)
-                    .fill(AppColors.brandAccent)
+                    .fill(palette.accentColor)
                     .frame(width: max(0, width * status.progress))
             }
         }

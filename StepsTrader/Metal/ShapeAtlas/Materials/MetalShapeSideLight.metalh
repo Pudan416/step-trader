@@ -1,0 +1,12 @@
+#pragma once
+#include "../MetalShapeUniforms.metalh"
+
+static void metalShapeShadeSideLight(
+    float2 p,
+    float2 direction,
+    float materialPhase,
+    constant MetalShapeMaterialUniforms & m,
+    thread float3 & color) {
+    const float light = smoothstep(-1.05, 0.88, dot(p, direction) + 0.22 * sin(p.y * 1.8 + materialPhase));
+    color = mix(m.color0.rgb, m.color1.rgb, light);
+}

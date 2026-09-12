@@ -84,13 +84,13 @@ Proposed set, to be confirmed during implementation:
 | 1 | Walk |
 | 2 | Workout |
 | 3 | Slept well |
-| 4 | Called someone |
-| 5 | Drinks together |
+| 4 | Called someone I love |
+| 5 | Drinks with friends |
 | 6 | Read |
 | 7 | Laughed |
 | 8 | Made something |
 | 9 | Time outside |
-| 10 | Did nothing |
+| 10 | Did nothing on purpose |
 
 Copy is authored in `Localizable.xcstrings` under `option.title.<id>`, the same
 convention built-ins already use.

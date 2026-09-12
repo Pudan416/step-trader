@@ -6,6 +6,8 @@ struct DayObjectsView: View {
     let sceneInput: DayObjectSceneInput
     let digitalImpact: DayObjectDigitalImpact
     let isAnimating: Bool
+    let soundPulseBus: DayObjectsSoundPulseBus?
+    let presentationMode: DayObjectsPresentationMode
 
     private let scene: DayObjectScene
     private let environment: DayObjectEnvironment
@@ -13,16 +15,19 @@ struct DayObjectsView: View {
     init(
         sceneInput: DayObjectSceneInput,
         digitalImpact: DayObjectDigitalImpact = .none,
-        isAnimating: Bool = true
+        isAnimating: Bool = true,
+        soundPulseBus: DayObjectsSoundPulseBus? = nil,
+        presentationMode: DayObjectsPresentationMode = .canvas
     ) {
         self.sceneInput = sceneInput
         self.digitalImpact = digitalImpact
         self.isAnimating = isAnimating
+        self.soundPulseBus = soundPulseBus
+        self.presentationMode = presentationMode
         scene = DayObjectScene.make(input: sceneInput)
         environment = DayObjectEnvironment(
             motionEnergy: sceneInput.motionEnergy,
-            visualClarity: sceneInput.visualClarity,
-            reduceMotion: sceneInput.reduceMotion
+            visualClarity: sceneInput.visualClarity
         )
     }
 
@@ -37,7 +42,9 @@ struct DayObjectsView: View {
                 scene: scene,
                 environment: environment,
                 digitalImpact: digitalImpact,
-                isAnimating: isAnimating && scenePhase == .active
+                isAnimating: isAnimating && scenePhase == .active,
+                soundPulseBus: soundPulseBus,
+                presentationMode: presentationMode
             )
         }
         .clipped()

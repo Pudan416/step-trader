@@ -1,0 +1,7 @@
+sample=postexit
+utc=2026-09-04T00:23:00Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    82232.
+Pages throttled:                                   0.
+Swapins:                                      489002.
+Swapouts:                                     915659.

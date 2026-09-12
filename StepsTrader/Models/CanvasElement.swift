@@ -90,6 +90,10 @@ struct CanvasElement: Identifiable, Codable {
     /// How many times this option has been logged historically (drives shape complexity).
     var activityCount: Int?
 
+    /// Restrained palette-only color roll for the Editorial renderer. Nil keeps
+    /// historical canvases on the day's unmodified material recipe.
+    var editorialColorVariant: Int?
+
     // Timestamps
     let createdAt: Date
 
@@ -108,7 +112,7 @@ struct CanvasElement: Identifiable, Codable {
         return shape == .blob ? .circle : shape
     }
 
-    init(id: UUID, kind: ElementKind, optionId: String, label: String?, hexColor: String, hexColor2: String? = nil, size: CGFloat, basePosition: CGPoint, phaseOffset: Double, driftSpeed: Double, driftAmplitude: CGFloat, pulseFrequency: Double, pulseAmplitude: CGFloat, rotationSpeed: Double, opacity: Double, createdAt: Date, assetVariant: Int? = nil, userRotation: Double = 0, shapeSeed: UInt64? = nil, userSize: CGFloat? = nil, activityCount: Int? = nil, lastEditedAt: Date? = nil, frozenShapeType: CanvasShapeType? = nil) {
+    init(id: UUID, kind: ElementKind, optionId: String, label: String?, hexColor: String, hexColor2: String? = nil, size: CGFloat, basePosition: CGPoint, phaseOffset: Double, driftSpeed: Double, driftAmplitude: CGFloat, pulseFrequency: Double, pulseAmplitude: CGFloat, rotationSpeed: Double, opacity: Double, createdAt: Date, assetVariant: Int? = nil, userRotation: Double = 0, shapeSeed: UInt64? = nil, userSize: CGFloat? = nil, activityCount: Int? = nil, editorialColorVariant: Int? = nil, lastEditedAt: Date? = nil, frozenShapeType: CanvasShapeType? = nil) {
         self.id = id
         self.kind = kind
         self.optionId = optionId
@@ -130,6 +134,7 @@ struct CanvasElement: Identifiable, Codable {
         self.shapeSeed = shapeSeed
         self.userSize = userSize
         self.activityCount = activityCount
+        self.editorialColorVariant = editorialColorVariant
         self.lastEditedAt = lastEditedAt
         self.frozenShapeType = frozenShapeType
     }
@@ -407,7 +412,7 @@ struct CanvasElement: Identifiable, Codable {
         case id, kind, category, optionId, hexColor, hexColor2, size, basePosition
         case phaseOffset, driftSpeed, driftAmplitude, pulseFrequency, pulseAmplitude, rotationSpeed, opacity, createdAt
         case label, assetVariant, userRotation
-        case shapeSeed, userSize, activityCount
+        case shapeSeed, userSize, activityCount, editorialColorVariant
         case lastEditedAt, frozenShapeType
     }
 
@@ -437,6 +442,7 @@ struct CanvasElement: Identifiable, Codable {
         shapeSeed = try c.decodeIfPresent(UInt64.self, forKey: .shapeSeed)
         userSize = try c.decodeIfPresent(CGFloat.self, forKey: .userSize)
         activityCount = try c.decodeIfPresent(Int.self, forKey: .activityCount)
+        editorialColorVariant = try c.decodeIfPresent(Int.self, forKey: .editorialColorVariant)
         lastEditedAt = try c.decodeIfPresent(Date.self, forKey: .lastEditedAt)
         frozenShapeType = try c.decodeIfPresent(CanvasShapeType.self, forKey: .frozenShapeType)
             ?? legacyCategory?.frozenShapeType
@@ -474,6 +480,7 @@ struct CanvasElement: Identifiable, Codable {
         try c.encodeIfPresent(shapeSeed, forKey: .shapeSeed)
         try c.encodeIfPresent(userSize, forKey: .userSize)
         try c.encodeIfPresent(activityCount, forKey: .activityCount)
+        try c.encodeIfPresent(editorialColorVariant, forKey: .editorialColorVariant)
         try c.encodeIfPresent(lastEditedAt, forKey: .lastEditedAt)
         try c.encodeIfPresent(frozenShapeType, forKey: .frozenShapeType)
     }

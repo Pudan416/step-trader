@@ -5,9 +5,11 @@ import SwiftUI
 extension EnvironmentValues {
     @Entry var topCardHeight: CGFloat = 0
     @Entry var tabBarHeight: CGFloat = 80
+    @Entry var tabBarCenterY: CGFloat? = nil
 }
 
 struct MainTabView: View {
+    @ObservedObject private var canvasBackdrop = TodayCanvasBackdropStore.shared
     @ObservedObject var model: AppModel
     // Persisted across process death within the same scene so users return to the
     // tab they last had open after a deep link or relaunch.
@@ -19,6 +21,26 @@ struct MainTabView: View {
     private var selection: Int {
         get { Tab.resolve(storedRawValue: storedSelection).rawValue }
         nonmutating set { storedSelection = Tab.resolve(storedRawValue: newValue).rawValue }
+    }
+
+    @State private var tabTransition: Task<Void, Never>?
+    @State private var pendingTab: Tab?
+
+    private func selectTab(_ tab: Tab, animated: Bool) {
+        pendingTab = tab
+        guard tabTransition == nil else { return }
+        let previous = selection
+        tabTransition = Task { @MainActor in
+            defer { tabTransition = nil }
+            if previous == Tab.canvas.rawValue, tab != .canvas {
+                await TodayCanvasBackdropStore.shared.captureVisibleFrame()
+            }
+            guard !Task.isCancelled, selection == previous, let destination = pendingTab else { return }
+            pendingTab = nil
+            if animated {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { selection = destination.rawValue }
+            } else { selection = destination.rawValue }
+        }
     }
 
     private var selectionBinding: Binding<Int> {
@@ -44,6 +66,7 @@ struct MainTabView: View {
     /// not exist yet.
     @State private var showSettings = false
     @State private var tabBarHeight: CGFloat = 80
+    @State private var tabBarCenterY: CGFloat?
     private let isUITest = ProcessInfo.processInfo.arguments.contains("ui-testing")
     @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -90,7 +113,7 @@ struct MainTabView: View {
         }
     }
 
-    private var tabTint: Color { AppColors.Night.textPrimary }
+    private var tabTint: Color { canvasBackdrop.chromePalette.textColor }
 
     private var isWideCanvas: Bool { canvasPresentation.isWideCanvas }
 
@@ -122,8 +145,20 @@ struct MainTabView: View {
         }
     }
 
+    private struct TabBarCenterYPreferenceKey: PreferenceKey {
+        static let defaultValue: CGFloat? = nil
+        static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
+            value = nextValue() ?? value
+        }
+    }
+
     var body: some View {
         ZStack {
+            // Cover the window during lazy tab materialization and transitions.
+            // This lightweight palette is ready before any offscreen export.
+            TodayCanvasBackground(matchesCanvas: true)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
             TabView(selection: selectionBinding) {
                 // 0: My Canvas (default) — canvas goes full-bleed behind card
                 Group {
@@ -186,6 +221,7 @@ struct MainTabView: View {
             .toolbarBackground(.hidden, for: .navigationBar)
             .environment(\.topCardHeight, topCardHeight)
             .environment(\.tabBarHeight, tabBarHeight)
+            .environment(\.tabBarCenterY, tabBarCenterY)
             .animation(.easeInOut(duration: 0.2), value: selection)
             // Feature-tip CTA deep-link: Settings is a sheet on Me now. Set the
             // route BEFORE presenting — SettingsSheet reads the binding when it
@@ -240,13 +276,6 @@ struct MainTabView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.35), value: isWideCanvas)
-            .animation(.easeInOut(duration: 0.28), value: hidesSurroundingChromeForPalette)
-            .overlay {
-                if selection == Tab.feeds.rawValue {
-                    TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
-                        .transaction { $0.animation = nil }
-                }
-            }
             .background(Color.clear)
             .onAppear {
                 model.recalculateDailyEnergy()
@@ -356,6 +385,10 @@ struct MainTabView: View {
             guard value != tabBarHeight else { return }
             tabBarHeight = value
         }
+        .onPreferenceChange(TabBarCenterYPreferenceKey.self) { value in
+            guard value != tabBarCenterY else { return }
+            tabBarCenterY = value
+        }
         .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.open.modules"))) { _ in
             selection = Tab.feeds.rawValue
         }
@@ -406,10 +439,7 @@ struct MainTabView: View {
         GlassEffectContainer(spacing: 8) {
             tabBarItems(animated: true)
                 .padding(6)
-                // Tab bar follows the global cycling shimmer tint via
-                // `liquidGlassControl(in:)` — same effect as `.glassEffect(.clear.interactive())`
-                // but reads `\.glassShimmerColor` from the env so it slowly cycles.
-                .liquidGlassControl(in: Capsule(style: .continuous))
+                .canvasChromeSurface(in: Capsule(style: .continuous))
         }
         .padding(.bottom, 4)
     }
@@ -417,7 +447,7 @@ struct MainTabView: View {
     private var legacyTabBar: some View {
         tabBarItems(animated: false)
             .padding(6)
-            .liquidGlassControl(in: Capsule(style: .continuous))
+            .canvasChromeSurface(in: Capsule(style: .continuous))
             .clipShape(Capsule(style: .continuous))
             .padding(.bottom, 4)
     }
@@ -428,13 +458,7 @@ struct MainTabView: View {
             ForEach(Tab.allCases, id: \.rawValue) { tab in
                 let isSelected = selection == tab.rawValue
                 Button {
-                    if animated {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            selection = tab.rawValue
-                        }
-                    } else {
-                        selection = tab.rawValue
-                    }
+                    selectTab(tab, animated: animated)
                 } label: {
                     ZStack(alignment: .topTrailing) {
                         Image(systemName: tab.icon)
@@ -451,12 +475,12 @@ struct MainTabView: View {
                                 .offset(x: 3, y: -2)
                         }
                     }
-                    .foregroundStyle(tabTint.opacity(isSelected ? 1.0 : 0.75))
+                    .foregroundStyle(isSelected ? tabTint : canvasBackdrop.chromePalette.secondaryColor)
                     .frame(width: isSelected ? 78 : 70, height: 48)
                     .background {
                         if isSelected {
                             Capsule(style: .continuous)
-                                .fill(tabTint.opacity(0.09))
+                                .fill(canvasBackdrop.chromePalette.trackColor)
                         }
                     }
                     .contentShape(Capsule(style: .continuous))
@@ -469,6 +493,14 @@ struct MainTabView: View {
             }
         }
         .frame(width: 228, height: 48)
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: TabBarCenterYPreferenceKey.self,
+                    value: proxy.frame(in: .global).midY
+                )
+            }
+        )
     }
 
     private struct FeedsTabCoachAnchor: ViewModifier {

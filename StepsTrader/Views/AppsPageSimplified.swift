@@ -8,10 +8,21 @@ struct TicketGroupId: Identifiable {
     let id: String
 }
 
+private struct FeedUnlockOptionsBottomPreferenceKey: PreferenceKey {
+    static var defaultValue: [String: CGFloat] = [:]
+
+    static func reduce(
+        value: inout [String: CGFloat],
+        nextValue: () -> [String: CGFloat]
+    ) {
+        value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
+    }
+}
+
 /// Single accent for primary actions (Create Ticket, unlock). Rest uses system colors.
 enum TicketsPalette {
-    // Accent yellow: #FFD369
-    static let accent = AppColors.brandAccent
+    // Daily accent shared with Canvas and PayGate.
+    static var accent: Color { AppColors.brandAccent }
 
     // Theme accents (used on the flipped side for controls).
     static let themes: [Color] = [
@@ -34,6 +45,7 @@ enum TicketsPalette {
 struct AppsPageSimplified: View {
     @ObservedObject var model: AppModel
     @Environment(\.appTheme) private var theme
+    @Environment(\.canvasChromePalette) private var palette
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.tabBarHeight) private var tabBarHeight
     @Environment(\.scenePhase) private var scenePhase
@@ -44,7 +56,8 @@ struct AppsPageSimplified: View {
     @State private var selectedGroupId: TicketGroupId? = nil
     @State private var showTemplatePicker = false
     @State private var expandedSheetGroupId: TicketGroupId? = nil
-    @State private var unlockSheetGroupId: TicketGroupId? = nil
+    @State private var inlineExpansion = FeedInlineExpansion()
+    @State private var autoScrolledTargetID: String?
     /// Unspent minutes per group id, for groups whose window is open.
     ///
     /// One poll for the whole page. Every row reads this same observation, and
@@ -52,10 +65,10 @@ struct AppsPageSimplified: View {
     /// common transition in the app — shows the current number immediately.
     @State private var unspentMinutes: [String: Int] = [:]
     /// Purchased size of each active window. Together with `unspentMinutes`
-    /// this determines how much yellow remains in the row.
+    /// this determines how much pigment remains in the row.
     @State private var initialMinutes: [String: Int] = [:]
 
-    private var buttonTint: Color { AppColors.Night.textPrimary }
+    private var buttonTint: Color { theme.textPrimary }
     @State private var showCustomNamePrompt = false
     @State private var customTicketName = ""
     @State private var deleteHapticTick = 0
@@ -85,9 +98,12 @@ struct AppsPageSimplified: View {
                         } label: {
                             Image(systemName: "plus")
                                 .font(.geist(size: 17, weight: .regular))
-                                .foregroundStyle(buttonTint)
-                                .frame(width: 44, height: 44)
-                                .liquidGlassControl(in: Circle())
+                                .foregroundStyle(palette.textColor)
+                                .frame(
+                                    width: FeedCardLayout.addControlDiameter,
+                                    height: FeedCardLayout.addControlDiameter
+                                )
+                                .canvasChromeSurface(in: Circle())
                         }
                         #if DEBUG
                         .coachMarkAnchor(.unlockSuccess)
@@ -107,28 +123,13 @@ struct AppsPageSimplified: View {
                 }
                 .zIndex(0)
 
-                if !reduceTransparency {
-                    TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
-                        .ignoresSafeArea()
-                        .allowsHitTesting(false)
-                        .zIndex(10)
-                }
             }
-            .energyGradientBackground(model: model, showGrain: false)
+            .todayCanvasBackground(matchesCanvas: true)
             .background(Color.clear)
             .safeAreaInset(edge: .top, spacing: 0) {
                 Color.clear.frame(height: topCardHeight)
             }
             .toolbar(.hidden, for: .navigationBar)
-            .sheet(item: $unlockSheetGroupId) { groupId in
-                if let group = model.blockingStore.ticketGroups.first(where: { $0.id == groupId.id }) {
-                    FeedDurationSheet(
-                        model: model,
-                        group: group,
-                        onPurchased: refreshUsageBudgets
-                    )
-                }
-            }
             .sheet(item: $expandedSheetGroupId, onDismiss: {
                 if showPickerAfterDismiss {
                     showPickerAfterDismiss = false
@@ -252,45 +253,101 @@ struct AppsPageSimplified: View {
     // MARK: - Feed rows
 
     private var feedsList: some View {
-        ScrollView {
-            LazyVStack(spacing: 12) {
-                ForEach(visibleGroups) { group in
-                    let state = FeedRowModel.accessState(
-                        remainingMinutes: unspentMinutes[group.id] ?? 0,
-                        initialMinutes: initialMinutes[group.id] ?? 0
-                    )
-                    let canOpen = group.templateApp.map {
-                        TargetResolver.canOpen(bundleId: $0)
-                    } ?? false
+        GeometryReader { viewport in
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 20) {
+                        ForEach(visibleGroups) { group in
+                            let state = FeedRowModel.accessState(
+                                remainingMinutes: unspentMinutes[group.id] ?? 0,
+                                initialMinutes: initialMinutes[group.id] ?? 0
+                            )
+                            let canOpen = group.templateApp.map {
+                                TargetResolver.canOpen(bundleId: $0)
+                            } ?? false
 
-                    FeedRowView(
-                        group: group,
-                        accessState: state,
-                        canOpen: canOpen,
-                        onTap: { handleRowTap(group: group, state: state, canOpen: canOpen) },
-                        onSettings: {
-                            expandedSheetGroupId = TicketGroupId(id: group.id)
-                        },
-                        onDelete: {
-                            groupIdToDelete = group.id
+                            let showsUnlockOptions = inlineExpansion.expandedGroupID == group.id
+                                && state == .locked
+
+                            FeedRowView(
+                                model: model,
+                                group: group,
+                                accessState: state,
+                                canOpen: canOpen,
+                                showsUnlockOptions: showsUnlockOptions,
+                                onTap: { handleRowTap(group: group, state: state, canOpen: canOpen) },
+                                onSettings: {
+                                    expandedSheetGroupId = TicketGroupId(id: group.id)
+                                },
+                                onDelete: {
+                                    groupIdToDelete = group.id
+                                },
+                                onPurchased: {
+                                    completeInlinePurchase(groupID: group.id)
+                                }
+                            )
+                            .id("\(group.id)-unlock-options")
+                            .background {
+                                if showsUnlockOptions {
+                                    GeometryReader { cardGeometry in
+                                        Color.clear.preference(
+                                            key: FeedUnlockOptionsBottomPreferenceKey.self,
+                                            value: [
+                                                group.id: cardGeometry.frame(
+                                                    in: .named(FeedInlineLayout.coordinateSpaceName)
+                                                ).maxY
+                                            ]
+                                        )
+                                    }
+                                }
+                            }
+                            #if DEBUG
+                            .modifier(FirstFeedAnchor(groupId: group.id, firstId: visibleGroups.first?.id))
+                            #endif
                         }
-                    )
-                    #if DEBUG
-                    .modifier(FirstFeedAnchor(groupId: group.id, firstId: visibleGroups.first?.id))
-                    #endif
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 20)
+                }
+                .coordinateSpace(name: FeedInlineLayout.coordinateSpaceName)
+                .safeAreaPadding(
+                    .bottom,
+                    max(tabBarHeight, 50) + FeedInlineLayout.tabBarClearance
+                )
+                .scrollIndicators(.hidden)
+                .onPreferenceChange(FeedUnlockOptionsBottomPreferenceKey.self) { optionBottoms in
+                    guard
+                        let groupID = inlineExpansion.expandedGroupID,
+                        let targetID = inlineExpansion.scrollTargetID,
+                        autoScrolledTargetID != targetID,
+                        let optionsBottom = optionBottoms[groupID],
+                        FeedInlineLayout.needsAutoScroll(
+                            optionsBottom: optionsBottom,
+                            viewportHeight: viewport.size.height,
+                            tabBarHeight: max(tabBarHeight, 50)
+                        )
+                    else { return }
+
+                    Task { @MainActor in
+                        autoScrolledTargetID = targetID
+                        withAnimation(feedExpansionAnimation) {
+                            proxy.scrollTo(targetID, anchor: .bottom)
+                        }
+                    }
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, max(tabBarHeight, 50) + 28)
         }
-        .scrollIndicators(.hidden)
+    }
+
+    private var feedExpansionAnimation: Animation {
+        .snappy(duration: 0.42, extraBounce: 0.04)
     }
 
     private var emptyState: some View {
         VStack(spacing: 16) {
             Image(systemName: "rectangle.stack.badge.plus")
                 .font(.geist(size: 34, weight: .light))
-                .foregroundStyle(AppColors.brandAccent)
+                .foregroundStyle(theme.isLightTheme ? palette.surfaceColor : palette.accentColor)
                 .frame(width: 72, height: 72)
                 .background(Circle().fill(Color.white.opacity(0.1)))
 
@@ -306,10 +363,10 @@ struct AppsPageSimplified: View {
             Button(action: attemptCreateGroup) {
                 Label(String(localized: "Add a feed"), systemImage: "plus")
                     .font(.geist(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color.black.opacity(0.82))
+                    .foregroundStyle(palette.onAccentColor)
                     .padding(.horizontal, 22)
                     .frame(height: 50)
-                    .background(Capsule().fill(AppColors.brandAccent))
+                    .background(Capsule().fill(palette.accentColor))
             }
             .buttonStyle(.plain)
         }
@@ -333,7 +390,7 @@ struct AppsPageSimplified: View {
                 )
                 .padding()
             }
-            .background(theme.backgroundColor)
+            .todayCanvasBackground(detail: true)
             .navigationTitle(group.wrappedValue.name.isEmpty ? String(localized: "Feed") : group.wrappedValue.name)
             .navigationBarTitleDisplayMode(.inline)
             // Let the system render the nav bar background — on iOS 26 this
@@ -373,7 +430,10 @@ struct AppsPageSimplified: View {
     ) {
         switch FeedRowModel.tapAction(for: state, canOpen: canOpen) {
         case .chooseDuration:
-            unlockSheetGroupId = TicketGroupId(id: group.id)
+            withAnimation(feedExpansionAnimation) {
+                autoScrolledTargetID = nil
+                inlineExpansion = inlineExpansion.toggling(groupID: group.id)
+            }
         case .openApp:
             if let bundleId = group.templateApp {
                 AppLauncher.open(bundleId: bundleId)
@@ -394,8 +454,16 @@ struct AppsPageSimplified: View {
 
     private func deleteAndCleanup(_ groupId: String) {
         if expandedSheetGroupId?.id == groupId { expandedSheetGroupId = nil }
-        if unlockSheetGroupId?.id == groupId { unlockSheetGroupId = nil }
+        inlineExpansion = inlineExpansion.collapsing(groupID: groupId)
         model.deleteTicketGroup(groupId)
+    }
+
+    private func completeInlinePurchase(groupID: String) {
+        withAnimation(feedExpansionAnimation) {
+            refreshUsageBudgets()
+            autoScrolledTargetID = nil
+            inlineExpansion = inlineExpansion.collapsing(groupID: groupID)
+        }
     }
 }
 

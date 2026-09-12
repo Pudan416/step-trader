@@ -1,25 +1,25 @@
 import SwiftUI
 import UIKit
 
-enum HappeningFieldPhase: Equatable {
+enum HappeningSelectionPhase: Equatable {
     case idle
     case previewing
     case committing
     case reflowing
 }
 
-enum HappeningFieldTapDecision: Equatable {
+enum HappeningSelectionTapDecision: Equatable {
     case preview
     case switchPreview(previousID: String)
     case commit
     case ignored
 }
 
-struct HappeningFieldTransitionState: Equatable {
-    private(set) var phase: HappeningFieldPhase = .idle
+struct HappeningSelectionTransitionState: Equatable {
+    private(set) var phase: HappeningSelectionPhase = .idle
     private(set) var selectedID: String?
 
-    mutating func handleTap(id: String) -> HappeningFieldTapDecision {
+    mutating func handleTap(id: String) -> HappeningSelectionTapDecision {
         switch phase {
         case .idle:
             selectedID = id
@@ -32,7 +32,7 @@ struct HappeningFieldTransitionState: Equatable {
             }
             let previousID = selectedID
             selectedID = id
-            return previousID.map(HappeningFieldTapDecision.switchPreview(previousID:)) ?? .preview
+            return previousID.map(HappeningSelectionTapDecision.switchPreview(previousID:)) ?? .preview
         case .committing, .reflowing:
             return .ignored
         }
@@ -65,24 +65,86 @@ struct HappeningFieldTransitionState: Equatable {
     }
 }
 
-/// Session presentation state shared by the field and its surrounding controls.
-/// Parent updates refresh metadata, while ids consumed in this mounted session
-/// stay consumed even if `onPick` synchronously republishes its old array.
-struct HappeningFieldPresentationState: Equatable {
-    private(set) var slotHappenings: [Happening]
-    private(set) var presentedHappenings: [Happening]
+enum RemovalPhase: Equatable {
+    case idle
+    case pressing
+    case sinking
+    case reflowing
+}
 
-    private var sessionRemovedIDs: Set<String> = []
-    private var pendingParentHappenings: [Happening]?
+struct HappeningFieldTransitionState: Equatable {
+    private(set) var phase: RemovalPhase = .idle
+    private(set) var selectedID: String?
+    private(set) var queuedIDs: [String] = []
 
-    init(happenings: [Happening]) {
-        let initial = Array(happenings.prefix(10))
-        slotHappenings = initial
-        presentedHappenings = initial
+    mutating func beginRemoval(id: String) -> Bool {
+        guard selectedID != id, !queuedIDs.contains(id) else { return false }
+        guard phase == .idle else {
+            queuedIDs.append(id)
+            return true
+        }
+        selectedID = id
+        phase = .pressing
+        return true
     }
 
-    var presentedCount: Int {
-        presentedHappenings.count
+    func isLocked(id: String) -> Bool {
+        selectedID == id || queuedIDs.contains(id)
+    }
+
+    mutating func beginNextQueuedRemoval() -> String? {
+        guard phase == .idle, !queuedIDs.isEmpty else { return nil }
+        let id = queuedIDs.removeFirst()
+        selectedID = id
+        phase = .pressing
+        return id
+    }
+
+    mutating func advanceRemoval(id: String, to nextPhase: RemovalPhase) -> Bool {
+        guard selectedID == id else { return false }
+
+        switch (phase, nextPhase) {
+        case (.pressing, .sinking), (.sinking, .reflowing):
+            phase = nextPhase
+            return true
+        default:
+            return false
+        }
+    }
+
+    mutating func finishRemoval(id: String) -> Bool {
+        guard phase == .reflowing, selectedID == id else { return false }
+        phase = .idle
+        selectedID = nil
+        return true
+    }
+
+    mutating func resolveBreakthrough(id: String, accepted: Bool) -> Bool {
+        guard phase == .sinking, selectedID == id else { return false }
+        guard accepted else {
+            phase = .idle
+            selectedID = nil
+            return false
+        }
+        phase = .reflowing
+        return true
+    }
+
+    mutating func cancelRemoval() {
+        phase = .idle
+        selectedID = nil
+        queuedIDs.removeAll()
+    }
+}
+
+/// Configured slots stay present across Canvas membership and metadata updates.
+struct HappeningFieldPresentationState: Equatable {
+    private(set) var presentedHappenings: [Happening]
+    var slotHappenings: [Happening] { presentedHappenings }
+    var presentedCount: Int { presentedHappenings.count }
+
+    init(happenings: [Happening]) {
+        presentedHappenings = Array(happenings.prefix(10))
     }
 
     func layout(
@@ -102,50 +164,12 @@ struct HappeningFieldPresentationState: Equatable {
         )
     }
 
-    mutating func remove(id: String) -> Bool {
-        guard presentedHappenings.contains(where: { $0.id == id }) else { return false }
-        sessionRemovedIDs.insert(id)
-        presentedHappenings.removeAll { $0.id == id }
-        return true
+    mutating func receiveParent(_ configured: [Happening]) {
+        presentedHappenings = Array(configured.prefix(10))
     }
 
-    mutating func receiveParent(_ happenings: [Happening], whileTransitioning: Bool) {
-        if whileTransitioning {
-            pendingParentHappenings = happenings
-        } else {
-            mergeParent(happenings)
-        }
-    }
-
-    mutating func finishTransition() {
-        guard let pendingParentHappenings else { return }
-        self.pendingParentHappenings = nil
-        mergeParent(pendingParentHappenings)
-    }
-
-    mutating func reset(with happenings: [Happening]) {
-        let initial = Array(happenings.prefix(10))
-        slotHappenings = initial
-        presentedHappenings = initial
-        sessionRemovedIDs.removeAll()
-        pendingParentHappenings = nil
-    }
-
-    private mutating func mergeParent(_ happenings: [Happening]) {
-        let removedIDs = sessionRemovedIDs
-        let eligible = Array(
-            happenings
-                .filter { !removedIDs.contains($0.id) }
-                .prefix(10)
-        )
-        let replacements = Dictionary(uniqueKeysWithValues: happenings.map { ($0.id, $0) })
-
-        slotHappenings = slotHappenings.map { replacements[$0.id] ?? $0 }
-        var slotIDs = Set(slotHappenings.map(\.id))
-        for happening in eligible where slotIDs.insert(happening.id).inserted {
-            slotHappenings.append(happening)
-        }
-        presentedHappenings = eligible
+    mutating func reset(with configured: [Happening]) {
+        receiveParent(configured)
     }
 }
 
@@ -179,9 +203,9 @@ struct HappeningFieldLabelTreatment: Equatable {
             blue: Self.fieldZoneOpacity * blue + (1 - Self.fieldZoneOpacity) * primary.blue
         )
 
-        // Every circle is deliberately lifted into a bright, milky color zone,
-        // so one dark ink treatment stays coherent across the whole field.
-        foreground = .black
+        let blackContrast = (fieldZoneLuminance + 0.05) / 0.05
+        let whiteContrast = 1.05 / (fieldZoneLuminance + 0.05)
+        foreground = blackContrast >= whiteContrast ? .black : .white
     }
 
     var backingColor: Color {
@@ -191,21 +215,6 @@ struct HappeningFieldLabelTreatment: Equatable {
     var fieldZoneColor: Color { backingColor }
 
     var fieldZoneOpacity: Double { Self.fieldZoneOpacity }
-
-    /// Keeps the shared dark ink readable without washing out every circle.
-    /// Only low-luminance color pairs receive the minimum milky lift needed
-    /// to reach 4.5:1 against the actual 90%-opaque ink used by the labels.
-    var circleLiftOpacity: Double {
-        var lift = 0.08
-        while lift < 0.60, contrastRatio(afterWhiteLift: lift) < 4.5 {
-            lift += 0.01
-        }
-        return min(lift, 0.60)
-    }
-
-    var liftedCircleContrastRatio: Double {
-        contrastRatio(afterWhiteLift: circleLiftOpacity)
-    }
 
     /// The radial zone uses the same local two-color mix as the field source.
     /// Its soft edge is translucent; this center value models the pixels under
@@ -221,10 +230,7 @@ struct HappeningFieldLabelTreatment: Equatable {
     }
 
     static func inscribedTextSize(in labelSize: CGSize) -> CGSize {
-        // Words are allowed to breathe beyond their independent tap frames.
-        // This keeps the longest 15-character title intact without enlarging
-        // or overlapping the actual hit regions used by the dense layout.
-        CGSize(width: labelSize.width * 0.88, height: labelSize.height * 0.82)
+        CGSize(width: labelSize.width * 0.86, height: labelSize.height * 0.80)
     }
 
     static func relativeLuminance(ofHex hex: String) -> Double {
@@ -253,46 +259,22 @@ struct HappeningFieldLabelTreatment: Equatable {
         }
         return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
     }
-
-    private func contrastRatio(afterWhiteLift lift: Double) -> Double {
-        let backgroundRed = red * (1 - lift) + lift
-        let backgroundGreen = green * (1 - lift) + lift
-        let backgroundBlue = blue * (1 - lift) + lift
-        let backgroundLuminance = Self.relativeLuminance(
-            red: backgroundRed,
-            green: backgroundGreen,
-            blue: backgroundBlue
-        )
-
-        let inkOpacity = 0.90
-        let inkRed = 16.0 / 255.0
-        let inkGreen = 45.0 / 255.0
-        let inkBlue = 44.0 / 255.0
-        let textLuminance = Self.relativeLuminance(
-            red: inkRed * inkOpacity + backgroundRed * (1 - inkOpacity),
-            green: inkGreen * inkOpacity + backgroundGreen * (1 - inkOpacity),
-            blue: inkBlue * inkOpacity + backgroundBlue * (1 - inkOpacity)
-        )
-        return (max(backgroundLuminance, textLuminance) + 0.05)
-            / (min(backgroundLuminance, textLuminance) + 0.05)
-    }
 }
 
 enum HappeningFieldLabelTypography {
-    static let pointSize: CGFloat = 13
+    static let pointSize: CGFloat = 14
 
     static func maximumLines(for dynamicTypeSize: DynamicTypeSize) -> Int {
-        dynamicTypeSize.isAccessibilitySize ? 4 : 2
+        dynamicTypeSize > .large ? 4 : 3
     }
 
-    static func minimumScaleFactor(for _: DynamicTypeSize) -> CGFloat {
-        1
+    static func minimumScaleFactor(for dynamicTypeSize: DynamicTypeSize) -> CGFloat {
+        dynamicTypeSize > .large ? 1 : 0.84
     }
 
     static func scaledUIFont(for dynamicTypeSize: DynamicTypeSize) -> UIFont {
         AppTypography.scaledUIFont(
             size: pointSize,
-            weight: .semibold,
             relativeTo: .footnote,
             compatibleWith: UITraitCollection(
                 preferredContentSizeCategory: contentSizeCategory(for: dynamicTypeSize)

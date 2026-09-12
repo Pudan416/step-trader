@@ -66,9 +66,15 @@ final class HistoryThumbnailCache {
         canvas: DayCanvas,
         size: CGSize,
         fixedTime: Date,
-        theme: AppTheme
+        theme: AppTheme,
+        paletteCategories: Set<ModernPaletteCategory> = ModernPaletteSelection.all
     ) async -> UIImage? {
-        let key = cacheKey(dayKey: dayKey, size: size, theme: theme)
+        let key = cacheKey(
+            dayKey: dayKey,
+            style: canvas.resolvedVisualStyle,
+            size: size,
+            theme: theme
+        )
         if let cached = memCache[key] {
             touchLRU(key)
             return cached
@@ -78,11 +84,12 @@ final class HistoryThumbnailCache {
             return onDisk
         }
 
-        let image = renderThumbnail(
+        let image = await renderThumbnail(
             canvas: canvas,
             size: size,
             fixedTime: fixedTime,
-            theme: theme
+            theme: theme,
+            paletteCategories: paletteCategories
         )
 
         if let image {
@@ -117,8 +124,14 @@ final class HistoryThumbnailCache {
     }
 
     /// Manually warms the memory cache for callers that already rendered a frame.
-    func store(_ image: UIImage, dayKey: String, size: CGSize, theme: AppTheme) {
-        let key = cacheKey(dayKey: dayKey, size: size, theme: theme)
+    func store(
+        _ image: UIImage,
+        dayKey: String,
+        style: CanvasVisualStyle = .legacy,
+        size: CGSize,
+        theme: AppTheme
+    ) {
+        let key = cacheKey(dayKey: dayKey, style: style, size: size, theme: theme)
         insertLRU(key, image: image)
         saveToDisk(image, key: key)
     }
@@ -145,8 +158,26 @@ final class HistoryThumbnailCache {
         canvas: DayCanvas,
         size: CGSize,
         fixedTime: Date,
-        theme: AppTheme
-    ) -> UIImage? {
+        theme: AppTheme,
+        paletteCategories: Set<ModernPaletteCategory>
+    ) async -> UIImage? {
+        if CanvasExportRoute(canvas: canvas) == .editorialMetal {
+            return await DayObjectsImageRenderer.image(
+                input: EditorialCanvasInputFactory.make(
+                    canvas: canvas,
+                    metrics: EditorialCanvasMetrics(
+                        stepsProgress: Double(canvas.stepsPoints) / 20,
+                        sleepProgress: Double(canvas.sleepPoints) / 20,
+                        spentProgress: canvas.decayNorm
+                    ),
+                    paletteCategories: paletteCategories
+                ),
+                size: size,
+                scale: 2,
+                elapsedTime: 4
+            )
+        }
+
         let rawCanvas = ZStack {
             EnergyGradientBackground(
                 stepsPoints: canvas.stepsPoints,
@@ -162,6 +193,7 @@ final class HistoryThumbnailCache {
             GenerativeCanvasView(
                 elements: canvas.elements,
                 dayKey: canvas.dayKey,
+                remixSeed: canvas.remixSeed,
                 sleepPoints: canvas.sleepPoints,
                 stepsPoints: canvas.stepsPoints,
                 sleepColor: Color(hex: canvas.sleepColorHex),
@@ -190,10 +222,22 @@ final class HistoryThumbnailCache {
 
     // MARK: - Disk
 
-    private static let cacheVersion = 6
+    private static let cacheVersion = 7
 
-    private func cacheKey(dayKey: String, size: CGSize, theme: AppTheme) -> String {
-        "\(dayKey)_\(Int(size.width))x\(Int(size.height))_\(theme.rawValue)_v\(Self.cacheVersion)"
+    nonisolated static func cacheIdentity(
+        dayKey: String,
+        style: CanvasVisualStyle
+    ) -> String {
+        "\(dayKey)_\(style.rawValue)"
+    }
+
+    private func cacheKey(
+        dayKey: String,
+        style: CanvasVisualStyle,
+        size: CGSize,
+        theme: AppTheme
+    ) -> String {
+        "\(Self.cacheIdentity(dayKey: dayKey, style: style))_\(Int(size.width))x\(Int(size.height))_\(theme.rawValue)_v\(Self.cacheVersion)"
     }
 
     private func loadFromDisk(key: String) -> UIImage? {

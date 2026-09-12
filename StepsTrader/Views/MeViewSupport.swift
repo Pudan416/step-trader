@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import CryptoKit
 
 // MARK: - MeView support types
 //
@@ -10,6 +11,27 @@ import UIKit
 struct MeDayKeyWrapper: Identifiable {
     let key: String
     var id: String { key }
+}
+
+struct MePosterCarouselSizing: Equatable {
+    let pageWidth: CGFloat
+    let posterWidth: CGFloat
+    let posterHeight: CGFloat
+    let pageSpacing: CGFloat
+    let outerContentInset: CGFloat
+}
+
+enum MePosterCarouselLayout {
+    static func sizing(viewportWidth: CGFloat) -> MePosterCarouselSizing {
+        let posterWidth = max(1, viewportWidth - 42)
+        return MePosterCarouselSizing(
+            pageWidth: max(1, viewportWidth),
+            posterWidth: posterWidth,
+            posterHeight: posterWidth * 842 / 604,
+            pageSpacing: 0,
+            outerContentInset: 0
+        )
+    }
 }
 
 /// Converts weekly app spend into the share of a Me resource block that is
@@ -53,7 +75,7 @@ struct MePosterUnlock: Equatable, Identifiable {
 }
 
 enum MePosterCanvasMode: Equatable {
-    case liveToday
+    case currentDay
     case savedPast
     case healthPast
     case emptyPast
@@ -65,7 +87,7 @@ enum MePosterPresentationPolicy {
         hasSavedElements: Bool,
         hasHealthData: Bool = false
     ) -> MePosterCanvasMode {
-        if isToday { return .liveToday }
+        if isToday { return .currentDay }
         if hasSavedElements { return .savedPast }
         return hasHealthData ? .healthPast : .emptyPast
     }
@@ -77,90 +99,220 @@ enum MePosterPresentationPolicy {
         hasSleepData: Bool
     ) -> Bool {
         switch mode {
-        case .liveToday:
-            return hasElements || hasStepsData || hasSleepData
+        case .currentDay:
+            // Today's captured canvas is meaningful even before the first
+            // HealthKit sample or happening arrives.
+            return true
         case .savedPast:
-            return hasElements
+            // Keep the action stable while the persisted canvas is loading.
+            // The health background is itself a shareable daily poster.
+            return hasElements || hasStepsData || hasSleepData
         case .healthPast:
-            return hasStepsData || hasSleepData
+            // Recent calendar days always have a neutral energy background,
+            // including while HealthKit is unavailable in Simulator or denied.
+            return true
         case .emptyPast:
             return false
         }
     }
 }
 
-enum MePosterPaging {
-    enum Direction: Equatable {
-        case older
-        case newer
-    }
+struct MePosterCanvasLoadID: Hashable {
+    let dayKey: String
+    let hasTrackedSnapshot: Bool
+}
 
-    static func destination(
-        from current: String,
-        direction: Direction,
-        dayKeys: [String]
-    ) -> String? {
-        guard let index = dayKeys.firstIndex(of: current) else { return nil }
-        let destinationIndex = direction == .newer ? index + 1 : index - 1
-        guard dayKeys.indices.contains(destinationIndex) else { return nil }
-        return dayKeys[destinationIndex]
+enum MePosterArtworkLoadingPolicy {
+    static func visibleArtwork(
+        existing: DayCanvas?,
+        fallback: DayCanvas
+    ) -> DayCanvas {
+        existing ?? fallback
     }
 }
 
-enum MePosterPagingMotion {
-    enum HorizontalEdge: Equatable {
-        case leading
-        case trailing
-    }
+/// One load path shared by the large Me poster and its calendar thumbnail.
+/// Past canvases are immutable, so completed results remain cached for the
+/// lifetime of the app. Today explicitly asks for a refresh when Me becomes
+/// active again.
+@MainActor
+final class MePosterCanvasLoadCoordinator {
+    typealias LoadOperation = @MainActor (String, Bool) async -> DayCanvas?
 
-    struct TransitionSpec: Equatable {
-        let insertionEdge: HorizontalEdge?
-        let removalEdge: HorizontalEdge?
-        let duration: Double
-    }
+    static let shared = MePosterCanvasLoadCoordinator { dayKey, hasTrackedSnapshot in
+        var loaded = await Task.detached(priority: .userInitiated) {
+            CanvasStorageService.shared.loadCanvas(for: dayKey)
+        }.value
 
-    static func transition(
-        for direction: MePosterPaging.Direction,
-        reduceMotion: Bool
-    ) -> TransitionSpec {
-        if reduceMotion {
-            return TransitionSpec(
-                insertionEdge: nil,
-                removalEdge: nil,
-                duration: 0.15
-            )
+        if MeCalendarTimeline.shouldAttemptRemoteRecovery(
+            hasTrackedSnapshot: hasTrackedSnapshot,
+            localCanvasMissing: loaded == nil
+        ) {
+            let result = await SupabaseSyncService.shared.fetchDayCanvas(for: dayKey)
+            if case let .found(remote) = result {
+                CanvasStorageService.shared.saveCanvas(remote)
+                loaded = remote
+            }
         }
 
-        switch direction {
-        case .newer:
-            return TransitionSpec(
-                insertionEdge: .trailing,
-                removalEdge: .leading,
-                duration: 0.28
-            )
-        case .older:
-            return TransitionSpec(
-                insertionEdge: .leading,
-                removalEdge: .trailing,
-                duration: 0.28
-            )
-        }
+        return loaded
     }
 
-    static func permittedDragTranslation(
-        _ translation: CGFloat,
-        from current: String,
-        dayKeys: [String],
-        reduceMotion: Bool
-    ) -> CGFloat {
-        guard !reduceMotion, translation != 0 else { return 0 }
-        let direction: MePosterPaging.Direction = translation < 0 ? .newer : .older
-        guard MePosterPaging.destination(
-            from: current,
-            direction: direction,
-            dayKeys: dayKeys
-        ) != nil else { return 0 }
-        return translation
+    private let loadOperation: LoadOperation
+    private var cachedCanvases: [String: DayCanvas] = [:]
+    private var missingLoads: Set<MePosterCanvasLoadID> = []
+    private var inFlight: [MePosterCanvasLoadID: Task<DayCanvas?, Never>] = [:]
+
+    init(loadOperation: @escaping LoadOperation) {
+        self.loadOperation = loadOperation
+    }
+
+    func canvas(
+        for dayKey: String,
+        hasTrackedSnapshot: Bool,
+        forceRefresh: Bool = false
+    ) async -> DayCanvas? {
+        let loadID = MePosterCanvasLoadID(
+            dayKey: dayKey,
+            hasTrackedSnapshot: hasTrackedSnapshot
+        )
+
+        if let active = inFlight[loadID] {
+            let loaded = await active.value
+            guard forceRefresh else { return loaded }
+            // A save may have happened after the existing read captured its data.
+            return await canvas(for: dayKey, hasTrackedSnapshot: hasTrackedSnapshot, forceRefresh: true)
+        }
+
+        if forceRefresh {
+            cachedCanvases.removeValue(forKey: dayKey)
+            missingLoads = missingLoads.filter { $0.dayKey != dayKey }
+        } else if let cached = cachedCanvases[dayKey] {
+            return cached
+        } else if missingLoads.contains(loadID) {
+            return nil
+        }
+
+        let operation = loadOperation
+        let task = Task { @MainActor in
+            let loaded = await operation(dayKey, hasTrackedSnapshot)
+            self.inFlight.removeValue(forKey: loadID)
+            if let loaded {
+                self.cachedCanvases[dayKey] = loaded
+                self.missingLoads = self.missingLoads.filter { $0.dayKey != dayKey }
+            } else if !hasTrackedSnapshot {
+                // Tracked days remain retryable if remote recovery failed.
+                self.missingLoads.insert(loadID)
+            }
+            return loaded
+        }
+        inFlight[loadID] = task
+        return await task.value
+    }
+}
+
+/// A poster is a settled frame, retained across tab switches and app launches.
+/// Only visual content participates in the key; saves and music never advance it.
+@MainActor
+final class MePosterSnapshotCache: ObservableObject {
+    typealias Render = @MainActor (DayCanvas, Set<ModernPaletteCategory>) async -> UIImage?
+    static let shared = MePosterSnapshotCache()
+    @Published private(set) var revision = 0
+
+    private struct Entry {
+        let key: String
+        let image: UIImage
+    }
+    private struct DiskEntry: Codable {
+        let key: String
+        let png: Data
+    }
+    private let directory: URL
+    private let render: Render
+    private var entries: [String: Entry] = [:]
+    private var recency: [String] = []
+    private var inFlight: [String: Task<UIImage?, Never>] = [:]
+    private var requestedKeys: [String: String] = [:]
+
+    init(
+        directory: URL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("MePosterSnapshots-v1", isDirectory: true),
+        render: @escaping Render = { canvas, categories in
+            var frozen = canvas
+            frozen.lastModified = (canvas.elements.map(\.createdAt).max() ?? canvas.createdAt)
+                .addingTimeInterval(4)
+            return await CanvasStorageService.shared.renderedSnapshot(
+                canvas: frozen, size: CGSize(width: 482, height: 659), scale: 2,
+                paletteCategories: categories
+            )
+        }
+    ) {
+        self.directory = directory
+        self.render = render
+    }
+
+    func cachedImage(for dayKey: String) -> UIImage? {
+        if let entry = entries[dayKey] { return entry.image }
+        guard let data = try? Data(contentsOf: fileURL(dayKey)),
+              let stored = try? PropertyListDecoder().decode(DiskEntry.self, from: data),
+              let image = UIImage(data: stored.png) else { return nil }
+        remember(Entry(key: stored.key, image: image), for: dayKey)
+        return image
+    }
+
+    func image(for canvas: DayCanvas, categories: Set<ModernPaletteCategory>) async -> UIImage? {
+        guard let key = contentKey(canvas, categories: categories) else { return nil }
+        let dayKey = canvas.dayKey
+        requestedKeys[dayKey] = key
+        _ = cachedImage(for: dayKey)
+        if let entry = entries[dayKey], entry.key == key { return entry.image }
+        if let active = inFlight[key] { return await active.value }
+        let task = Task { @MainActor in
+            let image = await self.render(canvas, categories)
+            if let image, self.requestedKeys[dayKey] == key {
+                self.remember(Entry(key: key, image: image), for: dayKey)
+                if let png = image.pngData(),
+                   let data = try? PropertyListEncoder().encode(DiskEntry(key: key, png: png)) {
+                    try? FileManager.default.createDirectory(at: self.directory, withIntermediateDirectories: true)
+                    try? data.write(to: self.fileURL(dayKey), options: .atomic)
+                }
+                self.revision &+= 1
+            }
+            self.inFlight.removeValue(forKey: key)
+            return image
+        }
+        inFlight[key] = task
+        return await task.value
+    }
+
+    private func remember(_ entry: Entry, for dayKey: String) {
+        entries[dayKey] = entry
+        recency.removeAll { $0 == dayKey }
+        recency.append(dayKey)
+        if recency.count > 30 { entries.removeValue(forKey: recency.removeFirst()) }
+    }
+
+    private func fileURL(_ dayKey: String) -> URL {
+        directory.appendingPathComponent(digest(Data(dayKey.utf8))).appendingPathExtension("plist")
+    }
+
+    private func contentKey(_ canvas: DayCanvas, categories: Set<ModernPaletteCategory>) -> String? {
+        guard let data = try? JSONEncoder().encode(canvas),
+              var content = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+        for field in ["createdAt", "lastModified", "soundWorldRaw", "soundMoodRaw", "guestSoundWorldRaw"] {
+            content.removeValue(forKey: field)
+        }
+        if var elements = content["elements"] as? [[String: Any]] {
+            for index in elements.indices { elements[index].removeValue(forKey: "lastEditedAt") }
+            content["elements"] = elements
+        }
+        content["posterPaletteCategories"] = categories.map(\.rawValue).sorted()
+        guard let canonical = try? JSONSerialization.data(withJSONObject: content, options: [.sortedKeys]) else { return nil }
+        return digest(canonical)
+    }
+
+    private func digest(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }
 
@@ -316,18 +468,18 @@ enum MePosterRailLayout {
 
     static func placement(
         for role: Role,
+        ruleLeft: CGFloat = 38.5,
         ruleRight: CGFloat,
         artworkTop: CGFloat,
         artworkBottom: CGFloat,
         railLength: CGFloat,
         lineHeight: CGFloat
     ) -> Placement {
-        let centerX = ruleRight - lineHeight / 2
         switch role {
         case .metrics:
             return Placement(
                 center: CGPoint(
-                    x: centerX,
+                    x: ruleLeft + lineHeight / 2,
                     y: artworkTop + railLength / 2
                 ),
                 railLength: railLength,
@@ -337,7 +489,7 @@ enum MePosterRailLayout {
         case .unlocks:
             return Placement(
                 center: CGPoint(
-                    x: centerX,
+                    x: ruleRight - lineHeight / 2,
                     y: artworkBottom - railLength / 2
                 ),
                 railLength: railLength,
@@ -440,6 +592,7 @@ struct MeGalleryPoster<Content: View>: View {
             let scaleY = height / 842.0
             let ruleWidth = 527.02 * scaleX
             let ruleHeight = max(1, 3 * scaleY)
+            let ruleLeft = 38.5 * scaleX
             let ruleRight = 566.02 * scaleX
             let artworkWidth = 482 * scaleX
             let artworkHeight = 659 * scaleY
@@ -449,6 +602,7 @@ struct MeGalleryPoster<Content: View>: View {
             let metricsLineHeight = 15 * scaleX
             let metricsPlacement = MePosterRailLayout.placement(
                 for: .metrics,
+                ruleLeft: ruleLeft,
                 ruleRight: ruleRight,
                 artworkTop: artworkTop,
                 artworkBottom: artworkBottom,
@@ -457,6 +611,7 @@ struct MeGalleryPoster<Content: View>: View {
             )
             let unlocksPlacement = MePosterRailLayout.placement(
                 for: .unlocks,
+                ruleLeft: ruleLeft,
                 ruleRight: ruleRight,
                 artworkTop: artworkTop,
                 artworkBottom: artworkBottom,
@@ -466,7 +621,7 @@ struct MeGalleryPoster<Content: View>: View {
             let footerTop = 781 * scaleY
             let footerHeight = height - footerTop
             let happeningsText = events.joined(separator: " / ")
-            let happeningsWidth = width * 0.47
+            let happeningsWidth = 344 * scaleX
             let happeningsFontSize = MePosterHappeningsLayout.fontSize(
                 for: happeningsText,
                 width: happeningsWidth,
@@ -507,7 +662,10 @@ struct MeGalleryPoster<Content: View>: View {
                     .rotationEffect(.degrees(90))
                     .position(metricsPlacement.center)
 
-                unlocksLabel(fontSize: max(5, width * 0.019))
+                unlocksLabel(
+                    fontSize: max(5, width * 0.019),
+                    availableWidth: metricsLength
+                )
                     .frame(
                         width: metricsLength,
                         height: metricsLineHeight,
@@ -539,14 +697,17 @@ struct MeGalleryPoster<Content: View>: View {
                     Text(happeningsText)
                         .font(.geistMono(size: happeningsFontSize, weight: .regular))
                         .foregroundStyle(.black.opacity(0.86))
-                        .multilineTextAlignment(.leading)
+                        .multilineTextAlignment(.trailing)
                         .lineLimit(3)
                         .frame(
                             width: happeningsWidth,
                             height: footerHeight,
-                            alignment: .topLeading
+                            alignment: .topTrailing
                         )
-                        .position(x: width * 0.70, y: footerTop + footerHeight / 2)
+                        .position(
+                            x: ruleRight - happeningsWidth / 2,
+                            y: footerTop + footerHeight / 2
+                        )
                 }
             }
             .frame(width: width, height: height)
@@ -558,13 +719,21 @@ struct MeGalleryPoster<Content: View>: View {
     }
 
     @ViewBuilder
-    private func unlocksLabel(fontSize: CGFloat) -> some View {
+    private func unlocksLabel(fontSize: CGFloat, availableWidth: CGFloat) -> some View {
         if !unlocks.isEmpty {
-            Text(unlocks.map(\.posterLabel).joined(separator: " / "))
-                .font(.geistMono(size: fontSize, weight: .regular, design: .monospaced))
+            let label = unlocks.map(\.posterLabel).joined(separator: " / ")
+            let fittedSize = MePosterHappeningsLayout.fontSize(
+                for: label,
+                width: availableWidth,
+                maximumSize: fontSize,
+                maximumLines: 1
+            )
+            Text(label)
+                .font(.geistMono(size: fittedSize, weight: .regular, design: .monospaced))
                 .foregroundStyle(.black.opacity(0.9))
                 .lineLimit(1)
-                .minimumScaleFactor(0.65)
+                .minimumScaleFactor(0.1)
+                .allowsTightening(true)
         }
     }
 
@@ -608,15 +777,18 @@ struct MeGalleryPoster<Content: View>: View {
 }
 
 struct MeSelectedDayPoster: View {
+    @ObservedObject var snapshots = MePosterSnapshotCache.shared
     @ObservedObject var model: AppModel
     let dayKey: String
     let snapshot: PastDaySnapshot?
     let health: MeDayHealth?
     let unlockRecords: [MePosterUnlockRecord]
     let shareRequestID: Int
+    var handlesShareRequest: Bool = true
     let onShareAvailabilityChange: (Bool) -> Void
 
     @Environment(\.appTheme) private var theme
+    @Environment(\.renderingIsActive) private var renderingIsActive
     @AppStorage("gallery_sleep_color", store: UserDefaults.stepsTrader())
     private var liveSleepColorHex: String = "#000000"
     @AppStorage("gallery_steps_color", store: UserDefaults.stepsTrader())
@@ -627,7 +799,12 @@ struct MeSelectedDayPoster: View {
     private var liveGradientPalette: String = GradientPalette.warmSunset.rawValue
     @AppStorage(SharedKeys.canvasTexture)
     private var liveTextureRaw: String = CanvasTexture.grainSmall.rawValue
+    @AppStorage(SharedKeys.canvasVisualStyle)
+    private var preferredCanvasVisualStyleRaw = CanvasVisualStyle.editorial.rawValue
+    @AppStorage(SharedKeys.modernPaletteCategories)
+    private var modernPaletteCategoriesRaw = ""
     @State private var dayCanvas: DayCanvas?
+    @State private var artworkCanvas: DayCanvas?
     @State private var isLoading = false
     @State private var shareImage: UIImage?
     @State private var showShareSheet = false
@@ -698,10 +875,14 @@ struct MeSelectedDayPoster: View {
             hasElements: dayCanvas?.elements.isEmpty == false,
             hasStepsData: isToday
                 ? model.hasStepsData
-                : health?.hasStepsData == true || dayCanvas?.resolvedHasStepsData == true,
+                : health?.hasStepsData == true
+                    || snapshot != nil
+                    || dayCanvas?.resolvedHasStepsData == true,
             hasSleepData: isToday
                 ? model.hasSleepData
-                : health?.hasSleepData == true || dayCanvas?.resolvedHasSleepData == true
+                : health?.hasSleepData == true
+                    || snapshot != nil
+                    || dayCanvas?.resolvedHasSleepData == true
         )
     }
 
@@ -713,17 +894,33 @@ struct MeSelectedDayPoster: View {
             events: displayEvents,
             unlocks: displayedUnlocks
         ) {
-            canvasLayer(isOffscreenRender: false)
+            canvasLayer
         }
-        .shadow(color: .black.opacity(0.24), radius: 18, y: 10)
         .accessibilityIdentifier("me_selected_day_poster")
         .accessibilityValue(dayKey)
-        .task(id: dayKey) { await loadCanvas() }
+        .task(id: MePosterCanvasLoadID(
+            dayKey: dayKey,
+            hasTrackedSnapshot: snapshot != nil
+        )) { await loadCanvas(forceRefresh: isToday) }
+        .onChange(of: renderingIsActive) { wasActive, isActive in
+            guard isToday, isActive, !wasActive, artworkCanvas != nil else { return }
+            Task { await loadCanvas(forceRefresh: true) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .todayCanvasStorageDidChange)
+            .receive(on: DispatchQueue.main)) { notification in
+                guard notification.object as? String == dayKey else { return }
+                Task { await loadCanvas(forceRefresh: true) }
+            }
+        .onChange(of: todayAppearance) { _, _ in
+            guard isToday else { return }
+            Task { await loadCanvas() }
+        }
         .onChange(of: canShare, initial: true) { _, available in
             onShareAvailabilityChange(available)
         }
         .onChange(of: shareRequestID) { _, _ in
-            prepareShare()
+            guard handlesShareRequest else { return }
+            Task { await prepareShare() }
         }
         .sheet(isPresented: $showShareSheet, onDismiss: { shareImage = nil }) {
             if let shareImage {
@@ -733,90 +930,13 @@ struct MeSelectedDayPoster: View {
     }
 
     @ViewBuilder
-    private func canvasLayer(isOffscreenRender: Bool) -> some View {
-        switch posterMode {
-        case .liveToday:
-            ZStack {
-                EnergyGradientBackground(
-                    stepsPoints: model.stepsPointsToday,
-                    sleepPoints: model.sleepPointsToday,
-                    hasStepsData: model.hasStepsData,
-                    hasSleepData: model.hasSleepData,
-                    showGrain: true,
-                    gradientStyleOverride: liveGradientStyle,
-                    gradientPaletteOverride: liveGradientPalette,
-                    textureOverride: liveTextureRaw
-                )
-
-                GenerativeCanvasView(
-                    elements: dayCanvas?.elements ?? [],
-                    dayKey: dayKey,
-                    sleepPoints: model.sleepPointsToday,
-                    stepsPoints: model.stepsPointsToday,
-                    sleepColor: Color(hex: liveSleepColorHex),
-                    stepsColor: Color(hex: liveStepsColorHex),
-                    decayNorm: liveDecayNorm,
-                    backgroundColor: .clear,
-                    labelColor: theme.textPrimary,
-                    showLabelsOnCanvas: false,
-                    showsOutlinedLabels: false,
-                    showsBackgroundGradient: false,
-                    hasStepsData: model.hasStepsData,
-                    hasSleepData: model.hasSleepData,
-                    fixedTime: isOffscreenRender ? .now : nil,
-                    isOffscreenRender: isOffscreenRender
-                )
-            }
-
-        case .savedPast:
-            if let canvas = dayCanvas {
-                ZStack {
-                    EnergyGradientBackground(
-                        stepsPoints: canvas.stepsPoints,
-                        sleepPoints: canvas.sleepPoints,
-                        hasStepsData: canvas.resolvedHasStepsData,
-                        hasSleepData: canvas.resolvedHasSleepData,
-                        showGrain: true,
-                        gradientStyleOverride: canvas.gradientStyle,
-                        gradientPaletteOverride: canvas.gradientPalette,
-                        textureOverride: canvas.textureRaw
-                    )
-
-                    GenerativeCanvasView(
-                        elements: canvas.elements,
-                        dayKey: canvas.dayKey,
-                        sleepPoints: canvas.sleepPoints,
-                        stepsPoints: canvas.stepsPoints,
-                        sleepColor: Color(hex: canvas.sleepColorHex),
-                        stepsColor: Color(hex: canvas.stepsColorHex),
-                        decayNorm: canvas.decayNorm,
-                        backgroundColor: .clear,
-                        labelColor: theme.textPrimary,
-                        showLabelsOnCanvas: false,
-                        showsOutlinedLabels: false,
-                        showsBackgroundGradient: false,
-                        hasStepsData: canvas.resolvedHasStepsData,
-                        hasSleepData: canvas.resolvedHasSleepData,
-                        fixedTime: canvas.lastModified,
-                        isOffscreenRender: isOffscreenRender
-                    )
-                }
-            }
-
-        case .healthPast:
-            let resolvedHealth = health ?? snapshot.map(MeDayHealth.init(snapshot:))
-            EnergyGradientBackground(
-                stepsPoints: resolvedHealth?.stepsPoints ?? 0,
-                sleepPoints: resolvedHealth?.sleepPoints ?? 0,
-                hasStepsData: resolvedHealth?.hasStepsData == true,
-                hasSleepData: resolvedHealth?.hasSleepData == true,
-                showGrain: true,
-                gradientStyleOverride: liveGradientStyle,
-                gradientPaletteOverride: liveGradientPalette,
-                textureOverride: liveTextureRaw
-            )
-
-        case .emptyPast:
+    private var canvasLayer: some View {
+        if let image = snapshots.cachedImage(for: dayKey) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .accessibilityIdentifier("me_poster_snapshot")
+        } else if posterMode == .emptyPast {
             ZStack {
                 Color.black.opacity(0.12)
 
@@ -833,48 +953,116 @@ struct MeSelectedDayPoster: View {
                     .foregroundStyle(.black.opacity(0.42))
                 }
             }
+        } else {
+            Color.black.opacity(0.12)
+                .overlay {
+                    if isLoading {
+                        ProgressView()
+                            .tint(.black.opacity(0.55))
+                    }
+                }
         }
     }
 
     @MainActor
-    private func loadCanvas() async {
+    private func loadCanvas(forceRefresh: Bool = false) async {
         isLoading = true
-        dayCanvas = nil
-        onShareAvailabilityChange(false)
+        defer { isLoading = false }
+
+        let fallback = resolvedArtworkCanvas(
+            from: dayCanvas,
+            capturedAt: artworkCanvas?.lastModified ?? Date.now
+        )
+        artworkCanvas = MePosterArtworkLoadingPolicy.visibleArtwork(
+            existing: artworkCanvas,
+            fallback: fallback
+        )
 
         let key = dayKey
-        var loaded = await Task.detached(priority: .userInitiated) {
-            CanvasStorageService.shared.loadCanvas(for: key)
-        }.value
-
-        if MeCalendarTimeline.shouldAttemptRemoteRecovery(
+        let loaded = await MePosterCanvasLoadCoordinator.shared.canvas(
+            for: key,
             hasTrackedSnapshot: snapshot != nil,
-            localCanvasMissing: loaded == nil
-        ), let remote = await SupabaseSyncService.shared.fetchDayCanvas(for: key) {
-            CanvasStorageService.shared.saveCanvas(remote)
-            loaded = remote
-        }
+            forceRefresh: forceRefresh
+        )
 
         guard !Task.isCancelled else { return }
         dayCanvas = loaded
-        isLoading = false
+        let captureTime = loaded?.lastModified ?? Date.now
+        let resolved = resolvedArtworkCanvas(from: loaded, capturedAt: captureTime)
+        artworkCanvas = resolved
+        _ = await snapshots.image(for: resolved, categories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw))
+    }
+
+    private var todayAppearance: TodayCanvasAppearance {
+        TodayCanvasAppearance(
+            dayKey: dayKey, steps: model.stepsPointsToday, sleep: model.sleepPointsToday,
+            earned: model.baseEnergyToday, spent: model.spentStepsToday,
+            hasSteps: model.hasStepsData, hasSleep: model.hasSleepData,
+            style: preferredCanvasVisualStyleRaw, gradient: liveGradientStyle,
+            palette: liveGradientPalette, texture: liveTextureRaw, categories: modernPaletteCategoriesRaw
+        )
+    }
+
+    private func resolvedArtworkCanvas(
+        from loaded: DayCanvas?,
+        capturedAt captureTime: Date
+    ) -> DayCanvas {
+        if isToday { return todayAppearance.canvas(from: loaded) }
+        if let loaded { return loaded }
+
+        var canvas = isToday ? DayCanvas.newDailyCanvas(dayKey: dayKey, paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw)) : DayCanvas(dayKey: dayKey)
+        canvas.visualStyleRaw = isToday
+            ? (CanvasVisualStyle(rawValue: preferredCanvasVisualStyleRaw) ?? .editorial).rawValue
+            : CanvasVisualStyle.legacy.rawValue
+        canvas.sleepColorHex = liveSleepColorHex
+        canvas.stepsColorHex = liveStepsColorHex
+        canvas.gradientStyle = liveGradientStyle
+        canvas.gradientPalette = liveGradientPalette
+        canvas.textureRaw = liveTextureRaw
+        canvas.lastModified = captureTime
+
+        if isToday {
+            canvas.sleepPoints = model.sleepPointsToday
+            canvas.stepsPoints = model.stepsPointsToday
+            canvas.inkEarned = model.baseEnergyToday
+            canvas.inkSpent = model.spentStepsToday
+            canvas.hasStepsData = model.hasStepsData
+            canvas.hasSleepData = model.hasSleepData
+        } else if let resolvedHealth = health ?? snapshot.map(MeDayHealth.init(snapshot:)) {
+            canvas.sleepPoints = resolvedHealth.sleepPoints
+            canvas.stepsPoints = resolvedHealth.stepsPoints
+            canvas.hasStepsData = resolvedHealth.hasStepsData
+            canvas.hasSleepData = resolvedHealth.hasSleepData
+        }
+
+        return canvas
     }
 
     @MainActor
-    private func prepareShare() {
+    private func prepareShare() async {
         guard canShare else { return }
         let frameSize = CGSize(width: 604, height: 842)
-        let poster = MeGalleryPoster(
-            date: displayDate,
-            steps: displayedSteps,
-            sleepHours: displayedSleep,
-            events: displayEvents,
-            unlocks: displayedUnlocks
-        ) {
-            canvasLayer(isOffscreenRender: true)
+        guard let canvas = artworkCanvas else { return }
+
+        let poster: AnyView
+        switch CanvasExportRoute(canvas: canvas) {
+        case .editorialMetal:
+            guard let artwork = await DayObjectsImageRenderer.image(
+                input: editorialInput(for: canvas),
+                size: frameSize,
+                scale: 2160 / frameSize.width,
+                elapsedTime: 4
+            ) else { return }
+            poster = AnyView(sharePoster {
+                Image(uiImage: artwork)
+                    .resizable()
+                    .scaledToFill()
+            })
+        case .legacySwiftUI:
+            poster = AnyView(sharePoster {
+                legacyCanvasLayer(canvas: canvas, isOffscreenRender: true)
+            })
         }
-        .frame(width: frameSize.width, height: frameSize.height)
-        .environment(\.appTheme, theme)
 
         let renderer = ImageRenderer(content: poster)
         renderer.scale = 2160 / frameSize.width
@@ -882,6 +1070,72 @@ struct MeSelectedDayPoster: View {
         guard let image = renderer.uiImage else { return }
         shareImage = image
         showShareSheet = true
+    }
+
+    private func editorialInput(for canvas: DayCanvas) -> EditorialCanvasRenderInput {
+        EditorialCanvasInputFactory.make(
+            canvas: canvas,
+            metrics: EditorialCanvasMetrics(
+                stepsProgress: Double(canvas.stepsPoints) / 20,
+                sleepProgress: Double(canvas.sleepPoints) / 20,
+                spentProgress: canvas.decayNorm
+            ),
+            paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw)
+        )
+    }
+
+    private func legacyCanvasLayer(
+        canvas: DayCanvas,
+        isOffscreenRender: Bool
+    ) -> some View {
+        ZStack {
+            EnergyGradientBackground(
+                stepsPoints: canvas.stepsPoints,
+                sleepPoints: canvas.sleepPoints,
+                hasStepsData: canvas.resolvedHasStepsData,
+                hasSleepData: canvas.resolvedHasSleepData,
+                showGrain: true,
+                gradientStyleOverride: canvas.gradientStyle,
+                gradientPaletteOverride: canvas.gradientPalette,
+                textureOverride: canvas.textureRaw,
+                fixedTime: canvas.lastModified
+            )
+
+            GenerativeCanvasView(
+                elements: canvas.elements,
+                dayKey: canvas.dayKey,
+                remixSeed: canvas.remixSeed,
+                sleepPoints: canvas.sleepPoints,
+                stepsPoints: canvas.stepsPoints,
+                sleepColor: Color(hex: canvas.sleepColorHex),
+                stepsColor: Color(hex: canvas.stepsColorHex),
+                decayNorm: canvas.decayNorm,
+                backgroundColor: .clear,
+                labelColor: theme.textPrimary,
+                showLabelsOnCanvas: false,
+                showsOutlinedLabels: false,
+                showsBackgroundGradient: false,
+                hasStepsData: canvas.resolvedHasStepsData,
+                hasSleepData: canvas.resolvedHasSleepData,
+                fixedTime: canvas.lastModified,
+                isOffscreenRender: isOffscreenRender
+            )
+        }
+    }
+
+    private func sharePoster<Artwork: View>(
+        @ViewBuilder artwork: () -> Artwork
+    ) -> some View {
+        MeGalleryPoster(
+            date: displayDate,
+            steps: displayedSteps,
+            sleepHours: displayedSleep,
+            events: displayEvents,
+            unlocks: displayedUnlocks,
+            content: artwork
+        )
+        .frame(width: 604, height: 842)
+        .environment(\.appTheme, theme)
     }
 }
 
@@ -1063,6 +1317,8 @@ struct MeSheetsModifier: ViewModifier {
     @Binding var showFullCalendar: Bool
     @Binding var selectedDayKey: String?
     let pastDays: [String: PastDaySnapshot]
+    let recentHealthByDay: [String: MeDayHealth]
+    let unlockRecords: [MePosterUnlockRecord]
 
     private var fullScreenDestination: Binding<MeFullScreenDestination?> {
         Binding(
@@ -1084,14 +1340,25 @@ struct MeSheetsModifier: ViewModifier {
                 LoginView(authService: authService)
             }
             .sheet(isPresented: $showProfileEditor) {
-                ProfileEditorView(authService: authService, model: model)
+                ProfileEditorView(authService: authService)
             }
             .fullScreenCover(item: fullScreenDestination) { destination in
                 switch destination {
                 case .calendar:
-                    MeFullCalendarView(model: model, pastDays: pastDays)
+                    MeFullCalendarView(
+                        model: model,
+                        pastDays: pastDays,
+                        recentHealthByDay: recentHealthByDay,
+                        unlockRecords: unlockRecords
+                    )
                 case .day(let key):
-                    DayCanvasViewerView(model: model, dayKey: key)
+                    DayCanvasViewerView(
+                        model: model,
+                        dayKey: key,
+                        snapshot: pastDays[key],
+                        health: recentHealthByDay[key],
+                        unlockRecords: unlockRecords
+                    )
                 }
             }
     }

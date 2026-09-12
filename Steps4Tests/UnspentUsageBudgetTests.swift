@@ -1,23 +1,16 @@
 import XCTest
+import FamilyControls
+import DeviceActivity
 @testable import Steps4
 
-/// `AppModel.unspentUsageBudgetMatchingShield(for:defaults:)` is the number the
-/// Feeds UI shows. It has to agree with `ShieldRebuildHelper`, because the
-/// shield is what actually decides whether the apps are open: any surface that
-/// says "locked" while the shield says "open" invites the user to buy a window
-/// they are already inside.
-///
-/// The central rule under test is that the window is *spent*, not *elapsed* —
-/// an idle phone must not move the number.
 @MainActor
 final class UnspentUsageBudgetTests: XCTestCase {
-
     private let groupId = "group-under-test"
     private var suiteName = ""
     private var defaults: UserDefaults!
+    private let now = Date(timeIntervalSince1970: 1_789_200_000)
 
     override func setUpWithError() throws {
-        try super.setUpWithError()
         suiteName = "UnspentUsageBudgetTests.\(UUID().uuidString)"
         defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
     }
@@ -25,106 +18,129 @@ final class UnspentUsageBudgetTests: XCTestCase {
     override func tearDownWithError() throws {
         defaults.removePersistentDomain(forName: suiteName)
         defaults = nil
-        try super.tearDownWithError()
     }
 
-    /// Writes a window bought `minutesAgo` minutes ago for `initial` minutes,
-    /// of which `stored` are still unspent.
-    private func writeWindow(initial: Int, stored: Int, minutesAgo: Int) {
-        let started = Date.now.addingTimeInterval(TimeInterval(-minutesAgo * 60))
-        defaults.set(stored, forKey: SharedKeys.usageBudgetKey(groupId))
-        defaults.set(initial, forKey: SharedKeys.usageBudgetInitialKey(groupId))
-        defaults.set(started, forKey: SharedKeys.usageBudgetStartedKey(groupId))
-        defaults.set(
-            started.addingTimeInterval(TimeInterval(initial * 60)),
-            forKey: SharedKeys.usageBudgetExpiryKey(groupId)
-        )
+    private func session() -> UsageBudgetSession {
+        UsageBudgetSession(minutes: 10, startedAt: now, expiresAt: now.addingTimeInterval(12 * 3600))
     }
 
-    private func unspent() -> Int {
-        AppModel.unspentUsageBudgetMatchingShield(for: groupId, defaults: defaults)
+    private func remaining(at date: Date) -> Int {
+        ShieldRebuildHelper.remainingUsageBudget(defaults: defaults, groupId: groupId, at: date)
     }
 
-    /// The regression this accessor exists for: 60 minutes bought, 45 of them
-    /// idled away without touching the app. The shield still has the apps open
-    /// on the full 60, so the UI must read 60 — not 15.
-    func testIdleTimeDoesNotSpendTheWindow() {
-        writeWindow(initial: 60, stored: 60, minutesAgo: 45)
-        XCTAssertEqual(unspent(), 60)
+    func testTenMinutePurchaseSurvivesHalfHourOfIdleTimeAndReload() {
+        session().save(to: defaults, groupId: groupId)
+        XCTAssertEqual(remaining(at: now.addingTimeInterval(30 * 60)), 10)
+        let reloaded = UsageBudgetSession.load(from: UserDefaults(suiteName: suiteName)!, groupId: groupId)
+        XCTAssertEqual(reloaded?.remainingMinutes, 10)
     }
 
-    /// Real usage is the only thing that moves it: the monitor decremented the
-    /// stored value to 20, so 20 is what shows.
-    func testOnlySpentMinutesComeOff() {
-        writeWindow(initial: 60, stored: 20, minutesAgo: 45)
-        XCTAssertEqual(unspent(), 20)
+    func testOnlyCumulativeUsageEventsSpendMinutesAndReplaysCannotSpendTwice() {
+        var budget = session()
+        XCTAssertTrue(budget.record(event: budget.eventName(minute: 3)))
+        budget.save(to: defaults, groupId: groupId)
+        XCTAssertEqual(remaining(at: now.addingTimeInterval(3600)), 7)
+        XCTAssertFalse(budget.record(event: budget.eventName(minute: 3)))
+        XCTAssertFalse(budget.record(event: budget.eventName(minute: 2)))
+        XCTAssertFalse(budget.record(event: budget.eventName(minute: 11)))
+        XCTAssertFalse(budget.record(event: session().eventName(minute: 10)))
+        XCTAssertEqual(budget.remainingMinutes, 7)
+        XCTAssertTrue(budget.record(event: budget.eventName(minute: 10)))
+        budget.save(to: defaults, groupId: groupId)
+        XCTAssertEqual(remaining(at: now.addingTimeInterval(3600)), 0)
     }
 
-    /// Past the window's expiry the shield goes back up, so the UI must stop
-    /// claiming there is time left even though minutes went unspent.
-    func testExpiredWindowReadsZero() {
-        writeWindow(initial: 30, stored: 30, minutesAgo: 90)
-        XCTAssertEqual(unspent(), 0)
+    func testTopUpKeepsCurrentGenerationAndWaitsForItsUsageToFinish() {
+        var budget = session()
+        let generation = budget.generation
+        _ = budget.record(event: budget.eventName(minute: 3))
+        budget.queuedMinutes += 10
+        XCTAssertEqual(budget.generation, generation)
+        XCTAssertEqual(budget.initialMinutes, 10)
+        XCTAssertEqual(budget.remainingMinutes, 17)
+        XCTAssertFalse(budget.needsNextSegment)
+        _ = budget.record(event: budget.eventName(minute: 10))
+        XCTAssertEqual(budget.remainingMinutes, 10)
+        XCTAssertTrue(budget.needsNextSegment)
+        budget.save(to: defaults, groupId: groupId)
+        XCTAssertEqual(UsageBudgetSession.load(from: defaults, groupId: groupId)?.queuedMinutes, 10,
+                       "A failed continuation must retain the already paid minutes for recovery")
     }
 
-    func testZeroBudgetReadsZero() {
-        writeWindow(initial: 60, stored: 0, minutesAgo: 5)
-        XCTAssertEqual(unspent(), 0)
+    func testDayBoundaryClosesUnspentUsageWithoutInventingUsageTicks() {
+        let budget = session()
+        budget.save(to: defaults, groupId: groupId)
+        XCTAssertEqual(remaining(at: budget.expiresAt.addingTimeInterval(-1)), 10)
+        XCTAssertEqual(remaining(at: budget.expiresAt), 0)
+        XCTAssertEqual(remaining(at: budget.expiresAt.addingTimeInterval(60)), 0)
     }
 
-    func testNoWindowAtAllReadsZero() {
-        XCTAssertEqual(unspent(), 0)
-    }
-
-    /// No expiry key (older writes, and the widget path): the shield falls back
-    /// to `started + initial`, and so must this.
-    func testWindowWithoutExpiryFallsBackToStartedPlusInitial() {
-        let started = Date.now.addingTimeInterval(-10 * 60)
-        defaults.set(60, forKey: SharedKeys.usageBudgetKey(groupId))
-        defaults.set(60, forKey: SharedKeys.usageBudgetInitialKey(groupId))
-        defaults.set(started, forKey: SharedKeys.usageBudgetStartedKey(groupId))
-
-        XCTAssertEqual(unspent(), 60)
-
-        defaults.set(
-            Date.now.addingTimeInterval(-120 * 60),
-            forKey: SharedKeys.usageBudgetStartedKey(groupId)
-        )
-        XCTAssertEqual(unspent(), 0, "a window whose start is two hours back has closed")
-    }
-
-    /// Budget with no timing metadata at all: the shield refuses to skip
-    /// shielding, so the UI must not show an open window either.
-    func testBudgetWithoutTimingMetadataReadsZero() {
-        defaults.set(60, forKey: SharedKeys.usageBudgetKey(groupId))
-        XCTAssertEqual(unspent(), 0)
-    }
-
-    /// The accessor and the shield are never allowed to disagree about
-    /// *whether* the window is open — that disagreement is what let a user be
-    /// charged twice for the same hour.
-    func testAgreesWithTheShieldAcrossCases() {
-        let cases: [(name: String, write: () -> Void)] = [
-            ("fresh", { self.writeWindow(initial: 60, stored: 60, minutesAgo: 0) }),
-            ("idle", { self.writeWindow(initial: 60, stored: 60, minutesAgo: 45) }),
-            ("partly spent", { self.writeWindow(initial: 60, stored: 20, minutesAgo: 45) }),
-            ("expired", { self.writeWindow(initial: 30, stored: 30, minutesAgo: 90) }),
-            ("empty", { self.writeWindow(initial: 60, stored: 0, minutesAgo: 5) })
-        ]
-
-        for testCase in cases {
-            defaults.removePersistentDomain(forName: suiteName)
-            testCase.write()
-
-            let shieldSaysOpen = ShieldRebuildHelper.isUsageBudgetWallClockActive(
-                defaults: defaults,
-                groupId: groupId
-            )
-            XCTAssertEqual(
-                unspent() > 0,
-                shieldSaysOpen,
-                "\(testCase.name): UI and shield disagree about whether the window is open"
-            )
+    func testEventsAreIndependentCumulativeThresholdsExcludingPastUsage() throws {
+        let budget = session()
+        let events = ShieldRebuildHelper.usageEvents(selection: FamilyActivitySelection(), session: budget)
+        XCTAssertEqual(events.count, 10)
+        for minute in 1...10 {
+            let event = try XCTUnwrap(events[DeviceActivityEvent.Name(budget.eventName(minute: minute))])
+            XCTAssertEqual(event.threshold.minute, minute)
+            XCTAssertFalse(event.includesPastActivity, "Padding a short schedule must not consume pre-purchase usage")
         }
+    }
+
+    func testWidgetTimelineDoesNotPredictUsageFromElapsedClockTime() {
+        let deadline = now.addingTimeInterval(3600)
+        XCTAssertEqual(ShieldRebuildHelper.budgetObservationDates(from: now,
+            through: now.addingTimeInterval(600), expiries: [deadline]), [])
+        XCTAssertEqual(ShieldRebuildHelper.budgetObservationDates(from: now,
+            through: now.addingTimeInterval(7200), expiries: [deadline, deadline]), [deadline])
+    }
+
+    private func installSelectionFixture() throws -> Data {
+        let data = try JSONEncoder().encode(FamilyActivitySelection())
+        let groups: [[String: Any]] = [["id": groupId, "name": "Test",
+            "selectionData": data.base64EncodedString(),
+            "settings": ["familyControlsModeEnabled": true]]]
+        defaults.set(try JSONSerialization.data(withJSONObject: groups), forKey: SharedKeys.ticketGroups)
+        return data
+    }
+
+    func testFailedMonitoringClosesAccessWithoutDiscardingPaidMinutes() throws {
+        var budget = session()
+        budget.monitoredSelectionData = try installSelectionFixture()
+        budget.save(to: defaults, groupId: groupId)
+        XCTAssertTrue(ShieldRebuildHelper.isUsageBudgetActive(defaults: defaults, groupId: groupId, at: now))
+        XCTAssertFalse(ShieldRebuildHelper.hasRecoverableUsageBudget(defaults: defaults, groupId: groupId, at: now))
+        budget.monitoringFailed = true
+        budget.save(to: defaults, groupId: groupId)
+        XCTAssertTrue(ShieldRebuildHelper.hasRecoverableUsageBudget(defaults: defaults, groupId: groupId, at: now),
+                      "Widget recovery must remain available even with no colors for another purchase")
+        XCTAssertFalse(ShieldRebuildHelper.isUsageBudgetActive(defaults: defaults, groupId: groupId, at: now))
+        XCTAssertEqual(remaining(at: now), 10)
+        budget.monitoringFailed = false
+        budget.save(to: defaults, groupId: groupId)
+        XCTAssertTrue(ShieldRebuildHelper.isUsageBudgetActive(defaults: defaults, groupId: groupId, at: now))
+    }
+
+    func testUnverifiedSelectionCannotUseExistingGroupBudget() throws {
+        let selection = try installSelectionFixture()
+        var budget = session()
+        budget.save(to: defaults, groupId: groupId)
+        XCTAssertFalse(ShieldRebuildHelper.isUsageBudgetActive(defaults: defaults, groupId: groupId, at: now))
+        budget.monitoredSelectionData = selection
+        budget.save(to: defaults, groupId: groupId)
+        XCTAssertTrue(ShieldRebuildHelper.isUsageBudgetActive(defaults: defaults, groupId: groupId, at: now))
+        defaults.removeObject(forKey: SharedKeys.ticketGroups)
+        XCTAssertFalse(ShieldRebuildHelper.isUsageBudgetActive(defaults: defaults, groupId: groupId, at: now))
+        XCTAssertEqual(remaining(at: now), 10)
+    }
+
+    func testLegacyExpiredClockPurchaseIsNotResurrectedByUpgrade() {
+        defaults.set(10, forKey: SharedKeys.usageBudgetKey(groupId))
+        defaults.set(now.addingTimeInterval(-1), forKey: SharedKeys.usageBudgetExpiryKey(groupId))
+        XCTAssertEqual(remaining(at: now), 0)
+    }
+
+    func testMissingMetadataCannotOpenAccess() {
+        defaults.set(10, forKey: SharedKeys.usageBudgetKey(groupId))
+        XCTAssertEqual(remaining(at: now), 0)
     }
 }

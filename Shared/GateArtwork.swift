@@ -1,12 +1,37 @@
 import Foundation
 
-/// Decorative identity, independent of happenings, balance and the user's canvas.
+/// Decorative identity from the happening shape catalog; independent of personal events.
+/// The bundled snapshots are exported by MetalShapeGenomeRenderer, not a second generator.
 struct GateArtwork: Codable, Equatable {
     let seed: UInt32
 
+    // Keep ordering stable: persisted seeds identify the same image in both processes.
+    static let presetIDs = [
+        "genome.concave-square", "genome.soft-clover", "genome.windflower",
+        "genome.snowflake", "legacy.soft-square", "legacy.rounded-triangle",
+        "legacy.rounded-hexagon",
+    ]
+    // One quiet two-color material; hue variants reuse the canvas color rotation.
+    static let colorVariants: [Int?] = [nil, 0, 1, 2, 3, 4, 5]
+    static let colorwayCount = 3
+    static var variantCount: Int { presetIDs.count * colorwayCount }
+    var variantIndex: Int { Int(seed % UInt32(Self.variantCount)) }
+    var presetID: String { Self.presetIDs[variantIndex % Self.presetIDs.count] }
+    var materialID: String { "sideLight" }
+    var renderSeed: UInt64 { 64 }
+    var colorVariant: Int? {
+        let shape = variantIndex % Self.presetIDs.count
+        let colorway = variantIndex / Self.presetIDs.count
+        return Self.colorVariants[(shape + colorway * 2) % Self.colorVariants.count]
+    }
+    var resourceName: String {
+        let color = colorVariant.map(String.init) ?? "original"
+        return "\(presetID)-\(materialID)-\(renderSeed)-c\(color)"
+    }
+
     static func random(excluding previous: GateArtwork? = nil) -> GateArtwork {
         var candidate = GateArtwork(seed: .random(in: 0...UInt32.max))
-        while candidate.seed % 35 == previous.map({ $0.seed % 35 }) {
+        while candidate.variantIndex == previous?.variantIndex {
             candidate = GateArtwork(seed: .random(in: 0...UInt32.max))
         }
         return candidate

@@ -211,10 +211,10 @@ struct FeatureTipSheet: View {
             .padding(.bottom, 16)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(theme.backgroundColor)
+        .todayCanvasBackground(detail: true)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        .presentationBackground(theme.backgroundColor)
+        .choicesSheetPresentationBackground()
     }
 
     // MARK: Preview visuals

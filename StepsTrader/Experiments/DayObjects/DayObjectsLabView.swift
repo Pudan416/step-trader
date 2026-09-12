@@ -1,5 +1,41 @@
 import SwiftUI
 
+#if DEBUG || INTERNAL_BUILD
+import AVFAudio
+import Combine
+import UIKit
+#endif
+
+#if DEBUG || INTERNAL_BUILD
+@MainActor
+final class DayObjectsSystemAccessibilityStatusSource: DayObjectsAccessibilityStatusSource {
+    @Published private(set) var isVoiceOverRunning: Bool
+
+    private let voiceOverStatus: @MainActor () -> Bool
+    private var notificationCancellable: AnyCancellable?
+
+    var voiceOverStatusChanges: AnyPublisher<Bool, Never> {
+        $isVoiceOverRunning.eraseToAnyPublisher()
+    }
+
+    init(
+        notificationCenter: NotificationCenter = .default,
+        voiceOverStatus: @escaping @MainActor () -> Bool = { UIAccessibility.isVoiceOverRunning }
+    ) {
+        self.voiceOverStatus = voiceOverStatus
+        isVoiceOverRunning = voiceOverStatus()
+        notificationCancellable = notificationCenter
+            .publisher(for: UIAccessibility.voiceOverStatusDidChangeNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.isVoiceOverRunning = self.voiceOverStatus()
+            }
+    }
+}
+#endif
+
+#if DEBUG || INTERNAL_BUILD
 /// Interactive bench for the deterministic daily choreography.
 ///
 /// Event IDs stay chronological as the happenings slider grows, so the live
@@ -7,23 +43,84 @@ import SwiftUI
 /// field. The grid intentionally freezes fifteen renderers at once.
 struct DayObjectsLabView: View {
     static let uiExclusionRegion = DayObjectNormalizedRect.dayObjectsLabControls
+    static let canvasCoverage = DayObjectCanvasCoverage.fullCanvas
+    private static let dayOffsetFromLaunchArguments: Int = {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let flag = arguments.firstIndex(of: "-dayObjectsDayOffset"),
+              arguments.indices.contains(flag + 1),
+              let offset = Int(arguments[flag + 1]) else {
+            return 0
+        }
+        return max(offset, 0)
+    }()
+    private static let previewSpecFromLaunchArguments: DayObjectEditorialPreviewSpec? = {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let flag = arguments.firstIndex(of: "-dayObjectsPreviewIndex"),
+              arguments.indices.contains(flag + 1),
+              let index = Int(arguments[flag + 1]) else {
+            return nil
+        }
+        return DayObjectEditorialPreviewCatalog.spec(at: index)
+    }()
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(SharedKeys.modernPaletteCategories) private var modernPaletteCategoriesRaw = ""
+    @Environment(\.scenePhase) private var scenePhase
 
-    @State private var dayOffset = 0
-    @State private var happenings: Double = 8
-    @State private var motionEnergy = 0.55
-    @State private var visualClarity = 0.55
-    @State private var spentColors: Double = 0
+    @State private var dayOffset = Self.dayOffsetFromLaunchArguments
     @State private var showsGrid = false
-    @State private var showControls = true
+    @State private var showsCalendarTile = false
+    @State private var editorialBackground: DayObjectEditorialBackground = .dark
+    @State private var lowSleep = false
+    @State private var editorialMaterialMode: DayObjectEditorialLabMaterialMode = .generativeDNA
+    @State private var editorialPlacement: DayObjectEditorialPreviewPlacement = .depthField
+    @State private var showControls = !ProcessInfo.processInfo.arguments.contains(
+        "-dayObjectsVisualHandoff"
+    ) && Self.previewSpecFromLaunchArguments == nil
+    @State private var showsFineTuning = false
+    @State private var showsInstrumentDiagnostics = false
+    @State private var motionEnergyOverride: Double?
+    @State private var visualClarityOverride: Double?
+    @StateObject private var musicController: DayObjectsMusicLabController
+    @StateObject private var audition: DayObjectsInstrumentAuditionController
+    @StateObject private var leadCoordinator: DayObjectsLeadAuditionCoordinator
+
+    init() {
+        _musicController = StateObject(wrappedValue: DayObjectsMusicLabController())
+        let auditionController = DayObjectsInstrumentAuditionController()
+        _audition = StateObject(wrappedValue: auditionController)
+        _leadCoordinator = StateObject(wrappedValue: DayObjectsLeadAuditionCoordinator(
+            controller: auditionController,
+            accessibilityStatusSource: DayObjectsSystemAccessibilityStatusSource()
+        ))
+    }
+
+    init(
+        auditionController: DayObjectsInstrumentAuditionController,
+        accessibilityStatusSource: any DayObjectsAccessibilityStatusSource
+    ) {
+        _musicController = StateObject(wrappedValue: DayObjectsMusicLabController())
+        let leadCoordinator = DayObjectsLeadAuditionCoordinator(
+            controller: auditionController,
+            accessibilityStatusSource: accessibilityStatusSource
+        )
+        _audition = StateObject(wrappedValue: auditionController)
+        _leadCoordinator = StateObject(wrappedValue: leadCoordinator)
+    }
+
+    private var editorialPreview: DayObjectEditorialPreviewSpec? {
+        Self.previewSpecFromLaunchArguments
+    }
+
+    private var isEditorialPreviewCapture: Bool {
+        editorialPreview != nil
+    }
 
     private var dayKey: String {
-        Self.dayKey(for: dayOffset)
+        editorialPreview?.dayKey ?? Self.dayKey(for: dayOffset)
     }
 
     private var happeningCount: Int {
-        min(max(Int(happenings.rounded()), 0), DayObjectScene.maxActors)
+        musicController.state.happeningCount
     }
 
     private var currentSceneInput: DayObjectSceneInput {
@@ -31,11 +128,11 @@ struct DayObjectsLabView: View {
     }
 
     private var spentColorCount: Int {
-        min(max(Int(spentColors.rounded()), 0), DayObjectDigitalImpact.maximumSpentColors)
+        musicController.state.spentColors
     }
 
     private var digitalImpact: DayObjectDigitalImpact {
-        DayObjectDigitalImpact(spentColors: spentColorCount)
+        musicController.digitalImpact
     }
 
     private var currentScene: DayObjectScene {
@@ -43,35 +140,135 @@ struct DayObjectsLabView: View {
     }
 
     private var chromeColorScheme: ColorScheme {
-        relativeLuminance(currentScene.palette.backgroundBase) > 0.45 ? .light : .dark
+        let background = currentScene.sceneRecipeV1?.background.linearRGB
+            ?? currentScene.palette.backgroundBase
+        return relativeLuminance(background) > 0.45 ? .light : .dark
+    }
+
+    private var languageSummary: String {
+        let mutationCounts = Dictionary(
+            grouping: currentScene.actors,
+            by: { $0.appearance.mutationRole }
+        ).mapValues(\.count)
+        let palettes = [
+            currentScene.paletteSet.background.code,
+            currentScene.paletteSet.primaryObjects.code,
+            currentScene.paletteSet.secondaryObjects.code,
+        ].joined(separator: "/")
+        let familySummary: String
+        if let dnaSummary = currentScene.sceneRecipeV1?.artDirectionSummary {
+            familySummary = dnaSummary
+        } else {
+            let family = currentScene.sceneRecipeV1?.actors.first?.material.family.gpuFamily
+                ?? currentScene.visualLanguage.family
+            familySummary = "family=\(family)"
+        }
+        return familySummary + "\n"
+            + "mutations=\(mutationCounts[.base, default: 0])/"
+            + "\(mutationCounts[.soft, default: 0])/"
+            + "\(mutationCounts[.accent, default: 0]) "
+            + "motion=\(currentScene.motionPlan.preset) "
+            + "palettes=\(palettes)"
     }
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            if showsGrid {
-                grid
-            } else {
-                DayObjectsView(
-                    sceneInput: currentSceneInput,
-                    digitalImpact: digitalImpact
-                )
-                    .ignoresSafeArea()
-            }
+            canvasContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if showControls {
                 controls
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            toggleButton
+
+            if !isEditorialPreviewCapture {
+                topButtons
+            }
         }
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: showControls)
+        .animation(.easeInOut(duration: 0.2), value: showControls)
         .navigationTitle("Day Objects")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(isEditorialPreviewCapture ? .hidden : .visible, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbarColorScheme(chromeColorScheme, for: .navigationBar)
+        .onAppear {
+            _ = musicController.acceptLifecycleEvent(.viewAppeared)
+        }
+        .onDisappear {
+            leadCoordinator.viewDidDisappear()
+            let intent = musicController.acceptLifecycleEvent(.viewDisappeared)
+            Task { await musicController.completeLifecycleEvent(intent) }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            let isActive = phase == .active
+            leadCoordinator.sceneActivityChanged(isActive: isActive)
+            let intent = musicController.acceptLifecycleEvent(isActive ? .sceneActive : .sceneInactive)
+            Task { await musicController.completeLifecycleEvent(intent) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { notification in
+            let raw = (notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.uintValue
+                ?? (notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt)
+            guard let raw,
+                  AVAudioSession.InterruptionType(rawValue: raw) == .began else { return }
+            leadCoordinator.interruptionBegan()
+            let intent = musicController.acceptLifecycleEvent(.interruptionBegan)
+            Task { await musicController.completeLifecycleEvent(intent) }
+        }
+        .onChange(of: leadCoordinator.isVoiceOverRunning) { _, running in
+            musicController.leadAvailabilityChanged(
+                isGridVisible: showsGrid,
+                isVoiceOverRunning: running
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var canvasContent: some View {
+        if showsGrid {
+            grid
+        } else if showsCalendarTile {
+            calendarTile
+        } else {
+            ZStack {
+                DayObjectsView(
+                    sceneInput: currentSceneInput,
+                    digitalImpact: digitalImpact,
+                    isAnimating: !isEditorialPreviewCapture,
+                    soundPulseBus: musicController.soundPulseBus
+                )
+                .ignoresSafeArea()
+                if !isEditorialPreviewCapture {
+                    leadAuditionSurface
+                }
+            }
+        }
     }
 
     // MARK: - Grid
+
+    private var calendarTile: some View {
+        GeometryReader { geometry in
+            let side = min(geometry.size.width - 24, geometry.size.height * 0.62)
+            DayObjectsView(
+                sceneInput: currentSceneInput,
+                digitalImpact: digitalImpact,
+                isAnimating: !isEditorialPreviewCapture,
+                soundPulseBus: musicController.soundPulseBus
+            )
+            .frame(width: side, height: side)
+            .clipped()
+            .overlay {
+                RoundedRectangle(cornerRadius: 2)
+                    .stroke(.white.opacity(0.16), lineWidth: 1)
+            }
+            .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.38)
+        }
+        .background(Color.black.opacity(0.88))
+        .ignoresSafeArea()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Day Objects calendar tile")
+        .accessibilityIdentifier("dayObjects.calendarTile")
+    }
 
     private var grid: some View {
         GeometryReader { geometry in
@@ -101,79 +298,297 @@ struct DayObjectsLabView: View {
         .ignoresSafeArea()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Day Objects grid")
-        .accessibilityValue("Spent colors \(spentColorCount)")
+        .accessibilityValue("Spent colors \(spentColorCount). Touch performance unavailable")
         .accessibilityIdentifier("dayObjects.grid")
     }
 
     // MARK: - Controls
 
     private var controls: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 10) {
-                Button {
-                    dayOffset += showsGrid ? 15 : 1
-                } label: {
-                    Label(showsGrid ? "Next 15" : "Next day", systemImage: "dice")
-                        .frame(maxWidth: .infinity)
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(spacing: 12) {
+                slider(
+                    "Steps",
+                    value: Binding(
+                        get: { musicController.state.steps },
+                        set: { musicController.setSteps($0) }
+                    ),
+                    range: 0...DayObjectsMusicLabController.maximumSteps,
+                    step: 100,
+                    readout: stepsReadout,
+                    identifier: "dayObjects.steps"
+                )
+
+                slider(
+                    "Sleep",
+                    value: Binding(
+                        get: { musicController.state.sleepHours },
+                        set: { musicController.setSleepHours($0) }
+                    ),
+                    range: 0...DayObjectsMusicLabController.maximumSleepHours,
+                    step: 0.25,
+                    readout: sleepReadout,
+                    identifier: "dayObjects.sleep"
+                )
+
+                Picker("Background", selection: $editorialBackground) {
+                    ForEach(DayObjectEditorialBackground.allCases) { background in
+                        Text(background.title).tag(background)
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("dayObjects.nextDay")
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("dayObjects.background")
 
-                Button {
-                    showsGrid.toggle()
-                } label: {
-                    Label(showsGrid ? "Single" : "Grid", systemImage: "square.grid.3x3")
-                        .frame(maxWidth: .infinity)
+                HStack {
+                    Text("Editorial 01")
+                        .font(.geist(.caption))
+                        .foregroundStyle(.white.opacity(0.85))
+                    Spacer()
+                    Picker("Material", selection: $editorialMaterialMode) {
+                        ForEach(DayObjectEditorialLabMaterialMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("dayObjects.materialMode")
+                    .accessibilityValue(editorialMaterialMode.title)
                 }
-                .buttonStyle(.bordered)
-                .accessibilityIdentifier("dayObjects.gridToggle")
-            }
 
-            slider(
-                "Happenings",
-                value: $happenings,
-                range: 0...Double(DayObjectScene.maxActors),
-                step: 1,
-                readout: "\(happeningCount) · \(currentScene.actors.count) figures",
-                identifier: "dayObjects.happenings"
-            )
-            slider(
-                "Motion",
-                value: $motionEnergy,
-                range: 0...1,
-                step: 0.05,
-                readout: motionEnergy.formatted(.number.precision(.fractionLength(2))),
-                identifier: "dayObjects.motionEnergy"
-            )
-            slider(
-                "Focus",
-                value: $visualClarity,
-                range: 0...1,
-                step: 0.05,
-                readout: visualClarity.formatted(.number.precision(.fractionLength(2))),
-                identifier: "dayObjects.visualClarity"
-            )
-            digitalImpactControls
+                Picker("Placement", selection: $editorialPlacement) {
+                    ForEach(DayObjectEditorialPreviewPlacement.allCases) { placement in
+                        Text(placement.title).tag(placement)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("dayObjects.placement")
+                .accessibilityValue(editorialPlacement.title)
 
-            if !showsGrid {
-                Text("\(dayKey) · \(currentScene.composition.summary)")
+                slider(
+                    "Happenings",
+                    value: Binding(
+                        get: { Double(musicController.state.happeningCount) },
+                        set: { musicController.setHappeningCount(Int($0.rounded())) }
+                    ),
+                    range: 0...Double(DayObjectsMusicLabController.maximumHappenings),
+                    step: 1,
+                    readout: "\(happeningCount) · \(currentScene.actors.count) figures",
+                    identifier: "dayObjects.happenings"
+                )
+
+                Toggle("Low sleep", isOn: $lowSleep)
+                    .accessibilityIdentifier("dayObjects.lowSleep")
+                .font(.geist(.caption))
+                .foregroundStyle(.white.opacity(0.85))
+
+                digitalImpactControls
+                HappeningSoundPadGrid(
+                    controller: musicController,
+                    beforeAudition: { await audition.stop() }
+                )
+                remixControls
+                    .disabled(musicController.isExportingAuditions)
+                fineTuning
+                instrumentDiagnostics
+                navigationControls
+
+                if !showsGrid {
+                    VStack(spacing: 3) {
+                        Text("\(dayKey) · \(currentScene.composition.summary)")
+                        Text(languageSummary)
+                            .accessibilityIdentifier("dayObjects.language")
+                            .accessibilityValue(languageSummary)
+                    }
                     .font(.geist(.caption2).monospaced())
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.white.opacity(0.6))
+                }
             }
+            .padding(16)
         }
-        .padding(16)
+        .scrollIndicators(.hidden)
+        .frame(maxHeight: 560)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22))
         .padding(.horizontal, 12)
-        .padding(.bottom, 60)
+        .padding(.vertical, 12)
         .tint(AppColors.brandAccent)
+    }
+
+    private var remixControls: some View {
+        VStack(spacing: 6) {
+            Picker(
+                "Sound world",
+                selection: Binding(
+                    get: { musicController.state.soundWorld },
+                    set: { musicController.selectSoundWorld($0) }
+                )
+            ) {
+                ForEach(DayObjectsSoundWorld.allCases, id: \.self) { world in
+                    Text(world.displayName).tag(world)
+                }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("dayObjects.soundWorld")
+
+            Picker("Sound mood", selection: Binding(
+                get: { musicController.state.mood },
+                set: { musicController.selectSoundMood($0) }
+            )) {
+                ForEach(DayObjectsSoundMood.allCases, id: \.self) { mood in
+                    Text(mood.rawValue.capitalized).tag(mood)
+                }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("dayObjects.soundMood")
+
+            if let diagnostic = musicController.soundWorldCatalogDiagnostic {
+                Text(diagnostic)
+                    .font(.caption)
+                    .accessibilityIdentifier("dayObjects.soundWorldDiagnostic")
+            }
+
+            Button {
+                musicController.remix()
+            } label: {
+                Label("Music Remix", systemImage: "shuffle")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("dayObjects.remix")
+            .accessibilityHint("Changes the seed while keeping the selected world and mood.")
+
+            Button {
+                musicController.undoMusicRemix()
+            } label: {
+                Label("Undo Music", systemImage: "arrow.uturn.backward")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .disabled(!musicController.canUndoMusicRemix)
+            .accessibilityIdentifier("dayObjects.musicUndo")
+
+            Text("\(musicController.state.soundWorld.displayName) · \(musicController.worldSummary)")
+                .font(.geist(.caption2).monospaced())
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.white.opacity(0.75))
+                .accessibilityIdentifier("dayObjects.worldSummary")
+        }
+    }
+
+    private var instrumentDiagnostics: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            disclosureButton(
+                title: "Instrument diagnostics",
+                isExpanded: $showsInstrumentDiagnostics,
+                identifier: "dayObjects.instrumentDiagnostics",
+                onChange: { isExpanded in
+                    guard !isExpanded else { return }
+                    musicController.disableDiagnostics()
+                    Task { await audition.stop() }
+                }
+            )
+            if showsInstrumentDiagnostics {
+                DayObjectsInstrumentAuditionView(
+                    controller: audition,
+                    musicController: musicController,
+                    beforeAudition: { await musicController.turnSoundOff() }
+                )
+            }
+        }
+    }
+
+    private var fineTuning: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            disclosureButton(
+                title: "Fine tuning",
+                isExpanded: $showsFineTuning,
+                identifier: "dayObjects.fineTuning"
+            )
+            if showsFineTuning {
+                slider(
+                    "Motion",
+                    value: Binding(
+                        get: { motionEnergyOverride ?? musicController.normalizedInput.motionEnergy },
+                        set: { motionEnergyOverride = $0 }
+                    ),
+                    range: 0...1,
+                    step: 0.05,
+                    readout: currentSceneInput.motionEnergy.formatted(.number.precision(.fractionLength(2))),
+                    identifier: "dayObjects.motionEnergy"
+                )
+                slider(
+                    "Focus",
+                    value: Binding(
+                        get: { visualClarityOverride ?? musicController.normalizedInput.visualClarity },
+                        set: { visualClarityOverride = $0 }
+                    ),
+                    range: 0...1,
+                    step: 0.05,
+                    readout: currentSceneInput.visualClarity.formatted(.number.precision(.fractionLength(2))),
+                    identifier: "dayObjects.visualClarity"
+                )
+                Button("Reset to day progress") {
+                    motionEnergyOverride = nil
+                    visualClarityOverride = nil
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("dayObjects.fineTuning.reset")
+            }
+        }
+    }
+
+    private var navigationControls: some View {
+        HStack(spacing: 10) {
+            Button {
+                dayOffset += showsGrid ? 15 : 1
+            } label: {
+                Label(showsGrid ? "Next 15" : "Next day", systemImage: "dice")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("dayObjects.nextDay")
+
+            Button {
+                let nextValue = !showsCalendarTile
+                showsGrid = false
+                showsCalendarTile = nextValue
+                leadCoordinator.gridVisibilityChanged(isVisible: false)
+                musicController.leadAvailabilityChanged(
+                    isGridVisible: false,
+                    isVoiceOverRunning: leadCoordinator.isVoiceOverRunning
+                )
+            } label: {
+                Label(showsCalendarTile ? "Full" : "Tile", systemImage: "calendar")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("dayObjects.tileToggle")
+            .accessibilityValue(showsCalendarTile ? "tile" : "full")
+
+            Button {
+                showsGrid.toggle()
+                if showsGrid { showsCalendarTile = false }
+                leadCoordinator.gridVisibilityChanged(isVisible: showsGrid)
+                musicController.leadAvailabilityChanged(
+                    isGridVisible: showsGrid,
+                    isVoiceOverRunning: leadCoordinator.isVoiceOverRunning
+                )
+            } label: {
+                Label(showsGrid ? "Single" : "Grid", systemImage: "square.grid.3x3")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("dayObjects.gridToggle")
+        }
     }
 
     private var digitalImpactControls: some View {
         VStack(spacing: 7) {
             slider(
                 "Spent colors",
-                value: $spentColors,
+                value: Binding(
+                    get: { Double(musicController.state.spentColors) },
+                    set: { musicController.setSpentColors(Int($0.rounded())) }
+                ),
                 range: 0...Double(DayObjectDigitalImpact.maximumSpentColors),
                 step: 1,
                 readout: "Spent colors \(spentColorCount)",
@@ -190,7 +605,7 @@ struct DayObjectsLabView: View {
             HStack(spacing: 5) {
                 ForEach([0, 10, 25, 50, 75, 100], id: \.self) { preset in
                     Button("\(preset)") {
-                        spentColors = Double(preset)
+                        musicController.setSpentColors(preset)
                     }
                     .buttonStyle(.bordered)
                     .frame(maxWidth: .infinity)
@@ -212,7 +627,7 @@ struct DayObjectsLabView: View {
                 max(spentColorCount + amount, 0),
                 DayObjectDigitalImpact.maximumSpentColors
             )
-            spentColors = Double(adjusted)
+            musicController.setSpentColors(adjusted)
         }
         .buttonStyle(.bordered)
         .frame(maxWidth: .infinity)
@@ -244,10 +659,49 @@ struct DayObjectsLabView: View {
         }
     }
 
-    private var toggleButton: some View {
-        VStack {
+    private func disclosureButton(
+        title: String,
+        isExpanded: Binding<Bool>,
+        identifier: String,
+        onChange: ((Bool) -> Void)? = nil
+    ) -> some View {
+        Button {
+            isExpanded.wrappedValue.toggle()
+            onChange?(isExpanded.wrappedValue)
+        } label: {
             HStack {
+                Text(title)
+                    .font(.geist(.caption).weight(.semibold))
                 Spacer()
+                Image(systemName: isExpanded.wrappedValue ? "chevron.up" : "chevron.down")
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+        .accessibilityValue(isExpanded.wrappedValue ? "expanded" : "collapsed")
+    }
+
+    private var stepsReadout: String {
+        "\(Int(musicController.state.steps).formatted()) / \(Int(musicController.state.stepGoal).formatted()) steps"
+    }
+
+    private var sleepReadout: String {
+        "\(compactNumber(musicController.state.sleepHours)) / \(compactNumber(musicController.state.sleepGoalHours)) hours"
+    }
+
+    private func compactNumber(_ value: Double) -> String {
+        if value.rounded() == value {
+            return String(Int(value))
+        }
+        return value.formatted(.number.precision(.fractionLength(2)))
+    }
+
+    private var topButtons: some View {
+        VStack {
+            HStack(spacing: 10) {
+                Spacer()
+                soundButton
                 Button {
                     showControls.toggle()
                 } label: {
@@ -264,16 +718,111 @@ struct DayObjectsLabView: View {
         }
     }
 
-    private func sceneInput(for key: String) -> DayObjectSceneInput {
-        DayObjectSceneInput(
-            dayKey: key,
-            identity: "day-objects-lab",
-            eventIDs: (0..<happeningCount).map { "lab-event-\($0)" },
-            motionEnergy: motionEnergy,
-            visualClarity: visualClarity,
-            reduceMotion: reduceMotion,
-            uiExclusionRegion: Self.uiExclusionRegion
+    private var soundButton: some View {
+        Button {
+            guard let intent = musicController.acceptSoundButtonIntent() else { return }
+            Task {
+                await audition.stop()
+                await musicController.completeSoundButtonIntent(intent)
+            }
+        } label: {
+            Image(systemName: soundIcon)
+                .font(.system(size: 17, weight: .semibold))
+                .frame(width: 44, height: 44)
+                .background(.ultraThinMaterial, in: Circle())
+        }
+        .disabled(!musicController.canToggleSound)
+        .accessibilityLabel(soundLabel)
+        .accessibilityValue(soundValue)
+        .accessibilityIdentifier("dayObjects.sound")
+        .tint(chromeColorScheme == .dark ? .white : .black)
+    }
+
+    private var soundIcon: String {
+        switch musicController.soundState {
+        case .off: "speaker.slash.fill"
+        case .starting: "hourglass"
+        case .on: "speaker.wave.2.fill"
+        case .error: "exclamationmark.arrow.triangle.2.circlepath"
+        }
+    }
+
+    private var soundLabel: String {
+        switch musicController.soundState {
+        case .off: "Turn Sound on"
+        case .starting: "Starting Sound"
+        case .on: "Turn Sound off"
+        case .error: "Retry Sound"
+        }
+    }
+
+    private var soundValue: String {
+        switch musicController.soundState {
+        case .off: "off"
+        case .starting: "starting"
+        case .on: "on"
+        case let .error(error):
+            switch error.classification {
+            case .outputUnavailable: "error, output unavailable, retry available"
+            case .startFailed: "error, retry available: \(error.message)"
+            }
+        }
+    }
+
+    private var leadAuditionSurface: some View {
+        DayObjectsLeadGestureSurface(
+            isEnabled: musicController.soundState == .on
+                && !musicController.isExportingAuditions
+                && !showsGrid
+                && !leadCoordinator.isVoiceOverRunning,
+            // This surface is already laid out strictly inside the canvas;
+            // the controls are sibling chrome below it, not part of its local
+            // normalized coordinate space.
+            uiExclusionRegion: nil,
+            onBegin: { gesture in
+                musicController.beginLead(
+                    gesture,
+                    isGridVisible: showsGrid,
+                    isVoiceOverRunning: leadCoordinator.isVoiceOverRunning
+                )
+            },
+            onUpdate: { gesture in
+                musicController.updateLead(gesture)
+            },
+            onEnd: {
+                musicController.endLead()
+            }
         )
+    }
+
+    private func sceneInput(for key: String) -> DayObjectSceneInput {
+        let preview = editorialPreview
+        return musicController.sceneInput(
+            dayKey: key,
+            motionEnergyOverride: motionEnergyOverride,
+            visualClarityOverride: preview == nil ? visualClarityOverride : 1,
+            uiExclusionRegion: Self.uiExclusionRegion,
+            canvasCoverage: Self.canvasCoverage,
+            paletteCategories: preview.map { Set([$0.paletteCategory]) }
+                ?? ModernPaletteSelection.decode(modernPaletteCategoriesRaw),
+            usesEditorialField: true,
+            editorialBackground: editorialBackground,
+            lowSleep: lowSleep,
+            editorialPreview: preview,
+            editorialLabConfiguration: preview == nil
+                ? DayObjectEditorialLabConfiguration(
+                    materialMode: editorialMaterialMode,
+                    placement: editorialPlacement
+                )
+                : nil
+        )
+    }
+
+    static func resolvedVisualClarity(
+        _ requested: Double,
+        isEditorialPreview: Bool
+    ) -> Double {
+        isEditorialPreview ? 1 : requested
     }
 
     private static func dayKey(for offset: Int) -> String {
@@ -284,6 +833,13 @@ struct DayObjectsLabView: View {
         )
     }
 }
+#else
+struct DayObjectsLabView: View {
+    static let uiExclusionRegion = DayObjectNormalizedRect.dayObjectsLabControls
+
+    var body: some View { EmptyView() }
+}
+#endif
 
 #Preview {
     NavigationStack { DayObjectsLabView() }

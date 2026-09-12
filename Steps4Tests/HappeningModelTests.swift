@@ -17,6 +17,26 @@ final class HappeningModelTests: XCTestCase {
         XCTAssertEqual(Set(ids).count, ids.count, "Duplicate built-in happening id")
     }
 
+    func testBuiltInCopyIsCompleteDistinctAndFitsTheField() throws {
+        let path = try XCTUnwrap(Bundle.main.path(forResource: "en", ofType: "lproj"))
+        let bundle = try XCTUnwrap(Bundle(path: path))
+        let titles = HappeningDefaults.builtIns.map {
+            bundle.localizedString(forKey: "option.title.\($0.id)", value: "MISSING", table: nil)
+        }
+        XCTAssertFalse(titles.contains("MISSING"), "Incomplete happening catalog")
+        XCTAssertTrue(titles.allSatisfy { !$0.isEmpty && $0.count <= Happening.titleCharacterLimit })
+        XCTAssertEqual(Set(titles.map { $0.lowercased() }).count, titles.count, "Duplicate titles")
+        XCTAssertEqual(titles, HappeningDefaults.builtIns.map(\.title), "Fallback copy must match English localization")
+    }
+
+    func testRestoredCustomNamesKeepTheirDistinctLongSuffixes() throws {
+        let data = Data(#"[{"id":"user_a","title":"Coffee with my sister","isBuiltIn":false,"useCount":4},{"id":"user_b","title":"Coffee with my brother","isBuiltIn":false,"useCount":2}]"#.utf8)
+        let restored = try JSONDecoder().decode([Happening].self, from: data)
+        XCTAssertEqual(restored.map { $0.localizedTitle() }, ["Coffee with my sister", "Coffee with my brother"])
+        let roundTrip = try JSONDecoder().decode([Happening].self, from: JSONEncoder().encode(restored))
+        XCTAssertEqual(roundTrip, restored)
+    }
+
     func testBuiltInsStartUnused() {
         for happening in HappeningDefaults.builtIns {
             XCTAssertTrue(happening.isBuiltIn, "\(happening.id) must be built-in")

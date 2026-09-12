@@ -33,6 +33,20 @@ enum CanvasPresentationEvent: Equatable {
     case dayBoundary
 }
 
+/// The single bottom-left control couples sound and presentation deliberately:
+/// starting the day's music gives it the canvas, and stopping returns the app
+/// to its normal navigation chrome.
+enum CanvasSoundExpansionAction: Equatable {
+    case turnSoundOnAndEnterFullScreen
+    case turnSoundOffAndExitFullScreen
+
+    static func forPresentation(_ presentation: CanvasPresentationState) -> Self {
+        presentation.isWideCanvas
+            ? .turnSoundOffAndExitFullScreen
+            : .turnSoundOnAndEnterFullScreen
+    }
+}
+
 extension CanvasPresentationState {
 
     // MARK: - Derived chrome

@@ -1,4 +1,7 @@
 import SwiftUI
+#if DEBUG || INTERNAL_BUILD
+import AVFAudio
+#endif
 
 enum CanvasSpawnOriginMapper {
     static func normalizedPosition(
@@ -20,6 +23,37 @@ enum CanvasSpawnOriginMapper {
     }
 }
 
+enum CanvasBottomControlsLayout {
+    static func padding(
+        canvasBottomY: CGFloat,
+        tabBarCenterY: CGFloat?,
+        controlHeight: CGFloat,
+        fallbackSafeAreaBottom: CGFloat
+    ) -> CGFloat {
+        guard let tabBarCenterY,
+              canvasBottomY > tabBarCenterY,
+              controlHeight > 0
+        else { return max(fallbackSafeAreaBottom, 0) + 8 }
+
+        return max(0, canvasBottomY - tabBarCenterY - controlHeight / 2)
+    }
+
+    static func padding(
+        safeAreaBottom: CGFloat,
+        isWideCanvas: Bool,
+        isEditing: Bool
+    ) -> CGFloat {
+        if isWideCanvas || isEditing {
+            return max(safeAreaBottom, 34) + 16
+        }
+
+        // The tab bar follows the window safe area. Mirror that inset here,
+        // then preserve the 8pt optical adjustment between its 48pt buttons
+        // and the canvas action row's 52pt buttons.
+        return max(safeAreaBottom, 0) + 8
+    }
+}
+
 // MARK: - CANVAS tab: generative canvas
 
 struct GalleryView: View {
@@ -33,6 +67,10 @@ struct GalleryView: View {
     @AppStorage(SharedKeys.gradientStyle) private var currentGradientStyle: String = GradientStyle.radial.rawValue
     @AppStorage(SharedKeys.gradientPalette) private var currentGradientPalette: String = GradientPalette.warmSunset.rawValue
     @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
+    @AppStorage(SharedKeys.modernPaletteCategories) private var modernPaletteCategoriesRaw = ""
+    @AppStorage(SharedKeys.canvasVisualStyle) private var preferredCanvasVisualStyleRaw = CanvasVisualStyle.editorial.rawValue
+    @AppStorage(SharedKeys.canvasVisualStyleMigrationVersion, store: UserDefaults.stepsTrader())
+    private var canvasVisualStyleMigrationVersion = 0
     /// Last day key whose remote bootstrap finished. When `== todayKey`, an empty
     /// canvas (post-fetch with no remote data) is treated as a real "nothing yet"
     /// state instead of re-firing the remote round-trip on every appear.
@@ -72,13 +110,26 @@ struct GalleryView: View {
     var onPalettePresentationChange: (Bool) -> Void = { _ in }
     var onPalettePanelPresentationChange: (Bool) -> Void = { _ in }
     @State private var showHappeningPalette = false
-    @State private var happeningPalettePanel: HappeningPalettePanel?
-    @Namespace private var happeningGlassNamespace
     @State private var paletteHappenings: [Happening] = []
     @State private var paletteCatalog: [Happening] = []
     @State private var paletteSelectedIDs: [String] = []
+    @State private var paletteAssignmentSnapshot: HappeningEditorialAssignmentSnapshot?
+    @State private var happeningPalettePanel: HappeningPalettePanel?
+    @State private var paletteInteraction = HappeningPaletteInteractionState()
+    @State private var paletteErrorID: String?
+    @State private var paletteTransitionActive = false
+    @State private var paletteTransitionTask: Task<Void, Never>?
+    @State private var paletteConfirmationTask: Task<Void, Never>?
+    @State private var canvasSafeInsets = EdgeInsets()
+    @Environment(\.dynamicTypeSize) private var paletteDynamicTypeSize
     @State private var canvasViewportSize: CGSize = .zero
+    private var isCleanLandscape: Bool {
+        presentation == .fullScreen && canvasViewportSize.width > canvasViewportSize.height
+    }
     @State private var spawnPresentation = CanvasSpawnPresentationState()
+    @State private var remixHistory = CanvasRemixHistory()
+    @State private var remixFeedback: String?
+    @State private var remixFeedbackTask: Task<Void, Never>?
     @State private var spawnFlightTasks: [UUID: Task<Void, Never>] = [:]
     /// Directed nudge above the + button that invites the user to fill the
     /// day. It fires at most once per time-of-day window (morning / evening,
@@ -114,11 +165,16 @@ struct GalleryView: View {
     @State private var suggestionBannerHeight: CGFloat = 0
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+#if DEBUG || INTERNAL_BUILD
+    @StateObject private var musicController = DayObjectsMusicLabController(allowsBackgroundPlayback: true)
+#endif
     private let usesTask7UITestFixture = ProcessInfo.processInfo.arguments.contains("ui-testing-task7")
     private let isUnitTestHost = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
     @State private var safeAreaTop: CGFloat = 0
     @State private var safeAreaBottom: CGFloat = 0
+    @State private var canvasGlobalMaxY: CGFloat = 0
+    @Environment(\.tabBarCenterY) private var tabBarCenterY
 
     /// The device's real top safe-area inset (status bar / Dynamic Island),
     /// read directly from the key window instead of `safeAreaTop`.
@@ -140,20 +196,177 @@ struct GalleryView: View {
         return (inset ?? 0) > 0 ? inset! : 59
     }
 
+    private var deviceBottomSafeAreaInset: CGFloat {
+        let windowInset = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow)?
+            .safeAreaInsets.bottom ?? 0
+        return max(windowInset, safeAreaBottom)
+    }
+
     private var canvasBackground: Color { theme.backgroundColor }
     private var labelColor: Color { theme.textPrimary }
     private var buttonColor: Color { AppColors.Night.textPrimary }
     private var todayKey: String { AppModel.dayKey(for: Date.now) }
 
-    private var bottomControlsPadding: CGFloat {
-        if presentation.isWideCanvas || presentation.isEditing {
-            return max(safeAreaBottom, 34) + 16
-        }
-        // The Canvas actions now flank the tab bar in one shared 60pt row.
-        // Gallery's full-bleed overlay and MainTabView's safe-area overlay have
-        // different bottom origins; this inset resolves them to the same mid-Y.
-        return max(safeAreaBottom, 34) + 22
+    private var preferredCanvasVisualStyle: CanvasVisualStyle {
+        CanvasVisualStyle(rawValue: preferredCanvasVisualStyleRaw) ?? .editorial
     }
+
+    private var editorialRenderInput: EditorialCanvasRenderInput {
+        EditorialCanvasInputFactory.make(
+            canvas: dayCanvas,
+            metrics: EditorialCanvasMetrics(
+                stepsProgress: Double(model.stepsPointsToday) / 20,
+                sleepProgress: Double(model.sleepPointsToday) / 20,
+                spentProgress: decayNorm
+            ),
+            paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw)
+        )
+    }
+
+    private var paletteEditorialAssignments: [String: HappeningEditorialAssignment] {
+        paletteAssignmentSnapshot?.assignments ?? [:]
+    }
+
+    private var displayedEditorialRenderInput: EditorialCanvasRenderInput {
+        guard showHappeningPalette else { return editorialRenderInput }
+        let input = editorialRenderInput.sceneInput
+        return EditorialCanvasRenderInput(
+            sceneInput: DayObjectSceneInput(
+                dayKey: input.dayKey,
+                identity: input.identity,
+                eventIDs: [],
+                motionEnergy: input.motionEnergy,
+                visualClarity: input.visualClarity,
+                uiExclusionRegion: input.uiExclusionRegion,
+                canvasCoverage: input.canvasCoverage,
+                paletteCategories: input.paletteCategories,
+                usesEditorialField: input.usesEditorialField,
+                editorialBackground: input.editorialBackground,
+                lowSleep: input.lowSleep,
+                editorialPreview: input.editorialPreview,
+                editorialLabConfiguration: input.editorialLabConfiguration,
+                nativeAtlasRecipe: input.nativeAtlasRecipe
+            ),
+            digitalImpact: editorialRenderInput.digitalImpact
+        )
+    }
+
+    private var bottomControlsPadding: CGFloat {
+        if !presentation.isWideCanvas, !presentation.isEditing {
+            return CanvasBottomControlsLayout.padding(
+                canvasBottomY: canvasGlobalMaxY,
+                tabBarCenterY: tabBarCenterY,
+                controlHeight: 52,
+                fallbackSafeAreaBottom: deviceBottomSafeAreaInset
+            )
+        }
+        return CanvasBottomControlsLayout.padding(
+            safeAreaBottom: deviceBottomSafeAreaInset,
+            isWideCanvas: presentation.isWideCanvas,
+            isEditing: presentation.isEditing
+        )
+    }
+
+    private var canvasSoundPulseBus: DayObjectsSoundPulseBus? {
+#if DEBUG || INTERNAL_BUILD
+        musicController.soundPulseBus
+#else
+        nil
+#endif
+    }
+
+    private var canvasSoundAppearance: CanvasSoundButtonAppearance {
+#if DEBUG || INTERNAL_BUILD
+        switch musicController.soundState {
+        case .off: .readyToPlay
+        case .starting: .starting
+        case .on: .playing
+        case .error: .retry
+        }
+#else
+        .readyToPlay
+#endif
+    }
+
+    private var canvasChromeScrim: some View {
+        VStack(spacing: 0) {
+            LinearGradient(
+                colors: [.black.opacity(0.22), .black.opacity(0.08), .clear],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: max(176, safeAreaTop + 116))
+
+            Spacer(minLength: 0)
+
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.08), .black.opacity(0.24)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: max(184, safeAreaBottom + 140))
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func handleCanvasSoundControl() {
+        switch CanvasSoundExpansionAction.forPresentation(presentation) {
+        case .turnSoundOnAndEnterFullScreen:
+#if DEBUG || INTERNAL_BUILD
+            startCanvasSoundIfNeeded()
+#endif
+            send(.enterFullScreen)
+            lightHapticTick &+= 1
+
+        case .turnSoundOffAndExitFullScreen:
+            send(.exitFullScreen)
+            lightHapticTick &+= 1
+#if DEBUG || INTERNAL_BUILD
+            Task { await musicController.turnSoundOff() }
+#endif
+        }
+    }
+
+#if DEBUG || INTERNAL_BUILD
+    private func startCanvasSoundIfNeeded() {
+        syncCanvasMusicInput()
+        guard musicController.soundState != .on,
+              let intent = musicController.acceptSoundButtonIntent()
+        else { return }
+        Task { await musicController.completeSoundButtonIntent(intent) }
+    }
+
+    private func handleFullScreenSoundControl() {
+        switch CanvasFullScreenSoundAction.resolve(appearance: canvasSoundAppearance) {
+        case .retryInPlace:
+            startCanvasSoundIfNeeded()
+            lightHapticTick &+= 1
+        case .turnOffAndExit:
+            send(.exitFullScreen)
+            lightHapticTick &+= 1
+            Task { await musicController.turnSoundOff() }
+        case .none:
+            break
+        }
+    }
+
+    private func syncCanvasMusicInput() {
+        musicController.setDayInput(
+            countedSteps: model.stepsToday,
+            stepGoal: userStepsTarget,
+            countedSleepHours: model.dailySleepHours,
+            sleepGoalHours: userSleepTarget,
+            happeningIDs: dayCanvas.elements.map { $0.id.uuidString.lowercased() },
+            spentColors: editorialRenderInput.digitalImpact.spentColors
+        )
+        musicController.applyRemix(seed: dayCanvas.resolvedRemixSeed, selection: dayCanvas.resolvedMusicSelection)
+    }
+#endif
 
     private struct CanvasSyncState: Equatable {
         let sleepPoints: Int
@@ -161,7 +374,7 @@ struct GalleryView: View {
         let baseEnergy: Int
         let spentSteps: Int
         let isBootstrapping: Bool
-        let additionIds: [String]
+        let additions: [OptionEntry]
         let gradientStyle: String
         let gradientPalette: String
     }
@@ -173,7 +386,7 @@ struct GalleryView: View {
             baseEnergy: model.baseEnergyToday,
             spentSteps: model.spentStepsToday,
             isBootstrapping: model.isBootstrapping,
-            additionIds: model.todayAdditions.map(\.id),
+            additions: model.todayAdditions,
             gradientStyle: currentGradientStyle,
             gradientPalette: currentGradientPalette
         )
@@ -193,8 +406,6 @@ struct GalleryView: View {
     private var addHintQualifies: Bool { dayCanvas.elements.count < 2 }
 
     private var renderedCanvasElements: [CanvasElement] {
-        // The palette temporarily turns the canvas into the selection field.
-        // Newly committed figures stay out of sight until the user closes it.
         guard !showHappeningPalette else { return [] }
         return spawnPresentation.renderedElements(from: dayCanvas.elements)
     }
@@ -202,15 +413,27 @@ struct GalleryView: View {
     private func refreshHappeningPalette() {
         paletteCatalog = model.paletteHappeningCatalog()
         paletteSelectedIDs = model.selectedPaletteHappeningIDs()
-        paletteHappenings = model.availablePaletteHappenings()
+        paletteHappenings = model.configuredPaletteHappenings()
+        let request = HappeningEditorialAssignmentRequest(
+            happenings: model.configuredPaletteHappenings(),
+            baseInput: editorialRenderInput.sceneInput,
+            committedElements: dayCanvas.elements,
+            colorNonce: model.paletteColorNonce()
+        )
+        if HappeningEditorialAssignmentResolver.needsRefresh(
+            current: paletteAssignmentSnapshot,
+            request: request
+        ) {
+            paletteAssignmentSnapshot = HappeningEditorialAssignmentResolver.snapshot(request: request)
+        }
     }
 
     private func openHappeningPalette() {
         metricOverlay = nil
-        happeningPalettePanel = nil
         send(.openHappeningPalette)
         refreshHappeningPalette()
-        withAnimation(reduceMotion ? nil : .spring(response: 0.52, dampingFraction: 0.88)) {
+        happeningPalettePanel = nil
+        withAnimation(.easeInOut(duration: 0.2)) {
             showHappeningPalette = true
         }
     }
@@ -233,6 +456,9 @@ struct GalleryView: View {
         }
         let next = presentation.applying(event)
         guard next != presentation else { return }
+        if presentation.isEditing && !next.isEditing && dayCanvas.artworkRecipe != nil {
+            saveCanvasLocally()
+        }
         withAnimation(
             reduceMotion
                 ? nil
@@ -243,8 +469,9 @@ struct GalleryView: View {
     }
 
     private func closeHappeningPalette() {
-        happeningPalettePanel = nil
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.28)) {
+        cancelPaletteInteraction()
+        withAnimation(.easeInOut(duration: 0.18)) {
+            happeningPalettePanel = nil
             showHappeningPalette = false
         }
     }
@@ -260,49 +487,224 @@ struct GalleryView: View {
     }
 
     @ViewBuilder
-    private var happeningPaletteOverlay: some View {
+    private func happeningPaletteOverlay(layout: HappeningFieldLayout.Layout) -> some View {
         if showHappeningPalette, !presentation.isWideCanvas {
             HappeningPaletteView(
                 happenings: paletteHappenings,
-                figures: model.paletteFigures(),
+                assignments: paletteEditorialAssignments,
+                labelInks: paletteLabelInks,
                 catalog: paletteCatalog,
                 selectedIDs: paletteSelectedIDs,
                 activePanel: $happeningPalettePanel,
-                onPick: handlePalettePick,
-                onCreate: handlePaletteCreation,
+                layout: layout,
+                interaction: paletteInteraction,
+                addedIDs: paletteAddedIDs,
+                instruction: paletteInstruction,
+                onActivate: handlePaletteActivation,
+                onCreate: { handlePaletteCreation($0) },
+                onCreateReplacement: { title, replacementID, selection in
+                    handlePaletteCreation(title, replacingID: replacementID, selection: selection)
+                },
                 onSaveSelection: handlePaletteSelectionSave,
                 onPanelPresentationChange: onPalettePanelPresentationChange,
-                onDismiss: closeHappeningPalette,
-                dayKey: todayKey,
-                morphNamespace: happeningGlassNamespace,
-                dockCenterY: canvasAddButtonCenterY
+                onReroll: {
+                    model.rerollPaletteFigures()
+                    refreshHappeningPalette()
+                }
             )
             .transition(.opacity)
         }
     }
 
-    private func handlePalettePick(_ happening: Happening, origin _: CGPoint) -> Bool {
-        // The second tap commits the exact assignment previewed in the circle.
-        guard let figure = model.paletteFigures()[happening.id] else { return false }
-        return addAndSpawnHappening(
-            optionId: happening.id,
-            figure: figure,
-            recordUse: true,
-            origin: nil
+    private var paletteAddedIDs: Set<String> {
+        guard dayCanvas.dayKey == AppModel.dayKey(for: .now) else { return [] }
+        return Set(dayCanvas.elements.map(\.optionId))
+    }
+
+    private var paletteLabelInks: [String: HappeningPaletteLabelInk] {
+        let input = displayedEditorialRenderInput.sceneInput
+        let background = DayObjectScene.make(input: input).meshGradientStyle.colors
+        return Dictionary(uniqueKeysWithValues: paletteHappenings.map { happening in
+            let state = paletteInteraction.visualState(for: happening.id, addedIDs: paletteAddedIDs)
+            var material: MetalShapeMaterialUniforms?
+            if state != .available,
+               let assignment = paletteEditorialAssignments[happening.id],
+               let actor = assignment.nativeActor ?? input.nativeAtlasRecipe?.prospectiveActor(
+                   eventID: assignment.elementID.uuidString.lowercased()
+               ) {
+                material = actor.material.primaryCanvasMaterial
+                if actor.materialID != .sunset {
+                    material = material?.withColorVariant(assignment.colorVariant)
+                }
+            }
+            return (happening.id, HappeningPaletteLabelInk.resolve(
+                state: state, background: background, material: material
+            ))
+        })
+    }
+
+    private func happeningPaletteLayout(in viewport: GeometryProxy) -> HappeningFieldLayout.Layout {
+        HappeningFieldLayout.layout(
+            count: min(10, paletteHappenings.count),
+            in: viewport.size,
+            safeInsets: canvasSafeInsets,
+            dynamicTypeSize: paletteDynamicTypeSize,
+            contentTopInset: canvasSafeInsets.top
+                + HappeningPaletteChromeLayout.panelTopInset(
+                    topCardHeight: topCardHeight, hidesSurroundingChrome: true
+                ) + 10,
+            dockCenterY: canvasAddButtonCenterY.map { $0 - viewport.frame(in: .global).minY }
         )
     }
 
-    private func handlePaletteCreation(_ title: String) -> Happening? {
-        guard let created = model.createPaletteHappening(title: title) else {
+    private func paletteRenderMode(layout: HappeningFieldLayout.Layout, viewportSize: CGSize) -> DayObjectsPresentationMode {
+        guard showHappeningPalette else { return .canvas }
+        let slots = paletteHappenings.prefix(10).enumerated().compactMap { index, happening
+            -> HappeningPaletteRenderSlot? in
+            guard index < layout.sources.count,
+                  let assignment = paletteEditorialAssignments[happening.id] else { return nil }
+            return HappeningPaletteRenderSlot(
+                happeningID: happening.id,
+                assignment: assignment,
+                visualState: paletteInteraction.visualState(for: happening.id, addedIDs: paletteAddedIDs),
+                source: layout.sources[index]
+            )
+        }
+        return .happeningPalette(HappeningPaletteRenderPresentation(
+            slots: slots,
+            viewportSize: viewportSize,
+            reduceMotion: reduceMotion,
+            isTransitionActive: paletteTransitionActive,
+            backgroundRevision: UInt64(max(0, localMutationCounter))
+        ))
+    }
+
+    private var paletteInstruction: HappeningPaletteInstruction? {
+        let id: String
+        let kind: HappeningPaletteInstruction.Kind
+        if let errorID = paletteErrorID {
+            id = errorID
+            kind = .error
+        } else if let armed = paletteInteraction.armedMutation {
+            id = armed.id
+            switch armed {
+            case .add: kind = .add
+            case .remove: kind = .remove
+            }
+        } else if case let .added(addedID) = paletteInteraction.confirmation {
+            id = addedID
+            kind = .added
+        } else {
             return nil
         }
+        return HappeningPaletteInstruction(title: model.resolveOptionTitle(for: id), kind: kind)
+    }
+
+    private func handlePaletteActivation(_ happening: Happening) {
+        guard let assignment = paletteEditorialAssignments[happening.id] else { return }
+        paletteConfirmationTask?.cancel()
+        paletteErrorID = nil
+        switch paletteInteraction.tap(id: happening.id, addedIDs: paletteAddedIDs) {
+        case .armed:
+            beginPaletteTransition()
+            lightHapticTick &+= 1
+        case let .perform(mutation):
+            let succeeded: Bool
+            switch mutation {
+            case .add:
+                succeeded = addAndSpawnHappening(
+                    optionId: happening.id,
+                    elementID: assignment.elementID,
+                    editorialColorVariant: assignment.colorVariant,
+                    recordUse: true,
+                    origin: nil
+                )
+            case let .remove(id):
+                succeeded = removePaletteHappening(id: id)
+            }
+            paletteInteraction.resolve(mutation, succeeded: succeeded)
+            beginPaletteTransition()
+            guard succeeded else {
+                paletteErrorID = happening.id
+                return
+            }
+            switch HappeningPaletteSuccessHaptic.forMutation(mutation) {
+            case .addition:
+                paletteAdditionHapticTick &+= 1
+            case .removal:
+                paletteRemovalHapticTick &+= 1
+            }
+            if case .remove = mutation {
+                UIAccessibility.post(
+                    notification: .announcement,
+                    argument: "\(happening.localizedTitle()). \(String(localized: "Removed from Canvas"))"
+                )
+            }
+            paletteConfirmationTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(900))
+                guard !Task.isCancelled else { return }
+                paletteInteraction.clearConfirmation()
+                paletteConfirmationTask = nil
+            }
+        case .ignored:
+            break
+        }
+    }
+
+    private func beginPaletteTransition() {
+        paletteTransitionTask?.cancel()
+        paletteTransitionActive = true
+        paletteTransitionTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(340))
+            guard !Task.isCancelled else { return }
+            paletteTransitionActive = false
+            paletteTransitionTask = nil
+        }
+    }
+
+    private func cancelPaletteInteraction() {
+        paletteTransitionTask?.cancel()
+        paletteConfirmationTask?.cancel()
+        paletteTransitionTask = nil
+        paletteConfirmationTask = nil
+        paletteTransitionActive = false
+        paletteErrorID = nil
+        paletteInteraction.cancel()
+    }
+
+    private func handlePaletteCreation(
+        _ title: String, replacingID: String? = nil, selection: [String]? = nil
+    ) -> HappeningPaletteCreationOutcome {
+        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .invalidTitle
+        }
+        do {
+            _ = try model.createPaletteHappening(
+                title: title,
+                protectedIDs: paletteAddedIDs,
+                selection: selection,
+                replacingID: replacingID
+            )
+        } catch let error as HappeningPaletteSelectionError {
+            if error == .noReplaceableSlot { return .noReplaceableSlot }
+            AppLogger.ui.error(
+                "Failed to create palette happening: \(error.localizedDescription)"
+            )
+            return .failed
+        } catch {
+            AppLogger.ui.error(
+                "Failed to create palette happening: \(error.localizedDescription)"
+            )
+            return .failed
+        }
         refreshHappeningPalette()
-        return created
+        return .created
     }
 
     private func handlePaletteSelectionSave(_ ids: [String]) -> Bool {
         do {
             try model.savePaletteHappeningSelection(ids)
+            cancelPaletteInteraction()
             refreshHappeningPalette()
             return true
         } catch {
@@ -394,13 +796,15 @@ struct GalleryView: View {
     /// `prepareAll()` plumbing needed anymore.
     @State private var lightHapticTick = 0
     @State private var mediumHapticTick = 0
+    @State private var paletteAdditionHapticTick = 0
+    @State private var paletteRemovalHapticTick = 0
 
-    @ViewBuilder
-    private var canvasLayers: some View {
+    private var legacyCanvasLayers: some View {
         ZStack {
             GenerativeCanvasView(
                 elements: renderedCanvasElements,
                 dayKey: dayCanvas.dayKey,
+                remixSeed: dayCanvas.remixSeed,
                 sleepPoints: model.sleepPointsToday,
                 stepsPoints: model.stepsPointsToday,
                 sleepColor: Color(hex: sleepColorHex),
@@ -421,26 +825,6 @@ struct GalleryView: View {
             .ignoresSafeArea()
             .allowsHitTesting(false)
 
-            if !presentation.isEditing {
-                CanvasAnimationOverlay(
-                    elements: renderedCanvasElements,
-                    sleepPoints: model.sleepPointsToday,
-                    stepsPoints: model.stepsPointsToday,
-                    sleepColor: Color(hex: sleepColorHex),
-                    stepsColor: Color(hex: stepsColorHex),
-                    decayNorm: decayNorm,
-                    backgroundColor: canvasBackground,
-                    labelColor: labelColor,
-                    hasStepsData: model.hasStepsData,
-                    hasSleepData: model.hasSleepData
-                )
-                .frame(
-                    width: GenerativeCanvasView.canonicalPortraitSize.width,
-                    height: GenerativeCanvasView.canonicalPortraitSize.height
-                )
-                .ignoresSafeArea()
-            }
-
             if presentation.isEditing {
                 editModeGestureOverlay
                     .frame(
@@ -459,6 +843,75 @@ struct GalleryView: View {
         }
     }
 
+    // Kept separate from screen lifecycle so viewport layout can be verified in isolation.
+    var canvasLayers: some View {
+        GeometryReader { viewport in
+            let paletteLayout = happeningPaletteLayout(in: viewport)
+            ZStack {
+                DayCanvasArtworkView(
+                    style: showHappeningPalette ? .editorial : dayCanvas.resolvedVisualStyle,
+                    editorial: displayedEditorialRenderInput,
+                    isAnimating: isCanvasSelected,
+                    soundPulseBus: canvasSoundPulseBus,
+                    presentationMode: paletteRenderMode(layout: paletteLayout, viewportSize: viewport.size)
+                ) {
+                    legacyCanvasLayers
+                        .background {
+                            EnergyGradientBackground(
+                                stepsPoints: model.stepsPointsToday,
+                                sleepPoints: model.sleepPointsToday,
+                                hasStepsData: model.hasStepsData,
+                                hasSleepData: model.hasSleepData,
+                                showGrain: false,
+                                gradientStyleOverride: dayCanvas.remixSeed == nil ? nil : dayCanvas.gradientStyle,
+                                gradientPaletteOverride: dayCanvas.remixSeed == nil ? nil : dayCanvas.gradientPalette
+                            )
+                            .ignoresSafeArea()
+                            .allowsHitTesting(false)
+                        }
+                        .overlay {
+                            TextureOverlayView(texture: CanvasTexture.fromStored(
+                                dayCanvas.remixSeed == nil ? canvasTextureRaw : (dayCanvas.textureRaw ?? canvasTextureRaw)
+                            ))
+                                .transaction { $0.animation = nil }
+                        }
+                }
+                .frame(width: viewport.size.width, height: viewport.size.height)
+
+                if !presentation.isEditing {
+                    CanvasAnimationOverlay(
+                        elements: renderedCanvasElements,
+                        sleepPoints: model.sleepPointsToday,
+                        stepsPoints: model.stepsPointsToday,
+                        sleepColor: Color(hex: sleepColorHex),
+                        stepsColor: Color(hex: stepsColorHex),
+                        decayNorm: decayNorm,
+                        backgroundColor: canvasBackground,
+                        labelColor: labelColor,
+                        hasStepsData: model.hasStepsData,
+                        hasSleepData: model.hasSleepData,
+                        overlayStyleOverride: dayCanvas.remixSeed == nil ? nil : dayCanvas.overlayStyle,
+                        onGestureBegan: handleCanvasLeadBegan,
+                        onGestureUpdated: handleCanvasLeadUpdated,
+                        onGestureEnded: handleCanvasLeadEnded
+                    )
+                    // Touch coordinates and Metal textures must follow the live
+                    // viewport, including landscape while music is playing.
+                    .frame(width: viewport.size.width, height: viewport.size.height)
+                    .ignoresSafeArea()
+                }
+            }
+            .frame(width: viewport.size.width, height: viewport.size.height)
+            // Labels and Metal share this exact viewport, including safe areas.
+            // An overlay outside canvasLayers inherits a different screen origin.
+            .overlay {
+                happeningPaletteOverlay(layout: paletteLayout)
+            }
+        }
+        .ignoresSafeArea()
+        .environment(\.isTodayCanvasSource, !showHappeningPalette)
+    }
+
     // ═══════════════════════════════════════════════════════════
     // MARK: - Body
     // ═══════════════════════════════════════════════════════════
@@ -475,13 +928,11 @@ struct GalleryView: View {
                 send(.hideData)
                 lightHapticTick &+= 1
             }
+        .overlay {
+            canvasChromeScrim
+        }
         // Controls in overlays — completely decoupled from the canvas/texture
         // ZStack so texture changes never trigger a controls re-layout.
-        .overlay {
-            if happeningPalettePanel == nil {
-                happeningPaletteOverlay
-            }
-        }
         .overlay {
             if !presentation.isWideCanvas,
                HappeningPaletteChromeLayout.showsCanvasControls(
@@ -489,28 +940,32 @@ struct GalleryView: View {
                ) {
                 canvasControls
                     .padding(.horizontal, controlsGuardRail)
-                    .allowsHitTesting(happeningPalettePanel == nil)
-                    .accessibilityHidden(happeningPalettePanel != nil)
             }
         }
         .overlay {
             dataPanelOverlay
         }
         .overlay {
-            if presentation.showsFullScreenDock {
+            if CanvasFullScreenRemixPresentation.isVisible(in: presentation), !isCleanLandscape {
                 wideCanvasOverlay
                     .ignoresSafeArea()
             }
         }
         .overlay {
-            if presentation.showsEditingChrome {
+            if presentation.showsEditingChrome,
+               (dayCanvas.resolvedVisualStyle == .legacy || dayCanvas.artworkRecipe?.isSupported == true) {
                 CanvasEditingDock(
-                    showsDragHint: showsEditDragHint,
+                    showsDragHint: showsEditDragHint && dayCanvas.artworkRecipe == nil,
                     onDone: {
                         send(.endEditing)
                         lightHapticTick &+= 1
                     },
-                    onRemix: { remixCanvas() }
+                    nativeRecipe: dayCanvas.artworkRecipe == nil ? nil : Binding(get: { dayCanvas.artworkRecipe }, set: { recipe in
+                        dayCanvas.artworkRecipe = recipe
+                        dayCanvas.lastModified = .now
+                        localMutationCounter &+= 1
+                    }),
+                    automaticTraceStrength: Float(editorialRenderInput.digitalImpact.damage)
                 )
                 .padding(.horizontal, 16)
                 // `deviceTopSafeAreaInset` (not `safeAreaTop`) — see its doc
@@ -524,19 +979,22 @@ struct GalleryView: View {
             }
         }
         .overlay {
-            TextureOverlayView(texture: CanvasTexture.fromStored(canvasTextureRaw))
-                .transaction { $0.animation = nil }
-        }
-        .overlay {
-            if happeningPalettePanel != nil {
-                happeningPaletteOverlay
+            if showHappeningPalette, !presentation.isWideCanvas, happeningPalettePanel == nil {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    bottomControlsBar
+                        .padding(.horizontal, controlsGuardRail)
+                        .padding(.bottom, bottomControlsPadding)
+                }
             }
         }
-        .energyGradientBackground(model: model, showGrain: false)
         .toolbar(.hidden, for: .navigationBar)
+        .statusBarHidden(isCleanLandscape)
+        .persistentSystemOverlays(isCleanLandscape ? .hidden : .automatic)
         .background(
             GeometryReader { geo in
                 Color.clear
+                    .preference(key: CanvasGlobalMaxYKey.self, value: geo.frame(in: .global).maxY)
                     .onChange(of: geo.size, initial: true) { _, size in
                         canvasViewportSize = size
                         let isIPad = UIDevice.current.userInterfaceIdiom == .pad
@@ -552,6 +1010,7 @@ struct GalleryView: View {
                         }
                     }
                     .onChange(of: geo.safeAreaInsets, initial: true) { _, insets in
+                        canvasSafeInsets = insets
                         safeAreaTop = insets.top
                         safeAreaBottom = insets.bottom
                     }
@@ -560,8 +1019,12 @@ struct GalleryView: View {
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: metricOverlay)
         .animation(.easeInOut(duration: 0.35), value: showQuickStartArea)
 
-        let observingCanvas = visualCanvas
+        let syncingCanvas = visualCanvas
         .onAppear {
+#if DEBUG || INTERNAL_BUILD
+            _ = musicController.acceptLifecycleEvent(.viewAppeared)
+            syncCanvasMusicInput()
+#endif
             model.checkDayBoundary()
             refreshHappeningPalette()
             loadCanvas()
@@ -577,9 +1040,34 @@ struct GalleryView: View {
             }
         }
         .onChange(of: canvasSyncState) {
+            reconcileLoadedCanvasHappenings(at: .now)
             syncCanvasWithModel()
+            if showHappeningPalette {
+                refreshHappeningPalette()
+            }
+#if DEBUG || INTERNAL_BUILD
+            syncCanvasMusicInput()
+#endif
+        }
+        .onChange(of: preferredCanvasVisualStyleRaw) { _, rawValue in
+            applyPreferredCanvasVisualStyle(rawValue)
+        }
+
+        let observingCanvas = syncingCanvas
+        .onChange(of: modernPaletteCategoriesRaw) { _, rawValue in
+            applyPreferredNativeBackground(rawValue)
         }
         .onChange(of: dayCanvas.elements.count) { refreshAddHint() }
+        .onChange(of: dayCanvas.dayKey) {
+            remixHistory = CanvasRemixHistory()
+            remixFeedbackTask?.cancel()
+            remixFeedback = nil
+        }
+        .onChange(of: dayCanvas.lastModified) {
+#if DEBUG || INTERNAL_BUILD
+            syncCanvasMusicInput()
+#endif
+        }
         .onChange(of: showHappeningPalette) { _, isPresented in
             refreshAddHint()
             onPalettePresentationChange(isPresented)
@@ -596,20 +1084,19 @@ struct GalleryView: View {
             } else if selected {
                 consumePaletteOpenRequestIfReady()
             }
-            if !selected { send(.leftCanvasTab) }
+            if !selected {
+                send(.leftCanvasTab)
+#if DEBUG || INTERNAL_BUILD
+                Task { await musicController.turnSoundOff() }
+#endif
+            }
         }
         .onChange(of: todayKey) { _, newKey in
             guard newKey != activeDayKey else { return }
-            loadTask?.cancel()
-            activeDayKey = newKey
-            dayCanvas = DayCanvas(dayKey: newKey)
-            canvasLoaded = false
-            pendingDeletedIds.removeAll()
-            send(.dayBoundary)
-            refreshHappeningPalette()
-            loadCanvas()
+            rollOverCanvas(to: newKey)
         }
         .onChange(of: presentation, initial: true) { old, new in
+            AppDelegate.allowCanvasRotation(new == .fullScreen)
             if !new.showsDataPanel {
                 metricOverlay = nil
             }
@@ -659,6 +1146,12 @@ struct GalleryView: View {
             consumePaletteOpenRequestIfReady()
         }
         .onChange(of: scenePhase) {
+#if DEBUG || INTERNAL_BUILD
+            let lifecycleIntent = musicController.acceptLifecycleEvent(
+                scenePhase == .active ? .sceneActive : .sceneInactive
+            )
+            Task { await musicController.completeLifecycleEvent(lifecycleIntent) }
+#endif
             if scenePhase == .background {
                 if editState.isDraggingElement { handleEditDragEnd() }
                 editState.activeElementId = nil
@@ -677,13 +1170,7 @@ struct GalleryView: View {
             model.checkDayBoundary()
             let newKey = AppModel.dayKey(for: Date.now)
             if newKey != activeDayKey {
-                loadTask?.cancel()
-                activeDayKey = newKey
-                dayCanvas = DayCanvas(dayKey: newKey)
-                canvasLoaded = false
-                pendingDeletedIds.removeAll()
-                send(.dayBoundary)
-                loadCanvas()
+                rollOverCanvas(to: newKey)
             }
             if showHappeningPalette {
                 refreshHappeningPalette()
@@ -722,6 +1209,25 @@ struct GalleryView: View {
         }
 
         return observingCanvas
+        .modifier(CanvasIdleTimerModifier(
+            isFullScreen: presentation == .fullScreen,
+            isCanvasSelected: isCanvasSelected,
+            isMusicPlaying: canvasSoundAppearance == .playing
+        ))
+#if DEBUG || INTERNAL_BUILD
+        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)
+            .receive(on: DispatchQueue.main)) { notification in
+            guard let raw = (notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.uintValue,
+                  AVAudioSession.InterruptionType(rawValue: raw) == .began else { return }
+            Task { await musicController.interruptionBegan() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification)
+            .receive(on: DispatchQueue.main)) { notification in
+            guard let raw = (notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? NSNumber)?.uintValue,
+                  AVAudioSession.RouteChangeReason(rawValue: raw) == .oldDeviceUnavailable else { return }
+            Task { await musicController.turnSoundOff() }
+        }
+#endif
         .sheet(isPresented: $toolbar.showShareSheet, onDismiss: { toolbar.shareImage = nil }) {
             if let image = toolbar.shareImage {
                 CanvasShareSheet(items: [image])
@@ -745,10 +1251,23 @@ struct GalleryView: View {
         .onChange(of: toolbar.showShareSheet) { _, isPresented in
             if !isPresented { toolbar.shareImage = nil }
         }
+        .onDisappear {
+            AppDelegate.allowCanvasRotation(false)
+            if presentation.isEditing && dayCanvas.artworkRecipe != nil { saveCanvasLocally() }
+            cancelPaletteInteraction()
+#if DEBUG || INTERNAL_BUILD
+            let intent = musicController.acceptLifecycleEvent(.viewDisappeared)
+            Task { await musicController.completeLifecycleEvent(intent) }
+#endif
+        }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.35), value: presentation)
         .onPreferenceChange(CanvasAddButtonCenterKey.self) { value in
             guard let value, value != canvasAddButtonCenterY else { return }
             canvasAddButtonCenterY = value
+        }
+        .onPreferenceChange(CanvasGlobalMaxYKey.self) { value in
+            guard value > 0, value != canvasGlobalMaxY else { return }
+            canvasGlobalMaxY = value
         }
         .onPreferenceChange(SuggestionBannerHeightKey.self) { value in
             guard value != suggestionBannerHeight else { return }
@@ -756,6 +1275,14 @@ struct GalleryView: View {
         }
         .sensoryFeedback(.impact(weight: .light), trigger: lightHapticTick)
         .sensoryFeedback(.impact(weight: .medium), trigger: mediumHapticTick)
+        .sensoryFeedback(
+            .impact(weight: .light, intensity: 0.7),
+            trigger: paletteAdditionHapticTick
+        )
+        .sensoryFeedback(
+            .impact(weight: .medium, intensity: 0.6),
+            trigger: paletteRemovalHapticTick
+        )
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -770,7 +1297,7 @@ struct GalleryView: View {
 
     private var canvasControls: some View {
         ZStack {
-            if !showHappeningPalette, showQuickStartArea && !presentation.isWideCanvas {
+            if showQuickStartArea && !presentation.isWideCanvas && !showHappeningPalette {
                 emptyStateView
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
@@ -792,9 +1319,9 @@ struct GalleryView: View {
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
 
-                if !showHappeningPalette,
-                   !model.pendingActivitySuggestions.isEmpty,
-                   !presentation.isWideCanvas {
+                if !model.pendingActivitySuggestions.isEmpty
+                    && !presentation.isWideCanvas
+                    && !showHappeningPalette {
                     ActivitySuggestionBanner(
                         suggestions: model.pendingActivitySuggestions,
                         onAccept: { suggestion in
@@ -818,7 +1345,7 @@ struct GalleryView: View {
                     )
                     .padding(.bottom, 14)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else if !showHappeningPalette, showAddHint {
+                } else if showAddHint && !showHappeningPalette {
                     addActivityHint
                         .padding(.bottom, 14)
                         .transition(
@@ -826,8 +1353,10 @@ struct GalleryView: View {
                             .combined(with: .opacity)
                         )
                 }
-                bottomControlsBar
-                    .padding(.bottom, bottomControlsPadding)
+                if !showHappeningPalette {
+                    bottomControlsBar
+                        .padding(.bottom, bottomControlsPadding)
+                }
             }
         }
     }
@@ -910,7 +1439,8 @@ struct GalleryView: View {
         // whenever the happening palette is presented, not just when the
         // canvas goes wide.
         if presentation.showsBottomActionRow,
-           !showHappeningPalette {
+           !showHappeningPalette,
+           HappeningPaletteChromeLayout.showsCanvasControls(isPalettePresented: showHappeningPalette) {
             VStack(spacing: 0) {
                 CanvasDataPanel(
                     isExpanded: presentation.showsDataPanel,
@@ -955,25 +1485,50 @@ struct GalleryView: View {
         CanvasBottomActionRow(
             isDataPanelOpen: presentation.showsDataPanel,
             isHappeningPalettePresented: showHappeningPalette,
-            morphNamespace: happeningGlassNamespace,
-            onFullScreen: {
-                send(.enterFullScreen)
-                lightHapticTick &+= 1
-            },
+            soundAppearance: canvasSoundAppearance,
+            onSound: handleCanvasSoundControl,
             onOpenHappeningList: {
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) {
+                withAnimation(.easeInOut(duration: 0.2)) {
                     happeningPalettePanel = .chooser
                 }
             },
             onToggleHappeningPalette: {
-                if showHappeningPalette {
-                    closeHappeningPalette()
-                } else {
-                    CoachMarkManager.postAction(for: .tapPlusButton)
-                    openHappeningPalette()
-                }
+                CoachMarkManager.postAction(for: .tapPlusButton)
+                showHappeningPalette ? closeHappeningPalette() : openHappeningPalette()
             }
         )
+    }
+
+    private func handleCanvasLeadBegan(_ sample: CanvasTouchGestureSample) {
+#if DEBUG || INTERNAL_BUILD
+        musicController.beginLead(
+            LeadGestureSample(
+                normalizedX: sample.normalizedX,
+                normalizedY: sample.normalizedY,
+                speed: sample.speed
+            ),
+            isGridVisible: false,
+            isVoiceOverRunning: UIAccessibility.isVoiceOverRunning
+        )
+#endif
+    }
+
+    private func handleCanvasLeadUpdated(_ sample: CanvasTouchGestureSample) {
+#if DEBUG || INTERNAL_BUILD
+        musicController.updateLead(
+            LeadGestureSample(
+                normalizedX: sample.normalizedX,
+                normalizedY: sample.normalizedY,
+                speed: sample.speed
+            )
+        )
+#endif
+    }
+
+    private func handleCanvasLeadEnded() {
+#if DEBUG || INTERNAL_BUILD
+        musicController.endLead()
+#endif
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -1150,69 +1705,204 @@ struct GalleryView: View {
     // MARK: - Canvas State Management
     // ═══════════════════════════════════════════════════════════
 
+    private func makeNewCanvas(dayKey: String) -> DayCanvas {
+        var canvas = preferredCanvasVisualStyle == .editorial ? DayCanvas.newDailyCanvas(dayKey: dayKey, paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw)) : DayCanvas(dayKey: dayKey)
+        canvas.visualStyleRaw = preferredCanvasVisualStyle.rawValue
+        return canvas
+    }
+
+    private func migratedLoadedCanvas(_ loaded: DayCanvas) -> (canvas: DayCanvas, didMigrate: Bool) {
+        var canvas = loaded
+        switch CanvasVisualStyleMigration.decision(
+            dayKey: loaded.dayKey,
+            storedStyleRaw: loaded.visualStyleRaw,
+            currentDayKey: todayKey,
+            completedVersion: canvasVisualStyleMigrationVersion
+        ) {
+        case .use(let style):
+            if loaded.dayKey == todayKey {
+                preferredCanvasVisualStyleRaw = style.rawValue
+            }
+            // Only write a value when it already existed. A missing historical
+            // field must stay untouched so old serialized canvases remain exact.
+            if loaded.visualStyleRaw != nil {
+                canvas.visualStyleRaw = style.rawValue
+            }
+            return (canvas, false)
+        case .persist(let style, let markVersion):
+            canvas.visualStyleRaw = style.rawValue
+            canvasVisualStyleMigrationVersion = markVersion
+            preferredCanvasVisualStyleRaw = style.rawValue
+            return (canvas, true)
+        }
+    }
+
+    private func applyPreferredNativeBackground(_ rawValue: String) {
+        guard canvasLoaded, dayCanvas.dayKey == todayKey,
+              dayCanvas.applyNativeBackground(paletteCategories: ModernPaletteSelection.decode(rawValue)) else { return }
+        localMutationCounter &+= 1
+        saveCanvasLocally()
+    }
+
+    private func applyPreferredCanvasVisualStyle(_ rawValue: String) {
+        guard canvasLoaded,
+              dayCanvas.dayKey == todayKey else { return }
+        let style = CanvasVisualStyle(rawValue: rawValue) ?? .editorial
+        guard dayCanvas.visualStyleRaw != style.rawValue else { return }
+
+        if presentation.isEditing {
+            send(.endEditing)
+        }
+        dayCanvas.visualStyleRaw = style.rawValue
+        dayCanvas.lastModified = .now
+        canvasVisualStyleMigrationVersion = CanvasVisualStyleMigration.currentVersion
+        saveCanvasLocally()
+        HistoryThumbnailCache.shared.invalidate(dayKey: dayCanvas.dayKey)
+    }
+
+    /// Both the live day-key observer and the foreground boundary check use
+    /// this one reset so the palette, chooser/creator, and hidden tab chrome
+    /// cannot survive into a new day.
+    private func rollOverCanvas(to newKey: String) {
+        var paletteState = CanvasPalettePresentationState(
+            isPresented: showHappeningPalette,
+            activePanel: happeningPalettePanel
+        )
+        paletteState.closeForDayRollover()
+        cancelPaletteInteraction()
+        happeningPalettePanel = paletteState.activePanel
+        showHappeningPalette = paletteState.isPresented
+        loadTask?.cancel()
+        activeDayKey = newKey
+        dayCanvas = makeNewCanvas(dayKey: newKey)
+        canvasLoaded = false
+        pendingDeletedIds.removeAll()
+        send(.dayBoundary)
+        refreshHappeningPalette()
+        loadCanvas()
+    }
+
     private func loadCanvas() {
         let dayKey = AppModel.dayKey(for: Date.now)
         // Unit tests run inside the application host. Keep the host Gallery
         // inert so it cannot race persistence tests through the shared canvas
         // directory; tests exercise CanvasStorageService explicitly.
         if isUnitTestHost {
-            dayCanvas = DayCanvas(dayKey: dayKey)
-            canvasLoaded = true
+            applyHydratedCanvas(makeNewCanvas(dayKey: dayKey))
             return
         }
         if usesTask7UITestFixture {
-            dayCanvas = DayCanvas(dayKey: dayKey)
-            canvasLoaded = true
+            applyHydratedCanvas(makeNewCanvas(dayKey: dayKey))
             syncCanvasWithModel()
             return
         }
         let local = CanvasStorageService.shared.loadCanvas(for: dayKey)
         if let local {
-            dayCanvas = local
-            canvasLoaded = true
+            let migrated = migratedLoadedCanvas(local)
+            applyHydratedCanvas(migrated.canvas)
             syncCanvasWithModel()
+            if migrated.didMigrate {
+                saveCanvasLocally()
+            }
             return
         }
         // No on-disk canvas. If we already finished bootstrap for this day,
         // treat that as a real "empty today" rather than re-fetching forever.
         if lastBootstrappedDayKey == dayKey {
-            dayCanvas = DayCanvas(dayKey: dayKey)
-            canvasLoaded = true
+            applyHydratedCanvas(makeNewCanvas(dayKey: dayKey))
+            canvasVisualStyleMigrationVersion = CanvasVisualStyleMigration.currentVersion
             syncCanvasWithModel()
             return
         }
-        dayCanvas = DayCanvas(dayKey: dayKey)
+        dayCanvas = makeNewCanvas(dayKey: dayKey)
         let snapshotCounter = localMutationCounter
         pendingDeletedIds.removeAll()
         loadTask = Task {
             let remote = await SupabaseSyncService.shared.fetchDayCanvas(for: dayKey)
             await MainActor.run {
                 guard !Task.isCancelled else { return }
-                lastBootstrappedDayKey = dayKey
-                if let remote {
-                    if localMutationCounter != snapshotCounter {
-                        let merged = mergeRemoteWithLocal(remote: remote, local: dayCanvas)
-                        dayCanvas = merged
-                        canvasLoaded = true
-                        saveCanvasLocally()
+                let didHydrate = CanvasRemoteHydrationCoordinator.apply(
+                    remote,
+                    onFound: { remoteCanvas in
+                        if localMutationCounter != snapshotCounter {
+                            let merged = mergeRemoteWithLocal(
+                                remote: remoteCanvas,
+                                local: dayCanvas
+                            )
+                            let migrated = migratedLoadedCanvas(merged)
+                            applyHydratedCanvas(migrated.canvas)
+                            saveCanvasLocally()
+                            syncCanvasWithModel()
+                        } else {
+                            let migrated = migratedLoadedCanvas(remoteCanvas)
+                            applyHydratedCanvas(migrated.canvas)
+                            // Hydration may canonicalize duplicate binary palette
+                            // elements. Persist the resulting source of truth, not
+                            // the pre-reconciliation remote payload.
+                            CanvasStorageService.shared.saveCanvas(dayCanvas)
+                            syncCanvasWithModel()
+                            refreshWidgetSnapshot()
+                        }
+                    },
+                    onConfirmedAbsent: {
+                        canvasVisualStyleMigrationVersion = CanvasVisualStyleMigration.currentVersion
+                        applyHydratedCanvas(dayCanvas)
+                        if localMutationCounter != snapshotCounter {
+                            saveCanvasLocally()
+                        }
                         syncCanvasWithModel()
-                    } else {
-                        dayCanvas = remote
-                        CanvasStorageService.shared.saveCanvas(remote)
-                        canvasLoaded = true
-                        syncCanvasWithModel()
-                        refreshWidgetSnapshot()
                     }
-                } else {
-                    canvasLoaded = true
-                    if localMutationCounter != snapshotCounter {
-                        saveCanvasLocally()
-                    }
-                    syncCanvasWithModel()
+                )
+                guard didHydrate else {
+                    // Keep canvasLoaded false and do not publish or mark this
+                    // day bootstrapped. A later appearance can retry safely.
+                    loadTask = nil
+                    return
                 }
+                lastBootstrappedDayKey = dayKey
                 pendingDeletedIds.removeAll()
+                loadTask = nil
             }
         }
+    }
+
+    /// Canvas data can arrive after the palette snapshot was first made. Keep
+    /// that state cache in sync at this assignment boundary rather than during
+    /// a SwiftUI body evaluation.
+    private func applyHydratedCanvas(_ canvas: DayCanvas) {
+        dayCanvas = canvas
+        canvasLoaded = true
+        if !isUnitTestHost {
+            reconcileLoadedCanvasHappenings(at: .now)
+        }
+        refreshHappeningPalette()
+    }
+
+    /// Daily additions are a persisted projection of the visual Canvas. Repair
+    /// that projection only at a completed hydration boundary so an empty
+    /// placeholder can never delete legitimate entries while a load is active.
+    private func reconcileLoadedCanvasHappenings(at now: Date) {
+        guard !isUnitTestHost, activeDayKey == dayCanvas.dayKey else { return }
+        guard let reconciliation = CanvasHappeningReconciliationPolicy.reconcileIfReady(
+            canvasLoaded: canvasLoaded,
+            appModelIsBootstrapping: model.isBootstrapping,
+            canvas: dayCanvas,
+            entries: model.todayAdditions,
+            dayKey: dayCanvas.dayKey,
+            now: now
+        ) else { return }
+
+        if !reconciliation.duplicateElementIDsToRemove.isEmpty {
+            let duplicateIDs = Set(reconciliation.duplicateElementIDsToRemove)
+            dayCanvas.elements.removeAll { duplicateIDs.contains($0.id) }
+            dayCanvas.lastModified = now
+            saveCanvasLocally()
+        }
+
+        CanvasHappeningReconciliationTransaction.commit(
+            reconciliation,
+            model: model
+        )
     }
 
     /// ID-keyed merge with last-write-wins per element and tombstone protection.
@@ -1235,6 +1925,16 @@ struct GalleryView: View {
             }
         }
         var merged = remote
+        // Preserve local recipe edits when both sides belong to the new
+        // generation. A historical remote canvas must not be auto-migrated by
+        // the temporary fresh canvas used while hydration is in flight.
+        if remote.artworkRecipe != nil, local.artworkRecipe != nil,
+           local.lastModified >= remote.lastModified {
+            merged.artworkRecipe = local.artworkRecipe
+        }
+        if merged.visualStyleRaw == nil {
+            merged.visualStyleRaw = local.visualStyleRaw
+        }
         let order = local.elements.map(\.id) + remote.elements.map(\.id)
         var seen: Set<UUID> = []
         var ordered: [CanvasElement] = []
@@ -1248,20 +1948,18 @@ struct GalleryView: View {
 
     @MainActor
     private func refreshWidgetSnapshot() {
-        CanvasStorageService.shared.saveWidgetSnapshot(
-            for: dayCanvas.dayKey,
-            elements: dayCanvas.elements,
-            sleepPoints: dayCanvas.sleepPoints,
-            stepsPoints: dayCanvas.stepsPoints,
-            sleepColor: Color(hex: dayCanvas.sleepColorHex),
-            stepsColor: Color(hex: dayCanvas.stepsColorHex),
-            decayNorm: dayCanvas.decayNorm
+        let canvas = dayCanvas
+        let categories = ModernPaletteSelection.decode(modernPaletteCategoriesRaw)
+        CanvasStorageService.shared.scheduleWidgetSnapshot(
+            for: canvas, paletteCategories: categories
         )
     }
 
     private func syncCanvasWithModel() {
-        guard canvasLoaded else { return }
-        guard activeDayKey == dayCanvas.dayKey else { return }
+        guard canvasLoaded, !model.isBootstrapping else { return }
+        model.checkDayBoundary()
+        guard activeDayKey == dayCanvas.dayKey,
+              dayCanvas.dayKey == AppModel.dayKey(for: .now) else { return }
         var didChange = false
 
         // 2. Update canvas metrics from model (sleep, steps, energy)
@@ -1272,15 +1970,15 @@ struct GalleryView: View {
 
         let currentOverlay = UserDefaults.stepsTrader().string(forKey: SharedKeys.canvasOverlayStyle) ?? CanvasOverlayStyle.smudge.rawValue
         let currentTexture = UserDefaults.standard.string(forKey: SharedKeys.canvasTexture) ?? CanvasTexture.grainSmall.rawValue
+        didChange = dayCanvas.applyVisualPreferences(
+            gradientStyle: currentGradientStyle, gradientPalette: currentGradientPalette,
+            overlayStyle: currentOverlay, textureRaw: currentTexture
+        )
 
         if dayCanvas.sleepPoints != newSleep
            || dayCanvas.stepsPoints != newSteps
            || dayCanvas.inkEarned != newEarned
            || dayCanvas.inkSpent != newSpent
-           || dayCanvas.gradientStyle != currentGradientStyle
-           || dayCanvas.gradientPalette != currentGradientPalette
-           || dayCanvas.overlayStyle != currentOverlay
-           || dayCanvas.textureRaw != currentTexture
            || dayCanvas.hasStepsData != model.hasStepsData
            || dayCanvas.hasSleepData != model.hasSleepData {
             dayCanvas.sleepPoints = newSleep
@@ -1289,10 +1987,6 @@ struct GalleryView: View {
             dayCanvas.inkSpent = newSpent
             dayCanvas.sleepColorHex = sleepColorHex
             dayCanvas.stepsColorHex = stepsColorHex
-            dayCanvas.gradientStyle = currentGradientStyle
-            dayCanvas.gradientPalette = currentGradientPalette
-            dayCanvas.overlayStyle = currentOverlay
-            dayCanvas.textureRaw = currentTexture
             dayCanvas.hasStepsData = model.hasStepsData
             dayCanvas.hasSleepData = model.hasSleepData
             didChange = true
@@ -1312,7 +2006,7 @@ struct GalleryView: View {
         // from disk on next launch.
         guard canvasLoaded else { return false }
         let didPersist: Bool
-        if dayCanvas.elements.isEmpty {
+        if dayCanvas.elements.isEmpty && dayCanvas.artworkRecipe == nil && dayCanvas.remixSeed == nil {
             CanvasStorageService.shared.deleteCanvas(for: dayCanvas.dayKey)
             didPersist = true
         } else {
@@ -1336,6 +2030,8 @@ struct GalleryView: View {
     private func addAndSpawnHappening(
         optionId: String,
         figure: HappeningShapeAssignment? = nil,
+        elementID: UUID = UUID(),
+        editorialColorVariant: Int? = nil,
         recordUse: Bool = true,
         origin: CGPoint? = nil
     ) -> Bool {
@@ -1343,16 +2039,19 @@ struct GalleryView: View {
         let transactionDayKey = AppModel.dayKey(for: now)
         guard dayCanvas.dayKey == transactionDayKey else { return false }
         var element = CanvasElement.spawn(
-            id: UUID(),
+            id: elementID,
             optionId: optionId,
             label: model.resolveOptionTitle(for: optionId),
             existingElements: dayCanvas.elements,
             dayKey: transactionDayKey,
             composition: DayComposition.forDay(
                 dayKey: transactionDayKey,
-                happeningCount: dayCanvas.elements.count),
+                happeningCount: dayCanvas.elements.count,
+                allowedTextureKinds: dayCanvas.remixSeed == nil ? TextureKind.allowedByUser : TextureKind.allCases,
+                remixSeed: dayCanvas.remixSeed),
             figure: figure
         )
+        element.editorialColorVariant = editorialColorVariant
         element.lastEditedAt = now
 
         let presentationOrigin: CGPoint?
@@ -1387,6 +2086,7 @@ struct GalleryView: View {
         if let presentationOrigin {
             spawnPresentation.stage(elementID: element.id, origin: presentationOrigin)
         }
+        pendingDeletedIds.remove(element.id)
         dayCanvas = result.canvas
         localMutationCounter &+= 1
         publishCanvasPersistence(result.canvas)
@@ -1412,22 +2112,43 @@ struct GalleryView: View {
         }
     }
 
-    private func removeElement(id: UUID) {
-        guard let index = dayCanvas.elements.firstIndex(where: { $0.id == id }) else { return }
-        var updated = dayCanvas
-        let removed = updated.elements.remove(at: index)
-        model.removeAddition(entryId: removed.id.uuidString)
-        pendingDeletedIds.insert(removed.id)
-        updated.lastModified = Date.now
-        dayCanvas = updated
+    @discardableResult
+    private func removePaletteHappening(id: String) -> Bool {
+        let now = Date.now
+        guard let result = CanvasHappeningRemovalTransaction.commit(
+            canvasLoaded: canvasLoaded,
+            canvas: dayCanvas,
+            model: model,
+            happeningID: id,
+            at: now,
+            persist: { canvas in
+                if usesTask7UITestFixture { return true }
+                return CanvasHappeningRemovalPersistence.persist(
+                    canvas,
+                    save: CanvasStorageService.shared.saveCanvas
+                )
+            }
+        ) else {
+            return false
+        }
+
+        dayCanvas = result.canvas
+        pendingDeletedIds.insert(result.removedElement.id)
         localMutationCounter &+= 1
-        saveCanvasLocally()
+        publishCanvasPersistence(result.canvas)
+        refreshHappeningPalette()
+        return true
+    }
+
+    private func removeElement(id: UUID) {
+        guard let element = dayCanvas.elements.first(where: { $0.id == id }) else { return }
+        _ = removePaletteHappening(id: element.optionId)
     }
 
     private func rerollElement(id: UUID) {
         guard let index = dayCanvas.elements.firstIndex(where: { $0.id == id }) else { return }
         let composition = DayComposition.forDay(
-            dayKey: dayCanvas.dayKey, happeningCount: dayCanvas.elements.count)
+            dayKey: dayCanvas.dayKey, happeningCount: dayCanvas.elements.count, remixSeed: dayCanvas.remixSeed)
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             dayCanvas.elements[index].reroll(rank: index, composition: composition)
             dayCanvas.elements[index].lastEditedAt = Date.now
@@ -1437,29 +2158,47 @@ struct GalleryView: View {
         saveCanvasLocally()
     }
 
-    /// Restyles every element at once: one mutation counter bump, one save, one
-    /// haptic. Positions, identities, energy and the background gradient are
-    /// exactly what they were.
+    /// One complete canvas replacement, persistence operation, and music plan.
     private func remixCanvas() {
-        guard !dayCanvas.elements.isEmpty else { return }
-        let composition = DayComposition.forDay(
-            dayKey: dayCanvas.dayKey,
-            happeningCount: dayCanvas.elements.count
-        )
-        let remixed = CanvasRemix.remixed(dayCanvas.elements, composition: composition)
-        // One ease for both motion settings on purpose: replacing the elements
-        // in place *is* the crossfade Reduce Motion asks for — nothing travels
-        // and nothing springs, so there is no motion to reduce.
+        guard canvasLoaded, CanvasFullScreenRemixPresentation.isVisible(in: presentation) else { return }
+        guard let result = remixHistory.commitRemix(canvas: dayCanvas, paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw), persist: {
+            CanvasStorageService.shared.saveCanvas($0)
+        }) else { return }
         withAnimation(.easeInOut(duration: 0.3)) {
-            dayCanvas.elements = remixed
+            dayCanvas = result.canvas
         }
-        dayCanvas.lastModified = Date.now
         localMutationCounter &+= 1
-        saveCanvasLocally()
+        publishCanvasPersistence(result.canvas)
+#if DEBUG || INTERNAL_BUILD
+        musicController.applyRemix(seed: result.seed, selection: result.musicSelection)
+        remixFeedbackTask?.cancel()
+        remixFeedback = "\(result.musicSelection.world.displayName) · \(result.musicSelection.mood.rawValue.capitalized)"
+        remixFeedbackTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.2)) { remixFeedback = nil }
+        }
+#endif
         mediumHapticTick &+= 1
         Task {
             await SupabaseSyncService.shared.trackAnalyticsEvent(name: "canvas_remixed")
         }
+    }
+
+    private func undoCanvasRemix() {
+        guard canvasLoaded, CanvasFullScreenRemixPresentation.isVisible(in: presentation),
+              let restored = remixHistory.commitUndo(into: dayCanvas, persist: {
+                  CanvasStorageService.shared.saveCanvas($0)
+              }) else { return }
+        withAnimation(.easeInOut(duration: 0.3)) { dayCanvas = restored }
+        localMutationCounter &+= 1
+        publishCanvasPersistence(restored)
+#if DEBUG || INTERNAL_BUILD
+        musicController.applyRemix(seed: restored.resolvedRemixSeed, selection: restored.resolvedMusicSelection)
+#endif
+        remixFeedbackTask?.cancel()
+        remixFeedback = nil
+        lightHapticTick &+= 1
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -1469,15 +2208,26 @@ struct GalleryView: View {
     private var wideCanvasOverlay: some View {
         VStack {
             Spacer()
+#if DEBUG || INTERNAL_BUILD
+            if let remixFeedback {
+                Text(remixFeedback)
+                .font(.geist(.caption))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial, in: Capsule())
+                .padding(.bottom, 10)
+            }
+#endif
             CanvasFullScreenDock(
-                onExit: {
+                onClose: {
                     send(.exitFullScreen)
                     lightHapticTick &+= 1
+#if DEBUG || INTERNAL_BUILD
+                    Task { await musicController.turnSoundOff() }
+#endif
                 },
-                onEdit: {
-                    send(.beginEditing)
-                    lightHapticTick &+= 1
-                },
+                onRemix: remixCanvas,
                 share: { shareButton }
             )
             .padding(.horizontal, 8)
@@ -1683,38 +2433,6 @@ struct GalleryView: View {
             let userName = AuthenticationService.shared.currentUser?.displayName
             let style = PosterStyle.museum
 
-            let canvasContent = ZStack {
-                EnergyGradientBackground(
-                    stepsPoints: model.stepsPointsToday,
-                    sleepPoints: model.sleepPointsToday,
-                    hasStepsData: model.hasStepsData,
-                    hasSleepData: model.hasSleepData,
-                    showGrain: true,
-                    gradientStyleOverride: currentGradientStyle,
-                    gradientPaletteOverride: currentGradientPalette,
-                    textureOverride: dayCanvas.textureRaw
-                )
-
-                GenerativeCanvasView(
-                    elements: dayCanvas.elements,
-                    dayKey: dayCanvas.dayKey,
-                    sleepPoints: model.sleepPointsToday,
-                    stepsPoints: model.stepsPointsToday,
-                    sleepColor: Color(hex: sleepColorHex),
-                    stepsColor: Color(hex: stepsColorHex),
-                    decayNorm: decayNorm,
-                    backgroundColor: .clear,
-                    labelColor: labelColor,
-                    showLabelsOnCanvas: true,
-                    showsOutlinedLabels: false,
-                    showsBackgroundGradient: false,
-                    hasStepsData: model.hasStepsData,
-                    hasSleepData: model.hasSleepData,
-                    fixedTime: Date.now,
-                    isOffscreenRender: true
-                )
-            }
-
             // Render the poster at the exact on-screen frame size, then upscale via
             // `renderer.scale`. This keeps every element — including the canvas's
             // absolute-point labels — at the same proportions shown on screen,
@@ -1722,6 +2440,61 @@ struct GalleryView: View {
             // the fixed-size labels relative to the canvas.
             let frameSize = GenerativeCanvasView.framedCanvasSize
             let targetWidth: CGFloat = 2160
+            let renderScale = targetWidth / frameSize.width
+
+            let canvasContent: AnyView
+            switch CanvasExportRoute(canvas: dayCanvas) {
+            case .editorialMetal:
+                guard let image = await DayObjectsImageRenderer.image(
+                    input: editorialRenderInput,
+                    size: frameSize,
+                    scale: renderScale,
+                    elapsedTime: 4
+                ) else {
+                    toolbar.isExporting = false
+                    return
+                }
+                canvasContent = AnyView(
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                )
+            case .legacySwiftUI:
+                canvasContent = AnyView(
+                    ZStack {
+                        EnergyGradientBackground(
+                            stepsPoints: model.stepsPointsToday,
+                            sleepPoints: model.sleepPointsToday,
+                            hasStepsData: model.hasStepsData,
+                            hasSleepData: model.hasSleepData,
+                            showGrain: true,
+                            gradientStyleOverride: dayCanvas.remixSeed == nil ? currentGradientStyle : dayCanvas.gradientStyle,
+                            gradientPaletteOverride: dayCanvas.remixSeed == nil ? currentGradientPalette : dayCanvas.gradientPalette,
+                            textureOverride: dayCanvas.textureRaw
+                        )
+
+                        GenerativeCanvasView(
+                            elements: dayCanvas.elements,
+                            dayKey: dayCanvas.dayKey,
+                            remixSeed: dayCanvas.remixSeed,
+                            sleepPoints: model.sleepPointsToday,
+                            stepsPoints: model.stepsPointsToday,
+                            sleepColor: Color(hex: sleepColorHex),
+                            stepsColor: Color(hex: stepsColorHex),
+                            decayNorm: decayNorm,
+                            backgroundColor: .clear,
+                            labelColor: labelColor,
+                            showLabelsOnCanvas: true,
+                            showsOutlinedLabels: false,
+                            showsBackgroundGradient: false,
+                            hasStepsData: model.hasStepsData,
+                            hasSleepData: model.hasSleepData,
+                            fixedTime: Date.now,
+                            isOffscreenRender: true
+                        )
+                    }
+                )
+            }
 
             let shareable = CanvasPosterView(
                 style: style,
@@ -1738,7 +2511,7 @@ struct GalleryView: View {
 
             await Task.yield()
             let renderer = ImageRenderer(content: shareable)
-            renderer.scale = targetWidth / frameSize.width
+            renderer.scale = renderScale
             renderer.proposedSize = .init(width: frameSize.width, height: frameSize.height)
             let image = renderer.uiImage
 
@@ -1851,6 +2624,13 @@ struct CanvasAddButtonCenterKey: PreferenceKey {
     static let defaultValue: CGFloat? = nil
     static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
         value = nextValue() ?? value
+    }
+}
+
+struct CanvasGlobalMaxYKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 

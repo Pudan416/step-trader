@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The two Canvas actions that flank the data drawer: raise the canvas, add
+/// The two Canvas actions that flank the tab bar: listen to the day, add
 /// something that happened.
 ///
 /// "Show data" no longer lives here — it moved up to a strip under the
@@ -17,20 +17,13 @@ struct CanvasBottomActionRow: View {
     /// can't see through must not leave a live hit region under it.
     let isDataPanelOpen: Bool
     let isHappeningPalettePresented: Bool
-    let morphNamespace: Namespace.ID
-    let onFullScreen: () -> Void
+    let soundAppearance: CanvasSoundButtonAppearance
+    let onSound: () -> Void
     let onOpenHappeningList: () -> Void
     let onToggleHappeningPalette: () -> Void
 
-    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var ink: Color { AppColors.Night.textPrimary }
-
-    /// Increase Contrast lifts the outlined circle off a busy canvas.
-    private var outlineOpacity: Double {
-        colorSchemeContrast == .increased ? 0.65 : 0.35
-    }
+    @Environment(\.canvasChromePalette) private var palette
+    private var ink: Color { palette.textColor }
 
     var body: some View {
         Group {
@@ -51,9 +44,9 @@ struct CanvasBottomActionRow: View {
         HStack(alignment: .center, spacing: 0) {
             if !isDataPanelOpen {
                 if isHappeningPalettePresented {
-                    happeningListControl
+                    listControl
                 } else {
-                    fullScreenControl
+                    soundControl
                 }
             }
             Spacer(minLength: 8)
@@ -68,44 +61,40 @@ struct CanvasBottomActionRow: View {
         .environment(\.layoutDirection, .leftToRight)
     }
 
-    private var happeningListControl: some View {
+    // MARK: - Left: sound + full screen
+
+    private var soundControl: some View {
+        Button(action: onSound) {
+            Image(systemName: soundAppearance.systemImage)
+                .font(.geist(size: 20, weight: .regular))
+                .foregroundStyle(palette.accentColor)
+                .frame(width: 48, height: 48)
+                .canvasChromeSurface(in: Circle())
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(soundAppearance == .starting)
+        .accessibilityLabel(soundAppearance.accessibilityLabel)
+        .accessibilityHint(
+            String(localized: "Starts the day's music and opens the canvas full screen",
+                   comment: "Canvas – sound button VoiceOver hint")
+        )
+        .accessibilityValue(soundAppearance.accessibilityValue)
+        .accessibilityIdentifier("canvas_sound_button")
+    }
+
+    private var listControl: some View {
         Button(action: onOpenHappeningList) {
             Image(systemName: "list.bullet")
                 .font(.geist(size: 20, weight: .regular))
                 .foregroundStyle(ink)
-                .frame(width: 48, height: 48)
-                .liquidGlassControl(in: Circle(), style: .lens)
+                .frame(width: 52, height: 52)
+                .canvasChromeSurface(in: Circle())
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(
-            String(localized: "Choose happenings", comment: "Canvas palette list button")
-        )
-        .accessibilityIdentifier("canvas_palette_list_button")
-    }
-
-    // MARK: - Left: full screen
-
-    private var fullScreenControl: some View {
-        Button(action: onFullScreen) {
-            Image(systemName: "arrow.up.left.and.arrow.down.right")
-                .font(.geist(size: 20, weight: .regular))
-                .foregroundStyle(ink)
-                .frame(width: 48, height: 48)
-                // Outline, not glass: the canvas is the subject here, and a
-                // filled pill in the corner competes with it.
-                .overlay(Circle().strokeBorder(ink.opacity(outlineOpacity), lineWidth: 1))
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(
-            String(localized: "Expand canvas", comment: "Canvas – full screen button VoiceOver label")
-        )
-        .accessibilityHint(
-            String(localized: "Opens the canvas without editing",
-                   comment: "Canvas – full screen button VoiceOver hint")
-        )
-        .accessibilityIdentifier("canvas_fullscreen_button")
+        .accessibilityLabel(String(localized: "Choose happenings"))
+        .accessibilityIdentifier("canvas_happening_list_button")
     }
 
     // MARK: - Right: add
@@ -114,31 +103,24 @@ struct CanvasBottomActionRow: View {
         Button(action: onToggleHappeningPalette) {
             Image(systemName: "plus")
                 .font(.geist(size: 22, weight: .regular))
-                .foregroundStyle(AppAccentInk.primary)
+                .foregroundStyle(palette.onAccentColor)
                 .rotationEffect(.degrees(isHappeningPalettePresented ? 45 : 0))
                 .frame(width: 52, height: 52)
-                .background(AppColors.brandAccent.opacity(0.32), in: Circle())
-                .liquidGlassControl(
-                    in: Circle(),
-                    style: .lensTinted,
-                    tint: .fixed(AppColors.brandAccent)
-                )
+                .background(palette.accentColor, in: Circle())
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .animation(.spring(response: 0.34, dampingFraction: 0.78), value: isHappeningPalettePresented)
         .accessibilityLabel(
-            isHappeningPalettePresented
-                ? String(localized: "Close", comment: "Canvas palette close button")
-                : String(localized: "Add happening", comment: "Canvas add button")
+            String(
+                localized: isHappeningPalettePresented ? "Close" : "Add happening",
+                comment: "Canvas add or palette close button"
+            )
         )
         .accessibilityIdentifier(
             isHappeningPalettePresented ? "canvas_palette_close_button" : "canvas_add_button"
         )
         .coachMarkAnchor(.tapPlusButton)
-        .animation(
-            reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.78),
-            value: isHappeningPalettePresented
-        )
         // The palette docks on this button's line rather than re-deriving it
         // from tab-bar height and paddings.
         .background(
@@ -149,5 +131,39 @@ struct CanvasBottomActionRow: View {
                 )
             }
         )
+    }
+}
+
+enum CanvasSoundButtonAppearance: Equatable {
+    case readyToPlay
+    case starting
+    case playing
+    case retry
+
+    var systemImage: String {
+        switch self {
+        case .readyToPlay: "play.fill"
+        case .starting: "hourglass"
+        case .playing: "waveform"
+        case .retry: "arrow.clockwise"
+        }
+    }
+
+    var accessibilityLabel: String {
+        switch self {
+        case .readyToPlay: String(localized: "Play day music")
+        case .starting: String(localized: "Starting day music")
+        case .playing: String(localized: "Day music is playing")
+        case .retry: String(localized: "Retry day music")
+        }
+    }
+
+    var accessibilityValue: String {
+        switch self {
+        case .readyToPlay: "off"
+        case .starting: "starting"
+        case .playing: "on"
+        case .retry: "error, retry available"
+        }
     }
 }

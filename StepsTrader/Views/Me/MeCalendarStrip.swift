@@ -96,6 +96,20 @@ enum MeCalendarTileLayout {
     }
 }
 
+struct MeCalendarTileBorderMetrics: Equatable {
+    let lineWidth: CGFloat
+    let opacity: Double
+}
+
+enum MeCalendarTileBorderStyle {
+    static func metrics(isSelected: Bool) -> MeCalendarTileBorderMetrics {
+        MeCalendarTileBorderMetrics(
+            lineWidth: isSelected ? 1.5 : 1,
+            opacity: isSelected ? 0.95 : 0.24
+        )
+    }
+}
+
 // MARK: - Me calendar
 //
 // A chronological seven-day strip: older days are on the left and today is
@@ -111,6 +125,7 @@ struct MeCalendarStrip: View {
     let onOpenArchive: () -> Void
 
     @Environment(\.appTheme) private var theme
+    @Environment(\.canvasChromePalette) private var palette
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.displayScale) private var displayScale
 
@@ -150,15 +165,35 @@ struct MeCalendarStrip: View {
 
                 HStack(spacing: Self.tileSpacing) {
                     ForEach(keys, id: \.self) { key in
+                        let isSelected = key == selectedDayKey
+                        let shape = RoundedRectangle(
+                            cornerRadius: 8,
+                            style: .continuous
+                        )
+                        let border = MeCalendarTileBorderStyle.metrics(
+                            isSelected: isSelected
+                        )
+
                         DayHistoryTile(
                             dayKey: key,
                             snapshot: pastDays[key],
                             health: recentHealthByDay[key],
-                            isSelected: key == selectedDayKey,
+                            isSelected: isSelected,
                             onTap: { onSelect(key) }
                         )
                         .frame(width: tileWidth, height: tileHeight)
-                        .clipped()
+                        .clipShape(shape)
+                        .overlay {
+                            if isSelected {
+                                shape.strokeBorder(palette.surfaceColor, lineWidth: border.lineWidth + 2)
+                            }
+                            shape.strokeBorder(
+                                isSelected
+                                    ? palette.accentColor.opacity(border.opacity)
+                                    : theme.textPrimary.opacity(border.opacity),
+                                lineWidth: border.lineWidth
+                            )
+                        }
                         .id(key)
                     }
                 }
@@ -189,7 +224,7 @@ struct MeCalendarStrip: View {
     private var recentDaysTitle: some View {
         Text(String(localized: "LAST 7 CALENDAR DAYS", comment: "MeView – recent calendar section header"))
             .font(.geist(.caption).weight(.medium))
-            .foregroundStyle(theme.textSecondary.opacity(0.72))
+            .foregroundStyle(theme.textSecondary)
             .tracking(1.1)
     }
 
@@ -201,7 +236,7 @@ struct MeCalendarStrip: View {
                     .font(.geist(.caption2).weight(.semibold))
             }
             .font(.geist(.subheadline).weight(.medium))
-            .foregroundStyle(AppColors.brandAccent)
+            .foregroundStyle((theme.isLightTheme ? palette.surfaceColor : palette.accentColor))
             .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
@@ -218,6 +253,12 @@ struct MeCalendarStrip: View {
 
 // MARK: - Day Tile
 
+enum MeHistoryThumbnailPolicy {
+    static func canvasForRendering(_ canvas: DayCanvas?) -> DayCanvas? {
+        canvas
+    }
+}
+
 struct DayHistoryTile: View {
     let dayKey: String
     let snapshot: PastDaySnapshot?
@@ -226,6 +267,9 @@ struct DayHistoryTile: View {
     let onTap: () -> Void
 
     @Environment(\.appTheme) private var theme
+    @Environment(\.canvasChromePalette) private var palette
+    @AppStorage(SharedKeys.modernPaletteCategories)
+    private var modernPaletteCategoriesRaw = ""
 
     @State private var thumbnail: UIImage?
     @State private var hasLoaded = false
@@ -246,11 +290,15 @@ struct DayHistoryTile: View {
     }
 
     var body: some View {
-        Button(action: onTap) {
+        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+
+        return Button(action: onTap) {
             tileBody
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(shape)
+        .clipShape(shape)
         .buttonStyle(ScaleButtonStyle())
         .accessibilityIdentifier("me_calendar_day_\(dayKey)")
         .accessibilityLabel(accessibilityLabel)
@@ -278,7 +326,7 @@ struct DayHistoryTile: View {
             }
 
             LinearGradient(
-                colors: [.black.opacity(0.05), .black.opacity(0.38)],
+                colors: [.black.opacity(0.38), .black.opacity(0.46)],
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -286,7 +334,7 @@ struct DayHistoryTile: View {
             VStack(spacing: 4) {
                 Text(weekdayLabel)
                     .font(.geist(.caption2).weight(isSelected ? .bold : .medium))
-                    .foregroundStyle(isSelected ? AppColors.brandAccent : theme.textPrimary.opacity(0.75))
+                    .foregroundStyle(isSelected ? palette.accentColor : AppColors.Night.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
 
@@ -295,7 +343,7 @@ struct DayHistoryTile: View {
                 Text(dayNumber)
                     .font(.unbounded(18, weight: .medium, relativeTo: .title3))
                     .fontDesign(nil)
-                    .foregroundStyle(isSelected ? AppColors.brandAccent : theme.textPrimary.opacity(0.9))
+                    .foregroundStyle(isSelected ? palette.accentColor : AppColors.Night.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.62)
             }
@@ -303,15 +351,6 @@ struct DayHistoryTile: View {
             .padding(.vertical, 7)
         }
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(
-                    isSelected
-                        ? AppColors.brandAccent.opacity(0.95)
-                        : theme.stroke.opacity(theme.strokeOpacity * 0.5),
-                    lineWidth: isSelected ? 1.5 : 0.5
-                )
-        )
         .task {
             guard !hasLoaded else { return }
             hasLoaded = true
@@ -343,21 +382,12 @@ struct DayHistoryTile: View {
 
     private func loadThumbnail() async {
         let key = dayKey
-        var canvas = await Task.detached(priority: .utility) {
-            CanvasStorageService.shared.loadCanvas(for: key)
-        }.value
+        let canvas = await MePosterCanvasLoadCoordinator.shared.canvas(
+            for: key,
+            hasTrackedSnapshot: snapshot != nil
+        )
 
-        if MeCalendarTimeline.shouldAttemptRemoteRecovery(
-            hasTrackedSnapshot: snapshot != nil,
-            localCanvasMissing: canvas == nil
-        ) {
-            if let remote = await SupabaseSyncService.shared.fetchDayCanvas(for: key) {
-                CanvasStorageService.shared.saveCanvas(remote)
-                canvas = remote
-            }
-        }
-
-        guard let canvas, !canvas.elements.isEmpty else {
+        guard let canvas = MeHistoryThumbnailPolicy.canvasForRendering(canvas) else {
             return
         }
 
@@ -369,7 +399,8 @@ struct DayHistoryTile: View {
             canvas: canvas,
             size: size,
             fixedTime: fixedTime,
-            theme: theme
+            theme: theme,
+            paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw)
         )
 
         await MainActor.run { thumbnail = image }
@@ -381,16 +412,26 @@ struct DayHistoryTile: View {
 struct MeFullCalendarView: View {
     @ObservedObject var model: AppModel
     let pastDays: [String: PastDaySnapshot]
+    let recentHealthByDay: [String: MeDayHealth]
+    let unlockRecords: [MePosterUnlockRecord]
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
+    @Environment(\.canvasChromePalette) private var palette
 
     @State private var visibleMonth: Date
     @State private var selectedDayKey: String?
 
-    init(model: AppModel, pastDays: [String: PastDaySnapshot]) {
+    init(
+        model: AppModel,
+        pastDays: [String: PastDaySnapshot],
+        recentHealthByDay: [String: MeDayHealth] = [:],
+        unlockRecords: [MePosterUnlockRecord] = []
+    ) {
         self.model = model
         self.pastDays = pastDays
+        self.recentHealthByDay = recentHealthByDay
+        self.unlockRecords = unlockRecords
         let boundary = AppModel.storedDayEnd()
         _visibleMonth = State(initialValue: MeCalendarTimeline.logicalToday(
             dayEndHour: boundary.hour,
@@ -432,7 +473,7 @@ struct MeFullCalendarView: View {
 
     var body: some View {
         ZStack {
-            theme.backgroundColor.ignoresSafeArea()
+            Color.clear
 
             VStack(spacing: 0) {
                 topBar
@@ -452,13 +493,19 @@ struct MeFullCalendarView: View {
                 .scrollIndicators(.hidden)
             }
         }
-        .energyGradientBackground(model: model, showGrain: false)
+        .todayCanvasBackground()
         .preferredColorScheme(theme.colorScheme)
         .fullScreenCover(item: Binding(
             get: { selectedDayKey.map { MeDayKeyWrapper(key: $0) } },
             set: { selectedDayKey = $0?.key }
         )) { wrapper in
-            DayCanvasViewerView(model: model, dayKey: wrapper.key)
+            DayCanvasViewerView(
+                model: model,
+                dayKey: wrapper.key,
+                snapshot: pastDays[wrapper.key],
+                health: recentHealthByDay[wrapper.key],
+                unlockRecords: unlockRecords
+            )
         }
     }
 
@@ -574,7 +621,7 @@ struct MeFullCalendarView: View {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(
                         isToday
-                            ? theme.accentColor.opacity(0.18)
+                            ? (theme.isLightTheme ? palette.surfaceColor : palette.accentColor).opacity(0.18)
                             : theme.textPrimary.opacity(isTracked ? 0.07 : 0.025)
                     )
 
@@ -584,13 +631,13 @@ struct MeFullCalendarView: View {
                     .monospacedDigit()
                     .foregroundStyle(
                         isToday
-                            ? theme.accentColor
+                            ? (theme.isLightTheme ? palette.surfaceColor : palette.accentColor)
                             : theme.textPrimary.opacity(isFuture ? 0.25 : 0.85)
                     )
 
                 if isTracked {
                     Circle()
-                        .fill(theme.accentColor.opacity(0.9))
+                        .fill((theme.isLightTheme ? palette.surfaceColor : palette.accentColor).opacity(0.9))
                         .frame(width: 4, height: 4)
                         .padding(.bottom, 6)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -600,7 +647,7 @@ struct MeFullCalendarView: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(
-                        isToday ? theme.accentColor.opacity(0.8) : .clear,
+                        isToday ? (theme.isLightTheme ? palette.surfaceColor : palette.accentColor).opacity(0.8) : .clear,
                         lineWidth: 1
                     )
             )

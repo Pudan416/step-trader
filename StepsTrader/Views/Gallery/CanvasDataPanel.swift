@@ -6,7 +6,7 @@ private struct DrawerSurface: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         if isVisible {
-            content.glassCard(cornerRadius: 24, style: .lens)
+            content.canvasChromeSurface(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         } else {
             content
         }
@@ -90,7 +90,7 @@ struct CanvasDataRow: Identifiable, Equatable {
 
 /// The data behind today's canvas. Its grabber is always the drawer's lower
 /// edge: collapsed it rests just under the energy pill; pulling down stretches
-/// the glass and carries the grabber to the bottom of the revealed rows.
+/// the panel and carries the grabber to the bottom of the revealed rows.
 struct CanvasDataPanel: View {
     let isExpanded: Bool
     let rows: [CanvasDataRow]
@@ -103,6 +103,8 @@ struct CanvasDataPanel: View {
     let onToggle: () -> Void
     var availableHeight: CGFloat? = nil
 
+    @ScaledMetric(relativeTo: .body) private var minimumRowHeight: CGFloat = 62
+    @ScaledMetric(relativeTo: .body) private var rowIconWidth: CGFloat = 18
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @GestureState private var localDragDistance: CGFloat = 0
 
@@ -113,7 +115,8 @@ struct CanvasDataPanel: View {
     private static let handleHitHeight: CGFloat = 44
     private static let handleHitExtension = handleHitHeight - handleVisualHeight
 
-    private var ink: Color { AppColors.Night.textPrimary }
+    @Environment(\.canvasChromePalette) private var palette
+    private var ink: Color { palette.textColor }
 
     private var rowsMaxHeight: CGFloat? {
         guard let availableHeight else { return nil }
@@ -127,7 +130,7 @@ struct CanvasDataPanel: View {
     }
 
     private var estimatedRowsHeight: CGFloat {
-        let rowHeight: CGFloat = dynamicTypeSize.isAccessibilitySize ? 64 : 44
+        let rowHeight = minimumRowHeight
         let gaps = CGFloat(max(0, rows.count - 1)) * Self.rowSpacing
         let disclosureHeight: CGFloat
         if selectedKind == nil {
@@ -249,12 +252,12 @@ struct CanvasDataPanel: View {
 
     /// Visually this is only a 16pt footer, about one third of the former
     /// empty header. The negative inset preserves a forgiving 44pt gesture
-    /// target without making the glass block look thick.
+    /// target without making the panel look thick.
     private var handle: some View {
         ZStack {
             Color.clear
             Capsule()
-                .fill(ink.opacity(0.45))
+                .fill(palette.secondaryColor)
                 .frame(width: 36, height: 4)
         }
         .frame(maxWidth: .infinity)
@@ -290,39 +293,59 @@ struct CanvasDataPanel: View {
         .coachMarkAnchor(.expandChevron)
     }
 
+    private func rowTitle(_ row: CanvasDataRow) -> some View {
+        Text(row.title)
+            .font(.geist(.body).weight(.medium))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func rowValue(_ row: CanvasDataRow) -> some View {
+        Text("\(row.value)/\(row.maxValue)")
+            .font(.geist(.body).weight(.medium))
+            .monospacedDigit()
+            .fixedSize()
+    }
+
     private func rowView(_ row: CanvasDataRow) -> some View {
         Button {
             onSelect(row.kind)
         } label: {
-            HStack(spacing: 8) {
-                Image(systemName: row.systemImage)
-                    .font(.geist(.caption))
-                Text(row.title)
-                    .font(.geist(.caption).weight(.semibold))
-                Spacer(minLength: 8)
-                Text("\(row.value)/\(row.maxValue)")
-                    .font(.geist(.caption).weight(.semibold))
-                    .monospacedDigit()
-                Image(systemName: selectedKind == row.kind ? "chevron.up" : "chevron.down")
-                    .font(.geist(.caption2).weight(.semibold))
-                    .foregroundStyle(ink.opacity(0.65))
-            }
-            .foregroundStyle(ink)
-            .padding(.horizontal, 10)
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .background {
-                GeometryReader { proxy in
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(AppColors.brandAccent.opacity(0.85))
-                        .frame(width: max(0, proxy.size.width * row.fill))
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(spacing: 11) {
+                HStack(spacing: 10) {
+                    Image(systemName: row.systemImage)
+                        .font(.geist(16, weight: .medium, relativeTo: .body))
+                        .frame(width: rowIconWidth)
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 6) {
+                            rowTitle(row)
+                            rowValue(row)
+                        }
+                        Spacer(minLength: 8)
+                    } else {
+                        rowTitle(row)
+                        Spacer(minLength: 8)
+                        rowValue(row)
+                    }
+                    Image(systemName: selectedKind == row.kind ? "chevron.up" : "chevron.down")
+                        .font(.geist(.caption2).weight(.medium))
+                        .foregroundStyle(palette.secondaryColor)
                 }
+                .foregroundStyle(ink)
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(palette.trackColor)
+                        Capsule().fill(palette.accentColor)
+                            .frame(width: max(0, proxy.size.width * row.fill))
+                    }
+                }
+                .frame(height: 4)
+                .padding(.leading, rowIconWidth + 10)
+                .accessibilityHidden(true)
             }
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(ink.opacity(0.08))
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .padding(.horizontal, 4)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, minHeight: minimumRowHeight)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(row.title), \(row.value) of \(row.maxValue)")
@@ -342,7 +365,7 @@ struct CanvasDataPanel: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(CanvasMetricDisclosure.explanation(for: kind))
                 .font(.geist(.footnote))
-                .foregroundStyle(ink.opacity(0.78))
+                .foregroundStyle(palette.secondaryColor)
                 .fixedSize(horizontal: false, vertical: true)
 
             Link(destination: CanvasMetricDisclosure.researchURL(for: kind)) {
@@ -351,7 +374,7 @@ struct CanvasDataPanel: View {
                     Image(systemName: "arrow.up.right")
                 }
                 .font(.geist(.caption).weight(.medium))
-                .foregroundStyle(AppColors.brandAccent)
+                .foregroundStyle(palette.accentColor)
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 .contentShape(Rectangle())
             }

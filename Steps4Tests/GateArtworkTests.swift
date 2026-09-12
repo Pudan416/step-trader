@@ -63,6 +63,41 @@ final class GateArtworkTests: XCTestCase {
         }
     }
 
+    func testArtworkUsesActualHappeningPresetsAndCompatibleMaterials() throws {
+        for index in 0..<GateArtwork.variantCount {
+            let artwork = GateArtwork(seed: UInt32(index))
+            let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == artwork.presetID })
+            let material = try XCTUnwrap(MetalShapeMaterial(rawValue: artwork.materialID))
+            XCTAssertTrue(preset.compatibility.allowed.contains(material))
+            XCTAssertEqual(material, .sideLight, "Gate icons keep the quiet two-color treatment")
+            let frame = MetalShapeGenomeFrame.make(preset: preset, material: material, seed: artwork.renderSeed)
+            let colors = artwork.colorVariant.map { frame.material.withColorVariant($0) } ?? frame.material
+            XCTAssertEqual(colors.color1, colors.color2, "Hue changes must not introduce a third color")
+        }
+    }
+
+    func testEveryVariantIsBundledInAppAndShieldAndRendersIdentically() throws {
+        let plugins = try XCTUnwrap(Bundle.main.builtInPlugInsURL)
+        let shield = try XCTUnwrap(Bundle(url: plugins.appendingPathComponent("ShieldConfiguration.appex")))
+        for index in 0..<GateArtwork.variantCount {
+            let artwork = GateArtwork(seed: UInt32(index))
+            let appImage = try XCTUnwrap(GateArtworkRenderer.render(artwork, pixels: 240))
+            let shieldImage = try XCTUnwrap(GateArtworkRenderer.render(artwork, pixels: 240, bundle: shield))
+            let appData = try XCTUnwrap(appImage.dataProvider?.data) as Data
+            let shieldData = try XCTUnwrap(shieldImage.dataProvider?.data) as Data
+            XCTAssertEqual(appData, shieldData, artwork.resourceName)
+            XCTAssertEqual(appData[3], 0, artwork.resourceName)
+            XCTAssertGreaterThan(appData[120 * appImage.bytesPerRow + 120 * 4 + 3], 0, artwork.resourceName)
+        }
+    }
+
+    func testRandomSelectionDoesNotImmediatelyRepeatTheVisibleVariant() {
+        for index in 0..<GateArtwork.variantCount {
+            let previous = GateArtwork(seed: UInt32(index))
+            XCTAssertNotEqual(GateArtwork.random(excluding: previous).variantIndex, previous.variantIndex)
+        }
+    }
+
     func testArtworkRendersWithTransparentCornersAndVisibleBody() throws {
         let image = try XCTUnwrap(GateArtworkRenderer.render(GateArtwork(seed: 44100105), pixels: 240))
         let data = try XCTUnwrap(image.dataProvider?.data) as Data

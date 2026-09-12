@@ -6,6 +6,11 @@ struct DayObjectRGB: Equatable {
     let sRGB: SIMD3<Float>
     let linearRGB: SIMD3<Float>
 
+    var perceptualOKLab: SIMD3<Float> {
+        let color = DayObjectOKLab(linearRGB: linearRGB)
+        return SIMD3(color.lightness, color.a, color.b)
+    }
+
     init(hex: String) {
         let trimmed = hex.trimmingCharacters(in: .whitespacesAndNewlines)
         let value = trimmed.hasPrefix("#") ? String(trimmed.dropFirst()) : trimmed
@@ -26,7 +31,7 @@ struct DayObjectRGB: Equatable {
         )
     }
 
-    private init(linearRGB: SIMD3<Float>) {
+    init(linearRGB: SIMD3<Float>) {
         self.linearRGB = Self.clampedFinite(linearRGB)
         sRGB = SIMD3(
             Self.sRGBComponent(self.linearRGB.x),
@@ -48,6 +53,66 @@ struct DayObjectRGB: Equatable {
         return DayObjectRGB(linearRGB: linearRGB + (SIMD3(repeating: 1) - linearRGB) * min(max(whiteMix, 0), 1))
     }
 
+    func shiftingPerceptualLightness(
+        by shift: Float,
+        minimumChromaFraction: Float = 0.55
+    ) -> DayObjectRGB {
+        let source = DayObjectOKLab(linearRGB: linearRGB)
+        if abs(shift) < 0.000_001,
+           (0.061...0.939).contains(source.lightness) {
+            return self
+        }
+        var targetLightness = min(max(source.lightness + shift, 0.061), 0.939)
+        let minimumScale = min(max(minimumChromaFraction, 0), 1)
+
+        func candidate(chromaScale: Float, lightness: Float? = nil) -> SIMD3<Float> {
+            DayObjectOKLab(
+                lightness: lightness ?? targetLightness,
+                a: source.a * chromaScale,
+                b: source.b * chromaScale
+            ).linearRGB
+        }
+
+        if DayObjectOKLab.isInDisplayGamut(candidate(chromaScale: 1)) {
+            return DayObjectRGB(linearRGB: candidate(chromaScale: 1))
+        }
+
+        var lower = minimumScale
+        var upper: Float = 1
+        if !DayObjectOKLab.isInDisplayGamut(candidate(chromaScale: lower)) {
+            // At the display-gamut boundary, retain the promised chroma and
+            // give back only as much lightness shift as is necessary.
+            let sourceBounded = min(max(source.lightness, 0.061), 0.939)
+            var infeasible = targetLightness
+            var feasible = sourceBounded
+            guard DayObjectOKLab.isInDisplayGamut(
+                candidate(chromaScale: lower, lightness: feasible)
+            ) else {
+                return self
+            }
+            for _ in 0..<12 {
+                let midpoint = (infeasible + feasible) * 0.5
+                if DayObjectOKLab.isInDisplayGamut(
+                    candidate(chromaScale: lower, lightness: midpoint)
+                ) {
+                    feasible = midpoint
+                } else {
+                    infeasible = midpoint
+                }
+            }
+            targetLightness = feasible
+        }
+        for _ in 0..<12 {
+            let midpoint = (lower + upper) * 0.5
+            if DayObjectOKLab.isInDisplayGamut(candidate(chromaScale: midpoint)) {
+                lower = midpoint
+            } else {
+                upper = midpoint
+            }
+        }
+        return DayObjectRGB(linearRGB: candidate(chromaScale: lower))
+    }
+
     private static func linearComponent(_ value: Float) -> Float {
         value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
     }
@@ -62,6 +127,59 @@ struct DayObjectRGB: Equatable {
             value.y.isFinite ? min(max(value.y, 0), 1) : 0,
             value.z.isFinite ? min(max(value.z, 0), 1) : 0
         )
+    }
+}
+
+/// OKLab keeps hue and chroma perceptually stable while daily contrast moves
+/// the whole actor family along one bounded lightness axis.
+private struct DayObjectOKLab {
+    let lightness: Float
+    let a: Float
+    let b: Float
+
+    init(lightness: Float, a: Float, b: Float) {
+        self.lightness = lightness
+        self.a = a
+        self.b = b
+    }
+
+    init(linearRGB: SIMD3<Float>) {
+        let l = 0.412_221_46 * linearRGB.x
+            + 0.536_332_55 * linearRGB.y
+            + 0.051_445_995 * linearRGB.z
+        let m = 0.211_903_5 * linearRGB.x
+            + 0.680_699_5 * linearRGB.y
+            + 0.107_396_96 * linearRGB.z
+        let s = 0.088_302_46 * linearRGB.x
+            + 0.281_718_85 * linearRGB.y
+            + 0.629_978_7 * linearRGB.z
+        let lRoot = cbrt(l)
+        let mRoot = cbrt(m)
+        let sRoot = cbrt(s)
+        lightness = 0.210_454_26 * lRoot + 0.793_617_8 * mRoot - 0.004_072_047 * sRoot
+        a = 1.977_998_5 * lRoot - 2.428_592_2 * mRoot + 0.450_593_7 * sRoot
+        b = 0.025_904_037 * lRoot + 0.782_771_77 * mRoot - 0.808_675_77 * sRoot
+    }
+
+    var linearRGB: SIMD3<Float> {
+        let lRoot = lightness + 0.396_337_78 * a + 0.215_803_76 * b
+        let mRoot = lightness - 0.105_561_346 * a - 0.063_854_17 * b
+        let sRoot = lightness - 0.089_484_18 * a - 1.291_485_5 * b
+        let l = lRoot * lRoot * lRoot
+        let m = mRoot * mRoot * mRoot
+        let s = sRoot * sRoot * sRoot
+        return SIMD3(
+            4.076_741_7 * l - 3.307_711_6 * m + 0.230_969_94 * s,
+            -1.268_438 * l + 2.609_757_4 * m - 0.341_319_38 * s,
+            -0.004_196_086_3 * l - 0.703_418_6 * m + 1.707_614_7 * s
+        )
+    }
+
+    static func isInDisplayGamut(_ color: SIMD3<Float>) -> Bool {
+        color.x.isFinite && color.y.isFinite && color.z.isFinite
+            && color.x >= 0 && color.x <= 1
+            && color.y >= 0 && color.y <= 1
+            && color.z >= 0 && color.z <= 1
     }
 }
 
@@ -93,8 +211,20 @@ struct DayObjectPalette: Equatable {
         )
     }
 
-    static func make(seed: UInt64) -> DayObjectPalette {
-        let colors = selectedColors(seed: seed)
+    static func make(
+        seed: UInt64,
+        categories: Set<ModernPaletteCategory> = []
+    ) -> DayObjectPalette {
+        let colors = selectedColors(seed: seed, categories: categories)
+        return make(colors: colors)
+    }
+
+    static func make(modernPalette: ModernPalette) -> DayObjectPalette {
+        make(colors: modernPalette.hexes.map(DayObjectRGB.init(hex:)))
+    }
+
+    private static func make(colors: [DayObjectRGB]) -> DayObjectPalette {
+        precondition(colors.count >= 3, "Day Objects palettes require at least three colors")
         let baseIndex = colors.indices.min {
             relativeLuminance(colors[$0].linearRGB) < relativeLuminance(colors[$1].linearRGB)
         } ?? colors.startIndex
@@ -117,271 +247,13 @@ struct DayObjectPalette: Equatable {
         )
     }
 
-    private static func selectedColors(seed: UInt64) -> [DayObjectRGB] {
-        var rng = SeededRNG.derived(from: seed, domain: "dayObjectPalette")
-        let palettes = GradientPalette.allCases
-        let palette = palettes[rng.nextInt(in: 0...(palettes.count - 1))]
-        return palette.colorHexes.map(DayObjectRGB.init(hex:))
-    }
-}
-
-/// One shared static-radial art direction for every figure in a daily scene.
-/// The palette subset and geometry remain stable for the day; individual
-/// actors receive only a small deterministic phase variation in the shader.
-enum DayObjectRadialPreset: UInt32, CaseIterable, Equatable {
-    case `default`
-    case radial
-    case loFi
-    case crossSections
-}
-
-struct DayObjectRadialFillStyle: Equatable {
-    let colors: [SIMD3<Float>]
-    let radius: Double
-    let focalDistance: Double
-    let focalAngle: Double
-    let falloff: Double
-    let mixing: Double
-    let distortion: Double
-    let distortionShift: Double
-    let distortionFrequency: Int
-    let rotation: Double
-    let offset: SIMD2<Double>
-    let preset: DayObjectRadialPreset
-    let banding: Double
-
-    init(
-        colors: [SIMD3<Float>],
-        radius: Double,
-        focalDistance: Double,
-        focalAngle: Double,
-        falloff: Double,
-        mixing: Double,
-        distortion: Double,
-        distortionShift: Double,
-        distortionFrequency: Int,
-        rotation: Double,
-        offset: SIMD2<Double>,
-        preset: DayObjectRadialPreset = .default,
-        banding: Double = 0
-    ) {
-        self.colors = colors
-        self.radius = radius
-        self.focalDistance = focalDistance
-        self.focalAngle = focalAngle
-        self.falloff = falloff
-        self.mixing = mixing
-        self.distortion = distortion
-        self.distortionShift = distortionShift
-        self.distortionFrequency = distortionFrequency
-        self.rotation = rotation
-        self.offset = offset
-        self.preset = preset
-        self.banding = banding
-    }
-
-    static let fallback = DayObjectRadialFillStyle(
-        colors: [SIMD3<Float>(repeating: 1)],
-        radius: 0.9,
-        focalDistance: 0,
-        focalAngle: 0,
-        falloff: 0,
-        mixing: 0.6,
-        distortion: 0,
-        distortionShift: 0,
-        distortionFrequency: 4,
-        rotation: 0,
-        offset: .zero
-    )
-
-    static func make(
+    private static func selectedColors(
         seed: UInt64,
-        palette: DayObjectPalette,
-        colorCount rawColorCount: Int
-    ) -> DayObjectRadialFillStyle {
-        var rng = SeededRNG.derived(from: seed, domain: "dayObjectRadialFill")
-        var available = Array(palette.colors.indices)
-        let colorCount = min(max(rawColorCount, 1), min(3, available.count))
-        var colors = [SIMD3<Float>]()
-        colors.reserveCapacity(colorCount)
-        for _ in 0..<colorCount {
-            let availableIndex = rng.nextInt(in: 0...(available.count - 1))
-            colors.append(
-                palette.colors[available.remove(at: availableIndex)]
-                    .lightened(
-                        toMinimumContrast: 1.35,
-                        against: palette.backgroundBase
-                    )
-                    .linearRGB
-            )
-        }
-
-        let preset = DayObjectRadialPreset.allCases[
-            rng.nextInt(in: 0...(DayObjectRadialPreset.allCases.count - 1))
-        ]
-        let radius: ClosedRange<Double>
-        let focalDistance: ClosedRange<Double>
-        let falloff: ClosedRange<Double>
-        let mixing: ClosedRange<Double>
-        let distortion: ClosedRange<Double>
-        let distortionShift: ClosedRange<Double>
-        let distortionFrequency: ClosedRange<Int>
-        let banding: ClosedRange<Double>
-        switch preset {
-        case .default:
-            radius = 0.72...1.18
-            focalDistance = 0.18...0.72
-            falloff = -0.15...0.45
-            mixing = 0.55...1
-            distortion = 0.10...0.38
-            distortionShift = -0.38...0.38
-            distortionFrequency = 3...7
-            banding = 0...0.08
-        case .radial:
-            radius = 0.68...1.12
-            focalDistance = 0...0.28
-            falloff = -0.10...0.35
-            mixing = 0.70...1
-            distortion = 0...0.16
-            distortionShift = -0.24...0.24
-            distortionFrequency = 2...5
-            banding = 0...0.04
-        case .loFi:
-            radius = 0.60...1.15
-            focalDistance = 0.05...0.55
-            falloff = -0.15...0.35
-            mixing = 0.65...1
-            distortion = 0.08...0.32
-            distortionShift = -0.40...0.40
-            distortionFrequency = 2...6
-            banding = 0.22...0.55
-        case .crossSections:
-            radius = 0.62...1.10
-            focalDistance = 0.18...0.68
-            falloff = -0.12...0.38
-            mixing = 0.72...1
-            distortion = 0.22...0.58
-            distortionShift = -0.50...0.50
-            distortionFrequency = 4...10
-            banding = 0.08...0.28
-        }
-
-        return DayObjectRadialFillStyle(
-            colors: colors,
-            radius: rng.nextDouble(in: radius),
-            focalDistance: rng.nextDouble(in: focalDistance),
-            focalAngle: rng.nextDouble(in: 0...(2 * .pi - Double.ulpOfOne)),
-            falloff: rng.nextDouble(in: falloff),
-            mixing: rng.nextDouble(in: mixing),
-            distortion: rng.nextDouble(in: distortion),
-            distortionShift: rng.nextDouble(in: distortionShift),
-            distortionFrequency: rng.nextInt(in: distortionFrequency),
-            rotation: rng.nextDouble(in: 0...(2 * .pi - Double.ulpOfOne)),
-            offset: SIMD2(
-                rng.nextDouble(in: -0.24...0.24),
-                rng.nextDouble(in: -0.24...0.24)
-            ),
-            preset: preset,
-            banding: rng.nextDouble(in: banding)
-        )
-    }
-}
-
-enum DayObjectMeshGradientArchetype: UInt32, CaseIterable, Equatable {
-    case drift
-    case orbit
-    case tide
-    case islands
-    case bloom
-}
-
-/// The daily background's moving mesh-gradient art direction. A day retains
-/// one curated topology and one direction; continuous values vary inside
-/// bounded ranges so seeds feel related without collapsing into one vortex.
-struct DayObjectMeshGradientStyle: Equatable {
-    let colors: [SIMD3<Float>]
-    let archetype: DayObjectMeshGradientArchetype
-    let offset: SIMD2<Double>
-    let distortion: Double
-    let swirl: Double
-    let speed: Double
-    let scale: Double
-    let phase: Double
-    let motionDirection: Double
-
-    init(
-        colors: [SIMD3<Float>],
-        archetype: DayObjectMeshGradientArchetype = .orbit,
-        offset: SIMD2<Double> = .zero,
-        distortion: Double,
-        swirl: Double,
-        speed: Double,
-        scale: Double,
-        phase: Double,
-        motionDirection: Double = 1
-    ) {
-        self.colors = colors
-        self.archetype = archetype
-        self.offset = offset
-        self.distortion = distortion
-        self.swirl = swirl
-        self.speed = speed
-        self.scale = scale
-        self.phase = phase
-        self.motionDirection = motionDirection < 0 ? -1 : 1
-    }
-
-    static func make(seed: UInt64, palette: DayObjectPalette) -> DayObjectMeshGradientStyle {
-        var rng = SeededRNG.derived(from: seed, domain: "dayObjectMeshGradient")
-        let archetype = DayObjectMeshGradientArchetype.allCases[
-            rng.nextInt(in: 0...(DayObjectMeshGradientArchetype.allCases.count - 1))
-        ]
-        let direction = rng.nextInt(in: 0...1) == 0 ? -1.0 : 1.0
-        let offset = SIMD2(
-            rng.nextDouble(in: -0.18...0.18),
-            rng.nextDouble(in: -0.18...0.18)
-        )
-        let distortion: Double
-        let swirl: Double
-        let speed: Double
-        let scale: Double
-        switch archetype {
-        case .drift:
-            distortion = rng.nextDouble(in: 0.12...0.32)
-            swirl = rng.nextDouble(in: -0.05...0.05)
-            speed = rng.nextDouble(in: 0.06...0.11)
-            scale = rng.nextDouble(in: 0.82...1.20)
-        case .orbit:
-            distortion = rng.nextDouble(in: 0.42...0.82)
-            swirl = direction * rng.nextDouble(in: 0.28...0.68)
-            speed = rng.nextDouble(in: 0.07...0.13)
-            scale = rng.nextDouble(in: 0.84...1.22)
-        case .tide:
-            distortion = rng.nextDouble(in: 0.45...0.85)
-            swirl = rng.nextDouble(in: -0.12...0.12)
-            speed = rng.nextDouble(in: 0.05...0.10)
-            scale = rng.nextDouble(in: 0.78...1.18)
-        case .islands:
-            distortion = rng.nextDouble(in: 0.12...0.45)
-            swirl = rng.nextDouble(in: -0.18...0.18)
-            speed = rng.nextDouble(in: 0.08...0.16)
-            scale = rng.nextDouble(in: 0.90...1.40)
-        case .bloom:
-            distortion = rng.nextDouble(in: 0.25...0.62)
-            swirl = rng.nextDouble(in: -0.25...0.25)
-            speed = rng.nextDouble(in: 0.045...0.09)
-            scale = rng.nextDouble(in: 0.72...1.15)
-        }
-        return DayObjectMeshGradientStyle(
-            colors: palette.colors.map(\.linearRGB),
-            archetype: archetype,
-            offset: offset,
-            distortion: distortion,
-            swirl: swirl,
-            speed: speed,
-            scale: scale,
-            phase: rng.nextDouble(in: 0...(2 * .pi - Double.ulpOfOne)),
-            motionDirection: direction
-        )
+        categories: Set<ModernPaletteCategory>
+    ) -> [DayObjectRGB] {
+        var rng = SeededRNG.derived(from: seed, domain: "dayObjectPalette")
+        let palettes = ModernPaletteCatalog.palettes(matching: categories)
+        let palette = palettes[rng.nextInt(in: 0...(palettes.count - 1))]
+        return palette.hexes.map(DayObjectRGB.init(hex:))
     }
 }

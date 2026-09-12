@@ -6,6 +6,41 @@ import XCTest
 /// screen, edit mode without full screen, chrome over a full-screen canvas —
 /// must be unrepresentable, not merely unreachable.
 final class CanvasPresentationStateTests: XCTestCase {
+    func testRemixAndUndoControlsAreAvailableOnlyInFullScreenViewing() {
+        for state in CanvasPresentationState.allCases {
+            XCTAssertEqual(CanvasFullScreenRemixPresentation.isVisible(in: state), state == .fullScreen)
+        }
+    }
+
+    func testCollapsedCanvasControlsFollowTheDeviceSafeArea() {
+        XCTAssertEqual(
+            CanvasBottomControlsLayout.padding(
+                safeAreaBottom: 0,
+                isWideCanvas: false,
+                isEditing: false
+            ),
+            8
+        )
+        XCTAssertEqual(
+            CanvasBottomControlsLayout.padding(
+                safeAreaBottom: 34,
+                isWideCanvas: false,
+                isEditing: false
+            ),
+            42
+        )
+    }
+
+    func testWideCanvasControlsKeepTheirExistingClearance() {
+        XCTAssertEqual(
+            CanvasBottomControlsLayout.padding(
+                safeAreaBottom: 34,
+                isWideCanvas: true,
+                isEditing: false
+            ),
+            50
+        )
+    }
 
     // MARK: - The transition table from the spec
 
@@ -127,6 +162,56 @@ final class CanvasPresentationStateTests: XCTestCase {
         for state in CanvasPresentationState.allCases {
             XCTAssertNil(CanvasPresentationState.analyticsEventName(from: state, to: state), "\(state)")
         }
+    }
+
+    // MARK: - Sound / expansion control
+
+    func testCollapsedSoundControlStartsMusicAndEntersFullScreen() {
+        XCTAssertEqual(
+            CanvasSoundExpansionAction.forPresentation(.canvas),
+            .turnSoundOnAndEnterFullScreen
+        )
+        XCTAssertEqual(
+            CanvasSoundExpansionAction.forPresentation(.data),
+            .turnSoundOnAndEnterFullScreen
+        )
+    }
+
+    func testExpandedSoundControlStopsMusicAndReturnsToCanvas() {
+        XCTAssertEqual(
+            CanvasSoundExpansionAction.forPresentation(.fullScreen),
+            .turnSoundOffAndExitFullScreen
+        )
+    }
+
+    func testFullScreenSoundControlReflectsActualPlaybackState() {
+        XCTAssertEqual(
+            CanvasFullScreenSoundControlPresentation(appearance: .starting),
+            .init(title: "Starting sound", systemImage: "hourglass", isEnabled: false)
+        )
+        XCTAssertEqual(
+            CanvasFullScreenSoundControlPresentation(appearance: .playing),
+            .init(title: "Sound off", systemImage: "speaker.slash.fill", isEnabled: true)
+        )
+        XCTAssertEqual(
+            CanvasFullScreenSoundControlPresentation(appearance: .retry),
+            .init(title: "Retry sound", systemImage: "arrow.clockwise", isEnabled: true)
+        )
+    }
+
+    func testFullScreenSoundControlRetriesAFailedStartWithoutCollapsingCanvas() {
+        XCTAssertEqual(
+            CanvasFullScreenSoundAction.resolve(appearance: .retry),
+            .retryInPlace
+        )
+        XCTAssertEqual(
+            CanvasFullScreenSoundAction.resolve(appearance: .playing),
+            .turnOffAndExit
+        )
+        XCTAssertEqual(
+            CanvasFullScreenSoundAction.resolve(appearance: .starting),
+            .none
+        )
     }
 
     // MARK: - Interactive data drawer geometry

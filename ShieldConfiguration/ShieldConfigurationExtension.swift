@@ -44,16 +44,12 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         return application.localizedDisplayName ?? NSLocalizedString("App", comment: "Fallback name for unknown app")
     }
     
-    // MARK: - Brand Colors
-    // Matches AppColors.brandAccent (#FFD369); extension target can't import ColorConstants.
-    private var brandYellow: UIColor {
-        UIColor(red: 0xFF/255.0, green: 0xD3/255.0, blue: 0x69/255.0, alpha: 1.0)
+    private var dailyPalette: DailyInterfacePalette {
+        DailyInterfacePalette.load(from: sharedDefaults())
     }
-    
-    private var darkBackground: UIColor {
-        UIColor(red: 0.05, green: 0.05, blue: 0.12, alpha: 0.95)
-    }
-    
+
+    private var darkBackground: UIColor { dailyPalette.ink.uiColor }
+
     /// Whether a push was sent recently (within 30 seconds).
     /// ShieldAction writes `shieldPushSentAt`; `.defer` re-queries this configuration.
     private func wasPushRecentlySent() -> Bool {
@@ -64,6 +60,17 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         return Date().timeIntervalSince(sentAt) < 30
     }
     
+    /// Whether the most recent unlock tap could not produce a push, within the same
+    /// window as `wasPushRecentlySent`. Written by ShieldAction when notifications are
+    /// denied or the request failed.
+    private func pushRecentlyUnavailable() -> Bool {
+        let defaults = sharedDefaults()
+        guard let at = defaults.object(forKey: SharedKeys.shieldPushUnavailableAt) as? Date else {
+            return false
+        }
+        return Date().timeIntervalSince(at) < 30
+    }
+
     /// Base configuration with our brand styling
     private func baseConfiguration(
         title: String,
@@ -81,8 +88,8 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
             icon: appIcon,
             title: ShieldConfiguration.Label(text: title, color: .white),
             subtitle: ShieldConfiguration.Label(text: subtitle, color: UIColor.white.withAlphaComponent(0.85)),
-            primaryButtonLabel: ShieldConfiguration.Label(text: primaryButtonText, color: .black),
-            primaryButtonBackgroundColor: brandYellow,
+            primaryButtonLabel: ShieldConfiguration.Label(text: primaryButtonText, color: dailyPalette.ink.uiColor),
+            primaryButtonBackgroundColor: dailyPalette.accent.uiColor,
             secondaryButtonLabel: secondaryButtonText.map { ShieldConfiguration.Label(text: $0, color: UIColor.white.withAlphaComponent(0.6)) }
         )
     }
@@ -110,6 +117,19 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         }
         
         let title = String(format: NSLocalizedString("%@ is locked\nby Nowhere.", comment: "Shield title for blocked app"), appName)
+
+        // Checked before the "we sent you a push" copy: when the last tap could not
+        // deliver one, claiming otherwise leaves the user waiting for a notification
+        // that is never coming, with no way out of the shield.
+        if pushRecentlyUnavailable() {
+            return baseConfiguration(
+                title: title,
+                artwork: artwork,
+                subtitle: String(format: NSLocalizedString("\nNotifications are off, so we\ncan't reach you. Open Nowhere\nto unlock %@.", comment: "Shield subtitle when no push could be delivered"), appName),
+                primaryButtonText: NSLocalizedString("try again", comment: "Shield primary button — retry the push after enabling notifications"),
+                secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button")
+            )
+        }
 
         if wasPushRecentlySent() {
             return baseConfiguration(
