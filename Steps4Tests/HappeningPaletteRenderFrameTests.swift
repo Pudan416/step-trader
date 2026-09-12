@@ -2,6 +2,48 @@ import XCTest
 @testable import Steps4
 
 final class HappeningPaletteRenderFrameTests: XCTestCase {
+    func testConfirmationPreviewsStayNeutralDuringRevealAndKeepBreathing() throws {
+        let scene = makeScene()
+        for state in [HappeningPaletteSlotVisualState.additionPreview, .removalPreview] {
+            let initial = makePresentation(stateForFirstSlot: state == .additionPreview ? .available : .added)
+            let pending = makePresentation(stateForFirstSlot: state)
+            var timeline = HappeningPaletteTransitionTimeline()
+            timeline.update(to: initial, elapsed: 0)
+            timeline.update(to: pending, elapsed: 1)
+            for time in [1.08, 1.2, 1.4] {
+                let frame = HappeningPaletteRenderFrame.make(presentation: pending, scene: scene,
+                    elapsed: time, timeline: timeline)
+                XCTAssertEqual(try actor(for: "h0", in: frame).gpuActor.presentationSaturation, 0,
+                    "No color should flash while revealing a confirmation preview")
+            }
+            let small = HappeningPaletteRenderFrame.make(presentation: pending, scene: scene, elapsed: 1.6)
+            let large = HappeningPaletteRenderFrame.make(presentation: pending, scene: scene, elapsed: 2.4)
+            XCTAssertNotEqual(try actor(for: "h0", in: small).halfSize, try actor(for: "h0", in: large).halfSize)
+            XCTAssertEqual(try actor(for: "h2", in: small).halfSize, try actor(for: "h2", in: large).halfSize,
+                "Already added items must not pulse with the pending item")
+            XCTAssertTrue(DayObjectsPresentationMode.happeningPalette(pending).prefersSixtyFPS)
+        }
+    }
+
+    func testCancellingPreviewDoesNotRevealColorOnTheWayBackToACircle() throws {
+        let pending = makePresentation(stateForFirstSlot: .additionPreview)
+        let available = makePresentation(stateForFirstSlot: .available)
+        var timeline = HappeningPaletteTransitionTimeline()
+        timeline.update(to: pending, elapsed: 0)
+        timeline.update(to: available, elapsed: 1)
+        let frame = HappeningPaletteRenderFrame.make(presentation: available, scene: makeScene(), elapsed: 1.1, timeline: timeline)
+        XCTAssertEqual(try actor(for: "h0", in: frame).gpuActor.presentationSaturation, 0)
+    }
+
+    func testReducedMotionConfirmationIsNeutralAndDoesNotPulseOrKeepRendering() throws {
+        let pending = makePresentation(stateForFirstSlot: .additionPreview, reduceMotion: true)
+        let first = HappeningPaletteRenderFrame.make(presentation: pending, scene: makeScene(), elapsed: 1.6)
+        let second = HappeningPaletteRenderFrame.make(presentation: pending, scene: makeScene(), elapsed: 2.4)
+        XCTAssertEqual(try actor(for: "h0", in: first).gpuActor.presentationSaturation, 0)
+        XCTAssertEqual(try actor(for: "h0", in: first).halfSize, try actor(for: "h0", in: second).halfSize)
+        XCTAssertFalse(DayObjectsPresentationMode.happeningPalette(pending).prefersSixtyFPS)
+    }
+
     func testBuilderMapsTenPaletteSlotsToProductionActors() throws {
         let scene = makeScene()
         let presentation = makePresentation()
@@ -176,11 +218,14 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
         XCTAssertEqual(sample.controls(for: "h0").scale, 1.03, accuracy: 0.001)
     }
 
-    func testPresentationModeRequestsSixtyFPSOnlyDuringPaletteTransitions() {
+    func testPresentationModeRendersConfirmationUntilItIsResolved() {
         XCTAssertFalse(DayObjectsPresentationMode.canvas.prefersSixtyFPS)
-        XCTAssertFalse(DayObjectsPresentationMode.happeningPalette(
-            makePresentation(isTransitionActive: false)
-        ).prefersSixtyFPS)
+        let pending = makePresentation(isTransitionActive: false)
+        XCTAssertTrue(DayObjectsPresentationMode.happeningPalette(pending).prefersSixtyFPS)
+        let settled = HappeningPaletteRenderPresentation(slots: pending.slots.filter {
+            $0.visualState == .available || $0.visualState == .added
+        }, viewportSize: pending.viewportSize, reduceMotion: false, isTransitionActive: false, backgroundRevision: 12)
+        XCTAssertFalse(DayObjectsPresentationMode.happeningPalette(settled).prefersSixtyFPS)
         XCTAssertTrue(DayObjectsPresentationMode.happeningPalette(
             makePresentation(isTransitionActive: true)
         ).prefersSixtyFPS)

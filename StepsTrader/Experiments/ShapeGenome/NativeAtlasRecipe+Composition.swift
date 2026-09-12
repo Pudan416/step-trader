@@ -29,7 +29,14 @@ extension NativeAtlasRecipe {
             let allowed = MetalShapeMaterial.allCases.filter {
                 $0 != .proceduralContour && preset.compatibility.allowed.contains($0)
             }
-            let material = allowed[rng.nextInt(in: 0...(allowed.count - 1))]
+            let rolledMaterial = allowed[rng.nextInt(in: 0...(allowed.count - 1))]
+            // Diverse silhouettes reduce the number of blur-compatible picks.
+            // Keep a blurred accent once the day has a few objects, without
+            // relaxing compatibility or touching any already frozen material.
+            let needsBlurAccent = addingEventIDs.contains(id) && assigned.count >= 2
+                && !assigned.contains { $0.materialID == .directionalBlur }
+                && allowed.contains(.directionalBlur)
+            let material: MetalShapeMaterial = needsBlurAccent ? .directionalBlur : rolledMaterial
             let frame = MetalShapeGenomeFrame.make(preset: preset, material: material, seed: seed)
             // Progressive slot order spreads a sparse day across the same stable path.
             let slots: [Float] = [0.5, 0.05, 0.95, 0.25, 0.75, 0.15, 0.85, 0.35, 0.65, 0.45]

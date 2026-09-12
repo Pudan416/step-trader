@@ -41,9 +41,13 @@ struct HappeningShapeField: View {
                     .frame(width: side * 0.80, height: side * 0.76, alignment: .center)
                     // Preview actions never participate in the title's layout.
                     .overlay {
-                        if state == .additionPreview || state == .removalPreview {
+                        if state.awaitsConfirmation {
                             Text(state == .additionPreview ? LocalizedStringKey("Add") : LocalizedStringKey("Delete"))
-                                .font(.geist(size: 12, weight: .medium))
+                                .font(.geist(size: 12, weight: .semibold))
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 3)
+                                .background(ink.color.opacity(0.08), in: Capsule())
+                                .overlay(Capsule().strokeBorder(ink.color.opacity(0.45), lineWidth: 1))
                                 .accessibilityIdentifier("happening_action_\(happening.id)")
                                 .offset(y: side * 0.30)
                         }

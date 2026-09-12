@@ -756,7 +756,9 @@ final class NativeAtlasRecipeTests: XCTestCase {
             }
             let actors = try XCTUnwrap(canvas.artworkRecipe?.actors)
             counts.append(Set(actors.prefix(9).map(\.presetID)).count)
-            report.append("\(canvas.dayKey): " + actors.map(\.presetID).joined(separator: ", "))
+            report.append("\(canvas.dayKey): " + actors.map { "\($0.presetID) [\($0.materialID.rawValue)]" }.joined(separator: ", "))
+            XCTAssertGreaterThanOrEqual(actors.filter { $0.materialID == .directionalBlur }.count, 1,
+                "A full day should retain a blurred accent among its compatible shapes")
             try await attachNativeSilhouettes(canvas: canvas, happenings: happenings)
         }
         let attachment = XCTAttachment(string: report.joined(separator: "\n"))
@@ -773,7 +775,7 @@ final class NativeAtlasRecipeTests: XCTestCase {
             happenings: happenings, baseInput: input, committedElements: canvas.elements, colorNonce: 7)).assignments
         let slots = try happenings.enumerated().map { index, happening in
             HappeningPaletteRenderSlot(happeningID: happening.id,
-                assignment: try XCTUnwrap(assignments[happening.id]), visualState: .additionPreview,
+                assignment: try XCTUnwrap(assignments[happening.id]), visualState: .added,
                 source: .init(index: index, center: CGPoint(x: 50 + 100 * index, y: 90), radius: 32))
         }
         let size = CGSize(width: 1000, height: 180)
@@ -1132,6 +1134,11 @@ final class NativeAtlasRecipeTests: XCTestCase {
         let added = try await pickerImage(presetID: "legacy.soft-square", state: .added)
         // Sample the center of the opaque figure, independently of the background.
         let p = try pixels(added), index = (100 * 200 + 100) * 4
+        let neutral = try pixels(selected)
+        XCTAssertLessThan(neutral[index..<index + 3].max()! - neutral[index..<index + 3].min()!, 0.02)
+        let removal = try await pickerImage(presetID: "legacy.soft-square", state: .removalPreview)
+        let removalPixels = try pixels(removal)
+        XCTAssertLessThan(removalPixels[index..<index + 3].max()! - removalPixels[index..<index + 3].min()!, 0.02)
         XCTAssertGreaterThan((p[index..<index + 3].max() ?? 1) - (p[index..<index + 3].min() ?? 0), 0.15)
         for (name, image) in [("picker-1-circle", square), ("picker-2-selected", selected), ("picker-3-added", added)] {
             let attachment = XCTAttachment(image: image); attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)

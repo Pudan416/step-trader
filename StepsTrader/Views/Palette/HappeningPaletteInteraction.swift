@@ -23,6 +23,10 @@ enum HappeningPaletteSlotVisualState: Equatable {
     case additionPreview
     case added
     case removalPreview
+
+    var awaitsConfirmation: Bool {
+        self == .additionPreview || self == .removalPreview
+    }
 }
 
 enum HappeningPaletteConfirmation: Equatable {

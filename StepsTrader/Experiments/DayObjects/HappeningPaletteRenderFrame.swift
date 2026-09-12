@@ -23,6 +23,7 @@ enum DayObjectsPresentationMode: Equatable {
     var prefersSixtyFPS: Bool {
         guard case let .happeningPalette(value) = self else { return false }
         return value.isTransitionActive
+            || (!value.reduceMotion && value.slots.contains { $0.visualState.awaitsConfirmation })
     }
 }
 
@@ -37,13 +38,13 @@ struct HappeningPaletteRenderControls: Equatable {
     static func target(for state: HappeningPaletteSlotVisualState) -> Self {
         switch state {
         case .available:
-            Self(paletteMorph: 0, saturation: 1, removalEmphasis: 0, scale: 1, opacity: 1, depth: 0.45)
+            Self(paletteMorph: 0, saturation: 0, removalEmphasis: 0, scale: 1, opacity: 1, depth: 0.45)
         case .additionPreview:
-            Self(paletteMorph: 1, saturation: 1, removalEmphasis: 0, scale: 1.06, opacity: 1, depth: 0.90)
+            Self(paletteMorph: 1, saturation: 0, removalEmphasis: 0, scale: 1.06, opacity: 1, depth: 0.90)
         case .added:
             Self(paletteMorph: 1, saturation: 1, removalEmphasis: 0, scale: 1, opacity: 1, depth: 0.45)
         case .removalPreview:
-            Self(paletteMorph: 1, saturation: 0.08, removalEmphasis: 1, scale: 1.04, opacity: 0.88, depth: 0.90)
+            Self(paletteMorph: 1, saturation: 0, removalEmphasis: 1, scale: 1.04, opacity: 0.88, depth: 0.90)
         }
     }
 
@@ -240,13 +241,20 @@ enum HappeningPaletteRenderFrame {
             }
         )
         let shortSide = max(min(presentation.viewportSize.width, presentation.viewportSize.height), 1)
+        let pendingIDs = Set(presentation.slots.filter { $0.visualState.awaitsConfirmation }.map(\.happeningID))
         let depthSortedActors = sample.slots.map { slot in
+            let isPending = pendingIDs.contains(slot.happeningID)
+            // A quiet 1.6-second breath belongs only to the unconfirmed figure.
+            // Text/hit targets stay still; Reduce Motion has a static endpoint.
+            let breath = isPending && !presentation.reduceMotion
+                ? 1 + 0.025 * (1 - cos(elapsed * 2 * .pi / 1.6)) / 2
+                : 1
             let position = SIMD2<Float>(
                 Float((slot.source.center.x - presentation.viewportSize.width / 2) / shortSide),
                 // SwiftUI sources are top-left/y-down; Metal clip space is y-up.
                 Float((presentation.viewportSize.height / 2 - slot.source.center.y) / shortSide)
             )
-            let halfSize = Float(slot.source.radius / shortSide * slot.controls.scale)
+            let halfSize = Float(slot.source.radius / shortSide * slot.controls.scale * breath)
             return DayObjectRenderActor(
                 actorID: DayObjectActorID(eventID: slot.happeningID, memberIndex: 0),
                 eventID: slot.happeningID,
@@ -263,7 +271,8 @@ enum HappeningPaletteRenderFrame {
                     materialPhase: 0,
                     localDepthSoftness: 0,
                     paletteMorph: Float(slot.controls.paletteMorph),
-                    presentationSaturation: Float(slot.controls.saturation),
+                    // Neutral from the first morph frame, without a colored flash.
+                    presentationSaturation: isPending ? 0 : Float(slot.controls.saturation),
                     removalEmphasis: Float(slot.controls.removalEmphasis),
                     silhouetteVariant: slot.assignment.silhouette.variant
                 ),

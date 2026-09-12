@@ -340,12 +340,12 @@ final class DayObjectRenderFrameTests: XCTestCase {
         }
         let actor = try XCTUnwrap(frame?.actors.first)
         XCTAssertEqual(actor.gpuActor.paletteMorph, 1)
-        XCTAssertEqual(actor.gpuActor.presentationSaturation, 0.08, accuracy: 0.001)
+        XCTAssertEqual(actor.gpuActor.presentationSaturation, 0, accuracy: 0.001)
         XCTAssertEqual(actor.gpuActor.removalEmphasis, 0)
     }
 
     @MainActor
-    func testPaletteFinishesInterpolationAfterExternalFlagClearsBeforePausing() throws {
+    func testPaletteKeepsBreathingAfterRevealAndPausesAfterConfirmation() throws {
         let scene = editorialScene()
         let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.75)
         let assignment = try XCTUnwrap(HappeningEditorialAssignmentResolver.assignments(
@@ -393,13 +393,20 @@ final class DayObjectRenderFrameTests: XCTestCase {
         now = 0.34
         renderer.draw(in: view)
         XCTAssertEqual(try XCTUnwrap(renderer.currentFrame?.actors.first).gpuActor.paletteMorph, 1)
-        XCTAssertTrue(view.isPaused)
-        XCTAssertTrue(view.enableSetNeedsDisplay)
-        XCTAssertEqual(view.preferredFramesPerSecond, 30)
+        XCTAssertFalse(view.isPaused)
+        XCTAssertFalse(view.enableSetNeedsDisplay)
+        XCTAssertEqual(view.preferredFramesPerSecond, 60)
         now = 1
         renderer.draw(in: view)
         XCTAssertEqual(try XCTUnwrap(renderer.currentFrame?.actors.first).gpuActor.paletteMorph, 1)
+        XCTAssertFalse(view.isPaused)
+        renderer.update(scene: scene, environment: environment, presentationMode: mode(.added, active: false))
+        renderer.configureAnimation(view, elapsedTime: now)
+        XCTAssertFalse(view.isPaused)
+        now = 1.5
+        renderer.configureAnimation(view, elapsedTime: now)
         XCTAssertTrue(view.isPaused)
+        XCTAssertEqual(view.preferredFramesPerSecond, 30)
     }
 
     func testSoundPulseTimelineIgnoresEventsFromBeforeAttachment() {

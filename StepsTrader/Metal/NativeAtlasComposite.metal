@@ -70,7 +70,7 @@ fragment float4 nativeAtlasComposite(MetalShapeVertexOut in [[stage_in]],
     }
     float3 combined = color * a + background.rgb * (1.0 - a);
     if (placement.presentation.y > 0.5) {
-        // Removal previews stay neutral even over saturated artwork. Keep
+        // Confirmation previews stay neutral even over saturated artwork. Keep
         // the outside background untouched and preserve the opacity transition.
         float neutral = (1.0 - placement.effects.z) * smoothstep(0.05, 0.9, a);
         combined = mix(combined, float3(dot(combined, float3(0.2126, 0.7152, 0.0722))), neutral);

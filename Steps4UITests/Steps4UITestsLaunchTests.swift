@@ -546,6 +546,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         walk.tap()
         Thread.sleep(forTimeInterval: 0.5)
         attachScreenshot(named: "menu-2-preview")
+        Thread.sleep(forTimeInterval: 3) // Retain a visible pulse cycle for simulator capture.
         walk.tap()
         XCTAssertEqual(walk.value as? String, "On Canvas")
         for id in ["workout", "slept_well"] {
@@ -564,6 +565,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         XCTAssertTrue(walk.staticTexts["Delete"].exists)
         Thread.sleep(forTimeInterval: 0.5)
         attachScreenshot(named: "menu-4-removal-preview")
+        Thread.sleep(forTimeInterval: 3)
         app.buttons["Close"].tap()
         openPalette(in: app)
         XCTAssertEqual(walk.value as? String, "On Canvas")

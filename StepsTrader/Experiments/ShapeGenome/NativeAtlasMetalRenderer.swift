@@ -94,11 +94,7 @@ final class NativeAtlasMetalRenderer {
             let eligible: Set<MetalShapeMaterial> = [.solid, .sideLight, .radialTwo, .radialThree, .proceduralLight, .proceduralFlow]
             let aspect = Float(w) / Float(h), pose = actor.gpuActor
             let center = SIMD2(0.5 + pose.position.x / max(aspect, 1), 0.5 - pose.position.y / max(1 / aspect, 1))
-            // Removal previews end at 0.08; added items retain full saturation.
-            // Map the muted endpoint to gray while preserving the transition.
-            let saturation = isPalette
-                ? max(0, min(1, (pose.presentationSaturation - 0.08) / 0.92))
-                : pose.presentationSaturation
+            let saturation = pose.presentationSaturation
             let placement: [SIMD4<Float>] = [
                 SIMD4(center.x, center.y, pose.halfSize.x * 2.72, spec.rotation),
                 SIMD4(Float(w), Float(h), pose.opacity, eligible.contains(spec.materialID) ? 1 : 0),
