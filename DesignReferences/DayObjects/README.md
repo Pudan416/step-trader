@@ -372,7 +372,7 @@ pixel-perfect targets.
 
 ## Sources
 
-- `source/random-gradient-circle.html` — procedural material reference for
+- [Archived random-gradient-circle source](https://github.com/Pudan416/step-trader/blob/a468729968a5463e379d185098bbedc06c44738c/DesignReferences/DayObjects/source/random-gradient-circle.html) — procedural material reference for
   shifted radial centers, layered color fields, softness, transparency,
   outlines, counterforms, and deterministic shape/color seeds.
 

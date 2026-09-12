@@ -1130,7 +1130,7 @@ family. They remain available to compatible family profiles.
 
 ### Random gradient circle source
 
-- Source: [`random-gradient-circle.html`](../source/random-gradient-circle.html).
+- Source: [archived `random-gradient-circle.html`](https://github.com/Pudan416/step-trader/blob/a468729968a5463e379d185098bbedc06c44738c/DesignReferences/DayObjects/source/random-gradient-circle.html).
 - Primary contribution: Material DNA and deterministic seed separation.
 - Supplies: shifted radial centers, layered broad fields, related palette
   variation, transparency, outlines, and counterforms.
