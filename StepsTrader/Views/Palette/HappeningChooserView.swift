@@ -64,14 +64,11 @@ struct HappeningChooserView: View {
     }
 
     private var hasAlternatives: Bool {
-        catalog.contains { !draft.ids.contains($0.id) }
+        !HappeningPaletteSelection.alternatives(catalog: catalog, selected: draft.ids).isEmpty
     }
 
     private var replacements: [Happening] {
-        catalog.filter {
-            !draft.ids.contains($0.id)
-                && (query.isEmpty || $0.localizedTitle().localizedCaseInsensitiveContains(query))
-        }
+        HappeningPaletteSelection.alternatives(catalog: catalog, selected: draft.ids, query: query)
     }
 
     private var targetTitle: String {

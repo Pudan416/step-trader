@@ -1,7 +1,77 @@
 import XCTest
+import HealthKit
 @testable import Steps4
 
 final class HappeningPaletteSelectionTests: XCTestCase {
+
+    func testAlternativesOfferOneWalkAcrossBuiltInHistoryAndHealthKit() {
+        let catalog = [
+            Happening(id: "body_walking", title: "Walking", isBuiltIn: false),
+            Happening(id: "health_workout_\(HKWorkoutActivityType.walking.rawValue)", title: "Walking", isBuiltIn: false),
+            Happening(id: "happening_walk", title: "Walk", isBuiltIn: true),
+            Happening(id: "happening_outside", title: "Time outside", isBuiltIn: true),
+            Happening(id: "user_walk", title: "Walk", isBuiltIn: false)
+        ]
+
+        XCTAssertEqual(
+            HappeningPaletteSelection.alternatives(catalog: catalog, selected: []).map(\.id),
+            ["happening_walk", "happening_outside", "user_walk"]
+        )
+        for selected in ["happening_walk", "body_walking", "health_workout_52"] {
+            XCTAssertEqual(
+                HappeningPaletteSelection.alternatives(catalog: catalog, selected: [selected]).map(\.id),
+                ["happening_outside", "user_walk"],
+                "A selected walk must not be offered again under an imported ID"
+            )
+        }
+    }
+
+    func testAlternativeSearchFindsTheCanonicalWalkUsingItsImportedTitle() {
+        let catalog = [
+            Happening(id: "body_walking", title: "Walking", isBuiltIn: false),
+            Happening(id: "happening_walk", title: "Walk", isBuiltIn: true)
+        ]
+        XCTAssertEqual(
+            HappeningPaletteSelection.alternatives(catalog: catalog, selected: [], query: "  WALKING  ").map(\.id),
+            ["happening_walk"]
+        )
+        XCTAssertTrue(HappeningPaletteSelection.alternatives(catalog: catalog, selected: [], query: "absent").isEmpty)
+    }
+
+    func testAlternativesKeepCustomDuplicatesAndDifferentWorkoutTypes() {
+        let catalog = [
+            Happening(id: "user_a", title: "Walk", isBuiltIn: false),
+            Happening(id: "user_b", title: "Walk", isBuiltIn: false),
+            Happening(id: "health_workout_20", title: "Strength Training", isBuiltIn: false),
+            Happening(id: "health_workout_50", title: "Strength Training", isBuiltIn: false)
+        ]
+        XCTAssertEqual(HappeningPaletteSelection.alternatives(catalog: catalog, selected: []), catalog)
+    }
+
+    func testSelectedLegacyWalksSurviveCatalogReloadAndRemainReplaceable() throws {
+        let catalog = HappeningDefaults.builtIns + [
+            Happening(id: "body_walking", title: "Walking", isBuiltIn: false, useCount: 7),
+            Happening(id: "health_workout_52", title: "Walking", isBuiltIn: false, useCount: 3)
+        ]
+        let selected = ["body_walking", "health_workout_52"] + Array(HappeningDefaults.builtIns.dropFirst(2)).map(\.id)
+        defaults.set(selected, forKey: SharedKeys.happeningPaletteSelection)
+        let store = HappeningPaletteSelectionStore(defaults: defaults)
+        store.load(catalog: catalog)
+        XCTAssertEqual(store.ids, selected)
+        var draft = HappeningPaletteSelectionDraft(selected: store.ids, catalog: catalog)
+        XCTAssertTrue(draft.replace(id: "body_walking", with: "happening_workout"))
+        try store.save(draft.ids, catalog: catalog)
+        XCTAssertTrue(store.ids.contains("health_workout_52"))
+    }
+
+    func testAlternativeStillExistsWhenItsBuiltInIsMissing() {
+        let legacy = Happening(id: "body_walking", title: "Walking", isBuiltIn: false)
+        let health = Happening(id: "health_workout_52", title: "Walking", isBuiltIn: false)
+        XCTAssertEqual(
+            HappeningPaletteSelection.alternatives(catalog: [legacy, health], selected: []),
+            [legacy]
+        )
+    }
 
     private var defaults: UserDefaults!
     private var suiteName: String!

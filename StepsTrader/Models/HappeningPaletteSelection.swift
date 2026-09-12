@@ -9,6 +9,37 @@ enum HappeningPaletteSelectionError: Error, Equatable {
 enum HappeningPaletteSelection {
     static let slotCount = 10
 
+    /// Only the chooser collapses known imported equivalents. Stored IDs,
+    /// selected slots, history, use counts and the addition economy stay intact.
+    /// Equal titles alone are never evidence that two user happenings are one.
+    static func alternatives(catalog: [Happening], selected: [String], query: String = "") -> [Happening] {
+        let selectedChoices = Set(selected.map(choiceID))
+        let groups = Dictionary(grouping: catalog) { choiceID($0.id) }
+        let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        var seen = Set<String>()
+
+        return catalog.compactMap { happening in
+            let key = choiceID(happening.id)
+            guard !selectedChoices.contains(key), seen.insert(key).inserted,
+                  let members = groups[key] else { return nil }
+            // Keep imported titles searchable even when the row uses current copy.
+            guard search.isEmpty || members.contains(where: {
+                $0.localizedTitle().localizedCaseInsensitiveContains(search)
+                    || $0.title.localizedCaseInsensitiveContains(search)
+            }) else { return nil }
+            return members.first { $0.id == key } ?? happening
+        }
+    }
+
+    private static func choiceID(_ id: String) -> String {
+        switch id {
+        // 52 is the persisted HKWorkoutActivityType.walking raw value.
+        // Other workout types can share a label while being distinct activities.
+        case "body_walking", "health_workout_52": "happening_walk"
+        default: id
+        }
+    }
+
     /// Removes deleted and duplicate ids, then fills empty slots in a stable
     /// order: the supplied defaults first, followed by the catalog source order.
     static func repaired(ids: [String], catalog: [Happening], defaults: [String]) -> [String] {
