@@ -676,6 +676,39 @@ private struct AnimatedGradientView: View {
     }
 }
 
+/// A single deterministic gradient frame used by posters and other captured
+/// surfaces. Unlike `AnimatedGradientView`, it never subscribes to a timeline.
+private struct StaticGradientView: View {
+    let stepsNorm: Double
+    let sleepNorm: Double
+    let hasStepsData: Bool
+    let hasSleepData: Bool
+    let gradientStyle: GradientStyle
+    let gradientPalette: GradientPalette
+    let time: TimeInterval
+
+    var body: some View {
+        let palette = EnergyGradientRenderer.palette(for: gradientPalette)
+        Canvas { context, size in
+            let opacities = EnergyGradientRenderer.computeOpacities(
+                smoothedS: EnergyGradientRenderer.smoothstep(stepsNorm),
+                smoothedL: EnergyGradientRenderer.smoothstep(sleepNorm),
+                hasStepsData: hasStepsData,
+                hasSleepData: hasSleepData
+            )
+            EnergyGradientRenderer.draw(
+                context: &context,
+                size: size,
+                opacities: opacities,
+                baseColor: palette.dark,
+                gradientStyle: gradientStyle,
+                colorPalette: palette,
+                time: time
+            )
+        }
+    }
+}
+
 // MARK: - EnergyGradientBackground View
 /// Shared energy gradient + grain background used by every tab.
 ///
@@ -693,6 +726,8 @@ struct EnergyGradientBackground: View {
     var gradientStyleOverride: String? = nil
     var gradientPaletteOverride: String? = nil
     var textureOverride: String? = nil
+    /// When present, freezes animated gradient styles to this exact frame.
+    var fixedTime: Date? = nil
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @AppStorage(SharedKeys.gradientStyle) private var gradientStyleRaw: String = GradientStyle.radial.rawValue
@@ -746,7 +781,17 @@ struct EnergyGradientBackground: View {
 
     @ViewBuilder
     private var gradientContent: some View {
-        if gradientStyle.isAnimated && !reduceMotion {
+        if let fixedTime {
+            StaticGradientView(
+                stepsNorm: stepsNorm,
+                sleepNorm: sleepNorm,
+                hasStepsData: hasStepsData,
+                hasSleepData: hasSleepData,
+                gradientStyle: gradientStyle,
+                gradientPalette: gradientPaletteValue,
+                time: fixedTime.timeIntervalSinceReferenceDate
+            )
+        } else if gradientStyle.isAnimated && !reduceMotion {
             AnimatedGradientView(
                 stepsNorm: stepsNorm,
                 sleepNorm: sleepNorm,
@@ -791,6 +836,103 @@ extension View {
             .ignoresSafeArea()
             .allowsHitTesting(false)
         }
+    }
+}
+
+// MARK: - Resource fill language
+
+/// Circular-gradient geometry shared by the renderer and its behavior tests.
+/// The origin sits just beyond the trailing midpoint, which makes the visible
+/// arcs travel horizontally while keeping the whole leading edge dark.
+struct ResourceGradientLayout {
+    let center: CGPoint
+    let unitCenter: UnitPoint
+    let endRadius: CGFloat
+
+    static func make(in size: CGSize) -> Self {
+        guard size.width > 0, size.height > 0 else {
+            return Self(center: .zero, unitCenter: .center, endRadius: 1)
+        }
+
+        let center = CGPoint(x: size.width * 1.25, y: size.height / 2)
+        return Self(
+            center: center,
+            unitCenter: UnitPoint(x: center.x / size.width, y: 0.5),
+            endRadius: hypot(center.x, size.height / 2)
+        )
+    }
+
+    func progress(at point: CGPoint) -> CGFloat {
+        min(1, max(0, hypot(point.x - center.x, point.y - center.y) / endRadius))
+    }
+}
+
+/// The shared remaining/consumed-resource fill used on Feeds and Me. Callers
+/// size this view to the visible resource share, so a shrinking fill
+/// recalculates the complete right-to-left circular composition instead of
+/// cropping a gradient made for the full card.
+struct ResourceGradientFill: View {
+    var body: some View {
+        GeometryReader { geometry in
+            let layout = ResourceGradientLayout.make(in: geometry.size)
+            RadialGradient(
+                stops: [
+                    .init(color: AppColors.LivingCanvas.amber, location: 0.08),
+                    .init(color: AppColors.LivingCanvas.copper, location: 0.42),
+                    .init(color: AppColors.LivingCanvas.night, location: 0.70),
+                    .init(color: AppColors.LivingCanvas.navy, location: 0.86),
+                    .init(color: AppColors.LivingCanvas.navy, location: 1),
+                ],
+                center: layout.unitCenter,
+                startRadius: 0,
+                endRadius: layout.endRadius
+            )
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// Compact, softly asymmetric resource block. Three restrained variants keep
+/// repeated rows from reading like a stack of identical rounded rectangles.
+struct ResourcePebbleShape: Shape {
+    let variant: Int
+
+    func path(in rect: CGRect) -> Path {
+        let cap = rect.height / 2
+        let radii: (topLeading: CGFloat, topTrailing: CGFloat, bottomTrailing: CGFloat, bottomLeading: CGFloat)
+        switch abs(variant) % 3 {
+        case 1:
+            radii = (cap * 0.72, cap * 0.98, cap * 0.76, cap * 0.92)
+        case 2:
+            radii = (cap * 0.96, cap * 0.74, cap * 0.94, cap * 0.70)
+        default:
+            radii = (cap * 0.90, cap * 0.72, cap * 0.96, cap * 0.78)
+        }
+
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + radii.topLeading, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX - radii.topTrailing, y: rect.minY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX, y: rect.minY + radii.topTrailing),
+            control: CGPoint(x: rect.maxX, y: rect.minY)
+        )
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - radii.bottomTrailing))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX - radii.bottomTrailing, y: rect.maxY),
+            control: CGPoint(x: rect.maxX, y: rect.maxY)
+        )
+        path.addLine(to: CGPoint(x: rect.minX + radii.bottomLeading, y: rect.maxY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.minX, y: rect.maxY - radii.bottomLeading),
+            control: CGPoint(x: rect.minX, y: rect.maxY)
+        )
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + radii.topLeading))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.minX + radii.topLeading, y: rect.minY),
+            control: CGPoint(x: rect.minX, y: rect.minY)
+        )
+        path.closeSubpath()
+        return path
     }
 }
 

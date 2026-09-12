@@ -53,7 +53,7 @@ struct FeedIconView: View {
             .frame(width: size, height: size)
             .overlay {
                 Image(systemName: "app.dashed")
-                    .font(.system(size: size * 0.42, weight: .light))
+                    .font(.geist(size: size * 0.42, weight: .light))
                     .foregroundStyle(Color.white.opacity(0.5))
             }
     }

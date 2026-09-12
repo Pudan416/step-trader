@@ -8,6 +8,7 @@ struct GenerativeCanvasView: View {
     /// The day this canvas belongs to. Feeds `dayComposition` — never persisted,
     /// just re-derived per render.
     let dayKey: String
+    var remixSeed: UInt64? = nil
     let sleepPoints: Int
     let stepsPoints: Int
     let sleepColor: Color
@@ -261,7 +262,7 @@ struct GenerativeCanvasView: View {
         // One composition per frame, not per organic blob — `DayComposition.forDay`
         // does real work (archetype/palette/texture-policy derivation), so calling
         // it from inside `drawElement` recomputed it once per blob per frame.
-        let dayComposition = DayComposition.forDay(dayKey: dayKey, happeningCount: elements.count)
+        let dayComposition = renderedComposition
         let elementCount = elements.count
         let lowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
 
@@ -336,6 +337,14 @@ struct GenerativeCanvasView: View {
                 drawLabel(element, at: center, context: &context, labelColor: lblColor, shadowColor: shadowClr)
             }
         }
+    }
+
+    var renderedComposition: DayComposition {
+        .forDay(
+            dayKey: dayKey, happeningCount: elements.count,
+            allowedTextureKinds: remixSeed == nil ? TextureKind.allowedByUser : TextureKind.allCases,
+            remixSeed: remixSeed
+        )
     }
 
     // MARK: - Cross-Element Interaction Model
@@ -477,7 +486,11 @@ struct GenerativeCanvasView: View {
                 RayShapeRenderer.draw(
                     element, context: &ctx, size: size, t: t, decay: decay,
                     blendMode: blendMode, ampScale: ampScale,
-                    interaction: interaction
+                    interaction: interaction,
+                    spec: CanvasElement.textureSpec(
+                        rank: renderCache.sortedIndexMap[element.id] ?? 0,
+                        dayKey: dayKey,
+                        composition: dayComposition)
                 )
             case .circle:
                 CircleShapeRenderer.draw(
@@ -547,7 +560,7 @@ struct GenerativeCanvasView: View {
     private func drawLabel(_ element: CanvasElement, at point: CGPoint, context: inout GraphicsContext, labelColor: Color, shadowColor: Color) {
         let raw = element.displayLabel
         let labelText = raw.prefix(1).uppercased() + raw.dropFirst().lowercased()
-        let font: Font = .system(size: 11, weight: .regular, design: .default)
+        let font: Font = .system(size: 11, weight: .regular, design: .rounded)
         if showsOutlinedLabels {
             // 4 diagonal offsets give the same visual halo as 8 at 1pt,
             // cutting drawLayer + Text resolution calls in half.

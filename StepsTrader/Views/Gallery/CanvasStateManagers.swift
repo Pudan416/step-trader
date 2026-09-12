@@ -7,25 +7,16 @@ import SwiftUI
 /// neutral state happens via `reset()`.
 @Observable @MainActor
 final class CanvasEditState {
-    var isEditMode: Bool = false
     var editFreezeTime: Date? = nil
     var isDraggingElement: Bool = false
     var dragStartBasePosition: CGPoint? = nil
     var activeElementId: UUID? = nil
 
-    /// Tracks the element's userRotation at the start of a rotation gesture.
-    var gestureStartRotation: Double? = nil
-    /// Tracks the element's effective size at the start of a pinch gesture.
-    var gestureStartSize: CGFloat? = nil
-
     func reset() {
-        isEditMode = false
         editFreezeTime = nil
         isDraggingElement = false
         dragStartBasePosition = nil
         activeElementId = nil
-        gestureStartRotation = nil
-        gestureStartSize = nil
     }
 
     func cancelDrag() {

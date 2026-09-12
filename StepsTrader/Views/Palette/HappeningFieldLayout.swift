@@ -1,14 +1,11 @@
 import SwiftUI
 
-/// Deterministic geometry for the palette's Living-island field.
+/// Deterministic constellation for the configured happening slots.
 ///
-/// The templates intentionally describe relative placement only. The renderer
-/// supplies the visual material and interpolates between returned layouts;
-/// this type keeps the field stable, testable, and safe-area-aware.
+/// The palette has no containing blob. Each source is a real, independent
+/// circle placed between the persistent energy bar and the bottom dock.
 enum HappeningFieldLayout {
-
     struct Source: Equatable {
-        /// Stable position in the caller's ordered happening collection.
         let index: Int
         let center: CGPoint
         let radius: CGFloat
@@ -16,318 +13,162 @@ enum HappeningFieldLayout {
 
     struct Layout: Equatable {
         let sources: [Source]
-        /// Rectangular, independent hit regions. They never overlap even when
-        /// the rendered field sources do.
         let labelFrames: [CGRect]
-        /// The renderer's intended outer extent, leaving free canvas around it.
         let contourBounds: CGRect
-        /// Centre point for the attached three-control dock.
         let dockAnchor: CGPoint
-        /// The intentional residual island shown after the final happening is used.
         let completionBounds: CGRect?
     }
 
-    private struct UnitPoint {
-        let x: CGFloat
-        let y: CGFloat
-    }
+    private static let edgeClearance: CGFloat = 17
+    private static let dockHitRadius: CGFloat = 36
+    private static let dockContentGap: CGFloat = 120
+    private static let completionDockGap: CGFloat = 24
+    private static let contactGap: CGFloat = 0.1
+    private static let targetRadius: CGFloat = 64
 
-    private static let edgeClearance: CGFloat = 16
-    private static let dockTouchDistance: CGFloat = 28
+    /// Symmetric close-packed rows for every configured count. The
+    /// full palette uses the approved 3·2·3·2 rhythm.
+    private static let rowPatterns: [[Int]] = [
+        [], [1], [2], [3], [2, 2], [3, 2], [3, 3], [2, 3, 2],
+        [3, 2, 3], [3, 3, 3], [3, 2, 3, 2],
+    ]
 
-    /// The palette overlays the canvas, which keeps its own bottom controls and
-    /// the tab bar visible beneath it. The dock never descends into that strip.
-    private static let bottomChromeClearance: CGFloat = 120
-
-    /// Gap between the completion island and the dock below it.
-    private static let islandDockGap: CGFloat = 24
-
+    /// Creator-panel actions may stack at larger text sizes; slot geometry stays fixed.
     static func usesExpandedLayout(for dynamicTypeSize: DynamicTypeSize) -> Bool {
         dynamicTypeSize > .large
     }
-
-    /// Each array is hand-tuned in unit space for one visible-item count.
-    /// Their ordering is identity ordering: removing an item never reorders
-    /// the survivors, even though their visual positions can reflow.
-    private static let templates: [[UnitPoint]] = [
-        [],
-        [.init(x: 0.50, y: 0.50)],
-        [.init(x: 0.34, y: 0.48), .init(x: 0.67, y: 0.52)],
-        [.init(x: 0.18, y: 0.52), .init(x: 0.50, y: 0.30), .init(x: 0.82, y: 0.54)],
-        [.init(x: 0.31, y: 0.28), .init(x: 0.68, y: 0.30), .init(x: 0.31, y: 0.72), .init(x: 0.68, y: 0.70)],
-        [.init(x: 0.18, y: 0.35), .init(x: 0.50, y: 0.16), .init(x: 0.82, y: 0.34), .init(x: 0.33, y: 0.72), .init(x: 0.69, y: 0.76)],
-        [.init(x: 0.18, y: 0.31), .init(x: 0.50, y: 0.16), .init(x: 0.82, y: 0.31), .init(x: 0.18, y: 0.69), .init(x: 0.50, y: 0.85), .init(x: 0.82, y: 0.69)],
-        [.init(x: 0.18, y: 0.24), .init(x: 0.50, y: 0.14), .init(x: 0.82, y: 0.27), .init(x: 0.18, y: 0.60), .init(x: 0.50, y: 0.48), .init(x: 0.82, y: 0.62), .init(x: 0.50, y: 0.86)],
-        [.init(x: 0.18, y: 0.20), .init(x: 0.50, y: 0.12), .init(x: 0.82, y: 0.23), .init(x: 0.18, y: 0.49), .init(x: 0.50, y: 0.40), .init(x: 0.82, y: 0.51), .init(x: 0.30, y: 0.79), .init(x: 0.70, y: 0.80)],
-        [.init(x: 0.18, y: 0.18), .init(x: 0.50, y: 0.10), .init(x: 0.82, y: 0.20), .init(x: 0.18, y: 0.46), .init(x: 0.50, y: 0.38), .init(x: 0.82, y: 0.48), .init(x: 0.18, y: 0.75), .init(x: 0.50, y: 0.86), .init(x: 0.82, y: 0.75)],
-        [.init(x: 0.18, y: 0.16), .init(x: 0.50, y: 0.09), .init(x: 0.82, y: 0.18), .init(x: 0.18, y: 0.42), .init(x: 0.50, y: 0.34), .init(x: 0.82, y: 0.44), .init(x: 0.18, y: 0.69), .init(x: 0.50, y: 0.80), .init(x: 0.82, y: 0.69), .init(x: 0.50, y: 0.98)]
-    ]
 
     static func layout(
         count: Int,
         in size: CGSize,
         safeInsets: EdgeInsets,
-        dynamicTypeSize: DynamicTypeSize = .large
-    ) -> Layout {
-        let raw = rawLayout(
-            count: count, in: size, safeInsets: safeInsets, dynamicTypeSize: dynamicTypeSize
-        )
-        let safeBounds = safeBounds(in: size, safeInsets: safeInsets)
-        guard !safeBounds.isEmpty else { return raw }
-
-        // The dock (close · choose · add) is placed where it would sit with a
-        // FULL field, whatever the field currently holds.
-        //
-        // It used to hang `dockTouchDistance` under the live contour, so every
-        // happening consumed shrank the cluster and slid the three buttons up
-        // the screen; once everything was added they jumped to the middle,
-        // following the completion island. Controls that move because the
-        // content changed are what muscle memory cannot survive.
-        //
-        // Deriving it from the full field rather than a fixed screen offset
-        // leaves every clamp below untouched: the fullest cluster already is
-        // the binding constraint, so nothing smaller can fail to fit above it.
-        let full = rawLayout(
-            count: templates.count - 1, in: size,
-            safeInsets: safeInsets, dynamicTypeSize: dynamicTypeSize
-        )
-        // Clamped: a full field on a short screen used to push the dock down
-        // into the canvas controls and tab bar showing through underneath.
-        let dockY = min(
-            full.contourBounds.maxY + dockTouchDistance,
-            safeBounds.maxY - bottomChromeClearance
-        )
-        let dockAnchor = CGPoint(x: safeBounds.midX, y: dockY)
-
-        // The completion island is the empty-field stand-in for the cluster, so
-        // it hangs off the dock rather than floating where the cluster used to be.
-        let completionBounds = raw.completionBounds.map { bounds -> CGRect in
-            CGRect(
-                x: bounds.minX,
-                y: dockY - islandDockGap - bounds.height,
-                width: bounds.width,
-                height: bounds.height
-            )
-        }
-
-        return Layout(
-            sources: raw.sources,
-            labelFrames: raw.labelFrames,
-            contourBounds: raw.contourBounds,
-            dockAnchor: dockAnchor,
-            completionBounds: completionBounds
-        )
-    }
-
-    private static func rawLayout(
-        count: Int,
-        in size: CGSize,
-        safeInsets: EdgeInsets,
-        dynamicTypeSize: DynamicTypeSize
+        dynamicTypeSize: DynamicTypeSize = .large,
+        contentTopInset: CGFloat? = nil,
+        dockCenterY: CGFloat? = nil
     ) -> Layout {
         let safeBounds = safeBounds(in: size, safeInsets: safeInsets)
         guard !safeBounds.isEmpty else {
             return Layout(
-                sources: [],
-                labelFrames: [],
-                contourBounds: .zero,
-                dockAnchor: .zero,
-                completionBounds: nil
+                sources: [], labelFrames: [], contourBounds: .zero,
+                dockAnchor: .zero, completionBounds: nil
             )
         }
 
-        let itemCount = min(max(count, 0), templates.count - 1)
+        let defaultDockY = safeBounds.maxY - dockHitRadius
+        let resolvedDockY = min(
+            safeBounds.maxY - dockHitRadius,
+            max(safeBounds.midY, dockCenterY ?? defaultDockY)
+        )
+        let dockAnchor = CGPoint(x: safeBounds.midX, y: resolvedDockY)
+        let itemCount = min(max(count, 0), rowPatterns.count - 1)
+        let contentTop = min(
+            dockAnchor.y - dockContentGap - 44,
+            max(safeBounds.minY + edgeClearance, contentTopInset ?? safeBounds.minY + edgeClearance)
+        )
+        let contentBottom = dockAnchor.y - dockContentGap
+
         guard itemCount > 0 else {
             let typeScale = min(
                 1.35,
-                HappeningFieldLabelTypography.scaledUIFont(
-                    for: dynamicTypeSize
-                ).pointSize / HappeningFieldLabelTypography.pointSize
+                HappeningFieldLabelTypography.scaledUIFont(for: dynamicTypeSize).pointSize
+                    / HappeningFieldLabelTypography.pointSize
             )
             let completionSize = CGSize(
                 width: min(216 * typeScale, safeBounds.width - edgeClearance * 2),
                 height: 92 * (1 + (typeScale - 1) * 0.72)
             )
-            let preferredCenterY = safeBounds.midY + min(44, safeBounds.height * 0.07)
-            let maximumCenterY = safeBounds.maxY - 120 - dockTouchDistance - completionSize.height / 2
-            let completionBounds = CGRect(
-                x: safeBounds.midX - completionSize.width / 2,
-                y: min(preferredCenterY, maximumCenterY) - completionSize.height / 2,
-                width: completionSize.width,
-                height: completionSize.height
-            )
             return Layout(
                 sources: [],
                 labelFrames: [],
                 contourBounds: .zero,
-                dockAnchor: CGPoint(
-                    x: safeBounds.midX,
-                    y: completionBounds.maxY + dockTouchDistance
-                ),
-                completionBounds: completionBounds
-            )
-        }
-
-        if usesExpandedLayout(for: dynamicTypeSize) {
-            return expandedLayout(
-                itemCount: itemCount,
-                safeBounds: safeBounds,
-                dynamicTypeSize: dynamicTypeSize
-            )
-        }
-
-        let contourWidth = min(safeBounds.width * 0.84, 360)
-        let maximumHeight = max(
-            44,
-            safeBounds.height - edgeClearance * 2 - dockTouchDistance - edgeClearance
-        )
-        let contourHeight = min(maximumHeight, min(safeBounds.height * 0.50, 390))
-        let desiredOriginY = safeBounds.midY - contourHeight * 0.48
-        let originY = min(
-            max(desiredOriginY, safeBounds.minY + edgeClearance),
-            safeBounds.maxY - edgeClearance - dockTouchDistance - contourHeight
-        )
-        let templateBounds = CGRect(
-            x: safeBounds.midX - contourWidth / 2,
-            y: originY,
-            width: contourWidth,
-            height: contourHeight
-        )
-        let labelSize = CGSize(
-            width: min(94, max(72, contourWidth * 0.27)),
-            height: min(68, max(56, contourHeight * 0.17))
-        )
-
-        let sources = templates[itemCount].enumerated().map { index, point in
-            Source(
-                index: index,
-                center: CGPoint(
-                    x: templateBounds.minX + point.x * templateBounds.width,
-                    y: templateBounds.minY + point.y * templateBounds.height
-                ),
-                radius: min(templateBounds.width, templateBounds.height)
-                    * (0.135 + CGFloat(index % 3) * 0.012)
-            )
-        }
-        let labelFrames = sources.map { source in
-            CGRect(
-                x: source.center.x - labelSize.width / 2,
-                y: source.center.y - labelSize.height / 2,
-                width: labelSize.width,
-                height: labelSize.height
-            )
-        }
-        let contourBounds = sources.reduce(CGRect.null) { bounds, source in
-            bounds.union(
-                CGRect(
-                    x: source.center.x - source.radius,
-                    y: source.center.y - source.radius,
-                    width: source.radius * 2,
-                    height: source.radius * 2
+                dockAnchor: dockAnchor,
+                completionBounds: CGRect(
+                    x: safeBounds.midX - completionSize.width / 2,
+                    y: dockAnchor.y - completionDockGap - completionSize.height,
+                    width: completionSize.width,
+                    height: completionSize.height
                 )
             )
         }
-        .insetBy(dx: -12, dy: -12)
 
-        return Layout(
-            sources: sources,
-            labelFrames: labelFrames,
-            contourBounds: contourBounds,
-            dockAnchor: CGPoint(x: contourBounds.midX, y: contourBounds.maxY + dockTouchDistance),
-            completionBounds: nil
+        return standardLayout(
+            itemCount: itemCount,
+            safeBounds: safeBounds,
+            contentTop: contentTop,
+            contentBottom: contentBottom,
+            dockAnchor: dockAnchor
         )
     }
 
-    private static func expandedLayout(
+    private static func standardLayout(
         itemCount: Int,
         safeBounds: CGRect,
-        dynamicTypeSize: DynamicTypeSize
+        contentTop: CGFloat,
+        contentBottom: CGFloat,
+        dockAnchor: CGPoint
     ) -> Layout {
-        let rows = Int(ceil(Double(itemCount) / 2))
-        let font = HappeningFieldLabelTypography.scaledUIFont(for: dynamicTypeSize)
-        let labelSize = CGSize(
-            width: min(164, (safeBounds.width - 50) / 2),
-            height: min(122, max(78, ceil(font.lineHeight * 3.25 / 0.80)))
-        )
-        // Keep enough overlap for one metaball while preventing the ten-source
-        // inverse-square field from accumulating across the Canvas boundary.
-        let radius = min(64, max(58, labelSize.height * 0.52))
-        let maximumContourHeight = max(
-            44,
-            safeBounds.height
-                - edgeClearance * 2
-                - dockTouchDistance
-                - 44
-        )
-        let contourEndcaps = (radius + 12) * 2
-        let preferredStep = labelSize.height + 10
-        let verticalStep = rows > 1
-            ? min(
-                preferredStep,
-                max(labelSize.height, (maximumContourHeight - contourEndcaps) / CGFloat(rows - 1))
-            )
-            : 0
-        let contourHeight = contourEndcaps + verticalStep * CGFloat(max(0, rows - 1))
-        let preferredTop = safeBounds.midY - contourHeight / 2 - 12
-        let maximumTop = safeBounds.maxY
-            - edgeClearance
-            - dockTouchDistance
-            - 44
-            - contourHeight
-        let contourTop = min(
-            max(preferredTop, safeBounds.minY + edgeClearance),
-            maximumTop
-        )
-        let firstCenterY = contourTop + radius + 12
-        let columnOffset = min(84, safeBounds.width * 0.21)
+        let fieldWidth = safeBounds.width - edgeClearance * 2
+        let fieldHeight = max(88, contentBottom - contentTop)
+        let rows = rowPatterns[itemCount]
+        let widestRow = rows.max() ?? 1
+        let rowFactors = zip(rows, rows.dropFirst()).map { current, next in
+            current == next ? CGFloat(1) : sqrt(3) / 2
+        }
+        let factorSum = rowFactors.reduce(0, +)
+        let widthRadius = (
+            fieldWidth - CGFloat(max(0, widestRow - 1)) * contactGap
+        ) / CGFloat(widestRow * 2)
+        let heightRadius = (
+            fieldHeight - factorSum * contactGap
+        ) / (2 + 2 * factorSum)
+        let radius = min(targetRadius, max(32, min(widthRadius, heightRadius)))
+        let centerStep = radius * 2 + contactGap
+        let rowSteps = rowFactors.map { $0 * centerStep }
+        let clusterHeight = radius * 2 + rowSteps.reduce(0, +)
+        var centerY = contentTop + max(0, fieldHeight - clusterHeight) / 2 + radius
+        var sourceIndex = 0
+        var sources: [Source] = []
 
-        let sources = (0..<itemCount).map { index in
-            let row = index / 2
-            let isUnpairedLastItem = itemCount.isMultiple(of: 2) == false
-                && index == itemCount - 1
-            let centerX: CGFloat
-            if itemCount == 1 || isUnpairedLastItem {
-                centerX = safeBounds.midX
-            } else {
-                centerX = safeBounds.midX + (index.isMultiple(of: 2) ? -columnOffset : columnOffset)
-            }
-            return Source(
-                index: index,
-                center: CGPoint(
-                    x: centerX,
-                    y: firstCenterY + CGFloat(row) * verticalStep
-                ),
-                radius: radius
-            )
-        }
-        let labelFrames = sources.map { source in
-            CGRect(
-                x: source.center.x - labelSize.width / 2,
-                y: source.center.y - labelSize.height / 2,
-                width: labelSize.width,
-                height: labelSize.height
-            )
-        }
-        let contourBounds = sources.reduce(CGRect.null) { bounds, source in
-            bounds.union(
-                CGRect(
-                    x: source.center.x - source.radius,
-                    y: source.center.y - source.radius,
-                    width: source.radius * 2,
-                    height: source.radius * 2
+        for (rowIndex, rowCount) in rows.enumerated() {
+            let rowWidth = radius * 2 * CGFloat(rowCount)
+                + contactGap * CGFloat(max(0, rowCount - 1))
+            let firstCenterX = safeBounds.midX - rowWidth / 2 + radius
+            for column in 0..<rowCount {
+                sources.append(
+                    Source(
+                        index: sourceIndex,
+                        center: CGPoint(
+                            x: firstCenterX + CGFloat(column) * centerStep,
+                            y: centerY
+                        ),
+                        radius: radius
+                    )
                 )
+                sourceIndex += 1
+            }
+            if rowIndex < rowSteps.count {
+                centerY += rowSteps[rowIndex]
+            }
+        }
+
+        return makeLayout(sources: sources, dockAnchor: dockAnchor)
+    }
+
+    private static func makeLayout(sources: [Source], dockAnchor: CGPoint) -> Layout {
+        let frames = sources.map {
+            CGRect(
+                x: $0.center.x - $0.radius,
+                y: $0.center.y - $0.radius,
+                width: $0.radius * 2,
+                height: $0.radius * 2
             )
         }
-        .insetBy(dx: -12, dy: -12)
-
+        let bounds = frames.dropFirst().reduce(frames.first ?? .zero) { $0.union($1) }
         return Layout(
             sources: sources,
-            labelFrames: labelFrames,
-            contourBounds: contourBounds,
-            dockAnchor: CGPoint(
-                x: contourBounds.midX,
-                y: contourBounds.maxY + dockTouchDistance
-            ),
+            labelFrames: frames,
+            contourBounds: bounds,
+            dockAnchor: dockAnchor,
             completionBounds: nil
         )
     }
@@ -349,72 +190,27 @@ private struct HappeningFieldLayoutDebugPreview: View {
     var body: some View {
         GeometryReader { proxy in
             let layout = HappeningFieldLayout.layout(
-                count: count, in: proxy.size, safeInsets: EdgeInsets()
+                count: count,
+                in: proxy.size,
+                safeInsets: EdgeInsets(),
+                contentTopInset: 36
             )
-
-            ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 32)
-                    .stroke(.mint, style: StrokeStyle(lineWidth: 1, dash: [5, 5]))
-                    .frame(width: layout.contourBounds.width, height: layout.contourBounds.height)
-                    .position(x: layout.contourBounds.midX, y: layout.contourBounds.midY)
-
+            ZStack {
                 ForEach(layout.sources, id: \.index) { source in
                     Circle()
-                        .fill(.blue.opacity(0.22))
-                        .overlay { Circle().stroke(.blue.opacity(0.7)) }
+                        .fill(.pink.opacity(0.72))
                         .frame(width: source.radius * 2, height: source.radius * 2)
                         .position(source.center)
                 }
-
-                ForEach(Array(layout.labelFrames.enumerated()), id: \.offset) { index, frame in
-                    Text("\(index + 1)")
-                        .font(.caption.weight(.bold))
-                        .frame(width: frame.width, height: frame.height)
-                        .background(.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
-                        .overlay { RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.8)) }
-                        .position(x: frame.midX, y: frame.midY)
-                }
-
-                Circle()
-                    .fill(.orange)
-                    .frame(width: 44, height: 44)
-                    .overlay { Image(systemName: "xmark").foregroundStyle(.black) }
-                    .position(layout.dockAnchor)
+                Circle().fill(.orange).frame(width: 44, height: 44).position(layout.dockAnchor)
             }
         }
-        .frame(height: 340)
+        .frame(height: 720)
         .background(.black)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
-        .overlay(alignment: .topLeading) {
-            Text("\(count) remaining")
-                .font(.caption.weight(.semibold))
-                .padding(8)
-        }
     }
 }
 
-#Preview("Field layout grid") {
-    ScrollView {
-        VStack(spacing: 16) {
-            ForEach([10, 9, 6, 3, 0], id: \.self) { count in
-                HappeningFieldLayoutDebugPreview(count: count)
-            }
-        }
-        .padding()
-    }
-    .background(.gray.opacity(0.25))
-}
-
-#Preview("Field layout grid — Accessibility") {
-    ScrollView {
-        VStack(spacing: 16) {
-            ForEach([10, 9, 6, 3, 0], id: \.self) { count in
-                HappeningFieldLayoutDebugPreview(count: count)
-            }
-        }
-        .padding()
-    }
-    .environment(\.sizeCategory, .accessibilityExtraExtraExtraLarge)
-    .background(.gray.opacity(0.25))
+#Preview("Circle constellation") {
+    HappeningFieldLayoutDebugPreview(count: 10)
 }
 #endif

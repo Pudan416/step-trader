@@ -1,6 +1,24 @@
 import Foundation
 import os.log
 
+enum DayCanvasFetchResult {
+    case found(DayCanvas)
+    case confirmedAbsent
+    case failed
+
+    static func decode(statusCode: Int, data: Data) -> Self {
+        guard (200..<300).contains(statusCode) else { return .failed }
+        do {
+            let rows = try JSONDecoder().decode([DayCanvasReadRow].self, from: data)
+            guard let row = rows.first else { return .confirmedAbsent }
+            let canvasData = try JSONSerialization.data(withJSONObject: row.canvasJson)
+            return .found(try JSONDecoder().decode(DayCanvas.self, from: canvasData))
+        } catch {
+            return .failed
+        }
+    }
+}
+
 // MARK: - Day Canvas Sync
 extension SupabaseSyncService {
     
@@ -34,23 +52,24 @@ extension SupabaseSyncService {
         }
     }
     
-    /// Fetch canvas from Supabase for a given day. Returns nil if not found or not authenticated.
-    func fetchDayCanvas(for dayKey: String) async -> DayCanvas? {
-        guard let auth = await authenticatedContext() else { return nil }
+    /// A successful empty response is distinct from every failure path so a
+    /// transient fetch problem can never publish an empty Canvas as truth.
+    func fetchDayCanvas(for dayKey: String) async -> DayCanvasFetchResult {
+        guard let auth = await authenticatedContext() else { return .failed }
         let token = auth.token
         let userId = auth.userId
         
         do {
             let cfg = try SupabaseConfig.load()
             let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/user_day_canvases")
-            guard var comps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return nil }
+            guard var comps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return .failed }
             comps.queryItems = [
                 URLQueryItem(name: "user_id", value: "eq.\(userId)"),
                 URLQueryItem(name: "day_key", value: "eq.\(dayKey)"),
                 URLQueryItem(name: "select", value: "canvas_json"),
                 URLQueryItem(name: "limit", value: "1")
             ]
-            guard let url = comps.url else { return nil }
+            guard let url = comps.url else { return .failed }
             
             var request = URLRequest(url: url)
             request.httpMethod = "GET"
@@ -59,21 +78,22 @@ extension SupabaseSyncService {
             request.setValue("application/json", forHTTPHeaderField: "accept")
             
             let (data, response) = try await network.data(for: request)
-            guard response.statusCode < 400 else {
+            guard (200..<300).contains(response.statusCode) else {
                 AppLogger.network.error("📡 fetchDayCanvas failed: HTTP \(response.statusCode)")
-                return nil
+                return .failed
             }
-            
-            let rows = try JSONDecoder().decode([DayCanvasReadRow].self, from: data)
-            guard let row = rows.first else { return nil }
-            
-            let canvasData = try JSONSerialization.data(withJSONObject: row.canvasJson)
-            let canvas = try JSONDecoder().decode(DayCanvas.self, from: canvasData)
-            AppLogger.network.debug("📡 fetchDayCanvas: restored canvas for \(dayKey) with \(canvas.elements.count) elements")
-            return canvas
+
+            let result = DayCanvasFetchResult.decode(
+                statusCode: response.statusCode,
+                data: data
+            )
+            if case let .found(canvas) = result {
+                AppLogger.network.debug("📡 fetchDayCanvas: restored canvas for \(dayKey) with \(canvas.elements.count) elements")
+            }
+            return result
         } catch {
             AppLogger.network.error("📡 fetchDayCanvas error: \(error.localizedDescription)")
-            return nil
+            return .failed
         }
     }
     

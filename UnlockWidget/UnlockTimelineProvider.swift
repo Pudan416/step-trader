@@ -43,7 +43,7 @@ struct UnlockEntry: TimelineEntry {
     let colorsBalance: Int
     let selectedGroupIds: [String]
     let mediumMode: MediumWidgetMode
-    let wallpaperBackground: UIImage?
+    var wallpaperBackground: UIImage?
     let energyData: EnergyData
 
     struct GroupSnapshot: Identifiable {
@@ -57,6 +57,7 @@ struct UnlockEntry: TimelineEntry {
         let budgetMinutes: Int
         let budgetInitial: Int
         let budgetExpiryDate: Date?
+        var identity: AppGroupIdentity? = nil
     }
 
     struct EnergyData {
@@ -112,7 +113,7 @@ enum WidgetRefreshPolicy {
            let lite = try? widgetDecoder.decode(_MinLiteConfig.self, from: liteData) {
             groupIds.append(contentsOf: lite.groups.map(\.id))
         }
-        return groupIds.contains { g.integer(forKey: SharedKeys.usageBudgetKey($0)) > 0 }
+        return groupIds.contains { ShieldRebuildHelper.isUsageBudgetActive(defaults: g, groupId: $0) }
     }
 
     private struct _MinGroupStub: Decodable { let id: String }
@@ -149,6 +150,7 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
 
     func snapshot(for configuration: SelectGroupIntent, in context: Context) async -> UnlockEntry {
         buildEntry(at: Date(), selectedGroupIds: configuration.selectedIds)
+            .withWallpaper(size: context.displaySize, mode: configuration.background, position: configuration.wallpaperPosition.position)
     }
 
     func timeline(for configuration: SelectGroupIntent, in context: Context) async -> Timeline<UnlockEntry> {
@@ -176,7 +178,16 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
             refreshPolicy = resetDate.addingTimeInterval(60)
         }
 
-        return Timeline(entries: entries, policy: .after(refreshPolicy))
+        let observations = ShieldRebuildHelper.budgetObservationDates(from: now, through: refreshPolicy,
+            expiries: currentEntry.groups.compactMap(\.budgetExpiryDate))
+        for date in observations where !entries.contains(where: { $0.date == date }) {
+            entries.append(buildEntry(at: date, selectedGroupIds: ids))
+        }
+        entries.sort { $0.date < $1.date }
+
+        let wallpaper = WidgetWallpaperFile.currentBackground(size: context.displaySize, mode: configuration.background,
+                                                             position: configuration.wallpaperPosition.position)
+        return Timeline(entries: entries.map { $0.withWallpaper(wallpaper) }, policy: .after(refreshPolicy))
     }
 
     // MARK: - Build Entry
@@ -210,8 +221,7 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
                     return group.hasActiveSettings
                 }
                 .map { group in
-                let budgetKey = SharedKeys.usageBudgetKey(group.id)
-                let budgetMinutes = g.integer(forKey: budgetKey)
+                let budgetMinutes = ShieldRebuildHelper.remainingUsageBudget(defaults: g, groupId: group.id, at: date)
                 let budgetInitial = g.integer(forKey: SharedKeys.usageBudgetInitialKey(group.id))
 
                 let intervals: Set<AccessWindow> = {
@@ -222,27 +232,23 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
                     return parsed.isEmpty ? [.minutes10, .minutes30, .hour1] : parsed
                 }()
 
-                let expiryDate: Date? = budgetMinutes > 0
-                    ? date.addingTimeInterval(TimeInterval(budgetMinutes * 60))
-                    : nil
+                let expiryDate = ShieldRebuildHelper.usageBudgetDisplayExpiry(defaults: g, groupId: group.id, at: date)
 
                 return UnlockEntry.GroupSnapshot(
                     id: group.id,
                     name: group.name,
                     enabledIntervals: intervals,
-                    isUnlocked: budgetMinutes > 0,
+                    isUnlocked: ShieldRebuildHelper.isUsageBudgetActive(defaults: g, groupId: group.id, at: date),
                     templateApp: group.templateApp,
                     appsCount: 1,
                     spentToday: 0,
                     budgetMinutes: budgetMinutes,
                     budgetInitial: budgetInitial,
-                    budgetExpiryDate: expiryDate
+                    budgetExpiryDate: expiryDate,
+                    identity: AppGroupIdentity(name: group.name, templateApp: group.templateApp, selectionData: group.selectionData)
                 )
             }
         }
-
-        let bgMode = g.string(forKey: SharedKeys.widgetBackgroundMode) ?? "basic"
-        let wallpaperImage: UIImage? = bgMode == "wallpaper" ? loadWallpaperBackground() : nil
 
         return UnlockEntry(
             date: date,
@@ -250,7 +256,7 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
             colorsBalance: balance,
             selectedGroupIds: selectedIds,
             mediumMode: mediumMode,
-            wallpaperBackground: wallpaperImage,
+            wallpaperBackground: nil,
             energyData: energy
         )
     }
@@ -337,31 +343,6 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
         )
     }
 
-    // MARK: - Image Loading
-
-    private func loadWallpaperBackground() -> UIImage? {
-        loadSharedImage(named: "wallpaper_bg.jpg")
-    }
-
-    private func loadSharedImage(named filename: String) -> UIImage? {
-        guard let containerURL = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: SharedKeys.appGroupId
-        ) else { return nil }
-
-        let url = containerURL
-            .appendingPathComponent("widget_snapshots", isDirectory: true)
-            .appendingPathComponent(filename)
-
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
-        let options: [CFString: Any] = [
-            kCGImageSourceThumbnailMaxPixelSize: 400,
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceShouldCacheImmediately: true
-        ]
-        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
-        return UIImage(cgImage: cgImage)
-    }
-
     private func loadActiveGroupIds(defaults: UserDefaults) -> Set<String>? {
         if let data = defaults.data(forKey: SharedKeys.liteTicketConfig),
            let lite = try? widgetDecoder.decode(WidgetLiteTicketConfig.self, from: data) {
@@ -381,6 +362,7 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
         let enabledIntervals: [String]?
         let templateApp: String?
         let settings: SettingsBlock?
+        let selectionData: Data?
 
         var hasActiveSettings: Bool {
             settings?.familyControlsModeEnabled ?? false
@@ -401,9 +383,9 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
     }
 }
 
-// MARK: - Static Timeline Provider (for medium — no configuration)
+// MARK: - Status Timeline Provider
 
-struct StatusTimelineProvider: TimelineProvider {
+struct StatusTimelineProvider: AppIntentTimelineProvider {
 
     func placeholder(in context: Context) -> UnlockEntry {
         UnlockEntry(
@@ -420,11 +402,12 @@ struct StatusTimelineProvider: TimelineProvider {
         )
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (UnlockEntry) -> Void) {
-        completion(buildStatusEntry(at: Date()))
+    func snapshot(for configuration: StatusWidgetIntent, in context: Context) async -> UnlockEntry {
+        buildStatusEntry(at: Date())
+            .withWallpaper(size: context.displaySize, mode: configuration.background, position: configuration.wallpaperPosition.position)
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<UnlockEntry>) -> Void) {
+    func timeline(for configuration: StatusWidgetIntent, in context: Context) async -> Timeline<UnlockEntry> {
         if let g = UserDefaults(suiteName: SharedKeys.appGroupId), !g.bool(forKey: SharedKeys.hasMediumWidget) {
             g.set(true, forKey: SharedKeys.hasMediumWidget)
         }
@@ -448,7 +431,9 @@ struct StatusTimelineProvider: TimelineProvider {
             refreshPolicy = resetDate.addingTimeInterval(60)
         }
 
-        completion(Timeline(entries: entries, policy: .after(refreshPolicy)))
+        let wallpaper = WidgetWallpaperFile.currentBackground(size: context.displaySize, mode: configuration.background,
+                                                             position: configuration.wallpaperPosition.position)
+        return Timeline(entries: entries.map { $0.withWallpaper(wallpaper) }, policy: .after(refreshPolicy))
     }
 
     private func nextResetDate(hour: Int, minute: Int) -> Date? {
@@ -583,6 +568,7 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
 
     func snapshot(for configuration: SelectSingleGroupIntent, in context: Context) async -> UnlockEntry {
         buildEntry(at: Date(), selectedGroupId: configuration.selectedId)
+            .withWallpaper(size: context.displaySize, mode: configuration.background, position: configuration.wallpaperPosition.position)
     }
 
     func timeline(for configuration: SelectSingleGroupIntent, in context: Context) async -> Timeline<UnlockEntry> {
@@ -605,7 +591,16 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
             refreshPolicy = resetDate.addingTimeInterval(60)
         }
 
-        return Timeline(entries: entries, policy: .after(refreshPolicy))
+        let observations = ShieldRebuildHelper.budgetObservationDates(from: now, through: refreshPolicy,
+            expiries: entry.groups.compactMap(\.budgetExpiryDate))
+        for date in observations where !entries.contains(where: { $0.date == date }) {
+            entries.append(buildEntry(at: date, selectedGroupId: configuration.selectedId))
+        }
+        entries.sort { $0.date < $1.date }
+
+        let wallpaper = WidgetWallpaperFile.currentBackground(size: context.displaySize, mode: configuration.background,
+                                                             position: configuration.wallpaperPosition.position)
+        return Timeline(entries: entries.map { $0.withWallpaper(wallpaper) }, policy: .after(refreshPolicy))
     }
 
     // MARK: - Build Entry
@@ -667,14 +662,11 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
 
         var groupSnapshot: UnlockEntry.GroupSnapshot?
         if let selectedGroupId {
-            groupSnapshot = loadGroupSnapshot(id: selectedGroupId, defaults: g)
+            groupSnapshot = loadGroupSnapshot(id: selectedGroupId, defaults: g, at: date)
         }
 
         let groups = groupSnapshot.map { [$0] } ?? []
         let selectedIds = selectedGroupId.map { [$0] } ?? []
-
-        let bgMode = g.string(forKey: SharedKeys.widgetBackgroundMode) ?? "basic"
-        let wallpaper: UIImage? = bgMode == "wallpaper" ? loadWallpaperBackground() : nil
 
         return UnlockEntry(
             date: date,
@@ -682,12 +674,12 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
             colorsBalance: balance,
             selectedGroupIds: selectedIds,
             mediumMode: .app,
-            wallpaperBackground: wallpaper,
+            wallpaperBackground: nil,
             energyData: energy
         )
     }
 
-    private func loadGroupSnapshot(id: String, defaults g: UserDefaults) -> UnlockEntry.GroupSnapshot? {
+    private func loadGroupSnapshot(id: String, defaults g: UserDefaults, at date: Date) -> UnlockEntry.GroupSnapshot? {
         let activeIds = loadActiveGroupIds(defaults: g)
 
         guard let data = g.data(forKey: SharedKeys.ticketGroups)
@@ -700,7 +692,7 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
         if let activeIds, !activeIds.contains(group.id) { return nil }
         if activeIds == nil, !(group.settings?.familyControlsModeEnabled ?? false) { return nil }
 
-        let budgetMinutes = g.integer(forKey: SharedKeys.usageBudgetKey(group.id))
+        let budgetMinutes = ShieldRebuildHelper.remainingUsageBudget(defaults: g, groupId: group.id, at: date)
         let budgetInitial = g.integer(forKey: SharedKeys.usageBudgetInitialKey(group.id))
 
         let intervals: Set<AccessWindow> = {
@@ -715,15 +707,14 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
             id: group.id,
             name: group.name,
             enabledIntervals: intervals,
-            isUnlocked: budgetMinutes > 0,
+            isUnlocked: ShieldRebuildHelper.isUsageBudgetActive(defaults: g, groupId: group.id, at: date),
             templateApp: group.templateApp,
             appsCount: 1,
             spentToday: 0,
             budgetMinutes: budgetMinutes,
             budgetInitial: budgetInitial,
-            budgetExpiryDate: budgetMinutes > 0
-                ? Date().addingTimeInterval(TimeInterval(budgetMinutes * 60))
-                : nil
+            budgetExpiryDate: ShieldRebuildHelper.usageBudgetDisplayExpiry(defaults: g, groupId: group.id, at: date),
+            identity: AppGroupIdentity(name: group.name, templateApp: group.templateApp, selectionData: group.selectionData)
         )
     }
 
@@ -767,31 +758,13 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
             == DayBoundary.currentDayStart(for: b, dayEndHour: dayEndHour, dayEndMinute: dayEndMinute)
     }
 
-    private func loadWallpaperBackground() -> UIImage? {
-        guard let containerURL = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: SharedKeys.appGroupId
-        ) else { return nil }
-
-        let url = containerURL
-            .appendingPathComponent("widget_snapshots", isDirectory: true)
-            .appendingPathComponent("wallpaper_bg.jpg")
-
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
-        let options: [CFString: Any] = [
-            kCGImageSourceThumbnailMaxPixelSize: 400,
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceShouldCacheImmediately: true
-        ]
-        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
-        return UIImage(cgImage: cgImage)
-    }
-
     private struct ComboGroupStub: Decodable {
         let id: String
         let name: String
         let enabledIntervals: [String]?
         let templateApp: String?
         let settings: SettingsBlock?
+        let selectionData: Data?
 
         struct SettingsBlock: Decodable {
             let familyControlsModeEnabled: Bool?
@@ -804,5 +777,24 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
             let id: String
             let active: Bool
         }
+    }
+}
+
+
+private extension WidgetWallpaperFile {
+    static func currentBackground(size: CGSize, mode: WidgetBackgroundOption, position: WidgetWallpaperPosition?) -> UIImage? {
+        guard let defaults = UserDefaults(suiteName: SharedKeys.appGroupId), let directory else { return nil }
+        return background(widgetSize: size, mode: mode, position: position, defaults: defaults, directory: directory)
+    }
+}
+
+private extension UnlockEntry {
+    func withWallpaper(size: CGSize, mode: WidgetBackgroundOption, position: WidgetWallpaperPosition?) -> Self {
+        withWallpaper(WidgetWallpaperFile.currentBackground(size: size, mode: mode, position: position))
+    }
+    func withWallpaper(_ image: UIImage?) -> Self {
+        var copy = self
+        copy.wallpaperBackground = image
+        return copy
     }
 }

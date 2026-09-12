@@ -1,129 +1,135 @@
 import SwiftUI
+import simd
 
-/// The palette field: one tile per happening, each drawn as the figure that
-/// happening will become on the canvas.
-///
-/// Replaces the metaball cluster, which drew a single iso-contour over ten
-/// summed point fields — by construction that has no per-item silhouette to
-/// show, only the outline of a merged mass.
+/// Transparent labels and hit targets over the renderer's fixed ten actors.
 struct HappeningShapeField: View {
-    @Binding var presentation: HappeningFieldPresentationState
     let happenings: [Happening]
-    let figures: [String: HappeningShapeAssignment]
-    let bounds: CGRect
-    let highlightedID: String?
-    let onPick: (Happening, CGPoint) -> Bool
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    /// Changes whenever any tile's figure changes, which is what a re-roll is.
-    /// Used to drive the haptic — the figures themselves are the trigger, so a
-    /// shake that changed nothing makes no bump.
-    private var figuresSignature: Int {
-        var hasher = Hasher()
-        for happening in presentation.presentedHappenings {
-            hasher.combine(happening.id)
-            hasher.combine(figures[happening.id]?.seed ?? 0)
-            hasher.combine(figures[happening.id]?.colorHex ?? "")
-        }
-        return hasher.finalize()
-    }
-
-    /// Three columns have to fit the field's width at the layout's pitch, and
-    /// the label below needs room under each tile. 92 is the cap; narrow
-    /// screens get whatever the width allows.
-    private var tileSide: CGFloat {
-        max(44, min(92, (bounds.width - 40) / 3))
-    }
+    let assignments: [String: HappeningEditorialAssignment]
+    let layout: HappeningFieldLayout.Layout
+    let interaction: HappeningPaletteInteractionState
+    let addedIDs: Set<String>
+    let onActivate: (Happening) -> Void
+    var labelInks: [String: HappeningPaletteLabelInk] = [:]
 
     var body: some View {
-        let presented = presentation.presentedHappenings
-        let frames = HappeningTileLayout.frames(
-            count: presented.count,
-            in: bounds,
-            tileSide: tileSide
-        )
-
         ZStack(alignment: .topLeading) {
-            ForEach(Array(presented.enumerated()), id: \.element.id) { index, happening in
-                if index < frames.count, let figure = figures[happening.id] {
-                    tile(happening, figure: figure, frame: frames[index])
+            ForEach(Array(happenings.prefix(10).enumerated()), id: \.element.id) { index, happening in
+                if index < layout.sources.count {
+                    happeningButton(happening, source: layout.sources[index])
                 }
             }
         }
-        .onChange(of: happenings) { _, next in
-            presentation.receiveParent(next, whileTransitioning: false)
-        }
-        .sensoryFeedback(.impact(weight: .medium), trigger: figuresSignature)
     }
 
-    private func tile(
+    private func happeningButton(
         _ happening: Happening,
-        figure: HappeningShapeAssignment,
-        frame: CGRect
+        source: HappeningFieldLayout.Source
     ) -> some View {
-        // Shape and label share the tile rather than the label hanging below
-        // it. A VStack taller than the frame centres itself, which pushed every
-        // figure up and every label down until the two stopped reading as one
-        // thing.
-        VStack(spacing: 2) {
-            HappeningShapeTile(
-                element: HappeningShapeTile.previewElement(
-                    optionId: happening.id,
-                    label: happening.localizedTitle(),
-                    shapeType: figure.shapeType,
-                    colorHex: figure.colorHex,
-                    seed: figure.seed,
-                    rotation: figure.rotation
-                ),
-                side: frame.width * 0.68
-            )
-            // A Canvas redraws its new figure instantly — there is nothing
-            // between the old silhouette and the new one to interpolate. Keying
-            // the view on the figure makes the change an identity change, so
-            // the two can cross-fade instead of snapping.
-            .id(figure)
-            .transition(
-                reduceMotion
-                    ? .opacity
-                    : .opacity.combined(with: .scale(scale: 0.86))
-            )
-            Text(happening.localizedTitle())
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundStyle(AppColors.Night.textPrimary)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .minimumScaleFactor(0.7)
-                // Barely wider than the tile: the rows of two sit at the same
-                // pitch as the rows of three, so a generous label box has the
-                // neighbours' text running into it.
-                .frame(width: frame.width + 6)
-        }
-        // `contentShape` before `.position()`, never after: `.position()`
-        // expands a view to fill its parent, so a shape applied afterwards
-        // covers the whole field and the topmost tile swallows every tap.
-        .frame(width: frame.width, height: frame.height)
-        .contentShape(Rectangle())
-        .onTapGesture { pick(happening, at: frame) }
-        .position(x: frame.midX, y: frame.midY)
-        .scaleEffect(highlightedID == happening.id ? 1.08 : 1)
-        .animation(.easeInOut(duration: 0.28), value: highlightedID)
-        .accessibilityElement(children: .ignore)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityLabel(Text(happening.localizedTitle()))
-    }
+        let state = interaction.visualState(for: happening.id, addedIDs: addedIDs)
+        let locked = assignments[happening.id] == nil || interaction.pendingMutation != nil
+        let side = max(44, source.radius * 2)
+        let ink = labelInks[happening.id] ?? .dark
 
-    /// The tile leaves the field only once the canvas has actually taken the
-    /// happening. A tile that vanished on tap and then failed to spawn would
-    /// lose the happening for the rest of the day.
-    private func pick(_ happening: Happening, at frame: CGRect) {
-        guard onPick(happening, CGPoint(x: frame.midX, y: frame.midY)) else { return }
-        if reduceMotion {
-            _ = presentation.remove(id: happening.id)
-        } else {
-            withAnimation(.easeInOut(duration: 0.3)) {
-                _ = presentation.remove(id: happening.id)
+        return ZStack {
+            Button {
+                onActivate(happening)
+            } label: {
+                Text(happening.localizedTitle())
+                    .font(.geist(size: 14, weight: .semibold))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .frame(width: side * 0.80, height: side * 0.76, alignment: .center)
+                    // Preview actions never participate in the title's layout.
+                    .overlay {
+                        if state.awaitsConfirmation {
+                            Text(state == .additionPreview ? LocalizedStringKey("Add") : LocalizedStringKey("Delete"))
+                                .font(.geist(size: 12, weight: .semibold))
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 3)
+                                .background(ink.color.opacity(0.08), in: Capsule())
+                                .overlay(Capsule().strokeBorder(ink.color.opacity(0.45), lineWidth: 1))
+                                .accessibilityIdentifier("happening_action_\(happening.id)")
+                                .offset(y: side * 0.30)
+                        }
+                    }
+                    .foregroundStyle(ink.color)
+                    .frame(width: side, height: side)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(locked)
+            .accessibilityLabel(happening.localizedTitle())
+            .accessibilityValue(HappeningPaletteAccessibility.value(for: state))
+            .accessibilityHint(hint(for: state, locked: locked))
+            .accessibilityIdentifier("happening_choice_\(happening.id)")
+
+            if state == .added {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 24, height: 24)
+                    .background(.black.opacity(0.88), in: Circle())
+                    .overlay(Circle().strokeBorder(.white.opacity(0.9), lineWidth: 1))
+                    .accessibilityHidden(true)
+                    .accessibilityIdentifier("happening_status_added_\(happening.id)")
+                    .allowsHitTesting(false)
+                    .offset(x: side * 0.30, y: -side * 0.30)
             }
         }
+        .frame(width: side, height: side)
+        .position(source.center)
+    }
+
+    private func hint(for state: HappeningPaletteSlotVisualState, locked: Bool) -> String {
+        if locked { return String(localized: "This happening is temporarily unavailable. Try again.") }
+        switch state {
+        case .available: return String(localized: "Activate to preview adding to Canvas")
+        case .additionPreview: return String(localized: "Activate again to add to Canvas")
+        case .added: return String(localized: "Activate to preview removing from Canvas")
+        case .removalPreview: return String(localized: "Activate again to remove from Canvas")
+        }
+    }
+}
+
+/// Choose readable ink from the Canvas or the selected figure's saved pigment.
+/// Transparent contours keep the Canvas ink; they do not supply a text backing.
+enum HappeningPaletteLabelInk: Equatable {
+    case dark, light
+
+    var color: Color { self == .dark ? .black : .white }
+
+    static func contrasting(with linearColors: [SIMD3<Float>]) -> Self {
+        guard !linearColors.isEmpty else { return .dark }
+        let luminances = linearColors.map {
+            max(0, min(1, simd_dot($0, SIMD3<Float>(0.2126, 0.7152, 0.0722))))
+        }
+        let darkContrast = luminances.map { ($0 + 0.05) / 0.05 }.min() ?? 1
+        let lightContrast = luminances.map { 1.05 / ($0 + 0.05) }.min() ?? 1
+        return darkContrast >= lightContrast ? .dark : .light
+    }
+
+    static func resolve(
+        state: HappeningPaletteSlotVisualState,
+        background: [SIMD3<Float>],
+        material: MetalShapeMaterialUniforms?
+    ) -> Self {
+        // The circle supplies its own light backing, regardless of the theme
+        // or gradient. Only revealed figures need their pigment considered.
+        guard state != .available else { return .dark }
+        guard let material else { return contrasting(with: background) }
+        let colors: [SIMD4<Float>]
+        switch material.materialIndex {
+        case 2, 3, 8, 9: return contrasting(with: background)
+        case 0: colors = [material.color0]
+        case 1, 4: colors = [material.color0, material.color1]
+        default: colors = [material.color0, material.color1, material.color2]
+        }
+        let opacity: Float = state == .removalPreview ? 0.88 : 1
+        let backing = background.isEmpty ? [SIMD3<Float>(repeating: 0.5)] : background
+        return contrasting(with: colors.flatMap { color in
+            backing.map { bg in
+                SIMD3(color.x, color.y, color.z) * opacity + bg * (1 - opacity)
+            }
+        })
     }
 }

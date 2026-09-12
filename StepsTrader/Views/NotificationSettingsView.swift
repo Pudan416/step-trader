@@ -1,10 +1,12 @@
 import SwiftUI
+import UIKit
 
 struct NotificationSettingsView: View {
     @ObservedObject var model: AppModel
-    @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @AppStorage(SharedKeys.notifyOneMinBefore, store: UserDefaults.stepsTrader())
     private var oneMinBefore: Bool = true
@@ -27,6 +29,45 @@ struct NotificationSettingsView: View {
     @AppStorage(SharedKeys.dayResetWarningHours, store: UserDefaults.stepsTrader())
     private var dayResetWarningHours: Int = 1
 
+    @State private var notificationFailure: SettingsPermissionFailurePresentation?
+
+    private var usesDeniedNotificationsFixture: Bool {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains("ui-testing")
+            && arguments.contains("ui-testing-notifications-denied")
+        #else
+        false
+        #endif
+    }
+
+    private var usesNotificationFailureFixture: Bool {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains("ui-testing")
+            && arguments.contains("ui-testing-notifications-error")
+        #else
+        false
+        #endif
+    }
+
+    private var presentedNotificationFailure: SettingsPermissionFailurePresentation? {
+        usesNotificationFailureFixture ? .notifications : notificationFailure
+    }
+
+    private var notificationPresentation: SettingsPermissionPresentation {
+        SettingsPermissionPresentation.notifications(
+            status: usesDeniedNotificationsFixture
+                ? .denied
+                : model.notificationAuthorizationStatus,
+            remindersEnabled: oneMinBefore || timerOver || canvasReminder || dayResetWarning
+        )
+    }
+
+    private var notificationDeliveryIsUnavailable: Bool {
+        notificationPresentation.contributesToWarning
+    }
+
     private var canvasTimeBinding: Binding<Date> {
         Binding<Date>(
             get: {
@@ -46,22 +87,73 @@ struct NotificationSettingsView: View {
 
     var body: some View {
         ZStack {
-            SettingsGradientBG(model: model)
+            SettingsDetailBackground(model: model)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    DetailHeader(title: String(localized: "Notifications", comment: "Navigation title"))
-                        .padding(.horizontal, 16)
+                    // MARK: - System Authorization
+                    VStack(alignment: .leading, spacing: 8) {
+                        SettingsLabeledGroup(
+                            title: String(localized: "Notification access", comment: "Notification authorization section header"),
+                            surfaceIdentifier: "settings.notifications.authorization"
+                        ) {
+                            (dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 12))) {
+                                Image(systemName: "bell.badge")
+                                    .font(.geist(size: 15))
+                                    .foregroundStyle(notificationStatusColor)
+                                    .frame(width: 24)
+                                    .accessibilityHidden(true)
+
+                                Text(String(localized: "System notifications", comment: "Notification authorization row title"))
+                                    .font(.geist(.subheadline))
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .foregroundStyle(SettingsCardAppearance.primaryText)
+
+                                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 12) }
+
+                                Text(notificationPresentation.status.displayText)
+                                    .font(.geist(.caption).weight(.semibold))
+                                    .foregroundStyle(notificationStatusColor)
+                                    .multilineTextAlignment(.trailing)
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 13)
+
+                            if let actionTitle = notificationActionTitle {
+                                DetailDivider()
+
+                                Button(actionTitle) {
+                                    handleNotificationAction()
+                                }
+                                .font(.geist(.subheadline).weight(.semibold))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .frame(minHeight: 44)
+                                .padding(.horizontal, 14)
+                                .contentShape(Rectangle())
+                            }
+
+                            if let notificationFailure = presentedNotificationFailure {
+                                DetailDivider()
+                                permissionFailureRow(notificationFailure)
+                            }
+                        }
+
+                        if notificationDeliveryIsUnavailable {
+                            SettingsFooter(text: String(localized: "Reminders will not be delivered until notifications are allowed.", comment: "Notifications unavailable footer"))
+                        } else if !(oneMinBefore || timerOver || canvasReminder || dayResetWarning) {
+                            SettingsFooter(text: String(localized: "All reminders are off."))
+                        }
+                    }
+                    .padding(.horizontal, 16)
 
                     // MARK: - Access Window
-                    VStack(alignment: .leading, spacing: 0) {
-                        SettingsSectionLabel(text: String(localized: "Access window", comment: "Notification section header"))
-                            .padding(.horizontal, 14)
-                            .padding(.bottom, 8)
-
+                    SettingsLabeledGroup(
+                        title: String(localized: "Access window", comment: "Notification section header"),
+                        surfaceIdentifier: "settings.notifications.accessWindow"
+                    ) {
                         SettingsToggleRow(
                             icon: "timer",
-                            title: String(localized: "1 min before time is over"),
+                            title: String(localized: "1 minute before access ends", comment: "Notification preference for access ending soon"),
                             isOn: $oneMinBefore
                         )
 
@@ -69,78 +161,73 @@ struct NotificationSettingsView: View {
 
                         SettingsToggleRow(
                             icon: "clock.badge.exclamationmark",
-                            title: String(localized: "When the timer is over"),
+                            title: String(localized: "When access ends", comment: "Notification preference for access ending"),
                             isOn: $timerOver
                         )
                     }
                     .padding(.horizontal, 16)
 
-                    DetailDivider().padding(.horizontal, 16)
-
                     // MARK: - Canvas Reminder
-                    VStack(alignment: .leading, spacing: 0) {
-                        SettingsSectionLabel(text: String(localized: "Canvas reminder", comment: "Notification section header"))
-                            .padding(.horizontal, 14)
-                            .padding(.bottom, 8)
-
+                    SettingsLabeledGroup(
+                        title: String(localized: "Canvas reminder", comment: "Notification section header")
+                    ) {
                         SettingsToggleRow(
                             icon: "paintpalette",
                             title: String(localized: "Daily canvas reminder"),
-                            isOn: $canvasReminder,
-                            subtitle: String(localized: "Get a nudge to fill your canvas with the things that colored up your day.")
+                            isOn: $canvasReminder
                         )
                         .onChange(of: canvasReminder) { _, _ in rescheduleCanvas() }
 
                         if canvasReminder {
                             DetailDivider()
 
-                            HStack(spacing: 12) {
-                                Image(systemName: "clock")
-                                    .font(.system(size: 15))
-                                    .foregroundStyle(theme.adaptiveSecondaryText)
-                                    .frame(width: 24)
-                                Text(String(localized: "Remind at"))
-                                    .font(.subheadline)
-                                    .foregroundStyle(theme.adaptivePrimaryText)
-                                Spacer()
-                                DatePicker("", selection: canvasTimeBinding, displayedComponents: .hourAndMinute)
-                                    .labelsHidden()
-                                    .tint(AppColors.brandAccent)
+                            DatePicker(
+                                selection: canvasTimeBinding,
+                                displayedComponents: .hourAndMinute
+                            ) {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "clock")
+                                        .font(.geist(size: 15))
+                                        .foregroundStyle(theme.adaptiveSecondaryText)
+                                        .frame(width: 24)
+                                        .accessibilityHidden(true)
+                                    Text(String(localized: "Remind at", comment: "Canvas reminder time label"))
+                                        .font(.geist(.subheadline))
+                                        .foregroundStyle(SettingsCardAppearance.primaryText)
+                                }
                             }
+                            .tint(AppColors.brandAccent)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 10)
+                            .frame(minHeight: 44)
                         }
                     }
                     .padding(.horizontal, 16)
 
-                    DetailDivider().padding(.horizontal, 16)
-
                     // MARK: - Day Reset Warning
-                    VStack(alignment: .leading, spacing: 0) {
-                        SettingsSectionLabel(text: String(localized: "Day reset", comment: "Notification section header"))
-                            .padding(.horizontal, 14)
-                            .padding(.bottom, 8)
-
+                    SettingsLabeledGroup(
+                        title: String(localized: "Day reset", comment: "Notification section header")
+                    ) {
                         SettingsToggleRow(
                             icon: "arrow.counterclockwise",
                             title: String(localized: "Canvas reset warning"),
-                            isOn: $dayResetWarning,
-                            subtitle: String(localized: "A heads-up before your canvas resets for a new day.")
+                            isOn: $dayResetWarning
                         )
                         .onChange(of: dayResetWarning) { _, _ in rescheduleDayReset() }
 
                         if dayResetWarning {
                             DetailDivider()
 
-                            HStack(spacing: 12) {
+                            (dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 12))) {
                                 Image(systemName: "hourglass")
-                                    .font(.system(size: 15))
+                                    .font(.geist(size: 15))
                                     .foregroundStyle(theme.adaptiveSecondaryText)
                                     .frame(width: 24)
                                 Text(String(localized: "Warn before reset"))
-                                    .font(.subheadline)
-                                    .foregroundStyle(theme.adaptivePrimaryText)
-                                Spacer()
+                                    .font(.geist(.subheadline))
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .foregroundStyle(SettingsCardAppearance.primaryText)
+                                if !dynamicTypeSize.isAccessibilitySize { Spacer() }
                                 Menu {
                                     ForEach([1, 2, 3], id: \.self) { h in
                                         Button {
@@ -157,16 +244,17 @@ struct NotificationSettingsView: View {
                                 } label: {
                                     HStack(spacing: 4) {
                                         Text(dayResetWarningHours == 1 ? String(localized: "1 hour") : String(localized: "\(dayResetWarningHours) hours"))
-                                            .font(.subheadline)
+                                            .font(.geist(.subheadline))
                                             .foregroundStyle(theme.adaptiveSecondaryText)
                                         Image(systemName: "chevron.up.chevron.down")
-                                            .font(.caption2)
+                                            .font(.geist(.caption2))
                                             .foregroundStyle(theme.adaptiveMutedText)
                                     }
                                 }
                             }
                             .padding(.horizontal, 14)
                             .padding(.vertical, 10)
+                            .frame(minHeight: 44)
                         }
                     }
                     .padding(.horizontal, 16)
@@ -175,11 +263,18 @@ struct NotificationSettingsView: View {
             }
         }
         .overlay { }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            Color.clear.frame(height: topCardHeight)
+        .settingsDetailPage(title: String(localized: "Notifications", comment: "Navigation title"))
+        .task {
+            await refreshNotificationStatus()
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .detailSwipeBack()
+        .onChange(of: oneMinBefore) { _, _ in model.objectWillChange.send() }
+        .onChange(of: timerOver) { _, _ in model.objectWillChange.send() }
+        .onChange(of: canvasReminder) { _, _ in model.objectWillChange.send() }
+        .onChange(of: dayResetWarning) { _, _ in model.objectWillChange.send() }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { await refreshNotificationStatus() }
+        }
     }
 
     // MARK: - Reschedule helpers
@@ -191,6 +286,102 @@ struct NotificationSettingsView: View {
     private func rescheduleDayReset() {
         (model.notificationService as? NotificationManager)?
             .scheduleDayResetWarning(dayEndHour: model.dayEndHour, dayEndMinute: model.dayEndMinute)
+    }
+
+    private var notificationActionTitle: String? {
+        switch notificationPresentation.action {
+        case .requestPermission:
+            String(localized: "Allow notifications", comment: "Notification permission action")
+        case .openSystemSettings, .checkAccess:
+            String(localized: "Open Settings", comment: "Permission recovery action")
+        case nil:
+            nil
+        }
+    }
+
+    private var notificationStatusColor: Color {
+        if !notificationPresentation.contributesToWarning && notificationPresentation.status != .allowed {
+            return theme.adaptiveMutedText
+        }
+        return switch notificationPresentation.status {
+        case .allowed, .connected:
+            .green
+        case .notRequested, .offInSystemSettings, .actionNeeded:
+            .orange
+        case .checkAccess, .unavailable:
+            theme.adaptiveMutedText
+        }
+    }
+
+    private func handleNotificationAction() {
+        switch notificationPresentation.action {
+        case .requestPermission:
+            requestNotificationAuthorization()
+        case .openSystemSettings, .checkAccess:
+            openAppSettings()
+        case nil:
+            break
+        }
+    }
+
+    private func refreshNotificationStatus() async {
+        if usesDeniedNotificationsFixture {
+            model.notificationAuthorizationStatus = .denied
+            notificationFailure = nil
+            return
+        }
+        await model.refreshNotificationAuthorizationStatus()
+        notificationFailure = nil
+    }
+
+    private func requestNotificationAuthorization() {
+        Task {
+            notificationFailure = nil
+            do {
+                try await model.requestNotificationPermission()
+                await refreshNotificationStatus()
+            } catch {
+                notificationFailure = .notifications
+            }
+        }
+    }
+
+    private func permissionFailureRow(
+        _ failure: SettingsPermissionFailurePresentation
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(failure.message)
+                .font(.geist(.subheadline).weight(.semibold))
+                .foregroundStyle(SettingsCardAppearance.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            (dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 12))) {
+                if failure.actions.contains(.tryAgain) {
+                    Button(String(localized: "Try Again", comment: "Permission retry action")) {
+                        requestNotificationAuthorization()
+                    }
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .accessibilityIdentifier("settings.notifications.error.tryAgain")
+                }
+                if failure.actions.contains(.openSettings) {
+                    Button(String(localized: "Open Settings", comment: "Permission recovery action")) {
+                        openAppSettings()
+                    }
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .accessibilityIdentifier("settings.notifications.error.openSettings")
+                }
+            }
+            .font(.geist(.caption).weight(.semibold))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+
+    private func openAppSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
     }
 }
 

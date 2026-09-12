@@ -82,6 +82,21 @@ class AuthenticationService: NSObject, ObservableObject {
     
     override init() {
         super.init()
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("ui-testing-settings-account") {
+            currentUser = AppUser(
+                id: "ui-testing-settings-account",
+                email: "konstantin@example.com",
+                nickname: "Konstantin Pudan",
+                createdAt: Date(timeIntervalSinceReferenceDate: 800_000_000),
+                hasSetCustomNickname: true
+            )
+            isAuthenticated = true
+            isAnonymous = false
+            isInitialized = true
+            return
+        }
+        #endif
         Task { @MainActor in
             await loadStoredSessionAndRefreshUser()
             isInitialized = true

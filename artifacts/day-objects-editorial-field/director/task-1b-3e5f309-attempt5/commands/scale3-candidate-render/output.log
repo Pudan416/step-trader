@@ -1,0 +1,28 @@
+Building for debugging...
+[0/3] Write swift-version--58304C5D6DBC2206.txt
+Build of product 'editorial-field-render' complete! (0.15s)
+material evidence: /Users/kosta/Documents/Documents - Konstantin’s MacBook Pro/dev local/step-trader/.worktrees/editorial-task1b-attempt5-3e5f309/artifacts/day-objects-editorial-field/material/approved-3e5f309-attempt5/scale3-candidate
+material fixtures: 27
+core PNG views: 54
+artifact records: 258
+composition approval SHA-256: c4f4c95c2431701587a3c366dcc4d82ae21b9a5735d840a995a0aae52346124c
+composition recipes SHA-256: 7faef26a612768b67b73b520c7889e569594516bde3745f8a75b4ff2a24aeccd
+package SHA-256: 5a0c7a2251b1e9119155afc31049e51d280d8e76956a9113b469acc279487f57
+      631.52 real       622.61 user         8.08 sys
+          1043120128  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             1476050  page reclaims
+                2823  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 775  voluntary context switches
+              106429  involuntary context switches
+      10349588529139  instructions retired
+       2010517508394  cycles elapsed
+           990873280  peak memory footprint

@@ -28,8 +28,10 @@ extension SupabaseSyncService {
         userGradientStyle: String = GradientStyle.radial.rawValue,
         userGradientPalette: String = GradientPalette.warmSunset.rawValue,
         dailyRandomThemeEnabled: Bool = false,
+        modernPaletteCategories: [String] = ModernPaletteCategory.allCases.map(\.rawValue),
         canvasOverlayStyle: String = CanvasOverlayStyle.smudge.rawValue,
-        allowedCanvasShapes: [String] = CanvasShapeType.selectableCases.map(\.rawValue)
+        allowedCanvasShapes: [String] = CanvasShapeType.selectableCases.map(\.rawValue),
+        allowedCanvasFills: [String] = TextureKind.allCases.map(\.rawValue)
     ) {
         let payload = UserPreferencesPayload(
             stepsTarget: stepsTarget,
@@ -54,8 +56,10 @@ extension SupabaseSyncService {
             userGradientStyle: userGradientStyle,
             userGradientPalette: userGradientPalette,
             dailyRandomThemeEnabled: dailyRandomThemeEnabled,
+            modernPaletteCategories: modernPaletteCategories,
             canvasOverlayStyle: canvasOverlayStyle,
-            allowedCanvasShapes: allowedCanvasShapes
+            allowedCanvasShapes: allowedCanvasShapes,
+            allowedCanvasFills: allowedCanvasFills
         )
         
         if payload == pendingPreferences { return }
@@ -175,8 +179,10 @@ extension SupabaseSyncService {
                 "user_gradient_style": payload.userGradientStyle,
                 "user_gradient_palette": payload.userGradientPalette,
                 "daily_random_theme_enabled": payload.dailyRandomThemeEnabled,
+                "modern_palette_categories": payload.modernPaletteCategories,
                 "canvas_overlay_style": payload.canvasOverlayStyle,
                 "allowed_canvas_shapes": payload.allowedCanvasShapes,
+                "allowed_canvas_fills": payload.allowedCanvasFills,
                 "updated_at": iso8601String(Date.now)
             ]
             if let lastOpened = payload.lastOpenedAt {
@@ -214,11 +220,13 @@ extension SupabaseSyncService {
         gradientStyle: String, gradientPalette: String,
         userGradientStyle: String, userGradientPalette: String,
         dailyRandomThemeEnabled: Bool,
+        modernPaletteCategories: [String],
         canvasOverlayStyle: String,
         bodyCanvasShape: String,
         mindCanvasShape: String,
         heartCanvasShape: String,
-        allowedCanvasShapes: [String]
+        allowedCanvasShapes: [String],
+        allowedCanvasFills: [String]
     )? {
         guard let auth = await authenticatedContext() else { return nil }
         let token = auth.token
@@ -273,11 +281,13 @@ extension SupabaseSyncService {
                 userGradientStyle: row.userGradientStyle,
                 userGradientPalette: row.userGradientPalette,
                 dailyRandomThemeEnabled: row.dailyRandomThemeEnabled,
+                modernPaletteCategories: row.modernPaletteCategories,
                 canvasOverlayStyle: row.canvasOverlayStyle,
                 bodyCanvasShape: row.bodyCanvasShape,
                 mindCanvasShape: row.mindCanvasShape,
                 heartCanvasShape: row.heartCanvasShape,
-                allowedCanvasShapes: row.allowedCanvasShapes
+                allowedCanvasShapes: row.allowedCanvasShapes,
+                allowedCanvasFills: row.allowedCanvasFills
             )
         } catch {
             AppLogger.network.error("📡 Failed to load preferences: \(error.localizedDescription)")

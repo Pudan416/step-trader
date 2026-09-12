@@ -1,0 +1,11 @@
+source_package=artifacts/day-objects-editorial-field/material/approved-3e5f309-attempt5/scale1-rerender
+tamper_package=/private/tmp/task1b-attempt5-scale1-rerender-tamper.DAC5qq/package
+target_relative_path=contact-sheets/material-atlas.png
+zero_based_byte_offset=128
+original_byte_decimal=64
+tampered_byte_decimal=65
+original_sha256=49db63ec8e947a54788d0f1fd7e7153d26c6294debbfca66259f7daada6b8831
+tampered_sha256=bf0228dd356fc6552e8c611c262bf99b9e820e6a56a37a8a9605b06b8a14f16e
+byte_diff_count=1
+package_diff_count=1
+source_package_hash=09c092ed48a969c81145b789da7f123106c21b124020c3122de7fbd2bf508852

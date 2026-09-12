@@ -5,10 +5,25 @@ import Foundation
 /// (non-trivial) aggregation runs once per data load rather than per body pass.
 enum MeWeekStats {
 
+    struct HappeningFrequency: Equatable {
+        let id: String
+        let count: Int
+        let relativeIntensity: Double
+    }
+
     struct Summary: Equatable {
         var avgSteps: Int = 0
         var avgSleepHours: Double = 0
-        var topHappeningIds: [String] = []
+        var topHappenings: [HappeningFrequency] = []
+
+        var topHappeningIds: [String] {
+            topHappenings.map(\.id)
+        }
+    }
+
+    struct Comparison: Equatable {
+        var sleepHoursDelta: Double?
+        var stepsPercentDelta: Int?
     }
 
     /// Averages over the days that actually have a snapshot — a day with no
@@ -32,15 +47,21 @@ enum MeWeekStats {
         // Count descending, then id ascending: Dictionary order is randomised
         // per process, so the tie-break has to be total or the list reshuffles
         // between launches.
-        let ranked = counts
+        let ranked = Array(counts
             .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
-            .prefix(topCount)
-            .map(\.key)
+            .prefix(topCount))
+        let maximumCount = ranked.first?.value ?? 1
 
         return Summary(
             avgSteps: totalSteps / count,
             avgSleepHours: totalSleep / Double(count),
-            topHappeningIds: Array(ranked)
+            topHappenings: ranked.map {
+                HappeningFrequency(
+                    id: $0.key,
+                    count: $0.value,
+                    relativeIntensity: Double($0.value) / Double(maximumCount)
+                )
+            }
         )
     }
 
@@ -54,5 +75,18 @@ enum MeWeekStats {
             for (key, value) in perApp { totals[key, default: 0] += value }
         }
         return totals
+    }
+
+    static func comparison(current: Summary, previous: Summary) -> Comparison {
+        let sleepDelta = previous.avgSleepHours > 0
+            ? current.avgSleepHours - previous.avgSleepHours
+            : nil
+        let stepsDelta = previous.avgSteps > 0
+            ? Int((Double(current.avgSteps - previous.avgSteps) / Double(previous.avgSteps) * 100).rounded())
+            : nil
+        return Comparison(
+            sleepHoursDelta: sleepDelta,
+            stepsPercentDelta: stepsDelta
+        )
     }
 }

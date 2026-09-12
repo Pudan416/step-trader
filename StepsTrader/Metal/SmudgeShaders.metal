@@ -158,8 +158,10 @@ kernel void smudgeKernel(
     texture2d<float, access::read>  ageIn   [[texture(2)]],
     texture2d<float, access::write> ageOut  [[texture(3)]],
     constant SmudgeParams &params           [[buffer(0)]],
-    uint2 gid                               [[thread_position_in_grid]]
+    constant uint2 &dispatchOrigin          [[buffer(1)]],
+    uint2 localID                           [[thread_position_in_grid]]
 ) {
+    uint2 gid = localID + dispatchOrigin;
     uint w = input.get_width();
     uint h = input.get_height();
     if (gid.x >= w || gid.y >= h) return;

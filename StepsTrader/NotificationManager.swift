@@ -223,19 +223,20 @@ final class NotificationManager: NotificationServiceProtocol, Sendable {
     
     // MARK: - Daily Scheduled Notifications
 
-    func sendActivityDetectedNotification(title: String, subtitle: String) {
+    func sendActivityDetectedNotification(for suggestion: ActivitySuggestion) {
         let defaults = UserDefaults.stepsTrader()
         let enabled = defaults.object(forKey: SharedKeys.notifyActivityDetected) as? Bool ?? true
         guard enabled else { return }
 
         let content = UNMutableNotificationContent()
         content.title = String(localized: "Nowhere", comment: "Notification – app name used as title")
-        content.body = "\(title) — \(subtitle)"
+        content.body = "\(suggestion.title) — \(suggestion.subtitle)"
         content.sound = .default
         content.badge = nil
+        content.userInfo = ["activitySuggestionId": suggestion.id]
 
         let request = UNNotificationRequest(
-            identifier: "activityDetected-\(UUID().uuidString)",
+            identifier: activityDetectedIdentifier(for: suggestion.id),
             content: content,
             trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.5, repeats: false)
         )
@@ -243,11 +244,23 @@ final class NotificationManager: NotificationServiceProtocol, Sendable {
         Task {
             do {
                 try await UNUserNotificationCenter.current().add(request)
-                AppLogger.notifications.debug("📤 Sent workout detected notification: \(title)")
+                AppLogger.notifications.debug("📤 Sent workout detected notification: \(suggestion.title)")
             } catch {
                 AppLogger.notifications.error("❌ Failed to send workout detected notification: \(error.localizedDescription)")
             }
         }
+    }
+
+    func removeActivityDetectedNotifications(suggestionIds: [String]) {
+        guard !suggestionIds.isEmpty else { return }
+        let identifiers = suggestionIds.map(activityDetectedIdentifier(for:))
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
+        center.removeDeliveredNotifications(withIdentifiers: identifiers)
+    }
+
+    private func activityDetectedIdentifier(for suggestionId: String) -> String {
+        "activityDetected-\(suggestionId)"
     }
 
     func scheduleDailyCanvasReminder() {

@@ -1,0 +1,6069 @@
+import CoreGraphics
+import Darwin
+import ImageIO
+import Metal
+import MetalKit
+import UIKit
+import UniformTypeIdentifiers
+import XCTest
+import simd
+@testable import Steps4
+
+final class DayObjectRenderFrameTests: XCTestCase {
+    func testOutlineFollowsEntireSilhouetteBoundary() throws {
+        let harness = try ActorRenderHarness(width: 200, height: 200)
+        func appearance(_ family: DayObjectMaterialFamily) -> DayObjectGPUAppearance {
+            DayObjectGPUAppearance(color0: SIMD4(1,1,1,1), color1: SIMD4(1,1,1,1), color2: SIMD4(1,1,1,1),
+                radial0: SIMD4(0,0,0.72,0.54), radial1: .zero, radial2: .zero, field: .zero,
+                optical0: SIMD4(0,0,1,1), optical1: .zero, light: .zero,
+                metadata: SIMD4(family.rawValue,1,1,0), recipe1: SIMD4(1,0.045,0.035,0.025))
+        }
+        for shape: UInt32 in [0,4,5,6] {
+            let actor = DayObjectGPUActor(position: .zero, direction: SIMD2(1,0), halfSize: SIMD2(0.30,0.24), opacity: 1, trailLength: 0, shape: shape, appearanceIndex: 0, depth: 0, materialPhase: 0, localDepthSoftness: 0, silhouetteVariant: 13)
+            let solid = try harness.render(actor: actor, appearance: appearance(.solid), backgroundColor: .zero)
+            let outline = try harness.render(actor: actor, appearance: appearance(.outline), backgroundColor: .zero)
+            XCTAssertTrue(outline.isFinitePremultiplied)
+            XCTAssertLessThan(outline[100,100], 0.1)
+            for degrees in stride(from: 0, to: 360, by: 10) {
+                let angle = Double(degrees) * .pi / 180
+                func pixel(_ radius: Int) -> (Int,Int) { (Int((99.5 + cos(angle)*Double(radius)).rounded()), Int((99.5 + sin(angle)*Double(radius)).rounded())) }
+                let edge = try XCTUnwrap((15...85).last { let (x,y)=pixel($0); return solid[x,y] > 0.5 })
+                let visible: Float = ((edge-3)...(edge+2)).map { let (x,y)=pixel($0); return outline[x,y] }.max() ?? 0
+                XCTAssertGreaterThan(visible, 0.35, "Missing contour: shape \(shape), angle \(degrees)")
+            }
+        }
+    }
+
+    func testFragmentBlurAlignsWithFlatSides() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        func capture(shape: UInt32, angle: Float) throws -> ActorAlphaCapture {
+            let material = DayObjectEditorialMaterialV1(family: .gradient, mechanism: .smoothRadial,
+                colors: [SIMD3(0.66,0.43,0.72), SIMD3(0.98,0.8,0.48), SIMD3(0.93,0.48,0.48)], fields: [], baseOpacity: 0.98, edgeSoftness: 0,
+                contourWidth: 0, contourCount: 0, counterformRadius: nil, counterformSoftness: 0,
+                structuralParameters: SIMD4(4,angle,0.75,0.5))
+            return try harness.render(actor: DayObjectGPUActor(position: .zero, direction: SIMD2(cos(Float(0.4)),sin(Float(0.4))), halfSize: SIMD2(0.23,0.23), opacity: 1, trailLength: 0, shape: shape, appearanceIndex: 0, depth: 0, materialPhase: 0, localDepthSoftness: 0, silhouetteVariant: 49), appearance: material.gpuAppearance, backgroundColor: .zero)
+        }
+        for shape: UInt32 in [5,6] {
+            let first = try capture(shape: shape, angle: 0.1)
+            let sameSide = try capture(shape: shape, angle: 0.4)
+            let difference = zip(first.alpha,sameSide.alpha).reduce(Float(0)) { $0 + abs($1.0-$1.1) } / Float(first.alpha.count)
+            XCTAssertLessThan(difference, 0.0001, "Angles choosing the same face must produce the same blur axis")
+        }
+        let left = try capture(shape: 6, angle: 0.1)
+        let bottom = try capture(shape: 6, angle: 1.3)
+        let difference = zip(left.alpha,bottom.alpha).reduce(Float(0)) { $0 + abs($1.0-$1.1) } / Float(left.alpha.count)
+        XCTAssertGreaterThan(difference, 0.01, "Choosing another face must rotate the blur")
+    }
+
+    func testFragmentBlurSoftensOnlySelectedSide() throws {
+        let harness = try ActorRenderHarness(width: 200, height: 200)
+        func capture(_ pattern: Float, angle: Float = 0) throws -> ActorAlphaCapture {
+            let material = DayObjectEditorialMaterialV1(family: .gradient, mechanism: .smoothRadial,
+                colors: [SIMD3(0.66,0.43,0.72), SIMD3(0.98,0.8,0.48), SIMD3(0.93,0.48,0.48)], fields: [], baseOpacity: 0.98, edgeSoftness: 0,
+                contourWidth: 0, contourCount: 0, counterformRadius: nil, counterformSoftness: 0,
+                structuralParameters: SIMD4(pattern,angle,0.75,0.5))
+            return try harness.render(actor: DayObjectGPUActor(position: .zero, direction: SIMD2(1,0), halfSize: SIMD2(0.32,0.32), opacity: 1, trailLength: 0, shape: 0, appearanceIndex: 0, depth: 0, materialPhase: 0, localDepthSoftness: 0, silhouetteVariant: 1), appearance: material.gpuAppearance, backgroundColor: .zero)
+        }
+        let sharp = try capture(2), blurred = try capture(4)
+        XCTAssertTrue(blurred.isFinitePremultiplied)
+        let left = (15..<42).map { abs(sharp[$0,100]-blurred[$0,100]) }.reduce(0,+)
+        let right = (120..<185).map { abs(sharp[$0,100]-blurred[$0,100]) }.reduce(0,+)
+        XCTAssertLessThan(left, 0.05, "Sharp side must stay sharp")
+        XCTAssertGreaterThan(right, 0.7, "Selected edge must visibly soften")
+        XCTAssertGreaterThan(blurred[180,100], 0.03, "Blur must spread colour beyond the original edge")
+        XCTAssertLessThan(blurred[158,100], 0.8, "The distant contour must soften")
+        XCTAssertGreaterThan(blurred[70,100], 0.8, "The focused region must retain colour density")
+        XCTAssertGreaterThan(blurred[100,100], 0.65, "Defocus must retain the coloured body instead of erasing it")
+        let reversed = try capture(4, angle: .pi)
+        XCTAssertEqual(reversed[41,100], blurred[158,100], accuracy: 0.035)
+        XCTAssertEqual(reversed[158,100], sharp[158,100], accuracy: 0.035)
+        XCTAssertGreaterThan(reversed[158,100], 0.8, "Reversing direction must reverse the focused edge")
+    }
+
+
+    func testSilhouetteVariantsChangeVisibleMetalContoursEvenWithSoftEdges() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        for shape: UInt32 in [4, 5, 6] {
+            for softness: Float in [0, 0.65] {
+                var captures = [ActorAlphaCapture]()
+                for variant: UInt32 in [1, 64] {
+                    let capture = try harness.render(actor: DayObjectGPUActor(
+                        position: .zero, direction: SIMD2(1, 0), halfSize: SIMD2(0.30, 0.30),
+                        opacity: 1, trailLength: 0, shape: shape, appearanceIndex: 0,
+                        depth: 0, materialPhase: 0, localDepthSoftness: softness,
+                        silhouetteVariant: variant),
+                        appearance: palettePresentationAppearance(), backgroundColor: .zero)
+                    XCTAssertTrue(capture.isFinitePremultiplied)
+                    captures.append(capture)
+                    let pixels = capture.alpha.map { UInt8(min(max($0, 0), 1) * 255) }
+                    let provider = CGDataProvider(data: Data(pixels) as CFData)!
+                    let cg = CGImage(width: 160, height: 160, bitsPerComponent: 8, bitsPerPixel: 8,
+                        bytesPerRow: 160, space: CGColorSpaceCreateDeviceGray(), bitmapInfo: [],
+                        provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)!
+                    let attachment = XCTAttachment(image: UIImage(cgImage: cg))
+                    attachment.name = "silhouette-\(shape)-\(variant)-soft-\(softness)"
+                    attachment.lifetime = .keepAlways
+                    add(attachment)
+                }
+                let difference = zip(captures[0].alpha, captures[1].alpha)
+                    .reduce(Float(0)) { $0 + abs($1.0 - $1.1) } / Float(160 * 160)
+                XCTAssertGreaterThan(difference, 0.008, "shape \(shape), softness \(softness)")
+            }
+        }
+    }
+
+    func testArtisticFillPatternsHaveDistinctStaticReadback() throws {
+        let harness = try ActorRenderHarness(width: 200, height: 200)
+        var captures = [ActorAlphaCapture]()
+        for pattern: Float in [1, 2, 3] {
+            let material = DayObjectEditorialMaterialV1(
+                family: .gradient, mechanism: .smoothRadial,
+                colors: [SIMD3(0.38, 0.17, 0.51), SIMD3(0.98, 0.81, 0.48), SIMD3(0.76, 0.53, 0.79)],
+                fields: [], baseOpacity: 0.98, edgeSoftness: 0.04,
+                contourWidth: 0, contourCount: 0, counterformRadius: nil,
+                counterformSoftness: 0, structuralParameters: SIMD4(pattern, 0.35, 0.55, 0.4))
+            let capture = try harness.render(actor: DayObjectGPUActor(
+                position: .zero, direction: SIMD2(1, 0), halfSize: SIMD2(0.38, 0.34),
+                opacity: 1, trailLength: 0, shape: 6, appearanceIndex: 0,
+                depth: 0, materialPhase: 0, localDepthSoftness: 0.6, silhouetteVariant: 32),
+                appearance: material.gpuAppearance, backgroundColor: SIMD3(0.3, 0.2, 0.24))
+            XCTAssertTrue(capture.isFinitePremultiplied)
+            captures.append(capture)
+            let pixels = capture.rgb.flatMap { color -> [UInt8] in
+                let display = SIMD3<Float>(
+                    pow(max(color.x, 0), 1 / 2.2), pow(max(color.y, 0), 1 / 2.2), pow(max(color.z, 0), 1 / 2.2))
+                return [display.x, display.y, display.z].map { UInt8(min(max($0, 0), 1) * 255) }
+            }
+            let cg = CGImage(width: 200, height: 200, bitsPerComponent: 8, bitsPerPixel: 24,
+                bytesPerRow: 600, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: [],
+                provider: CGDataProvider(data: Data(pixels) as CFData)!, decode: nil,
+                shouldInterpolate: false, intent: .defaultIntent)!
+            let attachment = XCTAttachment(image: UIImage(cgImage: cg))
+            attachment.name = "artistic-fill-\(Int(pattern))"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+        for i in 0..<captures.count {
+            for j in (i + 1)..<captures.count {
+                XCTAssertGreaterThan(captures[i].meanAbsoluteRGBDifference(from: captures[j]), 0.015)
+            }
+        }
+    }
+
+    func testArtisticProductionCanvasesRenderDeterministicallyAtLowFocus() throws {
+        let harness = try PostRenderHarness(width: 390, height: 640)
+        var shown = Set<Int>()
+        for day in 1...14 {
+            let scene = DayObjectScene.make(input: DayObjectSceneInput(
+                dayKey: String(format: "2026-09-%02d", day), identity: "primary-canvas",
+                eventIDs: (0..<5).map { "fill-preview-\($0)" },
+                motionEnergy: 0.5, visualClarity: 0.35, canvasCoverage: .fullCanvas,
+                paletteCategories: ModernPaletteSelection.all, usesEditorialField: true,
+                editorialLabConfiguration: .init(materialMode: .generativeDNA, placement: .depthField)))
+            for candidate in try XCTUnwrap(scene.sceneRecipeV1).actors {
+                let pattern = Int(candidate.material.structuralParameters.x)
+                guard pattern > 0, shown.insert(pattern).inserted else { continue }
+                // Put the sampled production actor first so its fill is visible at
+                // the foreground scale, instead of testing only one fixed event ID.
+                let ids = [candidate.eventID] + scene.input.eventIDs.filter { $0 != candidate.eventID }
+                let sample = DayObjectScene.make(input: DayObjectSceneInput(
+                    dayKey: scene.input.dayKey, identity: "primary-canvas", eventIDs: ids,
+                    motionEnergy: 0.5, visualClarity: 0.35, canvasCoverage: .fullCanvas,
+                    paletteCategories: ModernPaletteSelection.all, usesEditorialField: true,
+                    editorialLabConfiguration: .init(materialMode: .generativeDNA, placement: .depthField)))
+                for clarity in [0.35, 0.85] {
+                    let capture = try harness.render(scene: sample, clarity: clarity, elapsed: 4).noGrain
+                    let repeated = try harness.render(scene: sample, clarity: clarity, elapsed: 4).noGrain
+                    XCTAssertEqual(capture.checksum, repeated.checksum)
+                    let attachment = XCTAttachment(data: try capture.pngData(), uniformTypeIdentifier: UTType.png.identifier)
+                    attachment.name = "fill-canvas-\(pattern)-focus-\(Int(clarity * 100))"
+                    attachment.lifetime = .keepAlways
+                    add(attachment)
+                }
+            }
+        }
+        XCTAssertEqual(shown, Set([1, 2, 3, 4]))
+    }
+
+    private var glitchReviewActorIDs: [String] {
+        [
+            "0F4C9B1A-2D3E-4A50-8B61-7C8D9E0F1AA7",
+            "1A2B3C4D-5E6F-4789-9ABC-DEF0123456B7",
+            "2B7E41C9-8A30-4D65-AF12-903C5E7B14C7",
+            "3C8F52DA-9B41-4E76-B023-A14D6F8C25D7",
+            "4D9063EB-AC52-4F87-8134-B25E709D36E7",
+        ]
+    }
+
+    @MainActor
+    func testHappeningPaletteSuppressesGlitchAndCanvasRestoresIt() async throws {
+        let scene = editorialScene()
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.75)
+        let renderer = try XCTUnwrap(DayObjectsRenderer.create(
+            scene: scene, environment: environment, presentationMode: paletteMode()
+        ))
+        func capture(mode: DayObjectsPresentationMode, spent: Int) async throws -> [UInt8] {
+            renderer.update(scene: scene, environment: environment,
+                digitalImpact: .init(spentColors: spent), presentationMode: mode)
+            let pixels: [UInt8]? = await withCheckedContinuation { continuation in
+                renderer.renderOffscreen(size: CGSize(width: 96, height: 144), pointScale: 1,
+                    elapsedTime: 4) { texture, _ in
+                    guard let texture else { continuation.resume(returning: nil); return }
+                    var bytes = [UInt8](repeating: 0, count: texture.width * texture.height * 4)
+                    texture.getBytes(&bytes, bytesPerRow: texture.width * 4,
+                        from: MTLRegionMake2D(0, 0, texture.width, texture.height), mipmapLevel: 0)
+                    continuation.resume(returning: bytes)
+                }
+            }
+            return try XCTUnwrap(pixels)
+        }
+        for active in [false, true] {
+            let clean = try await capture(mode: paletteMode(active: active), spent: 0)
+            let spent = try await capture(mode: paletteMode(active: active), spent: 100)
+            XCTAssertTrue(clean == spent, "The add-happening list must be independent of canvas glitch, including transitions")
+        }
+        let cleanCanvas = try await capture(mode: .canvas, spent: 0)
+        let spentCanvas = try await capture(mode: .canvas, spent: 100)
+        XCTAssertTrue(cleanCanvas != spentCanvas, "Returning to the canvas must restore the spent-energy effect")
+    }
+
+
+    func testPaletteBackgroundCacheChangesOnlyWithRevisionOrTargetSize() {
+        var policy = DayObjectsBackgroundRenderPolicy()
+        let plan = DayObjectsRenderTargetPlan(drawableWidth: 390, drawableHeight: 844)
+        let first = paletteMode()
+        XCTAssertTrue(policy.shouldRender(mode: first, targetPlan: plan))
+        policy.didRender(mode: first, targetPlan: plan)
+        XCTAssertFalse(policy.shouldRender(mode: first, targetPlan: plan))
+        XCTAssertFalse(policy.shouldRender(mode: paletteMode(active: true), targetPlan: plan))
+        XCTAssertTrue(policy.shouldRender(mode: paletteMode(revision: 2), targetPlan: plan))
+        XCTAssertTrue(policy.shouldRender(mode: first, targetPlan: .init(drawableWidth: 844, drawableHeight: 390)))
+        XCTAssertTrue(policy.shouldRender(mode: .canvas, targetPlan: plan))
+        policy.didRender(mode: .canvas, targetPlan: plan)
+        XCTAssertTrue(policy.shouldRender(mode: first, targetPlan: plan))
+        policy.didRender(mode: first, targetPlan: plan)
+        policy.invalidate()
+        XCTAssertTrue(policy.shouldRender(mode: first, targetPlan: plan))
+    }
+
+    @MainActor
+    func testPaletteDisplaySettlesToStaticAndCanvasResumesOnSameCoordinator() async throws {
+        let scene = editorialScene()
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.75)
+        let coordinator = DayObjectsMetalView.Coordinator(
+            scene: scene, environment: environment, digitalImpact: .none, soundPulseBus: nil
+        )
+        await coordinator.prepareRenderer()
+        let renderer = try XCTUnwrap(coordinator.renderer)
+        let view = MTKView(frame: CGRect(x: 0, y: 0, width: 390, height: 844), device: renderer.device)
+        view.delegate = renderer
+        for (mode, fps, paused) in [(paletteMode(active: true), 60, false), (paletteMode(), 30, true), (.canvas, 30, false)] {
+            coordinator.update(view, scene: scene, environment: environment,
+                               digitalImpact: .none, soundPulseBus: nil,
+                               presentationMode: mode, isAnimating: true)
+            XCTAssertTrue(coordinator.renderer === renderer)
+            XCTAssertTrue(view.delegate === renderer)
+            XCTAssertEqual(view.preferredFramesPerSecond, fps)
+            XCTAssertEqual(view.isPaused, paused)
+            XCTAssertEqual(view.enableSetNeedsDisplay, paused)
+            XCTAssertEqual(DayObjectsRenderer.shouldDrawStaticFrame(isPaused: view.isPaused, drawableSize: view.drawableSize), paused)
+        }
+        coordinator.update(view, scene: scene, environment: environment,
+                           digitalImpact: .none, soundPulseBus: nil,
+                           presentationMode: paletteMode(active: true), isAnimating: false)
+        XCTAssertTrue(view.isPaused)
+        XCTAssertTrue(view.enableSetNeedsDisplay)
+    }
+
+    private func paletteMode(active: Bool = false, revision: UInt64 = 1) -> DayObjectsPresentationMode {
+        .happeningPalette(.init(slots: [], viewportSize: CGSize(width: 390, height: 844),
+                               reduceMotion: false, isTransitionActive: active, backgroundRevision: revision))
+    }
+
+    @MainActor
+    func testPaletteRendererExcludesCanvasActorsAndRestoresThemOnReturn() async throws {
+        let scene = editorialScene()
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.75)
+        let renderer = try XCTUnwrap(DayObjectsRenderer.create(
+            scene: scene, environment: environment, presentationMode: paletteMode()
+        ))
+        func render() async -> DayObjectRenderFrame? {
+            await withCheckedContinuation { continuation in
+                renderer.renderOffscreen(size: CGSize(width: 64, height: 96), pointScale: 1, elapsedTime: 2) { texture, frame in
+                    continuation.resume(returning: texture == nil ? nil : frame)
+                }
+            }
+        }
+        let paletteFrame = await render()
+        XCTAssertEqual(try XCTUnwrap(paletteFrame).actors.count, 0)
+        renderer.update(scene: scene, environment: environment, presentationMode: .canvas)
+        let canvasFrame = await render()
+        XCTAssertFalse(try XCTUnwrap(canvasFrame).actors.isEmpty)
+    }
+
+    @MainActor
+    func testPaletteTransitionStartsFromDisplayedSettledFrame() async throws {
+        let scene = editorialScene()
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.75)
+        let assignment = try XCTUnwrap(HappeningEditorialAssignmentResolver.assignments(
+            happenings: [Happening(id: "h0", title: "Happening", isBuiltIn: true)],
+            baseInput: .init(dayKey: "2026-09-06", identity: "palette-settle", eventIDs: [],
+                             motionEnergy: 0.55, visualClarity: 0.75, usesEditorialField: true), colorNonce: 7
+        )["h0"])
+        func mode(_ state: HappeningPaletteSlotVisualState, active: Bool) -> DayObjectsPresentationMode {
+            .happeningPalette(.init(
+                slots: [.init(happeningID: "h0", assignment: assignment, visualState: state,
+                              source: .init(index: 0, center: CGPoint(x: 32, y: 48), radius: 16))],
+                viewportSize: CGSize(width: 64, height: 96), reduceMotion: false,
+                isTransitionActive: active, backgroundRevision: 1
+            ))
+        }
+        var now: TimeInterval = 0
+        let clock = DayObjectsClock(now: { now })
+        let renderer = try XCTUnwrap(DayObjectsRenderer.create(
+            scene: scene, environment: environment, presentationMode: mode(.available, active: false), clock: clock
+        ))
+        renderer.update(scene: scene, environment: environment, presentationMode: mode(.additionPreview, active: true))
+        renderer.update(scene: scene, environment: environment, presentationMode: mode(.added, active: false))
+        // Finish and display the added state before beginning the next interaction.
+        now = 0.34
+        await withCheckedContinuation { continuation in
+            renderer.renderOffscreen(size: CGSize(width: 64, height: 96), pointScale: 1, elapsedTime: now) { _, _ in
+                continuation.resume()
+            }
+        }
+        renderer.update(scene: scene, environment: environment, presentationMode: mode(.removalPreview, active: true))
+        let frame: DayObjectRenderFrame? = await withCheckedContinuation { continuation in
+            renderer.renderOffscreen(size: CGSize(width: 64, height: 96), pointScale: 1, elapsedTime: now) { texture, frame in
+                continuation.resume(returning: texture == nil ? nil : frame)
+            }
+        }
+        let actor = try XCTUnwrap(frame?.actors.first)
+        XCTAssertEqual(actor.gpuActor.paletteMorph, 1)
+        XCTAssertEqual(actor.gpuActor.presentationSaturation, 0, accuracy: 0.001)
+        XCTAssertEqual(actor.gpuActor.removalEmphasis, 0)
+    }
+
+    @MainActor
+    func testPaletteKeepsBreathingAfterRevealAndPausesAfterConfirmation() throws {
+        let scene = editorialScene()
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.75)
+        let assignment = try XCTUnwrap(HappeningEditorialAssignmentResolver.assignments(
+            happenings: [Happening(id: "h0", title: "Happening", isBuiltIn: true)],
+            baseInput: .init(dayKey: "2026-09-06", identity: "palette-finish", eventIDs: [],
+                             motionEnergy: 0.55, visualClarity: 0.75, usesEditorialField: true), colorNonce: 7
+        )["h0"])
+        func mode(_ state: HappeningPaletteSlotVisualState, active: Bool) -> DayObjectsPresentationMode {
+            .happeningPalette(.init(
+                slots: [.init(happeningID: "h0", assignment: assignment, visualState: state,
+                              source: .init(index: 0, center: CGPoint(x: 32, y: 48), radius: 16))],
+                viewportSize: CGSize(width: 64, height: 96), reduceMotion: false,
+                isTransitionActive: active, backgroundRevision: 1
+            ))
+        }
+        var now: TimeInterval = 0
+        let renderer = try XCTUnwrap(DayObjectsRenderer.create(
+            scene: scene, environment: environment, presentationMode: mode(.available, active: false),
+            clock: DayObjectsClock(now: { now })
+        ))
+        let view = MTKView(frame: CGRect(x: 0, y: 0, width: 64, height: 96), device: renderer.device)
+        view.delegate = renderer
+        DayObjectsRenderer.configureDisplay(view)
+        let controller = UIViewController()
+        controller.view = view
+        let window = UIWindow(frame: view.frame)
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true; view.isPaused = true; view.delegate = nil }
+
+        renderer.update(scene: scene, environment: environment, presentationMode: mode(.additionPreview, active: true))
+        renderer.configureAnimation(view)
+        now = 0.085
+        renderer.draw(in: view)
+        XCTAssertEqual(try XCTUnwrap(renderer.currentFrame?.actors.first).gpuActor.paletteMorph, 0.15625, accuracy: 0.001)
+        renderer.update(scene: scene, environment: environment, presentationMode: mode(.additionPreview, active: false))
+        renderer.configureAnimation(view)
+        XCTAssertFalse(view.isPaused)
+        XCTAssertEqual(view.preferredFramesPerSecond, 60)
+        now = 0.17
+        renderer.draw(in: view)
+        XCTAssertEqual(try XCTUnwrap(renderer.currentFrame?.actors.first).gpuActor.paletteMorph, 0.5, accuracy: 0.001)
+        XCTAssertFalse(view.isPaused)
+
+        now = 0.34
+        renderer.draw(in: view)
+        XCTAssertEqual(try XCTUnwrap(renderer.currentFrame?.actors.first).gpuActor.paletteMorph, 1)
+        XCTAssertFalse(view.isPaused)
+        XCTAssertFalse(view.enableSetNeedsDisplay)
+        XCTAssertEqual(view.preferredFramesPerSecond, 60)
+        now = 1
+        renderer.draw(in: view)
+        XCTAssertEqual(try XCTUnwrap(renderer.currentFrame?.actors.first).gpuActor.paletteMorph, 1)
+        XCTAssertFalse(view.isPaused)
+        renderer.update(scene: scene, environment: environment, presentationMode: mode(.added, active: false))
+        renderer.configureAnimation(view, elapsedTime: now)
+        XCTAssertFalse(view.isPaused)
+        now = 1.5
+        renderer.configureAnimation(view, elapsedTime: now)
+        XCTAssertTrue(view.isPaused)
+        XCTAssertEqual(view.preferredFramesPerSecond, 30)
+    }
+
+    func testSoundPulseTimelineIgnoresEventsFromBeforeAttachment() {
+        let bus = DayObjectsSoundPulseBus()
+        bus.emit(eventID: "historical")
+        var timeline = DayObjectsSoundPulseTimeline(startingAfter: bus)
+
+        timeline.consume(bus, at: 5)
+
+        XCTAssertEqual(timeline.lastConsumedSequence, 1)
+        XCTAssertTrue(timeline.timestamps.isEmpty)
+
+        bus.emit(eventID: "live")
+        timeline.consume(bus, at: 5.1)
+
+        XCTAssertEqual(timeline.lastConsumedSequence, 2)
+        XCTAssertEqual(timeline.timestamps, ["live": 5.1])
+    }
+
+    func testSoundPulseTimelineConsumesRestartsAndExpiresEvents() {
+        let bus = DayObjectsSoundPulseBus()
+        var timeline = DayObjectsSoundPulseTimeline()
+
+        bus.emit(eventID: "happening-a")
+        bus.emit(eventID: "happening-b")
+        timeline.consume(bus, at: 10)
+
+        XCTAssertEqual(timeline.lastConsumedSequence, 2)
+        XCTAssertEqual(timeline.timestamps["happening-a"], 10)
+        XCTAssertEqual(timeline.timestamps["happening-b"], 10)
+
+        bus.emit(eventID: "happening-a")
+        timeline.consume(bus, at: 10.2)
+
+        XCTAssertEqual(timeline.lastConsumedSequence, 3)
+        XCTAssertEqual(timeline.timestamps["happening-a"], 10.2)
+        XCTAssertEqual(timeline.timestamps["happening-b"], 10)
+
+        timeline.consume(bus, at: 10 + DayObjectSoundResonance.duration)
+
+        XCTAssertEqual(timeline.timestamps, ["happening-a": 10.2])
+    }
+
+    func testSoundPulseBusPreservesEveryUnconsumedHappeningAttack() {
+        let bus = DayObjectsSoundPulseBus()
+
+        bus.emit(eventID: "happening-a")
+        bus.emit(eventID: "happening-b")
+
+        XCTAssertEqual(
+            bus.events(after: 0),
+            [
+                .init(sequence: 1, eventID: "happening-a"),
+                .init(sequence: 2, eventID: "happening-b"),
+            ]
+        )
+        XCTAssertEqual(
+            bus.events(after: 1),
+            [.init(sequence: 2, eventID: "happening-b")]
+        )
+        XCTAssertTrue(bus.events(after: 2).isEmpty)
+    }
+
+    func testSoundResonanceCreatesDepthAwareDecayingScalePulse() {
+        let focusedPeak = DayObjectSoundResonance.scale(
+            elapsedSinceAttack: 0.05,
+            depth: 0.2
+        )
+        let foregroundPeak = DayObjectSoundResonance.scale(
+            elapsedSinceAttack: 0.05,
+            depth: 0.9
+        )
+
+        XCTAssertGreaterThan(focusedPeak, 1.02)
+        XCTAssertGreaterThan(foregroundPeak, 1.01)
+        XCTAssertGreaterThan(focusedPeak, foregroundPeak)
+        XCTAssertLessThan(
+            DayObjectSoundResonance.scale(elapsedSinceAttack: 0.15, depth: 0.2),
+            1
+        )
+        XCTAssertEqual(
+            DayObjectSoundResonance.scale(elapsedSinceAttack: 0.8, depth: 0.2),
+            1
+        )
+        XCTAssertEqual(
+            DayObjectSoundResonance.scale(elapsedSinceAttack: -0.01, depth: 0.2),
+            1
+        )
+    }
+
+    func testSoundResonanceScalesOnlyActorsForTheSoundingHappening() throws {
+        let scene = editorialScene()
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.75)
+        let soundingEventID = try XCTUnwrap(scene.actors.first?.eventID)
+        let baseline = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: 3.05,
+            insertions: [:]
+        )
+        let resonating = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: 3.05,
+            insertions: [:],
+            soundPulseTimestamps: [soundingEventID: 3]
+        )
+
+        let baselineByID = Dictionary(uniqueKeysWithValues: baseline.actors.map { ($0.actorID, $0) })
+        for actor in resonating.actors {
+            let unmodified = try XCTUnwrap(baselineByID[actor.actorID])
+            if actor.eventID == soundingEventID {
+                XCTAssertGreaterThan(actor.halfSize.x, unmodified.halfSize.x)
+                XCTAssertGreaterThan(actor.halfSize.y, unmodified.halfSize.y)
+            } else {
+                XCTAssertEqual(actor.halfSize, unmodified.halfSize)
+            }
+            XCTAssertEqual(actor.gpuActor.position, unmodified.gpuActor.position)
+            XCTAssertEqual(actor.gpuAppearance, unmodified.gpuAppearance)
+        }
+    }
+
+    private func editorialScene() -> DayObjectScene {
+        DayObjectScene.make(input: .init(
+            dayKey: "2026-09-04",
+            identity: "day-objects-lab",
+            eventIDs: (0..<5).map { "lab-event-\($0)" },
+            motionEnergy: 0.55,
+            visualClarity: 0.75,
+            canvasCoverage: .fullCanvas,
+            usesEditorialField: true,
+            editorialBackground: .lowContrast
+        ))
+    }
+
+    func testEditorialFrameUsesFrozenRecipeAndSlowDepthAwareMotion() throws {
+        let scene = editorialScene()
+        let environment = DayObjectEnvironment(
+            motionEnergy: 0.55,
+            visualClarity: 0.75
+        )
+        let initial = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: 0,
+            insertions: [:],
+            canvasAspect: 393.0 / 852.0
+        )
+        let later = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: 20,
+            insertions: [:],
+            canvasAspect: 393.0 / 852.0
+        )
+        let recipe = try XCTUnwrap(scene.sceneRecipeV1)
+        let firstRecipe = try XCTUnwrap(recipe.actor("lab-event-0"))
+        let firstFrame = try XCTUnwrap(initial.actors.first { $0.eventID == "lab-event-0" })
+
+        XCTAssertEqual(firstFrame.gpuActor.position.x, Float(firstRecipe.position.x - 0.5), accuracy: 0.000_001)
+        XCTAssertEqual(
+            firstFrame.gpuActor.position.y,
+            Float((firstRecipe.position.y - 0.5) / (393.0 / 852.0)),
+            accuracy: 0.000_001
+        )
+        XCTAssertEqual(firstFrame.gpuActor.halfSize.x, Float(firstRecipe.diameter * 0.5), accuracy: 0.000_001)
+        XCTAssertNotEqual(later.actors.map(\.gpuActor.position), initial.actors.map(\.gpuActor.position))
+        XCTAssertTrue(later.actors.allSatisfy { $0.trailLength == 0 })
+    }
+
+    func testEditorialFieldAlwaysKeepsMoving() {
+        let scene = editorialScene()
+        let environment = DayObjectEnvironment(
+            motionEnergy: 1,
+            visualClarity: 0.75
+        )
+        let initial = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: 0,
+            insertions: [:]
+        )
+        let later = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: 120,
+            insertions: [:]
+        )
+
+        XCTAssertNotEqual(later.actors.map(\.gpuActor.position), initial.actors.map(\.gpuActor.position))
+        XCTAssertNotEqual(later.actors.map(\.gpuActor.halfSize), initial.actors.map(\.gpuActor.halfSize))
+        XCTAssertEqual(later.actors.map(\.gpuAppearance), initial.actors.map(\.gpuAppearance))
+    }
+
+    @MainActor
+    func testEditorialOffscreenImageMatchesFixedFrame() async throws {
+        let input = DayObjectSceneInput(
+            dayKey: "2026-09-06",
+            identity: "primary-canvas",
+            eventIDs: (0..<10).map { "offscreen-event-\($0)" },
+            motionEnergy: 0.7,
+            visualClarity: 0.8,
+            canvasCoverage: .fullCanvas,
+            paletteCategories: [.neon, .warm],
+            usesEditorialField: true,
+            editorialLabConfiguration: .init(
+                materialMode: .generativeDNA,
+                placement: .depthField
+            )
+        )
+
+        let renderedImage = await DayObjectsImageRenderer.image(
+            input: .init(sceneInput: input, digitalImpact: .init(spentColors: 30)),
+            size: CGSize(width: 390, height: 500),
+            scale: 1,
+            elapsedTime: 4
+        )
+        let image = try XCTUnwrap(renderedImage)
+        let cgImage = try XCTUnwrap(image.cgImage)
+        let statistics = try pixelStatistics(cgImage)
+
+        XCTAssertEqual(cgImage.width, 390)
+        XCTAssertEqual(cgImage.height, 500)
+        XCTAssertGreaterThan(statistics.nonTransparent, 390 * 500 * 9 / 10)
+        XCTAssertGreaterThan(statistics.chromatic, 390 * 500 / 20)
+    }
+
+    private func pixelStatistics(_ image: CGImage) throws -> (nonTransparent: Int, chromatic: Int) {
+        let bytesPerRow = image.width * 4
+        var bytes = [UInt8](repeating: 0, count: bytesPerRow * image.height)
+        let context = try XCTUnwrap(CGContext(
+            data: &bytes,
+            width: image.width,
+            height: image.height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+
+        var nonTransparent = 0
+        var chromatic = 0
+        for offset in stride(from: 0, to: bytes.count, by: 4) {
+            let red = Int(bytes[offset])
+            let green = Int(bytes[offset + 1])
+            let blue = Int(bytes[offset + 2])
+            if bytes[offset + 3] > 0 { nonTransparent += 1 }
+            if max(red, green, blue) - min(red, green, blue) > 10 { chromatic += 1 }
+        }
+        return (nonTransparent, chromatic)
+    }
+
+    func testGenerativeRecipeUploadsResolvedCarrierShape() throws {
+        let expectedShapes: [DayObjectGeometryRegion: DayObjectShape] = [
+            .circle: .sphere,
+            .superellipse: .roundedSquare,
+            .softStar: .softStar,
+            .compound: .roundedPolygon,
+        ]
+        var observed = Set<DayObjectGeometryRegion>()
+
+        for index in 0..<256 where observed.count < expectedShapes.count {
+            let scene = DayObjectScene.make(input: .init(
+                dayKey: "2026-generative-carrier-\(index)",
+                identity: "day-objects-lab",
+                eventIDs: (0..<10).map { "lab-event-\($0)" },
+                motionEnergy: 0.55,
+                visualClarity: 0.75,
+                canvasCoverage: .fullCanvas,
+                paletteCategories: [.pastel],
+                usesEditorialField: true,
+                editorialLabConfiguration: .init(
+                    materialMode: .generativeDNA,
+                    placement: .depthField
+                )
+            ))
+            let recipe = try XCTUnwrap(scene.sceneRecipeV1)
+            let frame = DayObjectRenderFrame.make(
+                scene: scene,
+                environment: .init(
+                    motionEnergy: 0.55,
+                    visualClarity: 0.75
+                ),
+                elapsed: 0,
+                insertions: [:]
+            )
+
+            for recipeActor in recipe.actors {
+                let renderActor = try XCTUnwrap(
+                    frame.actors.first { $0.eventID == recipeActor.eventID }
+                )
+                XCTAssertEqual(recipeActor.shape, expectedShapes[recipeActor.geometryRegion])
+                XCTAssertEqual(renderActor.gpuActor.shape, recipeActor.shape.numericValue)
+                observed.insert(recipeActor.geometryRegion)
+            }
+        }
+
+        XCTAssertEqual(observed, Set(DayObjectGeometryRegion.allCases))
+    }
+    private func fixtureScene(
+        dayKey: String = "2026-08-20",
+        identity: String = "tester",
+        ids: [String],
+        categories: Set<ModernPaletteCategory> = [],
+        canvasCoverage: DayObjectCanvasCoverage? = nil
+    ) -> DayObjectScene {
+        DayObjectScene.make(input: .init(
+            dayKey: dayKey, identity: identity, eventIDs: ids,
+            motionEnergy: 0.55, visualClarity: 0.55,
+            canvasCoverage: canvasCoverage,
+            paletteCategories: categories
+        ))
+    }
+
+    private func capacityFixtureScene(dayKey: String, ids: [String]) -> DayObjectScene {
+        DayObjectScene.make(input: .init(
+            dayKey: dayKey, identity: "tester", eventIDs: ids,
+            motionEnergy: 0.55, visualClarity: 0.55
+        ))
+    }
+
+    private var performanceActorIDs: [String] {
+        [
+            "0F4C9B1A-2D3E-4A50-8B61-7C8D9E0F1AA7",
+            "1A2B3C4D-5E6F-4789-9ABC-DEF0123456B7",
+            "2B7E41C9-8A30-4D65-AF12-903C5E7B14C7",
+            "3C8F52DA-9B41-4E76-B023-A14D6F8C25D7",
+            "4D9063EB-AC52-4F87-8134-B25E709D36E7",
+            "5EA174FC-BD63-4098-9245-C36F81AE47F7",
+            "6FB2850D-CE74-41A9-A356-D47092BF58A7",
+            "70C3961E-DF85-42BA-B467-E581A3C069B7",
+            "81D4A72F-E096-43CB-8578-F692B4D17AC7",
+            "92E5B830-F1A7-44DC-9689-07A3C5E28BD7",
+            "A3F6C941-02B8-45ED-A79A-18B4D6F39CE7",
+        ]
+    }
+
+    private func performanceScene() -> DayObjectScene {
+        fixtureScene(
+            dayKey: "day-objects-device-performance",
+            identity: "day-objects-lab",
+            ids: Array(performanceActorIDs.prefix(DayObjectScene.maxActors)),
+            categories: ModernPaletteSelection.all,
+            canvasCoverage: .fullCanvas
+        )
+    }
+
+    private func fixtureScene(
+        for preset: DayObjectChoreographyPreset,
+        ids: [String],
+        canvasCoverage: DayObjectCanvasCoverage = .fullCanvas
+    ) throws -> DayObjectScene {
+        try XCTUnwrap((UInt64(0)..<4_096).lazy.map { seed in
+            DayObjectScene.make(input: .init(
+                dayKey: "render-fixture-\(seed)", identity: "tester", eventIDs: ids,
+                motionEnergy: 0.55, visualClarity: 0.55,
+                canvasCoverage: canvasCoverage
+            ))
+        }.first { $0.motionPlan.preset == preset })
+    }
+
+    private func assertSameVisualActorState(
+        _ actual: DayObjectRenderActor,
+        _ expected: DayObjectRenderActor,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(actual.actorID, expected.actorID, file: file, line: line)
+        XCTAssertEqual(actual.eventID, expected.eventID, file: file, line: line)
+        XCTAssertEqual(actual.gpuAppearance, expected.gpuAppearance, file: file, line: line)
+        XCTAssertEqual(actual.gpuActor.position, expected.gpuActor.position, file: file, line: line)
+        XCTAssertEqual(actual.gpuActor.direction, expected.gpuActor.direction, file: file, line: line)
+        XCTAssertEqual(actual.gpuActor.halfSize, expected.gpuActor.halfSize, file: file, line: line)
+        XCTAssertEqual(actual.gpuActor.opacity, expected.gpuActor.opacity, file: file, line: line)
+        XCTAssertEqual(actual.gpuActor.trailLength, expected.gpuActor.trailLength, file: file, line: line)
+        XCTAssertEqual(actual.gpuActor.shape, expected.gpuActor.shape, file: file, line: line)
+        XCTAssertEqual(actual.gpuActor.depth, expected.gpuActor.depth, file: file, line: line)
+        XCTAssertEqual(actual.gpuActor.materialPhase, expected.gpuActor.materialPhase, file: file, line: line)
+        XCTAssertEqual(
+            actual.gpuActor.localDepthSoftness,
+            expected.gpuActor.localDepthSoftness,
+            file: file,
+            line: line
+        )
+    }
+
+    func testSpentColorsClampAndMapToEmphasizedDamage() {
+        XCTAssertEqual(DayObjectDigitalImpact(spentColors: -4).spentColors, 0)
+        XCTAssertEqual(DayObjectDigitalImpact(spentColors: 140).spentColors, 100)
+        XCTAssertEqual(
+            DayObjectDigitalImpact(spentColors: 10).damage,
+            0.10,
+            accuracy: 0.000_001
+        )
+        XCTAssertEqual(
+            DayObjectDigitalImpact(spentColors: 25).signalCorruption,
+            0.20,
+            accuracy: 0.005
+        )
+        XCTAssertEqual(
+            DayObjectDigitalImpact(spentColors: 50).signalCorruption,
+            0.45,
+            accuracy: 0.005
+        )
+        XCTAssertEqual(
+            DayObjectDigitalImpact(spentColors: 100).ambientMotion,
+            1,
+            accuracy: 0.000_001
+        )
+        XCTAssertEqual(DayObjectDigitalImpact.none, DayObjectDigitalImpact(spentColors: 0))
+    }
+
+    func testLabPresetsProduceExpectedAbsoluteDamage() {
+        let expected: [(spent: Int, damage: Double)] = [
+            (0, 0),
+            (10, 0.10),
+            (25, 0.25),
+            (50, 0.50),
+            (75, 0.75),
+            (100, 1),
+        ]
+
+        for preset in expected {
+            XCTAssertEqual(
+                DayObjectDigitalImpact(spentColors: preset.spent).damage,
+                preset.damage,
+                accuracy: 0.000_001
+            )
+        }
+    }
+
+    func testEveryAdditionalColorMonotonicallyIncreasesDamageLevels() {
+        for spent in 0..<100 {
+            let before = DayObjectDigitalImpact(spentColors: spent)
+            let after = DayObjectDigitalImpact(spentColors: spent + 1)
+            XCTAssertGreaterThan(after.damage, before.damage)
+            XCTAssertGreaterThan(after.scarStrength, before.scarStrength)
+            XCTAssertGreaterThan(after.signalCorruption, before.signalCorruption)
+            XCTAssertGreaterThan(after.ambientMotion, before.ambientMotion)
+        }
+    }
+
+    func testGlitchLayoutIsStableBoundedAndIndependentOfSpend() {
+        let first = DayObjectGlitchLayout.make(seed: 0x1234_5678)
+        let unchangedAfterSpend = DayObjectGlitchLayout.make(seed: 0x1234_5678)
+
+        XCTAssertEqual(first, unchangedAfterSpend)
+        XCTAssertNotEqual(first, DayObjectGlitchLayout.make(seed: 0x1234_5679))
+        XCTAssertEqual(first.bands.count, 12)
+        XCTAssertTrue(first.bands.allSatisfy {
+            (0...1).contains($0.centerY)
+                && (0.008...0.040).contains($0.halfHeight)
+                && (0.45...1.0).contains($0.displacementScale)
+                && (0...1).contains($0.activationThreshold)
+                && $0.phaseOffset >= 0
+                && $0.phaseOffset <= 2 * .pi
+        })
+    }
+
+    func testGlitchUniformsMatchMetalLayoutAndAdvanceTime() {
+        let impact = DayObjectDigitalImpact(spentColors: 50)
+        let moving = DayObjectsGlitchUniforms(
+            impact: impact,
+            elapsedTime: 12.5,
+            seed: 0xFEDC_BA98_7654_3210
+        )
+        let later = DayObjectsGlitchUniforms(
+            impact: impact,
+            elapsedTime: 900,
+            seed: 0xFEDC_BA98_7654_3210
+        )
+
+        XCTAssertEqual(MemoryLayout<DayObjectsGlitchUniforms>.alignment, 16)
+        XCTAssertEqual(MemoryLayout<DayObjectsGlitchUniforms>.stride, 48)
+        XCTAssertEqual(MemoryLayout<DayObjectsGlitchUniforms>.offset(of: \.levels), 0)
+        XCTAssertEqual(MemoryLayout<DayObjectsGlitchUniforms>.offset(of: \.rendering), 16)
+        XCTAssertEqual(MemoryLayout<DayObjectsGlitchUniforms>.offset(of: \.metadata), 32)
+        XCTAssertEqual(moving.levels.x, 0.5, accuracy: 0.000_001)
+        XCTAssertEqual(moving.rendering.x, 12.5, accuracy: 0.000_001)
+        XCTAssertEqual(later.rendering.x, 900, accuracy: 0.000_001)
+        XCTAssertEqual(later.metadata.z, 0)
+    }
+
+    func testGlitchBandUniformsAreFixedSizeAndBounded() {
+        let uniforms = DayObjectGlitchLayout.make(seed: 42).bands.map(
+            DayObjectsGlitchBandUniform.init
+        )
+
+        XCTAssertEqual(uniforms.count, 12)
+        XCTAssertEqual(MemoryLayout<DayObjectsGlitchBandUniform>.alignment, 16)
+        XCTAssertEqual(MemoryLayout<DayObjectsGlitchBandUniform>.stride, 32)
+        XCTAssertTrue(uniforms.allSatisfy {
+            $0.geometry.x.isFinite
+                && $0.geometry.y.isFinite
+                && $0.geometry.z.isFinite
+                && $0.geometry.w.isFinite
+                && $0.motion.x.isFinite
+                && $0.motion.y.isFinite
+                && $0.motion.z.isFinite
+        })
+    }
+
+    func testDepthFieldSceneUsesApprovedSpatialScaleHierarchy() throws {
+        let scene = try fixtureScene(
+            for: .depthField,
+            ids: (0..<8).map { "orb-\($0)" }
+        )
+        let environment = DayObjectEnvironment(
+            motionEnergy: 1,
+            visualClarity: 1
+        )
+
+        for elapsed in stride(from: 0.0, through: scene.score.duration, by: 0.25) {
+            let frame = DayObjectRenderFrame.make(
+                scene: scene,
+                environment: environment,
+                elapsed: elapsed,
+                insertions: [:]
+            )
+            let diameters = frame.actors.map { Double($0.halfSize.x * 2) }
+            XCTAssertGreaterThan((diameters.max() ?? 0) - (diameters.min() ?? 0), 0.16)
+            XCTAssertTrue(
+                diameters.allSatisfy { $0 >= 0.12 - 0.000_001 && $0 <= 0.74 + 0.000_001 },
+                "elapsed=\(elapsed) \(diameters)"
+            )
+        }
+    }
+
+    func testContinuousDepthMovesScaleLeadershipWithoutRerollingTheScene() throws {
+        let scene = fixtureScene(ids: (0..<8).map { "orb-\($0)" })
+        let environment = DayObjectEnvironment(
+            motionEnergy: 1,
+            visualClarity: 1
+        )
+        var leaders = Set<DayObjectActorID>()
+
+        for elapsed in stride(from: 0.0, to: scene.score.duration, by: 0.25) {
+            let frame = DayObjectRenderFrame.make(
+                scene: scene,
+                environment: environment,
+                elapsed: elapsed,
+                insertions: [:]
+            )
+            leaders.insert(try XCTUnwrap(frame.actors.max { $0.halfSize.x < $1.halfSize.x }).actorID)
+        }
+
+        XCTAssertGreaterThanOrEqual(leaders.count, 3)
+        XCTAssertEqual(scene, fixtureScene(ids: (0..<8).map { "orb-\($0)" }))
+    }
+
+    func testMotionEnergyMapsToSpecifiedTempo() {
+        XCTAssertEqual(DayObjectEnvironment(motionEnergy: 0, visualClarity: 1).tempoScale, 0.035, accuracy: 0.0001)
+        XCTAssertEqual(DayObjectEnvironment(motionEnergy: 1, visualClarity: 1).tempoScale, 1.25, accuracy: 0.0001)
+    }
+
+    func testEnvironmentClampsNonFiniteInputs() {
+        for value in [Double.nan, .infinity, -.infinity] {
+            let environment = DayObjectEnvironment(
+                motionEnergy: value,
+                visualClarity: value
+            )
+            XCTAssertEqual(environment.motionEnergy, 0)
+            XCTAssertEqual(environment.visualClarity, 0)
+            XCTAssertTrue(environment.tempoScale.isFinite)
+        }
+
+        XCTAssertEqual(
+            DayObjectEnvironment(motionEnergy: -1, visualClarity: 2),
+            DayObjectEnvironment(motionEnergy: 0, visualClarity: 1)
+        )
+    }
+
+    func testNonFiniteFrameAndGPUInputsClampBeforeShaderUpload() {
+        let scene = fixtureScene(ids: ["a"])
+        let environment = DayObjectEnvironment(
+            motionEnergy: 1,
+            visualClarity: 1
+        )
+        let invalidFrame = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: .nan,
+            insertions: ["a": .infinity],
+            canvasAspect: -.infinity
+        )
+        let zeroFrame = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: 0,
+            insertions: ["a": 0],
+            canvasAspect: 1
+        )
+        XCTAssertEqual(invalidFrame, zeroFrame)
+
+        let gpuActor = DayObjectGPUActor(
+            position: SIMD2(.nan, .infinity),
+            direction: SIMD2(-.infinity, .nan),
+            halfSize: SIMD2(.nan, -.infinity),
+            color: SIMD4(.nan, .infinity, -.infinity, .nan),
+            opacity: .nan,
+            trailLength: .infinity,
+            shape: 6,
+            fill: 1,
+            depth: .nan
+        )
+        let numericValues = [
+            gpuActor.position.x, gpuActor.position.y,
+            gpuActor.direction.x, gpuActor.direction.y,
+            gpuActor.halfSize.x, gpuActor.halfSize.y,
+            gpuActor.color.x, gpuActor.color.y, gpuActor.color.z, gpuActor.color.w,
+            gpuActor.opacity, gpuActor.trailLength, gpuActor.depth,
+        ]
+        XCTAssertTrue(numericValues.allSatisfy(\.isFinite))
+        XCTAssertEqual(gpuActor.position, .zero)
+        XCTAssertEqual(gpuActor.direction, SIMD2(1, 0))
+        XCTAssertEqual(gpuActor.halfSize, .zero)
+        XCTAssertEqual(gpuActor.color, SIMD4(repeating: 1))
+        XCTAssertEqual(gpuActor.opacity, 0)
+        XCTAssertEqual(gpuActor.trailLength, 0)
+        XCTAssertEqual(gpuActor.depth, 0)
+        XCTAssertEqual(gpuActor.shape, UInt32(DayObjectShape.allCases.count - 1))
+        XCTAssertEqual(gpuActor.fill, UInt32(DayObjectFill.radialThree.colorCount - 1))
+    }
+
+    func testZeroEventFrameKeepsGenerativePostProcessWithoutActors() {
+        let scene = fixtureScene(ids: [])
+        let environment = DayObjectEnvironment(
+            motionEnergy: 0,
+            visualClarity: 0.5
+        )
+        let frame = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: 12,
+            insertions: [:]
+        )
+
+        XCTAssertTrue(frame.actors.isEmpty)
+        XCTAssertTrue(frame.choreographyTime.isFinite)
+        XCTAssertGreaterThan(frame.postProcess.grainIntensity, 0)
+        XCTAssertTrue(frame.postProcess.grainPhase.isFinite)
+    }
+
+    func testSleepFocusIsMonotonicAndLeavesGrainIndependent() {
+        let clear = DayObjectPostProcess(visualClarity: 1, grainSeed: 9)
+        let tired = DayObjectPostProcess(visualClarity: 0, grainSeed: 9)
+        XCTAssertEqual(clear.blurRadius, 0, accuracy: 0.0001)
+        XCTAssertEqual(tired.blurRadius, 18, accuracy: 0.0001)
+        XCTAssertEqual(clear.contrast, 1, accuracy: 0.0001)
+        XCTAssertEqual(tired.contrast, 0.84, accuracy: 0.0001)
+        XCTAssertEqual(clear.saturation, 1, accuracy: 0.0001)
+        XCTAssertEqual(tired.saturation, 0.88, accuracy: 0.0001)
+        XCTAssertEqual(clear.grainIntensity, tired.grainIntensity)
+
+        let scene = fixtureScene(ids: ["focus-fixture"])
+        let still = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: .init(motionEnergy: 0, visualClarity: 0.5),
+            elapsed: 9,
+            insertions: [:]
+        )
+        let active = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: .init(motionEnergy: 1, visualClarity: 0.5),
+            elapsed: 9,
+            insertions: [:]
+        )
+        XCTAssertEqual(still.postProcess, active.postProcess)
+    }
+
+    func testLocalDepthSoftnessRemainsVisibleAtFullGlobalClarity() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        func actor(softness: Float) -> DayObjectGPUActor {
+            DayObjectGPUActor(
+                position: .zero,
+                direction: SIMD2(1, 0),
+                halfSize: SIMD2(0.30, 0.30),
+                opacity: 1,
+                trailLength: 0,
+                shape: 0,
+                appearanceIndex: 0,
+                depth: softness,
+                materialPhase: 0,
+                localDepthSoftness: softness
+            )
+        }
+        let crisp = try harness.render([actor(softness: 0)])
+        let soft = try harness.render([actor(softness: 0.25)])
+
+        XCTAssertGreaterThan(soft.partialAlphaPixelCount, crisp.partialAlphaPixelCount)
+        XCTAssertGreaterThan(crisp[80, 80], 0.8)
+        XCTAssertGreaterThan(soft[80, 80], 0.8)
+    }
+
+    func testPostUniformsUseExactMetalLayoutAndBoundPointScaledBlur() {
+        let resolution = SIMD2<Float>(1_179, 2_556)
+        let clear = DayObjectsPostUniforms(
+            postProcess: DayObjectPostProcess(
+                visualClarity: 1,
+                grainSeed: 9
+            ),
+            resolution: resolution,
+            pointToPixelScale: 3,
+            grainSeed: 0xFEDC_BA98_7654_3210,
+            paletteLuminance: 0.2
+        )
+        let middle = DayObjectsPostUniforms(
+            postProcess: DayObjectPostProcess(
+                visualClarity: 0.5,
+                grainSeed: 9
+            ),
+            resolution: resolution,
+            pointToPixelScale: 3,
+            grainSeed: 0xFEDC_BA98_7654_3210,
+            paletteLuminance: 0.2
+        )
+        let tired = DayObjectsPostUniforms(
+            postProcess: DayObjectPostProcess(
+                visualClarity: 0,
+                grainSeed: 9
+            ),
+            resolution: resolution,
+            pointToPixelScale: 3,
+            grainSeed: 0xFEDC_BA98_7654_3210,
+            paletteLuminance: 0.2
+        )
+
+        XCTAssertEqual(DayObjectsPostUniforms.metalAlignment, 8)
+        XCTAssertEqual(DayObjectsPostUniforms.metalStride, 32)
+        XCTAssertEqual(MemoryLayout<DayObjectsPostUniforms>.alignment, 8)
+        XCTAssertEqual(MemoryLayout<DayObjectsPostUniforms>.size, 32)
+        XCTAssertEqual(MemoryLayout<DayObjectsPostUniforms>.stride, 32)
+        XCTAssertEqual(MemoryLayout<DayObjectsPostUniforms>.offset(of: \.resolution), 0)
+        XCTAssertEqual(MemoryLayout<DayObjectsPostUniforms>.offset(of: \.blurRadiusPixels), 8)
+        XCTAssertEqual(MemoryLayout<DayObjectsPostUniforms>.offset(of: \.contrast), 12)
+        XCTAssertEqual(MemoryLayout<DayObjectsPostUniforms>.offset(of: \.saturation), 16)
+        XCTAssertEqual(MemoryLayout<DayObjectsPostUniforms>.offset(of: \.grainIntensity), 20)
+        XCTAssertEqual(MemoryLayout<DayObjectsPostUniforms>.offset(of: \.grainPhase), 24)
+        XCTAssertEqual(MemoryLayout<DayObjectsPostUniforms>.offset(of: \.grainSeed), 28)
+        XCTAssertEqual(clear.blurRadiusPixels, 0, accuracy: 0.000_001)
+        XCTAssertGreaterThan(middle.blurRadiusPixels, clear.blurRadiusPixels)
+        XCTAssertLessThan(middle.blurRadiusPixels, tired.blurRadiusPixels)
+        XCTAssertEqual(
+            tired.blurRadiusPixels,
+            DayObjectsPostUniforms.maximumBlurRadiusPixels,
+            accuracy: 0.000_001
+        )
+    }
+
+    func testProceduralGrainUsesOneStableTexturedIntensityForEveryDayAndPalette() {
+        for seed in UInt64(0)..<64 {
+            let postProcess = DayObjectPostProcess(
+                visualClarity: 0.4,
+                grainSeed: seed
+            )
+            XCTAssertEqual(postProcess.grainIntensity, 0.05, accuracy: 0.000_001)
+
+            let dark = DayObjectsPostUniforms(
+                postProcess: postProcess,
+                resolution: SIMD2(160, 112),
+                pointToPixelScale: 2,
+                grainSeed: seed,
+                paletteLuminance: 0.2
+            )
+            let light = DayObjectsPostUniforms(
+                postProcess: postProcess,
+                resolution: SIMD2(160, 112),
+                pointToPixelScale: 2,
+                grainSeed: seed,
+                paletteLuminance: 0.96
+            )
+            XCTAssertEqual(dark.grainIntensity, 0.05, accuracy: 0.000_001)
+            XCTAssertEqual(light.grainIntensity, 0.05, accuracy: 0.000_001)
+        }
+
+        let seeded = DayObjectPostProcess(
+            visualClarity: 0.4,
+            grainSeed: 9
+        )
+        let dark = DayObjectsPostUniforms(
+            postProcess: seeded,
+            resolution: SIMD2(160, 112),
+            pointToPixelScale: 2,
+            grainSeed: 9,
+            paletteLuminance: 0.2
+        )
+        let light = DayObjectsPostUniforms(
+            postProcess: seeded,
+            resolution: SIMD2(160, 112),
+            pointToPixelScale: 2,
+            grainSeed: 9,
+            paletteLuminance: 0.96
+        )
+        XCTAssertEqual(light.grainIntensity, dark.grainIntensity)
+    }
+
+    func testLightestAvailableDailyPaletteKeepsTheStableTexturedGrainIntensity() throws {
+        let scenes = (0..<512).map { index in
+            DayObjectScene.make(input: .init(
+                dayKey: "light-palette-\(index)",
+                identity: "tester",
+                eventIDs: [],
+                motionEnergy: 0.5,
+                visualClarity: 0.5
+            ))
+        }
+        let scene = try XCTUnwrap(scenes.max { lhs, rhs in
+            averagePaletteLuminance(lhs) < averagePaletteLuminance(rhs)
+        })
+        XCTAssertGreaterThan(
+            averagePaletteLuminance(scene),
+            DayObjectsPostUniforms.lightPaletteLuminanceStart
+        )
+
+        let environment = DayObjectEnvironment(
+            motionEnergy: 0.5,
+            visualClarity: 0.5
+        )
+        let frame = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: 12,
+            insertions: [:]
+        )
+        let uniforms = DayObjectsPostUniforms(
+            frame: frame,
+            scene: scene,
+            resolution: SIMD2(160, 112),
+            pointToPixelScale: 2
+        )
+
+        XCTAssertEqual(uniforms.grainIntensity, 0.05, accuracy: 0.000_001)
+        XCTAssertEqual(uniforms.grainIntensity, Float(frame.postProcess.grainIntensity))
+    }
+
+    func testGrainPhaseAdvancesSlowlyAndContinuously() {
+        let start = DayObjectPostProcess(
+            visualClarity: 0.5,
+            grainSeed: 9,
+            elapsed: 10.001
+        )
+        let withinFrame = DayObjectPostProcess(
+            visualClarity: 0.5,
+            grainSeed: 9,
+            elapsed: 10.501
+        )
+        let nextFrame = DayObjectPostProcess(
+            visualClarity: 0.5,
+            grainSeed: 9,
+            elapsed: 11.001
+        )
+        XCTAssertGreaterThan(withinFrame.grainPhase, start.grainPhase)
+        XCTAssertLessThan(withinFrame.grainPhase, nextFrame.grainPhase)
+        XCTAssertEqual(nextFrame.grainPhase - start.grainPhase, 0.06, accuracy: 0.000_001)
+
+    }
+
+    func testPostUniformGrainSeedUsesSceneRootRatherThanActorCount() {
+        let empty = fixtureScene(ids: [])
+        let populated = fixtureScene(ids: (0..<20).map { "event-\($0)" })
+        let environment = DayObjectEnvironment(
+            motionEnergy: 0.5,
+            visualClarity: 0.5
+        )
+        let emptyFrame = DayObjectRenderFrame.make(
+            scene: empty,
+            environment: environment,
+            elapsed: 12,
+            insertions: [:]
+        )
+        let populatedFrame = DayObjectRenderFrame.make(
+            scene: populated,
+            environment: environment,
+            elapsed: 12,
+            insertions: [:]
+        )
+        let emptyUniforms = DayObjectsPostUniforms(
+            frame: emptyFrame,
+            scene: empty,
+            resolution: SIMD2(160, 112),
+            pointToPixelScale: 2
+        )
+        let populatedUniforms = DayObjectsPostUniforms(
+            frame: populatedFrame,
+            scene: populated,
+            resolution: SIMD2(160, 112),
+            pointToPixelScale: 2
+        )
+
+        XCTAssertEqual(empty.rootSeed, populated.rootSeed)
+        XCTAssertEqual(emptyUniforms.grainSeed, populatedUniforms.grainSeed)
+        XCTAssertEqual(emptyUniforms.grainIntensity, populatedUniforms.grainIntensity)
+    }
+
+    func testPostPipelinesUseExactShaderEntryPoints() throws {
+        let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        let library = try XCTUnwrap(device.makeDefaultLibrary())
+        let horizontal = try XCTUnwrap(DayObjectsPostRendering.blurPipelineDescriptor(
+            library: library,
+            horizontal: true,
+            pixelFormat: .rgba16Float
+        ))
+        let vertical = try XCTUnwrap(DayObjectsPostRendering.blurPipelineDescriptor(
+            library: library,
+            horizontal: false,
+            pixelFormat: .rgba16Float
+        ))
+        let display = try XCTUnwrap(DayObjectsPostRendering.displayPipelineDescriptor(
+            library: library,
+            pixelFormat: .rgba16Float
+        ))
+
+        XCTAssertEqual(horizontal.fragmentFunction?.name, "dayObjectsBlurHorizontal")
+        XCTAssertEqual(vertical.fragmentFunction?.name, "dayObjectsBlurVertical")
+        XCTAssertEqual(display.fragmentFunction?.name, "dayObjectsDisplayFragment")
+        XCTAssertNoThrow(try device.makeRenderPipelineState(descriptor: horizontal))
+        XCTAssertNoThrow(try device.makeRenderPipelineState(descriptor: vertical))
+        XCTAssertNoThrow(try device.makeRenderPipelineState(descriptor: display))
+    }
+
+    func testDefaultLibraryDoesNotExposeUnusedScaffoldEntryPoints() throws {
+        let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        let library = try XCTUnwrap(device.makeDefaultLibrary())
+
+        XCTAssertNil(library.makeFunction(name: "dayObjectsScaffoldVertex"))
+        XCTAssertNil(library.makeFunction(name: "dayObjectsScaffoldFragment"))
+    }
+
+    func testProductionDrawableUsesExplicitSRGBTransferAndLayerColorSpace() throws {
+        XCTAssertEqual(DayObjectsRenderer.colorPixelFormat, .bgra8Unorm_srgb)
+
+        let view = MTKView(frame: CGRect(x: 0, y: 0, width: 8, height: 8))
+        DayObjectsRenderer.configureDisplay(view)
+        XCTAssertEqual(view.colorPixelFormat, .bgra8Unorm_srgb)
+        let metalLayer = try XCTUnwrap(view.layer as? CAMetalLayer)
+        XCTAssertEqual(
+            metalLayer.colorspace?.name as String?,
+            CGColorSpace(name: CGColorSpace.sRGB)?.name as String?
+        )
+
+        let readback = try DisplayTransferReadbackHarness().render(
+            linearRGB: SIMD3<Float>(0.18, 0.50, 0.80)
+        )
+        XCTAssertEqual(readback.linearBytes, SIMD3<UInt8>(46, 128, 204))
+        XCTAssertEqual(readback.sRGBBytes, SIMD3<UInt8>(118, 188, 231))
+    }
+
+    func testLiveDayObjectsMetalViewTargetsThirtyFramesPerSecond() {
+        let view = MTKView(frame: .zero)
+
+        DayObjectsMetalView.configureAnimationFrameRate(view)
+
+        XCTAssertEqual(view.preferredFramesPerSecond, 30)
+    }
+
+    func testPostGPUDefocusesCompleteSceneMonotonicallyWhileGrainRetainsMediumScaleTexture() throws {
+        let scene = fixtureScene(ids: (0..<12).map { "gpu-event-\($0)" })
+        let harness = try PostRenderHarness(width: 160, height: 112)
+        var structuralSharpness = [Double]()
+
+        for clarity in [0.0, 0.5, 1.0] {
+            let first = try harness.render(scene: scene, clarity: clarity, elapsed: 8.375)
+            let second = try harness.render(scene: scene, clarity: clarity, elapsed: 8.375)
+            XCTAssertEqual(first.output.checksum, second.output.checksum)
+            XCTAssertEqual(first.noGrain.checksum, second.noGrain.checksum)
+
+            let sharpness = first.noGrain.structuralSharpness
+            let grain = first.output.difference(from: first.noGrain)
+            let fineEnergy = grain.neighborDifferenceEnergy
+            let coarseEnergy = grain.boxBlurred(radius: 2).neighborDifferenceEnergy
+            let retainedMediumScale = coarseEnergy / max(fineEnergy, 0.000_000_1)
+            structuralSharpness.append(sharpness)
+
+            XCTAssertGreaterThan(grain.meanAbsoluteLuminance, 0.000_01)
+            XCTAssertGreaterThan(
+                retainedMediumScale,
+                0.70,
+                "Large grain must retain most of its structure through a two-pixel box blur"
+            )
+            print(
+                "DAY_OBJECTS_POST_GPU clarity=\(clarity) "
+                    + "checksum=\(first.output.checksum) "
+                    + "blurPixels=\(first.uniforms.blurRadiusPixels) "
+                    + "structuralSharpness=\(sharpness) "
+                    + "grainFine=\(fineEnergy) grainCoarse=\(coarseEnergy) "
+                    + "grainRetainedMediumScale=\(retainedMediumScale)"
+            )
+        }
+
+        XCTAssertLessThan(structuralSharpness[0], structuralSharpness[1])
+        XCTAssertLessThan(structuralSharpness[1], structuralSharpness[2])
+    }
+
+    func testLowSpendEchoSurvivesLowFocusAndFrozenWallpaperFrames() throws {
+        let scene = DayObjectScene.make(input: .init(
+            dayKey: "2026-09-06", identity: "primary-canvas",
+            eventIDs: Array(glitchReviewActorIDs.prefix(5)),
+            motionEnergy: 0.55, visualClarity: 0.05,
+            canvasCoverage: .fullCanvas, usesEditorialField: true,
+            editorialLabConfiguration: .init(materialMode: .generativeDNA, placement: .depthField)
+        ))
+        let harness = try PostRenderHarness(width: 390, height: 640)
+        for clarity in [0.05, 0.7] {
+            let natural = try harness.render(scene: scene, clarity: clarity, elapsed: 4).noGrain
+            let reference = XCTAttachment(data: try natural.pngData(), uniformTypeIdentifier: UTType.png.identifier)
+            reference.name = "persistent-echo-focus-\(clarity)-spent-0-time-4.0"
+            reference.lifetime = .keepAlways
+            add(reference)
+            for spent in [10, 20] {
+                for phase in [0.0, 4.0, 8.375] {
+                    let changed = try autoreleasepool {
+                        try harness.render(scene: scene, clarity: clarity, elapsed: 4,
+                            digitalImpact: .init(spentColors: spent), glitchElapsed: phase).noGrain
+                    }
+                    let differences = zip(natural.rgb, changed.rgb).map { simd_distance($0.0, $0.1) }.sorted()
+                    XCTAssertGreaterThan(differences[Int(Double(differences.count - 1) * 0.99)], 0.025,
+                        "A frozen image must retain a visible echo at clarity \(clarity), spend \(spent), time \(phase)")
+                    XCTAssertGreaterThan(changed.luminanceField.correlation(with: natural.luminanceField), 0.98)
+                    let attachment = XCTAttachment(data: try changed.pngData(), uniformTypeIdentifier: UTType.png.identifier)
+                    attachment.name = "persistent-echo-focus-\(clarity)-spent-\(spent)-time-\(phase)"
+                    attachment.lifetime = .keepAlways
+                    add(attachment)
+                }
+            }
+        }
+    }
+
+    // Catches an invisible slow drift or a continuously shaking canvas.
+    func testLowSpendGlitchHasVisibleBriefMovementAndLongPauses() throws {
+        let scene = DayObjectScene.make(input: .init(
+            dayKey: "2026-09-06", identity: "primary-canvas",
+            eventIDs: Array(glitchReviewActorIDs.prefix(5)),
+            motionEnergy: 0.55, visualClarity: 0.7,
+            canvasCoverage: .fullCanvas, usesEditorialField: true,
+            editorialLabConfiguration: .init(materialMode: .generativeDNA, placement: .depthField)
+        ))
+        let harness = try PostRenderHarness(width: 390, height: 640)
+        var previous: PostPixelCapture?
+        var quietFrames = 0
+        var movingFrames = 0
+        var peak: Float = 0
+        for tick in 0...120 {
+            let capture = try autoreleasepool {
+                try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375,
+                    digitalImpact: .init(spentColors: 20), glitchElapsed: Double(tick) / 10).noGrain
+            }
+            let attachment = XCTAttachment(data: try capture.pngData(), uniformTypeIdentifier: UTType.png.identifier)
+            attachment.name = String(format: "pulse-20-frame-%03d", tick)
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            if let previous {
+                let distances = zip(previous.rgb, capture.rgb).map { simd_distance($0.0, $0.1) }.sorted()
+                let localChange = distances[Int(Double(distances.count - 1) * 0.99)]
+                peak = max(peak, localChange)
+                if localChange < 0.0005 { quietFrames += 1 }
+                if localChange > 0.005 { movingFrames += 1 }
+                XCTAssertLessThan(capture.meanAbsoluteDifference(from: previous), 0.006,
+                    "A twitch must not disturb the whole canvas")
+            }
+            previous = capture
+        }
+        print("GLITCH_RHYTHM quiet=\(quietFrames) moving=\(movingFrames) peak=\(peak)")
+        XCTAssertGreaterThan(peak, 0.04, "A distinct echo edge must move visibly even on the soft full-canvas artwork")
+        XCTAssertGreaterThan(movingFrames, 1)
+        XCTAssertGreaterThan(quietFrames, 100, "Most of the viewing time should remain calm")
+        XCTAssertLessThan(movingFrames, 15)
+    }
+
+    func testTwentySpentEnergyKeepsCanvasArtworkNearlyUnchanged() throws {
+        let scene = fixtureScene(ids: (0..<10).map { "subtle-glitch-\($0)" })
+        let harness = try PostRenderHarness(width: 390, height: 640)
+        let natural = try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375).noGrain
+        let changed = try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375,
+            digitalImpact: .init(spentColors: 20)).noGrain
+        XCTAssertLessThan(changed.meanAbsoluteDifference(from: natural), 0.006,
+            "Twenty spent energy must add a subtle layer, not dominate the artwork")
+        XCTAssertGreaterThan(changed.luminanceField.correlation(with: natural.luminanceField), 0.99)
+        let differences = zip(natural.rgb, changed.rgb).map { simd_distance($0.0, $0.1) }.sorted()
+        // Allow visible local edges while retaining the strict mean and structure bounds above.
+        XCTAssertLessThan(differences[Int(Double(differences.count - 1) * 0.995)], 0.065)
+    }
+
+    func testLocalTearsArePerceptibleAtTwentySpentEnergy() throws {
+        let scene = fixtureScene(ids: [])
+        let harness = try PostRenderHarness(width: 390, height: 640)
+        let flat = SIMD3<Float>(0.85, 0.22, 0.035)
+        let base = try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375, flatSceneColor: flat).noGrain
+        let changed = try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375,
+            digitalImpact: .init(spentColors: 20), flatSceneColor: flat).noGrain
+        let differences = zip(base.rgb, changed.rgb).map { simd_distance($0.0, $0.1) }.sorted()
+        XCTAssertGreaterThan(differences[Int(Double(differences.count - 1) * 0.995)], 0.012,
+            "Short strips should be discernible at low spend without affecting the full background")
+        XCTAssertGreaterThan(Double(differences.filter { $0 < 0.001 }.count) / Double(differences.count), 0.85)
+    }
+
+    func testArtisticGlitchLeavesMostOfFlatCanvasClean() throws {
+        let scene = fixtureScene(ids: [])
+        let harness = try PostRenderHarness(width: 390, height: 640)
+        let colour = SIMD3<Float>(0.85, 0.22, 0.035)
+        let natural = try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375, flatSceneColor: colour).noGrain
+        let changed = try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375,
+            digitalImpact: .init(spentColors: 100), flatSceneColor: colour).noGrain
+        let differences = zip(natural.rgb, changed.rgb).map { simd_distance($0.0, $0.1) }
+        XCTAssertGreaterThan(Double(differences.filter { $0 < 0.001 }.count) / Double(differences.count), 0.85,
+            "Rare local tears must leave the smooth background intact")
+        XCTAssertGreaterThan(Double(differences.filter { $0 > 0.003 }.count) / Double(differences.count), 0.005)
+        for quarter in 0..<4 {
+            let start = quarter * differences.count / 4
+            let end = (quarter + 1) * differences.count / 4
+            XCTAssertTrue(differences[start..<end].contains { $0 > 0.003 },
+                "Local tears should be distributed across the full canvas height")
+        }
+        for y in 0..<natural.height {
+            let changedPixels = differences[(y * natural.width)..<((y + 1) * natural.width)].filter { $0 > 0.003 }.count
+            XCTAssertLessThan(Double(changedPixels) / Double(natural.width), 0.65,
+                "No full-width television stripes")
+        }
+    }
+
+    func testArtisticEchoRemainsVisibleBeyondTheLocalTears() throws {
+        let scene = fixtureScene(ids: (0..<10).map { "echo-\($0)" })
+        let harness = try PostRenderHarness(width: 192, height: 256)
+        let flat = SIMD3<Float>(repeating: 0.4)
+        let base = try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375).noGrain
+        let echo = try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375,
+            digitalImpact: .init(spentColors: 100)).noGrain
+        let flatBase = try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375, flatSceneColor: flat).noGrain
+        let flatEcho = try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375,
+            digitalImpact: .init(spentColors: 100), flatSceneColor: flat).noGrain
+        let changedBeyondTears = base.rgb.indices.filter { i in
+            simd_distance(flatBase.rgb[i], flatEcho.rgb[i]) < 0.0001 &&
+            simd_distance(base.rgb[i], echo.rgb[i]) > 0.003
+        }.count
+        XCTAssertGreaterThan(Double(changedBeyondTears) / Double(base.rgb.count), 0.02,
+            "The image needs a secondary exposure, not just isolated strips")
+    }
+
+    func testDigitalGlitchRemainsVisibleOnUniformColours() throws {
+        let scene = fixtureScene(ids: [])
+        let harness = try PostRenderHarness(width: 390, height: 640)
+        let colours: [(String, SIMD3<Float>)] = [
+            ("orange", SIMD3(0.85, 0.22, 0.035)),
+            ("purple", SIMD3(0.25, 0.08, 0.24)),
+            ("black", .zero),
+            ("white", SIMD3(repeating: 1)),
+        ]
+        for (name, colour) in colours {
+            let natural = try autoreleasepool {
+                try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375, flatSceneColor: colour).noGrain
+            }
+            for spent in [10, 36, 60, 100] {
+                let capture = try autoreleasepool {
+                    try harness.render(
+                        scene: scene, clarity: 0.7, elapsed: 8.375,
+                        digitalImpact: .init(spentColors: spent), flatSceneColor: colour
+                    ).noGrain
+                }
+                let differences = zip(natural.rgb, capture.rgb).map { simd_distance($0.0, $0.1) }.sorted()
+                XCTAssertLessThan(differences[Int(Double(differences.count - 1) * 0.995)], 0.07)
+                XCTAssertGreaterThan(differences[Int(Double(differences.count - 1) * 0.995)], 0.0001,
+                    "Glitch must remain visible on \(name) at \(spent)% without source edges")
+                let attachment = XCTAttachment(data: try capture.pngData(), uniformTypeIdentifier: UTType.png.identifier)
+                attachment.name = "flat-glitch-\(name)-\(spent)"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+            }
+        }
+    }
+
+    func testEditorialGlitchReviewStagesRetainReadableComposition() throws {
+        let harness = try PostRenderHarness(width: 390, height: 640)
+        for day in ["2026-09-06", "2026-09-07", "2026-09-08"] {
+            let scene = DayObjectScene.make(input: .init(
+                dayKey: day, identity: "primary-canvas",
+                eventIDs: Array(glitchReviewActorIDs.prefix(5)),
+                motionEnergy: 0.55, visualClarity: 0.7,
+                canvasCoverage: .fullCanvas, usesEditorialField: true,
+                editorialLabConfiguration: .init(materialMode: .generativeDNA, placement: .depthField)
+            ))
+            let natural = try autoreleasepool {
+                try harness.render(scene: scene, clarity: 0.7, elapsed: 8.375).noGrain
+            }
+            var previousDifference = 0.0
+            for spent in [0, 20, 50, 100] {
+                let capture = try autoreleasepool {
+                    try harness.render(
+                        scene: scene, clarity: 0.7, elapsed: 8.375,
+                        digitalImpact: .init(spentColors: spent)
+                    ).noGrain
+                }
+                let attachment = XCTAttachment(data: try capture.pngData(), uniformTypeIdentifier: UTType.png.identifier)
+                attachment.name = "glitch-\(day)-\(spent)"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+                let difference = capture.meanAbsoluteDifference(from: natural)
+                if spent == 0 {
+                    XCTAssertEqual(capture.checksum, natural.checksum)
+                } else {
+                    XCTAssertGreaterThan(difference, previousDifference, "\(day) at \(spent)%")
+                    XCTAssertGreaterThan(capture.luminanceField.correlation(with: natural.luminanceField), 0.97)
+                }
+                previousDifference = difference
+            }
+        }
+    }
+
+    func testGlitchDamageGrowsMonotonicallyFromNaturalDisplay() throws {
+        let scene = fixtureScene(ids: (0..<12).map { "glitch-event-\($0)" })
+        let harness = try PostRenderHarness(width: 192, height: 256)
+        let natural = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: .none
+        ).noGrain
+        var previousDifference = 0.0
+
+        for spentColors in [10, 25, 50, 75, 100] {
+            let damaged = try harness.render(
+                scene: scene,
+                clarity: 0.7,
+                elapsed: 8.375,
+                digitalImpact: DayObjectDigitalImpact(spentColors: spentColors)
+            ).noGrain
+            let difference = damaged.meanAbsoluteDifference(from: natural)
+            XCTAssertGreaterThan(
+                difference,
+                previousDifference,
+                "spentColors=\(spentColors) difference=\(difference)"
+            )
+            previousDifference = difference
+        }
+    }
+
+    func testMidrangeGlitchIsVisuallyDistinctAtReviewPresets() throws {
+        let scene = fixtureScene(ids: (0..<12).map { "glitch-event-\($0)" })
+        let harness = try PostRenderHarness(width: 192, height: 256)
+        let natural = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: .none
+        ).noGrain
+        let reviewPresets: [(spentColors: Int, minimumLocalDifference: Double)] = [
+            (25, 0.001),
+            (50, 0.003),
+        ]
+
+        for preset in reviewPresets {
+            let damaged = try harness.render(
+                scene: scene,
+                clarity: 0.7,
+                elapsed: 8.375,
+                digitalImpact: DayObjectDigitalImpact(spentColors: preset.spentColors)
+            ).noGrain
+            // Judge visible tears rather than requiring the clean majority of
+            // the canvas to change. At least 1% of pixels must carry clear RGB
+            // separation from the natural image; isolated hot pixels cannot pass.
+            let differences = zip(damaged.rgb, natural.rgb).map {
+                simd_distance($0.0, $0.1)
+            }.sorted()
+            let localDifference = Double(differences[Int(Double(differences.count - 1) * 0.99)])
+            XCTAssertGreaterThanOrEqual(
+                localDifference,
+                preset.minimumLocalDifference,
+                "Spent colors \(preset.spentColors) should have visible localized tears"
+            )
+        }
+    }
+
+    func testGlitchIsDeterministicDuringQuietIntervals() throws {
+        let scene = fixtureScene(ids: (0..<12).map { "glitch-event-\($0)" })
+        let harness = try PostRenderHarness(width: 192, height: 256)
+        let impact = DayObjectDigitalImpact(spentColors: 75)
+
+        let first = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: impact
+        ).noGrain
+        let repeated = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: impact
+        ).noGrain
+        let later = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: impact,
+            glitchElapsed: 9.375
+        ).noGrain
+        XCTAssertEqual(first.checksum, repeated.checksum)
+        XCTAssertEqual(first.checksum, later.checksum, "No residual drift during the quiet interval")
+    }
+
+    func testMaximumGlitchDamageRetainsSourceStructure() throws {
+        let scene = fixtureScene(ids: (0..<12).map { "glitch-event-\($0)" })
+        let harness = try PostRenderHarness(width: 192, height: 256)
+        let natural = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: .none
+        ).noGrain
+        let damaged = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: DayObjectDigitalImpact(spentColors: 100)
+        ).noGrain
+
+        XCTAssertGreaterThan(
+            damaged.luminanceField.correlation(with: natural.luminanceField),
+            0.25
+        )
+        XCTAssertGreaterThan(damaged.structuralSharpness, 0.000_3)
+    }
+
+    func testSameSpendUsesDifferentStableScarsForDifferentDays() throws {
+        let scene = fixtureScene(ids: (0..<12).map { "glitch-event-\($0)" })
+        let harness = try PostRenderHarness(width: 192, height: 256)
+        let impact = DayObjectDigitalImpact(spentColors: 75)
+
+        let firstDay = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: impact,
+            glitchSeed: 11
+        ).noGrain
+        let repeated = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: impact,
+            glitchSeed: 11
+        ).noGrain
+        let nextDay = try harness.render(
+            scene: scene,
+            clarity: 0.7,
+            elapsed: 8.375,
+            digitalImpact: impact,
+            glitchSeed: 12
+        ).noGrain
+
+        XCTAssertEqual(firstDay.checksum, repeated.checksum)
+        XCTAssertNotEqual(firstDay.checksum, nextDay.checksum)
+    }
+
+    func testLabFixtureProducesVisibleActorsThroughActorAndPostPasses() throws {
+        let eventIDs = (0..<8).map { "lab-event-\($0)" }
+        let scene = DayObjectScene.make(input: .init(
+            dayKey: "2026-01-01",
+            identity: "day-objects-lab",
+            eventIDs: eventIDs,
+            motionEnergy: 0.55,
+            visualClarity: 0.55
+        ))
+        let emptyScene = DayObjectScene.make(input: .init(
+            dayKey: "2026-01-01",
+            identity: "day-objects-lab",
+            eventIDs: [],
+            motionEnergy: 0.55,
+            visualClarity: 0.55
+        ))
+        let environment = DayObjectEnvironment(
+            motionEnergy: 0.55,
+            visualClarity: 0.55
+        )
+        let frame = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: 12,
+            insertions: [:],
+            canvasAspect: 201.0 / 437.0
+        )
+
+        XCTAssertEqual(scene.actors.count, 8)
+        XCTAssertEqual(frame.actors.count, 8)
+        XCTAssertTrue(frame.actors.allSatisfy { $0.opacity > 0 })
+        XCTAssertGreaterThanOrEqual(scene.palette.minimumFigureContrast, 1.35)
+
+        let actorHarness = try ActorRenderHarness(width: 201, height: 437)
+        let actorCapture = try actorHarness.render(DayObjectsActorUpload(
+            actors: frame.actors,
+            resolution: SIMD2(201, 437)
+        ))
+        XCTAssertGreaterThan(actorCapture.nonzeroPixelCount, 0)
+        XCTAssertGreaterThan(actorCapture.total, 0)
+
+        let postHarness = try PostRenderHarness(width: 201, height: 437)
+        let populated = try postHarness.render(
+            scene: scene,
+            clarity: 0.55,
+            elapsed: 12,
+            motionEnergy: 0.55
+        )
+        let empty = try postHarness.render(
+            scene: emptyScene,
+            clarity: 0.55,
+            elapsed: 12,
+            motionEnergy: 0.55
+        )
+        let actorDifference = populated.noGrain.difference(from: empty.noGrain)
+        XCTAssertGreaterThan(empty.noGrain.luminanceField.maximumAbsoluteLuminance, 0.01)
+        XCTAssertGreaterThan(actorDifference.meanAbsoluteLuminance, 0.000_1)
+        print(
+            "DAY_OBJECTS_LAB_GPU sceneActors=\(scene.actors.count) "
+                + "frameActors=\(frame.actors.count) "
+                + "actorCoverage=\(actorCapture.nonzeroPixelCount) "
+                + "actorAlpha=\(actorCapture.total) "
+                + "minimumContrast=\(scene.palette.minimumFigureContrast) "
+                + "postActorDifference=\(actorDifference.meanAbsoluteLuminance) "
+                + "postActorMaximum=\(actorDifference.maximumAbsoluteLuminance) "
+                + "postActorStrongPixels=\(actorDifference.pixelCount(above: 0.01))"
+        )
+    }
+
+    func testDeterministicVisualAcceptanceMatrix() throws {
+        let layouts = [
+            (name: "phone-portrait", width: 201, height: 437),
+            (name: "tablet-landscape", width: 256, height: 192),
+        ]
+        let categoryFixtures: [(name: String, dayKey: String, categories: Set<ModernPaletteCategory>)] = [
+            ("light", "2026-08-20", [.pastel, .spring]),
+            ("dark", "2026-08-21", [.winter, .cold]),
+        ]
+        let requiredApprovedFixtures = Set(categoryFixtures.flatMap { category in
+            layouts.map { "\(category.name)-\($0.name)" }
+        })
+        XCTAssertEqual(
+            Set(DayObjectsPerceptualBaselines.livingOrbApprovedFixtureNames),
+            requiredApprovedFixtures
+        )
+
+        for category in categoryFixtures {
+            let scene = fixtureScene(
+                dayKey: category.dayKey,
+                ids: (0..<10).map { "matrix-event-\($0)" },
+                categories: category.categories
+            )
+            XCTAssertEqual(scene.actors.count, 10)
+            for layout in layouts {
+                let harness = try PostRenderHarness(width: layout.width, height: layout.height)
+                for clarity in [0.0, 0.5, 1.0] {
+                    for motionEnergy in [0.0, 0.55, 1.0] {
+                            let empty = try harness.render(
+                                scene: scene,
+                                clarity: clarity,
+                                elapsed: 11.25,
+                                motionEnergy: motionEnergy,
+                                actorLimit: 0
+                            )
+                            for actorCount in [1, 4, 7, 10] {
+                                let result = try harness.render(
+                                    scene: scene,
+                                    clarity: clarity,
+                                    elapsed: 11.25,
+                                    motionEnergy: motionEnergy,
+                                    actorLimit: actorCount
+                                )
+                        let outputLuminance = result.output.luminanceField.values
+                        let outputDynamicRange = (outputLuminance.max() ?? 0) - (outputLuminance.min() ?? 0)
+                        let paintedLuminance = result.noGrain.luminanceField
+                        let paintedDynamicRange = (paintedLuminance.values.max() ?? 0)
+                            - (paintedLuminance.values.min() ?? 0)
+                        let actorContribution = result.noGrain.difference(from: empty.noGrain)
+                        let grain = result.output.difference(from: result.noGrain)
+                        let retainedMediumScale = grain.boxBlurred(radius: 2).neighborDifferenceEnergy
+                            / max(grain.neighborDifferenceEnergy, 0.000_000_1)
+
+                        XCTAssertEqual(result.renderedActorCount, actorCount)
+                        XCTAssertGreaterThan(outputDynamicRange, 0.01)
+                        XCTAssertGreaterThan(paintedLuminance.maximumAbsoluteLuminance, 0.001)
+                        XCTAssertGreaterThan(paintedDynamicRange, 0.001)
+                        XCTAssertGreaterThan(actorContribution.maximumAbsoluteLuminance, 0.000_01)
+                        XCTAssertGreaterThan(grain.meanAbsoluteLuminance, 0.000_01)
+                        XCTAssertGreaterThan(retainedMediumScale, 0.70)
+
+                                let metrics = DayObjectsLivingOrbMatrixMetrics.make(
+                                    scene: scene,
+                                    actorLimit: actorCount,
+                                    elapsed: 11.25,
+                                    motionEnergy: motionEnergy,
+                                    canvasAspect: Double(layout.width) / Double(layout.height),
+                                    actorDifference: actorContribution
+                                )
+                                if actorCount == 10 {
+                                    XCTAssertEqual(metrics.materialCounts.count, 1)
+                                    XCTAssertEqual(metrics.paletteSlotCounts.values.reduce(0, +), 10)
+                                    XCTAssertEqual(
+                                        metrics.paletteSlotCounts[DayObjectObjectPaletteSlot.primary.rawValue],
+                                        6
+                                    )
+                                    XCTAssertEqual(
+                                        metrics.paletteSlotCounts[DayObjectObjectPaletteSlot.secondary.rawValue],
+                                        4
+                                    )
+                                    XCTAssertEqual(metrics.uniqueColorSubsetCount, 10)
+                                    XCTAssertTrue(metrics.allActorsInsideSafeBounds)
+                                    XCTAssertEqual(metrics.uiIntersectionCount, 0)
+                                    XCTAssertEqual(metrics.negativeSpaceIntersectionCount, 0)
+                                    XCTAssertLessThan(metrics.borderPeak, 0.025)
+                                    XCTAssertLessThan(metrics.uiExclusionPeak, 0.015)
+                                }
+
+                                let visualSignature = DayObjectsPerceptualSignature(
+                                    capture: result.output,
+                                    actorDifference: actorContribution,
+                                    negativeSpaceRegion: scene.compositionPlan.negativeSpaceRegion,
+                                    exclusionRegion: scene.compositionPlan.uiExclusionRegion
+                                )
+
+                        let clarityLabel = Int((clarity * 10).rounded())
+                                let motionLabel = Int((motionEnergy * 100).rounded())
+                        let attachment = XCTAttachment(
+                            data: try result.output.pngData(),
+                            uniformTypeIdentifier: UTType.png.identifier
+                        )
+                                attachment.name = "living-orbs-\(category.name)-\(layout.name)-a\(actorCount)-c\(clarityLabel)-m\(motionLabel)"
+                        attachment.lifetime = .keepAlways
+                        add(attachment)
+
+                        print(
+                                "LIVING_ORBS_MATRIX category=\(category.name) layout=\(layout.name) "
+                                + "actors=\(actorCount) clarity=\(clarity) motion=\(motionEnergy) "
+                                + "checksum=\(result.output.checksum) outputRange=\(outputDynamicRange) "
+                                        + "paintedRange=\(paintedDynamicRange) "
+                                        + "actorPeak=\(actorContribution.maximumAbsoluteLuminance) "
+                                        + "grainRetainedMediumScale=\(retainedMediumScale) metrics=\(metrics) "
+                                        + "visual=\(visualSignature)"
+                        )
+                    }
+                }
+            }
+        }
+    }
+    }
+
+    func testCommittedLabPerceptualSignaturesCoverTransferCompositionAndPalette() throws {
+        for fixture in DayObjectsPerceptualBaselines.fixtures {
+            let scene = fixtureScene(
+                dayKey: fixture.dayKey,
+                identity: "day-objects-lab",
+                ids: (0..<10).map { "lab-event-\($0)" },
+                categories: fixture.categories,
+                canvasCoverage: .fullCanvas
+            )
+            XCTAssertEqual(scene.input.identity, "day-objects-lab", fixture.name)
+            XCTAssertTrue(scene.compositionPlan.usesFullCanvas, fixture.name)
+            XCTAssertEqual(
+                Set(scene.actors.map(\.choreographySlot.ordinal)),
+                Set(0..<10),
+                fixture.name
+            )
+            let harness = try PostRenderHarness(width: fixture.width, height: fixture.height)
+            let inspectionFrame = DayObjectRenderFrame.make(
+                scene: scene,
+                environment: .init(motionEnergy: 0.75, visualClarity: 1),
+                elapsed: 11.25,
+                insertions: [:],
+                canvasAspect: Double(fixture.width) / Double(fixture.height)
+            )
+            let diameters = inspectionFrame.actors.map { Double($0.halfSize.x * 2) }
+            XCTAssertGreaterThan(diameters.max() ?? 0, 0.112, fixture.name)
+            switch scene.score.configuration.sizeProfile {
+            case .uniform:
+                break
+            case .grouped:
+                XCTAssertGreaterThan((diameters.max() ?? 0) - (diameters.min() ?? 0), 0.01, fixture.name)
+            case .spatial:
+                XCTAssertGreaterThan((diameters.max() ?? 0) - (diameters.min() ?? 0), 0.16, fixture.name)
+            }
+            let populated = try harness.render(
+                scene: scene,
+                clarity: 1,
+                elapsed: 11.25,
+                motionEnergy: 0.75
+            )
+            let empty = try harness.render(
+                scene: scene,
+                clarity: 1,
+                elapsed: 11.25,
+                motionEnergy: 0.75,
+                actorLimit: 0
+            )
+            let signature = DayObjectsPerceptualSignature(
+                capture: populated.output,
+                actorDifference: populated.noGrain.difference(from: empty.noGrain),
+                negativeSpaceRegion: scene.compositionPlan.negativeSpaceRegion,
+                exclusionRegion: scene.compositionPlan.uiExclusionRegion
+            )
+
+            XCTAssertEqual(
+                signature.mismatches(from: fixture.signature),
+                [],
+                "fixture=\(fixture.name) signature=\(signature)"
+            )
+            XCTAssertLessThanOrEqual(
+                populated.productionSRGB.maximumDisplayByteDifference(from: populated.output),
+                2,
+                "Offscreen PNG conversion must match production sRGB storage"
+            )
+            for (suffix, capture) in [("grain", populated.output), ("painted", populated.noGrain)] {
+                let attachment = XCTAttachment(
+                    data: try capture.pngData(),
+                    uniformTypeIdentifier: UTType.png.identifier
+                )
+                attachment.name = "living-orbs-approved-\(fixture.name)-\(suffix)"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+            }
+        }
+
+        let drawable = try DisplayTransferReadbackHarness().renderActualDrawable(
+            linearRGB: SIMD3<Float>(0.18, 0.50, 0.80)
+        )
+        XCTAssertTrue(drawable.usedActualMTKDrawable)
+        XCTAssertLessThanOrEqual(drawable.maximumDifference(from: SIMD3<UInt8>(118, 188, 231)), 2)
+    }
+
+#if !targetEnvironment(simulator)
+    @MainActor
+    func testPhysicalDeviceRendererSustainsThirtyFPSAtFullPhoneResolution() throws {
+        let nativeSize = UIScreen.main.nativeBounds.size
+        XCTAssertEqual(Int(nativeSize.width), 1_179)
+        XCTAssertEqual(Int(nativeSize.height), 2_556)
+        let initialThermalState = ProcessInfo.processInfo.thermalState.rawValue
+        var results = [PhysicalRendererSample]()
+
+        for clarity in [0.0, 0.5, 1.0] {
+            results.append(try runPhysicalRendererSample(
+                clarity: clarity,
+                nativeSize: nativeSize
+            ))
+        }
+
+        let finalThermalState = ProcessInfo.processInfo.thermalState.rawValue
+        for result in results {
+            XCTAssertGreaterThanOrEqual(result.snapshot.submittedFrames, 118, result.description)
+            XCTAssertEqual(result.snapshot.submittedFrames, result.snapshot.completedFrames, result.description)
+            XCTAssertEqual(result.snapshot.actorBacklogDrops, 0, result.description)
+            XCTAssertEqual(result.snapshot.resourceDrops, 0, result.description)
+            XCTAssertEqual(result.snapshot.allocationFailures, 0, result.description)
+            XCTAssertLessThanOrEqual(result.snapshot.maximumInFlightFrames, 2, result.description)
+            XCTAssertLessThan(result.gpuP95Milliseconds, 33.333, result.description)
+            XCTAssertGreaterThanOrEqual(result.measuredFPS, 29.0, result.description)
+            XCTAssertLessThanOrEqual(result.rendererTargetBytes, 80 * 1_024 * 1_024, result.description)
+            XCTAssertLessThanOrEqual(result.processGrowthBytes, 16 * 1_024 * 1_024, result.description)
+            print("DAY_OBJECTS_DEVICE_PERFORMANCE \(result)")
+        }
+        XCTAssertLessThanOrEqual(
+            finalThermalState,
+            min(initialThermalState + 1, ProcessInfo.ThermalState.serious.rawValue),
+            "thermal state escalated from \(initialThermalState) to \(finalThermalState)"
+        )
+        print(
+            "DAY_OBJECTS_DEVICE_THERMAL initial=\(initialThermalState) "
+                + "final=\(finalThermalState)"
+        )
+    }
+
+    @MainActor
+    private func runPhysicalRendererSample(
+        clarity: Double,
+        nativeSize: CGSize
+    ) throws -> PhysicalRendererSample {
+        let scene = performanceScene()
+        let environment = DayObjectEnvironment(
+            motionEnergy: 0.5,
+            visualClarity: clarity
+        )
+        let renderer = try XCTUnwrap(DayObjectsRenderer.create(
+            scene: scene,
+            environment: environment
+        ))
+        let probe = DayObjectsRendererPerformanceProbe()
+        renderer.installPerformanceProbe(probe)
+        let windowScene = try XCTUnwrap(
+            UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        )
+        let window = UIWindow(windowScene: windowScene)
+        let controller = UIViewController()
+        window.rootViewController = controller
+        window.frame = windowScene.screen.bounds
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+
+        let metalView = MTKView(frame: controller.view.bounds, device: renderer.device)
+        metalView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        metalView.autoResizeDrawable = false
+        metalView.drawableSize = nativeSize
+        metalView.framebufferOnly = true
+        metalView.enableSetNeedsDisplay = true
+        metalView.isPaused = true
+        metalView.delegate = renderer
+        DayObjectsMetalView.configureAnimationFrameRate(metalView)
+        DayObjectsRenderer.configureDisplay(metalView)
+        controller.view.addSubview(metalView)
+        controller.view.layoutIfNeeded()
+        renderer.mtkView(metalView, drawableSizeWillChange: nativeSize)
+        RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.2))
+
+        for _ in 0..<8 {
+            metalView.draw()
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 1.0 / 30.0))
+        }
+        let footprintBefore = physicalFootprintBytes()
+        probe.resetMeasurementsPreservingAllocationState()
+
+        let frameCount = 120
+        let started = CACurrentMediaTime()
+        for frameIndex in 0..<frameCount {
+            let deadline = started + Double(frameIndex) / 30.0
+            let remaining = deadline - CACurrentMediaTime()
+            if remaining > 0 {
+                RunLoop.current.run(until: Date(timeIntervalSinceNow: remaining))
+            }
+            metalView.draw()
+        }
+        let elapsed = CACurrentMediaTime() - started
+        let completionDeadline = Date(timeIntervalSinceNow: 2)
+        while probe.snapshot.pendingFrames > 0, Date() < completionDeadline {
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.01))
+        }
+        let footprintAfter = physicalFootprintBytes()
+        let snapshot = probe.snapshot
+        metalView.delegate = nil
+
+        return PhysicalRendererSample(
+            clarity: clarity,
+            elapsed: elapsed,
+            snapshot: snapshot,
+            processGrowthBytes: max(Int64(footprintAfter) - Int64(footprintBefore), 0)
+        )
+    }
+
+    private func physicalFootprintBytes() -> UInt64 {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(
+            MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size
+        )
+        let result = withUnsafeMutablePointer(to: &info) { pointer in
+            pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+            }
+        }
+        return result == KERN_SUCCESS ? info.phys_footprint : 0
+    }
+#endif
+
+    func testFiveDayFullCanvasSandboxInspectionStates() throws {
+        let width = 120
+        let height = 260
+        let aspect = Double(width) / Double(height)
+        let times = [0.0, 31.0, 73.0]
+        let harness = try PostRenderHarness(width: width, height: height)
+
+        for day in 22...26 {
+            let dayKey = "2026-08-\(day)"
+            let eventIDs = (0..<10).map { "lab-event-\($0)" }
+            func makeScene(actorCount: Int) -> DayObjectScene {
+                DayObjectScene.make(input: .init(
+                    dayKey: dayKey,
+                    identity: "day-objects-lab",
+                    eventIDs: Array(eventIDs.prefix(actorCount)),
+                    motionEnergy: 0.55,
+                    visualClarity: 0.95,
+                    canvasCoverage: .fullCanvas
+                ))
+            }
+            let scene = makeScene(actorCount: 10)
+            XCTAssertTrue(scene.compositionPlan.usesFullCanvas)
+            let preset = scene.score.preset
+            let sizeProfile = scene.score.configuration.sizeProfile
+
+            for actorCount in [1, 4, 7, 10] {
+                let inspectedScene = makeScene(actorCount: actorCount)
+                XCTAssertEqual(inspectedScene.score.preset, preset)
+                XCTAssertEqual(inspectedScene.actors.count, actorCount)
+                let emptyByTime = try Dictionary(uniqueKeysWithValues: times.map { elapsed in
+                    (
+                        elapsed,
+                        try harness.render(
+                            scene: inspectedScene,
+                            clarity: 0.95,
+                            elapsed: elapsed,
+                            motionEnergy: 0.55,
+                            actorLimit: 0
+                        )
+                    )
+                })
+                var occupiedThirds = Set<Int>()
+                var diameters = [Double]()
+                var focalDisplacements = [Double]()
+                var lowerThirdCoverages = [Double]()
+                var captures = [PostPixelCapture]()
+
+                for elapsed in times {
+                    let result = try harness.render(
+                        scene: inspectedScene,
+                        clarity: 0.95,
+                        elapsed: elapsed,
+                        motionEnergy: 0.55
+                    )
+                    let empty = try XCTUnwrap(emptyByTime[elapsed])
+                    let actorDifference = result.noGrain.difference(from: empty.noGrain)
+                    let environment = DayObjectEnvironment(
+                        motionEnergy: 0.55,
+                        visualClarity: 0.95
+                    )
+                    let frame = DayObjectRenderFrame.make(
+                        scene: inspectedScene,
+                        environment: environment,
+                        elapsed: elapsed,
+                        insertions: [:],
+                        canvasAspect: aspect
+                    )
+                    let records = Array(frame.actors.prefix(actorCount))
+                    let actorsByID = Dictionary(
+                        uniqueKeysWithValues: inspectedScene.actors.map { ($0.id, $0) }
+                    )
+
+                    for record in records {
+                        guard let actor = actorsByID[record.actorID] else { continue }
+                        let pose = inspectedScene.score.pose(
+                            for: actor,
+                            at: frame.choreographyTime,
+                            canvasAspect: aspect,
+                            compositionPlan: inspectedScene.compositionPlan
+                        )
+                        let span = aspect >= 1
+                            ? SIMD2<Double>(aspect, 1)
+                            : SIMD2<Double>(1, 1 / aspect)
+                        let normalized = SIMD2<Double>(
+                            pose.position.x / span.x + 0.5,
+                            0.5 - pose.position.y / span.y
+                        )
+                        let row = min(max(Int(normalized.y * 3), 0), 2)
+                        occupiedThirds.insert(row)
+                        diameters.append(Double(record.halfSize.x * 2))
+                        focalDisplacements.append(
+                            actor.appearance.layers
+                                .map { simd_length($0.focalOffset) }
+                                .max() ?? 0
+                        )
+                    }
+
+                    let lowerStart = actorDifference.height * 2 / 3
+                    let lowerPixels = max(
+                        (actorDifference.height - lowerStart) * actorDifference.width,
+                        1
+                    )
+                    var changedLowerPixels = 0
+                    for y in lowerStart..<actorDifference.height {
+                        for x in 0..<actorDifference.width
+                        where abs(actorDifference[x, y]) > 0.000_01 {
+                            changedLowerPixels += 1
+                        }
+                    }
+                    lowerThirdCoverages.append(
+                        Double(changedLowerPixels) / Double(lowerPixels)
+                    )
+                    captures.append(result.output)
+
+                    let attachment = XCTAttachment(
+                        data: try result.output.pngData(),
+                        uniformTypeIdentifier: UTType.png.identifier
+                    )
+                    attachment.name = "circle-dna-\(dayKey)-a\(actorCount)-t\(Int(elapsed))"
+                    attachment.lifetime = .keepAlways
+                    add(attachment)
+                }
+
+                XCTAssertEqual(captures.count, times.count)
+                XCTAssertGreaterThan(diameters.max() ?? 0, diameters.min() ?? 0)
+                XCTAssertGreaterThan(focalDisplacements.max() ?? 0, 0.08)
+                XCTAssertGreaterThan(
+                    captures[0].meanAbsoluteDifference(from: captures[1]),
+                    0.000_01
+                )
+                XCTAssertGreaterThan(
+                    captures[1].meanAbsoluteDifference(from: captures[2]),
+                    0.000_01
+                )
+                if actorCount >= 6 && preset == .constellation {
+                    XCTAssertEqual(occupiedThirds, Set([0, 1, 2]), dayKey)
+                    XCTAssertGreaterThan(lowerThirdCoverages.max() ?? 0, 0.001, dayKey)
+                }
+                if actorCount >= 8 {
+                    let ratio = (diameters.max() ?? 0)
+                        / max(diameters.min() ?? 1, 0.000_001)
+                    switch sizeProfile {
+                    case .uniform:
+                        XCTAssertLessThanOrEqual(ratio, 1.12, dayKey)
+                    case .grouped:
+                        XCTAssertGreaterThan(ratio, 1.04, dayKey)
+                        XCTAssertLessThanOrEqual(ratio, 1.75, dayKey)
+                    case .spatial:
+                        XCTAssertGreaterThan(ratio, 1.8, dayKey)
+                    }
+                }
+
+                print(
+                    "CIRCLE_DNA_SANDBOX day=\(dayKey) preset=\(preset) "
+                        + "sizeProfile=\(sizeProfile) actors=\(actorCount) "
+                        + "thirds=\(occupiedThirds.sorted()) "
+                        + "diameter=\(diameters.min() ?? 0)...\(diameters.max() ?? 0) "
+                        + "focal=\(focalDisplacements.max() ?? 0) "
+                        + "lowerCoverage=\(lowerThirdCoverages)"
+                )
+            }
+        }
+    }
+
+    func testInsertionAndRemovalTriptychsMatchCommittedPerceptualSignatures() throws {
+        let base = fixtureScene(
+            identity: "day-objects-lab",
+            ids: ["a", "b", "c", "d"],
+            canvasCoverage: .fullCanvas
+        )
+        let expanded = fixtureScene(
+            identity: "day-objects-lab",
+            ids: ["a", "b", "c", "d", "e"],
+            canvasCoverage: .fullCanvas
+        )
+        let harness = try PostRenderHarness(width: 201, height: 437)
+
+        var insertionTimeline = DayObjectInsertionTimeline(scene: base)
+        let insertionBefore = insertionTimeline.renderState(activeScene: base, elapsed: 19.9)
+        insertionTimeline.update(scene: expanded, elapsed: 20)
+        let insertionDuring = insertionTimeline.renderState(activeScene: expanded, elapsed: 20.55)
+        let insertionAfter = insertionTimeline.renderState(activeScene: expanded, elapsed: 21.5)
+
+        var removalTimeline = DayObjectInsertionTimeline(scene: expanded)
+        let removalBefore = removalTimeline.renderState(activeScene: expanded, elapsed: 29.9)
+        removalTimeline.update(scene: base, elapsed: 30)
+        let removalDuring = removalTimeline.renderState(activeScene: base, elapsed: 30.55)
+        let removalAfter = removalTimeline.renderState(activeScene: base, elapsed: 31.5)
+
+        let capped = fixtureScene(
+            identity: "day-objects-lab",
+            ids: (0..<10).map { "capped-\($0)" },
+            canvasCoverage: .fullCanvas
+        )
+        let cappedReplacement = fixtureScene(
+            identity: "day-objects-lab",
+            ids: (1...10).map { "capped-\($0)" },
+            canvasCoverage: .fullCanvas
+        )
+        XCTAssertTrue(
+            [base, expanded, capped, cappedReplacement].allSatisfy(\.compositionPlan.usesFullCanvas)
+        )
+        XCTAssertTrue(
+            [base, expanded, capped, cappedReplacement].allSatisfy { $0.input.identity == "day-objects-lab" }
+        )
+        XCTAssertEqual(Set(base.actors.map(\.choreographySlot.ordinal)).count, 4)
+        XCTAssertEqual(Set(expanded.actors.map(\.choreographySlot.ordinal)).count, 5)
+        var cappedTimeline = DayObjectInsertionTimeline(scene: capped)
+        let cappedBefore = cappedTimeline.renderState(activeScene: capped, elapsed: 39.9)
+        cappedTimeline.update(scene: cappedReplacement, elapsed: 40)
+        let cappedDuring = cappedTimeline.renderState(activeScene: cappedReplacement, elapsed: 40.55)
+        _ = cappedTimeline.renderState(activeScene: cappedReplacement, elapsed: 41.5)
+        let cappedAfter = cappedTimeline.renderState(activeScene: cappedReplacement, elapsed: 42.05)
+
+        let phases = [
+            ("insertion-before", insertionBefore, 19.9, base),
+            ("insertion-during", insertionDuring, 20.55, base),
+            ("insertion-after", insertionAfter, 21.5, base),
+            ("removal-before", removalBefore, 29.9, base),
+            ("removal-during", removalDuring, 30.55, base),
+            ("removal-after", removalAfter, 31.5, base),
+            ("capped-replacement-before", cappedBefore, 39.9, capped),
+            ("capped-replacement-during", cappedDuring, 40.55, capped),
+            ("capped-replacement-after", cappedAfter, 42.05, cappedReplacement),
+        ]
+        var signatures = [DayObjectsTransitionPerceptualSignature]()
+        for (name, state, elapsed, referenceScene) in phases {
+            let capture = try harness.render(
+                scene: state.scene,
+                clarity: 0.55,
+                elapsed: elapsed,
+                motionEnergy: 0.55,
+                insertions: state.insertions,
+                removals: state.removals
+            )
+            let reference = try harness.render(
+                scene: referenceScene,
+                clarity: 0.55,
+                elapsed: elapsed,
+                motionEnergy: 0.55
+            )
+            signatures.append(DayObjectsTransitionPerceptualSignature(
+                name: name,
+                renderedActorCount: capture.renderedActorCount,
+                affectedEnergy: capture.noGrain.difference(from: reference.noGrain).meanAbsoluteLuminance,
+                capture: capture.output
+            ))
+
+            let attachment = XCTAttachment(
+                data: try capture.output.pngData(),
+                uniformTypeIdentifier: UTType.png.identifier
+            )
+            attachment.name = "living-orbs-transition-\(name)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+
+        XCTAssertEqual(
+            DayObjectsPerceptualBaselines.transitionMismatches(signatures),
+            [],
+            "signatures=\(signatures)"
+        )
+    }
+
+    func testAddingActorDoesNotChangeExistingFrameStates() {
+        let before = fixtureScene(ids: ["a", "b"])
+        let after = fixtureScene(ids: ["a", "b", "c"])
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.55)
+        let frameA = DayObjectRenderFrame.make(scene: before, environment: environment, elapsed: 12, insertions: [:])
+        let frameB = DayObjectRenderFrame.make(scene: after, environment: environment, elapsed: 12, insertions: ["c": 11.5])
+        XCTAssertTrue(frameB.actors.filter { $0.eventID == "c" }.allSatisfy { $0.opacity > 0 && $0.opacity < 1 })
+
+        let enrichedByID = Dictionary(uniqueKeysWithValues: frameB.actors.map { ($0.actorID, $0) })
+        for actor in frameA.actors {
+            guard let enriched = enrichedByID[actor.actorID] else {
+                XCTFail("Missing stable actor \(actor.actorID)")
+                continue
+            }
+            XCTAssertEqual(enriched.eventID, actor.eventID)
+            XCTAssertEqual(enriched.gpuAppearance, actor.gpuAppearance)
+            XCTAssertEqual(enriched.gpuActor.position, actor.gpuActor.position)
+            XCTAssertEqual(enriched.gpuActor.direction, actor.gpuActor.direction)
+            XCTAssertEqual(enriched.gpuActor.halfSize, actor.gpuActor.halfSize)
+            XCTAssertEqual(enriched.gpuActor.opacity, actor.gpuActor.opacity)
+            XCTAssertEqual(enriched.gpuActor.trailLength, actor.gpuActor.trailLength)
+            XCTAssertEqual(enriched.gpuActor.shape, actor.gpuActor.shape)
+            XCTAssertEqual(enriched.gpuActor.depth, actor.gpuActor.depth)
+            XCTAssertEqual(enriched.gpuActor.materialPhase, actor.gpuActor.materialPhase)
+            XCTAssertEqual(enriched.gpuActor.localDepthSoftness, actor.gpuActor.localDepthSoftness)
+        }
+    }
+
+    func testInsertionTimelineRetainsExistingTimestampsAndMarksOnlyNewEvents() {
+        let initial = fixtureScene(ids: ["a", "b"])
+        var timeline = DayObjectInsertionTimeline(scene: initial)
+        XCTAssertEqual(timeline.timestamps, [:])
+
+        timeline.update(scene: fixtureScene(ids: ["a", "b", "c"]), elapsed: 12)
+        _ = timeline.renderState(
+            activeScene: fixtureScene(ids: ["a", "b", "c"]),
+            elapsed: 12
+        )
+        XCTAssertEqual(timeline.timestamps, ["c": 12])
+
+        timeline.update(scene: fixtureScene(ids: ["a", "b", "c", "d"]), elapsed: 15)
+        _ = timeline.renderState(
+            activeScene: fixtureScene(ids: ["a", "b", "c", "d"]),
+            elapsed: 15
+        )
+        XCTAssertEqual(timeline.timestamps, ["c": 12, "d": 15])
+
+        timeline.update(scene: fixtureScene(ids: ["a", "b", "c", "d"]), elapsed: 30)
+        _ = timeline.renderState(
+            activeScene: fixtureScene(ids: ["a", "b", "c", "d"]),
+            elapsed: 30
+        )
+        XCTAssertEqual(timeline.timestamps, ["c": 12, "d": 15])
+    }
+
+    func testInsertionTimelineResetsForADifferentDayWithoutFadingTheWholeScene() {
+        var timeline = DayObjectInsertionTimeline(scene: fixtureScene(ids: ["a"]))
+        timeline.update(scene: fixtureScene(ids: ["a", "b"]), elapsed: 8)
+        _ = timeline.renderState(activeScene: fixtureScene(ids: ["a", "b"]), elapsed: 8)
+        XCTAssertEqual(timeline.timestamps, ["b": 8])
+
+        let nextDay = DayObjectScene.make(input: .init(
+            dayKey: "2026-08-21",
+            identity: "tester",
+            eventIDs: ["a", "b"],
+            motionEnergy: 0.55,
+            visualClarity: 0.55
+        ))
+        timeline.update(scene: nextDay, elapsed: 9)
+
+        XCTAssertEqual(timeline.timestamps, [:])
+    }
+
+    func testRemovalRetainsActorsThroughReversedLocalEnvelopeThenReleasesThem() throws {
+        let original = fixtureScene(ids: ["a", "b"])
+        let active = fixtureScene(ids: ["a"])
+        let environment = DayObjectEnvironment(
+            motionEnergy: 0.55,
+            visualClarity: 1
+        )
+        var timeline = DayObjectInsertionTimeline(scene: original)
+        timeline.update(scene: active, elapsed: 10)
+
+        let beforeState = timeline.renderState(activeScene: active, elapsed: 10)
+        let before = DayObjectRenderFrame.make(
+            scene: beforeState.scene,
+            environment: environment,
+            elapsed: 10,
+            insertions: beforeState.insertions,
+            removals: beforeState.removals
+        )
+        let duringState = timeline.renderState(activeScene: active, elapsed: 10.5)
+        let during = DayObjectRenderFrame.make(
+            scene: duringState.scene,
+            environment: environment,
+            elapsed: 10.5,
+            insertions: duringState.insertions,
+            removals: duringState.removals
+        )
+        let afterState = timeline.renderState(activeScene: active, elapsed: 11.5)
+
+        let beforeRemoved = before.actors.filter { $0.eventID == "b" }
+        let duringRemoved = during.actors.filter { $0.eventID == "b" }
+        XCTAssertFalse(beforeRemoved.isEmpty)
+        XCTAssertEqual(beforeState.removals, ["b": 10])
+        XCTAssertEqual(beforeRemoved.map(\.opacity), DayObjectRenderFrame.make(
+            scene: original,
+            environment: environment,
+            elapsed: 10,
+            insertions: [:]
+        ).actors.filter { $0.eventID == "b" }.map(\.opacity))
+        XCTAssertTrue(duringRemoved.allSatisfy { $0.opacity > 0 && $0.opacity < 1 })
+        XCTAssertTrue(duringRemoved.allSatisfy { $0.trailLength > 0 })
+        XCTAssertFalse(afterState.scene.actors.contains { $0.eventID == "b" })
+        XCTAssertTrue(afterState.removals.isEmpty)
+
+        let activeDuring = during.actors.filter { $0.eventID == "a" }
+        let activeReference = DayObjectRenderFrame.make(
+            scene: active,
+            environment: environment,
+            elapsed: 10.5,
+            insertions: [:]
+        ).actors
+        XCTAssertEqual(activeDuring.count, activeReference.count)
+        for (actual, expected) in zip(activeDuring, activeReference) {
+            assertSameVisualActorState(actual, expected)
+        }
+    }
+
+    func testReaddingDuringRemovalCancelsDepartureWithoutDuplicatesOrReroll() {
+        let original = fixtureScene(ids: ["a", "b"])
+        let removed = fixtureScene(ids: ["a"])
+        var timeline = DayObjectInsertionTimeline(scene: original)
+        timeline.update(scene: removed, elapsed: 7)
+        XCTAssertEqual(
+            timeline.renderState(activeScene: removed, elapsed: 7.2).removals,
+            ["b": 7]
+        )
+
+        timeline.update(scene: original, elapsed: 7.2)
+        let restored = timeline.renderState(activeScene: original, elapsed: 7.2)
+        XCTAssertTrue(restored.removals.isEmpty)
+        XCTAssertFalse(restored.insertions.keys.contains("b"))
+        XCTAssertEqual(restored.scene.actors, original.actors)
+        XCTAssertEqual(Set(restored.scene.actorIDs).count, restored.scene.actors.count)
+    }
+
+    func testCappedReplacementWaitsForDepartureThenStartsInsertionOnItsFirstRenderedFrame() throws {
+        let initialIDs = (0...10).map { "event-\($0)" }
+        let replacementIDs = Array(initialIDs.dropFirst())
+        let initial = capacityFixtureScene(dayKey: "cap-fixture-2", ids: initialIDs)
+        let replacement = capacityFixtureScene(dayKey: "cap-fixture-2", ids: replacementIDs)
+        XCTAssertEqual(initial.composition.flockSize, 1)
+        XCTAssertEqual(initial.actors.count, 10)
+        XCTAssertEqual(replacement.actors.count, 10)
+
+        let departingID = DayObjectActorID(eventID: "event-0", memberIndex: 0)
+        let replacementID = DayObjectActorID(eventID: "event-10", memberIndex: 0)
+        let departingActor = try XCTUnwrap(initial.actors.first { $0.id == departingID })
+        let departureDuration = DayObjectRenderFrame.transitionDuration(for: departingActor)
+        var timeline = DayObjectInsertionTimeline(scene: initial)
+        timeline.update(scene: replacement, elapsed: 10)
+
+        let waitingTime = 10 + departureDuration * 0.5
+        let waiting = timeline.renderState(activeScene: replacement, elapsed: waitingTime)
+        XCTAssertEqual(waiting.scene.actors.count, 10)
+        XCTAssertTrue(waiting.scene.actorIDs.contains(departingID))
+        XCTAssertFalse(waiting.scene.actorIDs.contains(replacementID))
+        XCTAssertNil(waiting.actorInsertions[replacementID])
+        XCTAssertEqual(waiting.actorRemovals[departingID], 10)
+
+        let admittedAt = 10 + departureDuration + 0.001
+        let admitted = timeline.renderState(activeScene: replacement, elapsed: admittedAt)
+        XCTAssertEqual(admitted.scene.actors.count, 10)
+        XCTAssertFalse(admitted.scene.actorIDs.contains(departingID))
+        XCTAssertTrue(admitted.scene.actorIDs.contains(replacementID))
+        XCTAssertEqual(admitted.actorInsertions[replacementID], admittedAt)
+        XCTAssertNil(admitted.actorRemovals[departingID])
+
+        let environment = DayObjectEnvironment(
+            motionEnergy: 1,
+            visualClarity: 1
+        )
+        let firstFrame = DayObjectRenderFrame.make(
+            scene: admitted.scene,
+            environment: environment,
+            elapsed: admittedAt,
+            insertions: admitted.insertions,
+            removals: admitted.removals,
+            actorInsertions: admitted.actorInsertions,
+            actorRemovals: admitted.actorRemovals
+        )
+        let firstReplacement = try XCTUnwrap(firstFrame.actors.first { $0.actorID == replacementID })
+        XCTAssertEqual(firstReplacement.opacity, 0)
+        XCTAssertGreaterThan(firstReplacement.trailLength, 0)
+
+        let replacementActor = try XCTUnwrap(replacement.actors.first { $0.id == replacementID })
+        let insertionDuration = DayObjectRenderFrame.transitionDuration(for: replacementActor)
+        let duringTime = admittedAt + insertionDuration * 0.5
+        let during = timeline.renderState(activeScene: replacement, elapsed: duringTime)
+        XCTAssertEqual(during.actorInsertions[replacementID], admittedAt)
+        let duringFrame = DayObjectRenderFrame.make(
+            scene: during.scene,
+            environment: environment,
+            elapsed: duringTime,
+            insertions: during.insertions,
+            removals: during.removals,
+            actorInsertions: during.actorInsertions,
+            actorRemovals: during.actorRemovals
+        )
+        let duringReplacement = try XCTUnwrap(duringFrame.actors.first { $0.actorID == replacementID })
+        let unanimatedFrame = DayObjectRenderFrame.make(
+            scene: replacement,
+            environment: environment,
+            elapsed: duringTime,
+            insertions: [:]
+        )
+        let unanimatedReplacement = try XCTUnwrap(
+            unanimatedFrame.actors.first { $0.actorID == replacementID }
+        )
+        XCTAssertGreaterThan(duringReplacement.opacity, 0)
+        XCTAssertLessThan(duringReplacement.opacity, unanimatedReplacement.opacity)
+        XCTAssertLessThan(duringReplacement.halfSize.x, unanimatedReplacement.halfSize.x)
+        XCTAssertEqual(duringReplacement.trailLength, unanimatedReplacement.trailLength)
+    }
+
+    func testCappedOrbAdmissionDoesNotRestartAlreadyRenderedActors() throws {
+        let initialIDs = (0..<10).map { "event-\($0)" }
+        let replacementIDs = Array(initialIDs.dropFirst()) + ["event-10"]
+        let initial = capacityFixtureScene(dayKey: "partial-fixture-1", ids: initialIDs)
+        let replacement = capacityFixtureScene(dayKey: "partial-fixture-1", ids: replacementIDs)
+        XCTAssertEqual(initial.composition.flockSize, 1)
+        XCTAssertEqual(initial.actors.count, 10)
+        XCTAssertEqual(replacement.actors.count, 10)
+
+        let retainedID = DayObjectActorID(eventID: "event-3", memberIndex: 0)
+        let pendingID = DayObjectActorID(eventID: "event-10", memberIndex: 0)
+        let departureDurations = initial.actors
+            .filter { $0.eventID == "event-0" }
+            .map(DayObjectRenderFrame.transitionDuration(for:))
+            .sorted()
+        XCTAssertEqual(departureDurations.count, 1)
+
+        var timeline = DayObjectInsertionTimeline(scene: initial)
+        timeline.update(scene: replacement, elapsed: 20)
+        let firstAdmissionTime = 20 + departureDurations[0] + 0.001
+        let firstAdmission = timeline.renderState(
+            activeScene: replacement,
+            elapsed: firstAdmissionTime
+        )
+        XCTAssertEqual(firstAdmission.scene.actors.count, 10)
+        XCTAssertNil(firstAdmission.actorInsertions[retainedID])
+        XCTAssertEqual(firstAdmission.actorInsertions[pendingID], firstAdmissionTime)
+        XCTAssertTrue(firstAdmission.scene.actorIDs.contains(pendingID))
+
+        timeline.update(scene: replacement, elapsed: firstAdmissionTime + 0.01)
+        let repeated = timeline.renderState(
+            activeScene: replacement,
+            elapsed: firstAdmissionTime + 0.02
+        )
+        XCTAssertEqual(repeated.actorInsertions[pendingID], firstAdmissionTime)
+
+        let environment = DayObjectEnvironment(
+            motionEnergy: 0.55,
+            visualClarity: 1
+        )
+        let frame = DayObjectRenderFrame.make(
+            scene: firstAdmission.scene,
+            environment: environment,
+            elapsed: firstAdmissionTime,
+            insertions: firstAdmission.insertions,
+            removals: firstAdmission.removals,
+            actorInsertions: firstAdmission.actorInsertions,
+            actorRemovals: firstAdmission.actorRemovals
+        )
+        let reference = DayObjectRenderFrame.make(
+            scene: replacement,
+            environment: environment,
+            elapsed: firstAdmissionTime,
+            insertions: [:]
+        )
+        XCTAssertEqual(
+            frame.actors.first { $0.actorID == retainedID },
+            reference.actors.first { $0.actorID == retainedID }
+        )
+        XCTAssertEqual(frame.actors.first { $0.actorID == pendingID }?.opacity, 0)
+    }
+
+    func testCappedPendingQueueIsDeterministicAcrossConcurrentChangesAndReadd() throws {
+        let initialIDs = (0...11).map { "event-\($0)" }
+        let initial = capacityFixtureScene(dayKey: "cap-fixture-2", ids: initialIDs)
+        let firstReplacementIDs = Array(initialIDs.dropFirst(2))
+        let firstReplacement = capacityFixtureScene(
+            dayKey: "cap-fixture-2",
+            ids: firstReplacementIDs
+        )
+        let replacement10 = DayObjectActorID(eventID: "event-10", memberIndex: 0)
+        let replacement11 = DayObjectActorID(eventID: "event-11", memberIndex: 0)
+        let departures = initial.actors
+            .filter { $0.eventID == "event-0" || $0.eventID == "event-1" }
+            .map { ($0.id, DayObjectRenderFrame.transitionDuration(for: $0)) }
+            .sorted { $0.1 < $1.1 }
+        XCTAssertEqual(departures.count, 2)
+
+        var timeline = DayObjectInsertionTimeline(scene: initial)
+        timeline.update(scene: firstReplacement, elapsed: 30)
+        let oneSlotTime = 30 + (departures[0].1 + departures[1].1) * 0.5
+        let oneSlot = timeline.renderState(activeScene: firstReplacement, elapsed: oneSlotTime)
+        XCTAssertEqual(oneSlot.scene.actors.count, 10)
+        XCTAssertEqual(oneSlot.actorInsertions[replacement10], oneSlotTime)
+        XCTAssertNil(oneSlot.actorInsertions[replacement11])
+
+        let concurrentIDs = Array(initialIDs.dropFirst(2).dropLast()) + ["event-12"]
+        let concurrent = capacityFixtureScene(dayKey: "cap-fixture-2", ids: concurrentIDs)
+        let replacement12 = DayObjectActorID(eventID: "event-12", memberIndex: 0)
+        timeline.update(scene: concurrent, elapsed: oneSlotTime + 0.01)
+        let allSlotsTime = 30 + departures[1].1 + 0.001
+        let allSlots = timeline.renderState(activeScene: concurrent, elapsed: allSlotsTime)
+        XCTAssertEqual(allSlots.scene.actors.count, 10)
+        XCTAssertEqual(allSlots.actorInsertions[replacement10], oneSlotTime)
+        XCTAssertNil(allSlots.actorInsertions[replacement11])
+        XCTAssertEqual(allSlots.actorInsertions[replacement12], allSlotsTime)
+
+        var readdTimeline = DayObjectInsertionTimeline(scene: initial)
+        readdTimeline.update(scene: firstReplacement, elapsed: 40)
+        let readdTime = 40 + departures[0].1 * 0.5
+        _ = readdTimeline.renderState(activeScene: firstReplacement, elapsed: readdTime)
+        readdTimeline.update(scene: initial, elapsed: readdTime)
+        let restored = readdTimeline.renderState(activeScene: initial, elapsed: readdTime)
+        XCTAssertEqual(restored.scene.actors, initial.actors)
+        XCTAssertEqual(restored.scene.actors.count, 10)
+        XCTAssertTrue(restored.actorInsertions.isEmpty)
+        XCTAssertTrue(restored.actorRemovals.isEmpty)
+    }
+
+    func testRemovalStateResetsAcrossDailyRootSwitch() {
+        let original = fixtureScene(ids: ["a", "b"])
+        var timeline = DayObjectInsertionTimeline(scene: original)
+        timeline.update(scene: fixtureScene(ids: ["a"]), elapsed: 3)
+
+        let nextDay = DayObjectScene.make(input: .init(
+            dayKey: "2026-08-21",
+            identity: "tester",
+            eventIDs: ["a"],
+            motionEnergy: 0.55,
+            visualClarity: 0.55
+        ))
+        timeline.update(scene: nextDay, elapsed: 3.2)
+        let state = timeline.renderState(activeScene: nextDay, elapsed: 3.2)
+
+        XCTAssertEqual(state.scene, nextDay)
+        XCTAssertTrue(state.insertions.isEmpty)
+        XCTAssertTrue(state.removals.isEmpty)
+    }
+
+    func testInsertionEnvelopeStartsAtZeroOpacityAndSeventyPercentScale() {
+        let scene = fixtureScene(ids: ["new"])
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.55)
+        let scoreState = DayObjectRenderFrame.make(scene: scene, environment: environment, elapsed: 5, insertions: [:])
+        let insertedState = DayObjectRenderFrame.make(scene: scene, environment: environment, elapsed: 5, insertions: ["new": 5])
+
+        XCTAssertTrue(insertedState.actors.allSatisfy { $0.opacity == 0 })
+        for (scoreActor, insertedActor) in zip(scoreState.actors, insertedState.actors) {
+            XCTAssertEqual(insertedActor.halfSize, scoreActor.halfSize * 0.7)
+        }
+    }
+
+    func testActorsAreSortedByDepthThenStableID() {
+        let scene = fixtureScene(ids: ["z", "a", "m"])
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 0.55)
+        let actors = DayObjectRenderFrame.make(scene: scene, environment: environment, elapsed: 12, insertions: [:]).actors
+
+        XCTAssertEqual(actors, actors.sorted { lhs, rhs in
+            lhs.depth == rhs.depth ? lhs.actorID < rhs.actorID : lhs.depth < rhs.depth
+        })
+    }
+
+    func testGPUActorHasStableExplicitMetalLayout() {
+        XCTAssertEqual(DayObjectGPUActor.metalAlignment, 16)
+        XCTAssertEqual(DayObjectGPUActor.metalStride, 80)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.alignment, DayObjectGPUActor.metalAlignment)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.size, DayObjectGPUActor.metalStride)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.stride, DayObjectGPUActor.metalStride)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.position), 0)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.direction), 8)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.halfSize), 16)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.opacity), 32)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.trailLength), 36)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.shape), 40)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.appearanceIndex), 44)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.depth), 48)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.materialPhase), 52)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.localDepthSoftness), 56)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.paletteMorph), 64)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.presentationSaturation), 68)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.offset(of: \DayObjectGPUActor.removalEmphasis), 72)
+    }
+
+    func testGPUAppearanceHasStableExplicitMetalLayout() {
+        XCTAssertEqual(DayObjectGPUAppearance.metalAlignment, 16)
+        XCTAssertEqual(DayObjectGPUAppearance.metalStride, 208)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.alignment, 16)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.size, 208)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.stride, 208)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.color0), 0)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.color1), 16)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.color2), 32)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.radial0), 48)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.radial1), 64)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.radial2), 80)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.field), 96)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.optical0), 112)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.optical1), 128)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.light), 144)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.recipe0), 160)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.recipe1), 176)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUAppearance>.offset(of: \.metadata), 192)
+    }
+
+    func testGPUAppearancePacksOutlineAndCounterformRecipes() throws {
+        var outlineAppearance: DayObjectGPUAppearance?
+        var counterformAppearance: DayObjectGPUAppearance?
+
+        for seed in UInt64(0)..<4_096
+        where outlineAppearance == nil || counterformAppearance == nil {
+            let paletteSet = DayObjectPaletteSet.make(
+                rootSeed: seed,
+                categories: ModernPaletteSelection.all
+            )
+            let language = DayObjectVisualLanguage.make(
+                rootSeed: seed,
+                paletteSet: paletteSet,
+                choreography: DayObjectChoreographyConfiguration.make(seed: seed)
+            )
+            let source = try XCTUnwrap(
+                language.appearances(eventIDs: ["event-0"], rootSeed: seed)["event-0"]
+            )
+            let packed = DayObjectGPUAppearance(appearance: source)
+            if language.family == .outline { outlineAppearance = packed }
+            if language.family == .counterform { counterformAppearance = packed }
+        }
+
+        let outline = try XCTUnwrap(outlineAppearance)
+        XCTAssertEqual(outline.metadata.x, DayObjectMaterialFamily.outline.rawValue)
+        XCTAssertTrue((1...3).contains(Int(outline.recipe1.x.rounded())))
+        XCTAssertTrue((0.012...0.075).contains(outline.recipe1.y))
+        XCTAssertTrue((0.02...0.09).contains(outline.recipe1.z))
+        XCTAssertTrue((0.01...0.08).contains(outline.recipe1.w))
+
+        let counterform = try XCTUnwrap(counterformAppearance)
+        XCTAssertEqual(counterform.metadata.x, DayObjectMaterialFamily.counterform.rawValue)
+        XCTAssertTrue((0.44...0.62).contains(counterform.recipe1.x))
+        XCTAssertTrue((0.01...0.08).contains(counterform.recipe1.y))
+        XCTAssertTrue((0.14...0.34).contains(counterform.recipe1.z))
+        XCTAssertTrue((0.58...0.98).contains(counterform.recipe1.w))
+
+        for appearance in [outline, counterform] {
+            XCTAssertTrue((0.18..<0.90).contains(appearance.recipe0.x))
+            XCTAssertGreaterThan(appearance.recipe0.y, appearance.recipe0.x)
+            XCTAssertLessThanOrEqual(appearance.recipe0.y, 0.90)
+            XCTAssertGreaterThanOrEqual(appearance.recipe0.w, 0.58)
+        }
+    }
+
+    func testPoseAndAppearanceUploadsClampNonFiniteAndUnsupportedValues() {
+        let actor = DayObjectGPUActor(
+            position: SIMD2(.nan, .infinity),
+            direction: SIMD2(-.infinity, .nan),
+            halfSize: SIMD2(.nan, -.infinity),
+            opacity: .nan,
+            trailLength: .infinity,
+            shape: .max,
+            appearanceIndex: 7,
+            depth: .nan,
+            materialPhase: .infinity,
+            localDepthSoftness: -.infinity
+        )
+        XCTAssertEqual(actor.position, .zero)
+        XCTAssertEqual(actor.direction, SIMD2(1, 0))
+        XCTAssertEqual(actor.halfSize, .zero)
+        XCTAssertEqual(actor.opacity, 0)
+        XCTAssertEqual(actor.trailLength, 0)
+        XCTAssertEqual(actor.depth, 0)
+        XCTAssertEqual(actor.materialPhase, 0)
+        XCTAssertEqual(actor.localDepthSoftness, 0)
+
+        let invalid = SIMD4<Float>(.nan, .infinity, -.infinity, .nan)
+        let appearance = DayObjectGPUAppearance(
+            color0: invalid, color1: invalid, color2: invalid,
+            radial0: invalid, radial1: invalid, optical0: invalid,
+            optical1: invalid, membrane: invalid, light: invalid,
+            metadata: SIMD4(.max, .max, 0, 9)
+        )
+        let floatVectors = [
+            appearance.color0, appearance.color1, appearance.color2,
+            appearance.radial0, appearance.radial1, appearance.radial2,
+            appearance.field, appearance.optical0, appearance.optical1,
+            appearance.light,
+        ]
+        XCTAssertTrue(floatVectors.flatMap { [$0.x, $0.y, $0.z, $0.w] }.allSatisfy(\.isFinite))
+        XCTAssertEqual(appearance.metadata.x, DayObjectMaterialFamily.satin.rawValue)
+        XCTAssertEqual(appearance.metadata.y, 3)
+        XCTAssertEqual(appearance.metadata.z, 1)
+        XCTAssertEqual(appearance.metadata.w, DayObjectMutationRole.accent.rawValue)
+    }
+
+    func testDepthSortKeepsPoseAndAppearanceOneToOne() {
+        let scene = fixtureScene(ids: (0..<10).map { "event-\($0)" })
+        let frame = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: .init(motionEnergy: 1, visualClarity: 1),
+            elapsed: 27,
+            insertions: [:]
+        )
+        let byID = Dictionary(uniqueKeysWithValues: scene.actors.map { ($0.id, $0.appearance) })
+
+        XCTAssertEqual(frame.actors.count, 10)
+        for (index, record) in frame.actors.enumerated() {
+            XCTAssertEqual(record.gpuActor.appearanceIndex, UInt32(index))
+            XCTAssertEqual(
+                record.gpuAppearance,
+                DayObjectGPUAppearance(appearance: try! XCTUnwrap(byID[record.actorID]))
+            )
+        }
+    }
+
+    func testActorUniformsUseInverseSquareRootEnergyAndScreenPixelScale() {
+        let fixtures: [(count: Int, expected: Float)] = [
+            (0, 0),
+            (1, 1),
+            (4, 0.5),
+            (9, 0.333_333_34),
+            (10, 0.316_227_76),
+        ]
+
+        for fixture in fixtures {
+            let uniforms = DayObjectsActorUniforms(
+                resolution: SIMD2(1_179, 2_556),
+                visibleActorCount: fixture.count
+            )
+            XCTAssertEqual(
+                uniforms.energyNormalization,
+                fixture.expected,
+                accuracy: 0.000_001
+            )
+            XCTAssertTrue(uniforms.energyNormalization.isFinite)
+            XCTAssertEqual(uniforms.shortSidePixels, 1_179)
+        }
+
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.size, 32)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.stride, 32)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.resolution), 0)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.energyNormalization), 8)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.shortSidePixels), 12)
+    }
+
+    func testActorUniformsContainOnlyFiniteSharedDailyValues() {
+        let uniforms = DayObjectsActorUniforms(
+            resolution: SIMD2(1_179, 2_556),
+            visibleActorCount: 4,
+            lightDirection: SIMD2(.nan, .infinity),
+            lightSoftness: .infinity,
+            globalTime: .nan
+        )
+
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.alignment, 8)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.size, 32)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.stride, 32)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.resolution), 0)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.energyNormalization), 8)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.shortSidePixels), 12)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.lightDirection), 16)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.lightSoftness), 24)
+        XCTAssertEqual(MemoryLayout<DayObjectsActorUniforms>.offset(of: \.globalTime), 28)
+        XCTAssertEqual(uniforms.lightDirection, SIMD2(1, 0))
+        XCTAssertEqual(uniforms.lightSoftness, 0.6)
+        XCTAssertEqual(uniforms.globalTime, 0)
+    }
+
+    func testActorMaterialPhaseAndAppearanceIndexAreStableAndIndependent() {
+        let ids = (0..<24).map { "event-\($0)" }
+        let scene = DayObjectScene.make(input: DayObjectSceneInput(
+            dayKey: "radial-actor-variation",
+            identity: "tester",
+            eventIDs: ids,
+            motionEnergy: 0.55,
+            visualClarity: 0.55
+        ))
+        let frame = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: .init(motionEnergy: 0.55, visualClarity: 0.55),
+            elapsed: 12,
+            insertions: [:]
+        )
+        let repeated = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: .init(motionEnergy: 0.55, visualClarity: 0.55),
+            elapsed: 12,
+            insertions: [:]
+        )
+        let phases = frame.actors.map(\.gpuActor.materialPhase)
+
+        XCTAssertEqual(frame, repeated)
+        XCTAssertTrue(phases.allSatisfy { (0..<1).contains($0) })
+        XCTAssertGreaterThan(Set(phases).count, 8)
+        XCTAssertEqual(frame.actors.map(\.gpuActor.appearanceIndex), (0..<10).map(UInt32.init))
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.stride, 80)
+    }
+
+    func testPalettePresentationControlsDefaultClampAndSurviveAppearanceRemapping() {
+        let defaults = palettePresentationActor()
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.alignment, 16)
+        XCTAssertEqual(MemoryLayout<DayObjectGPUActor>.stride, 80)
+        XCTAssertEqual(defaults.paletteMorph, 1)
+        XCTAssertEqual(defaults.presentationSaturation, 1)
+        XCTAssertEqual(defaults.removalEmphasis, 0)
+        let clamped = palettePresentationActor(morph: -2, saturation: 3, emphasis: 2)
+        XCTAssertEqual(clamped.paletteMorph, 0)
+        XCTAssertEqual(clamped.presentationSaturation, 1)
+        XCTAssertEqual(clamped.removalEmphasis, 1)
+        let controls = palettePresentationActor(morph: 0.3, saturation: 0.08, emphasis: 0.7)
+        let remapped = controls.withAppearanceIndex(9)
+        XCTAssertEqual(remapped.appearanceIndex, 9)
+        XCTAssertEqual(remapped.paletteMorph, controls.paletteMorph)
+        XCTAssertEqual(remapped.presentationSaturation, controls.presentationSaturation)
+        XCTAssertEqual(remapped.removalEmphasis, controls.removalEmphasis)
+    }
+
+    func testPalettePresentationReadbackPreservesDefaultsAndDesaturatesWithoutMaskChanges() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let appearance = palettePresentationAppearance()
+        let production = try harness.render(actor: palettePresentationActor(), appearance: appearance, backgroundColor: .zero)
+        let explicitDefaults = try harness.render(actor: palettePresentationActor(morph: 1, saturation: 1, emphasis: 0), appearance: appearance, backgroundColor: .zero)
+        XCTAssertEqual(production.alpha, explicitDefaults.alpha)
+        XCTAssertEqual(production.rgb, explicitDefaults.rgb)
+        // Solid production material has an independently known opaque core.
+        XCTAssertEqual(production[80, 80], 1, accuracy: 0.002)
+        XCTAssertEqual(production.color(x: 80, y: 80).x, 0.9, accuracy: 0.002)
+        XCTAssertEqual(production.color(x: 80, y: 80).y, 0.12, accuracy: 0.002)
+        XCTAssertEqual(production.color(x: 80, y: 80).z, 0.3, accuracy: 0.002)
+        let muted = try harness.render(actor: palettePresentationActor(saturation: 0.08), appearance: appearance, backgroundColor: .zero)
+        XCTAssertEqual(production.alpha, muted.alpha)
+        let original = production.color(x: 80, y: 80)
+        let desaturated = muted.color(x: 80, y: 80)
+        XCTAssertLessThan(desaturated.max() - desaturated.min(), (original.max() - original.min()) * 0.09)
+        XCTAssertTrue(muted.isFinitePremultiplied)
+    }
+
+    func testPalettePresentationNeutralSphereAndAnalyticSilhouetteMorph() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let appearance = palettePresentationAppearance()
+        func capture(_ morph: Float, shape: UInt32 = 6) throws -> ActorAlphaCapture {
+            try harness.render(actor: palettePresentationActor(morph: morph, shape: shape), appearance: appearance, backgroundColor: .zero)
+        }
+        let neutral = try capture(0)
+        let neutralOtherShape = try capture(0, shape: 0)
+        let halfway = try capture(0.5)
+        let production = try capture(1)
+        // The light backing keeps black labels readable even over black.
+        XCTAssertGreaterThan(neutral[80, 80], 0.50)
+        XCTAssertLessThan(neutral[80, 80], 0.60)
+        let center = neutral.color(x: 80, y: 80)
+        let luminance = center.x * 0.2126 + center.y * 0.7152 + center.z * 0.0722
+        XCTAssertGreaterThan((luminance + 0.05) / 0.05, 7)
+        XCTAssertGreaterThan(neutral[125, 80], neutral[80, 80])
+        XCTAssertLessThan(neutral[125, 80], 0.70)
+        let edge = neutral.color(x: 125, y: 80) / neutral[125, 80]
+        XCTAssertLessThan(edge.max() - edge.min(), 0.16)
+        XCTAssertLessThan(neutral.meanAbsoluteRGBDifference(from: neutralOtherShape), 0.0001)
+        let rotated = try harness.render(actor: DayObjectGPUActor(
+            position: .zero, direction: SIMD2(0, 1), halfSize: SIMD2(0.32, 0.32),
+            opacity: 1, trailLength: 0, shape: 0, appearanceIndex: 0, depth: 0.5,
+            materialPhase: 0.25, localDepthSoftness: 0, paletteMorph: 0
+        ), appearance: appearance, backgroundColor: .zero)
+        XCTAssertLessThan(neutral.meanAbsoluteRGBDifference(from: rotated), 0.001,
+            "Neutral lighting must not reveal the randomly assigned shape rotation")
+        // This point is outside the sphere but inside the rounded square.
+        XCTAssertLessThan(neutral[118, 118], 0.01)
+        XCTAssertGreaterThan(halfway[118, 118], neutral[118, 118] + 0.05)
+        XCTAssertGreaterThan(production[118, 118], halfway[118, 118])
+        XCTAssertTrue(neutral.isFinitePremultiplied)
+        XCTAssertTrue(halfway.isFinitePremultiplied)
+    }
+
+    func testPalettePresentationRemovalEmphasisOnlyWarmsInnerRim() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let appearance = palettePresentationAppearance()
+        let plain = try harness.render(actor: palettePresentationActor(), appearance: appearance, backgroundColor: .zero)
+        let marked = try harness.render(actor: palettePresentationActor(emphasis: 1), appearance: appearance, backgroundColor: .zero)
+        XCTAssertEqual(plain.alpha, marked.alpha)
+        XCTAssertEqual(plain.color(x: 80, y: 80), marked.color(x: 80, y: 80))
+        XCTAssertEqual(plain.color(x: 140, y: 80), marked.color(x: 140, y: 80))
+        XCTAssertGreaterThan(marked.color(x: 128, y: 80).y, plain.color(x: 128, y: 80).y + 0.05)
+        XCTAssertTrue(marked.isFinitePremultiplied)
+    }
+
+    private func palettePresentationActor(
+        morph: Float? = nil, saturation: Float? = nil, emphasis: Float? = nil, shape: UInt32 = 0
+    ) -> DayObjectGPUActor {
+        if morph == nil, saturation == nil, emphasis == nil {
+            return DayObjectGPUActor(
+                position: .zero, direction: SIMD2(1, 0), halfSize: SIMD2(0.32, 0.32),
+                opacity: 1, trailLength: 0, shape: shape, appearanceIndex: 0, depth: 0.5,
+                materialPhase: 0.25, localDepthSoftness: 0
+            )
+        }
+        return DayObjectGPUActor(
+            position: .zero, direction: SIMD2(1, 0), halfSize: SIMD2(0.32, 0.32),
+            opacity: 1, trailLength: 0, shape: shape, appearanceIndex: 0, depth: 0.5,
+            materialPhase: 0.25, localDepthSoftness: 0,
+            paletteMorph: morph ?? 1, presentationSaturation: saturation ?? 1, removalEmphasis: emphasis ?? 0
+        )
+    }
+
+    private func palettePresentationAppearance() -> DayObjectGPUAppearance {
+        DayObjectGPUAppearance(
+            color0: SIMD4(0.9, 0.12, 0.3, 1), color1: SIMD4(0.2, 0.8, 0.9, 1),
+            color2: SIMD4(0.5, 0.2, 0.9, 1), radial0: SIMD4(0, 0, 1, 0.1),
+            radial1: SIMD4(0, 0, 1, 0.1), radial2: SIMD4(0, 0, 1, 0.1),
+            field: .zero, optical0: SIMD4(0, 0, 1, 1), optical1: .zero,
+            light: SIMD4(0, 1, 0, 0), metadata: SIMD4(DayObjectMaterialFamily.solid.rawValue, 1, 1, 0),
+            recipe0: SIMD4(0, 0, 0, 0.72)
+        )
+    }
+
+    func testLayeredRadialColorIsContinuousAcrossHalfPhase() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let appearance = DayObjectGPUAppearance(
+            color0: SIMD4(0.96, 0.18, 0.32, 1),
+            color1: SIMD4(0.12, 0.78, 0.96, 1),
+            color2: SIMD4(0.72, 0.24, 0.94, 1),
+            radial0: SIMD4(0.34, -0.18, 0.82, 0.38),
+            radial1: SIMD4(-0.28, 0.22, 0.68, 0.40),
+            radial2: SIMD4(0.10, 0.25, 0.50, 0.32),
+            field: SIMD4(0.16, 3.3, 0.4, 0.05),
+            optical0: SIMD4(0.18, 0.08, 0.92, 0.88),
+            optical1: SIMD4(0.16, 0, 0, 0.04),
+            light: SIMD4(0.82, 1, 0.72, 0.46),
+            metadata: SIMD4(DayObjectMaterialFamily.softVolume.rawValue, 3, 3, 0)
+        )
+        func capture(phase: Float) throws -> ActorAlphaCapture {
+            try harness.render(
+                actor: DayObjectGPUActor(
+                    position: .zero,
+                    direction: SIMD2(1, 0),
+                    halfSize: SIMD2(0.32, 0.32),
+                    opacity: 1,
+                    trailLength: 0,
+                    shape: 0,
+                    appearanceIndex: 0,
+                    depth: 0.5,
+                    materialPhase: phase,
+                    localDepthSoftness: 0.02
+                ),
+                appearance: appearance,
+                backgroundColor: SIMD3(0.03, 0.04, 0.06)
+            )
+        }
+
+        let before = try capture(phase: 0.499)
+        let middle = try capture(phase: 0.500)
+        let after = try capture(phase: 0.501)
+
+        XCTAssertLessThan(before.meanAbsoluteRGBDifference(from: middle), 0.015)
+        XCTAssertLessThan(middle.meanAbsoluteRGBDifference(from: after), 0.015)
+    }
+
+    func testShiftedRadialFocusMovesTheRenderedHighlight() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.32, 0.32),
+            opacity: 1,
+            trailLength: 0,
+            shape: 0,
+            appearanceIndex: 0,
+            depth: 0.5,
+            materialPhase: 0,
+            localDepthSoftness: 0
+        )
+        let appearance = DayObjectGPUAppearance(
+            color0: SIMD4(1, 0.96, 0.82, 1),
+            color1: SIMD4(0.03, 0.04, 0.06, 1),
+            color2: SIMD4(0.03, 0.04, 0.06, 1),
+            // Broad active fields match the current gradient material contract.
+            radial0: SIMD4(-0.9, 0, 1.2, 0.82),
+            radial1: SIMD4(0.9, 0, 1.2, 0.82),
+            radial2: SIMD4(0.08, -0.18, 0.42, 0.24),
+            field: SIMD4(0, 1, 0, 0),
+            optical0: SIMD4(0, 0, 1, 1),
+            optical1: SIMD4(0, 0, 0, 0),
+            light: SIMD4(0, 1, 1, 0),
+            metadata: SIMD4(DayObjectMaterialFamily.gradient.rawValue, 2, 2, 0),
+            recipe0: SIMD4(0.38, 0.68, 0.04, 0.72)
+        )
+        let capture = try harness.render(
+            actor: actor,
+            appearance: appearance,
+            backgroundColor: .zero
+        )
+        let bodyDiameterPixels = Double(actor.halfSize.x * 2) * 160
+
+        XCTAssertGreaterThan(
+            abs(capture.luminanceWeightedMeanX - 80),
+            bodyDiameterPixels * 0.08
+        )
+    }
+
+    func testAllHTMLCircleRecipesHaveDistinctApprovedResponses() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.32, 0.32),
+            opacity: 1,
+            trailLength: 0,
+            shape: 0,
+            appearanceIndex: 0,
+            depth: 0.5,
+            materialPhase: 0.31,
+            localDepthSoftness: 0.02
+        )
+        func appearance(_ material: DayObjectMaterialFamily) -> DayObjectGPUAppearance {
+            let structuralParameters: SIMD4<Float>
+            switch material {
+            case .outline:
+                structuralParameters = SIMD4(2, 0.020, 0.07, 0.025)
+            case .counterform:
+                structuralParameters = SIMD4(0.52, 0.04, 0.22, 0.86)
+            default:
+                structuralParameters = .zero
+            }
+            return DayObjectGPUAppearance(
+                color0: SIMD4(0.95, 0.12, 0.22, 1),
+                color1: SIMD4(0.10, 0.75, 0.95, 1),
+                color2: SIMD4(0.75, 0.20, 0.95, 1),
+                radial0: SIMD4(0.18, -0.12, 0.95, 0.10),
+                radial1: SIMD4(-0.24, 0.18, 0.68, 0.18),
+                radial2: SIMD4(0.12, 0.22, 0.48, 0.20),
+                field: SIMD4(0.04, 2.4, 0.3, 0.05),
+                optical0: SIMD4(0.68, 0.28, 0.82, 0.75),
+                optical1: SIMD4(0.62, 0.025, 1.2, 0.08),
+                light: SIMD4(0.85, 1, 0.72, 0.46),
+                metadata: SIMD4(material.rawValue, 3, 3, 0),
+                recipe0: SIMD4(0.32, 0.68, 0.05, 0.72),
+                recipe1: structuralParameters
+            )
+        }
+
+        let captures = try Dictionary(uniqueKeysWithValues: DayObjectMaterialFamily.allCases.map {
+            ($0, try harness.render(
+                actor: actor,
+                appearance: appearance($0),
+                backgroundColor: SIMD3(0.06, 0.14, 0.28)
+            ))
+        })
+        let center = (x: 80, y: 80)
+        let rim = (x: 128, y: 80)
+        let outside = (x: 134, y: 80)
+
+        XCTAssertEqual(captures.count, 9)
+        XCTAssertGreaterThan(
+            try XCTUnwrap(captures[.gradient])[center.x, center.y],
+            0.45
+        )
+        XCTAssertGreaterThan(
+            try XCTUnwrap(captures[.luminous]).luminance(x: center.x, y: center.y),
+            try XCTUnwrap(captures[.luminous]).luminance(x: rim.x, y: rim.y)
+        )
+        XCTAssertGreaterThan(
+            try XCTUnwrap(captures[.mist])[outside.x, outside.y],
+            try XCTUnwrap(captures[.gradient])[outside.x, outside.y]
+        )
+        XCTAssertLessThan(try XCTUnwrap(captures[.outline])[center.x, center.y], 0.08)
+        // Thin contours can fall between pixel centers; inspect the rim band,
+        // while the separate center/peak-count checks reject a filled disc.
+        let outline = try XCTUnwrap(captures[.outline])
+        XCTAssertGreaterThan((118...132).map { outline[$0, rim.y] }.max() ?? 0, 0.35)
+        XCTAssertLessThan(try XCTUnwrap(captures[.counterform])[center.x, center.y], 0.10)
+        XCTAssertGreaterThan(try XCTUnwrap(captures[.counterform])[105, 80], 0.35)
+        XCTAssertGreaterThan(
+            try XCTUnwrap(captures[.sphere]).meanAbsoluteRGBDifference(
+                from: try XCTUnwrap(captures[.solid])
+            ),
+            0.005
+        )
+
+        let glassDark = try harness.render(
+            actor: actor,
+            appearance: appearance(.glass),
+            backgroundColor: SIMD3(0.02, 0.04, 0.08)
+        )
+        let glassLight = try harness.render(
+            actor: actor,
+            appearance: appearance(.glass),
+            backgroundColor: SIMD3(0.65, 0.85, 0.95)
+        )
+        XCTAssertGreaterThan(glassDark.meanAbsoluteRGBDifference(from: glassLight), 0.02)
+
+        for capture in captures.values {
+            XCTAssertTrue(capture.isFinitePremultiplied)
+        }
+    }
+
+    func testGradientRecipeIsCircularAroundItsShiftedFocus() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero, direction: SIMD2(1, 0), halfSize: SIMD2(0.35, 0.35),
+            opacity: 1, trailLength: 0, shape: 0, appearanceIndex: 0,
+            depth: 0.5, materialPhase: 0, localDepthSoftness: 0
+        )
+        let appearance = DayObjectGPUAppearance(
+            color0: SIMD4(0.95, 0.10, 0.18, 1),
+            color1: SIMD4(0.10, 0.85, 0.35, 1),
+            color2: SIMD4(0.12, 0.24, 0.98, 1),
+            radial0: SIMD4(0.25, 0, 1.40, 0.90),
+            radial1: SIMD4(0.25, 0, 1.32, 0.88),
+            radial2: SIMD4(0, 0, 1, 0.90),
+            field: SIMD4(0, 1, 0, 0.04),
+            optical0: SIMD4(0, 0, 0.92, 0.92),
+            optical1: .zero,
+            light: SIMD4(0, 1, 1, 1),
+            metadata: SIMD4(DayObjectMaterialFamily.gradient.rawValue, 2, 2, 0),
+            recipe0: SIMD4(0.34, 0.70, 0.04, 0.72)
+        )
+
+        let capture = try harness.render(
+            actor: actor,
+            appearance: appearance,
+            backgroundColor: .zero
+        )
+        let horizontal = capture.color(x: 114, y: 80)
+        let vertical = capture.color(x: 94, y: 100)
+        let difference = abs(horizontal.x - vertical.x)
+            + abs(horizontal.y - vertical.y)
+            + abs(horizontal.z - vertical.z)
+
+        XCTAssertLessThan(
+            difference,
+            0.16,
+            "Equal radii around the shifted center must not split into pyramidal color lobes"
+        )
+    }
+
+    func testGradientPrimaryFieldSoftnessBroadensTheRenderedColourTransition() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero, direction: SIMD2(1, 0), halfSize: SIMD2(0.35, 0.35),
+            opacity: 1, trailLength: 0, shape: 0, appearanceIndex: 0,
+            depth: 0.5, materialPhase: 0, localDepthSoftness: 0
+        )
+        func appearance(fieldSoftness: Float) -> DayObjectGPUAppearance {
+            DayObjectGPUAppearance(
+                color0: SIMD4(0.95, 0.12, 0.18, 1),
+                color1: SIMD4(0.12, 0.25, 0.95, 1),
+                color2: SIMD4(0.12, 0.25, 0.95, 1),
+                radial0: SIMD4(0.28, -0.18, 1.2, 0.82),
+                radial1: SIMD4(-0.20, 0, 0.65, fieldSoftness),
+                radial2: SIMD4(0, 0, 1, 0),
+                field: SIMD4(0, 1, 0, 0.04),
+                optical0: SIMD4(0, 0, 1, 1),
+                optical1: .zero,
+                light: SIMD4(0, 1, 1, 0),
+                metadata: SIMD4(DayObjectMaterialFamily.gradient.rawValue, 2, 2, 0),
+                recipe0: SIMD4(0.50, 0.72, 0.04, 0.72)
+            )
+        }
+        func maximumInteriorStep(_ capture: ActorAlphaCapture) -> Float {
+            (51..<109).map { x in
+                let left = capture.color(x: x, y: 80)
+                let right = capture.color(x: x + 1, y: 80)
+                let delta = left - right
+                return sqrt(delta.x * delta.x + delta.y * delta.y + delta.z * delta.z)
+            }.max() ?? 0
+        }
+
+        let tight = try harness.render(
+            actor: actor,
+            appearance: appearance(fieldSoftness: 0.02),
+            backgroundColor: .zero
+        )
+        let soft = try harness.render(
+            actor: actor,
+            appearance: appearance(fieldSoftness: 0.88),
+            backgroundColor: .zero
+        )
+
+        let softestStep = maximumInteriorStep(soft)
+        XCTAssertLessThan(
+            softestStep,
+            maximumInteriorStep(tight) * 0.72,
+            "A highly soft radial field must not render the same sharp colour spot"
+        )
+        XCTAssertLessThan(
+            softestStep,
+            0.014,
+            "A highly soft field must spread its colour transition beyond a visible patch boundary"
+        )
+    }
+
+    func testGradientColourRespondsToTheSecondOverlappingRadialField() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero, direction: SIMD2(1, 0), halfSize: SIMD2(0.35, 0.35),
+            opacity: 1, trailLength: 0, shape: 0, appearanceIndex: 0,
+            depth: 0.5, materialPhase: 0, localDepthSoftness: 0
+        )
+        func appearance(secondFieldX: Float) -> DayObjectGPUAppearance {
+            DayObjectGPUAppearance(
+                color0: SIMD4(0.92, 0.16, 0.24, 1),
+                color1: SIMD4(0.55, 0.06, 0.12, 1),
+                color2: SIMD4(0.55, 0.06, 0.12, 1),
+                radial0: SIMD4(0.18, -0.12, 1.25, 0.82),
+                radial1: SIMD4(secondFieldX, 0.08, 0.72, 0.72),
+                radial2: SIMD4(0, 0, 1, 0),
+                field: SIMD4(0, 1, 0, 0.04),
+                optical0: SIMD4(0, 0, 1, 1),
+                optical1: .zero,
+                light: SIMD4(0, 1, 1, 0),
+                metadata: SIMD4(DayObjectMaterialFamily.gradient.rawValue, 2, 2, 0),
+                recipe0: SIMD4(0.50, 0.72, 0.04, 0.72)
+            )
+        }
+
+        let left = try harness.render(
+            actor: actor,
+            appearance: appearance(secondFieldX: -0.46),
+            backgroundColor: .zero
+        )
+        let right = try harness.render(
+            actor: actor,
+            appearance: appearance(secondFieldX: 0.46),
+            backgroundColor: .zero
+        )
+        let maximumDifference = (56..<104).map { x -> Float in
+            let delta = left.color(x: x, y: 80) - right.color(x: x, y: 80)
+            return abs(delta.x) + abs(delta.y) + abs(delta.z)
+        }.max() ?? 0
+
+        XCTAssertGreaterThan(
+            maximumDifference,
+            0.04,
+            "Moving a colour field must move the soft tonal variation instead of leaving an ordered stop"
+        )
+    }
+
+    func testGradientColourDoesNotAcquireAnAngularGlobalLightSector() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero, direction: SIMD2(1, 0), halfSize: SIMD2(0.35, 0.35),
+            opacity: 1, trailLength: 0, shape: 0, appearanceIndex: 0,
+            depth: 0.5, materialPhase: 0, localDepthSoftness: 0
+        )
+        let appearance = DayObjectGPUAppearance(
+            color0: SIMD4(0.92, 0.16, 0.24, 1),
+            color1: SIMD4(0.55, 0.06, 0.12, 1),
+            color2: SIMD4(0.55, 0.06, 0.12, 1),
+            radial0: SIMD4(0.18, -0.12, 1.25, 0.82),
+            radial1: SIMD4(-0.30, 0.18, 0.72, 0.72),
+            radial2: SIMD4(0, 0, 1, 0),
+            field: SIMD4(0, 1, 0, 0.04),
+            optical0: SIMD4(0.18, 0, 1, 1),
+            optical1: .zero,
+            light: SIMD4(0.62, 1, 1, 0),
+            metadata: SIMD4(DayObjectMaterialFamily.gradient.rawValue, 2, 2, 0),
+            recipe0: SIMD4(0.50, 0.72, 0.04, 0.72)
+        )
+
+        let horizontalLight = try harness.render(
+            actor: actor,
+            appearance: appearance,
+            backgroundColor: .zero,
+            lightDirection: SIMD2(1, 0)
+        )
+        let verticalLight = try harness.render(
+            actor: actor,
+            appearance: appearance,
+            backgroundColor: .zero,
+            lightDirection: SIMD2(0, 1)
+        )
+
+        XCTAssertLessThan(
+            horizontalLight.meanAbsoluteRGBDifference(from: verticalLight),
+            0.001,
+            "Wide radial gradients must not receive an angular directional-light overlay"
+        )
+    }
+
+    func testOutlineRecipeRendersContoursInsteadOfAFilledDisc() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero, direction: SIMD2(1, 0), halfSize: SIMD2(0.32, 0.32),
+            opacity: 1, trailLength: 0, shape: 0, appearanceIndex: 0,
+            depth: 0.5, materialPhase: 0.17, localDepthSoftness: 0
+        )
+        let appearance = DayObjectGPUAppearance(
+            color0: SIMD4(0.96, 0.18, 0.38, 1),
+            color1: SIMD4(0.18, 0.88, 0.96, 1),
+            color2: SIMD4(0.82, 0.30, 0.98, 1),
+            radial0: SIMD4(0.08, -0.05, 1, 0.12),
+            radial1: SIMD4(-0.12, 0.08, 0.72, 0.20),
+            radial2: SIMD4(0.16, 0.10, 0.52, 0.18),
+            field: SIMD4(0.02, 2, 0, 0.05),
+            optical0: SIMD4(0.12, 0.10, 0.92, 0.92),
+            optical1: SIMD4(0.90, 0, 0, 0.04),
+            light: SIMD4(0.4, 1, 0.7, 0.4),
+            metadata: SIMD4(DayObjectMaterialFamily.outline.rawValue, 3, 3, 0),
+            recipe0: SIMD4(0.32, 0.68, 0.05, 0.72),
+            recipe1: SIMD4(2, 0.020, 0.07, 0.025)
+        )
+
+        let capture = try harness.render(
+            actor: actor,
+            appearance: appearance,
+            backgroundColor: .zero
+        )
+
+        XCTAssertLessThan(capture[80, 80], 0.08)
+        // The contour width is now capped at 0.02 local units. A fixed x=128
+        // samples the gap between rings rather than their coverage peak.
+        XCTAssertGreaterThan((118...132).map { capture[$0, 80] }.max() ?? 0, 0.42)
+        XCTAssertGreaterThanOrEqual(capture.horizontalAlphaPeakCount(y: 80), 4)
+    }
+
+    func testCounterformRecipeCutsTheCenterAndDrawsACorona() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero, direction: SIMD2(1, 0), halfSize: SIMD2(0.32, 0.32),
+            opacity: 1, trailLength: 0, shape: 0, appearanceIndex: 0,
+            depth: 0.5, materialPhase: 0.21, localDepthSoftness: 0
+        )
+        let appearance = DayObjectGPUAppearance(
+            color0: SIMD4(0.98, 0.24, 0.12, 1),
+            color1: SIMD4(0.18, 0.82, 0.98, 1),
+            color2: SIMD4(0.88, 0.30, 0.94, 1),
+            radial0: SIMD4(0, 0, 1, 0.14),
+            radial1: SIMD4(0.18, -0.12, 0.70, 0.18),
+            radial2: SIMD4(0, 0, 0.50, 0.20),
+            field: SIMD4(0.02, 2, 0, 0.18),
+            optical0: SIMD4(0.30, 0.28, 0.90, 0.90),
+            optical1: SIMD4(0.75, 0, 0, 0.04),
+            light: SIMD4(0.6, 1, 0.7, 0.4),
+            metadata: SIMD4(DayObjectMaterialFamily.counterform.rawValue, 3, 3, 0),
+            recipe0: SIMD4(0.34, 0.70, 0.18, 0.72),
+            recipe1: SIMD4(0.52, 0.04, 0.22, 0.86)
+        )
+
+        let capture = try harness.render(
+            actor: actor,
+            appearance: appearance,
+            backgroundColor: .zero
+        )
+
+        XCTAssertLessThan(capture[80, 80], 0.10)
+        XCTAssertGreaterThan(capture[107, 80], 0.46)
+        XCTAssertGreaterThan(capture[120, 80], 0.42)
+    }
+
+    func testGlassRecipeKeepsAVisibleCoreAtItsFarthestSteadyDepth() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero, direction: SIMD2(1, 0), halfSize: SIMD2(0.30, 0.30),
+            opacity: 0.58, trailLength: 0, shape: 0, appearanceIndex: 0,
+            depth: 0, materialPhase: 0, localDepthSoftness: 0.10
+        )
+        let appearance = DayObjectGPUAppearance(
+            color0: SIMD4(0.90, 0.16, 0.32, 1),
+            color1: SIMD4(0.10, 0.74, 0.98, 1),
+            color2: SIMD4(0.82, 0.32, 0.96, 1),
+            radial0: SIMD4(0.16, -0.12, 1, 0.14),
+            radial1: SIMD4(-0.18, 0.10, 0.68, 0.18),
+            radial2: SIMD4(0.08, 0.20, 0.48, 0.20),
+            field: SIMD4(0.02, 2, 0, 0.06),
+            optical0: SIMD4(0.12, 0.12, 0.62, 0.68),
+            optical1: SIMD4(0.42, 0.02, 0, 0.12),
+            light: SIMD4(0.5, 1, 0.6, 0.3),
+            metadata: SIMD4(DayObjectMaterialFamily.glass.rawValue, 3, 3, 0),
+            recipe0: SIMD4(0.34, 0.68, 0.06, 0.62)
+        )
+
+        let capture = try harness.render(
+            actor: actor,
+            appearance: appearance,
+            backgroundColor: SIMD3(0.95, 0.92, 0.90)
+        )
+
+        XCTAssertGreaterThanOrEqual(capture[80, 80], 0.56)
+        let centerColor = capture.color(x: 80, y: 80)
+        XCTAssertGreaterThan(
+            abs(centerColor.x - 0.95) + abs(centerColor.y - 0.92) + abs(centerColor.z - 0.90),
+            0.16,
+            "Glass must keep direct palette tint instead of disappearing into the background"
+        )
+    }
+
+    func testGlassSamplesBackgroundAtItsUnmirroredScreenPosition() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let actor = DayObjectGPUActor(
+            position: SIMD2(0, 0.25),
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.22, 0.22),
+            opacity: 1,
+            trailLength: 0,
+            shape: 0,
+            appearanceIndex: 0,
+            depth: 0.5,
+            materialPhase: 0,
+            localDepthSoftness: 0
+        )
+        let glass = DayObjectGPUAppearance(
+            color0: .zero,
+            color1: .zero,
+            color2: .zero,
+            radial0: SIMD4(0, 0, 1, 0),
+            radial1: SIMD4(0.5, 0, 0, 2),
+            optical0: SIMD4(0, 0, 1, 1),
+            optical1: SIMD4(0, 0, 0, 0),
+            membrane: .zero,
+            light: .zero,
+            metadata: SIMD4(DayObjectMaterialFamily.glass.rawValue, 1, 2, 0)
+        )
+
+        let capture = try harness.render(
+            actor: actor,
+            appearance: glass,
+            topBackgroundColor: SIMD3(1, 0, 0),
+            bottomBackgroundColor: SIMD3(0, 0, 1)
+        )
+        let sampled = capture.color(x: 80, y: 60)
+
+        XCTAssertGreaterThan(sampled.x, sampled.z + 0.10)
+    }
+
+    func testCenterOpacityAndLocalAndSharedSoftnessChangeRenderedOrbs() throws {
+        let harness = try ActorRenderHarness(width: 160, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.34, 0.34),
+            opacity: 1,
+            trailLength: 0,
+            shape: 3,
+            appearanceIndex: 0,
+            depth: 0.5,
+            materialPhase: 0.38,
+            localDepthSoftness: 0
+        )
+        func appearance(
+            centerOpacity: Float,
+            localSoftness: Float,
+            material: DayObjectMaterialFamily = .gradient
+        ) -> DayObjectGPUAppearance {
+            DayObjectGPUAppearance(
+                color0: SIMD4(0.95, 0.12, 0.25, 1),
+                color1: SIMD4(0.12, 0.80, 0.95, 1),
+                color2: SIMD4(0.75, 0.22, 0.95, 1),
+                radial0: SIMD4(0.28, 0.8, 0.92, 0.03),
+                radial1: SIMD4(0.78, 0.68, 0.22, 12),
+                optical0: SIMD4(0.35, 0.12, 1, centerOpacity),
+                optical1: SIMD4(0.25, 0, 0, localSoftness),
+                membrane: .zero,
+                light: SIMD4(0.9, 0, 0, 0),
+                metadata: SIMD4(material.rawValue, 3, 1, 0)
+            )
+        }
+
+        let opaqueCenter = try harness.render(
+            actor: actor,
+            appearance: appearance(centerOpacity: 1, localSoftness: 0),
+            backgroundColor: .zero
+        )
+        let translucentCenter = try harness.render(
+            actor: actor,
+            appearance: appearance(centerOpacity: 0.18, localSoftness: 0),
+            backgroundColor: .zero
+        )
+        XCTAssertGreaterThan(opaqueCenter[80, 80], translucentCenter[80, 80] + 0.20)
+
+        let soft = try harness.render(
+            actor: actor,
+            appearance: appearance(centerOpacity: 1, localSoftness: 0.85),
+            backgroundColor: .zero
+        )
+        XCTAssertGreaterThan(soft.partialAlphaPixelCount, opaqueCenter.partialAlphaPixelCount)
+        XCTAssertGreaterThan(
+            soft.meanAbsoluteRGBDifference(from: opaqueCenter),
+            0.001
+        )
+
+        // Directional light softness belongs to sphere materials. Gradient
+        // (the old satin alias) intentionally has no normal-light shading.
+        let hardLight = try harness.render(
+            actor: actor,
+            appearance: appearance(centerOpacity: 1, localSoftness: 0, material: .sphere),
+            backgroundColor: .zero,
+            lightSoftness: 0.05
+        )
+        let softLight = try harness.render(
+            actor: actor,
+            appearance: appearance(centerOpacity: 1, localSoftness: 0, material: .sphere),
+            backgroundColor: .zero,
+            lightSoftness: 0.95
+        )
+        XCTAssertGreaterThan(hardLight.meanAbsoluteRGBDifference(from: softLight), 0.002)
+
+        let gradientHardLight = try harness.render(
+            actor: actor,
+            appearance: appearance(centerOpacity: 1, localSoftness: 0),
+            backgroundColor: .zero,
+            lightSoftness: 0.05
+        )
+        let gradientSoftLight = try harness.render(
+            actor: actor,
+            appearance: appearance(centerOpacity: 1, localSoftness: 0),
+            backgroundColor: .zero,
+            lightSoftness: 0.95
+        )
+        XCTAssertEqual(
+            gradientHardLight.meanAbsoluteRGBDifference(from: gradientSoftLight),
+            0,
+            accuracy: 0.000_001,
+            "Radial gradients must not acquire directional light sectors"
+        )
+    }
+
+    func testActorPipelineUsesPremultipliedAlphaAndExactShaderABI() throws {
+        let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        let library = try XCTUnwrap(device.makeDefaultLibrary())
+        let descriptor = try XCTUnwrap(DayObjectsActorRendering.pipelineDescriptor(
+            library: library,
+            pixelFormat: .rgba16Float
+        ))
+        let attachment = try XCTUnwrap(descriptor.colorAttachments[0])
+
+        XCTAssertEqual(descriptor.vertexFunction?.name, "dayObjectsActorVertex")
+        XCTAssertEqual(descriptor.fragmentFunction?.name, "dayObjectsActorFragment")
+        XCTAssertTrue(attachment.isBlendingEnabled)
+        XCTAssertEqual(attachment.sourceRGBBlendFactor, .one)
+        XCTAssertEqual(attachment.destinationRGBBlendFactor, .oneMinusSourceAlpha)
+        XCTAssertEqual(attachment.sourceAlphaBlendFactor, .one)
+        XCTAssertEqual(attachment.destinationAlphaBlendFactor, .oneMinusSourceAlpha)
+        XCTAssertNoThrow(try device.makeRenderPipelineState(descriptor: descriptor))
+    }
+
+    func testActorShaderTrailsOpposeForwardAndReversedVelocity() throws {
+        let harness = try ActorRenderHarness(width: 128, height: 64)
+        let forward = gpuActor(direction: SIMD2(1, 0), trailLength: 0.22)
+        let reversed = gpuActor(direction: SIMD2(-1, 0), trailLength: 0.22)
+        let forwardAlpha = try harness.render([forward])
+        let reversedAlpha = try harness.render([reversed])
+        let centerX = harness.width / 2
+
+        XCTAssertGreaterThan(forwardAlpha[centerX, harness.height / 2], 0.5)
+        XCTAssertGreaterThan(reversedAlpha[centerX, harness.height / 2], 0.5)
+        XCTAssertLessThan(forwardAlpha.weightedMeanX, Double(centerX) - 0.35)
+        XCTAssertGreaterThan(reversedAlpha.weightedMeanX, Double(centerX) + 0.35)
+    }
+
+    func testActorEnergyNormalizationPreservesBodiesWhileDimmingTrails() throws {
+        let harness = try ActorRenderHarness(width: 128, height: 64)
+        let actor = gpuActor(direction: SIMD2(1, 0), trailLength: 0.22)
+        let sparse = try harness.render([actor], visibleActorCount: 1)
+        let dense = try harness.render([actor], visibleActorCount: 10)
+        let centerX = harness.width / 2
+        let centerY = harness.height / 2
+
+        XCTAssertGreaterThan(dense[centerX, centerY], 0.8)
+        XCTAssertLessThan(dense[centerX - 12, centerY], sparse[centerX - 12, centerY])
+    }
+
+    func testActorShaderRendersOnlyCircleDerivedOrbFamilies() throws {
+        let harness = try ActorRenderHarness(width: 192, height: 160)
+        var silhouettes = [UInt32: ActorAlphaCapture]()
+
+        for shape in UInt32(0)...UInt32(6) {
+            let actor = DayObjectGPUActor(
+                position: .zero,
+                direction: SIMD2(1, 0),
+                halfSize: SIMD2(0.28, 0.22),
+                color: SIMD4(0.9, 0.3, 0.1, 1),
+                opacity: 1,
+                trailLength: 0,
+                shape: shape,
+                fill: 2,
+                depth: 0
+            )
+            let alpha = try harness.render([actor])
+            XCTAssertGreaterThan(alpha[harness.width / 2, harness.height / 2], 0.8)
+            XCTAssertGreaterThan(alpha.nonzeroPixelCount, 2_500)
+            XCTAssertLessThan(alpha[0, 0], 0.01)
+            XCTAssertLessThan(alpha[harness.width - 1, harness.height - 1], 0.01)
+            silhouettes[shape] = alpha
+        }
+
+        let circle = try XCTUnwrap(silhouettes[0])
+        for shape in UInt32(4)...UInt32(6) {
+            let silhouette = try XCTUnwrap(silhouettes[shape])
+            // Equal-area shapes can still have very different outlines. Compare
+            // spatial occupancy instead of subtracting the total pixel counts.
+            let changedPixels = zip(silhouette.alpha, circle.alpha).filter {
+                ($0 > 0.5) != ($1 > 0.5)
+            }.count
+            XCTAssertGreaterThan(
+                changedPixels,
+                25,
+                "Every new carrier needs a visibly distinct continuous silhouette"
+            )
+        }
+    }
+
+    func testSmoothRadialFieldsGiveEveryPaletteColourAVisibleRegion() throws {
+        let harness = try ActorRenderHarness(width: 192, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(repeating: 0.30),
+            opacity: 1,
+            trailLength: 0,
+            shape: DayObjectShape.sphere.numericValue,
+            appearanceIndex: 0,
+            depth: 0.4,
+            materialPhase: 0.17,
+            localDepthSoftness: 0
+        )
+        func material(
+            colors: [SIMD3<Float>],
+            foci: [SIMD2<Double>]
+        ) -> DayObjectEditorialMaterialV1 {
+            DayObjectEditorialMaterialV1(
+                family: .gradient,
+                mechanism: .smoothRadial,
+                colors: colors,
+                fields: foci.map {
+                    DayObjectEditorialRadialFieldV1(
+                        focus: $0,
+                        radius: 0.96,
+                        softness: 0.98,
+                        opacity: 1
+                    )
+                },
+                baseOpacity: 0.98,
+                edgeSoftness: 0.04,
+                contourWidth: 0,
+                contourCount: 0,
+                counterformRadius: nil,
+                counterformSoftness: 0,
+                structuralParameters: .zero
+            )
+        }
+        func strongestChannelDominance(
+            in capture: ActorAlphaCapture
+        ) -> SIMD3<Float> {
+            var strongest = SIMD3<Float>(repeating: -.infinity)
+            for index in capture.rgb.indices where capture.alpha[index] > 0.65 {
+                let color = capture.rgb[index]
+                strongest.x = max(strongest.x, color.x - max(color.y, color.z))
+                strongest.y = max(strongest.y, color.y - max(color.x, color.z))
+                strongest.z = max(strongest.z, color.z - max(color.x, color.y))
+            }
+            return strongest
+        }
+
+        let twoColour = try harness.render(
+            actor: actor,
+            appearance: material(
+                colors: [SIMD3(1, 0, 0), SIMD3(0, 0, 1)],
+                foci: [SIMD2(-0.10, 0.50), SIMD2(1.10, 0.50)]
+            ).gpuAppearance,
+            backgroundColor: .zero
+        )
+        let twoDominance = strongestChannelDominance(in: twoColour)
+        XCTAssertGreaterThan(twoDominance.x, 0.18)
+        XCTAssertGreaterThan(twoDominance.z, 0.18)
+
+        let threeColour = try harness.render(
+            actor: actor,
+            appearance: material(
+                colors: [SIMD3(1, 0, 0), SIMD3(0, 1, 0), SIMD3(0, 0, 1)],
+                foci: [SIMD2(-0.08, 0.20), SIMD2(1.08, 0.20), SIMD2(0.50, 1.12)]
+            ).gpuAppearance,
+            backgroundColor: .zero
+        )
+        let threeDominance = strongestChannelDominance(in: threeColour)
+        XCTAssertGreaterThan(threeDominance.x, 0.15)
+        XCTAssertGreaterThan(threeDominance.y, 0.15)
+        XCTAssertGreaterThan(threeDominance.z, 0.15)
+    }
+
+    func testEdgeOriginatingGradientRetainsReadableColourTravel() throws {
+        let harness = try ActorRenderHarness(width: 192, height: 160)
+        let actor = DayObjectGPUActor(
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(repeating: 0.30),
+            opacity: 1,
+            trailLength: 0,
+            shape: DayObjectShape.sphere.numericValue,
+            appearanceIndex: 0,
+            depth: 0.4,
+            materialPhase: 0,
+            localDepthSoftness: 0
+        )
+        let material = DayObjectEditorialMaterialV1(
+            family: .gradient,
+            mechanism: .smoothRadial,
+            colors: [
+                SIMD3(0.63, 0.22, 0.36),
+                SIMD3(0.24, 0.16, 0.58),
+            ],
+            fields: [
+                DayObjectEditorialRadialFieldV1(
+                    focus: SIMD2(-0.38, 0.50),
+                    radius: 1.16,
+                    softness: 0.98,
+                    opacity: 1
+                ),
+                DayObjectEditorialRadialFieldV1(
+                    focus: SIMD2(1.38, 0.50),
+                    radius: 1.16,
+                    softness: 0.99,
+                    opacity: 1
+                ),
+            ],
+            baseOpacity: 0.98,
+            edgeSoftness: 0.04,
+            contourWidth: 0,
+            contourCount: 0,
+            counterformRadius: nil,
+            counterformSoftness: 0,
+            structuralParameters: .zero
+        )
+
+        let capture = try harness.render(
+            actor: actor,
+            appearance: material.gpuAppearance,
+            backgroundColor: .zero
+        )
+        let left = capture.color(x: 60, y: 80)
+        let right = capture.color(x: 132, y: 80)
+        let travel = abs(left.x - right.x)
+            + abs(left.y - right.y)
+            + abs(left.z - right.z)
+
+        XCTAssertGreaterThan(
+            travel,
+            0.30,
+            "Broad edge-originating fields must remain visibly multicolour, not collapse into a flat fill"
+        )
+    }
+
+    func testCloseOrbMergeFieldsCreateSoftBridgeWhileSeparatedBodiesStayDistinct() throws {
+        let harness = try ActorRenderHarness(width: 256, height: 128)
+        func actor(x: Float) -> DayObjectGPUActor {
+            DayObjectGPUActor(
+                position: SIMD2(x, 0),
+                direction: SIMD2(1, 0),
+                halfSize: SIMD2(0.16, 0.15),
+                color: SIMD4(0.9, 0.3, 0.1, 1),
+                opacity: 1,
+                trailLength: 0,
+                shape: 0,
+                fill: 2,
+                depth: 0
+            )
+        }
+
+        let isolated = try harness.render([actor(x: -0.18)])
+        let close = try harness.render([actor(x: -0.18), actor(x: 0.18)])
+        let separated = try harness.render([actor(x: -0.28), actor(x: 0.28)])
+        let midpoint = (x: harness.width / 2, y: harness.height / 2)
+
+        XCTAssertGreaterThan(close[midpoint.x, midpoint.y], isolated[midpoint.x, midpoint.y] + 0.025)
+        XCTAssertLessThan(separated[midpoint.x, midpoint.y], 0.01)
+    }
+
+    func testActorShaderRendersDeterministicOneFourSevenAndTenActorFixtures() throws {
+        let scene = fixtureScene(ids: (0..<10).map { "fixture-\($0)" })
+        let environment = DayObjectEnvironment(
+            motionEnergy: 0.8,
+            visualClarity: 1
+        )
+        let frame = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: 11.25,
+            insertions: [:],
+            canvasAspect: 1.5
+        )
+        XCTAssertEqual(frame.actors.count, 10)
+
+        let harness = try ActorRenderHarness(width: 192, height: 128)
+        var coverages = [Int]()
+        var alphaEnergies = [Double]()
+        for count in [1, 4, 7, 10] {
+            let prefix = Array(frame.actors.prefix(count))
+            let upload = DayObjectsActorUpload(
+                actors: prefix,
+                resolution: SIMD2(Float(harness.width), Float(harness.height))
+            )
+            XCTAssertEqual(upload.actors, prefix.map(\.gpuActor))
+            XCTAssertEqual(upload.actors.count, count)
+            XCTAssertTrue(upload.uniforms.energyNormalization.isFinite)
+
+            let alpha = try harness.render(upload)
+            coverages.append(alpha.nonzeroPixelCount)
+            alphaEnergies.append(alpha.total)
+            XCTAssertGreaterThan(alpha.nonzeroPixelCount, 0)
+            XCTAssertGreaterThan(alpha.total, 0)
+            print(
+                "DAY_OBJECTS_ACTOR_FIXTURE count=\(count) "
+                    + "coverage=\(alpha.nonzeroPixelCount) alpha=\(alpha.total)"
+            )
+        }
+
+        for (earlier, later) in zip(coverages, coverages.dropFirst()) {
+            XCTAssertGreaterThan(later, earlier)
+        }
+        for (earlier, later) in zip(alphaEnergies, alphaEnergies.dropFirst()) {
+            XCTAssertGreaterThan(later, earlier)
+        }
+    }
+
+    func testInFlightSchedulerRecyclesOnlyCompletedSlotsDeterministically() {
+        let scheduler = DayObjectsInFlightScheduler(slotCount: 3)
+        XCTAssertEqual(scheduler.slotCount, 3)
+
+        let first = scheduler.acquire()
+        let second = scheduler.acquire()
+        let third = scheduler.acquire()
+        XCTAssertEqual([first, second, third].compactMap { $0 }, [0, 1, 2])
+        XCTAssertNil(scheduler.acquire())
+
+        scheduler.complete(1)
+        XCTAssertEqual(scheduler.acquire(), 1)
+        XCTAssertNil(scheduler.acquire())
+
+        scheduler.complete(0)
+        scheduler.complete(0)
+        XCTAssertEqual(scheduler.acquire(), 0)
+        XCTAssertNil(scheduler.acquire())
+    }
+
+    func testActorBufferRingUsesThreeDistinctABIBuffersUntilGPUCompletion() throws {
+        let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        let queue = try XCTUnwrap(device.makeCommandQueue())
+        let ring = try XCTUnwrap(DayObjectsActorBufferRing(
+            device: device,
+            slotCount: 3,
+            actorCapacity: DayObjectScene.maxActors
+        ))
+        XCTAssertEqual(ring.slotCount, 3)
+        XCTAssertEqual(ring.bufferLength, DayObjectGPUActor.metalStride * 10)
+        XCTAssertEqual(
+            ring.appearanceBufferLength,
+            DayObjectGPUAppearance.metalStride * 10
+        )
+
+        let leases = try (0..<3).map { _ in
+            try XCTUnwrap(ring.acquire())
+        }
+        XCTAssertEqual(Set(leases.map { ObjectIdentifier($0.buffer) }).count, 3)
+        XCTAssertEqual(
+            Set(leases.map { ObjectIdentifier($0.appearanceBuffer) }).count,
+            3
+        )
+        XCTAssertNil(ring.acquire())
+
+        let commandBuffers = try leases.map { lease -> MTLCommandBuffer in
+            let commandBuffer = try XCTUnwrap(queue.makeCommandBuffer())
+            ring.submit(lease, on: commandBuffer)
+            return commandBuffer
+        }
+        XCTAssertNil(ring.acquire())
+        commandBuffers.forEach { $0.commit() }
+        commandBuffers.forEach { $0.waitUntilCompleted() }
+        XCTAssertTrue(commandBuffers.allSatisfy { $0.status == .completed })
+
+        let recycled = try (0..<3).map { _ in
+            try XCTUnwrap(ring.acquire())
+        }
+        XCTAssertEqual(Set(recycled.map(\.slot)), Set([0, 1, 2]))
+        let originalBySlot = Dictionary(uniqueKeysWithValues: leases.map {
+            ($0.slot, (ObjectIdentifier($0.poseBuffer), ObjectIdentifier($0.appearanceBuffer)))
+        })
+        for lease in recycled {
+            let original = try XCTUnwrap(originalBySlot[lease.slot])
+            XCTAssertEqual(ObjectIdentifier(lease.poseBuffer), original.0)
+            XCTAssertEqual(ObjectIdentifier(lease.appearanceBuffer), original.1)
+        }
+        recycled.forEach(ring.abandon)
+
+        let abandoned = try XCTUnwrap(ring.acquire())
+        ring.abandon(abandoned)
+        let reacquired = try XCTUnwrap(ring.acquire())
+        XCTAssertEqual(reacquired.slot, abandoned.slot)
+        ring.abandon(reacquired)
+    }
+
+    func testRenderTargetPlanUsesBoundedHalfResolutionBackgroundAndFullSizeSceneTargets() {
+        let plan = DayObjectsRenderTargetPlan(drawableWidth: 1_179, drawableHeight: 2_556)
+
+        XCTAssertEqual(plan.background.width, 589)
+        XCTAssertEqual(plan.background.height, 1_278)
+        XCTAssertLessThanOrEqual(plan.background.width, 1_179 / 2)
+        XCTAssertLessThanOrEqual(plan.background.height, 2_556 / 2)
+        XCTAssertLessThanOrEqual(plan.background.pixelCount, 1_000_000)
+        XCTAssertEqual(plan.scene, DayObjectsRenderTargetDescriptor(width: 1_179, height: 2_556))
+        XCTAssertEqual(plan.blurPingPong, [
+            DayObjectsRenderTargetDescriptor(width: 1_179, height: 2_556),
+            DayObjectsRenderTargetDescriptor(width: 1_179, height: 2_556),
+        ])
+    }
+
+    func testRenderTargetPlanCapsLargeBackgroundTargetsAtOneMillionPixels() {
+        let plan = DayObjectsRenderTargetPlan(drawableWidth: 8_000, drawableHeight: 6_000)
+
+        XCTAssertEqual(plan.background, DayObjectsRenderTargetDescriptor(width: 1_154, height: 866))
+        XCTAssertLessThanOrEqual(plan.background.pixelCount, 1_000_000)
+    }
+
+    func testRenderTargetPlanRemainsWithinPixelBudgetForExtremeIntegerInputs() {
+        for dimensions in [
+            (Int.max, Int.max),
+            (Int.max, 1),
+            (1, Int.max),
+            (Int.max, 2_556),
+            (1_179, Int.max),
+        ] {
+            let plan = DayObjectsRenderTargetPlan(
+                drawableWidth: dimensions.0,
+                drawableHeight: dimensions.1
+            )
+            XCTAssertGreaterThanOrEqual(plan.background.width, 1)
+            XCTAssertGreaterThanOrEqual(plan.background.height, 1)
+            XCTAssertLessThanOrEqual(
+                plan.background.pixelCount,
+                DayObjectsRenderTargetPlan.maximumBackgroundPixels,
+                "dimensions=\(dimensions) background=\(plan.background)"
+            )
+        }
+    }
+
+    func testStaticRendererRequestsItsFrameOnlyAfterLayoutHasANonzeroDrawable() {
+        XCTAssertFalse(DayObjectsRenderer.shouldDrawStaticFrame(
+            isPaused: true,
+            drawableSize: .zero
+        ))
+        XCTAssertTrue(DayObjectsRenderer.shouldDrawStaticFrame(
+            isPaused: true,
+            drawableSize: CGSize(width: 402, height: 524)
+        ))
+        XCTAssertFalse(DayObjectsRenderer.shouldDrawStaticFrame(
+            isPaused: false,
+            drawableSize: CGSize(width: 402, height: 524)
+        ))
+    }
+
+    func testRendererClockDoesNotWrapAtOneHour() {
+        var now = 10_000.0
+        let clock = DayObjectsClock(now: { now })
+
+        XCTAssertEqual(clock.elapsedTime, 0, accuracy: 0.000_001)
+        now += 3_601.25
+        XCTAssertEqual(clock.elapsedTime, 3_601.25, accuracy: 0.000_001)
+    }
+
+    func testRendererClockRetainsElapsedTimeWhilePaused() {
+        var now = 100.0
+        let clock = DayObjectsClock(now: { now })
+
+        now = 112.0
+        clock.setPaused(true)
+        now = 212.0
+        XCTAssertEqual(clock.elapsedTime, 12, accuracy: 0.000_001)
+
+        clock.setPaused(false)
+        now = 215.5
+        XCTAssertEqual(clock.elapsedTime, 15.5, accuracy: 0.000_001)
+    }
+
+    private func gpuActor(
+        direction: SIMD2<Float>,
+        trailLength: Float
+    ) -> DayObjectGPUActor {
+        DayObjectGPUActor(
+            position: .zero,
+            direction: direction,
+            halfSize: SIMD2(0.08, 0.025),
+            color: SIMD4(0.9, 0.3, 0.1, 1),
+            opacity: 1,
+            trailLength: trailLength,
+            shape: 0,
+            fill: 0,
+            depth: 0
+        )
+    }
+
+    private func averagePaletteLuminance(_ scene: DayObjectScene) -> Double {
+        scene.palette.colors.reduce(0) {
+            $0 + relativeLuminance($1.linearRGB)
+        } / Double(scene.palette.colors.count)
+    }
+}
+
+#if !targetEnvironment(simulator)
+private struct PhysicalRendererSample: CustomStringConvertible {
+    let clarity: Double
+    let elapsed: TimeInterval
+    let snapshot: DayObjectsRendererPerformanceSnapshot
+    let processGrowthBytes: Int64
+
+    var measuredFPS: Double {
+        Double(snapshot.submittedFrames) / max(elapsed, 0.000_001)
+    }
+
+    var gpuP95Milliseconds: Double {
+        snapshot.gpuDurationPercentile(0.95) * 1_000
+    }
+
+    var rendererTargetBytes: Int { snapshot.renderTargetBytes }
+
+    var description: String {
+        let cadence = "clarity=\(clarity) elapsed=\(elapsed) fps=\(measuredFPS)"
+        let frames = "submitted=\(snapshot.submittedFrames) completed=\(snapshot.completedFrames)"
+        let gpu = "gpuMeanMs=\(snapshot.meanGPUDuration * 1_000) gpuP95Ms=\(gpuP95Milliseconds)"
+        let backlog = "maxInFlight=\(snapshot.maximumInFlightFrames) backlogDrops=\(snapshot.actorBacklogDrops)"
+        let failures = "resourceDrops=\(snapshot.resourceDrops) allocationFailures=\(snapshot.allocationFailures)"
+        let memory = "targetBytes=\(snapshot.renderTargetBytes) blurBytes=\(snapshot.blurTargetBytes) processGrowthBytes=\(processGrowthBytes)"
+        return [cadence, frames, gpu, backlog, failures, memory].joined(separator: " ")
+    }
+}
+#endif
+
+private final class ActorRenderHarness {
+    let width: Int
+    let height: Int
+
+    private let device: MTLDevice
+    private let commandQueue: MTLCommandQueue
+    private let pipeline: MTLRenderPipelineState
+    private let quadBuffer: MTLBuffer
+    private let sampler: MTLSamplerState
+
+    init(width: Int, height: Int) throws {
+        self.width = width
+        self.height = height
+        let renderDevice = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        let renderCommandQueue = try XCTUnwrap(renderDevice.makeCommandQueue())
+        let library = try XCTUnwrap(renderDevice.makeDefaultLibrary())
+        let descriptor = try XCTUnwrap(DayObjectsActorRendering.pipelineDescriptor(
+            library: library,
+            pixelFormat: .rgba16Float
+        ))
+        let renderPipeline = try renderDevice.makeRenderPipelineState(descriptor: descriptor)
+
+        let vertices: [SIMD2<Float>] = [
+            SIMD2(-1, -1),
+            SIMD2(1, -1),
+            SIMD2(-1, 1),
+            SIMD2(1, 1),
+        ]
+        let renderQuadBuffer = try XCTUnwrap(vertices.withUnsafeBytes { bytes -> MTLBuffer? in
+            guard let baseAddress = bytes.baseAddress else { return nil }
+            return renderDevice.makeBuffer(
+                bytes: baseAddress,
+                length: bytes.count,
+                options: .storageModeShared
+            )
+        })
+        device = renderDevice
+        commandQueue = renderCommandQueue
+        pipeline = renderPipeline
+        quadBuffer = renderQuadBuffer
+        let samplerDescriptor = MTLSamplerDescriptor()
+        samplerDescriptor.minFilter = .linear
+        samplerDescriptor.magFilter = .linear
+        samplerDescriptor.sAddressMode = .clampToEdge
+        samplerDescriptor.tAddressMode = .clampToEdge
+        sampler = try XCTUnwrap(renderDevice.makeSamplerState(descriptor: samplerDescriptor))
+    }
+
+    func render(
+        actor: DayObjectGPUActor,
+        appearance: DayObjectGPUAppearance,
+        backgroundColor: SIMD3<Float>,
+        lightSoftness: Float = 0.6,
+        lightDirection: SIMD2<Float> = SIMD2(1, 0)
+    ) throws -> ActorAlphaCapture {
+        let uniforms = DayObjectsActorUniforms(
+            resolution: SIMD2(Float(width), Float(height)),
+            visibleActorCount: 1,
+            lightDirection: lightDirection,
+            lightSoftness: lightSoftness
+        )
+        return try render(
+            actors: [actor],
+            appearances: [appearance],
+            uniforms: uniforms,
+            backgroundColor: backgroundColor
+        )
+    }
+
+    func render(
+        actor: DayObjectGPUActor,
+        appearance: DayObjectGPUAppearance,
+        topBackgroundColor: SIMD3<Float>,
+        bottomBackgroundColor: SIMD3<Float>
+    ) throws -> ActorAlphaCapture {
+        let uniforms = DayObjectsActorUniforms(
+            resolution: SIMD2(Float(width), Float(height)),
+            visibleActorCount: 1
+        )
+        return try render(
+            actors: [actor],
+            appearances: [appearance],
+            uniforms: uniforms,
+            backgroundColor: topBackgroundColor,
+            bottomBackgroundColor: bottomBackgroundColor
+        )
+    }
+
+    func render(_ actors: [DayObjectGPUActor]) throws -> ActorAlphaCapture {
+        try render(actors, visibleActorCount: actors.filter { $0.opacity > 0 }.count)
+    }
+
+    func render(
+        _ actors: [DayObjectGPUActor],
+        visibleActorCount: Int
+    ) throws -> ActorAlphaCapture {
+        let uniforms = DayObjectsActorUniforms(
+            resolution: SIMD2(Float(width), Float(height)),
+            visibleActorCount: visibleActorCount
+        )
+        return try render(
+            actors: actors,
+            appearances: [.fallback],
+            uniforms: uniforms
+        )
+    }
+
+    func render(_ upload: DayObjectsActorUpload) throws -> ActorAlphaCapture {
+        try render(
+            actors: upload.actors,
+            appearances: upload.appearances,
+            uniforms: upload.uniforms
+        )
+    }
+
+    private func render(
+        actors: [DayObjectGPUActor],
+        appearances: [DayObjectGPUAppearance],
+        uniforms rawUniforms: DayObjectsActorUniforms,
+        backgroundColor: SIMD3<Float> = .zero,
+        bottomBackgroundColor: SIMD3<Float>? = nil
+    ) throws -> ActorAlphaCapture {
+        let textureDescriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba16Float,
+            width: width,
+            height: height,
+            mipmapped: false
+        )
+        textureDescriptor.storageMode = .shared
+        textureDescriptor.usage = [.renderTarget, .shaderRead]
+        let texture = try XCTUnwrap(device.makeTexture(descriptor: textureDescriptor))
+        let actorBuffer = try XCTUnwrap(actors.withUnsafeBytes { bytes -> MTLBuffer? in
+            guard let baseAddress = bytes.baseAddress, !bytes.isEmpty else {
+                return device.makeBuffer(length: DayObjectGPUActor.metalStride)
+            }
+            return device.makeBuffer(
+                bytes: baseAddress,
+                length: bytes.count,
+                options: .storageModeShared
+            )
+        })
+        let appearanceBuffer = try XCTUnwrap(appearances.withUnsafeBytes { bytes -> MTLBuffer? in
+            guard let baseAddress = bytes.baseAddress, !bytes.isEmpty else {
+                return device.makeBuffer(length: DayObjectGPUAppearance.metalStride)
+            }
+            return device.makeBuffer(
+                bytes: baseAddress,
+                length: bytes.count,
+                options: .storageModeShared
+            )
+        })
+        let backgroundDescriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba16Float,
+            width: 2,
+            height: 2,
+            mipmapped: false
+        )
+        backgroundDescriptor.storageMode = .shared
+        backgroundDescriptor.usage = .shaderRead
+        let background = try XCTUnwrap(device.makeTexture(descriptor: backgroundDescriptor))
+        func backgroundPixel(_ color: SIMD3<Float>) -> [UInt16] {
+            [
+                Float16(color.x).bitPattern,
+                Float16(color.y).bitPattern,
+                Float16(color.z).bitPattern,
+                Float16(1).bitPattern,
+            ]
+        }
+        let topPixel = backgroundPixel(backgroundColor)
+        let bottomPixel = backgroundPixel(bottomBackgroundColor ?? backgroundColor)
+        let backgroundPixels = [topPixel, topPixel, bottomPixel, bottomPixel].flatMap { $0 }
+        backgroundPixels.withUnsafeBytes { bytes in
+            background.replace(
+                region: MTLRegionMake2D(0, 0, 2, 2),
+                mipmapLevel: 0,
+                withBytes: bytes.baseAddress!,
+                bytesPerRow: 2 * 4 * MemoryLayout<UInt16>.stride
+            )
+        }
+
+        let renderPass = MTLRenderPassDescriptor()
+        renderPass.colorAttachments[0].texture = texture
+        renderPass.colorAttachments[0].loadAction = .clear
+        renderPass.colorAttachments[0].storeAction = .store
+        renderPass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0)
+
+        let commandBuffer = try XCTUnwrap(commandQueue.makeCommandBuffer())
+        let encoder = try XCTUnwrap(commandBuffer.makeRenderCommandEncoder(descriptor: renderPass))
+        var uniforms = rawUniforms
+        encoder.setRenderPipelineState(pipeline)
+        encoder.setVertexBuffer(quadBuffer, offset: 0, index: 0)
+        encoder.setVertexBuffer(actorBuffer, offset: 0, index: 1)
+        encoder.setVertexBytes(
+            &uniforms,
+            length: MemoryLayout<DayObjectsActorUniforms>.stride,
+            index: 3
+        )
+        encoder.setFragmentBuffer(appearanceBuffer, offset: 0, index: 2)
+        encoder.setVertexBuffer(appearanceBuffer, offset: 0, index: 2)
+        encoder.setFragmentTexture(background, index: 0)
+        encoder.setFragmentSamplerState(sampler, index: 0)
+        encoder.setFragmentBytes(
+            &uniforms,
+            length: MemoryLayout<DayObjectsActorUniforms>.stride,
+            index: 3
+        )
+        if !actors.isEmpty {
+            encoder.drawPrimitives(
+                type: .triangleStrip,
+                vertexStart: 0,
+                vertexCount: 4,
+                instanceCount: actors.count
+            )
+        }
+        encoder.endEncoding()
+        commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
+        XCTAssertEqual(commandBuffer.status, .completed)
+        XCTAssertNil(commandBuffer.error)
+
+        var pixels = [UInt16](repeating: 0, count: width * height * 4)
+        texture.getBytes(
+            &pixels,
+            bytesPerRow: width * 4 * MemoryLayout<UInt16>.stride,
+            from: MTLRegionMake2D(0, 0, width, height),
+            mipmapLevel: 0
+        )
+        let alpha = stride(from: 3, to: pixels.count, by: 4).map {
+            Float(Float16(bitPattern: pixels[$0]))
+        }
+        let rgb = stride(from: 0, to: pixels.count, by: 4).map { index in
+            SIMD3<Float>(
+                Float(Float16(bitPattern: pixels[index])),
+                Float(Float16(bitPattern: pixels[index + 1])),
+                Float(Float16(bitPattern: pixels[index + 2]))
+            )
+        }
+        return ActorAlphaCapture(width: width, height: height, alpha: alpha, rgb: rgb)
+    }
+}
+
+private struct ActorAlphaCapture {
+    let width: Int
+    let height: Int
+    let alpha: [Float]
+    let rgb: [SIMD3<Float>]
+
+    subscript(x: Int, y: Int) -> Float {
+        alpha[y * width + x]
+    }
+
+    var total: Double {
+        alpha.reduce(0) { $0 + Double($1) }
+    }
+
+    var nonzeroPixelCount: Int {
+        alpha.filter { $0 > 0.002 }.count
+    }
+
+    var partialAlphaPixelCount: Int {
+        alpha.filter { $0 > 0.03 && $0 < 0.75 }.count
+    }
+
+    var strongAlphaPixelCount: Int {
+        alpha.filter { $0 >= 0.25 }.count
+    }
+
+    func meanAbsoluteRGBDifference(from other: ActorAlphaCapture) -> Double {
+        guard rgb.count == other.rgb.count, !rgb.isEmpty else { return 0 }
+        let total = zip(rgb, other.rgb).reduce(0.0) { result, pair in
+            result
+                + Double(abs(pair.0.x - pair.1.x))
+                + Double(abs(pair.0.y - pair.1.y))
+                + Double(abs(pair.0.z - pair.1.z))
+        }
+        return total / Double(rgb.count * 3)
+    }
+
+    func luminance(x: Int, y: Int) -> Float {
+        let color = rgb[y * width + x]
+        return color.x * 0.2126 + color.y * 0.7152 + color.z * 0.0722
+    }
+
+    var luminanceWeightedMeanX: Double {
+        var totalWeight = 0.0
+        var moment = 0.0
+        for y in 0..<height {
+            for x in 0..<width {
+                let weight = Double(max(luminance(x: x, y: y), 0))
+                totalWeight += weight
+                moment += Double(x) * weight
+            }
+        }
+        return totalWeight > 0 ? moment / totalWeight : Double(width - 1) * 0.5
+    }
+
+    func color(x: Int, y: Int) -> SIMD3<Float> {
+        rgb[y * width + x]
+    }
+
+    func horizontalRGBVariation(y: Int, fromX: Int, throughX: Int) -> Double {
+        guard y >= 0, y < height, fromX >= 0, throughX < width, fromX < throughX else {
+            return 0
+        }
+        return (fromX..<throughX).reduce(0.0) { result, x in
+            let lhs = rgb[y * width + x]
+            let rhs = rgb[y * width + x + 1]
+            return result
+                + Double(abs(lhs.x - rhs.x))
+                + Double(abs(lhs.y - rhs.y))
+                + Double(abs(lhs.z - rhs.z))
+        } / Double((throughX - fromX) * 3)
+    }
+
+    func horizontalAlphaPeakCount(y: Int) -> Int {
+        guard y > 0, y < height else { return 0 }
+        let row = (0..<width).map { self[$0, y] }
+        return (1..<(width - 1)).filter {
+            row[$0] > 0.05 && row[$0] > row[$0 - 1] && row[$0] >= row[$0 + 1]
+        }.count
+    }
+
+    var isFinitePremultiplied: Bool {
+        for index in rgb.indices {
+            let color = rgb[index]
+            let pixelAlpha = alpha[index]
+            let finite = pixelAlpha.isFinite
+                && color.x.isFinite && color.y.isFinite && color.z.isFinite
+            let nonnegative = color.x >= -0.002
+                && color.y >= -0.002 && color.z >= -0.002
+            let premultiplied = color.x <= pixelAlpha + 0.012
+                && color.y <= pixelAlpha + 0.012
+                && color.z <= pixelAlpha + 0.012
+            if !finite || !nonnegative || !premultiplied { return false }
+        }
+        return true
+    }
+
+    var weightedMeanX: Double {
+        let weight = total
+        guard weight > 0 else { return 0 }
+        var moment = 0.0
+        for y in 0..<height {
+            for x in 0..<width {
+                moment += Double(x) * Double(self[x, y])
+            }
+        }
+        return moment / weight
+    }
+
+    func maximum(inXRange rawRange: Range<Int>) -> Float {
+        let range = max(rawRange.lowerBound, 0)..<min(rawRange.upperBound, width)
+        guard !range.isEmpty else { return 0 }
+        var result: Float = 0
+        for y in 0..<height {
+            for x in range {
+                result = max(result, self[x, y])
+            }
+        }
+        return result
+    }
+}
+
+private final class DisplayTransferReadbackHarness {
+    private let device: MTLDevice
+    private let commandQueue: MTLCommandQueue
+    private let library: MTLLibrary
+    private let sampler: MTLSamplerState
+
+    init() throws {
+        device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        commandQueue = try XCTUnwrap(device.makeCommandQueue())
+        library = try XCTUnwrap(device.makeDefaultLibrary())
+        let descriptor = MTLSamplerDescriptor()
+        descriptor.minFilter = .nearest
+        descriptor.magFilter = .nearest
+        sampler = try XCTUnwrap(device.makeSamplerState(descriptor: descriptor))
+    }
+
+    func render(linearRGB: SIMD3<Float>) throws -> (
+        linearBytes: SIMD3<UInt8>,
+        sRGBBytes: SIMD3<UInt8>
+    ) {
+        (
+            linearBytes: try render(linearRGB: linearRGB, pixelFormat: .bgra8Unorm),
+            sRGBBytes: try render(linearRGB: linearRGB, pixelFormat: .bgra8Unorm_srgb)
+        )
+    }
+
+    func renderActualDrawable(linearRGB: SIMD3<Float>) throws -> ActualDrawableReadback {
+        let view = MTKView(frame: CGRect(x: 0, y: 0, width: 8, height: 8), device: device)
+        view.framebufferOnly = false
+        view.autoResizeDrawable = false
+        view.drawableSize = CGSize(width: 1, height: 1)
+        DayObjectsRenderer.configureDisplay(view)
+
+        let window = UIWindow(frame: view.frame)
+        window.addSubview(view)
+        window.isHidden = false
+        view.layoutIfNeeded()
+        defer {
+            view.removeFromSuperview()
+            window.isHidden = true
+        }
+
+        let drawable = try XCTUnwrap(view.currentDrawable)
+        XCTAssertEqual(drawable.texture.pixelFormat, DayObjectsRenderer.colorPixelFormat)
+        let source = try makeSource(linearRGB: linearRGB)
+        let pipelineDescriptor = try XCTUnwrap(DayObjectsPostRendering.displayPipelineDescriptor(
+            library: library,
+            pixelFormat: drawable.texture.pixelFormat
+        ))
+        let pipeline = try device.makeRenderPipelineState(descriptor: pipelineDescriptor)
+        let pass = MTLRenderPassDescriptor()
+        pass.colorAttachments[0].texture = drawable.texture
+        pass.colorAttachments[0].loadAction = .dontCare
+        pass.colorAttachments[0].storeAction = .store
+
+        let commandBuffer = try XCTUnwrap(commandQueue.makeCommandBuffer())
+        let encoder = try XCTUnwrap(commandBuffer.makeRenderCommandEncoder(descriptor: pass))
+        var uniformBytes = PostUniformBytes(
+            DayObjectsPostUniforms(
+                postProcess: DayObjectPostProcess(
+                    visualClarity: 1,
+                    grainSeed: 0
+                ),
+                resolution: SIMD2<Float>(1, 1),
+                pointToPixelScale: 1,
+                grainSeed: 0,
+                paletteLuminance: 0
+            ),
+            grainIntensity: 0
+        )
+        encoder.setRenderPipelineState(pipeline)
+        encoder.setFragmentTexture(source, index: 0)
+        encoder.setFragmentSamplerState(sampler, index: 0)
+        encoder.setFragmentBytes(
+            &uniformBytes,
+            length: MemoryLayout<PostUniformBytes>.stride,
+            index: 0
+        )
+        encoder.setFragmentTexture(source, index: 1)
+        bindNaturalGlitch(to: encoder)
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        encoder.endEncoding()
+
+        let readback = try XCTUnwrap(device.makeBuffer(length: 256, options: .storageModeShared))
+        let blit = try XCTUnwrap(commandBuffer.makeBlitCommandEncoder())
+        blit.copy(
+            from: drawable.texture,
+            sourceSlice: 0,
+            sourceLevel: 0,
+            sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+            sourceSize: MTLSize(width: 1, height: 1, depth: 1),
+            to: readback,
+            destinationOffset: 0,
+            destinationBytesPerRow: 256,
+            destinationBytesPerImage: 256
+        )
+        blit.endEncoding()
+        commandBuffer.present(drawable)
+        commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
+        XCTAssertEqual(commandBuffer.status, .completed)
+        XCTAssertNil(commandBuffer.error)
+
+        let bytes = readback.contents().assumingMemoryBound(to: UInt8.self)
+        return ActualDrawableReadback(
+            rgb: SIMD3(bytes[2], bytes[1], bytes[0]),
+            usedActualMTKDrawable: true
+        )
+    }
+
+    private func makeSource(linearRGB: SIMD3<Float>) throws -> MTLTexture {
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba16Float,
+            width: 1,
+            height: 1,
+            mipmapped: false
+        )
+        descriptor.storageMode = .shared
+        descriptor.usage = .shaderRead
+        let source = try XCTUnwrap(device.makeTexture(descriptor: descriptor))
+        var words = [
+            Float16(linearRGB.x).bitPattern,
+            Float16(linearRGB.y).bitPattern,
+            Float16(linearRGB.z).bitPattern,
+            Float16(1).bitPattern,
+        ]
+        source.replace(
+            region: MTLRegionMake2D(0, 0, 1, 1),
+            mipmapLevel: 0,
+            withBytes: &words,
+            bytesPerRow: 4 * MemoryLayout<UInt16>.stride
+        )
+        return source
+    }
+
+    private func render(
+        linearRGB: SIMD3<Float>,
+        pixelFormat: MTLPixelFormat
+    ) throws -> SIMD3<UInt8> {
+        let source = try makeSource(linearRGB: linearRGB)
+
+        let targetDescriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: pixelFormat,
+            width: 1,
+            height: 1,
+            mipmapped: false
+        )
+        targetDescriptor.storageMode = .shared
+        targetDescriptor.usage = .renderTarget
+        let target = try XCTUnwrap(device.makeTexture(descriptor: targetDescriptor))
+        let pipelineDescriptor = try XCTUnwrap(DayObjectsPostRendering.displayPipelineDescriptor(
+            library: library,
+            pixelFormat: pixelFormat
+        ))
+        let pipeline = try device.makeRenderPipelineState(descriptor: pipelineDescriptor)
+        let pass = MTLRenderPassDescriptor()
+        pass.colorAttachments[0].texture = target
+        pass.colorAttachments[0].loadAction = .dontCare
+        pass.colorAttachments[0].storeAction = .store
+
+        let commandBuffer = try XCTUnwrap(commandQueue.makeCommandBuffer())
+        let encoder = try XCTUnwrap(commandBuffer.makeRenderCommandEncoder(descriptor: pass))
+        let post = DayObjectPostProcess(
+            visualClarity: 1,
+            grainSeed: 0
+        )
+        let uniforms = DayObjectsPostUniforms(
+            postProcess: post,
+            resolution: SIMD2<Float>(1, 1),
+            pointToPixelScale: 1,
+            grainSeed: 0,
+            paletteLuminance: 0
+        )
+        var uniformBytes = PostUniformBytes(uniforms, grainIntensity: 0)
+        encoder.setRenderPipelineState(pipeline)
+        encoder.setFragmentTexture(source, index: 0)
+        encoder.setFragmentSamplerState(sampler, index: 0)
+        encoder.setFragmentBytes(
+            &uniformBytes,
+            length: MemoryLayout<PostUniformBytes>.stride,
+            index: 0
+        )
+        encoder.setFragmentTexture(source, index: 1)
+        bindNaturalGlitch(to: encoder)
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        encoder.endEncoding()
+        commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
+        XCTAssertEqual(commandBuffer.status, .completed)
+        XCTAssertNil(commandBuffer.error)
+
+        var bytes = [UInt8](repeating: 0, count: 4)
+        target.getBytes(
+            &bytes,
+            bytesPerRow: 4,
+            from: MTLRegionMake2D(0, 0, 1, 1),
+            mipmapLevel: 0
+        )
+        return SIMD3(bytes[2], bytes[1], bytes[0])
+    }
+
+    private func bindNaturalGlitch(to encoder: MTLRenderCommandEncoder) {
+        var direction = SIMD2<Float>(1, 0)
+        encoder.setFragmentBytes(&direction, length: MemoryLayout<SIMD2<Float>>.stride, index: 3)
+        var uniforms = DayObjectsGlitchUniforms(
+            impact: .none,
+            elapsedTime: 0,
+            seed: 0
+        )
+        let bands = DayObjectGlitchLayout.make(seed: 0).bands.map(
+            DayObjectsGlitchBandUniform.init
+        )
+        encoder.setFragmentBytes(
+            &uniforms,
+            length: MemoryLayout<DayObjectsGlitchUniforms>.stride,
+            index: 1
+        )
+        bands.withUnsafeBytes { bytes in
+            guard let baseAddress = bytes.baseAddress else { return }
+            encoder.setFragmentBytes(baseAddress, length: bytes.count, index: 2)
+        }
+    }
+}
+
+private struct ActualDrawableReadback {
+    let rgb: SIMD3<UInt8>
+    let usedActualMTKDrawable: Bool
+
+    func maximumDifference(from expected: SIMD3<UInt8>) -> Int {
+        [
+            abs(Int(rgb.x) - Int(expected.x)),
+            abs(Int(rgb.y) - Int(expected.y)),
+            abs(Int(rgb.z) - Int(expected.z))
+        ].max() ?? 0
+    }
+}
+
+private final class PostRenderHarness {
+    let width: Int
+    let height: Int
+
+    private let device: MTLDevice
+    private let commandQueue: MTLCommandQueue
+    private let meshGradientPipeline: MTLRenderPipelineState
+    private let sceneUpscalePipeline: MTLRenderPipelineState
+    private let actorPipeline: MTLRenderPipelineState
+    private let horizontalBlurPipeline: MTLRenderPipelineState
+    private let verticalBlurPipeline: MTLRenderPipelineState
+    private let displayPipeline: MTLRenderPipelineState
+    private let productionDisplayPipeline: MTLRenderPipelineState
+    private let sampler: MTLSamplerState
+    private let quadBuffer: MTLBuffer
+
+    init(width: Int, height: Int) throws {
+        self.width = width
+        self.height = height
+
+        let renderDevice = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        let renderCommandQueue = try XCTUnwrap(renderDevice.makeCommandQueue())
+        let library = try XCTUnwrap(renderDevice.makeDefaultLibrary())
+        let fullscreenVertex = try XCTUnwrap(library.makeFunction(name: "dayObjectsFullscreenVertex"))
+        let meshGradientFragment = try XCTUnwrap(library.makeFunction(name: "dayObjectsMeshGradientFragment"))
+        let presentFragment = try XCTUnwrap(library.makeFunction(name: "dayObjectsBackgroundPresentFragment"))
+
+        let meshGradientDescriptor = MTLRenderPipelineDescriptor()
+        meshGradientDescriptor.vertexFunction = fullscreenVertex
+        meshGradientDescriptor.fragmentFunction = meshGradientFragment
+        meshGradientDescriptor.colorAttachments[0].pixelFormat = .rgba16Float
+
+        let upscaleDescriptor = MTLRenderPipelineDescriptor()
+        upscaleDescriptor.vertexFunction = fullscreenVertex
+        upscaleDescriptor.fragmentFunction = presentFragment
+        upscaleDescriptor.colorAttachments[0].pixelFormat = .rgba16Float
+
+        let actorDescriptor = try XCTUnwrap(DayObjectsActorRendering.pipelineDescriptor(
+            library: library,
+            pixelFormat: .rgba16Float
+        ))
+        let horizontalDescriptor = try XCTUnwrap(DayObjectsPostRendering.blurPipelineDescriptor(
+            library: library,
+            horizontal: true,
+            pixelFormat: .rgba16Float
+        ))
+        let verticalDescriptor = try XCTUnwrap(DayObjectsPostRendering.blurPipelineDescriptor(
+            library: library,
+            horizontal: false,
+            pixelFormat: .rgba16Float
+        ))
+        let displayDescriptor = try XCTUnwrap(DayObjectsPostRendering.displayPipelineDescriptor(
+            library: library,
+            pixelFormat: .rgba16Float
+        ))
+        let productionDisplayDescriptor = try XCTUnwrap(DayObjectsPostRendering.displayPipelineDescriptor(
+            library: library,
+            pixelFormat: DayObjectsRenderer.colorPixelFormat
+        ))
+
+        let samplerDescriptor = MTLSamplerDescriptor()
+        samplerDescriptor.minFilter = .linear
+        samplerDescriptor.magFilter = .linear
+        samplerDescriptor.sAddressMode = .clampToEdge
+        samplerDescriptor.tAddressMode = .clampToEdge
+
+        let vertices: [SIMD2<Float>] = [
+            SIMD2(-1, -1),
+            SIMD2(1, -1),
+            SIMD2(-1, 1),
+            SIMD2(1, 1),
+        ]
+
+        device = renderDevice
+        commandQueue = renderCommandQueue
+        meshGradientPipeline = try renderDevice.makeRenderPipelineState(descriptor: meshGradientDescriptor)
+        sceneUpscalePipeline = try renderDevice.makeRenderPipelineState(descriptor: upscaleDescriptor)
+        actorPipeline = try renderDevice.makeRenderPipelineState(descriptor: actorDescriptor)
+        horizontalBlurPipeline = try renderDevice.makeRenderPipelineState(descriptor: horizontalDescriptor)
+        verticalBlurPipeline = try renderDevice.makeRenderPipelineState(descriptor: verticalDescriptor)
+        displayPipeline = try renderDevice.makeRenderPipelineState(descriptor: displayDescriptor)
+        productionDisplayPipeline = try renderDevice.makeRenderPipelineState(
+            descriptor: productionDisplayDescriptor
+        )
+        sampler = try XCTUnwrap(renderDevice.makeSamplerState(descriptor: samplerDescriptor))
+        quadBuffer = try XCTUnwrap(vertices.withUnsafeBytes { bytes -> MTLBuffer? in
+            guard let baseAddress = bytes.baseAddress else { return nil }
+            return renderDevice.makeBuffer(
+                bytes: baseAddress,
+                length: bytes.count,
+                options: .storageModeShared
+            )
+        })
+    }
+
+    func render(
+        scene: DayObjectScene,
+        clarity: Double,
+        elapsed: Double,
+        motionEnergy: Double = 0.75,
+        actorLimit: Int? = nil,
+        insertions: [String: TimeInterval] = [:],
+        removals: [String: TimeInterval] = [:],
+        digitalImpact: DayObjectDigitalImpact = .none,
+        glitchSeed: UInt64? = nil,
+        glitchElapsed: TimeInterval? = nil,
+        flatSceneColor: SIMD3<Float>? = nil
+    ) throws -> PostRenderResult {
+        let environment = DayObjectEnvironment(
+            motionEnergy: motionEnergy,
+            visualClarity: clarity
+        )
+        let frame = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: elapsed,
+            insertions: insertions,
+            removals: removals,
+            canvasAspect: Double(width) / Double(height)
+        )
+        var postUniforms = DayObjectsPostUniforms(
+            frame: frame,
+            scene: scene,
+            resolution: SIMD2(Float(width), Float(height)),
+            pointToPixelScale: 2
+        )
+        let resolvedGlitchSeed = glitchSeed ?? scene.rootSeed
+        var glitchUniforms = DayObjectsGlitchUniforms(
+            impact: digitalImpact,
+            elapsedTime: glitchElapsed ?? elapsed,
+            seed: resolvedGlitchSeed
+        )
+        let glitchBandUniforms = DayObjectGlitchLayout.make(seed: resolvedGlitchSeed).bands.map(
+            DayObjectsGlitchBandUniform.init
+        )
+
+        let backgroundTexture = try makeTexture(width: width / 2, height: height / 2)
+        let sceneTexture = try makeTexture(width: width, height: height)
+        let blurA = try makeTexture(width: width, height: height)
+        let blurB = try makeTexture(width: width, height: height)
+        let output = try makeTexture(width: width, height: height)
+        let noGrainOutput = try makeTexture(width: width, height: height)
+        let productionOutput = try makeTexture(
+            width: width,
+            height: height,
+            pixelFormat: DayObjectsRenderer.colorPixelFormat
+        )
+        let commandBuffer = try XCTUnwrap(commandQueue.makeCommandBuffer())
+
+        var meshGradientUniforms = DayObjectsMeshGradientUniforms(
+            scene: scene,
+            resolution: SIMD2(Float(backgroundTexture.width), Float(backgroundTexture.height)),
+            elapsedTime: elapsed
+        )
+        let meshGradientPass = renderPass(
+            texture: backgroundTexture,
+            clearColor: MTLClearColorMake(0, 0, 0, 1)
+        )
+        let meshGradientEncoder = try XCTUnwrap(
+            commandBuffer.makeRenderCommandEncoder(descriptor: meshGradientPass)
+        )
+        meshGradientEncoder.setRenderPipelineState(meshGradientPipeline)
+        meshGradientEncoder.setFragmentBytes(
+            &meshGradientUniforms,
+            length: MemoryLayout<DayObjectsMeshGradientUniforms>.stride,
+            index: 0
+        )
+        meshGradientEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        meshGradientEncoder.endEncoding()
+
+        let renderActors = actorLimit.map {
+            Array(frame.actors.prefix(max($0, 0)))
+        } ?? frame.actors
+        let upload = DayObjectsActorUpload(
+            actors: renderActors,
+            resolution: SIMD2(Float(width), Float(height))
+        )
+        let actorBuffer = try XCTUnwrap(upload.actors.withUnsafeBytes { bytes -> MTLBuffer? in
+            guard let baseAddress = bytes.baseAddress, !bytes.isEmpty else {
+                return device.makeBuffer(length: DayObjectGPUActor.metalStride)
+            }
+            return device.makeBuffer(
+                bytes: baseAddress,
+                length: bytes.count,
+                options: .storageModeShared
+            )
+        })
+        let appearanceBuffer = try XCTUnwrap(
+            upload.appearances.withUnsafeBytes { bytes -> MTLBuffer? in
+                guard let baseAddress = bytes.baseAddress, !bytes.isEmpty else {
+                    return device.makeBuffer(length: DayObjectGPUAppearance.metalStride)
+                }
+                return device.makeBuffer(
+                    bytes: baseAddress,
+                    length: bytes.count,
+                    options: .storageModeShared
+                )
+            }
+        )
+        let scenePass = renderPass(texture: sceneTexture, clearColor: MTLClearColorMake(0, 0, 0, 1))
+        let sceneEncoder = try XCTUnwrap(commandBuffer.makeRenderCommandEncoder(descriptor: scenePass))
+        sceneEncoder.setRenderPipelineState(sceneUpscalePipeline)
+        sceneEncoder.setFragmentTexture(backgroundTexture, index: 0)
+        sceneEncoder.setFragmentSamplerState(sampler, index: 0)
+        sceneEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+
+        if !upload.actors.isEmpty {
+            var actorUniforms = upload.uniforms
+            sceneEncoder.setRenderPipelineState(actorPipeline)
+            sceneEncoder.setVertexBuffer(quadBuffer, offset: 0, index: 0)
+            sceneEncoder.setVertexBuffer(actorBuffer, offset: 0, index: 1)
+            sceneEncoder.setVertexBytes(
+                &actorUniforms,
+                length: MemoryLayout<DayObjectsActorUniforms>.stride,
+                index: 3
+            )
+            sceneEncoder.setFragmentBuffer(appearanceBuffer, offset: 0, index: 2)
+            sceneEncoder.setVertexBuffer(appearanceBuffer, offset: 0, index: 2)
+            sceneEncoder.setFragmentBytes(
+                &actorUniforms,
+                length: MemoryLayout<DayObjectsActorUniforms>.stride,
+                index: 3
+            )
+            sceneEncoder.drawPrimitives(
+                type: .triangleStrip,
+                vertexStart: 0,
+                vertexCount: 4,
+                instanceCount: upload.actors.count
+            )
+        }
+        sceneEncoder.endEncoding()
+
+        // A genuinely constant source isolates glitch visibility from scene
+        // edges, textures and colour gradients.
+        if let flatSceneColor {
+            let flatPass = renderPass(texture: sceneTexture, clearColor: MTLClearColorMake(
+                Double(flatSceneColor.x), Double(flatSceneColor.y), Double(flatSceneColor.z), 1
+            ))
+            let flatEncoder = try XCTUnwrap(commandBuffer.makeRenderCommandEncoder(descriptor: flatPass))
+            flatEncoder.endEncoding()
+        }
+
+        var postSource = sceneTexture
+        if postUniforms.blurRadiusPixels >= 0.01 {
+            encodeFullscreenPass(
+                commandBuffer: commandBuffer,
+                target: blurA,
+                source: sceneTexture,
+                pipeline: horizontalBlurPipeline,
+                uniforms: &postUniforms
+            )
+            encodeFullscreenPass(
+                commandBuffer: commandBuffer,
+                target: blurB,
+                source: blurA,
+                pipeline: verticalBlurPipeline,
+                uniforms: &postUniforms
+            )
+            postSource = blurB
+        }
+
+        var echoDirection = SIMD2<Float>(1, 0)
+        let echoPass = renderPass(texture: blurA, clearColor: MTLClearColorMake(0, 0, 0, 0))
+        let echoEncoder = try XCTUnwrap(commandBuffer.makeRenderCommandEncoder(descriptor: echoPass))
+        if flatSceneColor == nil, digitalImpact.damage > 0,
+           let echoIndex = DayObjectsGlitchUniforms.echoActorIndex(
+            actors: upload.actors, resolution: SIMD2(Float(width), Float(height)),
+            elapsedTime: glitchElapsed ?? elapsed, seed: resolvedGlitchSeed
+        ) {
+            let position = upload.actors[echoIndex].position
+            let inward = SIMD2(-position.x, position.y)
+            if simd_length(inward) > 0.001 { echoDirection = simd_normalize(inward) }
+            var actorUniforms = upload.uniforms
+            echoEncoder.setRenderPipelineState(actorPipeline)
+            echoEncoder.setFragmentTexture(backgroundTexture, index: 0)
+            echoEncoder.setFragmentSamplerState(sampler, index: 0)
+            echoEncoder.setVertexBuffer(quadBuffer, offset: 0, index: 0)
+            echoEncoder.setVertexBuffer(actorBuffer, offset: 0, index: 1)
+            echoEncoder.setVertexBytes(
+                &actorUniforms,
+                length: MemoryLayout<DayObjectsActorUniforms>.stride,
+                index: 3
+            )
+            echoEncoder.setFragmentBuffer(appearanceBuffer, offset: 0, index: 2)
+            echoEncoder.setVertexBuffer(appearanceBuffer, offset: 0, index: 2)
+            echoEncoder.setFragmentBytes(
+                &actorUniforms,
+                length: MemoryLayout<DayObjectsActorUniforms>.stride,
+                index: 3
+            )
+            echoEncoder.drawPrimitives(
+                type: .triangleStrip,
+                vertexStart: 0,
+                vertexCount: 4,
+                instanceCount: 1,
+                baseInstance: echoIndex
+            )
+        }
+        echoEncoder.endEncoding()
+
+        encodeDisplayPass(
+            commandBuffer: commandBuffer,
+            target: output,
+            source: postSource,
+            pipeline: displayPipeline,
+            uniforms: &postUniforms,
+            glitchUniforms: &glitchUniforms,
+            glitchBandUniforms: glitchBandUniforms,
+            echoTexture: blurA, echoDirection: echoDirection
+        )
+        encodeDisplayPass(
+            commandBuffer: commandBuffer,
+            target: productionOutput,
+            source: postSource,
+            pipeline: productionDisplayPipeline,
+            uniforms: &postUniforms,
+            glitchUniforms: &glitchUniforms,
+            glitchBandUniforms: glitchBandUniforms,
+            echoTexture: blurA, echoDirection: echoDirection
+        )
+        var noGrainUniforms = PostUniformBytes(postUniforms, grainIntensity: 0)
+        encodeDisplayPass(
+            commandBuffer: commandBuffer,
+            target: noGrainOutput,
+            source: postSource,
+            pipeline: displayPipeline,
+            uniforms: &noGrainUniforms,
+            glitchUniforms: &glitchUniforms,
+            glitchBandUniforms: glitchBandUniforms,
+            echoTexture: blurA, echoDirection: echoDirection
+        )
+
+        commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
+        XCTAssertEqual(commandBuffer.status, .completed)
+        XCTAssertNil(commandBuffer.error)
+
+        return PostRenderResult(
+            uniforms: postUniforms,
+            renderedActorCount: upload.actors.count,
+            output: read(texture: output),
+            noGrain: read(texture: noGrainOutput),
+            productionSRGB: readDisplay(texture: productionOutput)
+        )
+    }
+
+    private func encodeFullscreenPass(
+        commandBuffer: MTLCommandBuffer,
+        target: MTLTexture,
+        source: MTLTexture,
+        pipeline: MTLRenderPipelineState,
+        uniforms: inout DayObjectsPostUniforms
+    ) {
+        withUnsafeBytes(of: &uniforms) { bytes in
+            encodeFullscreenPass(
+                commandBuffer: commandBuffer,
+                target: target,
+                source: source,
+                pipeline: pipeline,
+                uniformBytes: bytes
+            )
+        }
+    }
+
+    private func encodeDisplayPass<Uniforms>(
+        commandBuffer: MTLCommandBuffer,
+        target: MTLTexture,
+        source: MTLTexture,
+        pipeline: MTLRenderPipelineState,
+        uniforms: inout Uniforms,
+        glitchUniforms: inout DayObjectsGlitchUniforms,
+        glitchBandUniforms: [DayObjectsGlitchBandUniform],
+        echoTexture: MTLTexture, echoDirection: SIMD2<Float>
+    ) {
+        let pass = renderPass(texture: target, clearColor: MTLClearColorMake(0, 0, 0, 1))
+        guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else {
+            XCTFail("Could not create Day Objects display encoder")
+            return
+        }
+        encoder.setFragmentTexture(echoTexture, index: 1)
+        var direction = echoDirection
+        encoder.setFragmentBytes(&direction, length: MemoryLayout<SIMD2<Float>>.stride, index: 3)
+        encoder.setRenderPipelineState(pipeline)
+        encoder.setFragmentTexture(source, index: 0)
+        encoder.setFragmentSamplerState(sampler, index: 0)
+        encoder.setFragmentBytes(
+            &uniforms,
+            length: MemoryLayout<Uniforms>.stride,
+            index: 0
+        )
+        encoder.setFragmentBytes(
+            &glitchUniforms,
+            length: MemoryLayout<DayObjectsGlitchUniforms>.stride,
+            index: 1
+        )
+        glitchBandUniforms.withUnsafeBytes { bytes in
+            guard let baseAddress = bytes.baseAddress else {
+                XCTFail("Day Objects glitch bands were empty")
+                return
+            }
+            encoder.setFragmentBytes(baseAddress, length: bytes.count, index: 2)
+        }
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        encoder.endEncoding()
+    }
+
+    private func encodeFullscreenPass(
+        commandBuffer: MTLCommandBuffer,
+        target: MTLTexture,
+        source: MTLTexture,
+        pipeline: MTLRenderPipelineState,
+        uniforms: inout PostUniformBytes
+    ) {
+        withUnsafeBytes(of: &uniforms) { bytes in
+            encodeFullscreenPass(
+                commandBuffer: commandBuffer,
+                target: target,
+                source: source,
+                pipeline: pipeline,
+                uniformBytes: bytes
+            )
+        }
+    }
+
+    private func encodeFullscreenPass(
+        commandBuffer: MTLCommandBuffer,
+        target: MTLTexture,
+        source: MTLTexture,
+        pipeline: MTLRenderPipelineState,
+        uniformBytes: UnsafeRawBufferPointer
+    ) {
+        let pass = renderPass(texture: target, clearColor: MTLClearColorMake(0, 0, 0, 1))
+        guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else {
+            XCTFail("Could not create Day Objects post encoder")
+            return
+        }
+        encoder.setRenderPipelineState(pipeline)
+        encoder.setFragmentTexture(source, index: 0)
+        encoder.setFragmentSamplerState(sampler, index: 0)
+        if let baseAddress = uniformBytes.baseAddress {
+            encoder.setFragmentBytes(
+                baseAddress,
+                length: uniformBytes.count,
+                index: 0
+            )
+        } else {
+            XCTFail("Day Objects post uniforms were empty")
+        }
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        encoder.endEncoding()
+    }
+
+    private func makeTexture(
+        width: Int,
+        height: Int,
+        pixelFormat: MTLPixelFormat = .rgba16Float
+    ) throws -> MTLTexture {
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: pixelFormat,
+            width: width,
+            height: height,
+            mipmapped: false
+        )
+        descriptor.storageMode = .shared
+        descriptor.usage = [.renderTarget, .shaderRead]
+        return try XCTUnwrap(device.makeTexture(descriptor: descriptor))
+    }
+
+    private func renderPass(texture: MTLTexture, clearColor: MTLClearColor) -> MTLRenderPassDescriptor {
+        let descriptor = MTLRenderPassDescriptor()
+        descriptor.colorAttachments[0].texture = texture
+        descriptor.colorAttachments[0].loadAction = .clear
+        descriptor.colorAttachments[0].storeAction = .store
+        descriptor.colorAttachments[0].clearColor = clearColor
+        return descriptor
+    }
+
+    private func read(texture: MTLTexture) -> PostPixelCapture {
+        var words = [UInt16](repeating: 0, count: width * height * 4)
+        texture.getBytes(
+            &words,
+            bytesPerRow: width * 4 * MemoryLayout<UInt16>.stride,
+            from: MTLRegionMake2D(0, 0, width, height),
+            mipmapLevel: 0
+        )
+        let rgb = stride(from: 0, to: words.count, by: 4).map { index in
+            SIMD3<Float>(
+                Float(Float16(bitPattern: words[index])),
+                Float(Float16(bitPattern: words[index + 1])),
+                Float(Float16(bitPattern: words[index + 2]))
+            )
+        }
+        var checksum: UInt64 = 1_469_598_103_934_665_603
+        for word in words {
+            checksum ^= UInt64(word)
+            checksum &*= 1_099_511_628_211
+        }
+        return PostPixelCapture(width: width, height: height, rgb: rgb, checksum: checksum)
+    }
+
+    private func readDisplay(texture: MTLTexture) -> DisplayPixelCapture {
+        var bytes = [UInt8](repeating: 0, count: width * height * 4)
+        texture.getBytes(
+            &bytes,
+            bytesPerRow: width * 4,
+            from: MTLRegionMake2D(0, 0, width, height),
+            mipmapLevel: 0
+        )
+        let rgb = stride(from: 0, to: bytes.count, by: 4).map { index in
+            SIMD3(bytes[index + 2], bytes[index + 1], bytes[index])
+        }
+        return DisplayPixelCapture(width: width, height: height, rgb: rgb)
+    }
+}
+
+private struct PostUniformBytes {
+    let resolution: SIMD2<Float>
+    let blurRadiusPixels: Float
+    let contrast: Float
+    let saturation: Float
+    let grainIntensity: Float
+    let grainPhase: Float
+    let grainSeed: UInt32
+
+    init(_ uniforms: DayObjectsPostUniforms, grainIntensity: Float) {
+        resolution = uniforms.resolution
+        blurRadiusPixels = uniforms.blurRadiusPixels
+        contrast = uniforms.contrast
+        saturation = uniforms.saturation
+        self.grainIntensity = grainIntensity
+        grainPhase = uniforms.grainPhase
+        grainSeed = uniforms.grainSeed
+    }
+}
+
+private struct DayObjectsLivingOrbMatrixMetrics: CustomStringConvertible {
+    let materialCounts: [UInt32: Int]
+    let paletteSlotCounts: [UInt32: Int]
+    let uniqueColorSubsetCount: Int
+    let allActorsInsideSafeBounds: Bool
+    let uiIntersectionCount: Int
+    let negativeSpaceIntersectionCount: Int
+    let borderPeak: Double
+    let uiExclusionPeak: Double
+
+    static func make(
+        scene: DayObjectScene,
+        actorLimit: Int,
+        elapsed: Double,
+        motionEnergy: Double,
+        canvasAspect: Double,
+        actorDifference: PostLuminanceField
+    ) -> Self {
+        let environment = DayObjectEnvironment(
+            motionEnergy: motionEnergy,
+            visualClarity: 1
+        )
+        let frame = DayObjectRenderFrame.make(
+            scene: scene,
+            environment: environment,
+            elapsed: elapsed,
+            insertions: [:],
+            canvasAspect: canvasAspect
+        )
+        let rendered = Array(frame.actors.prefix(max(actorLimit, 0)))
+        let actorByID = Dictionary(uniqueKeysWithValues: scene.actors.map { ($0.id, $0) })
+        let selectedActors = rendered.compactMap { actorByID[$0.actorID] }
+
+        let aspect = canvasAspect.isFinite && canvasAspect > 0 ? canvasAspect : 1
+        var allInside = true
+        var uiIntersections = 0
+        var negativeIntersections = 0
+        for actor in selectedActors {
+            let pose = scene.score.pose(
+                for: actor,
+                at: frame.choreographyTime,
+                canvasAspect: aspect,
+                compositionPlan: scene.compositionPlan
+            )
+            allInside = allInside && pose.isInsideSafeBounds
+            uiIntersections += pose.intersectsUIExclusion ? 1 : 0
+            negativeIntersections += pose.intersectsNegativeSpace ? 1 : 0
+        }
+
+        var materials = [UInt32: Int]()
+        var paletteSlots = [UInt32: Int]()
+        var subsets = Set<String>()
+        for actor in selectedActors {
+            materials[actor.appearance.material.rawValue, default: 0] += 1
+            let assignment = actor.appearance.colorAssignment
+            paletteSlots[assignment.paletteSlot.rawValue, default: 0] += 1
+            subsets.insert(
+                "\(assignment.paletteSlot.rawValue):"
+                    + assignment.sourceIndices.map(String.init).joined(separator: ",")
+            )
+        }
+
+        return Self(
+            materialCounts: materials,
+            paletteSlotCounts: paletteSlots,
+            uniqueColorSubsetCount: subsets.count,
+            allActorsInsideSafeBounds: allInside,
+            uiIntersectionCount: uiIntersections,
+            negativeSpaceIntersectionCount: negativeIntersections,
+            borderPeak: actorDifference.maximumAbsoluteLuminance(borderWidth: 2),
+            uiExclusionPeak: actorDifference.maximumAbsoluteLuminance(
+                in: scene.compositionPlan.uiExclusionRegion
+            )
+        )
+    }
+
+    var description: String {
+        "materials=\(materialCounts) palettes=\(paletteSlotCounts) "
+            + "uniqueSubsets=\(uniqueColorSubsetCount) safe=\(allActorsInsideSafeBounds) "
+            + "uiIntersections=\(uiIntersectionCount) negativeIntersections=\(negativeSpaceIntersectionCount) "
+            + "borderPeak=\(borderPeak) uiPeak=\(uiExclusionPeak)"
+    }
+}
+
+private struct PostRenderResult {
+    let uniforms: DayObjectsPostUniforms
+    let renderedActorCount: Int
+    let output: PostPixelCapture
+    let noGrain: PostPixelCapture
+    let productionSRGB: DisplayPixelCapture
+}
+
+private struct DisplayPixelCapture {
+    let width: Int
+    let height: Int
+    let rgb: [SIMD3<UInt8>]
+
+    func maximumDisplayByteDifference(from linearCapture: PostPixelCapture) -> Int {
+        precondition(width == linearCapture.width && height == linearCapture.height)
+        return zip(rgb, linearCapture.displayRGBBytes).reduce(0) { maximum, pair in
+            max(maximum, [
+                abs(Int(pair.0.x) - Int(pair.1.x)),
+                abs(Int(pair.0.y) - Int(pair.1.y)),
+                abs(Int(pair.0.z) - Int(pair.1.z))
+            ].max() ?? 0)
+        }
+    }
+}
+
+private struct PostPixelCapture {
+    let width: Int
+    let height: Int
+    let rgb: [SIMD3<Float>]
+    let checksum: UInt64
+
+    var structuralSharpness: Double {
+        luminanceField.boxBlurred(radius: 1).neighborDifferenceEnergy
+    }
+
+    var luminanceField: PostLuminanceField {
+        PostLuminanceField(
+            width: width,
+            height: height,
+            values: rgb.map {
+                Double($0.x) * 0.2126 + Double($0.y) * 0.7152 + Double($0.z) * 0.0722
+            }
+        )
+    }
+
+    func difference(from other: PostPixelCapture) -> PostLuminanceField {
+        precondition(width == other.width && height == other.height)
+        let lhs = luminanceField.values
+        let rhs = other.luminanceField.values
+        return PostLuminanceField(
+            width: width,
+            height: height,
+            values: zip(lhs, rhs).map(-)
+        )
+    }
+
+    func meanAbsoluteDifference(from other: PostPixelCapture) -> Double {
+        precondition(width == other.width && height == other.height)
+        let total = zip(rgb, other.rgb).reduce(0.0) { result, pair in
+            result
+                + abs(Double(pair.0.x - pair.1.x))
+                + abs(Double(pair.0.y - pair.1.y))
+                + abs(Double(pair.0.z - pair.1.z))
+        }
+        return total / Double(max(rgb.count * 3, 1))
+    }
+
+    var displayRGBBytes: [SIMD3<UInt8>] {
+        rgb.map { color in
+            SIMD3(
+                Self.displayByte(color.x),
+                Self.displayByte(color.y),
+                Self.displayByte(color.z)
+            )
+        }
+    }
+
+    func pngData() throws -> Data {
+        let displayBytes = displayRGBBytes.flatMap { color -> [UInt8] in
+            [color.x, color.y, color.z, 255]
+        }
+        let provider = try XCTUnwrap(CGDataProvider(data: Data(displayBytes) as CFData))
+        let image = try XCTUnwrap(CGImage(
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: false,
+            intent: .defaultIntent
+        ))
+        let output = NSMutableData()
+        let destination = try XCTUnwrap(CGImageDestinationCreateWithData(
+            output,
+            UTType.png.identifier as CFString,
+            1,
+            nil
+        ))
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else {
+            throw NSError(domain: "DayObjectsVisualMatrix", code: 1)
+        }
+        return output as Data
+    }
+
+    private static func displayByte(_ component: Float) -> UInt8 {
+        let linear = min(max(component.isFinite ? component : 0, 0), 1)
+        let display = linear <= 0.003_130_8
+            ? linear * 12.92
+            : 1.055 * pow(linear, 1 / 2.4) - 0.055
+        return UInt8((min(max(display, 0), 1) * 255).rounded())
+    }
+}
+
+private struct DayObjectsPerceptualSignature: CustomStringConvertible {
+    let meanRGB: SIMD3<Double>
+    let meanLuminance: Double
+    let luminanceDeviation: Double
+    let lowLuminance: Double
+    let highLuminance: Double
+    let edgeEnergy: Double
+    let colorfulness: Double
+    let coarseLuminance: [Double]
+    let actorInkFraction: Double
+    let actorEnergy: Double
+    let borderActorPeak: Double
+    let negativeSpaceActorPeak: Double
+    let exclusionActorPeak: Double
+
+    init(
+        capture: PostPixelCapture,
+        actorDifference: PostLuminanceField,
+        negativeSpaceRegion: DayObjectNormalizedRect,
+        exclusionRegion: DayObjectNormalizedRect
+    ) {
+        let count = Double(max(capture.rgb.count, 1))
+        meanRGB = capture.rgb.reduce(.zero) { partial, color in
+            partial + SIMD3(Double(color.x), Double(color.y), Double(color.z))
+        } / count
+        let luminance = capture.luminanceField
+        meanLuminance = luminance.mean
+        luminanceDeviation = luminance.standardDeviation
+        lowLuminance = luminance.percentile(0.10)
+        highLuminance = luminance.percentile(0.90)
+        edgeEnergy = luminance.neighborDifferenceEnergy
+        colorfulness = capture.rgb.reduce(0) { partial, color in
+            partial + Double(max(color.x, max(color.y, color.z)) - min(color.x, min(color.y, color.z)))
+        } / count
+        coarseLuminance = luminance.coarseAverages(columns: 4, rows: 3)
+        actorInkFraction = Double(actorDifference.pixelCount(above: 0.002))
+            / Double(max(actorDifference.values.count, 1))
+        actorEnergy = actorDifference.meanAbsoluteLuminance
+        borderActorPeak = actorDifference.maximumAbsoluteLuminance(borderWidth: 2)
+        negativeSpaceActorPeak = actorDifference.maximumAbsoluteLuminance(in: negativeSpaceRegion)
+        exclusionActorPeak = actorDifference.maximumAbsoluteLuminance(in: exclusionRegion)
+    }
+
+    init(
+        meanRGB: SIMD3<Double>,
+        meanLuminance: Double,
+        luminanceDeviation: Double,
+        lowLuminance: Double,
+        highLuminance: Double,
+        edgeEnergy: Double,
+        colorfulness: Double,
+        coarseLuminance: [Double],
+        actorInkFraction: Double,
+        actorEnergy: Double,
+        borderActorPeak: Double,
+        negativeSpaceActorPeak: Double,
+        exclusionActorPeak: Double
+    ) {
+        self.meanRGB = meanRGB
+        self.meanLuminance = meanLuminance
+        self.luminanceDeviation = luminanceDeviation
+        self.lowLuminance = lowLuminance
+        self.highLuminance = highLuminance
+        self.edgeEnergy = edgeEnergy
+        self.colorfulness = colorfulness
+        self.coarseLuminance = coarseLuminance
+        self.actorInkFraction = actorInkFraction
+        self.actorEnergy = actorEnergy
+        self.borderActorPeak = borderActorPeak
+        self.negativeSpaceActorPeak = negativeSpaceActorPeak
+        self.exclusionActorPeak = exclusionActorPeak
+    }
+
+    func mismatches(from baseline: Self) -> [String] {
+        var result = [String]()
+        func compare(_ name: String, _ actual: Double, _ expected: Double, tolerance: Double) {
+            if abs(actual - expected) > tolerance {
+                result.append("\(name)=\(actual) expected=\(expected)±\(tolerance)")
+            }
+        }
+        for index in 0..<3 {
+            compare("meanRGB[\(index)]", meanRGB[index], baseline.meanRGB[index], tolerance: 0.03)
+        }
+        compare("meanLuminance", meanLuminance, baseline.meanLuminance, tolerance: 0.025)
+        compare("luminanceDeviation", luminanceDeviation, baseline.luminanceDeviation, tolerance: 0.02)
+        compare("lowLuminance", lowLuminance, baseline.lowLuminance, tolerance: 0.03)
+        compare("highLuminance", highLuminance, baseline.highLuminance, tolerance: 0.035)
+        compare("edgeEnergy", edgeEnergy, baseline.edgeEnergy, tolerance: 0.001)
+        compare("colorfulness", colorfulness, baseline.colorfulness, tolerance: 0.025)
+        if coarseLuminance.count != baseline.coarseLuminance.count {
+            result.append("coarseLuminance.count=\(coarseLuminance.count) expected=\(baseline.coarseLuminance.count)")
+        } else {
+            for index in coarseLuminance.indices {
+                compare(
+                    "coarseLuminance[\(index)]",
+                    coarseLuminance[index],
+                    baseline.coarseLuminance[index],
+                    tolerance: 0.045
+                )
+            }
+        }
+        compare("actorInkFraction", actorInkFraction, baseline.actorInkFraction, tolerance: 0.03)
+        compare("actorEnergy", actorEnergy, baseline.actorEnergy, tolerance: 0.004)
+        compare("borderActorPeak", borderActorPeak, baseline.borderActorPeak, tolerance: 0.003)
+        compare(
+            "negativeSpaceActorPeak",
+            negativeSpaceActorPeak,
+            baseline.negativeSpaceActorPeak,
+            tolerance: 0.003
+        )
+        compare("exclusionActorPeak", exclusionActorPeak, baseline.exclusionActorPeak, tolerance: 0.003)
+        return result
+    }
+
+    var description: String {
+        "meanRGB=\(meanRGB) meanLuminance=\(meanLuminance) "
+            + "luminanceDeviation=\(luminanceDeviation) low=\(lowLuminance) high=\(highLuminance) "
+            + "edge=\(edgeEnergy) colorfulness=\(colorfulness) coarse=\(coarseLuminance) "
+            + "actorInkFraction=\(actorInkFraction) actorEnergy=\(actorEnergy) "
+            + "borderPeak=\(borderActorPeak) negativePeak=\(negativeSpaceActorPeak) "
+            + "exclusionPeak=\(exclusionActorPeak)"
+    }
+}
+
+private struct DayObjectsTransitionPerceptualSignature: CustomStringConvertible {
+    let name: String
+    let renderedActorCount: Int
+    let affectedEnergy: Double
+    let meanLuminance: Double
+    let edgeEnergy: Double
+
+    init(
+        name: String,
+        renderedActorCount: Int,
+        affectedEnergy: Double,
+        capture: PostPixelCapture
+    ) {
+        self.name = name
+        self.renderedActorCount = renderedActorCount
+        self.affectedEnergy = affectedEnergy
+        meanLuminance = capture.luminanceField.mean
+        edgeEnergy = capture.luminanceField.neighborDifferenceEnergy
+    }
+
+    init(
+        name: String,
+        renderedActorCount: Int,
+        affectedEnergy: Double,
+        meanLuminance: Double,
+        edgeEnergy: Double
+    ) {
+        self.name = name
+        self.renderedActorCount = renderedActorCount
+        self.affectedEnergy = affectedEnergy
+        self.meanLuminance = meanLuminance
+        self.edgeEnergy = edgeEnergy
+    }
+
+    var description: String {
+        "\(name){actors=\(renderedActorCount), affected=\(affectedEnergy), "
+            + "mean=\(meanLuminance), edge=\(edgeEnergy)}"
+    }
+}
+
+private enum DayObjectsPerceptualBaselines {
+    struct Fixture {
+        let name: String
+        let dayKey: String
+        let categories: Set<ModernPaletteCategory>
+        let width: Int
+        let height: Int
+        let signature: DayObjectsPerceptualSignature
+    }
+
+    static var livingOrbApprovedFixtureNames: [String] { fixtures.map(\.name) }
+
+    // Captured from the current integrated shader/recipe contract on 2026-09-11.
+    // Both Xcode 26.3 local and 26.6 CI agree; PNGs are retained in xcresult.
+    // Earlier August values predated the thinner contours and palette updates.
+    static let fixtures = [
+        Fixture(
+            name: "light-phone-portrait", dayKey: "2026-08-20",
+            categories: [.pastel, .spring], width: 180, height: 390,
+            signature: DayObjectsPerceptualSignature(
+                meanRGB: SIMD3(0.5105171764406383, 0.5094009486358729, 0.471459714449369),
+                meanLuminance: 0.5068989015589044,
+                luminanceDeviation: 0.17950090994760629,
+                lowLuminance: 0.23117824707031248,
+                highLuminance: 0.76450087890625,
+                edgeEnergy: 0.003555826685420472,
+                colorfulness: 0.15310442237093239,
+                coarseLuminance: [0.609605587990784, 0.6343811188276257, 0.5966449330574758, 0.7826207823308964, 0.528328713115985, 0.2945191979448371, 0.2782679372704664, 0.5717715716437963, 0.5250249382595489, 0.4247738713691915, 0.42355026188568334, 0.4132979050105179],
+                actorInkFraction: 0.21934472934472934,
+                actorEnergy: 0.07268563305446687,
+                borderActorPeak: 0.0,
+                negativeSpaceActorPeak: 0.0,
+                exclusionActorPeak: 0.0
+            )
+        ),
+        Fixture(
+            name: "light-tablet-landscape", dayKey: "2026-08-20",
+            categories: [.pastel, .spring], width: 256, height: 192,
+            signature: DayObjectsPerceptualSignature(
+                meanRGB: SIMD3(0.4658000282943249, 0.49695673150320846, 0.44451013455788296),
+                meanLuminance: 0.486546172101545,
+                luminanceDeviation: 0.1856642908144332,
+                lowLuminance: 0.1569367431640625,
+                highLuminance: 0.7095380859375,
+                edgeEnergy: 0.0038374748530617697,
+                colorfulness: 0.12048385975261529,
+                coarseLuminance: [0.5702522812962536, 0.5489251456171251, 0.4669257232502101, 0.7448143860816958, 0.5257746343553062, 0.24207177401036015, 0.2271007670670746, 0.6024043646335608, 0.5455589111149315, 0.41619883303046296, 0.45874395480453933, 0.4897832899570465],
+                actorInkFraction: 0.2641805013020833,
+                actorEnergy: 0.09357249134182953,
+                borderActorPeak: 0.0,
+                negativeSpaceActorPeak: 0.0,
+                exclusionActorPeak: 0.0
+            )
+        ),
+        Fixture(
+            name: "dark-phone-portrait", dayKey: "2026-08-21",
+            categories: [.winter, .cold], width: 180, height: 390,
+            signature: DayObjectsPerceptualSignature(
+                meanRGB: SIMD3(0.13243023081722421, 0.1775000482542902, 0.28612894433176417),
+                meanLuminance: 0.17576121136396383,
+                luminanceDeviation: 0.09192660329471572,
+                lowLuminance: 0.09234310913085937,
+                highLuminance: 0.32710566406249997,
+                edgeEnergy: 0.0027467955803108937,
+                colorfulness: 0.18012096155063378,
+                coarseLuminance: [0.11287413822689207, 0.09860286357181915, 0.11171312639181033, 0.17035548585549395, 0.19012563319696885, 0.24230802900056797, 0.19413421953667515, 0.18120499086715866, 0.26613346649430786, 0.17321785039292006, 0.13738381604629932, 0.23108091678665021],
+                actorInkFraction: 0.5894586894586895,
+                actorEnergy: 0.07368726947138744,
+                borderActorPeak: 0.20831971435546878,
+                negativeSpaceActorPeak: 0.0,
+                exclusionActorPeak: 0.0
+            )
+        ),
+        Fixture(
+            name: "dark-tablet-landscape", dayKey: "2026-08-21",
+            categories: [.winter, .cold], width: 256, height: 192,
+            signature: DayObjectsPerceptualSignature(
+                meanRGB: SIMD3(0.13347830468167862, 0.14979260135442019, 0.2801169343292713),
+                meanLuminance: 0.15573359872257914,
+                luminanceDeviation: 0.08189328995586118,
+                lowLuminance: 0.085829150390625,
+                highLuminance: 0.23211665039062496,
+                edgeEnergy: 0.0027354476875070598,
+                colorfulness: 0.17685512267053127,
+                coarseLuminance: [0.14833703198134898, 0.11449093053787925, 0.1084606456115842, 0.15033067197054684, 0.1553697140097619, 0.16455226742327236, 0.1482896757304668, 0.18179636600911656, 0.2957564740270372, 0.11188703547194602, 0.12222552356570947, 0.16730684833228593],
+                actorInkFraction: 0.7490234375,
+                actorEnergy: 0.08605622735967189,
+                borderActorPeak: 0.24611184082031246,
+                negativeSpaceActorPeak: 0.0,
+                exclusionActorPeak: 0.0
+            )
+        ),
+    ]
+
+    static let transitionSignatures = [
+        DayObjectsTransitionPerceptualSignature(
+            name: "insertion-before", renderedActorCount: 4,
+            affectedEnergy: 0.0, meanLuminance: 0.6029466154180115, edgeEnergy: 0.0018754158990973643
+        ),
+        DayObjectsTransitionPerceptualSignature(
+            name: "insertion-during", renderedActorCount: 5,
+            affectedEnergy: 0.0, meanLuminance: 0.6039267072427574, edgeEnergy: 0.0018742652153295384
+        ),
+        DayObjectsTransitionPerceptualSignature(
+            name: "insertion-after", renderedActorCount: 5,
+            affectedEnergy: 0.005044054849054094, meanLuminance: 0.6003762945637459, edgeEnergy: 0.0020291412931658856
+        ),
+        DayObjectsTransitionPerceptualSignature(
+            name: "removal-before", renderedActorCount: 5,
+            affectedEnergy: 0.006492164290561348, meanLuminance: 0.6129603774330209, edgeEnergy: 0.002078692657777942
+        ),
+        DayObjectsTransitionPerceptualSignature(
+            name: "removal-during", renderedActorCount: 5,
+            affectedEnergy: 0.005172063374933795, meanLuminance: 0.6153641504925977, edgeEnergy: 0.002056225822495682
+        ),
+        DayObjectsTransitionPerceptualSignature(
+            name: "removal-after", renderedActorCount: 4,
+            affectedEnergy: 0.0, meanLuminance: 0.6220932359819299, edgeEnergy: 0.0018957555054073835
+        ),
+        DayObjectsTransitionPerceptualSignature(
+            name: "capped-replacement-before", renderedActorCount: 10,
+            affectedEnergy: 0.0, meanLuminance: 0.5982973951618152, edgeEnergy: 0.0028167191474070927
+        ),
+        DayObjectsTransitionPerceptualSignature(
+            name: "capped-replacement-during", renderedActorCount: 10,
+            affectedEnergy: 0.003343150888350878, meanLuminance: 0.6022156706342339, edgeEnergy: 0.0027824286434179352
+        ),
+        DayObjectsTransitionPerceptualSignature(
+            name: "capped-replacement-after", renderedActorCount: 10,
+            affectedEnergy: 0.0031557797911654513, meanLuminance: 0.6042853665127332, edgeEnergy: 0.0026661577495016493
+        ),
+    ]
+
+    static func transitionMismatches(
+        _ actual: [DayObjectsTransitionPerceptualSignature]
+    ) -> [String] {
+        var result = [String]()
+        let actualByName = Dictionary(uniqueKeysWithValues: actual.map { ($0.name, $0) })
+        let expectedNames = Set(transitionSignatures.map(\.name))
+        for name in actualByName.keys.sorted() where !expectedNames.contains(name) {
+            result.append("unexpected \(name)")
+        }
+        for expected in transitionSignatures {
+            guard let value = actualByName[expected.name] else {
+                result.append("missing \(expected.name)")
+                continue
+            }
+            if value.renderedActorCount != expected.renderedActorCount {
+                result.append("\(expected.name).actors=\(value.renderedActorCount) expected=\(expected.renderedActorCount)")
+            }
+            let affectedTolerance = max(0.000_15, expected.affectedEnergy * 0.25)
+            if abs(value.affectedEnergy - expected.affectedEnergy) > affectedTolerance {
+                result.append("\(expected.name).affected=\(value.affectedEnergy) expected=\(expected.affectedEnergy)±\(affectedTolerance)")
+            }
+            if abs(value.meanLuminance - expected.meanLuminance) > 0.025 {
+                result.append("\(expected.name).mean=\(value.meanLuminance) expected=\(expected.meanLuminance)±0.025")
+            }
+            if abs(value.edgeEnergy - expected.edgeEnergy) > 0.001 {
+                result.append("\(expected.name).edge=\(value.edgeEnergy) expected=\(expected.edgeEnergy)±0.001")
+            }
+        }
+        return result
+    }
+
+}
+
+private struct PostLuminanceField {
+    let width: Int
+    let height: Int
+    let values: [Double]
+
+    var meanAbsoluteLuminance: Double {
+        values.reduce(0) { $0 + abs($1) } / Double(max(values.count, 1))
+    }
+
+    var maximumAbsoluteLuminance: Double {
+        values.reduce(0) { max($0, abs($1)) }
+    }
+
+    var mean: Double {
+        values.reduce(0, +) / Double(max(values.count, 1))
+    }
+
+    var standardDeviation: Double {
+        let average = mean
+        return sqrt(values.reduce(0) { $0 + pow($1 - average, 2) } / Double(max(values.count, 1)))
+    }
+
+    func correlation(with other: PostLuminanceField) -> Double {
+        precondition(width == other.width && height == other.height)
+        let lhsMean = mean
+        let rhsMean = other.mean
+        var numerator = 0.0
+        var lhsEnergy = 0.0
+        var rhsEnergy = 0.0
+        for (lhs, rhs) in zip(values, other.values) {
+            let centeredLHS = lhs - lhsMean
+            let centeredRHS = rhs - rhsMean
+            numerator += centeredLHS * centeredRHS
+            lhsEnergy += centeredLHS * centeredLHS
+            rhsEnergy += centeredRHS * centeredRHS
+        }
+        return numerator / max(sqrt(lhsEnergy * rhsEnergy), 0.000_000_000_001)
+    }
+
+    func percentile(_ fraction: Double) -> Double {
+        guard !values.isEmpty else { return 0 }
+        let sorted = values.sorted()
+        let index = min(max(Int((fraction * Double(sorted.count - 1)).rounded()), 0), sorted.count - 1)
+        return sorted[index]
+    }
+
+    func pixelCount(above threshold: Double) -> Int {
+        values.reduce(0) { $0 + (abs($1) > threshold ? 1 : 0) }
+    }
+
+    func maximumAbsoluteLuminance(borderWidth rawBorderWidth: Int) -> Double {
+        let borderWidth = min(max(rawBorderWidth, 1), min(width, height))
+        var maximum = 0.0
+        for y in 0..<height {
+            for x in 0..<width
+            where x < borderWidth || x >= width - borderWidth
+                || y < borderWidth || y >= height - borderWidth {
+                maximum = max(maximum, abs(self[x, y]))
+            }
+        }
+        return maximum
+    }
+
+    func maximumAbsoluteLuminance(in region: DayObjectNormalizedRect) -> Double {
+        let minX = min(max(Int((region.minX * Double(width)).rounded(.down)), 0), width)
+        let maxX = min(max(Int((region.maxX * Double(width)).rounded(.up)), 0), width)
+        let minY = min(max(Int((region.minY * Double(height)).rounded(.down)), 0), height)
+        let maxY = min(max(Int((region.maxY * Double(height)).rounded(.up)), 0), height)
+        guard minX < maxX, minY < maxY else { return 0 }
+        var maximum = 0.0
+        for y in minY..<maxY {
+            for x in minX..<maxX {
+                maximum = max(maximum, abs(self[x, y]))
+            }
+        }
+        return maximum
+    }
+
+    func coarseAverages(columns: Int, rows: Int) -> [Double] {
+        precondition(columns > 0 && rows > 0)
+        return (0..<rows).flatMap { row in
+            (0..<columns).map { column in
+                let minX = column * width / columns
+                let maxX = max((column + 1) * width / columns, minX + 1)
+                let minY = row * height / rows
+                let maxY = max((row + 1) * height / rows, minY + 1)
+                var total = 0.0
+                for y in minY..<min(maxY, height) {
+                    for x in minX..<min(maxX, width) {
+                        total += self[x, y]
+                    }
+                }
+                let sampleCount = max((min(maxX, width) - minX) * (min(maxY, height) - minY), 1)
+                return total / Double(sampleCount)
+            }
+        }
+    }
+
+    var neighborDifferenceEnergy: Double {
+        var total = 0.0
+        var count = 0
+        for y in 0..<height {
+            for x in 0..<width {
+                let value = self[x, y]
+                if x + 1 < width {
+                    total += abs(value - self[x + 1, y])
+                    count += 1
+                }
+                if y + 1 < height {
+                    total += abs(value - self[x, y + 1])
+                    count += 1
+                }
+            }
+        }
+        return total / Double(max(count, 1))
+    }
+
+    subscript(x: Int, y: Int) -> Double {
+        values[y * width + x]
+    }
+
+    func boxBlurred(radius: Int) -> PostLuminanceField {
+        guard radius > 0 else { return self }
+        var blurred = [Double](repeating: 0, count: values.count)
+        for y in 0..<height {
+            for x in 0..<width {
+                var total = 0.0
+                var count = 0
+                for sampleY in max(y - radius, 0)...min(y + radius, height - 1) {
+                    for sampleX in max(x - radius, 0)...min(x + radius, width - 1) {
+                        total += self[sampleX, sampleY]
+                        count += 1
+                    }
+                }
+                blurred[y * width + x] = total / Double(count)
+            }
+        }
+        return PostLuminanceField(width: width, height: height, values: blurred)
+    }
+}

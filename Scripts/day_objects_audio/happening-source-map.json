@@ -1,0 +1,2031 @@
+{
+  "schemaVersion": 1,
+  "rendererVersion": "happening-bank-v3",
+  "vcslRevision": "c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e",
+  "vcslSourceURL": "https://github.com/sgossner/VCSL",
+  "vcslLicenseFilename": "VCSL-CC0-1.0.txt",
+  "renderFormat": {
+    "sampleRateHz": 44100,
+    "channels": 1,
+    "bitDepth": 16,
+    "peakDBFS": -6.0,
+    "fadeMilliseconds": 5,
+    "maximumDurationSeconds": 4.5,
+    "tailTaperMilliseconds": 1000,
+    "tailBoundaryRMSDBFS": -45.0,
+    "onsetRMSDBFS": -15.0,
+    "dcCeilingDBFS": -50.0,
+    "maximumGainDB": 12.0,
+    "masteringTargets": {
+      "tonal-organic": {
+        "rmsMinDBFS": -22.0,
+        "rmsMaxDBFS": -18.0
+      },
+      "texture": {
+        "rmsMinDBFS": -26.0,
+        "rmsMaxDBFS": -21.0
+      }
+    },
+    "resampler": {
+      "algorithm": "windowed-sinc-bandlimited",
+      "taps": 32,
+      "phases": 1024,
+      "window": "blackman",
+      "coefficientDecimalPlaces": 15
+    }
+  },
+  "recipes": [
+    {
+      "id": 1,
+      "sourceKey": "project-authored",
+      "seed": 1,
+      "rootMIDIs": [
+        72,
+        75,
+        78,
+        81
+      ],
+      "definition": {
+        "id": 1,
+        "kind": "analog-ping",
+        "attackTopology": "triangle-sine-closing-filter",
+        "tail": {
+          "kind": "tape-echo",
+          "durationSeconds": 0.58
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/01/C5.wav",
+          "rootMIDI": 72,
+          "sha256": "f5cb4da97f30c580022590df1892dfd9f4a6d6523c944843af0313b4fb6466d8"
+        },
+        {
+          "path": "Happenings/01/DSharp5.wav",
+          "rootMIDI": 75,
+          "sha256": "956cd698c210a5004f389d4e0c1134790af0e2fc1c864101a8384c4923589e83"
+        },
+        {
+          "path": "Happenings/01/FSharp5.wav",
+          "rootMIDI": 78,
+          "sha256": "91b615a0c13d79151b4b503dfa6420467d913777ec791fe8991b5015a98b3398"
+        },
+        {
+          "path": "Happenings/01/A5.wav",
+          "rootMIDI": 81,
+          "sha256": "87343d8bbefb4cf040e12be0fcb177fcf46d6653adbcb6fb89f4723fe6e57589"
+        }
+      ],
+      "definitionSha256": "155a96f4549b40a23987fb8f111f2d79ec57c780e2a1a00ee72eb84fd96f4acf",
+      "renderIdentitySha256": "8fc5253fe88da52815fb45c61aa7ce3eae768cda0a39254c6190a517fcca681d",
+      "workingName": "Warm analog ping",
+      "paletteKind": "synth",
+      "topology": "analog-ping",
+      "attackTopology": "triangle-sine-closing-filter",
+      "tailTopology": "tape-echo",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "tape-echo",
+        "durationSeconds": 0.58
+      },
+      "input": null
+    },
+    {
+      "id": 2,
+      "sourceKey": "project-authored",
+      "seed": 2,
+      "rootMIDIs": [
+        72,
+        75,
+        78,
+        81
+      ],
+      "definition": {
+        "id": 2,
+        "kind": "fm-droplet",
+        "attackTopology": "fm-falling-index",
+        "tail": {
+          "kind": "dark-diffusion",
+          "durationSeconds": 1.32
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/02/C5.wav",
+          "rootMIDI": 72,
+          "sha256": "5748af97d6a92342104473d80bd18b20640c296edcfb18fd947ca1f837a56553"
+        },
+        {
+          "path": "Happenings/02/DSharp5.wav",
+          "rootMIDI": 75,
+          "sha256": "29cf6b4fed50584f722ebd9dad450388d69ac365deb0833c974ff2c78551615a"
+        },
+        {
+          "path": "Happenings/02/FSharp5.wav",
+          "rootMIDI": 78,
+          "sha256": "4e3817f30c5055e90e9b5804bc4a9898da74b7ef18d8569be1691f00fd81bfd6"
+        },
+        {
+          "path": "Happenings/02/A5.wav",
+          "rootMIDI": 81,
+          "sha256": "8f91c0e8082ea817b48c5140cd3a25e32cbac68f5a1f0a6176aa42b5e2539949"
+        }
+      ],
+      "definitionSha256": "e35820b7884f4cb166fa657f90e6a1506f048593dc772661dc6b50a2ef98f346",
+      "renderIdentitySha256": "01c08157a3cf5ede4d9abf7b38a91cbf0c36e914abfd3669a3851c1fef2b90d8",
+      "workingName": "Glass FM droplet",
+      "paletteKind": "synth",
+      "topology": "fm-droplet",
+      "attackTopology": "fm-falling-index",
+      "tailTopology": "dark-diffusion",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "dark-diffusion",
+        "durationSeconds": 1.32
+      },
+      "input": null
+    },
+    {
+      "id": 3,
+      "sourceKey": "project-authored",
+      "seed": 3,
+      "rootMIDIs": [
+        72,
+        75,
+        78,
+        81
+      ],
+      "definition": {
+        "id": 3,
+        "kind": "pulse-pluck",
+        "attackTopology": "lowpass-impulse",
+        "tail": {
+          "kind": "short-room",
+          "durationSeconds": 0.9
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/03/C5.wav",
+          "rootMIDI": 72,
+          "sha256": "8afadb95e566c29ee30e402f3b317cedb6b5214e88cbd7ac7e5c112f7a0a1f35"
+        },
+        {
+          "path": "Happenings/03/DSharp5.wav",
+          "rootMIDI": 75,
+          "sha256": "a2e93701aeb80f094695ed1c70ad624381385af1a988ab33dd455e7c61d8566d"
+        },
+        {
+          "path": "Happenings/03/FSharp5.wav",
+          "rootMIDI": 78,
+          "sha256": "55590e2190bb5dfb705ed38ac3f665dbc1634c1784641a66eb1de4e3f2c692fd"
+        },
+        {
+          "path": "Happenings/03/A5.wav",
+          "rootMIDI": 81,
+          "sha256": "3933dc5fb8d971abea06f456d2896e913386966a37f25eb3626d5d2e37af1918"
+        }
+      ],
+      "definitionSha256": "9132aadd8ac6005523a58f8001064b92948627623f4fe473894a0f3e8128c490",
+      "renderIdentitySha256": "5405e08af3eb169dc669af2c5a11fde405326a6d2b9b53db71abaa15cab85901",
+      "workingName": "Muted pulse pluck",
+      "paletteKind": "synth",
+      "topology": "pulse-pluck",
+      "attackTopology": "lowpass-impulse",
+      "tailTopology": "short-room",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "short-room",
+        "durationSeconds": 0.9
+      },
+      "input": null
+    },
+    {
+      "id": 4,
+      "sourceKey": "project-authored",
+      "seed": 4,
+      "rootMIDIs": [
+        72,
+        75,
+        78,
+        81
+      ],
+      "definition": {
+        "id": 4,
+        "kind": "waveguide-string",
+        "attackTopology": "waveguide-noise-excitation",
+        "tail": {
+          "kind": "dry-damping",
+          "durationSeconds": 0.88
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/04/C5.wav",
+          "rootMIDI": 72,
+          "sha256": "ee428f0d5a41a53f6ec4e86b0e655c02010638c477292826d16fb295b1b4933c"
+        },
+        {
+          "path": "Happenings/04/DSharp5.wav",
+          "rootMIDI": 75,
+          "sha256": "25345206aaec7da6fae6151907d077132c808512b0475c19ae3100b0a3d65266"
+        },
+        {
+          "path": "Happenings/04/FSharp5.wav",
+          "rootMIDI": 78,
+          "sha256": "56b1631dcfffd508ceefaafa28e284b73618e75a0eb3b54e36c6a6358b99e0a1"
+        },
+        {
+          "path": "Happenings/04/A5.wav",
+          "rootMIDI": 81,
+          "sha256": "1bee35a0c18dd9e5cc50543476a2bd2630fc6c4c70bba5aa2d9b5e9f1d01f0cd"
+        }
+      ],
+      "definitionSha256": "d69c2025f7e3d7341c88c070085785ac173b1ff945ce1ccf8b225da2a9c8588c",
+      "renderIdentitySha256": "06e1d9f88fd01d4217250b981314e61e248deb89f586f26765e26031b1eaaabd",
+      "workingName": "Hollow string",
+      "paletteKind": "synth",
+      "topology": "waveguide-string",
+      "attackTopology": "waveguide-noise-excitation",
+      "tailTopology": "dry-damping",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "dry-damping",
+        "durationSeconds": 0.88
+      },
+      "input": null
+    },
+    {
+      "id": 5,
+      "sourceKey": "project-authored",
+      "seed": 5,
+      "rootMIDIs": [
+        72,
+        75,
+        78,
+        81
+      ],
+      "definition": {
+        "id": 5,
+        "kind": "reed-blip",
+        "attackTopology": "bandpassed-breath-settle",
+        "tail": {
+          "kind": "filtered-breath",
+          "durationSeconds": 1.1
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/05/C5.wav",
+          "rootMIDI": 72,
+          "sha256": "7ca3c04833bb35d2fc55b619283665df7fdabbc36bd06481a259ce7b7cc1f618"
+        },
+        {
+          "path": "Happenings/05/DSharp5.wav",
+          "rootMIDI": 75,
+          "sha256": "94edcf41393a22388a20ee907838915b34d156598241d52259fea9f22a3577f8"
+        },
+        {
+          "path": "Happenings/05/FSharp5.wav",
+          "rootMIDI": 78,
+          "sha256": "96f09bce498dfdce33b2b292ed7c153d0a7fc23caa1f791e587c4efd3c3fb4ed"
+        },
+        {
+          "path": "Happenings/05/A5.wav",
+          "rootMIDI": 81,
+          "sha256": "09099e53b2caaf5820901e7e2e576725115ab6084724dcf012a38aa47595f376"
+        }
+      ],
+      "definitionSha256": "ed2b74d43cb7f87c62386c72d7106f3928ce4ece82be053e44c70686241bc2d5",
+      "renderIdentitySha256": "856080f0c6ee3da511bc7976cbd9181aa08bf83c5860ccb5e7f7496bc5ef968d",
+      "workingName": "Air reed blip",
+      "paletteKind": "synth",
+      "topology": "reed-blip",
+      "attackTopology": "bandpassed-breath-settle",
+      "tailTopology": "filtered-breath",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "filtered-breath",
+        "durationSeconds": 1.1
+      },
+      "input": null
+    },
+    {
+      "id": 6,
+      "sourceKey": "project-authored",
+      "seed": 6,
+      "rootMIDIs": [
+        72,
+        75,
+        78,
+        81
+      ],
+      "definition": {
+        "id": 6,
+        "kind": "reverse-pluck",
+        "attackTopology": "reverse-triangle-swell",
+        "tail": {
+          "kind": "reverse-bloom",
+          "durationSeconds": 1.15
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/06/C5.wav",
+          "rootMIDI": 72,
+          "sha256": "3fb73e5f287a797c24f58e5d13229022c74fe03962c4be3b52daf55b95832cfe"
+        },
+        {
+          "path": "Happenings/06/DSharp5.wav",
+          "rootMIDI": 75,
+          "sha256": "7763896ed0738f5a7e71fa4912a6ca72e928f6d8bbbaa24129c68debee63c81a"
+        },
+        {
+          "path": "Happenings/06/FSharp5.wav",
+          "rootMIDI": 78,
+          "sha256": "279196004b5d5f869f9d724b0ff27d6a1b348d31fc0f871d63fdb336ed126bc4"
+        },
+        {
+          "path": "Happenings/06/A5.wav",
+          "rootMIDI": 81,
+          "sha256": "8490fcb642cb0258eecd23334acaa5bd9545f32637a437cf0e20a1a1c318776b"
+        }
+      ],
+      "definitionSha256": "3645e4ba598e46546e8d880792ed51ccefd45af249da76931d0765fd55ba2502",
+      "renderIdentitySha256": "00ed385eb7043eb26ccfb7418dbc0ea721a384886f4e0293254a4e59521fed64",
+      "workingName": "Reverse pluck bloom",
+      "paletteKind": "hybrid",
+      "topology": "reverse-pluck",
+      "attackTopology": "reverse-triangle-swell",
+      "tailTopology": "reverse-bloom",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "reverse-bloom",
+        "durationSeconds": 1.15
+      },
+      "input": null
+    },
+    {
+      "id": 7,
+      "sourceKey": "project-authored",
+      "seed": 7,
+      "rootMIDIs": [
+        60,
+        63,
+        66,
+        69
+      ],
+      "input": null,
+      "outputs": [
+        {
+          "path": "Happenings/07/C4.wav",
+          "rootMIDI": 60,
+          "sha256": "70069f80ea812fca32ad09bcc91d9d9225e26307b31b104d88acd5c3bc63da7d"
+        },
+        {
+          "path": "Happenings/07/DSharp4.wav",
+          "rootMIDI": 63,
+          "sha256": "aa6659a437dc6df3d6718fe836705e1c5dd28a95bada2ac3a9b61fe493c71bb6"
+        },
+        {
+          "path": "Happenings/07/FSharp4.wav",
+          "rootMIDI": 66,
+          "sha256": "28931f645d526b9f6a6fdc02a4fea64ce8750eca04c737a530f7c1cdf99f6095"
+        },
+        {
+          "path": "Happenings/07/A4.wav",
+          "rootMIDI": 69,
+          "sha256": "567d856850d90c03e05d3d36240a7df1b7b6e0f15d30e37e93688a404c692f70"
+        }
+      ],
+      "renderIdentitySha256": "8c4b353054d2cc6c0ba2df928683df85a2f8d01ee055af299557ad080343d084",
+      "workingName": "Wooden kalimba",
+      "paletteKind": "organic",
+      "topology": "kalimba-modal",
+      "attackTopology": "damped-thumb-wood",
+      "tailTopology": "dry-damping",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "dry-damping",
+        "durationSeconds": 0.82
+      },
+      "definition": {
+        "id": 7,
+        "kind": "kalimba-modal",
+        "attackTopology": "damped-thumb-wood",
+        "tail": {
+          "kind": "dry-damping",
+          "durationSeconds": 0.82
+        }
+      },
+      "definitionSha256": "65b30e89ea89dba61cfec14e881b0ab611014772c0d03437ca28da634bbe569a"
+    },
+    {
+      "id": 8,
+      "sourceKey": "project-authored",
+      "seed": 8,
+      "rootMIDIs": [
+        60,
+        63,
+        66,
+        69
+      ],
+      "input": null,
+      "outputs": [
+        {
+          "path": "Happenings/08/C4.wav",
+          "rootMIDI": 60,
+          "sha256": "197bafccbafe27728a89651d3daff5ce22f8943d5e86f17a3e6f6da0eb4f6ba1"
+        },
+        {
+          "path": "Happenings/08/DSharp4.wav",
+          "rootMIDI": 63,
+          "sha256": "dca7243d9dfcd67b92b1913fc464c90a14843f8ac7cc3bd087c717333b4b8f4b"
+        },
+        {
+          "path": "Happenings/08/FSharp4.wav",
+          "rootMIDI": 66,
+          "sha256": "604d9d4a7a73c0173f6cee054730cd783ca833c1af358aa331c5ed0e699ee31a"
+        },
+        {
+          "path": "Happenings/08/A4.wav",
+          "rootMIDI": 69,
+          "sha256": "24cecc5f99a2b10d52c66d73e785ffca268f0759b373e5a82332f16ec2e448ca"
+        }
+      ],
+      "renderIdentitySha256": "f8714bdd9cb93cf07c868d23bc4fa1b2388681aaed929703c70ed293a670011c",
+      "workingName": "Ceramic knock",
+      "paletteKind": "synth",
+      "topology": "ceramic-modal",
+      "attackTopology": "ceramic-damped-impulse",
+      "tailTopology": "modal-decay",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "modal-decay",
+        "durationSeconds": 1.3
+      },
+      "definition": {
+        "id": 8,
+        "kind": "ceramic-modal",
+        "attackTopology": "ceramic-damped-impulse",
+        "tail": {
+          "kind": "modal-decay",
+          "durationSeconds": 1.3
+        }
+      },
+      "definitionSha256": "08e87295d3159888fd34d8053299c82622f9436b8a5fef0576647027daeafa6c"
+    },
+    {
+      "id": 9,
+      "sourceKey": "vcsl",
+      "seed": 9,
+      "rootMIDIs": [
+        60,
+        63,
+        66,
+        69
+      ],
+      "input": {
+        "path": "09 Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_C4_soft_01.wav",
+        "rootMIDI": 60,
+        "sha256": "4d03d005166e8b366e6a983b7a4a89e0847e1d58a6d34dda35ddf74289cace94",
+        "processingGainDB": 30.0
+      },
+      "outputs": [
+        {
+          "path": "Happenings/09/C4.wav",
+          "rootMIDI": 60,
+          "sha256": "f747b8d21e906bde55795e5574872c2cb2d75e0a600ef09db8ece33b39016767",
+          "pitchSemitones": 0
+        },
+        {
+          "path": "Happenings/09/DSharp4.wav",
+          "rootMIDI": 63,
+          "sha256": "568d0707d90f753a56a5f3dbeabea7fb8e9d5817fab467b74c41e141cf468981",
+          "pitchSemitones": 3
+        },
+        {
+          "path": "Happenings/09/FSharp4.wav",
+          "rootMIDI": 66,
+          "sha256": "dcfae028d4265899e06ca6afd20e986eb014b81bbb15572f2b7c1a93b1e46f00",
+          "pitchSemitones": 6
+        },
+        {
+          "path": "Happenings/09/A4.wav",
+          "rootMIDI": 69,
+          "sha256": "1e81dca2a5ae01abb060ca13b2c3771351da7968e16f3639373afffc0552d55f",
+          "pitchSemitones": 9
+        }
+      ],
+      "renderIdentitySha256": "22ce3ccd66e9702c9c7aa9100659e989da4485c72310c62e29acd81511cbb2fe",
+      "workingName": "Soft marimba",
+      "paletteKind": "organic",
+      "topology": "vcsl-marimba-dark",
+      "attackTopology": "soft-marimba-mallet",
+      "tailTopology": "dark-diffusion",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "dark-diffusion",
+        "durationSeconds": 1.05
+      },
+      "definition": null,
+      "definitionSha256": null
+    },
+    {
+      "id": 10,
+      "sourceKey": "vcsl",
+      "seed": 10,
+      "rootMIDIs": [
+        60,
+        63,
+        66,
+        69
+      ],
+      "input": {
+        "path": "10 Idiophones/Struck Idiophones/Balafon/Soft Mallet/EthnicXylo_softM_C4_vl2_rr1_Mid.wav",
+        "rootMIDI": 60,
+        "sha256": "c46eaef41eed9c720227ec5c9e52d93bab53703c3bfd90e2e6a111cef01604c9",
+        "processingGainDB": 12.0
+      },
+      "outputs": [
+        {
+          "path": "Happenings/10/C4.wav",
+          "rootMIDI": 60,
+          "sha256": "9ad8ed4c39a2aa201cabd8374d22e0f83fc66d23dd4c30d6c95758821af5047e",
+          "pitchSemitones": 0
+        },
+        {
+          "path": "Happenings/10/DSharp4.wav",
+          "rootMIDI": 63,
+          "sha256": "b088a663c1994ac211bea4f096e1277d1a2b1918517582d6054bdd401169aaa5",
+          "pitchSemitones": 3
+        },
+        {
+          "path": "Happenings/10/FSharp4.wav",
+          "rootMIDI": 66,
+          "sha256": "04114c9db5ef88766f5abe6d9d95fc6059b7bcc8f9b5c796d6b6a4ac4a5c27a4",
+          "pitchSemitones": 6
+        },
+        {
+          "path": "Happenings/10/A4.wav",
+          "rootMIDI": 69,
+          "sha256": "5713d897df1dc7f2caa132f9530efea4a1c70a22cf9e87fa8997d823fba6aadb",
+          "pitchSemitones": 9
+        }
+      ],
+      "renderIdentitySha256": "4f6ea2afe3b29480a6b104e748f6cf9218d5472ca467d39e26e459e92b9c6389",
+      "workingName": "Balafon brush",
+      "paletteKind": "organic",
+      "topology": "vcsl-balafon-dry",
+      "attackTopology": "balafon-brush",
+      "tailTopology": "dry-damping",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "dry-damping",
+        "durationSeconds": 0.84
+      },
+      "definition": null,
+      "definitionSha256": null
+    },
+    {
+      "id": 11,
+      "sourceKey": "vcsl",
+      "seed": 11,
+      "rootMIDIs": [
+        60,
+        63,
+        66,
+        69
+      ],
+      "input": {
+        "path": "11 Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_C5_v1_rr1_Main.wav",
+        "rootMIDI": 72,
+        "sha256": "be995c1164dcbbcf83688d095864a4abd0feaa68b71d1d2e78c35f62461fc03b",
+        "processingGainDB": 18.0
+      },
+      "outputs": [
+        {
+          "path": "Happenings/11/C4.wav",
+          "rootMIDI": 60,
+          "sha256": "408e25dac90c6959fac5612726a14296d3766eb238216b709123b61f7e8da484",
+          "pitchSemitones": -12
+        },
+        {
+          "path": "Happenings/11/DSharp4.wav",
+          "rootMIDI": 63,
+          "sha256": "81e010e9dc95f463ead49d47f5805f6e0a04db6bcd8e21359b761d6c3de442eb",
+          "pitchSemitones": -9
+        },
+        {
+          "path": "Happenings/11/FSharp4.wav",
+          "rootMIDI": 66,
+          "sha256": "d852ca6a2e567e93f8c55e3761dab2b1865af771a4215696e4a0fc4c92d88868",
+          "pitchSemitones": -6
+        },
+        {
+          "path": "Happenings/11/A4.wav",
+          "rootMIDI": 69,
+          "sha256": "327d159891076b6b767841387419c2373295c05acf22e56ae2ad9b6955bbc4fb",
+          "pitchSemitones": -3
+        }
+      ],
+      "renderIdentitySha256": "6f0749b8582bd147dbe9771ecfbe8023a90f9191a936e66e60259b674b0a0946",
+      "workingName": "Muted vibraphone",
+      "paletteKind": "hybrid",
+      "topology": "vcsl-vibe-chorus",
+      "attackTopology": "muted-vibe-strike",
+      "tailTopology": "chorus-decay",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "chorus-decay",
+        "durationSeconds": 1.34
+      },
+      "definition": null,
+      "definitionSha256": null
+    },
+    {
+      "id": 12,
+      "sourceKey": "project-authored",
+      "seed": 12,
+      "rootMIDIs": [
+        60,
+        63,
+        66,
+        69
+      ],
+      "input": null,
+      "outputs": [
+        {
+          "path": "Happenings/12/C4.wav",
+          "rootMIDI": 60,
+          "sha256": "5e2b7e0e4aadf6a8f2819b2950f42f0a675cf454eb9155c759bc897be3fdff46"
+        },
+        {
+          "path": "Happenings/12/DSharp4.wav",
+          "rootMIDI": 63,
+          "sha256": "ed041f0cb0934d49ca9ac95d8381f357c82146582f13e00da8960854bda19dff"
+        },
+        {
+          "path": "Happenings/12/FSharp4.wav",
+          "rootMIDI": 66,
+          "sha256": "072054284b79bcbb5e1eba6d4ab1b2f709b14f921646650cffc76a01ce224eb7"
+        },
+        {
+          "path": "Happenings/12/A4.wav",
+          "rootMIDI": 69,
+          "sha256": "02a6f8bd65bff04455c65369702e4d8055b360a7ce8436cacbe692482e3daf25"
+        }
+      ],
+      "renderIdentitySha256": "17b31acaae8bf1643be93444560e6be75ccb05f015daabd414252f7a24585be1",
+      "workingName": "Felt key",
+      "paletteKind": "organic",
+      "topology": "felt-key",
+      "attackTopology": "felt-hammer",
+      "tailTopology": "short-room",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "short-room",
+        "durationSeconds": 0.96
+      },
+      "definition": {
+        "id": 12,
+        "kind": "felt-key",
+        "attackTopology": "felt-hammer",
+        "tail": {
+          "kind": "short-room",
+          "durationSeconds": 0.96
+        }
+      },
+      "definitionSha256": "517f61dca29ab4ab8a57d574b94de6c4b50cd4b322d7612a8465086366dc19e8"
+    },
+    {
+      "id": 13,
+      "sourceKey": "project-authored",
+      "seed": 13,
+      "rootMIDIs": [
+        72,
+        75,
+        78,
+        81
+      ],
+      "input": null,
+      "outputs": [
+        {
+          "path": "Happenings/13/C5.wav",
+          "rootMIDI": 72,
+          "sha256": "08d409db4bbe22c9aae3c106193a9de00e17033a99ed96f1cc21dfa1106abc57"
+        },
+        {
+          "path": "Happenings/13/DSharp5.wav",
+          "rootMIDI": 75,
+          "sha256": "6c83f6ec13721aab5debe4b5e0da4d9f5f4a5bc3a06ca0c9333fe719f7794693"
+        },
+        {
+          "path": "Happenings/13/FSharp5.wav",
+          "rootMIDI": 78,
+          "sha256": "b9cb2f1c6239db2e0e0974c5df97946f7494f129ae5ef3b38084a5a89fc66079"
+        },
+        {
+          "path": "Happenings/13/A5.wav",
+          "rootMIDI": 81,
+          "sha256": "dec945386883c4c09f400a4ab9d73aed7b9f4d25dac30a90d48efe422008474d"
+        }
+      ],
+      "renderIdentitySha256": "58553ffa3f3a44d1658bf4162df95fa8c7b9d6ae1b52accc79184cada1705c4b",
+      "workingName": "Soft metal bowl",
+      "paletteKind": "hybrid",
+      "topology": "metal-bowl-modal",
+      "attackTopology": "damped-metal-impulse",
+      "tailTopology": "modal-decay",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "modal-decay",
+        "durationSeconds": 1.42
+      },
+      "definition": {
+        "id": 13,
+        "kind": "metal-bowl-modal",
+        "attackTopology": "damped-metal-impulse",
+        "tail": {
+          "kind": "modal-decay",
+          "durationSeconds": 1.42
+        }
+      },
+      "definitionSha256": "43b3636d2758f4e12ebfefecb0a17eb25494c95097420d98e8a28492b3170612"
+    },
+    {
+      "id": 14,
+      "sourceKey": "project-authored",
+      "seed": 14,
+      "rootMIDIs": [
+        72,
+        75,
+        78,
+        81
+      ],
+      "input": null,
+      "outputs": [
+        {
+          "path": "Happenings/14/C5.wav",
+          "rootMIDI": 72,
+          "sha256": "5da8dcf1a20525cd2ae0c1ee2bd43915327a50370ed1465d1e9ad4d007655b11"
+        },
+        {
+          "path": "Happenings/14/DSharp5.wav",
+          "rootMIDI": 75,
+          "sha256": "cb18ab7e57b3b796c5d413556c4a24a7f6ab04a1f9ed6ae423aa7e7bf4374961"
+        },
+        {
+          "path": "Happenings/14/FSharp5.wav",
+          "rootMIDI": 78,
+          "sha256": "84b413d9b3dd1e90f7afd23dffc4b276131b1797661366dbff6b75842c9fd793"
+        },
+        {
+          "path": "Happenings/14/A5.wav",
+          "rootMIDI": 81,
+          "sha256": "27c7da24cb06a09c1d40161baf1ba576b0580b0776b940acbb5d415cfc0793bf"
+        }
+      ],
+      "renderIdentitySha256": "9534b8d68790c42d1d4f86000bce88aa65870508060fa7ac6b46edc28fdd1211",
+      "workingName": "Glass tap bloom",
+      "paletteKind": "hybrid",
+      "topology": "glass-reverse",
+      "attackTopology": "tiny-glass-tap",
+      "tailTopology": "reverse-bloom",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "reverse-bloom",
+        "durationSeconds": 1.22
+      },
+      "definition": {
+        "id": 14,
+        "kind": "glass-reverse",
+        "attackTopology": "tiny-glass-tap",
+        "tail": {
+          "kind": "reverse-bloom",
+          "durationSeconds": 1.22
+        }
+      },
+      "definitionSha256": "74d6f6cb697e4b5611e936fea54f5794d561ca7beb609268e8fdfbad89833c9e"
+    },
+    {
+      "id": 15,
+      "sourceKey": "project-authored",
+      "seed": 15,
+      "rootMIDIs": [
+        72,
+        75,
+        78,
+        81
+      ],
+      "input": null,
+      "outputs": [
+        {
+          "path": "Happenings/15/C5.wav",
+          "rootMIDI": 72,
+          "sha256": "824e7ef51af78ee9e000fcf2acf5400cd161cfce522334b92f11895de018b957"
+        },
+        {
+          "path": "Happenings/15/DSharp5.wav",
+          "rootMIDI": 75,
+          "sha256": "aa7faefb14c58fc9fb9278acda9edf3f3db50a2776a56c6705919bfe2d0813e1"
+        },
+        {
+          "path": "Happenings/15/FSharp5.wav",
+          "rootMIDI": 78,
+          "sha256": "2dc0cb3aeaf4fa247f62572c111e8a699a7a6431a5cda5c268271f185f1db5db"
+        },
+        {
+          "path": "Happenings/15/A5.wav",
+          "rootMIDI": 81,
+          "sha256": "7872b1464c06ac4f7833d2cd7f1f349795d70441b86d04e06d71994936fc173c"
+        }
+      ],
+      "renderIdentitySha256": "b8198e8483268a0bd36fc9e68feb47a3226546e8be0898b33e717e39c2128693",
+      "workingName": "Chorus kalimba",
+      "paletteKind": "hybrid",
+      "topology": "chorus-kalimba",
+      "attackTopology": "plucked-tine",
+      "tailTopology": "chorus-decay",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "chorus-decay",
+        "durationSeconds": 1.28
+      },
+      "definition": {
+        "id": 15,
+        "kind": "chorus-kalimba",
+        "attackTopology": "plucked-tine",
+        "tail": {
+          "kind": "chorus-decay",
+          "durationSeconds": 1.28
+        }
+      },
+      "definitionSha256": "501c093306fc3fc7db3abc8c4021e8588d2a2cc857bc7e9fa82ad803d58d9632"
+    },
+    {
+      "id": 16,
+      "sourceKey": "project-authored",
+      "seed": 16,
+      "rootMIDIs": [
+        72,
+        75,
+        78,
+        81
+      ],
+      "input": null,
+      "outputs": [
+        {
+          "path": "Happenings/16/C5.wav",
+          "rootMIDI": 72,
+          "sha256": "eeeb6be15318293531a0f1d7c54fc469d3c12845600aff4ba6fcfe959a3b0eb0"
+        },
+        {
+          "path": "Happenings/16/DSharp5.wav",
+          "rootMIDI": 75,
+          "sha256": "61f51190e15e4e6c1b61ff2bf83585bee8c9978354b1c16fce878ef63fd65be9"
+        },
+        {
+          "path": "Happenings/16/FSharp5.wav",
+          "rootMIDI": 78,
+          "sha256": "5c70b957075e23924ca996a418c593d8b8ba0124a7f205859ca6fcd981a999f4"
+        },
+        {
+          "path": "Happenings/16/A5.wav",
+          "rootMIDI": 81,
+          "sha256": "8b6f98d45043d6af4689c795d06e9f934dfd1c5dc9f3f66860c0d03529e79ab9"
+        }
+      ],
+      "renderIdentitySha256": "30f5ff415c72f17e5adf75216612829de754922b75cbb0937bf86138b448b772",
+      "workingName": "Nylon pizzicato",
+      "paletteKind": "organic",
+      "topology": "nylon-waveguide",
+      "attackTopology": "nylon-string-excitation",
+      "tailTopology": "dark-diffusion",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "dark-diffusion",
+        "durationSeconds": 1.18
+      },
+      "definition": {
+        "id": 16,
+        "kind": "nylon-waveguide",
+        "attackTopology": "nylon-string-excitation",
+        "tail": {
+          "kind": "dark-diffusion",
+          "durationSeconds": 1.18
+        }
+      },
+      "definitionSha256": "7bebd2d2fe1cbd85c6882e6b108e6e5d9dd6d9ba90b8f9a8d5d9cd866a727fd2"
+    },
+    {
+      "id": 17,
+      "sourceKey": "vcsl",
+      "seed": 17,
+      "rootMIDIs": [
+        72,
+        75,
+        78,
+        81
+      ],
+      "input": {
+        "path": "17 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_C4_p_rr1.wav",
+        "rootMIDI": 60,
+        "sha256": "c0f357155823646012c5d86628eedf122f162f813bfeed7337e72bf1a8d37c63",
+        "processingGainDB": 13.0
+      },
+      "outputs": [
+        {
+          "path": "Happenings/17/C5.wav",
+          "rootMIDI": 72,
+          "sha256": "7fe40146df34e251129ea38de71227266e4542f973a60e587294cc109e30152a",
+          "pitchSemitones": 12
+        },
+        {
+          "path": "Happenings/17/DSharp5.wav",
+          "rootMIDI": 75,
+          "sha256": "a93ffaa176c31665048f9a6d1694dbb0d6111c516042bbac3b05a3ddaa0d48de",
+          "pitchSemitones": 15
+        },
+        {
+          "path": "Happenings/17/FSharp5.wav",
+          "rootMIDI": 78,
+          "sha256": "7fce2d43ed7a61936985358d8b14fba89d8aafcff5779e06d70c9a58688a095d",
+          "pitchSemitones": 18
+        },
+        {
+          "path": "Happenings/17/A5.wav",
+          "rootMIDI": 81,
+          "sha256": "fc61fec05e7eea75a13fba00af58cc3624688a4dd4894cc6dac8e72c04514d28",
+          "pitchSemitones": 21
+        }
+      ],
+      "renderIdentitySha256": "47e4f0453b18e0a7f8bab1aac600c0cdc0a81dde4a6b78a8fd0a8caf9ddc0d02",
+      "workingName": "Dark tubular bell",
+      "paletteKind": "organic",
+      "topology": "vcsl-tubular-dark",
+      "attackTopology": "softened-tubular-strike",
+      "tailTopology": "modal-decay",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "modal-decay",
+        "durationSeconds": 1.65
+      },
+      "definition": null,
+      "definitionSha256": null
+    },
+    {
+      "id": 18,
+      "sourceKey": "vcsl",
+      "seed": 18,
+      "rootMIDIs": [
+        72,
+        75,
+        78,
+        81
+      ],
+      "input": {
+        "path": "18 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_D4_p_rr1.wav",
+        "rootMIDI": 62,
+        "sha256": "7cae9c07be76951f643ae92370c6af0735dfdd776508b2b0ae76ae7ea3ebcd9d",
+        "processingGainDB": 26.0
+      },
+      "outputs": [
+        {
+          "path": "Happenings/18/C5.wav",
+          "rootMIDI": 72,
+          "sha256": "156a4be966709694ac4e0da2f888182b72192ea14bda859a12845212bcb97179",
+          "pitchSemitones": 10
+        },
+        {
+          "path": "Happenings/18/DSharp5.wav",
+          "rootMIDI": 75,
+          "sha256": "eb394e73dfe01102b94a90814932084b267b443e3118a2a27d7429288a56f0ce",
+          "pitchSemitones": 13
+        },
+        {
+          "path": "Happenings/18/FSharp5.wav",
+          "rootMIDI": 78,
+          "sha256": "4695510508165a4520bc603f44444f643b220041e356675da8869318c9d26ea1",
+          "pitchSemitones": 16
+        },
+        {
+          "path": "Happenings/18/A5.wav",
+          "rootMIDI": 81,
+          "sha256": "6333221c2893d5a523760619086a7e188e60db904f776428cacd2a28d9494534",
+          "pitchSemitones": 19
+        }
+      ],
+      "renderIdentitySha256": "959033221f515eec3c1647a2eb3966f3322c711db1fa86f47616fe766a7112a8",
+      "workingName": "Distant chime",
+      "paletteKind": "organic",
+      "topology": "vcsl-chime-dark",
+      "attackTopology": "slow-chime-strike",
+      "tailTopology": "dark-diffusion",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "dark-diffusion",
+        "durationSeconds": 1.72
+      },
+      "definition": null,
+      "definitionSha256": null
+    },
+    {
+      "id": 19,
+      "sourceKey": "project-authored",
+      "seed": 19,
+      "rootMIDIs": [
+        48,
+        51,
+        54,
+        57
+      ],
+      "definition": {
+        "id": 19,
+        "kind": "sub-bloom",
+        "attackTopology": "sub-sine-slow-open",
+        "tail": {
+          "kind": "dark-diffusion",
+          "durationSeconds": 1.25
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/19/C3.wav",
+          "rootMIDI": 48,
+          "sha256": "90e1fd45817376e456d820d017ad4fc218d9aa0635f5f609395f80ad2355ad5c"
+        },
+        {
+          "path": "Happenings/19/DSharp3.wav",
+          "rootMIDI": 51,
+          "sha256": "59b2137220c930a1bd4be83c98ddb047e4bf2c44e1a1edf64a5f883cf47bcc96"
+        },
+        {
+          "path": "Happenings/19/FSharp3.wav",
+          "rootMIDI": 54,
+          "sha256": "28e19df3768189aa4ffbb078b66760b9d7111b9865dd39c9c8225c7a4a20b172"
+        },
+        {
+          "path": "Happenings/19/A3.wav",
+          "rootMIDI": 57,
+          "sha256": "476d4f6978b9211f65d17a6d511ec04e9a78a8675f9d7bfa1c924d3919cb0350"
+        }
+      ],
+      "definitionSha256": "04ddbaf1bc05893ee62541735392c232b3313a6b1710aec3d3e266a0f35bdbca",
+      "renderIdentitySha256": "3e6e8f381979a4554316d405fa49158323fe4de94d80563b02e87478fb9dbecb",
+      "workingName": "Sub bloom",
+      "paletteKind": "synth",
+      "topology": "sub-bloom",
+      "attackTopology": "sub-sine-slow-open",
+      "tailTopology": "dark-diffusion",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "dark-diffusion",
+        "durationSeconds": 1.25
+      },
+      "input": null
+    },
+    {
+      "id": 20,
+      "sourceKey": "project-authored",
+      "seed": 20,
+      "rootMIDIs": [
+        48,
+        51,
+        54,
+        57
+      ],
+      "definition": {
+        "id": 20,
+        "kind": "filter-ping",
+        "attackTopology": "resonant-filter-impulse",
+        "tail": {
+          "kind": "tape-echo",
+          "durationSeconds": 1.42
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/20/C3.wav",
+          "rootMIDI": 48,
+          "sha256": "519754b2bba831e5d4bf2f83b819c1add864005e0ecb47d59087a266a5713530"
+        },
+        {
+          "path": "Happenings/20/DSharp3.wav",
+          "rootMIDI": 51,
+          "sha256": "65e747da861e260d4d8f17ed4fc77a445bf991542f57c367bfca2288044fc6fa"
+        },
+        {
+          "path": "Happenings/20/FSharp3.wav",
+          "rootMIDI": 54,
+          "sha256": "e5889cd0a57a5c30f366b7d20eb33f60aa8d3741d43c1c9214d564e3d90c3cfa"
+        },
+        {
+          "path": "Happenings/20/A3.wav",
+          "rootMIDI": 57,
+          "sha256": "96a0260bdfd24bd8fbd8e5bfa9e273e42e4cacc9bfa7c0ac39a485ea4ec8aaa3"
+        }
+      ],
+      "definitionSha256": "b75d9778c79770f3e278b483d80d78261d42cf3c77e138ba28c054712d0285f7",
+      "renderIdentitySha256": "ee30087a969654529276039cf85d6db96e09aaff58c8258ade2229ce6b5dda84",
+      "workingName": "Analog filter ping",
+      "paletteKind": "synth",
+      "topology": "filter-ping",
+      "attackTopology": "resonant-filter-impulse",
+      "tailTopology": "tape-echo",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "tape-echo",
+        "durationSeconds": 1.42
+      },
+      "input": null
+    },
+    {
+      "id": 21,
+      "sourceKey": "project-authored",
+      "seed": 21,
+      "rootMIDIs": [
+        48,
+        51,
+        54,
+        57
+      ],
+      "definition": {
+        "id": 21,
+        "kind": "formant-droplet",
+        "attackTopology": "two-formant-sine-excitation",
+        "tail": {
+          "kind": "short-room",
+          "durationSeconds": 1.02
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/21/C3.wav",
+          "rootMIDI": 48,
+          "sha256": "37d23a57ce34225fb9ad88cac13f4412503eee48160b2b9a93403895090f27bc"
+        },
+        {
+          "path": "Happenings/21/DSharp3.wav",
+          "rootMIDI": 51,
+          "sha256": "99451592f5230089877923047703b5c02101653cd2a0b6c2c53177e5da8342b2"
+        },
+        {
+          "path": "Happenings/21/FSharp3.wav",
+          "rootMIDI": 54,
+          "sha256": "4e6188e2b5911b610a1f1798001d39604582658fe6757ce3eeb98a535cecd519"
+        },
+        {
+          "path": "Happenings/21/A3.wav",
+          "rootMIDI": 57,
+          "sha256": "046664660b9f5a22c72083330a675e050f2587809fc83731efa62183c24930ac"
+        }
+      ],
+      "definitionSha256": "c98e43f362fec750362f292c1c170b30ece2c8fcc4001cb4c5584716ea4ce4ed",
+      "renderIdentitySha256": "f2030e06e5b7a7040e48c43b6634755833d768d89d87e8dcd10bc9bb2e20042e",
+      "workingName": "Vocal droplet",
+      "paletteKind": "synth",
+      "topology": "formant-droplet",
+      "attackTopology": "two-formant-sine-excitation",
+      "tailTopology": "short-room",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "short-room",
+        "durationSeconds": 1.02
+      },
+      "input": null
+    },
+    {
+      "id": 22,
+      "sourceKey": "project-authored",
+      "seed": 22,
+      "rootMIDIs": [
+        48,
+        51,
+        54,
+        57
+      ],
+      "definition": {
+        "id": 22,
+        "kind": "phase-distortion",
+        "attackTopology": "phase-index-decay",
+        "tail": {
+          "kind": "dry-damping",
+          "durationSeconds": 0.86
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/22/C3.wav",
+          "rootMIDI": 48,
+          "sha256": "4d693a8310f208146a2439fde891e025dc80d5532d26572d6444ed4aa83f0521"
+        },
+        {
+          "path": "Happenings/22/DSharp3.wav",
+          "rootMIDI": 51,
+          "sha256": "aea7bbcab1048ee4c69270e95540f67cd5b8bbebe5e4b057ab44492291e0d650"
+        },
+        {
+          "path": "Happenings/22/FSharp3.wav",
+          "rootMIDI": 54,
+          "sha256": "6ca071f003e0725fc907792ea8a75d298af249273e0fdc68f7a274782a32d224"
+        },
+        {
+          "path": "Happenings/22/A3.wav",
+          "rootMIDI": 57,
+          "sha256": "1ba4feb6f014926dc7ff24528d8e06d1c7e26df9c650b33e6cc577b7c55c342d"
+        }
+      ],
+      "definitionSha256": "7af040f9b515664fb2b709dedf799d1cad757c1e8a5d13139c80a01744a8f190",
+      "renderIdentitySha256": "f0dc8d4966b27cc0316dda1f5a623fbfa88025ea52ea7cf80062599af750266f",
+      "workingName": "Phase-distortion bead",
+      "paletteKind": "synth",
+      "topology": "phase-distortion",
+      "attackTopology": "phase-index-decay",
+      "tailTopology": "dry-damping",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "dry-damping",
+        "durationSeconds": 0.86
+      },
+      "input": null
+    },
+    {
+      "id": 23,
+      "sourceKey": "project-authored",
+      "seed": 23,
+      "rootMIDIs": [
+        48,
+        51,
+        54,
+        57
+      ],
+      "definition": {
+        "id": 23,
+        "kind": "rubber-fm",
+        "attackTopology": "downward-fm-pitch-settle",
+        "tail": {
+          "kind": "chorus-decay",
+          "durationSeconds": 1.2
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/23/C3.wav",
+          "rootMIDI": 48,
+          "sha256": "d6031782c3295e7c9dbd471f8649e7ce8245617a70dfa85a2b0cbcc595f21554"
+        },
+        {
+          "path": "Happenings/23/DSharp3.wav",
+          "rootMIDI": 51,
+          "sha256": "b45bc9553d83b869a394d50d29cb7487634719297a9c85eaa912fbb5fc4af9ff"
+        },
+        {
+          "path": "Happenings/23/FSharp3.wav",
+          "rootMIDI": 54,
+          "sha256": "f229cf4ebfc3218de18688003fa117cd6573a1b35c36a352c95b55a1ef8c912b"
+        },
+        {
+          "path": "Happenings/23/A3.wav",
+          "rootMIDI": 57,
+          "sha256": "5423ce3bf79ebf4dd6fabb859c421e5c063b4c97022df0fe4237e4d6b0c4a1a1"
+        }
+      ],
+      "definitionSha256": "3a7041032339f87db95f3c06364317b92838609b557f448cba90acb9d3788a3b",
+      "renderIdentitySha256": "7c365a2b0e7d9532217701646ff96b9ca7993c28708d3a7c645b809a6f75fb9f",
+      "workingName": "Rubber FM bubble",
+      "paletteKind": "hybrid",
+      "topology": "rubber-fm",
+      "attackTopology": "downward-fm-pitch-settle",
+      "tailTopology": "chorus-decay",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "chorus-decay",
+        "durationSeconds": 1.2
+      },
+      "input": null
+    },
+    {
+      "id": 24,
+      "sourceKey": "project-authored",
+      "seed": 24,
+      "rootMIDIs": [
+        48,
+        51,
+        54,
+        57
+      ],
+      "definition": {
+        "id": 24,
+        "kind": "harmonic-stab",
+        "attackTopology": "slow-bowed-harmonic-onset",
+        "tail": {
+          "kind": "dry-damping",
+          "durationSeconds": 0.82
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/24/C3.wav",
+          "rootMIDI": 48,
+          "sha256": "334743b972fa144c18bf461ec7ef5ed43f2f4411cd13494ba9f72e19c3f1425a"
+        },
+        {
+          "path": "Happenings/24/DSharp3.wav",
+          "rootMIDI": 51,
+          "sha256": "dc4d6010196258af15156176d7fe221665e0c434b2df4ff0399738c2dd332ff2"
+        },
+        {
+          "path": "Happenings/24/FSharp3.wav",
+          "rootMIDI": 54,
+          "sha256": "02d0407a39b21cea2a5a7d99c4825686a54a48251aebdb2d170ca1ca8cdcc7eb"
+        },
+        {
+          "path": "Happenings/24/A3.wav",
+          "rootMIDI": 57,
+          "sha256": "4171d5ef687ea1a601ff2925b890fbe0574f27bae970bf2029ec3b3bfef58541"
+        }
+      ],
+      "definitionSha256": "740755bc477f51eabcc7157ada6094f03d7044d4c4a6cff0e9268ce36ad64848",
+      "renderIdentitySha256": "89b5e2b2e778c9b7ab70fb4a78812f6c035d4d3c92b7a0e8d84363c20b69d920",
+      "workingName": "Bowed harmonic stab",
+      "paletteKind": "hybrid",
+      "topology": "harmonic-stab",
+      "attackTopology": "slow-bowed-harmonic-onset",
+      "tailTopology": "dry-damping",
+      "masteringFamily": "tonal-organic",
+      "tail": {
+        "kind": "dry-damping",
+        "durationSeconds": 0.82
+      },
+      "input": null
+    },
+    {
+      "id": 25,
+      "sourceKey": "project-authored",
+      "seed": 25,
+      "rootMIDIs": [
+        60
+      ],
+      "definition": {
+        "id": 25,
+        "kind": "breath-resonator",
+        "attackTopology": "filtered-breath-resonator",
+        "tail": {
+          "kind": "filtered-breath",
+          "durationSeconds": 1.28
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/25/noise.wav",
+          "rootMIDI": 60,
+          "sha256": "7e0bf490b0c7a96a80c3ae166020182725888b1a9d2fa277da5fcdfd6b2c5c71"
+        }
+      ],
+      "definitionSha256": "754bc55f7879fab49b85864a0a0f6a855f8c681594f2a58a2aedd7891405cd90",
+      "renderIdentitySha256": "7559dfbdfa31965ee023dd97874e2e51036cbd7e83d0ae828981ed13258a0b6b",
+      "workingName": "Breath resonator",
+      "paletteKind": "hybrid",
+      "topology": "breath-resonator",
+      "attackTopology": "filtered-breath-resonator",
+      "tailTopology": "filtered-breath",
+      "masteringFamily": "texture",
+      "tail": {
+        "kind": "filtered-breath",
+        "durationSeconds": 1.28
+      },
+      "input": null
+    },
+    {
+      "id": 26,
+      "sourceKey": "project-authored",
+      "seed": 26,
+      "rootMIDIs": [
+        60
+      ],
+      "definition": {
+        "id": 26,
+        "kind": "modal-glass-cloud",
+        "attackTopology": "bowed-modal-partials",
+        "tail": {
+          "kind": "modal-decay",
+          "durationSeconds": 1.5
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/26/noise.wav",
+          "rootMIDI": 60,
+          "sha256": "6166932886f06b75aadef5a221768c6ed2f37e13f4b93b6517a841c6a1b531f8"
+        }
+      ],
+      "definitionSha256": "132b332a7f8d3a16fd701bd85db0b666ad8b86b5b15ed7f84023e769c01bbe69",
+      "renderIdentitySha256": "d964ee3dcb11777b7364c57c25d265e2a074fd326fa7a4bb387ecb935f9094b9",
+      "workingName": "Bowed glass cloud",
+      "paletteKind": "hybrid",
+      "topology": "modal-glass-cloud",
+      "attackTopology": "bowed-modal-partials",
+      "tailTopology": "modal-decay",
+      "masteringFamily": "texture",
+      "tail": {
+        "kind": "modal-decay",
+        "durationSeconds": 1.5
+      },
+      "input": null
+    },
+    {
+      "id": 27,
+      "sourceKey": "project-authored",
+      "seed": 27,
+      "rootMIDIs": [
+        60
+      ],
+      "definition": {
+        "id": 27,
+        "kind": "granular-shimmer",
+        "attackTopology": "windowed-pitched-micrograins",
+        "tail": {
+          "kind": "dark-diffusion",
+          "durationSeconds": 1.38
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/27/noise.wav",
+          "rootMIDI": 60,
+          "sha256": "99dcbcad186ffc48910ffd5f5f0dc78ef9c3571998fabeb3755cb99f21236ff0"
+        }
+      ],
+      "definitionSha256": "5ce9db13b7ecc8aaf5dba3dc0020ecae377a896164e646c4de0d701a5fcfb51f",
+      "renderIdentitySha256": "ccc17664411c6962bac942b839190a4d8434ea9e707f79d918e544b263d7ec03",
+      "workingName": "Granular shimmer",
+      "paletteKind": "hybrid",
+      "topology": "granular-shimmer",
+      "attackTopology": "windowed-pitched-micrograins",
+      "tailTopology": "dark-diffusion",
+      "masteringFamily": "texture",
+      "tail": {
+        "kind": "dark-diffusion",
+        "durationSeconds": 1.38
+      },
+      "input": null
+    },
+    {
+      "id": 28,
+      "sourceKey": "project-authored",
+      "seed": 28,
+      "rootMIDIs": [
+        60
+      ],
+      "definition": {
+        "id": 28,
+        "kind": "reverse-glass-unpitched",
+        "attackTopology": "reversed-filtered-glass-partials",
+        "tail": {
+          "kind": "reverse-bloom",
+          "durationSeconds": 0.98
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/28/texture.wav",
+          "rootMIDI": 60,
+          "sha256": "0858108ee721ac188bfe26d7bb4c022e2311cfd409575642781d850c599c4ddc"
+        }
+      ],
+      "definitionSha256": "84f8074a99ecb0770c6eada7183b38e6027894e459c4a0aba6b3558de81e98b5",
+      "renderIdentitySha256": "78da9e5c4ec702d5b43debf2eba135e703720c7354e295e52db31778196bd18b",
+      "workingName": "Reverse glass gesture",
+      "paletteKind": "organic",
+      "topology": "reverse-glass-unpitched",
+      "attackTopology": "reversed-filtered-glass-partials",
+      "tailTopology": "reverse-bloom",
+      "masteringFamily": "texture",
+      "tail": {
+        "kind": "reverse-bloom",
+        "durationSeconds": 0.98
+      },
+      "input": null
+    },
+    {
+      "id": 29,
+      "sourceKey": "project-authored",
+      "seed": 29,
+      "rootMIDIs": [
+        60
+      ],
+      "definition": {
+        "id": 29,
+        "kind": "dust-impact",
+        "attackTopology": "particulate-under-120ms",
+        "tail": {
+          "kind": "filtered-breath",
+          "durationSeconds": 0.2
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/29/texture.wav",
+          "rootMIDI": 60,
+          "sha256": "67a17d1e6d214aabb09d2d2190c8a216a54275a5b8c17481a0b8fbe78def13a4"
+        }
+      ],
+      "definitionSha256": "c0b62079d2b742643d8c2aba75a40296a2afa6b844bd322d50591506de4578f2",
+      "renderIdentitySha256": "0b32d8ab7b7049abf674aa9f16aadae975e13a2ff008a0c550f03fa400f0d316",
+      "workingName": "Soft dust impact",
+      "paletteKind": "organic",
+      "topology": "dust-impact",
+      "attackTopology": "particulate-under-120ms",
+      "tailTopology": "filtered-breath",
+      "masteringFamily": "texture",
+      "tail": {
+        "kind": "filtered-breath",
+        "durationSeconds": 0.2
+      },
+      "input": null
+    },
+    {
+      "id": 30,
+      "sourceKey": "project-authored",
+      "seed": 30,
+      "rootMIDIs": [
+        60
+      ],
+      "definition": {
+        "id": 30,
+        "kind": "breath-exhale",
+        "attackTopology": "breath-formant-crossfade",
+        "tail": {
+          "kind": "filtered-breath",
+          "durationSeconds": 0.64
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/30/texture.wav",
+          "rootMIDI": 60,
+          "sha256": "07efd721f1ca0219058641e90a10fd715a3fa3726757be98d28efa84b700e6b2"
+        }
+      ],
+      "definitionSha256": "e0763f155b35ad9ada97e1c41fdaa3bd5592ed7f986999880a5f5db5d90e4b89",
+      "renderIdentitySha256": "4f702b4bcf7125abbe9133524f5d3ce0eb02910c84f693f5fb84159c60e1bb55",
+      "workingName": "Airy exhale",
+      "paletteKind": "organic",
+      "topology": "breath-exhale",
+      "attackTopology": "breath-formant-crossfade",
+      "tailTopology": "filtered-breath",
+      "masteringFamily": "texture",
+      "tail": {
+        "kind": "filtered-breath",
+        "durationSeconds": 0.64
+      },
+      "input": null
+    },
+    {
+      "id": 31,
+      "sourceKey": "project-authored",
+      "seed": 31,
+      "rootMIDIs": [
+        60
+      ],
+      "definition": {
+        "id": 31,
+        "kind": "felt-kalimba-whisper",
+        "attackTopology": "felt-thumb-muted",
+        "tail": {
+          "kind": "dark-diffusion",
+          "durationSeconds": 1.48
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/31/C4.wav",
+          "rootMIDI": 60,
+          "sha256": "8f686ec4f7fe58de7cba57c8c20cd9e98964b93a711efc890168706347a9180d"
+        }
+      ],
+      "definitionSha256": "7348b0e2d2c854cb22ce84c087d879fe6b6be102cf5d521e65f52901c0c06811",
+      "renderIdentitySha256": "b9b4751cc42e0636e24dd2a269952adef968931f156a45a720271293119521af",
+      "workingName": "Felt kalimba whisper",
+      "paletteKind": "organic",
+      "topology": "felt-kalimba-whisper",
+      "attackTopology": "felt-thumb-muted",
+      "tailTopology": "dark-diffusion",
+      "masteringFamily": "texture",
+      "tail": {
+        "kind": "dark-diffusion",
+        "durationSeconds": 1.48
+      },
+      "input": null
+    },
+    {
+      "id": 32,
+      "sourceKey": "project-authored",
+      "seed": 32,
+      "rootMIDIs": [
+        60
+      ],
+      "definition": {
+        "id": 32,
+        "kind": "silk-string-pluck",
+        "attackTopology": "silk-string-soft-pick",
+        "tail": {
+          "kind": "tape-echo",
+          "durationSeconds": 1.72
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/32/C4.wav",
+          "rootMIDI": 60,
+          "sha256": "47f1a198723b0b95899298d86d84f87f79a00f069be7fdaf850ebd1f08b0307c"
+        }
+      ],
+      "definitionSha256": "17e62761c0f3df7bb1e320e25430728c5297d7c828fd446aff4c20b1df82a14a",
+      "renderIdentitySha256": "f17915c4a94093e4e3c4503ca574d0cc800855addacda2614dffcd875408ee95",
+      "workingName": "Silk string pluck",
+      "paletteKind": "organic",
+      "topology": "silk-string-pluck",
+      "attackTopology": "silk-string-soft-pick",
+      "tailTopology": "tape-echo",
+      "masteringFamily": "texture",
+      "tail": {
+        "kind": "tape-echo",
+        "durationSeconds": 1.72
+      },
+      "input": null
+    },
+    {
+      "id": 33,
+      "sourceKey": "project-authored",
+      "seed": 33,
+      "rootMIDIs": [
+        60
+      ],
+      "definition": {
+        "id": 33,
+        "kind": "cedar-knock",
+        "attackTopology": "cedar-doublet",
+        "tail": {
+          "kind": "short-room",
+          "durationSeconds": 1.2
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/33/C4.wav",
+          "rootMIDI": 60,
+          "sha256": "6159dd1996a7155993eb93c79c86225aeaba8b5b4971bf0c89485839e9779fd7"
+        }
+      ],
+      "definitionSha256": "21332c647caaeec1225bf561044451ac57bab3a56c18c06082883efba8ef0359",
+      "renderIdentitySha256": "c922dabaf0ca085d8c506ba1274a912b6251da59cd16d43fc7d1c53754ab281b",
+      "workingName": "Cedar knock",
+      "paletteKind": "organic",
+      "topology": "cedar-knock",
+      "attackTopology": "cedar-doublet",
+      "tailTopology": "short-room",
+      "masteringFamily": "texture",
+      "tail": {
+        "kind": "short-room",
+        "durationSeconds": 1.2
+      },
+      "input": null
+    },
+    {
+      "id": 34,
+      "sourceKey": "project-authored",
+      "seed": 34,
+      "rootMIDIs": [
+        60
+      ],
+      "definition": {
+        "id": 34,
+        "kind": "bamboo-air-pluck",
+        "attackTopology": "bamboo-breath-pluck",
+        "tail": {
+          "kind": "filtered-breath",
+          "durationSeconds": 1.64
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/34/C4.wav",
+          "rootMIDI": 60,
+          "sha256": "b193ed4e867e242aa4be22389dcd7ad9d97836bdc88251e0540273cb098d7712"
+        }
+      ],
+      "definitionSha256": "68b6c806c23ad67e6229a19a43299f371b12fab97d091e4f18d28a092cae7c50",
+      "renderIdentitySha256": "75ee8375d8063436bafde380ddc515b04697e7c088deb17d7b022498fe9031a2",
+      "workingName": "Bamboo air pluck",
+      "paletteKind": "organic",
+      "topology": "bamboo-air-pluck",
+      "attackTopology": "bamboo-breath-pluck",
+      "tailTopology": "filtered-breath",
+      "masteringFamily": "texture",
+      "tail": {
+        "kind": "filtered-breath",
+        "durationSeconds": 1.64
+      },
+      "input": null
+    },
+    {
+      "id": 35,
+      "sourceKey": "project-authored",
+      "seed": 35,
+      "rootMIDIs": [
+        60
+      ],
+      "definition": {
+        "id": 35,
+        "kind": "frost-glass-tap",
+        "attackTopology": "frosted-glass-soft-tip",
+        "tail": {
+          "kind": "modal-decay",
+          "durationSeconds": 1.78
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/35/C4.wav",
+          "rootMIDI": 60,
+          "sha256": "bd250cec12737a4f518e70868b6c9d032a7d040cfd9394363f8ff61f1241afd7"
+        }
+      ],
+      "definitionSha256": "6a60acff8283a01cf6659c402b468aabfbe13ac4f80b47d1a96868d9ae2a0b44",
+      "renderIdentitySha256": "55ad1085d8994166e9e97f6d5d3ce60704245801239cf6e74d70588ddc6dbbfc",
+      "workingName": "Frost glass tap",
+      "paletteKind": "synth",
+      "topology": "frost-glass-tap",
+      "attackTopology": "frosted-glass-soft-tip",
+      "tailTopology": "modal-decay",
+      "masteringFamily": "texture",
+      "tail": {
+        "kind": "modal-decay",
+        "durationSeconds": 1.78
+      },
+      "input": null
+    },
+    {
+      "id": 36,
+      "sourceKey": "project-authored",
+      "seed": 36,
+      "rootMIDIs": [
+        60
+      ],
+      "definition": {
+        "id": 36,
+        "kind": "glass-sustain-bloom",
+        "attackTopology": "glass-bow-slow-rise",
+        "tail": {
+          "kind": "reverse-bloom",
+          "durationSeconds": 2.1
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/36/C4.wav",
+          "rootMIDI": 60,
+          "sha256": "89c912aa991dad67e714417cc5ae2c17869376b772b8a9350b6cc6932e1632e0"
+        }
+      ],
+      "definitionSha256": "31f42f9cd6974af256dda6d1b60ba332d01d3080d1eaea52237cf2b0bfab8e2e",
+      "renderIdentitySha256": "23c31c077e3d5d041bf32087f4983d17d9f22d7183f30f7688c27edba3cb1b8c",
+      "workingName": "Glass sustain bloom",
+      "paletteKind": "synth",
+      "topology": "glass-sustain-bloom",
+      "attackTopology": "glass-bow-slow-rise",
+      "tailTopology": "reverse-bloom",
+      "masteringFamily": "texture",
+      "tail": {
+        "kind": "reverse-bloom",
+        "durationSeconds": 2.1
+      },
+      "input": null
+    },
+    {
+      "id": 37,
+      "sourceKey": "project-authored",
+      "seed": 37,
+      "rootMIDIs": [
+        60
+      ],
+      "definition": {
+        "id": 37,
+        "kind": "current-metal-pluck",
+        "attackTopology": "electro-metal-damped-strike",
+        "tail": {
+          "kind": "chorus-decay",
+          "durationSeconds": 1.58
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/37/C4.wav",
+          "rootMIDI": 60,
+          "sha256": "c7db3671bd68454a01de8774f0ad35bc3234f1c7f3fc0273a6c9eed2f97a03fb"
+        }
+      ],
+      "definitionSha256": "a173bbfaaaa0312d2aa93c5fd5d533853709f689c6cf52a2fbad762786c63181",
+      "renderIdentitySha256": "5fc1c0d822a5ee12676affa9a6d84d63838a8947251d7e3f703b990a8fd740ae",
+      "workingName": "Current metal pluck",
+      "paletteKind": "synth",
+      "topology": "current-metal-pluck",
+      "attackTopology": "electro-metal-damped-strike",
+      "tailTopology": "chorus-decay",
+      "masteringFamily": "texture",
+      "tail": {
+        "kind": "chorus-decay",
+        "durationSeconds": 1.58
+      },
+      "input": null
+    },
+    {
+      "id": 38,
+      "sourceKey": "project-authored",
+      "seed": 38,
+      "rootMIDIs": [
+        60
+      ],
+      "definition": {
+        "id": 38,
+        "kind": "brushed-resonator",
+        "attackTopology": "brushed-steel-resonance",
+        "tail": {
+          "kind": "dark-diffusion",
+          "durationSeconds": 1.92
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/38/C4.wav",
+          "rootMIDI": 60,
+          "sha256": "60f2a1dd67d504866c4f700bc06adf4a64d426e9256baede8a0ad4e78b57cb41"
+        }
+      ],
+      "definitionSha256": "f9626a91e6af02fb4d4e9c5f812a4d2b94071fe40505534a8d5569a9f231d96c",
+      "renderIdentitySha256": "5cc2e1f0957e335b78e5094e02320e1f39a0d41f6ff130aa84ced9cd4eda757e",
+      "workingName": "Brushed resonator",
+      "paletteKind": "synth",
+      "topology": "brushed-resonator",
+      "attackTopology": "brushed-steel-resonance",
+      "tailTopology": "dark-diffusion",
+      "masteringFamily": "texture",
+      "tail": {
+        "kind": "dark-diffusion",
+        "durationSeconds": 1.92
+      },
+      "input": null
+    },
+    {
+      "id": 39,
+      "sourceKey": "project-authored",
+      "seed": 39,
+      "rootMIDIs": [
+        60
+      ],
+      "definition": {
+        "id": 39,
+        "kind": "paper-whisper",
+        "attackTopology": "crumpled-paper-soft-edge",
+        "tail": {
+          "kind": "filtered-breath",
+          "durationSeconds": 1.42
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/39/texture.wav",
+          "rootMIDI": 60,
+          "sha256": "f13ef95ddc85408bea50f0d75eaf5a10ee979062c67775bb984ce9d439ac5edd"
+        }
+      ],
+      "definitionSha256": "9e40891b5b60ce8dbd822c43b3ab593cd087777383bd706579aa1b6347a30bc0",
+      "renderIdentitySha256": "971192298aa7bc9f5230e9f496dca84c6b31c01aef45f05321a6dd1cd32a2539",
+      "workingName": "Paper whisper",
+      "paletteKind": "organic",
+      "topology": "paper-whisper",
+      "attackTopology": "crumpled-paper-soft-edge",
+      "tailTopology": "filtered-breath",
+      "masteringFamily": "texture",
+      "tail": {
+        "kind": "filtered-breath",
+        "durationSeconds": 1.42
+      },
+      "input": null
+    },
+    {
+      "id": 40,
+      "sourceKey": "project-authored",
+      "seed": 40,
+      "rootMIDIs": [
+        60
+      ],
+      "definition": {
+        "id": 40,
+        "kind": "cloth-swish",
+        "attackTopology": "woven-cloth-brush",
+        "tail": {
+          "kind": "short-room",
+          "durationSeconds": 1.56
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/40/texture.wav",
+          "rootMIDI": 60,
+          "sha256": "aceabd67ad4849942a64f6bd3a245262352822ec24b68ac4543f4e30f14cbb04"
+        }
+      ],
+      "definitionSha256": "67bb1763e3ae3f6b454d382dd154da8f29bfca8a88e15ad592ea12ed40b14357",
+      "renderIdentitySha256": "28bcdaa67d3554db10a9796b0b0261e9fc7582d5064d22081b994fcc202770c4",
+      "workingName": "Cloth swish",
+      "paletteKind": "organic",
+      "topology": "cloth-swish",
+      "attackTopology": "woven-cloth-brush",
+      "tailTopology": "short-room",
+      "masteringFamily": "texture",
+      "tail": {
+        "kind": "short-room",
+        "durationSeconds": 1.56
+      },
+      "input": null
+    },
+    {
+      "id": 41,
+      "sourceKey": "project-authored",
+      "seed": 41,
+      "rootMIDIs": [
+        60
+      ],
+      "definition": {
+        "id": 41,
+        "kind": "water-pearl",
+        "attackTopology": "water-drop-resonance",
+        "tail": {
+          "kind": "tape-echo",
+          "durationSeconds": 1.66
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/41/texture.wav",
+          "rootMIDI": 60,
+          "sha256": "a109397e930a21c8a1d77c8df8f36c4370aa2e1e601a679b8da6e78d3cacd04a"
+        }
+      ],
+      "definitionSha256": "b377d1b7664ff31b486d1668eb8cc0beed46a17b90aa157de6073b22bca5dad1",
+      "renderIdentitySha256": "09a4a1df19ef3340cc699b2cdbf9425b40c0d1f2f5d34d2ce58c1b6acadf662a",
+      "workingName": "Water pearl",
+      "paletteKind": "hybrid",
+      "topology": "water-pearl",
+      "attackTopology": "water-drop-resonance",
+      "tailTopology": "tape-echo",
+      "masteringFamily": "texture",
+      "tail": {
+        "kind": "tape-echo",
+        "durationSeconds": 1.66
+      },
+      "input": null
+    },
+    {
+      "id": 42,
+      "sourceKey": "project-authored",
+      "seed": 42,
+      "rootMIDIs": [
+        60
+      ],
+      "definition": {
+        "id": 42,
+        "kind": "air-current",
+        "attackTopology": "airy-current-crossfade",
+        "tail": {
+          "kind": "chorus-decay",
+          "durationSeconds": 2.02
+        }
+      },
+      "outputs": [
+        {
+          "path": "Happenings/42/texture.wav",
+          "rootMIDI": 60,
+          "sha256": "c5ca62c7f8d8dde1e384e2da46112c937711b0f78bb0237c93683b36a8ddb5af"
+        }
+      ],
+      "definitionSha256": "320354a2c8cd7f630182167dc5599342ee5ccf8b1f6b194cadf909aca200fddd",
+      "renderIdentitySha256": "075ad9bcb98439b5f561705cc71a1656919a27527417d94e785b363200844611",
+      "workingName": "Air current",
+      "paletteKind": "hybrid",
+      "topology": "air-current",
+      "attackTopology": "airy-current-crossfade",
+      "tailTopology": "chorus-decay",
+      "masteringFamily": "texture",
+      "tail": {
+        "kind": "chorus-decay",
+        "durationSeconds": 2.02
+      },
+      "input": null
+    }
+  ],
+  "rendererImplementationSha256": "79ec22a32883fda366d8dd1630e07183eb8d5426f2d1e37ad9a8378ca4cb19f1"
+}

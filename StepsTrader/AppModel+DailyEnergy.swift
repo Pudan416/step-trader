@@ -14,7 +14,11 @@ extension AppModel {
     /// Adds one occurrence when the happening has not already been added on
     /// the requested custom day.
     func canAddHappening(id: String, on date: Date = .now) -> Bool {
-        let dayKey = Self.dayKey(for: date)
+        let dayKey = DayBoundary.dayKey(
+            for: date,
+            dayEndHour: dayEndHour,
+            dayEndMinute: dayEndMinute
+        )
         return !todayAdditions.contains {
             $0.dayKey == dayKey && $0.optionId == id
         }
@@ -24,11 +28,17 @@ extension AppModel {
     func addHappening(
         id: String,
         colorHex: String,
+        assetVariant: Int? = nil,
         at date: Date = .now,
         recordUse: Bool = true,
-        entryId: String = UUID().uuidString
+        entryId: String = UUID().uuidString,
+        syncToCloud: Bool = true
     ) -> OptionEntry? {
-        let dayKey = Self.dayKey(for: date)
+        let dayKey = DayBoundary.dayKey(
+            for: date,
+            dayEndHour: dayEndHour,
+            dayEndMinute: dayEndMinute
+        )
         guard canAddHappening(id: id, on: date) else { return nil }
 
         let entry = OptionEntry(
@@ -37,23 +47,33 @@ extension AppModel {
             optionId: id,
             colorHex: colorHex,
             timestamp: date,
-            assetVariant: nil
+            assetVariant: assetVariant
         )
         todayAdditions.append(entry)
-        if recordUse { happeningStore.recordUse(id: id, at: date) }
+        removeSatisfiedActivitySuggestions()
+        let lastUseDayKey = happeningStore.happening(id: id)?.lastUsedAt.map {
+            DayBoundary.dayKey(for: $0, dayEndHour: dayEndHour, dayEndMinute: dayEndMinute)
+        }
+        if recordUse, lastUseDayKey != dayKey {
+            happeningStore.recordUse(id: id, at: date)
+        }
         recalculateDailyEnergy()
         persistTodayAdditions()
-        Task { await SupabaseSyncService.shared.syncOptionEntry(entry) }
-        Task { await SupabaseSyncService.shared.syncCustomHappenings(happeningStore.all) }
+        if syncToCloud {
+            Task { await SupabaseSyncService.shared.syncOptionEntry(entry) }
+            Task { await SupabaseSyncService.shared.syncCustomHappenings(happeningStore.all) }
+        }
         return entry
     }
 
-    func removeAddition(entryId: String) {
+    func removeAddition(entryId: String, syncToCloud: Bool = true) {
         guard let index = todayAdditions.firstIndex(where: { $0.id == entryId }) else { return }
         todayAdditions.remove(at: index)
         recalculateDailyEnergy()
         persistTodayAdditions()
-        Task { await SupabaseSyncService.shared.deleteOptionEntry(id: entryId) }
+        if syncToCloud {
+            Task { await SupabaseSyncService.shared.deleteOptionEntry(id: entryId) }
+        }
     }
 
     func createHappening(title: String, at date: Date = .now) -> Happening {
@@ -65,25 +85,39 @@ extension AppModel {
     func createPaletteHappening(
         title: String,
         at date: Date = .now,
+        protectedIDs: Set<String> = [],
+        selection: [String]? = nil,
+        replacingID: String? = nil,
         syncCustomHappenings: @escaping ([Happening]) -> Void = { happenings in
             Task { await SupabaseSyncService.shared.syncCustomHappenings(happenings) }
         }
-    ) -> Happening? {
-        let happening = createHappening(title: title, at: date)
-        do {
-            try happeningPaletteSelectionStore.insertReplacingLeastUsed(
-                happening.id,
-                catalog: happeningStore.all
-            )
-            objectWillChange.send()
-            syncCustomHappenings(happeningStore.all)
-            return happening
-        } catch {
-            AppLogger.energy.error(
-                "Failed to install created palette happening: \(error.localizedDescription)"
-            )
-            return nil
+    ) throws -> Happening {
+        let selected = selection ?? happeningPaletteSelectionStore.ids
+        guard selected.count == HappeningPaletteSelection.slotCount,
+              Set(selected).count == HappeningPaletteSelection.slotCount,
+              selected.allSatisfy({ id in happeningStore.all.contains { $0.id == id } }) else {
+            throw HappeningPaletteSelectionError.requiresExactlyTen
         }
+        // Validate before creating: a rejected edit must not leave an orphan catalog item.
+        let index: Int?
+        if let replacingID {
+            index = protectedIDs.contains(replacingID) ? nil : selected.firstIndex(of: replacingID)
+        } else {
+            index = HappeningPaletteSelection.replacementIndex(
+                in: selected, catalog: happeningStore.all, excluding: protectedIDs
+            )
+        }
+        guard let index,
+              protectedIDs.intersection(happeningPaletteSelectionStore.ids).isSubset(of: Set(selected)) else {
+            throw HappeningPaletteSelectionError.noReplaceableSlot
+        }
+        let happening = createHappening(title: title, at: date)
+        var replacement = selected
+        replacement[index] = happening.id
+        try happeningPaletteSelectionStore.save(replacement, catalog: happeningStore.all)
+        objectWillChange.send()
+        syncCustomHappenings(happeningStore.all)
+        return happening
     }
 
     /// Adds a detected external activity to the full catalog and to the ten
@@ -138,6 +172,10 @@ extension AppModel {
             dayKey: dayKey,
             nonce: happeningShapeNonceStore.nonce(for: dayKey)
         )
+    }
+
+    func paletteColorNonce(on date: Date = .now) -> UInt64 {
+        happeningShapeNonceStore.nonce(for: Self.dayKey(for: date))
     }
 
     /// Shake. Only the field changes: additions already carry the colour they
@@ -393,15 +431,9 @@ extension AppModel {
         // Save a rendered canvas snapshot for history
         if let oldCanvas = CanvasStorageService.shared.loadCanvas(for: dayKeyToSave),
            !oldCanvas.elements.isEmpty {
-            CanvasStorageService.shared.saveSnapshot(
-                for: dayKeyToSave,
-                elements: oldCanvas.elements,
-                sleepPoints: oldCanvas.sleepPoints,
-                stepsPoints: oldCanvas.stepsPoints,
-                sleepColor: Color(hex: oldCanvas.sleepColorHex),
-                stepsColor: Color(hex: oldCanvas.stepsColorHex),
-                decayNorm: oldCanvas.decayNorm
-            )
+            Task { @MainActor in
+                await CanvasStorageService.shared.saveSnapshot(for: oldCanvas)
+            }
         }
 
         dailySleepHours = 0
@@ -661,8 +693,14 @@ extension AppModel {
                 userGradientStyle: std.string(forKey: SharedKeys.userGradientStyle) ?? GradientStyle.radial.rawValue,
                 userGradientPalette: std.string(forKey: SharedKeys.userGradientPalette) ?? GradientPalette.warmSunset.rawValue,
                 dailyRandomThemeEnabled: std.bool(forKey: SharedKeys.dailyRandomThemeEnabled),
+                modernPaletteCategories: ModernPaletteCategory.allCases
+                    .filter(ModernPaletteSelection.decode(
+                        std.string(forKey: SharedKeys.modernPaletteCategories) ?? ""
+                    ).contains)
+                    .map(\.rawValue),
                 canvasOverlayStyle: g.string(forKey: SharedKeys.canvasOverlayStyle) ?? CanvasOverlayStyle.smudge.rawValue,
-                allowedCanvasShapes: CanvasShapeType.allowedByUser.map(\.rawValue)
+                allowedCanvasShapes: CanvasShapeType.allowedByUser.map(\.rawValue),
+                allowedCanvasFills: TextureKind.allowedByUser.map(\.rawValue)
             )
         }
     }

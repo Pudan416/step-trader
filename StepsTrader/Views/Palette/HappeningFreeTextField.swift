@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum HappeningCreatorActionAppearance {
     static let disabledForegroundOpacity = 1.0
@@ -10,10 +11,11 @@ enum HappeningCreatorActionAppearance {
 /// The parent owns catalog persistence and selection replacement; this panel
 /// only normalizes a title and sends it through after explicit confirmation.
 struct HappeningCreatorPanel: View {
-    let onCreate: (String) -> Void
+    let onCreate: (String) -> HappeningPaletteCreationOutcome
     let onCancel: () -> Void
 
     @State private var text = ""
+    @State private var feedback: HappeningPaletteCreationFeedback?
     @FocusState private var isTextFieldFocused: Bool
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -36,7 +38,7 @@ struct HappeningCreatorPanel: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Add a happening")
-                    .font(.title3.weight(.semibold))
+                    .font(.geist(.title3).weight(.semibold))
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityHint("This will replace one of the 10 shown happenings.")
                     .accessibilitySortPriority(
@@ -47,7 +49,7 @@ struct HappeningCreatorPanel: View {
                     )
 
                 Text("This will replace one of the 10 shown happenings.")
-                    .font(.subheadline)
+                    .font(.geist(.subheadline))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityHidden(true)
@@ -56,7 +58,7 @@ struct HappeningCreatorPanel: View {
                     text: $text,
                     isFocused: $isTextFieldFocused
                 ) { submittedTitle in
-                    onCreate(submittedTitle)
+                    create(submittedTitle)
                 }
                 .accessibilitySortPriority(
                     HappeningPanelAccessibilityOrder.priority(
@@ -64,6 +66,14 @@ struct HappeningCreatorPanel: View {
                         in: HappeningPanelAccessibilityOrder.creator
                     )
                 )
+
+                if let feedback {
+                    Text(feedback.message)
+                        .font(.geist(.subheadline))
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("happening_creator_feedback")
+                }
 
                 Group {
                     if usesExpandedActionLayout {
@@ -113,8 +123,26 @@ struct HappeningCreatorPanel: View {
     }
 
     private func create() {
-        guard !trimmed.isEmpty else { return }
-        onCreate(trimmed)
+        create(trimmed)
+    }
+
+    private func create(_ title: String) {
+        guard !title.isEmpty else {
+            present(.invalidTitle)
+            return
+        }
+        let outcome = onCreate(title)
+        feedback = outcome.feedback
+        if let feedback { announce(feedback) }
+    }
+
+    private func present(_ feedback: HappeningPaletteCreationFeedback) {
+        self.feedback = feedback
+        announce(feedback)
+    }
+
+    private func announce(_ feedback: HappeningPaletteCreationFeedback) {
+        UIAccessibility.post(notification: .announcement, argument: feedback.message)
     }
 
     private var cancelAction: some View {
@@ -133,7 +161,7 @@ struct HappeningCreatorPanel: View {
             create()
         } label: {
             Text("Add to palette")
-                .font(.body.weight(.semibold))
+                .font(.geist(.body).weight(.semibold))
                 .foregroundStyle(
                     trimmed.isEmpty
                         ? Color.primary.opacity(
@@ -183,16 +211,23 @@ struct HappeningFreeTextField: View {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var limitedText: Binding<String> {
+        Binding(
+            get: { text },
+            set: { text = Happening.limitedTitle($0) }
+        )
+    }
+
     var body: some View {
         TextField(
             String(localized: "What happened?", comment: "Palette free-text placeholder"),
-            text: $text,
+            text: limitedText,
             prompt: Text(
                 String(localized: "What happened?", comment: "Palette free-text placeholder")
             )
             .foregroundStyle(.secondary)
         )
-        .font(.system(size: 14, weight: .medium))
+        .font(.geist(size: 14, weight: .medium))
         .foregroundStyle(.primary)
         .multilineTextAlignment(.center)
         .happeningPanelTextFieldStyle()
@@ -206,15 +241,13 @@ struct HappeningFreeTextField: View {
         .focused($isFocused)
         .onAppear { isFocused = true }
         .onSubmit {
-            // Whitespace-only input is a mis-tap, not a happening.
-            guard !trimmed.isEmpty else { return }
             onSubmit(trimmed)
         }
     }
 }
 
 #Preview("Creator") {
-    HappeningCreatorPanel(onCreate: { _ in }, onCancel: {})
+    HappeningCreatorPanel(onCreate: { _ in .created }, onCancel: {})
         .padding()
         .dynamicTypeSize(.accessibility1)
         .frame(height: 280)

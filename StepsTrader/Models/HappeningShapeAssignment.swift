@@ -15,6 +15,230 @@ struct HappeningShapeAssignment: Hashable {
     let rotation: Double
 }
 
+/// The exact Editorial actor promised by a palette item. The UUID and color
+/// variation are persisted with the eventual canvas element, so the preview
+/// and the committed object travel through the same production recipe.
+struct HappeningEditorialAssignment: Equatable {
+    let elementID: UUID
+    let shape: DayObjectShape
+    let material: DayObjectEditorialMaterialV1
+    let colorVariant: Int
+    var silhouette: DayObjectSilhouette = .legacy
+    /// Exact frozen/prospective Native Atlas parameters used by the live renderer.
+    var nativeActor: NativeAtlasRecipe.Actor? = nil
+}
+
+/// Every value that influences the exact Editorial actor shown for a happening
+/// palette tile. `CanvasElement` carries unrelated legacy canvas fields, so
+/// equality intentionally follows only the committed identity and persisted
+/// color that the resolver consumes.
+struct HappeningEditorialAssignmentRequest: Equatable {
+    let happenings: [Happening]
+    let baseInput: DayObjectSceneInput
+    let committedElements: [CanvasElement]
+    let colorNonce: UInt64
+
+    static func == (
+        lhs: HappeningEditorialAssignmentRequest,
+        rhs: HappeningEditorialAssignmentRequest
+    ) -> Bool {
+        lhs.happenings == rhs.happenings
+            && lhs.baseInput == rhs.baseInput
+            && lhs.committedElements.map(CommittedElement.init)
+                == rhs.committedElements.map(CommittedElement.init)
+            && lhs.colorNonce == rhs.colorNonce
+    }
+
+    private struct CommittedElement: Equatable {
+        let id: UUID
+        let optionID: String
+        let editorialColorVariant: Int?
+
+        init(_ element: CanvasElement) {
+            id = element.id
+            optionID = element.optionId
+            editorialColorVariant = element.editorialColorVariant
+        }
+    }
+}
+
+/// The single resolved palette state retained by the Gallery until one of the
+/// actor-producing request values changes.
+struct HappeningEditorialAssignmentSnapshot: Equatable {
+    let request: HappeningEditorialAssignmentRequest
+    let assignments: [String: HappeningEditorialAssignment]
+}
+
+enum HappeningEditorialAssignmentResolver {
+    private static let colorVariationCount = 97
+
+    static func needsRefresh(
+        current: HappeningEditorialAssignmentSnapshot?,
+        request: HappeningEditorialAssignmentRequest
+    ) -> Bool {
+        current?.request != request
+    }
+
+    static func snapshot(
+        request: HappeningEditorialAssignmentRequest
+    ) -> HappeningEditorialAssignmentSnapshot {
+        let direction = request.baseInput.nativeAtlasRecipe?.isSupported != true
+            && request.baseInput.editorialLabConfiguration?.materialMode == .generativeDNA
+            ? DayObjectArtDirectionScheduler.make(dayKey: request.baseInput.dayKey, identity: request.baseInput.identity)
+            : nil
+        let assignments: [String: HappeningEditorialAssignment] = request.happenings.reduce(into: [:]) { result, happening in
+            let committedElement = request.committedElements.first {
+                $0.optionId == happening.id
+            }
+            let elementID = committedElement?.id
+                ?? variedElementID(happeningID: happening.id, request: request, direction: direction)
+            let colorVariant = committedElement?.editorialColorVariant
+                ?? (committedElement == nil
+                    ? colorVariant(
+                        happeningID: happening.id,
+                        dayKey: request.baseInput.dayKey,
+                        nonce: request.colorNonce
+                    )
+                    : 0)
+            let eventID = elementID.uuidString.lowercased()
+            let input = prospectiveInput(
+                from: request.baseInput,
+                eventID: eventID,
+                colorVariant: colorVariant
+            )
+            guard let actor = DayObjectScene.make(input: input).sceneRecipeV1?.actor(eventID) else {
+                return
+            }
+            result[happening.id] = HappeningEditorialAssignment(
+                elementID: elementID,
+                shape: actor.shape,
+                material: actor.material,
+                colorVariant: colorVariant,
+                silhouette: actor.silhouette,
+                nativeActor: request.baseInput.nativeAtlasRecipe?.prospectiveActor(eventID: eventID)
+            )
+        }
+        return HappeningEditorialAssignmentSnapshot(
+            request: request,
+            assignments: assignments
+        )
+    }
+
+    /// Retained for callers that only have uncommitted palette data. New code
+    /// should keep the complete request in a snapshot instead.
+    static func assignments(
+        happenings: [Happening],
+        baseInput: DayObjectSceneInput,
+        colorNonce: UInt64
+    ) -> [String: HappeningEditorialAssignment] {
+        snapshot(request: HappeningEditorialAssignmentRequest(
+            happenings: happenings,
+            baseInput: baseInput,
+            committedElements: [],
+            colorNonce: colorNonce
+        )).assignments
+    }
+
+    private static func prospectiveInput(
+        from baseInput: DayObjectSceneInput,
+        eventID: String,
+        colorVariant: Int
+    ) -> DayObjectSceneInput {
+        var variants = baseInput.actorColorVariants
+        variants[eventID] = colorVariant
+        let eventIDs = baseInput.eventIDs.contains(eventID)
+            ? baseInput.eventIDs
+            : baseInput.eventIDs + [eventID]
+        return DayObjectSceneInput(
+            dayKey: baseInput.dayKey,
+            identity: baseInput.identity,
+            eventIDs: eventIDs,
+            motionEnergy: baseInput.motionEnergy,
+            visualClarity: baseInput.visualClarity,
+            uiExclusionRegion: baseInput.uiExclusionRegion,
+            canvasCoverage: baseInput.canvasCoverage,
+            paletteCategories: baseInput.paletteCategories,
+            usesEditorialField: baseInput.usesEditorialField,
+            editorialBackground: baseInput.editorialBackground,
+            lowSleep: baseInput.lowSleep,
+            editorialPreview: baseInput.editorialPreview,
+            editorialLabConfiguration: baseInput.editorialLabConfiguration,
+            actorColorVariants: variants
+        )
+    }
+
+    private static func colorVariant(happeningID: String, dayKey: String, nonce: UInt64) -> Int {
+        let base = CanvasElement.makeSeed(
+            optionId: "editorial-color:\(happeningID)",
+            dayKey: dayKey,
+            index: 0
+        )
+        return Int((base &+ nonce) % UInt64(colorVariationCount))
+    }
+
+    /// Pick only an uncommitted identity. Once added, its persisted UUID wins,
+    /// so later additions, removals and colour rerolls cannot reshape it.
+    private static func variedElementID(
+        happeningID: String,
+        request: HappeningEditorialAssignmentRequest,
+        direction: DayObjectArtDirection?
+    ) -> UUID {
+        let original = stableElementID(happeningID: happeningID, dayKey: request.baseInput.dayKey)
+        guard let direction, !request.committedElements.isEmpty else { return original }
+        let retained = request.committedElements.map { $0.id.uuidString.lowercased() }
+        func score(_ id: UUID) -> Int {
+            let eventID = id.uuidString.lowercased()
+            let candidate = direction.resolution(eventID: eventID)
+            let silhouette = DayObjectSilhouette.make(eventID: eventID)
+            return retained.reduce(0) { total, other in
+                let existing = direction.resolution(eventID: other)
+                guard existing.geometry == candidate.geometry else { return total }
+                let otherSilhouette = DayObjectSilhouette.make(eventID: other)
+                return total + 12
+                    + (existing.material == candidate.material ? 3 : 0)
+                    + (otherSilhouette.proportionClass == silhouette.proportionClass ? 4 : 0)
+                    + (otherSilhouette.variant % 4 == silhouette.variant % 4 ? 2 : 0)
+            }
+        }
+        var best = original
+        var bestScore = score(best)
+        for attempt in 1...64 where bestScore > 0 {
+            let candidate = stableElementID(happeningID: happeningID,
+                dayKey: request.baseInput.dayKey, variation: attempt)
+            guard !retained.contains(candidate.uuidString.lowercased()) else { continue }
+            let candidateScore = score(candidate)
+            if candidateScore < bestScore {
+                best = candidate
+                bestScore = candidateScore
+            }
+        }
+        return best
+    }
+
+    private static func stableElementID(happeningID: String, dayKey: String, variation: Int = 0) -> UUID {
+        let high = CanvasElement.makeSeed(
+            optionId: "editorial-element-high:\(happeningID)",
+            dayKey: dayKey,
+            index: variation
+        )
+        let low = CanvasElement.makeSeed(
+            optionId: "editorial-element-low:\(happeningID)",
+            dayKey: dayKey,
+            index: variation
+        )
+        var bytes = withUnsafeBytes(of: high.bigEndian, Array.init)
+            + withUnsafeBytes(of: low.bigEndian, Array.init)
+        bytes[6] = (bytes[6] & 0x0F) | 0x40
+        bytes[8] = (bytes[8] & 0x3F) | 0x80
+        return UUID(uuid: (
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        ))
+    }
+}
+
 /// Deterministic, storage-free derivation of a day's figures.
 ///
 /// Nothing is persisted but the nonce: the same `(id, dayKey, nonce)` always

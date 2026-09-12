@@ -12,7 +12,7 @@
 
 - Build command: `xcodebuild -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 17' -configuration Debug build`
 - Test command: `xcodebuild test -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS Simulator,name=iPhone 17'`
-- Daily point ceiling stays **100**. New formula: `steps(20) + sleep(20) + happenings(60)`, `happenings = min(additions × 10, 60)`.
+- Daily point ceiling stays **100**. New formula: `steps(20) + sleep(20) + happenings(60)`, `happenings = min(additions × 6, 60)`.
 - Copy lives in `StepsTrader/Localizable.xcstrings` under `option.title.<id>`. Never hardcode user-facing strings outside that convention.
 - Logging uses `AppLogger.<category>`, never `print`.
 - UserDefaults keys are declared in `StepsTrader/Utilities/SharedKeys.swift` with a `_v1` suffix convention.
@@ -556,7 +556,7 @@ enum HappeningDefaults {
 
     /// Points per addition, and the ceiling additions can contribute.
     /// day = steps(20) + sleep(20) + happenings(60) = 100
-    static let pointsPerAddition: Int = 10
+    static let pointsPerAddition: Int = 6
     static let happeningsMaxPoints: Int = 60
 
     static let builtIns: [Happening] = [
@@ -1188,7 +1188,7 @@ import XCTest
 /// The new scoring model (3 entities, still 100 max):
 ///   steps      = 20 × min(made_steps, target_steps) / target_steps
 ///   sleep      = 20 × min(today_sleep, target_sleep) / target_sleep
-///   happenings = min(additions × 10, 60)
+///   happenings = min(additions × 6, 60)
 final class HappeningEconomyTests: XCTestCase {
 
     private func pointsFromAdditions(_ count: Int) -> Int {
@@ -1196,7 +1196,7 @@ final class HappeningEconomyTests: XCTestCase {
     }
 
     func testConstants() {
-        XCTAssertEqual(HappeningDefaults.pointsPerAddition, 10)
+        XCTAssertEqual(HappeningDefaults.pointsPerAddition, 6)
         XCTAssertEqual(HappeningDefaults.happeningsMaxPoints, 60)
         XCTAssertEqual(EnergyDefaults.maxBaseEnergy, 100)
     }
@@ -1210,31 +1210,31 @@ final class HappeningEconomyTests: XCTestCase {
         )
     }
 
-    func testHappeningPointsScaleTenPerAddition() {
+    func testHappeningPointsScaleSixPerAddition() {
         XCTAssertEqual(pointsFromAdditions(0), 0)
-        XCTAssertEqual(pointsFromAdditions(1), 10)
-        XCTAssertEqual(pointsFromAdditions(3), 30)
-        XCTAssertEqual(pointsFromAdditions(6), 60)
+        XCTAssertEqual(pointsFromAdditions(1), 6)
+        XCTAssertEqual(pointsFromAdditions(5), 30)
+        XCTAssertEqual(pointsFromAdditions(10), 60)
     }
 
     func testHappeningPointsCapAtSixty() {
-        XCTAssertEqual(pointsFromAdditions(7), 60)
-        XCTAssertEqual(pointsFromAdditions(20), 60, "Additions past the sixth stop earning")
+        XCTAssertEqual(pointsFromAdditions(11), 60)
+        XCTAssertEqual(pointsFromAdditions(20), 60, "Additions past the tenth stop earning")
         XCTAssertEqual(pointsFromAdditions(1000), 60)
     }
 
-    /// Acceptance criterion: 2 happenings + full steps + full sleep = 60, not 100.
-    func testTwoHappeningsWithFullStepsAndSleepTotalsSixty() {
+    /// Acceptance criterion: 2 happenings + full steps + full sleep = 52, not 100.
+    func testTwoHappeningsWithFullStepsAndSleepTotalsFiftyTwo() {
         let total = EnergyDefaults.stepsMaxPoints
             + EnergyDefaults.sleepMaxPoints
             + pointsFromAdditions(2)
-        XCTAssertEqual(total, 60)
+        XCTAssertEqual(total, 52)
     }
 
-    func testSixHappeningsWithFullStepsAndSleepTotalsOneHundred() {
+    func testTenHappeningsWithFullStepsAndSleepTotalsOneHundred() {
         let total = EnergyDefaults.stepsMaxPoints
             + EnergyDefaults.sleepMaxPoints
-            + pointsFromAdditions(6)
+            + pointsFromAdditions(10)
         XCTAssertEqual(total, 100)
     }
 
@@ -1242,7 +1242,7 @@ final class HappeningEconomyTests: XCTestCase {
     /// counts additions, not distinct happenings.
     func testRepeatAdditionsOfOneHappeningStillCount() {
         let sameHappeningTwice = 2
-        XCTAssertEqual(pointsFromAdditions(sameHappeningTwice), 20)
+        XCTAssertEqual(pointsFromAdditions(sameHappeningTwice), 12)
     }
 }
 ```
@@ -1287,7 +1287,7 @@ In `StepsTrader/AppModel.swift`, replace the three `@Published var daily*Selecti
 Replace `bodyPointsToday` / `mindPointsToday` / `heartPointsToday` (lines 859-869) and `pointsFromSelections` (928-930) with:
 
 ```swift
-    /// happenings = min(additions × 10, 60). Additions past the sixth still
+    /// happenings = min(additions × 6, 60). Additions past the tenth still
     /// land on the canvas and still increment useCount — they just stop earning.
     var happeningPointsToday: Int {
         min(
@@ -2757,6 +2757,7 @@ Expected: `** TEST SUCCEEDED **`. Paste the real summary line into the PR; do no
 Build to the simulator and check each one. The automated suite covers 6, 7, 8, 9, 10, 11 and 13; the rest need eyes:
 
 - [ ] Adding a happening takes one tap from the canvas
+- [ ] All 10 configured happenings can be added to the canvas in one day
 - [ ] A mid-day creation appears without reordering anything on screen
 - [ ] `allowedCanvasShapes` cannot be emptied through the UI (tap the last selected chip — it must be disabled, not silently fail)
 - [ ] A non-Pro user with Organic saved never spawns an Organic element, and the preference survives a Pro round-trip

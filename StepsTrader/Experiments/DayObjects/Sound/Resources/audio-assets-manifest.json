@@ -1,0 +1,5608 @@
+{
+  "assets": [
+    {
+      "licenseFilename": "AudioKitSynthOne-MIT.txt",
+      "path": "SynthOnePresets/selected-presets.json",
+      "presetUIDs": [
+        "39529417-FBC1-41D5-B1D1-0DED9E38F164",
+        "96F9F71C-1D6C-41FC-8192-E4B550562357",
+        "9BF89CC8-5AD5-46D8-9640-C3FE335C65D9",
+        "E9AFAF33-21A5-4A1B-80BF-74BFB333E86D",
+        "88335303-C675-4D14-907E-2D80823C2BCA",
+        "8FC6202C-DAE8-4651-98DE-F3BEBB07E6BF",
+        "C2958050-CDCA-4C64-AF92-3217539CE60A",
+        "E2D8B458-C727-4388-A0EA-28802B605796",
+        "A11082F1-308C-48EE-8C0A-F0F9DC361212",
+        "FA16AF16-3033-485F-A183-4DAAB7025B52",
+        "9BDE3DCB-219D-4D70-A067-C1057B557F19",
+        "2B6BCC6D-8526-4CAD-8230-EF3C84A26E9F",
+        "BB74B6AD-9076-464C-B373-F2E968BBD2BE",
+        "AA903CDB-938B-4FC7-8E01-050DB95EFDE7",
+        "6A4C11CA-2CF9-4153-B5D3-A67F28E465A1",
+        "9F2D32B0-ED71-4127-A4C5-F51209656AF7"
+      ],
+      "sha256": "6b231f015246b24d3532d891b33e9ec354f2ee5c27218e331899ecc07034f7e6",
+      "sourceFiles": [
+        {
+          "path": "AudioKitSynthOne/Presets/Data/BankA.json",
+          "sha256": "1486c2b1fcb922d145541c96f436e7e15d755dba72ff9a8030052ef22d224bed"
+        },
+        {
+          "path": "AudioKitSynthOne/Presets/Data/Bonus.json",
+          "sha256": "e189a9782469bd851d97a2bd157cfdd43692621287de68eb2909e8aabbd4b996"
+        },
+        {
+          "path": "AudioKitSynthOne/Presets/Data/Brice Beasley.json",
+          "sha256": "a42a515cc66fc392f8831efa4865145dc9e2c8a8d9bc2554d1fd8a1aed242d45"
+        },
+        {
+          "path": "AudioKitSynthOne/Presets/Data/Electronisounds.json",
+          "sha256": "94447bcafd93b8e534b99347ef1a2ab7f96006364c36e85c88825e2480a026e7"
+        },
+        {
+          "path": "AudioKitSynthOne/Presets/Data/JEC.json",
+          "sha256": "9af56a4f52d050c98da8bfc6bc355ac872772cdd419def188bb644b0c9dff0c0"
+        },
+        {
+          "path": "AudioKitSynthOne/Presets/Data/Red Sky Lullaby.json",
+          "sha256": "db813fe373ebd0c2434c8c0af376b245c331c35080b396bce83bc4d9f2fb0aac"
+        },
+        {
+          "path": "AudioKitSynthOne/Presets/Data/Spidericemidas.json",
+          "sha256": "1cb034e91677be3b7bc0cddca64d821ddbfc132d79f98e4211053867f76eec35"
+        }
+      ],
+      "sourceKey": "AudioKitSynthOne"
+    },
+    {
+      "licenseFilename": "AudioKitCookbook-MIT.txt",
+      "path": "Drums/bass_drum_C1.wav",
+      "sha256": "f682067cb3e717374d27e2c8cdabaa3ea16eb8afe36776f163b46ebed64de5c9",
+      "sourceFiles": [
+        {
+          "path": "Cookbook/CookbookCommon/Sources/CookbookCommon/Samples/bass_drum_C1.wav",
+          "sha256": "f682067cb3e717374d27e2c8cdabaa3ea16eb8afe36776f163b46ebed64de5c9"
+        }
+      ],
+      "sourceKey": "AudioKit/Cookbook"
+    },
+    {
+      "licenseFilename": "AudioKitCookbook-MIT.txt",
+      "path": "Drums/closed_hi_hat_F#1.wav",
+      "sha256": "c9f30ff2b4d73b03f41960e504e03c54e9a59697af666fe4d155bab9cd1ccae6",
+      "sourceFiles": [
+        {
+          "path": "Cookbook/CookbookCommon/Sources/CookbookCommon/Samples/closed_hi_hat_F#1.wav",
+          "sha256": "c9f30ff2b4d73b03f41960e504e03c54e9a59697af666fe4d155bab9cd1ccae6"
+        }
+      ],
+      "sourceKey": "AudioKit/Cookbook"
+    },
+    {
+      "licenseFilename": "AudioKitCookbook-MIT.txt",
+      "path": "Drums/open_hi_hat_A#1.wav",
+      "sha256": "cde0aec2ca84358067859f52bac7d55b875f30d2baea700923e25e21307803e9",
+      "sourceFiles": [
+        {
+          "path": "Cookbook/CookbookCommon/Sources/CookbookCommon/Samples/open_hi_hat_A#1.wav",
+          "sha256": "cde0aec2ca84358067859f52bac7d55b875f30d2baea700923e25e21307803e9"
+        }
+      ],
+      "sourceKey": "AudioKit/Cookbook"
+    },
+    {
+      "licenseFilename": "AudioKitCookbook-MIT.txt",
+      "path": "Drums/clap_D#1.wav",
+      "sha256": "376429bb81cb48d1f392a11cd066c32ffb7883d445b2488704ea52e46bb08286",
+      "sourceFiles": [
+        {
+          "path": "Cookbook/CookbookCommon/Sources/CookbookCommon/Samples/clap_D#1.wav",
+          "sha256": "376429bb81cb48d1f392a11cd066c32ffb7883d445b2488704ea52e46bb08286"
+        }
+      ],
+      "sourceKey": "AudioKit/Cookbook"
+    },
+    {
+      "licenseFilename": "AudioKitCookbook-MIT.txt",
+      "path": "Drums/snare_D1.wav",
+      "sha256": "d7fa75dff476baaef99de0b251d86c39aa0e0f36a06043db9a97417350fe4439",
+      "sourceFiles": [
+        {
+          "path": "Cookbook/CookbookCommon/Sources/CookbookCommon/Samples/snare_D1.wav",
+          "sha256": "d7fa75dff476baaef99de0b251d86c39aa0e0f36a06043db9a97417350fe4439"
+        }
+      ],
+      "sourceKey": "AudioKit/Cookbook"
+    },
+    {
+      "licenseFilename": "AudioKitCookbook-MIT.txt",
+      "path": "Drums/cheeb-stick.wav",
+      "sha256": "2af90d5f8192a71c3caf2746322dee5a593c27256837b0ef7c66e57ec90aa634",
+      "sourceFiles": [
+        {
+          "path": "Cookbook/Sounds/cheeb-stick.wav",
+          "sha256": "2af90d5f8192a71c3caf2746322dee5a593c27256837b0ef7c66e57ec90aa634"
+        }
+      ],
+      "sourceKey": "AudioKit/Cookbook"
+    },
+    {
+      "licenseFilename": "AudioKitCookbook-MIT.txt",
+      "path": "Drums/cheeb-hat.wav",
+      "sha256": "33b9b334fb30d3a467f1c5ff28eb6299f08049cd94627c4cd41aafc8e466ab0d",
+      "sourceFiles": [
+        {
+          "path": "Cookbook/Sounds/cheeb-hat.wav",
+          "sha256": "33b9b334fb30d3a467f1c5ff28eb6299f08049cd94627c4cd41aafc8e466ab0d"
+        }
+      ],
+      "sourceKey": "AudioKit/Cookbook"
+    },
+    {
+      "licenseFilename": "AudioKitCookbook-MIT.txt",
+      "path": "Drums/cheeb-ch.wav",
+      "sha256": "6e18c1bd394fe97bea79f0106aa30285d56c16b78fb7ac9311c85fb502bbc106",
+      "sourceFiles": [
+        {
+          "path": "Cookbook/Sounds/cheeb-ch.wav",
+          "sha256": "6e18c1bd394fe97bea79f0106aa30285d56c16b78fb7ac9311c85fb502bbc106"
+        }
+      ],
+      "sourceKey": "AudioKit/Cookbook"
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_C2.caf",
+      "rootMIDINote": 36,
+      "rootNote": "C2",
+      "sha256": "033f516d8e0057b3a757e975996dc0d2134c0ad18878a9b097b626fac55af1c7",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_C2_vl1.flac",
+          "sha256": "cce3112e179b2bf20c4b18de67345a4cee8e2f981cdbf58d95e1758d14cc0ef1"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_E2.caf",
+      "rootMIDINote": 40,
+      "rootNote": "E2",
+      "sha256": "52fc1f374b127ae0c0a5ca7574ca26edd121ad570b0be03827b9b5e723ffa96d",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_E2_vl1.flac",
+          "sha256": "d52280ab1804cf9ecd1dd93d8fc245a17b801ffdebe0ff47b07d965fb4f5bf45"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_G2.caf",
+      "rootMIDINote": 43,
+      "rootNote": "G2",
+      "sha256": "b1f50a4cf006d120d1da6f7127e3324b355e12a157a0de99e907cbe9279dd842",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_G2_vl1.flac",
+          "sha256": "af26a649cf2d3de12cf75ff8d403ede451f5c0c81e4cb0500adabb966b44da28"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_C3.caf",
+      "rootMIDINote": 48,
+      "rootNote": "C3",
+      "sha256": "a00fd0a10d95de071b37d43684750df700f1ec3a5a36f6ace3401c9cbbb36f93",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_C3_vl1.flac",
+          "sha256": "4e509d501311b1fc7e6691cff1127f5a068a2292ec4501f94e68a36183a05e68"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_E3.caf",
+      "rootMIDINote": 52,
+      "rootNote": "E3",
+      "sha256": "03d091b7977d949587d06641fe775e648a85fa3f7d1d4a4a19823f707e11e203",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_E3_vl1.flac",
+          "sha256": "58c4188910fd6feb1b31561936f146f89f376dfa9d29acfa7e0c574334a97869"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_G3.caf",
+      "rootMIDINote": 55,
+      "rootNote": "G3",
+      "sha256": "d7029053ac37c674351053ccee763cf4090bc0d6fc156b3c1f2d59b5155d997c",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_G3_vl1.flac",
+          "sha256": "47a25644da5e4b770fd35ba29e53acded50a267985dad2f0d5e8f5a2698fe6ce"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_C4.caf",
+      "rootMIDINote": 60,
+      "rootNote": "C4",
+      "sha256": "07eb5a0d8abbdf039967b59cce5a75d4bb3d0dab2d2018e3dd57122d27dc1127",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_C4_vl1.flac",
+          "sha256": "f9e1ecef1ae24470796591f09d2d0aed4b320b5a376df8b7abf30c7880628545"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_E4.caf",
+      "rootMIDINote": 64,
+      "rootNote": "E4",
+      "sha256": "74c0748b394ce3b02d175938dd537ffcc0f51a9f54758ba855c5708a01f9b563",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_E4_vl1.flac",
+          "sha256": "592a756ccad9242f461a4af0542bc6bfdcbcfb3624e638baa2a0ac15eef773be"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_G4.caf",
+      "rootMIDINote": 67,
+      "rootNote": "G4",
+      "sha256": "6f8d9825f3c77fa2fbce627d610fe2c99ca4f32febb9208af966c08713e3f674",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_G4_vl1.flac",
+          "sha256": "f66433c9210a9a30544dd9b74c7a6688afc168a6476988b33b6745a21429f7af"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_C5.caf",
+      "rootMIDINote": 72,
+      "rootNote": "C5",
+      "sha256": "a44461ea38774dcf0bbd9a2a406df418c6d63832b61790b56486edf58eacb99e",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_C5_vl1.flac",
+          "sha256": "b402a966e7a9fd5f165d07b92c53d90f06fca9430036c377432d4071de5ae4d5"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_E5.caf",
+      "rootMIDINote": 76,
+      "rootNote": "E5",
+      "sha256": "12b7182462c11c72e6bb7f3deac9c1a55b196cb510e7f6bbf74380c6ccfcdcf6",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_E5_vl1.flac",
+          "sha256": "d3f7e471c4b7ad9f45a6aa4451189423eba33d6d849f1a6603a357fa6f201f00"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 24,
+        "channels": 1,
+        "sampleRateHz": 44100,
+        "tool": "afconvert"
+      },
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "normalizationGainDB": -6.0,
+      "path": "FeltPiano/felt_G5.caf",
+      "rootMIDINote": 79,
+      "rootNote": "G5",
+      "sha256": "d900e6d295f3cdd7e142c88564282ee58de3095fa9f715474a09e458f7e58b98",
+      "sourceFiles": [
+        {
+          "path": "UC-Sus-noisy/A/Piano_UC-Sus_MicA_G5_vl1.flac",
+          "sha256": "f7b14111af1078676f761d6e1ff22ef368baf6b895acbe5cfd1555f74cc84ac2"
+        }
+      ],
+      "sourceKey": "sfzinstruments/Osiris_Piano",
+      "velocityLayer": 1
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/01/A5.wav",
+      "renderIdentitySha256": "8fc5253fe88da52815fb45c61aa7ce3eae768cda0a39254c6190a517fcca681d",
+      "rootMIDINote": 81,
+      "sha256": "87343d8bbefb4cf040e12be0fcb177fcf46d6653adbcb6fb89f4723fe6e57589",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-01",
+          "sha256": "155a96f4549b40a23987fb8f111f2d79ec57c780e2a1a00ee72eb84fd96f4acf"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/01/C5.wav",
+      "renderIdentitySha256": "8fc5253fe88da52815fb45c61aa7ce3eae768cda0a39254c6190a517fcca681d",
+      "rootMIDINote": 72,
+      "sha256": "f5cb4da97f30c580022590df1892dfd9f4a6d6523c944843af0313b4fb6466d8",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-01",
+          "sha256": "155a96f4549b40a23987fb8f111f2d79ec57c780e2a1a00ee72eb84fd96f4acf"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/01/DSharp5.wav",
+      "renderIdentitySha256": "8fc5253fe88da52815fb45c61aa7ce3eae768cda0a39254c6190a517fcca681d",
+      "rootMIDINote": 75,
+      "sha256": "956cd698c210a5004f389d4e0c1134790af0e2fc1c864101a8384c4923589e83",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-01",
+          "sha256": "155a96f4549b40a23987fb8f111f2d79ec57c780e2a1a00ee72eb84fd96f4acf"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/01/FSharp5.wav",
+      "renderIdentitySha256": "8fc5253fe88da52815fb45c61aa7ce3eae768cda0a39254c6190a517fcca681d",
+      "rootMIDINote": 78,
+      "sha256": "91b615a0c13d79151b4b503dfa6420467d913777ec791fe8991b5015a98b3398",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-01",
+          "sha256": "155a96f4549b40a23987fb8f111f2d79ec57c780e2a1a00ee72eb84fd96f4acf"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/02/A5.wav",
+      "renderIdentitySha256": "01c08157a3cf5ede4d9abf7b38a91cbf0c36e914abfd3669a3851c1fef2b90d8",
+      "rootMIDINote": 81,
+      "sha256": "8f91c0e8082ea817b48c5140cd3a25e32cbac68f5a1f0a6176aa42b5e2539949",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-02",
+          "sha256": "e35820b7884f4cb166fa657f90e6a1506f048593dc772661dc6b50a2ef98f346"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/02/C5.wav",
+      "renderIdentitySha256": "01c08157a3cf5ede4d9abf7b38a91cbf0c36e914abfd3669a3851c1fef2b90d8",
+      "rootMIDINote": 72,
+      "sha256": "5748af97d6a92342104473d80bd18b20640c296edcfb18fd947ca1f837a56553",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-02",
+          "sha256": "e35820b7884f4cb166fa657f90e6a1506f048593dc772661dc6b50a2ef98f346"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/02/DSharp5.wav",
+      "renderIdentitySha256": "01c08157a3cf5ede4d9abf7b38a91cbf0c36e914abfd3669a3851c1fef2b90d8",
+      "rootMIDINote": 75,
+      "sha256": "29cf6b4fed50584f722ebd9dad450388d69ac365deb0833c974ff2c78551615a",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-02",
+          "sha256": "e35820b7884f4cb166fa657f90e6a1506f048593dc772661dc6b50a2ef98f346"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/02/FSharp5.wav",
+      "renderIdentitySha256": "01c08157a3cf5ede4d9abf7b38a91cbf0c36e914abfd3669a3851c1fef2b90d8",
+      "rootMIDINote": 78,
+      "sha256": "4e3817f30c5055e90e9b5804bc4a9898da74b7ef18d8569be1691f00fd81bfd6",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-02",
+          "sha256": "e35820b7884f4cb166fa657f90e6a1506f048593dc772661dc6b50a2ef98f346"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/03/A5.wav",
+      "renderIdentitySha256": "5405e08af3eb169dc669af2c5a11fde405326a6d2b9b53db71abaa15cab85901",
+      "rootMIDINote": 81,
+      "sha256": "3933dc5fb8d971abea06f456d2896e913386966a37f25eb3626d5d2e37af1918",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-03",
+          "sha256": "9132aadd8ac6005523a58f8001064b92948627623f4fe473894a0f3e8128c490"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/03/C5.wav",
+      "renderIdentitySha256": "5405e08af3eb169dc669af2c5a11fde405326a6d2b9b53db71abaa15cab85901",
+      "rootMIDINote": 72,
+      "sha256": "8afadb95e566c29ee30e402f3b317cedb6b5214e88cbd7ac7e5c112f7a0a1f35",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-03",
+          "sha256": "9132aadd8ac6005523a58f8001064b92948627623f4fe473894a0f3e8128c490"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/03/DSharp5.wav",
+      "renderIdentitySha256": "5405e08af3eb169dc669af2c5a11fde405326a6d2b9b53db71abaa15cab85901",
+      "rootMIDINote": 75,
+      "sha256": "a2e93701aeb80f094695ed1c70ad624381385af1a988ab33dd455e7c61d8566d",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-03",
+          "sha256": "9132aadd8ac6005523a58f8001064b92948627623f4fe473894a0f3e8128c490"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/03/FSharp5.wav",
+      "renderIdentitySha256": "5405e08af3eb169dc669af2c5a11fde405326a6d2b9b53db71abaa15cab85901",
+      "rootMIDINote": 78,
+      "sha256": "55590e2190bb5dfb705ed38ac3f665dbc1634c1784641a66eb1de4e3f2c692fd",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-03",
+          "sha256": "9132aadd8ac6005523a58f8001064b92948627623f4fe473894a0f3e8128c490"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/04/A5.wav",
+      "renderIdentitySha256": "06e1d9f88fd01d4217250b981314e61e248deb89f586f26765e26031b1eaaabd",
+      "rootMIDINote": 81,
+      "sha256": "1bee35a0c18dd9e5cc50543476a2bd2630fc6c4c70bba5aa2d9b5e9f1d01f0cd",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-04",
+          "sha256": "d69c2025f7e3d7341c88c070085785ac173b1ff945ce1ccf8b225da2a9c8588c"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/04/C5.wav",
+      "renderIdentitySha256": "06e1d9f88fd01d4217250b981314e61e248deb89f586f26765e26031b1eaaabd",
+      "rootMIDINote": 72,
+      "sha256": "ee428f0d5a41a53f6ec4e86b0e655c02010638c477292826d16fb295b1b4933c",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-04",
+          "sha256": "d69c2025f7e3d7341c88c070085785ac173b1ff945ce1ccf8b225da2a9c8588c"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/04/DSharp5.wav",
+      "renderIdentitySha256": "06e1d9f88fd01d4217250b981314e61e248deb89f586f26765e26031b1eaaabd",
+      "rootMIDINote": 75,
+      "sha256": "25345206aaec7da6fae6151907d077132c808512b0475c19ae3100b0a3d65266",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-04",
+          "sha256": "d69c2025f7e3d7341c88c070085785ac173b1ff945ce1ccf8b225da2a9c8588c"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/04/FSharp5.wav",
+      "renderIdentitySha256": "06e1d9f88fd01d4217250b981314e61e248deb89f586f26765e26031b1eaaabd",
+      "rootMIDINote": 78,
+      "sha256": "56b1631dcfffd508ceefaafa28e284b73618e75a0eb3b54e36c6a6358b99e0a1",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-04",
+          "sha256": "d69c2025f7e3d7341c88c070085785ac173b1ff945ce1ccf8b225da2a9c8588c"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/05/A5.wav",
+      "renderIdentitySha256": "856080f0c6ee3da511bc7976cbd9181aa08bf83c5860ccb5e7f7496bc5ef968d",
+      "rootMIDINote": 81,
+      "sha256": "09099e53b2caaf5820901e7e2e576725115ab6084724dcf012a38aa47595f376",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-05",
+          "sha256": "ed2b74d43cb7f87c62386c72d7106f3928ce4ece82be053e44c70686241bc2d5"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/05/C5.wav",
+      "renderIdentitySha256": "856080f0c6ee3da511bc7976cbd9181aa08bf83c5860ccb5e7f7496bc5ef968d",
+      "rootMIDINote": 72,
+      "sha256": "7ca3c04833bb35d2fc55b619283665df7fdabbc36bd06481a259ce7b7cc1f618",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-05",
+          "sha256": "ed2b74d43cb7f87c62386c72d7106f3928ce4ece82be053e44c70686241bc2d5"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/05/DSharp5.wav",
+      "renderIdentitySha256": "856080f0c6ee3da511bc7976cbd9181aa08bf83c5860ccb5e7f7496bc5ef968d",
+      "rootMIDINote": 75,
+      "sha256": "94edcf41393a22388a20ee907838915b34d156598241d52259fea9f22a3577f8",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-05",
+          "sha256": "ed2b74d43cb7f87c62386c72d7106f3928ce4ece82be053e44c70686241bc2d5"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/05/FSharp5.wav",
+      "renderIdentitySha256": "856080f0c6ee3da511bc7976cbd9181aa08bf83c5860ccb5e7f7496bc5ef968d",
+      "rootMIDINote": 78,
+      "sha256": "96f09bce498dfdce33b2b292ed7c153d0a7fc23caa1f791e587c4efd3c3fb4ed",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-05",
+          "sha256": "ed2b74d43cb7f87c62386c72d7106f3928ce4ece82be053e44c70686241bc2d5"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/06/A5.wav",
+      "renderIdentitySha256": "00ed385eb7043eb26ccfb7418dbc0ea721a384886f4e0293254a4e59521fed64",
+      "rootMIDINote": 81,
+      "sha256": "8490fcb642cb0258eecd23334acaa5bd9545f32637a437cf0e20a1a1c318776b",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-06",
+          "sha256": "3645e4ba598e46546e8d880792ed51ccefd45af249da76931d0765fd55ba2502"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/06/C5.wav",
+      "renderIdentitySha256": "00ed385eb7043eb26ccfb7418dbc0ea721a384886f4e0293254a4e59521fed64",
+      "rootMIDINote": 72,
+      "sha256": "3fb73e5f287a797c24f58e5d13229022c74fe03962c4be3b52daf55b95832cfe",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-06",
+          "sha256": "3645e4ba598e46546e8d880792ed51ccefd45af249da76931d0765fd55ba2502"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/06/DSharp5.wav",
+      "renderIdentitySha256": "00ed385eb7043eb26ccfb7418dbc0ea721a384886f4e0293254a4e59521fed64",
+      "rootMIDINote": 75,
+      "sha256": "7763896ed0738f5a7e71fa4912a6ca72e928f6d8bbbaa24129c68debee63c81a",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-06",
+          "sha256": "3645e4ba598e46546e8d880792ed51ccefd45af249da76931d0765fd55ba2502"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/06/FSharp5.wav",
+      "renderIdentitySha256": "00ed385eb7043eb26ccfb7418dbc0ea721a384886f4e0293254a4e59521fed64",
+      "rootMIDINote": 78,
+      "sha256": "279196004b5d5f869f9d724b0ff27d6a1b348d31fc0f871d63fdb336ed126bc4",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-06",
+          "sha256": "3645e4ba598e46546e8d880792ed51ccefd45af249da76931d0765fd55ba2502"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/07/A4.wav",
+      "renderIdentitySha256": "8c4b353054d2cc6c0ba2df928683df85a2f8d01ee055af299557ad080343d084",
+      "rootMIDINote": 69,
+      "sha256": "567d856850d90c03e05d3d36240a7df1b7b6e0f15d30e37e93688a404c692f70",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-07",
+          "sha256": "65b30e89ea89dba61cfec14e881b0ab611014772c0d03437ca28da634bbe569a"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/07/C4.wav",
+      "renderIdentitySha256": "8c4b353054d2cc6c0ba2df928683df85a2f8d01ee055af299557ad080343d084",
+      "rootMIDINote": 60,
+      "sha256": "70069f80ea812fca32ad09bcc91d9d9225e26307b31b104d88acd5c3bc63da7d",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-07",
+          "sha256": "65b30e89ea89dba61cfec14e881b0ab611014772c0d03437ca28da634bbe569a"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/07/DSharp4.wav",
+      "renderIdentitySha256": "8c4b353054d2cc6c0ba2df928683df85a2f8d01ee055af299557ad080343d084",
+      "rootMIDINote": 63,
+      "sha256": "aa6659a437dc6df3d6718fe836705e1c5dd28a95bada2ac3a9b61fe493c71bb6",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-07",
+          "sha256": "65b30e89ea89dba61cfec14e881b0ab611014772c0d03437ca28da634bbe569a"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/07/FSharp4.wav",
+      "renderIdentitySha256": "8c4b353054d2cc6c0ba2df928683df85a2f8d01ee055af299557ad080343d084",
+      "rootMIDINote": 66,
+      "sha256": "28931f645d526b9f6a6fdc02a4fea64ce8750eca04c737a530f7c1cdf99f6095",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-07",
+          "sha256": "65b30e89ea89dba61cfec14e881b0ab611014772c0d03437ca28da634bbe569a"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/08/A4.wav",
+      "renderIdentitySha256": "f8714bdd9cb93cf07c868d23bc4fa1b2388681aaed929703c70ed293a670011c",
+      "rootMIDINote": 69,
+      "sha256": "24cecc5f99a2b10d52c66d73e785ffca268f0759b373e5a82332f16ec2e448ca",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-08",
+          "sha256": "08e87295d3159888fd34d8053299c82622f9436b8a5fef0576647027daeafa6c"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/08/C4.wav",
+      "renderIdentitySha256": "f8714bdd9cb93cf07c868d23bc4fa1b2388681aaed929703c70ed293a670011c",
+      "rootMIDINote": 60,
+      "sha256": "197bafccbafe27728a89651d3daff5ce22f8943d5e86f17a3e6f6da0eb4f6ba1",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-08",
+          "sha256": "08e87295d3159888fd34d8053299c82622f9436b8a5fef0576647027daeafa6c"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/08/DSharp4.wav",
+      "renderIdentitySha256": "f8714bdd9cb93cf07c868d23bc4fa1b2388681aaed929703c70ed293a670011c",
+      "rootMIDINote": 63,
+      "sha256": "dca7243d9dfcd67b92b1913fc464c90a14843f8ac7cc3bd087c717333b4b8f4b",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-08",
+          "sha256": "08e87295d3159888fd34d8053299c82622f9436b8a5fef0576647027daeafa6c"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/08/FSharp4.wav",
+      "renderIdentitySha256": "f8714bdd9cb93cf07c868d23bc4fa1b2388681aaed929703c70ed293a670011c",
+      "rootMIDINote": 66,
+      "sha256": "604d9d4a7a73c0173f6cee054730cd783ca833c1af358aa331c5ed0e699ee31a",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-08",
+          "sha256": "08e87295d3159888fd34d8053299c82622f9436b8a5fef0576647027daeafa6c"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "VCSL-CC0-1.0.txt",
+      "offlinePitchTransformSemitones": 9,
+      "path": "Happenings/09/A4.wav",
+      "renderIdentitySha256": "22ce3ccd66e9702c9c7aa9100659e989da4485c72310c62e29acd81511cbb2fe",
+      "rootMIDINote": 69,
+      "sha256": "1e81dca2a5ae01abb060ca13b2c3771351da7968e16f3639373afffc0552d55f",
+      "sourceFiles": [
+        {
+          "path": "09 Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_C4_soft_01.wav",
+          "sha256": "4d03d005166e8b366e6a983b7a4a89e0847e1d58a6d34dda35ddf74289cace94"
+        }
+      ],
+      "sourceKey": "vcsl"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "VCSL-CC0-1.0.txt",
+      "offlinePitchTransformSemitones": 0,
+      "path": "Happenings/09/C4.wav",
+      "renderIdentitySha256": "22ce3ccd66e9702c9c7aa9100659e989da4485c72310c62e29acd81511cbb2fe",
+      "rootMIDINote": 60,
+      "sha256": "f747b8d21e906bde55795e5574872c2cb2d75e0a600ef09db8ece33b39016767",
+      "sourceFiles": [
+        {
+          "path": "09 Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_C4_soft_01.wav",
+          "sha256": "4d03d005166e8b366e6a983b7a4a89e0847e1d58a6d34dda35ddf74289cace94"
+        }
+      ],
+      "sourceKey": "vcsl"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "VCSL-CC0-1.0.txt",
+      "offlinePitchTransformSemitones": 3,
+      "path": "Happenings/09/DSharp4.wav",
+      "renderIdentitySha256": "22ce3ccd66e9702c9c7aa9100659e989da4485c72310c62e29acd81511cbb2fe",
+      "rootMIDINote": 63,
+      "sha256": "568d0707d90f753a56a5f3dbeabea7fb8e9d5817fab467b74c41e141cf468981",
+      "sourceFiles": [
+        {
+          "path": "09 Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_C4_soft_01.wav",
+          "sha256": "4d03d005166e8b366e6a983b7a4a89e0847e1d58a6d34dda35ddf74289cace94"
+        }
+      ],
+      "sourceKey": "vcsl"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "VCSL-CC0-1.0.txt",
+      "offlinePitchTransformSemitones": 6,
+      "path": "Happenings/09/FSharp4.wav",
+      "renderIdentitySha256": "22ce3ccd66e9702c9c7aa9100659e989da4485c72310c62e29acd81511cbb2fe",
+      "rootMIDINote": 66,
+      "sha256": "dcfae028d4265899e06ca6afd20e986eb014b81bbb15572f2b7c1a93b1e46f00",
+      "sourceFiles": [
+        {
+          "path": "09 Idiophones/Struck Idiophones/Marimba/Marimba_hit_Outrigger_C4_soft_01.wav",
+          "sha256": "4d03d005166e8b366e6a983b7a4a89e0847e1d58a6d34dda35ddf74289cace94"
+        }
+      ],
+      "sourceKey": "vcsl"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "VCSL-CC0-1.0.txt",
+      "offlinePitchTransformSemitones": 9,
+      "path": "Happenings/10/A4.wav",
+      "renderIdentitySha256": "4f6ea2afe3b29480a6b104e748f6cf9218d5472ca467d39e26e459e92b9c6389",
+      "rootMIDINote": 69,
+      "sha256": "5713d897df1dc7f2caa132f9530efea4a1c70a22cf9e87fa8997d823fba6aadb",
+      "sourceFiles": [
+        {
+          "path": "10 Idiophones/Struck Idiophones/Balafon/Soft Mallet/EthnicXylo_softM_C4_vl2_rr1_Mid.wav",
+          "sha256": "c46eaef41eed9c720227ec5c9e52d93bab53703c3bfd90e2e6a111cef01604c9"
+        }
+      ],
+      "sourceKey": "vcsl"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "VCSL-CC0-1.0.txt",
+      "offlinePitchTransformSemitones": 0,
+      "path": "Happenings/10/C4.wav",
+      "renderIdentitySha256": "4f6ea2afe3b29480a6b104e748f6cf9218d5472ca467d39e26e459e92b9c6389",
+      "rootMIDINote": 60,
+      "sha256": "9ad8ed4c39a2aa201cabd8374d22e0f83fc66d23dd4c30d6c95758821af5047e",
+      "sourceFiles": [
+        {
+          "path": "10 Idiophones/Struck Idiophones/Balafon/Soft Mallet/EthnicXylo_softM_C4_vl2_rr1_Mid.wav",
+          "sha256": "c46eaef41eed9c720227ec5c9e52d93bab53703c3bfd90e2e6a111cef01604c9"
+        }
+      ],
+      "sourceKey": "vcsl"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "VCSL-CC0-1.0.txt",
+      "offlinePitchTransformSemitones": 3,
+      "path": "Happenings/10/DSharp4.wav",
+      "renderIdentitySha256": "4f6ea2afe3b29480a6b104e748f6cf9218d5472ca467d39e26e459e92b9c6389",
+      "rootMIDINote": 63,
+      "sha256": "b088a663c1994ac211bea4f096e1277d1a2b1918517582d6054bdd401169aaa5",
+      "sourceFiles": [
+        {
+          "path": "10 Idiophones/Struck Idiophones/Balafon/Soft Mallet/EthnicXylo_softM_C4_vl2_rr1_Mid.wav",
+          "sha256": "c46eaef41eed9c720227ec5c9e52d93bab53703c3bfd90e2e6a111cef01604c9"
+        }
+      ],
+      "sourceKey": "vcsl"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "VCSL-CC0-1.0.txt",
+      "offlinePitchTransformSemitones": 6,
+      "path": "Happenings/10/FSharp4.wav",
+      "renderIdentitySha256": "4f6ea2afe3b29480a6b104e748f6cf9218d5472ca467d39e26e459e92b9c6389",
+      "rootMIDINote": 66,
+      "sha256": "04114c9db5ef88766f5abe6d9d95fc6059b7bcc8f9b5c796d6b6a4ac4a5c27a4",
+      "sourceFiles": [
+        {
+          "path": "10 Idiophones/Struck Idiophones/Balafon/Soft Mallet/EthnicXylo_softM_C4_vl2_rr1_Mid.wav",
+          "sha256": "c46eaef41eed9c720227ec5c9e52d93bab53703c3bfd90e2e6a111cef01604c9"
+        }
+      ],
+      "sourceKey": "vcsl"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "VCSL-CC0-1.0.txt",
+      "offlinePitchTransformSemitones": -3,
+      "path": "Happenings/11/A4.wav",
+      "renderIdentitySha256": "6f0749b8582bd147dbe9771ecfbe8023a90f9191a936e66e60259b674b0a0946",
+      "rootMIDINote": 69,
+      "sha256": "327d159891076b6b767841387419c2373295c05acf22e56ae2ad9b6955bbc4fb",
+      "sourceFiles": [
+        {
+          "path": "11 Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_C5_v1_rr1_Main.wav",
+          "sha256": "be995c1164dcbbcf83688d095864a4abd0feaa68b71d1d2e78c35f62461fc03b"
+        }
+      ],
+      "sourceKey": "vcsl"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "VCSL-CC0-1.0.txt",
+      "offlinePitchTransformSemitones": -12,
+      "path": "Happenings/11/C4.wav",
+      "renderIdentitySha256": "6f0749b8582bd147dbe9771ecfbe8023a90f9191a936e66e60259b674b0a0946",
+      "rootMIDINote": 60,
+      "sha256": "408e25dac90c6959fac5612726a14296d3766eb238216b709123b61f7e8da484",
+      "sourceFiles": [
+        {
+          "path": "11 Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_C5_v1_rr1_Main.wav",
+          "sha256": "be995c1164dcbbcf83688d095864a4abd0feaa68b71d1d2e78c35f62461fc03b"
+        }
+      ],
+      "sourceKey": "vcsl"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "VCSL-CC0-1.0.txt",
+      "offlinePitchTransformSemitones": -9,
+      "path": "Happenings/11/DSharp4.wav",
+      "renderIdentitySha256": "6f0749b8582bd147dbe9771ecfbe8023a90f9191a936e66e60259b674b0a0946",
+      "rootMIDINote": 63,
+      "sha256": "81e010e9dc95f463ead49d47f5805f6e0a04db6bcd8e21359b761d6c3de442eb",
+      "sourceFiles": [
+        {
+          "path": "11 Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_C5_v1_rr1_Main.wav",
+          "sha256": "be995c1164dcbbcf83688d095864a4abd0feaa68b71d1d2e78c35f62461fc03b"
+        }
+      ],
+      "sourceKey": "vcsl"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "VCSL-CC0-1.0.txt",
+      "offlinePitchTransformSemitones": -6,
+      "path": "Happenings/11/FSharp4.wav",
+      "renderIdentitySha256": "6f0749b8582bd147dbe9771ecfbe8023a90f9191a936e66e60259b674b0a0946",
+      "rootMIDINote": 66,
+      "sha256": "d852ca6a2e567e93f8c55e3761dab2b1865af771a4215696e4a0fc4c92d88868",
+      "sourceFiles": [
+        {
+          "path": "11 Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_C5_v1_rr1_Main.wav",
+          "sha256": "be995c1164dcbbcf83688d095864a4abd0feaa68b71d1d2e78c35f62461fc03b"
+        }
+      ],
+      "sourceKey": "vcsl"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/12/A4.wav",
+      "renderIdentitySha256": "17b31acaae8bf1643be93444560e6be75ccb05f015daabd414252f7a24585be1",
+      "rootMIDINote": 69,
+      "sha256": "02a6f8bd65bff04455c65369702e4d8055b360a7ce8436cacbe692482e3daf25",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-12",
+          "sha256": "517f61dca29ab4ab8a57d574b94de6c4b50cd4b322d7612a8465086366dc19e8"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/12/C4.wav",
+      "renderIdentitySha256": "17b31acaae8bf1643be93444560e6be75ccb05f015daabd414252f7a24585be1",
+      "rootMIDINote": 60,
+      "sha256": "5e2b7e0e4aadf6a8f2819b2950f42f0a675cf454eb9155c759bc897be3fdff46",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-12",
+          "sha256": "517f61dca29ab4ab8a57d574b94de6c4b50cd4b322d7612a8465086366dc19e8"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/12/DSharp4.wav",
+      "renderIdentitySha256": "17b31acaae8bf1643be93444560e6be75ccb05f015daabd414252f7a24585be1",
+      "rootMIDINote": 63,
+      "sha256": "ed041f0cb0934d49ca9ac95d8381f357c82146582f13e00da8960854bda19dff",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-12",
+          "sha256": "517f61dca29ab4ab8a57d574b94de6c4b50cd4b322d7612a8465086366dc19e8"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/12/FSharp4.wav",
+      "renderIdentitySha256": "17b31acaae8bf1643be93444560e6be75ccb05f015daabd414252f7a24585be1",
+      "rootMIDINote": 66,
+      "sha256": "072054284b79bcbb5e1eba6d4ab1b2f709b14f921646650cffc76a01ce224eb7",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-12",
+          "sha256": "517f61dca29ab4ab8a57d574b94de6c4b50cd4b322d7612a8465086366dc19e8"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/13/A5.wav",
+      "renderIdentitySha256": "58553ffa3f3a44d1658bf4162df95fa8c7b9d6ae1b52accc79184cada1705c4b",
+      "rootMIDINote": 81,
+      "sha256": "dec945386883c4c09f400a4ab9d73aed7b9f4d25dac30a90d48efe422008474d",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-13",
+          "sha256": "43b3636d2758f4e12ebfefecb0a17eb25494c95097420d98e8a28492b3170612"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/13/C5.wav",
+      "renderIdentitySha256": "58553ffa3f3a44d1658bf4162df95fa8c7b9d6ae1b52accc79184cada1705c4b",
+      "rootMIDINote": 72,
+      "sha256": "08d409db4bbe22c9aae3c106193a9de00e17033a99ed96f1cc21dfa1106abc57",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-13",
+          "sha256": "43b3636d2758f4e12ebfefecb0a17eb25494c95097420d98e8a28492b3170612"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/13/DSharp5.wav",
+      "renderIdentitySha256": "58553ffa3f3a44d1658bf4162df95fa8c7b9d6ae1b52accc79184cada1705c4b",
+      "rootMIDINote": 75,
+      "sha256": "6c83f6ec13721aab5debe4b5e0da4d9f5f4a5bc3a06ca0c9333fe719f7794693",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-13",
+          "sha256": "43b3636d2758f4e12ebfefecb0a17eb25494c95097420d98e8a28492b3170612"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/13/FSharp5.wav",
+      "renderIdentitySha256": "58553ffa3f3a44d1658bf4162df95fa8c7b9d6ae1b52accc79184cada1705c4b",
+      "rootMIDINote": 78,
+      "sha256": "b9cb2f1c6239db2e0e0974c5df97946f7494f129ae5ef3b38084a5a89fc66079",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-13",
+          "sha256": "43b3636d2758f4e12ebfefecb0a17eb25494c95097420d98e8a28492b3170612"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/14/A5.wav",
+      "renderIdentitySha256": "9534b8d68790c42d1d4f86000bce88aa65870508060fa7ac6b46edc28fdd1211",
+      "rootMIDINote": 81,
+      "sha256": "27c7da24cb06a09c1d40161baf1ba576b0580b0776b940acbb5d415cfc0793bf",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-14",
+          "sha256": "74d6f6cb697e4b5611e936fea54f5794d561ca7beb609268e8fdfbad89833c9e"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/14/C5.wav",
+      "renderIdentitySha256": "9534b8d68790c42d1d4f86000bce88aa65870508060fa7ac6b46edc28fdd1211",
+      "rootMIDINote": 72,
+      "sha256": "5da8dcf1a20525cd2ae0c1ee2bd43915327a50370ed1465d1e9ad4d007655b11",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-14",
+          "sha256": "74d6f6cb697e4b5611e936fea54f5794d561ca7beb609268e8fdfbad89833c9e"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/14/DSharp5.wav",
+      "renderIdentitySha256": "9534b8d68790c42d1d4f86000bce88aa65870508060fa7ac6b46edc28fdd1211",
+      "rootMIDINote": 75,
+      "sha256": "cb18ab7e57b3b796c5d413556c4a24a7f6ab04a1f9ed6ae423aa7e7bf4374961",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-14",
+          "sha256": "74d6f6cb697e4b5611e936fea54f5794d561ca7beb609268e8fdfbad89833c9e"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/14/FSharp5.wav",
+      "renderIdentitySha256": "9534b8d68790c42d1d4f86000bce88aa65870508060fa7ac6b46edc28fdd1211",
+      "rootMIDINote": 78,
+      "sha256": "84b413d9b3dd1e90f7afd23dffc4b276131b1797661366dbff6b75842c9fd793",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-14",
+          "sha256": "74d6f6cb697e4b5611e936fea54f5794d561ca7beb609268e8fdfbad89833c9e"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/15/A5.wav",
+      "renderIdentitySha256": "b8198e8483268a0bd36fc9e68feb47a3226546e8be0898b33e717e39c2128693",
+      "rootMIDINote": 81,
+      "sha256": "7872b1464c06ac4f7833d2cd7f1f349795d70441b86d04e06d71994936fc173c",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-15",
+          "sha256": "501c093306fc3fc7db3abc8c4021e8588d2a2cc857bc7e9fa82ad803d58d9632"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/15/C5.wav",
+      "renderIdentitySha256": "b8198e8483268a0bd36fc9e68feb47a3226546e8be0898b33e717e39c2128693",
+      "rootMIDINote": 72,
+      "sha256": "824e7ef51af78ee9e000fcf2acf5400cd161cfce522334b92f11895de018b957",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-15",
+          "sha256": "501c093306fc3fc7db3abc8c4021e8588d2a2cc857bc7e9fa82ad803d58d9632"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/15/DSharp5.wav",
+      "renderIdentitySha256": "b8198e8483268a0bd36fc9e68feb47a3226546e8be0898b33e717e39c2128693",
+      "rootMIDINote": 75,
+      "sha256": "aa7faefb14c58fc9fb9278acda9edf3f3db50a2776a56c6705919bfe2d0813e1",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-15",
+          "sha256": "501c093306fc3fc7db3abc8c4021e8588d2a2cc857bc7e9fa82ad803d58d9632"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/15/FSharp5.wav",
+      "renderIdentitySha256": "b8198e8483268a0bd36fc9e68feb47a3226546e8be0898b33e717e39c2128693",
+      "rootMIDINote": 78,
+      "sha256": "2dc0cb3aeaf4fa247f62572c111e8a699a7a6431a5cda5c268271f185f1db5db",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-15",
+          "sha256": "501c093306fc3fc7db3abc8c4021e8588d2a2cc857bc7e9fa82ad803d58d9632"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/16/A5.wav",
+      "renderIdentitySha256": "30f5ff415c72f17e5adf75216612829de754922b75cbb0937bf86138b448b772",
+      "rootMIDINote": 81,
+      "sha256": "8b6f98d45043d6af4689c795d06e9f934dfd1c5dc9f3f66860c0d03529e79ab9",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-16",
+          "sha256": "7bebd2d2fe1cbd85c6882e6b108e6e5d9dd6d9ba90b8f9a8d5d9cd866a727fd2"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/16/C5.wav",
+      "renderIdentitySha256": "30f5ff415c72f17e5adf75216612829de754922b75cbb0937bf86138b448b772",
+      "rootMIDINote": 72,
+      "sha256": "eeeb6be15318293531a0f1d7c54fc469d3c12845600aff4ba6fcfe959a3b0eb0",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-16",
+          "sha256": "7bebd2d2fe1cbd85c6882e6b108e6e5d9dd6d9ba90b8f9a8d5d9cd866a727fd2"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/16/DSharp5.wav",
+      "renderIdentitySha256": "30f5ff415c72f17e5adf75216612829de754922b75cbb0937bf86138b448b772",
+      "rootMIDINote": 75,
+      "sha256": "61f51190e15e4e6c1b61ff2bf83585bee8c9978354b1c16fce878ef63fd65be9",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-16",
+          "sha256": "7bebd2d2fe1cbd85c6882e6b108e6e5d9dd6d9ba90b8f9a8d5d9cd866a727fd2"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/16/FSharp5.wav",
+      "renderIdentitySha256": "30f5ff415c72f17e5adf75216612829de754922b75cbb0937bf86138b448b772",
+      "rootMIDINote": 78,
+      "sha256": "5c70b957075e23924ca996a418c593d8b8ba0124a7f205859ca6fcd981a999f4",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-16",
+          "sha256": "7bebd2d2fe1cbd85c6882e6b108e6e5d9dd6d9ba90b8f9a8d5d9cd866a727fd2"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "VCSL-CC0-1.0.txt",
+      "offlinePitchTransformSemitones": 21,
+      "path": "Happenings/17/A5.wav",
+      "renderIdentitySha256": "47e4f0453b18e0a7f8bab1aac600c0cdc0a81dde4a6b78a8fd0a8caf9ddc0d02",
+      "rootMIDINote": 81,
+      "sha256": "fc61fec05e7eea75a13fba00af58cc3624688a4dd4894cc6dac8e72c04514d28",
+      "sourceFiles": [
+        {
+          "path": "17 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_C4_p_rr1.wav",
+          "sha256": "c0f357155823646012c5d86628eedf122f162f813bfeed7337e72bf1a8d37c63"
+        }
+      ],
+      "sourceKey": "vcsl"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "VCSL-CC0-1.0.txt",
+      "offlinePitchTransformSemitones": 12,
+      "path": "Happenings/17/C5.wav",
+      "renderIdentitySha256": "47e4f0453b18e0a7f8bab1aac600c0cdc0a81dde4a6b78a8fd0a8caf9ddc0d02",
+      "rootMIDINote": 72,
+      "sha256": "7fe40146df34e251129ea38de71227266e4542f973a60e587294cc109e30152a",
+      "sourceFiles": [
+        {
+          "path": "17 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_C4_p_rr1.wav",
+          "sha256": "c0f357155823646012c5d86628eedf122f162f813bfeed7337e72bf1a8d37c63"
+        }
+      ],
+      "sourceKey": "vcsl"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "VCSL-CC0-1.0.txt",
+      "offlinePitchTransformSemitones": 15,
+      "path": "Happenings/17/DSharp5.wav",
+      "renderIdentitySha256": "47e4f0453b18e0a7f8bab1aac600c0cdc0a81dde4a6b78a8fd0a8caf9ddc0d02",
+      "rootMIDINote": 75,
+      "sha256": "a93ffaa176c31665048f9a6d1694dbb0d6111c516042bbac3b05a3ddaa0d48de",
+      "sourceFiles": [
+        {
+          "path": "17 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_C4_p_rr1.wav",
+          "sha256": "c0f357155823646012c5d86628eedf122f162f813bfeed7337e72bf1a8d37c63"
+        }
+      ],
+      "sourceKey": "vcsl"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "VCSL-CC0-1.0.txt",
+      "offlinePitchTransformSemitones": 18,
+      "path": "Happenings/17/FSharp5.wav",
+      "renderIdentitySha256": "47e4f0453b18e0a7f8bab1aac600c0cdc0a81dde4a6b78a8fd0a8caf9ddc0d02",
+      "rootMIDINote": 78,
+      "sha256": "7fce2d43ed7a61936985358d8b14fba89d8aafcff5779e06d70c9a58688a095d",
+      "sourceFiles": [
+        {
+          "path": "17 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_C4_p_rr1.wav",
+          "sha256": "c0f357155823646012c5d86628eedf122f162f813bfeed7337e72bf1a8d37c63"
+        }
+      ],
+      "sourceKey": "vcsl"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "VCSL-CC0-1.0.txt",
+      "offlinePitchTransformSemitones": 19,
+      "path": "Happenings/18/A5.wav",
+      "renderIdentitySha256": "959033221f515eec3c1647a2eb3966f3322c711db1fa86f47616fe766a7112a8",
+      "rootMIDINote": 81,
+      "sha256": "6333221c2893d5a523760619086a7e188e60db904f776428cacd2a28d9494534",
+      "sourceFiles": [
+        {
+          "path": "18 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_D4_p_rr1.wav",
+          "sha256": "7cae9c07be76951f643ae92370c6af0735dfdd776508b2b0ae76ae7ea3ebcd9d"
+        }
+      ],
+      "sourceKey": "vcsl"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "VCSL-CC0-1.0.txt",
+      "offlinePitchTransformSemitones": 10,
+      "path": "Happenings/18/C5.wav",
+      "renderIdentitySha256": "959033221f515eec3c1647a2eb3966f3322c711db1fa86f47616fe766a7112a8",
+      "rootMIDINote": 72,
+      "sha256": "156a4be966709694ac4e0da2f888182b72192ea14bda859a12845212bcb97179",
+      "sourceFiles": [
+        {
+          "path": "18 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_D4_p_rr1.wav",
+          "sha256": "7cae9c07be76951f643ae92370c6af0735dfdd776508b2b0ae76ae7ea3ebcd9d"
+        }
+      ],
+      "sourceKey": "vcsl"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "VCSL-CC0-1.0.txt",
+      "offlinePitchTransformSemitones": 13,
+      "path": "Happenings/18/DSharp5.wav",
+      "renderIdentitySha256": "959033221f515eec3c1647a2eb3966f3322c711db1fa86f47616fe766a7112a8",
+      "rootMIDINote": 75,
+      "sha256": "eb394e73dfe01102b94a90814932084b267b443e3118a2a27d7429288a56f0ce",
+      "sourceFiles": [
+        {
+          "path": "18 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_D4_p_rr1.wav",
+          "sha256": "7cae9c07be76951f643ae92370c6af0735dfdd776508b2b0ae76ae7ea3ebcd9d"
+        }
+      ],
+      "sourceKey": "vcsl"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "VCSL-CC0-1.0.txt",
+      "offlinePitchTransformSemitones": 16,
+      "path": "Happenings/18/FSharp5.wav",
+      "renderIdentitySha256": "959033221f515eec3c1647a2eb3966f3322c711db1fa86f47616fe766a7112a8",
+      "rootMIDINote": 78,
+      "sha256": "4695510508165a4520bc603f44444f643b220041e356675da8869318c9d26ea1",
+      "sourceFiles": [
+        {
+          "path": "18 Idiophones/Struck Idiophones/Tubular Bells 1/chimes_D4_p_rr1.wav",
+          "sha256": "7cae9c07be76951f643ae92370c6af0735dfdd776508b2b0ae76ae7ea3ebcd9d"
+        }
+      ],
+      "sourceKey": "vcsl"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/19/A3.wav",
+      "renderIdentitySha256": "3e6e8f381979a4554316d405fa49158323fe4de94d80563b02e87478fb9dbecb",
+      "rootMIDINote": 57,
+      "sha256": "476d4f6978b9211f65d17a6d511ec04e9a78a8675f9d7bfa1c924d3919cb0350",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-19",
+          "sha256": "04ddbaf1bc05893ee62541735392c232b3313a6b1710aec3d3e266a0f35bdbca"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/19/C3.wav",
+      "renderIdentitySha256": "3e6e8f381979a4554316d405fa49158323fe4de94d80563b02e87478fb9dbecb",
+      "rootMIDINote": 48,
+      "sha256": "90e1fd45817376e456d820d017ad4fc218d9aa0635f5f609395f80ad2355ad5c",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-19",
+          "sha256": "04ddbaf1bc05893ee62541735392c232b3313a6b1710aec3d3e266a0f35bdbca"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/19/DSharp3.wav",
+      "renderIdentitySha256": "3e6e8f381979a4554316d405fa49158323fe4de94d80563b02e87478fb9dbecb",
+      "rootMIDINote": 51,
+      "sha256": "59b2137220c930a1bd4be83c98ddb047e4bf2c44e1a1edf64a5f883cf47bcc96",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-19",
+          "sha256": "04ddbaf1bc05893ee62541735392c232b3313a6b1710aec3d3e266a0f35bdbca"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/19/FSharp3.wav",
+      "renderIdentitySha256": "3e6e8f381979a4554316d405fa49158323fe4de94d80563b02e87478fb9dbecb",
+      "rootMIDINote": 54,
+      "sha256": "28e19df3768189aa4ffbb078b66760b9d7111b9865dd39c9c8225c7a4a20b172",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-19",
+          "sha256": "04ddbaf1bc05893ee62541735392c232b3313a6b1710aec3d3e266a0f35bdbca"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/20/A3.wav",
+      "renderIdentitySha256": "ee30087a969654529276039cf85d6db96e09aaff58c8258ade2229ce6b5dda84",
+      "rootMIDINote": 57,
+      "sha256": "96a0260bdfd24bd8fbd8e5bfa9e273e42e4cacc9bfa7c0ac39a485ea4ec8aaa3",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-20",
+          "sha256": "b75d9778c79770f3e278b483d80d78261d42cf3c77e138ba28c054712d0285f7"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/20/C3.wav",
+      "renderIdentitySha256": "ee30087a969654529276039cf85d6db96e09aaff58c8258ade2229ce6b5dda84",
+      "rootMIDINote": 48,
+      "sha256": "519754b2bba831e5d4bf2f83b819c1add864005e0ecb47d59087a266a5713530",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-20",
+          "sha256": "b75d9778c79770f3e278b483d80d78261d42cf3c77e138ba28c054712d0285f7"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/20/DSharp3.wav",
+      "renderIdentitySha256": "ee30087a969654529276039cf85d6db96e09aaff58c8258ade2229ce6b5dda84",
+      "rootMIDINote": 51,
+      "sha256": "65e747da861e260d4d8f17ed4fc77a445bf991542f57c367bfca2288044fc6fa",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-20",
+          "sha256": "b75d9778c79770f3e278b483d80d78261d42cf3c77e138ba28c054712d0285f7"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/20/FSharp3.wav",
+      "renderIdentitySha256": "ee30087a969654529276039cf85d6db96e09aaff58c8258ade2229ce6b5dda84",
+      "rootMIDINote": 54,
+      "sha256": "e5889cd0a57a5c30f366b7d20eb33f60aa8d3741d43c1c9214d564e3d90c3cfa",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-20",
+          "sha256": "b75d9778c79770f3e278b483d80d78261d42cf3c77e138ba28c054712d0285f7"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/21/A3.wav",
+      "renderIdentitySha256": "f2030e06e5b7a7040e48c43b6634755833d768d89d87e8dcd10bc9bb2e20042e",
+      "rootMIDINote": 57,
+      "sha256": "046664660b9f5a22c72083330a675e050f2587809fc83731efa62183c24930ac",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-21",
+          "sha256": "c98e43f362fec750362f292c1c170b30ece2c8fcc4001cb4c5584716ea4ce4ed"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/21/C3.wav",
+      "renderIdentitySha256": "f2030e06e5b7a7040e48c43b6634755833d768d89d87e8dcd10bc9bb2e20042e",
+      "rootMIDINote": 48,
+      "sha256": "37d23a57ce34225fb9ad88cac13f4412503eee48160b2b9a93403895090f27bc",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-21",
+          "sha256": "c98e43f362fec750362f292c1c170b30ece2c8fcc4001cb4c5584716ea4ce4ed"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/21/DSharp3.wav",
+      "renderIdentitySha256": "f2030e06e5b7a7040e48c43b6634755833d768d89d87e8dcd10bc9bb2e20042e",
+      "rootMIDINote": 51,
+      "sha256": "99451592f5230089877923047703b5c02101653cd2a0b6c2c53177e5da8342b2",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-21",
+          "sha256": "c98e43f362fec750362f292c1c170b30ece2c8fcc4001cb4c5584716ea4ce4ed"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/21/FSharp3.wav",
+      "renderIdentitySha256": "f2030e06e5b7a7040e48c43b6634755833d768d89d87e8dcd10bc9bb2e20042e",
+      "rootMIDINote": 54,
+      "sha256": "4e6188e2b5911b610a1f1798001d39604582658fe6757ce3eeb98a535cecd519",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-21",
+          "sha256": "c98e43f362fec750362f292c1c170b30ece2c8fcc4001cb4c5584716ea4ce4ed"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/22/A3.wav",
+      "renderIdentitySha256": "f0dc8d4966b27cc0316dda1f5a623fbfa88025ea52ea7cf80062599af750266f",
+      "rootMIDINote": 57,
+      "sha256": "1ba4feb6f014926dc7ff24528d8e06d1c7e26df9c650b33e6cc577b7c55c342d",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-22",
+          "sha256": "7af040f9b515664fb2b709dedf799d1cad757c1e8a5d13139c80a01744a8f190"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/22/C3.wav",
+      "renderIdentitySha256": "f0dc8d4966b27cc0316dda1f5a623fbfa88025ea52ea7cf80062599af750266f",
+      "rootMIDINote": 48,
+      "sha256": "4d693a8310f208146a2439fde891e025dc80d5532d26572d6444ed4aa83f0521",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-22",
+          "sha256": "7af040f9b515664fb2b709dedf799d1cad757c1e8a5d13139c80a01744a8f190"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/22/DSharp3.wav",
+      "renderIdentitySha256": "f0dc8d4966b27cc0316dda1f5a623fbfa88025ea52ea7cf80062599af750266f",
+      "rootMIDINote": 51,
+      "sha256": "aea7bbcab1048ee4c69270e95540f67cd5b8bbebe5e4b057ab44492291e0d650",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-22",
+          "sha256": "7af040f9b515664fb2b709dedf799d1cad757c1e8a5d13139c80a01744a8f190"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/22/FSharp3.wav",
+      "renderIdentitySha256": "f0dc8d4966b27cc0316dda1f5a623fbfa88025ea52ea7cf80062599af750266f",
+      "rootMIDINote": 54,
+      "sha256": "6ca071f003e0725fc907792ea8a75d298af249273e0fdc68f7a274782a32d224",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-22",
+          "sha256": "7af040f9b515664fb2b709dedf799d1cad757c1e8a5d13139c80a01744a8f190"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/23/A3.wav",
+      "renderIdentitySha256": "7c365a2b0e7d9532217701646ff96b9ca7993c28708d3a7c645b809a6f75fb9f",
+      "rootMIDINote": 57,
+      "sha256": "5423ce3bf79ebf4dd6fabb859c421e5c063b4c97022df0fe4237e4d6b0c4a1a1",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-23",
+          "sha256": "3a7041032339f87db95f3c06364317b92838609b557f448cba90acb9d3788a3b"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/23/C3.wav",
+      "renderIdentitySha256": "7c365a2b0e7d9532217701646ff96b9ca7993c28708d3a7c645b809a6f75fb9f",
+      "rootMIDINote": 48,
+      "sha256": "d6031782c3295e7c9dbd471f8649e7ce8245617a70dfa85a2b0cbcc595f21554",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-23",
+          "sha256": "3a7041032339f87db95f3c06364317b92838609b557f448cba90acb9d3788a3b"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/23/DSharp3.wav",
+      "renderIdentitySha256": "7c365a2b0e7d9532217701646ff96b9ca7993c28708d3a7c645b809a6f75fb9f",
+      "rootMIDINote": 51,
+      "sha256": "b45bc9553d83b869a394d50d29cb7487634719297a9c85eaa912fbb5fc4af9ff",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-23",
+          "sha256": "3a7041032339f87db95f3c06364317b92838609b557f448cba90acb9d3788a3b"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/23/FSharp3.wav",
+      "renderIdentitySha256": "7c365a2b0e7d9532217701646ff96b9ca7993c28708d3a7c645b809a6f75fb9f",
+      "rootMIDINote": 54,
+      "sha256": "f229cf4ebfc3218de18688003fa117cd6573a1b35c36a352c95b55a1ef8c912b",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-23",
+          "sha256": "3a7041032339f87db95f3c06364317b92838609b557f448cba90acb9d3788a3b"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/24/A3.wav",
+      "renderIdentitySha256": "89b5e2b2e778c9b7ab70fb4a78812f6c035d4d3c92b7a0e8d84363c20b69d920",
+      "rootMIDINote": 57,
+      "sha256": "4171d5ef687ea1a601ff2925b890fbe0574f27bae970bf2029ec3b3bfef58541",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-24",
+          "sha256": "740755bc477f51eabcc7157ada6094f03d7044d4c4a6cff0e9268ce36ad64848"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/24/C3.wav",
+      "renderIdentitySha256": "89b5e2b2e778c9b7ab70fb4a78812f6c035d4d3c92b7a0e8d84363c20b69d920",
+      "rootMIDINote": 48,
+      "sha256": "334743b972fa144c18bf461ec7ef5ed43f2f4411cd13494ba9f72e19c3f1425a",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-24",
+          "sha256": "740755bc477f51eabcc7157ada6094f03d7044d4c4a6cff0e9268ce36ad64848"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/24/DSharp3.wav",
+      "renderIdentitySha256": "89b5e2b2e778c9b7ab70fb4a78812f6c035d4d3c92b7a0e8d84363c20b69d920",
+      "rootMIDINote": 51,
+      "sha256": "dc4d6010196258af15156176d7fe221665e0c434b2df4ff0399738c2dd332ff2",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-24",
+          "sha256": "740755bc477f51eabcc7157ada6094f03d7044d4c4a6cff0e9268ce36ad64848"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/24/FSharp3.wav",
+      "renderIdentitySha256": "89b5e2b2e778c9b7ab70fb4a78812f6c035d4d3c92b7a0e8d84363c20b69d920",
+      "rootMIDINote": 54,
+      "sha256": "02d0407a39b21cea2a5a7d99c4825686a54a48251aebdb2d170ca1ca8cdcc7eb",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-24",
+          "sha256": "740755bc477f51eabcc7157ada6094f03d7044d4c4a6cff0e9268ce36ad64848"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/25/noise.wav",
+      "renderIdentitySha256": "7559dfbdfa31965ee023dd97874e2e51036cbd7e83d0ae828981ed13258a0b6b",
+      "rootMIDINote": 60,
+      "sha256": "7e0bf490b0c7a96a80c3ae166020182725888b1a9d2fa277da5fcdfd6b2c5c71",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-25",
+          "sha256": "754bc55f7879fab49b85864a0a0f6a855f8c681594f2a58a2aedd7891405cd90"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/26/noise.wav",
+      "renderIdentitySha256": "d964ee3dcb11777b7364c57c25d265e2a074fd326fa7a4bb387ecb935f9094b9",
+      "rootMIDINote": 60,
+      "sha256": "6166932886f06b75aadef5a221768c6ed2f37e13f4b93b6517a841c6a1b531f8",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-26",
+          "sha256": "132b332a7f8d3a16fd701bd85db0b666ad8b86b5b15ed7f84023e769c01bbe69"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/27/noise.wav",
+      "renderIdentitySha256": "ccc17664411c6962bac942b839190a4d8434ea9e707f79d918e544b263d7ec03",
+      "rootMIDINote": 60,
+      "sha256": "99dcbcad186ffc48910ffd5f5f0dc78ef9c3571998fabeb3755cb99f21236ff0",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-27",
+          "sha256": "5ce9db13b7ecc8aaf5dba3dc0020ecae377a896164e646c4de0d701a5fcfb51f"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/28/texture.wav",
+      "renderIdentitySha256": "78da9e5c4ec702d5b43debf2eba135e703720c7354e295e52db31778196bd18b",
+      "rootMIDINote": 60,
+      "sha256": "0858108ee721ac188bfe26d7bb4c022e2311cfd409575642781d850c599c4ddc",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-28",
+          "sha256": "84f8074a99ecb0770c6eada7183b38e6027894e459c4a0aba6b3558de81e98b5"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/29/texture.wav",
+      "renderIdentitySha256": "0b32d8ab7b7049abf674aa9f16aadae975e13a2ff008a0c550f03fa400f0d316",
+      "rootMIDINote": 60,
+      "sha256": "67a17d1e6d214aabb09d2d2190c8a216a54275a5b8c17481a0b8fbe78def13a4",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-29",
+          "sha256": "c0b62079d2b742643d8c2aba75a40296a2afa6b844bd322d50591506de4578f2"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/30/texture.wav",
+      "renderIdentitySha256": "4f702b4bcf7125abbe9133524f5d3ce0eb02910c84f693f5fb84159c60e1bb55",
+      "rootMIDINote": 60,
+      "sha256": "07efd721f1ca0219058641e90a10fd715a3fa3726757be98d28efa84b700e6b2",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-30",
+          "sha256": "e0763f155b35ad9ada97e1c41fdaa3bd5592ed7f986999880a5f5db5d90e4b89"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/31/C4.wav",
+      "renderIdentitySha256": "b9b4751cc42e0636e24dd2a269952adef968931f156a45a720271293119521af",
+      "rootMIDINote": 60,
+      "sha256": "8f686ec4f7fe58de7cba57c8c20cd9e98964b93a711efc890168706347a9180d",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-31",
+          "sha256": "7348b0e2d2c854cb22ce84c087d879fe6b6be102cf5d521e65f52901c0c06811"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/32/C4.wav",
+      "renderIdentitySha256": "f17915c4a94093e4e3c4503ca574d0cc800855addacda2614dffcd875408ee95",
+      "rootMIDINote": 60,
+      "sha256": "47f1a198723b0b95899298d86d84f87f79a00f069be7fdaf850ebd1f08b0307c",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-32",
+          "sha256": "17e62761c0f3df7bb1e320e25430728c5297d7c828fd446aff4c20b1df82a14a"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/33/C4.wav",
+      "renderIdentitySha256": "c922dabaf0ca085d8c506ba1274a912b6251da59cd16d43fc7d1c53754ab281b",
+      "rootMIDINote": 60,
+      "sha256": "6159dd1996a7155993eb93c79c86225aeaba8b5b4971bf0c89485839e9779fd7",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-33",
+          "sha256": "21332c647caaeec1225bf561044451ac57bab3a56c18c06082883efba8ef0359"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/34/C4.wav",
+      "renderIdentitySha256": "75ee8375d8063436bafde380ddc515b04697e7c088deb17d7b022498fe9031a2",
+      "rootMIDINote": 60,
+      "sha256": "b193ed4e867e242aa4be22389dcd7ad9d97836bdc88251e0540273cb098d7712",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-34",
+          "sha256": "68b6c806c23ad67e6229a19a43299f371b12fab97d091e4f18d28a092cae7c50"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/35/C4.wav",
+      "renderIdentitySha256": "55ad1085d8994166e9e97f6d5d3ce60704245801239cf6e74d70588ddc6dbbfc",
+      "rootMIDINote": 60,
+      "sha256": "bd250cec12737a4f518e70868b6c9d032a7d040cfd9394363f8ff61f1241afd7",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-35",
+          "sha256": "6a60acff8283a01cf6659c402b468aabfbe13ac4f80b47d1a96868d9ae2a0b44"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/36/C4.wav",
+      "renderIdentitySha256": "23c31c077e3d5d041bf32087f4983d17d9f22d7183f30f7688c27edba3cb1b8c",
+      "rootMIDINote": 60,
+      "sha256": "89c912aa991dad67e714417cc5ae2c17869376b772b8a9350b6cc6932e1632e0",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-36",
+          "sha256": "31f42f9cd6974af256dda6d1b60ba332d01d3080d1eaea52237cf2b0bfab8e2e"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/37/C4.wav",
+      "renderIdentitySha256": "5fc1c0d822a5ee12676affa9a6d84d63838a8947251d7e3f703b990a8fd740ae",
+      "rootMIDINote": 60,
+      "sha256": "c7db3671bd68454a01de8774f0ad35bc3234f1c7f3fc0273a6c9eed2f97a03fb",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-37",
+          "sha256": "a173bbfaaaa0312d2aa93c5fd5d533853709f689c6cf52a2fbad762786c63181"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/38/C4.wav",
+      "renderIdentitySha256": "5cc2e1f0957e335b78e5094e02320e1f39a0d41f6ff130aa84ced9cd4eda757e",
+      "rootMIDINote": 60,
+      "sha256": "60f2a1dd67d504866c4f700bc06adf4a64d426e9256baede8a0ad4e78b57cb41",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-38",
+          "sha256": "f9626a91e6af02fb4d4e9c5f812a4d2b94071fe40505534a8d5569a9f231d96c"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/39/texture.wav",
+      "renderIdentitySha256": "971192298aa7bc9f5230e9f496dca84c6b31c01aef45f05321a6dd1cd32a2539",
+      "rootMIDINote": 60,
+      "sha256": "f13ef95ddc85408bea50f0d75eaf5a10ee979062c67775bb984ce9d439ac5edd",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-39",
+          "sha256": "9e40891b5b60ce8dbd822c43b3ab593cd087777383bd706579aa1b6347a30bc0"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/40/texture.wav",
+      "renderIdentitySha256": "28bcdaa67d3554db10a9796b0b0261e9fc7582d5064d22081b994fcc202770c4",
+      "rootMIDINote": 60,
+      "sha256": "aceabd67ad4849942a64f6bd3a245262352822ec24b68ac4543f4e30f14cbb04",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-40",
+          "sha256": "67bb1763e3ae3f6b454d382dd154da8f29bfca8a88e15ad592ea12ed40b14357"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/41/texture.wav",
+      "renderIdentitySha256": "09a4a1df19ef3340cc699b2cdbf9425b40c0d1f2f5d34d2ce58c1b6acadf662a",
+      "rootMIDINote": 60,
+      "sha256": "a109397e930a21c8a1d77c8df8f36c4370aa2e1e601a679b8da6e78d3cacd04a",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-41",
+          "sha256": "b377d1b7664ff31b486d1668eb8cc0beed46a17b90aa157de6073b22bca5dad1"
+        }
+      ],
+      "sourceKey": "project-authored"
+    },
+    {
+      "conversion": {
+        "bitDepth": 16,
+        "channels": 1,
+        "dcCeilingDBFS": -50.0,
+        "fadeMilliseconds": 5,
+        "masteringTargets": {
+          "texture": {
+            "rmsMaxDBFS": -21.0,
+            "rmsMinDBFS": -26.0
+          },
+          "tonal-organic": {
+            "rmsMaxDBFS": -18.0,
+            "rmsMinDBFS": -22.0
+          }
+        },
+        "maximumDurationSeconds": 4.5,
+        "maximumGainDB": 12.0,
+        "onsetRMSDBFS": -15.0,
+        "peakDBFS": -6.0,
+        "resampler": {
+          "algorithm": "windowed-sinc-bandlimited",
+          "coefficientDecimalPlaces": 15,
+          "phases": 1024,
+          "taps": 32,
+          "window": "blackman"
+        },
+        "sampleRateHz": 44100,
+        "tailBoundaryRMSDBFS": -45.0,
+        "tailTaperMilliseconds": 1000,
+        "tool": "happening-bank-v3"
+      },
+      "licenseFilename": "",
+      "path": "Happenings/42/texture.wav",
+      "renderIdentitySha256": "075ad9bcb98439b5f561705cc71a1656919a27527417d94e785b363200844611",
+      "rootMIDINote": 60,
+      "sha256": "c5ca62c7f8d8dde1e384e2da46112c937711b0f78bb0237c93683b36a8ddb5af",
+      "sourceFiles": [
+        {
+          "path": "Scripts/day_objects_audio/happening-source-map.json#recipe-42",
+          "sha256": "320354a2c8cd7f630182167dc5599342ee5ccf8b1f6b194cadf909aca200fddd"
+        }
+      ],
+      "sourceKey": "project-authored"
+    }
+  ],
+  "schemaVersion": 1,
+  "sources": {
+    "AudioKit/Cookbook": {
+      "creator": "AudioKit contributors",
+      "licenseFilename": "AudioKitCookbook-MIT.txt",
+      "licenseIdentifier": "MIT",
+      "revision": "c37d41daedf161b47315b7ae24b07f41213b73be",
+      "sourceURL": "https://github.com/AudioKit/Cookbook"
+    },
+    "AudioKitSynthOne": {
+      "creator": "AudioKit contributors",
+      "licenseFilename": "AudioKitSynthOne-MIT.txt",
+      "licenseIdentifier": "MIT",
+      "revision": "6466a3715c96b7ecf1dd255a218cbd571408a314",
+      "sourceURL": "https://github.com/AudioKit/AudioKitSynthOne"
+    },
+    "project-authored": {
+      "creator": "Steps project",
+      "licenseFilename": "",
+      "licenseIdentifier": "Proprietary project asset",
+      "rendererVersion": "happening-bank-v3",
+      "revision": "happening-bank-v3",
+      "sourceURL": "project://Scripts/day_objects_audio/happening-source-map.json"
+    },
+    "sfzinstruments/Osiris_Piano": {
+      "creator": "Karoryfer Samples / sfzinstruments contributors",
+      "licenseFilename": "OsirisPiano-CC0-1.0.txt",
+      "licenseIdentifier": "CC0-1.0",
+      "redistributionAndModificationRights": "CC0 1.0 public-domain dedication permits copying, modification, and redistribution, including commercial use.",
+      "revision": "18c6afccb60cff458edbf7c394571783e074e1e9",
+      "sourceURL": "https://github.com/sfzinstruments/Osiris_Piano"
+    },
+    "vcsl": {
+      "creator": "Versilian Studios contributors",
+      "licenseFilename": "VCSL-CC0-1.0.txt",
+      "licenseIdentifier": "CC0-1.0",
+      "revision": "c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e",
+      "sourceURL": "https://github.com/sgossner/VCSL"
+    }
+  }
+}

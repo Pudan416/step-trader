@@ -44,16 +44,12 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         return application.localizedDisplayName ?? NSLocalizedString("App", comment: "Fallback name for unknown app")
     }
     
-    // MARK: - Brand Colors
-    // Matches AppColors.brandAccent (#FFD369); extension target can't import ColorConstants.
-    private var brandYellow: UIColor {
-        UIColor(red: 0xFF/255.0, green: 0xD3/255.0, blue: 0x69/255.0, alpha: 1.0)
+    private var dailyPalette: DailyInterfacePalette {
+        DailyInterfacePalette.load(from: sharedDefaults())
     }
-    
-    private var darkBackground: UIColor {
-        UIColor(red: 0.05, green: 0.05, blue: 0.12, alpha: 0.95)
-    }
-    
+
+    private var darkBackground: UIColor { dailyPalette.ink.uiColor }
+
     /// Whether a push was sent recently (within 30 seconds).
     /// ShieldAction writes `shieldPushSentAt`; `.defer` re-queries this configuration.
     private func wasPushRecentlySent() -> Bool {
@@ -64,14 +60,27 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         return Date().timeIntervalSince(sentAt) < 30
     }
     
+    /// Whether the most recent unlock tap could not produce a push, within the same
+    /// window as `wasPushRecentlySent`. Written by ShieldAction when notifications are
+    /// denied or the request failed.
+    private func pushRecentlyUnavailable() -> Bool {
+        let defaults = sharedDefaults()
+        guard let at = defaults.object(forKey: SharedKeys.shieldPushUnavailableAt) as? Date else {
+            return false
+        }
+        return Date().timeIntervalSince(at) < 30
+    }
+
     /// Base configuration with our brand styling
     private func baseConfiguration(
         title: String,
+        artwork: GateArtwork,
         subtitle: String,
         primaryButtonText: String,
         secondaryButtonText: String? = nil
     ) -> ShieldConfiguration {
-        let appIcon = UIImage(named: "ShieldIcon") ?? UIImage(systemName: "eye.fill")
+        let appIcon = GateArtworkRenderer.image(artwork, pointSize: 80)
+            ?? UIImage(named: "ShieldIcon")
         
         return ShieldConfiguration(
             backgroundBlurStyle: .systemUltraThinMaterialDark,
@@ -79,14 +88,17 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
             icon: appIcon,
             title: ShieldConfiguration.Label(text: title, color: .white),
             subtitle: ShieldConfiguration.Label(text: subtitle, color: UIColor.white.withAlphaComponent(0.85)),
-            primaryButtonLabel: ShieldConfiguration.Label(text: primaryButtonText, color: .black),
-            primaryButtonBackgroundColor: brandYellow,
+            primaryButtonLabel: ShieldConfiguration.Label(text: primaryButtonText, color: dailyPalette.ink.uiColor),
+            primaryButtonBackgroundColor: dailyPalette.accent.uiColor,
             secondaryButtonLabel: secondaryButtonText.map { ShieldConfiguration.Label(text: $0, color: UIColor.white.withAlphaComponent(0.6)) }
         )
     }
     
     override func configuration(shielding application: Application) -> ShieldConfiguration {
         let appName = getAppName(for: application)
+        let artworkTarget = application.token.flatMap(Self.base64).map { "app:\($0)" }
+            ?? "app-name:\(appName)"
+        let artwork = GateArtworkStore(defaults: sharedDefaults()).shieldArtwork(for: artworkTarget)
         
         if let token = application.token,
            let base64 = Self.base64(for: token) {
@@ -106,9 +118,23 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         
         let title = String(format: NSLocalizedString("%@ is locked\nby Nowhere.", comment: "Shield title for blocked app"), appName)
 
+        // Checked before the "we sent you a push" copy: when the last tap could not
+        // deliver one, claiming otherwise leaves the user waiting for a notification
+        // that is never coming, with no way out of the shield.
+        if pushRecentlyUnavailable() {
+            return baseConfiguration(
+                title: title,
+                artwork: artwork,
+                subtitle: String(format: NSLocalizedString("\nNotifications are off, so we\ncan't reach you. Open Nowhere\nto unlock %@.", comment: "Shield subtitle when no push could be delivered"), appName),
+                primaryButtonText: NSLocalizedString("try again", comment: "Shield primary button — retry the push after enabling notifications"),
+                secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button")
+            )
+        }
+
         if wasPushRecentlySent() {
             return baseConfiguration(
                 title: title,
+                artwork: artwork,
                 subtitle: String(format: NSLocalizedString("\nNowhere sent you a push.\nTap it to unlock %@.", comment: "Shield subtitle after push sent"), appName),
                 primaryButtonText: NSLocalizedString("one more push", comment: "Shield primary button — resend push"),
                 secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button")
@@ -117,6 +143,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
 
         return baseConfiguration(
             title: title,
+            artwork: artwork,
             subtitle: NSLocalizedString("\nSpend some colors\nto unlock it", comment: "Shield subtitle"),
             primaryButtonText: NSLocalizedString("unlock with push", comment: "Shield primary button — request notification"),
             secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button — conscious opt-out")
@@ -129,11 +156,13 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     
     override func configuration(shielding webDomain: WebDomain) -> ShieldConfiguration {
         let domain = webDomain.domain ?? NSLocalizedString("this site", comment: "Fallback name for unknown web domain")
+        let artwork = GateArtworkStore(defaults: sharedDefaults()).shieldArtwork(for: "web:\(domain)")
         let title = String(format: NSLocalizedString("%@ is locked\nby Nowhere.", comment: "Shield title for blocked domain"), domain)
 
         if wasPushRecentlySent() {
             return baseConfiguration(
                 title: title,
+                artwork: artwork,
                 subtitle: String(format: NSLocalizedString("\nNowhere sent you a push.\nTap it to unlock %@.", comment: "Shield subtitle after push sent"), domain),
                 primaryButtonText: NSLocalizedString("one more push", comment: "Shield primary button — resend push"),
                 secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button")
@@ -142,6 +171,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
 
         return baseConfiguration(
             title: title,
+            artwork: artwork,
             subtitle: NSLocalizedString("\nSpend some colors\nto unlock it", comment: "Shield subtitle"),
             primaryButtonText: NSLocalizedString("unlock with push", comment: "Shield primary button — request notification"),
             secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button — conscious opt-out")

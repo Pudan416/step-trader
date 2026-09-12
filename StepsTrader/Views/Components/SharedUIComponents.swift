@@ -6,7 +6,7 @@ struct ResistanceTag: View {
     
     var body: some View {
         Text(text)
-            .font(.caption.weight(.medium))
+            .font(.geist(.caption).weight(.medium))
             .foregroundStyle(theme.accentColor)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
@@ -52,12 +52,12 @@ struct EmptyStateView: View {
     var body: some View {
         VStack(spacing: 8) {
             Text(message)
-                .font(.subheadline)
+                .font(.geist(.subheadline))
                 .foregroundStyle(theme.textSecondary)
             
             if let sub = subMessage {
                 Text(sub)
-                    .font(.caption)
+                    .font(.geist(.caption))
                     .foregroundStyle(theme.textSecondary.opacity(0.7))
                     .italic()
             }

@@ -1,0 +1,20 @@
+#pragma once
+#include "../MetalShapeUniforms.metalh"
+#include "MetalShapeBasic.metalh"
+
+static float metalShapeWindflowerRadius(float theta, constant MetalShapeGenomeUniforms &g) {
+    const uint petals = clamp(g.metadata.z, 3u, 7u);
+    const float sector = 2.0 * M_PI_F / float(petals);
+    const float shifted = (theta + sector * 0.5) / sector;
+    const int rawCell = int(floor(shifted));
+    const uint petal = uint((rawCell % int(petals) + int(petals)) % int(petals));
+    const float local = fract(shifted) * sector - sector * 0.5;
+    const float irregularity = g.superformula.z;
+    const float skew = (metalShapeHash(g.metadata.y, petal, 0u) - 0.5) * sector * irregularity * 0.55;
+    const float span = local < skew ? skew + sector * 0.5 : sector * 0.5 - skew;
+    const float distance = min(abs(local - skew) / max(span, 1e-5), 1.0);
+    const float exponent = g.superformula.w * (0.88 + 0.24 * metalShapeHash(g.metadata.y, petal, 1u));
+    const float tip = 1.0 - irregularity * (0.05 + 0.42 * metalShapeHash(g.metadata.y, petal, 2u));
+    const float valley = g.superformula.y * (0.94 + 0.12 * metalShapeHash(g.metadata.y, petal, 3u));
+    return valley + (tip - valley) * (1.0 - pow(distance, exponent));
+}

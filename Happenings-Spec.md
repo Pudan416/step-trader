@@ -183,7 +183,7 @@ Three single-value keys (`bodyCanvasShape`, `mindCanvasShape`,
 Categories supplied 60 of the 100 daily points — 20 each. The replacement:
 
 ```
-happenings = min(additions × 10, 60)
+happenings = min(additions × 6, 60)
 day    = steps(20) + sleep(20) + happenings(60) = 100
 ```
 
@@ -193,7 +193,7 @@ built on it.
 Removed from `AppModel+DailyEnergy`: `bodyPointsToday`, `mindPointsToday`,
 `heartPointsToday`. Added: `happeningPointsToday`.
 
-Additions past the sixth still appear on the canvas and still count toward
+Additions past the tenth still appear on the canvas and still count toward
 `useCount`. They just stop earning.
 
 ---
@@ -268,11 +268,12 @@ forever has nothing to leave.
 
 **Decision:** each happening can be added at most once per custom day.
 `AppModel.addHappening` returns nil for a happening already logged today, and
-`availablePaletteHappenings` filters used ones out of the cluster.
+`availablePaletteHappenings` filters used ones out of the cluster. All ten
+configured happenings can be added to the canvas in the same custom day.
 
 What this costs, stated plainly because the original text argued against it:
 a day is capped at the ten configured slots plus anything created on the spot,
-the 60-point ceiling needs six **distinct** happenings, and someone who calls
+the 60-point ceiling needs ten **distinct** happenings, and someone who calls
 their mother twice in a day can only log it once.
 
 `user_option_entries` keeps its composite primary key — it is untouched by this

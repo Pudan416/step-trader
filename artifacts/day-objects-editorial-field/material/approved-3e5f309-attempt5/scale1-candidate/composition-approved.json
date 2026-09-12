@@ -1,0 +1,25 @@
+{
+  "approvalVersion": 1,
+  "approvedAt": "2026-08-30",
+  "scope": "neutral-composition-only",
+  "specCommit": "8a8539a77ce704fcc688ebe8cb98d78e2a0f80dd",
+  "corpusVersion": "visible-v1",
+  "corpusSHA256": "3ce4e38005b3c262cd76ca58a8cd169e38f0a23aa2df70a8437ebb134bed52c9",
+  "selectedArtistSourceCommit": "c6046f28347ed68034295968a26ff48ce19c629e",
+  "integrationCommitAfterCherryPick": "675c1faa745269d9167b4d51d7c8eaf0004edac0",
+  "evidencePackageSHA256": "26a3517f1fdbae1e32bf07855d6ee2c53b6144f26af9eff9472e9c3a97c6ca95",
+  "lightweightEvidenceIndex": "artifacts/day-objects-editorial-field/composition/approved-c6046f2",
+  "fullVerifiedEvidenceAtApproval": "/tmp/day-objects-editorial-a-c6046f28347ed68034295968a26ff48ce19c629e",
+  "blindCritics": [
+    {
+      "audit": ".superpowers/sdd/2026-08-30-day-objects-editorial-field/final-critic-a-one.md",
+      "verdict": "PASS"
+    },
+    {
+      "audit": ".superpowers/sdd/2026-08-30-day-objects-editorial-field/final-critic-a-two.md",
+      "verdict": "PASS"
+    }
+  ],
+  "frozen": true,
+  "productionIntegrated": false
+}

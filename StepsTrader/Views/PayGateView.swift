@@ -7,7 +7,7 @@ import FamilyControls
 #endif
 
 fileprivate enum PayGatePalette {
-    static let accent = AppColors.brandAccent
+    static var accent: Color { AppColors.brandAccent }
     static let textPrimary = Color.white
     static let textSecondary = Color.white.opacity(0.55)
     static let textMuted = Color.white.opacity(0.3)
@@ -20,6 +20,7 @@ struct PayGateView: View {
     @State private var showTransitionCircle: Bool = false
     @State private var transitionScale: CGFloat = 0.01
     @State private var appeared = false
+    @State private var artworkImage: UIImage?
     @ScaledMetric(relativeTo: .body) private var compactThreshold: CGFloat = 700
 
     private var activeSession: PayGateSession? {
@@ -56,7 +57,7 @@ struct PayGateView: View {
                             model.dismissPayGate(reason: .userDismiss)
                         } label: {
                             Image(systemName: "xmark")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.geist(size: 13, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.4))
                                 .frame(width: 30, height: 30)
                                 .background(.white.opacity(0.08), in: Circle())
@@ -72,7 +73,7 @@ struct PayGateView: View {
                     Spacer()
 
                     if let group = activeGroup {
-                        centerSection(group: group)
+                        centerSection(group: group, isCompact: isCompact)
                     }
 
                     Spacer()
@@ -86,9 +87,15 @@ struct PayGateView: View {
         }
         .overlay(transitionOverlay)
         .onAppear {
+            if let artwork = activeSession?.artwork {
+                artworkImage = GateArtworkRenderer.image(artwork, pointSize: 196)
+            }
             withAnimation(.easeOut(duration: 0.5).delay(0.1)) {
                 appeared = true
             }
+        }
+        .onChange(of: activeSession?.artwork) { _, artwork in
+            artworkImage = artwork.flatMap { GateArtworkRenderer.image($0, pointSize: 196) }
         }
         .onDisappear {
             guard !hasDismissed else { return }
@@ -134,23 +141,25 @@ struct PayGateView: View {
         }
     }
 
-    // MARK: - Center (icon + title)
+    // MARK: - Center (object + title)
 
     @ViewBuilder
-    private func centerSection(group: TicketGroup) -> some View {
+    private func centerSection(group: TicketGroup, isCompact: Bool) -> some View {
         VStack(spacing: 20) {
-            appIconArea(group: group)
+            artworkArea
+                .frame(width: isCompact ? 144 : 196, height: isCompact ? 144 : 196)
                 .opacity(appeared ? 1 : 0)
                 .scaleEffect(appeared ? 1 : 0.85)
 
             VStack(spacing: 6) {
-                Text(String(localized: "spend what you lived", comment: "PayGate title"))
-                    .font(.systemSerif(24, weight: .bold, relativeTo: .title2))
+                Text(group.displayIdentity.title)
+                    .font(.onest(24, weight: .medium, relativeTo: .title2))
+                    .fontDesign(nil)
                     .foregroundStyle(PayGatePalette.textPrimary)
                     .multilineTextAlignment(.center)
 
-                Text(group.name)
-                    .font(.subheadline)
+                Text(group.displayIdentity.detail)
+                    .font(.geist(.subheadline))
                     .foregroundStyle(PayGatePalette.textSecondary)
             }
             .opacity(appeared ? 1 : 0)
@@ -159,43 +168,19 @@ struct PayGateView: View {
     }
 
     @ViewBuilder
-    private func appIconArea(group: TicketGroup) -> some View {
-        #if canImport(FamilyControls)
-        let appTokens = Array(group.selection.applicationTokens.prefix(3))
-        let iconSize: CGFloat = 72
-
-        ZStack {
-            if let templateApp = group.templateApp,
-               let imageName = TargetResolver.imageName(for: templateApp),
-               let uiImage = UIImage(named: imageName) ?? UIImage(named: imageName.lowercased()) ?? UIImage(named: imageName.capitalized) {
-                Image(uiImage: uiImage)
+    private var artworkArea: some View {
+        Group {
+            if let artworkImage {
+                Image(uiImage: artworkImage)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: iconSize, height: iconSize)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: 6)
-            } else if appTokens.isEmpty {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 32, weight: .regular))
-                    .foregroundStyle(PayGatePalette.accent)
             } else {
-                ForEach(Array(appTokens.enumerated()), id: \.offset) { index, token in
-                    let size = iconSize - CGFloat(index * 8)
-                    AppIconView(token: token)
-                        .frame(width: size, height: size)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .shadow(color: .black.opacity(0.4), radius: 8, x: 0, y: 4)
-                        .offset(x: CGFloat(index - 1) * 18, y: CGFloat(index) * 4)
-                        .zIndex(Double(3 - index))
-                }
+                Image(systemName: "sparkle")
+                    .font(.system(size: 64))
+                    .foregroundStyle(PayGatePalette.accent)
             }
         }
-        .frame(height: 100)
-        #else
-        Image(systemName: "lock.fill")
-            .font(.system(size: 36, weight: .regular))
-            .foregroundStyle(PayGatePalette.accent)
-        #endif
+        .accessibilityHidden(true)
     }
 
     // MARK: - Bottom (balance + options + dismiss)
@@ -216,11 +201,11 @@ struct PayGateView: View {
             // Balance
             HStack(spacing: 6) {
                 Text("\(balance)")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .font(.geist(size: 15, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(PayGatePalette.textPrimary)
                 Text(String(localized: "colors available", comment: "PayGate balance label"))
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.geist(size: 13, weight: .medium))
                     .foregroundStyle(PayGatePalette.textMuted)
             }
             .padding(.bottom, 16)
@@ -259,7 +244,7 @@ struct PayGateView: View {
                 }
             } label: {
                 Text(String(localized: "keep it closed", comment: "PayGate dismiss button"))
-                    .font(.subheadline.weight(.medium))
+                    .font(.geist(.subheadline).weight(.medium))
                     .foregroundStyle(PayGatePalette.textMuted)
                     .padding(.vertical, 14)
                     .frame(maxWidth: .infinity)
@@ -288,17 +273,17 @@ struct PayGateView: View {
         } label: {
             HStack {
                 Text(unlockLabel(window))
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .font(.geist(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(isDisabled ? PayGatePalette.textMuted : PayGatePalette.textPrimary)
 
                 Spacer()
 
                 Text("\(cost)")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .font(.geist(size: 16, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(isDisabled ? PayGatePalette.textMuted : PayGatePalette.accent)
                 Text(String(localized: "colors"))
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.geist(size: 13, weight: .medium))
                     .foregroundStyle(isDisabled ? PayGatePalette.textMuted : PayGatePalette.textSecondary)
             }
             .padding(.horizontal, 16)
@@ -307,7 +292,7 @@ struct PayGateView: View {
         }
         .disabled(isDisabled)
         .buttonStyle(ScaleButtonStyle())
-        .accessibilityLabel(String(localized: "Unlock for \(unlockLabel(window)), costs \(cost) colors"))
+        .accessibilityLabel(String(localized: "Unlock \(group.displayIdentity.title) for \(window.minutes) minutes, \(cost) colors"))
         .accessibilityHint(canPay ? String(localized: "Double tap to unlock") : String(localized: "Not enough colors"))
     }
 
@@ -323,10 +308,10 @@ struct PayGateView: View {
 
         HStack(spacing: 8) {
             Image(systemName: "clock")
-                .font(.system(size: 12, weight: .medium))
+                .font(.geist(size: 12, weight: .medium))
                 .foregroundStyle(PayGatePalette.accent.opacity(0.8))
             Text(text)
-                .font(.caption)
+                .font(.geist(.caption))
                 .foregroundStyle(PayGatePalette.textSecondary)
         }
     }

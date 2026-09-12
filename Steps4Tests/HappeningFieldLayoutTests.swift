@@ -118,6 +118,49 @@ final class CanvasOverlayIntegrationRegressionTests: XCTestCase {
         XCTAssertEqual(model.todayAdditions.map(\.optionId), [element.optionId])
     }
 
+    func testAllTenDifferentPaletteHappeningsCanBeAddedToTheCanvas() throws {
+        let date = Date.now
+        let dayKey = AppModel.dayKey(for: date)
+        let model = makeModel()
+        let happenings = model.availablePaletteHappenings(on: date)
+        let figures = model.paletteFigures(on: date)
+        var canvas = DayCanvas(dayKey: dayKey)
+
+        XCTAssertEqual(happenings.count, 10)
+
+        for happening in happenings {
+            let element = CanvasElement.spawn(
+                optionId: happening.id,
+                label: happening.localizedTitle(),
+                existingElements: canvas.elements,
+                dayKey: dayKey,
+                composition: DayComposition.forDay(
+                    dayKey: dayKey,
+                    happeningCount: canvas.elements.count
+                ),
+                figure: try XCTUnwrap(figures[happening.id])
+            )
+            let result = try XCTUnwrap(
+                CanvasHappeningSpawnTransaction.commit(
+                    canvasLoaded: true,
+                    canvas: canvas,
+                    model: model,
+                    element: element,
+                    recordUse: true,
+                    at: date,
+                    persist: { _ in true }
+                )
+            )
+            canvas = result.canvas
+        }
+
+        XCTAssertEqual(canvas.elements.count, 10)
+        XCTAssertEqual(Set(canvas.elements.map(\.optionId)).count, 10)
+        XCTAssertEqual(model.todayAdditions.count, 10)
+        XCTAssertEqual(model.happeningPointsToday, 60)
+        XCTAssertTrue(model.availablePaletteHappenings(on: date).isEmpty)
+    }
+
     func testSpawnRejectsCapturedDayBoundaryMismatchWithoutPersistingEitherRecord() {
         let model = makeModel()
         let beforeBoundary = Date(timeIntervalSince1970: 1_786_176_000)
@@ -253,7 +296,136 @@ final class CanvasOverlayIntegrationRegressionTests: XCTestCase {
     }
 }
 
+@MainActor
 final class HappeningFieldLayoutTests: XCTestCase {
+
+    func testEveryTextSizePreservesThreeTwoThreeTwoRowsAndAccessibleHitTargets() {
+        let textSizes: [DynamicTypeSize] = [
+            .xSmall, .small, .medium, .large, .xLarge, .xxLarge, .xxxLarge,
+            .accessibility1, .accessibility2, .accessibility3, .accessibility4, .accessibility5,
+        ]
+        for viewport in [CGSize(width: 320, height: 568), size, CGSize(width: 430, height: 932)] {
+            let insets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
+            let bounds = CGRect(x: 0, y: 59, width: viewport.width, height: viewport.height - 93)
+            let baseline = HappeningFieldLayout.layout(count: 10, in: viewport, safeInsets: insets)
+            for textSize in textSizes {
+                let layout = HappeningFieldLayout.layout(
+                    count: 10, in: viewport, safeInsets: insets, dynamicTypeSize: textSize
+                )
+                let rows = Dictionary(grouping: layout.sources) { $0.center.y }
+                    .sorted { $0.key < $1.key }.map { $0.value.count }
+                XCTAssertEqual(rows, [3, 2, 3, 2], "\(viewport), \(textSize)")
+                XCTAssertEqual(layout.sources, baseline.sources, "Text size must not move slots")
+                for (index, source) in layout.sources.enumerated() {
+                    XCTAssertTrue(bounds.contains(layout.labelFrames[index]))
+                    XCTAssertGreaterThanOrEqual(source.radius * 2, 44)
+                    for other in layout.sources.dropFirst(index + 1) {
+                        XCTAssertGreaterThanOrEqual(
+                            hypot(source.center.x - other.center.x, source.center.y - other.center.y),
+                            source.radius + other.radius - 0.01,
+                            "Circular hit targets must not overlap"
+                        )
+                    }
+                }
+                let textFrames = layout.labelFrames.map {
+                    $0.insetBy(dx: $0.width * 0.1, dy: $0.height * 0.12)
+                }
+                for (index, frame) in textFrames.enumerated() {
+                    for other in textFrames.dropFirst(index + 1) {
+                        XCTAssertFalse(frame.intersects(other), "Label regions must not overlap")
+                    }
+                }
+            }
+        }
+    }
+
+    func testPaletteInkFollowsTheBackgroundAndSelectedFill() throws {
+        let light = [SIMD3<Float>(0.5, 0.7, 0.3)]
+        let dark = [SIMD3<Float>(0.01, 0.02, 0.03)]
+        XCTAssertEqual(HappeningPaletteLabelInk.resolve(state: .available, background: light, material: nil), .dark)
+        XCTAssertEqual(HappeningPaletteLabelInk.resolve(state: .available, background: dark, material: nil), .dark)
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "legacy.soft-square" })
+        let contour = MetalShapeGenomeFrame.make(preset: preset, material: .contour, seed: 71).material
+        XCTAssertEqual(HappeningPaletteLabelInk.resolve(state: .additionPreview, background: light, material: contour), .dark)
+        XCTAssertEqual(HappeningPaletteLabelInk.resolve(state: .added, background: dark, material: contour), .light)
+        XCTAssertEqual(HappeningPaletteLabelInk.contrasting(with: [SIMD3(repeating: 0.08)]), .light)
+        XCTAssertEqual(HappeningPaletteLabelInk.contrasting(with: [SIMD3(repeating: 0.75)]), .dark)
+    }
+
+    func testPaletteGlyphsUseContrastingInkInEveryState() throws {
+        let happening = HappeningDefaults.builtIns[0]
+        let assignments = HappeningEditorialAssignmentResolver.assignments(
+            happenings: [happening],
+            baseInput: DayObjectSceneInput(
+                dayKey: "2026-09-06", identity: "label-contrast", eventIDs: [],
+                motionEnergy: 0.625, visualClarity: 0.625,
+                canvasCoverage: .fullCanvas, paletteCategories: ModernPaletteSelection.all,
+                usesEditorialField: true, editorialBackground: .dark, lowSleep: true
+            ),
+            colorNonce: 7
+        )
+        let layout = HappeningFieldLayout.Layout(
+            sources: [.init(index: 0, center: CGPoint(x: 100, y: 100), radius: 60)],
+            labelFrames: [], contourBounds: .zero, dockAnchor: .zero, completionBounds: nil
+        )
+        for ink in [HappeningPaletteLabelInk.dark, .light] {
+            for state in [
+                HappeningPaletteSlotVisualState.available, .additionPreview, .added, .removalPreview,
+            ] {
+                let added: Set<String> = state == .added || state == .removalPreview ? [happening.id] : []
+                var interaction = HappeningPaletteInteractionState()
+                if state == .additionPreview || state == .removalPreview {
+                    _ = interaction.tap(id: happening.id, addedIDs: added)
+                }
+                let renderer = ImageRenderer(content:
+                    HappeningShapeField(
+                        happenings: [happening], assignments: assignments, layout: layout,
+                        interaction: interaction, addedIDs: added, onActivate: { _ in },
+                        labelInks: [happening.id: ink]
+                    )
+                    .frame(width: 200, height: 200)
+                    .background(ink == .dark ? Color.yellow : Color.black)
+                )
+                renderer.scale = 3
+                let image = try XCTUnwrap(renderer.cgImage)
+                var pixels = [UInt8](repeating: 0, count: image.width * image.height * 4)
+                try pixels.withUnsafeMutableBytes { buffer in
+                    let context = try XCTUnwrap(CGContext(
+                        data: buffer.baseAddress, width: image.width, height: image.height,
+                        bitsPerComponent: 8, bytesPerRow: image.width * 4,
+                        space: CGColorSpaceCreateDeviceRGB(),
+                        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                    ))
+                    context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+                }
+                var readableGlyphPixels = 0
+                // The title itself supplies contrast; no blurred outline is needed.
+                for y in 240..<360 {
+                    for x in 180..<420 {
+                        let offset = (y * image.width + x) * 4
+                        let rgb = (0..<3).map { Double(pixels[offset + $0]) / 255 }
+                        if ink == .dark ? rgb.allSatisfy({ $0 < 0.04 }) : rgb.allSatisfy({ $0 > 0.96 }) {
+                            readableGlyphPixels += 1
+                        }
+                    }
+                }
+                XCTAssertGreaterThan(readableGlyphPixels, 100, "Readable \(ink) glyphs required in \(state)")
+            }
+        }
+    }
+
+    func testConfiguredSlotsRemainFixedAfterCanvasMembershipChanges() {
+        let configured = Array(HappeningDefaults.builtIns.prefix(10))
+        var state = HappeningFieldPresentationState(happenings: configured)
+        let original = state.layout(in: size, safeInsets: safeInsets)
+        var interaction = HappeningPaletteInteractionState()
+        _ = interaction.tap(id: configured[0].id, addedIDs: [])
+        _ = interaction.tap(id: configured[0].id, addedIDs: [])
+        interaction.resolve(.add(configured[0].id), succeeded: true)
+        state.receiveParent(configured)
+        XCTAssertEqual(state.presentedHappenings.map(\.id), configured.map(\.id))
+        XCTAssertEqual(state.layout(in: size, safeInsets: safeInsets), original)
+    }
 
     private let size = CGSize(width: 402, height: 874)
     private let safeInsets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
@@ -267,6 +439,245 @@ final class HappeningFieldLayoutTests: XCTestCase {
             width: size.width - safeInsets.leading - safeInsets.trailing,
             height: size.height - safeInsets.top - safeInsets.bottom
         )
+    }
+
+    func testFailedCanvasSaveRejectsRemovalWithoutRemovingDomainAddition() {
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        let model = makeRemovalModel()
+        defer { clearRemovalDefaults() }
+        let canvas = DayCanvas(dayKey: AppModel.dayKey(for: date))
+        let element = fixedRemovalElement(on: canvas)
+        var populatedCanvas = canvas
+        populatedCanvas.elements = [element]
+        XCTAssertNotNil(
+            model.addHappening(
+                id: "walk",
+                colorHex: element.hexColor,
+                at: date,
+                recordUse: false,
+                entryId: element.id.uuidString
+            )
+        )
+
+        let failed = CanvasHappeningRemovalTransaction.commit(
+            canvasLoaded: true,
+            canvas: populatedCanvas,
+            model: model,
+            happeningID: "walk",
+            at: date,
+            persist: { _ in false }
+        )
+
+        XCTAssertNil(failed)
+        XCTAssertEqual(populatedCanvas.elements.count, 1)
+        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["walk"])
+    }
+
+    func testSuccessfulRemovalPersistsEmptyCanonicalCanvasAndRemovesMatchingDomainAddition() throws {
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        let model = makeRemovalModel()
+        defer { clearRemovalDefaults() }
+        let canvas = DayCanvas(dayKey: AppModel.dayKey(for: date))
+        let element = fixedRemovalElement(on: canvas)
+        var populatedCanvas = canvas
+        populatedCanvas.elements = [element]
+        XCTAssertNotNil(
+            model.addHappening(
+                id: "walk",
+                colorHex: element.hexColor,
+                at: date,
+                recordUse: false,
+                entryId: element.id.uuidString
+            )
+        )
+        var persistedCanvas: DayCanvas?
+
+        let result = try XCTUnwrap(
+            CanvasHappeningRemovalTransaction.commit(
+                canvasLoaded: true,
+                canvas: populatedCanvas,
+                model: model,
+                happeningID: "walk",
+                at: date,
+                persist: {
+                    persistedCanvas = $0
+                    return true
+                }
+            )
+        )
+
+        XCTAssertTrue(result.canvas.elements.isEmpty)
+        XCTAssertEqual(result.removedElement.id, element.id)
+        XCTAssertTrue(try XCTUnwrap(persistedCanvas).elements.isEmpty)
+        XCTAssertTrue(model.todayAdditions.isEmpty)
+    }
+
+    func testRemovalResolvesLowercaseStableUUIDBeforeOptionFallback() throws {
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        let model = makeRemovalModel()
+        defer { clearRemovalDefaults() }
+        var canvas = DayCanvas(dayKey: AppModel.dayKey(for: date))
+        let element = fixedRemovalElement(on: canvas)
+        canvas.elements = [element]
+        let lowercasedEntryID = element.id.uuidString.lowercased()
+        XCTAssertNotNil(model.addHappening(
+            id: "walk",
+            colorHex: element.hexColor,
+            at: date,
+            recordUse: false,
+            entryId: lowercasedEntryID
+        ))
+
+        let result = try XCTUnwrap(CanvasHappeningRemovalTransaction.commit(
+            canvasLoaded: true,
+            canvas: canvas,
+            model: model,
+            happeningID: "walk",
+            at: date,
+            persist: { _ in true }
+        ))
+
+        XCTAssertEqual(result.removedElement.id, element.id)
+        XCTAssertTrue(model.todayAdditions.isEmpty)
+    }
+
+    func testRemovalFallsBackToLegacyEntryIDAndAllowsReAdding() throws {
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        let model = makeRemovalModel()
+        defer { clearRemovalDefaults() }
+        var canvas = DayCanvas(dayKey: AppModel.dayKey(for: date))
+        let element = fixedRemovalElement(on: canvas)
+        canvas.elements = [element]
+        XCTAssertNotNil(model.addHappening(
+            id: "walk",
+            colorHex: element.hexColor,
+            at: date,
+            recordUse: false,
+            entryId: "legacy-entry-id"
+        ))
+
+        XCTAssertNotNil(CanvasHappeningRemovalTransaction.commit(
+            canvasLoaded: true,
+            canvas: canvas,
+            model: model,
+            happeningID: "walk",
+            at: date,
+            persist: { _ in true }
+        ))
+        XCTAssertTrue(model.todayAdditions.isEmpty)
+        XCTAssertNotNil(model.addHappening(
+            id: "walk",
+            colorHex: element.hexColor,
+            at: date.addingTimeInterval(1),
+            recordUse: false,
+            entryId: element.id.uuidString
+        ))
+    }
+
+    func testDayRolloverPaletteStateClosesCreatorAndRestoresChrome() {
+        var state = CanvasPalettePresentationState(
+            isPresented: true,
+            activePanel: .creator
+        )
+
+        state.closeForDayRollover()
+
+        XCTAssertFalse(state.isPresented)
+        XCTAssertNil(state.activePanel)
+        XCTAssertFalse(CanvasPaletteRouteState.blocksTabBar(
+            isCanvasSelected: true,
+            isPaletteVisible: state.isPresented
+        ))
+    }
+
+    func testFailedEmptyCanonicalSaveKeepsCanvasAndMatchingDomainAddition() {
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        let model = makeRemovalModel()
+        defer { clearRemovalDefaults() }
+        let canvas = DayCanvas(dayKey: AppModel.dayKey(for: date))
+        let element = fixedRemovalElement(on: canvas)
+        var populatedCanvas = canvas
+        populatedCanvas.elements = [element]
+        XCTAssertNotNil(
+            model.addHappening(
+                id: "walk",
+                colorHex: element.hexColor,
+                at: date,
+                recordUse: false,
+                entryId: element.id.uuidString
+            )
+        )
+        var savedCanvases: [DayCanvas] = []
+
+        let failed = CanvasHappeningRemovalTransaction.commit(
+            canvasLoaded: true,
+            canvas: populatedCanvas,
+            model: model,
+            happeningID: "walk",
+            at: date,
+            persist: { canonical in
+                CanvasHappeningRemovalPersistence.persist(
+                    canonical,
+                    save: {
+                        savedCanvases.append($0)
+                        return false
+                    }
+                )
+            }
+        )
+
+        XCTAssertNil(failed)
+        XCTAssertEqual(populatedCanvas.elements.map(\.id), [element.id])
+        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["walk"])
+        XCTAssertEqual(savedCanvases.count, 1)
+        guard let savedCanvas = savedCanvases.first else {
+            XCTFail("The empty canonical canvas should reach persistence")
+            return
+        }
+        XCTAssertTrue(savedCanvas.elements.isEmpty)
+        XCTAssertEqual(savedCanvas.lastModified, date)
+    }
+
+    func testRemovalRejectsMismatchedDayOrMissingHappeningWithoutSideEffects() {
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        let model = makeRemovalModel()
+        defer { clearRemovalDefaults() }
+        let element = fixedRemovalElement(on: DayCanvas(dayKey: AppModel.dayKey(for: date)))
+        var staleCanvas = DayCanvas(dayKey: "2001-01-01")
+        staleCanvas.elements = [element]
+        var currentCanvas = DayCanvas(dayKey: AppModel.dayKey(for: date))
+        currentCanvas.elements = [element]
+        var persistedCanvases: [DayCanvas] = []
+
+        let mismatchedDay = CanvasHappeningRemovalTransaction.commit(
+            canvasLoaded: true,
+            canvas: staleCanvas,
+            model: model,
+            happeningID: "walk",
+            at: date,
+            persist: {
+                persistedCanvases.append($0)
+                return true
+            }
+        )
+        let missingHappening = CanvasHappeningRemovalTransaction.commit(
+            canvasLoaded: true,
+            canvas: currentCanvas,
+            model: model,
+            happeningID: "read",
+            at: date,
+            persist: {
+                persistedCanvases.append($0)
+                return true
+            }
+        )
+
+        XCTAssertNil(mismatchedDay)
+        XCTAssertNil(missingHappening)
+        XCTAssertEqual(staleCanvas.elements.map(\.id), [element.id])
+        XCTAssertEqual(currentCanvas.elements.map(\.id), [element.id])
+        XCTAssertTrue(model.todayAdditions.isEmpty)
+        XCTAssertTrue(persistedCanvases.isEmpty)
     }
 
     /// Close · choose · add used to hang off the blob contour, so consuming a
@@ -293,16 +704,17 @@ final class HappeningFieldLayoutTests: XCTestCase {
         }
     }
 
-    /// Pinned means low and stable, not floating mid-screen.
-    func testDockAnchorSitsBelowTheMiddleAndClearOfBottomChrome() {
+    /// With the tab bar hidden, the palette controls occupy the bottom-safe
+    /// corner positions formerly used by the Canvas controls.
+    func testDockAnchorSitsAtTheBottomSafeControlLine() {
         let anchor = HappeningFieldLayout.layout(
             count: 3, in: size, safeInsets: safeInsets
         ).dockAnchor
         XCTAssertEqual(anchor.x, dockSafeBounds.midX, accuracy: 0.01)
         XCTAssertGreaterThan(anchor.y, dockSafeBounds.midY)
-        XCTAssertLessThanOrEqual(
-            anchor.y, dockSafeBounds.maxY - 120,
-            "must stay clear of the canvas controls and tab bar underneath"
+        XCTAssertEqual(
+            anchor.y, dockSafeBounds.maxY - 36, accuracy: 0.01,
+            "the list and close controls should stay on the Canvas control line"
         )
     }
 
@@ -327,7 +739,7 @@ final class HappeningFieldLayoutTests: XCTestCase {
         }
     }
 
-    func testEverySupportedCountHasAccessibleNonOverlappingLabelFrames() {
+    func testEverySupportedCountHasAccessibleNonOverlappingCentralLabelZones() {
         for count in 0...10 {
             let layout = HappeningFieldLayout.layout(
                 count: count, in: size, safeInsets: safeInsets
@@ -341,8 +753,11 @@ final class HappeningFieldLayoutTests: XCTestCase {
                 XCTAssertGreaterThanOrEqual(frame.height, 44, "count \(count)")
             }
 
-            for (index, frame) in layout.labelFrames.enumerated() {
-                for other in layout.labelFrames.dropFirst(index + 1) {
+            let centralLabelZones = layout.labelFrames.map {
+                $0.insetBy(dx: $0.width * 0.1, dy: $0.height * 0.12)
+            }
+            for (index, frame) in centralLabelZones.enumerated() {
+                for other in centralLabelZones.dropFirst(index + 1) {
                     XCTAssertFalse(frame.intersects(other), "count \(count), frame \(index)")
                 }
             }
@@ -405,57 +820,6 @@ final class HappeningFieldLayoutTests: XCTestCase {
         }
     }
 
-    func testExpandedTenItemMetaballIsOneClosedContourInsideSafeBounds() {
-        let safeBounds = CGRect(
-            x: safeInsets.leading,
-            y: safeInsets.top,
-            width: size.width - safeInsets.leading - safeInsets.trailing,
-            height: size.height - safeInsets.top - safeInsets.bottom
-        )
-
-        for typeSize in [
-            DynamicTypeSize.accessibility1,
-            .accessibility3,
-            .accessibility5,
-        ] {
-            let layout = HappeningFieldLayout.layout(
-                count: 10,
-                in: size,
-                safeInsets: safeInsets,
-                dynamicTypeSize: typeSize
-            )
-            let contour = ProceduralShapeGenerator.metaballPath(
-                blobs: layout.sources.map {
-                    ProceduralShapeGenerator.BlobSource(
-                        center: $0.center,
-                        radius: $0.radius
-                    )
-                },
-                in: CGRect(origin: .zero, size: size),
-                gridResolution: 58
-            )
-            var moveCount = 0
-            var closeCount = 0
-            contour.cgPath.applyWithBlock { element in
-                switch element.pointee.type {
-                case .moveToPoint:
-                    moveCount += 1
-                case .closeSubpath:
-                    closeCount += 1
-                default:
-                    break
-                }
-            }
-
-            XCTAssertEqual(moveCount, 1, "\(typeSize) must generate one contour component")
-            XCTAssertEqual(closeCount, 1, "\(typeSize) must close exactly one component")
-            XCTAssertTrue(
-                safeBounds.insetBy(dx: 2, dy: 2).contains(contour.boundingRect),
-                "\(typeSize) contour \(contour.boundingRect) must not be clipped into a boundary chord"
-            )
-        }
-    }
-
     func testRemovingIndexPreservesRelativeIdentityOrder() {
         let ten = HappeningFieldLayout.layout(count: 10, in: size, safeInsets: EdgeInsets())
         let nine = HappeningFieldLayout.layout(count: 9, in: size, safeInsets: EdgeInsets())
@@ -486,10 +850,11 @@ final class HappeningFieldLayoutTests: XCTestCase {
         XCTAssertLessThanOrEqual(layout.dockAnchor.y - completionBounds.maxY, 32)
         XCTAssertTrue(safeBounds.contains(layout.dockAnchor))
         XCTAssertGreaterThan(layout.dockAnchor.y, safeBounds.midY)
-        XCTAssertLessThanOrEqual(
+        XCTAssertEqual(
             layout.dockAnchor.y,
-            safeBounds.maxY - 120,
-            "the empty-state controls must stay clear of persistent bottom chrome"
+            safeBounds.maxY - 36,
+            accuracy: 0.01,
+            "the empty state keeps list and close on the Canvas control line"
         )
     }
 
@@ -512,6 +877,47 @@ final class HappeningFieldLayoutTests: XCTestCase {
             HappeningFieldLayout.layout(count: 10, in: size, safeInsets: safeInsets),
             HappeningFieldLayout.layout(count: 10, in: size, safeInsets: safeInsets)
         )
+    }
+
+    private func fixedRemovalElement(on canvas: DayCanvas) -> CanvasElement {
+        var element = CanvasElement.spawn(
+            id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+            optionId: "walk",
+            label: "Walk",
+            existingElements: canvas.elements,
+            dayKey: canvas.dayKey,
+            composition: DayComposition.forDay(
+                dayKey: canvas.dayKey,
+                happeningCount: canvas.elements.count
+            )
+        )
+        element.basePosition = CGPoint(x: 0.82, y: 0.24)
+        return element
+    }
+
+    private func makeRemovalModel() -> AppModel {
+        clearRemovalDefaults()
+        let model = AppModel(
+            healthKitService: MockHealthKitService(),
+            familyControlsService: MockFamilyControlsService(),
+            notificationService: MockNotificationService(),
+            budgetEngine: MockBudgetEngine(),
+            subscriptionStore: SubscriptionStore()
+        )
+        model.isBootstrapping = true
+        model.loadDailyEnergyState()
+        return model
+    }
+
+    private func clearRemovalDefaults() {
+        let defaults = UserDefaults.stepsTrader()
+        [
+            SharedKeys.dailyEnergyAnchor,
+            SharedKeys.stepsBalanceAnchor,
+            SharedKeys.todayAdditions,
+            SharedKeys.happeningCatalog,
+            SharedKeys.happeningPaletteSelection,
+        ].forEach { defaults.removeObject(forKey: $0) }
     }
 }
 
@@ -565,42 +971,17 @@ final class HappeningFieldTransitionStateTests: XCTestCase {
         XCTAssertEqual(state.selectedID, "happening_read")
     }
 
-    func testQueuedRemovalResolvesMovedZoneFromCurrentNineItemLayout() throws {
+    func testMetadataRefreshKeepsEveryHitTargetAtItsConfiguredSource() throws {
         let size = CGSize(width: 402, height: 874)
         let safeInsets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
-        let initial = Array(HappeningDefaults.builtIns.prefix(10))
-        let queued = initial[9]
-        var presentation = HappeningFieldPresentationState(happenings: initial)
-        let tenItemLayout = presentation.layout(in: size, safeInsets: safeInsets)
-        let staleSource = tenItemLayout.sources[9]
-
-        XCTAssertTrue(presentation.remove(id: initial[0].id))
-        let nineItemLayout = presentation.layout(in: size, safeInsets: safeInsets)
-        let currentIndex = try XCTUnwrap(
-            presentation.presentedHappenings.firstIndex { $0.id == queued.id }
-        )
-        let resolved = try XCTUnwrap(
-            HappeningFieldRemovalResolver.resolve(
-                id: queued.id,
-                presentation: presentation,
-                size: size,
-                safeInsets: safeInsets,
-                dynamicTypeSize: .large
-            )
-        )
-
-        XCTAssertEqual(resolved.happening.id, queued.id)
-        XCTAssertEqual(resolved.source, nineItemLayout.sources[currentIndex])
-        XCTAssertEqual(resolved.transitionSources, nineItemLayout.sources)
-        XCTAssertGreaterThan(
-            hypot(
-                resolved.source.center.x - staleSource.center.x,
-                resolved.source.center.y - staleSource.center.y
-            ),
-            80,
-            "the fixture must prove the queued zone moved substantially during 10→9 reflow"
-        )
-        XCTAssertNotEqual(resolved.source, staleSource)
+        let configured = Array(HappeningDefaults.builtIns.prefix(10))
+        var presentation = HappeningFieldPresentationState(happenings: configured)
+        let original = presentation.layout(in: size, safeInsets: safeInsets)
+        var refreshed = configured
+        refreshed[0].useCount += 1
+        presentation.receiveParent(refreshed)
+        XCTAssertEqual(presentation.layout(in: size, safeInsets: safeInsets), original)
+        XCTAssertEqual(presentation.presentedHappenings.first?.useCount, refreshed[0].useCount)
     }
 
     func testFinishRemovalUnlocksOnlyAfterReflowAndAllowsAnotherID() {
@@ -694,49 +1075,24 @@ final class HappeningFieldPresentationStateTests: XCTestCase {
     private let size = CGSize(width: 402, height: 874)
     private let safeInsets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
 
-    func testOnPickParentUpdateDuringReflowDoesNotResurrectSessionRemoval() throws {
-        let initial = Array(HappeningDefaults.builtIns.prefix(3))
-        let removed = initial[0]
-        let survivor = initial[1]
+    func testParentRefreshPreservesAllTenConfiguredSlotsAndUpdatesMetadata() throws {
+        let initial = Array(HappeningDefaults.builtIns.prefix(10))
         var state = HappeningFieldPresentationState(happenings: initial)
-
-        var parentRefresh = initial
-        parentRefresh[1].useCount = 7
-        state.receiveParent(parentRefresh, whileTransitioning: true)
-        XCTAssertTrue(state.remove(id: removed.id))
-        state.finishTransition()
-
-        XCTAssertFalse(state.presentedHappenings.contains { $0.id == removed.id })
-        XCTAssertEqual(
-            try XCTUnwrap(state.presentedHappenings.first { $0.id == survivor.id }).useCount,
-            7,
-            "parent metadata should still merge into surviving session items"
-        )
+        let original = state.layout(in: size, safeInsets: safeInsets)
+        var refreshed = initial
+        refreshed[1].useCount = 7
+        state.receiveParent(refreshed)
+        XCTAssertEqual(state.presentedHappenings.map(\.id), initial.map(\.id))
+        XCTAssertEqual(state.presentedHappenings[1].useCount, 7)
+        XCTAssertEqual(state.layout(in: size, safeInsets: safeInsets), original)
     }
 
-    func testSharedPresentationCountLeavesDockFixedThroughTenNineEight() {
-        var state = HappeningFieldPresentationState(
-            happenings: Array(HappeningDefaults.builtIns.prefix(10))
-        )
-
-        let ten = state.layout(in: size, safeInsets: safeInsets)
-        XCTAssertEqual(state.presentedCount, 10)
-
-        XCTAssertTrue(state.remove(id: state.presentedHappenings[0].id))
-        let nine = state.layout(in: size, safeInsets: safeInsets)
-        XCTAssertEqual(state.presentedCount, 9)
-
-        XCTAssertTrue(state.remove(id: state.presentedHappenings[0].id))
-        let eight = state.layout(in: size, safeInsets: safeInsets)
-        XCTAssertEqual(state.presentedCount, 8)
-
-        // Inverted deliberately: the dock is anchored to a full field, so
-        // consuming happenings must NOT move it. It used to ride up the screen
-        // with the shrinking cluster.
-        XCTAssertEqual(ten.dockAnchor, nine.dockAnchor)
-        XCTAssertEqual(nine.dockAnchor, eight.dockAnchor)
+    func testConfiguredReplacementTakesFirstTenAndPreservesTheirOrder() {
+        var state = HappeningFieldPresentationState(happenings: [])
+        let configured = Array(HappeningDefaults.builtIns.reversed())
+        state.receiveParent(configured)
+        XCTAssertEqual(state.presentedHappenings.map(\.id), Array(configured.prefix(10)).map(\.id))
     }
-
 }
 
 /// Label contrast is unrelated to the replaced blob geometry, so it remains
@@ -788,72 +1144,34 @@ final class HappeningPaletteLabelContrastTests: XCTestCase {
         }
     }
 
-    func testAccessibilityTypographyExpandsGeometryAndFitsEveryPrimaryLabel() {
-        let standardLayout = HappeningFieldLayout.layout(
-            count: 10,
-            in: CGSize(width: 402, height: 874),
-            safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
-            dynamicTypeSize: .large
-        )
-        let accessibilityLayout = HappeningFieldLayout.layout(
-            count: 10,
-            in: CGSize(width: 402, height: 874),
-            safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
-            dynamicTypeSize: .accessibility1
-        )
-
-        let baseFont = UIFont.systemFont(
-            ofSize: 14,
-            weight: .semibold
-        )
-        let roundedDescriptor = baseFont.fontDescriptor.withDesign(.rounded)
-            ?? baseFont.fontDescriptor
-        let roundedBaseFont = UIFont(
-            descriptor: roundedDescriptor,
+    func testFixedWhiteTypographyFitsPrimaryLabelsInTwoLinesAtEveryTextSize() {
+        let baseFont = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        let font = UIFont(
+            descriptor: baseFont.fontDescriptor.withDesign(.rounded) ?? baseFont.fontDescriptor,
             size: 14
         )
-        let font = UIFontMetrics(forTextStyle: .footnote).scaledFont(
-            for: roundedBaseFont,
-            compatibleWith: UITraitCollection(
-                preferredContentSizeCategory: .accessibilityMedium
+        for textSize in [
+            DynamicTypeSize.large, .xLarge, .xxxLarge,
+            .accessibility1, .accessibility2, .accessibility3, .accessibility4, .accessibility5,
+        ] {
+            let layout = HappeningFieldLayout.layout(
+                count: 10, in: CGSize(width: 402, height: 874),
+                safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
+                dynamicTypeSize: textSize
             )
-        )
-
-        XCTAssertGreaterThan(font.pointSize, 14)
-        XCTAssertGreaterThan(
-            accessibilityLayout.labelFrames[0].width,
-            standardLayout.labelFrames[0].width
-        )
-        XCTAssertGreaterThan(
-            accessibilityLayout.labelFrames[0].height,
-            standardLayout.labelFrames[0].height
-        )
-
-        for (index, frame) in accessibilityLayout.labelFrames.enumerated() {
-            for other in accessibilityLayout.labelFrames.dropFirst(index + 1) {
-                XCTAssertFalse(frame.intersects(other), "accessibility label frames must not overlap")
+            for (happening, frame) in zip(HappeningDefaults.builtIns, layout.labelFrames) {
+                let measured = (happening.localizedTitle() as NSString).boundingRect(
+                    with: CGSize(width: frame.width * 0.80, height: .greatestFiniteMagnitude),
+                    options: [.usesLineFragmentOrigin, .usesFontLeading],
+                    attributes: [.font: font],
+                    context: nil
+                )
+                XCTAssertLessThanOrEqual(ceil(measured.height), frame.height * 0.76)
+                XCTAssertLessThanOrEqual(
+                    ceil(measured.height / font.lineHeight), 2,
+                    "\(happening.localizedTitle()) must fit the fixed two-line label at \(textSize)"
+                )
             }
-        }
-
-        for (happening, frame) in zip(HappeningDefaults.builtIns, accessibilityLayout.labelFrames) {
-            let textSize = HappeningFieldLabelTreatment.inscribedTextSize(in: frame.size)
-            let measured = (happening.localizedTitle() as NSString).boundingRect(
-                with: CGSize(width: textSize.width, height: .greatestFiniteMagnitude),
-                options: [.usesLineFragmentOrigin, .usesFontLeading],
-                attributes: [.font: font],
-                context: nil
-            )
-
-            XCTAssertLessThanOrEqual(
-                ceil(measured.height),
-                textSize.height,
-                "\(happening.localizedTitle()) must fit without truncation"
-            )
-            XCTAssertLessThanOrEqual(
-                ceil(measured.height / font.lineHeight),
-                4,
-                "\(happening.localizedTitle()) must fit within four accessibility lines"
-            )
         }
     }
 
@@ -890,12 +1208,10 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(HappeningPanelTextFieldAppearance.strokeOpacity, 0.18)
     }
 
-    func testOpenPanelHidesChromeAndUsesCompactInsetsAtStandardType() {
+    func testOpenPanelHidesTabBarButClearsPersistentEnergyAndControls() {
         XCTAssertTrue(
             HappeningPaletteChromeLayout.hidesSurroundingChrome(
-                isPalettePresented: true,
-                isPanelPresented: true,
-                dynamicTypeSize: .large
+                isPalettePresented: true
             )
         )
         XCTAssertEqual(
@@ -903,23 +1219,21 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
                 topCardHeight: 176,
                 hidesSurroundingChrome: true
             ),
-            20
+            188
         )
         XCTAssertEqual(
             HappeningPaletteChromeLayout.panelBottomInset(
                 tabBarHeight: 82,
                 hidesSurroundingChrome: true
             ),
-            20
+            94
         )
     }
 
-    func testAccessibilityTypeHidesSurroundingChromeAndUsesCompactInsets() {
+    func testAccessibilityPanelClearsPersistentEnergyAndControls() {
         XCTAssertTrue(
             HappeningPaletteChromeLayout.hidesSurroundingChrome(
-                isPalettePresented: true,
-                isPanelPresented: false,
-                dynamicTypeSize: .accessibility2
+                isPalettePresented: true
             )
         )
         XCTAssertEqual(
@@ -927,14 +1241,14 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
                 topCardHeight: 220,
                 hidesSurroundingChrome: true
             ),
-            20
+            232
         )
         XCTAssertEqual(
             HappeningPaletteChromeLayout.panelBottomInset(
                 tabBarHeight: 150,
                 hidesSurroundingChrome: true
             ),
-            20
+            162
         )
     }
 
@@ -951,9 +1265,7 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
         ] {
             XCTAssertTrue(
                 HappeningPaletteChromeLayout.hidesSurroundingChrome(
-                    isPalettePresented: true,
-                    isPanelPresented: false,
-                    dynamicTypeSize: typeSize
+                    isPalettePresented: true
                 ),
                 "\(typeSize) uses expanded field geometry and must hide surrounding chrome"
             )
@@ -969,12 +1281,10 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
         }
     }
 
-    func testPaletteWithoutPanelKeepsStandardChrome() {
-        XCTAssertFalse(
+    func testPresentedPaletteHidesStandardChromeBeforeAChildPanelOpens() {
+        XCTAssertTrue(
             HappeningPaletteChromeLayout.hidesSurroundingChrome(
-                isPalettePresented: true,
-                isPanelPresented: false,
-                dynamicTypeSize: .large
+                isPalettePresented: true
             )
         )
     }
@@ -987,8 +1297,8 @@ final class HappeningPaletteChromeLayoutTests: XCTestCase {
         )
     }
 
-    func testCanvasControlsYieldToPresentedPalette() {
-        XCTAssertFalse(
+    func testPaletteKeepsCornerControlsWhileHidingTheTabBar() {
+        XCTAssertTrue(
             HappeningPaletteChromeLayout.showsCanvasControls(
                 isPalettePresented: true
             )
@@ -1065,6 +1375,230 @@ final class HappeningFieldContourHitRegionTests: XCTestCase {
                 sources: sources,
                 in: CGRect(x: 0, y: 0, width: 200, height: 200)
             ).contains(CGPoint(x: 150, y: 100))
+        )
+    }
+}
+
+final class HappeningEditorialAssignmentTests: XCTestCase {
+    private let dayKey = "2026-09-05"
+    private let happening = Happening(
+        id: "happening_walk",
+        title: "Walk",
+        isBuiltIn: true
+    )
+
+    /// Catches a reroll accidentally changing the promised object instead of
+    /// changing only its restrained color variation.
+    func testColorRerollKeepsElementIdentityAndShapeStable() throws {
+        let first = try XCTUnwrap(
+            HappeningEditorialAssignmentResolver.assignments(
+                happenings: [happening],
+                baseInput: editorialInput(),
+                colorNonce: 20
+            )[happening.id]
+        )
+        let rerolled = try XCTUnwrap(
+            HappeningEditorialAssignmentResolver.assignments(
+                happenings: [happening],
+                baseInput: editorialInput(),
+                colorNonce: 21
+            )[happening.id]
+        )
+
+        XCTAssertEqual(first.elementID, rerolled.elementID)
+        XCTAssertEqual(first.shape, rerolled.shape)
+        XCTAssertNotEqual(first.colorVariant, rerolled.colorVariant)
+    }
+
+    /// Catches the palette and production renderer deriving appearance through
+    /// separate paths: the material shown before confirmation must be the one
+    /// rendered after the element is persisted.
+    func testPreviewMaterialMatchesTheFinalEditorialActor() throws {
+        let assignment = try XCTUnwrap(
+            HappeningEditorialAssignmentResolver.assignments(
+                happenings: [happening],
+                baseInput: editorialInput(),
+                colorNonce: 21
+            )[happening.id]
+        )
+        var canvas = DayCanvas(dayKey: dayKey)
+        var element = CanvasElement.spawn(
+            id: assignment.elementID,
+            optionId: happening.id,
+            label: happening.title,
+            existingElements: [],
+            dayKey: dayKey,
+            composition: DayComposition.forDay(dayKey: dayKey, happeningCount: 0)
+        )
+        element.editorialColorVariant = assignment.colorVariant
+        canvas.elements = [element]
+
+        let finalInput = EditorialCanvasInputFactory.make(
+            canvas: canvas,
+            metrics: EditorialCanvasMetrics(
+                stepsProgress: 0.5,
+                sleepProgress: 0.5,
+                spentProgress: 0
+            ),
+            paletteCategories: ModernPaletteSelection.all
+        )
+        let finalActor = try XCTUnwrap(
+            DayObjectScene.make(input: finalInput.sceneInput)
+                .sceneRecipeV1?
+                .actor(assignment.elementID.uuidString.lowercased())
+        )
+
+        XCTAssertEqual(finalActor.shape, assignment.shape)
+        XCTAssertEqual(finalActor.material, assignment.material)
+    }
+
+    /// Catches a committed tile being recomputed from its daily placeholder
+    /// UUID or rerolled colour, and catches an uncommitted tile resolving in a
+    /// different final slot than the one it receives after confirmation.
+    func testSnapshotPreservesCommittedAppearanceAndMatchesProspectiveCommit() throws {
+        let committed = Happening(
+            id: "happening_read",
+            title: "Read",
+            isBuiltIn: true
+        )
+        let available = Happening(
+            id: "happening_walk",
+            title: "Walk",
+            isBuiltIn: true
+        )
+        let committedID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+        var committedElement = CanvasElement.spawn(
+            id: committedID,
+            optionId: committed.id,
+            label: committed.title,
+            existingElements: [],
+            dayKey: dayKey,
+            composition: DayComposition.forDay(dayKey: dayKey, happeningCount: 0)
+        )
+        committedElement.editorialColorVariant = 37
+        var baseCanvas = DayCanvas(dayKey: dayKey)
+        baseCanvas.elements = [committedElement]
+        let metrics = EditorialCanvasMetrics(
+            stepsProgress: 0.5,
+            sleepProgress: 0.5,
+            spentProgress: 0
+        )
+        let baseInput = EditorialCanvasInputFactory.make(
+            canvas: baseCanvas,
+            metrics: metrics,
+            paletteCategories: ModernPaletteSelection.all
+        ).sceneInput
+        let snapshot = HappeningEditorialAssignmentResolver.snapshot(
+            request: HappeningEditorialAssignmentRequest(
+                happenings: [committed, available],
+                baseInput: baseInput,
+                committedElements: baseCanvas.elements,
+                colorNonce: 21
+            )
+        )
+        let committedAssignment = try XCTUnwrap(snapshot.assignments[committed.id])
+        let previewAssignment = try XCTUnwrap(snapshot.assignments[available.id])
+
+        XCTAssertEqual(committedAssignment.elementID, committedID)
+        XCTAssertEqual(committedAssignment.colorVariant, 37)
+
+        var canvasAfterCommit = baseCanvas
+        var committedPreview = CanvasElement.spawn(
+            id: previewAssignment.elementID,
+            optionId: available.id,
+            label: available.title,
+            existingElements: baseCanvas.elements,
+            dayKey: dayKey,
+            composition: DayComposition.forDay(dayKey: dayKey, happeningCount: 1)
+        )
+        committedPreview.editorialColorVariant = previewAssignment.colorVariant
+        canvasAfterCommit.elements.append(committedPreview)
+        let finalActor = try XCTUnwrap(
+            DayObjectScene.make(input: EditorialCanvasInputFactory.make(
+                canvas: canvasAfterCommit,
+                metrics: metrics,
+                paletteCategories: ModernPaletteSelection.all
+            ).sceneInput).sceneRecipeV1?.actor(
+                previewAssignment.elementID.uuidString.lowercased()
+            )
+        )
+
+        XCTAssertEqual(previewAssignment.shape, finalActor.shape)
+        XCTAssertEqual(previewAssignment.material.gpuAppearance, finalActor.material.gpuAppearance)
+    }
+
+    /// Catches the renderer ignoring a persisted color variation. Shape,
+    /// geometry, and gradient fields stay fixed while the color order changes.
+    func testActorColorVariantChangesOnlyTheMaterialColors() throws {
+        let eventID = "11111111-2222-3333-4444-555555555555"
+        let original = try XCTUnwrap(
+            DayObjectScene.make(input: editorialInput(
+                eventIDs: [eventID],
+                actorColorVariants: [eventID: 0],
+                materialMode: .wideGradient
+            )).sceneRecipeV1?.actor(eventID)
+        )
+        let rerolled = try XCTUnwrap(
+            DayObjectScene.make(input: editorialInput(
+                eventIDs: [eventID],
+                actorColorVariants: [eventID: 1],
+                materialMode: .wideGradient
+            )).sceneRecipeV1?.actor(eventID)
+        )
+
+        XCTAssertEqual(original.shape, rerolled.shape)
+        XCTAssertEqual(original.geometryRegion, rerolled.geometryRegion)
+        XCTAssertEqual(original.material.fields, rerolled.material.fields)
+        XCTAssertEqual(original.material.family, rerolled.material.family)
+        XCTAssertNotEqual(original.material.colors, rerolled.material.colors)
+    }
+
+    /// Catches a regression back to irregular or loosely spaced templates.
+    func testTenItemsUseTouchingThreeTwoThreeTwoRows() {
+        let layout = HappeningFieldLayout.layout(
+            count: 10,
+            in: CGSize(width: 402, height: 874),
+            safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
+            contentTopInset: 188,
+            dockCenterY: 804
+        )
+        let rows = Dictionary(grouping: layout.sources) { round($0.center.y * 100) / 100 }
+            .values
+            .sorted { $0[0].center.y < $1[0].center.y }
+
+        XCTAssertEqual(rows.map(\.count), [3, 2, 3, 2])
+        XCTAssertEqual(Set(layout.sources.map { round($0.radius * 100) / 100 }).count, 1)
+        for row in rows {
+            let ordered = row.sorted { $0.center.x < $1.center.x }
+            for pair in zip(ordered, ordered.dropFirst()) {
+                let gap = pair.1.center.x - pair.0.center.x - pair.0.radius - pair.1.radius
+                XCTAssertGreaterThanOrEqual(gap, -0.01)
+                XCTAssertLessThanOrEqual(gap, 0.5)
+            }
+        }
+    }
+
+    private func editorialInput(
+        eventIDs: [String] = [],
+        actorColorVariants: [String: Int] = [:],
+        materialMode: DayObjectEditorialLabMaterialMode = .generativeDNA
+    ) -> DayObjectSceneInput {
+        DayObjectSceneInput(
+            dayKey: dayKey,
+            identity: "primary-canvas",
+            eventIDs: eventIDs,
+            motionEnergy: 0.625,
+            visualClarity: 0.625,
+            canvasCoverage: .fullCanvas,
+            paletteCategories: ModernPaletteSelection.all,
+            usesEditorialField: true,
+            editorialBackground: .dark,
+            lowSleep: true,
+            editorialLabConfiguration: DayObjectEditorialLabConfiguration(
+                materialMode: materialMode,
+                placement: .depthField
+            ),
+            actorColorVariants: actorColorVariants
         )
     }
 }

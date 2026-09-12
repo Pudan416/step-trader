@@ -81,9 +81,9 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
     }
 
     #if canImport(FamilyControls)
-    /// Builds heartbeat events for ticket groups so checkAndClearExpiredUnlocks
-    /// fires every minute while the user is in an unblocked app, catching expiry
-    /// without waiting for DeviceActivity unlock-expiry callbacks (which are best-effort).
+    /// One initial usage event per ticket group supplements deadline reconciliation.
+    /// A cumulative threshold is not a recurring minute timer; purchase schedules
+    /// themselves provide the interval-end callback that closes each access window.
     private func buildHeartbeatEvents() -> [DeviceActivityEvent.Name: DeviceActivityEvent] {
         let g = UserDefaults.stepsTrader()
         var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]

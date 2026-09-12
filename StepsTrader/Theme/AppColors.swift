@@ -3,9 +3,13 @@ import SwiftUI
 /// Centralized color constants for the app
 /// Replaces hardcoded Color(red:green:blue:) values throughout the codebase
 enum AppColors {
+    /// Neutral floating controls, shared by navigation, energy, add and sound.
+    static let graphite = Color(red: 48.0 / 255, green: 50.0 / 255, blue: 53.0 / 255)
     // MARK: - Brand Colors
-    /// Primary accent — gold marker.
-    static let brandAccent = Color(red: 0xFF/255, green: 0xD3/255, blue: 0x69/255)   // #FFD369
+    /// Soft daily accent for filled controls and dark surfaces.
+    static var brandAccent: Color { DailyInterfaceColors.shared.palette.accent.color }
+    /// Dark companion for ink on pale controls or light page backgrounds.
+    static var accentInk: Color { DailyInterfaceColors.shared.palette.ink.color }
 
     /// Hex string fallback for the brand accent. Use this anywhere a string-typed
     /// hex literal is expected (e.g. palette `randomElement() ?? AppColors.goldFallbackHex`).
@@ -17,9 +21,19 @@ enum AppColors {
     /// reordering. The 8-char parser in `Color(hex:)` (CanvasElement.swift)
     /// expects ARGB.
     static let goldFallbackHex = "#FFD369"
+
+    /// The shared resource/canvas palette from NOWHERE · COLOR SYSTEM 2.0.
+    /// Resource fills use the navy as their radial origin and expand through
+    /// copper into amber; the colors are semantic, not per-app decoration.
+    enum LivingCanvas {
+        static let night = Color(red: 0x00/255, green: 0x26/255, blue: 0x46/255)   // #002646
+        static let navy = Color(red: 0x00/255, green: 0x3A/255, blue: 0x6C/255)    // #003A6C
+        static let copper = Color(red: 0xE4/255, green: 0x8A/255, blue: 0x3A/255)  // #E48A3A
+        static let amber = Color(red: 0xFF/255, green: 0xBF/255, blue: 0x65/255)   // #FFBF65
+    }
     
     // MARK: - Night Theme
-    // Night and screens. Same yellow accent, different context.
+    // Night surfaces retain semantic resource colors.
     enum Night {
         static let background = Color(red: 0x22/255, green: 0x28/255, blue: 0x31/255)  // #222831
         static let backgroundSecondary = Color(red: 48/255, green: 48/255, blue: 58/255)

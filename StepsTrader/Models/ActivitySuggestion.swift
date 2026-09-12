@@ -69,6 +69,36 @@ struct ActivitySuggestion: Identifiable, Equatable {
     let subtitle: String
     let icon: String
 
+    /// Canvas happenings that make this suggestion redundant.
+    ///
+    /// The first id is what a tap adds today. The remaining ids bridge the
+    /// old category model and the built-in happenings that express the same
+    /// real-world event. Keeping the equivalence here prevents refresh,
+    /// rendering and manual canvas additions from inventing different rules.
+    var satisfyingOptionIds: Set<String> {
+        var ids: Set<String> = [optionId]
+
+        switch source {
+        case .workout(let workout):
+            ids.formUnion(["happening_workout", "body_physical_effort"])
+            if HKWorkoutActivityType(rawValue: workout.activityType) == .walking {
+                ids.formUnion(["happening_walk", "body_walking"])
+            }
+        case .mindfulSession:
+            ids.insert("body_resting")
+        case .lowScreenTime:
+            ids.insert("mind_screen_detox")
+        case .morningResting:
+            ids.insert("body_resting")
+        }
+
+        return ids
+    }
+
+    func isSatisfied(by addedOptionIds: Set<String>) -> Bool {
+        !satisfyingOptionIds.isDisjoint(with: addedOptionIds)
+    }
+
     static func fromWorkout(_ workout: DetectedWorkout) -> ActivitySuggestion? {
         guard let optionId = workout.suggestedOptionId else { return nil }
         var subtitle = "\(workout.durationMinutes) min"

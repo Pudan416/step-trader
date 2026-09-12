@@ -5,7 +5,10 @@ extension AppModel {
 
     /// All pending suggestions from every source, filtered and deduped.
     var pendingActivitySuggestions: [ActivitySuggestion] {
-        get { _pendingActivitySuggestions }
+        get {
+            let addedOptionIds = Set(todayAdditions.map(\.optionId))
+            return _pendingActivitySuggestions.filter { !$0.isSatisfied(by: addedOptionIds) }
+        }
         set {
             _pendingActivitySuggestions = newValue
             objectWillChange.send()
@@ -28,7 +31,6 @@ extension AppModel {
         let workouts = await healthStore.fetchTodayWorkouts()
         let workoutSuggestions = buildWorkoutSuggestions(
             workouts,
-            alreadyAdded: alreadyAdded,
             dismissed: dismissed
         )
         suggestions.append(contentsOf: workoutSuggestions)
@@ -36,27 +38,48 @@ extension AppModel {
         // 2. Mindful minutes from HealthKit
         let mindfulMinutes = await healthStore.fetchTodayMindfulMinutes()
         if mindfulMinutes >= 3,
-           !alreadyAdded.contains("body_resting"),
            !dismissed.contains("mindful_\(Int(mindfulMinutes))") {
             suggestions.append(.fromMindfulMinutes(mindfulMinutes))
         }
 
-        // 3. Morning resting — every new day, suggest adding "Resting" to canvas
-        if !alreadyAdded.contains("body_resting"),
-           !dismissed.contains("morning_resting") {
-            suggestions.insert(.fromMorningResting(), at: 0)
-        }
-
-        // 4. Low screen time signal (from existing app tracking)
-        if shouldSuggestLowScreenTime(alreadyAdded: alreadyAdded, dismissed: dismissed) {
+        // 3. Low screen time signal (from existing app tracking)
+        if shouldSuggestLowScreenTime(dismissed: dismissed) {
             suggestions.append(.fromLowScreenTime())
         }
 
+        // 4. Generic morning resting stays behind concrete detected events in
+        // the visual stack, so a fresh HealthKit activity leads.
+        if !dismissed.contains("morning_resting") {
+            suggestions.append(.fromMorningResting())
+        }
+
+        let satisfiedSuggestionIds = suggestions
+            .filter { $0.isSatisfied(by: alreadyAdded) }
+            .map(\.id)
+        suggestions.removeAll { $0.isSatisfied(by: alreadyAdded) }
+
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("ui-testing-suggestion-stack") {
+            suggestions = [
+                .fromMindfulMinutes(12),
+                .fromMorningResting(),
+                .fromLowScreenTime()
+            ]
+        }
+        #endif
+
         let previousIds = Set(_pendingActivitySuggestions.map(\.id))
+        let currentIds = Set(suggestions.map(\.id))
+        let removedIds = Array(
+            previousIds.subtracting(currentIds).union(satisfiedSuggestionIds)
+        )
+        (notificationService as? NotificationManager)?
+            .removeActivityDetectedNotifications(suggestionIds: removedIds)
+
         let newSuggestions = suggestions.filter { !previousIds.contains($0.id) }
         for suggestion in newSuggestions where suggestion.source.isWorkout {
             (notificationService as? NotificationManager)?
-                .sendActivityDetectedNotification(title: suggestion.title, subtitle: suggestion.subtitle)
+                .sendActivityDetectedNotification(for: suggestion)
         }
 
         pendingActivitySuggestions = suggestions
@@ -72,13 +95,11 @@ extension AppModel {
 
     private func buildWorkoutSuggestions(
         _ workouts: [DetectedWorkout],
-        alreadyAdded: Set<String>,
         dismissed: Set<String>
     ) -> [ActivitySuggestion] {
         let filtered = workouts.filter { workout in
-            guard let optionId = workout.suggestedOptionId else { return false }
+            guard workout.suggestedOptionId != nil else { return false }
             if dismissed.contains("workout_\(workout.id.uuidString)") { return false }
-            if alreadyAdded.contains(optionId) { return false }
             if workout.durationMinutes < 5 { return false }
             return true
         }
@@ -103,8 +124,7 @@ extension AppModel {
 
     // MARK: - Low Screen Time Signal
 
-    private func shouldSuggestLowScreenTime(alreadyAdded: Set<String>, dismissed: Set<String>) -> Bool {
-        guard !alreadyAdded.contains("mind_screen_detox") else { return false }
+    private func shouldSuggestLowScreenTime(dismissed: Set<String>) -> Bool {
         guard !dismissed.contains("low_screen_time") else { return false }
 
         let hour = Calendar.current.component(.hour, from: Date.now)
@@ -122,6 +142,21 @@ extension AppModel {
 
     // MARK: - Accept / Dismiss
 
+    /// Removes suggestions whose real-world event has since been added by any
+    /// path (palette, routine, sync, or suggestion tap).
+    func removeSatisfiedActivitySuggestions() {
+        let addedOptionIds = Set(todayAdditions.map(\.optionId))
+        let removedIds = _pendingActivitySuggestions
+            .filter { $0.isSatisfied(by: addedOptionIds) }
+            .map(\.id)
+        guard !removedIds.isEmpty else { return }
+
+        let removedSet = Set(removedIds)
+        pendingActivitySuggestions.removeAll { removedSet.contains($0.id) }
+        (notificationService as? NotificationManager)?
+            .removeActivityDetectedNotifications(suggestionIds: removedIds)
+    }
+
     @discardableResult
     func acceptActivitySuggestion(_ suggestion: ActivitySuggestion) -> String? {
         let optionId: String
@@ -137,7 +172,13 @@ extension AppModel {
         } else {
             optionId = suggestion.optionId
         }
+        guard canAddHappening(id: optionId) else {
+            removeSatisfiedActivitySuggestions()
+            return nil
+        }
         pendingActivitySuggestions.removeAll { $0.id == suggestion.id }
+        (notificationService as? NotificationManager)?
+            .removeActivityDetectedNotifications(suggestionIds: [suggestion.id])
         return optionId
     }
 
@@ -146,6 +187,8 @@ extension AppModel {
         dismissed.insert(suggestion.id)
         saveDismissedSuggestionIds(dismissed)
         pendingActivitySuggestions.removeAll { $0.id == suggestion.id }
+        (notificationService as? NotificationManager)?
+            .removeActivityDetectedNotifications(suggestionIds: [suggestion.id])
     }
 
     func dismissAllActivitySuggestions() {
@@ -153,8 +196,11 @@ extension AppModel {
         for s in pendingActivitySuggestions {
             dismissed.insert(s.id)
         }
+        let removedIds = pendingActivitySuggestions.map(\.id)
         saveDismissedSuggestionIds(dismissed)
         pendingActivitySuggestions = []
+        (notificationService as? NotificationManager)?
+            .removeActivityDetectedNotifications(suggestionIds: removedIds)
     }
 
     // Legacy wrappers for GalleryView (keep existing calls working)

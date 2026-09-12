@@ -1,25 +1,49 @@
 import SwiftUI
 
-/// System fonts (SF) as app-wide typography.
-extension Font {
-    static func systemSerif(
-        _ size: CGFloat,
-        weight: Font.Weight = .regular,
-        relativeTo textStyle: Font.TextStyle = .body
-    ) -> Font {
-        let base = UIFont.systemFont(ofSize: size, weight: uiFontWeight(from: weight))
-        let scaled = UIFontMetrics(forTextStyle: uiFontTextStyle(from: textStyle)).scaledFont(for: base)
-        return Font(scaled)
+enum AppTypography {
+    static let interfacePostScriptName = "Onest-Regular"
+    static let posterMetadataPostScriptName = "Onest-Medium"
+
+    static func interfacePostScriptName(for weight: Font.Weight) -> String {
+        let faces: [Font.Weight: String] = [
+            .ultraLight: "Onest-Thin", .thin: "Onest-ExtraLight", .light: "Onest-Light",
+            .regular: "Onest-Regular", .medium: "Onest-Medium", .semibold: "Onest-SemiBold",
+            .bold: "Onest-Bold", .heavy: "Onest-ExtraBold", .black: "Onest-Black",
+        ]
+        return faces[weight] ?? interfacePostScriptName
     }
 
-    private static let fontWeightMap: [Font.Weight: UIFont.Weight] = [
-        .ultraLight: .ultraLight, .thin: .thin, .light: .light,
-        .regular: .regular, .medium: .medium, .semibold: .semibold,
-        .bold: .bold, .heavy: .heavy, .black: .black,
-    ]
+    static func displayPostScriptName(for weight: Font.Weight) -> String {
+        [.semibold, .bold, .heavy, .black].contains(weight)
+            ? "NowhereDisplay08-Bold" : "NowhereDisplay08-Regular"
+    }
 
-    private static func uiFontWeight(from weight: Font.Weight) -> UIFont.Weight {
-        fontWeightMap[weight] ?? .regular
+    static func pointSize(for style: Font.TextStyle) -> CGFloat {
+        switch style {
+        case .largeTitle: return 34
+        case .title: return 28
+        case .title2: return 22
+        case .title3: return 20
+        case .headline, .body: return 17
+        case .callout: return 16
+        case .subheadline: return 15
+        case .footnote: return 13
+        case .caption: return 12
+        case .caption2: return 11
+        @unknown default: return 17
+        }
+    }
+
+    static func scaledUIFont(
+        size: CGFloat,
+        weight: Font.Weight = .regular,
+        relativeTo textStyle: Font.TextStyle = .body,
+        compatibleWith traitCollection: UITraitCollection? = nil
+    ) -> UIFont {
+        let base = UIFont(name: interfacePostScriptName(for: weight), size: size)
+            ?? UIFont.systemFont(ofSize: size, weight: .regular)
+        return UIFontMetrics(forTextStyle: uiFontTextStyle(from: textStyle))
+            .scaledFont(for: base, compatibleWith: traitCollection)
     }
 
     private static func uiFontTextStyle(from style: Font.TextStyle) -> UIFont.TextStyle {
@@ -40,18 +64,105 @@ extension Font {
     }
 }
 
+/// Onest for interface and poster text; Nowhere Display for brand accents.
+extension Font {
+    static func onest(
+        _ size: CGFloat,
+        weight: Font.Weight = .regular,
+        relativeTo textStyle: Font.TextStyle = .body
+    ) -> Font {
+        .custom(AppTypography.interfacePostScriptName(for: weight), size: size, relativeTo: textStyle)
+    }
+
+    static func onest(size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        .custom(AppTypography.interfacePostScriptName(for: weight), fixedSize: size)
+    }
+
+    static func onest(_ textStyle: Font.TextStyle) -> Font {
+        let weight: Font.Weight = textStyle == .headline ? .semibold : .regular
+        return .onest(AppTypography.pointSize(for: textStyle), weight: weight, relativeTo: textStyle)
+    }
+
+    /// Fixed-size display text scales with the exported artwork.
+    static func nowhereDisplay(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        .custom(AppTypography.displayPostScriptName(for: weight), fixedSize: size)
+    }
+
+    static func nowhereDisplay(
+        _ size: CGFloat,
+        weight: Font.Weight = .regular,
+        relativeTo textStyle: Font.TextStyle
+    ) -> Font {
+        .custom(AppTypography.displayPostScriptName(for: weight), size: size, relativeTo: textStyle)
+    }
+
+    // Compatibility names for existing screens. All resolve to the new font pair.
+    // `design` is retained for source compatibility; custom faces keep their own design.
+    static func geist(
+        _ size: CGFloat,
+        weight: Font.Weight = .regular,
+        relativeTo textStyle: Font.TextStyle = .body
+    ) -> Font {
+        .onest(size, weight: weight, relativeTo: textStyle)
+    }
+
+    static func geist(
+        size: CGFloat,
+        weight: Font.Weight = .regular,
+        design: Font.Design = .default
+    ) -> Font {
+        .onest(size: size, weight: weight)
+    }
+
+    static func geist(_ textStyle: Font.TextStyle, design: Font.Design = .default) -> Font {
+        .onest(textStyle)
+    }
+
+    static func geistMono(
+        _ size: CGFloat,
+        weight: Font.Weight = .medium,
+        relativeTo textStyle: Font.TextStyle = .body
+    ) -> Font {
+        .onest(size, weight: weight, relativeTo: textStyle)
+    }
+
+    static func geistMono(
+        size: CGFloat,
+        weight: Font.Weight = .medium,
+        design: Font.Design = .default
+    ) -> Font {
+        .onest(size: size, weight: weight)
+    }
+
+    static func geistMono(_ textStyle: Font.TextStyle, design: Font.Design = .default) -> Font {
+        .onest(AppTypography.pointSize(for: textStyle), weight: .medium, relativeTo: textStyle)
+    }
+
+    static func unbounded(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        .nowhereDisplay(size, weight: weight)
+    }
+
+    static func unbounded(
+        _ size: CGFloat,
+        weight: Font.Weight = .regular,
+        relativeTo textStyle: Font.TextStyle
+    ) -> Font {
+        .nowhereDisplay(size, weight: weight, relativeTo: textStyle)
+    }
+}
+
 /// AppFonts — aliases for consistent typography across the codebase.
 enum AppFonts {
     // MARK: - Headlines
-    static let largeTitle = Font.largeTitle
-    static let title = Font.title
-    static let title2 = Font.title2
-    static let title3 = Font.title3
-    static let headline = Font.headline
+    static let largeTitle = Font.onest(.largeTitle)
+    static let title = Font.onest(.title)
+    static let title2 = Font.onest(.title2)
+    static let title3 = Font.onest(.title3)
+    static let headline = Font.onest(.headline)
 
     // MARK: - Body text
-    static let body = Font.body
-    static let subheadline = Font.subheadline
-    static let caption = Font.caption
-    static let caption2 = Font.caption2
+    static let body = Font.onest(.body)
+    static let subheadline = Font.onest(.subheadline)
+    static let caption = Font.onest(.caption)
+    static let caption2 = Font.onest(.caption2)
 }

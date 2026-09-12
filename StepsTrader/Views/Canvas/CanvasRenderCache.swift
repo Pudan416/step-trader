@@ -23,9 +23,8 @@ final class RenderCache {
     var mindPositionCacheTime: Double = -.greatestFiniteMagnitude
     var mindPositionCacheElementHash: Int = .min
 
-    /// Textures are geometry, not per-frame work. A stipple fill runs a
-    /// Poisson sample of up to 50 points; at 20 fps across 15 elements that
-    /// would be ~15k samples a second. Generated once per bucket and reused.
+    /// Textures are geometry, not per-frame work. Rings and hatch geometry are
+    /// generated once per bucket and reused across animation frames.
     struct TextureCacheIdentity: Hashable {
         let family: TextureGeometryFamily
         let seed: UInt64

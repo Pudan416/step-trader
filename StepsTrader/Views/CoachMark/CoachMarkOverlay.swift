@@ -83,7 +83,7 @@ struct CoachMarkOverlay: View {
 
             VStack(spacing: 20) {
                 Text(manager.tooltip(for: step))
-                    .font(.systemSerif(17, weight: .light, relativeTo: .body))
+                    .font(.geist(17, weight: .light, relativeTo: .body))
                     .italic()
                     .foregroundStyle(.white.opacity(0.85))
                     .multilineTextAlignment(.center)
@@ -92,7 +92,7 @@ struct CoachMarkOverlay: View {
                 HStack(spacing: 16) {
                     Button { manager.skipAll() } label: {
                         Text("skip all")
-                            .font(.systemSerif(15, weight: .light, relativeTo: .subheadline))
+                            .font(.geist(15, weight: .light, relativeTo: .subheadline))
                             .foregroundStyle(.white.opacity(0.4))
                     }
 
@@ -101,7 +101,7 @@ struct CoachMarkOverlay: View {
                     if step.hasNextButton {
                         Button { manager.advance() } label: {
                             Text(step == .allSet ? "done" : "next")
-                                .font(.systemSerif(15, weight: .semibold, relativeTo: .subheadline))
+                                .font(.geist(15, weight: .semibold, relativeTo: .subheadline))
                                 .foregroundStyle(.black)
                                 .padding(.horizontal, 24)
                                 .padding(.vertical, 10)
@@ -132,7 +132,7 @@ struct CoachMarkOverlay: View {
     private func tooltipCardContent(step: CoachMarkStep) -> some View {
         VStack(spacing: 14) {
             Text(manager.tooltip(for: step))
-                .font(.systemSerif(16, weight: .light, relativeTo: .body))
+                .font(.geist(16, weight: .light, relativeTo: .body))
                 .italic()
                 .foregroundStyle(.white.opacity(0.9))
                 .multilineTextAlignment(.center)
@@ -142,7 +142,7 @@ struct CoachMarkOverlay: View {
             HStack(spacing: 12) {
                 Button { manager.skipAll() } label: {
                     Text("skip all")
-                        .font(.systemSerif(14, weight: .light, relativeTo: .caption))
+                        .font(.geist(14, weight: .light, relativeTo: .caption))
                         .foregroundStyle(.white.opacity(0.4))
                 }
 
@@ -151,7 +151,7 @@ struct CoachMarkOverlay: View {
                 if step.hasNextButton {
                     Button { manager.advance() } label: {
                         Text("next")
-                            .font(.systemSerif(15, weight: .semibold, relativeTo: .subheadline))
+                            .font(.geist(15, weight: .semibold, relativeTo: .subheadline))
                             .foregroundStyle(.black)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 8)
@@ -306,7 +306,7 @@ struct CoachMarkSheetOverlay: View {
     private func sheetTooltipContent(step: CoachMarkStep) -> some View {
         VStack(spacing: 12) {
             Text(manager.tooltip(for: step))
-                .font(.systemSerif(15, weight: .light, relativeTo: .body))
+                .font(.geist(15, weight: .light, relativeTo: .body))
                 .italic()
                 .foregroundStyle(.white.opacity(0.9))
                 .multilineTextAlignment(.center)
@@ -315,7 +315,7 @@ struct CoachMarkSheetOverlay: View {
 
             Button { manager.skipAll() } label: {
                 Text("skip all")
-                    .font(.systemSerif(13, weight: .light, relativeTo: .caption))
+                    .font(.geist(13, weight: .light, relativeTo: .caption))
                     .foregroundStyle(.white.opacity(0.4))
             }
         }

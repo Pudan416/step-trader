@@ -1,0 +1,41 @@
+AUDIT: PASS
+scale1_file_count=261
+scale3_file_count=261
+scale1_pair_recursive_digest=35d5f7e2b640e010b9e0726237801bc26135b39aff1479a2dd06cd8bf29656c0
+scale3_pair_recursive_digest=fc20e175697d53e0ccdb113db3ebb778c5d3d8e25f047ccdffe34f453228fd4b
+scene_scale_records=81
+scene_scale_pngs=162
+native_scene_cross_scale_byte_identity=PASS
+native_scene_cross_scale_aggregate_sha256=637d31ea0975afd83cc058342a6f345f4ff814062a7a3f916e7b0007718b50d0
+outline_native_pngs=18
+outline_authority_schema=material-metrics-v9/outline-presentation-authority-v1
+outline_authority_actor_condition_records=90
+outline_authority_render_invocations=9
+outline_authority_cross_scale_sha256=444e251af9e720ebbc5f44981ed5a0dda9d4a66272f10460d899d035da676ad7
+family_actor_crops=27
+exact_topology_crops=6
+canonical_outline_fixtures=6
+contact_sheets=5
+full_to_tile_normalized_rgba_crops=81/81_per_candidate
+pre_audit_recursive_seals=35d5f7e2b640e010b9e0726237801bc26135b39aff1479a2dd06cd8bf29656c0,35d5f7e2b640e010b9e0726237801bc26135b39aff1479a2dd06cd8bf29656c0,fc20e175697d53e0ccdb113db3ebb778c5d3d8e25f047ccdffe34f453228fd4b,fc20e175697d53e0ccdb113db3ebb778c5d3d8e25f047ccdffe34f453228fd4b
+post_audit_recursive_seals=35d5f7e2b640e010b9e0726237801bc26135b39aff1479a2dd06cd8bf29656c0,35d5f7e2b640e010b9e0726237801bc26135b39aff1479a2dd06cd8bf29656c0,fc20e175697d53e0ccdb113db3ebb778c5d3d8e25f047ccdffe34f453228fd4b,fc20e175697d53e0ccdb113db3ebb778c5d3d8e25f047ccdffe34f453228fd4b
+pre_post_recursive_seal_identity=PASS
+aesthetic_verdict=NOT_PERFORMED
+        2.54 real         2.10 user         0.33 sys
+           240992256  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               54836  page reclaims
+                 277  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 520  voluntary context switches
+                 277  involuntary context switches
+         22523968224  instructions retired
+          7774441244  cycles elapsed
+           112067304  peak memory footprint

@@ -83,6 +83,7 @@ extension ProceduralShapeGenerator {
 
     private static let rectMorphN = 64
     private static let rectMorphMorphDuration: Double = 16.0
+    private static let rectMorphScaleFractionRange: ClosedRange<CGFloat> = 0.35...0.98
     static let rectMorphTrailLen = 10
     static let rectMorphTrailPeakAlpha: Double = 0.35
     static let rectMorphTrailSpacing: Double = 0.8
@@ -145,6 +146,16 @@ extension ProceduralShapeGenerator {
         return options[rng.nextInt(in: 0...(options.count - 1))]
     }
 
+    /// Actual seeded path bounds inside a large canonical morph rect. Preview
+    /// layout uses this rather than the nominal outer radius because folds and
+    /// rotation can make two equal-radius snowflakes read at different sizes.
+    static func rectMorphBoundingDiameterFraction(seed: UInt64) -> CGFloat {
+        let side: CGFloat = 1_000
+        let rect = CGRect(x: 0, y: 0, width: side, height: side)
+        let bounds = rectMorphFrame(seed: seed, time: 0, in: rect).path.boundingRect
+        return max(bounds.width, bounds.height) / side
+    }
+
     private static func pickSnowflake(seedForIndex seed: UInt64, index: Int, folds: Int, in rect: CGRect) -> RectMorphShape {
         var rng = SeededRNG(seed: seed ^ UInt64(bitPattern: Int64(index)))
 
@@ -154,7 +165,7 @@ extension ProceduralShapeGenerator {
         let cy = rect.midY + rng.nextCGFloat(in: -margin...margin)
 
         let maxR = max(20, dim / 2 - margin)
-        let scale = rng.nextCGFloat(in: maxR * 0.35...maxR * 0.98)
+        let scale = maxR * rng.nextCGFloat(in: rectMorphScaleFractionRange)
         let halfSector = Double.pi / Double(folds)
         let rotation = rng.nextDouble(in: 0...(2 * .pi / Double(folds)))
         let colorIdx = rng.nextInt(in: 0...(CanvasColorPalette.paletteHex.count - 1))

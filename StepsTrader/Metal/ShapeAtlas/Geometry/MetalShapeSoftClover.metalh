@@ -1,0 +1,9 @@
+#pragma once
+#include "../MetalShapeUniforms.metalh"
+
+static float metalShapeSoftCloverRadius(float theta, constant MetalShapeGenomeUniforms &g) {
+    const float valley = clamp(g.transform.z, 0.46, 0.58);
+    const float exponent = clamp(g.transform.w, 0.54, 0.74);
+    const float lobe = abs(cos(2.0 * (theta - M_PI_F * 0.25)));
+    return valley + (1.0 - valley) * pow(lobe, exponent);
+}

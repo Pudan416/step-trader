@@ -49,24 +49,27 @@ struct TicketGroupQuery: EntityQuery {
 
 struct SelectGroupIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "Select Groups"
-    static var description: IntentDescription = "Choose which app groups to display. Medium uses Slot 1. Large uses all four."
+    static var description: IntentDescription = "Choose up to three app groups and a background for this widget."
 
-    @Parameter(title: "Slot 1")
+    @Parameter(title: "App group 1")
     var group1: TicketGroupEntity?
 
-    @Parameter(title: "Slot 2")
+    @Parameter(title: "App group 2")
     var group2: TicketGroupEntity?
 
-    @Parameter(title: "Slot 3")
+    @Parameter(title: "App group 3")
     var group3: TicketGroupEntity?
 
-    @Parameter(title: "Slot 4")
-    var group4: TicketGroupEntity?
+    @Parameter(title: "Background", default: .appDefault)
+    var background: WidgetBackgroundOption
+
+    @Parameter(title: "Wallpaper position", default: .appDefault)
+    var wallpaperPosition: WallpaperPositionOption
 
     init() {}
 
     var selectedIds: [String] {
-        [group1, group2, group3, group4].compactMap { $0?.id }
+        WidgetGroupSelection.largeIDs([group1, group2, group3].compactMap { $0?.id })
     }
 }
 
@@ -74,10 +77,16 @@ struct SelectGroupIntent: WidgetConfigurationIntent {
 
 struct SelectSingleGroupIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "Select Group"
-    static var description: IntentDescription = "Choose one app group to display alongside the energy bar."
+    static var description: IntentDescription = "Choose one app group and a background for this widget."
 
     @Parameter(title: "App Group")
     var group: TicketGroupEntity?
+
+    @Parameter(title: "Background", default: .appDefault)
+    var background: WidgetBackgroundOption
+
+    @Parameter(title: "Wallpaper position", default: .appDefault)
+    var wallpaperPosition: WallpaperPositionOption
 
     init() {}
 
@@ -89,4 +98,36 @@ struct SelectSingleGroupIntent: WidgetConfigurationIntent {
 enum MediumWidgetMode: String {
     case stats = "stats"
     case app = "app"
+}
+
+
+enum WallpaperPositionOption: String, AppEnum {
+    case appDefault, top, middle, bottom
+    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Wallpaper position")
+    static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
+        .appDefault: "Use app setting", .top: "Top", .middle: "Middle", .bottom: "Bottom"
+    ]
+    var position: WidgetWallpaperPosition? { WidgetWallpaperPosition(rawValue: rawValue) }
+}
+
+struct StatusWidgetIntent: WidgetConfigurationIntent {
+    static var title: LocalizedStringResource = "Energy Status"
+    static var description: IntentDescription = "Choose a background and wallpaper position for this widget."
+    @Parameter(title: "Background", default: .appDefault)
+    var background: WidgetBackgroundOption
+
+    @Parameter(title: "Wallpaper position", default: .appDefault)
+    var wallpaperPosition: WallpaperPositionOption
+    init() {}
+}
+
+// Glass / Clear is a Home Screen appearance controlled by iOS, not a per-widget option.
+extension WidgetBackgroundOption: AppEnum {
+    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Background")
+    static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
+        .appDefault: "App default",
+        .basic: "No picture",
+        .wallpaper: "Picture inside",
+        .aligned: "Continue wallpaper"
+    ]
 }
